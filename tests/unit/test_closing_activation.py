@@ -39,7 +39,7 @@ def test_invalid_or_other_artifact_guard_never_admits(monkeypatch, milliseconds,
     monkeypatch.setattr(
         entry,
         "load_settings",
-        lambda: {
+        lambda _path=None: {
             "live_alpha": True,
             "live_closing_guard_ms": milliseconds,
             "live_closing_guard_ref": ref,

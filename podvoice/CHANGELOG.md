@@ -1,3 +1,10 @@
+## 2.0.6 — preserve settings and release hidden Talk owners
+
+- Read saved settings without rewriting them. Reject ambiguous, unsupported or non-finite sources; retain invalid room rows for explicit repair. Validate complete saves before writing, preserve the previous source and commit with an owned atomic file replacement.
+- Keep the selected conversation mode at its verified value if the saved file becomes unavailable after startup. Use one fixed settings address for native rooms and Talk; apply a successful mode save at the next conversation while preserving the active owner.
+- Stop the current Talk owner when leaving its tab. Fence late microphone, audio, peer and command events; returning to Talk stays idle until a new explicit microphone or text action starts a fresh owner. Show concise settings errors and retain incomplete rows until repaired or removed.
+- Add source-bound atomic-save, actual-main/native/Talk, provider-ACK and browser regressions. Physical lifecycle, audible media drain, full mode migration and platform acceptance remain separate gates.
+
 ## 2.0.5 — preserve fresh input before idle closing
 
 - Recheck current Voice PE input before the existing inactivity close. Fresh native speech or a current queued nonempty input cancels the stale close and uses the existing quiet window. Preserve model ending, normal Stop, error cleanup and Talk ownership.

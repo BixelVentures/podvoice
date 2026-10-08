@@ -1098,7 +1098,13 @@ async def _history_clear(request: web.Request) -> web.Response:
 
 async def _settings_get(request: web.Request) -> web.Response:
     fn = request.app[SETTINGS_GET]
-    return web.json_response(fn() if fn is not None else {})
+    data = fn() if fn is not None else {}
+    if data.get("settings_source_untrusted"):
+        return web.json_response(
+            {"ok": False, "error": data["settings_error"], "settings_source_untrusted": True},
+            status=409,
+        )
+    return web.json_response(data)
 
 
 async def _settings_set(request: web.Request) -> web.Response:
@@ -1115,6 +1121,14 @@ async def _settings_set(request: web.Request) -> web.Response:
         saved = fn(body)
     except ValueError as e:  # human-readable validation error for the panel
         return web.json_response({"ok": False, "error": str(e)}, status=400)
+    except OSError:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": "Indstillingerne blev ikke gemt. Kontrollér ledig plads og filadgang, og prøv igen.",
+            },
+            status=503,
+        )
     from .settings import masked
 
     return web.json_response({"ok": True, "settings": masked(saved)})

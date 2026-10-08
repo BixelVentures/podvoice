@@ -8,11 +8,13 @@ is the right place for it.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
+import math
 import os
 import pathlib
+import sys
+import tempfile
 
 from . import constants as C
 from .device_control import validate_entities
@@ -35,7 +37,7 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
     return pathlib.Path(env) if env else SETTINGS_PATH
 
 
-# Bumping this triggers the one-time stale-tuning reset in load_settings(): any saved
+# This schema retains the documented read-only migration projection: any saved
 # file with an older (or missing) version gets its TUNING_KEYS dropped, so values saved
 # under old defaults (watchdog 800ms, lounge 0s, near_field noise…) can't keep overriding
 # retuned defaults forever. Identity settings (keys, rooms, prompts) are kept.
@@ -235,58 +237,110 @@ DEFAULTS: dict = {
 }
 
 
-def load_settings(path: pathlib.Path | None = None) -> dict:
-    """Return defaults overlaid with any saved panel settings.
+def _unique_object(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Settingsfilen har gentagne felter; gendan den tidligere fil.")
+        result[key] = value
+    return result
 
-    Saved files from an older SETTINGS_VERSION get their TUNING_KEYS dropped (one-time
-    stale-tuning reset) and are re-stamped, so old bad knob values can't silently override
-    retuned defaults across upgrades. Identity settings always survive.
-    """
-    src = _resolve(path)
-    data = dict(DEFAULTS)
+
+def _reject_constant(value: str) -> None:
+    raise ValueError("Settingsfilen indeholder et ugyldigt tal; gendan den tidligere fil.")
+
+
+def _finite_float(value) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("Settingsfilen indeholder et ugyldigt tal; gendan den tidligere fil.")
+    return number
+
+
+def _read_source(src: pathlib.Path) -> tuple[dict, bytes | None]:
     try:
-        if src.exists():
-            saved = json.loads(src.read_text())
-            saved_version = int(saved.get("settings_version") or 1)
-            if saved_version < SETTINGS_VERSION:
-                migration_keys = (
-                    frozenset({"idle_timeout_s"}) if saved_version == 10 else TUNING_KEYS
-                )
-                stale = sorted(k for k in saved if k in migration_keys)
-                if stale:
-                    _LOG.info(
-                        "settings v%s -> v%s: resetting stale tuning to defaults: %s",
-                        saved.get("settings_version") or 1,
-                        SETTINGS_VERSION,
-                        ", ".join(stale),
-                    )
-                saved = {k: v for k, v in saved.items() if k not in migration_keys}
-                saved["settings_version"] = SETTINGS_VERSION
-                with contextlib.suppress(Exception):  # migration write-back is best-effort
-                    src.write_text(json.dumps(saved, indent=2))
-            sp = saved.get("system_prompt")
-            # A saved prompt that still teaches the RETIRED REST tools (list_home /
-            # list_services / home_call) is stale by construction: those tools were
-            # deleted with the MCP switch, so the model is being told to call things
-            # that do not exist (the 0.88 class — prompt promises, toolset can't).
-            # Hash-matching only catches untouched defaults; this catches edited ones.
-            if isinstance(sp, str) and any(
-                dead in sp for dead in ("list_home", "list_services", "home_call")
-            ):
-                _LOG.warning(
-                    "saved system_prompt names RETIRED tools (list_home/list_services/"
-                    "home_call) — dropping it and using the current default"
-                )
-                saved.pop("system_prompt", None)
-                sp = None
-            if isinstance(sp, str):
-                import hashlib
+        raw = src.read_bytes()
+    except FileNotFoundError:
+        return {}, None
+    try:
+        saved = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_unique_object,
+            parse_constant=_reject_constant,
+            parse_float=_finite_float,
+        )
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Settingsfilen kan ikke læses; gendan den tidligere fil.") from exc
+    if not isinstance(saved, dict):
+        raise ValueError("Settingsfilen skal indeholde et objekt; gendan den tidligere fil.")
+    version = saved.get("settings_version", 1)
+    if type(version) is not int or not 1 <= version <= SETTINGS_VERSION:
+        raise ValueError(
+            "Settingsfilens version understøttes ikke; brug den tilsvarende version eller gendan filen."
+        )
+    return saved, raw
 
-                if hashlib.sha256(sp.strip().encode()).hexdigest() in LEGACY_PROMPT_HASHES:
-                    saved.pop("system_prompt", None)  # stale copy of an old default
-            data.update({k: v for k, v in saved.items() if k in DEFAULTS})
-    except Exception as e:  # corrupt file must not stop the add-on
-        _LOG.warning("could not read %s: %s — using defaults", src, e)
+
+def validate_rooms(value: object) -> list[dict]:
+    """Validate complete identities before admitting any room owner or Save."""
+    if not isinstance(value, list):
+        raise ValueError("rooms: expected a list")
+    hosts: set[str] = set()
+    rooms: set[str] = set()
+    for row in value:
+        if not isinstance(row, dict) or any(
+            not isinstance(row.get(key), str) or not row[key].strip()
+            for key in ("voicepe_host", "room")
+        ):
+            raise ValueError("Rum: hver række skal have en Voice PE-adresse og et rum som tekst.")
+        if "voicepe_noise_psk" in row and not isinstance(row["voicepe_noise_psk"], str):
+            raise ValueError("Rum: krypteringsnøglen skal være tekst.")
+        host, room = row["voicepe_host"].strip().casefold(), row["room"].strip()
+        if host in hosts or room in rooms:
+            raise ValueError("Rum: hver Voice PE-adresse og hvert rum må kun forekomme én gang.")
+        hosts.add(host)
+        rooms.add(room)
+    return value
+
+
+def _project_settings(saved: dict) -> dict:
+    """Project the existing ≤9/v10 migration policy without writing the source."""
+    data = dict(DEFAULTS)
+    saved = dict(saved)
+    saved_version = int(saved.get("settings_version") or 1)
+    if saved_version < SETTINGS_VERSION:
+        migration_keys = frozenset({"idle_timeout_s"}) if saved_version == 10 else TUNING_KEYS
+        stale = sorted(k for k in saved if k in migration_keys)
+        if stale:
+            _LOG.info(
+                "settings v%s -> v%s: resetting stale tuning to defaults: %s",
+                saved.get("settings_version") or 1,
+                SETTINGS_VERSION,
+                ", ".join(stale),
+            )
+        saved = {k: v for k, v in saved.items() if k not in migration_keys}
+        saved["settings_version"] = SETTINGS_VERSION
+    sp = saved.get("system_prompt")
+    # A saved prompt that still teaches the RETIRED REST tools (list_home /
+    # list_services / home_call) is stale by construction: those tools were
+    # deleted with the MCP switch, so the model is being told to call things
+    # that do not exist (the 0.88 class — prompt promises, toolset can't).
+    # Hash-matching only catches untouched defaults; this catches edited ones.
+    if isinstance(sp, str) and any(
+        dead in sp for dead in ("list_home", "list_services", "home_call")
+    ):
+        _LOG.warning(
+            "saved system_prompt names RETIRED tools (list_home/list_services/"
+            "home_call) — dropping it and using the current default"
+        )
+        saved.pop("system_prompt", None)
+        sp = None
+    if isinstance(sp, str):
+        import hashlib
+
+        if hashlib.sha256(sp.strip().encode()).hexdigest() in LEGACY_PROMPT_HASHES:
+            saved.pop("system_prompt", None)  # stale copy of an old default
+    data.update({k: v for k, v in saved.items() if k in DEFAULTS})
     # Architecture invariants, not user preferences. Old settings cannot resurrect a
     # second engine, the stock-VA-dependent direct speaker experiment, or the parked
     # full-duplex puck path. Talk opts into browser duplex in its own adapter wiring;
@@ -297,6 +351,43 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
     data["full_duplex"] = False
     # Corrupt or hand-edited truthy values must never enable an experimental provider.
     data["live_alpha"] = data.get("live_alpha") is True
+    for key, template in DEFAULTS.items():
+        if isinstance(template, float):
+            try:
+                number = float(data[key])
+            except (TypeError, ValueError):
+                continue  # preserve Config's existing fallback for nonnumeric saved strings
+            except OverflowError:
+                raise ValueError(
+                    "Settingsfilen indeholder et ugyldigt tal; gendan den tidligere fil."
+                ) from None
+            _finite_float(number)
+    return data
+
+
+def load_settings(path: pathlib.Path | None = None, *, require_existing: bool = False) -> dict:
+    """Read-only projection; faults preserve the source and keep the panel available."""
+    src = _resolve(path)
+    try:
+        saved, raw = _read_source(src)
+        if require_existing and raw is None:
+            raise ValueError("Settingsfilen mangler; gendan den tidligere fil.")
+        data = _project_settings(saved)
+    except (OSError, ValueError) as exc:
+        _LOG.warning("settings unavailable: %s", type(exc).__name__)
+        data = _project_settings({})
+        data["settings_error"] = (
+            str(exc)
+            if isinstance(exc, ValueError)
+            else "Settingsfilen kan ikke læses; kontrollér filadgang eller gendan den tidligere fil."
+        )
+        data["settings_source_untrusted"] = True
+        return data
+    try:
+        validate_rooms(data["rooms"])
+    except ValueError as exc:
+        # Keep the rejected rows visible for correction; Config/diagnostics admit none.
+        data["settings_error"] = str(exc)
     return data
 
 
@@ -343,13 +434,13 @@ def _coerce(key: str, value, template) -> object:
     if isinstance(template, int) and not isinstance(template, bool):
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             raise ValueError(f"{key}: expected a number") from None
     if isinstance(template, float):
         try:
-            return float(value)
-        except (TypeError, ValueError):
-            raise ValueError(f"{key}: expected a number") from None
+            return _finite_float(value)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(f"{key}: expected a finite number") from None
     if isinstance(template, str):
         if isinstance(value, str):
             return value
@@ -358,9 +449,7 @@ def _coerce(key: str, value, template) -> object:
         if not isinstance(value, list):
             raise ValueError(f"{key}: expected a list")
         if key == "rooms":
-            for r in value:
-                if not (isinstance(r, dict) and r.get("voicepe_host") and r.get("room")):
-                    raise ValueError("rooms: each row needs a Voice PE host and a room")
+            return validate_rooms(value)
         return value
     return value
 
@@ -371,17 +460,51 @@ def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
     Raises ValueError (with a human-readable message for the panel) instead of ever
     persisting a value the boot path can't parse. Masked secrets are skipped."""
     src = _resolve(path)
-    data = load_settings(src)
+    saved, previous = _read_source(src)  # strict refusal before any migration/write
+    data = _project_settings(saved)
     for k, v in values.items():
         if k not in DEFAULTS:
             continue
         if k in SECRET_SETTINGS and v == SECRET_MASK:
             continue  # round-tripped mask — keep the stored secret
+        if k == "settings_version" and (type(v) is not int or v != SETTINGS_VERSION):
+            raise ValueError("settings_version: versionen administreres af PodVoice")
         data[k] = _coerce(k, v, DEFAULTS[k])
     data["engine"] = "thin"
     data["speaker_path"] = "announce"
     data["full_duplex"] = False
+    if data["settings_version"] != SETTINGS_VERSION:
+        raise ValueError("settings_version: versionen administreres af PodVoice")
+    data = {k: _coerce(k, v, DEFAULTS[k]) for k, v in data.items()}
+    serialized = json.dumps(data, indent=2, allow_nan=False)  # before any backup or write
     src.parent.mkdir(parents=True, exist_ok=True)
-    src.write_text(json.dumps(data, indent=2))
+    if previous is not None:
+        _atomic_write(src.with_name(src.name + ".bak"), previous)
+    _atomic_write(src, serialized)
     _LOG.info("settings saved to %s", src)
     return data
+
+
+def _atomic_write(destination: pathlib.Path, contents: str | bytes) -> None:
+    """Same-directory replace; .bak contains exact pre-Save bytes for 2.0.5 rollback."""
+    fd, name = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
+    temporary = pathlib.Path(name)
+    try:
+        os.close(fd)
+        if isinstance(contents, bytes):
+            temporary.write_bytes(contents)
+        else:
+            temporary.write_text(contents, encoding="utf-8")
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+    finally:
+        active_error = sys.exception()
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            if active_error is None:
+                raise
+            active_error.add_note(
+                f"Settings temporary cleanup failed: {type(cleanup_error).__name__}"
+            )

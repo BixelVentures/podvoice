@@ -20,9 +20,8 @@ async def test_boot_prepares_pure_sdk_only_for_saved_alpha(monkeypatch, enabled)
     from gatekeeper import openai_live
 
     preparation = AsyncMock()
-    monkeypatch.setattr(main, "_live_alpha_enabled", lambda: enabled)
     monkeypatch.setattr(openai_live, "prepare_live_sdk", preparation)
-    await main._prepare_saved_live_alpha()
+    await main._prepare_saved_live_alpha(enabled)
     assert preparation.await_count == int(enabled)
 
 
@@ -31,10 +30,9 @@ async def test_boot_import_failure_keeps_settings_available(monkeypatch):
     from gatekeeper import __main__ as main
     from gatekeeper import openai_live
 
-    monkeypatch.setattr(main, "_live_alpha_enabled", lambda: True)
     preparation = AsyncMock(side_effect=ImportError("synthetic missing dependency"))
     monkeypatch.setattr(openai_live, "prepare_live_sdk", preparation)
-    await main._prepare_saved_live_alpha()
+    await main._prepare_saved_live_alpha(True)
     preparation.assert_awaited_once()
 
 
@@ -60,7 +58,7 @@ def test_alpha_requires_explicit_boolean(tmp_path, value):
     assert settings.load_settings(path)["live_alpha"] is False
 
 
-def test_physical_builder_retains_realtime_and_reads_saved_flag_at_wake(monkeypatch, tmp_path):
+def test_physical_builder_retains_realtime_and_exact_run_selection_callback(monkeypatch, tmp_path):
     from gatekeeper import __main__ as main
     from gatekeeper import thin
     from gatekeeper.config import Config, RoomMap
@@ -77,6 +75,7 @@ def test_physical_builder_retains_realtime_and_reads_saved_flag_at_wake(monkeypa
     monkeypatch.setattr(thin, "ThinSession", lambda **kwargs: SimpleNamespace(**kwargs))
     cfg = Config("http://attention", "", "", (), openai_api_key="test", system_prompt="Tilpasset")
     manager = object()
+    selected = Mock(return_value=False)
     session = main._build_session(
         cfg,
         RoomMap("puck.local", "r0"),
@@ -85,6 +84,7 @@ def test_physical_builder_retains_realtime_and_reads_saved_flag_at_wake(monkeypa
         Mock(),
         reply_token="token",
         live_audio=manager,
+        live_enabled=selected,
     )
     assert session.brain is realtime
     assert session.live_brain is live_factory.return_value
@@ -92,8 +92,11 @@ def test_physical_builder_retains_realtime_and_reads_saved_flag_at_wake(monkeypa
     assert session.live_audio is manager
     assert session.live_reply_url == "http://192.0.2.1:8098/reply/live/{stream_id}.wav?t=token"
     assert session.reply_url == "http://192.0.2.1:8098/reply/r0.flac?t=token"
+    assert session.live_enabled is selected
     assert session.live_enabled() is False
     settings.save_settings({"live_alpha": True}, path)
+    assert session.live_enabled() is False  # builder does not own persistence refresh
+    selected.return_value = True
     assert session.live_enabled() is True
     assert session.brain is realtime  # saving only changes next-wake selection
     assert (
@@ -109,7 +112,7 @@ def test_talk_alpha_uses_browser_rate_and_ingress_relative_route():
     talk = source[source.index("    def _make_talk") : source.index("    live_eval = None")]
     assert "input_rate=OPENAI_RATE" in talk
     assert 'live_reply_url="reply/live/{stream_id}.wav"' in talk
-    assert "live_enabled=_live_alpha_enabled" in talk
+    assert "live_enabled=read_live_alpha" in talk
 
 
 def test_talk_submitted_is_not_rejected_or_presented_as_acknowledged():
@@ -121,3 +124,53 @@ def test_talk_submitted_is_not_rejected_or_presented_as_acknowledged():
     assert 'id="s_live_alpha" type="checkbox"' in html
     assert 'var FIELDS = ["live_alpha",' in html
     assert "fra næste samtale" in html
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_config_selection_and_address_share_one_boot_read(tmp_path, monkeypatch, enabled):
+    from gatekeeper.config import load_config
+
+    options = tmp_path / "options.json"
+    options.write_text('{"openai_api_key":"inert-selection-test"}')
+    path = tmp_path / "settings.json"
+    settings.save_settings({"live_alpha": enabled}, path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PODVOICE_SETTINGS", "settings.json")
+    original = settings._read_source
+    calls = []
+
+    def read(source):
+        calls.append(source)
+        return original(source)
+
+    monkeypatch.setattr(settings, "_read_source", read)
+    cfg = load_config(options)
+    assert calls == [path]
+    assert cfg.settings_path == path and cfg.settings_path.is_absolute()
+    assert cfg.live_alpha is enabled
+    monkeypatch.setenv("PODVOICE_SETTINGS", str(tmp_path / "other.json"))
+    assert cfg.settings_path == path and cfg.live_alpha is enabled
+
+
+def test_postboot_presence_uses_same_source_read_and_preserves_initial_missing_policy(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "missing.json"
+    original = settings._read_source
+    calls = []
+
+    def read(source):
+        calls.append(source)
+        return original(source)
+
+    def forbidden_exists(_self):
+        raise AssertionError("second existence admission is forbidden")
+
+    monkeypatch.setattr(settings, "_read_source", read)
+    monkeypatch.setattr(Path, "exists", forbidden_exists)
+    initial = settings.load_settings(path)
+    strict = settings.load_settings(path, require_existing=True)
+    assert calls == [path, path]
+    assert initial["live_alpha"] is False and not initial.get("settings_source_untrusted")
+    assert strict["settings_source_untrusted"] and strict["settings_error"]
+    assert not path.parent.joinpath(path.name + ".bak").is_file()

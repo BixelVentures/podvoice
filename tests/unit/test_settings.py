@@ -157,8 +157,11 @@ def test_v10_migrates_only_the_binding_four_second_timeout(tmp_path):
     assert loaded["mic_gain"] == 16
     assert loaded["rooms"] == [{"voicepe_host": "voice.local", "room": "r0"}]
     persisted = json.loads(p.read_text())
-    assert persisted["settings_version"] == 11
-    assert "idle_timeout_s" not in persisted
+    assert persisted["settings_version"] == 10
+    assert persisted["idle_timeout_s"] == 8  # reads project; only valid Save commits migration
+    S.save_settings({}, p)
+    assert json.loads(p.read_text())["settings_version"] == 11
+    assert json.loads(p.read_text())["idle_timeout_s"] == 4
 
 
 def test_v4_drops_a_stale_full_duplex_flag(tmp_path):

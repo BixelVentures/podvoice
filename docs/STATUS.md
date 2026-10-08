@@ -1,5 +1,48 @@
 # PodVoice-status — én aktuel sandhed
 
+<!-- podvoice-206-settings-talk-final-candidate-20261008 -->
+### 8/10 — 2.0.6 kandidat: bevar settings og frigiv skjult Talk
+
+Lead root. #113/#115: read/write-kæden på 2.0.5 kunne omskrive historiske værdier,
+skjule ugyldige rum og miste et verificeret modevalg efter en kildefejl. Talk kunne
+bevare en skjult mikrofon/peer og acceptere sene events efter faneskift. Direkte
+sourcebundne regressioner afgrænser årsagerne; tidligere røde prøver bevares.
+
+Én ejerkæde: fast configadresse og ikke-skrivende read → strict valideret/atomisk
+Save → run-ejet verificeret modevalg → næste native/Talk-samtale → eksisterende
+Thin/provider/tool/playback/teardown → frisk wake eller eksplicit Talk-input.
+Aktiv samtale skifter ikke motor. Stale sockets/peer/playback/kommandoer kan ikke
+krydse ejerskiftet; rumfejl og ukendt settingskilde holdes særskilt. En backup er
+præcis forrige strukturelt parsebare kilde, ikke garanteret fejlfri konfiguration.
+
+Berørte invarianter: én Thin-ejer, provider-ejet betydning, korreleret inputaccept
+og playback/lifecycle, én teardown/rearm. Falsificerbar hypotese: bevaret rå kilde,
+validering før commit og ét verificeret run-valg fjerner settingsfejl uden ny
+samtalevej; fanens eksisterende Stop-ejer og stale-veto fjerner skjulte Talk-ejere.
+Ikke-mål: prompt/provider/lyd/firmware/timingændringer, ny mode/default/migration,
+fysisk musikflytning eller erklæret fysisk lifecycle-/latencyaccept.
+
+Faktisk ændring og bevis: uafhængigt backend/UI/tooling/whole-source review;
+238 settings-unitcases, actual-main/adapter/integration, exact typed provider-ACK
+og alle12 gemt-valg-cases. Samlet fast har style/types, alle otte unitgrupper,
+begge fulde integrationscohorts og den eksisterende fire-worker browserrecipe.
+Kun observeret ugyldige testoracles/fixtures blev korrigeret efter selvstændigt
+review; de oprindelige FAIL-logs står ved magt. Source før/efter er identisk på
+hver faktisk prøve. Disse er sammensatte softwarebeviser, ikke fysisk acceptance.
+
+Nu er kun version/changelog/denne beslutningspost tilføjet; den tidligere 2.0.5-
+coupling-record bevares byteidentisk som historisk. Aktuel single-domain scope
+bruges kun, hvis den eksisterende maskinelle kontrakt faktisk accepterer bytes.
+Fresh whole-freeze/review kræves før præcis én releasegate, efterfulgt af præcis
+head-CI/main-artifact/installation. Ved drift/alvorlig finding/gateFAIL STOP.
+Rollback til 2.0.5 med bevaret settings har ingen arvet physical/golden-status.
+
+#113 fuld migration/real Supervisor-restart/rollback, #115 platform/audible Talk-
+drain og epics94/95/96 er fortsat åbne efter deres egne acceptkrav. Kandidaten er
+ikke fysisk golden, lifecycle10/10 eller latency-godkendt. Ingen feltoplevelse,
+privat telemetry eller hjemmelyd publiceres i denne beslutningspost.
+
+
 <!-- pc9-native-finite-outer-decision-20261008 -->
 ### 8/10 — PC9 inert nativebaseline: ét endeligt ydre procesansvar
 
@@ -90,7 +133,7 @@ alvorlig finding, gateFAIL eller nærliggende uafklaret race STOP før release/i
 Rollback eksakt204 arver ingen nye physical/readinessbeviser. Ingen kandidatgates
 waives af reviewposten nedenfor; den optager kun den præcise reviewede produktkobling.
 
-<!-- candidate-scope-coupling
+<!-- historical-v2.0.5-candidate-scope-coupling
 {
   "version": 4,
   "kind": "native_idle_input_passive_ui",

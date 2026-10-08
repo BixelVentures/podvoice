@@ -46,7 +46,8 @@ def test_config_survives_garbage_values():
         }
     )
     assert cfg.duck_level == 0 and cfg.vad_threshold > 0
-    assert [r.room for r in cfg.rooms] == ["ok"]  # malformed rows skipped, not fatal
+    assert cfg.rooms == () and cfg.settings_error  # no silent partial room owner admission
+    assert not cfg.settings_source_untrusted  # known JSON remains explicitly repairable
 
 
 def test_legacy_default_prompt_is_migrated(tmp_path):

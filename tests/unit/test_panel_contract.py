@@ -139,7 +139,7 @@ def test_talk_v2_commits_only_acknowledged_text_and_detects_stale_sockets():
     assert 'ev.type === "hello" && ev.protocol === 2' in html
     assert 'ev.type === "command_result"' in html
     assert "pendingText[commandId] = { text: t }" in html
-    assert "if (sendBtn.disabled || diagnosticActive) return;" in html
+    assert "if (sendBtn.disabled || diagnosticActive || !talkVisible()) return;" in html
     assert 'logLine("in", "you", pending.text)' in html
     assert 'logLine("in", "you", t)' not in html
     assert "Date.now() - lastPong > 15000" in html

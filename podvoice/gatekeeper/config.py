@@ -66,6 +66,10 @@ class Config:
     heartbeat_ms: int = C.HEARTBEAT_MS
     watchdog_ms: int = C.WATCHDOG_MS
     vad_threshold: float = C.VAD_THRESHOLD
+    settings_error: str = ""
+    settings_source_untrusted: bool = False
+    live_alpha: bool = False
+    settings_path: pathlib.Path | None = None
 
     @property
     def ttl_listening_ms(self) -> int:
@@ -110,9 +114,19 @@ def _float(opts: dict, key: str, default: float) -> float:
         return default
 
 
-def from_options(opts: dict) -> Config:
+def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Config:
     """Build a Config from a parsed options dict (Supervisor or YAML shape)."""
-    rooms_raw = opts.get("rooms") or []
+    from .settings import validate_rooms
+
+    settings_error = str(opts.get("settings_error") or "")
+    settings_source_untrusted = opts.get("settings_source_untrusted") is True
+    try:
+        rooms_raw = validate_rooms(opts.get("rooms", []))
+    except ValueError as exc:
+        settings_error = str(exc)
+        rooms_raw = []
+    if settings_source_untrusted:
+        rooms_raw = []
     rooms = tuple(
         RoomMap(
             voicepe_host=r["voicepe_host"],
@@ -120,8 +134,6 @@ def from_options(opts: dict) -> Config:
             voicepe_noise_psk=r.get("voicepe_noise_psk", opts.get("voicepe_noise_psk", "")),
         )
         for r in rooms_raw
-        # A malformed room row is skipped (logged by the caller's room list), not fatal.
-        if isinstance(r, dict) and r.get("voicepe_host") and r.get("room")
     )
     return Config(
         podconnect_base_url=opts.get("podconnect_base_url", ""),
@@ -129,6 +141,10 @@ def from_options(opts: dict) -> Config:
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),
+        settings_error=settings_error,
+        settings_source_untrusted=settings_source_untrusted,
+        live_alpha=opts.get("live_alpha") is True,
+        settings_path=settings_path,
         ha_mcp_url=str(opts.get("ha_mcp_url", "") or ""),
         ha_mcp_token=str(opts.get("ha_mcp_token", "") or ""),
         system_prompt=opts.get("system_prompt", ""),
@@ -223,11 +239,12 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     """Merge panel-managed settings (/data/podvoice.json) with the key-only add-on
     options. The HA Configuration tab holds only the API keys; everything else is
     edited in the panel's Settings page (settings.py)."""
-    from .settings import load_settings  # local import avoids an import cycle
+    from .settings import _resolve, load_settings  # local import avoids an import cycle
 
     opts = load_options(path)
-    merged = dict(load_settings())
+    settings_path = _resolve(None).absolute()  # same frozen address for this exact read and run
+    merged = dict(load_settings(settings_path))
     # The add-on options provide only the secrets that stay in HA Configuration.
     merged["openai_api_key"] = opts.get("openai_api_key", "")
     merged["supervisor_token"] = opts.get("supervisor_token", "")
-    return from_options(merged)
+    return from_options(merged, settings_path=settings_path)

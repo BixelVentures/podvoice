@@ -394,3 +394,319 @@ async def test_disconnect_reports_but_retains_command_still_pending_after_close(
     finally:
         release.set()
         await asyncio.wait_for(task, 1)
+
+
+def _exit_session_owners(session):
+    """Only known handles of these two fixture sessions, never a global task sweep."""
+    return tuple(
+        dict.fromkeys(
+            [
+                session._reader,
+                session._pump,
+                session._beat,
+                session._keepalive,
+                session._close_task,
+                session._live_close_task,
+                session._live_opening_task,
+                session._live_rotation_task,
+                session._live_idle_preclose_task,
+                session._goodbye,
+                session._rearm_retry_task,
+                session._teardown_retry_task,
+                *session._tasks,
+                *session._tool_tasks.values(),
+                *session._live_rotation_io,
+                *session._live_idle_preclose_owners,
+                session.heartbeat._task,
+                session.heartbeat._beat_task,
+                session.playback._task,
+                session.live_brain._reader,
+                session.live_brain._startup_task,
+            ]
+        )
+    )
+
+
+def _observe_exit_aclose(session, monkeypatch):
+    """Forward exact owners, recording returned adapter calls outside adapter state."""
+    original = session.aclose
+    seen = SimpleNamespace(public=[], suffix_tasks=[], adapters={"playback": [], "voicepe": []})
+
+    async def observe():
+        seen.public.append(asyncio.current_task())
+        await original()
+
+    def observe_adapter(owner, name):
+        original_adapter = owner.aclose
+
+        async def close():
+            receipt = SimpleNamespace(task=asyncio.current_task(), returned=False, error=None)
+            seen.adapters[name].append(receipt)
+            try:
+                await original_adapter()
+                receipt.returned = True
+            except BaseException as exc:
+                receipt.error = exc
+                raise
+
+        monkeypatch.setattr(owner, "aclose", close)
+
+    observe_adapter(session.playback, "playback")
+    observe_adapter(session.voicepe, "voicepe")
+    monkeypatch.setattr(session, "aclose", observe)
+    return seen
+
+
+async def _finish_exit_session(session, retained, seen):
+    """Join public/true close; finish only genuinely skipped existing adapter suffixes."""
+    errors = []
+
+    async def observe(task, label, *, cancel=False):
+        if task is None:
+            return
+        if cancel and not task.done():
+            task.cancel()
+        _, pending = await asyncio.wait({task}, timeout=2)
+        if pending:
+            errors.append(TimeoutError(label + " did not join"))
+            return
+        if not task.cancelled():
+            failure = task.exception()
+            if failure is not None:
+                errors.append(failure)
+
+    if not seen.public:
+        # Initial shutdown only. A cancelled existing observer never permits a second Thin teardown.
+        public = asyncio.create_task(session.aclose(), name="talk-exit-fixture-aclose")
+        seen.public.append(public)
+    for public in tuple(dict.fromkeys(seen.public)):
+        await observe(public, "public close observer")
+        if not public.done():
+            await observe(public, "cancelled public close observer", cancel=True)
+    owner = session._close_task
+    await observe(owner, "true Thin close")
+    if owner is not None and not owner.done():
+        await observe(owner, "true Thin close failure rescue", cancel=True)
+    for name, adapter in (("playback", session.playback), ("voicepe", session.voicepe)):
+        for receipt in seen.adapters[name]:
+            if receipt.error is not None:
+                errors.append(receipt.error)
+        if not any(receipt.returned for receipt in seen.adapters[name]):
+            # These are exactly the adapter methods after Thin.aclose's shielded owner.
+            # No new Thin.aclose, _teardown, provider close, heartbeat or attention release.
+            suffix = asyncio.create_task(adapter.aclose(), name="talk-exit-fixture-" + name)
+            seen.suffix_tasks.append(suffix)
+            await observe(suffix, name + " public adapter suffix")
+            if not suffix.done():
+                await observe(suffix, name + " cancelled suffix", cancel=True)
+    owners = tuple(retained)
+    try:
+        owners = tuple(dict.fromkeys((*retained, *_exit_session_owners(session))))
+    except BaseException as exc:
+        errors.append(exc)
+    for task in owners:
+        if task is not None and not task.done():
+            errors.append(AssertionError("owned session task survived public close"))
+            await observe(task, "exact fixture-owned failure rescue", cancel=True)
+    try:
+        assert all(task is None or task.done() for task in owners)
+        assert all(task.done() for task in (*seen.public, *seen.suffix_tasks))
+        assert all(any(receipt.returned for receipt in rows) for rows in seen.adapters.values())
+        assert session.playback._task is None
+        if isinstance(session.voicepe, BrowserLink):
+            # BrowserLink.aclose is an actual no-op, not socket/track or native closed proof.
+            assert not session.voicepe._streaming
+        else:
+            assert session.voicepe.closed  # Existing field on this exact FakeVoicePELink fixture.
+        assert not session._active and not session._teardown_incomplete
+        live = session.live_brain
+        assert live._reader is None and live._startup_task is None
+        assert live._connection is None and live._manager is None
+        assert live._client is None and live._lease is None
+    except BaseException as exc:
+        errors.append(exc)
+    if errors:
+        primary = errors[0]
+        for error in errors[1:]:
+            primary.add_note(f"exact fixture cleanup: {error!r}")
+        raise primary
+
+
+async def test_panel_exit_stop_closes_only_its_actual_thin_and_fresh_input_reopens(monkeypatch):
+    """Actual socket/Thin owners with inert SDK/Voice PE; never physical media proof."""
+    wire = Wire()
+    link = HistoricalWavBrowserLink(wire.send_json, wire.send_bytes)
+    session, sdk, _, _, _ = build(device=link)
+    voice_session, voice_sdk, _, _, voice_link = build()
+    original_stop = session.stop
+    stop_reasons = []
+
+    async def observe_stop(**kwargs):
+        stop_reasons.append(kwargs.get("reason"))
+        await original_stop(**kwargs)
+
+    monkeypatch.setattr(session, "stop", observe_stop)
+    task = None
+    primary = None
+    observers = _observe_exit_aclose(session, monkeypatch)
+    voice_observers = _observe_exit_aclose(voice_session, monkeypatch)
+    try:
+        await voice_session.start()
+        await voice_session.wake()
+        voice_stream = voice_session._live_stream
+        voice_generation = voice_session.live_brain._connection_generation
+        voice_audio_generation = voice_link.audio_generation
+        assert voice_session._active
+        task = asyncio.create_task(run_talk(wire, session, link))
+        wire.send("wake", command_id="visible-wake")
+        await until(lambda: wire.result("visible-wake") is not None)
+        assert wire.result("visible-wake")["status"] == "accepted"
+        assert session._active
+        retired_generation = session.live_brain._connection_generation
+
+        # Same payload shape as the shipped Afslut/tab-exit sender, on this socket only.
+        wire.send("stop")
+        await until(
+            lambda: any(
+                e.get("type") == "command_result" and e.get("command_id") != "visible-wake"
+                for e in wire.outgoing
+            )
+        )
+        stopped = next(
+            e
+            for e in wire.outgoing
+            if e.get("type") == "command_result" and e.get("command_id") != "visible-wake"
+        )
+        assert stopped["status"] == "accepted"
+        assert stop_reasons == ["panel"]
+        assert not session._active
+        sdk.session.close.assert_awaited_once()
+        sdk.client.close.assert_awaited_once()
+        assert voice_session._active and voice_session._live_stream is voice_stream
+        assert voice_session.live_brain._connection_generation == voice_generation
+        assert voice_link.audio_generation == voice_audio_generation
+        voice_sdk.session.close.assert_not_called()
+        voice_sdk.client.close.assert_not_called()
+
+        fresh_sdk = SDK()
+        session.live_brain.client_factory = fresh_sdk.factory
+        wire.send("wake", command_id="explicit-return-wake")
+        await until(lambda: wire.result("explicit-return-wake") is not None)
+        assert wire.result("explicit-return-wake")["status"] == "accepted"
+        assert session._active
+        assert session.live_brain._connection_generation > retired_generation
+        fresh_sdk.session.start.assert_awaited_once()
+        wire.send("stop", command_id=stopped["command_id"])
+        wire.send("ping", ping_id="replayed-exit-processing-fence")
+        await until(
+            lambda: any(e.get("ping_id") == "replayed-exit-processing-fence" for e in wire.outgoing)
+        )
+        assert stop_reasons == ["panel"]
+        assert session._active and voice_session._active
+        fresh_sdk.session.close.assert_not_called()
+        voice_sdk.session.close.assert_not_called()
+    except BaseException as exc:
+        primary = exc
+    finally:
+        secondary = []
+        retained, voice_retained = (), ()
+        try:
+            retained = _exit_session_owners(session)
+        except BaseException as exc:
+            secondary.append(exc)
+        try:
+            voice_retained = _exit_session_owners(voice_session)
+        except BaseException as exc:
+            secondary.append(exc)
+        wire.incoming.put_nowait(None)
+        if task is not None:
+            _, pending = await asyncio.wait({task}, timeout=2)
+            if pending:
+                secondary.append(TimeoutError("Talk public-close observation timed out"))
+        for owned, held, seen in (
+            (session, retained, observers),
+            (voice_session, voice_retained, voice_observers),
+        ):
+            try:
+                await _finish_exit_session(owned, held, seen)
+            except BaseException as exc:
+                secondary.append(exc)
+        if task is not None:
+            if not task.done():
+                task.cancel()
+            _, pending = await asyncio.wait({task}, timeout=2)
+            if pending:
+                secondary.append(AssertionError("exact run_talk owner did not join"))
+            elif not task.cancelled() and task.exception() is not None:
+                secondary.append(task.exception())
+        if primary is None and secondary:
+            primary = secondary.pop(0)
+        if primary is not None:
+            for error in secondary:
+                primary.add_note(f"Talk-exit fixture cleanup: {error!r}")
+    if primary is not None:
+        raise primary
+
+
+@pytest.mark.parametrize("cancel_observation", [False, True])
+async def test_exit_fixture_joins_true_close_and_adapter_suffix_after_observation_cancel(
+    cancel_observation,
+    monkeypatch,
+):
+    session, sdk, _, _, _ = build()
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held_sdk_close():
+        entered.set()
+        await release.wait()
+
+    sdk.client.close.side_effect = held_sdk_close
+    observers = _observe_exit_aclose(session, monkeypatch)
+    observer = None
+    retained = ()
+    primary = None
+    try:
+        await session.start()
+        await session.wake()
+        retained = _exit_session_owners(session)
+        observer = asyncio.create_task(session.aclose(), name="cancelled-exit-public-close")
+        await asyncio.wait_for(entered.wait(), 1)
+        owner, playback = session._close_task, session.playback._task
+        assert owner is not None and not owner.done()
+        assert playback is not None and not playback.done()
+        assert not session.voicepe.closed
+        if cancel_observation:
+            observer.cancel()
+        else:
+            # Bounded observation timeout never cancels the true close owner.
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0):
+                    await asyncio.shield(observer)
+            assert not observer.done() and not owner.done()
+            observer.cancel()
+        done, pending = await asyncio.wait({observer}, timeout=2)
+        assert done == {observer} and not pending and observer.cancelled()
+        assert not owner.done() and not playback.done() and not session.voicepe.closed
+        release.set()
+        await _finish_exit_session(session, retained, observers)
+        assert session._close_task is owner and owner.done()
+        assert playback.done() and session.playback._task is None and session.voicepe.closed
+        sdk.client.close.assert_awaited_once()
+        assert all(task.done() for task in (*observers.public, *observers.suffix_tasks))
+        assert len(session.attention.release_calls) == 1
+    except BaseException as exc:
+        primary = exc
+    finally:
+        release.set()
+        try:
+            await _finish_exit_session(session, retained, observers)
+            assert len(session.attention.release_calls) == 1
+            assert len(observers.adapters["playback"]) == 1
+            assert len(observers.adapters["voicepe"]) == 1
+        except BaseException as exc:
+            if primary is None:
+                primary = exc
+            else:
+                primary.add_note(f"cancel-observer fixture cleanup: {exc!r}")
+    if primary is not None:
+        raise primary

@@ -200,6 +200,7 @@
   .roomrow { display: flex; gap: 8px; margin-bottom: 6px; }
   .roomrow input { flex: 1; min-width:0; font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
+  .roomrow [aria-invalid="true"] { border-color: var(--danger); }
   .notice { margin: 9px 0 10px; padding: 11px 12px; border: 1px solid var(--amber-border);
             border-radius: 11px; background: var(--amber-bg); color: var(--fg);
             font-size: .82rem; line-height: 1.45; }
@@ -1535,6 +1536,7 @@ setInterval(function () {
   }
   // ---- Live WebRTC: one peer for one server-issued attempt ----
   var livePeer = null, retiredLiveAttempts = [], pendingLiveRotation = null;
+  function talkVisible() { return !document.getElementById("pane-talk").hidden; }
   function liveCurrent(p) { return !!p && livePeer === p && !halted && p.socketGeneration === socketGeneration && p.sock === ws; }
   function liveIdentity(p) { return { attempt_id:p.attempt_id, provider_session_id:p.provider_session_id, generation:p.generation }; }
   function liveMatches(p, ev) {
@@ -1622,7 +1624,7 @@ setInterval(function () {
   }
   async function openLivePeer(ev) {
     if (typeof ev.attempt_id !== "string" || typeof ev.connection_id !== "string") return;
-    if (halted) { retiredLiveAttempts.push(ev.attempt_id); liveStopped(ev); return; }
+    if (halted || !talkVisible()) { retiredLiveAttempts.push(ev.attempt_id); liveStopped(ev); return; }
     if (retiredLiveAttempts.indexOf(ev.attempt_id) !== -1) return;
     if (livePeer && livePeer.attempt_id === ev.attempt_id) return;
     var rotation = pendingLiveRotation;
@@ -1781,7 +1783,7 @@ setInterval(function () {
     sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); setState("offline", "pill-down"); };
     sock.onmessage = function (m) {
       if (generation !== socketGeneration || sock !== ws) return;
-      if (typeof m.data !== "string") { if (!halted && !livePeer) playPcm(m.data); return; }
+      if (typeof m.data !== "string") { if (!halted && !livePeer && talkVisible()) playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (handleLiveMessage(ev)) return;
       if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
@@ -1819,7 +1821,7 @@ setInterval(function () {
         if (curT) curT.querySelector(".who").textContent = (ev.dir === "in" ? "you" : providerName()) + " · Live-segment";
       }
       else if (ev.type === "transcript") { if (curSegmentId) endTurn(); streamT(ev.dir === "in" ? "in" : "out", ev.text); }
-      else if (ev.type === "play") { if (livePeer) return; halted = false; playReply(ev.url, ev.playback_id); }
+      else if (ev.type === "play") { if (livePeer || halted || !talkVisible()) return; halted = false; playReply(ev.url, ev.playback_id); }
       else if (ev.type === "stop_playback") {
         pendingLiveRotation = null;
         if (!ev.playback_id || ev.playback_id === currentPlaybackId) { stopReply(false); endTurn(); }
@@ -1847,7 +1849,7 @@ setInterval(function () {
   }
 
   function sendText() {
-    if (sendBtn.disabled || diagnosticActive) return;
+    if (sendBtn.disabled || diagnosticActive || !talkVisible()) return;
     var t = (input.value || "").trim(); if (!t) return;
     if (!wsReady) { logLine("out", "system", "Ikke forbundet endnu."); return; }
     halted = false; ensurePlay();
@@ -1877,6 +1879,7 @@ setInterval(function () {
     return out;
   }
   async function micStart() {
+    if (!talkVisible()) return false;
     if (pendingLiveRotation || (livePeer && livePeer.held)) return false;
     var micSocket = socketGeneration, micRequest = ++micRequestSerial, obtained;
     halted = false;
@@ -1983,6 +1986,7 @@ setInterval(function () {
     micHint.textContent = "Mikrofon kræver HTTPS. Du kan stadig skrive og få svar læst op.";
   }
 
+  window.addEventListener("podvoice-talk-exit", stopSpeaking);
   window.addEventListener("pagehide", function () { closeLivePeer(); micStop(); });
   window.addEventListener("beforeunload", function () { closeLivePeer(); micStop(); });
   document.addEventListener("visibilitychange", function () {
@@ -2079,8 +2083,12 @@ setInterval(function () {
     var inp = document.createElement("input"); inp.className = "rr"; inp.placeholder = "rum-id (fx r0)"; inp.value = room || "";
     return inp;
   }
-  function addRoom(host, room) {
+  function addRoom(host, room, invalidSource, sourceRow) {
     var row = document.createElement("div"); row.className = "roomrow";
+    row.dataset.invalidSource = invalidSource ? "true" : "false";
+    row.dataset.invalidKey = sourceRow && "voicepe_noise_psk" in sourceRow && typeof sourceRow.voicepe_noise_psk !== "string" ? "true" : "false";
+    // Preserve an existing per-device key while repairing only its room identity.
+    if (sourceRow && typeof sourceRow.voicepe_noise_psk === "string") row.roomKey = sourceRow.voicepe_noise_psk;
     var n = roomsWrap.querySelectorAll(".roomrow").length + 1;
     var h = document.createElement("input"); h.className = "rh"; h.placeholder = "podvoice-pe-123456.local"; h.value = host || "";
     h.setAttribute("aria-label", "Voice PE-adresse for rum " + n);
@@ -2094,13 +2102,26 @@ setInterval(function () {
   }
   document.getElementById("s_addroom").onclick = function () { addRoom("", ""); markSettingsDirty(); };
   function collectRooms() {
-    var out = [], valid = true;
+    var out = [], valid = true, hosts = new Set(), rooms = new Set();
     roomsWrap.querySelectorAll(".roomrow").forEach(function (row) {
-      var h = row.querySelector(".rh").value.trim(), r = row.querySelector(".rr").value.trim();
-      row.querySelector(".rh").setCustomValidity((h || !r) ? "" : "Voice PE-adressen mangler");
-      row.querySelector(".rr").setCustomValidity((r || !h) ? "" : "PodConnect-rummet mangler");
-      if ((h && !r) || (!h && r)) valid = false;
-      if (h && r) out.push({ voicepe_host: h, room: r });
+      var hf = row.querySelector(".rh"), rf = row.querySelector(".rr");
+      var h = hf.value.trim(), r = rf.value.trim();
+      var required = row.dataset.invalidSource === "true" || h || r;
+      var hm = required && !h ? "Voice PE-adressen mangler" : "";
+      var rm = required && !r ? "PodConnect-rummet mangler" : "";
+      if (h && hosts.has(h.toLowerCase())) hm = "Voice PE-adressen bruges allerede";
+      if (row.dataset.invalidKey === "true") hm = "Fjern rækken med den ugyldige nøgle, og tilføj den igen.";
+      if (r && rooms.has(r)) rm = "PodConnect-rummet bruges allerede";
+      hf.setCustomValidity(hm); rf.setCustomValidity(rm);
+      hf.setAttribute("aria-invalid", hm ? "true" : "false");
+      rf.setAttribute("aria-invalid", rm ? "true" : "false");
+      if (hm || rm) valid = false;
+      if (h && r) {
+        hosts.add(h.toLowerCase()); rooms.add(r);
+        var saved = { voicepe_host: h, room: r };
+        if (typeof row.roomKey === "string") saved.voicepe_noise_psk = row.roomKey;
+        out.push(saved);
+      }
     });
     if (!valid) return null;
     return out;
@@ -2134,6 +2155,11 @@ setInterval(function () {
         return;
       }
       var s = jobs[0];
+      if (!s || s.settings_source_untrusted || !("engine" in s)) {
+        settingsLoaded = false;
+        setSaveStatus(s && s.error ? s.error : "Kunne ikke hente de gemte indstillinger. Genindlæs siden.");
+        return;
+      }
       var activeAlpha = document.getElementById("s_live_alpha_active");
       var activeRooms = s.live_alpha_active || {};
       activeAlpha.textContent = "Ved seneste hentning: " + (Object.keys(activeRooms).map(function (room) {
@@ -2141,15 +2167,23 @@ setInterval(function () {
       }).join(" · ") || "ingen aktive rum") + ".";
       savedWakeWord = s.wake_word || null;
       renderWakeWordStatus();
-      pcRooms = jobs[1].rooms || [];
+      pcRooms = Array.isArray(jobs[1].rooms) ? jobs[1].rooms : [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
       syncAdvancedTruth();
       updateSecretHints(s);
       roomsWrap.innerHTML = "";
-      (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
+      var sourceRooms = "rooms" in s ? s.rooms : [];
+      if (!Array.isArray(sourceRooms)) sourceRooms = [null];
+      sourceRooms.forEach(function (rm) {
+        var row = rm && typeof rm === "object" && !Array.isArray(rm) ? rm : {};
+        var host = typeof row.voicepe_host === "string" ? row.voicepe_host : "";
+        var room = typeof row.room === "string" ? row.room : "";
+        addRoom(host, room, !host.trim() || !room.trim(), row);
+      });
       updateAddressWarning();
-      settingsLoaded = ("engine" in s);
+      if (collectRooms() === null || s.settings_error) setSaveStatus("Ret eller fjern de ugyldige rum, og gem igen.");
+      settingsLoaded = true;
     } catch (e) { settingsLoaded = false; }
     if (settingsLoaded) { setSaveEnabled(true); }
     else { setSaveStatus("⚠️ Kunne ikke hente de gemte indstillinger — genindlæs siden før du ændrer noget."); }
@@ -2158,7 +2192,11 @@ setInterval(function () {
     var body = {};
     FIELDS.forEach(function (id) { var v = getVal(id); if (v !== undefined) body[id] = v; });
     body.rooms = collectRooms();
-    if (body.rooms === null) throw new Error("Udfyld både Voice PE-adresse og PodConnect-rum, eller fjern rækken.");
+    if (body.rooms === null) {
+      var invalidKey = roomsWrap.querySelector('[data-invalid-key="true"]');
+      throw new Error(invalidKey ? "Fjern rækken med den ugyldige nøgle, og tilføj den igen."
+        : "Udfyld både Voice PE-adresse og PodConnect-rum, eller fjern rækken.");
+    }
     return body;
   }
 
@@ -2167,7 +2205,7 @@ setInterval(function () {
     statusEl.textContent = msg;
   }
   async function save(restart) {
-    if (settingsSaveBusy) return;
+    if (!settingsLoaded || settingsSaveBusy) return;
     settingsSaveBusy = true; setSaveEnabled(false);
     try {
       setSaveStatus("Gemmer…");
@@ -2396,6 +2434,7 @@ setInterval(function () {
 (function () {
   var btns = Array.prototype.slice.call(document.querySelectorAll(".tabbtn"));
   function selectTab(b, focus) {
+    var leavingTalk = b.dataset.tab !== "talk" && btns.some(function (x) { return x.dataset.tab === "talk" && x.getAttribute("aria-selected") === "true"; });
     btns.forEach(function (x) {
       var on = x === b;
       x.classList.toggle("active", on);
@@ -2407,6 +2446,7 @@ setInterval(function () {
       p.classList.toggle("active", on);
       p.hidden = !on;
     });
+    if (leavingTalk) window.dispatchEvent(new Event("podvoice-talk-exit"));
     if (focus) b.focus();
   }
   btns.forEach(function (b) {
