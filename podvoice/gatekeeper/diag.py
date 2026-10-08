@@ -23,6 +23,8 @@ SAMPLE_WIDTH = 2
 
 def resolve_target(settings: dict, room: str | None = None) -> tuple[str | None, str]:
     """Pick (voicepe_host, noise_psk) from saved settings — pure, unit-testable."""
+    if settings.get("settings_error"):
+        return None, ""
     rooms = settings.get("rooms") or []
     match = None
     if room:

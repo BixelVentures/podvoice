@@ -16,6 +16,8 @@ import re
 import secrets
 import signal
 import socket
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -36,7 +38,7 @@ from .podconnect import AttentionClient
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
-from .settings import load_settings, masked, save_settings
+from .settings import _resolve, load_settings, masked, save_settings
 from .speech import Speech
 from .timers import TimerManager
 from .tools import ToolRouter
@@ -138,14 +140,9 @@ def _start_protocol_owner_eval(
     )
 
 
-def _live_alpha_enabled() -> bool:
-    """Thin reads this once at wake; a saved toggle never swaps an active brain."""
-    return load_settings().get("live_alpha") is True
-
-
-async def _prepare_saved_live_alpha() -> None:
-    """Warm pure SDK imports before accepting sessions, only for the saved opt-in."""
-    if not _live_alpha_enabled():
+async def _prepare_saved_live_alpha(enabled: bool) -> None:
+    """Warm pure SDK imports for the run owner's already selected opt-in."""
+    if not enabled:
         return
     from .openai_live import prepare_live_sdk
 
@@ -187,6 +184,9 @@ def _build_session(
     usage: UsageMeter | None = None,
     audio_trace=None,
     live_audio: LiveAudioStreams | None = None,
+    *,
+    live_enabled: Callable[[], bool],
+    settings_path: Path | None = None,
 ):
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
@@ -230,14 +230,16 @@ def _build_session(
         reply_url += f"?t={reply_token}"
         live_reply_url += f"?t={reply_token}"
 
-    guard_s, guard_ref = _saved_live_closing_guard()
+    guard_s, guard_ref = _saved_live_closing_guard(
+        settings_path if settings_path is not None else cfg.settings_path
+    )
     return ThinSession(
         room=room.room,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
         brain=brain,
         live_brain=_make_live_brain(cfg, declarations, room_context=room_ctx),
-        live_enabled=_live_alpha_enabled,
+        live_enabled=live_enabled,
         live_close_guard_s=guard_s,
         live_close_guard_ref=guard_ref,
         live_audio=live_audio,
@@ -259,14 +261,14 @@ def _build_session(
     )
 
 
-def _saved_live_closing_guard() -> tuple[float | None, str | None]:
+def _saved_live_closing_guard(path: Path | None = None) -> tuple[float | None, str | None]:
     """Use an explicitly recorded calibration for this firmware, never a guess.
 
     The reference binds operator measurement to the OTA digest and build marker.
     Loading it is configuration admission, not physical acceptance evidence.
     Talk and OFF do not receive a judge through this helper.
     """
-    saved = load_settings()
+    saved = load_settings(path)
     milliseconds = saved.get("live_closing_guard_ms")
     reference = saved.get("live_closing_guard_ref")
     prefix = "marker:" + LIVE_FIRMWARE_BUILD + "|sha256:"
@@ -282,12 +284,12 @@ def _saved_live_closing_guard() -> tuple[float | None, str | None]:
     return milliseconds / 1000, reference
 
 
-async def _diag_status(room: str | None = None) -> dict:
-    return await check_status(*resolve_target(load_settings(), room))
+async def _diag_status(room: str | None = None, *, path: Path | None = None) -> dict:
+    return await check_status(*resolve_target(load_settings(path), room))
 
 
-async def _diag_s2(room: str | None = None) -> dict:
-    return await run_s2(*resolve_target(load_settings(), room))
+async def _diag_s2(room: str | None = None, *, path: Path | None = None) -> dict:
+    return await run_s2(*resolve_target(load_settings(path), room))
 
 
 async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient) -> None:
@@ -320,12 +322,13 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
         snapshot = hub.snapshot()
         current = snapshot["services"].get("openai")
         current_detail = snapshot["service_details"].get("openai", {})
-        if not cfg.openai_api_key:
+        if not cfg.settings_source_untrusted and not cfg.openai_api_key:
             hub.set_service(
                 "openai", "down", reason="OpenAI API-nøgle mangler", source="konfiguration"
             )
-        elif current_detail.get("source") == "konfiguration" or (
-            current == "down" and current_detail.get("observed_at") is None
+        elif not cfg.settings_source_untrusted and (
+            current_detail.get("source") == "konfiguration"
+            or (current == "down" and current_detail.get("observed_at") is None)
         ):
             hub.set_service(
                 "openai",
@@ -356,9 +359,25 @@ async def _restart_addon(token: str) -> bool:
 async def run(cfg: Config) -> None:
     from .audio_trace import AudioTraceRecorder
 
-    await _prepare_saved_live_alpha()
+    settings_path = cfg.settings_path or _resolve(None).absolute()
+    selected_live = cfg.live_alpha
+
+    def read_live_alpha() -> bool:
+        nonlocal selected_live
+        saved = load_settings(settings_path, require_existing=True)
+        if not saved.get("settings_source_untrusted"):
+            selected_live = saved.get("live_alpha") is True
+        return selected_live
+
+    if not cfg.settings_source_untrusted:
+        await _prepare_saved_live_alpha(read_live_alpha())
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
     hub = StatusHub(history=history)
+    if cfg.settings_error:
+        reason = f"{cfg.settings_error} Ret opsætningen eller gendan filen, og genstart."
+        hub.set_service("voicepe", "down", reason=reason, source="settings")
+        if cfg.settings_source_untrusted:
+            hub.set_service("openai", "down", reason=reason, source="settings")
     # Physical Alpha conversations keep bounded local diagnostic evidence by default.
     # Thin admits capture only after wake; OFF and Talk retain explicit manual capture.
     audio_trace = AudioTraceRecorder(automatic=True)
@@ -427,10 +446,12 @@ async def run(cfg: Config) -> None:
     mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
     mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
     tools = ToolRouter(mcp, supervisor_token=cfg.supervisor_token, client=ha_client, hub=hub)
-    tools.configure_device_control(load_settings())
+    tools.configure_device_control(load_settings(settings_path))
 
     def save_runtime_settings(values: dict) -> dict:
-        saved = save_settings(values)
+        nonlocal selected_live
+        saved = save_settings(values, settings_path)
+        selected_live = saved["live_alpha"]  # exact validated committed result, before any wake
         tools.configure_device_control(saved)
         return saved
 
@@ -494,6 +515,8 @@ async def run(cfg: Config) -> None:
             usage,
             audio_trace,
             live_audio=live_audio,
+            live_enabled=read_live_alpha,
+            settings_path=settings_path,
         )
         for r in cfg.rooms
     }
@@ -508,11 +531,15 @@ async def run(cfg: Config) -> None:
             h = sess.audio_health()
             if h is not None:
                 return h
-        return await run_s1(*resolve_target(load_settings(), room))
+        return await run_s1(*resolve_target(load_settings(settings_path), room))
 
-    diag = {"status": _diag_status, "s1": _diag_s1_live, "s2": _diag_s2}
+    diag = {
+        "status": lambda room=None: _diag_status(room, path=settings_path),
+        "s1": _diag_s1_live,
+        "s2": lambda room=None: _diag_s2(room, path=settings_path),
+    }
 
-    console_make = console_factory(cfg, tools)
+    console_make = None if cfg.settings_source_untrusted else console_factory(cfg, tools)
 
     def _make_talk(send_json, send_bytes, model=None, voice=None):
         """One REAL ThinSession per Talk socket: the browser as a device. The mic
@@ -551,7 +578,7 @@ async def run(cfg: Config) -> None:
             live_brain=_make_live_brain(
                 cfg, tools.declarations() if tools is not None else [], input_rate=OPENAI_RATE
             ),
-            live_enabled=_live_alpha_enabled,
+            live_enabled=read_live_alpha,
             live_audio=live_audio,
             live_reply_url="reply/live/{stream_id}.wav"
             + (f"?t={reply_token}" if reply_token else ""),
@@ -573,7 +600,7 @@ async def run(cfg: Config) -> None:
 
     live_eval = None
     live_eval_service = None
-    if cfg.openai_api_key:
+    if cfg.openai_api_key and not cfg.settings_source_untrusted:
         from .eval_harness import LiveEvalService
 
         live_eval_service = LiveEvalService(
@@ -640,10 +667,10 @@ async def run(cfg: Config) -> None:
         hub,
         sessions,
         make_console=console_make,
-        make_talk=_make_talk,
+        make_talk=None if cfg.settings_source_untrusted else _make_talk,
         models_provider=lambda: list_models(cfg),
         settings_get=lambda: {
-            **masked(load_settings()),  # tokens/PSK never leave the box in cleartext
+            **masked(load_settings(settings_path)),  # tokens/PSK never leave the box in cleartext
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
             "live_alpha_active": {
                 room: bool(session.live_alpha) if session._active else None
@@ -685,7 +712,7 @@ async def run(cfg: Config) -> None:
     # Pre-warm the fixed spoken lines in the assistant's voice so the first error is
     # instant AND cached for when the live connection is later down (the whole point of
     # a spoken error). Degrades to a tone if the key/API is unavailable.
-    if speech is not None and speech.available:
+    if speech is not None and speech.available and not cfg.settings_source_untrusted:
         from . import constants as _C
 
         prewarm = asyncio.create_task(

@@ -869,7 +869,7 @@ def test_panel_exposes_explicit_opt_in_and_saves_entity_list():
     assert "Gem deaktivering for at blokere nye handlinger" in html
     assert "en startet rengøring fortsætter" in html
     main = (Path(__file__).parents[2] / "podvoice/gatekeeper/__main__.py").read_text()
-    assert "tools.configure_device_control(load_settings())" in main
+    assert "tools.configure_device_control(load_settings(settings_path))" in main
     assert "settings_set=save_runtime_settings" in main
     assert "tools.configure_device_control(saved)" in main
 

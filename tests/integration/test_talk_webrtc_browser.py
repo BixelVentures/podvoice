@@ -53,6 +53,8 @@ function ensurePlay(){if(!playCtx)playCtx={sampleRate:24000,createMediaStreamDes
 function sendJson(x){sent.push(x);}
 function logLine(){}
 function setState(){}
+const talkPane={hidden:false};
+const document={getElementById(id){assert.equal(id,"pane-talk");return talkPane;}};
 var exitCallbacks={};
 var window={self:{},top:{},addEventListener(name,callback){exitCallbacks[name]=callback;}};
 // A lexical mock also works when Node exposes a getter-only global navigator.

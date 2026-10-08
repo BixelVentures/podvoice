@@ -614,6 +614,10 @@ async function secureTalkCaptureGuard(browser) {
         }
       }
     }
+    const talkExit=await require("./talk_exit_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS,proof});
+    reports.push({issue:115,talkExit});
+    const settingsRepair=await require("./settings_repair_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS});
+    reports.push({issue:113,settingsRepair});
     if(proof)fs.writeFileSync(path.join(proof,'browser-report.json'),JSON.stringify({evidence:'Chromium with synthetic API fixtures; no live HA, provider, VoiceOver or physical Voice PE',results:reports},null,2));
     console.log(JSON.stringify({pass:true,evidence:'Shipped HTML + Chromium + synthetic API fixtures',results:reports},null,2));
   } finally {await bounded(browser.close(),'daily browser cleanup');}

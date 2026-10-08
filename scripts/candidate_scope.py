@@ -345,7 +345,12 @@ def classify_candidate(changes: Sequence[str], production_diff: str) -> Candidat
         return CandidateScope("", "", (), tests, (), True, "version metadata only")
     old_code = "\n".join(line for line in removed if not line.lstrip().startswith(("#", "//")))
     new_code = "\n".join(line for line in added if not line.lstrip().startswith(("#", "//")))
-    if len(old_code) + len(new_code) > _MAX_FINE_DIFF_CHARS:
+    large_diff = len(old_code) + len(new_code) > _MAX_FINE_DIFF_CHARS
+    # This exact field names the native encrypted transport key, not audio filtering.
+    # Normalize classification text only; raw tree/review fingerprints stay unchanged.
+    old_code = re.sub(r"\bvoicepe_noise_psk\b", "voicepe_psk", old_code)
+    new_code = re.sub(r"\bvoicepe_noise_psk\b", "voicepe_psk", new_code)
+    if large_diff:
         production_code = old_code + "\n" + new_code
     else:
         changed_fragments: list[str] = []
