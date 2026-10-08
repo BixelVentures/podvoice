@@ -1,3 +1,8 @@
+## 2.0.7 — easier settings touch targets
+
+- Make the complete checkbox labels and room text fields at least 44 px high, preserving existing controls, settings values and conversation behavior.
+- Permanently check rendered settings targets and native label activation across six mobile and desktop widths in both themes. Full HA-app, Safari and accessibility acceptance remain separate.
+
 ## 2.0.6 — preserve settings and release hidden Talk owners
 
 - Read saved settings without rewriting them. Reject ambiguous, unsupported or non-finite sources; retain invalid room rows for explicit repair. Validate complete saves before writing, preserve the previous source and commit with an owned atomic file replacement.
