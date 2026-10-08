@@ -189,7 +189,7 @@
              margin: 10px 0; }
   .setgrid { display: grid; grid-template-columns: 132px 1fr; gap: 9px 10px; align-items: center;
              margin: 12px 0; }
-  .setgrid label { font-size: .82rem; font-weight: 600; }
+  .setgrid label { min-height:44px; display:flex; align-items:center; font-size: .82rem; font-weight: 600; }
   .setgrid input, .setgrid select { min-height:44px; font: inherit; padding: 9px 10px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; width: 100%; }
   .setgrid input[type=checkbox] { width: 44px; height:44px; justify-self: start; accent-color:var(--accent); }
@@ -198,7 +198,7 @@
             color: inherit; resize: vertical; box-sizing: border-box; }
   .prompt:focus { outline: none; border-color: var(--accent); }
   .roomrow { display: flex; gap: 8px; margin-bottom: 6px; }
-  .roomrow input { flex: 1; min-width:0; font: inherit; padding: 7px 9px; border-radius: 9px;
+  .roomrow input { min-height:44px; flex: 1; min-width:0; font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   .roomrow [aria-invalid="true"] { border-color: var(--danger); }
   .notice { margin: 9px 0 10px; padding: 11px 12px; border: 1px solid var(--amber-border);

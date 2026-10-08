@@ -291,6 +291,90 @@ async function secureTalkCaptureGuard(browser) {
   if(primary)throw primary;assert.deepEqual(cleanupErrors,[],'HTTPS public-owner cleanup');return receipt;
 }
 
+// Whole shipped settings form, actual native label activation and CSS geometry.
+// API payloads are inert; this fixture never saves settings or opens Talk.
+async function settingsTouchTargets(browser) {
+  const results=[];
+  const checkboxIds=['s_live_alpha','s_force_mini','s_extended_device_control','s_panel_lan_open'];
+  for(const width of [320,360,390,430,768,1440])for(const scheme of ['light','dark']) {
+    let page,context,primary,result;
+    const cleanupErrors=[],errors=[],writes=[];
+    try {
+      page=await bounded(browser.newPage({viewport:{width,height:1000},colorScheme:scheme}),'settings touch page');
+      context=page.context();
+      page.on('pageerror',error=>errors.push(error.message));
+      await bounded(page.addInitScript(()=>{
+        window.EventSource=class {close(){}};
+        window.WebSocket=class {static OPEN=1;constructor(){this.readyState=3;}close(){this.readyState=3;}send(){}};
+      }),'settings touch inert transports');
+      await bounded(page.route('**/*',route=>{
+        const request=route.request(),url=new URL(request.url());
+        if(url.origin!=='https://panel.test')return route.abort('blockedbyclient');
+        if(request.method()!=='GET') {
+          writes.push({path:url.pathname,method:request.method()});
+          return route.abort('blockedbyclient');
+        }
+        if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:source});
+        let json={ok:true};
+        if(url.pathname==='/api/status')json=status();
+        if(url.pathname==='/api/settings')json=settings;
+        if(url.pathname==='/api/models')json={models:[],voices:[],default:null};
+        if(url.pathname==='/api/podconnect/rooms')json={rooms:[]};
+        return route.fulfill({json});
+      }),'settings touch isolated routes');
+      await bounded(page.goto('https://panel.test/'),'settings touch full HTML');
+      await page.locator('#tab-settings').click({timeout:FIXTURE_WAIT_MS});
+      await page.waitForFunction(()=>document.querySelector('#s_save').disabled===false,null,{timeout:FIXTURE_WAIT_MS});
+      await page.locator('#pane-settings details.adv > summary').first().click({timeout:FIXTURE_WAIT_MS});
+      await page.locator('#pane-settings details.adv > summary').filter({hasText:'Sikkerhed'}).click({timeout:FIXTURE_WAIT_MS});
+      await page.locator('#s_addroom').click({timeout:FIXTURE_WAIT_MS});
+      assert.equal(await page.locator('#s_rooms .roomrow input').count(),2,'actual add-room uses text address and room fallback');
+      const geometry=await bounded(page.evaluate(()=>{
+        const selectors=['#pane-settings .setgrid label[for]','#s_rooms .roomrow input'];
+        const targets=selectors.flatMap(selector=>Array.from(document.querySelectorAll(selector)))
+          .filter(element=>element.getClientRects().length);
+        return targets.map(element=>{
+          const rect=element.getBoundingClientRect();
+          return {id:element.id||element.htmlFor||element.className,width:rect.width,height:rect.height,
+            control:element instanceof HTMLLabelElement?element.control?.id:null};
+        });
+      }),'settings touch rendered geometry');
+      assert.ok(geometry.length>checkboxIds.length+2,'actual visible form label inventory observed');
+      assert.deepEqual(geometry.filter(target=>target.width<43.99||target.height<43.99),[],
+        `settings targets below44px ${width}/${scheme}: ${JSON.stringify(geometry)}`);
+      const labels=[];
+      for(const id of checkboxIds) {
+        const label=page.locator(`#pane-settings label[for="${id}"]`),input=page.locator('#'+id);
+        assert.equal(await label.count(),1,id+' unique native label');
+        assert.equal(await bounded(label.evaluate((element,id)=>element.control===document.getElementById(id),id),'settings touch label association'),true,id+' exact native control');
+        await label.scrollIntoViewIfNeeded({timeout:FIXTURE_WAIT_MS});
+        const box=await label.boundingBox();assert.ok(box && box.width>=43.99 && box.height>=43.99,id+' full label44px');
+        const before=await input.isChecked();
+        // The bottom interior tests the enlarged label area, not only its text.
+        await label.click({position:{x:2,y:box.height-2},timeout:FIXTURE_WAIT_MS});
+        assert.equal(await input.isChecked(),!before,id+' bottom-edge label activates native checkbox');
+        await label.click({position:{x:2,y:box.height-2},timeout:FIXTURE_WAIT_MS});
+        assert.equal(await input.isChecked(),before,id+' second explicit click restores fixture selection');
+        labels.push({id,width:box.width,height:box.height,bottomEdgeToggle:true});
+      }
+      const overflow=await bounded(page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth})),'settings touch overflow');
+      assert.ok(overflow.scroll<=overflow.width,JSON.stringify({width,scheme,overflow}));
+      assert.deepEqual(writes,[],'geometry and native label activation never save/restart/control');
+      assert.deepEqual(errors,[],'whole HTML settings scripts remain valid');
+      if(proof)await bounded(page.screenshot({path:path.join(proof,`settings-targets-${width}-${scheme}.png`),fullPage:true}),'settings touch screenshot');
+      result={width,scheme,html_sha256:sourceSha,geometry,labels,overflow:false,writes:0};
+    } catch(error) {primary=error;}
+    finally {
+      if(page)try {await bounded(page.close(),'settings touch page cleanup');}catch(error){cleanupErrors.push(String(error));}
+      if(context)try {await bounded(context.close(),'settings touch context cleanup');}catch(error){cleanupErrors.push(String(error));}
+    }
+    if(primary) {if(cleanupErrors.length)primary.message+='; cleanup: '+cleanupErrors.join('; ');throw primary;}
+    assert.deepEqual(cleanupErrors,[],'settings touch owned page/context cleanup');
+    results.push({...result,cleanup_complete:true});
+  }
+  return {issue:130,results,evidence:'Actual full HTML/CSS/native labels with inert APIs; not installed HA/Safari, saved preferences, provider or physical evidence.'};
+}
+
 (async()=>{
   const browser=await chromium.launch({headless:true,executablePath:process.env.PODVOICE_TEST_CHROMIUM});
   try {
@@ -614,6 +698,8 @@ async function secureTalkCaptureGuard(browser) {
         }
       }
     }
+    const touchTargets=await settingsTouchTargets(browser);
+    reports.push(touchTargets);
     const talkExit=await require("./talk_exit_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS,proof});
     reports.push({issue:115,talkExit});
     const settingsRepair=await require("./settings_repair_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS});
