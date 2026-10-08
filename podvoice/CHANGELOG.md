@@ -1,3 +1,10 @@
+## 2.0.5 — preserve fresh input before idle closing
+
+- Recheck current Voice PE input before the existing inactivity close. Fresh native speech or a current queued nonempty input cancels the stale close and uses the existing quiet window. Preserve model ending, normal Stop, error cleanup and Talk ownership.
+- Keep panel status reads observational so they cannot reset native quiet proof or take input ownership. Show truthful passive diagnostic states across the daily layouts and refuse unsupported browser microphone activation consistently. Keep normal Talk, necessary settings and the panel without conversation tests.
+- Preserve all integration cases in two bounded workers. Join the exact admitted process after cancellation even when native process disappearance precedes its waitable exit; refuse unknown or changed process identities.
+- Add permanent current-input, real-SDK lifecycle, browser and process-ownership regressions. Software admission is separate from physical golden-chain, repeated lifecycle, audible drain and latency acceptance.
+
 ## 2.0.4 — simple daily controls without conversation tests
 
 - Remove guided Realtime preflight, Grundtest and the old room test from the panel, including their automatic requests and handlers. Keep normal Talk, necessary settings, passive diagnosis, audio evidence and hardware setup.

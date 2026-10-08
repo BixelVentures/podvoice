@@ -1,11 +1,20 @@
 // Real Chromium, shipped HTML, synthetic API fixtures; no HA/provider/device access.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const root = process.env.PODVOICE_UI_ROOT || path.resolve(__dirname, '../..');
 const source = fs.readFileSync(path.join(root, 'podvoice/gatekeeper/static/index.html'), 'utf8');
+const sourceSha=crypto.createHash('sha256').update(source).digest('hex');
+// Optional historical source is screenshot evidence only. Candidate regression
+// below is mandatory regardless of evidence paths and never accepts old defects.
+const baselinePath=process.env.PODVOICE_UI_BASELINE_HTML;
+const baselineSource=baselinePath?fs.readFileSync(baselinePath,'utf8'):null;
+const baselineSha=baselineSource?crypto.createHash('sha256').update(baselineSource).digest('hex'):null;
+if(baselineSource)assert.equal(baselineSha,'ab7f58280ba9f6a50894b9a375afd4f42333dbe73a579b1900f40354c0bb3bf5','explicit published539 screenshot baseline');
 const proof = process.env.PODVOICE_UI_PROOF_DIR;
+if(baselineSource)assert.ok(proof,'explicit baseline screenshot request requires proof directory');
 if (proof) fs.mkdirSync(proof, {recursive:true});
 const reports = [];
 // Test-only observation bound; production deadlines and state are untouched.
@@ -32,6 +41,256 @@ function status() {
     capability_details:{time:{verified:true,reason:'fixture time',source:'fixture HA'},home:{verified:false,reason:'fixture home',source:'fixture discovery'}}};
 }
 const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',idle_timeout_s:4,duck_level:20,rooms:[]};
+// Passive projection regression: input rows are fixtures, the renderer is shipped.
+// Build nonfinite values inside the browser task; JSON cannot carry NaN/Infinity.
+function measurementObservation(box, index) {
+  function edge(event, at_ms, extra={}) {
+    const row={room:'Køkken',session:'fixture-measurement',event,...extra};
+    if(at_ms!==undefined)row.at_ms=at_ms;
+    return row;
+  }
+  const cases=[
+    {name:'finite-host-arrival',kind:'numeric',events:[edge('speech_stopped',0),edge('input_transcript',20),edge('response_audio_started',50),edge('playback_started',100)]},
+    {name:'missing-turn-ends',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',100)]},
+    ...[null,'bad',false,'150'].map((value,i)=>({name:'invalid-edge-'+i,kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',100),edge('playback_started',value)]})),
+    {name:'missing-numeric-edge',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',100),edge('playback_started',undefined)]},
+    {name:'invalid-start-null',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',null),edge('playback_started',200)]},
+    {name:'reverse-monotonic-order',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',200),edge('playback_started',100)]},
+    {name:'negative-monotonic-edge',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',-100),edge('playback_started',200)]},
+    {name:'nonfinite-NaN',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',100),edge('playback_started',NaN)]},
+    {name:'nonfinite-Infinity',kind:'unknown',prefix:'Tur:',events:[edge('speech_stopped',100),edge('playback_started',Infinity)]},
+    {name:'typed-start-is-not-speech',kind:'typed',events:[edge('speech_stopped',100,{source:'text',accepted:true}),edge('response_audio_started',150)]},
+    {name:'actual-recovery-edge',kind:'recovery',events:[edge('close_requested',100),edge('wake_rearm_recovered',200)]}
+  ];
+  const invalid=[['null',null],['bad-string','bad'],['boolean-false',false],['boolean-true',true],['numeric-string','150'],['negative',-100],['NaN',NaN],['Infinity',Infinity],['negative-Infinity',-Infinity],['missing',undefined]];
+  for(const [name,first,last,prefix] of [
+    ['wake','wake_received','provider_connected','Wake → provider klar:'],
+    ['close','close_requested','wake_rearmed','Lukning → rearm-kvittering:']
+  ]) {
+    cases.push({name:name+'-finite-zero-start',kind:'pair',prefix,expected:'100 ms',events:[edge(first,0),edge(last,100)]});
+    cases.push({name:name+'-zero-delta',kind:'pair',prefix,expected:'0 ms',events:[edge(first,0),edge(last,0)]});
+    for(const [type,value] of invalid)for(const endpoint of ['first','last'])
+      cases.push({name:name+'-'+endpoint+'-'+type,kind:'unknown',prefix,events:[edge(first,endpoint==='first'?value:100),edge(last,endpoint==='last'?value:200)]});
+    cases.push({name:name+'-reverse',kind:'unknown',prefix,events:[edge(first,200),edge(last,100)]});
+    cases.push({name:name+'-missing-pair',kind:'absent-pair',prefix,events:[edge(first,100)]});
+  }
+  for(const [type,value] of [['zero',0],['finite',100],...invalid]) {
+    cases.push({name:'offset-'+type,kind:'offset',expected:type==='zero'?'+0 ms':type==='finite'?'+100 ms':'—',events:[edge('input_transcript',value)]});
+    const extra=type==='missing'?{}:{duration_ms:value};
+    cases.push({name:'duration-'+type,kind:'duration',expected:type==='zero'?'0 ms':type==='finite'?'100 ms':type==='missing'?null:'—',events:[edge('input_transcript',100,extra)]});
+  }
+  if(index===null)return cases.map(({name,kind})=>({name,kind}));
+  const item=cases[index];
+  // The marker distinguishes null/NaN/Infinity signatures without clock changes.
+  item.events[0].fixture_renderer_case=item.name;
+  renderLifecycle(item.events);
+  return {name:item.name,kind:item.kind,prefix:item.prefix,expected:item.expected,
+    signature:JSON.stringify(item.events),signatureMatches:box.dataset.signature===JSON.stringify(item.events),
+    text:box.textContent,
+    rows:Array.from(box.children).filter(row=>!row.querySelector('.who')).map(row=>row.textContent),
+    eventRows:Array.from(box.children).filter(row=>row.querySelector('.who')).map(row=>({offset:row.querySelector('.who').textContent,label:row.lastChild.textContent}))};
+}
+function assertMeasurement(observed) {
+  assert.equal(observed.signatureMatches,true,observed.name+' actual renderer signature');
+  assert.doesNotMatch(observed.text,/NaN|Infinity|(?:^|\s)-\d+\s*ms/,observed.name+' invalid/negative measurement');
+  assert.doesNotMatch(observed.text,/hørbart svar|meningsfuld.*lyd/i,observed.name+' host times are not audible proof');
+  const summary=observed.rows.find(row=>observed.prefix && row.startsWith(observed.prefix));
+  if(observed.kind==='unknown') {
+    assert.ok(summary && /ukendt|—/.test(summary),observed.name+' unknown summary');
+    assert.doesNotMatch(summary,/\d+\s*ms/,observed.name+' unusable pair cannot derive duration');
+  }
+  if(observed.kind==='numeric') {
+    assert.ok(observed.rows.some(row=>row.includes('50 ms') && row.includes('100 ms')),'finite same-owner deltas retained');
+    assert.ok(observed.text.includes('Serverens hændelsestider'),'known host-event label');
+  }
+  if(observed.kind==='typed') {
+    assert.ok(observed.rows.some(row=>/tekstinput|skrevet|indtastet/i.test(row)),'written-input summary');
+    assert.ok(!observed.text.includes('Du stoppede med at tale'),'written-input event label');
+  }
+  if(observed.kind==='recovery') {
+    assert.match(observed.text,/genaktiver|genoprett|genopret|recovery|gendannet/i,'actual recovery label');
+    assert.doesNotMatch(observed.text,/wake_rearm_recovered|Firmware har kvitteret genaktivering|fysisk vækning bekræftet|næste wake bevist/i,'recovery is not wake ACK/proof');
+    assert.doesNotMatch(observed.text,/rearm-kvittering: 100 ms/,'recovery cannot invent ACK summary');
+  }
+  if(observed.kind==='pair')assert.equal(summary,observed.prefix+' '+observed.expected,observed.name);
+  if(observed.kind==='absent-pair')assert.equal(summary,undefined,observed.name+' no forced missing-pair summary');
+  if(observed.kind==='offset')assert.equal(observed.eventRows[0].offset,observed.expected,observed.name);
+  if(observed.kind==='duration')assert.equal(observed.eventRows[0].label,'Transskription klar'+(observed.expected===null?'':' · '+observed.expected),observed.name);
+}
+async function observeMeasurement(page,index) {
+  return bounded(page.locator('#lifecycle_timeline').evaluate(measurementObservation,index,{timeout:FIXTURE_WAIT_MS}),'atomic measurement observation');
+}
+async function captureMeasurement(page,indices,variant,width,sourceHash) {
+  const screenshots=[];
+  for(const index of indices) {
+    const observed=await observeMeasurement(page,index);
+    if(variant==='after')assertMeasurement(observed);
+    const signature=()=>page.locator('#lifecycle_timeline').evaluate(box=>box.dataset.signature,undefined,{timeout:FIXTURE_WAIT_MS});
+    assert.equal(await bounded(signature(),'measurement before screenshot'),observed.signature,'fixture still displayed before screenshot');
+    const name=`measurement-${variant}-${width}-${observed.name}.png`;
+    await bounded(page.screenshot({path:path.join(proof,name),fullPage:true}),'source-bound measurement screenshot');
+    assert.equal(await bounded(signature(),'measurement after screenshot'),observed.signature,'fixture still displayed after screenshot');
+    screenshots.push({path:name,width,variant,case:observed.name,html_sha256:sourceHash,observed,
+      caption:'Actual full HTML; synthetic host-event rows injected atomically into shipped renderLifecycle. No physical latency or viewport acceptance.'});
+  }
+  return screenshots;
+}
+async function baselineMeasurementScreens(browser,width,indices) {
+  let page,context,primary=null;const cleanupErrors=[],held=[],owned=[];let hold=false,onHeld=null;
+  const own=work=>{owned.push(work);work.catch(()=>{});return work;};
+  const errors=[],testRequests=[];let screenshots=[];
+  try {
+    page=await bounded(browser.newPage({viewport:{width,height:1000},colorScheme:'light'}),'baseline page');context=page.context();
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.addInitScript(()=>{
+      window.EventSource=class {constructor(){setTimeout(()=>this.onopen?.(),0);}close(){}};
+      window.WebSocket=class {static OPEN=1;constructor(){this.readyState=3;}send(){}close(){}};
+    });
+    await page.route('http://panel.test/**',async route=>{
+      const url=new URL(route.request().url());
+      if(/^\/api\/(?:eval(?:\/|$)|groundtest(?:\/|$)|stuetest(?:\/|$)|acceptance$)/.test(url.pathname))testRequests.push(url.pathname);
+      if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:baselineSource});
+      let json={ok:true,status:'idle'};
+      if(url.pathname==='/api/status') {
+        if(hold)await new Promise(resolve=>{held.push(resolve);if(onHeld){const notify=onHeld;onHeld=null;notify();}});
+        json=status();
+      }
+      if(url.pathname==='/api/settings')json=settings;
+      if(url.pathname==='/api/models')json={models:[],voices:[],default:null};
+      return route.fulfill({json});
+    });
+    const initialized=own(page.waitForResponse(r=>new URL(r.url()).pathname==='/api/status',{timeout:FIXTURE_WAIT_MS}));
+    await bounded(page.goto('http://panel.test/'),'actual baseline HTML');await bounded(initialized,'baseline status initializer');
+    await page.waitForFunction(()=>document.getElementById('lifecycle_timeline')?.dataset.signature==='[]' && document.getElementById('s_save')?.disabled===false,null,{timeout:FIXTURE_WAIT_MS});
+    await page.locator('#tab-test').click({timeout:FIXTURE_WAIT_MS});
+    hold=true;const entered=new Promise(resolve=>onHeld=resolve);const poll=own(page.evaluate(()=>poll()));
+    await bounded(entered,'baseline screenshot poll held');
+    screenshots=await captureMeasurement(page,indices,'before',width,baselineSha);
+    assert.deepEqual(errors,[],'baseline full-HTML script errors');assert.deepEqual(testRequests,[],'baseline has no hidden conversation tests');
+    hold=false;held.splice(0).forEach(resolve=>resolve());await bounded(poll,'baseline held poll release');
+  }catch(error){primary=error;}
+  finally {
+    hold=false;onHeld=null;held.splice(0).forEach(resolve=>resolve());
+    // This extra page/context belongs to the same worker and existing browser.
+    // Attempt both public owners and preserve the primary failure independently.
+    for(const [owner,label] of [[page,'baseline page cleanup'],[context,'baseline context cleanup']]) {
+      if(!owner)continue;
+      try{await bounded(owner.close(),label);}catch(error){cleanupErrors.push({owner:label,error:String(error)});}
+    }
+    try{await bounded(Promise.allSettled(owned),'baseline owned-work join');}catch(error){cleanupErrors.push({owner:'baseline owned work',error:String(error)});}
+  }
+  const report={width,html_sha256:baselineSha,source_kind:'published539 full HTML',screenshots,cleanup_complete:!cleanupErrors.length,
+    primary_error:primary?String(primary):null,cleanup_errors:cleanupErrors,evidence:'Synthetic rendered projection only; baseline defects are observations, not accepted behavior'};
+  if(proof)fs.writeFileSync(path.join(proof,`measurement-before-${width}.json`),JSON.stringify(report,null,2)+'\n');
+  if(primary)throw primary;assert.deepEqual(cleanupErrors,[],'baseline public-owner cleanup');return report;
+}
+
+// Actual origin/API controls admission; inert transport events never request capture.
+async function talkCaptureGuard(page,secure) {
+  const kind=secure?'https-native-api':'http-no-native-api';
+  const report={issue:115,kind,html_sha256:sourceSha,phases:[],capture_requested:false,permissions_modified:false,
+    evidence:'Actual full HTML and native secure context/API availability; inert hello/diagnostic edges only. No MediaStream/audio/HA-app/Safari proof.'};
+  function record(phase,state) {
+    report.phases.push({phase,...state});
+    if(proof)fs.writeFileSync(path.join(proof,`talk-capture-${kind}.json`),JSON.stringify(report,null,2)+'\n');
+  }
+  function snapshot() {
+    return {secure_context:window.isSecureContext,
+      get_user_media:typeof navigator.mediaDevices?.getUserMedia==='function',
+      mic_disabled:document.getElementById('cmic').disabled,
+      mic_pressed:document.getElementById('cmic').getAttribute('aria-pressed'),
+      hint:document.getElementById('cmichint').textContent,
+      send_disabled:document.getElementById('csend').disabled,
+      stage:document.getElementById('cstage_title').textContent};
+  }
+  // Snapshot is an observer only; no controller/capability logic is duplicated.
+  const read=()=>bounded(page.evaluate(snapshot),'native capture admission snapshot');
+  await page.locator('#tab-talk').click({timeout:FIXTURE_WAIT_MS});
+  await page.waitForFunction(()=>window.__fixtureTalkSockets?.some(sock=>
+    new URL(sock.url).pathname==='/api/talk' && typeof sock.onmessage==='function'),null,{timeout:FIXTURE_WAIT_MS});
+  const before=await read();record('initial',before);
+  assert.equal(before.secure_context,secure,'real standard origin matches fixture');
+  assert.equal(before.get_user_media,secure,'real native capture API availability matches origin');
+  assert.equal(before.mic_disabled,true,'initial transport has not admitted microphone');
+  if(!secure)assert.match(before.hint,/HTTPS/,'initial concrete HTTPS action');
+  await bounded(page.evaluate(()=>{
+    const sock=window.__fixtureTalkSockets.find(sock=>new URL(sock.url).pathname==='/api/talk');
+    sock.readyState=WebSocket.OPEN;if(sock.onopen)sock.onopen({type:'open'});
+    sock.onmessage({data:JSON.stringify({type:'hello',protocol:2,rate:24000})});
+  }),'actual shipped hello');
+  const hello=await read();record('hello',hello);
+  assert.equal(hello.send_disabled,false,'hello admits permitted text input');
+  assert.equal(hello.stage,'Klar','actual hello handler ran');
+  assert.equal(hello.secure_context,secure,'hello does not change origin security');
+  assert.equal(hello.get_user_media,secure,'hello does not grant capture capability');
+  assert.equal(hello.mic_disabled,!secure,'hello preserves native capture prerequisite');
+  assert.equal(hello.mic_pressed,'false','hello did not request microphone capture');
+  if(!secure)assert.match(hello.hint,/HTTPS/,'HTTPS action retained after hello');
+  await bounded(page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:true})),'actual diagnostic active');
+  const active=await read();record('diagnostic-active',active);
+  assert.equal(active.mic_disabled,true,'diagnostic owner excludes capture');
+  assert.equal(active.send_disabled,true,'diagnostic owner excludes text');
+  assert.equal(active.stage,'Systemtest kører','actual diagnostic listener ran');
+  await bounded(page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:false})),'actual diagnostic cleared');
+  const cleared=await read();record('diagnostic-cleared',cleared);
+  assert.equal(cleared.send_disabled,false,'diagnostic cleared restores permitted text');
+  assert.equal(cleared.stage,'Klar','actual diagnostic cleared listener ran');
+  assert.equal(cleared.secure_context,secure,'diagnostic clearance cannot change origin');
+  assert.equal(cleared.get_user_media,secure,'diagnostic clearance cannot grant capture API');
+  assert.equal(cleared.mic_disabled,!secure,'diagnostic cleared retains native capture prerequisite');
+  assert.equal(cleared.mic_pressed,'false','no capture started during diagnosis');
+  if(!secure)assert.match(cleared.hint,/HTTPS/,'HTTPS action retained after diagnostic clearance');
+  report.pass=true;record('complete',{});return report;
+}
+async function secureTalkCaptureGuard(browser) {
+  let page,context,primary=null,result=null;const cleanupErrors=[],held=[],owned=[];
+  let hold=false,onHeld=null;const errors=[],testRequests=[];
+  const own=work=>{owned.push(work);work.catch(()=>{});return work;};
+  try {
+    page=await bounded(browser.newPage({viewport:{width:390,height:1000},colorScheme:'light'}),'secure capture page');context=page.context();
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.addInitScript(()=>{
+      window.EventSource=class {constructor(){setTimeout(()=>this.onopen?.(),0);}close(){}};
+      window.__fixtureTalkSockets=[];
+      window.WebSocket=class {static OPEN=1;constructor(url){this.readyState=3;this.url=String(url);window.__fixtureTalkSockets.push(this);}send(){}close(){}};
+    });
+    // Routing actual HTTPS HTML/API avoids external network. Browser security and
+    // navigator.mediaDevices are untouched; no ignored certificate/security flags.
+    await page.route('https://panel.test/**',async route=>{
+      const url=new URL(route.request().url());
+      if(/^\/api\/(?:eval(?:\/|$)|groundtest(?:\/|$)|stuetest(?:\/|$)|acceptance$)/.test(url.pathname))testRequests.push(url.pathname);
+      if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:source});
+      let json={ok:true,status:'idle'};
+      if(url.pathname==='/api/status') {
+        if(hold)await new Promise(resolve=>{held.push(resolve);if(onHeld){const notify=onHeld;onHeld=null;notify();}});
+        json=status();
+      }
+      if(url.pathname==='/api/settings')json=settings;
+      if(url.pathname==='/api/models')json={models:[],voices:[],default:null};
+      return route.fulfill({json});
+    });
+    await bounded(page.goto('https://panel.test/'),'actual HTTPS HTML');
+    await page.waitForFunction(()=>document.querySelector('#pane-home .live-title')?.textContent==='Lytter' &&
+      document.getElementById('s_save')?.disabled===false,null,{timeout:FIXTURE_WAIT_MS});
+    hold=true;const entered=new Promise(resolve=>onHeld=resolve);const poll=own(page.evaluate(()=>poll()));
+    await bounded(entered,'HTTPS capture poll held');assert.ok(held.length>0,'actual HTTPS poll is held');
+    result=await talkCaptureGuard(page,true);
+    assert.deepEqual(errors,[],'HTTPS whole-HTML script errors');assert.deepEqual(testRequests,[],'HTTPS has no hidden conversation-test API');
+    hold=false;held.splice(0).forEach(resolve=>resolve());await bounded(poll,'HTTPS held poll released');
+  }catch(error){primary=error;}
+  finally {
+    hold=false;onHeld=null;held.splice(0).forEach(resolve=>resolve());
+    for(const [owner,label] of [[page,'HTTPS page cleanup'],[context,'HTTPS context cleanup']]) {
+      if(!owner)continue;
+      try{await bounded(owner.close(),label);}catch(error){cleanupErrors.push({owner:label,error:String(error)});}
+    }
+    try{await bounded(Promise.allSettled(owned),'HTTPS owned-work join');}catch(error){cleanupErrors.push({owner:'HTTPS owned work',error:String(error)});}
+  }
+  const receipt={result,primary_error:primary?String(primary):null,cleanup_complete:!cleanupErrors.length,cleanup_errors:cleanupErrors};
+  if(proof)fs.writeFileSync(path.join(proof,'talk-capture-https-owner.json'),JSON.stringify(receipt,null,2)+'\n');
+  if(primary)throw primary;assert.deepEqual(cleanupErrors,[],'HTTPS public-owner cleanup');return receipt;
+}
+
 (async()=>{
   const browser=await chromium.launch({headless:true,executablePath:process.env.PODVOICE_TEST_CHROMIUM});
   try {
@@ -47,7 +306,8 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         await page.addInitScript(()=>{
           // Fixture I/O: real rendered app and controllers, no external sockets.
           window.EventSource=class { constructor(){setTimeout(()=>this.onopen?.(),0);} close(){} };
-          window.WebSocket=class { static OPEN=1; constructor(){this.readyState=3;} send(){} close(){} };
+          window.__fixtureTalkSockets=[];
+          window.WebSocket=class { static OPEN=1; constructor(url){this.readyState=3;this.url=String(url);window.__fixtureTalkSockets.push(this);} send(){} close(){} };
         });
         await page.route('http://panel.test/**',async route=>{
           const url=new URL(route.request().url());
@@ -296,7 +556,51 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         assert.equal(await page.locator('#s_save').isEnabled(),true,'saved settings loaded after reload');
         assert.deepEqual(testRequests,[],`no resumed conversation-test fetches ${width}/${scheme}`);
         assert.deepEqual(errors,[],`page errors after reload ${width}/${scheme}`);
-        reports.push({width,scheme,overflow:false,zoom200Overflow:false,focus:'preserved',commands:'unchanged',unchangedStatusAnnouncements:changes,contrast});
+        let measurement=null;
+        if(scheme==='light' && [390,1440].includes(width)) {
+          // The same real poll owner stays blocked through observation/screenshots.
+          // No sleeps, clock advance, renderer copy or new browser worker.
+          injecting=true;const measurementHeld=new Promise(resolve=>onHeldPoll=resolve);
+          const measurementPoll=own(page.evaluate(()=>poll()));
+          await bounded(measurementHeld,'measurement poll entered');
+          assert.ok(heldPolls.length>0,'actual status poll held for measurement evidence');
+          await page.locator('#tab-test').click({timeout:FIXTURE_WAIT_MS});
+          const inventory=await observeMeasurement(page,null);
+          const results=[];
+          const names=['finite-host-arrival','invalid-edge-0','typed-start-is-not-speech','actual-recovery-edge'];
+          const indices=names.map(name=>{const index=inventory.findIndex(item=>item.name===name);assert.ok(index>=0,name);return index;});
+          if(width===390) {
+            assert.equal(inventory.length,86,'14 approved cases plus72 endpoint/offset/duration controls');
+            for(let index=0;index<inventory.length;index++) {
+              const observed=await observeMeasurement(page,index);assertMeasurement(observed);results.push(observed);
+            }
+          }
+          const after=proof?await captureMeasurement(page,indices,'after',width,sourceSha):[];
+          const before=baselineSource?await baselineMeasurementScreens(browser,width,indices):null;
+          measurement={issue:100,acceptance:'AC4',mandatory_regression:width===390?'86 cases enforced':'already enforced at390/light',
+            html_sha256:sourceSha,source_kind:'candidate full HTML',results,screenshots:after,baseline:before,
+            ac5_before_after:before && after.length===4 && before.screenshots.length===4?'SOURCE_BOUND_RENDERED_EVIDENCE':'NOT_PROVEN',
+            evidence:'Atomic synthetic rows after whole-HTML/API initialization; separate14-case API proof is retained. No HA/provider/physical/audio/first-viewport proof.'};
+          if(proof)fs.writeFileSync(path.join(proof,`measurement-after-${width}.json`),JSON.stringify(measurement,null,2)+'\n');
+          injecting=false;heldPolls.splice(0).forEach(resolve=>resolve());
+          await bounded(measurementPoll,'measurement held poll release');
+          assert.deepEqual(errors,[],`measurement script errors ${width}/${scheme}`);
+          assert.deepEqual(testRequests,[],`measurement has no hidden conversation-test fetches ${width}/${scheme}`);
+        }
+        let captureGuard=null;
+        if(width===390 && scheme==='light') {
+          injecting=true;const captureHeld=new Promise(resolve=>onHeldPoll=resolve);
+          const capturePoll=own(page.evaluate(()=>poll()));
+          await bounded(captureHeld,'HTTP capture poll held');assert.ok(heldPolls.length>0,'actual HTTP poll is held');
+          const insecure=await talkCaptureGuard(page,false);
+          const secure=await secureTalkCaptureGuard(browser);
+          captureGuard={insecure,secure};
+          injecting=false;heldPolls.splice(0).forEach(resolve=>resolve());
+          await bounded(capturePoll,'HTTP capture poll released');
+          assert.deepEqual(errors,[], 'capture admission script errors');
+          assert.deepEqual(testRequests,[], 'capture admission has no hidden conversation-test API');
+        }
+        reports.push({width,scheme,overflow:false,zoom200Overflow:false,focus:'preserved',commands:'unchanged',unchangedStatusAnnouncements:changes,contrast,measurement,captureGuard});
         } finally {
           injecting=false;onHeldPoll=null;
           heldPolls.splice(0).forEach(resolve=>resolve());

@@ -19,7 +19,7 @@ def test_shipped_browser_peer_identity_stop_late_offer_and_typed_to_mic():
     ].split("// ---- End Live WebRTC ----", 1)[0]
     mic = (
         "async function micStart()"
-        + html.split("async function micStart()", 1)[1].split("  if (window.isSecureContext", 1)[0]
+        + html.split("async function micStart()", 1)[1].split("  if (captureAvailable())", 1)[0]
     )
     exit_handlers = "\n".join(
         line

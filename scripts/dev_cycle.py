@@ -24,6 +24,8 @@ COLLECTION_TIMEOUT_S = 15
 FAST_TIMEOUT_S = 120
 RELEASE_TIMEOUT_S = 240
 UNIT_BATCH_COUNT = 8
+INTEGRATION_COHORT_COUNT = 2
+INTEGRATION_SDK_MODULE = "tests/integration/test_thin_live_ten_cycles.py"
 GATE_CACHE_STAGES = frozenset(
     {
         "ruff",
@@ -163,6 +165,215 @@ def run_unit_batches(root: Path, env: dict[str, str], python: str, timeout: int)
                     output.seek(0)
                     for line in output.read().rstrip().splitlines():
                         print(f"[unit batch {index}] {line}", flush=True)
+    finally:
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
+
+
+def integration_batches(root: Path) -> tuple[tuple[str, ...], ...]:
+    """Keep the actual ten-cycle module and exhaustive remainder in two cohorts."""
+    files = sorted(
+        path.relative_to(root).as_posix()
+        for path in (root / "tests/integration").rglob("*.py")
+        if path.name.startswith("test_") or path.name.endswith("_test.py")
+    )
+    if INTEGRATION_SDK_MODULE not in files:
+        raise DevCycleError("integration worker requires the actual SDK ten-cycle module")
+    remainder = tuple(path for path in files if path != INTEGRATION_SDK_MODULE)
+    if not remainder:
+        raise DevCycleError("integration worker requires a nonempty remainder cohort")
+    return ((INTEGRATION_SDK_MODULE,), remainder)
+
+
+def integration_stage(python: str, timeout: int) -> Stage:
+    """One outer owner, two sequential children with unchanged individual bounds."""
+    return Stage(
+        "integration",
+        (
+            python,
+            "scripts/dev_cycle.py",
+            "integration-worker",
+            "--integration-timeout",
+            str(timeout),
+        ),
+        INTEGRATION_COHORT_COUNT * (timeout + 4) + COLLECTION_TIMEOUT_S,
+    )
+
+
+def _integration_identity(pid: int):
+    # Reuse the native reader only; no browser/dependency process is launched.
+    from scripts.browser_gate import BrowserGateError, identity
+
+    try:
+        return identity(pid)
+    except BrowserGateError as exc:
+        raise DevCycleError(str(exc)) from exc
+
+
+def _finish_integration_child(process: subprocess.Popen[str], admitted) -> None:
+    """Join the exact child; never signal an unknown, reused or leaderless group."""
+    from scripts.browser_gate import group_exists
+
+    def signal_owned(sig: int) -> None:
+        current = _integration_identity(process.pid)
+        if admitted is not None and current is None:
+            # Native disappearance can precede a waitable exit after KILL.
+            # Signal nothing; the retained Popen must still be joined below.
+            return
+        if admitted is None or current != admitted:
+            raise DevCycleError("integration child identity changed; group signal refused")
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            raise DevCycleError(f"integration child signal failed: {exc}") from exc
+
+    deadline = time.monotonic() + 4
+    if process.poll() is None:
+        signal_owned(signal.SIGTERM)
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            signal_owned(signal.SIGKILL)
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired as exc:
+                raise DevCycleError("integration child did not join after SIGKILL") from exc
+    else:
+        process.wait(timeout=2)
+    while group_exists(process.pid) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    if group_exists(process.pid):
+        # wait/poll may reap the leader. A surviving group is not new authority
+        # to signal an unregistered descendant or a newly reused leader PID.
+        raise DevCycleError("integration child group remains after terminal join; signal refused")
+
+
+def run_integration_batches(root: Path, env: dict[str, str], python: str, timeout: int) -> None:
+    """Run both complete cohorts serially; preserve failure and bounded cleanup."""
+    batches = integration_batches(root)
+    interrupted_by = None
+    cancellation_failure = None
+    cleaning = False
+    process = None
+    admitted = None
+
+    def interrupted(signum: int, _frame: object) -> None:
+        nonlocal interrupted_by, cancellation_failure
+        interrupted_by = signum
+        # The outer owner gives this worker only two seconds before KILL.
+        # Stop its separately grouped child immediately, even during cleanup.
+        if process is not None and process.poll() is None:
+            current = _integration_identity(process.pid)
+            if admitted is None or current != admitted:
+                if not cleaning:
+                    raise DevCycleError("integration cancellation identity changed; signal refused")
+            else:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except OSError as exc:
+                    error = DevCycleError(f"integration cancellation signal failed: {exc}")
+                    if not cleaning:
+                        raise error from exc
+                    cancellation_failure = error
+        if not cleaning:
+            raise DevCycleError(f"integration worker interrupted by signal {signum}")
+
+    watched = {signal.SIGTERM, signal.SIGINT}
+    previous_handlers = {sig: signal.signal(sig, interrupted) for sig in watched}
+    try:
+        for index, batch in enumerate(batches, 1):
+            cleaning = False
+            if interrupted_by is not None:
+                raise DevCycleError(f"integration worker interrupted by signal {interrupted_by}")
+            process = None
+            admitted = None
+            failure = None
+            started = time.monotonic()
+            print(f"integration cohort {index}: {len(batch)} modules, {timeout}s bound", flush=True)
+            with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as output:
+                try:
+                    # Cancellation cannot strand a spawned child before its
+                    # Popen/native identity is retained by the cleanup owner.
+                    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, watched)
+                    try:
+                        process = subprocess.Popen(
+                            (
+                                python,
+                                "-c",
+                                "import os,signal,sys; "
+                                "signal.pthread_sigmask(signal.SIG_UNBLOCK,{signal.SIGTERM,signal.SIGINT}); "
+                                "os.execv(sys.executable,[sys.executable,'-m','pytest',*sys.argv[1:]])",
+                                "-q",
+                                "-x",
+                                "--tb=short",
+                                *batch,
+                            ),
+                            cwd=root,
+                            env=env,
+                            text=True,
+                            stdout=output,
+                            stderr=subprocess.STDOUT,
+                            start_new_session=True,
+                        )
+                        admitted = _integration_identity(process.pid)
+                        if admitted is None:
+                            if process.poll() is None:
+                                raise DevCycleError(
+                                    "integration child admission identity is missing"
+                                )
+                        elif (
+                            admitted.pid != process.pid
+                            or admitted.parent != os.getpid()
+                            or admitted.group != process.pid
+                            or admitted.uid != os.getuid()
+                        ):
+                            admitted = None
+                            raise DevCycleError("integration child admission identity is invalid")
+                    finally:
+                        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+                    try:
+                        result = process.wait(timeout=timeout)
+                    except subprocess.TimeoutExpired as exc:
+                        raise DevCycleError(
+                            f"integration cohort {index} timed out after {timeout}s"
+                        ) from exc
+                    if result:
+                        raise DevCycleError(f"integration cohort {index} failed ({result})")
+                except BaseException as exc:
+                    failure = exc
+                    raise
+                finally:
+                    cleaning = True
+                    try:
+                        if process is not None:
+                            try:
+                                _finish_integration_child(process, admitted)
+                            except DevCycleError as exc:
+                                if failure is None:
+                                    raise
+                                failure.add_note(f"integration cleanup: {exc}")
+                                print(f"integration cleanup: {exc}", flush=True)
+                        if cancellation_failure is not None:
+                            if failure is None:
+                                raise cancellation_failure
+                            failure.add_note(f"integration cleanup: {cancellation_failure}")
+                            print(f"integration cleanup: {cancellation_failure}", flush=True)
+                    finally:
+                        output.seek(0)
+                        for line in output.read().rstrip().splitlines():
+                            print(f"[integration cohort {index}] {line}", flush=True)
+                        print(
+                            f"integration cohort {index}: {time.monotonic() - started:.2f}s",
+                            flush=True,
+                        )
+                    if interrupted_by is not None and failure is None:
+                        raise DevCycleError(
+                            f"integration worker interrupted by signal {interrupted_by}"
+                        )
     finally:
         for sig, handler in previous_handlers.items():
             signal.signal(sig, handler)
@@ -860,9 +1071,7 @@ def run_fast(
     # Keep every test and the same per-worker bound; use release's isolated split.
     if tests == [FULL_SUITE_MARKER]:
         stages.append(unit_stage(python, timeout))
-        stages.append(
-            Stage("integration", (python, "-m", "pytest", "-q", "tests/integration"), timeout)
-        )
+        stages.append(integration_stage(python, timeout))
     else:
         stages.append(Stage("pytest", (python, "-m", "pytest", "-q", *tests), timeout))
     run_parallel(root, env, stages)
@@ -943,11 +1152,7 @@ def run_release(
             Stage("ruff-format", (python, "-c", style_worker, ruff), 60),
             Stage("mypy", (mypy, "podvoice/gatekeeper"), 90),
             unit_stage(python, release_timeout),
-            Stage(
-                "integration",
-                (python, "-m", "pytest", "-q", "tests/integration"),
-                release_timeout,
-            ),
+            integration_stage(python, release_timeout),
         ],
     )
     if browser_scope(snapshot.changes):
@@ -962,13 +1167,16 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "mode",
-        choices=("preflight", "fast", "lifecycle", "release", "unit-worker"),
+        choices=("preflight", "fast", "lifecycle", "release", "unit-worker", "integration-worker"),
         nargs="?",
         default="fast",
     )
     parser.add_argument("--base", default=os.environ.get("PODVOICE_BASE", "origin/main"))
     parser.add_argument(
         "--unit-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--integration-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
     )
     return parser.parse_args(argv)
 
@@ -980,6 +1188,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.mode == "unit-worker":
             run_unit_batches(
                 Path.cwd().resolve(), os.environ.copy(), sys.executable, args.unit_timeout
+            )
+            return 0
+        if args.mode == "integration-worker":
+            run_integration_batches(
+                Path.cwd().resolve(), os.environ.copy(), sys.executable, args.integration_timeout
             )
             return 0
         root = repository_root(Path.cwd())

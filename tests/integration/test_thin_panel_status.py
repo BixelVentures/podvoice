@@ -8,11 +8,12 @@ import pytest
 from aiohttp.test_utils import make_mocked_request
 from test_thin_live import build
 from test_thin_live_idle import deliver, setup
-from test_thin_live_idle_preclose import played_answer
+from test_thin_live_idle_preclose import clock_patch, observed_preclose, played_answer
 
 import gatekeeper.thin as thin_module
 from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
+from gatekeeper.openai_live import LiveTranscript
 from gatekeeper.web import _status, create_app
 
 
@@ -52,8 +53,8 @@ async def test_native_panel_explains_tv_and_measured_quiet_without_changing_owne
             deliver(session, link, clock, 32, input_state="active")
             status = session._panel_status(clock[0])
             assert status["input_state"] == "active"
-            assert status["blocker"] == "Måler ro før app-timeout"
-            assert status["countdown_running"] and status["remaining_s"] is not None
+            assert status["blocker"] == "Afventer bekræftet ro i lydvejen"
+            assert not status["countdown_running"] and status["remaining_s"] is None
             clock[0] += 2
             status = session._panel_status(clock[0])
             assert status["input_state"] == "stale"
@@ -165,3 +166,136 @@ async def test_snapshot_and_sse_share_bounded_owner_projection():
     status["phase"] = "old mutation"
     assert hub.snapshot()["rooms"][0]["live_status"]["phase"] == "LISTENING"
     hub.unsubscribe(queue)
+
+
+def _panel_idle_owner_snapshot(session):
+    """Read owned fields directly; do not call admission or readiness predicates."""
+    task = session._live_idle_preclose_task
+    return {
+        "input_owner": session._live_idle_input_owner,
+        "idle_window": vars(session._live_idle_window).copy(),
+        "proof_owner": session._live_idle_window.proof_owner,
+        "output_window": vars(session._live_close_output_window).copy(),
+        "end_window": vars(session._live_end_window).copy(),
+        "preclose": (
+            task,
+            task.done() if task is not None else None,
+            task.cancelling() if task is not None else None,
+            frozenset(session._live_idle_preclose_owners),
+            session._live_idle_preclose_token,
+            session._live_idle_preclose_deadline,
+        ),
+        "runtime": (
+            session._epoch,
+            session._history_session,
+            session._active,
+            session.sm.state,
+            session._idle_deadline,
+            session._live_input_revision,
+            session._live_close_output_revision,
+            session._live_close_nonzero_frame_end,
+            session._live_close_speech_played,
+            session._live_close_attempt,
+            session._live_close_phase,
+            session._live_end_receipt,
+            session._goodbye,
+            session._live_finalizing,
+            session._transport_closing,
+        ),
+    }
+
+
+async def _queued_sdk_input_before_panel_read(session):
+    brain = session.brain
+    before = brain.input_sequence
+    revision = session._live_input_revision
+    # The actual adapter branch parses and queues synchronously: no suspension
+    # between accepted SDK arrival and these panel reads. No consumer is hidden.
+    await brain._handle(
+        {
+            "type": "session.input_transcript.delta",
+            "event_id": "panel-pending-current-input",
+            "delta": "Jeg taler stadig",
+            "start_ms": 100,
+            "end_ms": 300,
+        },
+        brain._connection_generation,
+    )
+    event = brain._queue._queue[-1]
+    assert isinstance(event, LiveTranscript)
+    assert event.direction == "in" and event.text == "Jeg taler stadig"
+    assert event.generation == brain._connection_generation
+    assert event.input_index == brain.input_sequence == before + 1
+    assert session._live_input_revision == revision
+    return event
+
+
+async def _assert_actual_panel_reads_preserve_idle(session, hub, clock, queued):
+    before = _panel_idle_owner_snapshot(session)
+    app = create_app(hub, {session.room: session})
+    session._panel_status(clock[0])
+    assert _panel_idle_owner_snapshot(session) == before, "direct panel read mutated idle owner"
+    for _ in range(2):
+        session._publish_panel_status(force=True)
+        assert hub.snapshot()["rooms"][0]["live_status"]
+        assert _panel_idle_owner_snapshot(session) == before, "forced publish mutated idle owner"
+    for _ in range(2):
+        # The actual GET handler contains no awaiting operation. Awaiting its
+        # body needs neither a socket nor a scheduler/heartbeat barrier.
+        response = await _status(make_mocked_request("GET", "/api/status", app=app))
+        assert response.status == 200
+        assert json.loads(response.text)["rooms"][0]["live_status"]
+        assert _panel_idle_owner_snapshot(session) == before, "GET status mutated idle owner"
+    assert session.brain._queue._queue[-1] is queued
+
+
+@pytest.mark.asyncio
+async def test_nonclosing_panel_reads_preserve_native_idle_proof_after_sdk_arrival(monkeypatch):
+    async with asyncio.timeout(15):
+        session, _, link = await setup(output=False)
+        session.hub = hub = StatusHub()
+        hub.register_room(session.room)
+        clock = [100.0]
+        try:
+            with monkeypatch.context() as patch:
+                clock_patch(patch, clock)
+                await played_answer(session, link, clock)
+                for index in range(2, 32):
+                    deliver(session, link, clock, index)
+                assert session._live_close_speech_played
+                assert session._live_idle_window._anchor is not None
+                assert session._live_idle_window.proof_owner is not None
+                assert session._live_idle_preclose_task is None
+                assert not session._live_finalizing and not session._transport_closing
+                before = _panel_idle_owner_snapshot(session)
+                queued = await _queued_sdk_input_before_panel_read(session)
+                assert _panel_idle_owner_snapshot(session) == before
+                await _assert_actual_panel_reads_preserve_idle(session, hub, clock, queued)
+        finally:
+            await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_registered_preclose_panel_reads_preserve_exact_owner_after_sdk_arrival(monkeypatch):
+    async with asyncio.timeout(15):
+        session, sdk, link = await setup(output=False)
+        session.hub = hub = StatusHub()
+        hub.register_room(session.room)
+        clock = [100.0]
+        try:
+            with monkeypatch.context() as patch:
+                clock_patch(patch, clock)
+                await observed_preclose(session, sdk, link, clock)
+                owner = session._live_idle_preclose_task
+                assert owner is not None and not owner.done()
+                assert owner in session._live_idle_preclose_owners
+                assert session._live_idle_preclose_deadline is not None
+                assert not session._live_finalizing and not session._transport_closing
+                before = _panel_idle_owner_snapshot(session)
+                queued = await _queued_sdk_input_before_panel_read(session)
+                assert _panel_idle_owner_snapshot(session) == before
+                await _assert_actual_panel_reads_preserve_idle(session, hub, clock, queued)
+                assert session._live_idle_preclose_task is owner and not owner.done()
+                assert sdk.session.close.await_count == 0
+        finally:
+            await session.aclose()
