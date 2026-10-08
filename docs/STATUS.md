@@ -1,5 +1,26 @@
 # PodVoice-status — én aktuel sandhed
 
+<!-- pv208-private-contract-delivery-candidate -->
+### 8/10 — 2.0.8 softwarekandidat; naturlig lukning undersøges fortsat
+
+Lead: root. Et observeret svar uden modelsemantisk afslutning kan efterfølges af
+timeout. Denne kandidat tilføjer en eksplicit, privat engangsobservation af den
+initiale Realtime-kontrakt og de faktiske native/Talk-startkanter, så input,
+afsendelse og providerkvittering kan skelnes. Den ændrer ikke prompt, schema,
+værktøjer, samtalebetydning, lyd, firmware eller idle-/teardown-/rearm-policy.
+Observationen udløber automatisk, er ejerbundet og vises ikke i almindelig UI,
+status, historik eller log. Den eksisterende browseroprydning bevarer ukendt
+procesfravær ved EPERM og kan færdiggøre oprydning efter frisk fraværsobservation.
+
+Uafhængigt adversarial source-review og unit-/integration-/type-/style-/browser-
+kontroller består. Første sammensatte udviklingskørsel stoppede før browser på
+en manglende bibliotekssti; kun browserdelen er genkørt med korrekt miljø på
+uændrede bits. Releasekontrol, præcis CI/publicering og installation afventer.
+Ingen fysisk golden chain, 10/10 lifecycle, hørbar Talk-drain, hurtigere svar
+eller rettet naturlig afslutning hævdes. De tilhørende epics/issues forbliver åbne.
+Rollback er den installerede 2.0.7; fysisk accept arves ikke af en ny version.
+
+
 <!-- podvoice-206-settings-talk-final-candidate-20261008 -->
 ### 8/10 — 2.0.6 kandidat: bevar settings og frigiv skjult Talk
 

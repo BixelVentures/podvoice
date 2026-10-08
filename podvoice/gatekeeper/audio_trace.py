@@ -36,6 +36,49 @@ from .diagnostic_retention import (
 _LOG = logging.getLogger("podvoice.audio_trace")
 _SAFE_ID = re.compile(r"^[0-9A-Za-z_-]+$")
 _NEXT_SESSION_PROOF_TTL_S = 120.0
+_PRIVATE_CONTRACT_BYTES = 131072
+_PRIVATE_CONTRACT_TTL_S = 120.0
+
+
+def _private_contract_copy(value: Any) -> Any:
+    """Copy bounded built-in JSON only; no SDK/custom serialization or truncation."""
+    nodes = 0
+    text_bytes = 0
+
+    def copy(item, depth):
+        nonlocal nodes, text_bytes
+        nodes += 1
+        if nodes > 8192 or depth > 24:
+            raise ValueError("private_contract_budget")
+        kind = type(item)
+        if kind is str:
+            if len(item) > _PRIVATE_CONTRACT_BYTES:
+                raise ValueError("private_contract_budget")
+            text_bytes += len(item.encode("utf-8"))
+            if text_bytes > _PRIVATE_CONTRACT_BYTES:
+                raise ValueError("private_contract_budget")
+            return item
+        if item is None or kind is bool:
+            return item
+        if kind is int and -(2**63) <= item < 2**63:
+            return item
+        if kind is float and math.isfinite(item):
+            return item
+        if kind is list and len(item) <= 1024:
+            return [copy(child, depth + 1) for child in item]
+        if kind is dict and len(item) <= 1024 and all(type(k) is str for k in item):
+            return {copy(k, depth + 1): copy(v, depth + 1) for k, v in item.items()}
+        raise ValueError("private_contract_json")
+
+    result = copy(value, 0)
+    if (
+        len(json.dumps(result, ensure_ascii=False, allow_nan=False).encode())
+        > _PRIVATE_CONTRACT_BYTES
+    ):
+        raise ValueError("private_contract_budget")
+    return result
+
+
 _WRITER_COMMANDS = 2048
 _WRITER_PCM_BYTES = 4 * 1024 * 1024
 # One processed packet also resides in Stage.pcm and decoded array('h'). Its
@@ -821,6 +864,217 @@ class AudioTraceRecorder:
         # strict oracle prove cross-session rearm without pretending an ACK is a wake.
         self._pending_next_session: dict[str, Any] | None = None
         self._rejected_before_finish: dict[str, tuple[str, float]] = {}
+        # Full prompt/schema never enter the ordinary writer, snapshots or logs.
+        self._private_contract: dict | None = None
+        self._private_contract_expiry: asyncio.TimerHandle | None = None
+
+    def _current_private_contract(self) -> dict | None:
+        slot = self._private_contract
+        if slot is not None and time.monotonic() >= slot["deadline"]:
+            self.disarm_private_contract()
+            return None
+        return slot
+
+    def arm_private_contract(self, room: str, adapter: str) -> str:
+        if (
+            type(room) is not str
+            or not room
+            or len(room) > 256
+            or type(adapter) is not str
+            or adapter not in {"native", "talk"}
+        ):
+            raise ValueError("private_contract_target")
+        if self._current_private_contract() is not None:
+            raise ValueError("private_contract_busy")
+        loop = asyncio.get_running_loop()
+        capability = secrets.token_urlsafe(32)
+        self._private_contract = {
+            "capability": capability,
+            "room": room,
+            "adapter": adapter,
+            "deadline": time.monotonic() + _PRIVATE_CONTRACT_TTL_S,
+            "source": None,
+            "generation": None,
+            "payload": None,
+            "stages": [],
+            "error": None,
+        }
+        self._private_contract_expiry = loop.call_later(
+            _PRIVATE_CONTRACT_TTL_S, self._expire_private_contract, self._private_contract
+        )
+        return capability
+
+    def _expire_private_contract(self, slot: dict) -> None:
+        if self._private_contract is slot:
+            self.disarm_private_contract()
+
+    def private_contract_requested(self, room: str, adapter: str) -> bool:
+        slot = self._current_private_contract()
+        return bool(
+            slot is not None
+            and slot["source"] is None
+            and slot["error"] is None
+            and slot["room"] == room
+            and slot["adapter"] == adapter
+        )
+
+    def disarm_private_contract(self) -> None:
+        if self._private_contract_expiry is not None:
+            self._private_contract_expiry.cancel()
+            self._private_contract_expiry = None
+        if self._private_contract is not None:
+            self._private_contract.clear()
+        self._private_contract = None
+
+    def expire_private_contract_owner(self, history_session: str, epoch: float) -> None:
+        slot = self._current_private_contract()
+        source = slot.get("source") if slot is not None else None
+        if (
+            source is not None
+            and source.get("history_session") == history_session
+            and source.get("thin_epoch") == epoch
+        ):
+            self.disarm_private_contract()
+
+    def bind_private_contract(self, source: dict) -> Callable | None:
+        slot = self._current_private_contract()
+        if (
+            slot is None
+            or slot["source"] is not None
+            or slot["error"] is not None
+            or slot["room"] != source.get("room")
+            or slot["adapter"] != source.get("adapter")
+        ):
+            return None
+        try:
+            slot["source"] = _private_contract_copy(source)
+        except Exception:
+            slot["error"] = "source_incomplete"
+            return None
+
+        def observe(
+            kind: str,
+            generation: int,
+            configuration: dict | None = None,
+            initial=True,
+            provider_session_ref=None,
+        ):
+            if self._current_private_contract() is not slot or slot["error"] is not None:
+                return
+            try:
+                if slot["generation"] is not None and slot["generation"] != generation:
+                    return
+                if type(generation) is not int or generation < 1 or not initial:
+                    raise ValueError("initial_admission_required")
+                if slot["generation"] is None:
+                    slot["generation"] = generation
+                if slot["generation"] != generation:
+                    return
+                if configuration is not None:
+                    if slot["payload"] is not None or configuration.get("input"):
+                        raise ValueError("initial_admission_required")
+                    responses = configuration["delegation"]["responses"]
+                    if type(responses["tools"]) is not list or len(responses["tools"]) > 256:
+                        raise ValueError("private_contract_budget")
+                    # Exact allowed wire values; transport, prior text, credentials and
+                    # SDK objects are outside this private observational projection.
+                    wire = _private_contract_copy(
+                        {
+                            "model": configuration["model"],
+                            "instructions": configuration["instructions"],
+                            "voice": configuration["audio"]["output"]["voice"],
+                            "responses": {
+                                key: responses[key]
+                                for key in (
+                                    "model",
+                                    "instructions",
+                                    "tools",
+                                    "parallel_tool_calls",
+                                    "tool_choice",
+                                    "max_output_tokens",
+                                )
+                            },
+                        }
+                    )
+                    context = slot["source"]["room_context"]
+                    slot["payload"] = {
+                        "wire_projection": wire,
+                        "effective_contract": {
+                            "system_prompt": slot["source"]["system_prompt"],
+                            "room_context": context,
+                            "domain_declarations": slot["source"]["domain_declarations"],
+                            "expected_fingerprints": {
+                                "primary_sha256": hashlib.sha256(
+                                    wire["instructions"].encode()
+                                ).hexdigest(),
+                                "backend_sha256": hashlib.sha256(
+                                    wire["responses"]["instructions"].encode()
+                                ).hexdigest(),
+                                "tools_sha256": hashlib.sha256(
+                                    json.dumps(wire["responses"]["tools"], sort_keys=True).encode()
+                                ).hexdigest(),
+                                "context_sha256": hashlib.sha256(context.encode()).hexdigest(),
+                                "model": wire["model"],
+                                "backend_model": wire["responses"]["model"],
+                                "voice": wire["voice"],
+                            },
+                        },
+                    }
+                if len(slot["stages"]) >= 16:
+                    raise ValueError("private_contract_stage_budget")
+                slot["stages"].append(
+                    {
+                        "stage": kind,
+                        "generation": generation,
+                        "at_mono": time.monotonic(),
+                        "provider_session_ref": provider_session_ref,
+                    }
+                )
+                _private_contract_copy(self._private_contract_result(slot))
+            except Exception:
+                slot["source"] = None
+                slot["payload"] = None
+                slot["stages"] = []
+                slot["error"] = "capture_incomplete"
+
+        return observe
+
+    @staticmethod
+    def _private_contract_result(slot: dict) -> dict:
+        stages = {row["stage"] for row in slot["stages"]}
+        return {
+            "status": "captured"
+            if slot["payload"] is not None and slot["error"] is None
+            else "unknown",
+            "not_provider_echo": True,
+            "thin_opening_observed": "thin_opening_return" in stages
+            and not stages.intersection(
+                {"startup_failed", "thin_opening_cancelled", "thin_opening_failed"}
+            ),
+            "room": slot["room"],
+            "adapter": slot["adapter"],
+            "source": slot["source"],
+            "provider_generation": slot["generation"],
+            "payload": slot["payload"],
+            "stages": slot["stages"],
+            "error": slot["error"],
+        }
+
+    def consume_private_contract(self, capability: str, *, discard=False) -> dict | None:
+        slot = self._current_private_contract()
+        if (
+            slot is None
+            or type(capability) is not str
+            or not capability.isascii()
+            or not secrets.compare_digest(capability, slot["capability"])
+        ):
+            return None
+        try:
+            if discard:
+                return {"status": "disarmed"}
+            return _private_contract_copy(self._private_contract_result(slot))
+        finally:
+            self.disarm_private_contract()
 
     def arm(self, room: str) -> dict[str, Any]:
         if self._active_room is not None:
@@ -1382,6 +1636,7 @@ class AudioTraceRecorder:
         return not self._writer.status()["pending"]
 
     async def shutdown(self, timeout_s: float = 5) -> bool:
+        self.disarm_private_contract()
         if self._writer is None:
             return True
         if not self._writer.submit(("shutdown", "writer", None)):
