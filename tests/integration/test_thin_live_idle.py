@@ -41,7 +41,7 @@ async def setup(*, output=True):
 
 
 @pytest.mark.asyncio
-async def test_active_raw_input_does_not_veto_output_clock_or_start_before_first_answer(
+async def test_active_native_input_blocks_app_idle_but_not_shared_output_or_first_answer(
     monkeypatch,
 ):
     session, _, link = await setup(output=False)
@@ -52,10 +52,13 @@ async def test_active_raw_input_does_not_veto_output_clock_or_start_before_first
             patch.setattr(session, "_trace_event", lambda name, **data: events.append((name, data)))
             for i in range(51):
                 deliver(session, link, clock, i, empty=True, input_state="active")
-                assert session._live_quiet_ready() is (i >= 40)
+                assert not session._live_quiet_ready()
+                assert session._live_end_window.ready(
+                    owner=session._live_quiet_owner(), now=clock[0], idle_s=4
+                ) is (i >= 40)
             session._record_idle_diagnostic()
             assert events[-1][0] == "live_idle_diagnostic"
-            assert events[-1][1]["idle_blocker"] == "ready"
+            assert events[-1][1]["idle_blocker"] == "input_not_quiet"
             assert any(key.startswith("idle_shadow_") for key in events[-1][1])
             assert session._live_idle_preclose_task is None
             assert not session._live_finalizing
@@ -190,10 +193,13 @@ async def test_new_nonzero_and_queued_input_prevent_commit_and_stale_owner_is_in
             for i in range(41):
                 deliver(session, link, clock, i)
             assert session._live_quiet_ready()
-            # Raw SDK transcript currency still guards actions, not this clock.
+            # SDK arrival expires app-idle before delivery or another native sample.
+            end_serial = session._live_end_window.reset_count
+            output_serial = session._live_close_output_window.reset_count
             session.brain.input_sequence += 1
-            assert session._live_quiet_ready()
-            session.brain.input_sequence -= 1
+            assert not session._live_quiet_ready()
+            assert session._live_end_window.reset_count == end_serial
+            assert session._live_close_output_window.reset_count == output_serial
             stream = session.live_audio.claim(session._live_stream.id)
             while stream.buffered_bytes:
                 await stream.next_chunk()

@@ -1,5 +1,375 @@
 # PodVoice-status — én aktuel sandhed
 
+<!-- pc9-native-finite-outer-decision-20261008 -->
+### 8/10 — PC9 inert nativebaseline: ét endeligt ydre procesansvar
+
+Lead root. Faktisk sourcebundet CLI-ejerfacet er gennemgået i a3457917…; dette
+åbner ikke selv containerbaseline. Released finalstage installerer build-essential,
+pkg-config og libevent-dev og fjerner kun apt-lister/src, ikke disse dependencies;
+actual toolversion/coreutils/nativeABI skal stadig observeres inde i eksakt image.
+
+Root vælger én purpose-built ydre wrapper omkring uændret reviewedv5runner:
+eksklusiv regular log, én GateLock, kilde/review/Python/CLI-pins før og efter,
+maskeret retainedPopen/native PID-parent-PGID-birth-UID før parent-unmask,
+allerede reviewet samme-PID Python unmask→exec. Finite grænser300s normalrun,
+kun matching levende ejer TERM og120s cleanup-grace (maks116s innercleanup),
+derefter kun matching levende ejer KILL, retainedwait2 og groupabsence4.
+NativeNone må ikke signaleres; retainedwait løber stadig. Ukendt/ændret/leaderless
+identitet afvises uden ny signalautoritet. Firsttimeout/cancel forbliver primaryFAIL.
+Ingen parallel CLI-/container-/produktsupervisor eller ændring af v5/nativeC/Make.
+
+PASS kræver actual exit0, indre BASELINE_OBSERVED, alle tre Ccases, kildeparitet,
+cli_groups_joined og container_cleanup_complete. Forcedkill må aldrig arve separat
+CLI-/containercleanup; durableownerintent bevares og UNKNOWN/incomplete stopper
+ny container, indtil præcis nonce/CID/image/source-proven recovery er gennemført.
+Rollback er ingen ny baseline; ingen hjemmeenhed, gain, volume, audio, HA-setting,
+provider eller produktion ændres. Én actual-main kontrolleret unknown-create +
+første-absence countercase skal afvise FAIL/incomplete før nativebaseline;
+OS/Popen mocks erstatter ikke denne daemon-resultatoracle. Independent source-review
+af konkret wrapper/modprøve før rootowned finite execution. Hele musikflytnings-
+funktionen og de fysiske acceptancegates forbliver åbne.
+
+
+<!-- pc9-v5-owner-actual-results-20261008 -->
+### 8/10 — PC9 testproces: faktisk afgrænset ejerbevis
+
+V5 strict independent source-GO50de0c12…/alle27 pins matcher. Root faktisk target
+af actualhelper:11 kontrollerede ejerregressioner PASS1,225s, source uændret,
+receipt pc9-v5-actual-owner-mock-target.json/log08faea39…. Disse er OS/Popen-
+injektioner, ikke nativecontainer eller HomePod-bevis.
+
+Derefter faktisk eksakt DockerCLI29.2.1: read-only version og private label-filtrerede
+inert daemon-events. Normal exit samt original timeout, TERM med levende korreleret
+nativeidentitet og faktisk terminal/join PASS0,300s; cli_groups_joined=true,
+cleanup_errors=[], source uændret. Receipt pc9-v5-native-cli-owner-probe-v2/receipt.json
+med durabel observations.json og faktisk argv. Ingen container/provider/devicekald.
+Første identiske prøves afsluttende receiptserializer fejlede på dataclassIdentity;
+første to logs bevares uden PASS. Kun rootreceipt-asdict blev rettet, ingen helper-
+eller produktejerpatch udledt. De nye faktiske logs har sammenhængende fuld kvittering.
+
+Finite ydre runner-watchdog/cleanup-grace og ukendt create-resultat skal stadig have
+admission før de tre nativeC baselinecases. HTTP/cache/apply/manual/A/B/route/restore,
+#118/PC8/PC9 og fysisk musikflytning er fortsat åbne. Gain/volumen/settings og
+installeret204/0264 er uændrede; ingen fysisk lifecycle- eller latencygate arves.
+
+
+
+
+
+
+
+
+
+
+<!-- podvoice-205-final-freeze-v3-20261008 -->
+**2.0.5 ændret kandidat: nyt exact current24 finalfreeze.** Lead root samler kun
+#124 native idlecurrency/passiv statuslæsning, #100 passiv diagnosticrenderer,
+#115 capabilityguard, #103 realSDK-regression, #126 afgrænset integrationowner
+og #127 strikt effective-tree/AST/reviewkontrol med permanent testlayout. Faktisk
+fast432.094s PASS på præcis current24, alle gamle/nye prøver og begge adapters,
+sourceunchanged. Whole24+67 dependency source-review715cdb9c har ingen alvorlige
+findings. Exact version4 coupling-proposal85c8d4bb er nu separat independentreviewet;
+reviewets fulde hash, kildepins og resultater ligger i det immutable finalmanifest.
+Denne post og præcis reviewrecord er eneste sidste delta til det grønne diff;
+version205/changelog var allerede frosne og ændres ikke igen. Første205-releaseFAIL
+og senere fastFAIL bevares med egne receipts; de gælder ikke som grønne beviser.
+
+Ingen prompt/schema/tools/provider/semanticEND/Stop/error/max/Talk/audio/gain/VAD/
+firmware/settingsændring; ingen musikflytningsrettelse i205. Offentligt HA-produkt,
+ingen private hjem-/enhedsdefaults eller lokale evidencestier i shipped runtime.
+Nu kræves uafhængig exact final24/STATUS/record readback før én releasegate på dette
+ændrede frosne diff, derefter ét PR/merge/CI/publication/installflow. Ingen manuelle
+CI-genkørsler. Installeret204 bevares indtil grøn mainartifact/eksakt identitet.
+
+Finalfreeze er ikke release-, physical-, golden-, lifecycle10/10-, latency- eller
+fuld UI/platformaccept. Ny205 skal frisk fysisk bevise kendt korrektinput → svar →
+opfølgning → modelending → fysiskfarvel → teardown/rearm → næstewake med alle senere
+feltregressioner, dernæst sammeartifact10/10automatiske+10/10fysiske. #94/95/96,
+118/PC8/PC9 og funktions-/platform-/soakkrav er fortsat åbne. Ved source/configdrift,
+alvorlig finding, gateFAIL eller nærliggende uafklaret race STOP før release/install.
+Rollback eksakt204 arver ingen nye physical/readinessbeviser. Ingen kandidatgates
+waives af reviewposten nedenfor; den optager kun den præcise reviewede produktkobling.
+
+<!-- candidate-scope-coupling
+{
+  "version": 4,
+  "kind": "native_idle_input_passive_ui",
+  "base_tip": "539b6dd192638de1bb29b9d5bf663f80aa6605f5",
+  "merge_base": "539b6dd192638de1bb29b9d5bf663f80aa6605f5",
+  "domains": [
+    "audio_input",
+    "rearm"
+  ],
+  "fingerprint": "607ff2e872b074e339c0bb6bb0485b06406814778770a98e1d537259324128f2",
+  "regression_fingerprint": "2effd46dd0c6c9fd2ae77a3ee486048ef4452fd70fefbd7b8d8ea6d6051a63dc",
+  "reviewer": "transfer_design; independent composed source reviewer, not gate owner",
+  "rationale": "Exact current Thin native idle-input currency protection and observational panel reads, with passive UI diagnostics/capture guard. Independent whole-candidate composition review 715cdb9c3f458851f28630b4b1a32787d2869e4f3955d03b673ffd6a5fdc4cdc. Existing semantic END/Stop/error/Talk/provider/firmware ownership remains unchanged. No physical or latency acceptance."
+}
+-->
+
+<!-- pv127-pc9-green-actual-and-community-20261008 -->
+### 8/10 — faktisk samlet udviklingskontrol og afgrænset nativebaseline
+
+Lead root. #127 test-only v6 helper/firemoduler har independent SOURCE-GOe76f8e8a
+på manifest0f4e31bb. Faktisk collection beviser samme93 case-navne23/26/25/19,
+receipt3f2c2d27; ingen PASS arvet fra flytningen. Én autoritativ fast på ændret
+24-filslayout PASS432.094s, sourceunchanged, receipt552dad83/logbbe10194.
+Alle otte unitbatches PASS381.63s, begge integrationcohorts826PASS178.15s, fire
+browserworkers faktisk joined; browserreceipt d14fef8a5d714771ba0dd2f00726d8f4.
+Classifierb7c0/runtime/HTML/devcycle og120/240-bounds er uændrede. Tidligere
+releaseFAIL og fast-unitbudgetFAIL bevares. Nyt current24 whole-review, exact
+coupling-record, canonicalSTATUS/finalfreeze/independent finalreview og én
+changed-candidate releasegate kræves stadig før PR/CI/install. DevSTATUS er endnu
+ikke opdateret; HA kører fortsat204. Ingen fysisk golden/lifecycle/latencyaccept.
+
+PC9 outerv4 har independent SOURCE-GO0724a13f på manifestdb4a0390; innerv6 GOa97c78b2
+og nativev2 GOa425f420 er bundet. Faktisk controlled actual-main18/18PASS1.785s,
+log341d5dca, sourceunchanged. Derefter én faktisk isoleret LinuxAArch64-releaseimage
+baseline BASELINE_OBSERVED1.987s: outere75d1cfe/innere964294e/logf2c11f0b.
+Uændret whole rtspTU45b19975 er faktisk compiled/linked, native objectfc6dfe79,
+fixture66450303, ELF8a29d800, libevent05f6943f. Native cases0–3 observeret:
+raw503/wrongCSeq leveres; rigtig RST giver A_NULL og B200 fra anden peer;
+queuedfree har queue2/close og ingen callbacks; gracefulEOF giver A nonNULL/raw0/
+tomme headers og BWRITING på sammefd ved A-callback. B's senere udfald er eksplicit
+UNOBSERVED. Det observerede EOF/error-skifte er nu native evidens, ikke hypotese.
+Alle sourcepins uændrede, præcis ownedCID5db0c931 fjernet og fravær bevist;
+runner/CLIgrupper joined, ingen forcedkill eller cleanupfejl. Første nativev1FAIL
+bevares. Independent actualevidence-readback igang; ingen HTTP/player/cache/apply/
+lease/manual/A-B/route/restore- eller fysisk musikflytningsaccept. PC9/118 stadig NO-GO.
+
+Brugerens produktstyring8/10: PodVoice er frigivet/open source til HA-community.
+Lead behandler UI/opsætning/settings/fejl/recovery/opdatering som et offentligt HA-
+produkt, også uden ejerens hjem/enheder. Kun nødvendige indstillinger og enkel
+betjening; ingen lærings- eller samtaletest-UI. Currentdiff må ikke indføre private
+hjem-/device-/gain-/modeldefaults eller gøre lokale evidencestier til runtimekrav.
+Denne styring ændrer ingen settings/provider/firmware eller gate og er ikke et nyt
+produktresultat. Community-installation/platformmatrix forbliver målbare åbne krav.
+
+<!-- pc9-outer-v3-stale-review-reference-source-stop-20261008 -->
+**PC9 nativev2 source-GO; outerv3 source-STOP før execution.** Nativev2 manifest
+d794f380… har independent18pin/7blob SOURCE-GOa425f420…, ingen kompilering/kørsel.
+Den mekanisk rebindede innerv6 bruger den nye reviewfil korrekt. Outerens afsluttende
+succescheck bruger fortsat key independent-source-review-tooling.json, men den nye
+nativev2/outer35pin-map indeholder alene independent-source-review-ui-v2.json.
+Det giver KeyError og FAIL selv efter en ellers successfuld fire-case innerprøve.
+Dette er en uafhængig direkte sourcefinding, ikke actualnative- eller runtimeFAIL.
+V3manifest9da8b292… og nativev2/innerv6 bevares uændrede; ingen target/container er kørt.
+
+Lead tillader mindste allerede tilsigtede exactreference-korrektion i ny outerv4:
+én reviewfilename i succescheck, minor limits-copy Three→Four; innerv6/custody/
+cleanup/sourceidentitet/300+120+2+4/native20/build60 uændrede. Tilføj permanent
+controlled actualouter.main success-case, som skriver præcis fire-case innerreceipt
+med nuværende native/review/shell/sourcepins under mocked OS/Popen/native/GateLock-
+boundary og kræver realfinaladmission BASELINE_OBSERVED. Ingen kopieret owneralgoritme,
+ægte daemon/container eller fysiskclaim i testen. Existingunknowncreate/fivefinale-
+negatives bevares. Nyt exactsourcefreeze/independentreview før rootkører ændret
+controlledtarget og derefter én fresh native execution. Ingen blindretry/nyowner.
+
+<!-- pv127-actual-unit-batch-bound-permanent-regression-20261008 -->
+**#127 93/93 målrettet PASS; samlet fast FAIL på unit-batchbudget.** Faktisk v5
+module93PASS115.220s, sourceunchanged, log15d45ee8…. Derefter én autoritativfast
+v6 sluttede FAIL226.158s: unitbatch5 overskred eksisterende120s uden observeret
+produktassertion. Log279a9b66…, sourceunchanged=true; de første fire unitbatches
+bestod, resten blev ikke bevist. Begge integrationcohorts PASS73.52+103.77s (826
+cases). Ruff14filer/mypy55PASS; browser ikke kørt. Whole20 source-review GO378403f8…
+med67deps bevares som source-only, ikke som actualfast/release/physical-godkendelse.
+
+Det nye93-case realGitmodul koster isoleret115s og samles af samme eksisterende
+stride8-recipe med øvrige moduler i batch5. Dette er en konkret toolingbelastning,
+ikke evidens for runtimefejl. Tidligere aggregate180sFAIL og den nye unit120sFAIL
+bevares; endnu en manuel større timeout eller uændret retry er ikke næste handling.
+
+Lead tillader permanent test-only sharding af kun den nye #127-module: flyt fælles
+ikke-test fixtures/konstanter til én eksisterende unit-importsti-helper og fordel
+samtlige uændrede testfunktioner/decorators i fire default-discoverable moduler.
+Ingen tests fjernes, cases/negative oracles ændres eller ekstra import-path opsættes.
+Bevar præcis hvert test-AST/decorator/paramværdi og helpersemantik; forklar count og
+én-gang inventory/parity i sourcefreeze. Isolér meningsfulde testgrupper, så de
+eksisterende otte childbatches får fire mindre nye workloads. Devcycle7370…,
+classifierb7c0…, runtime/UI, alle gamle classifiermoduler og bound120/240 uændrede.
+Ingen niende procesejer, nyt timeoutknob eller samtaletuning. Dette er den
+afgrænsede permanente regression efter observeret gentagen procesforsinkelse.
+
+Independent source-review af helper+firemoduler og fuld caseparity før rootmirror.
+Målrettet kontrollér ændret discovery og helper-binding uden at gentage den gamle
+monolith; én ny autoritativfast på ændret testlayout skal bevise alle gamle/nye
+cases og både adapters. Tidligere v5PASS arves ikke af flyttet tests. Fresh whole-
+source/finalSTATUS+exactcoupling-record/freeze/release følger kun faktisk fastPASS.
+Installeret204 uændret, ingen205release/CI/merge/install eller fysisk accept.
+
+<!-- pc9-graceful-eof-read-error-separate-facets-20261008 -->
+**PC9 observed native FAIL årsag afgjort; separate EOF/error-modprøver.** Author
+og anden agent bekræfter uafhængigt samme sourcekæde. Graceful peer-close giver
+evbuffer_read n==0 → DISCONNECTED → connection_done → fjern A → IDLE. Derefter
+ser connected() sand og dispatches B på samme fd i WRITING før A(req!=NULL,raw0).
+Readerror n==-1/non-EINTR/EAGAIN går derimod connection_fail → reset → reconnect B
+før A(NULL). Første actualtrace viser forkert CONNECTING-oracle, men beviser endnu
+ikke raw0/nonNULL/samefd eller den reelle RST/error-kæde. Tidligere FAIL bevares.
+
+Lead tillader snæver test-only næste native draft med fire selvstændige facets:
+bevar actual raw503/wrongCSeq og queued-free cases byteidentisk; omdøb tidligere
+reconnect-facet til readerror og brug actual accepted peer socket SO_LINGER{1,0}
+før close for en virkelig Linux-RST. Bevar strenge A_NULL, queue-before-callback,
+CONNECTING og B200 på anden peer-incarnation. Tilføj selvstændig gracefulEOF-
+NO-ACK witness: A nonNULL/raw0/ingen responseheaders, B præcist admitted og WRITING
+på samme fd ved første callback, én peer, ingen B-success påstand. Slut denne
+observerede case ved A-callback, før ukendt senere B-forløb, med faktisk native
+destructor og owned peer/eventcleanup. Operationstrenge forbliver fixtureidentitet,
+ikke produktionsnonce. Ingen nativevolume/apply/HTTP/player/restoreaccept udledes.
+
+Produceret rtspTU45b199… og headers forbliver byteidentiske. Pin nyt nativefixture/
+manifest, opaque exactreview og runner/outer references; eneste øvrige recipe-
+ændring er fire eksakte case-id'er i stedet for tre og tilsvarende description.
+Bevar existinginner CLIcustody, cleanup, nonce/image/admission og alle finite bounds
+300/120/2/4, build60/native20. Bevar første actualv1FAIL/cleanupbevis. Ingen broad
+recovery, runtimepatch, timeouts/tuning, højtaler/netværk/gain/providerændringer.
+Independent source-review før ændret controlledactualmain target og én ny native
+execution; samme full source/toolchain/ELF/object/hash/ownedcleanup bevis kræves.
+Hvis RST ikke observeres som readerror, STOP og undersøg faktisk causal evidence;
+ingen automatisk retry eller nyt oracleindgreb. PC9 og musikflytning fortsat NO-GO.
+
+<!-- pv127-v4-fixture-pair-and-pc9-native-first-result-20261008 -->
+**#127 v4 actual målrettet FAIL; kun fixturekorrektion tilladt.** Uafhængigt
+source-GO101f8740… efterfulgt af én ny-module -x120s viste 78PASS og første FAIL
+efter84.151s. Receipt pv127-v4-reviewed-module-target.json, loga75a85bb…,
+source_unchanged=true. Den ældre automatic-diagnostics builder har ingen HTML;
+testen tilføjer kun Thin-metoder og forventer derfor fejlagtigt den godkendte
+Thin+HTML-veto. Author og uafhængig reviewer har læst den faktisk bevarede fixture
+og bekræftet den samme årsag. Dette er ikke et nyt runtime- eller classifierhul.
+
+Lead tillader mindste test-only v5: opret den allerede tilladte passive HTML før
+metoderne, stage med eksisterende helper, refresh og bevis gammel faktisk PASS
+med ændrede Thin+HTML før den oprindelige NO-GO assertion. Bevar begge andre
+legacybuilders, alle øvrige tests og classifierb7c0… byteidentisk. Falsificering:
+gammel record skal optages før den nye owner, men afvises efter de tre metoder
+tilføjes. Sourcefreeze og nyt independentreview før målrettet regression; ingen
+domænematcher, runtime, prompt, firmware, VAD/gain/timeout eller releaseændring.
+Efter målrettet PASS følger autoritativ fast, præcis current20 review-record og
+nyt finalfreeze før én release på den ændrede kandidat. Tidligere FAIL bevares.
+
+**PC9 første faktiske native prøve FAIL; egen oprydning bevist.** Seks actual-main
+kontrollerede owner/finale-regressioner PASS1.208s (log700bc032…). Derefter én
+root-owned finite recipe med exact udgivet ARMimage32557… gennemførte faktisk
+kompilering af unchanged evrtspTU45b199… og Cfixture5a4b45…, AArch64 ELF og
+libevent2.1.12/gcc12/coreutils9.1 blev logget. Native case0 BASELINE_OBSERVED;
+case1 FAIL ved den forventede queue-before-callback assertion. Case2 ikke bevist.
+Outerreceipt9657c381… FAIL2.278s, inner29777093… FAIL; inner cli_groups_joined=true,
+container_cleanup_complete=true, cleanup_errors[]. Exact CIDf827f7fe… blev bevist
+ejet, fjernet og efterfølgende absent; outerrunner joined/groupabsent. Outerens
+konservative UNKNOWN ved nonzero ændres ikke til PASS. Ingen ekstra recovery eller
+containerhandling er nødvendig ved dette faktisk afsluttede forløb.
+
+Lead stopper ny native prøve indtil source-only kausal læsning af case1 og mindst
+ét led før/efter viser årsagen. Hvis fixture fejlagtigt forventer normal queue-
+rækkefølge gennem EOF/reset, kræves mindste observeret oraclekorrektion med samme
+native bits, separat regression og uafhængig review. Ingen timeout-, produktions-,
+gain-, volume- eller providerpatch på testFAIL. FullPC9 og musikflytning118/PC8/PC9
+forbliver NO-GO; native parserobservation er ikke faktisk højttalerapply/restore.
+
+<!-- pv127-v2-ambiguous-binding-source-stop-20261008 -->
+**#127 v2 source-STOP før spejling.** Author og uafhængig reviewer har modbevist
+den første AST-ownergrænse: en navngiven inputmetode under en klasseconditional
+udelades, og en klasseassignment kan overskrive en ellers uændret direkte metode.
+Dermed kan den gamle record stadig optages med force-v4=false. Dette er
+kildekonfirmeret, ikke eksekveret PASS. V2manifestadde54ec…/classifierd94b4cbb…
+bevares uændret; devclone er fortsat workflowv1, produktfiles uændrede.
+
+Root tillader mindste v3korrektion under den allerede navngivne unknown/ambiguity-
+grænse: afvis ikke-direkte eller overskrevne bindings af de tre præcise metoder
+i ThinSession klassescope, før nogen recordadmission. Klasseconditional defs og
+assignment/delete/import-overwrite er afgrænsningen; locals inde i andre metoder
+er ikke klassebindings. Tilføj to permanente negatives for conditionaldef og
+direkte overwrite. Ingen generel Pythonsemantikramme, domæneregex/globalmatcher,
+runtime-, adapter-, prompt-, lyd-, timeout- eller testmodulrewrite. Ny uafhængig
+review af frosset v3 før rootmirror/-x og fast. Ingen ny release eller fysisk accept.
+
+<!-- pv127-legacy-ast-boundary-20261008 -->
+**#127 ejergrænse præciseret før freeze.** Nogle gamle real-Git-fixtures anvender
+rå ikke-Python-domæneord, og denne workflowændring skal ikke indføre en generel
+Pythonvalidator eller skrive deres otte moduler om. Kun hvis både baseline og
+aktuel Thin mangler alle fire præcise ejeridentifikatorer (ThinSession og de tre
+navngivne inputmetoder), springes AST læsningen over; Thin+HTML-paret kræver stadig
+review. Hvis en af de to kilder indeholder en identifikator, parses begge hele
+Thin-kilder, og kun de faktiske klassemetoder sammenlignes. Ukendt/fejlbehæftet/
+duplicate syntaks afvises uanset record. Baseline-identifikatorerne forhindrer
+omgåelse ved sletning/omdøbning. Domænepatterns/globalmatcher og ældre validators
+er uændrede. Dette er den endelige finite owner-precondition til v2 source-review.
+
+<!-- podvoice-127-strict-presence-stop-line-20261008 -->
+### 8/10 — #127 stop-line: reviewpresence skal følge faktisk ejerskab
+
+Lead root. Sourceårsagen er afgrænset: global SequenceMatcher kan i den faktisk
+observerede unstagedHTML/cachedversion/Thin-layout matche bogstaver fra True ind i
+wake_rearm, så rapporten kun har audio_input. Strict v4 afviser korrekt, men uden
+couplingmarker returnerer eksisterende kode den almindelige single-domain PASS.
+Det er en alvorlig kildekonfirmeret adgangsvej, endnu ikke actual eksekveret som PASS.
+V1 samlet source-GO er tilbagekaldt; fixture-only stagingkorrektion er utilstrækkelig.
+
+Root vælger den mindste eksplicitte ejergrænse uden globalmatcher-/regexændring:
+effektivt ændrede Thin+HTML bytes/modes kræver altid en eksakt reviewrecord, uanset
+domænehits, testpresence eller skjulte Gitflags. Læs kun de to ejeroverflader og
+baseblob/effektivebytes, efter samme mekanik som eksisterende strict v3-presence.
+Den nye native-input-owner identificeres særskilt ved AST-bodyændring mod base i
+ThinSession._live_idle_input_currency, _live_idle_quiet_owner eller
+_sync_live_idle_input. Ingen testfil eller ekstra produktejer må slå dette krav fra.
+Ændret/manglende/ukendt syntaks på denne grænse afviser konservativt. Når den nye
+owner ændres sammen med HTML, kræves v4; tidligere lovlige registrerede kæder uden
+denne ownerændring bevarer deres egne eksisterende validators. V3 har stadig prioritet.
+Dette giver ikke domæne- eller fysisk waiver: v4 kræver stadig det præcise par,
+alle otte ændrede regressioner, eneste tilladte produktflader og begge fingerprints.
+
+Regressionerne skal bevare det nøjagtigt observerede staged-version-layout som
+marker-deletion NO-GO; gammel v1/v2/generic downgrade ved faktisk ændret inputowner
+skal fejle også med ekstra owner eller manglende tests. Positiv validstagedmetadata
+kontrol kan stage HTML med uændrede effektivebytes, men skal eksplicit bevise begge
+domæner og holde det gamle layout som separat negativ kontrol. Ingen oracle svækkes.
+Independent source-review før spejling/målrettet -x og eksisterende finite cohorts.
+Før ny samlet freeze: alle relevante tidligere classifierregressioner og actualfast,
+nyt præcist review/record og én releasegate. Første FAIL bevares. Rollback workflowv1
+som ikke testklar, installeret204 uændret. Ingen runtime-/provider-/VAD-/gainændring.
+
+
+<!-- podvoice-127-first-failure-and-pc9-runner-v5-decision-20261008 -->
+### 8/10 — faktisk #127-regression og snæver PC9 testproces-grænse
+
+Lead root. #127 v1 source-GO d33a056d… blev spejlet til den vedvarende dev-clone.
+Det samlede målrettede kald med ni eksisterende moduler plus det nye nåede sin
+180s grænse med to F-observationer og uden fuld fejlrapport. Det er FAIL/ukendt,
+ikke beståede cases; cleanup joined og source uændret. Receipt
+pv127-v1-reviewed-scope-target.json/log5865f08b… bevares. Ingen runtimepatch,
+timeoutforlængelse eller gentagelse af monolitten er tilladt ud fra procesforsinkelsen.
+
+Én afgrænset årsagsisolering af kun det nye modul med -x og 120s bound sluttede
+normalt exit1 efter58,054s:47 PASS og første FAIL i hidden-extra-production-and-
+metadata-drift[--assume-unchanged], linje299. Efter fixture-restoration forventede
+testen GO, men rapporten havde kun audio_input og afviste couplingrecord. Receipt
+pv127-v1-new-module-first-failure.json/log24b028fd…; samtlige sourcepins uændrede.
+Dette er direkte kontroltest-evidens, ikke en ny Voice PE-fejl. Årsagen skal afgrænses
+mod den faktiske fixturemutation og hele klassifikations-/fingerprintkæden før rettelse.
+Tidligere softwarefastPASS og første releaseFAIL bevares; kandidaten er ikke testklar.
+Efter mindste observerede rettelse: uafhængigt source-review, nyt modul med -x og
+eksisterende endelige modul/cohort-ejerskab. Før ny frossen release kræves frisk samlet
+review og eksakt couplingrecord; ingen lexicalfilter, domæne-waiver eller gate-skip.
+
+PC9 v4 er source-NO-GO31dba13f… med alle26 pins verificeret: maskeret Popen
+starter CLI uden eksplicit child-unmask; faktisk Go-runtime-adfærd er ukendt og
+ingen Docker-failure er observeret. Fejlteksten hævder desuden config-admission,
+mens actual readback kun beviser manifest-ID/RepoDigest/platform. Root vælger
+mindste allerede reviewede #126 mekaniske grænse: den fastpinnede Python3.12
+starter som samme PID, SIG_UNBLOCK for TERM/INT, execv af eksakt Docker CLI argv.
+Ret kun denne startgrænse, korrekt observationstekst og permanente ejerregressioner;
+ingen preexec_fn, ny supervisor, shell/native-C-/deadline-/container-/gainændring.
+Bevar v4 og alle10 countercases. Uafhængigt v5-review før root-owned mockprøver
+og faktisk inert native/CLI-procesbevis. Rollback er v4 som ikke eksekverbar kandidat.
+Ejerskabskæden er controller → retained Popen/native identity → samme-PID exec →
+container compile/fixture → terminal/join → eksakt nonce/CID cleanup. Invarianter
+én ejer, stale/duplicate-generation-veto og ingen fysisk accept fra lavere lag gælder.
+Ingen provider, HomePod, HA-setting, lyd eller produktionsvolumen røres.
+Hypotese: eksplicit unmask giver subprocessen dokumenteret signalmodtagelse uden
+at åbne parentens spawn-custody-race; målrettede prøver skal kunne modbevise dette.
+Full PC9 A/B/manual/base/route/restore og fysisk musikflytning er fortsat åbne.
+
+
 <!-- podvoice-ui-remove-conversation-tests-20261007 -->
 ### 7/10 — aktiv lead-beslutning: fjern samtaletest fra UI (#95/#114)
 
@@ -192,6 +562,737 @@ WAIT-receipt-ejer; disse begrænsninger forhindrer en bred produkt-GO. WAIT-tool
 er ikke bevis for ignoreret input, og fixtureteksten er ikke addressee-bevis.
 Reviewc35e015f… beskriver otte countercasegrupper. Runtimeimplementering er stadig
 ikke godkendt eller udført; baggrundsadfærd og frisk fysisk input-safe gate ukendt.
+
+**#124 SDK/WAIT-audit og afgrænset næste testgrænse.** Independent read-only
+audit9b987ac7… verificerer faktiske SDK3.13.0-inputdeltas, delegation og response.
+Arrival-input_index/response.created er ikke provider-consumed/ignored-input-span;
+delegation offset og audioappend er heller ikke en sådan kvittering. Alpha har
+ingen completed WAIT-receipt-ejer. Selv completed WAIT for et lokalt prefix kan
+derfor ikke godkende ignoreret input; ingen WAIT-/promptprotokol implementeres.
+
+Root tillader en isoleret permanent v4 test-only reproduktion: hold Thinconsumer
+før næste dequeue med ejet fixturebarriere, mens actual SDK-reader parser current
+nonempty input. Bevis frisk input_sequence, den samme faktiske kø og uændret Thin-
+revision ved gammel preclose-deadline; nul serialized wire-close må ske før input-
+delivery. Current-resume/stale-controls bevares, queued-empty og reel stilhed
+kontrollerer modsat fejlvej. Semantic END, outputquiet, toolrevision, 4+2s og alle
+runtimebits er uændrede; alle fixtureejere skal joines i eksisterende bounds.
+Det forventede current/pending RED er årsagsbevis, aldrig en grøn produktkandidat
+eller en releasegate. Først sourcefreeze og uafhængigt fixture-review, derefter én
+root-ejet target når UI-release GateLock er fri. Ingen execution er endnu udført.
+
+
+**#124 actual v5 pending-input falsifikation.** V4 source-review e8ba1f06… er NO-GO:
+outputmarker kunne skabe en ny quiet-owner og dermed teste forkert finisher. V4 blev
+aldrig kørt. Minimal v5 oracle/barriere bevarer præcis samme gamle preclose-task/token/
+deadline før og efter marker, actual SDK-reader/kø og uændret Thinrevision; ingen
+runtime/4+2s/SDKpatch. Independent review de0b5181… SOURCE GO, manifest17957441…,
+testbc3b3cad…,13 sourceafhængigheder og6 SDKhashes er verificeret uændrede.
+Første isolerede target stoppede ved collection: runner manglede tests/unit importsti,
+0 cases kørt, log021ddddc…. Root rettede kun runnerens importsti og genkørte kun denne
+ugyldiggjorte target. Actual v5 import-corrected15,879s: current_resume RED og
+queued_current RED på den tilsigtede wire-close-assertion; stale_generation,
+queued_empty og real_quiet PASS. Pytestexit1, receipt
+pv124-v5-isolated-target-import-corrected.json/log6206a36c…. Den samme oprindelige
+finisher afskærer fresh input, også mens SDK-input faktisk venter på Thinconsumer.
+Fixtureejere joined; ingen parser-/owner-/cleanup/controlfailure eller xfail.
+Test-only SDKv8helper03657b6a… er byte-identisk isoleret dependency, ikke del af UI204.
+Dette er årsagsbevis, ikke grøn produktgate. Ingen runtimepatch; baggrund/addressee,
+provider-consumed-input og Alpha-WAIT-ejerskab er fortsat uafklaret. Installeret2.0.4
+har samme closeadfærd; ingen fysisk accept/golden/10+10/latency arves.
+
+**#124 næste årsagsgrænse — native tale uden SDK-delta, ingen runtimepatch.**
+Begge uafhængige read-only reviews giver betinget design-GO til en Thin-only app-idle
+currency for allerede observeret SDKinput, men NO-GO som fuld fysisk inputbeskyttelse.
+Et nyt snapshot på gammel4s-outputproof er ugyldigt: fresh input skal pensionere kun
+idlepreclose/idlewindow og kræve helt ny4s-native baseline +ny2s-preclose. Current
+nonempty faktisk kø skal blokere app-idle, også før Thinconsumption; admission før
+source-/LED-awaits og synkron finalizercommit skal binde exact brain/epoch/generation/
+input_sequence. Semantic END, shared output/end proof, tool/approval, typedinput,
+Talk og øvrige closeejere er eksplicitte ikke-mål. Ingen ny WAIT-/ASRsemantikejer.
+
+Fysisk current active input uden SDK-fragment er stadig et separat hul. Root stopper
+runtimeimplementering og vælger næste permanente v6-countercase mod uændret2.0.4:
+actual accepted native input.valid/active, fremadgående inference_seq/ms/sample_end,
+samme capture/nativeowner og faktisk forwarded PCM, ingen SDKinputdelta, dernæst en
+sidste quiet-periode kortere4s før gammel precloseexpiry. Bevis original task/token/
+wirecut og bounded join; v5s fem eksisterende cases bevares. Uafhængigt review før
+root-ejet target; forventet RED er årsagsbevis, ikke produktgate. Ingen v6test er kørt.
+accepts_activity alene beviser ikke inference-friskhed; en senere idle-only proof kan
+genbruge NativeIdleWindow(require_input_quiet=True)'s eksisterende clocks/continuity,
+men må ikke promovere shadow-duration/probability til hensigt eller ændre END-proof.
+Continuous baggrund kan tilbageholde app-idle; eksisterende maxsession startes ved
+wake og fornys ikke af fragmenter (source-default900s, heartbeat0,25s; rotation har
+egen30s-bound). Det er en closeinitieringsgrænse, ikke fysisk cleanupbevis eller
+readback af installeret præference. Fuld max-duration/Stop/error actualSDK-regression
+og modsat Talk skal indgå før implementerings-GO. Installeret204 er stadigikke fysisk
+testklar for denne fejl; fysisk golden/10+10/latency ukendt. Ingen gain/VAD/timeout/
+prompt/firmwareændring, ny buffer eller providerkald.
+
+**#124 actual nativecountercase og aktiv implementeringsbeslutning.** V6test103c41f4…,
+manifestb4684fd9… og independentreviewcf404a05… efterfølges af root-ejet isoleret
+native-only target: tilsigtet RED5,714s, pytestexit1, source/13deps/6SDK uændrede,
+log8c67c1af…/pv124-v6-native-only-target.json. Actual nativeparser accepterer current
+valid active/inferenceclock/seq/sample progression og forwarded PCM uden SDKdelta;
+efter kortquiet(<4s) sender præcis den oprindelige preclose-task/token wireclose,
+afskærer late PCM og gennemfører én Thinclose/exact playbacksuffix. Ingen fixture-
+eller cleanupfailure. Fem v5cases er byte/AST-identisk prefix; de blev ikke genkørt
+eller tilskrevet v6accept. Dette er endnu et kausalt modbevis, ikke fysisk lydbevis.
+
+Root godkender nu én separat minimal runtimepatchdraft mod publiceret539/installeret
+204, udelukkende app-idle-permission: (a) særskilt exact brain/epoch/generation/
+input_sequence policycurrency og current nonempty actualqueue barrier; (b) idle-only
+NativeIdleWindow(require_input_quiet=True) med eksisterende native capture/clock/
+inference/sample-continuity; (c) readypermission's resetserial før source/LEDawaits,
+som enhver senere invalidation pensionerer før oldtimercommit. Ingen fælles
+_reset_live_quiet på råinput eller sharedownerændring. Ny timer kræver fulde nye4s
+nativequiet +ny2s; forkortede pauser må ikke genbruge oldproof. Falsificerbar årsag:
+begge adapterarrival og valideret native inputhistory mangler i den gamle app-idle-
+permission; sidstequiet alene kan derfor legitimere en timer startet før ny tale.
+
+Kæden input→native current proof→SDKarrival/Thinqueue→app-idle admission→LEDack→
+finalizer synchronous owner transfer→providerterminal→exactplayback→teardown/rearm→
+nextwake gennemgås igen på actualdiff. Invarianterhalfduplex2–4 oglifecycle6–13 gælder.
+Semantic END/closure receipt, fælles output/end quiet, tool-/approvalcurrency, typed
+input, mic send, physical playback, Stop/error/maxsession, Talk og firmware er
+eksplicitte ikke-mål. Ingen ny WAIT/ASRsemantik, threshold/gain/VAD/prompt/timeout/
+duplex/buffer eller providerprotokol. Continuousbackground kan tilbageholde app-idle
+til eksisterende maxsession; det er konservativ mekanik og ingen addressee-påstand.
+
+Planlagte regressioner: alle6 current/controlcases modcandidate; fuld fresh4+2
+genoptjening; input under source/LEDawait/lige førcommit; delayedcancel/LEDack/native
+event efter nytimer/nextgeneration; existingsemanticEND rawfragmentnon-veto, tool/
+approval og actualTalk/10cycles; actualSDK continuousinput medmaxduration/Stop/error.
+Uafhængigt adversarialdiffreview kræves før roots targetedexecution; relevant fast,
+previousfieldregressions og én fullrelease først på frozen coherentdiff. Fysisktest-
+adgang følger PRODUKTMÅL separat. Rollbackgrænse er exactinstalleret204/main539/
+rootfs96804bf3… og checkedbackup; ingen inheritedgolden/stabilitet. Kandidaten er
+ikke implementeret/testet ved dennepost og ikke fysisk testklar. Reproduktionens
+RED er ikke releaseresultat. Runtimepatch må ikke ske i shippede bits, før isolated
+sourceartifact er reviewet; root ejer devclone/gates og én samlet beslutning.
+
+
+<!-- podvoice-124-first-runtime-result-20261007 -->
+**#124 første runtimefacet faktisk prøvet.** Independentreview32bc4373… giver kun
+focused SOURCE-GO for manifestdb431b99…/Thin1fdd6c0a…/firefiler. Root har spejlet
+dem til durabledevclone på branchcodex/podvoice-idle-input-protection-20261007,
+HEAD539 og uændret installed204. Actual6kausale cases PASS, derefter68idlecasesPASS/
+én fixturefailure på31,015s. Receiptpv124-runtime-v1-focused-target.json/log402e6b5e…
+er samlet FAIL, ikke fuld gate eller testklar kandidat.
+
+Den fejlede observer skriver gammel expireddeadline EFTER synchronous retirement,
+venter derefter kun deadline!=None og fanger derfor new_task=None; den senere actual
+_goodbye er en levende nytask. Uafhængig reviewer har bekræftet orderingfejlen; ingen
+runtime-/timeoutpatch begrundes. Minimal test-onlykorrektion skal observere ny
+registreret levende task/nyt token/dens synlige deadline, bevare oldcutveto ogfuld
+fresh4s og reviewes før kun den invalidatedcase genkøres. Øvrige68PASS og6PASS har
+egne exactsourcebits; de bliver ikke fuldkandidataccept.
+
+Alle22 runtime/helper/SDKhashes er readback-identiske. Runnerens source_unchanged=false
+skyldes .strip() på hele porcelainoutput: første leading space mistes og første
+filnavn parses forkert. Originalreceipt bevares; separat read-onlyauditsupplement
+pv124-runtime-v1-source-audit-corrected.json dokumenterer true hashintegrity uden
+pytestgenkørsel eller relabelledPASS. Ekstra actual4+2, delayedowner/ACK/newwake,
+continuous max/Stop/error, Talk/10 og wholeinventory/fast/release er stadig åbne.
+Fysisk golden/10+10/latency ukendt; ingen release/installation eller accept arves.
+
+
+<!-- podvoice-124-oracle-retry-result-20261007 -->
+**#124 invalidated oracle genprøvet alene.** Independenttestreview112d66b7… giver
+GO for præcis module0903afd8…/én changedtest; runtime1fdd6c0a… og6causal103c41… er
+byteidentiske. Root kørte kun den ugyldiggjorte case: PASS1,826s, source23bindings
+uændrede, pv124-v2-oracle-only-retry.json/log423b1d0e…. Resultatet retter ikke den
+oprindelige samlede FAIL historisk og indebærer ikke genkørsel/nyaccept af68andre
+cases eller fuld gate. De øvrige ASTnoder/helpers er identiske; kun ownerobserveren
+er ændret. UI5321d8… er en eksplicit separat pureprojectionbinding, ikke en
+runtimeændring. Devclone HEAD539 har nu samme4runtime-/testfilersfacet plusUIfilen.
+
+Ekstra v2-facet5cases er source-NO-GO6f7389b6…: oldACK-test kunne passere, selvom
+gammeltask allerede var timedout førrelease. Ingen execution/runtimepatch begrundes.
+Authorv3test-only ændrer kun den case til levendeoldtask/exactoldnativeToken ogactual
+oldACK efternewadmission; independentreview afventer. Full4+actual2, max/Stop/error,
+oppositeTalk/10 og coherentreviewedv9helperinventory erfortsatrequiredførwholefreeze.
+Ingen release/install/physicaltestklar/golden/latencyaccept; installed204 uændret.
+
+
+<!-- podvoice-124-extra-v3-result-20261007 -->
+**#124 extra-v3 actualexecution.** Independentreview332e1b04… løser oldACK-v2-findingen
+før rootexecution på extramodulefe4eff0e…; actual4PASS/1FAIL6,385s, alle24source/
+helper/SDKbindingsuændrede, receiptpv124-v3-extra-focused-target.json/logbecf9c01….
+Fullfresh4s nativecoverage +actual2s countdown, actualoldACKefterreplacement ogactual
+SDKcontinuousinput→Stop/error består. Firesekunder er simuleret fremadgående native
+sample/clockbevis; ACK/playback er inertadapterresultat, ingen physical/goldenaccept.
+
+Max-duration-case fejler ved _close_task.done efter observed(not_active). Root og
+reviewer har gennemgået actualkæden: max-heartbeat opretter én closeowner, teardown
+sætter _active=False FØR provider/context/duckheartbeat-stop/attention/rearmawaits;
+_teardown_incomplete erikkeendeligtresultatpådennephase. Failurestack viser duck-
+heartbeatcancel/join, ikke alene bevistdeadlock eller runtimeårsag. Stop/_fail
+venter allerede shielded påsamecloseowner. Test-only observerkorrektion skalretain
+og shield/join exactmax-close_task indenfor existing15sscope, derefterkontrollere
+finalteardown/onewire/resources/rearm. En hængende ellerfejletjoin skalfortsatfejle.
+Ingen timeout/runtimepatch begrundes. Independentreview ogkuninvalidatedmaxretry
+afventer; originalsamletFAILbevares. Coherenthelperv9inventory, oppositeTalk/10,
+relevantfast ogwholefreeze/release samtphysicalgolden/10+10/latency erfortsatåbne.
+Installed204 uændret; ingen input-safefysisk testklarstatus elleracceptarves.
+
+
+<!-- podvoice-100-permanent-daily-result-20261007 -->
+**#100 permanent browser-regression og visuel kontrol.** Root source-review1410aa75…
+blev fulgt af actual eksisterende daily-worker på dailyE9/HTML5321/Thin1fdd:
+86 obligatoriske renderer-cases PASS, normal daily5bredder×2temaer PASS,16 sourcebundne
+før/efter-PNG'er og public/native cleanup/join PASS,43,528s. Alle sourcebindings uændrede.
+Receiptpv100-permanent-daily-v1-target.json/log99540f25… bevares med daværende imagepending.
+Root har derefter faktisk gennemset alle16PNG'er ved390/1440: gyldige/zero tider bevares,
+ugyldige tider bliver —, skrevet input kaldes Skrevet input og recovery får dansk label
+uden firmwareACK-påstand. Separat image-inspection-root receipt9464412ed249…
+bekræfter kun denne visuelle facet. Screenshotheader2.0.1 er synthetic API-fixture;
+kildeidentitet bevises af HTMLhash, ikke fixtureversion. Historisk baselineab7f er fuldHTML.
+Dette er syntetiske serverevents i actual renderer, ingen fysisk latency/recovery/wake-
+accept. Kandidatens samlede freeze/release/CI/install og øvrige#100AC er åbne; HA204 uændret.
+
+<!-- podvoice-124-max-oracle-result-20261007 -->
+**#124 max-only observerretry.** Independentreview02fc753c… godkendte extramodule32959103…
+uden runtimeændring. Root actualkun tidligere ugyldige max-node PASS3,120s, sourcebindings
+uændrede, receiptpv124-v4-max-only-target.json/log423b1d0e…. Den præcise registrerede
+max-closeowner blev shield/joinet indenfor original15s, og provider/duckheartbeat/
+teardown/rearm-ressourcer kontrolleret før fixturecleanup. Originalv3extra4PASS/1FAIL
+bevares; runtime1fdd er uændret, øvrige fire noder er ikke genkørt eller ommærket.
+Coherentv9helperinventory har sourcebytes klar men et modstridende metadatafelt skal
+fryses separat og reviewes før samlet execution. Ingen fullgate/physicalready/accept
+arves fra denne ene oracle-PASS. Installed204 uændret.
+
+
+<!-- podvoice-124-coherent-v6-result-20261007 -->
+**#124 coherent v6 actual84PASS.** Metadatafindingen blev løst i separatv6freeze,
+independentreview63944292…; alle seks sourcefiler var byteidentiske v5. Root adopterede
+kun reviewet SDK-helper3dfee i persistent dev-clone, uden isolated036 helper i PYTHONPATH.
+Samme Thin1fdd og sammehelper bestod nu actual6årsags/control +5extra +69idle/oracle
++4native/Talk10-cyklus-/cleanup-timeout/cancelcases:84PASS106,764s. Sessionfinish
+kontrollerede actual imported Thin/helper-origin og hashes; alle32actualsource/SDK/UI
+bindingsuændrede. Receiptpv124-v6-coherent-focused-target.json/log20f5f270….
+Native10 er fem modelsemantic+fem nativeobserveretappidle, Talk10 fortsat eksplicit
+drain-unconfirmed; inertSDK/devicefixtures, ingen audibletail/physicalgolden/10+10.
+Whole-prefreeze-sourceauditcc307b53… fandt ingen alvorligfinding på actual8fil-diff
+og17neighbor/buildbindings; finalnye115/version/STATUS-delta kræver eget review.
+
+Rootkørte derefter autoritativ scripts/dev fast --base origin/main, som stoppede efter
+0,381s på to Rufffindings i årsagstestens103c41source: ubrugt jsonimport og ubundet
+looprevision i observed-lambda. Format6filer PASS; ingen testassertionfejl eller ny
+produktevidens følger af den annullerede gate. Receiptpv124-100-authoritative-fast-v1.json
+/logb8473782…, sourcesuændrede. Kun minimal test-lintdelta skal reviewes; seks berørte
+årsagscases og ugyldigfast genkøres derefter. Original84PASS/fastFAIL bevares med exactbits.
+Fullrelease/CI/install/physicaladmission er åbne, HA204 uændret; ingen testklarstatus.
+
+
+<!-- podvoice-115-capture-capability-active-20261007 -->
+**Aktiv leadbeslutning #115: mikrofonens adgangsbetingelse i Tal.** Root er eneste
+tekniske beslutningsejer. Uafhængigt source-review740f8821… af test-only facet blev
+fulgt af actual eksisterende daily-worker på fuldHTML5321: RED13,771s. Faktisk usikker
+HTTP-origin uden native getUserMedia har initialt disabledmic og korrekt HTTPS-hint.
+Et inert protocol2/24000-hello accepteres af faktisk handler (tekstSendenabled/Klar),
+men micbutton bliver fejlagtigt enabled, uden ændring i native capability. Ingen mic
+åbnet/permissions ændret. Receiptpv115-v1-isolated-insecure-hello-target.json/log10b51bb3…;
+sourcebindingsuændrede, public/nativeejerejoined. Kun knapreadiness er bevist, ikke
+capture/lyd/Talkdrain/HA-app/Safari eller fysisk VoicePE. Kandidaten er ikke finaltestklar.
+
+Berørt kæde: browsersecure-context/native captureAPI → initialmicguard → WShello →
+knapadmission → onclick/micStart eller tekstSend → fælles Thin/provider/output/Stop/
+teardown; efterfølgende diagnostic-active/cleared og socketgeneration/onclose er
+nærliggende positive/negative adgangsveje. INVARIANTER lifecycle10 kræver særskilt
+socket/provider/status/inputaccept; Talk ejer kun browserI/O og må ikke bevise pucken.
+Falsificerbar hypotese: hello og diagnostic-cleared overskriver den initiale guard,
+så manglende capturecapability bliver til enabledmic. Mindste rettelse genbruger den
+eksisterende secure/nativeAPI-betingelse på initialguard og alle to positive
+buttonwriters. Tekstinput skal fortsat fungere; socketgeneration, diagnostic-exclusion,
+micRequestSerial/stop, actualcapture/peer/audio/Thin-lifecycle/prompt/settings ændres ikke.
+Ingen permissions, sikkerhedsflags, gain/VAD/timeouts eller nye settings.
+
+Regression/gates: samme actualHTTP RED skal blive GREEN, positiv faktisk HTTPS/nativeAPI
+uden micrequest skal fortsat enabled efter sammehello, og diagnosticactive→cleared
+skal bevare capabilityguard samt tekstSend. Bevar daily86/mobiltema/API/control/cleanup
+og fire-workerinventory. Separat adversarial review før mirror, relevant browser/panel
+og Talkadapter, samletfast, exactfreeze/énrelease/CI/install. Sourcefallbackrollback er
+præcis siblingHTML5321/dailyE9, uden fysisk acceptarv. Tal→Hjem actualmedia-leak-hypotese,
+permissions/autoplay/iframe/Safari/VoiceOver og fuld UI-/physicalaccept er eksplicitte
+ikke-mål i dette guardpatch og forbliver egne#115krav. HA204 uændret.
+
+
+<!-- podvoice-124-canonical-collection-result-20261007 -->
+**#124 lintretry og canonical collection.** Independent527d5c75… godkendte præcis
+ubrugt jsonfjernelse og bound revision=revision i én eksisterende observer. Root
+mirrored causalmodulef5fc6d3e…; kun seks ændrede årsags/control-cases actualPASS19,706s,
+alle32sourcebindingsuændrede, receiptpv124-v7-lint-causal-only-retry.json/log700bc032….
+Original84PASS er exactv6 og bevares historisk uden acceptarv til ændret fil.
+
+Kun ugyldigfast blev derefter actualgenkørt: Ruff/format6PASS og mypy55PASS, men
+integration COLLECTION FAIL1,789s før produktassertions. Årsagstestens import af
+unit.test_voicepe_activity trækker flat test_voicepe_contract, som ikke kan findes
+med canonical pyproject pythonpath=[podvoice,tests]. Den tidligere focusedrunner
+tilføjede tests/unit og maskerede denne testfixture-afhængighed. Ingen runtimepatch
+eller manuel importstiworkaround. Mindste permanente test-onlyrettelse skal kvalificere
+dependencyimporten i unithelperen, bevare alle fixtures/assertions, reviewes og prøves
+med canonicalpath på seks årsagscases plus relevante activity/contractunits. Fastv2
+receipt/log252beef5… bevares FAIL; cancelled stages giver intet resultat. Samletgates/
+exactfreeze/release/install/physical fortsatåbne. HA204 uændret.
+
+
+<!-- podvoice-124-qualified-import-result-20261007 -->
+**#124 permanent testimportrettelse faktisk prøvet.** Independentreviewb428db3d…
+godkendte kun flat→unit-qualified dependencyimport i existing activityunitmodule.
+Root mirrored1a645ca8…; tidligere seks kandidatfiler/Thin/helper uændrede. Med
+PYTHONPATH helt fjernet og kun canonicalpyproject stier bestod først årsagsmodulet
+ALENE6PASS, derefter activity/contractunits89PASS;26,587s, allepinsuændrede. Dermed
+er integrationens collectionbarriere prøvet uden unitselection/importsti, som kunne
+maskere den. Receiptpv124-v8-canonical-import-target.json/log4da06250…; tidligere
+fastv2FAIL bevares, ingen runtime/timeoutpatch eller fysisk accept.
+
+<!-- podvoice-115-capture-guard-result-20261007 -->
+**#115 afgrænset capture-guard faktisk grøn.** Leadreviewf29c0cf4… og adversarial83d8379c…
+godkendte HTML60138cc5…/dailyef08bfa5…/JSintegration44d77b01…. Root mirrored præcis
+tre filer: original secure/nativeAPI-predicate genbruges initialt, vedhello og
+diagnostic-cleared. TekstSend/onclick/micStart/Stop/peer/engine/settings/prompt/
+timeouts bevares; eksisterende JS-testudtræk har kun delimiterrebind, byteslicen er
+identisk. ActualwholeHTML HTTPnegative og HTTPSnativeAPIpositive samt diagnostic
+active→cleared PASS uden capture/permission/APIoverride. Eksisterendedaily5bredder×
+2temaer og86målecases PASS; panel/shippedJS Talk18PASS;43,761s. Public/nativecleanup
+og extraHTTPSpage/contextjoin PASS, allecurrentpinsuændrede. Receiptpv115-capture-v1-
+focused-target.json/workerlog18b4e7eb…/pytestlog341d5dca….
+
+Current siblingThin1fdd/helper3dfee/causalf5fc/activityunit1a645 er eksplicit rebound;
+oldUI5321/dailyE9/16billeder og standalone14fixture erhistoriske, ingen wholeaccept
+arves. New86asserter gælder current60138; ingen baselinebilledoption varsuppleret i
+denneguardtarget. Root har startet actualautoritativefastv3 på samletcurrentdiff;
+afventerterminalreceipt. Ingen version/freeze/release/installændring, HA204 uændret.
+Realpermission/capture/trackleak/autoplay/Talkdrain/HA-app/Safari/VoiceOver/full115/
+physicalgolden/10+10/latency erfortsatåbne, ingen issueclosure/testklarstatus.
+
+
+
+<!-- podvoice-124-live-admission-classification-20261007 -->
+**Leadens klassifikation af live-adgangsgate for den aktuelle kandidat.** Root har
+gennemgået hele Thin-diffet og kontrakten PRODUKTMÅL97–127. Uafhængigt adversarial
+source-review bcd566df… forsøgte at falsificere samme afgrænsning på alle ti aktuelle
+filer. #124 ændrer kun mekanisk app-idle-permissionscurrency og gammel preclose-
+berettigelse. Semantisk END, response/input-commit-ejerskab, providerens wire-close,
+faktisk mikrofonforwarding/capture, audio-/turnsemantik og model/prompt/schema/tools
+er uændrede. #100 er passiv projektion; #115 genbruger kun eksisterende native/secure
+capture-betingelse for knapadgang. Ingen ny scopeudløst live-probe/SafeEval kræves
+af dette diff. Den klassifikation er ingen provider-, release- eller fysisk PASS.
+
+Fuld kandidatbundet automatisk gate/build, review og én frozen release/CI/install
+kræves fortsat. #126s toolingændring skal bevare alle produktbits. Ny fysisk
+semantikfejl eller senere ændring af de navngivne ejere genåbner relevant afgrænset
+live-gate med hårde loftsværdier. Ingen gammel Alpha-/Realtime-probe regnes som
+idlebevis. Frisk #124 input-safe/golden/10+10 på eksakt installeret artifact er stadig
+åben, og #94 får intet latency-/baselinebevis fra klassifikationen. Installed204
+uændret; kandidaten er endnu ikke erklæret fysisk testklar eller releasegodkendt.
+
+<!-- podvoice-126-integration-worker-active-20261007 -->
+**Aktiv leadbeslutning #126: permanent integrationworker-fordeling.** Actual fastv3
+FAIL120,316s på uændrede current10sourcefiler. Ruff/format8PASS+mypy55PASS;
+integrationens ene pytestgruppe timeout120,02s ved ufærdig inventory, uden observeret
+testassertionfejl. Unitstage var cancelled og browserstadiet ikkeindtrådt; ingen PASS
+eller orphan-/cleanupresultat udledes af logprefix. Receiptpv124-100-115-authoritative-
+fast-v3.json/log3e498c68…. Ny selvstændigP1 under#96:
+https://github.com/BixelVentures/podvoice/issues/126. #121's tidligere unitfordeling
+forbliver egen afsluttetleverance.
+
+Root er eneste beslutningsejer. Stærkeste årsagshypotese er kumulativt workbudget i
+oneintegrationstage, ikke produktdeadline/streamdeadlock: previouswholeintegration82s,
+actualSDKhelper72,563s herafTalk60,368s med original6s×10; nyeårsagscases16,859s+
+extra4,728s. Samme cases bestod sammensat106,764s i focusedfacet, men det beviser ikke
+wholedefault inventory. Ingen runtime-/provider-/idle-/Talk-/cleanup-/timeoutpatch
+begrundes. Samletkandidat forbliver ikke release-/physicaltestklar.
+
+Berørt kæde er gateadmission→defaultcollection→pytestworkers→failed/cancelled/timeout
+child/nativegroup join→browserstage→unchangedscopecheck→release/CI. Produktskæden
+input→Thin/provider/playback→teardown/rearm/nextwake bevares byteidentisk; denne
+toolingændring er ingen ny arkitektur- eller samtaleejer. Bevar præcis fuld nodeinventory,
+canonicalstier, externalPython3.12/cache/usynkroniseretclone, eksisterende120/240perworker
+og hver fixtures oprindelige bound. Permanent ejet fordeling skal vælges ud fra faktisk
+case/modulework og adversarialreview; blind unit8-kopi er kun forslag og kan placere
+den lange helper med andre tunge tests. Alle normale/lange tests skal bevares.
+
+Regression/gates: exactnodeinventorycoverage/ingen dubletter; faktiskbounded success,
+firstfailure, timeout/cancel og terminalworker/childjoin; unknown/reused identity må
+ikke signaleres; entrypoint/canonicalimport; uændret unit/browserinventory. Review før
+mirror, targetedtooling først, kun ugyldigfastgenkørsel og derefter exactfinalfreeze/
+énrelease/CI/install. Ingen manuelle bredeCIreruns/timeoutoverrides. Rollback er exact
+current devcycle1b7fda97…/tilhørende gatefixtures, installed204 uændret. Fysiskgolden/
+10+10/latency og egneUI/musikkrav arves aldrig af toolingPASS.
+
+
+<!-- podvoice-126-source-review-hold-20261007 -->
+**Uafhængigt source-review før execution: udkastet tilbageholdes.** V2 kunne blokere
+workerens cancellation i op til4s mod outer-ownerens uændrede2s killgrænse. Forfatteren
+fandt racen før execution; V3 indfører kun straks-KILL af eksakt native-admitted child
+ved cancellation og interruptible cleanup med samme bounds. Ingen af de udkast er
+spejlet eller testkørt. Reviewer finder nu to konkrete fixture-ownerhuller: timeout-
+og livecancel-fixtures mangler separat finally/rescue/join, hvis den under-test
+cleanup selv fejler. Originale assertions skal stå før bounded exact-native fixture-
+custody, og rescue må aldrig omdanne FAIL til PASS eller signalere unknown/reused/
+leaderless grupper. Det er sourcefund, ikke nye observerede test- eller produktfejl.
+
+Lead godkender før yderligere toolingkode desuden den mindste fejlgrænsekorrektion:
+signal-owned OSError (fx PermissionError) skal omsættes til DevCycleError, så eksisterende
+cohort-timeout/firstfailure bevares med secondary cleanup-note frem for at overskrives.
+ProcessLookupError-suppression bevares; permanent signal-denial/timeout/no-next-cohort-
+regression og uafhængigt review kræves. Ingen child-/outer-/fixturebounds eller produktbits
+ændres. V4 skal fryses og reviewes på den samlede faktisk ændrede kilde før root mirror/
+target. Ukendt eller leaderløs overlevende gruppe giver fortsat failure uden broadkill.
+Root target skal også bevise actual full/split nodeinventory; den permanente nodefixture
+alene dækker kun seks syntetiske nodes. Samlet kandidat er fortsat ikke release-/fysisk
+testklar; installeret2.0.4 uændret.
+
+
+<!-- podvoice-126-v5-actual-result-20261007 -->
+**Faktisk V5-target efter uafhængigt source-GO: FAIL, 15,083s.** Actual canonical
+full/split collection består824=4SDK+820remainder med præcis node-multiset, ingen
+dubletter; alle35 integrationmodules er bevaret. Hele workflowmodulet giver85PASS/
+1FAIL. Fejlen er den faktiske live-cancel-childprøve: forventet interrupted-by-signal
+matcher, men cleanup afviser native identity og Popen.returncode er stadigNone ved
+den oprindelige assertion. Receiptpv126-v5-reviewed-tooling-target.json,
+log9477919c…, exactV5review8a96717a…. Alle kildepins og12dirtyfiler er uændrede;
+originalFAIL og85 enkelt-PASS bevares. Ingen fast/release/installation følger dette.
+
+Root og uafhængig reviewer a317d4f8… afviser at udlede exec/birthændring af loggen.
+Konkurrerende falsificerbar årsag: cancellation sender kendt KILL, hvorefter cleanup
+ser pollNone→nativeNone, afviser et nyt signal og springer den nødvendige beholdte
+Popen.wait over. En faktisk ændret native identity kan endnu ikke udelukkes ved denne
+kant; raw fields/signal/wait mangler. Root har læsende kontrolleret den præcise
+genererede fixturecommand efter terminaltarget: absent, ingen signaler sendt.
+Det er fraværsobservation nu, ikke efterfølgende omskrevet cleanup-PASS.
+
+Lead opdaterer samme kausale ejergrænse før mere toolingkode. Én forwarding-only
+instrumentation af den ene fejlede case må fange admitted/current nativefields,
+poll/returncode, signalcall/result og waitcall/result samt separat fixture-rescue;
+originale assertions/bounds/ejere bevares, ingen sleeps/barrier/injectedresult.
+Uafhængigt source-review før root isolate-once. Instrumentation kan ændre timing og
+må ikke relabel originaltarget eller tælle som coherentgate. Ingen workflowrepair,
+nativekillfallback, længere bound eller produktpatch før årsagsgrænsen er afklaret.
+Ukendte/reused/leaderless processer signaleres fortsat ikke. Kandidaten er fortsat
+ikke release-/fysisk testklar; installeret2.0.4 uændret.
+
+
+<!-- podvoice-118-pc9-current-owner-decision-20261007 -->
+**Aktiv leadbeslutning #118 / PodConnect#9: én faktisk output-ejet attentionkæde.**
+Root er teknisk beslutningsejer. Fresh issue8/9/118 og releasedmain24d9254/tree95ba8d7
+er læst; de frigivne manager-/attentionbytes matcher friske GitHubblobs. Bevisca7a792c…
+fastholder den tidligere inerte A30→duck5→routeB65→duck5→releaseB30-fejl: kun prevLevel
+gemmes, valgt output kan skifte før tick, og pendingrelease kan mistes ved engage.
+Ingen faktisk transfer/duckrestore er fysisk godkendt, og ingen runtimepatch er lavet.
+
+Hele kausale kæde er voice/native eller Talk→HA/MCP-friskt destinationstarget→PCalias/
+engine→én primarybridge-route→volumecapture/duck/write/readback→close/release→restore
+hver egen output→musikfortsættelse→næste wake. Invarianter én runtime-/route-/closeejer,
+frisk immutable værktøjsautorisation og sand playback/readiness bevares. Aliasadvertising,
+HTTPwrite, fysisk outputobservation og hørt musik er forskellige beviser. Ingen ny
+PodVoice frase-/alias-intentmotor, childbridge, persistent /api/select-rebinding eller
+konkurrerende mixer-/playbackmotor. Track/queue/position/playpause er fortsat engine-ejet.
+
+Root afviser en lokal outputID+prevLevel-rettelse som tilstrækkelig. ExactA kan adresseres
+mensB er valgt, men setOwntoneOutputVolume er void og mister HTTPstatus/fejl. Eksisterende
+helper kan ikke capture B før valg; fetchOutputsFrom kasserer volume. volCanon/lastPlayVol
+ejes af primaryroom og kan efter reseed=-1 kopiere gammel provider/A-volume tilbage påB.
+GETcompare→PUT er ingen atomisk useroverridefence; revision/provenance/CAS er endnu ikke
+påvist. Stale reconcile, pendingrelease og delayed heartbeat/release skal være del af
+samme ejergrænse, ikke nye symptompatches. ProposedcaptureB→preduckB→selectB→restoreA
+er en uafklaret hypotese, ikke en implementeringsgodkendt protokol eller remoteACK.
+
+Næste autoriserede arbejde er pinned upstream/native OwnTone-kontraktresearch med
+faktisk buildversion/provenance og adversarial falsifikation af cache/readback/ACK og
+overrideejerskab. Ingen provider/enhedskald eller runtimeændring, før grænsen er kendt.
+Ændret kontrakt skal have server-issued lease/routegeneration, hveroutputs egen prior/
+ownedwrite/restorestate, immutable maprevision, bounded owned joins og sand partial/
+unknown uden blindretry/rollback. En lavere bevisgrænse må ikke kaldes fuld override-
+beskyttelse. Compound regression skal ramme actualshipped manager+patchedengine+HA
+samt begge native/Talkattentionklienter og injicere stale/delayed events eftergrænse.
+
+Planlagte cases: A30/B65 med begge restore og næste reconcile; pendingrelease→engage;
+gammel heartbeat/release/write efternyroute/nyconvo; userintent/divergence/samevalueoverride;
+heldpreduck/select/restore→close/expiry/disconnect/restart; mapreorder/duplicate/stale;
+non2xx/timeout/missingreadback uden freshretry eller fakesuccess. Exactfreeze/review/
+software/CI/artifact/install og fysisk source→destination/duck/restore/close/nextwake
+er egne gates førlukning. Rollback er exactreleased0264artifact/konfiguration, uden
+arvet transfer- eller musikmatrixaccept. TexasSunénnextsongaccept bevareskunfordenpåstand.
+Kandidaten er ikke implementerings-/release-/fysisk testklar; currentPodVoice12filer
+og installed204 er uændrede af dette parallelle sourcespor.
+
+
+<!-- podvoice-126-observed-terminal-race-20261007 -->
+**Leadårsagsgrænse efter den ene autoriserede observation: faktisk terminalrace.**
+Uafhængig source-GO5ef322d3… på V4manifest8009432a…; root kørte kun den oprindeligt
+fejlede node fra usynkroniseret devclone med canonical Python-mpytest/config, ingen
+PYTHONPATH eller candidate-mutation. Observationen FAIL1,419s med alle sourcepins
+uændrede; tracefeb5e1e… og log65863550…. Original V5FAIL85/1 og originalreceipt består.
+Event9pollNone→10current==admitted(PID/parent/group/born/uid)→11/12KILLaccepted→
+13original interrupted→14cleanup pollNone→15nativeNone→16assertNone. Den originale
+cleanup kalder intet wait efter15; særskilt fixture-rescue18poll-9→19/20wait-9 og
+groupabsent. Det falsificerer birth/exec-mismatch i den observerede kæde; samme
+identitet var bevaret frem til faktisk KILL. Forwarding kan påvirke timing, men
+observeret failure og direkte rækkefølge støtter terminalrace uden produktforklaring.
+
+Lead autoriserer nu mindste toolingrepair: når admitted child er kendt og cleanup
+ser nativeNone efter pollNone, må fraværet ikke hindre bounded wait på det allerede
+beholdte Popen-handle. Intet nyt signal til nativeNone/unknown/reused/leaderless gruppe;
+current-nonNone mismatch skal fortsat afvises. Eksisterende2+2/4s cleanup, outer2s,
+collection15 og child120/240 bounds bevares; original cancellation/timeout og notes
+bevares. Ingen retry, killfallback, nye runtime-/audio-/settings-/providerændringer.
+Hele berørte kæde er outerowner→admission/mask→exactnativechild→TERM/INT/KILL→
+terminalnativegap→Popenjoin→groupabsence→restoredhandlers→næste cohort/gate.
+Invarianter: én gate-/processowner, exactidentity før signal, bounded cleanup og
+ingen fakePASS. Regression skal fastholde den observerede pollNone/nativeNone/wait-9
+rækkefølge og sikre ingen signal/ingen mistet retainedjoin, alongside unknown/reused/
+leaderless/signalerror/cancel-duringcleanup/outerowner cases. Original actual failed
+test bevares uden observationwrappers i kandidaten. Uafhængig adversarial review før
+root-target; kun faktisk ugyldiggjort gate genkøres. Rollback exactV5tooling1ca/4f4;
+hele kandidat er fortsat ikke release-/fysisk testklar, installed2.0.4 uændret.
+
+
+<!-- podvoice-118-pc9-native-cache-pcm-audit-20261007 -->
+**Faktisk pinned upstream-evidens, ingen ny audioimplementation.** OwnTone-kildeaudit
+43aecef5… ved nuværende tag29.2→fa607a02… beviser exact-outputGET og volume-onlyPUT,
+og modbeviser cachedreadback som apply/restorebevis. device->volume ændres før send;
+inaktivt output kan return0 uden send; asyncfailed/disappeared callback ender command0
+og dermedHTTP204. GETecho er samme lokale cache. Combinedselect+volume vælger først;
+selection kan cappe destinationens base til tidligere master. DACPmanualvolume ændrer
+samme base uden origin/revision/CAS. PublicqueueETag/playstatusrevision er ingen
+volumefence. ReleasedPodConnectDocker kloner mutabletag og fjerner source; auditpins
+den nu resolvedsource, ikke installeret nativebinarycommit. Installeretprovenance skal
+bindes før faktisk adaptergate; denne kildeevidens arver intet fysisk bevis.
+
+PCM-seamaudit6ebe8841… ved enginec191a43…/releasedPC24d9254 og alle3patchpaths viser
+én eksisterende outputLoop/FIFO, men kun brugerens SetVolume. external_volume:true
+bypasser den lokale uservolumemultiply; SetVolume gemmer LastVolume/publiserer cloud
+og primarybridge laver nativebasewrite. Ingen eksisterende attention-only scalar/
+lease/applicationreceipt. ReusingSetVolume/flipconfig ville ændre brugersemantik;
+PCMgain alene løser ikke selectioncap, staleprimaryreconcile, useroverride eller
+cachedACK, og bufferedPCM har ingen retroaktivdæmpning. Ingen numericgain valgt,
+gain/config/runtime/timer/provider ændret eller tests/devicecalls kørt i sourcesporet.
+
+Root fastholder samlet NO-GO for en fuld PC9rettelse med nuværende endpointkontrakt.
+Næste sourcespor må undersøge korreleret rå devicecompletion før eksisterende native
+successcollapse og base/applied/leasegeneration i den eksisterende owner. HTTPprovider-
+accept og fysisk restore skal fortsat holdes særskilt; fejl/unknown/no-send og manuelle
+ændringer må ikke blive success. Ingen konkurrerende mixer/player eller implicit gain-
+tuning. Før audioændring skal lead definere falsificerbare målinger af fysisk onset/
+offset/destinationburst/basepreservation og hele transfer→close→restore→nextwake-kæden.
+De oprindelige A/B-egnevolumen og useroverridekrav bevares; mindstefacet er ikke
+færdig feature. #118/PC8/PC9 forbliver åbne, installed204/0264 uændret.
+
+
+<!-- podvoice-126-v6-target-result-20261007 -->
+**Faktisk minimal terminalrace-repair og target: V6 88/88PASS,10,821s.** Kun fire
+linjer i cleanup.signal_owned ændres: knownadmitted/nativeNone sender intet nyt signal
+og lader det eksisterende2s wait joine det tilbageholdte Popen. Unknownadmitted og
+changednonNone afvises fortsat. Eksisterende negativeNone-case ejer nu admittedNone;
+to permanente deterministiske regressioner fastholder nativegap/no-newsignal og hele
+cancel→knownKILL→nativegap→retainedjoin→originalerror/no-nextcohort. Den oprindelige
+faktiske fejlede testcase er byteidentisk uden observationwrappers. Bounds4cleanup/
+outer2/child120/240 og product/runtime/SDK/nativeadapter/audio/prompt/config bevares.
+
+Uafhængigt exactV6source-GOcf61f13b… med seriousfindings[] påmanifest1f48d480…,
+core7370b604…/unit699c44f5…, inversebyteexactV5;46deps/35integrationmodules match.
+Root kørte canonical hele berørte workflowmodul én gang underGateLock i devclone:
+88/88PASS, log8af9d540…, sourcehashes og12dirtyinventoryuændrede. Nativegap-timeout
+bevarer2+2wait og struktureretFAIL; successfuljoin medsurvivinggroup giver stadig
+FAIL og intet unknownsignal. Additional crossproducttests blev reviewet optional,
+ikke ny produktrace eller uløst finding. OriginalV5FAIL/enkeltobservationFAIL bevares.
+824=4+820inventory er samme exact35module/cohort-evidens, ikke arvetexecutionPASS.
+
+Samlet autoritativ fast af den nuværende12-fils#124/#100/#115/#126-kandidat er startet;
+resultat afventer. Ingen release/CI/install/fysiskaccept udledes af workflowtarget.
+Endelig version/changelog/STATUSfreeze og exactreview samt én releasegate kræves
+fortsat. Installeret2.0.4 uændret, kandidaten endnu ikke release-/fysisk testklar.
+
+
+<!-- podvoice-124-panel-observer-stop-line-20261007 -->
+**Samlet actualfastv4 FAIL173,817s; ny observergrænse undersøges før mere runtimekode.**
+Ruff/format10 og mypy55PASS. Integrationcohort1 alle4casesPASS73,64s; cohort2 stopper
+efter99,81s på test_thin_panel_status.py:55: nativeactive forventer historisk
+"Måler ro før app-timeout", actual"Afventer bekræftet ro i lydvejen". Ny124strict
+appidlenativequiet kan legitimt ugyldiggøre gammel runningTrue-oracle; dette er ikke
+bevis for en ny fysisk samtalefejl. Cohort2/unit/browser er ikke fullPASS, original
+receipt/logb865ff83… bevares, ingen freeze/release følger. Rootforberedt205freeze er
+IKKEkørt og dens tidligere fastPASS-præcondition fejler; version stadig204.
+
+Hele adjacent review af sammekandidat finder dog en selvstændig bindende ownerfejl:
+webGETstatus→forcedpublish→_panel_status nonclosing→_live_quiet_work_clear(False)→
+ny_sync_live_idle_input→inputowner/reset_count/windowreset. Optionalstatuspoll kan
+dermed mutere førpreclose-idleproof, selv om _panel_status erklærer read-only.
+Reviewer bekræfter kildekæden. En faktisk registreret preclose tager closingbranch
+og kalder ikke workclear: direkte poll-cancels-activepreclose er IKKEpåvist og må
+ikke stå som resultat. Falsificerbar årsag er changedSDKarrivalcurrency i aktiv
+nonclosingstatusread; projectedcurrentowner kan stoppe nedtælling uden at ændre
+proof. Invarianter: passiveUI/read-onlyobservability, én Thinruntimeejer, appidle-
+inputfence/quietserial og modelsemantiskEND/bevarendeoppositeadapter.
+
+Lead autoriserer først isolatedtest-only permanent regression af SDKseqadvance→
+status/publishread→sammeinputowner/resetserial/anchor/proof/permission og control
+med faktisk registeredprecloseclosingbranch. Ingen skjult/hidetaskfixture. Test
+skal demonstrere actualRED på observermutation og skelne det fra gammelactive-
+statusoracle. Uafhængigt source-review før root-target. Først derefter mindste
+adskillelse af diagnostisk purework-clear-read fra eksisterende runtime-inputsync;
+all mutation-producing admission/activity/preclose/finalizer calls bevares. Ingen
+ændretEND/prompt/model/providerinput/tools/audio/VAD/gain/firmware/bounds/settings
+eller ny runtimevej. Lead vælger exactdiff efter årsagsreceipt, ikke eftergreenassert.
+
+Planlagte regressioner: pure active/nonclosingread efterSDKcurrencyadvance, pure
+registeredclosingread, truthful nativeactive-blocker/runningFalse, semanticoutput-
+onlyactivecontinues, alle124currentqueued/stale/generation/resetserial controls og
+relevant native/Talkadapter. Efterexactreview genkøres kun ugyldiggjorttarget/gate
+og derefter finalfreeze/énrelease. Rollbackexact1fddThin førobserverseparation uden
+arvet fysisk golden. Kandidaten markeres IKKEtestklar/releaseklar; current12whole
+source-GO f92e8775… kan ikke tilsidesætte denne alvorlige observerfinding. Alle88
+V6toolingPASS er egne uændredefacets, installed204 og released0264 uændrede.
+
+
+<!-- podvoice-118-pc9-native-observation-provenance-20261007 -->
+**Stærkere released-buildbinding og snæver observerresearch.** Receipt87363edb…
+fastholder de faktiske0.26.4publishlogs: run37599207082, main24d9254, beggejobsSUCCESS,
+OwnToneclone29.2 switched fa607a02… førcompile. PubliceretARMmanifest32557cba…/
+amd64c53cd298…; dette er actualpubliceretbuildsourcebinding, stærkere end alene nu
+tagresolve, men ikke installeretGreenimageidentity eller fysiskprovideraccept.
+Tidligere installedprovenanceUNKNOWN består indtilactualdigest/binaryreadback.
+
+Rawnativevolumeobservationsgrænse er større end seqctx alene: outputsentry early
+no-request, immutable AirPlayrequest/payload, evrtsp queuedadmission→actualdispatch/
+transportincarnation→localwrite/rawresponse→ownerclose. Nativevolume tillader negative
+RTSPsvar at fortsætte til success og checker ikke replyCSeq. callbackslot/session/
+fd/pointer/CSeq er ingen immutable operation. Requests kan slettes uden callbacks;
+andre callbacks frigør request/session eller starter næste request før gammelcb.
+Kun kopieretvolume-specific metadata før callbacks og unknown ved ejetcleanup kan
+være sand observation. Nativeoperationnonce er ikke bridgelease/routegeneration;
+RTSP200 er provideraccept, ikke fysisk appliedvolume eller restored/hørtlyd.
+
+Sourceforslag er ikke implementeringsGO: existingCbuild har ingen dækkende owner-
+regression. En faktiskproduction-TU/objects eller exactpublishedbinary/inertRTSP-
+fixture skal bindes før observationpatch; copiedcontroller/stubbedplayerreturn er
+ikke compoundproviderbevis. Root har kun læsende konstateretDockerCLI/clang, absent
+Dockerdaemon/pkgconfig/PCdevclone; ingen toolinstallation/container/homeLAN/device-
+calls er lavet. Autoriseret næste sourcespor er test-onlyexactproduction regression
+af requestqueue/free/nativecollapse med isoleretmodpart, ingen gain/runtimeændring,
+ingen konkurrerende player. FullPC9A/Bmanual/base/route/restorecontract forbliver
+NO-GO; unknowns bevares og ændrede mål må ikke maskeres som færdigfeature.
+
+
+<!-- podvoice-124-panel-cause-minimal-repair-20261007 -->
+**Actual observerårsag bevist før runtimepatch: nonclosingRED/registeredclosingPASS.**
+Uafhængig test-only source-GOab5cc4b9… påmanifest334f2f14…/panel81c887a1… og20pins.
+Root spejlede alene paneltestmodulet og kørte kun nye2causalnodes med actualThin1fdd:
+pytestexit1,1,758s,log808e7065…. Actual_handle current transcript avancerer SDKinput
+0→1 og køer sammeLiveTranscript uden suspension/Thinconsumer; derefter directpanel
+read ændrer inputowner0→1, idlewindowreset7→8/input_currency_changed, proofowner→None.
+Prøven fejler præcis på directpanelmutation, ikke fixture/collection/cleanup. Control
+med faktisk registeredlivingpreclose/LEDdeadline består. Alle sourcehashes/13filer
+uændrede efterkørsel;6originalpaneltests uændrede/ikke udført i dennecausefacet.
+
+Lead vælger nu den mindste adskillelse: privat keyword synchronize_input:bool=True
+i _live_quiet_work_clear; behold sync ved præcis samme eksisterende nonsemanticguard
+og runtimependingworkguards, blot conditional påprivatkeyword. Kun _panel_status
+kalder literalFalse. Dermed er hvert eksisterende runtimecall/default/guard-/sync- /
+eventrækkefølge uændret; ingen nye stateflags/settings/wire/owners eller helper-
+abstraktion. Pureprojectedcurrentowner og queue/workchecks bevares, så status ikke
+opfinder friskro fra gammelanchor. Reviewerdesign-GO fastholder denne løsning som
+mindre scope end at flytte sync tidligere i ready/permissioncalls, som kunne ændre
+timing ved pendingwork. Implementøren ændrer ikke runtimeadmission/currency/rearm.
+
+Samme isolatedfacet må rette den historiske nativeactive-statusoracle til sandt
+blocked/countdownFalse/remainingNone; semanticoutputonly-active-prøven og alle
+øvrige6/new2bodies/causalsnapshots bevares. Exactinverse af keyword/condition/sole
+panelcall skal give hele Thin1fdd. Ingen ændretprompt/schema/tools/model/provider/
+audio/VAD/gain/firmware/deadlines eller publicUItest. Førroot-target kræves frisk
+independent exactdiffreview, allcallers/pins og stale/duplicate/cleanup/semantic/
+oppositeadapterfalsifikation. Targethele8panelcases, derefter tidligere124native/
+Talkfieldregressioner og ugyldiggjortfullfast; ingen manuelrelabel/retry/CIrerun.
+RollbackThin1fdd/panel81c uden arvet fysiskstatus. Kandidat fortsat IKKEtestklar;
+release205freeze er aldrig udført, installed204/0264 uændret.
+
+
+<!-- podvoice-124-panel-repair-target-result-20261007 -->
+**#124: den passive statuslæsning er rettet og dens sammensatte regression består.**
+Den allerede dokumenterede årsagstest var RED ved ændring af inputejerskab/ro-bevis
+fra en statuslæsning; kontrollen med faktisk registreret preclose bestod. Den minimale
+rettelse tilføjer det private keyword `synchronize_input=True` på det eksisterende
+work-clear check. Kun panelstatus bruger `False`; alle otte runtimekald, deres guards
+og rækkefølge er bevaret. Panelet viser samtidig sandt blocked-state, når native ro
+endnu ikke er bekræftet. Ingen ændring af semantisk END, provider, mic, lyd eller VAD.
+
+Independent source-GO 204a5958 på manifest 45cb2255 og diff d11a7a81 har ingen alvorlige
+findings. Root spejlede kun Thin ea0811ce og paneltest 2954c152. Første runnerforsøg
+stoppede på et forkert manifestfeltnavn før imports, spejling eller tests; alene dette
+runnerfeltnavn blev rettet. Derefter faktisk panel 8/8 PASS (0,724 s) og tidligere
+native/Talk-feltregressioner 84/84 PASS (105,619 s), samlet 106,384 s. Samme 13 filer og
+alle afhængighedspins var uændrede bagefter. Receipt:
+`pv124-panel-repair-v1-coherent-target.json`, SHA256 67e79c43; log 9da90c53.
+
+Den tidligere fullfast-v4 FAIL og årsagstestens RED bevares. Frisk uafhængig review af
+hele den sammensatte 13-filers kandidat afventer, derefter ny fullfast-v5. Ingen
+versionfreeze, releasegate, PR, merge eller installation er udført for denne kandidat.
+Installeret 2.0.4 er uændret. Kandidaten er fortsat ikke fysisk testklar; fokuseret
+software-PASS giver hverken golden chain, 10/10 lifecycle, fysisk drain eller latency.
+
+
+<!-- podvoice-205-final-freeze-v2-20261007 -->
+**2.0.5 finalfreeze efter samlet actualfast.** Root fryser den samlede kandidat på
+main539 med #124idlecurrency, #100passiverenderer, #115captureguard, #103realSDK-
+regression og #126bounded integrationowner. Samlet actualfastv5 PASS; den immutable
+receipt og dens elapsed/log/sourcepins er vedlagt finalmanifest. Frisk current13 whole-
+review med seriousfindings[] er prefreeze-GO; versionmetadata205/changelog og
+denne STATUS-resultatdelta kræver nu independent exactfinalreadback før én releasegate.
+Ingen release/PR/CI/merge/install er udført ved dette freeze. Semantisk END, shared
+provider/outputend, Stop/error/max, Talk, prompt/model/tools/schema, audio/VAD/gain/
+firmware/settings er uændrede; kun Thin-idleadmission, passiv statuslæsning og HTML er produktadfærdsdiff.
+Live-admissionscopebcd566df… kræver ikke en ny scopespecifik providerprobe i dette
+diff; automatiske/frosne software/buildgates og separat fysisk bevis kræves stadig.
+
+Receiptens actualfastresultat er ikke golden eller lifecycle10/10. Installeret204
+bevarer sine egne beviser; ny205 skal frisk fysisk bevise input→svar→opfølgning→
+modelending→farvel→teardown/rearm→nywake inklusive senere feltregressioner og dernæst
+10/10automatiske+10/10fysiske på sammeartifact. #94latency, #95fuldplatformmatrix og
+#96funktions/soak samt musiktransfer118/PC8/PC9 forbliver åbne. Ingen musikflytnings-
+eller nativevolumerettelse er i205. Stop/releaseblock ved alvorligfinalfinding,
+pin/drift eller automatiskgateFAIL; rollback exact204 uden arvetfysiskreadiness.
+
+
+<!-- podvoice-127-candidate-scope-owner-decision-20261007 -->
+**Stop-the-line: første 2.0.5-freezes releasekontrol fejler på workflowklassifikation.**
+Issue #127 er oprettet under #96. Final source-GO 505b24b0 på freeze f9ca5e0f/18 filer
+blev efterfulgt af præcis én releasegate: FAIL efter 0,671 s, exit2, pins uændrede.
+Ruff/format 223 filer bestod; candidate-scope afviste audio_input+rearm, hvorefter andre
+stages blev afbrudt. Ingen runtimeassertion fejlede; de afbrudte release-tests er ikke
+PASS. Første receipt/log 00563765 og freeze bevares og genkøres ikke uændret.
+
+Én root-ejet forwarding-observation af den faktisk shippede classifier gav Thin alene
+unclassified_runtime uden hits, init kun versionmetadata, og HTML begge hits: ny
+wake_rearm_recovered-label og speech_stopped ved label for skrevet input. Samlet fine
+matching ligger under 10k; ingen fallback. Receipt 32d0b457. Uafhængig kildeinspektion
+bekræfter samme årsag og byte/AST-ubevægelige rearm/semantiske/adapterejere. Split af
+Thin/UI løser ikke i sig selv HTMLs dobbelte hit. Runtimeændring for denne gatefejl,
+keywordomdøbning, lexicalfilter, gate-skip og generel domain-tupleudvidelse er ikke mål.
+
+Lead vælger en permanent, strengt navngiven reviewed-chain admission i den eksisterende
+candidate-scope-workflow, modelleret efter dens allerede strikte v3-contract. Ny kind
+native_idle_input_passive_ui/version4 må alene optage præcis Thin+HTML og eventuel
+wholebyte-version-only init, præcis observerede to domæner, aktuelle base/mergebase og
+hele effektive production- og regressionfingerprints. Alle seks native idle/panel-
+moduler inkl. actualSDK ten_cycles, daily_ui og Talk-WebRTC-regression skal faktisk
+være ændrede regularfiler uden symlink. Defaultklassifikationen forbliver FAIL; ukendt
+kind/schema, stale/manglende record, ekstra runtime/firmware/prompt/adapter, skjulte
+Git/effective ændringer, uændret/manglende/symlink-test og falsk metadata skal afvises.
+Frisk uafhængig whole-current review ejer recordens reviewer/rationale/fingerprints;
+implementøren må ikke selv udstede GO. Den nye record er ikke en fysisk eller runtime-
+waiver. Designet har betinget adversarial GO; kode er endnu ikke ændret ved denne post.
+
+Plan: mindste workflow-only diff og permanente positive/negative real-Git regressioner;
+root kører målrettet scopekontrol og nye samt eksisterende classifier-regressioner i
+samme usynkroniserede klon. Produktets 13 tidligere filer og faktisk fast-v5-resultat
+skal være byteidentiske; ingen ny tuning eller ekstra produktfeature. Det nye workflow-
+diff, record, STATUS og freeze kræver frisk independent exact review før en ny enkelt
+releasegate på den nye kandidat. Rollback er workflowbaseline; første 2.0.5-kandidat er
+IKKE testklar og må ikke merges/installers. Installeret 2.0.4 er uændret; ingen golden,
+10/10, fysisk drift eller latency arves. Ny alvorlig finding/drift stopper igen.
 
 **2.0.3 faktisk leveret.** PR123/mainb98a58b88dfbbbc7d3b0ccdbccc8826ca5e20f78
 har samme verificerede tree som frozen releasegate/PR. MainCI37632047074/509 er
@@ -790,6 +1891,61 @@ endelige manifest afventer independent readback før præcis én fullreleasegate
 Release/PR/CI/merge/install er ikke udført ved dette freeze. Kendt#124 samt alle
 egne fysiske gates forbliver åbne; ny artifact arver ingen stabilitet eller readiness.
 
+**2.0.4 faktisk frozen release-resultat og præcis PR-overførsel.** Final independent
+review4d5d94dc… giver SOURCE GO på alle25 files i freeze2ccf78ce…. Root kører præcis
+én scripts/dev release --base origin/main: PASS243,53s, integration82,05s,
+unit194,54s og alle fire seriale browserworkers joined. Source og HEAD uændrede;
+log371b74e4…/pv-ui-204-authoritative-release.json. Dette er softwareaccept; ingen
+fysisk/HA-app/Safari/VoiceOver/lifecycle-readiness arves. Lokal commit23b74696… og
+connected-GitHub commit14653108… har samme fulde træ40690a2267f6fb622b5d710a250bfef866a67855.
+Alle25 remote blobs matcher frozen Gitblobhashes. PR#125 er oprettet og tilknyttet
+chatten; exact-head CI, merge, immutable ARM64-publication og installation afventer.
+Ingen manuel CI-genkørsel/authændring. Installed HA Green er fortsat2.0.3.
+Frosne releasekildebits ændres ikke af denne efterfølgende canonical resultatpost.
+
+**2.0.4 faktisk merget, publiceret, installeret og refreshet.** PR125 exact-head
+CI37653890177 attempt1 SUCCESS; squash-main539b6dd192638de1bb29b9d5bf663f80aa6605f5
+har samme fulde tree40690a2267f6fb622b5d710a250bfef866a67855 som den frosne kilde.
+MainCI37654598360 attempt1 SUCCESS inklusive immutable ARM64-publicering; ingen
+manuelle genkørsler. Registryproof verificerer OCIindexe88a00b2…, ARM64bddabc40…,
+git-label/ENV og actual shipped HTMLab7f5828…. Rootfs96804bf30a7934107fea1359fc92c8c4214fcdcdc1827d4e911c99100ef9ac91
+matcher actual HA-startup19:00:45.163 med git_sha539b6dd1…/version2.0.4.
+HA update-entity blev refreshet; én installation med checked backup, installed/latest
+2.0.4 og Kører. Panelet er faktisk genindlæst og viser v2.0.4. Diagnose har ingen
+Realtime-preflight, Grundtest, gammel stuetest eller numeric A/B; normal Tal/settings,
+Lydbevis/tidslinje og passive fejl er bevaret. Hjem har Rum før Forbindelser.
+Actual panel viser Voice PE offline; installation/HTMLreadback er ikke fysisk wake-
+eller lifecyclebevis. Installerede screenshots og pv204-merge-publication-install.json
+bevarer beviset. #114/#122 er lukket med GitHubreadback på egne UI/softwarekrav; #113/#115,
+#100's særskilte måleedge og epics er åbne. #124 er ikke rettet af denne UI-release.
+
+
+**#113 actual store/Save/selection-kontrakter, test-only.** Separatev1teste6036992…
+og28actualafhængigheder matcher publiceret539. Root independentreview047b1b0e…
+SOURCEGO før isolatedtarget. Første1,596s kørsel nåede kun tmp_path setupfejl: runner
+manglede parent til permanentbasetemp; alle6testbodies unrun, RuffPASS, ingen
+produktevidens. Root oprettede kun parent og genkørte kun ugyldiggjortpytesttarget
+på sammekilde/review:6PASS0,460s, log700bc032…/
+pv113-v1-isolated-target-testdata-corrected.json. Begge Alpha-retninger prøver real
+store/Web/Config/mainbuilder/Thin/providerklasser; acceptedSave/invalidSave/masked
+secrets/GET/Config bevarer faktisk aktivbrain/generation/prompt/toolcontract, og først
+ownedStop/teardown/rearm→nextwake anvender nytvalg. V10/v11×ON/OFF bevarer identitet/
+prefs og prøver eksisterende targetedidle-reset/stabiltsecondload. Source/28deps/HEAD
+uændrede. Hardware/providertransport erinert, ikkephysical/rebootproof. Productionens
+nested Save/devicecontrolhook, Supervisorrestart, ny målrettet migrationspolitik,
+empty/conflicting/partialmatrix og faktisk artifact/configrollback erfortsatukendte;
+#113 ståråben. Testartifact er OUTUI204 ogikkeen backendmigration/release.
+
+**#100 AC4 current sourcefinding.** WholeHTMLrenderLifecycle kancoerce null/string,
+vise NaN/negative deltas, undlade ukendt-række for missingwake/provider ellerclose/
+rearm ogmanglerclock/source. Thinproducerat_ms erhostmonotonicvedobservation,
+ikkenen fysiskmeningsfuldlydclock. UIwake_rearmed matcherikkenuværende
+wake_rearm_recovered event; recovered erikkefriskenextwake/readinessproof.
+EksisterendedailyUI har timeline_activity=[]; fireworkerPASS beviserikkeAC4.
+Etisolated15casewholeHTMLtestdraft erforberedt til independentreview; ingressrows/
+label-/metadata-krav erendnu forslag, ikkeactualtest ellerbesluttetproduktcopy.
+Ingen100prodpatch/gate/closure; nyt målrettetprojectionbeviskræves.
+
 #103 source-audit: den eksisterende ti-cyklus-test bruger LiveFake/Realtime-lignende
 events. Enkeltstående actual-SDK Alpha-terminal/quiet-close-regressioner er stærkere
 om protokollen, men er ikke en ubrudt automatisk ti-serie. Næste isolerede testleverance
@@ -820,6 +1976,77 @@ separat på uændret helper:2PASS1,323s, pv103-v6-counter-only-target.json.
 Én GateLock-ejer, persistent devclone, pinned Python/actualSDK. Dette beviser de
 angivne automatiske facets; Talkmediedræn er stadig eksplicit unconfirmed, fysisk
 VoicePE10/10 ukendt og #124 åbent. Ingen fuld fast/release/merge af denne kandidat.
+
+**#103 faktisk v9 exact-target.** Independent source-review34892b0a… og read-only
+16-dependency-audit er efterfulgt af root-ejet isoleret GateLock-target, uden devclone-
+mutation eller UI204release-inclusion. Focused Ruff PASS og hele v9module4cases
+PASS75,088s: native10, Talk10, cleanup timeout/cancel. Artifact3dfee3e6… og alle
+16 sourceafhængigheder er uændrede; clean commit23b74696… før/efter.
+Receiptpv103-v9-isolated-target.json, log2dd7415c…. V9 eneste kildeændringer er
+observationsparameternavn og bundne loopvariables for fire konkrete lintfindings.
+Ingen tidligere PASS arves. 2.0.4metadata er eksplicit aktueltestkontekst, ikke
+runtimeadfærdsdiff. Talkaudible drain forbliverunconfirmed; shippetJS+realWebRTC
+tailrepro mangler. #124 åbent; fysisk10/golden/latency fortsatukendt. GH103 opdateret
+og ståråben på egne acceptkrav; nyregression er fortsatudenfor PR125/UI204artifact.
+
+
+<!-- podvoice-100-ac4-observed-20261007 -->
+**#100 AC4 faktisk browsermodbevis og isoleret UI-beslutning.** Root-ejet v3 target
+på exact shippet HTMLab7f/published539 gennem faktisk pinned registryworker gav
+13 AC4-fejl og én missing-turn-end control PASS på2,291s. Actual workerexit1/FAIL;
+wrapperklassifikation er OBSERVED_SOURCE_BOUND_AC4_FAILURE, ikke en grøn produktgate.
+Alle14cases er afsluttet, nul script-/harnessfailure, publiccleanup og nativegroups
+joined, source/5deps/HEAD uændrede. Receiptpv100-v3-isolated-browser-target.json,
+log1a631799…, independentreview7c28a4b6…. NaN/Infinity er udtrykkeligt actual-renderer
+injection efter wholeHTML/API-init; øvrige cases er syntetiske API-rækker. Ingen
+fysisk latency/provider/readiness eller samlet UI-accept udledes.
+
+Lead root tillader nu separat minimal UI-draft på main539: strict finite number>=0
+endpoints og ikke-negativ finite forskel for eksisterende wake/turn/close-målinger;
+vis “—” ved ugyldigt/manglende endpoint. Ugyldigt eventoffset/duration må ikke
+coerces eller blive NaN/Infinity/negative tal. Gyldig nul-tid/duration bevares.
+Kort label ved målingerne: “Serverens hændelsestider”. Actualsource=text navngives
+som skrevet input i både tur- og eventtekst. Actualwake_rearm_recovered navngives
+“Genaktivering genoprettet”; den får ingen firmwarekvitterings-/nextwake-påstand.
+Eksisterende wake_rearmed beholdes som separat hændelse, uden at recovery omtolkes.
+
+Kæden actualThin host-observation→hubtimeline→APIstatus→eksisterende renderLifecycle
+→passiv UI læses på begge sider. Invarianter9–11 sand input/readiness/playback og
+én Thin-/native-/providercloseejer gælder. Falsificerbar årsag: rendererens implicitte
+JS-talcoercion og ufuldstændige source/eventlabels producerer misvisende diagnose.
+Ingen backend/schema/clock_source/crossroom-policy, prompt/firmware/timeout/gain/
+VAD/lifecycle, ny samtaletest, timer, layout-/kontrolændring eller tuning er mål.
+
+Plan: isoleret sourceartifact uden devclone-mutation, uafhængigt source-review,
+sourcebundet rebind af14cases, samme eksisterende browserregistry og nødvendige
+panel-/daglig-navigationregressioner. Fulde releasegates først efter separat samlet
+freeze; ingen UI-accept eller installation endnu. Rollback exactinstalleret2.0.4/
+HTMLab7f/rootfs96804bf3…, ingen arvet fysisk accept. Runtime124 forbliver separat.
+
+
+<!-- podvoice-100-ac4-ui-green-20261007 -->
+**#100 faktisk targetedUIresultat.** Root independent source-review7908f6e… giver
+GO for minimalonefileUIv1/HTML5321d8a2… og exactlyonepin v4test46a11944…; old v3-
+oracles/cleanup erbyteidentiske. Root kontrollerede allepublished539baselineobjects
+og eksplicitreboundcurrentThin1fdd6c0a… somreviewets separateexecutionbinding:
+hele _trace_event AST eridentiskmed539, hubpayload uændret. Authorbaselinepins
+ac1363… bevareshistorisk, ikkeudgivesforactualsamewholeThinbytehash.
+
+TargetPASS44,223s: alle14actualwholeHTMLAC4cases, eksisterendedailybrowserworker
+med5widths×2themes/normalcontrols/no-guided-testfetch/readiness/navigation/zoom/
+screenshots og16panelkontrakter. Begge browserregistry/nativegroups eractualjoined/
+cleanupcomplete, publiccleanup14testPASS, alle23sourcebindingsuændrede, HEAD539.
+Receiptpv100-v4-ui-candidate-target.json. Ingen fullgate/CI/installation eller
+fysisklatency/golden/readinessaccept. Installed204HTMLab7f erfortsatuændret.
+
+Permanenttestfacet underforberedelse skal tilføje14+strictwake/close/offset/duration
+ogvalid0 til eksisterendedailyworker, fireworkers og sammebrowserowner bevares.
+Actualrendereratomics sker efterwholeHTMLinit, ingen kopieretrenderer. AC5før/efter
+numeric/invalid/typed/recovery390/1440light kræver sourcebundet actualbaselineHTML
+ab7f ogcandidate5321, heldpoll/fixtureverify ogjoinedcleanup. Baselineartefakt-env
+giver alene evidens, aldrig optionalcandidatePASS; udenbaseline erAC5ikkeproved.
+Dettefacet er endnuikkeimplementeret/reviewet/kørt; #100 ståråben og ingencheckbox
+eller samletUIgate erafledt af den smalle grønne prøve.
 
 ### 7/10 — afsluttet softwarebeslutning: epic-iteration 2.0.2
 

@@ -4,7 +4,7 @@ import asyncio
 import json
 
 import pytest
-from test_voicepe_contract import TextSensorState, _link, _StubClient
+from unit.test_voicepe_contract import TextSensorState, _link, _StubClient
 
 
 def fixture():

@@ -1,4 +1,5 @@
 import ast
+import contextlib
 import hashlib
 import json
 import os
@@ -473,8 +474,7 @@ def test_full_fast_scope_keeps_all_suites_in_isolated_bounded_workers(monkeypatc
     run_fast(tmp_path, {}, "python", ScopeSnapshot("h", "b", ("esphome/podvoice.yaml",), "", ()))
     unit, integration = stages
     assert unit == unit_stage("python", FAST_TIMEOUT_S)
-    assert integration.command[-1] == "tests/integration"
-    assert integration.timeout == FAST_TIMEOUT_S
+    assert integration == dev_cycle.integration_stage("python", FAST_TIMEOUT_S)
 
 
 @pytest.mark.parametrize("count", [1, 3, 4, 9])
@@ -784,3 +784,771 @@ print(json.dumps({"same_owner": True, "storage_refused": True, "dependency_refus
         "browser_launches": 0,
         "cwd": str(cwd),
     }
+
+
+@pytest.mark.parametrize("missing", ["sdk", "remainder", "both"])
+def test_integration_cohorts_refuse_missing_required_inventory(tmp_path, missing):
+    directory = tmp_path / "tests/integration"
+    directory.mkdir(parents=True)
+    if missing == "remainder":
+        (directory / "test_thin_live_ten_cycles.py").write_text("")
+    elif missing == "sdk":
+        (directory / "test_other.py").write_text("")
+    with pytest.raises(DevCycleError, match="requires"):
+        dev_cycle.integration_batches(tmp_path)
+
+
+def test_integration_cohorts_cover_all_default_modules_once_and_preserve_nodes(tmp_path):
+    directory = tmp_path / "tests/integration"
+    directory.mkdir(parents=True)
+    for name in ["test_thin_live_ten_cycles.py", "z_test.py", "test_a.py"]:
+        (directory / name).write_text(
+            "import pytest\n@pytest.mark.parametrize('value', [1, 2])\n"
+            "def test_case(value): assert value\n"
+        )
+    (directory / "helper.py").write_text("raise RuntimeError('must not collect')\n")
+    batches = dev_cycle.integration_batches(tmp_path)
+    assert batches[0] == (dev_cycle.INTEGRATION_SDK_MODULE,)
+    assert len(batches) == 2 and batches == dev_cycle.integration_batches(tmp_path)
+    expected = sorted(
+        str(p.relative_to(tmp_path)) for p in directory.glob("*.py") if p.name != "helper.py"
+    )
+    flattened = [name for batch in batches for name in batch]
+    assert sorted(flattened) == expected and len(flattened) == len(set(flattened))
+
+    def collect(paths):
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-o", "addopts=", *paths],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
+        return [line for line in result.stdout.splitlines() if "::" in line]
+
+    whole = collect(["tests/integration"])
+    parts = [node for batch in batches for node in collect(batch)]
+    assert sorted(parts) == sorted(whole) and len(parts) == len(set(parts)) == 6
+
+
+def test_actual_integration_default_inventory_is_exhaustive_and_unit_inventory_unchanged():
+    root = Path(__file__).parents[2]
+    expected = sorted(
+        str(p.relative_to(root))
+        for p in (root / "tests/integration").rglob("*.py")
+        if p.name.startswith("test_") or p.name.endswith("_test.py")
+    )
+    flattened = [name for batch in dev_cycle.integration_batches(root) for name in batch]
+    assert sorted(flattened) == expected and len(flattened) == len(set(flattened))
+    assert dev_cycle.INTEGRATION_SDK_MODULE in flattened
+    assert dev_cycle.UNIT_BATCH_COUNT == 8
+
+
+@pytest.mark.parametrize("bound", [120, 240])
+def test_integration_stage_uses_same_bounds_and_single_parent_lock(monkeypatch, tmp_path, bound):
+    stage = dev_cycle.integration_stage("python", bound)
+    assert stage.name == "integration"
+    assert stage.command == (
+        "python",
+        "scripts/dev_cycle.py",
+        "integration-worker",
+        "--integration-timeout",
+        str(bound),
+    )
+    assert stage.timeout == 2 * (bound + 4) + 15
+    calls = []
+    monkeypatch.setattr(dev_cycle, "run_integration_batches", lambda *args: calls.append(args))
+    monkeypatch.setattr(
+        dev_cycle, "tool_environment", lambda *args: pytest.fail("nested preflight")
+    )
+    monkeypatch.setattr(dev_cycle, "GateLock", lambda: pytest.fail("nested GateLock"))
+    monkeypatch.chdir(tmp_path)
+    assert dev_cycle.main(["integration-worker", "--integration-timeout", str(bound)]) == 0
+    assert calls[0] == (tmp_path.resolve(), os.environ.copy(), sys.executable, bound)
+
+
+def test_release_keeps_two_integration_cohorts_and_eight_unit_children(monkeypatch, tmp_path):
+    stages = []
+    monkeypatch.setattr(dev_cycle, "sibling_tool", lambda _, name: name)
+    monkeypatch.setattr(
+        dev_cycle, "run_parallel", lambda root, env, selected: stages.extend(selected)
+    )
+    monkeypatch.setattr(dev_cycle, "diff_check", lambda *args: None)
+    monkeypatch.delenv("PODVOICE_RELEASE_TIMEOUT", raising=False)
+    run_release(tmp_path, {}, "python", ScopeSnapshot("h", "b", (), "", ()))
+    assert next(s for s in stages if s.name == "integration") == dev_cycle.integration_stage(
+        "python", 240
+    )
+    assert next(s for s in stages if s.name == "unit") == unit_stage("python", 240)
+
+
+@pytest.mark.parametrize("failure", [None, 1, 2])
+def test_integration_worker_serializes_joins_and_preserves_first_failure(
+    monkeypatch, tmp_path, capsys, failure
+):
+    from scripts import browser_gate
+
+    batches = (("sdk.py",), ("other.py",))
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: batches)
+    monkeypatch.setattr(browser_gate, "group_exists", lambda _: False)
+    started, processes = [], []
+    identities = {}
+
+    def launch(command, **kwargs):
+        assert not processes or processes[-1].returncode is not None
+        assert kwargs["cwd"] == tmp_path and kwargs["start_new_session"]
+        assert command[1] == "-c"
+        assert "os.execv(sys.executable" in command[2]
+        assert command[3:6] == ("-q", "-x", "--tb=short")
+        started.append(command)
+        process = SimpleNamespace(pid=100 + len(started), returncode=None)
+        identities[process.pid] = browser_gate.Identity(
+            process.pid, os.getpid(), process.pid, (1, len(started)), os.getuid()
+        )
+        kwargs["stdout"].write(f"cohort-output-{len(started)}\n")
+
+        def wait(*, timeout):
+            assert timeout in (240, 2)
+            process.returncode = 7 if len(started) == failure else 0
+            return process.returncode
+
+        process.wait = wait
+        process.poll = lambda: process.returncode
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(dev_cycle, "_integration_identity", lambda pid: identities[pid])
+    monkeypatch.setattr(
+        dev_cycle.os, "killpg", lambda *args: pytest.fail("terminal child signaled")
+    )
+    if failure is None:
+        dev_cycle.run_integration_batches(tmp_path, {}, "python", 240)
+    else:
+        with pytest.raises(DevCycleError, match=rf"cohort {failure} failed \(7\)"):
+            dev_cycle.run_integration_batches(tmp_path, {}, "python", 240)
+    assert len(started) == (failure or 2)
+    assert f"cohort-output-{len(started)}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("changed", [None, "pid", "parent", "group", "born", "uid"])
+def test_integration_cleanup_rejects_unknown_or_changed_native_identity(monkeypatch, changed):
+    from dataclasses import replace
+
+    from scripts import browser_gate
+
+    admitted = browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid())
+    current = (
+        None
+        if changed is None
+        else replace(admitted, **{changed: (9, 9) if changed == "born" else 999})
+    )
+    process = SimpleNamespace(pid=123, poll=lambda: None)
+    monkeypatch.setattr(dev_cycle, "_integration_identity", lambda _: current)
+    monkeypatch.setattr(dev_cycle.os, "killpg", lambda *args: pytest.fail("unowned group signaled"))
+    with pytest.raises(DevCycleError, match="identity changed"):
+        dev_cycle._finish_integration_child(process, None if changed is None else admitted)
+
+
+def test_terminal_surviving_leaderless_group_is_not_signaled(monkeypatch):
+    from scripts import browser_gate
+
+    process = SimpleNamespace(pid=123, poll=lambda: 0, wait=lambda **kwargs: 0)
+    clock = iter([0, 5])
+    monkeypatch.setattr(dev_cycle.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(browser_gate, "group_exists", lambda _: True)
+    monkeypatch.setattr(
+        dev_cycle.os, "killpg", lambda *args: pytest.fail("leaderless group signaled")
+    )
+    with pytest.raises(DevCycleError, match="group remains"):
+        dev_cycle._finish_integration_child(process, None)
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_integration_cancel_at_terminal_join_preserves_failure_and_prevents_next_cohort(
+    monkeypatch, tmp_path, capsys, exit_code
+):
+    from scripts import browser_gate
+
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: (("sdk.py",), ("other.py",)))
+    monkeypatch.setattr(browser_gate, "group_exists", lambda _: False)
+    process = SimpleNamespace(pid=123, returncode=None)
+    joined, started = [], []
+    original = signal.getsignal(signal.SIGTERM)
+
+    def wait(*, timeout):
+        if timeout == 240:
+            process.returncode = exit_code
+        else:
+            joined.append(process.pid)
+            signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+        return process.returncode
+
+    process.wait = wait
+    process.poll = lambda: process.returncode
+
+    def launch(command, **kwargs):
+        started.append(command)
+        kwargs["stdout"].write("terminal-primary-output\n")
+        return process
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(
+        dev_cycle,
+        "_integration_identity",
+        lambda _: browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid()),
+    )
+    monkeypatch.setattr(
+        dev_cycle.os, "killpg", lambda *args: pytest.fail("terminal child signaled")
+    )
+    pattern = r"failed \(7\)" if exit_code else "interrupted"
+    with pytest.raises(DevCycleError, match=pattern):
+        dev_cycle.run_integration_batches(tmp_path, {}, "python", 240)
+    assert len(started) == 1 and joined == [123]
+    assert "terminal-primary-output" in capsys.readouterr().out
+    assert signal.getsignal(signal.SIGTERM) == original
+
+
+def test_integration_timeout_joins_actual_stubborn_child_and_same_group_descendant(
+    monkeypatch, tmp_path, capsys
+):
+    from scripts import browser_gate
+
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: (("sdk.py",), ("other.py",)))
+    worker = tmp_path / "fake-python"
+    worker.write_text(
+        f"#!{sys.executable}\n"
+        "import os,signal,subprocess,sys,time\n"
+        "from pathlib import Path\n"
+        "signal.pthread_sigmask(signal.SIG_UNBLOCK,{signal.SIGTERM,signal.SIGINT})\n"
+        "signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
+        "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])\n"
+        "def reap(sig,frame):\n"
+        " try: os.waitpid(child.pid,os.WNOHANG)\n"
+        " except ChildProcessError: pass\n"
+        "signal.signal(signal.SIGCHLD,reap)\n"
+        "Path('child.pid').write_text(str(child.pid))\n"
+        "Path('child.group').write_text(str(os.getpgid(child.pid)))\n"
+        "print('owned-child-started',flush=True)\n"
+        "time.sleep(30)\n"
+    )
+    worker.chmod(0o755)
+    processes = []
+    custody = []
+    original_popen = subprocess.Popen
+
+    def launch(*args, **kwargs):
+        process = original_popen(*args, **kwargs)
+        processes.append(process)
+        receipt = {"process": process, "leader": None, "descendant": None}
+        custody.append(receipt)
+        receipt["leader"] = browser_gate.identity(process.pid)
+        leader = receipt["leader"]
+        assert leader is not None and leader.parent == os.getpid()
+        assert leader.group == process.pid and leader.uid == os.getuid()
+        deadline = time.monotonic() + 1
+        while receipt["descendant"] is None and time.monotonic() < deadline:
+            path = tmp_path / "child.pid"
+            if path.exists():
+                raw = path.read_text()
+                if raw.isdecimal():
+                    child = browser_gate.identity(int(raw))
+                    if child is not None:
+                        assert child.parent == leader.pid and child.group == leader.group
+                        assert child.uid == leader.uid
+                        receipt["descendant"] = child
+            if receipt["descendant"] is None:
+                time.sleep(0.005)
+        assert receipt["descendant"] is not None, "fixture descendant custody was not admitted"
+        return process
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    try:
+        started = time.monotonic()
+        with pytest.raises(DevCycleError, match="cohort 1 timed out after 1s"):
+            dev_cycle.run_integration_batches(tmp_path, os.environ.copy(), str(worker), 1)
+        assert time.monotonic() - started < 7
+        assert len(processes) == 1 and processes[0].returncode == -signal.SIGKILL
+        assert int((tmp_path / "child.group").read_text()) == processes[0].pid
+        assert browser_gate.identity(int((tmp_path / "child.pid").read_text())) is None
+        assert not browser_gate.group_exists(processes[0].pid)
+        assert "owned-child-started" in capsys.readouterr().out
+    finally:
+        _rescue_integration_fixture(custody)
+
+
+def test_integration_worker_live_cancel_joins_actual_child_before_return(monkeypatch, tmp_path):
+    from scripts import browser_gate
+
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: (("sdk.py",), ("other.py",)))
+    worker = tmp_path / "fake-python"
+    worker.write_text(
+        f"#!{sys.executable}\nimport os,signal,time\n"
+        "signal.pthread_sigmask(signal.SIG_UNBLOCK,{signal.SIGTERM,signal.SIGINT})\n"
+        "os.kill(os.getppid(),signal.SIGTERM)\ntime.sleep(30)\n"
+    )
+    worker.chmod(0o755)
+    processes = []
+    custody = []
+    real_popen = subprocess.Popen
+
+    def launch(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        receipt = {"process": process, "leader": None, "descendant": None}
+        custody.append(receipt)
+        receipt["leader"] = browser_gate.identity(process.pid)
+        leader = receipt["leader"]
+        assert leader is not None and leader.parent == os.getpid()
+        assert leader.group == process.pid and leader.uid == os.getuid()
+        return process
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    try:
+        with pytest.raises(DevCycleError, match="interrupted by signal"):
+            dev_cycle.run_integration_batches(tmp_path, os.environ.copy(), str(worker), 120)
+        assert len(processes) == 1 and processes[0].returncode == -signal.SIGKILL
+        assert not browser_gate.group_exists(processes[0].pid)
+    finally:
+        _rescue_integration_fixture(custody)
+
+
+def test_integration_rechecks_native_birth_before_escalating_signal(monkeypatch):
+    from dataclasses import replace
+
+    from scripts import browser_gate
+
+    admitted = browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid())
+    readings = iter([admitted, replace(admitted, born=(9, 9))])
+    monkeypatch.setattr(dev_cycle, "_integration_identity", lambda _: next(readings))
+    delivered = []
+    monkeypatch.setattr(dev_cycle.os, "killpg", lambda group, sig: delivered.append((group, sig)))
+
+    def wait(**kwargs):
+        raise subprocess.TimeoutExpired("owned-child", 2)
+
+    process = SimpleNamespace(pid=123, poll=lambda: None, wait=wait)
+    with pytest.raises(DevCycleError, match="identity changed"):
+        dev_cycle._finish_integration_child(process, admitted)
+    assert delivered == [(123, signal.SIGTERM)]
+
+
+def test_integration_actual_child_exec_restores_signals_and_canonical_import_context(
+    monkeypatch, tmp_path
+):
+    from scripts import browser_gate
+
+    directory = tmp_path / "tests/integration"
+    directory.mkdir(parents=True)
+    (tmp_path / "podvoice").mkdir()
+    (tmp_path / "podvoice/canonical_fixture.py").write_text("VALUE=42\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\npythonpath=["podvoice","tests"]\n'
+    )
+    (directory / "test_thin_live_ten_cycles.py").write_text(
+        "import signal\nfrom canonical_fixture import VALUE\n"
+        "def test_unmasked():\n"
+        " assert VALUE == 42\n"
+        " assert not {signal.SIGTERM,signal.SIGINT} & signal.pthread_sigmask(signal.SIG_BLOCK,[])\n"
+    )
+    (directory / "test_other.py").write_text("def test_other(): assert True\n")
+    processes = []
+    real_popen = subprocess.Popen
+
+    def launch(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    dev_cycle.run_integration_batches(tmp_path, os.environ.copy(), sys.executable, 15)
+    assert len(processes) == 2
+    assert all(p.returncode == 0 and not browser_gate.group_exists(p.pid) for p in processes)
+
+
+def test_integration_actual_file_entry_runs_both_cohorts_without_nested_gate(monkeypatch, tmp_path):
+    root = Path(__file__).parents[2]
+    for name in ("scripts/__init__.py", "scripts/dev_cycle.py", "scripts/browser_gate.py"):
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((root / name).read_bytes())
+    directory = tmp_path / "tests/integration"
+    directory.mkdir(parents=True)
+    for name in ("test_thin_live_ten_cycles.py", "test_other.py"):
+        (directory / name).write_text("def test_one(): assert True\n")
+    # No .git, external storage/cache or GateLock preflight is needed by the
+    # internal worker: its sole authoritative parent already admitted them.
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/dev_cycle.py",
+            "integration-worker",
+            "--integration-timeout",
+            "15",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=35,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "integration cohort 1: 1 modules, 15s bound" in result.stdout
+    assert "integration cohort 2: 1 modules, 15s bound" in result.stdout
+    assert "nested" not in result.stderr and "stopped" not in result.stderr
+
+
+def test_outer_stage_cancel_kills_and_joins_separately_grouped_integration_child(tmp_path):
+    from scripts import browser_gate
+
+    root = Path(__file__).parents[2]
+    for name in ("scripts/__init__.py", "scripts/dev_cycle.py", "scripts/browser_gate.py"):
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((root / name).read_bytes())
+    directory = tmp_path / "tests/integration"
+    directory.mkdir(parents=True)
+    (directory / "test_thin_live_ten_cycles.py").write_text(
+        "import os,signal,time\nfrom pathlib import Path\n"
+        "def test_held():\n"
+        " signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
+        " Path('held.pid').write_text(str(os.getpid()))\n"
+        " time.sleep(30)\n"
+    )
+    (directory / "test_other.py").write_text(
+        "from pathlib import Path\n"
+        "def test_never_reached(): Path('second.started').write_text('unsafe')\n"
+    )
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    child_identity = None
+    with subprocess.Popen(
+        [
+            sys.executable,
+            "scripts/dev_cycle.py",
+            "integration-worker",
+            "--integration-timeout",
+            "120",
+        ],
+        cwd=tmp_path,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    ) as worker:
+        try:
+            deadline = time.monotonic() + 15
+            while not (tmp_path / "held.pid").exists() and time.monotonic() < deadline:
+                assert worker.poll() is None
+                time.sleep(0.01)
+            assert (tmp_path / "held.pid").exists(), "actual pytest child did not enter"
+            child_pid = int((tmp_path / "held.pid").read_text())
+            child_identity = browser_gate.identity(child_pid)
+            assert child_identity is not None
+            assert child_identity.parent == worker.pid and child_identity.group == child_pid
+            dev_cycle._stop_process_group(worker)
+            assert worker.returncode == 2  # Handler cleanup finished before outer KILL.
+            assert browser_gate.identity(child_pid) is None
+            assert not browser_gate.group_exists(child_pid)
+            assert not (tmp_path / "second.started").exists()
+            output = worker.communicate(timeout=2)[0]
+            assert "integration worker interrupted by signal" in output
+        finally:
+            dev_cycle._stop_process_group(worker)
+            # Fixture custody can rescue only its exact admitted native leader
+            # after the original worker is terminal; it cannot satisfy any
+            # assertion above or authorize a stale/unknown/leaderless signal.
+            if child_identity is not None and worker.poll() is not None:
+                current = browser_gate.identity(child_identity.pid)
+                if current is not None and (
+                    current.pid,
+                    current.group,
+                    current.born,
+                    current.uid,
+                ) == (
+                    child_identity.pid,
+                    child_identity.group,
+                    child_identity.born,
+                    child_identity.uid,
+                ):
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(current.group, signal.SIGKILL)
+
+
+def test_cancel_during_cleanup_delivers_owned_kill_before_outer_two_second_deadline(
+    monkeypatch, tmp_path
+):
+    from scripts import browser_gate
+
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: (("sdk.py",), ("other.py",)))
+    admitted = browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid())
+    process = SimpleNamespace(pid=123, returncode=None)
+    process.poll = lambda: process.returncode
+    delivered, started = [], []
+
+    def wait(*, timeout):
+        raise subprocess.TimeoutExpired("actual-cohort", timeout)
+
+    process.wait = wait
+
+    def launch(command, **kwargs):
+        started.append(command)
+        return process
+
+    def kill(group, sig):
+        delivered.append((group, sig))
+        process.returncode = -sig
+
+    def finish(child, captured):
+        assert child is process and captured == admitted
+        signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+        # Source handler must signal immediately, before cleanup can block
+        # waiting and before the unchanged outer2s owner could kill worker.
+        assert delivered == [(123, signal.SIGKILL)]
+        assert process.returncode == -signal.SIGKILL
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(dev_cycle, "_integration_identity", lambda _: admitted)
+    monkeypatch.setattr(dev_cycle, "_finish_integration_child", finish)
+    monkeypatch.setattr(dev_cycle.os, "killpg", kill)
+    with pytest.raises(DevCycleError, match="cohort 1 timed out after 120s"):
+        dev_cycle.run_integration_batches(tmp_path, {}, "python", 120)
+    assert len(started) == 1
+
+
+def _rescue_integration_fixture(custody):
+    """Independent fixture custody after assertions; never substitute gate proof."""
+    from scripts import browser_gate
+
+    primary = sys.exception()
+    errors = []
+    for receipt in custody:
+        process, admitted = receipt["process"], receipt["leader"]
+        deadline = time.monotonic() + 4
+        try:
+            for sig in (signal.SIGTERM, signal.SIGKILL):
+                if process.poll() is not None:
+                    break
+                current = browser_gate.identity(process.pid)
+                if admitted is None or current != admitted:
+                    raise RuntimeError("fixture rescue refused unknown/reused leader")
+                try:
+                    os.killpg(current.group, sig)
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=min(2, max(0, deadline - time.monotonic())))
+                except subprocess.TimeoutExpired:
+                    if sig == signal.SIGKILL:
+                        raise RuntimeError("fixture leader did not join after KILL") from None
+            process.wait(timeout=max(0, deadline - time.monotonic()))
+            child = receipt["descendant"]
+            if child is not None:
+                current = browser_gate.identity(child.pid)
+                if current is not None:
+                    # A retained individual PID may be adopted only after its
+                    # original Popen parent is terminal. This grants no signal
+                    # authority over a surviving leaderless process GROUP.
+                    if (current.pid, current.group, current.born, current.uid) != (
+                        child.pid,
+                        child.group,
+                        child.born,
+                        child.uid,
+                    ):
+                        raise RuntimeError("fixture descendant identity changed; signal refused")
+                    try:
+                        os.kill(current.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                while browser_gate.identity(child.pid) is not None and time.monotonic() < deadline:
+                    time.sleep(0.005)
+                if browser_gate.identity(child.pid) is not None:
+                    raise RuntimeError("fixture descendant did not become terminal")
+            while browser_gate.group_exists(process.pid) and time.monotonic() < deadline:
+                time.sleep(0.005)
+            if browser_gate.group_exists(process.pid):
+                raise RuntimeError("fixture group survives; unknown/leaderless signal refused")
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            # Joining our retained Popen is always attempted, including when
+            # native authority rejects a signal. A failed join stays a finding.
+            try:
+                process.wait(timeout=max(0, deadline - time.monotonic()))
+            except Exception as exc:
+                errors.append(exc)
+    if errors:
+        if primary is not None:
+            for exc in errors:
+                primary.add_note(f"independent fixture rescue: {exc}")
+                print(f"independent fixture rescue: {exc}")
+        else:
+            raise RuntimeError("independent fixture rescue incomplete") from errors[0]
+
+
+@pytest.mark.parametrize("cancel_during_cleanup", [False, True])
+def test_integration_signal_denial_preserves_primary_timeout_and_stops_next_cohort(
+    monkeypatch, tmp_path, capsys, cancel_during_cleanup
+):
+    from scripts import browser_gate
+
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: (("sdk.py",), ("other.py",)))
+    process = SimpleNamespace(pid=123, returncode=None)
+    process.poll = lambda: process.returncode
+
+    def wait(*, timeout):
+        raise subprocess.TimeoutExpired("owned-child", timeout)
+
+    process.wait = wait
+    admitted = browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid())
+    started = []
+
+    def launch(command, **kwargs):
+        started.append(command)
+        kwargs["stdout"].write("timeout-before-cleanup-denial\n")
+        return process
+
+    def denied(group, sig):
+        raise PermissionError("native signal denied")
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(dev_cycle, "_integration_identity", lambda _: admitted)
+    monkeypatch.setattr(dev_cycle.os, "killpg", denied)
+    if cancel_during_cleanup:
+        actual_finish = dev_cycle._finish_integration_child
+
+        def finish(child, owner):
+            signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+            actual_finish(child, owner)
+
+        monkeypatch.setattr(dev_cycle, "_finish_integration_child", finish)
+    with pytest.raises(DevCycleError, match="cohort 1 timed out after 120s") as error:
+        dev_cycle.run_integration_batches(tmp_path, {}, "python", 120)
+    assert len(started) == 1 and process.returncode is None
+    assert any("child signal failed" in note for note in error.value.__notes__)
+    if cancel_during_cleanup:
+        assert any("cancellation signal failed" in note for note in error.value.__notes__)
+    assert "timeout-before-cleanup-denial" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    [
+        "test_integration_timeout_joins_actual_stubborn_child_and_same_group_descendant",
+        "test_integration_worker_live_cancel_joins_actual_child_before_return",
+    ],
+)
+def test_fixture_native_admission_error_retains_popen_and_attempts_bounded_join(
+    monkeypatch, tmp_path, capsys, fixture_name
+):
+    from scripts import browser_gate
+
+    process = SimpleNamespace(pid=123, returncode=None)
+    process.poll = lambda: process.returncode
+    waits, starts, signals = [], [], []
+
+    def wait(*, timeout):
+        waits.append(timeout)
+        raise subprocess.TimeoutExpired("unknown-inert-fixture", timeout)
+
+    process.wait = wait
+
+    def launch(*args, **kwargs):
+        starts.append(args)
+        return process
+
+    def failed_identity(_pid):
+        raise RuntimeError("fixture native reader failed after Popen")
+
+    def forbidden_signal(*args):
+        signals.append(args)
+        pytest.fail("unknown fixture identity granted signal authority")
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(browser_gate, "identity", failed_identity)
+    monkeypatch.setattr(dev_cycle.os, "killpg", forbidden_signal)
+    monkeypatch.setattr(dev_cycle.os, "kill", forbidden_signal)
+    fixture = globals()[fixture_name]
+    with pytest.raises(RuntimeError, match="native reader failed after Popen") as error:
+        if "descendant" in fixture_name:
+            fixture(monkeypatch, tmp_path, capsys)
+        else:
+            fixture(monkeypatch, tmp_path)
+    assert len(starts) == 1 and len(waits) == 1 and 0 <= waits[0] <= 4
+    assert not signals and process.returncode is None
+    assert any("independent fixture rescue" in note for note in error.value.__notes__)
+
+
+def test_known_native_disappearance_still_joins_retained_popen_without_new_signal(monkeypatch):
+    from scripts import browser_gate
+
+    admitted = browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid())
+    process = SimpleNamespace(pid=123, returncode=None)
+    observed = []
+
+    def poll():
+        observed.append(("poll", None))
+        return None
+
+    def native(pid):
+        assert pid == process.pid
+        observed.append(("native", None))
+        return None
+
+    def wait(*, timeout):
+        observed.append(("wait", timeout, -signal.SIGKILL))
+        process.returncode = -signal.SIGKILL
+        return process.returncode
+
+    process.poll, process.wait = poll, wait
+    monkeypatch.setattr(dev_cycle, "_integration_identity", native)
+    monkeypatch.setattr(browser_gate, "group_exists", lambda _: False)
+    monkeypatch.setattr(
+        dev_cycle.os, "killpg", lambda *args: pytest.fail("new signal after native disappearance")
+    )
+    dev_cycle._finish_integration_child(process, admitted)
+    assert observed == [("poll", None), ("native", None), ("wait", 2, -signal.SIGKILL)]
+    assert process.returncode == -signal.SIGKILL
+
+
+def test_cancellation_native_gap_joins_child_and_preserves_original_interruption(
+    monkeypatch, tmp_path
+):
+    from scripts import browser_gate
+
+    admitted = browser_gate.Identity(123, os.getpid(), 123, (1, 2), os.getuid())
+    identities = iter([admitted, admitted, None])
+    process = SimpleNamespace(pid=123, returncode=None)
+    started, signals, joins = [], [], []
+    process.poll = lambda: None
+
+    def wait(*, timeout):
+        if timeout == 120:
+            signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+            pytest.fail("cancellation did not interrupt original wait")
+        assert timeout == 2
+        joins.append(process.pid)
+        process.returncode = -signal.SIGKILL
+        return process.returncode
+
+    process.wait = wait
+
+    def launch(command, **kwargs):
+        started.append(command)
+        return process
+
+    monkeypatch.setattr(dev_cycle, "integration_batches", lambda _: (("sdk.py",), ("other.py",)))
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(dev_cycle, "_integration_identity", lambda _: next(identities))
+    monkeypatch.setattr(dev_cycle.os, "killpg", lambda group, sig: signals.append((group, sig)))
+    monkeypatch.setattr(browser_gate, "group_exists", lambda _: False)
+    with pytest.raises(DevCycleError, match="integration worker interrupted by signal 15") as error:
+        dev_cycle.run_integration_batches(tmp_path, {}, "python", 120)
+    assert len(started) == 1 and joins == [123]
+    assert signals == [(123, signal.SIGKILL)]
+    assert process.returncode == -signal.SIGKILL
+    assert not getattr(error.value, "__notes__", [])

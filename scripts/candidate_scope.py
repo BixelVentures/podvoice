@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import difflib
 import hashlib
 import json
@@ -262,6 +263,27 @@ _PASSIVE_BURST_UI_HIL_REGRESSIONS = {
 _PASSIVE_BURST_RETENTION_REGRESSION = "tests/unit/test_diagnostic_retention.py"
 
 
+# Exact reviewed Thin app-idle input protection plus passive daily UI. Names of
+# native events in UI labels do not grant adapter, firmware or semantic authority.
+_NATIVE_IDLE_INPUT_UI_REQUIRED = {
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/static/index.html",
+}
+_NATIVE_IDLE_INPUT_UI_SURFACES = _NATIVE_IDLE_INPUT_UI_REQUIRED | {
+    "podvoice/gatekeeper/__init__.py",
+}
+_NATIVE_IDLE_INPUT_UI_REGRESSIONS = {
+    "tests/integration/test_thin_live_idle.py",
+    "tests/integration/test_thin_live_idle_preclose.py",
+    "tests/integration/test_thin_live_idle_protection.py",
+    "tests/integration/test_thin_live_resumed_input_preclose.py",
+    "tests/integration/test_thin_live_ten_cycles.py",
+    "tests/integration/test_thin_panel_status.py",
+    "tests/browser/daily_ui.cjs",
+    "tests/integration/test_talk_webrtc_browser.py",
+}
+
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -446,6 +468,98 @@ def _requires_passive_burst_ui_hil(root: Path, merge_base: str) -> bool:
     )
 
 
+def _native_idle_input_ui_review_requirements(root: Path, merge_base: str) -> tuple[bool, bool]:
+    # Effective owner surfaces, not lexical hits, test presence or index flags,
+    # decide whether a record is mandatory. Keep legacy review validators intact.
+    base = _base_inventory(root, merge_base)
+    algorithm = _git(root, "rev-parse", "--show-object-format").strip()
+    changed = set()
+    current = {}
+    for name in _NATIVE_IDLE_INPUT_UI_REQUIRED:
+        mode, data = _effective_file(root, name)
+        current[name] = (mode, data)
+        if mode == "deleted" and name not in base:
+            continue
+        oid = hashlib.new(algorithm, b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        if base.get(name) != (mode, oid):
+            changed.add(name)
+    if changed != _NATIVE_IDLE_INPUT_UI_REQUIRED:
+        return False, False
+    name = "podvoice/gatekeeper/thin.py"
+    mode, data = current[name]
+    if mode not in {"100644", "100755"}:
+        raise ValueError("native idle input owner must be a regular Python file")
+    before = b""
+    if name in base:
+        if base[name][0] not in {"100644", "100755"}:
+            raise ValueError("unknown baseline native idle input owner")
+        result = subprocess.run(
+            ["git", "cat-file", "blob", base[name][1]],
+            cwd=root,
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+        if result.returncode:
+            raise RuntimeError("could not read baseline native idle input owner blob")
+        before = result.stdout
+
+    identifiers = (
+        b"ThinSession",
+        b"_live_idle_input_currency",
+        b"_live_idle_quiet_owner",
+        b"_sync_live_idle_input",
+    )
+    if not any(identifier in source for identifier in identifiers for source in (before, data)):
+        # Older unrelated review fixtures may be raw domain text. Only absence
+        # on BOTH sides proves these particular method-owner maps absent.
+        return True, False
+
+    def owners(source: bytes) -> dict[str, str]:
+        tree = ast.parse(source)
+        classes = [
+            n for n in ast.walk(tree) if isinstance(n, ast.ClassDef) and n.name == "ThinSession"
+        ]
+        if len(classes) > 1 or (classes and classes[0] not in tree.body):
+            raise ValueError("ambiguous ThinSession owner")
+        targets = {"_live_idle_input_currency", "_live_idle_quiet_owner", "_sync_live_idle_input"}
+        direct = classes[0].body if classes else ()
+        pending = list(direct)
+        methods = {}
+        while pending:
+            node = pending.pop()
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name in targets:
+                    if node not in direct or node.name in methods:
+                        raise ValueError("ambiguous native idle input method owner")
+                    methods[node.name] = ast.dump(node, include_attributes=False)
+                # Locals in any method do not bind the enclosing class namespace.
+                continue
+            if isinstance(node, ast.ClassDef):
+                if node.name in targets:
+                    raise ValueError("class overwrites native idle input method owner")
+                # The nested class name binds here; its body has its own scope.
+                continue
+            if isinstance(node, ast.Lambda):
+                continue
+            if (
+                isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar))
+                and node.name in targets
+            ) or (isinstance(node, ast.MatchMapping) and node.rest in targets):
+                raise ValueError("captured native idle input method owner")
+            if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+                if node.id in targets:
+                    raise ValueError("overwritten native idle input method owner")
+            if isinstance(node, (ast.Import, ast.ImportFrom)) and any(
+                (alias.asname or alias.name.split(".")[0]) in targets for alias in node.names
+            ):
+                raise ValueError("imported native idle input method owner")
+            pending.extend(ast.iter_child_nodes(node))
+        return methods
+
+    return True, owners(before) != owners(data)
+
+
 def _effective_changes(root: Path, merge_base: str, paths: Sequence[str]) -> set[str]:
     # Compare effective bytes/modes directly with Git blobs. Diff flags can hide
     # a required regression or an extra owner; opposing index/worktree changes
@@ -579,19 +693,80 @@ def _reviewed_passive_burst_ui_hil(
     )
 
 
+def _reviewed_native_idle_input_passive_ui(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or record["kind"] != "native_idle_input_passive_ui"
+        or record["domains"] != ["audio_input", "rearm"]
+        or report.domains != ("audio_input", "rearm")
+        or any(
+            not isinstance(record[key], str) or not record[key].strip()
+            for key in fields - {"version", "domains"}
+        )
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+    ):
+        return False
+    effective = _effective_changes(
+        root, report.base, (*report.production_files, *report.test_files)
+    )
+    production = {name for name in effective if name.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    if (
+        not _NATIVE_IDLE_INPUT_UI_REQUIRED <= effective
+        or not production <= _NATIVE_IDLE_INPUT_UI_SURFACES
+        or not _NATIVE_IDLE_INPUT_UI_REGRESSIONS <= effective
+        or any(
+            not (root / name).is_file() or (root / name).is_symlink()
+            for name in production | _NATIVE_IDLE_INPUT_UI_REGRESSIONS
+        )
+    ):
+        return False
+    metadata = "podvoice/gatekeeper/__init__.py"
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    return record["fingerprint"] == production_fingerprint(
+        root, base_tip, report.base, report.production_files
+    ) and record["regression_fingerprint"] == regression_fingerprint(
+        root, base_tip, report.base, report.test_files
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
     marker = "<!-- candidate-scope-coupling"
     strict_v3_required = _requires_passive_burst_ui_hil(root, report.base)
+    failed = replace(report, passed=False, reason="invalid or stale reviewed coupling record")
+    try:
+        idle_ui_required, strict_v4_required = _native_idle_input_ui_review_requirements(
+            root, report.base
+        )
+    except (SyntaxError, UnicodeError, ValueError):
+        return failed
     if marker not in text:
         if strict_v3_required:
             return replace(
                 report, passed=False, reason="passive_burst_ui_hil requires strict v3 review"
             )
+        if idle_ui_required:
+            return replace(report, passed=False, reason="changed Thin+UI requires exact review")
         return report
     records = re.findall(r"<!-- candidate-scope-coupling\n(.*?)\n-->", text, re.DOTALL)
-    failed = replace(report, passed=False, reason="invalid or stale reviewed coupling record")
     if text.count(marker) != 1 or len(records) != 1:
         return failed
     try:
@@ -608,6 +783,16 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         "rationale",
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
+        return failed
+    if record["version"] == 4:
+        if strict_v3_required or not _reviewed_native_idle_input_passive_ui(
+            root, report, base_tip, record
+        ):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: native_idle_input_passive_ui"
+        )
+    if strict_v4_required and not strict_v3_required:
         return failed
     if record["version"] == 3:
         if not _reviewed_passive_burst_ui_hil(root, report, base_tip, record):

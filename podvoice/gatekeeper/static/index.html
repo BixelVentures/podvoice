@@ -1000,6 +1000,7 @@ var TIMELINE_LABEL = {
   endphrase_confirmed: "Farvel bekræftet",
   close_requested: "Lukning startet",
   wake_rearmed: "Firmware har kvitteret genaktivering",
+  wake_rearm_recovered: "Genaktivering genoprettet",
   led_command: "Lyskommando"
 };
 function renderLifecycle(list) {
@@ -1011,10 +1012,19 @@ function renderLifecycle(list) {
   if (box.dataset.signature === signature) return;
   box.dataset.signature = signature; box.innerHTML = "";
   if (!events.length) { box.appendChild(el("div", "empty", "Ingen automatisk tidslinje endnu — den næste samtale bliver målt.")); return; }
+  function validMs(value) {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0;
+  }
+  function deltaBetween(first, last) {
+    if (!first || !last || !validMs(first.at_ms) || !validMs(last.at_ms)) return "—";
+    var elapsed = last.at_ms - first.at_ms;
+    return validMs(elapsed) ? elapsed + " ms" : "—";
+  }
+  box.appendChild(el("div", "sub", "Serverens hændelsestider"));
   var wake = events.find(function (x) { return x.event === "wake_received"; });
   var ready = events.find(function (x) { return x.event === "provider_connected"; });
   if (wake && ready) {
-    box.appendChild(el("div", "line out", "Wake → provider klar: " + (ready.at_ms - wake.at_ms) + " ms"));
+    box.appendChild(el("div", "line out", "Wake → provider klar: " + deltaBetween(wake, ready)));
   }
   events.forEach(function (start, index) {
     if (start.event !== "speech_stopped") return;
@@ -1022,24 +1032,28 @@ function renderLifecycle(list) {
     var turn = events.slice(index + 1, end < 0 ? events.length : index + 1 + end);
     function delta(name) {
       var found = turn.find(function (x) { return x.event === name; });
-      return found ? (found.at_ms - start.at_ms) + " ms" : "—";
+      return deltaBetween(start, found);
     }
-    box.appendChild(el("div", "line out", "Tur: tekst " + delta("input_transcript") + " · modellyd " + delta("response_audio_started") + " · fysisk streamstart " + delta("playback_started")));
+    var turnLabel = start.source === "text" ? "Skrevet input: tekst " : "Tur: tekst ";
+    box.appendChild(el("div", "line out", turnLabel + delta("input_transcript") + " · modellyd " + delta("response_audio_started") + " · fysisk streamstart " + delta("playback_started")));
   });
   var close = events.find(function (x) { return x.event === "close_requested"; });
   var rearm = events.find(function (x) { return x.event === "wake_rearmed"; });
   if (close && rearm) {
-    box.appendChild(el("div", "line out", "Lukning → rearm-kvittering: " + (rearm.at_ms - close.at_ms) + " ms"));
+    box.appendChild(el("div", "line out", "Lukning → rearm-kvittering: " + deltaBetween(close, rearm)));
   }
   events.forEach(function (item) {
     var line = el("div", "line out");
-    var label = TIMELINE_LABEL[item.event] || item.event;
+    var label = item.event === "speech_stopped" && item.source === "text"
+      ? "Skrevet input" : TIMELINE_LABEL[item.event] || item.event;
     var detail = "";
     if (item.text) detail = " · “" + item.text + "”";
     else if (item.name) detail = " · " + item.name;
     else if (item.state) detail = " · " + item.state;
-    if (item.duration_ms != null) detail += " · " + item.duration_ms + " ms";
-    line.appendChild(el("div", "who", "+" + Math.max(0, item.at_ms || 0) + " ms"));
+    if (Object.prototype.hasOwnProperty.call(item, "duration_ms")) {
+      detail += " · " + (validMs(item.duration_ms) ? item.duration_ms + " ms" : "—");
+    }
+    line.appendChild(el("div", "who", validMs(item.at_ms) ? "+" + item.at_ms + " ms" : "—"));
     line.appendChild(document.createTextNode(label + detail));
     box.appendChild(line);
   });
@@ -1339,6 +1353,9 @@ setInterval(function () {
   var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
   var capCtx = null, capStream = null, capNode = null, micOn = false, micRequestSerial = 0;
   var stopBtn = document.getElementById("cstop");
+  function captureAvailable() {
+    return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
 
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function setState(s, cls) {
@@ -1357,7 +1374,7 @@ setInterval(function () {
       closeLivePeer(); micStop(); micBtn.disabled = true; sendBtn.disabled = true;
       setState("systemtest", "pill-degraded");
     } else if (wsReady) {
-      micBtn.disabled = false; sendBtn.disabled = false; setState("online", "pill-up");
+      micBtn.disabled = !captureAvailable(); sendBtn.disabled = false; setState("online", "pill-up");
     }
   });
 
@@ -1769,7 +1786,7 @@ setInterval(function () {
       if (handleLiveMessage(ev)) return;
       if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
         outRate = ev.rate; wsReady = true; lastPong = Date.now();
-        micBtn.disabled = diagnosticActive; sendBtn.disabled = diagnosticActive;
+        micBtn.disabled = diagnosticActive || !captureAvailable(); sendBtn.disabled = diagnosticActive;
         setState(diagnosticActive ? "systemtest" : "online", diagnosticActive ? "pill-degraded" : "pill-up");
         leaseTimer = setInterval(function () {
           if (generation !== socketGeneration || sock !== ws) return;
@@ -1952,7 +1969,7 @@ setInterval(function () {
     if (capCtx) { try { capCtx.close(); } catch (e) {} capCtx = null; }
     if (capStream) { capStream.getTracks().forEach(function (t) { t.stop(); }); capStream = null; }
   }
-  if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  if (captureAvailable()) {
     micBtn.onclick = function () {
       if (diagnosticActive) { micStop(); setState("systemtest", "pill-degraded"); return; }
       if (!wsReady) { micStop(); setState("offline", "pill-down"); return; }
