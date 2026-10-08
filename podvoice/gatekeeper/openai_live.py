@@ -346,6 +346,7 @@ class OpenAILiveSession:
         self.audio_observer: Callable[[bytes, int], None] | None = None
         self.provider_observer: Callable[[dict[str, Any]], None] | None = None
         self._connection_generation = 0
+        self.private_contract_observer: Callable | None = None
         self.backend_sequence = 0
         self.input_sequence = 0
         self._connection: Any = None
@@ -631,6 +632,12 @@ class OpenAILiveSession:
                     "live_startup", "transport_connect", generation=generation
                 ):
                     if self.transport == "webrtc":
+                        self._observe_private_contract(
+                            "talk_create_attempt",
+                            generation,
+                            configuration,
+                            initial=confirmation is None and not prior_text,
+                        )
                         result = await self._client.live.create(
                             session=configuration,
                             transport={"type": "webrtc", "sdp": self.webrtc_offer},
@@ -640,6 +647,7 @@ class OpenAILiveSession:
                             raise LiveProtocolError("invalid_live_webrtc_session")
                         self._webrtc_session_id = session_id
                         self._usage_session_id = session_id
+                        self._observe_private_contract("talk_create_return", generation)
                         answer = getattr(getattr(result, "transport", None), "sdp", None)
                         # Even a cancellation-resistant create must leave an owned close path.
                         self._manager = self._client.live.sideband.connect(
@@ -680,6 +688,7 @@ class OpenAILiveSession:
                         await connection.session.update(
                             session={}, event_id=self._attachment_event_id
                         )
+                    self._observe_private_contract("talk_attachment_send_return", generation)
                     self._active(generation)
                     if startup_deadline.expired():
                         raise LiveProtocolError("live_startup_deadline_expired")
@@ -694,16 +703,40 @@ class OpenAILiveSession:
                     with self._diagnostic_stage(
                         "live_startup", "session_start", generation=generation
                     ):
+                        self._observe_private_contract(
+                            "native_start_attempt",
+                            generation,
+                            configuration,
+                            initial=confirmation is None and not prior_text,
+                        )
                         await connection.session.start(session=configuration)
+                        self._observe_private_contract("native_start_send_return", generation)
                 self._active(generation)
                 with self._diagnostic_stage(
                     "live_startup", "provider_ready_wait", generation=generation
                 ):
                     await self._ready
                 self._active(generation)
+                self._observe_private_contract("adapter_ready_return", generation)
         except BaseException:
+            self._observe_private_contract("startup_failed", generation)
             await self._release()
             raise
+
+    def _observe_private_contract(self, kind, generation, configuration=None, *, initial=True):
+        observer = self.private_contract_observer
+        if observer is None or generation != self._connection_generation:
+            return
+        try:
+            observer(
+                kind,
+                generation,
+                configuration,
+                initial,
+                self._diagnostic_ref(self._usage_session_id),
+            )
+        except (Exception, asyncio.CancelledError):
+            pass  # Optional evidence cannot cancel, reconfigure or fail startup.
 
     def _active(self, generation: int | None = None) -> Any:
         if (
@@ -957,6 +990,10 @@ class OpenAILiveSession:
                 raise LiveProtocolError("unexpected_live_session_started")
             self.provider_session_started = True
             self._usage_session_id = session_id
+            self._observe_private_contract(
+                "native_started" if self.transport == "websocket" else "talk_sideband_started",
+                generation,
+            )
             self._emit(LiveSessionReady(session_id, generation))
             if self.transport == "websocket":
                 assert self._ready is not None
@@ -973,6 +1010,7 @@ class OpenAILiveSession:
                 return
             assert self._webrtc_session_id is not None
             self._emit(LiveTransportReady(self._webrtc_session_id, generation))
+            self._observe_private_contract("talk_attachment_ack", generation)
             self._ready.set_result(None)
         elif kind == "session.output_audio.delta":
             if self.transport == "webrtc":

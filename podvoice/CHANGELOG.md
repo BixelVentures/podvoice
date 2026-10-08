@@ -1,3 +1,8 @@
+## 2.0.8 — private initial-contract observation
+
+- Add explicitly armed, private, one-shot observation of the initial local Realtime contract and its source provenance for the selected native or Talk session. Bound the memory slot to 128 KiB and a 120-second diagnostic lifetime; clear it on retrieval, disarm or owner expiry. Keep sensitive prompt and schema content outside ordinary status, history, logs and UI.
+- Keep local constructed/sent contract evidence separate from provider readiness and attachment acknowledgements. Optional capture faults preserve the existing conversation outcome; this diagnostic release does not repair natural model closing or establish live-provider or physical acceptance.
+
 ## 2.0.7 — easier settings touch targets
 
 - Make the complete checkbox labels and room text fields at least 44 px high, preserving existing controls, settings values and conversation behavior.

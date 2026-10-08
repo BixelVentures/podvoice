@@ -446,6 +446,7 @@ def create_app(
             web.post("/api/audio-analysis", _audio_analysis_start),
             web.post("/api/audio-trace/arm", _audio_trace_arm),
             web.post("/api/audio-trace/cancel", _audio_trace_cancel),
+            web.post("/api/audio-trace/private-contract", _private_live_contract),
             web.get("/api/audio-trace/{trace_id}/{stage}", _audio_trace_artifact),
             web.post("/api/eval/live", _live_eval),
             web.get("/api/eval/live", _live_eval_status),
@@ -3006,6 +3007,32 @@ async def _audio_trace_arm(request: web.Request) -> web.Response:
         body = await request.json()
     except (json.JSONDecodeError, ValueError):
         body = {}
+    if isinstance(body, dict) and body.get("private_contract") is True:
+        # Never allow LAN-open settings to relax access to raw prompt/schema.
+        if not _protocol_owner_source_allowed(request.remote):
+            return web.json_response({"ok": False}, status=403)
+        room, adapter = body.get("room"), body.get("adapter")
+        if (
+            request.query_string
+            or request.content_length is None
+            or not 0 < request.content_length <= 512
+            or request.content_type != "application/json"
+            or type(adapter) is not str
+            or set(body) != {"private_contract", "room", "adapter"}
+            or type(room) is not str
+            or adapter not in {"native", "talk"}
+            or (adapter == "talk" and room != "talk")
+            or (adapter == "native" and (room not in request.app[SESSIONS] or room == "talk"))
+        ):
+            return web.json_response({"ok": False}, status=400)
+        try:
+            capability = recorder.arm_private_contract(room, adapter)
+        except ValueError:
+            return web.json_response({"ok": False}, status=409)
+        # Response only: no public recorder snapshot, URL, history or console field.
+        return web.json_response(
+            {"ok": True, "capability": capability}, headers={"Cache-Control": "no-store"}
+        )
     sessions = request.app[SESSIONS]
     room = str(body.get("room") or next(iter(sessions), ""))
     if not room or room not in sessions:
@@ -3034,6 +3061,41 @@ async def _audio_trace_cancel(request: web.Request) -> web.Response:
     except ValueError as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=409)
     return web.json_response({"ok": True, **snapshot})
+
+
+async def _private_live_contract(request: web.Request) -> web.Response:
+    if not _protocol_owner_source_allowed(request.remote):
+        return web.json_response({"ok": False}, status=403)
+    if request.content_type != "application/json" or request.query_string:
+        return web.json_response({"ok": False}, status=400)
+    # Capability lives in a small explicit request body, never a URL/access log.
+    if request.content_length is None or not 0 < request.content_length <= 256:
+        return web.json_response({"ok": False}, status=400)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"ok": False}, status=400)
+    if (
+        type(body) is not dict
+        or set(body) not in ({"capability"}, {"capability", "disarm"})
+        or ("disarm" in body and body["disarm"] is not True)
+        or type(body["capability"]) is not str
+        or len(body["capability"]) != 43
+    ):
+        return web.json_response({"ok": False}, status=400)
+    recorder = request.app[AUDIO_TRACE]
+    result = (
+        recorder.consume_private_contract(body["capability"], discard=body.get("disarm") is True)
+        if recorder is not None
+        else None
+    )
+    if result is None:
+        return web.json_response({"ok": False}, status=404)
+    return web.json_response(
+        result,
+        dumps=lambda value: json.dumps(value, ensure_ascii=False, allow_nan=False),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 async def _audio_trace_artifact(request: web.Request) -> web.StreamResponse:

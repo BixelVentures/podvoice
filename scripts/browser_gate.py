@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -247,6 +248,17 @@ class Registry:
         A leaderless group is failure. Never kill by stale PGID alone. Cleanup
         still joins the independently proven worker when a browser is unknown.
         """
+
+        def presence(group: int) -> bool | None:
+            # Only this cleanup observer may represent denied presence as unknown.
+            # It is never absence or permission to signal an admitted group.
+            try:
+                return group_exists(group)
+            except PermissionError as exc:
+                if exc.errno != errno.EPERM:
+                    raise
+                return None
+
         failures: list[str] = []
         if canceled and self.fresh_worker():
             self.worker.send_signal(signal.SIGTERM)
@@ -255,13 +267,16 @@ class Registry:
             time.sleep(0.02)
         for sig in (signal.SIGTERM, signal.SIGKILL):
             for group in self.groups:
-                if group_exists(group):
+                if presence(group) is True:
                     try:
                         self.signal_browser(group, sig)
                     except (OSError, BrowserGateError) as exc:
                         failures.append(str(exc))
             bound = time.monotonic() + 3
-            while any(group_exists(group) for group in self.groups) and time.monotonic() < bound:
+            while (
+                any(presence(group) is not False for group in self.groups)
+                and time.monotonic() < bound
+            ):
                 time.sleep(0.02)
         if self.worker.poll() is None:
             if not self.fresh_worker():
@@ -276,7 +291,11 @@ class Registry:
                     else:
                         os.killpg(self.worker.pid, signal.SIGKILL)
                         self.worker.wait(timeout=2)
-        if any(group_exists(group) for group in self.groups) or group_exists(self.worker.pid):
+        remaining = [presence(group) for group in self.groups]
+        remaining.append(presence(self.worker.pid))
+        if any(value is None for value in remaining):
+            failures.append("incomplete cleanup: process group presence is unknown")
+        if any(value is True for value in remaining):
             failures.append("incomplete cleanup: process group did not join")
         if failures:
             raise BrowserGateError("; ".join(dict.fromkeys(failures)))

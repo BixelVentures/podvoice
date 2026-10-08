@@ -258,6 +258,8 @@ def _build_session(
         idle_timeout_s=cfg.idle_timeout_s,
         max_session_s=cfg.max_session_min * 60,
         audio_trace=audio_trace,
+        private_contract_recorder=audio_trace,
+        private_contract_source_prompt=cfg.system_prompt,
     )
 
 
@@ -584,6 +586,8 @@ async def run(cfg: Config) -> None:
             + (f"?t={reply_token}" if reply_token else ""),
             voicepe=link,
             playback=Playback(sink=link.play_pcm),
+            private_contract_recorder=audio_trace,
+            private_contract_source_prompt=cfg.system_prompt,
             tools=tools,
             hub=TalkHub(send_json, history=history),
             speech=speech,

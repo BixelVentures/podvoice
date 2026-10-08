@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -553,3 +554,149 @@ def test_terminal_parent_adoption_never_caches_authority_for_later_signal(monkey
     with pytest.raises(browser_gate.BrowserGateError, match="no kill authorized"):
         registry.signal_browser(leader_pid, signal.SIGKILL)
     assert signals == [(leader_pid, signal.SIGTERM)]
+
+
+class _CleanupPresenceWorker:
+    pid = 32100
+
+    def __init__(self):
+        self.returncode = None
+        self.wait_bounds = []
+        self.sent = []
+
+    def poll(self):
+        return self.returncode
+
+    def send_signal(self, sig):
+        self.sent.append(sig)
+
+    def wait(self, timeout):
+        self.wait_bounds.append(timeout)
+        self.returncode = 0
+        return 0
+
+
+def _cleanup_presence_fixture(monkeypatch, scenario):
+    worker = _CleanupPresenceWorker()
+    admitted_worker = browser_gate.Identity(
+        worker.pid, os.getpid(), worker.pid, (11, 2), os.getuid()
+    )
+    child = browser_gate.Identity(32101, worker.pid, 32101, (12, 3), os.getuid())
+    changed = browser_gate.Identity(child.pid, worker.pid, child.group, (99, 3), child.uid)
+    clock = [0.0]
+    child_probes = []
+    signals = []
+
+    def native(pid):
+        if pid == worker.pid:
+            return admitted_worker
+        assert pid == child.pid
+        return changed if scenario == "changed_birth" else child
+
+    def killpg(group, sig):
+        if sig:
+            signals.append((group, sig))
+            return
+        if group == worker.pid:
+            if worker.returncode is None:
+                return
+            raise ProcessLookupError(errno.ESRCH, "fixture joined worker")
+        assert group == child.group
+        child_probes.append(clock[0])
+        if scenario == "term_unknown_absent":
+            if len(child_probes) == 1:
+                return
+            if len(child_probes) == 2:
+                raise PermissionError(errno.EPERM, "fixture denied exit-transition probe")
+            raise ProcessLookupError(errno.ESRCH, "fixture exact subsequent absence")
+        if scenario == "persistent_unknown" or len(child_probes) == 1:
+            raise PermissionError(errno.EPERM, "fixture presence unknown")
+        return
+
+    def sleep(seconds):
+        assert seconds == 0.02
+        clock[0] += seconds
+
+    monkeypatch.setattr(browser_gate, "identity", native)
+    monkeypatch.setattr(browser_gate.os, "killpg", killpg)
+    monkeypatch.setattr(browser_gate.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(browser_gate.time, "sleep", sleep)
+    registry = browser_gate.Registry(worker, "cleanup-presence-fixture")
+    registry.groups[child.group] = child
+    return registry, worker, child, clock, child_probes, signals
+
+
+def test_actual_registry_cleanup_term_eperm_esrch_keeps_worker_join(monkeypatch):
+    registry, worker, child, clock, probes, signals = _cleanup_presence_fixture(
+        monkeypatch, "term_unknown_absent"
+    )
+    assert registry.cleanup(True) == [child.group]
+    assert worker.sent == [signal.SIGTERM]
+    assert signals == [(child.group, signal.SIGTERM), (worker.pid, signal.SIGTERM)]
+    assert worker.wait_bounds == [2] and worker.poll() == 0
+    assert len(probes) >= 3 and probes[2] > probes[1]
+    assert 3 <= clock[0] < 3.1
+
+
+def test_actual_registry_cleanup_persistent_unknown_never_signals_child_but_joins_worker(
+    monkeypatch,
+):
+    registry, worker, child, clock, probes, signals = _cleanup_presence_fixture(
+        monkeypatch, "persistent_unknown"
+    )
+    with pytest.raises(browser_gate.BrowserGateError, match="presence is unknown"):
+        registry.cleanup(False)
+    assert signals == [(worker.pid, signal.SIGTERM)]
+    assert worker.wait_bounds == [2] and worker.poll() == 0
+    assert probes and 6 <= clock[0] < 6.1
+    assert child.group in registry.groups
+
+
+def test_actual_registry_cleanup_unknown_then_changed_birth_refuses_child_and_joins_worker(
+    monkeypatch,
+):
+    registry, worker, child, clock, probes, signals = _cleanup_presence_fixture(
+        monkeypatch, "changed_birth"
+    )
+    with pytest.raises(browser_gate.BrowserGateError, match="owner is unverifiable"):
+        registry.cleanup(False)
+    assert signals == [(worker.pid, signal.SIGTERM)]
+    assert worker.wait_bounds == [2] and worker.poll() == 0
+    assert len(probes) > 1 and 6 <= clock[0] < 6.1
+    assert child.group in registry.groups
+
+
+def test_global_group_exists_remains_strict_on_eperm(monkeypatch):
+    error = PermissionError(errno.EPERM, "fixture denied global probe")
+
+    def deny(group, sig):
+        assert (group, sig) == (32101, 0)
+        raise error
+
+    monkeypatch.setattr(browser_gate.os, "killpg", deny)
+    with pytest.raises(PermissionError) as observed:
+        browser_gate.group_exists(32101)
+    assert observed.value is error
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        PermissionError(errno.EACCES, "fixture other denial"),
+        OSError(errno.EIO, "fixture other failure"),
+    ],
+)
+def test_actual_registry_cleanup_presence_does_not_swallow_other_oserror(monkeypatch, error):
+    registry, worker, child, _clock, _probes, _signals = _cleanup_presence_fixture(
+        monkeypatch, "persistent_unknown"
+    )
+
+    def fail(group, sig):
+        assert (group, sig) == (child.group, 0)
+        raise error
+
+    monkeypatch.setattr(browser_gate.os, "killpg", fail)
+    with pytest.raises(OSError) as observed:
+        registry.cleanup(False)
+    assert observed.value is error
+    assert worker.wait_bounds == []

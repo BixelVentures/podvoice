@@ -552,6 +552,8 @@ class ThinSession:
         idle_timeout_s: float = IDLE_FALLBACK_S,
         max_session_s: float = MAX_CONVERSATION_S,
         audio_trace=None,  # one-shot local diagnostic recorder (physical Voice PE only)
+        private_contract_recorder=None,  # Same recorder; no ordinary Talk audio capture.
+        private_contract_source_prompt: str = "",
         live_brain=None,
         live_enabled=None,
         live_audio=None,
@@ -659,6 +661,10 @@ class ThinSession:
         self.duck_level = duck_level
         self.usage = usage
         self.audio_trace = audio_trace
+        self._private_contract_recorder = private_contract_recorder
+        self._private_contract_source_prompt = private_contract_source_prompt
+        self._private_contract_observer: object | None = None
+        self._private_contract_brain = None
         self.speaker_path = speaker_path
         self.full_duplex = full_duplex
         self.allow_unbatched_tools = allow_unbatched_tools
@@ -1199,6 +1205,7 @@ class ThinSession:
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
         decls = list(self.tools.declarations()) if self.tools is not None else []
+        private_domain_declarations = decls
         declaration_hasher = (
             getattr(self.tools, "declaration_hashes", None) if self.tools is not None else None
         )
@@ -1229,6 +1236,7 @@ class ThinSession:
         self.brain.tool_declarations = decls
         if self.live_alpha:
             self.brain.confirmation_enabled = self._live_confirmation_supported()
+            self._bind_private_live_contract(private_domain_declarations)
         self._trace_event(
             "provider_contract",
             tool_count=len(decls),
@@ -1260,6 +1268,7 @@ class ThinSession:
                     await self.voicepe.wait_live_started()
                     if not opening_is_current():
                         return
+                    self._observe_private_contract_stage("talk_primary_started", opening_brain)
                     if not await self.voicepe.start_streaming():
                         raise RuntimeError("browser_live_mic_gate_failed")
                     if not opening_is_current():
@@ -1268,9 +1277,13 @@ class ThinSession:
                     self._hub_state("LISTENING", "Live-browseren er klar")
                     self._trace_event("live_browser_primary_started")
         except asyncio.CancelledError:
+            if self.live_alpha:
+                self._observe_private_contract_stage("thin_opening_cancelled", opening_brain)
             self._restore_provider_trace_observer()
             raise
         except Exception as e:
+            if self.live_alpha:
+                self._observe_private_contract_stage("thin_opening_failed", opening_brain)
             if not opening_is_current():
                 return
             if self.audio_trace is not None:
@@ -1295,6 +1308,8 @@ class ThinSession:
         if self.live_alpha:
             self._set_led(State.LISTENING)
         self._trace_event("provider_connected")
+        if self.live_alpha:
+            self._observe_private_contract_stage("thin_opening_return", opening_brain)
         if self.audio_trace is not None and rearm_attempt_id is not None:
             proved = self.audio_trace.prove_next_session(
                 self.room,
@@ -1651,7 +1666,7 @@ class ThinSession:
         deadline: float | None = None,
         silence_complete: bool = True,
     ) -> None:
-        if not self._provider_trace_observer_installed:
+        if not self._provider_trace_observer_installed and self._private_contract_brain is None:
             async with self._teardown_lock:
                 await self._teardown_locked(
                     release_music=release_music,
@@ -7149,7 +7164,90 @@ class ThinSession:
         self.brain.provider_observer = observe_provider
         self._provider_trace_observer_installed = True
 
+    def _bind_private_live_contract(self, declarations) -> None:
+        recorder, brain = self._private_contract_recorder, self.brain
+        if recorder is None or not hasattr(brain, "private_contract_observer"):
+            return
+        try:
+            adapter = "talk" if self._live_webrtc else "native"
+            if not recorder.private_contract_requested(self.room, adapter):
+                return
+            discovery = (
+                self.tools.discovery_status()
+                if self.tools is not None and hasattr(self.tools, "discovery_status")
+                else {}
+            )
+            # No await/re-read: freeze the declarations copied for this admission,
+            # exact boot prompt, actual context and current adapter capability.
+            observer = recorder.bind_private_contract(
+                {
+                    "room": self.room,
+                    "adapter": adapter,
+                    "brain_owner": id(brain),
+                    "history_session": self._history_session,
+                    "thin_epoch": self._epoch,
+                    "system_prompt": self._private_contract_source_prompt,
+                    "room_context": brain.room_context,
+                    "domain_declarations": declarations,
+                    "discovery": {
+                        key: discovery.get(key)
+                        for key in ("generation", "schema_sha256", "retry_state")
+                    },
+                    "capture_hold_supported": bool(
+                        getattr(self.voicepe, "supports_live_capture_hold", False)
+                    ),
+                    "hold_callable": callable(getattr(self.voicepe, "hold_live_capture", None)),
+                    "resume_callable": callable(getattr(self.voicepe, "resume_live_capture", None)),
+                    "confirmation_enabled": brain.confirmation_enabled,
+                    "artifact": list(runtime_artifact_identity()),
+                }
+            )
+            if observer is None or brain.private_contract_observer is not None:
+                return
+            history, epoch = self._history_session, self._epoch
+
+            def observe(
+                kind, generation, configuration=None, initial=True, provider_session_ref=None
+            ):
+                if (
+                    self.brain is brain
+                    and self._epoch == epoch
+                    and self._history_session == history
+                    and self._active
+                    and brain.private_contract_observer is observe
+                ):
+                    observer(kind, generation, configuration, initial, provider_session_ref)
+
+            brain.private_contract_observer = observe
+            self._private_contract_observer = observe
+            self._private_contract_brain = brain
+        except (Exception, asyncio.CancelledError):
+            pass  # Private capture faults do not participate in admission.
+
+    def _observe_private_contract_stage(self, kind, brain) -> None:
+        try:
+            observe = getattr(brain, "_observe_private_contract", None)
+            if callable(observe):
+                observe(kind, getattr(brain, "_connection_generation", None))
+        except (Exception, asyncio.CancelledError):
+            pass
+
     def _restore_provider_trace_observer(self) -> None:
+        if self._private_contract_recorder is not None:
+            try:
+                self._private_contract_recorder.expire_private_contract_owner(
+                    self._history_session, self._epoch
+                )
+            except (Exception, asyncio.CancelledError):
+                pass
+        private_brain = self._private_contract_brain
+        if (
+            private_brain is not None
+            and private_brain.private_contract_observer is self._private_contract_observer
+        ):
+            private_brain.private_contract_observer = None
+        self._private_contract_observer = None
+        self._private_contract_brain = None
         self._restore_provider_audio_observer()
         if not self._provider_trace_observer_installed:
             return
