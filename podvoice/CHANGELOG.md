@@ -1,3 +1,9 @@
+## 2.0.17 - configured speakers with verified HA rooms
+
+- Read explicit account-scoped HA room associations for current configured speaker targets through the compatible room-context service; retain older Control profiles and stable typed target IDs.
+- Reject malformed stronger profiles and retire stale discovery calls without fallback or playback retries; preserve existing conversation and playback ownership.
+- Physical room-based music transfer and lifecycle acceptance remain pending.
+
 ## 2.0.16 - room-aware music targets and simpler Talk
 
 - Use verified Home Assistant names, aliases and areas for current Spotify targets when compatible Control discovery is available; preserve older Control and independent update order.

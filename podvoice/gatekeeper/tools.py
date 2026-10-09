@@ -1674,7 +1674,7 @@ class ToolRouter:
             response.raise_for_status()
             payload = response.json()
             data = payload.get("service_response") if isinstance(payload, dict) else None
-            return playback_targets.result(name, args, data)
+            return playback_targets.result(name, args, data, selected_service=service_name)
         except (httpx.HTTPError, ValueError):
             return {
                 "ok": False,
