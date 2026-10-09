@@ -31,6 +31,13 @@ def arguments(name: str, args: dict) -> dict:
     return dict(args)
 
 
+def service(name: str, installed) -> str:
+    """Explicit contextual read opt-in; a present invalid descriptor cannot fall back."""
+    if name == "podconnect_get_targets" and "get_targets_with_context" in installed:
+        return "get_targets_with_context"
+    return TOOLS[name]
+
+
 def contracts(services: object) -> tuple[tuple[str, str], ...]:
     """HA 2026.8.2 serializes YAML fields plus response.optional from the registry.
 
@@ -41,14 +48,15 @@ def contracts(services: object) -> tuple[tuple[str, str], ...]:
     if not isinstance(services, dict):
         return ()
     admitted = []
-    for name, service in TOOLS.items():
-        row = services.get(service)
+    for name in TOOLS:
+        selected = service(name, services)
+        row = services.get(selected)
         if not isinstance(row, dict) or row.get("response") != {"optional": False}:
             continue
         fields = row.get("fields")
         expected = (
             {"config_entry_id"}
-            if service == "get_targets"
+            if name == "podconnect_get_targets"
             else {"config_entry_id", "kind", "target_id"}
         )
         if not isinstance(fields, dict) or set(fields) != expected:
@@ -56,11 +64,11 @@ def contracts(services: object) -> tuple[tuple[str, str], ...]:
         account = fields.get("config_entry_id")
         if (
             not isinstance(account, dict)
-            or account.get("required") is not (service == "move_playback")
+            or account.get("required") is not (name == "podconnect_move_playback")
             or account.get("selector") != {"config_entry": {"integration": "podconnect"}}
         ):
             continue
-        if service == "move_playback":
+        if name == "podconnect_move_playback":
             kind, target = fields.get("kind"), fields.get("target_id")
             if (
                 not isinstance(kind, dict)
@@ -81,7 +89,13 @@ def contracts(services: object) -> tuple[tuple[str, str], ...]:
                 continue
         try:
             raw = json.dumps(
-                row, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+                {"service": selected, "descriptor": row}
+                if selected == "get_targets_with_context"
+                else row,
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
             ).encode()
         except (ValueError, TypeError):
             continue
@@ -102,6 +116,8 @@ def declarations(mcp_tools: list | tuple, admitted: tuple) -> list[dict]:
                 "Without arguments, list current active account IDs and titles only. "
                 "With an explicit config_entry_id, list fresh typed target IDs. "
                 "Clarify ambiguous accounts or names; never choose the first account. "
+                "HA context names, areas and aliases describe the exact Spotify target; "
+                "use its stable target ID when moving. "
                 "Observed outputs are read-only and do not prove audible playback."
             )
             required = []
@@ -136,6 +152,32 @@ def declarations(mcp_tools: list | tuple, admitted: tuple) -> list[dict]:
 
 def _text(value: object) -> bool:
     return isinstance(value, str) and 1 <= len(value) <= 1024
+
+
+def _ha_context(value: object) -> bool:
+    """Optional language metadata does not change the target's ID or authority."""
+
+    def aliases(items: object) -> bool:
+        return isinstance(items, list) and len(items) <= 16 and all(_text(v) for v in items)
+
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"entity_id", "name", "aliases", "area"}
+        or not _text(value["entity_id"])
+        or not value["entity_id"].startswith("media_player.")
+        or value["entity_id"] == "media_player."
+        or not _text(value["name"])
+        or not aliases(value["aliases"])
+    ):
+        return False
+    area = value["area"]
+    return area is None or (
+        isinstance(area, dict)
+        and set(area) == {"id", "name", "aliases"}
+        and _text(area["id"])
+        and _text(area["name"])
+        and aliases(area["aliases"])
+    )
 
 
 def _binding(value: object, target: str | None = None) -> bool:
@@ -207,8 +249,13 @@ def result(name: str, args: dict, data: object) -> dict:
                     )
                 elif kind == "spotify_device":
                     valid = (
-                        set(row) == {"kind", "target_id", "name", "restricted"}
+                        set(row)
+                        in (
+                            {"kind", "target_id", "name", "restricted"},
+                            {"kind", "target_id", "name", "restricted", "ha_context"},
+                        )
                         and type(row["restricted"]) is bool
+                        and ("ha_context" not in row or _ha_context(row["ha_context"]))
                     )
                 elif kind == "observed_output":
                     valid = (

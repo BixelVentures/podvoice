@@ -6,12 +6,16 @@ import hashlib
 import json
 import math
 import pathlib
+import re
 import time
 
 DIAGNOSTIC_AGE_S = 14 * 24 * 60 * 60
 DIAGNOSTIC_BYTES = 32 * 1024 * 1024
 _EVENTS = {
     "live_activity_observed",
+    "live_backend_started",
+    "live_backend_complete",
+    "live_batch_diagnostic",
     "live_idle_diagnostic",
     "capture_finished",
     "button_pressed",
@@ -93,7 +97,28 @@ _TEARDOWN_STEPS = {
     "stop-streaming",
     "wake-rearm",
 }
-_IDENTITIES = {"session_id", "response_id", "playback_id", "close_id", "rearm_token"}
+_IDENTITIES = {
+    "session_id",
+    "response_id",
+    "delegation_id",
+    "playback_id",
+    "close_id",
+    "rearm_token",
+}
+_LIVE_BATCH_STAGES = {
+    "admission",
+    "lock_wait",
+    "classify_batch",
+    "prepare_call",
+    "approve_dispatch",
+    "dispatch",
+    "dispatch_returned",
+    "result_publish",
+    "terminal_bookkeeping",
+    "result_submit",
+}
+_LIVE_BATCH_OUTCOMES = {"started", "done", "returned", "result_ready", "failed"}
+_LIVE_REFS = {"response_ref", "call_ref", "wire_tool_ref", "effective_tool_ref"}
 
 
 def _loss_number(manifest: dict, key: str) -> int:
@@ -124,6 +149,23 @@ def content_free_manifest(manifest: dict) -> dict:
                 continue
             if key in _IDENTITIES and isinstance(value, str):
                 clean[key + "_hash"] = hashlib.sha256(value.encode()).hexdigest()
+            elif event["event"] == "live_batch_diagnostic" and key in _LIVE_REFS:
+                if isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{16}", value):
+                    clean[key] = value
+            elif event["event"] == "live_batch_diagnostic" and key in {"stage", "outcome"}:
+                allowed = _LIVE_BATCH_STAGES if key == "stage" else _LIVE_BATCH_OUTCOMES
+                if isinstance(value, str) and value in allowed:
+                    clean[key] = value
+            elif event["event"] == "live_batch_diagnostic" and key in {
+                "batch_generation",
+                "completed_results",
+                "successful_results",
+            }:
+                if type(value) is int and 0 <= value < 2**63:
+                    clean[key] = value
+            elif event["event"] == "live_backend_complete" and key == "status":
+                if isinstance(value, str) and value in {"completed", "failed", "incomplete"}:
+                    clean[key] = value
             elif key == "step" and event["event"] in _TEARDOWN_EVENTS:
                 if isinstance(value, str) and value in _TEARDOWN_STEPS:
                     clean[key] = value

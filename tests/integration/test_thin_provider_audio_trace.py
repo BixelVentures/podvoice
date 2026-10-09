@@ -207,9 +207,9 @@ async def test_existing_evaluator_observer_survives_wake_rotation_and_close(tmp_
 
 
 @pytest.mark.parametrize("backlog", [0, 171, 600])
-@pytest.mark.parametrize("append_delay", [0, 0.004])
+@pytest.mark.parametrize("hold_append", [False, True])
 async def test_automatic_startup_backlog_preserves_wire_and_all_trace_pcm(
-    tmp_path, backlog, append_delay
+    tmp_path, backlog, hold_append
 ):
     import asyncio
     import json
@@ -236,15 +236,26 @@ async def test_automatic_startup_backlog_preserves_wire_and_all_trace_pcm(
 
     link = NativeDevice()
     session, sdk, _, _, _ = build(device=link)
+    session.live_brain.timeout_s = 8  # This fixture measures preservation, not SDK latency.
     recorder = session.audio_trace = AudioTraceRecorder(tmp_path, automatic=True)
 
     completed = []
     start_entered, release_start = asyncio.Event(), asyncio.Event()
+    append_entered, release_append = asyncio.Event(), asyncio.Event()
+    backlog_complete, fresh_complete = asyncio.Event(), asyncio.Event()
+    if not backlog:
+        backlog_complete.set()
 
     async def append(**kwargs):
-        if append_delay:
-            await asyncio.sleep(append_delay)
+        if hold_append:
+            append_entered.set()
+            await release_append.wait()
+            await asyncio.sleep(0)  # Interleave each send without a wall-clock latency fixture.
         completed.append(base64.b64decode(kwargs["audio"]))
+        if len(completed) == backlog:
+            backlog_complete.set()
+        if len(completed) == backlog + 1:
+            fresh_complete.set()
 
     async def held_start(**kwargs):
         start_entered.set()
@@ -278,8 +289,12 @@ async def test_automatic_startup_backlog_preserves_wire_and_all_trace_pcm(
         await waking
         stale = session.brain.audio_observer
         async with asyncio.timeout(8):
-            while len(completed) != backlog:  # noqa: ASYNC110
-                await asyncio.sleep(0.005)
+            if hold_append and backlog:
+                await append_entered.wait()
+                assert not completed
+                assert link._audio_q.qsize() == backlog - 1
+            release_append.set()
+            await backlog_complete.wait()
         actual_wire = b"".join(
             base64.b64decode(call.kwargs["audio"])
             for call in sdk.session.input_audio.append.await_args_list
@@ -302,8 +317,7 @@ async def test_automatic_startup_backlog_preserves_wire_and_all_trace_pcm(
             NativeMicFrame(fresh, time.monotonic(), backlog + 1, link.audio_generation, 1, 0)
         )
         async with asyncio.timeout(2):
-            while len(completed) != backlog + 1:  # noqa: ASYNC110
-                await asyncio.sleep(0.005)
+            await fresh_complete.wait()
         await session.stop()
         assert await recorder.wait_pending()
         new_parts = [
@@ -317,5 +331,6 @@ async def test_automatic_startup_backlog_preserves_wire_and_all_trace_pcm(
         assert b"".join(stage_bytes(part, "device") for part in new_parts) == fresh
     finally:
         release_start.set()
+        release_append.set()
         await session.aclose()
         assert await recorder.shutdown()

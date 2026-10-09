@@ -264,27 +264,48 @@ async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_re
     monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (10.0,))
     session, sdk, link, cleanup = await live_teardown_fixture(adapter)
     session.brain.timeout_s = 0.5
+    from types import SimpleNamespace
+
+    from gatekeeper import thin as thin_module
+
+    # Only Thin's logical budget is controlled; asyncio's timeout still cancels
+    # the actual blocked SDK owner. Host scheduling cannot consume its reserve.
+    clock = [thin_module.time.monotonic()]
+    monkeypatch.setattr(
+        thin_module,
+        "time",
+        SimpleNamespace(**{**vars(thin_module.time), "monotonic": lambda: clock[0]}),
+    )
     cancelled = asyncio.Event()
-    cancel_at = None
-    loop = asyncio.get_running_loop()
+    provider_budget = None
+    original_step = session._teardown_step
+
+    async def observe_step(label, awaitable, *, deadline, timeout_s=None, reserve_s=0.0):
+        nonlocal provider_budget
+        if label == "provider-close":
+            provider_budget = min(timeout_s, deadline - clock[0] - reserve_s)
+        return await original_step(
+            label, awaitable, deadline=deadline, timeout_s=timeout_s, reserve_s=reserve_s
+        )
+
+    monkeypatch.setattr(session, "_teardown_step", observe_step)
 
     async def manager_exit(_sdk, *_):
-        nonlocal cancel_at
         assert session.brain.final_usage_seconds == 5
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
-            cancel_at = loop.time()
+            assert provider_budget is not None
+            clock[0] += provider_budget
             cancelled.set()
             raise
 
     monkeypatch.setattr(type(sdk), "__aexit__", manager_exit)
     try:
-        started = loop.time()
         await asyncio.wait_for(session.stop(), 1)
-        assert cancelled.is_set() and cancel_at is not None
+        assert cancelled.is_set()
         available = 0.1 if adapter == "native" else 0.18
-        assert available - 0.04 < cancel_at - started < available + 0.08
+        assert provider_budget == pytest.approx(available)
         sdk.client.close.assert_awaited_once()  # SDK finally cleanup is still attempted.
         assert session.brain._lease is None
         assert session._teardown_incomplete and session._transport_closing

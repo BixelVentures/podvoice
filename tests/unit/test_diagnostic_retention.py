@@ -173,3 +173,86 @@ def test_content_free_loss_counters_deny_private_keys_and_non_numeric_values(tmp
     assert record["dropped_command_kinds"] == {"audio": 2}
     assert record["dropped_audio_packets"] == {"device": 1}
     assert record["dropped_audio_bytes"] == {"device": 640}
+
+
+def test_live_dispatch_metadata_keeps_only_closed_enums_finite_counts_and_hashed_refs(tmp_path):
+    import hashlib
+
+    session = "private session"
+    response = "private provider response"
+    save_diagnostics(
+        tmp_path,
+        {
+            "id": "private record",
+            "metadata": {"session_id": session},
+            "events": [
+                {
+                    "event": "live_backend_started",
+                    "session_id": session,
+                    "response_id": response,
+                    "delegation_id": "private delegation",
+                    "provider_generation": 2,
+                    "text": "private speech",
+                },
+                {
+                    "event": "live_backend_complete",
+                    "status": "completed",
+                    "usage": {"private": "result"},
+                },
+                {
+                    "event": "live_batch_diagnostic",
+                    "stage": "dispatch_returned",
+                    "outcome": "returned",
+                    "batch_generation": 2,
+                    "completed_results": 1,
+                    "successful_results": 1,
+                    "call_ref": "sha256:0123456789abcdef",
+                    "wire_tool_ref": "sha256:1123456789abcdef",
+                    "effective_tool_ref": "sha256:2123456789abcdef",
+                    "response_ref": "sha256:3123456789abcdef",
+                    "args": {"private": "command"},
+                    "result": {"private": "result"},
+                    "error_class": "private error",
+                },
+                {
+                    "event": "live_batch_diagnostic",
+                    "stage": "private speech",
+                    "outcome": "private speech",
+                    "call_ref": "",
+                    "wire_tool_ref": "sha256:private",
+                    "effective_tool_ref": "sha256:0123456789ABCDEF",
+                    "response_ref": "sha256:0123456789abcdef-extra",
+                    "batch_generation": float("inf"),
+                    "completed_results": True,
+                    "successful_results": 2**63,
+                },
+                {"event": "live_backend_complete", "status": "private result"},
+            ],
+        },
+    )
+    retained = next(tmp_path.glob("*.diagnostic")).read_text()
+    assert "private" not in retained
+    data = json.loads(retained)
+    started, completed, returned, invalid, bad_status = data["events"]
+    assert (
+        started["session_id_hash"]
+        == data["session_hash"]
+        == hashlib.sha256(session.encode()).hexdigest()
+    )
+    assert started["response_id_hash"] == hashlib.sha256(response.encode()).hexdigest()
+    assert started["provider_generation"] == 2
+    assert completed == {"event": "live_backend_complete", "status": "completed"}
+    assert returned == {
+        "event": "live_batch_diagnostic",
+        "stage": "dispatch_returned",
+        "outcome": "returned",
+        "batch_generation": 2,
+        "completed_results": 1,
+        "successful_results": 1,
+        "call_ref": "sha256:0123456789abcdef",
+        "wire_tool_ref": "sha256:1123456789abcdef",
+        "effective_tool_ref": "sha256:2123456789abcdef",
+        "response_ref": "sha256:3123456789abcdef",
+    }
+    assert invalid == {"event": "live_batch_diagnostic"}
+    assert bad_status == {"event": "live_backend_complete"}

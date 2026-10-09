@@ -332,3 +332,148 @@ def test_permission_names_are_exact_and_readonly_result_is_not_a_write():
     assert assess_tool("podconnect_get_targets", {}).risk is Risk.READ_ONLY
     assert assess_tool("podconnect_move_playback", {}).risk is Risk.LOW_RISK
     assert assess_tool("podconnect_move_playback_other", {}).risk is Risk.UNKNOWN_SIDE_EFFECT
+
+
+def ha_target(context=True):
+    row = {"kind": "spotify_device", "target_id": "B", "name": "Speaker", "restricted": False}
+    if context:
+        row["ha_context"] = {
+            "entity_id": "media_player.speaker",
+            "name": "Bedroom speaker",
+            "aliases": ["Bedside"],
+            "area": {"id": "bedroom", "name": "Child's bedroom", "aliases": ["Child's room"]},
+        }
+    return {"config_entry_id": "A", "targets": [row], "errors": {}}
+
+
+def test_optional_ha_language_metadata_keeps_legacy_and_exact_target_identity():
+    args = {"config_entry_id": "A"}
+    for context in (False, True):
+        data = ha_target(context)
+        result = targets.result("podconnect_get_targets", args, data)
+        assert result == {"ok": True, "data": data}
+        assert result["data"]["targets"][0]["target_id"] == "B"
+    data = ha_target()
+    data["targets"][0]["ha_context"]["area"] = None
+    assert targets.result("podconnect_get_targets", args, data)["ok"] is True
+
+
+@pytest.mark.parametrize(
+    "invalid", ["unknown", "entity", "aliases", "area", "area_aliases", "bool", "alias_namespace"]
+)
+def test_malformed_ha_context_cannot_grant_a_target_or_other_namespace(invalid):
+    data = ha_target()
+    row = data["targets"][0]
+    context = row["ha_context"]
+    if invalid == "unknown":
+        context["target_id"] = "other"
+    elif invalid == "entity":
+        context["entity_id"] = "light.other"
+    elif invalid == "aliases":
+        context["aliases"] = ["same"] * 17
+    elif invalid == "area":
+        context["area"]["id"] = True
+    elif invalid == "area_aliases":
+        context["area"]["aliases"] = [None]
+    elif invalid == "bool":
+        row["ha_context"] = True
+    else:
+        row.clear()
+        row.update(
+            kind="configured_alias",
+            target_id="room-B",
+            name="Room",
+            homepod_id="B",
+            binding={"ready": True, "incarnation": "i", "registry": "r", "room_id": "room-B"},
+            ha_context=context,
+        )
+    assert targets.result("podconnect_get_targets", {"config_entry_id": "A"}, data)["ok"] is False
+
+
+def contextual_service_page():
+    page = service_page()
+    # Even identical descriptor content must not erase the selected wire route.
+    page[0]["services"]["get_targets_with_context"] = copy.deepcopy(
+        page[0]["services"]["get_targets"]
+    )
+    return page
+
+
+@pytest.mark.parametrize("context", [False, True])
+async def test_reader_selects_explicit_context_route_or_legacy_only_when_absent(context):
+    posts = []
+
+    async def peer(request):
+        if request.method == "GET":
+            return httpx.Response(
+                200, json=contextual_service_page() if context else service_page()
+            )
+        posts.append(request.url.path)
+        assert json.loads(request.content) == {"config_entry_id": "A"}
+        return httpx.Response(200, json={"service_response": ha_target(context)})
+
+    router, client = await make_router(peer)
+    try:
+        result = await router.dispatch("podconnect_get_targets", {"config_entry_id": "A"})
+        assert result == {"ok": True, "data": ha_target(context)}
+        route = "get_targets_with_context" if context else "get_targets"
+        assert posts == ["/core/api/services/podconnect/" + route]
+        assert "podconnect_get_targets_with_context" not in router.declaration_hashes()
+        assert router.capabilities()["roles"]["music_targets"] == ["podconnect_get_targets"]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.parametrize("invalid", ["null", "fields", "response", "selector"])
+async def test_present_malformed_context_contract_never_falls_back_or_posts(invalid):
+    calls = []
+    page = contextual_service_page()
+    services = page[0]["services"]
+    row = services["get_targets_with_context"]
+    if invalid == "null":
+        services["get_targets_with_context"] = None
+    elif invalid == "fields":
+        row["fields"]["extra"] = {}
+    elif invalid == "response":
+        row["response"]["optional"] = True
+    else:
+        row["fields"]["config_entry_id"]["selector"] = {"text": {}}
+
+    async def peer(request):
+        calls.append(request.method)
+        assert request.method == "GET"
+        return httpx.Response(200, json=page)
+
+    router, client = await make_router(peer)
+    try:
+        assert "podconnect_get_targets" not in router.declaration_hashes()
+        assert "podconnect_move_playback" in router.declaration_hashes()
+        result = await router.dispatch("podconnect_get_targets", {})
+        assert not result["ok"]
+        assert "POST" not in calls
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.parametrize("upgrade", [False, True])
+async def test_held_catalog_call_cannot_change_read_contract_during_refresh(upgrade):
+    calls = []
+
+    async def peer(request):
+        calls.append(request.method)
+        assert request.method == "GET"
+        contextual = (len(calls) > 1) if upgrade else (len(calls) == 1)
+        return httpx.Response(200, json=contextual_service_page() if contextual else service_page())
+
+    router, client = await make_router(peer)
+    try:
+        expected = router.declaration_hashes()["podconnect_get_targets"]
+        result = await router.dispatch(
+            "podconnect_get_targets",
+            {"config_entry_id": "A"},
+            expected_declaration_sha256=expected,
+        )
+        assert not result["ok"] and result["error_kind"] == "stale_schema"
+        assert calls == ["GET", "GET"]
+    finally:
+        await client.aclose()

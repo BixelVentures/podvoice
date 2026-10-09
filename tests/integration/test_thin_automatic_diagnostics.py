@@ -232,3 +232,153 @@ async def test_passive_diagnostic_origin_runs_before_events_and_fault_cannot_blo
     finally:
         await session.aclose()
         await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_actual_main_talk_persists_private_only_metadata_without_adopting_native_capture(
+    tmp_path, monkeypatch
+):
+    import asyncio
+    import hashlib
+    import json
+
+    from test_main_settings_save_contract import _actual_main_app, _observed, _preferences
+    from test_talk_webrtc import BrowserWire
+    from test_thin_live import emit
+    from test_thin_live_ten_cycles import CycleWireSDK, close_fixture, retain_aclose_observers
+    from unit.test_openai_live import call, created, terminal
+
+    from gatekeeper.provider_budget import ProviderBudgetCoordinator
+    from gatekeeper.talk import run_talk
+    from gatekeeper.web import TALK
+
+    path, options = tmp_path / "settings.json", tmp_path / "options.json"
+    options.write_text(json.dumps({"openai_api_key": "inert-diagnostic-contract"}))
+    monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
+    _preferences(path, True)
+    async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
+        native = actual.sessions["kitchen"]
+        await native.wake()
+        recorder = native.audio_trace
+        native_owner = native._history_session
+        assert recorder.owns(native.room, native_owner)
+        wire, sdks, observers = BrowserWire(), [], []
+        session, link = actual.app[TALK](wire.send_json, wire.send_bytes)
+        assert session.audio_trace is None
+        assert session._private_contract_recorder is recorder
+        session.live_brain.provider_budget = ProviderBudgetCoordinator()
+
+        def factory(**kwargs):
+            sdk = CycleWireSDK(webrtc=True)
+            sdk.allow_exit.set()
+            wire.sdk = sdk
+            sdks.append(sdk)
+            return sdk.factory(**kwargs)
+
+        session.live_brain.client_factory = factory
+        retain_aclose_observers(session, observers, monkeypatch)
+        task = asyncio.create_task(run_talk(wire, session, link))
+        saved = []
+        try:
+            for generation in (1, 2):
+                command = f"wake-{generation}"
+                wire.send("wake", command_id=command)
+                await _observed(
+                    lambda command=command: wire.result(command) is not None, main_task=task
+                )
+                assert wire.result(command)["status"] == "accepted"
+                owner = session._history_session
+                assert session.brain._connection_generation == generation
+                assert owner in recorder._writer.diagnostic_origins
+                assert recorder.owns(native.room, native_owner)
+                sdk = sdks[-1]
+                response, call_id = f"private-response-{generation}", f"private-call-{generation}"
+                creates = sum(e["type"] == "response.create" for e in sdk.wire)
+                await emit(
+                    sdk,
+                    created(response),
+                    call(call_id, name="GetLiveContext", arguments="{}"),
+                    terminal(response),
+                )
+                await _observed(
+                    lambda sdk=sdk, creates=creates: (
+                        sum(e["type"] == "response.create" for e in sdk.wire) == creates + 1
+                        and not session._tool_tasks
+                    ),
+                    main_task=task,
+                )
+                wire.send("stop", command_id=f"stop-{generation}")
+                await _observed(
+                    lambda generation=generation: wire.result(f"stop-{generation}") is not None,
+                    main_task=task,
+                )
+                assert not session._active and not session._teardown_incomplete
+                assert await recorder.wait_pending()
+                records = recorder.diagnostics()
+                record = next(
+                    r
+                    for r in records
+                    if r["session_hash"] == hashlib.sha256(owner.encode()).hexdigest()
+                )
+                assert record["content_free"] and not record["incomplete"]
+                assert len(record["events"]) <= 60
+                names = {e["event"] for e in record["events"]}
+                assert {
+                    "wake_received",
+                    "live_backend_started",
+                    "live_backend_complete",
+                    "teardown_complete",
+                } <= names
+                batches = [e for e in record["events"] if e["event"] == "live_batch_diagnostic"]
+                assert any(
+                    e["stage"] == "dispatch_returned" and e["outcome"] == "returned"
+                    for e in batches
+                )
+                assert any(
+                    e["stage"] == "result_submit"
+                    and e["outcome"] == "returned"
+                    and e["successful_results"] == 1
+                    for e in batches
+                )
+                assert all(
+                    e["provider_generation"]
+                    == (generation - 1 if e["event"] == "wake_received" else generation)
+                    for e in record["events"]
+                )
+                assert all(e["batch_generation"] == generation for e in batches)
+                tool_ref = "sha256:" + hashlib.sha256(b"GetLiveContext").hexdigest()[:16]
+                assert any(
+                    e["stage"] == "dispatch"
+                    and e["wire_tool_ref"] == e["effective_tool_ref"] == tool_ref
+                    for e in batches
+                )
+                assert all("call_ref" not in e for e in batches if e["stage"] == "lock_wait")
+                encoded = json.dumps(record)
+                assert not any(
+                    secret in encoded
+                    for secret in (
+                        owner,
+                        response,
+                        call_id,
+                        "GetLiveContext",
+                        "fixture_context",
+                        "arguments",
+                        "usage",
+                    )
+                )
+                saved.append(record)
+                assert recorder.owns(native.room, native_owner)
+                assert session.audio_trace is None and not session._live_stream
+            assert saved[0]["session_hash"] != saved[1]["session_hash"]
+            assert (
+                next(
+                    r
+                    for r in recorder.diagnostics()
+                    if r["session_hash"] == saved[0]["session_hash"]
+                )
+                == saved[0]
+            )
+            assert recorder.snapshot()["active"]["room"] == native.room
+            assert not actual.forbidden
+        finally:
+            await close_fixture(session, sdks, observers, wire=wire, talk_task=task)
