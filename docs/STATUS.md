@@ -15130,3 +15130,64 @@ classifierændring. Formatter/lint på de to ændrede Python-filer og syntaks p�
 begge CJS-filer og alle syv inline scripts består. Versionsfelterne er ens: 2.0.10.
 Review og statiske checks er ikke ny provider-, browser-, release- eller fysisk
 accept; den tidligere 2.0.9 SafeEval-fejl og alle resterende issuekrav bevares.
+
+
+<!-- pv95-discreet-diagnostics-candidate-mirror -->
+### 9/10 — #95 kandidat: daglig navigation og diskret fejlfinding
+
+Lead root ejer den aktive beslutning i canonical STATUS, post
+pv95-primary-diagnostics-navigation-decision-20261009. Diagnose er flyttet fra
+hovednavigationen til lukkede Indstillinger → Avanceret → Fejlfinding. Kendte
+fejllinks åbner den relevante visning og bevarer et tastaturfokus. Diagnostik,
+privacyinfo, readiness og eksisterende Talk-tabexit/dræn bevares; ingen backend,
+prompt, indstillingsværdi eller automatisk handling er ændret.
+
+Uafhængig reviewer ui_acceptance giver SOURCE GO på de tre source/testfiler,
+diff f58bd5742460e9de3b50626dc5f71dabe0408d2739bc78d113188bc77bca11a6.
+HEAD, origin/main og base er faktisk main29fe602e9b7227e41b39df51aa74fed90c0ee113.
+Eksisterende production_fingerprint er
+2e6eaf2a7081a28ab0d2ad87f7d82c522202cd5620026ee37de32275e45b4c4a;
+scope PASS som single unclassified_runtime. Node24 syntaks på begge CJS-filer
+og alle syv inline scripts samt diff-whitespace består. Én eksisterende daily_ui-
+browserworker består inklusive settings/fokus og Talk-exit; cleanup er joined.
+Den binder HTML 8bbd797c3122d4180c1c5912f3df0cb84c737629c88f30c132b6505d9d3cfe6c.
+Dette er fixturebaseret softwarebevis, ikke HA-app/Safari/VoiceOver eller fysisk
+Voice PE-accept. Kandidaten holdes til næste samlede PodVoice-bundle; ingen ny
+version, full releasegate, publicering eller installation er udført.
+
+
+<!-- pv211-bulk-candidate-mirror -->
+### 9/10 — 2.0.11 kandidat: musikflytning og daglig navigation
+
+Lead root ejer canonical aktivpost pv118-shared-music-close-decision-20261009 og
+#95-beslutningen. 2.0.10 SafeEval eval-1791541012-8f392d forbliver FAIL. Prompt16 og
+fælles END-deklaration afgrænser accepted_local/provider_request_accepted som
+ufuldstændig transferaccept, ikke opgavefærdig lukning. Andre bekræftede opgaver,
+eksplicit slut, Live-regler, resultater og originale eval-oracles er bevaret.
+Untouched defaultv15 migrerer gennem den eksisterende hashkontrakt; tilpassede
+prompter og settingsversion/værdier bevares. #95 flytter eksisterende fejlfinding
+under Avanceret med uændrede diagnostik-/privacyejere og Talk-dræn.
+
+Uafhængigt source-review af issue-diffet består; 85 eksisterende målrettede
+prompt/Live/settings/targets/Thin/oracle-kontroller PASS (18,72 s). #95's uændrede
+HTML har én bestået daily_ui-worker med joined cleanup, ti layouts og ni Talk-exit-
+kontroller. Kandidaten er samlet på faktisk main29fe602e9b7227e41b39df51aa74fed90c0ee113.
+Endeligt samlet source-review inklusive metadata og rootens eksisterende scope-
+workflowkorrektion består; exact-tree-binding står nedenfor. Releasegate afventer. Nyt provider-
+eller fysisk musik-/lifecyclebevis foreligger ikke; rollback er installeret2.0.10.
+
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "29fe602e9b7227e41b39df51aa74fed90c0ee113",
+  "merge_base": "29fe602e9b7227e41b39df51aa74fed90c0ee113",
+  "domains": [
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "fingerprint": "001b82aa7d4dd4d794d7928d080b9aae16e24b88723eba69dced8bfc43aa9962",
+  "reviewer": "ui_acceptance",
+  "rationale": "Independent whole-candidate source GO by ui_acceptance: shared partial-transfer acceptance only, with true task-complete, explicit end, both Live rules, lifecycle and adapters unchanged. Existing diagnostics are disclosed under advanced settings with private evidence and owners preserved. Exact stock-v15 migration preserves custom prompts. The existing scope workflow adds only the finite physical_output/realtime_semantics tuple; source/base/tree/reviewer/missing-regression guards remain fail-closed. All 18 files including version 2.0.11 metadata and workflow controls were reviewed. Existing 85 targeted tests and unchanged #95 daily browser PASS are retained. This exact source binding is not provider, physical, release or product acceptance."
+}
+-->

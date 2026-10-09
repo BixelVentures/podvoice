@@ -1,3 +1,9 @@
+## 2.0.11 — transfer conversations and daily navigation
+
+- Keep music-transfer conversations open when only local alias selection or a provider request is acknowledged; explicit requests to end are still respected.
+- Move existing troubleshooting under Settings → Advanced, keeping daily navigation focused and preserving direct error links, keyboard focus and Talk cleanup.
+- Update saved unchanged default prompts to version 16 while preserving customized prompts.
+
 ## 2.0.10 — precise music acknowledgements and keyboard controls
 
 - Clarify that local alias selection and accepted Spotify transfer requests do not confirm playback start or audible output.

@@ -64,6 +64,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v15: shared music-close policy; preserve genuinely customized prompts.
+        "9f18bc2bdeafd28b30c5d6022adcf152975dce7cbcd920d2c5cc03d0331056c9",
         # v14: quiet acknowledgement uses the existing silent wait, preserving custom prompts.
         "0df6f944c580d1380ea8159480595d88be55a2114e66ad1c01d946e3d49b24b9",
         # v13: relevant bounded data; never replace a customized prompt.

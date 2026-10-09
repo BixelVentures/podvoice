@@ -134,6 +134,9 @@ async function one(browser,mode,boundary) {
     await edge(page,boundary);trace.push({edge:boundary,state:await read(page)});
     const exiting=boundary!=='pagehide';
     const stopped=await read(page);
+    if(boundary.startsWith('key-'))assert.equal(stopped.activeTab,
+      {'key-home':'tab-home','key-arrow':'tab-history','key-end':'tab-settings'}[boundary],
+      'keyboard exits follow the daily-use primary tabs');
     assert.equal(stopped.sent.filter(v=>v.type==='stop').length,exiting?1:0,'exactly one same-socket Stop per Tal exit');
     if(exiting) {
       assert.equal(stopped.sent.find(v=>v.type==='stop').socket_id,0,'Stop stays on actual Talk socket');

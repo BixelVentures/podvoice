@@ -299,6 +299,11 @@ _ACTIVITY_TRACE_FIELDS = {
 END_CONVERSATION_DECLARATION: dict[str, Any] = {
     "name": END_CONVERSATION_TOOL,
     "description": (
+        "On a playback move, accepted_local=true confirms local alias selection only, "
+        "and provider_request_accepted=true confirms an accepted transfer request only. "
+        "Neither confirms a playback switch or start. Receipt only that level and keep "
+        "open; these acknowledgements alone do not justify task-completion closure. "
+        "Explicit user intent to end still applies. "
         "End when the latest user clearly wants to finish talking, or a self-contained "
         "action has been fully confirmed successful and the conversation leaves no "
         "question, follow-up or other task pending. For task completion, first call the "

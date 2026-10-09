@@ -65,6 +65,7 @@ def test_exact_reviewed_coupling_binds_effective_staged_and_worktree_bytes(tmp_p
 @pytest.mark.parametrize(
     "domains",
     [
+        ("physical_output", "realtime_semantics"),
         ("physical_output", "realtime_semantics", "rearm"),
         ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm"),
     ],

@@ -95,10 +95,19 @@ def test_actual_mic_preferences_remain_without_baseline_tutorial():
 def test_panel_uses_complete_accessible_tab_contract():
     html = PANEL.read_text()
 
-    for name in ("home", "talk", "test", "history", "settings"):
+    for name in ("home", "talk", "history", "settings"):
         assert f'id="tab-{name}"' in html
         assert f'aria-controls="pane-{name}"' in html
         assert f'id="pane-{name}"' in html
+    assert 'id="tab-test"' not in html
+    assert 'aria-controls="pane-test"' not in html
+    assert '<details class="adv" id="pane-test"' in html
+    assert '<summary id="diagnostics-summary">Fejlfinding</summary>' in html
+    assert (
+        html.index('id="pane-settings"')
+        < html.index('id="s_advanced"')
+        < html.index('id="pane-test"')
+    )
     assert 'role="tabpanel"' in html
     assert 'aria-selected="true"' in html
     assert 'e.key === "ArrowRight"' in html

@@ -918,6 +918,9 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
             not in {
                 ("physical_output", "rearm"),
                 ("ha_tools", "realtime_semantics"),
+                # Playback-result semantics can change without changing rearm;
+                # admission still requires the exact independent review below.
+                ("physical_output", "realtime_semantics"),
                 # Alpha separates keyword eligibility from playback admission and
                 # model-owned closure; the exact independent review remains required.
                 ("physical_output", "realtime_semantics", "rearm"),
