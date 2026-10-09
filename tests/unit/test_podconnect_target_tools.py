@@ -477,3 +477,172 @@ async def test_held_catalog_call_cannot_change_read_contract_during_refresh(upgr
         assert calls == ["GET", "GET"]
     finally:
         await client.aclose()
+
+
+def room_context_service_page(profile=3):
+    page = contextual_service_page() if profile >= 2 else service_page()
+    if profile == 3:
+        page[0]["services"]["get_targets_with_room_context"] = copy.deepcopy(
+            page[0]["services"]["get_targets"]
+        )
+    return page
+
+
+def room_target(area=True):
+    row = {
+        "kind": "configured_alias",
+        "target_id": "room-B",
+        "name": "Speaker",
+        "homepod_id": "native-B",
+        "binding": {"ready": True, "incarnation": "i", "registry": "r", "room_id": "room-B"},
+    }
+    if area:
+        row["ha_area"] = {"id": "bedroom", "name": "Bedroom", "aliases": ["Child's room"]}
+    return {"config_entry_id": "A", "targets": [row], "errors": {}}
+
+
+@pytest.mark.parametrize("profile", [1, 2, 3])
+async def test_room_reader_uses_strongest_present_route_with_one_canonical_tool(profile):
+    posts = []
+    data = room_target(profile == 3)
+
+    async def peer(request):
+        if request.method == "GET":
+            return httpx.Response(200, json=room_context_service_page(profile))
+        posts.append(request.url.path)
+        assert json.loads(request.content) == {"config_entry_id": "A"}
+        return httpx.Response(200, json={"service_response": data})
+
+    router, client = await make_router(peer)
+    try:
+        result = await router.dispatch("podconnect_get_targets", {"config_entry_id": "A"})
+        assert result == {"ok": True, "data": data}
+        route = ("get_targets", "get_targets_with_context", "get_targets_with_room_context")[
+            profile - 1
+        ]
+        assert posts == ["/core/api/services/podconnect/" + route]
+        assert router.capabilities()["roles"]["music_targets"] == ["podconnect_get_targets"]
+        assert set(router.declaration_hashes()) == {
+            "podconnect_get_targets",
+            "podconnect_move_playback",
+        }
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.parametrize("invalid", ["null", "fields", "response", "selector"])
+async def test_malformed_present_room_profile_never_falls_back_to_valid_older_profiles(invalid):
+    page = room_context_service_page()
+    services = page[0]["services"]
+    row = services["get_targets_with_room_context"]
+    if invalid == "null":
+        services["get_targets_with_room_context"] = None
+    elif invalid == "fields":
+        row["fields"]["room_id"] = {}
+    elif invalid == "response":
+        row["response"]["optional"] = True
+    else:
+        row["fields"]["config_entry_id"]["selector"] = {"text": {}}
+    calls = []
+
+    async def peer(request):
+        calls.append(request.method)
+        assert request.method == "GET"
+        return httpx.Response(200, json=page)
+
+    router, client = await make_router(peer)
+    try:
+        assert "podconnect_get_targets" not in router.declaration_hashes()
+        assert "podconnect_move_playback" in router.declaration_hashes()
+        assert not (await router.dispatch("podconnect_get_targets", {}))["ok"]
+        assert "POST" not in calls
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.parametrize(
+    "route", [None, "get_targets", "get_targets_with_context", "get_targets_with_room_context"]
+)
+def test_configured_alias_area_is_admitted_only_on_selected_room_profile(route):
+    result = targets.result(
+        "podconnect_get_targets", {"config_entry_id": "A"}, room_target(), selected_service=route
+    )
+    assert result["ok"] is (route == "get_targets_with_room_context")
+    legacy = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": "A"},
+        room_target(False),
+        selected_service=route,
+    )
+    assert legacy["ok"] is True
+
+
+@pytest.mark.parametrize(
+    "invalid", ["extra", "id", "name", "aliases", "namespace", "null", "native_id"]
+)
+def test_room_area_cannot_rebind_target_or_expand_another_namespace(invalid):
+    data = room_target()
+    row = data["targets"][0]
+    area = row["ha_area"]
+    if invalid == "extra":
+        area["target_id"] = "other"
+    elif invalid == "id":
+        area["id"] = True
+    elif invalid == "name":
+        area["name"] = ""
+    elif invalid == "aliases":
+        area["aliases"] = ["same"] * 17
+    elif invalid == "null":
+        row["ha_area"] = None
+    elif invalid == "native_id":
+        row["homepod_id"] = ""
+    else:
+        data = ha_target()
+        data["targets"][0]["ha_area"] = area
+    result = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": "A"},
+        data,
+        selected_service="get_targets_with_room_context",
+    )
+    assert result["ok"] is False and result["error_kind"] == "invalid_response"
+
+
+@pytest.mark.parametrize("profiles", [(2, 3), (3, 2)])
+async def test_held_room_catalog_refresh_retires_old_route_before_post(profiles):
+    entered, release = asyncio.Event(), asyncio.Event()
+    profile = [profiles[0]]
+    calls = []
+
+    async def peer(request):
+        calls.append(request.method)
+        assert request.method == "GET"
+        if len(calls) == 2:
+            entered.set()
+            await release.wait()
+        return httpx.Response(200, json=room_context_service_page(profile[0]))
+
+    router, client = await make_router(peer)
+    task = None
+    try:
+        old_hash = router.declaration_hashes()["podconnect_get_targets"]
+        task = asyncio.create_task(
+            router.dispatch(
+                "podconnect_get_targets",
+                {"config_entry_id": "A"},
+                expected_declaration_sha256=old_hash,
+            )
+        )
+        await asyncio.wait_for(entered.wait(), 1)
+        assert not task.done()
+        profile[0] = profiles[1]
+        release.set()
+        result = await asyncio.wait_for(task, 1)
+        assert not result["ok"] and result["error_kind"] == "stale_schema"
+        assert calls == ["GET", "GET"]
+        assert router.declaration_hashes()["podconnect_get_targets"] != old_hash
+    finally:
+        release.set()
+        if task is not None and not task.done():
+            await task
+        await client.aclose()

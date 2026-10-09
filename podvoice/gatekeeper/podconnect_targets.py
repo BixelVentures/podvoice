@@ -33,8 +33,10 @@ def arguments(name: str, args: dict) -> dict:
 
 def service(name: str, installed) -> str:
     """Explicit contextual read opt-in; a present invalid descriptor cannot fall back."""
-    if name == "podconnect_get_targets" and "get_targets_with_context" in installed:
-        return "get_targets_with_context"
+    if name == "podconnect_get_targets":
+        for candidate in ("get_targets_with_room_context", "get_targets_with_context"):
+            if candidate in installed:
+                return candidate
     return TOOLS[name]
 
 
@@ -89,9 +91,7 @@ def contracts(services: object) -> tuple[tuple[str, str], ...]:
                 continue
         try:
             raw = json.dumps(
-                {"service": selected, "descriptor": row}
-                if selected == "get_targets_with_context"
-                else row,
+                {"service": selected, "descriptor": row} if selected != TOOLS[name] else row,
                 sort_keys=True,
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -116,7 +116,7 @@ def declarations(mcp_tools: list | tuple, admitted: tuple) -> list[dict]:
                 "Without arguments, list current active account IDs and titles only. "
                 "With an explicit config_entry_id, list fresh typed target IDs. "
                 "Clarify ambiguous accounts or names; never choose the first account. "
-                "HA context names, areas and aliases describe the exact Spotify target; "
+                "Verified HA names, areas and aliases describe the exact typed target; "
                 "use its stable target ID when moving. "
                 "Observed outputs are read-only and do not prove audible playback."
             )
@@ -154,6 +154,18 @@ def _text(value: object) -> bool:
     return isinstance(value, str) and 1 <= len(value) <= 1024
 
 
+def _ha_area(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == {"id", "name", "aliases"}
+        and _text(value["id"])
+        and _text(value["name"])
+        and isinstance(value["aliases"], list)
+        and len(value["aliases"]) <= 16
+        and all(_text(alias) for alias in value["aliases"])
+    )
+
+
 def _ha_context(value: object) -> bool:
     """Optional language metadata does not change the target's ID or authority."""
 
@@ -171,13 +183,7 @@ def _ha_context(value: object) -> bool:
     ):
         return False
     area = value["area"]
-    return area is None or (
-        isinstance(area, dict)
-        and set(area) == {"id", "name", "aliases"}
-        and _text(area["id"])
-        and _text(area["name"])
-        and aliases(area["aliases"])
-    )
+    return area is None or _ha_area(area)
 
 
 def _binding(value: object, target: str | None = None) -> bool:
@@ -190,7 +196,7 @@ def _binding(value: object, target: str | None = None) -> bool:
     )
 
 
-def result(name: str, args: dict, data: object) -> dict:
+def result(name: str, args: dict, data: object, *, selected_service: str | None = None) -> dict:
     """No unknown response or extra fields become a playback acknowledgement."""
     try:
         arguments(name, args)
@@ -241,8 +247,15 @@ def result(name: str, args: dict, data: object) -> dict:
                     raise ValueError
                 seen.add(key)
                 if kind == "configured_alias":
+                    fields = {"kind", "target_id", "name", "homepod_id", "binding"}
+                    if selected_service == "get_targets_with_room_context" and "ha_area" in row:
+                        fields.add("ha_area")
                     valid = (
-                        set(row) == {"kind", "target_id", "name", "homepod_id", "binding"}
+                        set(row) == fields
+                        and (
+                            "ha_area" not in row
+                            or (_ha_area(row["ha_area"]) and _text(row["homepod_id"]))
+                        )
                         and isinstance(row["homepod_id"], str)
                         and len(row["homepod_id"]) <= 1024
                         and _binding(row["binding"])
