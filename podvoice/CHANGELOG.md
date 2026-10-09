@@ -3,6 +3,7 @@
 - Clarify model-owned closing after the last confirmed step in an agreed finite sequence, while keeping unfinished tasks, questions and requested dialogue open.
 - Migrate only the unchanged default prompt to version 17; preserve customized prompts and existing settings.
 - Correct the timer preflight fixture to use the existing cumulative session counter, retaining the requirement for a model-selected ending after the final cancellation.
+- Separate the successful WebRTC startup budget from the short close deadline in the transport-abort regression, preserving readiness checks and close ownership assertions.
 
 ## 2.0.12 — HA-owned timers and exact alarm cleanup
 

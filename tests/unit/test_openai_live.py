@@ -89,7 +89,9 @@ class SDK:
         )
 
 
-def provider(**kwargs):
+def provider(*, timeout_s=0.2, **kwargs):
+    if timeout_s is not None:
+        kwargs["timeout_s"] = timeout_s
     sdk = SDK()
     budget = ProviderBudgetCoordinator()
     session = OpenAILiveSession(
@@ -97,7 +99,6 @@ def provider(**kwargs):
         tool_declarations=TOOLS,
         client_factory=sdk.factory,
         provider_budget=budget,
-        timeout_s=0.2,
         **kwargs,
     )
     return session, sdk, budget
@@ -143,9 +144,12 @@ async def test_rejected_terminal_never_authorizes_local_transport_abort(terminal
     "guard", ["webrtc", "unknown_terminal", "old_generation", "unknown_socket"]
 )
 async def test_local_transport_abort_requires_confirmed_current_primary_socket(guard):
-    session, sdk, _ = webrtc_provider() if guard == "webrtc" else provider()
+    # This guard tests close transport ownership, not the startup deadline.
+    session, sdk, _ = webrtc_provider(timeout_s=None) if guard == "webrtc" else provider()
     socket = tracked_socket(sdk)
     await session.connect()
+    if guard == "webrtc":
+        session.timeout_s = 0.2  # Retain the existing close/abort deadline.
     await session.request_close()
     await session._closed.wait()
     if guard == "unknown_terminal":
@@ -992,7 +996,7 @@ class WebRTCSDK(SDK):
         )
 
 
-def webrtc_provider(callback=None):
+def webrtc_provider(callback=None, *, timeout_s=0.2):
     sdk = WebRTCSDK()
     if callback is None:
 
@@ -1000,7 +1004,9 @@ def webrtc_provider(callback=None):
             await sdk.acknowledge()
 
         callback = AsyncMock(side_effect=acknowledge)
-    session, _, budget = provider(webrtc_offer="v=0\r\noffer", on_webrtc_answer=callback)
+    session, _, budget = provider(
+        webrtc_offer="v=0\r\noffer", on_webrtc_answer=callback, timeout_s=timeout_s
+    )
     session.client_factory = sdk.factory
     return session, sdk, budget
 
