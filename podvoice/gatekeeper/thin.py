@@ -31,6 +31,7 @@ from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
 from .device_control import TOOL_NAMES as DEVICE_CONTROL_TOOL_NAMES
 from .events import Event, EventType, State
 from .execution_policy import ExecutionContext, PendingAction, Risk, assess_tool
+from .ha_timers import TOOLS as TIMER_TOOLS
 from .led import led_command_for
 from .playout import PlayoutClock
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
@@ -822,6 +823,9 @@ class ThinSession:
         self._provider_audio_observer_binding: tuple[Any, Any, Any] | None = None
         self._provider_trace_observer_original = None
         self._provider_trace_observer_installed = False
+        self._timer_poll_task: asyncio.Task | None = None
+        self._timer_alarm_task: asyncio.Task | None = None
+        self._timer_interrupt = asyncio.Event()
 
         if hub is not None:
             hub.register_room(room)
@@ -844,6 +848,262 @@ class ThinSession:
         if hasattr(voicepe, "on_link"):
             voicepe.on_link = self._on_link
 
+    def _timer_endpoint_ready(self) -> bool:
+        if getattr(self.voicepe, "host", None) == "browser":
+            return bool(
+                not getattr(self.voicepe, "_socket_closed", True)
+                and getattr(self.voicepe, "timer_sink_identity", "")
+            )
+        return bool(
+            getattr(self.voicepe, "_link_up", False)
+            and getattr(self.voicepe, "supports_stop_context", False)
+            and getattr(self.voicepe, "device_identity", None)
+        )
+
+    def _timer_output_ready(self) -> bool:
+        return self._timer_endpoint_ready() and (
+            getattr(self.voicepe, "host", None) == "browser"
+            or getattr(self.voicepe, "wake_readiness", None) in ("proven", "recovered")
+        )
+
+    def _timer_idle(self, *, owns_lock: bool = False) -> bool:
+        return bool(
+            not self._active
+            and not self._closing
+            and not self._muted
+            and not self._teardown_incomplete
+            and (owns_lock or not self._teardown_lock.locked())
+            and (self._close_task is None or self._close_task.done())
+            and not self._device_playing
+            and self._playback_lease is None
+            and self._timer_output_ready()
+        )
+
+    async def _poll_timers(self) -> None:
+        """Read HA delivery state, never derive an expiry from a local clock."""
+        timers = self.tools.timers
+        try:
+            while not self._closing:
+                kind = "talk" if getattr(self.voicepe, "host", None) == "browser" else "voice_pe"
+                identity = (
+                    self.room if kind == "talk" else getattr(self.voicepe, "device_identity", None)
+                )
+                if identity and self._timer_endpoint_ready():
+                    timers.bind(self.room, kind, identity)
+                    try:
+                        state = await asyncio.wait_for(timers.refresh(self.room), C.TOOL_TIMEOUT_S)
+                    except (TimeoutError, Exception):
+                        state = {}
+                        timers.snapshots.pop(self.room, None)
+                    if state.get("ok") and self._timer_idle():
+                        receipt = next(
+                            (
+                                row
+                                for row in state["finished"]
+                                if (
+                                    (not row["alert_id"] and not row["stop_requested"])
+                                    or (
+                                        row["alert_id"]
+                                        and row["stop_requested"]
+                                        and not row["physical_stopped"]
+                                        and not row["physical_drained"]
+                                    )
+                                )
+                            ),
+                            None,
+                        )
+                        if receipt:
+                            self._timer_interrupt.clear()
+                            task = asyncio.create_task(
+                                self._play_timer_alert(receipt, state["epoch"]),
+                                name="thin-timer-alert",
+                            )
+                            self._timer_alarm_task = task
+                            try:
+                                await asyncio.shield(task)
+                            finally:
+                                if task.done() and self._timer_alarm_task is task:
+                                    self._timer_alarm_task = None
+                else:
+                    timers.unbind(self.room)
+                    timers.snapshots.pop(self.room, None)
+                await asyncio.sleep(2.0)
+        finally:
+            timers.unbind(self.room)
+            timers.snapshots.pop(self.room, None)
+
+    async def _timer_command(self, epoch: str, request: str, action: str, **args) -> dict:
+        try:
+            return await asyncio.wait_for(
+                self.tools.timers.command(
+                    self.room, epoch=epoch, request_id=request, action=action, **args
+                ),
+                C.TOOL_TIMEOUT_S,
+            )
+        except (TimeoutError, Exception):
+            return {"ok": False, "error_kind": "unknown_outcome", "retry_allowed": False}
+
+    async def _timer_report(
+        self,
+        epoch: str,
+        timer_id: str,
+        alert_id: str,
+        sink_id: str,
+        phases: list[str],
+        *,
+        cancelled: bool,
+    ) -> None:
+        # Delivery reports have no physical effects and cannot alter a newer lease.
+        for phase in phases:
+            result = await self._timer_command(
+                epoch,
+                f"{alert_id}-{phase}",
+                "report_alert",
+                timer_id=timer_id,
+                alert_id=alert_id,
+                sink_id=sink_id,
+                phase=phase,
+            )
+            if not result.get("ok"):
+                return  # Ambiguous delivery remains held by HA; no blind replay.
+        if cancelled:
+            result = await self._timer_command(
+                epoch, f"{alert_id}-cancel", "cancel", timer_id=timer_id
+            )
+            if result.get("ok"):
+                await self._timer_command(
+                    epoch, f"{alert_id}-ack", "acknowledge_finished", timer_id=timer_id
+                )
+
+    async def _play_timer_alert(self, receipt: dict, epoch: str) -> None:
+        """Bounded idle output lease, followed by native terminal stop and rearm.
+
+        Expiry during reply/tool/close stays in HA until idle. After a lost client,
+        explicit cancel can obtain a fresh terminal idle sink ACK; it never stops
+        a newer conversation and never invents an old natural drain observation.
+        """
+        timer_id = receipt["id"]
+        recovering = bool(receipt["alert_id"])
+        alert_id = receipt["alert_id"] or secrets.token_hex(16)
+        sink_id = (
+            getattr(self.voicepe, "timer_sink_identity", None)
+            if getattr(self.voicepe, "host", None) == "browser"
+            else "voice_pe:" + (getattr(self.voicepe, "device_identity", None) or "")
+        )
+        if not sink_id or (recovering and receipt["sink_id"] != sink_id):
+            return  # Another browser/physical sink cannot prove an old sink quiet.
+        phases: list[str] = []
+        lease = None
+        quiet = False
+        cancelled = recovering
+        async with self._teardown_lock:
+            if not self._timer_idle(owns_lock=True):
+                return
+            if not recovering:
+                claim = await self._timer_command(
+                    epoch,
+                    f"{alert_id}-claim",
+                    "claim_alert",
+                    timer_id=timer_id,
+                    alert_id=alert_id,
+                    sink_id=sink_id,
+                )
+                if not claim.get("ok"):
+                    return
+            try:
+                if not recovering:
+                    if self._timer_interrupt.is_set() or self._closing:
+                        cancelled = True
+                        raise RuntimeError("timer alert interrupted before admission")
+                    if getattr(self.voicepe, "host", None) != "browser":
+                        admit = (
+                            self.voicepe.set_live_context()
+                            if getattr(self.voicepe, "supports_live_semantic_stop", False)
+                            else self.voicepe.set_stop_context(True)
+                        )
+                        if not await asyncio.wait_for(admit, TEARDOWN_STEP_TIMEOUT_S):
+                            raise RuntimeError("timer native output admission failed")
+                    if self._timer_interrupt.is_set() or self._closing:
+                        cancelled = True
+                        raise RuntimeError("timer alert interrupted before playback")
+                    lease = self._arm_playback_lease(item_id=None, kind="timer", turn=None)
+                    if lease is None or self.reply_bus is None or not self.reply_url:
+                        raise RuntimeError("timer output unavailable")
+                    lease.playback_id = "pv-timer-" + alert_id
+                    self.reply_bus.clear(self.room)
+                    self.reply_bus.start(self.room)
+                    self.reply_bus.push(
+                        self.room, audio_mod.error_tone(freqs=(880, 660), ms=(180, 260), amp=0.18)
+                    )
+                    self.reply_bus.end(self.room)
+                    await asyncio.wait_for(self._play_reply_url(lease), TEARDOWN_STEP_TIMEOUT_S)
+                    await asyncio.wait_for(
+                        self._playback_started.wait(), FIXED_PLAYBACK_START_TIMEOUT_S
+                    )
+                    phases.append("started")
+                    finished = asyncio.create_task(self._playback_finished.wait())
+                    interrupted = asyncio.create_task(self._timer_interrupt.wait())
+                    try:
+                        await asyncio.wait(
+                            (finished, interrupted),
+                            timeout=3.0,
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        if lease.phase == "finished":
+                            phases.append("drained")
+                    finally:
+                        finished.cancel()
+                        interrupted.cancel()
+                        await asyncio.gather(finished, interrupted, return_exceptions=True)
+                    cancelled = self._timer_interrupt.is_set()
+            except Exception as exc:
+                _LOG.warning("thin: timer alert output incomplete: %s", exc)
+                phases.append("unknown")
+            finally:
+                try:
+                    quiet = (
+                        await asyncio.wait_for(
+                            self.voicepe.stop_playback(
+                                playback_id=(
+                                    lease.playback_id
+                                    if lease
+                                    else "pv-timer-" + alert_id
+                                    if recovering
+                                    and getattr(self.voicepe, "host", None) == "browser"
+                                    else None
+                                )
+                            ),
+                            TEARDOWN_STEP_TIMEOUT_S,
+                        )
+                        is True
+                    )
+                    if not quiet:
+                        raise RuntimeError("timer terminal sink ACK missing")
+                    if "drained" not in phases:
+                        phases.append("stopped")
+                    if getattr(self.voicepe, "host", None) != "browser":
+                        if not await asyncio.wait_for(
+                            self.voicepe.set_stop_context(False, closing=True),
+                            TEARDOWN_STEP_TIMEOUT_S,
+                        ):
+                            raise RuntimeError("timer native close ACK missing")
+                        await asyncio.wait_for(self._rearm_device(), TEARDOWN_REARM_TIMEOUT_S)
+                    if lease and self._playback_lease is lease:
+                        self._invalidate_playback_lease("timer-terminal-ack")
+                    self._device_playing = False
+                    self._set_led(State.IDLE)
+                except Exception:
+                    if "drained" not in phases and "stopped" not in phases:
+                        phases.append("unknown")
+                    self._teardown_incomplete = True
+                    self._set_led(State.IDLE, error=True)
+                    self._schedule_teardown_retry(release_music=True, silence_complete=quiet)
+        # New wake need only wait for physical ownership, never HA network receipts.
+        self._spawn(
+            self._timer_report(epoch, timer_id, alert_id, sink_id, phases, cancelled=cancelled),
+            "thin-timer-receipts",
+        )
+
     # ------------------------------------------------------------- lifecycle
     async def start(self) -> None:
         await self.voicepe.start()
@@ -851,9 +1111,20 @@ class ThinSession:
         # goes green from on_link(True) — a REAL completed connect (0.86 field bug:
         # device changed IP, dot stayed green for days while every wake died).
         self.playback.start()
+        if self.tools is not None and hasattr(self.tools, "timers"):
+            self._timer_poll_task = asyncio.create_task(self._poll_timers(), name="thin-ha-timers")
 
     async def aclose(self) -> None:
         self._closing = True
+        if self.tools is not None and hasattr(self.tools, "timers"):
+            self.tools.timers.unbind(self.room)
+        self._timer_interrupt.set()
+        if self._timer_alarm_task is not None:
+            await asyncio.shield(self._timer_alarm_task)
+        if self._timer_poll_task is not None:
+            self._timer_poll_task.cancel()
+            await asyncio.gather(self._timer_poll_task, return_exceptions=True)
+            self._timer_poll_task = None
         if self._rearm_retry_task is not None:
             self._rearm_retry_task.cancel()
             self._rearm_retry_task = None
@@ -887,6 +1158,10 @@ class ThinSession:
     # ------------------------------------------------------------- conversation
     async def wake(self, rearm_attempt_id: str | None = None) -> None:
         """Snapshot mode once; an Alpha opening belongs to the same close owner."""
+        if self._timer_alarm_task is not None and not self._timer_alarm_task.done():
+            # No epoch/event reset may overtake old alarm drain + native rearm.
+            self._timer_interrupt.set()
+            await asyncio.shield(self._timer_alarm_task)
         selected_live = bool(self.live_enabled and self.live_enabled())
         if selected_live and (self._teardown_incomplete or self._closing):
             self._trace_event("wake_rejected_incomplete_teardown")
@@ -1236,6 +1511,8 @@ class ThinSession:
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
         decls = list(self.tools.declarations()) if self.tools is not None else []
+        if self.tools is not None and hasattr(self.tools, "timer_declarations"):
+            decls.extend(self.tools.timer_declarations(self.room))
         private_domain_declarations = decls
         declaration_hasher = (
             getattr(self.tools, "declaration_hashes", None) if self.tools is not None else None
@@ -1377,6 +1654,10 @@ class ThinSession:
 
     async def stop(self, reason: str = "stop") -> None:
         """Request one atomic close and wait without letting caller cancellation abort it."""
+        if self._timer_alarm_task is not None and not self._timer_alarm_task.done():
+            self._timer_interrupt.set()
+            await asyncio.shield(self._timer_alarm_task)
+            return
         task = self._request_close(reason)
         if task is not None:
             await asyncio.shield(task)
@@ -3026,6 +3307,11 @@ class ThinSession:
                             call.name,
                             call.args,
                             execution_context=context,
+                            **(
+                                {"timer_endpoint": self.room, "completed_call_id": call.id}
+                                if self._accepts_keyword(self.tools.dispatch, "completed_call_id")
+                                else {}
+                            ),
                             expected_declaration_sha256=self._tool_declaration_hashes[call.name],
                             execution_guard=lambda read_only=read_only: (
                                 (current() if read_only else dispatch_current())
@@ -5661,11 +5947,15 @@ class ThinSession:
             self._request_close("playback-fault", error_kind="device")
 
     async def _play_reply_url(self, lease: _PlaybackLease) -> None:
-        if self._transport_closing and not (
-            lease.kind == "oneshot"
-            and self._trace_reason.startswith("error:")
-            and not self._stop_error_speech.is_set()
-            and not self._teardown_retry_wakeup.is_set()
+        if (
+            self._transport_closing
+            and lease.kind != "timer"
+            and not (
+                lease.kind == "oneshot"
+                and self._trace_reason.startswith("error:")
+                and not self._stop_error_speech.is_set()
+                and not self._teardown_retry_wakeup.is_set()
+            )
         ):
             return
         if getattr(self.voicepe, "supports_playback_ids", False):
@@ -5977,6 +6267,15 @@ class ThinSession:
             dispatch_kwargs: dict[str, Any] = {}
             if self._accepts_keyword(dispatch, "execution_context"):
                 dispatch_kwargs["execution_context"] = self._execution_context(turn)
+            if self._accepts_keyword(dispatch, "completed_call_id"):
+                dispatch_kwargs.update(timer_endpoint=self.room, completed_call_id=tc.id)
+                if tc.name in TIMER_TOOLS and self._accepts_keyword(dispatch, "execution_guard"):
+                    dispatch_kwargs["execution_guard"] = lambda: (
+                        self._active
+                        and not self._transport_closing
+                        and self._closure_turn is turn
+                        and not turn.superseded
+                    )
             if self._accepts_keyword(dispatch, "expected_declaration_sha256"):
                 dispatch_kwargs["expected_declaration_sha256"] = self._tool_declaration_hashes.get(
                     tc.name
@@ -6794,6 +7093,22 @@ class ThinSession:
 
     def _on_device_event(self, room: str, state: object) -> None:
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if self._timer_alarm_task is not None and not self._timer_alarm_task.done():
+            if etype in ("wake_stop", "single_press"):
+                lease = self._playback_lease
+                observed = getattr(state, "playback_id", None)
+                context_matches = (
+                    getattr(self.voicepe, "supports_stop_context", False)
+                    and getattr(state, "stop_session", None) == self.voicepe._stop_session
+                    and getattr(state, "stop_generation", None) == self.voicepe._stop_generation
+                )
+                if (
+                    etype == "single_press"
+                    or context_matches
+                    or (lease and observed == lease.playback_id)
+                ):
+                    self._timer_interrupt.set()
+                return
         if etype in ("wake_okay_nabu", "wake"):
             self._on_wake_cb()
         elif etype == "single_press":
@@ -6856,7 +7171,9 @@ class ThinSession:
     def _on_playback_fault(
         self, playback_id: str | None = None, *, reason: str = "adapter-fault"
     ) -> None:
-        if self._transport_closing:
+        if self._transport_closing and not (
+            self._playback_lease and self._playback_lease.kind == "timer"
+        ):
             return
         lease = self._playback_lease
         if lease is None:
@@ -6886,7 +7203,7 @@ class ThinSession:
         (simultaneous with actual sound), and the real speech-stop->audible metric."""
         lease = self._playback_lease
         if (
-            (self._transport_closing and (lease is None or lease.kind != "oneshot"))
+            (self._transport_closing and (lease is None or lease.kind not in ("oneshot", "timer")))
             or lease is None
             or lease.epoch != self._epoch
             or (playback_id is not None and playback_id != lease.playback_id)
@@ -6945,6 +7262,11 @@ class ThinSession:
                 item_id=lease.item_id,
                 turn_cue=self._turn_cue_appended,
             )
+            if lease.kind == "timer":
+                self._device_playing = False
+                self._playback_finished.set()
+                self._playback_t0 = None
+                return  # Idle alert never enters provider follow-up or opens mic.
             if lease.kind == "live":
                 self._device_playing = False
                 self._playback_finished.set()
@@ -7480,6 +7802,8 @@ class ThinSession:
         self._physical_link_lost = not up
         if not up:
             self._live_mic_submitted = None
+            if self.tools is not None and hasattr(self.tools, "timers"):
+                self.tools.timers.unbind(self.room)
         if not up and self._active:
             # The native mic/playback-event transport is physical evidence, not a UI
             # detail. A lost puck cannot transparently continue the Realtime session;

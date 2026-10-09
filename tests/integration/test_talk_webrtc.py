@@ -38,6 +38,14 @@ class BrowserWire(Wire):
                 tracks_stopped=True,
                 peer_closed=True,
             )
+        elif payload["type"] == "stop_playback":
+            # stop_ack above controls Live's distinct peer/session contract.
+            self.send(
+                "playback_stopped",
+                **{key: value for key, value in payload.items() if key != "type"},
+                stopped=True,
+                source_detached=True,
+            )
 
     def primary_started(self, answer, **overrides):
         data = {

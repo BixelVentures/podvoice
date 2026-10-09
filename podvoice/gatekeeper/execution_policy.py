@@ -119,6 +119,7 @@ _SAFE_TEMP_C = (17.0, 24.0)
 # inferred from substrings ("play" in "display", for example).  New reversible tools
 # must be added through reviewed exact metadata rather than silently becoming trusted.
 _EXPLICIT_READ_ONLY = {
+    "podvoice_timer_status",
     "GetDateTime",
     "GetLiveContext",
     "HassGetState",
@@ -132,6 +133,8 @@ _EXPLICIT_READ_ONLY = {
     "podconnect_get_targets",
 }
 _EXPLICIT_LOW_RISK = {
+    "podvoice_start_timer",
+    "podvoice_cancel_timer",
     "HassLightSet",
     "HassMediaSearchAndPlay",
     "HassMediaPause",

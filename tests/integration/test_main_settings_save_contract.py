@@ -422,6 +422,7 @@ async def _actual_main_app(monkeypatch, folder, options, *, supervisor_token="in
         def router(*args, **kwargs):
             owner = original_tools(*args, **kwargs)
             state.tools = owner
+            state.timers = owner.timers
             configure = owner.configure_device_control
 
             def observed_configure(values):
@@ -436,14 +437,6 @@ async def _actual_main_app(monkeypatch, folder, options, *, supervisor_token="in
             return owner
 
         patches.setattr(main, "ToolRouter", router)
-        original_timers = main.TimerManager
-
-        def timers(*args, **kwargs):
-            owner = original_timers(*args, **kwargs)
-            state.timers = owner
-            return owner
-
-        patches.setattr(main, "TimerManager", timers)
         original_usage = main.UsageMeter
 
         def usage(*args, **kwargs):
@@ -657,7 +650,7 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         active, device = _active_contract(session), _device_contract(actual.tools)
         timer = actual.timers
         assert session._active and session.live_alpha is initial_live
-        assert timer.list_timers()["timers"] == []
+        assert timer.snapshots == {}
         configure_count = len(actual.configure_calls)
         for invalid in (
             {"live_alpha": "true"},
@@ -669,7 +662,7 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
             assert path.read_bytes() == original_bytes
             assert _active_contract(session) == active and _device_contract(actual.tools) == device
             assert len(actual.configure_calls) == configure_count
-            assert actual.timers is timer and timer.list_timers()["timers"] == []
+            assert actual.timers is timer and timer.snapshots == {}
             assert actual.restart_calls == []
         response = await actual.client.post(
             "/api/settings",
@@ -706,7 +699,7 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         assert session.brain is not active[0]
         assert session.brain is (session._realtime_brain if initial_live else session.live_brain)
         assert _device_contract(actual.tools) == device
-        assert actual.timers is timer and timer.list_timers()["timers"] == []
+        assert actual.timers is timer and timer.snapshots == {}
         saved_bytes = path.read_bytes()
         for result in (204, 500, "transport-error"):
             actual.restart_status = result
@@ -776,7 +769,7 @@ async def test_actual_main_device_control_save_has_separate_shared_authorization
         assert session.live_alpha is initial_live
         assert not (old_control_names & set(session._tool_declaration_hashes))
         assert not (old_control_names & {row["name"] for row in session.brain.tool_declarations})
-        assert actual.timers.list_timers()["timers"] == [] and not actual.forbidden
+        assert actual.timers.snapshots == {} and not actual.forbidden
 
 
 async def test_actual_main_restart_without_supervisor_token_never_sends_request(

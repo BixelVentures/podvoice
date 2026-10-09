@@ -2,6 +2,28 @@
   "schema_version": 2,
   "fixture_contracts": [
     {
+      "exact_tool_name": "podvoice_start_timer",
+      "risk": "low_risk",
+      "cases": [
+        {"args": {"seconds": 600, "name": "pasta"}, "result": {"ok": true, "owner": "home_assistant_intent", "id": "synthetic-pasta", "state": "active", "seconds": 600, "name": "pasta", "audible": false}},
+        {"args": {"seconds": 120, "name": "te"}, "result": {"ok": true, "owner": "home_assistant_intent", "id": "synthetic-te", "state": "active", "seconds": 120, "name": "te", "audible": false}}
+      ]
+    },
+    {
+      "exact_tool_name": "podvoice_timer_status",
+      "risk": "read_only",
+      "cases": [
+        {"args": {}, "result": {"ok": true, "owner": "home_assistant_intent", "restart_contract": "core_restart_clears_timers", "timers": [{"id": "synthetic-pasta", "name": "pasta", "seconds_left": 600, "state": "active"}, {"id": "synthetic-te", "name": "te", "seconds_left": 120, "state": "active"}], "finished": []}}
+      ]
+    },
+    {
+      "exact_tool_name": "podvoice_cancel_timer",
+      "risk": "low_risk",
+      "cases": [
+        {"args": {"timer_id": "synthetic-pasta"}, "result": {"ok": true, "owner": "home_assistant_intent", "id": "synthetic-pasta", "state": "cancelled"}}
+      ]
+    },
+    {
       "exact_tool_name": "GetDateTime",
       "risk": "read_only",
       "cases": [
@@ -1745,6 +1767,29 @@
             ],
             "remain_open": true
           }
+        }
+      ]
+    },
+    {
+      "id": "timer-named-multiple",
+      "description": "Isolated Danish duration/name parsing and exact timer selection; fixed fixture receipts do not prove countdown, expiry or sound.",
+      "exact_tool_names": ["podvoice_start_timer", "podvoice_timer_status", "podvoice_cancel_timer", "end_conversation"],
+      "turns": [
+        {
+          "text": "Vi skal sætte to timere, hente status og annullere den ene, ét trin ad gangen. Vent på min næste besked mellem trinnene. Begynd med en timer på ti minutter, og kald den pasta.",
+          "expect": {"decision": "podvoice_start_timer", "tool_args": {"podvoice_start_timer": {"seconds": 600, "name": "pasta"}}, "tool_outcomes": {"podvoice_start_timer": ["ok"]}, "fixture_side_effects": 1, "remain_open": true}
+        },
+        {
+          "text": "Sæt også en timer på to minutter, og kald den te.",
+          "expect": {"decision": "podvoice_start_timer", "tool_args": {"podvoice_start_timer": {"seconds": 120, "name": "te"}}, "tool_outcomes": {"podvoice_start_timer": ["ok"]}, "fixture_side_effects": 1, "remain_open": true}
+        },
+        {
+          "text": "Hvilke timere kører lige nu?",
+          "expect": {"decision": "podvoice_timer_status", "tool_args": {"podvoice_timer_status": {}}, "tool_outcomes": {"podvoice_timer_status": ["ok"]}, "fixture_side_effects": 0, "answer_all": ["pasta", "te"], "remain_open": true}
+        },
+        {
+          "text": "Annuller pasta-timeren, men lad te-timeren køre.",
+          "expect": {"decisions": ["podvoice_cancel_timer", "end_conversation"], "decision_batches": [["podvoice_cancel_timer"], ["end_conversation"]], "tool_args": {"podvoice_cancel_timer": {"timer_id": "synthetic-pasta"}}, "tool_outcomes": {"podvoice_cancel_timer": ["ok"], "end_conversation": ["ok"]}, "fixture_side_effects": 1, "remain_open": false}
         }
       ]
     }

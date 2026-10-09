@@ -15180,14 +15180,24 @@ eller fysisk musik-/lifecyclebevis foreligger ikke; rollback er installeret2.0.1
 <!-- candidate-scope-coupling
 {
   "version": 1,
-  "base_tip": "29fe602e9b7227e41b39df51aa74fed90c0ee113",
-  "merge_base": "29fe602e9b7227e41b39df51aa74fed90c0ee113",
+  "base_tip": "095d87637fdff54043cefe8f89211e8b2cf87062",
+  "merge_base": "095d87637fdff54043cefe8f89211e8b2cf87062",
   "domains": [
+    "ha_tools",
     "physical_output",
-    "realtime_semantics"
+    "realtime_semantics",
+    "rearm"
   ],
-  "fingerprint": "001b82aa7d4dd4d794d7928d080b9aae16e24b88723eba69dced8bfc43aa9962",
-  "reviewer": "ui_acceptance",
-  "rationale": "Independent whole-candidate source GO by ui_acceptance: shared partial-transfer acceptance only, with true task-complete, explicit end, both Live rules, lifecycle and adapters unchanged. Existing diagnostics are disclosed under advanced settings with private evidence and owners preserved. Exact stock-v15 migration preserves custom prompts. The existing scope workflow adds only the finite physical_output/realtime_semantics tuple; source/base/tree/reviewer/missing-regression guards remain fail-closed. All 18 files including version 2.0.11 metadata and workflow controls were reviewed. Existing 85 targeted tests and unchanged #95 daily browser PASS are retained. This exact source binding is not provider, physical, release or product acceptance."
+  "fingerprint": "b4a006d53808ef1c44adefa8ec4ecdaf7fd0efb5afbd3ad6f95d6a7f5dd45dae",
+  "reviewer": "timer_contract_review",
+  "rationale": "Independent timer/Talk source GO, exact ACK/custody and HA-native single countdown owner. Native readiness identity invalidation and existing actual-main fixture repair reviewed; corrected isolated timer scenario requires confirmed cancel before END and preserves all original49 scenarios. All product files and minimal metadata are reviewed. Targeted native bridge/router/Thin/Talk tests, actual Core2026.8.2 and same-byte browser proof retained; one normal releasegate pending. Provider and physical acceptance remain pending. The timer coupling is restricted to the concrete HA bridge/runtime/regression surface, and custom-component files join the full production fingerprint. Original diagnostic guard regression was caught and fixed; all eight unchanged candidate-scope Git shards now pass."
 }
 -->
+
+
+<!-- pv212-ha-native-timers-bulk -->
+### 9/10 — 2.0.12 samlet timerkandidat
+
+HA Core ejer navngivne/multiple device-scoped countdowns gennem den lille integration; add-on ejer kun svar og fysisk udløbslyd via eksisterende Thin output/stop/rearm. Core-genstart rydder native timere; add-on-genstart genskaber ikke countdowns. Exact completedcall-ID, epoch og endpointidentity afviser dubletter/stale; ukendt alarmkvittering bevares uden replay. Talk kræver actual source-stop-ACK med pagepeer/socket/outputgeneration og beskytter nyere output. Daglig UI tilføjer ingen testflow; availability kræver faktisk frisk bundet adapter. README beskriver minimal installation og YAML-importbegrænsning.
+
+Uafhængige sourceGO af native bridge og Talk, målrettede softwarechecks og faktisk Core2026.8.2 setup/registry/expiry/cancel/unload består; samme HTML passerer eksisterende browserexit- og reconnect/custodychecks med joinedcleanup. Root readiness- og actual-mainsettings/modekontroller består32cases efter fjernelse af fixture for dormantlokalTimerManager. Ét nyt fireturns syntetisk providerscenarie bevarer alle49 oprindelige scenarier/oracles: tydeligt ønsket videre timersekvens og endeligt bekræftet cancel→END i separatbatch. Gammelt211 musikproviderresultat er bevaret i canonical STATUS, ikke fuldsemantiskaccept. Normal lokal releasegate består: alle otte unitgrupper (tidligere beståede 1–2 bevaret), begge integrationcohorts, fire browserworkers samt diff og uændret scope. Oprindelige STOPs og afgrænsede testreparationer er bevaret. Exact-commit CI, publiceret ARM-artifact, installation og providerpreflight på faktisk deklareret endpoint afventer; fysisk serie samlet senere, ingen issue lukket.

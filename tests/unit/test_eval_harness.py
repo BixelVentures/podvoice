@@ -108,6 +108,7 @@ def _audio_source_provenance(
 def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     scenarios = load_scenarios()
     assert {s.id for s in scenarios if not s.id.startswith("stop-context-")} == {
+        "timer-named-multiple",
         "music-account-clarification",
         "music-explicit-stable-target",
         "music-transfer-unknown-no-retry",
@@ -152,6 +153,127 @@ def test_every_scenario_tool_name_has_one_explicit_canonical_fixture_contract():
     assert all(contract.risk for contract in contracts.values())
     assert all(contract.cases for contract in contracts.values())
     assert all(case.result for contract in contracts.values() for case in contract.cases)
+
+
+async def test_timer_semantic_fixture_exact_calls_have_only_isolated_effects():
+    scenario = next(row for row in load_scenarios() if row.id == "timer-named-multiple")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    tools = SafeEvalTools(
+        declarations=admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+    for index, turn in enumerate(scenario.turns):
+        decisions = list(turn.expect.decisions) or [turn.expect.decision]
+        before = tools.fixture_side_effects
+        arguments, results = {}, {}
+        for name in decisions:
+            args = turn.expect.tool_args.get(name, {})
+            result = (
+                admission.contracts[name].cases[0].result
+                if name == "end_conversation"
+                else await tools.dispatch(name, args)
+            )
+            assert result["ok"]
+            arguments[name], results[name] = [args], [result]
+        observed = TurnObservation(
+            turn_id=str(index),
+            session_id="isolated",
+            decisions=decisions,
+            decision_batches=[list(batch) for batch in turn.expect.decision_batches],
+            tool_args=arguments,
+            tool_results=results,
+            fixture_side_effects=tools.fixture_side_effects - before,
+            answer="pasta og te" if "podvoice_timer_status" in decisions else "Udført.",
+            remain_open=turn.expect.remain_open,
+        )
+        assert grade_turn(turn.expect, observed) == []
+    assert tools.fixture_side_effects == 3
+    # No callback, native timer, client or scheduler exists in the fixture adapter.
+    assert not any(hasattr(tools, attr) for attr in ("client", "timers", "manager", "_timer_tasks"))
+
+
+@pytest.mark.parametrize(
+    "name,args",
+    [
+        ("podvoice_start_timer", {"seconds": 600.0, "name": "pasta"}),
+        ("podvoice_start_timer", {"seconds": True, "name": "pasta"}),
+        ("podvoice_start_timer", {"seconds": 600, "name": "pasta", "epoch": "model-controlled"}),
+        ("podvoice_cancel_timer", {"timer_id": "stale-or-other-device"}),
+        ("podvoice_timer_status", {"endpoint": "other-device"}),
+    ],
+)
+async def test_timer_semantic_malformed_or_stale_calls_have_zero_fixture_effects(name, args):
+    scenario = next(row for row in load_scenarios() if row.id == "timer-named-multiple")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    tools = SafeEvalTools(
+        declarations=admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+    result = await tools.dispatch(name, args)
+    assert not result["ok"] and result["error_kind"] == "eval_fixture_args_mismatch"
+    assert tools.fixture_side_effects == 0
+
+
+async def test_timer_semantic_preflight_blocks_missing_endpoint_before_provider(monkeypatch):
+    snapshot = [row for row in _production_snapshot() if row["name"] != "podvoice_start_timer"]
+
+    def forbidden_factory(*_args, **_kwargs):
+        raise AssertionError("missing endpoint must block before provider creation")
+
+    monkeypatch.setattr(eval_harness, "OpenAIRealtimeSession", forbidden_factory)
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+    report = await service.run(
+        api_key="secret", scenario_ids={"timer-named-multiple"}, tool_declarations=snapshot
+    )
+    assert report["status"] == "blocked" and report["blocked"]["stage"] == "tool_admission"
+    assert "podvoice_start_timer" in report["blocked"]["reason"]
+
+
+def test_timer_semantic_oracle_rejects_duplicate_creates():
+    expected = (
+        next(row for row in load_scenarios() if row.id == "timer-named-multiple").turns[0].expect
+    )
+    args = expected.tool_args["podvoice_start_timer"]
+    observed = TurnObservation(
+        turn_id="turn",
+        session_id="isolated",
+        decisions=["podvoice_start_timer", "podvoice_start_timer"],
+        tool_args={"podvoice_start_timer": [args, args]},
+        tool_results={"podvoice_start_timer": [{"ok": True}, {"ok": True}]},
+        fixture_side_effects=2,
+        remain_open=True,
+    )
+    assert {finding.code for finding in grade_turn(expected, observed)} >= {
+        "wrong-decision",
+        "wrong-tool-outcome",
+        "wrong-fixture-side-effects",
+    }
+
+
+@pytest.mark.parametrize("same_batch,still_open", [(True, False), (False, True)])
+def test_timer_completed_cancel_requires_confirmed_result_then_close(same_batch, still_open):
+    expected = (
+        next(row for row in load_scenarios() if row.id == "timer-named-multiple").turns[3].expect
+    )
+    assert expected.decisions == ("podvoice_cancel_timer", "end_conversation")
+    assert expected.decision_batches == (("podvoice_cancel_timer",), ("end_conversation",))
+    assert expected.remain_open is False
+    observed = TurnObservation(
+        turn_id="turn",
+        session_id="isolated",
+        decisions=list(expected.decisions),
+        decision_batches=[list(expected.decisions)]
+        if same_batch
+        else [[name] for name in expected.decisions],
+        tool_args={"podvoice_cancel_timer": [expected.tool_args["podvoice_cancel_timer"]]},
+        tool_results={"podvoice_cancel_timer": [{"ok": True}], "end_conversation": [{"ok": True}]},
+        fixture_side_effects=1,
+        remain_open=still_open,
+    )
+    code = "wrong-decision-batches" if same_batch else "wrong-lifecycle"
+    assert code in {finding.code for finding in grade_turn(expected, observed)}
 
 
 def test_tool_admission_filters_injected_production_tools_without_substring_aliases():
@@ -2784,8 +2906,8 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 49
-    assert turns == 65
+    assert sessions == 50
+    assert turns == 69
     assert service._max_run_s == required
 
 
@@ -2859,11 +2981,11 @@ async def test_full_profile_accepts_measured_14_5k_each(monkeypatch):
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 49
-    assert report["budget"]["actual_tokens"] == 710_500
-    assert report["budget"]["max_actual_tokens"] == 3_900_000
+    assert calls == 50
+    assert report["budget"]["actual_tokens"] == 725_000
+    assert report["budget"]["max_actual_tokens"] == 4_140_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(260.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(276.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 

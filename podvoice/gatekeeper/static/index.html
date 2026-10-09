@@ -1516,27 +1516,63 @@ setInterval(function () {
   // through an <audio> element (which browser echo-cancellation actually covers,
   // unlike raw WebAudio). Its play/ended edges are reported back as the engine's
   // playback ground truth — driving the echo shield exactly like puck media state.
-  var replyAudio = null, currentPlaybackId = null;
-  function playReply(url, playbackId) {
-    stopReply(false);
+  // In-memory page identity: reconnect retains it; another tab/page gets a new one.
+  var replyPeerId = Array.from(crypto.getRandomValues(new Uint8Array(16)), function (b) {
+    return b.toString(16).padStart(2, "0");
+  }).join("");
+  var replyAudio = null, currentPlaybackId = null, replyPlaybackOwner = null;
+  function playReply(url, playbackId, connection, generation) {
+    if (!stopReply(false)) {
+      sendJson({type:"media", state:"fault", playback_id:playbackId});
+      return;  // Retain the old source/owner; failed cleanup cannot authorize overlap.
+    }
     var a = new Audio(); replyAudio = a; currentPlaybackId = playbackId || null;
+    replyPlaybackOwner = {connection:connection, generation:generation, playbackId:playbackId,
+      peer:replyPeerId, socket:ws, socketGeneration:socketGeneration};
     a.preload = "none";
     a.onplaying = function () { if (replyAudio !== a) return; playRetryBtn.hidden = true; sendJson({ type: "media", announcing: true, playback_id: playbackId }); };
     a.onended = function () { if (replyAudio !== a) return; sendJson({ type: "media", announcing: false, playback_id: playbackId }); currentPlaybackId = null; };
     a.onerror = function () { if (replyAudio !== a) return; sendJson({ type: "media", state: "fault", playback_id: playbackId }); currentPlaybackId = null; };
     a.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "r=" + Date.now(); // never a cached reply
-    a.play().catch(function () { sendJson({ type: "media", state: "blocked", playback_id: playbackId }); micHint.textContent = "Browseren blokerede automatisk lyd."; playRetryBtn.hidden = false; });
+    a.play().catch(function () { if (replyAudio !== a) return; sendJson({ type: "media", state: "blocked", playback_id: playbackId }); micHint.textContent = "Browseren blokerede automatisk lyd."; playRetryBtn.hidden = false; });
   }
   playRetryBtn.onclick = function () {
     if (!replyAudio) return;
     replyAudio.play().catch(function () { micHint.textContent = "Lyden er stadig blokeret. Kontrollér lydtilladelsen i browseren."; });
   };
   function stopReply(report) {
-    if (!replyAudio) return;
+    if (!replyAudio) return true;
     var playbackId = currentPlaybackId;
     var old = replyAudio; replyAudio = null; currentPlaybackId = null;
-    try { old.pause(); old.removeAttribute("src"); old.load(); } catch (e) {}
+    var stopped = false;
+    try {
+      old.pause(); old.removeAttribute("src"); old.load();
+      stopped = old.paused && !old.hasAttribute("src");
+    } catch (e) {}
+    if (!stopped) { replyAudio = old; currentPlaybackId = playbackId; }
     if (report) sendJson({ type: "media", state: "fault", playback_id: playbackId });
+    return stopped;
+  }
+  function stopOwnedReply(ev) {
+    var owner = replyPlaybackOwner;
+    var valid = !livePeer && typeof ev.stop_id === "string" && ev.stop_id.length > 0 &&
+      typeof ev.playback_connection === "string" && Number.isInteger(ev.playback_generation);
+    if (ev.recover_retired === true) {
+      valid = valid && ev.peer_id === replyPeerId && ev.playback_generation === 0 &&
+        typeof ev.playback_id === "string" && ev.playback_id.indexOf("pv-timer-") === 0;
+      if (owner) valid = valid && owner.peer === replyPeerId && owner.playbackId === ev.playback_id &&
+        (owner.socket !== ws || owner.socketGeneration !== socketGeneration);
+      else valid = valid && !replyAudio && !currentPlaybackId;
+    } else if (owner) valid = valid && owner.socket === ws && owner.socketGeneration === socketGeneration &&
+      owner.connection === ev.playback_connection && owner.generation === ev.playback_generation &&
+      (!ev.playback_id || owner.playbackId === ev.playback_id) &&
+      (!currentPlaybackId || currentPlaybackId === ev.playback_id);
+    else valid = valid && ev.playback_generation === 0 && !ev.playback_id && !replyAudio;
+    var stopped = valid && stopReply(false);
+    if (stopped) { pendingLiveRotation = null; endTurn(); }
+    sendJson({type:"playback_stopped", stop_id:ev.stop_id, playback_id:ev.playback_id || null,
+      playback_connection:ev.playback_connection, playback_generation:ev.playback_generation,
+      peer_id:ev.peer_id, stopped:!!stopped, source_detached:!!stopped});
   }
   // ---- Live WebRTC: one peer for one server-issued attempt ----
   var livePeer = null, retiredLiveAttempts = [], pendingLiveRotation = null;
@@ -1792,6 +1828,7 @@ setInterval(function () {
       if (handleLiveMessage(ev)) return;
       if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
         outRate = ev.rate; wsReady = true; lastPong = Date.now();
+        sendJson({type:"browser_hello", peer_id:replyPeerId});
         micBtn.disabled = diagnosticActive || !captureAvailable(); sendBtn.disabled = diagnosticActive;
         setState(diagnosticActive ? "systemtest" : "online", diagnosticActive ? "pill-degraded" : "pill-up");
         leaseTimer = setInterval(function () {
@@ -1825,11 +1862,8 @@ setInterval(function () {
         if (curT) curT.querySelector(".who").textContent = (ev.dir === "in" ? "you" : providerName()) + " · Live-segment";
       }
       else if (ev.type === "transcript") { if (curSegmentId) endTurn(); streamT(ev.dir === "in" ? "in" : "out", ev.text); }
-      else if (ev.type === "play") { if (livePeer || halted || !talkVisible()) return; halted = false; playReply(ev.url, ev.playback_id); }
-      else if (ev.type === "stop_playback") {
-        pendingLiveRotation = null;
-        if (!ev.playback_id || ev.playback_id === currentPlaybackId) { stopReply(false); endTurn(); }
-      }
+      else if (ev.type === "play") { if (livePeer || halted || !talkVisible()) return; halted = false; playReply(ev.url, ev.playback_id, ev.playback_connection, ev.playback_generation); }
+      else if (ev.type === "stop_playback") { stopOwnedReply(ev); }
       else if (ev.type === "mic") {
         if (!ev.on) micStop();
         else micBtn.classList.add("live");

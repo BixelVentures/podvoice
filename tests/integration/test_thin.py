@@ -1284,6 +1284,8 @@ def _build_talk_session(brain):
 
     async def send_json(payload: dict) -> None:
         sent.append(payload)
+        if payload.get("type") == "stop_playback":
+            link.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(payload: bytes) -> None:
         audio.append(payload)
@@ -1434,6 +1436,8 @@ async def test_diagnostic_busy_talk_connect_rejects_without_provider_turn():
 
     async def send_json(payload: dict) -> None:
         sent.append(payload)
+        if payload.get("type") == "stop_playback":
+            link.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(_payload: bytes) -> None:
         return None
@@ -1917,10 +1921,11 @@ async def test_talk_stale_interruption_cannot_silence_a_new_playback(monkeypatch
     release_stop = asyncio.Event()
 
     async def send_json(payload: dict) -> None:
+        sent.append(dict(payload))
         if payload.get("type") == "stop_playback":
             stop_started.set()
             await release_stop.wait()
-        sent.append(dict(payload))
+            voicepe.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(_payload: bytes) -> None:
         return None
@@ -1954,6 +1959,10 @@ async def test_talk_stale_interruption_cannot_silence_a_new_playback(monkeypatch
         barge = session._barge_task
         assert barge is not None
         await stop_started.wait()
+        # The browser has stopped A before B may own output; keep the delayed
+        # write/old barge continuation to exercise its stale-lease guard.
+        stop_a = next(event for event in sent if event.get("type") == "stop_playback")
+        voicepe.receive_playback_stop({**stop_a, "stopped": True, "source_detached": True})
 
         session._invalidate_playback_lease("test-next-playback")
         lease_b = session._arm_playback_lease(item_id="b", kind="reply")
@@ -2093,6 +2102,8 @@ async def test_talk_stale_interruption_cannot_overwrite_b_while_a_truncate_waits
 
     async def send_json(payload: dict) -> None:
         sent.append(dict(payload))
+        if payload.get("type") == "stop_playback":
+            voicepe.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(_payload: bytes) -> None:
         return None
@@ -3398,6 +3409,8 @@ async def test_failed_terminal_response_closes_silently_in_talk(monkeypatch):
 
     async def send_json(payload: dict) -> None:
         sent.append(payload)
+        if payload.get("type") == "stop_playback":
+            link.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(_payload: bytes) -> None:
         return None
@@ -3821,6 +3834,8 @@ async def test_talk_and_voicepe_share_the_same_lifecycle_contract():
 
     async def send_json(payload: dict) -> None:
         sent.append(payload)
+        if payload.get("type") == "stop_playback" and isinstance(adapter, BrowserLink):
+            adapter.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(_payload: bytes) -> None:
         return None

@@ -1305,6 +1305,7 @@ class SafeEvalTools:
         # production_tool_snapshot; these zero fingerprints cannot authorize HA.
         return [
             *target_declarations((), tuple((name, "0" * 64) for name in target_tools)),
+            *SafeEvalTools._timer_fixture_declarations(),
             {
                 "name": "GetDateTime",
                 "description": "Get the current date and time from Home Assistant.",
@@ -1368,6 +1369,33 @@ class SafeEvalTools:
 
     def declarations(self) -> list[dict[str, Any]]:
         return json.loads(json.dumps(self._declarations))
+
+    @staticmethod
+    def _timer_fixture_declarations() -> list[dict[str, Any]]:
+        """Offline schemas only; live admission requires the actual bound HA snapshot."""
+        properties = {
+            "podvoice_start_timer": {
+                "seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+                "name": {"type": "string", "maxLength": 120},
+            },
+            "podvoice_timer_status": {},
+            "podvoice_cancel_timer": {
+                "timer_id": {"type": "string", "minLength": 1, "maxLength": 200}
+            },
+        }
+        return [
+            {
+                "name": name,
+                "description": "Synthetic offline timer fixture; no countdown or home effects.",
+                "parameters": {
+                    "type": "object",
+                    "properties": fields,
+                    "required": ["seconds"] if name == "podvoice_start_timer" else list(fields),
+                    "additionalProperties": False,
+                },
+            }
+            for name, fields in properties.items()
+        ]
 
     def begin_turn(self, turn_id: str) -> None:
         if self._active_turn_id is not None:
@@ -1460,6 +1488,18 @@ class SafeEvalTools:
             return self._challenge(name, args)
         if name == "approve_action":
             return self._approve(args)
+        if (
+            name in {"podvoice_start_timer", "podvoice_timer_status", "podvoice_cancel_timer"}
+            and contract is not None
+        ):
+            # Fixed synthetic receipts only: never a local timer, HA client or router.
+            if name == "podvoice_start_timer" and type(args.get("seconds")) is not int:
+                return {"ok": False, "error_kind": "eval_fixture_args_mismatch"}
+            fixture_result = next(case.result for case in contract.cases if case.args == args)
+            self.fixture_side_effects += int(
+                name != "podvoice_timer_status" and fixture_result.get("ok") is True
+            )
+            return json.loads(json.dumps(fixture_result))
         if name == "GetDateTime":
             if args:
                 return {

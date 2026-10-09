@@ -1,0 +1,58 @@
+timer_status:
+  name: Timerstatus
+  description: PodVoice HA-owned timer contract v1. Read exact endpoint timers and pending expiry receipts.
+  fields:
+    endpoint:
+      required: true
+      selector:
+        text:
+timer_command:
+  name: Timer
+  description: PodVoice HA-owned timer contract v1. A complete request uses the current Core epoch and an immutable caller request ID.
+  fields:
+    endpoint:
+      required: true
+      selector:
+        text:
+    epoch:
+      required: true
+      selector:
+        text:
+    request_id:
+      required: true
+      selector:
+        text:
+    action:
+      required: true
+      selector:
+        select:
+          options:
+            - start
+            - cancel
+            - acknowledge_finished
+            - claim_alert
+            - report_alert
+    seconds:
+      selector:
+        number:
+          min: 1
+          max: 86400
+          mode: box
+    name:
+      selector:
+        text:
+    timer_id:
+      selector:
+        text:
+    language:
+      selector:
+        text:
+    alert_id:
+      selector:
+        text:
+    phase:
+      selector:
+        text:
+    sink_id:
+      selector:
+        text:

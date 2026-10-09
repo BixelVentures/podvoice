@@ -39,6 +39,8 @@ from .device_control import (
     TOOL_NAMES as DEVICE_TOOL_NAMES,
 )
 from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
+from .ha_timers import TOOLS as TIMER_TOOLS
+from .ha_timers import HomeAssistantTimers
 from .mcp_client import HomeAssistantMCP, McpError
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
 from .weather_result import compact_weather_result
@@ -291,6 +293,7 @@ class ToolRouter:
         self._entity_index: dict[str, tuple[_CanonicalEntity, ...]] = {}
         self._entity_index_at = 0.0
         self._entity_lock = asyncio.Lock()
+        self.timers = HomeAssistantTimers(client, supervisor_token)
 
     # ------------------------------------------------------------------ startup
     healthy: bool = True  # last REAL-probe outcome; wake speaks up when False
@@ -332,6 +335,7 @@ class ToolRouter:
             ):
                 raise ValueError("HA services response is not a list of objects")
             discovered: set[str] = set()
+            self.timers.discover(domains)
             target_contracts: tuple[tuple[str, str], ...] = ()
             for domain in domains:
                 if domain.get("domain") != "podconnect":
@@ -372,6 +376,7 @@ class ToolRouter:
                 ", ".join(sorted(discovered)) or "none",
             )
         except Exception as e:
+            self.timers.discover([])
             snap = self._discovery
             self._discovery = _DiscoverySnapshot(
                 generation=snap.generation + 1,
@@ -718,6 +723,9 @@ class ToolRouter:
             + self._device_control.declarations()
         )
 
+    def timer_declarations(self, endpoint: str) -> list[dict]:
+        return self.timers.declarations(endpoint)
+
     @staticmethod
     def _compose_declarations(
         mcp_tools: tuple[dict[str, Any], ...] | list[dict[str, Any]],
@@ -790,6 +798,11 @@ class ToolRouter:
         """
         decls = self.declarations()
         names = [str(d.get("name", "")) for d in decls if d.get("name")]
+        timer_endpoints = {
+            endpoint: self.timers.available(endpoint) for endpoint in self.timers.bindings
+        }
+        timer_names = sorted(TIMER_TOOLS) if any(timer_endpoints.values()) else []
+        names.extend(name for name in timer_names if name not in names)
 
         current = self._discovery.retry_state in {"ready", "disabled"}
         declared_roles: set[str] = set()
@@ -819,12 +832,14 @@ class ToolRouter:
         # Transport-only controls (pause, volume, next) remain useful detailed
         # capabilities, but must not turn the aggregate music promise green.
         role_tools["music"] = list(role_tools["music_playback"])
+        role_tools["timers"] = timer_names
 
         caps = {
             "tools": names,
             "count": len(names),
             "time": "time" in declared_roles,
-            "timers": "timers" in declared_roles,
+            "timers": bool(timer_names),
+            "timer_endpoints": timer_endpoints,
             "home": bool(role_tools["home"]),
             "web_search": "web_search" in declared_roles,
             "weather": "weather" in declared_roles,
@@ -837,7 +852,7 @@ class ToolRouter:
         caps["setup_hints"] = {key: _STANDARD_CAPABILITY_HINTS[key] for key in missing}
         caps["sources"] = {
             "time": "ha_mcp" if caps["time"] else "missing",
-            "timers": "ha_mcp" if caps["timers"] else "pending_ha_adapter",
+            "timers": "ha_native" if caps["timers"] else "pending_ha_adapter",
             "home": "ha_mcp" if caps["home"] else "missing",
             "web_search": "ha_mcp" if caps["web_search"] else "missing",
             "weather": "ha_mcp" if caps["weather"] else "missing",
@@ -857,6 +872,8 @@ class ToolRouter:
         approval_token: str | None = None,
         expected_declaration_sha256: str | None = None,
         execution_guard: Callable[[], bool] | None = None,
+        timer_endpoint: str = "",
+        completed_call_id: str = "",
     ) -> dict:
         # One lease spans schema verification, target resolution, policy and the
         # physical MCP send. Discovery cannot replace a same-name contract between
@@ -869,6 +886,8 @@ class ToolRouter:
                 approval_token=approval_token,
                 expected_declaration_sha256=expected_declaration_sha256,
                 execution_guard=execution_guard,
+                timer_endpoint=timer_endpoint,
+                completed_call_id=completed_call_id,
             )
 
     async def _dispatch_locked(
@@ -880,10 +899,12 @@ class ToolRouter:
         approval_token: str | None = None,
         expected_declaration_sha256: str | None = None,
         execution_guard: Callable[[], bool] | None = None,
+        timer_endpoint: str = "",
+        completed_call_id: str = "",
     ) -> dict:
         if execution_guard is not None and not execution_guard():
             return self._stale_execution()
-        current_declarations = self.declarations()
+        current_declarations = self.declarations() + self.timer_declarations(timer_endpoint)
         declaration = next((item for item in current_declarations if item.get("name") == name), {})
         current_declaration_sha256 = (
             self._schema_sha256_for_declarations([declaration]) if declaration else None
@@ -914,6 +935,34 @@ class ToolRouter:
                 approval_token,
                 execution_guard=execution_guard,
             )
+        if name in TIMER_TOOLS:
+            denied = self.execution_policy.authorize(
+                name,
+                dispatch_args,
+                context=execution_context,
+                trusted_risk=Risk.READ_ONLY if name == "podvoice_timer_status" else Risk.LOW_RISK,
+            )
+            if denied is not None:
+                self._log_tool(name, denied, dispatch_args)
+                return denied
+            if execution_guard is not None and not execution_guard():
+                return self._stale_execution()
+            try:
+                result = await asyncio.wait_for(
+                    self.timers.dispatch(
+                        name,
+                        dispatch_args,
+                        timer_endpoint,
+                        execution_context.session_id if execution_context else "",
+                        completed_call_id,
+                        execution_guard,
+                    ),
+                    timeout=C.TOOL_TIMEOUT_S,
+                )
+            except TimeoutError:
+                result = {"ok": False, "error_kind": "unknown_outcome", "retry_allowed": False}
+            self._log_tool(name, result, dispatch_args)
+            return result
         if declaration:
             prepared = await self._prepare_execution(name, dispatch_args)
             if prepared.error is not None:

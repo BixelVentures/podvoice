@@ -1,0 +1,11 @@
+{
+  "domain": "podvoice",
+  "name": "PodVoice",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/BixelVentures/podvoice",
+  "issue_tracker": "https://github.com/BixelVentures/podvoice/issues",
+  "codeowners": [],
+  "dependencies": ["intent"],
+  "iot_class": "local_push"
+}
