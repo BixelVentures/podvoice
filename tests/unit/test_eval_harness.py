@@ -155,42 +155,105 @@ def test_every_scenario_tool_name_has_one_explicit_canonical_fixture_contract():
     assert all(case.result for contract in contracts.values() for case in contract.cases)
 
 
-async def test_timer_semantic_fixture_exact_calls_have_only_isolated_effects():
+@pytest.mark.parametrize("outcome", ["complete", "duplicate_create", "missing_end"])
+async def test_timer_semantic_four_turn_session_observes_cumulative_effects(outcome):
     scenario = next(row for row in load_scenarios() if row.id == "timer-named-multiple")
     admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
-    tools = SafeEvalTools(
-        declarations=admission.declarations,
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        tool_declarations=admission.declarations,
         admitted_names=set(admission.contracts),
         fixture_contracts=admission.contracts,
     )
-    for index, turn in enumerate(scenario.turns):
-        decisions = list(turn.expect.decisions) or [turn.expect.decision]
-        before = tools.fixture_side_effects
-        arguments, results = {}, {}
-        for name in decisions:
-            args = turn.expect.tool_args.get(name, {})
-            result = (
-                admission.contracts[name].cases[0].result
-                if name == "end_conversation"
-                else await tools.dispatch(name, args)
+
+    class ScriptedProvider:
+        def __init__(self):
+            self.turn_index = 0
+            self.sent_results = []
+
+        async def send_text(self, text):
+            index = self.turn_index
+            self.turn_index += 1
+            turn = scenario.turns[index]
+            assert text == turn.text
+            batches = [list(batch) for batch in turn.expect.decision_batches] or [
+                [turn.expect.decision]
+            ]
+            if outcome == "duplicate_create" and index == 1:
+                batches[0].append("podvoice_start_timer")
+            if outcome == "missing_end" and index == 3:
+                batches = batches[:1]
+            for round_index, batch in enumerate(batches):
+                response_id = f"timer-{index}-round-{round_index}"
+                for call_index, name in enumerate(batch):
+                    driver.events.put_nowait(
+                        eval_harness.ToolCall(
+                            f"{response_id}-call-{call_index}",
+                            name,
+                            turn.expect.tool_args.get(name, {}),
+                            response_id=response_id,
+                            batch_id=response_id,
+                            batch_index=call_index,
+                            batch_size=len(batch),
+                        )
+                    )
+                driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id=response_id))
+            answer_id = f"timer-{index}-answer"
+            driver.events.put_nowait(
+                eval_harness.OutputTranscript(
+                    "pasta og te" if index == 2 else "Udført.",
+                    response_id=answer_id,
+                    generation=index + 1,
+                )
             )
-            assert result["ok"]
-            arguments[name], results[name] = [args], [result]
-        observed = TurnObservation(
-            turn_id=str(index),
-            session_id="isolated",
-            decisions=decisions,
-            decision_batches=[list(batch) for batch in turn.expect.decision_batches],
-            tool_args=arguments,
-            tool_results=results,
-            fixture_side_effects=tools.fixture_side_effects - before,
-            answer="pasta og te" if "podvoice_timer_status" in decisions else "Udført.",
-            remain_open=turn.expect.remain_open,
-        )
-        assert grade_turn(turn.expect, observed) == []
-    assert tools.fixture_side_effects == 3
-    # No callback, native timer, client or scheduler exists in the fixture adapter.
-    assert not any(hasattr(tools, attr) for attr in ("client", "timers", "manager", "_timer_tasks"))
+            driver.events.put_nowait(
+                eval_harness.TurnComplete(
+                    status="completed", response_id=answer_id, generation=index + 1
+                )
+            )
+
+        async def send_tool_results(self, results):
+            self.sent_results.append(results)
+
+    provider = ScriptedProvider()
+    driver.session = provider  # type: ignore[assignment]
+    driver.session_id = "isolated-timer-session"
+    driver.is_open = True
+    observations, findings = [], []
+    for index, turn in enumerate(scenario.turns):
+        # Use the real driver's turn admission, tool-batch dispatch and final observation.
+        observed = await driver.submit_text(turn_id=str(index), text=turn.text)
+        assert observed.response_status == "completed" and observed.error is None
+        observations.append(observed)
+        findings.append({finding.code for finding in grade_turn(turn.expect, observed)})
+    assert [turn.expect.fixture_side_effects for turn in scenario.turns] == [1, 2, 2, 3]
+    expected_counts = [1, 3, 3, 4] if outcome == "duplicate_create" else [1, 2, 2, 3]
+    assert [row.fixture_side_effects for row in observations] == expected_counts
+    assert driver.tools.fixture_side_effects == expected_counts[-1]
+    if outcome == "complete":
+        assert findings == [set(), set(), set(), set()]
+        assert observations[-1].decision_batches == [
+            ["podvoice_cancel_timer"],
+            ["end_conversation"],
+        ]
+        assert not observations[-1].remain_open
+    elif outcome == "duplicate_create":
+        assert findings[0] == set()
+        assert findings[1] >= {
+            "wrong-decision",
+            "wrong-tool-outcome",
+            "wrong-fixture-side-effects",
+        }
+        assert all("wrong-fixture-side-effects" in row for row in findings[1:])
+    else:
+        assert findings[:3] == [set(), set(), set()]
+        assert "wrong-fixture-side-effects" not in findings[-1]
+        assert findings[-1] >= {"wrong-decision-order", "wrong-decision-batches", "wrong-lifecycle"}
+        assert observations[-1].remain_open
+    # Fixture effects are counters only: no native timer, client or scheduler is instantiated.
+    assert not any(
+        hasattr(driver.tools, attr) for attr in ("client", "timers", "manager", "_timer_tasks")
+    )
 
 
 @pytest.mark.parametrize(
@@ -269,7 +332,7 @@ def test_timer_completed_cancel_requires_confirmed_result_then_close(same_batch,
         else [[name] for name in expected.decisions],
         tool_args={"podvoice_cancel_timer": [expected.tool_args["podvoice_cancel_timer"]]},
         tool_results={"podvoice_cancel_timer": [{"ok": True}], "end_conversation": [{"ok": True}]},
-        fixture_side_effects=1,
+        fixture_side_effects=3,
         remain_open=still_open,
     )
     code = "wrong-decision-batches" if same_batch else "wrong-lifecycle"

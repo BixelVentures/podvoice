@@ -256,7 +256,7 @@ def test_speaker_path_defaults_to_the_proven_announce_path():
     assert from_options({"speaker_path": "direct"}).speaker_path == "announce"
 
 
-@pytest.mark.parametrize("version", [8, 9, 10, 11, 12, 13, 14, 15])
+@pytest.mark.parametrize("version", [8, 9, 10, 11, 12, 13, 14, 15, 16])
 def test_saved_stock_prompt_migrates_but_custom_prompt_survives(tmp_path, version):
     from pathlib import Path
 
@@ -264,8 +264,19 @@ def test_saved_stock_prompt_migrates_but_custom_prompt_survives(tmp_path, versio
 
     old = (Path(__file__).parents[1] / "fixtures" / f"prompt_v{version}.txt").read_text().strip()
     path = tmp_path / "settings.json"
-    path.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "system_prompt": old}))
-    assert S.load_settings(path)["system_prompt"] == SYSTEM_PROMPT_DA
-    custom = old + "\nMin særlige instruktion."
-    path.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "system_prompt": custom}))
-    assert S.load_settings(path)["system_prompt"] == custom
+    values = {"settings_version": S.SETTINGS_VERSION, "duck_level": 7, "idle_timeout_s": 6}
+    for saved_prompt, expected in (
+        (old, SYSTEM_PROMPT_DA),
+        (old + "\nMin særlige instruktion.", old + "\nMin særlige instruktion."),
+    ):
+        path.write_text(json.dumps({**values, "system_prompt": saved_prompt}))
+        before = path.read_bytes()
+        loaded = S.load_settings(path)
+        assert loaded["system_prompt"] == expected
+        assert {key: loaded[key] for key in values} == values
+        assert path.read_bytes() == before  # projection is read-only
+        persisted = S.save_settings({}, path)
+        assert persisted["system_prompt"] == expected
+        assert {key: persisted[key] for key in values} == values
+        assert json.loads(path.read_text())["system_prompt"] == expected
+        assert path.with_name(path.name + ".bak").read_bytes() == before

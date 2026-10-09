@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v16_is_prioritized_and_model_owned():
+def test_v17_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 16
+    assert PROMPT_VERSION == 17
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -129,3 +129,23 @@ def test_quiet_acknowledgement_and_meaningful_politeness_have_aligned_contracts(
     assert "acceptance of an offer or pending confirmation" in description
     assert "words are unclear" in description
     assert "never hide a task result or error" in description
+
+
+def test_finite_cross_turn_action_sequence_closes_only_after_final_confirmed_action():
+    from gatekeeper.thin import END_CONVERSATION_DECLARATION
+
+    prompt = SYSTEM_PROMPT_DA.lower()
+    description = END_CONVERSATION_DECLARATION["description"].lower()
+    assert "vent mellem trinnene" in prompt and "wait between steps when asked" in description
+    assert (
+        "efter sidste bekræftede handling" in prompt
+        and "after the final confirmed action" in description
+    )
+    assert "ingen opgave, spørgsmål eller ønsket dialog resterer" in prompt
+    assert "no task, question or requested dialogue remains" in description
+    assert (
+        "proces, som skal fortsætte som aftalt, er ikke i sig selv en resterende opgave" in prompt
+    )
+    assert "process meant to continue is not itself a remaining task" in description
+    assert "kald aldrig opgaven og end_conversation i samme batch" in prompt
+    assert "unknown outcomes" in description

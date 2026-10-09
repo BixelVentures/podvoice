@@ -1,3 +1,9 @@
+## 2.0.13 — finish agreed action sequences
+
+- Clarify model-owned closing after the last confirmed step in an agreed finite sequence, while keeping unfinished tasks, questions and requested dialogue open.
+- Migrate only the unchanged default prompt to version 17; preserve customized prompts and existing settings.
+- Correct the timer preflight fixture to use the existing cumulative session counter, retaining the requirement for a model-selected ending after the final cancellation.
+
 ## 2.0.12 — HA-owned timers and exact alarm cleanup
 
 - Start, inspect and cancel named device-scoped timers through Home Assistant's native timer manager and a small optional integration. Preserve countdowns across add-on restart; report honestly that a Core restart clears them.
