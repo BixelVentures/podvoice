@@ -11,6 +11,7 @@ import pytest
 
 from gatekeeper import constants as C
 from gatekeeper import podconnect_targets as targets
+from gatekeeper.data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
 from gatekeeper.execution_policy import Risk, assess_tool
 from gatekeeper.tools import ToolRouter
 
@@ -516,7 +517,10 @@ async def test_room_reader_uses_strongest_present_route_with_one_canonical_tool(
     router, client = await make_router(peer)
     try:
         result = await router.dispatch("podconnect_get_targets", {"config_entry_id": "A"})
-        assert result == {"ok": True, "data": data}
+        expected = copy.deepcopy(data)
+        expected["targets"][0]["binding"] = {"ready": True, "room_id": "room-B"}
+        assert result == {"ok": True, "data": expected}
+        assert data["targets"][0]["binding"]["incarnation"] == "i"
         route = ("get_targets", "get_targets_with_context", "get_targets_with_room_context")[
             profile - 1
         ]
@@ -646,3 +650,158 @@ async def test_held_room_catalog_refresh_retires_old_route_before_post(profiles)
         if task is not None and not task.done():
             await task
         await client.aclose()
+
+
+def nine_target_catalog(*, oversized=False):
+    """Inert nine-row owner/metadata shape; no private room or device identities."""
+    rows = []
+    for i in range(2):
+        rows.append(
+            {
+                "kind": "spotify_device",
+                "target_id": f"spotify-{i}-" + "s" * 32,
+                "name": f"Cloud speaker {i}",
+                "restricted": bool(i),
+                "ha_context": {
+                    "entity_id": f"media_player.fixture_{i}",
+                    "name": f"Fixture speaker {i}",
+                    "aliases": ["Sproglig højttaler"],
+                    "area": {"id": "study", "name": "Study", "aliases": ["Office"]},
+                },
+            }
+        )
+    for i in range(3):
+        rows.append(
+            {
+                "kind": "configured_alias",
+                "target_id": f"r{i}",
+                "name": f"Speaker {i}",
+                "homepod_id": str(111111111111111 + i),
+                "binding": {
+                    "ready": True,
+                    "room_id": "r0",
+                    "incarnation": "i" * 32,
+                    "registry": "r" * 64,
+                },
+                "ha_area": {"id": f"area-{i}", "name": "Værelse", "aliases": ["Room"]},
+            }
+        )
+    for i in range(4):
+        rows.append(
+            {
+                "kind": "observed_output",
+                "target_id": f"output-{i}",
+                "name": f"Observed {i}",
+                "selected": i == 0,
+                "needs_auth": i == 1,
+                "query_up": True,
+                "read_only": True,
+            }
+        )
+    if oversized:
+        rows[0]["ha_context"]["aliases"] = ["🌍" * 120] * 4
+    return {"config_entry_id": "A", "targets": rows, "errors": {}}
+
+
+def expected_model_catalog(raw):
+    expected = copy.deepcopy(raw)
+    for row in expected["targets"]:
+        if row["kind"] == "configured_alias":
+            row["binding"] = {key: row["binding"][key] for key in ("ready", "room_id")}
+    return expected
+
+
+def test_complete_catalog_projection_keeps_every_identity_language_status_and_input():
+    raw = nine_target_catalog()
+    original = copy.deepcopy(raw)
+    assert tool_result_size({"ok": True, "data": raw}) > MAX_TOOL_RESULT_BYTES
+    result = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": "A"},
+        raw,
+        selected_service="get_targets_with_room_context",
+    )
+    assert result == {"ok": True, "data": expected_model_catalog(original)}
+    assert len(result["data"]["targets"]) == 9
+    assert tool_result_size(result) <= MAX_TOOL_RESULT_BYTES
+    assert raw == original
+
+
+@pytest.mark.parametrize("invalid", ["missing", "empty", "type", "not_ready"])
+def test_full_binding_must_be_valid_before_any_projection(invalid):
+    raw = nine_target_catalog()
+    binding = raw["targets"][2]["binding"]
+    if invalid == "missing":
+        binding.pop("registry")
+    elif invalid == "empty":
+        binding["incarnation"] = ""
+    elif invalid == "type":
+        binding["registry"] = True
+    else:
+        binding["ready"] = False
+    original = copy.deepcopy(raw)
+    result = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": "A"},
+        raw,
+        selected_service="get_targets_with_room_context",
+    )
+    assert result["error_kind"] == "invalid_response"
+    assert raw == original
+
+
+@pytest.mark.parametrize("extra_byte", [0, 1])
+def test_complete_target_projection_obeys_exact_utf8_boundary(extra_byte):
+    raw = nine_target_catalog()
+    expected = {"ok": True, "data": expected_model_catalog(raw)}
+    padding = MAX_TOOL_RESULT_BYTES - tool_result_size(expected) + extra_byte
+    assert padding >= 0
+    # Existing multibyte names/aliases remain intact; exact ASCII tail hits the wire boundary.
+    raw["targets"][0]["name"] += "x" * padding
+    original = copy.deepcopy(raw)
+    result = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": "A"},
+        raw,
+        selected_service="get_targets_with_room_context",
+    )
+    if extra_byte:
+        assert result["ok"] is False and result["error_kind"] == "result_too_large"
+        assert "data" not in result and "result_truncated" not in result
+    else:
+        assert result == {"ok": True, "data": expected_model_catalog(raw)}
+        assert tool_result_size(result) == MAX_TOOL_RESULT_BYTES
+    assert raw == original
+
+
+def test_multibyte_overbudget_catalog_is_honest_not_partial_success():
+    raw = nine_target_catalog(oversized=True)
+    original = copy.deepcopy(raw)
+    assert (
+        tool_result_size({"ok": True, "data": expected_model_catalog(raw)}) > MAX_TOOL_RESULT_BYTES
+    )
+    result = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": "A"},
+        raw,
+        selected_service="get_targets_with_room_context",
+    )
+    assert result["ok"] is False and result["error_kind"] == "result_too_large"
+    assert tool_result_size(result) <= MAX_TOOL_RESULT_BYTES
+    assert raw == original
+
+
+def test_account_list_and_full_native_move_receipt_remain_unchanged():
+    accounts = {"accounts": [{"config_entry_id": "A", "title": "Account"}]}
+    assert targets.result("podconnect_get_targets", {}, accounts) == {"ok": True, "data": accounts}
+    move = {
+        "kind": "configured_alias",
+        "target_id": "r1",
+        "accepted_local": True,
+        "binding": {"ready": True, "room_id": "r1", "incarnation": "i" * 32, "registry": "r" * 64},
+    }
+    assert targets.result(
+        "podconnect_move_playback",
+        {"config_entry_id": "A", "kind": "configured_alias", "target_id": "r1"},
+        move,
+    ) == {"ok": True, "data": move}

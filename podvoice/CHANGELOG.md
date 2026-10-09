@@ -1,3 +1,8 @@
+## 2.0.18 - bounded recovery and readable playback targets
+
+- Bound complete HA service discovery and MCP tool-list reads with the existing operation deadline, so progressing incomplete responses cannot hold recovery indefinitely.
+- Keep complete playback target rows within the existing provider result budget by omitting opaque binding hashes after full validation. Oversized catalogs report a clear failure; move authorization still uses fresh server-side bindings.
+
 ## 2.0.17 - configured speakers with verified HA rooms
 
 - Read explicit account-scoped HA room associations for current configured speaker targets through the compatible room-context service; retain older Control profiles and stable typed target IDs.

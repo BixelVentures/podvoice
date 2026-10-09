@@ -310,3 +310,104 @@ def test_schemas_are_detached_and_only_three_existing_tools_gain_local_limit():
         == 5
     )
     assert upstream == before
+
+
+@pytest.mark.parametrize("adapter", ["live", "realtime"])
+@pytest.mark.parametrize("oversized", [False, True])
+async def test_complete_target_projection_reaches_actual_adapter_wire(adapter, oversized):
+    from test_podconnect_target_tools import (
+        expected_model_catalog,
+        make_router,
+        nine_target_catalog,
+        room_context_service_page,
+    )
+
+    raw = nine_target_catalog(oversized=oversized)
+    original = copy.deepcopy(raw)
+    posts = []
+
+    async def peer(request):
+        if request.method == "GET":
+            return httpx.Response(200, json=room_context_service_page())
+        posts.append(request)
+        assert request.url.path == "/core/api/services/podconnect/get_targets_with_room_context"
+        assert json.loads(request.content) == {"config_entry_id": "A"}
+        return httpx.Response(200, json={"service_response": raw})
+
+    router, client = await make_router(peer)
+    try:
+        result = await router.dispatch("podconnect_get_targets", {"config_entry_id": "A"})
+        if adapter == "live":
+            from test_openai_live import SDK, call, stage
+
+            from gatekeeper.openai_live import OpenAILiveSession
+            from gatekeeper.provider_budget import ProviderBudgetCoordinator
+
+            sdk = SDK()
+            brain = OpenAILiveSession(
+                "inert-fixture",
+                tool_declarations=router.declarations(),
+                client_factory=sdk.factory,
+                provider_budget=ProviderBudgetCoordinator(),
+                timeout_s=0.2,
+            )
+            await brain.connect()
+            try:
+                await stage(
+                    brain,
+                    [call(name="podconnect_get_targets", arguments='{"config_entry_id":"A"}')],
+                )
+                await brain.admit_tool_batch("r1", 1)
+                await brain.send_tool_results(
+                    "r1", [{"id": "c1", "response": result}], generation=1
+                )
+                wire = sdk.response.item.create.await_args.kwargs["item"]
+                assert wire["type"] == "function_call_output" and wire["call_id"] == "c1"
+                assert sdk.response.item.create.await_count == 1
+            finally:
+                await brain.close()
+        else:
+            from test_eval_commit_capacity import completed_batch
+            from test_production_capacity import Rig
+
+            rig = Rig(used=0)
+            rig.brain.tool_declarations = router.declarations()
+            events = completed_batch()
+            events[0].update(name="podconnect_get_targets", arguments='{"config_entry_id":"A"}')
+            await rig.start(events)
+            submission = None
+            try:
+                await rig.brain.admit_tool_batch("resp_capacity", 1)
+                submission = asyncio.create_task(
+                    rig.brain.send_tool_results(
+                        [
+                            {
+                                "id": "capacity_call",
+                                "name": "podconnect_get_targets",
+                                "response": result,
+                            }
+                        ]
+                    )
+                )
+                wire = await asyncio.wait_for(rig.wire.outputs.get(), 1)
+                await rig.wire.emit({"type": "conversation.item.added", "item": wire})
+                await asyncio.wait_for(submission, 1)
+                assert len([e for e in rig.wire.sent if e["type"] == "response.create"]) == 1
+            finally:
+                if submission is not None:
+                    submission.cancel()
+                    await asyncio.gather(submission, return_exceptions=True)
+                await rig.close()
+        received = json.loads(wire["output"])
+        assert received == result
+        assert len(wire["output"].encode()) <= MAX_TOOL_RESULT_BYTES == 2048
+        assert "result_truncated" not in received
+        if oversized:
+            assert not received["ok"] and received["error_kind"] == "result_too_large"
+            assert "data" not in received
+        else:
+            assert received == {"ok": True, "data": expected_model_catalog(original)}
+            assert len(received["data"]["targets"]) == 9
+        assert len(posts) == 1 and raw == original
+    finally:
+        await client.aclose()
