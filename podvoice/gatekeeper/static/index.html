@@ -162,7 +162,6 @@
                  border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   /* keep flex children from overflowing the column (dropdowns/inputs can't push wider) */
   .crow select, .crow input { min-width: 0; max-width: 100%; }
-  #cmodel { max-width: 460px; }  /* don't let a long model name stretch the whole row */
 
   /* Tabs */
   .tabs { display: grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
@@ -287,7 +286,6 @@
     .tabbtn { padding-inline:8px; }
     .crow { flex-wrap:wrap; }
     #ctext { flex:1 1 calc(100% - 72px); }
-    #cmodel { max-width:100%; }
     table { font-size:.76rem !important; }
     .section > h2 { flex-wrap:wrap; gap:8px; }
   }
@@ -363,10 +361,6 @@
     <div class="section">
       <h2><span id="ctitle">Tal med PodVoice</span> <span id="cstate" class="pill pill-down" role="status" aria-live="polite">offline</span></h2>
       <div class="talk-stage" id="cstage"><strong id="cstage_title">Klar</strong><p class="sub" id="cstage_next">Tryk på mikrofonen for at starte.</p></div>
-      <details class="adv" style="margin-bottom:12px"><summary>Model og stemme for denne session</summary><div class="crow">
-        <select id="cmodel" aria-label="Model"></select>
-        <select id="cvoice" aria-label="Stemme" style="flex:0 0 auto;width:150px" title="Stemme"></select>
-      </div></details>
       <div id="clog" class="tx" role="log" aria-label="Samtale" style="min-height:220px;max-height:52vh"></div>
       <span id="turn_announce" class="screenreader" role="status" aria-live="polite"></span>
       <div class="talk-actions"><div class="crow">
@@ -454,12 +448,12 @@
           <select id="s_engine" hidden>
             <option value="thin">PodVoice Realtime &mdash; én sammenhængende samtale</option>
           </select>
-          <label for="s_openai_model">Model</label>
+          <label for="s_openai_model">Realtime-model</label>
           <select id="s_openai_model">
             <option value="gpt-realtime-2.1">GPT Realtime 2.1 (standardkvalitet)</option>
             <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (lavere pris)</option>
           </select>
-          <label for="s_openai_voice">Stemme</label>
+          <label for="s_openai_voice">Realtime-stemme</label>
           <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
           <label for="s_turn_preset">Turtagning</label>
           <select id="s_turn_preset">
@@ -1348,9 +1342,7 @@ setInterval(function () {
   var stageTitle = document.getElementById("cstage_title");
   var stageNext = document.getElementById("cstage_next");
 
-  var modelSel = document.getElementById("cmodel");
-  var voiceSel = document.getElementById("cvoice");
-  var ws = null, wsReady = false, currentModel = null, currentVoice = null;
+  var ws = null, wsReady = false;
   var diagnosticActive = !!(lastStatus && lastStatus.diagnostic_active);
   var socketGeneration = 0, reconnectTimer = null, leaseTimer = null, lastPong = 0;
   var pendingText = Object.create(null);
@@ -1470,47 +1462,6 @@ setInterval(function () {
     sendJson({ type: "stop" });  // = saying "stop" in the room: the ENGINE closes
   }
   if (stopBtn) stopBtn.onclick = stopSpeaking;
-
-  async function loadModels() {
-    try {
-      var data = await (await fetch("api/models", { cache: "no-store" })).json();
-      // Voice-only: the realtime console needs a voice-capable model.
-      var models = (data.models || []).filter(function (m) { return m.live; });
-      modelSel.innerHTML = "";
-      models.forEach(function (m) {
-        var o = document.createElement("option");
-        o.value = m.id; o.textContent = m.label;
-        modelSel.appendChild(o);
-      });
-      var def = data.default;
-      var hasDef = models.some(function (m) { return m.id === def; });
-      currentModel = (hasDef ? def : (models[0] && models[0].id)) || def || null;
-      if (currentModel) modelSel.value = currentModel;
-      if (!models.length) { var o = document.createElement("option"); o.textContent = "(standardmodel)"; modelSel.appendChild(o); }
-      if (voiceSel) {
-        var voices = data.voices || [];
-        voiceSel.innerHTML = "";
-        voices.forEach(function (v) {
-          var o = document.createElement("option"); o.value = v; o.textContent = v; voiceSel.appendChild(o);
-        });
-        currentVoice = data.voice || (voices[0] || null);
-        if (currentVoice) voiceSel.value = currentVoice;
-      }
-    } catch (e) {
-      logLine("out", "system", "Kunne ikke hente modellisten — bruger serverens standard.");
-    }
-  }
-  // Talk picker is SESSION-LOCAL: changing model/voice here affects ONLY this
-  // console session — it does NOT write back to the global settings. The single source
-  // of truth lives in the Settings tab. This kills the footgun where a casual Talk-tab
-  // click silently changed the default the Voice PE rooms use after the next restart.
-  function reconnect() {
-    closeLivePeer();
-    if (ws) { ws._intentional = true; try { ws.close(); } catch (e) {} }
-    connect();
-  }
-  modelSel.onchange = function () { currentModel = modelSel.value; reconnect(); };
-  if (voiceSel) voiceSel.onchange = function () { currentVoice = voiceSel.value; reconnect(); };
 
   // ---- Reply playback: the SAME reply-bus FLAC stream the puck fetches, played
   // through an <audio> element (which browser echo-cancellation actually covers,
@@ -1804,8 +1755,6 @@ setInterval(function () {
     wsReady = false; micBtn.disabled = true; sendBtn.disabled = true;
     var url;
     try { url = new URL("api/talk", window.location.href); } catch (e) { return; }
-    if (currentModel) url.searchParams.set("model", currentModel);
-    if (currentVoice) url.searchParams.set("voice", currentVoice);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
     setState("forbinder…", "pill-degraded");
     var sock;
@@ -2041,7 +1990,7 @@ setInterval(function () {
   });
 
   emptyLog();
-  loadModels().then(connect);
+  connect();
 })();
 </script>
 

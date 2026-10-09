@@ -1660,13 +1660,14 @@ class ToolRouter:
             return self._stale_execution()
         if not self._token or self._client is None:
             return {"ok": False, "error_kind": "no_ha_api"}
+        service_name = playback_targets.service(name, self._discovery.podconnect_services)
         # From this point a transport error is an unknown outcome, never permission
         # to resend. HA owns fresh entry and target admission after its own awaits.
         try:
             if target_send_phase is not None:
                 target_send_phase["possible_send"] = True
             response = await self._client.post(
-                f"{C.SUPERVISOR_CORE_API}/services/podconnect/{playback_targets.TOOLS[name]}?return_response",
+                f"{C.SUPERVISOR_CORE_API}/services/podconnect/{service_name}?return_response",
                 headers={"Authorization": f"Bearer {self._token}"},
                 json=args,
             )

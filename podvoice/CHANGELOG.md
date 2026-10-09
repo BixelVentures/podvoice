@@ -1,3 +1,10 @@
+## 2.0.16 - room-aware music targets and simpler Talk
+
+- Use verified Home Assistant names, aliases and areas for current Spotify targets when compatible Control discovery is available; preserve older Control and independent update order.
+- Remove ineffective per-session model and voice selectors from Talk; retain the saved Realtime settings and normal reconnect behavior.
+- Persist existing Talk and Live backend metadata through the passive recorder with bounded, sanitized fields and hashed identities; preserve audio capture and conversation ownership.
+- Physical music transfer, timer cancellation and lifecycle acceptance remain pending.
+
 ## 2.0.15 — clarify completion of agreed action sequences
 
 - Clarify that waiting between agreed steps applies while steps remain, and ask the model to reassess the full request after each confirmed action result before acknowledging completion.

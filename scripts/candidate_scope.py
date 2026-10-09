@@ -894,6 +894,15 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and native_timer_regressions <= set(report.test_files)
         and all((root / path).is_file() for path in native_timer_regressions | native_timer_bridge)
     )
+    # Unchanged idle-input owners still require exact Thin+UI review even when
+    # classification already admits the candidate's single domain.
+    reviewed_single_domain_idle_ui = (
+        record["version"] == 1
+        and idle_ui_required
+        and not strict_v4_required
+        and report.passed
+        and len(report.domains) == 1
+    )
     passive_metadata_only = True
     metadata = "podvoice/gatekeeper/__init__.py"
     if passive_diagnostic_ui_v2 and metadata in report.production_files:
@@ -951,6 +960,7 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
             and not reviewed_native_app_closing
             and not reviewed_passive_diagnostic_ui
             and not reviewed_native_timers
+            and not reviewed_single_domain_idle_ui
             and report.domains
             not in {
                 ("physical_output", "rearm"),

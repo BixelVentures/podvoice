@@ -253,7 +253,9 @@ async function one(browser,mode,boundary) {
       await page.locator('#csend').click({timeout:FIXTURE_WAIT_MS});
       const peer=await bounded(page.evaluate(()=>window.__tabMedia.sent.find(v=>v.type==='browser_hello').peer_id),'page peer identity');
       await bounded(page.evaluate(deliver,{type:'play',url:'api/reply/inert',playback_id:'pv-timer-reconnect',playback_connection:'old-socket',playback_generation:2,peer_id:peer}),'finite timer before disconnect');
-      await bounded(page.evaluate(()=>{const s=window.__tabMedia.sockets[0];s.readyState=3;s.onclose();document.getElementById('cmodel').dispatchEvent(new Event('change'));const n=window.__tabMedia.sockets.at(-1);n.readyState=WebSocket.OPEN;n.onopen?.();n.onmessage({data:JSON.stringify({type:'hello',protocol:2,rate:24000})});}),'actual socket reconnect and hello');
+      await bounded(page.evaluate(()=>{const s=window.__tabMedia.sockets[0];s.readyState=3;s.onclose();}),'actual socket close');
+      await page.waitForFunction(()=>window.__tabMedia.sockets.length===2 && window.__tabMedia.sockets[1].onmessage,null,{timeout:FIXTURE_WAIT_MS});
+      await bounded(page.evaluate(()=>{const n=window.__tabMedia.sockets[1];n.readyState=WebSocket.OPEN;n.onopen?.();n.onmessage({data:JSON.stringify({type:'hello',protocol:2,rate:24000})});}),'actual automatic socket reconnect and hello');
       const same=await bounded(page.evaluate(()=>window.__tabMedia.sent.filter(v=>v.type==='browser_hello').map(v=>v.peer_id)),'same-page peer across reconnect');
       assert.equal(same.length,2);assert.equal(same[1],peer,'same page keeps peer in memory');
       function newest(event){window.__tabMedia.sockets.at(-1).onmessage({data:JSON.stringify(event)});}

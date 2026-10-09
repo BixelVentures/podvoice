@@ -1332,7 +1332,12 @@ class ThinSession:
 
         self._history_session = f"{self.room}:{time.time_ns()}"
         with contextlib.suppress(Exception):
-            diagnostic_origin = getattr(self.audio_trace, "begin_diagnostic_session", None)
+            diagnostic_recorder = (
+                self.audio_trace
+                if self.audio_trace is not None
+                else self._private_contract_recorder
+            )
+            diagnostic_origin = getattr(diagnostic_recorder, "begin_diagnostic_session", None)
             if callable(diagnostic_origin):
                 diagnostic_origin(self._history_session)
         self._panel_transcript = ""
@@ -3112,6 +3117,8 @@ class ThinSession:
         completed_results = 0
         successful_results = 0
         call_ref = ""
+        wire_tool_ref = ""
+        effective_tool_ref = ""
         # Hash externally supplied identifiers: enough for correlation without
         # permitting provider strings to inject secrets or newlines into logs.
         response_ref = (
@@ -3127,6 +3134,8 @@ class ThinSession:
                 "outcome": outcome,
                 "response_ref": response_ref,
                 "call_ref": call_ref,
+                "wire_tool_ref": wire_tool_ref,
+                "effective_tool_ref": effective_tool_ref,
                 "batch_generation": batch.generation,
                 "host_monotonic_ns": time.monotonic_ns(),
                 "clock_source": "host_monotonic",
@@ -3235,6 +3244,14 @@ class ThinSession:
                     call_ref = (
                         "sha256:"
                         + hashlib.sha256(wire_call.id.encode(errors="replace")).hexdigest()[:16]
+                    )
+                    wire_tool_ref = (
+                        "sha256:"
+                        + hashlib.sha256(wire_call.name.encode(errors="replace")).hexdigest()[:16]
+                    )
+                    effective_tool_ref = (
+                        "sha256:"
+                        + hashlib.sha256(call.name.encode(errors="replace")).hexdigest()[:16]
                     )
                     stage = "prepare_call"
                     read_only = assess_tool(call.name, call.args).risk is Risk.READ_ONLY
@@ -7645,7 +7662,10 @@ class ThinSession:
             "rearm_token": getattr(self.voicepe, "rearm_token", None),
         }
         payload.update(details)
-        diagnostic_writer = getattr(self.audio_trace, "diagnostic_event", None)
+        diagnostic_recorder = (
+            self.audio_trace if self.audio_trace is not None else self._private_contract_recorder
+        )
+        diagnostic_writer = getattr(diagnostic_recorder, "diagnostic_event", None)
         if callable(diagnostic_writer) and self._history_session:
             with contextlib.suppress(Exception):
                 diagnostic_writer(

@@ -92,6 +92,59 @@ def test_native_idle_only_changed_method_ast_forces_v4_on_valid_old_generic_pair
     assert inspect_repository(tmp_path, base).passed is (not change_owner)
 
 
+@pytest.mark.parametrize(
+    "case",
+    ["valid", "stale", "no_review", "changed_owner", "no_regression", "missing_ui_binding"],
+)
+def test_native_idle_unchanged_single_domain_pair_requires_exact_v1_review(tmp_path, case):
+    methods = dict.fromkeys(_IDLE_METHODS, 0)
+    baseline = _thin_idle_methods(methods)
+    base, git, _record, write, _refresh = _idle_input_ui_repo(
+        tmp_path,
+        baseline_thin=baseline,
+        candidate_thin=baseline + "changed = True\n",
+        stage_html=True,
+    )
+    if case == "changed_owner":
+        methods["_sync_live_idle_input"] = 1
+    # A real output method and its UI control change without changing any idle
+    # owner. Real Git inspection must require review despite one-domain admission.
+    (tmp_path / "podvoice/gatekeeper/thin.py").write_text(
+        _thin_idle_methods(methods)
+        + "    async def stop_playback(self):\n        return await self.link.stop_playback()\n"
+    )
+    (tmp_path / "podvoice/gatekeeper/static/index.html").write_text(
+        '<button onclick="stopPlayback()">Stop</button>\n'
+        if case != "missing_ui_binding"
+        else "base = True\n"
+    )
+    git("add", "podvoice/gatekeeper/thin.py", "podvoice/gatekeeper/static/index.html")
+    if case == "no_regression":
+        git("restore", "--source", base, "--staged", "--worktree", "tests")
+    (tmp_path / "docs/STATUS.md").unlink()
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == ("physical_output",)
+    assert report.passed is (case == "missing_ui_binding")
+    if case == "no_review":
+        assert report.reason == "changed Thin+UI requires exact review"
+        return
+    write(
+        {
+            "version": 1,
+            "base_tip": base,
+            "merge_base": base,
+            "domains": list(report.domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+            "reviewer": "independent-fixture-reviewer",
+            "rationale": "Exact output control change with unchanged Thin idle-input owners.",
+        }
+    )
+    if case == "stale":
+        source = tmp_path / "podvoice/gatekeeper/thin.py"
+        source.write_text(source.read_text() + "    changed_after_review = True\n")
+    assert inspect_repository(tmp_path, base).passed is (case == "valid")
+
+
 def test_native_idle_absent_owner_vocabulary_preserves_valid_raw_legacy_text(tmp_path):
     base, git, _record, write, _refresh = _idle_input_ui_repo(
         tmp_path,
