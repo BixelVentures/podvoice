@@ -528,11 +528,14 @@ def test_real_git_scope_cases_remain_intact_and_use_all_eight_unit_children():
         (node.name, ast.dump(node, include_attributes=False))
         for node in sorted(definitions, key=lambda node: node.name)
     ]
-    # Frozen BEFORE relocation from monolithic source 28bac091c2415740… .
-    # Binds every original function body, helper and parameter decorator;
+    # Original relocation inventory from 28bac091c2415740… was bound to
+    # 2cdd76fec4c21335635d8d1a7602d28f131f5237660500d837b3811b1ed3b2d8.
+    # Reviewed extension: the physical_output/realtime_semantics pair in
+    # _coupled_repo and shard 8's stop-whole-chain parameter decorator only.
+    # Still binds every function body, helper and parameter decorator;
     # never derive the expected value from the newly exported test modules.
     digest = hashlib.sha256(json.dumps(inventory, separators=(",", ":")).encode()).hexdigest()
-    assert digest == "2cdd76fec4c21335635d8d1a7602d28f131f5237660500d837b3811b1ed3b2d8"
+    assert digest == "9b8a704707f72d1ad0f03ba5d8941a68ade3a59d53a915c23fff7f5ffde82676"
 
 
 @pytest.mark.parametrize("bound", [120, 240])
