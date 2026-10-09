@@ -91,3 +91,57 @@ async def test_recovers_normal_cadence_after_failure_clears():
     assert len(att.engage_calls) > resumed
 
     await hb.stop()
+
+
+async def test_retarget_aba_during_held_periodic_request_preserves_periodic_owner():
+    class HeldAttention(FakeAttention):
+        def __init__(self):
+            super().__init__()
+            self.entered = asyncio.Event()
+            self.allow = asyncio.Event()
+            self.periodic_seen = asyncio.Event()
+            self.periodic_owner = None
+            self.requests = []
+
+        async def engage(self, room, level, *args, **kwargs):
+            self.requests.append((asyncio.current_task(), room, level))
+            if len(self.requests) == 1:
+                self.entered.set()
+                await self.allow.wait()
+            result = await super().engage(room, level, *args, **kwargs)
+            if len(self.requests) >= 3 and asyncio.current_task() is self.periodic_owner:
+                self.periodic_seen.set()
+            return result
+
+    att = HeldAttention()
+    hb = _hb(att)
+    hb.start("kitchen", 5, 2000)
+    periodic = att.periodic_owner = hb._task
+    first_immediate = last_immediate = None
+    try:
+        await asyncio.wait_for(att.entered.wait(), 1)
+        hb.retarget("living", 35, 8000)
+        first_immediate = hb._beat_task
+        hb.retarget("kitchen", 5, 2000)
+        last_immediate = hb._beat_task
+        assert hb._task is periodic and not periodic.done()
+        att.allow.set()
+        # A new immediate beat alone cannot satisfy this: observe the original
+        # periodic task performing a fresh beat after the held old generation.
+        await asyncio.wait_for(att.periodic_seen.wait(), 1)
+        assert hb._task is periodic and not periodic.done()
+        assert [request[0] for request in att.requests[:3]] == [
+            periodic,
+            last_immediate,
+            periodic,
+        ]
+        assert [(room, level) for _, room, level in att.requests[:3]] == [
+            ("kitchen", 5),
+            ("kitchen", 5),
+            ("kitchen", 5),
+        ]
+    finally:
+        att.allow.set()
+        await asyncio.wait_for(hb.stop(), 1)
+    assert periodic.done() and first_immediate.done() and last_immediate.done()
+    assert not hb._retired_beats and not hb._stopping_tasks

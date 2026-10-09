@@ -108,6 +108,9 @@ def _audio_source_provenance(
 def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     scenarios = load_scenarios()
     assert {s.id for s in scenarios if not s.id.startswith("stop-context-")} == {
+        "music-account-clarification",
+        "music-explicit-stable-target",
+        "music-transfer-unknown-no-retry",
         "arithmetic-followup",
         "arithmetic-followup-observed",
         "time-followup",
@@ -2781,8 +2784,8 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 46
-    assert turns == 61
+    assert sessions == 49
+    assert turns == 65
     assert service._max_run_s == required
 
 
@@ -2856,11 +2859,11 @@ async def test_full_profile_accepts_measured_14_5k_each(monkeypatch):
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 46
-    assert report["budget"]["actual_tokens"] == 667_000
-    assert report["budget"]["max_actual_tokens"] == 3_660_000
+    assert calls == 49
+    assert report["budget"]["actual_tokens"] == 710_500
+    assert report["budget"]["max_actual_tokens"] == 3_900_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(244.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(260.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -3364,7 +3367,10 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
 
     class FakeDriver:
         def __init__(self, *args, tool_declarations=None, **kwargs):
-            assert tool_declarations[0]["name"] == "GetDateTime"
+            assert (
+                next(row for row in tool_declarations if row["name"] == "GetDateTime")["name"]
+                == "GetDateTime"
+            )
 
         async def open(self, *, run_id, scenario_id):
             session_id = f"{run_id}:{scenario_id}:{len(opened)}"

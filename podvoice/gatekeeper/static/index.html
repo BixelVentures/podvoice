@@ -206,6 +206,7 @@
             font-size: .82rem; line-height: 1.45; }
   .notice strong { color: var(--amber); }
   .notice[hidden] { display: none; }
+  .setgrid label[for="s_engine"][hidden], .setgrid select#s_engine[hidden] { display: none; }
   details.adv > summary { margin-top: 6px; }
   /* Home control picker */
   .expose { margin: 18px 0 4px; }
@@ -505,8 +506,8 @@
 
         <div class="exsub" style="margin-top:14px">Assistent</div>
         <div class="setgrid">
-          <label for="s_engine">Samtalemotor</label>
-          <select id="s_engine">
+          <label for="s_engine" hidden>Samtalemotor</label>
+          <select id="s_engine" hidden>
             <option value="thin">PodVoice Realtime &mdash; én sammenhængende samtale</option>
           </select>
           <label for="s_openai_model">Model</label>
@@ -908,7 +909,7 @@ function roomCard(rm, diagnostic) {
     box.appendChild(meta);
   }
   var ctl = el("div", diagnostic ? "ctl" : "ctl primary-controls");
-  var controls = diagnostic ? [["Test tone", "test_tone"], ["Test højttaler", "test_speaker"]]
+  var controls = diagnostic ? [["Afspil tone", "test_tone"], ["Test højttaler", "test_speaker"]]
     : [["Start samtale", "listen"], ["Stop", "stop"]];
   controls.forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
@@ -1363,7 +1364,7 @@ setInterval(function () {
     cstate.textContent = s; cstate.className = "pill " + cls;
     var next = {
       "forbinder…": ["Forbinder", "Vent et øjeblik."], online: ["Klar", "Tryk på mikrofonen for at starte."],
-      systemtest: ["Systemtest kører", "Vent til preflight er færdig."],
+      systemtest: ["Systemet kontrolleres", "Vent et øjeblik."],
       offline: ["Ikke forbundet", "Kontrollér add-on-status og prøv igen."], blokeret: ["Mikrofon blokeret", "Følg vejledningen nedenfor eller brug Voice PE."], klar: ["Klar", "Tryk på mikrofonen for at starte."],
       "lytter…": ["Lytter", "Tal nu."], tænker: ["Tænker", "Vent et øjeblik."], taler: ["Nabu svarer", "Lyt til svaret."]
     }[s];
@@ -2301,20 +2302,20 @@ setInterval(function () {
     catch (e) { j = null; }
     busy(false);
     if (r.status === 501 || (j && j.error && /unavailable/i.test(j.error))) {
-      show("warn", "Diagnostics unavailable — check the add-on configuration and Log."); return;
+      show("warn", "Diagnose er ikke tilgængelig. Kontrollér add-onens konfiguration og log."); return;
     }
-    if (!j) { show("warn", "Unexpected response from the add-on. Check the add-on Log."); return; }
+    if (!j) { show("warn", "Svaret kunne ikke læses. Kontrollér add-onens log."); return; }
     if (!j.ok) {
       // Common, friendly causes first.
-      var e = (j.error || j.hint || "Check failed.");
+      var e = (j.error || j.hint || "Kontrollen mislykkedes.");
       if (/no voice pe host|add a room/i.test(e)) e = "Voice PE er ikke konfigureret. Tilføj rum og adresse i indstillinger, gem og genstart, og prøv igen.";
       show("warn", "⚠️ " + e); return;
     }
     if (path === "status") {
-      show("ok", "Forbindelse bekræftet: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + "). Kør nu lydindgangsprøven.");
+      show("ok", "Forbindelse bekræftet: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + ").");
     } else if (path === "s1") {
       if (j.verdict === "pass") {
-        show("ok", "Lydstream modtaget: " + j.continuity_pct + "% kontinuitet, " + j.gaps_over_60ms + " huller over " + j.seconds + "s. Afprøv nu højttaleren.");
+        show("ok", "Lydstream modtaget: " + j.continuity_pct + "% kontinuitet, " + j.gaps_over_60ms + " huller over " + j.seconds + "s.");
       } else if (j.verdict === "no-audio") {
         show("warn", "Ingen lyd modtaget. " + (j.hint || "Væk enheden, og kontrollér at den ikke bruger HA Assist."));
       } else {

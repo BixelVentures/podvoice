@@ -175,11 +175,11 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
             raise RuntimeError("inert heartbeat failure")
         await heartbeat_stop()
 
-    async def release_attention(room):
+    async def release_attention(room, *, lease=None):
         operations.append("attention")
         if broken[0] == "attention":
             raise RuntimeError("inert attention failure")
-        return await attention_release(room)
+        return await attention_release(room, lease=lease)
 
     async def stop_output():
         operations.append("silence")
@@ -208,7 +208,7 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
         expected = ["silence", "heartbeat", "attention"]
         if adapter == "native" and fault == "silence":
             expected = ["silence"]
-        elif adapter == "native" and fault == "heartbeat":
+        elif fault == "heartbeat":
             expected = ["silence", "heartbeat"]
         assert operations == expected
         attempts = int("attention" in expected and fault != "attention")
@@ -231,12 +231,20 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
             and f["step"] in ("heartbeat-stop", "attention-release")
         }
         assert suffix_skipped == (
-            {"heartbeat-stop", "attention-release"}
-            if adapter == "native" and fault == "silence"
-            else {"attention-release"}
-            if adapter == "native" and fault == "heartbeat"
-            else set()
+            {"heartbeat-stop"} if adapter == "native" and fault == "silence" else set()
         )
+        if fault == "heartbeat":
+            assert any(
+                k == "teardown_step_failed" and f["step"] == "heartbeat-stop" for k, f in rows
+            )
+        if fault == "heartbeat" or (adapter == "native" and fault == "silence"):
+            # An unjoined heartbeat vetoes release before that edge is attempted.
+            assert session.attention.release_calls == []
+            assert not any(
+                k in ("teardown_step_failed", "teardown_step_timeout")
+                and f["step"] == "attention-release"
+                for k, f in rows
+            )
         assert live.final_usage_seconds == 5 and live._finalized_generation == 1
         assert live._reader is None
         assert session._teardown_incomplete and not session._active
@@ -413,10 +421,13 @@ async def test_nonempty_or_unknown_other_owners_never_open_extra_music_budget(
         expected_reserve = 0.12 if adapter == "native" else 0.0
         # Preserve baseline suffix budgeting even for nonempty done owners.
         assert ("heartbeat-stop", expected_reserve, adapter == "talk") in steps
-        assert ("attention-release", expected_reserve, adapter == "talk") in steps
         if adapter == "native":
+            # Failed heartbeat join vetoes release before its edge is attempted.
+            assert not any(label == "attention-release" for label, _, _ in steps)
             assert session.attention.release_calls == []
             assert link.rearm_calls == 0 and live._local_close_pending
+        else:
+            assert ("attention-release", expected_reserve, True) in steps
         if fault.startswith("rotation-"):
             assert ("live-rotation-io-settle", expected_reserve, adapter == "talk") in steps or (
                 "live-rotation-io-settle",
@@ -445,18 +456,63 @@ async def test_nonempty_or_unknown_other_owners_never_open_extra_music_budget(
 async def test_actual_periodic_engage_must_join_before_new_attention_budget(
     adapter, resist_cancel, monkeypatch
 ):
+    import json
+
     import httpx
 
     from gatekeeper.podconnect import AttentionClient
 
     entered, cancelled, allow = asyncio.Event(), asyncio.Event(), asyncio.Event()
     operations = []
+    process = "00000000-0000-4000-8000-000000000010"
+    admission = {"revision": 0, "session": None}
+    begin_requests = []
 
     async def handler(request):
+        if request.method == "GET":
+            assert request.url.path == "/api/attention"
+            return httpx.Response(
+                200,
+                json={
+                    "rooms": {
+                        "kitchen": {
+                            "challenge": {
+                                "process": process,
+                                "revision": str(admission["revision"]),
+                            }
+                        }
+                    }
+                },
+            )
+        body = json.loads(request.content)
+        assert body["room"] == "kitchen"
         if request.url.path.endswith("/release"):
+            assert set(body) == {"room", "session", "expected"}
+            assert body["session"] == admission["session"]
+            assert body["expected"] == {"process": process, "revision": str(admission["revision"])}
             assert actual_loop.done()  # Actual loop join precedes the HTTP release.
             operations.append("release")
+            # Synthetic protocol response only, never native/output restore evidence.
+            return httpx.Response(
+                200, json={"contract": "native_attention_v1", "outcome": "released"}
+            )
         else:
+            assert request.url.path == "/api/attention" and request.method == "POST"
+            assert set(body) == {
+                "room",
+                "level",
+                "owner",
+                "ttl_ms",
+                "fade_ms",
+                "session",
+                "expected",
+                "begin",
+            }
+            assert body["begin"] is True and admission["session"] is None
+            assert body["expected"] == {"process": process, "revision": "0"}
+            admission["session"] = body["session"]
+            admission["revision"] += 1
+            begin_requests.append(body)
             operations.append("engage")
             entered.set()
             try:
@@ -468,7 +524,14 @@ async def test_actual_periodic_engage_must_join_before_new_attention_budget(
                     raise
                 await allow.wait()
                 operations.append("engage-applied")
-        return httpx.Response(200, json={"ok": True})
+        return httpx.Response(
+            200,
+            json={
+                "contract": "native_attention_v1",
+                "outcome": "pending",
+                "challenge": {"process": process, "revision": str(admission["revision"])},
+            },
+        )
 
     async with httpx.AsyncClient(
         base_url="http://inert", transport=httpx.MockTransport(handler)
@@ -482,6 +545,11 @@ async def test_actual_periodic_engage_must_join_before_new_attention_budget(
         actual_loop = session.heartbeat._task
         try:
             await asyncio.wait_for(entered.wait(), 1)
+            assert len(begin_requests) == 1 and begin_requests[0]["begin"] is True
+            assert session.heartbeat.lease == {
+                "session": begin_requests[0]["session"],
+                "expected": {"process": process, "revision": "1"},
+            }
             await refused_batch(sdks[0])
             await asyncio.wait_for(cancelled.wait(), 1)
             if resist_cancel:
@@ -575,10 +643,10 @@ async def test_actual_reconnect_invalidates_suffix_permission_at_each_await_boun
         if phase == "after-heartbeat":
             await reconnect()
 
-    async def attention(room):
+    async def attention(room, *, lease=None):
         if phase == "during-attention":
             await reconnect()
-        result = await attention_release(room)
+        result = await attention_release(room, lease=lease)
         if phase == "after-attention":
             await reconnect()
         return result
@@ -596,11 +664,22 @@ async def test_actual_reconnect_invalidates_suffix_permission_at_each_await_boun
     try:
         await refused_batch(sdks[0])
         await until(lambda: session._close_task is not None and session._close_task.done())
-        first_attention = next(x for x in steps if x[0] == "attention-release")
+        first_attention = next((x for x in steps if x[0] == "attention-release"), None)
         first_heartbeat = next(x for x in steps if x[0] == "heartbeat-stop")
         reserve = 0.12 if adapter == "native" else 0.0
         if phase in ("before-heartbeat", "during-heartbeat", "after-heartbeat"):
-            assert first_attention == ("attention-release", reserve, adapter == "talk")
+            if phase == "before-heartbeat" and adapter == "native":
+                # Reconnect restores the rearm reserve before heartbeat admission.
+                assert first_heartbeat == ("heartbeat-stop", reserve, False)
+                assert first_attention is None
+                assert any(
+                    k == "teardown_step_timeout"
+                    and f["step"] == "heartbeat-stop"
+                    and f.get("reason") == "total-deadline"
+                    for k, f in rows
+                )
+            else:
+                assert first_attention == ("attention-release", reserve, adapter == "talk")
             if phase == "before-heartbeat":
                 assert first_heartbeat == ("heartbeat-stop", reserve, adapter == "talk")
             if adapter == "native":

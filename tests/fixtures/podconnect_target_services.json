@@ -1,0 +1,74 @@
+{
+  "provenance": {
+    "kind": "synthetic_serialization_of_reviewed_service_fields",
+    "upstream_tag": "2026.8.2",
+    "source_hashes": {
+      "homeassistant/core.py": "3f3b4a4dfee0f63d391bd553252f9c030c2e21dff048bcc5e59811a5df1b5457",
+      "homeassistant/components/api/__init__.py": "bd7c14ae8e11c7fd732e011f6f0ced33ded45fe71a07265abf3a45a2f8d85e9e",
+      "homeassistant/helpers/service.py": "fe556cde466261c8c6aabe7a7b33c2da7b4619b2f7aea23f6384b7770e66d357",
+      "homeassistant/helpers/selector.py": "f929ae4ecb9847c1db5359bc79d68d0443ad566f61c6a463d6d1c2ca59603705",
+      "homeassistant/helpers/update_coordinator.py": "fd0c80fc1137977832a7f4b849679721d692da6d6f61dcc762d486f86f57c950"
+    },
+    "ha_services_candidate_sha256": "5ec8006627482a95fa462854b3201d2a4c6100c1ebfeacce4d65c8e3c5330daa",
+    "limits": "Primary source projection, not installed HA discovery or provider evidence"
+  },
+  "services": {
+    "get_targets": {
+      "fields": {
+        "config_entry_id": {
+          "name": "Account entry",
+          "required": false,
+          "selector": {
+            "config_entry": {
+              "integration": "podconnect"
+            }
+          }
+        }
+      },
+      "response": {
+        "optional": false
+      }
+    },
+    "move_playback": {
+      "fields": {
+        "config_entry_id": {
+          "name": "Account entry",
+          "required": true,
+          "selector": {
+            "config_entry": {
+              "integration": "podconnect"
+            }
+          }
+        },
+        "kind": {
+          "name": "Target kind",
+          "required": true,
+          "selector": {
+            "select": {
+              "options": [
+                "configured_alias",
+                "spotify_device"
+              ],
+              "multiple": false,
+              "custom_value": false,
+              "sort": false
+            }
+          }
+        },
+        "target_id": {
+          "name": "Target ID",
+          "required": true,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "response": {
+        "optional": false
+      }
+    }
+  }
+}

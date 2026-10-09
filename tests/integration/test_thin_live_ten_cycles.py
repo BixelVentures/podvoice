@@ -243,7 +243,9 @@ async def close_fixture(
     runtime_owners.extend(session._tool_tasks.values())
     runtime_owners.extend(session._live_rotation_io)
     runtime_owners.extend(session._live_idle_preclose_owners)
-    runtime_owners.extend((session.heartbeat._task, session.heartbeat._beat_task))
+    runtime_owners.extend(
+        (getattr(session.heartbeat, "_task", None), getattr(session.heartbeat, "_beat_task", None))
+    )
 
     def release():
         for sdk in sdks:
@@ -303,8 +305,9 @@ async def close_fixture(
         assert playback_owner is None or playback_owner.done()
         assert all(task is None or task.done() for task in runtime_owners)
         assert all((task := getattr(session, name)) is None or task.done() for name in owner_fields)
-        assert session.heartbeat._task is None
-        assert session.heartbeat._beat_task is None or session.heartbeat._beat_task.done()
+        assert getattr(session.heartbeat, "_task", None) is None
+        beat_task = getattr(session.heartbeat, "_beat_task", None)
+        assert beat_task is None or beat_task.done()
         if not isinstance(session.voicepe, BrowserLink):
             assert session.voicepe.closed
         assert all(observer.done() for observer in observers)

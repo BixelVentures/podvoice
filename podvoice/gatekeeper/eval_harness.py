@@ -1298,7 +1298,13 @@ class SafeEvalTools:
 
     @staticmethod
     def _safe_declarations() -> list[dict[str, Any]]:
+        from .podconnect_targets import TOOLS as target_tools
+        from .podconnect_targets import declarations as target_declarations
+
+        # Offline defaults only. Real eval admission still requires the actual
+        # production_tool_snapshot; these zero fingerprints cannot authorize HA.
         return [
+            *target_declarations((), tuple((name, "0" * 64) for name in target_tools)),
             {
                 "name": "GetDateTime",
                 "description": "Get the current date and time from Home Assistant.",
@@ -1484,6 +1490,19 @@ class SafeEvalTools:
 
             fixture_result = next(case.result for case in contract.cases if case.args == args)
             return select_track_result(fixture_result.get("data"), data_limit(args))
+        if name in {"podconnect_get_targets", "podconnect_move_playback"} and contract is not None:
+            # Exact synthetic service payloads through the production pure response
+            # boundary; no HA client, router, backend lookup or network fallback.
+            from .podconnect_targets import result as target_result
+
+            fixture_result = next(case.result for case in contract.cases if case.args == args)
+            if fixture_result.get("ok") is not True:
+                return json.loads(json.dumps(fixture_result))
+            selected = target_result(name, args, fixture_result.get("data"))
+            self.fixture_side_effects += int(
+                name == "podconnect_move_playback" and selected.get("ok") is True
+            )
+            return selected
         if (
             name in {"ha_get_device_capabilities", "ha_execute_device_action"}
             and contract is not None

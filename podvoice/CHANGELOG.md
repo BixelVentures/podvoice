@@ -1,3 +1,9 @@
+## 2.0.9 — ID-based music targets and owned cleanup
+
+- Add ID-based music target discovery and playback moves through compatible PodConnect Home Assistant services.
+- Join the music heartbeat before releasing its retained lease; skip release when no lease was prepared.
+- Keep daily settings concise and retain passive provider-capacity admission diagnostics.
+
 ## 2.0.8 — private initial-contract observation
 
 - Add explicitly armed, private, one-shot observation of the initial local Realtime contract and its source provenance for the selected native or Talk session. Bound the memory slot to 128 KiB and a 120-second diagnostic lifetime; clear it on retrieval, disarm or owner expiry. Keep sensitive prompt and schema content outside ordinary status, history, logs and UI.

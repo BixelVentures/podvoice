@@ -94,6 +94,7 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "response_done",
         "duplicate_response_done",
         "production_capacity_wait",
+        "live_tool_admission",
         "live_tool_result",
         "live_backend_continue",
         "live_backend_timing",
@@ -146,6 +147,31 @@ _PHYSICAL_PROVIDER_TRACE_FIELDS = (
     "provider_error_code",
     "provider_error_type",
     "protocol_error_ref",
+)
+_LIVE_ADMISSION_TRACE_NUMBERS = (
+    "limit",
+    "remaining",
+    "available",
+    "owned_before",
+    "owned_after",
+    "reserved_total",
+)
+_LIVE_ADMISSION_TRACE_REASONS = frozenset(
+    {
+        "missing_bucket",
+        "production_active",
+        "invalid_role",
+        "inactive_lease",
+        "invalid_target",
+        "insufficient_capacity",
+        "admitted",
+        "missing_or_replayed_batch",
+        "stale_or_replayed_owner",
+        "admission_deadline_exceeded",
+        "admission_wait_in_reader",
+        "refill_unavailable_or_exceeds_deadline",
+        "local_refill",
+    }
 )
 
 _LOG = logging.getLogger("podvoice.thin")
@@ -1924,23 +1950,29 @@ class ThinSession:
                 deadline=teardown_deadline,
                 reserve_s=music_cleanup_reserve,
             )
-            attention_ok, _ = await self._teardown_step(
-                "attention-release",
-                self.attention.release(self.room),
-                deadline=teardown_deadline,
-                reserve_s=(
-                    music_cleanup_reserve
-                    if heartbeat_complete
-                    and not self._teardown_retry_wakeup.is_set()
-                    and not self._live_rotation_io
-                    and not self._live_idle_preclose_owners
-                    else rearm_reserve
-                ),
-            )
-            if attention_ok:
-                if self.hub is not None:
-                    self.hub.incr("attention_releases")
-                    self.hub.set_level(self.room, 100)
+            attention_ok = False
+            if heartbeat_complete:
+                # Joining also freezes any BEGIN identity prepared before stop ran.
+                attention_lease = self.heartbeat.lease
+                if attention_lease is None:
+                    attention_ok = True  # No own BEGIN, therefore no release obligation.
+                else:
+                    # A release cannot overtake a live periodic or immediate beat.
+                    attention_ok, _ = await self._teardown_step(
+                        "attention-release",
+                        self.attention.release(self.room, lease=attention_lease),
+                        deadline=teardown_deadline,
+                        reserve_s=(
+                            music_cleanup_reserve
+                            if not self._teardown_retry_wakeup.is_set()
+                            and not self._live_rotation_io
+                            and not self._live_idle_preclose_owners
+                            else rearm_reserve
+                        ),
+                    )
+                    if attention_ok and self.hub is not None:
+                        self.hub.incr("attention_releases")
+                        self.hub.set_level(self.room, 100)
             attention_complete = attention_ok
         teardown_complete = (
             silence_complete
@@ -7128,6 +7160,18 @@ class ThinSession:
             if field in row
             and (isinstance(row[field], (str, int, float, bool)) or row[field] is None)
         }
+        if kind == "live_tool_admission":
+            for field in _LIVE_ADMISSION_TRACE_NUMBERS:
+                value = row.get(field)
+                if (type(value) is int and -(2**63) <= value < 2**63) or (
+                    type(value) is float and math.isfinite(value)
+                ):
+                    details[field] = value
+            if type(row.get("authoritative")) is bool:
+                details["authoritative"] = row["authoritative"]
+            reason = row.get("reason")
+            if isinstance(reason, str) and reason in _LIVE_ADMISSION_TRACE_REASONS:
+                details["reason"] = reason
         details.setdefault("turn_id", self._external_turn_id())
         details.update(
             {
