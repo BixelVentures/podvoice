@@ -6494,7 +6494,13 @@ async def test_model_selected_silent_end_waits_for_ack_and_never_speaks(direct_a
             await asyncio.sleep(0.02)
             assert session._active
             brain.emit(SilentToolComplete(call_ids=("quiet",)))
-        await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(
+            lambda: (
+                session.sm.state is State.IDLE
+                and session._close_task is not None
+                and session._close_task.done()
+            )
+        )
         assert not voicepe.announced_urls
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
