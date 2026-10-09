@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 import signal
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from types import SimpleNamespace
@@ -94,8 +95,8 @@ def _session_owners(session):
             + list(session._live_rotation_io)
             + list(session._live_idle_preclose_owners)
             + [
-                session.heartbeat._task,
-                session.heartbeat._beat_task,
+                getattr(session.heartbeat, "_task", None),
+                getattr(session.heartbeat, "_beat_task", None),
                 session.playback._task,
                 session.live_brain._reader,
                 session.live_brain._startup_task,
@@ -230,6 +231,11 @@ async def _actual_main_app(monkeypatch, folder, options, *, supervisor_token="in
         cfg = load_config(options)
         assert cfg.supervisor_token == supervisor_token
         state.cfg = cfg
+        # Synthetic protocol owner only: these receipts never prove native restore.
+        attention_process = "00000000-0000-4000-8000-000000000010"
+        attention_rooms = {
+            room.room: {"revision": 0, "session": None, "active": False} for room in cfg.rooms
+        }
 
         def transport(request):
             path = request.url.path
@@ -279,10 +285,99 @@ async def _actual_main_app(monkeypatch, folder, options, *, supervisor_token="in
                 )
             if request.method == "GET" and path == "/api/rooms":
                 return httpx.Response(200, json=[])
-            if path == "/api/attention" and request.method in {"GET", "POST"}:
-                return httpx.Response(200, json={"ok": True, "rooms": []})
-            if path == "/api/attention/release" and request.method == "POST":
-                return httpx.Response(200, json={"ok": True})
+            if path == "/api/attention" and request.method == "GET":
+                return httpx.Response(
+                    200,
+                    json={
+                        "rooms": {
+                            room: {
+                                "challenge": {
+                                    "process": attention_process,
+                                    "revision": str(owner["revision"]),
+                                }
+                            }
+                            for room, owner in attention_rooms.items()
+                        }
+                    },
+                )
+            if path in {"/api/attention", "/api/attention/release"} and request.method == "POST":
+                body = json.loads(request.content)
+                owner = attention_rooms.get(body.get("room"))
+                if owner is None:
+                    return httpx.Response(404, json={"error": "unknown synthetic room"})
+                nonce = body.get("session")
+                try:
+                    valid_nonce = type(nonce) is str and str(uuid.UUID(nonce)) == nonce
+                except (ValueError, AttributeError):
+                    valid_nonce = False
+                challenge = {
+                    "process": attention_process,
+                    "revision": str(owner["revision"]),
+                }
+                if not valid_nonce:
+                    return httpx.Response(409, json={"error": "strict synthetic owner required"})
+                if path == "/api/attention/release":
+                    if (
+                        set(body) != {"room", "session", "expected"}
+                        or nonce != owner["session"]
+                        or body["expected"] != challenge
+                    ):
+                        return httpx.Response(409, json={"error": "stale synthetic release"})
+                    owner["active"] = False
+                    # Inert boundary only; no native/output/applied result is fabricated.
+                    return httpx.Response(
+                        200, json={"contract": "native_attention_v1", "outcome": "released"}
+                    )
+                if (
+                    set(body)
+                    != {
+                        "room",
+                        "level",
+                        "owner",
+                        "ttl_ms",
+                        "fade_ms",
+                        "session",
+                        "expected",
+                        "begin",
+                    }
+                    or type(body["begin"]) is not bool
+                ):
+                    return httpx.Response(400, json={"error": "invalid synthetic engage"})
+                if body["begin"]:
+                    if owner["active"] and nonce == owner["session"]:
+                        expected = {
+                            "process": attention_process,
+                            "revision": str(owner["revision"] - 1),
+                        }
+                        if body["expected"] != expected:
+                            return httpx.Response(409, json={"error": "stale synthetic BEGIN"})
+                    elif (
+                        owner["active"]
+                        or nonce == owner["session"]
+                        or body["expected"] != challenge
+                    ):
+                        return httpx.Response(409, json={"error": "stale synthetic BEGIN"})
+                    else:
+                        owner["revision"] += 1
+                        owner["session"] = nonce
+                elif (
+                    not owner["active"]
+                    or nonce != owner["session"]
+                    or body["expected"] != challenge
+                ):
+                    return httpx.Response(409, json={"error": "stale synthetic UPDATE"})
+                owner["active"] = True
+                return httpx.Response(
+                    200,
+                    json={
+                        "contract": "native_attention_v1",
+                        "outcome": "pending",
+                        "challenge": {
+                            "process": attention_process,
+                            "revision": str(owner["revision"]),
+                        },
+                    },
+                )
             if (
                 request.method == "POST"
                 and str(request.url) == "https://api.openai.com/v1/audio/speech"

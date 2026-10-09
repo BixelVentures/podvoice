@@ -34,7 +34,6 @@ sys.path.insert(0, str(ROOT / "podvoice"))
 
 from gatekeeper.data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output  # noqa: E402
 from gatekeeper.execution_policy import ExecutionPolicy  # noqa: E402
-from gatekeeper.heartbeat import Heartbeat  # noqa: E402
 from gatekeeper.history import History  # noqa: E402
 from gatekeeper.hub import StatusHub  # noqa: E402
 from gatekeeper.live_audio import LiveAudioError, LiveAudioStreams  # noqa: E402
@@ -687,6 +686,19 @@ class StubTools:
 
 
 class LocalAttention:
+    @property
+    def lease(self) -> None:
+        return None
+
+    def start(self, room: str, level: int, ttl_ms: int) -> None:
+        return None
+
+    def retarget(self, room: str, level: int, ttl_ms: int) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
     async def engage(self, *args, **kwargs):
         return {"ok": True}
 
@@ -1341,7 +1353,7 @@ async def evaluate(
     session = ThinSession(
         room="synthetic-eval",
         attention=attention,
-        heartbeat=Heartbeat(attention),
+        heartbeat=attention,
         brain=DisabledRealtime(),
         live_brain=live,
         live_enabled=lambda: True,

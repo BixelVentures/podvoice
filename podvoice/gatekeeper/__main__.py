@@ -98,6 +98,19 @@ class _NoAttention:
     """Ducking no-op for the Talk tab: a browser session owns no room's music, so every
     engage/release used to 404 ("unknown room 'talk'") and kill its own heartbeat."""
 
+    @property
+    def lease(self) -> None:
+        return None
+
+    def start(self, room: str, level: int, ttl_ms: int) -> None:
+        return None
+
+    def retarget(self, room: str, level: int, ttl_ms: int) -> None:
+        return None
+
+    async def stop(self) -> None:
+        return None
+
     async def engage(self, room: str, level: int, ttl_ms: int) -> None:
         return None
 
@@ -570,12 +583,12 @@ async def run(cfg: Config) -> None:
         # RELATIVE url: the browser resolves it against the panel page, so it works
         # through HA Ingress (direct :8098 stays closed); the token still gates it.
         url = f"reply/{TALK_ROOM}.flac" + (f"?t={reply_token}" if reply_token else "")
+        no_room_music = _NoAttention()
         session = ThinSession(
             room=TALK_ROOM,
-            # Talk is a BROWSER session, not a PodConnect room: ducking it 404s on every
-            # beat ("unknown room 'talk'"). Give it a no-op attention client instead.
-            attention=_NoAttention(),
-            heartbeat=Heartbeat(_NoAttention(), period_ms=cfg.heartbeat_ms),  # type: ignore[arg-type]
+            # Talk owns no PodConnect room or native attention request/lease.
+            attention=no_room_music,
+            heartbeat=no_room_music,
             brain=brain,
             live_brain=_make_live_brain(
                 cfg, tools.declarations() if tools is not None else [], input_rate=OPENAI_RATE

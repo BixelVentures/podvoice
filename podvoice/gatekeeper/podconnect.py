@@ -10,6 +10,7 @@ auto-releases.
 from __future__ import annotations
 
 import logging
+import uuid
 
 import httpx
 
@@ -63,6 +64,9 @@ class AttentionClient:
         level: int,
         ttl_ms: int = C.TTL_LISTENING_MS,
         fade_ms: int = 0,
+        *,
+        lease: dict | None = None,
+        begin: bool = False,
     ) -> dict | None:
         return await self._post(
             "/api/attention",
@@ -72,12 +76,51 @@ class AttentionClient:
                 "owner": C.OWNER,
                 "ttl_ms": ttl_ms,
                 "fade_ms": fade_ms,
+                **(
+                    {"session": lease["session"], "expected": lease["expected"], "begin": begin}
+                    if lease
+                    else {}
+                ),
             },
             room,
         )
 
-    async def release(self, room: str) -> dict | None:
-        return await self._post("/api/attention/release", {"room": room}, room)
+    async def challenge(self, room: str) -> dict:
+        data = await self.state()
+        row = data.get("rooms", {}).get(room) if isinstance(data, dict) else None
+        challenge = row.get("challenge") if isinstance(row, dict) else None
+        if not isinstance(challenge, dict) or set(challenge) != {"process", "revision"}:
+            raise AttentionDown("strict attention challenge unavailable")
+        process, revision = challenge["process"], challenge["revision"]
+        if (
+            not isinstance(process, str)
+            or len(process) != 36
+            or not isinstance(revision, str)
+            or not revision.isascii()
+            or not revision.isdecimal()
+            or str(int(revision)) != revision
+            or int(revision) >= (1 << 64) - 1
+        ):
+            raise AttentionDown("invalid attention challenge")
+        try:
+            if str(uuid.UUID(process)) != process:
+                raise ValueError("noncanonical manager process")
+        except ValueError as exc:
+            raise AttentionDown("invalid attention process") from exc
+        return dict(challenge)
+
+    async def release(self, room: str, *, lease: dict | None = None) -> dict | None:
+        body = {"room": room}
+        if lease is not None:
+            body.update(session=lease["session"], expected=lease["expected"])
+        result = await self._post("/api/attention/release", body, room)
+        if lease is not None and (
+            not isinstance(result, dict)
+            or result.get("contract") != "native_attention_v1"
+            or result.get("outcome") != "released"
+        ):
+            raise AttentionDown("native restoration pending or unknown")
+        return result
 
     async def state(self) -> dict | None:
         try:
@@ -93,7 +136,7 @@ class AttentionClient:
         if r.status_code == 503:
             self._mark_degraded()
             raise Unsupervised("state")
-        if r.status_code >= 500:
+        if r.status_code >= 500 or r.status_code == 409:
             self._mark_degraded()
             raise AttentionDown(str(r.status_code))
         r.raise_for_status()
@@ -138,7 +181,7 @@ class AttentionClient:
         if r.status_code == 503:
             self._mark_degraded()
             raise Unsupervised(room)
-        if r.status_code >= 500:
+        if r.status_code >= 500 or r.status_code == 409:
             self._mark_degraded()
             raise AttentionDown(str(r.status_code))
         r.raise_for_status()

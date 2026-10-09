@@ -13,16 +13,28 @@ from typing import Protocol, runtime_checkable
 @runtime_checkable
 class AttentionLike(Protocol):
     async def engage(
-        self, room: str, level: int, ttl_ms: int = ..., fade_ms: int = ...
+        self,
+        room: str,
+        level: int,
+        ttl_ms: int = ...,
+        fade_ms: int = ...,
+        *,
+        lease: dict | None = ...,
+        begin: bool = ...,
     ) -> dict | None: ...
 
-    async def release(self, room: str) -> dict | None: ...
+    async def challenge(self, room: str) -> dict: ...
+
+    async def release(self, room: str, *, lease: dict | None = ...) -> dict | None: ...
 
     async def state(self) -> dict | None: ...
 
 
 @runtime_checkable
 class HeartbeatLike(Protocol):
+    @property
+    def lease(self) -> dict | None: ...
+
     def start(self, room: str, level: int, ttl_ms: int) -> None: ...
 
     def retarget(self, room: str, level: int, ttl_ms: int) -> None: ...

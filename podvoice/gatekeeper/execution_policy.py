@@ -129,6 +129,7 @@ _EXPLICIT_READ_ONLY = {
     "podconnect_recently_played",
     "podconnect_top_tracks",
     "podconnect_liked",
+    "podconnect_get_targets",
 }
 _EXPLICIT_LOW_RISK = {
     "HassLightSet",
@@ -143,6 +144,7 @@ _EXPLICIT_LOW_RISK = {
     "podconnect_next",
     "podconnect_previous",
     "podconnect_volume",
+    "podconnect_move_playback",
 }
 
 

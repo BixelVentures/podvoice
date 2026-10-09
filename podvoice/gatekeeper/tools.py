@@ -20,7 +20,7 @@ import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -28,6 +28,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from . import constants as C
+from . import podconnect_targets as playback_targets
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -91,6 +92,8 @@ _TOOL_CAPABILITY_ROLES: dict[str, frozenset[str]] = {
     "podconnect_recently_played": frozenset({"music_history"}),
     "podconnect_top_tracks": frozenset({"music_history"}),
     "podconnect_liked": frozenset({"music_history"}),
+    "podconnect_get_targets": frozenset({"music_targets"}),
+    "podconnect_move_playback": frozenset({"music_transfer"}),
 }
 _PENDING_ROLE_CANDIDATES: dict[str, str] = {
     "HassGetCurrentDate": "time",
@@ -121,6 +124,12 @@ _PODCONNECT_DATA_TOOLS = {
         "or listening history. Private data; never use web instead.",
     ),
 }
+
+
+class _DispatchKwargs(TypedDict, total=False):
+    execution_guard: Callable[[], bool]
+    target_declaration_sha256: str | None
+    target_send_phase: dict[str, bool] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +170,7 @@ class _DiscoverySnapshot:
     retry_attempt: int
     retry_delay_s: float | None
     next_retry_at: float | None
+    target_contracts: tuple[tuple[str, str], ...] = ()
 
 
 _TARGETED_HA_INTENTS = {
@@ -322,6 +332,7 @@ class ToolRouter:
             ):
                 raise ValueError("HA services response is not a list of objects")
             discovered: set[str] = set()
+            target_contracts: tuple[tuple[str, str], ...] = ()
             for domain in domains:
                 if domain.get("domain") != "podconnect":
                     continue
@@ -334,6 +345,7 @@ class ToolRouter:
                 if not all(isinstance(name, str) and name for name in names):
                     raise ValueError("podconnect service name is malformed")
                 discovered = set(names)
+                target_contracts = playback_targets.contracts(services)
                 break
             snap = self._discovery
             self._discovery = _DiscoverySnapshot(
@@ -347,7 +359,8 @@ class ToolRouter:
                 endpoint=snap.endpoint,
                 api_id=snap.api_id,
                 server_info=snap.server_info,
-                schema_sha256=self._schema_sha256_for(snap.mcp_tools, discovered),
+                schema_sha256=self._schema_sha256_for(snap.mcp_tools, discovered, target_contracts),
+                target_contracts=target_contracts,
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -418,7 +431,7 @@ class ToolRouter:
                 return
             names = frozenset(t["name"] for t in tools)
             effective_schema_hash = self._schema_sha256_for(
-                tools, self._discovery.podconnect_services
+                tools, self._discovery.podconnect_services, self._discovery.target_contracts
             )
             info = getattr(self._mcp, "server_info", {}) or {}
             self._discovery = _DiscoverySnapshot(
@@ -428,6 +441,7 @@ class ToolRouter:
                 pending_names=frozenset(pending),
                 role_conflicts=tuple(conflicts),
                 podconnect_services=self._discovery.podconnect_services,
+                target_contracts=self._discovery.target_contracts,
                 fetched_at=time.time(),
                 endpoint=self._safe_endpoint(getattr(self._mcp, "url", "")),
                 api_id=self._mcp_api_id(self._mcp),
@@ -699,6 +713,7 @@ class ToolRouter:
             self._compose_declarations(
                 self._discovery.mcp_tools,
                 self._discovery.podconnect_services,
+                self._discovery.target_contracts,
             )
             + self._device_control.declarations()
         )
@@ -707,6 +722,7 @@ class ToolRouter:
     def _compose_declarations(
         mcp_tools: tuple[dict[str, Any], ...] | list[dict[str, Any]],
         podconnect_services: frozenset[str] | set[str],
+        target_contracts: tuple[tuple[str, str], ...] = (),
     ) -> list[dict]:
         decls: list[dict] = []
         for tool_name, (service_name, description) in _PODCONNECT_DATA_TOOLS.items():
@@ -731,7 +747,8 @@ class ToolRouter:
                         },
                     }
                 )
-        local_names = {d["name"] for d in decls}
+        decls += playback_targets.declarations(mcp_tools, target_contracts)
+        local_names = {d["name"] for d in decls} | set(playback_targets.TOOLS)
         decls += [json.loads(json.dumps(t)) for t in mcp_tools if t["name"] not in local_names]
         return decls
 
@@ -753,9 +770,10 @@ class ToolRouter:
     def _schema_sha256_for(
         mcp_tools: tuple[dict[str, Any], ...] | list[dict[str, Any]],
         podconnect_services: frozenset[str] | set[str],
+        target_contracts: tuple[tuple[str, str], ...] = (),
     ) -> str:
         return ToolRouter._schema_sha256_for_declarations(
-            ToolRouter._compose_declarations(mcp_tools, podconnect_services)
+            ToolRouter._compose_declarations(mcp_tools, podconnect_services, target_contracts)
         )
 
     @staticmethod
@@ -788,6 +806,8 @@ class ToolRouter:
             "music_search": [],
             "music_playback": [],
             "music_transport": [],
+            "music_targets": [],
+            "music_transfer": [],
         }
         if current:
             for name in names:
@@ -919,22 +939,35 @@ class ToolRouter:
                 return await self._dispatch_canonical_batch(
                     name, prepared.batch_args, execution_guard=execution_guard
                 )
+        # Only the two target services distinguish a timeout before dispatch from
+        # a possible send: HA may shield and finish its service after our deadline.
+        target_send_phase = {"possible_send": False} if name in playback_targets.TOOLS else None
         # Hard time-bound so a slow/wedged HA can never hang the conversational turn.
         try:
+            dispatch_kwargs: _DispatchKwargs = (
+                {"execution_guard": execution_guard} if execution_guard is not None else {}
+            )
+            if name in playback_targets.TOOLS:
+                dispatch_kwargs["target_declaration_sha256"] = current_declaration_sha256
+                dispatch_kwargs["target_send_phase"] = target_send_phase
             result = await asyncio.wait_for(
-                self._dispatch(
-                    name,
-                    dispatch_args,
-                    **({"execution_guard": execution_guard} if execution_guard is not None else {}),
-                ),
+                self._dispatch(name, dispatch_args, **dispatch_kwargs),
                 timeout=C.TOOL_TIMEOUT_S,
             )
         except TimeoutError:
-            result = {
-                "ok": False,
-                "error_kind": "timeout",
-                "error": "the service took too long to respond",
-            }
+            result = (
+                {
+                    "ok": False,
+                    "error_kind": "unknown_outcome",
+                    "error": "Playback target service outcome is unknown; no retry was sent",
+                }
+                if target_send_phase is not None and target_send_phase["possible_send"]
+                else {
+                    "ok": False,
+                    "error_kind": "timeout",
+                    "error": "the service took too long to respond",
+                }
+            )
         self._log_tool(name, result, dispatch_args)
         return result
 
@@ -1023,15 +1056,10 @@ class ToolRouter:
                         result = self._stale_execution()
                         results.append({"target": call_args["name"], "result": result})
                         break
-                    result = await self._dispatch(
-                        name,
-                        call_args,
-                        **(
-                            {"execution_guard": execution_guard}
-                            if execution_guard is not None
-                            else {}
-                        ),
+                    guard_kwargs: _DispatchKwargs = (
+                        {"execution_guard": execution_guard} if execution_guard is not None else {}
                     )
+                    result = await self._dispatch(name, call_args, **guard_kwargs)
                     self._log_tool(name, result, call_args)
                     results.append({"target": call_args["name"], "result": result})
                     active_args = None
@@ -1101,6 +1129,13 @@ class ToolRouter:
         replace every broad selector with that entity id, and classify only the
         canonical domain/state metadata.
         """
+        if name in playback_targets.TOOLS:
+            try:
+                return _PreparedExecution(playback_targets.arguments(name, args), None)
+            except ValueError as exc:
+                return _PreparedExecution(
+                    dict(args), None, {"ok": False, "error_kind": "bad_args", "error": str(exc)}
+                )
         if name not in _TARGETED_HA_INTENTS:
             return _PreparedExecution(dict(args), None)
         area = args.get("area") or args.get("area_id")
@@ -1474,9 +1509,19 @@ class ToolRouter:
         }
 
     async def _dispatch(
-        self, name: str, args: dict, *, execution_guard: Callable[[], bool] | None = None
+        self,
+        name: str,
+        args: dict,
+        *,
+        execution_guard: Callable[[], bool] | None = None,
+        target_declaration_sha256: str | None = None,
+        target_send_phase: dict[str, bool] | None = None,
     ) -> dict:
         try:
+            if name in playback_targets.TOOLS:
+                return await self._podconnect_target(
+                    name, args, target_declaration_sha256, execution_guard, target_send_phase
+                )
             if name in _PODCONNECT_DATA_TOOLS:
                 try:
                     limit = data_limit(args)
@@ -1513,6 +1558,49 @@ class ToolRouter:
             }
         except Exception as e:  # broad on purpose — never leave the model waiting
             return {"ok": False, "error_kind": "internal", "error": str(e)}
+
+    async def _podconnect_target(
+        self,
+        name: str,
+        args: dict,
+        expected: str | None,
+        execution_guard: Callable[[], bool] | None,
+        target_send_phase: dict[str, bool] | None,
+    ) -> dict:
+        """One existing nine-second dispatch budget; no retry after sending a move."""
+        await self._refresh_podconnect_services()
+        declaration = next((d for d in self.declarations() if d.get("name") == name), None)
+        current = self._schema_sha256_for_declarations([declaration]) if declaration else None
+        if expected is None or current != expected:
+            return {
+                "ok": False,
+                "error_kind": "stale_schema",
+                "error": "Playback target service contract changed; start a new wake",
+            }
+        if execution_guard is not None and not execution_guard():
+            return self._stale_execution()
+        if not self._token or self._client is None:
+            return {"ok": False, "error_kind": "no_ha_api"}
+        # From this point a transport error is an unknown outcome, never permission
+        # to resend. HA owns fresh entry and target admission after its own awaits.
+        try:
+            if target_send_phase is not None:
+                target_send_phase["possible_send"] = True
+            response = await self._client.post(
+                f"{C.SUPERVISOR_CORE_API}/services/podconnect/{playback_targets.TOOLS[name]}?return_response",
+                headers={"Authorization": f"Bearer {self._token}"},
+                json=args,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            data = payload.get("service_response") if isinstance(payload, dict) else None
+            return playback_targets.result(name, args, data)
+        except (httpx.HTTPError, ValueError):
+            return {
+                "ok": False,
+                "error_kind": "unknown_outcome",
+                "error": "Playback target service outcome is unknown; no retry was sent",
+            }
 
     async def _podconnect_data(self, tool_name: str, limit: int) -> dict:
         """Call one documented PodConnect Control response service through HA."""

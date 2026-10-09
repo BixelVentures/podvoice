@@ -15077,3 +15077,20 @@ ingengatefailure slettes. Fysisk farvelhale, guldeadline, korrekt cancellation o
 næstewake er UBEVIST på116 og afventer brugerens prøver. Ved regressionsfejl stands
 prøven og rollback115; installation kan afsluttes som den godkendte feltleverance,
 ikke som fuldAlpha-/produktaccept. Ingen fortsat optimering før fysisk feedback.
+
+
+<!-- PV209 exact machine-readable coupling mirror; active decision remains in canonical UI worktree docs/STATUS.md. -->
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "b44a2b699d86a988617e4a564d3d4d633f60e7a9",
+  "merge_base": "b44a2b699d86a988617e4a564d3d4d633f60e7a9",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "875b6b977310c5a1c9a271bafc7a045363c4c4abba40337d5c88acf533f62723",
+  "reviewer": "tooling_cause (heartbeat delta); ui_acceptance (composed source); transfer_design (final34 v7 including five literal UI changes)",
+  "rationale": "Independent exact effective production source review: released 208 private-contract baseline plus approved V8 ID-based target tools, post-join retained heartbeat release/no-BEGIN skip, passive119 admission trace and concise UI; all24 current projected files verified. Heartbeat successor adds only typing.cast import and two identity-returning casts; removing those and the formatter-only wrap exactly restores reviewed heartbeat bytes/whole AST. Generation/lock/challenge/BEGIN/lost-response/retarget/stop owners and three native-idle method ASTs are unchanged. Two test format deltas are AST-identical. Existing physical_output/rearm v1 tuple is source-admitted only; no classifier waiver, no native apply/restore/provider/physical acceptance or waiver of existing release/SafeEval/physical gates. Independent tooling review 43093248c313 confirms exact post-await target-None retirement guard and unchanged ownership methods, plus permanent strictHTTP Native/Talk failed-join reproducer and appended same-periodic-owner ABA control. Thin serializes wake against teardown; direct standalone restart during pending stop remains outside this admitted production path. No timeout/oracle weakening or provider/physical gate waiver. Independent tooling review 93545c1160c13210c7a3d336bd7a502ed4451a9e38d847d976f4113694b7364f admits the existing stateless Talk no-room adapter directly as heartbeat: no tasks, challenge, BEGIN, lease or RELEASE authority, native factory and common Thin/Heartbeat unchanged. Existing actual-main mic/typed ON/OFF assertions remain; optional cleanup task-slot observation retains exact native owners. All prior release failures retained; both SDK cohorts and provider/physical gates remain required. Final34 exact identity independently verified by transfer_design a2b46e9d307793fb9ee381a025337476731f9e690d05e702d4e90a18df724c77: all34 files and37 proof pins exact. Five reviewed display-only HTML literals replace English fallback and next-test prompts, source review42767a4fcf8b83225d85e46a0eaf17ad46fe3e5c3d2d3e1e1dbf2bde3e8a91f5. No UI/API/lifecycle action changes; current cleanup oracle whole52 cases PASS8.49. Existing class/domains/base tuple unchanged; this binds exact production bytes and does not waive any release/provider/physical requirement."
+}
+-->

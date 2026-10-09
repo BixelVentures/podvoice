@@ -230,7 +230,7 @@ async function talkCaptureGuard(page,secure) {
   const active=await read();record('diagnostic-active',active);
   assert.equal(active.mic_disabled,true,'diagnostic owner excludes capture');
   assert.equal(active.send_disabled,true,'diagnostic owner excludes text');
-  assert.equal(active.stage,'Systemtest kører','actual diagnostic listener ran');
+  assert.equal(active.stage,'Systemet kontrolleres','actual diagnostic listener ran');
   await bounded(page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:false})),'actual diagnostic cleared');
   const cleared=await read();record('diagnostic-cleared',cleared);
   assert.equal(cleared.send_disabled,false,'diagnostic cleared restores permitted text');

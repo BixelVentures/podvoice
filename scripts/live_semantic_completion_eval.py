@@ -403,7 +403,7 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
     session = rig.ThinSession(
         room="synthetic-semantic-completion",
         attention=attention,
-        heartbeat=rig.Heartbeat(attention),
+        heartbeat=attention,
         brain=rig.DisabledRealtime(),
         live_brain=live,
         live_enabled=lambda: True,

@@ -26,7 +26,7 @@ from gatekeeper import __main__ as main
 from gatekeeper import settings as S
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.talk import run_talk
-from gatekeeper.web import TALK
+from gatekeeper.web import HUB, TALK
 
 
 def _fault(path, kind):
@@ -247,6 +247,7 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
         wire, observers, sdks = BrowserWire(), [], []
         session, link = actual.app[TALK](wire.send_json, wire.send_bytes)
         assert session.live_enabled is actual.sessions["kitchen"].live_enabled
+        assert session.heartbeat is session.attention and session.heartbeat.lease is None
         # Keep the existing inert wire and actual Realtime parser/readiness owner.
         # Only the peer response is supplied; never resolve the pending ACK future.
         realtime = session._realtime_brain
@@ -298,6 +299,7 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
             await _observed(lambda: wire.result("first") is not None, main_task=task)
             assert wire.result("first")["status"] in {"accepted", "submitted"}
             assert session._active and session.live_alpha is initial_live
+            assert session.heartbeat.lease is None
             if initial_live:
                 assert link._live_handshake is not None and link._live_handshake.valid
                 assert sdks and sdks[-1].wire  # actual SDK serializer/parser, inert peer
@@ -310,12 +312,14 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
             await _observed(lambda: wire.result("old-stop") is not None, main_task=task)
             assert wire.result("old-stop")["status"] == "accepted"
             assert not session._active and not session._teardown_incomplete
+            assert session.heartbeat.lease is None
             wire.send(
                 "text" if first == "wake" else "wake", command_id="fresh", text="fresh fixture"
             )
             await _observed(lambda: wire.result("fresh") is not None, main_task=task)
             assert wire.result("fresh")["status"] in {"accepted", "submitted"}
             assert session._active and session.live_alpha is (not initial_live)
+            assert session.heartbeat.lease is None
             fresh = session.brain, session._epoch, session.live_alpha, link._live_handshake
             if old_peer is not None:
                 wire.send("live_fault", attempt_id=old_peer.attempt_id)
@@ -339,6 +343,13 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
                 link._live_handshake,
             ) == fresh
             assert session._active and not actual.forbidden
+            assert not [
+                (method, url)
+                for method, url in actual.requests
+                if method == "POST"
+                and url.split("?", 1)[0].endswith(("/api/attention", "/api/attention/release"))
+            ]
+            assert actual.app[HUB].snapshot()["metrics"]["attention_releases"] == 0
             typed_command = "first" if first == "text" else "fresh"
             typed_live = initial_live if first == "text" else not initial_live
             assert len(ack_rows) == int(not typed_live)

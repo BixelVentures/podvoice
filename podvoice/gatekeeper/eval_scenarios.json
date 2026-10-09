@@ -65,6 +65,110 @@
           }
         }
       ]
+    },
+    {
+      "exact_tool_name": "podconnect_get_targets",
+      "risk": "read_only",
+      "cases": [
+        {
+          "args": {},
+          "result": {
+            "ok": true,
+            "data": {
+              "accounts": [
+                {
+                  "config_entry_id": "synthetic-north",
+                  "title": "Konto Nord"
+                },
+                {
+                  "config_entry_id": "synthetic-south",
+                  "title": "Konto Syd"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "config_entry_id": "synthetic-north"
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "config_entry_id": "synthetic-north",
+              "targets": [
+                {
+                  "kind": "configured_alias",
+                  "target_id": "room-north",
+                  "name": "Samme navn",
+                  "homepod_id": "synthetic-output",
+                  "binding": {
+                    "ready": true,
+                    "incarnation": "synthetic-incarnation",
+                    "registry": "synthetic-registry",
+                    "room_id": "room-north"
+                  }
+                },
+                {
+                  "kind": "spotify_device",
+                  "target_id": "spotify-north",
+                  "name": "Samme navn",
+                  "restricted": false
+                },
+                {
+                  "kind": "observed_output",
+                  "target_id": "synthetic-output",
+                  "name": "Samme navn",
+                  "selected": false,
+                  "needs_auth": false,
+                  "query_up": true,
+                  "read_only": true
+                }
+              ],
+              "errors": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "exact_tool_name": "podconnect_move_playback",
+      "risk": "low_risk",
+      "cases": [
+        {
+          "args": {
+            "config_entry_id": "synthetic-north",
+            "kind": "configured_alias",
+            "target_id": "room-north"
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "kind": "configured_alias",
+              "target_id": "room-north",
+              "accepted_local": true,
+              "binding": {
+                "ready": true,
+                "incarnation": "synthetic-incarnation",
+                "registry": "synthetic-registry",
+                "room_id": "room-north"
+              }
+            }
+          }
+        },
+        {
+          "args": {
+            "config_entry_id": "synthetic-north",
+            "kind": "spotify_device",
+            "target_id": "spotify-north"
+          },
+          "result": {
+            "ok": false,
+            "error_kind": "unknown_outcome",
+            "error": "Synthetic unknown after one request; never retry"
+          }
+        }
+      ]
     }
   ],
   "scenarios": [
@@ -1543,6 +1647,103 @@
               "standse",
               "ophør"
             ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "music-account-clarification",
+      "description": "Synthetic active-account discovery must clarify two accounts without an implicit first account or action. No backend/provider.",
+      "exact_tool_names": [
+        "podconnect_get_targets",
+        "podconnect_move_playback"
+      ],
+      "turns": [
+        {
+          "text": "Flyt min musik til højttaleren med samme navn. Hvilken konto skal jeg vælge?",
+          "expect": {
+            "decision": "podconnect_get_targets",
+            "tool_args": {
+              "podconnect_get_targets": {}
+            },
+            "answer_any": [
+              "Nord",
+              "Syd"
+            ],
+            "forbid": [
+              "podconnect_move_playback"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "music-explicit-stable-target",
+      "description": "Synthetic typed configured target; local request acceptance is not audible playback or Spotify request acceptance.",
+      "exact_tool_names": [
+        "podconnect_get_targets",
+        "podconnect_move_playback"
+      ],
+      "turns": [
+        {
+          "text": "Brug Konto Nord med konto-id synthetic-north. Vis dens forskellige musikmål uden at flytte noget.",
+          "expect": {
+            "decision": "podconnect_get_targets",
+            "tool_args": {
+              "podconnect_get_targets": {
+                "config_entry_id": "synthetic-north"
+              }
+            },
+            "forbid": [
+              "podconnect_move_playback"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Flyt nu til det konfigurerede højttaler-alias fra kataloget med id room-north, ikke Spotify-enheden med samme navn.",
+          "expect": {
+            "decision": "podconnect_move_playback",
+            "tool_args": {
+              "podconnect_move_playback": {
+                "config_entry_id": "synthetic-north",
+                "kind": "configured_alias",
+                "target_id": "room-north"
+              }
+            },
+            "fixture_side_effects": 1,
+            "remain_open": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "music-transfer-unknown-no-retry",
+      "description": "A synthetic post-request unknown cannot be promoted to playback success or automatically retried.",
+      "exact_tool_names": [
+        "podconnect_move_playback"
+      ],
+      "turns": [
+        {
+          "text": "På Konto Nord, id synthetic-north: flyt til Spotify-enheden spotify-north. Send kun én forespørgsel, og sig til hvis udfaldet er ukendt.",
+          "expect": {
+            "decision": "podconnect_move_playback",
+            "tool_args": {
+              "podconnect_move_playback": {
+                "config_entry_id": "synthetic-north",
+                "kind": "spotify_device",
+                "target_id": "spotify-north"
+              }
+            },
+            "fixture_side_effects": 0,
+            "answer_any": [
+              "ukendt",
+              "ikke bekræfte"
+            ],
+            "remain_open": true
           }
         }
       ]

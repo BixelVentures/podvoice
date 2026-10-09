@@ -1150,10 +1150,10 @@ async def test_schema_correction_submission_failure_closes_and_releases_once(mon
     allow_release = asyncio.Event()
     original_release = attention.release
 
-    async def delayed_release(room):
+    async def delayed_release(room, *, lease=None):
         release_entered.set()
         await allow_release.wait()
-        return await original_release(room)
+        return await original_release(room, lease=lease)
 
     monkeypatch.setattr(attention, "release", delayed_release)
     await session.start()
