@@ -1,3 +1,9 @@
+## 2.0.19 - clean recovery after original music attention retires
+
+- Close the current voice conversation through its existing cleanup owner when compatible Speakers supplies exact proof that the original music-attention lease has durably retired. Temporary connection failures continue retrying.
+- Retire queued heartbeat renewals before cleanup while preserving the original release identity; delayed replies cannot affect the next conversation. Shipped Talk keeps its existing no-attention behavior.
+- Includes the bounded discovery and complete playback-target catalogue fixes from 2.0.18. Physical recovery and lifecycle acceptance remain pending.
+
 ## 2.0.18 - bounded recovery and readable playback targets
 
 - Bound complete HA service discovery and MCP tool-list reads with the existing operation deadline, so progressing incomplete responses cannot hold recovery indefinitely.

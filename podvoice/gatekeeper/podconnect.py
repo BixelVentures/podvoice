@@ -23,6 +23,50 @@ class AttentionDown(Exception):
     """Transport error, refusal, timeout, or 5xx — PodConnect unreachable/broken."""
 
 
+class AttentionLeaseRetired(AttentionDown):
+    """Exact original UPDATE lease has a manager's durable retirement receipt."""
+
+    def __init__(self, room: str, lease: dict) -> None:
+        super().__init__("original attention lease retired")
+        self.room = room
+        self.lease = {"session": lease["session"], "expected": dict(lease["expected"])}
+
+
+def _retired_update_receipt(data: object, body: dict, room: str) -> bool:
+    if body.get("begin") is not False or not isinstance(data, dict):
+        return False
+    if set(data) != {"contract", "outcome", "room", "session", "expected"}:
+        return False
+    if (
+        data["contract"] != "native_attention_v1"
+        or data["outcome"] != "lease_retired"
+        or data["room"] != room
+        or data["session"] != body.get("session")
+        or data["expected"] != body.get("expected")
+    ):
+        return False
+    expected = data["expected"]
+    if not isinstance(expected, dict) or set(expected) != {"process", "revision"}:
+        return False
+    for identity in (data["session"], expected["process"]):
+        if not isinstance(identity, str) or len(identity) != 36:
+            return False
+        try:
+            if str(uuid.UUID(identity)) != identity or uuid.UUID(identity).int == 0:
+                return False
+        except ValueError:
+            return False
+    revision = expected["revision"]
+    return (
+        isinstance(revision, str)
+        and 0 < len(revision) <= 20
+        and revision.isascii()
+        and revision.isdecimal()
+        and str(int(revision)) == revision
+        and 0 < int(revision) < (1 << 64)
+    )
+
+
 class UnknownRoom(Exception):
     """404 — the room id is not known to PodConnect (config error)."""
 
@@ -181,6 +225,14 @@ class AttentionClient:
         if r.status_code == 503:
             self._mark_degraded()
             raise Unsupervised(room)
+        if r.status_code == 409 and path == "/api/attention":
+            try:
+                data = r.json()
+            except ValueError:
+                data = None
+            if _retired_update_receipt(data, body, room):
+                self._mark_degraded()
+                raise AttentionLeaseRetired(room, body)
         if r.status_code >= 500 or r.status_code == 409:
             self._mark_degraded()
             raise AttentionDown(str(r.status_code))
