@@ -165,7 +165,7 @@
   #cmodel { max-width: 460px; }  /* don't let a long model name stretch the whole row */
 
   /* Tabs */
-  .tabs { display: grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
+  .tabs { display: grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
           overflow:visible; }
   .tabbtn { background: transparent; border: 0; border-bottom: 2px solid transparent;
             color: var(--fg-dim); font-weight: 700; font-size: .88rem;
@@ -338,7 +338,6 @@
   <div class="tabs" role="tablist" aria-label="PodVoice visninger">
     <button id="tab-home" class="tabbtn active" data-tab="home" role="tab" aria-selected="true" aria-controls="pane-home">Hjem</button>
     <button id="tab-talk" class="tabbtn" data-tab="talk" role="tab" aria-selected="false" aria-controls="pane-talk" tabindex="-1">Tal</button>
-    <button id="tab-test" class="tabbtn" data-tab="test" role="tab" aria-selected="false" aria-controls="pane-test" tabindex="-1">Diagnose</button>
     <button id="tab-history" class="tabbtn" data-tab="history" role="tab" aria-selected="false" aria-controls="pane-history" tabindex="-1">Historik</button>
     <button id="tab-settings" class="tabbtn" data-tab="settings" role="tab" aria-selected="false" aria-controls="pane-settings" tabindex="-1">Indstillinger</button>
   </div>
@@ -359,61 +358,6 @@
 
 
   </div>
-
-  <div class="pane" id="pane-test" role="tabpanel" aria-labelledby="tab-test" hidden>
-    <div class="section">
-      <h2>Rumdiagnose</h2>
-      <div id="room-tests" class="list"></div>
-    </div>
-    <details class="section" id="connection-details">
-      <summary>Evner og forbindelser</summary>
-      <div id="service-details" style="margin-top:10px"></div>
-      <div id="capabilities" style="margin-top:10px"></div>
-      <div id="capability-diagnostics" class="sub" style="margin-top:10px"></div>
-    </details>
-    <details class="section" id="activity-section">
-      <summary>Seneste aktivitet</summary>
-      <div id="activity" class="tx" aria-label="Seneste aktivitet" style="min-height:0;max-height:240px"></div>
-    </details>
-    <details class="section">
-      <summary>Målinger</summary>
-      <div id="metrics" class="metrics"></div>
-    </details>
-        <details class="adv" style="margin-top:12px">
-          <summary>Diagnostik</summary>
-          <div class="vpgate" style="margin-top:8px">
-            <div class="vpg-row">
-              <div class="vpg-txt"><b>Forbindelse</b><span class="sub">Kan PodVoice nå enheden?</span></div>
-              <button id="vp_status" class="ghost">Tjek</button>
-            </div>
-            <div class="vpg-row">
-              <div class="vpg-txt"><b>Lyd ind</b><span class="sub">Sammenhængende mikrofonstream (~15&nbsp;s)</span></div>
-              <button id="vp_s1" class="ghost">Tjek</button>
-            </div>
-            <div class="vpg-row">
-              <div class="vpg-txt"><b>Højttaler</b><span class="sub">Kan du høre testtonen?</span></div>
-              <button id="vp_s2" class="ghost">Afspil test</button>
-            </div>
-          </div>
-          <div id="vp_result" class="status" role="status" aria-live="polite" style="display:none;margin-top:12px"></div>
-          <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Kopiér resultat</button>
-        </details>
-    <div class="section">
-      <h2>Lydbevis</h2>
-      <p class="sub" style="margin:2px 0 10px">Alpha gemmer automatisk diagnose fra dine Voice PE-samtaler: hændelser, mikrofon, lyd sendt mod OpenAI og svarlyd. Der gemmes ikke løbende lyd mellem samtaler. Efter et registreret wake kan op til 1,5 sekunders lokal vækkeordsreference gemmes; den sendes ikke til OpenAI. Data beholdes lokalt i højst 24 timer og inden for 512 MiB. Lyd sendt mod OpenAI er ikke bevis for modtagelse; svarlyd er ikke en optagelse af lyden i rummet. Manuel optagelse er stadig mulig uden Alpha.</p>
-      <button id="trace_arm">Optag næste samtale</button>
-      <button id="trace_cancel" class="ghost" hidden>Annullér</button>
-      <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
-      <button id="trace_analyse" class="ghost" disabled>Analyser gemt lyd med OpenAI</button>
-      <p class="sub">Sender højst tre korte lydudsnit fra den gemte optagelse til OpenAI til særskilt transskription, højst 24 sekunders lyd i alt. Nabu og Talk er midlertidigt låst under analysen. Der optages ingen ny lyd. Teksten er diagnostik og kan høre forkert.</p>
-      <div id="trace_analysis" class="tx" role="status" aria-live="polite" style="min-height:0"></div>
-    </div>
-    <div class="section">
-      <h2>Seneste samtaletidslinje</h2>
-      <p class="sub" style="margin:2px 0 10px">Gemmes automatisk uden lyd: wake, lytning, tænkning, værktøj, fysisk afspilning, lukning, lys og genaktivering.</p>
-      <div id="lifecycle_timeline" class="tx" style="min-height:0"></div>
-    </div>
-    </div>
 
   <div class="pane" id="pane-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
     <div class="section">
@@ -491,7 +435,7 @@
 
 
 
-      <details class="adv" style="margin-top:18px">
+      <details class="adv" id="s_advanced" style="margin-top:18px">
         <summary>Avanceret</summary>
 
       <section class="expose">
@@ -594,6 +538,62 @@
           <p class="sub" style="margin:2px 0 0">Fra: kun via Home Assistant. Til: adgang fra dit netværk til panel, indstillinger og tokens.</p>
         </details>
 
+
+        <details class="adv" id="pane-test" style="margin-top:12px">
+          <summary id="diagnostics-summary">Fejlfinding</summary>
+          <div class="section">
+            <h2>Rumdiagnose</h2>
+            <div id="room-tests" class="list"></div>
+          </div>
+          <details class="section" id="connection-details">
+            <summary>Evner og forbindelser</summary>
+            <div id="service-details" style="margin-top:10px"></div>
+            <div id="capabilities" style="margin-top:10px"></div>
+            <div id="capability-diagnostics" class="sub" style="margin-top:10px"></div>
+          </details>
+          <details class="section" id="activity-section">
+            <summary>Seneste aktivitet</summary>
+            <div id="activity" class="tx" aria-label="Seneste aktivitet" style="min-height:0;max-height:240px"></div>
+          </details>
+          <details class="section">
+            <summary>Målinger</summary>
+            <div id="metrics" class="metrics"></div>
+          </details>
+              <details class="adv" style="margin-top:12px">
+                <summary>Diagnostik</summary>
+                <div class="vpgate" style="margin-top:8px">
+                  <div class="vpg-row">
+                    <div class="vpg-txt"><b>Forbindelse</b><span class="sub">Kan PodVoice nå enheden?</span></div>
+                    <button id="vp_status" class="ghost">Tjek</button>
+                  </div>
+                  <div class="vpg-row">
+                    <div class="vpg-txt"><b>Lyd ind</b><span class="sub">Sammenhængende mikrofonstream (~15&nbsp;s)</span></div>
+                    <button id="vp_s1" class="ghost">Tjek</button>
+                  </div>
+                  <div class="vpg-row">
+                    <div class="vpg-txt"><b>Højttaler</b><span class="sub">Kan du høre testtonen?</span></div>
+                    <button id="vp_s2" class="ghost">Afspil test</button>
+                  </div>
+                </div>
+                <div id="vp_result" class="status" role="status" aria-live="polite" style="display:none;margin-top:12px"></div>
+                <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Kopiér resultat</button>
+              </details>
+          <div class="section">
+            <h2>Lydbevis</h2>
+            <p class="sub" style="margin:2px 0 10px">Alpha gemmer automatisk diagnose fra dine Voice PE-samtaler: hændelser, mikrofon, lyd sendt mod OpenAI og svarlyd. Der gemmes ikke løbende lyd mellem samtaler. Efter et registreret wake kan op til 1,5 sekunders lokal vækkeordsreference gemmes; den sendes ikke til OpenAI. Data beholdes lokalt i højst 24 timer og inden for 512 MiB. Lyd sendt mod OpenAI er ikke bevis for modtagelse; svarlyd er ikke en optagelse af lyden i rummet. Manuel optagelse er stadig mulig uden Alpha.</p>
+            <button id="trace_arm">Optag næste samtale</button>
+            <button id="trace_cancel" class="ghost" hidden>Annullér</button>
+            <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
+            <button id="trace_analyse" class="ghost" disabled>Analyser gemt lyd med OpenAI</button>
+            <p class="sub">Sender højst tre korte lydudsnit fra den gemte optagelse til OpenAI til særskilt transskription, højst 24 sekunders lyd i alt. Nabu og Talk er midlertidigt låst under analysen. Der optages ingen ny lyd. Teksten er diagnostik og kan høre forkert.</p>
+            <div id="trace_analysis" class="tx" role="status" aria-live="polite" style="min-height:0"></div>
+          </div>
+          <div class="section">
+            <h2>Seneste samtaletidslinje</h2>
+            <p class="sub" style="margin:2px 0 10px">Gemmes automatisk uden lyd: wake, lytning, tænkning, værktøj, fysisk afspilning, lukning, lys og genaktivering.</p>
+            <div id="lifecycle_timeline" class="tx" style="min-height:0"></div>
+          </div>
+        </details>
 
       </details>
 
@@ -768,9 +768,12 @@ function renderCapabilities(caps, details) {
       var focused = warn.contains(document.activeElement);
       warn.innerHTML = ""; warn.dataset.message = message;
       warn.appendChild(el("div", null, message));
-      var next = el("button", "ghost", "Se Diagnose");
+      var next = el("button", "ghost", "Se fejlfinding");
       next.onclick = function () {
-        var tab = document.getElementById("tab-test"); tab.click(); tab.focus();
+        document.getElementById("tab-settings").click();
+        document.getElementById("s_advanced").open = true;
+        document.getElementById("pane-test").open = true;
+        document.getElementById("diagnostics-summary").focus();
         var detail = document.getElementById("connection-details"); if (detail) detail.open = true;
       };
       warn.appendChild(next);
@@ -843,7 +846,7 @@ function renderLiveStatus(rm, diagnostic) {
   if (!diagnostic) {
     if (view.title === "Status ukendt" || view.title === "Status forældet" ||
         view.title === "Offline" || view.title === "Kræver opmærksomhed")
-      box.appendChild(el("div", "live-detail", "Tjek forbindelsen under Diagnose."));
+      box.appendChild(el("div", "live-detail", "Tjek forbindelsen under Indstillinger → Avanceret → Fejlfinding."));
     else if (view.title === "Vækning ikke bekræftet")
       box.appendChild(el("div", "live-detail", "Prøv dit vækkeord."));
     else if (view.title === "Afslutter" && rm.live_status.remaining_s === 0)

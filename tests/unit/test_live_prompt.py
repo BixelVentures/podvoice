@@ -5,7 +5,7 @@ from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
 def test_canonical_prompt_changes_require_live_policy_review():
-    assert PROMPT_VERSION == 15
+    assert PROMPT_VERSION == 16
     assert set(_sections()) == {
         "IDENTITET OG MÅL",
         "PRIORITET",
@@ -289,6 +289,16 @@ def test_live_end_acceptance_is_not_a_completed_physical_close():
     assert "After closing" not in LIVE_END_CONVERSATION_DECLARATION["description"]
     assert "accepted_not_closed" in LIVE_END_CONVERSATION_DECLARATION["description"]
     assert "After closing" in END_CONVERSATION_DECLARATION["description"]
+    _, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert backend.count("Ved musikflytning betyder accepted_local=true") == 1
+    assert backend.count("Musikstyring, herunder pause og stop, bevarer samtalen") == 1
+    for declaration in (END_CONVERSATION_DECLARATION, LIVE_END_CONVERSATION_DECLARATION):
+        assert "accepted_local=true" in declaration["description"]
+        assert "provider_request_accepted=true" in declaration["description"]
+        assert (
+            "these acknowledgements alone do not justify task-completion closure"
+            in declaration["description"]
+        )
     assert (
         LIVE_END_CONVERSATION_DECLARATION["parameters"]
         == END_CONVERSATION_DECLARATION["parameters"]

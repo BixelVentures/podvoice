@@ -291,6 +291,14 @@ async function secureTalkCaptureGuard(browser) {
   if(primary)throw primary;assert.deepEqual(cleanupErrors,[],'HTTPS public-owner cleanup');return receipt;
 }
 
+async function openDiagnostics(page) {
+  await page.locator('#tab-settings').click({timeout:FIXTURE_WAIT_MS});
+  for(const id of ['s_advanced','pane-test']) {
+    if(!await bounded(page.locator('#'+id).evaluate(element=>element.open),'diagnostic disclosure state'))
+      await page.locator('#'+id+' > summary').click({timeout:FIXTURE_WAIT_MS});
+  }
+}
+
 // Whole shipped settings form, actual native label activation and CSS geometry.
 // API payloads are inert; this fixture never saves settings or opens Talk.
 async function settingsTouchTargets(browser) {
@@ -449,6 +457,9 @@ async function settingsTouchTargets(browser) {
         await page.waitForFunction(()=>document.querySelector('#pane-home .live-title')?.textContent==='Lytter');
         assert.equal(await page.locator('#room-tests img').count(),0,'untrusted transcript is text');
         assert.equal(await page.locator('#pane-home details').count(),0,'daily use has no tutorial/diagnostic disclosures');
+        assert.equal(await page.locator('.tabs #tab-test').count(),0,'diagnostics is outside primary navigation');
+        assert.equal(await page.locator('#s_advanced').evaluate(e=>e.open),false,'advanced settings begin closed');
+        assert.equal(await page.locator('#pane-test').evaluate(e=>e.open),false,'diagnostics begin closed');
         assert.doesNotMatch(await page.locator('#pane-home').innerText(),/Styring:|Ro:|Streamstart|Sådan|LED/);
         assert.equal(await page.locator('#wake-example').count(),0);
         for(const id of ['eval_live','eval_audio_idle','eval_protocol_owner','eval_golden','eval_close',
@@ -487,7 +498,7 @@ async function settingsTouchTargets(browser) {
         assert.match(await page.locator('#capabilities').textContent(),/Timere: fundet/);
         assert.doesNotMatch(await page.locator('#svc span').first().getAttribute('title'),/aktiv|Realtime-session/);
         assert.match(await page.locator('#svc span').first().getAttribute('title'),/seneste samtale/);
-        await page.getByRole('button',{name:'Se Diagnose',exact:true}).focus();
+        await page.getByRole('button',{name:'Se fejlfinding',exact:true}).focus();
         const warningChanges=await page.evaluate(()=>{
           const target=document.getElementById('cap_warning');let mutations=0;
           const watcher=new MutationObserver(x=>mutations+=x.length);watcher.observe(target,{childList:true});
@@ -495,10 +506,12 @@ async function settingsTouchTargets(browser) {
           return Promise.resolve().then(()=>{watcher.disconnect();return mutations;});
         });
         assert.equal(warningChanges,0,'unchanged warning preserves keyboard target and avoids alert storm');
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Se Diagnose');
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Se fejlfinding');
         await page.keyboard.press('Enter');
-        assert.equal(await page.locator('#tab-test').getAttribute('aria-selected'),'true');
-        assert.equal(await page.evaluate(()=>document.activeElement.id),'tab-test');
+        assert.equal(await page.locator('#tab-settings').getAttribute('aria-selected'),'true');
+        assert.equal(await page.locator('#s_advanced').evaluate(e=>e.open),true);
+        assert.equal(await page.locator('#pane-test').evaluate(e=>e.open),true);
+        assert.equal(await page.evaluate(()=>document.activeElement.id),'diagnostics-summary');
         assert.equal(await page.locator('#connection-details').evaluate(e=>e.open),true);
         assert.match(await page.locator('#capability-diagnostics').innerText(),/HassBroadcast, HassCancelAllTimers/);
         assert.match(await page.locator('#service-details').innerText(),/Realtime-session aktiv.*aktiv Realtime-session/);
@@ -582,8 +595,8 @@ async function settingsTouchTargets(browser) {
         injecting=false; heldPolls.splice(0).forEach(resolve=>resolve());
         await bounded(deliberatePoll,'deliberate poll final-state delivery');
         assert.equal(await page.evaluate(()=>lastStatus.diagnostic_active),false,'held poll delivered the final owner state');
-        await page.locator('#tab-test').click();
-        assert.equal(await page.locator('#tab-test').innerText(),'Diagnose');
+        await openDiagnostics(page);
+        assert.equal(await page.locator('#diagnostics-summary').innerText(),'Fejlfinding');
         await page.locator('.room-diagnostics > summary').focus();
         await page.keyboard.press('Enter');
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),true);
@@ -641,8 +654,9 @@ async function settingsTouchTargets(browser) {
         assert.deepEqual(contrast.failures,[],`rendered text contrast ${width}/${scheme}: ${JSON.stringify(contrast.failures)}`);
         await page.locator('.room-diagnostics').evaluate(e=>e.open=false);
         if(proof)await page.screenshot({path:path.join(proof,`home-${width}-${scheme}.png`),fullPage:true});
-        for (const pane of ['talk','test','history','settings']) {
-          await page.locator('#tab-'+pane).click();
+        for (const pane of ['talk','history','settings','test']) {
+          if(pane==='test')await openDiagnostics(page);
+          else await page.locator('#tab-'+pane).click();
           assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${pane} overflow ${width}/${scheme}`);
           if(proof && [390,1440].includes(width)){ await page.waitForTimeout(220); await page.screenshot({path:path.join(proof,`${pane}-${width}-${scheme}.png`),fullPage:true}); }
         }
@@ -678,7 +692,7 @@ async function settingsTouchTargets(browser) {
           const measurementPoll=own(page.evaluate(()=>poll()));
           await bounded(measurementHeld,'measurement poll entered');
           assert.ok(heldPolls.length>0,'actual status poll held for measurement evidence');
-          await page.locator('#tab-test').click({timeout:FIXTURE_WAIT_MS});
+          await openDiagnostics(page);
           const inventory=await observeMeasurement(page,null);
           const results=[];
           const names=['finite-host-arrival','invalid-edge-0','typed-start-is-not-speech','actual-recovery-edge'];

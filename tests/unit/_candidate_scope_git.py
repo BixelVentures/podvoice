@@ -32,6 +32,8 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm"), *, native_quie
         if domains == ("audio_input", "physical_output")
         else "MCP end_conversation\n"
         if domains == ("ha_tools", "realtime_semantics")
+        else "playback end_conversation\n"
+        if domains == ("physical_output", "realtime_semantics")
         else "playback end_conversation rearm\n"
         if domains == ("physical_output", "realtime_semantics", "rearm")
         else "mic_gate MCP playback response.done rearm\n"

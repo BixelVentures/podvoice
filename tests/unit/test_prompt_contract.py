@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v15_is_prioritized_and_model_owned():
+def test_v16_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 15
+    assert PROMPT_VERSION == 16
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -107,6 +107,12 @@ def test_accepted_start_contract_matches_close_tool_without_physical_success_cla
     assert "actual completion, status or further dialogue" in description
     assert "ukendt udfald" in prompt and "unknown outcomes" in description
     assert "roborock" not in description
+    for field in ("accepted_local=true", "provider_request_accepted=true"):
+        assert field in prompt and field in description
+    assert "denne accept alene er ikke opgavefærdig" in prompt
+    assert "hold samtalen åben" in prompt
+    assert "these acknowledgements alone do not justify task-completion closure" in description
+    assert "explicit user intent to end still applies" in description
 
 
 def test_quiet_acknowledgement_and_meaningful_politeness_have_aligned_contracts():
