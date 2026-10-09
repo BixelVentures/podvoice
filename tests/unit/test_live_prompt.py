@@ -5,7 +5,7 @@ from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
 def test_canonical_prompt_changes_require_live_policy_review():
-    assert PROMPT_VERSION == 16
+    assert PROMPT_VERSION == 17
     assert set(_sections()) == {
         "IDENTITET OG MÅL",
         "PRIORITET",
@@ -19,6 +19,14 @@ def test_canonical_prompt_changes_require_live_policy_review():
         "SEMANTISK AFSLUTNING",
     }
     live_instructions(SYSTEM_PROMPT_DA)
+
+
+def test_finite_action_sequence_policy_reaches_live_backend_without_local_closure():
+    _, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "En aftalt række handlinger på tværs af flere brugerture" in backend
+    assert "efter sidste bekræftede handling" in backend
+    assert "ingen opgave, spørgsmål eller ønsket dialog resterer" in backend
+    assert "som skal fortsætte som aftalt, er ikke i sig selv en resterende opgave" in backend
 
 
 def test_reconsideration_is_one_exact_call_and_never_substitutes_for_fresh_assent():

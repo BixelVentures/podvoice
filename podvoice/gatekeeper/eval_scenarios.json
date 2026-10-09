@@ -1781,15 +1781,15 @@
         },
         {
           "text": "Sæt også en timer på to minutter, og kald den te.",
-          "expect": {"decision": "podvoice_start_timer", "tool_args": {"podvoice_start_timer": {"seconds": 120, "name": "te"}}, "tool_outcomes": {"podvoice_start_timer": ["ok"]}, "fixture_side_effects": 1, "remain_open": true}
+          "expect": {"decision": "podvoice_start_timer", "tool_args": {"podvoice_start_timer": {"seconds": 120, "name": "te"}}, "tool_outcomes": {"podvoice_start_timer": ["ok"]}, "fixture_side_effects": 2, "remain_open": true}
         },
         {
           "text": "Hvilke timere kører lige nu?",
-          "expect": {"decision": "podvoice_timer_status", "tool_args": {"podvoice_timer_status": {}}, "tool_outcomes": {"podvoice_timer_status": ["ok"]}, "fixture_side_effects": 0, "answer_all": ["pasta", "te"], "remain_open": true}
+          "expect": {"decision": "podvoice_timer_status", "tool_args": {"podvoice_timer_status": {}}, "tool_outcomes": {"podvoice_timer_status": ["ok"]}, "fixture_side_effects": 2, "answer_all": ["pasta", "te"], "remain_open": true}
         },
         {
           "text": "Annuller pasta-timeren, men lad te-timeren køre.",
-          "expect": {"decisions": ["podvoice_cancel_timer", "end_conversation"], "decision_batches": [["podvoice_cancel_timer"], ["end_conversation"]], "tool_args": {"podvoice_cancel_timer": {"timer_id": "synthetic-pasta"}}, "tool_outcomes": {"podvoice_cancel_timer": ["ok"], "end_conversation": ["ok"]}, "fixture_side_effects": 1, "remain_open": false}
+          "expect": {"decisions": ["podvoice_cancel_timer", "end_conversation"], "decision_batches": [["podvoice_cancel_timer"], ["end_conversation"]], "tool_args": {"podvoice_cancel_timer": {"timer_id": "synthetic-pasta"}}, "tool_outcomes": {"podvoice_cancel_timer": ["ok"], "end_conversation": ["ok"]}, "fixture_side_effects": 3, "remain_open": false}
         }
       ]
     }
