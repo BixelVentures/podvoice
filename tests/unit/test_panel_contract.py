@@ -154,8 +154,10 @@ def test_talk_v2_commits_only_acknowledged_text_and_detects_stale_sockets():
     assert "Date.now() - lastPong > 15000" in html
     assert "generation !== socketGeneration" in html
     assert "playback_id: playbackId" in html
-    assert "ev.playback_id === currentPlaybackId" in html
-    assert "stopReply(false); endTurn();" in html
+    assert "owner.playbackId === ev.playback_id" in html
+    assert "(!currentPlaybackId || currentPlaybackId === ev.playback_id)" in html
+    assert "var stopped = valid && stopReply(false);" in html
+    assert "if (stopped) { pendingLiveRotation = null; endTurn(); }" in html
     assert 'micStop(); stopReply(false); setState("offline"' in html
 
 

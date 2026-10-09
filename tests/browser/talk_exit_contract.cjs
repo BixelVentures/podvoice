@@ -42,7 +42,7 @@ function installInertIO() {
     close(){this.connectionState='closed';if(this.onconnectionstatechange)this.onconnectionstatechange();}
   };
   // Inert output owner; this facet does not exercise autoplay or speaker audio.
-  window.Audio=class {constructor(){f.audios.push(this);}play(){return Promise.resolve();}pause(){this.paused=true;}removeAttribute(){}load(){}};
+  window.Audio=class {constructor(){this.attrs={};this.paused=true;f.audios.push(this);}set src(v){this.attrs.src=v;}get src(){return this.attrs.src||'';}play(){this.paused=false;return Promise.resolve();}pause(){this.paused=true;}removeAttribute(k){delete this.attrs[k];}hasAttribute(k){return Object.hasOwn(this.attrs,k);}load(){}};
 }
 function snapshot() {
   const f=window.__tabMedia;
@@ -113,6 +113,33 @@ async function one(browser,mode,boundary) {
     const visiblePcm=await read(page);trace.push({edge:'visible-pcm-observer-positive',state:visiblePcm});
     assert.equal(visiblePcm.pcmContextCount,initialHidden.pcmContextCount+1,'instrumented actual PCM context positive control');
     assert.equal(visiblePcm.pcmStartCount,initialHidden.pcmStartCount+1,'instrumented actual source.start positive control');
+    if(mode==='admitted' && boundary==='home') {
+      // Exact finite-output stop runs through the shipped handler; source is inert.
+      await bounded(page.evaluate(deliver,{type:'play',url:'api/reply/inert',playback_id:'owned',playback_connection:'finite-peer',playback_generation:1}),'owned finite output');
+      await bounded(page.evaluate(deliver,{type:'stop_playback',playback_id:'owned',playback_connection:'other-peer',playback_generation:1,stop_id:'wrong'}),'stale finite stop');
+      let output=await bounded(page.evaluate(()=>({audio:window.__tabMedia.audios.at(-1).paused,ack:window.__tabMedia.sent.filter(v=>v.type==='playback_stopped').at(-1)})),'stale stop observation');
+      assert.equal(output.audio,false,'stale stop cannot silence current source');
+      assert.equal(output.ack.stopped,false,'stale stop never claims source detached');
+      await bounded(page.evaluate(deliver,{type:'stop_playback',playback_id:'owned',playback_connection:'finite-peer',playback_generation:1,stop_id:'exact'}),'exact finite stop');
+      output=await bounded(page.evaluate(()=>({paused:window.__tabMedia.audios.at(-1).paused,attached:window.__tabMedia.audios.at(-1).hasAttribute('src'),ack:window.__tabMedia.sent.filter(v=>v.type==='playback_stopped').at(-1),permissions:window.__tabMedia.permissionCalls})),'exact source stop observation');
+      assert.equal(output.paused,true);assert.equal(output.attached,false);
+      assert.equal(output.ack.stop_id,'exact');assert.equal(output.ack.playback_connection,'finite-peer');
+      assert.equal(output.ack.playback_generation,1);assert.equal(output.ack.playback_id,'owned');
+      assert.equal(output.ack.stopped,true);assert.equal(output.ack.source_detached,true);
+      assert.equal(output.permissions,0,'output Stop does not acquire the microphone');
+      await bounded(page.evaluate(deliver,{type:'play',url:'api/reply/inert',playback_id:'held-source',playback_connection:'finite-peer',playback_generation:2}),'old source before failed cleanup');
+      await bounded(page.evaluate(()=>{const a=window.__tabMedia.audios.at(-1);a.pause=function(){throw new Error('inert pause failed');};}),'inject source cleanup failure');
+      const count=await bounded(page.evaluate(()=>window.__tabMedia.audios.length),'finite source count before rejected replacement');
+      await bounded(page.evaluate(deliver,{type:'play',url:'api/reply/inert',playback_id:'rejected-new',playback_connection:'finite-peer',playback_generation:3}),'replacement must await old source cleanup');
+      const rejected=await bounded(page.evaluate(()=>({count:window.__tabMedia.audios.length,paused:window.__tabMedia.audios.at(-1).paused,attached:window.__tabMedia.audios.at(-1).hasAttribute('src'),fault:window.__tabMedia.sent.filter(v=>v.type==='media'&&v.state==='fault').at(-1),drains:window.__tabMedia.sent.filter(v=>v.type==='media'&&v.announcing===false)})),'retained source and rejected output fault');
+      assert.equal(rejected.count,count,'failed cleanup creates no replacement Audio');
+      assert.equal(rejected.paused,false);assert.equal(rejected.attached,true,'old source remains owned');
+      assert.equal(rejected.fault.playback_id,'rejected-new','Thin receives a fault for B');
+      assert.equal(rejected.drains.some(v=>v.playback_id==='held-source'),false,'failed source stop never reports A drained');
+      await bounded(page.evaluate(()=>{window.__tabMedia.audios.at(-1).pause=function(){this.paused=true;};}),'release inert source failure');
+      await bounded(page.evaluate(deliver,{type:'stop_playback',playback_id:'held-source',playback_connection:'finite-peer',playback_generation:2,stop_id:'held-cleanup'}),'retained A exact cleanup');
+      assert.equal(await bounded(page.evaluate(()=>window.__tabMedia.sent.filter(v=>v.type==='playback_stopped').at(-1).stopped),'old owner cleanup proof'),true);
+    }
     if(mode==='late-permission') {
       await bounded(page.evaluate(()=>window.__tabMedia.holdPermission=true),'hold permission');
       await page.locator('#cmic').click({timeout:FIXTURE_WAIT_MS});
@@ -219,6 +246,30 @@ async function one(browser,mode,boundary) {
       const final=await read(page);trace.push({edge:'fresh-exit',state:final});
       assert.equal(final.sent.filter(v=>v.type==='stop').length,3,'each of three distinct exit transitions sends exactly one Stop');
       assert.ok(final.tracks.every(t=>t.state==='ended'));assert.ok(final.peers.every(p=>p.state==='closed'&&p.sender==='ended'));
+    }
+    if(mode==='admitted' && boundary==='home') {
+      await page.locator('#tab-talk').click({timeout:FIXTURE_WAIT_MS});
+      await page.locator('#ctext').fill('reconnect fixture',{timeout:FIXTURE_WAIT_MS});
+      await page.locator('#csend').click({timeout:FIXTURE_WAIT_MS});
+      const peer=await bounded(page.evaluate(()=>window.__tabMedia.sent.find(v=>v.type==='browser_hello').peer_id),'page peer identity');
+      await bounded(page.evaluate(deliver,{type:'play',url:'api/reply/inert',playback_id:'pv-timer-reconnect',playback_connection:'old-socket',playback_generation:2,peer_id:peer}),'finite timer before disconnect');
+      await bounded(page.evaluate(()=>{const s=window.__tabMedia.sockets[0];s.readyState=3;s.onclose();document.getElementById('cmodel').dispatchEvent(new Event('change'));const n=window.__tabMedia.sockets.at(-1);n.readyState=WebSocket.OPEN;n.onopen?.();n.onmessage({data:JSON.stringify({type:'hello',protocol:2,rate:24000})});}),'actual socket reconnect and hello');
+      const same=await bounded(page.evaluate(()=>window.__tabMedia.sent.filter(v=>v.type==='browser_hello').map(v=>v.peer_id)),'same-page peer across reconnect');
+      assert.equal(same.length,2);assert.equal(same[1],peer,'same page keeps peer in memory');
+      function newest(event){window.__tabMedia.sockets.at(-1).onmessage({data:JSON.stringify(event)});}
+      const recovery={type:'stop_playback',playback_id:'pv-timer-reconnect',playback_connection:'new-socket',playback_generation:0,peer_id:peer,stop_id:'recover',recover_retired:true};
+      await bounded(page.evaluate(newest,{...recovery,peer_id:'another-tab'}),'different-peer recovery rejected');
+      assert.equal(await bounded(page.evaluate(()=>window.__tabMedia.sent.filter(v=>v.type==='playback_stopped').at(-1).stopped),'different-peer proof'),false);
+      await bounded(page.evaluate(newest,recovery),'same-page exact retired timer stop');
+      const ack=await bounded(page.evaluate(()=>window.__tabMedia.sent.filter(v=>v.type==='playback_stopped').at(-1)),'reconnected source acknowledgement');
+      assert.equal(ack.stopped,true);assert.equal(ack.source_detached,true);assert.equal(ack.socket_id,1);
+      assert.equal(ack.playback_id,'pv-timer-reconnect');assert.equal(ack.peer_id,peer);assert.equal(ack.playback_connection,'new-socket');
+      await bounded(page.evaluate(newest,{type:'play',url:'api/reply/inert',playback_id:'newer',playback_connection:'new-socket',playback_generation:1,peer_id:peer}),'newer current-socket finite output');
+      await bounded(page.evaluate(newest,recovery),'retired recovery cannot stop newer source');
+      const protectedSource=await bounded(page.evaluate(()=>({paused:window.__tabMedia.audios.at(-1).paused,ack:window.__tabMedia.sent.filter(v=>v.type==='playback_stopped').at(-1)})),'newer source remains owned');
+      assert.equal(protectedSource.paused,false);assert.equal(protectedSource.ack.stopped,false);
+      await bounded(page.evaluate(newest,{type:'stop_playback',playback_id:'newer',playback_connection:'new-socket',playback_generation:1,peer_id:peer,stop_id:'final'}),'exact current source cleanup');
+      trace.push({edge:'finite-same-page-reconnect',peer_stable:true,old_target:'pv-timer-reconnect',newer_protected:true});
     }
     assert.deepEqual(errors,[],name+' actual HTML script errors');
   }catch(error){primary=error;}

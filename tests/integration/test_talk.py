@@ -10,6 +10,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
 from aiohttp import WSMsgType
 from fakes.fake_attention import FakeAttention
 from test_thin import FakeTools, LiveFake, _wait_until
@@ -123,9 +124,12 @@ class _Wire:
     def __init__(self) -> None:
         self.json: list[dict] = []
         self.bytes: list[bytes] = []
+        self.stop_receiver = None
 
     async def send_json(self, payload: dict) -> None:
         self.json.append(payload)
+        if payload.get("type") == "stop_playback" and self.stop_receiver is not None:
+            self.stop_receiver({**payload, "stopped": True, "source_detached": True})
 
     async def send_bytes(self, data: bytes) -> None:
         self.bytes.append(data)
@@ -137,6 +141,7 @@ class _Wire:
 def _build(gemini):
     wire = _Wire()
     link = BrowserLink(wire.send_json, wire.send_bytes)
+    wire.stop_receiver = link.receive_playback_stop
     attention = FakeAttention()
     session = ThinSession(
         room=TALK_ROOM,
@@ -447,3 +452,171 @@ async def test_one_failed_command_is_rejected_without_killing_the_worker():
         ("bad", "rejected"),
         ("good", "accepted"),
     ]
+
+
+async def test_browser_stop_waits_for_exact_source_ack_and_cancellation_keeps_owner():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    await link.play_url(REPLY_URL, playback_id="reply")
+    link.media_state(True, "reply")
+    stop = asyncio.create_task(link.stop_playback(playback_id="reply"))
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    command = wire.of("stop_playback")[0]
+    assert not stop.done() and link._playback_id == "reply"
+    with pytest.raises(RuntimeError, match="stop remains unconfirmed"):
+        await link.play_url(REPLY_URL, playback_id="new")
+    stop.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await stop
+    joined = asyncio.create_task(link.stop_playback(playback_id="reply"))
+    await asyncio.sleep(0)
+    assert len(wire.of("stop_playback")) == 1 and not joined.done()
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert await joined is True
+    assert link._playback_id is None and link._playback_phase == "idle"
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"playback_connection": "other-peer"},
+        {"playback_generation": 99},
+        {"playback_generation": True},
+        {"playback_id": "other-reply"},
+        {"stop_id": "other-stop"},
+    ],
+)
+async def test_browser_stop_rejects_stale_peer_generation_reply_and_stop(changed):
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    await link.play_url(REPLY_URL, playback_id="reply")
+    stop = asyncio.create_task(link.stop_playback(playback_id="reply"))
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    command = wire.of("stop_playback")[0]
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True, **changed})
+    await asyncio.sleep(0)
+    assert not stop.done() and link._playback_id == "reply"
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert await stop is True
+
+
+@pytest.mark.parametrize("disconnect", [True, False])
+async def test_browser_stop_disconnect_and_failed_detach_never_claim_stop(disconnect):
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    await link.play_url(REPLY_URL, playback_id="reply")
+    stop = asyncio.create_task(link.stop_playback(playback_id="reply"))
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    command = wire.of("stop_playback")[0]
+    if disconnect:
+        link.live_socket_closed()
+    else:
+        link.receive_playback_stop({**command, "stopped": True, "source_detached": False})
+    assert await stop is False
+    assert link._playback_id == "reply"
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert link._playback_id == "reply"
+    with pytest.raises(RuntimeError, match="stop remains unconfirmed"):
+        await link.play_url(REPLY_URL, playback_id="new")
+
+
+async def test_reused_browser_reply_id_does_not_accept_old_stop_ack():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    await link.play_url(REPLY_URL, playback_id="reused")
+    first = asyncio.create_task(link.stop_playback(playback_id="reused"))
+    await _wait_until(lambda: len(wire.of("stop_playback")) == 1)
+    old = wire.of("stop_playback")[0]
+    link.receive_playback_stop({**old, "stopped": True, "source_detached": True})
+    assert await first is True
+    await link.play_url(REPLY_URL, playback_id="reused")
+    second = asyncio.create_task(link.stop_playback(playback_id="reused"))
+    await _wait_until(lambda: len(wire.of("stop_playback")) == 2)
+    link.receive_playback_stop({**old, "stopped": True, "source_detached": True})
+    await asyncio.sleep(0)
+    assert not second.done() and link._playback_id == "reused"
+    current = wire.of("stop_playback")[1]
+    assert old["playback_generation"] != current["playback_generation"]
+    link.receive_playback_stop({**current, "stopped": True, "source_detached": True})
+    assert await second is True
+
+
+async def test_browser_ack_before_disconnect_remains_valid_without_new_output():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    await link.play_url(REPLY_URL, playback_id="reply")
+    stop = asyncio.create_task(link.stop_playback(playback_id="reply"))
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    command = wire.of("stop_playback")[0]
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert await stop is True
+    link.live_socket_closed()
+    assert await link.stop_playback(playback_id="reply") is True
+    assert await link.stop_playback(playback_id="other-reply") is False
+    assert len(wire.of("stop_playback")) == 1
+
+
+async def test_idle_browser_stop_needs_ack_and_replacement_socket_has_distinct_sink():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    other = BrowserLink(wire.send_json, wire.send_bytes)
+    assert link.bind_timer_peer("a" * 32) and other.bind_timer_peer("b" * 32)
+    assert link.timer_sink_identity != other.timer_sink_identity
+    stop = asyncio.create_task(link.stop_playback())
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    command = wire.of("stop_playback")[0]
+    assert command["playback_id"] is None and command["playback_generation"] == 0
+    assert not stop.done()
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert await stop is True
+    link.live_socket_closed()
+    other.live_socket_closed()
+
+
+async def test_same_page_reconnect_can_ack_exact_retired_timer_but_not_newer_output():
+    wire = _Wire()
+    old = BrowserLink(wire.send_json, wire.send_bytes)
+    fresh = BrowserLink(wire.send_json, wire.send_bytes)
+    peer = "c" * 32
+    assert old.bind_timer_peer(peer)
+    assert not fresh.bind_timer_peer(peer)  # No simultaneous peer takeover.
+    assert fresh.timer_sink_identity == ""
+    output = "pv-timer-exact-alert"
+    await old.play_url(REPLY_URL, playback_id=output)
+    stopped = asyncio.create_task(old.stop_playback(playback_id=output))
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    old.live_socket_closed()
+    assert await stopped is False
+    assert fresh.bind_timer_peer(peer)
+    assert old.timer_sink_identity == fresh.timer_sink_identity
+    recovered = asyncio.create_task(fresh.stop_playback(playback_id=output))
+    await _wait_until(lambda: len(wire.of("stop_playback")) == 2)
+    command = wire.of("stop_playback")[-1]
+    assert command["recover_retired"] is True and command["playback_generation"] == 0
+    assert command["playback_id"] == output and command["peer_id"] == peer
+    old_ack = wire.of("stop_playback")[0]
+    fresh.receive_playback_stop({**old_ack, "stopped": True, "source_detached": True})
+    assert not recovered.done()
+    fresh.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert await recovered is True
+    await fresh.play_url(REPLY_URL, playback_id="newer-output")
+    before = len(wire.of("stop_playback"))
+    assert await fresh.stop_playback(playback_id=output) is False
+    assert len(wire.of("stop_playback")) == before
+    fresh.live_socket_closed()
+
+
+async def test_exact_naturally_ended_browser_source_still_gets_terminal_stop_ack():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    await link.play_url(REPLY_URL, playback_id="ended")
+    link.media_state(True, "ended")
+    link.media_state(False, "ended")
+    assert link._playback_id is None
+    stop = asyncio.create_task(link.stop_playback(playback_id="ended"))
+    await _wait_until(lambda: bool(wire.of("stop_playback")))
+    command = wire.of("stop_playback")[0]
+    assert command["playback_id"] == "ended" and command["recover_retired"] is False
+    assert not stop.done()  # Ended is not a stop ACK.
+    link.receive_playback_stop({**command, "stopped": True, "source_detached": True})
+    assert await stop is True

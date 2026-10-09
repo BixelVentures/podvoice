@@ -22,6 +22,14 @@ class HistoricalWavBrowserLink(BrowserLink):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.supports_live_webrtc = False
+        original_send = self._send_json
+
+        async def simulated_browser_send(payload):
+            await original_send(payload)
+            if payload.get("type") == "stop_playback":
+                self.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
+
+        self._send_json = simulated_browser_send
 
     async def set_live_context(self):
         self._stop_generation += 1

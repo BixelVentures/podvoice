@@ -28,7 +28,7 @@ class CandidateScope:
     reason: str
 
 
-_PRODUCTION_PREFIXES = ("podvoice/gatekeeper/", "esphome/")
+_PRODUCTION_PREFIXES = ("podvoice/gatekeeper/", "esphome/", "custom_components/podvoice/")
 _IGNORED_PRODUCTION_FILES = {
     "podvoice/CHANGELOG.md",
     "podvoice/config.yaml",
@@ -858,6 +858,42 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and _NATIVE_APP_CLOSING_REGRESSIONS <= set(report.test_files)
         and all((root / path).is_file() for path in _NATIVE_APP_CLOSING_REGRESSIONS)
     )
+    native_timer_bridge = {
+        "custom_components/podvoice/__init__.py",
+        "custom_components/podvoice/config_flow.py",
+        "custom_components/podvoice/manifest.json",
+        "custom_components/podvoice/services.yaml",
+        "custom_components/podvoice/timer_bridge.py",
+    }
+    native_timer_runtime = {
+        "podvoice/gatekeeper/__init__.py",
+        "podvoice/gatekeeper/__main__.py",
+        "podvoice/gatekeeper/eval_harness.py",
+        "podvoice/gatekeeper/eval_scenarios.json",
+        "podvoice/gatekeeper/execution_policy.py",
+        "podvoice/gatekeeper/ha_timers.py",
+        "podvoice/gatekeeper/static/index.html",
+        "podvoice/gatekeeper/talk.py",
+        "podvoice/gatekeeper/thin.py",
+        "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/voicepe.py",
+        "podvoice/gatekeeper/web.py",
+    }
+    native_timer_regressions = {
+        "tests/unit/test_ha_timer_bridge.py",
+        "tests/unit/test_eval_harness.py",
+        "tests/integration/test_ha_timer_flow.py",
+        "tests/integration/test_talk.py",
+        "tests/browser/talk_exit_contract.cjs",
+    }
+    reviewed_native_timers = (
+        report.domains == ("ha_tools", "physical_output", "realtime_semantics", "rearm")
+        and native_timer_bridge | {"podvoice/gatekeeper/ha_timers.py"}
+        <= set(report.production_files)
+        and set(report.production_files) <= native_timer_runtime | native_timer_bridge
+        and native_timer_regressions <= set(report.test_files)
+        and all((root / path).is_file() for path in native_timer_regressions | native_timer_bridge)
+    )
     passive_metadata_only = True
     metadata = "podvoice/gatekeeper/__init__.py"
     if passive_diagnostic_ui_v2 and metadata in report.production_files:
@@ -914,6 +950,7 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
             and not reviewed_bounded_live_closing
             and not reviewed_native_app_closing
             and not reviewed_passive_diagnostic_ui
+            and not reviewed_native_timers
             and report.domains
             not in {
                 ("physical_output", "rearm"),
@@ -967,9 +1004,32 @@ def inspect_repository(root: Path, base: str) -> CandidateScope:
     ):
         changes.update(name for name in _git(root, *args).split("\0") if name)
     for args in (
-        ("diff", "--unified=0", f"{merge_base}...HEAD", "--", "podvoice/gatekeeper", "esphome"),
-        ("diff", "--unified=0", "--", "podvoice/gatekeeper", "esphome"),
-        ("diff", "--cached", "--unified=0", "--", "podvoice/gatekeeper", "esphome"),
+        (
+            "diff",
+            "--unified=0",
+            f"{merge_base}...HEAD",
+            "--",
+            "podvoice/gatekeeper",
+            "esphome",
+            "custom_components/podvoice",
+        ),
+        (
+            "diff",
+            "--unified=0",
+            "--",
+            "podvoice/gatekeeper",
+            "esphome",
+            "custom_components/podvoice",
+        ),
+        (
+            "diff",
+            "--cached",
+            "--unified=0",
+            "--",
+            "podvoice/gatekeeper",
+            "esphome",
+            "custom_components/podvoice",
+        ),
     ):
         diffs.append(_git(root, *args))
     result = classify_candidate(sorted(changes), "\n".join(diffs))

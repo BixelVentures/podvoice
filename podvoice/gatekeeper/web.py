@@ -1298,7 +1298,9 @@ def _capability_details(snapshot: dict) -> dict:
             "available": available,
             "verified": available and bool(matches),
             "last_verified_at": max((ts for _, ts in matches if ts), default=None),
-            "source": "Home Assistant / MCP",
+            "source": "Home Assistant native timers"
+            if key == "timers" and (caps.get("sources") or {}).get(key) == "ha_native"
+            else "Home Assistant / MCP",
             "reason": (
                 "Vellykket værktøjskald registreret"
                 if available and matches

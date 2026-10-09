@@ -40,7 +40,6 @@ from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import _resolve, load_settings, masked, save_settings
 from .speech import Speech
-from .timers import TimerManager
 from .tools import ToolRouter
 from .usage import UsageMeter
 from .voicepe import LIVE_FIRMWARE_BUILD, VoicePELink
@@ -404,7 +403,6 @@ async def run(cfg: Config) -> None:
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
     tools: ToolRouter | None = None
-    timers: TimerManager | None = None
     speech: Speech | None = None
     usage: UsageMeter | None = None
     probe: asyncio.Task | None = None
@@ -423,33 +421,6 @@ async def run(cfg: Config) -> None:
     speech = Speech(cfg.openai_api_key, voice=cfg.openai_voice)
     if not speech.available:
         _LOG.info("no OpenAI key for speech — fixed lines (errors/timer) play a tone")
-
-    # Kept mechanically unchanged while local timers are absent from the model schema.
-    # Candidate C will replace this dormant in-memory owner with HA-backed timers.
-    async def _timer_ring(label: str) -> None:
-        from . import audio as audio_mod
-        from . import constants as CC
-
-        text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
-        spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
-        tone = audio_mod.error_tone(CC.OUTPUT_RATE) * 2
-        for s in sessions.values():
-            bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
-            if bus is None or not url:
-                continue
-            if not getattr(s, "_active", False):
-                with contextlib.suppress(Exception):
-                    await s.attention.engage(s.room, 20, 5000)
-            bus.clear(s.room)
-            bus.start(s.room)
-            bus.push(s.room, spoken or tone)
-            bus.end(s.room)
-            with contextlib.suppress(Exception):
-                await s.voicepe.play_url(url)
-            if hub is not None:
-                hub.activity(s.room, f"⏰ Timer færdig: {label}")
-
-    timers = TimerManager(_timer_ring)
 
     # Home control = HA's own MCP server on the LAN. Default: the Supervisor proxy
     # with the token the add-on already holds; Settings can point directly at
@@ -651,6 +622,12 @@ async def run(cfg: Config) -> None:
                     max_cost_usd=max_cost_usd,
                 )
             declarations = tools.declarations() if tools is not None else []
+            if tools is not None and hasattr(tools, "timer_declarations"):
+                for endpoint in sessions:
+                    endpoint_timers = tools.timer_declarations(endpoint)
+                    if endpoint_timers:
+                        declarations.extend(endpoint_timers)
+                        break
             if action == "replay":
                 return live_eval_service.start_replay(
                     api_key=cfg.openai_api_key,
@@ -756,8 +733,6 @@ async def run(cfg: Config) -> None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
-        if timers is not None:
-            await timers.aclose()
         if live_eval_service is not None:
             await live_eval_service.aclose()
         for s in sessions.values():

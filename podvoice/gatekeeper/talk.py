@@ -145,6 +145,17 @@ class _LiveHandshake:
     activity_timestamp_ms: float = -1.0
 
 
+@dataclass
+class _PlaybackStop:
+    stop_id: str
+    playback_id: str | None
+    generation: int
+    stopped: asyncio.Future
+
+
+_TIMER_PEERS: dict[str, BrowserLink] = {}
+
+
 class BrowserLink:
     """The browser as a Voice PE: same contract surface ThinSession drives.
 
@@ -186,7 +197,33 @@ class BrowserLink:
         self.last_audio_ts = 0.0
         self._playback_serial = 0
         self._playback_id: str | None = None
+        self._last_playback_id: str | None = None
         self._playback_phase = "idle"
+        self._playback_connection = secrets.token_hex(16)
+        self._playback_stop: _PlaybackStop | None = None
+        self._timer_peer: str | None = None
+
+    @property
+    def timer_sink_identity(self) -> str:
+        """One verified page lifetime, with only one active socket allowed."""
+        return "talk:" + self._timer_peer if self._timer_peer else ""
+
+    def bind_timer_peer(self, peer: object) -> bool:
+        if (
+            self._socket_closed
+            or not isinstance(peer, str)
+            or len(peer) != 32
+            or any(char not in "0123456789abcdef" for char in peer)
+        ):
+            return False
+        if self._timer_peer is not None:
+            return self._timer_peer == peer
+        owner = _TIMER_PEERS.get(peer)
+        if owner is not None and owner is not self and not owner._socket_closed:
+            return False
+        self._timer_peer = peer
+        _TIMER_PEERS[peer] = self
+        return True
 
     async def hold_live_capture(self) -> str:
         """Stop capture while retaining the primary for official provider close."""
@@ -319,7 +356,11 @@ class BrowserLink:
 
     def live_socket_closed(self) -> None:
         self._socket_closed = True
+        if self._timer_peer and _TIMER_PEERS.get(self._timer_peer) is self:
+            _TIMER_PEERS.pop(self._timer_peer)
         self.invalidate_live_handshake()
+        if self._playback_stop is not None and not self._playback_stop.stopped.done():
+            self._playback_stop.stopped.set_result(False)
         if self._live_handshake is not None and not self._live_handshake.stopped.done():
             self._live_handshake.stopped.set_result(False)
 
@@ -578,12 +619,28 @@ class BrowserLink:
     # ---------------------------------------------------------------- speaker path
     async def play_url(self, url: str, *, playback_id: str | None = None) -> None:
         """The browser fetches the SAME reply-bus stream the puck would announce."""
+        pending = self._playback_stop
+        if self._socket_closed or (
+            pending is not None and (not pending.stopped.done() or not pending.stopped.result())
+        ):
+            raise RuntimeError("browser playback stop remains unconfirmed")
+        self._playback_stop = None
+        self._playback_serial += 1
         if playback_id is None:
-            self._playback_serial += 1
             playback_id = f"play-{self._playback_serial}"
         self._playback_id = playback_id
+        self._last_playback_id = playback_id
         self._playback_phase = "issued"
-        await self._safe_json({"type": "play", "url": url, "playback_id": self._playback_id})
+        await self._safe_json(
+            {
+                "type": "play",
+                "url": url,
+                "playback_id": self._playback_id,
+                "playback_connection": self._playback_connection,
+                "playback_generation": self._playback_serial,
+                "peer_id": self._timer_peer,
+            }
+        )
 
     async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """Stop exactly the reply owned by the caller, never a newer browser reply."""
@@ -606,19 +663,76 @@ class BrowserLink:
             if stopped and self._live_handshake is handshake:
                 self._live_handshake = None
             return bool(stopped)
-        owned_id = playback_id or self._playback_id
-        sent = await self._safe_json(
-            {
-                "type": "stop_playback",
-                "playback_id": owned_id,
-            }
-        )
-        if not sent:
+        if self._socket_closed:
+            previous = self._playback_stop
+            # A prior exact ACK remains evidence when no newer output was issued;
+            # losing the socket never supplies missing stop evidence.
+            return bool(
+                previous is not None
+                and previous.generation == self._playback_serial
+                and (playback_id is None or playback_id == previous.playback_id)
+                and previous.stopped.done()
+                and previous.stopped.result()
+            )
+        owned_id = playback_id if playback_id is not None else self._playback_id
+        pending = self._playback_stop
+        if pending is None:
+            recovering = bool(
+                self._timer_peer
+                and self._playback_serial == 0
+                and self._playback_id is None
+                and playback_id
+                and playback_id.startswith("pv-timer-")
+            )
+            if playback_id is not None and playback_id != self._last_playback_id and not recovering:
+                return False
+            pending = _PlaybackStop(
+                secrets.token_hex(16),
+                owned_id,
+                self._playback_serial,
+                asyncio.get_running_loop().create_future(),
+            )
+            self._playback_stop = pending
+            sent = await self._safe_json(
+                {
+                    "type": "stop_playback",
+                    "playback_id": owned_id,
+                    "playback_connection": self._playback_connection,
+                    "playback_generation": pending.generation,
+                    "stop_id": pending.stop_id,
+                    "peer_id": self._timer_peer,
+                    "recover_retired": recovering,
+                }
+            )
+            if not sent and not pending.stopped.done():
+                pending.stopped.set_result(False)
+        elif pending.playback_id != owned_id and playback_id is not None:
             return False
-        if self._playback_id == owned_id:
+        # Cancellation of Thin's bounded teardown must not cancel the ACK owner
+        # or resend the stop. A subsequent cleanup joins this exact observation.
+        return bool(await asyncio.shield(pending.stopped))
+
+    def receive_playback_stop(self, data: dict) -> None:
+        """Only this socket's exact audio-source stop can release output custody."""
+        pending = self._playback_stop
+        if (
+            self._socket_closed
+            or pending is None
+            or pending.stopped.done()
+            or data.get("playback_connection") != self._playback_connection
+            or type(data.get("playback_generation")) is not int
+            or data["playback_generation"] != pending.generation
+            or data.get("stop_id") != pending.stop_id
+            or data.get("playback_id") != pending.playback_id
+            or data.get("peer_id") != self._timer_peer
+            or self._playback_serial != pending.generation
+        ):
+            return
+        stopped = data.get("stopped") is True and data.get("source_detached") is True
+        if stopped:
             self._playback_id = None
             self._playback_phase = "idle"
-        return True
+        pending.stopped.set_result(stopped)
 
     async def play_pcm(self, chunk: bytes) -> None:
         """Raw 24 kHz PCM (error clips via Playback) — the old binary channel."""
@@ -983,6 +1097,10 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                         link.playback_fault(playback_id, state)
                     else:
                         link.media_state(bool(data.get("announcing")), playback_id)
+                elif kind == "playback_stopped":
+                    link.receive_playback_stop(data)
+                elif kind == "browser_hello":
+                    link.bind_timer_peer(data.get("peer_id"))
                 elif kind == "ping":
                     await ws.send_json({"type": "pong", "ping_id": data.get("ping_id")})
                 elif kind == "mic_config":

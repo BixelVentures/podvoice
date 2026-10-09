@@ -298,6 +298,7 @@ class VoicePELink:
         self._announcing = False  # last observed media_player ANNOUNCING state
         # Firmware-contract report, rebuilt on every (re)connect (see _verify_contract).
         self.contract: dict[str, Any] = {}
+        self.device_identity: str | None = None
         self.on_contract: Callable[[dict[str, Any]], Any] | None = None
         self._warned_missing: set[str] = set()  # once-per-connect missing-service warnings
         # TRUE link state -> panel. Fires True after a real (re)connect completes and
@@ -654,6 +655,7 @@ class VoicePELink:
         info = await client.device_info()
         if not admission_current():
             return
+        self.device_identity = str(getattr(info, "mac_address", "")).lower() or None
         # Resolve the wake-gate services + LED-ring light + mute key from the device
         # catalog FIRST — subscribe_states fires an immediate full state dump, so the
         # entity keys must already be cached or that first dump can't be routed (the

@@ -1,3 +1,9 @@
+## 2.0.12 — HA-owned timers and exact alarm cleanup
+
+- Start, inspect and cancel named device-scoped timers through Home Assistant's native timer manager and a small optional integration. Preserve countdowns across add-on restart; report honestly that a Core restart clears them.
+- Deliver expiry only when the current conversation has released its output. Require exact device/browser stop acknowledgement before the next wake; retain unknown delivery after interruption rather than replaying it.
+- Protect older and newer Talk audio across same-page reconnect, and expose timers only for verified available endpoints. Installation and endpoint configuration are described in the README.
+
 ## 2.0.11 — transfer conversations and daily navigation
 
 - Keep music-transfer conversations open when only local alias selection or a provider request is acknowledged; explicit requests to end are still respected.
