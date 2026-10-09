@@ -7080,3 +7080,157 @@ async def test_thin_late_native_disable_ack_survives_retry_without_new_generatio
     finally:
         device.hold_disable = False
         await session.aclose()
+
+
+def _manager_custody_handler_bytes():
+    from pathlib import Path
+
+    return (
+        Path(__file__).resolve().parents[1] / "fixtures" / "pc111_manager_custody_handler.json"
+    ).read_bytes()
+
+
+@pytest.mark.parametrize("surface", ["voicepe", "talk"])
+async def test_actual_manager_custody_receipt_blocks_then_allows_next_wake(monkeypatch, surface):
+    import hashlib
+
+    import httpx
+
+    from gatekeeper import heartbeat as heartbeat_mod
+    from gatekeeper import thin as thin_mod
+    from gatekeeper.podconnect import AttentionClient
+
+    raw = _manager_custody_handler_bytes()
+    assert (
+        hashlib.sha256(raw).hexdigest()
+        == "5d4f694abb09db6a1a407fc64cf1fb25f02733dae249747f43a113ce10430c37"
+    )
+    receipt = json.loads(raw)
+    assert (
+        receipt["old_lease"]["expected"]["process"] != receipt["new_begin"]["challenge"]["process"]
+    )
+    assert receipt["original_begin"]["challenge"] == receipt["old_lease"]["expected"]
+    monkeypatch.setitem(globals(), "ROOM", receipt["room"])
+    # Existing close retry owner; shorten its wait only for this isolated test.
+    monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.01,))
+    nonces = iter((receipt["old_lease"]["session"], receipt["new_session"]))
+    monkeypatch.setattr(heartbeat_mod, "uuid", SimpleNamespace(uuid4=lambda: next(nonces)))
+    retired = False
+    crashed = False
+    challenges = []
+    releases = []
+    begins = []
+
+    async def wire(request):
+        if request.method == "GET" and request.url.path == "/api/attention":
+            state = (
+                receipt["state"]
+                if retired
+                else receipt["fresh_state"]
+                if crashed
+                else receipt["original_state"]
+            )
+            challenges.append(state["rooms"][receipt["room"]]["challenge"])
+            return httpx.Response(200, json=state)
+        body = json.loads(request.content)
+        assert body["room"] == receipt["room"]
+        if request.url.path == "/api/attention":
+            if body["begin"]:
+                begins.append(body)
+                expected_state = receipt["state"] if crashed else receipt["original_state"]
+                assert body["expected"] == expected_state["rooms"][receipt["room"]]["challenge"]
+                assert body["session"] in (receipt["old_lease"]["session"], receipt["new_session"])
+                if len(begins) == 2:
+                    assert retired
+                    assert body["session"] == receipt["new_session"]
+            else:
+                assert (
+                    body["expected"]
+                    == {
+                        receipt["old_lease"]["session"]: receipt["old_lease"]["expected"],
+                        receipt["new_session"]: receipt["new_begin"]["challenge"],
+                    }[body["session"]]
+                )
+            # Both admission replies are actual handlers; no old lease is
+            # adopted into the fresh manager process during cleanup.
+            return httpx.Response(
+                200, json=receipt["new_begin"] if crashed else receipt["original_begin"]
+            )
+        assert request.url.path == "/api/attention/release"
+        releases.append(body)
+        if body["session"] == receipt["old_lease"]["session"]:
+            assert body == {"room": receipt["room"], **receipt["old_lease"]}
+            return httpx.Response(
+                200, json=receipt["released"] if retired else receipt["pending_release"]
+            )
+        # Shutdown of the later owner is deliberately unresolved: no invented
+        # terminal receipt for a session absent from the actual handler export.
+        assert body["session"] == receipt["new_session"]
+        return httpx.Response(200, json=receipt["pending_release"])
+
+    client = httpx.AsyncClient(base_url="http://manager.test", transport=httpx.MockTransport(wire))
+    attention = AttentionClient("http://manager.test", client=client)
+    brain = LiveFake()
+    if surface == "voicepe":
+        session, _, device = _build(brain)
+        sent = []
+    else:
+        session, _, device, sent, _ = _build_talk_session(brain)
+    session.attention = attention
+    session.heartbeat = Heartbeat(attention, period_ms=20, jitter_ms=0)
+    await session.start()
+    try:
+        await session.wake()
+        await _wait_until(lambda: session.heartbeat._admitted)
+        assert session.heartbeat.lease == receipt["old_lease"]
+        assert brain.connect_count == 1
+        crashed = True
+        await session.stop(reason="native-custody-crash-proof")
+        assert session._teardown_incomplete
+        assert session.heartbeat.lease == receipt["old_lease"]
+        assert releases
+        assert len(challenges) == 1
+        assert challenges[0]["process"] == receipt["old_lease"]["expected"]["process"]
+        if surface == "voicepe":
+            assert device.rearm_calls == 0
+            assert not device.streaming
+        else:
+            assert not device._streaming
+            assert any(row.get("type") == "stop_playback" for row in sent)
+        await session.wake()
+        assert brain.connect_count == 1
+        assert len(begins) == 1
+        assert session._teardown_incomplete
+        assert len(challenges) == 1  # Cleanup never re-challenges/adopts fresh manager.
+        retired = True
+        await _wait_until(lambda: not session._teardown_incomplete)
+        if surface == "voicepe":
+            assert device.rearm_calls == 1
+        assert session.heartbeat.lease == receipt["old_lease"]
+        await session.wake()
+        await _wait_until(lambda: session.heartbeat._admitted)
+        assert brain.connect_count == 2
+        assert len(begins) == 2
+        assert len(challenges) == 2
+        assert challenges[1] == receipt["state"]["rooms"][receipt["room"]]["challenge"]
+        assert session.heartbeat.lease == {
+            "session": receipt["new_session"],
+            "expected": receipt["new_begin"]["challenge"],
+        }
+        assert session._active
+        # A late idempotent original release receipt is only an observation of
+        # the old custody; it cannot mutate the adapter's newer active owner.
+        result = await attention.release(receipt["room"], lease=receipt["old_lease"])
+        assert result == receipt["released"]
+        assert session._active
+        assert session.heartbeat.lease["session"] == receipt["new_session"]
+        assert brain.connect_count == 2
+        if surface == "voicepe":
+            assert device.streaming
+            assert device.rearm_calls == 1
+        else:
+            assert device._streaming
+        assert all(row == {"room": receipt["room"], **receipt["old_lease"]} for row in releases)
+    finally:
+        await session.aclose()
+        await attention.aclose()

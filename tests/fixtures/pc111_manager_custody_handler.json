@@ -1,0 +1,218 @@
+{
+  "fresh_state": {
+    "rooms": {
+      "r0": {
+        "challenge": {
+          "process": "31f909b4-3e42-485c-8264-215d42bc4739",
+          "revision": "0"
+        },
+        "outcome": "pending",
+        "contract": "native_attention_v1",
+        "native_results": {},
+        "active": false,
+        "level": 0,
+        "owner": "",
+        "remaining_ms": 0
+      }
+    }
+  },
+  "new_begin": {
+    "challenge": {
+      "process": "31f909b4-3e42-485c-8264-215d42bc4739",
+      "revision": "1"
+    },
+    "outcome": "pending",
+    "contract": "native_attention_v1",
+    "native_results": {},
+    "active": true,
+    "level": 5,
+    "owner": "external",
+    "remaining_ms": 1999
+  },
+  "new_session": "00000000-0000-4000-8000-000000000002",
+  "old_lease": {
+    "expected": {
+      "process": "40c45632-7d6a-4669-a0ea-6b5428b2aece",
+      "revision": "1"
+    },
+    "session": "00000000-0000-4000-8000-000000000001"
+  },
+  "original_begin": {
+    "challenge": {
+      "process": "40c45632-7d6a-4669-a0ea-6b5428b2aece",
+      "revision": "1"
+    },
+    "outcome": "pending",
+    "contract": "native_attention_v1",
+    "native_results": {},
+    "active": true,
+    "level": 5,
+    "owner": "external",
+    "remaining_ms": 14999
+  },
+  "original_state": {
+    "rooms": {
+      "r0": {
+        "challenge": {
+          "process": "40c45632-7d6a-4669-a0ea-6b5428b2aece",
+          "revision": "0"
+        },
+        "outcome": "desired_only",
+        "contract": "legacy_desired_only",
+        "native_results": {},
+        "active": false,
+        "level": 0,
+        "owner": "",
+        "remaining_ms": 0
+      }
+    }
+  },
+  "pending_release": {
+    "challenge": {
+      "process": "31f909b4-3e42-485c-8264-215d42bc4739",
+      "revision": "0"
+    },
+    "outcome": "pending",
+    "contract": "native_attention_v1",
+    "native_results": {},
+    "active": false,
+    "level": 0,
+    "owner": "",
+    "remaining_ms": 0
+  },
+  "released": {
+    "recovery_results": {
+      "5e0c0e48-dcaa-4999-b40a-3662ad1af410": {
+        "identity": {
+          "process": "00000000-0000-4000-8000-000000000001",
+          "device_id": "1",
+          "device_incarnation": "1",
+          "session_epoch": "0",
+          "base_revision": "1",
+          "attention_revision": "0",
+          "route_revision": "1",
+          "lease": "0",
+          "base_volume": 65,
+          "effective_volume": 65,
+          "restoring": false
+        },
+        "request_id": "f7dec527-effd-4c3a-b853-a3ba4b4324b8",
+        "operation": "1",
+        "action": "recover",
+        "outcome": "protocol_accepted",
+        "response_code": 200,
+        "request_cseq": 7,
+        "current": true,
+        "origin": {
+          "process": "00000000-0000-4000-8000-000000000003",
+          "request_id": "5e0c0e48-dcaa-4999-b40a-3662ad1af410"
+        },
+        "recovery_state": "restored",
+        "recovery_proof": {
+          "database": "00000000-0000-4000-8000-000000000003",
+          "ledger_complete": true,
+          "terminal": {
+            "identity": {
+              "process": "00000000-0000-4000-8000-000000000001",
+              "device_id": "1",
+              "device_incarnation": "1",
+              "session_epoch": "0",
+              "base_revision": "1",
+              "attention_revision": "0",
+              "route_revision": "1",
+              "lease": "0",
+              "base_volume": 65,
+              "effective_volume": 65,
+              "restoring": false
+            },
+            "request_id": "f7dec527-effd-4c3a-b853-a3ba4b4324b8",
+            "operation": "1",
+            "action": "recover",
+            "response_code": 200,
+            "request_cseq": 7
+          }
+        }
+      },
+      "f403911b-cbe9-444b-8488-eac3171f2342": {
+        "identity": {
+          "process": "00000000-0000-4000-8000-000000000001",
+          "device_id": "2",
+          "device_incarnation": "1",
+          "session_epoch": "0",
+          "base_revision": "1",
+          "attention_revision": "0",
+          "route_revision": "1",
+          "lease": "0",
+          "base_volume": 65,
+          "effective_volume": 65,
+          "restoring": false
+        },
+        "request_id": "02c206fb-7dd7-4e11-a92a-3a7ca62d878a",
+        "operation": "2",
+        "action": "recover",
+        "outcome": "protocol_accepted",
+        "response_code": 200,
+        "request_cseq": 7,
+        "current": true,
+        "origin": {
+          "process": "00000000-0000-4000-8000-000000000003",
+          "request_id": "f403911b-cbe9-444b-8488-eac3171f2342"
+        },
+        "recovery_state": "restored",
+        "recovery_proof": {
+          "database": "00000000-0000-4000-8000-000000000003",
+          "ledger_complete": true,
+          "terminal": {
+            "identity": {
+              "process": "00000000-0000-4000-8000-000000000001",
+              "device_id": "2",
+              "device_incarnation": "1",
+              "session_epoch": "0",
+              "base_revision": "1",
+              "attention_revision": "0",
+              "route_revision": "1",
+              "lease": "0",
+              "base_volume": 65,
+              "effective_volume": 65,
+              "restoring": false
+            },
+            "request_id": "02c206fb-7dd7-4e11-a92a-3a7ca62d878a",
+            "operation": "2",
+            "action": "recover",
+            "response_code": 200,
+            "request_cseq": 7
+          }
+        }
+      }
+    },
+    "challenge": {
+      "process": "31f909b4-3e42-485c-8264-215d42bc4739",
+      "revision": "0"
+    },
+    "outcome": "released",
+    "contract": "native_attention_v1",
+    "native_results": {},
+    "active": false,
+    "level": 0,
+    "owner": "",
+    "remaining_ms": 0
+  },
+  "room": "r0",
+  "state": {
+    "rooms": {
+      "r0": {
+        "challenge": {
+          "process": "31f909b4-3e42-485c-8264-215d42bc4739",
+          "revision": "0"
+        },
+        "outcome": "desired_only",
+        "contract": "legacy_desired_only",
+        "native_results": {},
+        "active": false,
+        "level": 0,
+        "owner": "",
+        "remaining_ms": 0
+      }
+    }
+  }
+}
