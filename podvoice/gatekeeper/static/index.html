@@ -1860,7 +1860,7 @@ setInterval(function () {
     ws.send(JSON.stringify({ type: "text", command_id: commandId, text: t }));
   }
   sendBtn.onclick = sendText;
-  input.addEventListener("keydown", function (e) { if (e.key === "Enter") sendText(); });
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendText(); });
 
   // ---- Mic (only on a secure origin: HTTPS / localhost) ----
   // Target 24 kHz — OpenAI's native rate. At 24 kHz this is a pure float->int16
@@ -2097,7 +2097,13 @@ setInterval(function () {
     var r = roomField(room);
     r.setAttribute("aria-label", "PodConnect-rum " + n);
     var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
-    x.setAttribute("aria-label", "Fjern rum"); x.onclick = function () { row.remove(); updateAddressWarning(); markSettingsDirty(); };
+    x.setAttribute("aria-label", "Fjern rum");
+    x.onclick = function () {
+      var focused = document.activeElement === x;
+      var next = row.nextElementSibling || row.previousElementSibling;
+      row.remove(); updateAddressWarning(); markSettingsDirty();
+      if (focused) (next ? next.querySelector(".rh") : document.getElementById("s_addroom")).focus();
+    };
     row.appendChild(h); row.appendChild(r); row.appendChild(x); roomsWrap.appendChild(row);
     updateAddressWarning();
   }

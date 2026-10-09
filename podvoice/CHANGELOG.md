@@ -1,3 +1,9 @@
+## 2.0.10 — precise music acknowledgements and keyboard controls
+
+- Clarify that local alias selection and accepted Spotify transfer requests do not confirm playback start or audible output.
+- Keep focus on a useful room field or Add room after removing a room with the keyboard.
+- Preserve composing Talk text when Enter confirms composition; ordinary Enter still sends through the existing command owner.
+
 ## 2.0.9 — ID-based music targets and owned cleanup
 
 - Add ID-based music target discovery and playback moves through compatible PodConnect Home Assistant services.

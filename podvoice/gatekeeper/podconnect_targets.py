@@ -112,7 +112,10 @@ def declarations(mcp_tools: list | tuple, admitted: tuple) -> list[dict]:
             description = (
                 "Move existing playback to an explicit account/kind/stable target ID from its catalog. "
                 "Never substitute a name or another namespace. Preserves known Spotify play/pause; "
-                "accepted_local and provider_request_accepted do not prove audible output. "
+                "For configured_alias, accepted_local confirms local alias selection only, "
+                "not a confirmed playback switch or start. For spotify_device, "
+                "provider_request_accepted confirms only the provider transfer request was accepted; "
+                "it does not confirm a playback start or audible output. "
                 "An unknown outcome must not be retried automatically."
             )
             required = list(properties)

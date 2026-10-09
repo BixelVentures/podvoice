@@ -362,6 +362,36 @@ async function settingsTouchTargets(browser) {
       assert.deepEqual(writes,[],'geometry and native label activation never save/restart/control');
       assert.deepEqual(errors,[],'whole HTML settings scripts remain valid');
       if(proof)await bounded(page.screenshot({path:path.join(proof,`settings-targets-${width}-${scheme}.png`),fullPage:true}),'settings touch screenshot');
+      if(width===360 && scheme==='light') {
+        // Keyboard removal must retain a useful focus target and unsaved siblings.
+        await page.locator('#s_addroom').click({timeout:FIXTURE_WAIT_MS});
+        await page.locator('#s_addroom').click({timeout:FIXTURE_WAIT_MS});
+        const rows=page.locator('#s_rooms .roomrow');
+        assert.equal(await rows.count(),3,'three actual draft rows');
+        for(const [index,name] of ['first','middle','last'].entries()) {
+          await rows.nth(index).locator('.rh').fill(name+'.local',{timeout:FIXTURE_WAIT_MS});
+          await rows.nth(index).locator('.rr').fill('r-'+name,{timeout:FIXTURE_WAIT_MS});
+        }
+        await rows.nth(1).locator('button').focus({timeout:FIXTURE_WAIT_MS});
+        await rows.nth(1).locator('button').press('Enter',{timeout:FIXTURE_WAIT_MS});
+        assert.equal(await rows.count(),2,'middle row removed by keyboard');
+        assert.equal(await bounded(rows.nth(1).locator('.rh').evaluate(element=>document.activeElement===element),'next room focus'),true);
+        assert.deepEqual(await bounded(rows.evaluateAll(elements=>elements.map(row=>[row.querySelector('.rh').value,row.querySelector('.rr').value])),'remaining room drafts'),
+          [['first.local','r-first'],['last.local','r-last']]);
+        await rows.nth(1).locator('button').focus({timeout:FIXTURE_WAIT_MS});
+        await rows.nth(1).locator('button').press('Enter',{timeout:FIXTURE_WAIT_MS});
+        assert.equal(await rows.count(),1,'last row removed by keyboard');
+        assert.equal(await bounded(rows.first().locator('.rh').evaluate(element=>document.activeElement===element),'previous room focus'),true);
+        assert.deepEqual(await bounded(rows.evaluateAll(elements=>elements.map(row=>[row.querySelector('.rh').value,row.querySelector('.rr').value])),'last retained room draft'),
+          [['first.local','r-first']]);
+        await rows.first().locator('button').focus({timeout:FIXTURE_WAIT_MS});
+        await rows.first().locator('button').press('Enter',{timeout:FIXTURE_WAIT_MS});
+        assert.equal(await rows.count(),0,'only row removed by keyboard');
+        assert.equal(await bounded(page.locator('#s_addroom').evaluate(element=>document.activeElement===element),'add room focus'),true);
+        assert.equal(await page.locator('#s_status').textContent(),'Ikke gemt endnu','removal remains an unsaved draft');
+        assert.deepEqual(writes,[],'keyboard room removal never saves/restarts/controls');
+        assert.deepEqual(errors,[],'keyboard room removal leaves whole HTML scripts valid');
+      }
       result={width,scheme,html_sha256:sourceSha,geometry,labels,overflow:false,writes:0};
     } catch(error) {primary=error;}
     finally {
