@@ -187,7 +187,15 @@ async function one(browser,mode,boundary) {
       assert.equal((await read(page)).pcmStartCount,hidden.pcmStartCount,'hidden bytes schedule no PCM');
       await page.locator('#tab-talk').click({timeout:FIXTURE_WAIT_MS});
       await page.locator('#ctext').fill('isoleret testinput',{timeout:FIXTURE_WAIT_MS});
-      await page.locator('#csend').click({timeout:FIXTURE_WAIT_MS});
+      if(mode==='admitted' && boundary==='home') {
+        await bounded(page.locator('#ctext').evaluate(element=>element.dispatchEvent(
+          new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true}))),
+          'actual composing Enter keydown');
+        assert.equal((await read(page)).sent.filter(v=>v.type==='text').length,0,'composition confirmation cannot submit text');
+        assert.equal(await page.locator('#ctext').inputValue(),'isoleret testinput','composition confirmation retains draft');
+        assert.equal(await page.locator('#csend').isEnabled(),true,'composition confirmation leaves Send available');
+        await page.locator('#ctext').press('Enter',{timeout:FIXTURE_WAIT_MS});
+      } else await page.locator('#csend').click({timeout:FIXTURE_WAIT_MS});
       const typed=await read(page);
       assert.equal(typed.sent.filter(v=>v.type==='text').length,1,'explicit visible text uses existing sender');
       await bounded(page.evaluate(()=>{const f=window.__tabMedia,e=f.sent.find(v=>v.type==='text');f.sockets[0].onmessage({data:JSON.stringify({type:'command_result',command_id:e.command_id,status:'accepted'})});}),'inert accepted text receipt');
