@@ -2083,7 +2083,16 @@ setInterval(function () {
     var e = f(id); if (!e) return undefined;
     if (id === "device_control_entities") return e.value.split(/\r?\n/).map(function (v) { return v.trim(); }).filter(Boolean);
     if (e.type === "checkbox") return e.checked;
-    if (NUM[id]) { var n = parseFloat(e.value); return isNaN(n) ? undefined : n; }
+    if (NUM[id]) {
+      var customTurn = ["openai_threshold", "openai_prefix_ms", "openai_silence_ms"].indexOf(id) !== -1;
+      if (e.type === "number" && !e.value.trim() && (!customTurn || (f("turn_preset").value === "custom" && f("openai_turn").value === "server_vad"))) {
+        var disclosure = e.closest("details"); if (disclosure) disclosure.open = true;
+        e.focus();
+        var label = document.querySelector('label[for="' + e.id + '"]');
+        throw new Error("Udfyld feltet “" + label.textContent + "”.");
+      }
+      var n = parseFloat(e.value); return isNaN(n) ? undefined : n;
+    }
     return e.value;
   }
 

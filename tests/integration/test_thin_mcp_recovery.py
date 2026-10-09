@@ -17,7 +17,7 @@ from unit.test_openai_live import call, created, terminal
 from gatekeeper import tools as tools_module
 from gatekeeper.hub import StatusHub
 from gatekeeper.live_prompt import live_instructions
-from gatekeeper.mcp_client import HomeAssistantMCP
+from gatekeeper.mcp_client import HomeAssistantMCP, McpError
 from gatekeeper.openai_live import LiveToolBatch
 from gatekeeper.prompt import SYSTEM_PROMPT_DA
 from gatekeeper.talk import run_talk
@@ -479,3 +479,235 @@ async def test_declaration_copy_mutation_cannot_change_live_router_contract():
             expected_declaration_sha256=router.declaration_hashes(original)["GetLiveContext"],
         )
         assert result["ok"] is True and server.count("tools/call", "GetLiveContext") == before + 1
+
+
+class DeadlineServer(FaultServer):
+    """HA accepted a mutation, but its reply stalls past the router deadline."""
+
+    def __init__(self, *, room=False):
+        super().__init__()
+        self.effects = []
+        self.stall_target = "light.two" if room else "light.one"
+        self.call_entered = asyncio.Event()
+        self.call_cancelled = asyncio.Event()
+        self.release_call = asyncio.Event()
+        self.stall_service = False
+        self.service_calls = []
+
+    async def handle(self, request):
+        path = request.url.path
+        if path.endswith("/states"):
+            return httpx.Response(
+                200,
+                json=[
+                    {"entity_id": name, "state": "off", "attributes": {}}
+                    for name in ("light.one", "light.two")
+                ],
+            )
+        if path.endswith("/template"):
+            return httpx.Response(200, json=["light.one", "light.two"])
+        if path.endswith("/services"):
+            services = {"recently_played": {}}
+            if self.stall_service:
+                fixture = Path(__file__).parents[1] / "fixtures/podconnect_target_services.json"
+                services.update(json.loads(fixture.read_text())["services"])
+            return httpx.Response(200, json=[{"domain": "podconnect", "services": services}])
+        if "/services/podconnect/" in path:
+            assert self.stall_service
+            self.service_calls.append(path.rsplit("/", 1)[1])
+            self.call_entered.set()
+            await self.release_call.wait()
+            return httpx.Response(200, json={"service_response": {"tracks": []}})
+        body = json.loads(request.content)
+        if body["method"] == "tools/call" and body["params"]["name"] == "HassTurnOn":
+            assert request.headers["MCP-Protocol-Version"] == "2025-06-18"
+            target = body["params"]["arguments"]["name"]
+            self.effects.append(target)
+            if target == self.stall_target:
+                self.call_entered.set()
+                try:
+                    await self.release_call.wait()
+                except asyncio.CancelledError:
+                    self.call_cancelled.set()
+                    raise
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": body["id"],
+                    "result": {"content": [{"type": "text", "text": "Fixture accepted"}]},
+                },
+            )
+        response = await super().handle(request)
+        if body["method"] == "tools/list":
+            payload = response.json()
+            payload["result"]["tools"].append(
+                {"name": "HassTurnOn", "description": "Turn on", "inputSchema": {}}
+            )
+            return httpx.Response(200, json=payload)
+        return response
+
+
+async def deadline_router(server, client):
+    mcp = HomeAssistantMCP(URL, "public-inert-test-token", client)
+    router = ToolRouter(mcp, supervisor_token="public-inert-test-token", client=client)
+    await router.start()
+    assert router.healthy
+    return router
+
+
+@pytest.mark.parametrize("room", [False, True])
+async def test_mcp_router_deadline_recovers_without_replaying_accepted_action(room, monkeypatch):
+    from gatekeeper import constants as C
+
+    monkeypatch.setattr(C, "TOOL_TIMEOUT_S", 0.02)
+    server = DeadlineServer(room=room)
+    loop = None
+    async with httpx.AsyncClient(transport=httpx.MockTransport(server.handle)) as client:
+        router = await deadline_router(server, client)
+        session_schema = router.declarations()
+        session_hashes = router.declaration_hashes(session_schema)
+        args = {"area": "Fixture room", "domain": ["light"]} if room else {"name": "light.one"}
+        result = await router.dispatch(
+            "HassTurnOn", args, expected_declaration_sha256=session_hashes["HassTurnOn"]
+        )
+        assert server.call_entered.is_set() and server.call_cancelled.is_set()
+        assert result["error_kind"] == ("partial_failure" if room else "timeout")
+        if room:
+            assert result["data"]["results"][0]["result"]["ok"] is True
+            assert result["data"]["results"][1]["result"]["error_kind"] == "timeout"
+        accepted = ["light.one", "light.two"] if room else ["light.one"]
+        assert server.effects == accepted
+        assert not router.healthy and not router._mcp.initialized
+        assert router.discovery_status()["retry_state"] == "retrying"
+        assert router.discovery_status()["retry_delay_s"] == 1
+        assert router._recovery_wakeup.is_set()
+        assert "HassTurnOn" not in {item["name"] for item in router.declarations()}
+        assert router.declaration_hashes(session_schema) == session_hashes
+        # No restart, schema replacement in the active session, or action replay:
+        # the actual shipped owner performs fresh discovery plus a read-only probe.
+        try:
+            loop = asyncio.create_task(actual_probe_loop(router))
+            await eventually(lambda: router.healthy)
+            assert server.count("initialize") == 2
+            assert router.discovery_status()["retry_state"] == "ready"
+            next_schema = router.declarations()
+            read = await router.dispatch(
+                "HassGetState",
+                {},
+                expected_declaration_sha256=router.declaration_hashes(next_schema)["HassGetState"],
+            )
+            assert read["ok"] is True and server.count("tools/call", "HassGetState") == 1
+            assert server.effects == accepted
+            assert router.declaration_hashes(session_schema) == session_hashes
+        finally:
+            await finish_probes(server, loop)
+
+
+@pytest.mark.parametrize("stop", ["cancel", "guard", "newer_failure"])
+async def test_mcp_deadline_does_not_override_stop_or_newer_failure(stop, monkeypatch):
+    from gatekeeper import constants as C
+
+    monkeypatch.setattr(C, "TOOL_TIMEOUT_S", 0.03)
+    server = DeadlineServer()
+    allowed = [True]
+    async with httpx.AsyncClient(transport=httpx.MockTransport(server.handle)) as client:
+        router = await deadline_router(server, client)
+        before = router.discovery_status()
+        dispatch = asyncio.create_task(
+            router.dispatch("HassTurnOn", {"name": "light.one"}, execution_guard=lambda: allowed[0])
+        )
+        await asyncio.wait_for(server.call_entered.wait(), 1)
+        if stop == "cancel":
+            dispatch.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await dispatch
+        else:
+            if stop == "guard":
+                allowed[0] = False
+            else:
+                router._record_discovery_failure(McpError("newer failure", connection_shaped=True))
+                newer = router.discovery_status()
+            assert (await dispatch)["error_kind"] == "timeout"
+        assert server.effects == ["light.one"] and server.call_cancelled.is_set()
+        after = router.discovery_status()
+        if stop == "newer_failure":
+            assert after == newer and after["retry_attempt"] == 1
+        else:
+            assert router.healthy and router._mcp.initialized
+            assert after == before and not router._recovery_wakeup.is_set()
+
+
+async def test_podconnect_service_deadline_preserves_healthy_mcp(monkeypatch):
+    from gatekeeper import constants as C
+
+    monkeypatch.setattr(C, "TOOL_TIMEOUT_S", 0.02)
+    server = DeadlineServer()
+    server.stall_service = True
+    async with httpx.AsyncClient(transport=httpx.MockTransport(server.handle)) as client:
+        router = await deadline_router(server, client)
+        before = router.discovery_status()
+        epoch = router._mcp_epoch
+        for name, args, outcome in (
+            ("podconnect_recently_played", {}, "timeout"),
+            ("podconnect_get_targets", {}, "unknown_outcome"),
+            (
+                "podconnect_move_playback",
+                {"config_entry_id": "A", "kind": "spotify_device", "target_id": "B"},
+                "unknown_outcome",
+            ),
+        ):
+            result = await router.dispatch(name, args)
+            assert server.call_entered.is_set()
+            assert result["error_kind"] == outcome
+            current = router.discovery_status()
+            # Target dispatch legitimately refreshes service discovery. It may
+            # advance generation, but cannot reset MCP or enter failure/backoff.
+            assert {k: v for k, v in current.items() if k != "generation"} == {
+                k: v for k, v in before.items() if k != "generation"
+            }
+            assert current["generation"] >= before["generation"]
+            assert router._mcp_epoch == epoch
+            assert router.healthy and router._mcp.initialized
+            assert not router._recovery_wakeup.is_set() and server.effects == []
+        assert server.service_calls == ["recently_played", "get_targets", "move_playback"]
+        # A room selector cannot turn this local service into a canonical MCP batch.
+        after_services = router.discovery_status()
+        rejected = await router.dispatch(
+            "podconnect_move_playback",
+            {
+                "config_entry_id": "A",
+                "kind": "spotify_device",
+                "target_id": "B",
+                "area": "Fixture room",
+            },
+        )
+        assert rejected["error_kind"] == "bad_args"
+        assert router.discovery_status() == after_services and server.effects == []
+        assert len(server.service_calls) == 3
+
+
+@pytest.mark.parametrize("new_owner", ["discovery", "client"])
+async def test_retired_mcp_deadline_cannot_invalidate_fresh_discovery(new_owner, monkeypatch):
+    from gatekeeper import constants as C
+
+    monkeypatch.setattr(C, "TOOL_TIMEOUT_S", 0.06)
+    server = DeadlineServer()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(server.handle)) as client:
+        router = await deadline_router(server, client)
+        old_generation = router.discovery_status()["generation"]
+        # Public dispatch normally serializes this through _fetch_lock. Exercise
+        # the retired inner operation explicitly so fresh discovery can publish
+        # before its deadline callback; the callback must not gain fresh custody.
+        dispatch = asyncio.create_task(router._dispatch_locked("HassTurnOn", {"name": "light.one"}))
+        await asyncio.wait_for(server.call_entered.wait(), 1)
+        if new_owner == "client":
+            router._mcp = HomeAssistantMCP(URL, "public-inert-test-token", client)
+        assert await router.probe()
+        fresh = router.discovery_status()
+        assert fresh["generation"] > old_generation
+        assert (await dispatch)["error_kind"] == "timeout"
+        assert router.discovery_status() == fresh
+        assert router.healthy and router._mcp.initialized
+        assert not router._recovery_wakeup.is_set()
+        assert server.effects == ["light.one"] and server.call_cancelled.is_set()

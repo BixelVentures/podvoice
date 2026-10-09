@@ -991,6 +991,7 @@ class ToolRouter:
         # Only the two target services distinguish a timeout before dispatch from
         # a possible send: HA may shield and finish its service after our deadline.
         target_send_phase = {"possible_send": False} if name in playback_targets.TOOLS else None
+        deadline_owner = (self._mcp, self._mcp_epoch, self._discovery.generation)
         # Hard time-bound so a slow/wedged HA can never hang the conversational turn.
         try:
             dispatch_kwargs: _DispatchKwargs = (
@@ -1004,6 +1005,8 @@ class ToolRouter:
                 timeout=C.TOOL_TIMEOUT_S,
             )
         except TimeoutError:
+            if target_send_phase is None:
+                self._recover_mcp_deadline(name, deadline_owner, execution_guard)
             result = (
                 {
                     "ok": False,
@@ -1095,6 +1098,7 @@ class ToolRouter:
         """Execute a bounded room request as individually pinned HA intent calls."""
         results: list[dict[str, Any]] = []
         active_args: dict[str, Any] | None = None
+        deadline_owner = (self._mcp, self._mcp_epoch, self._discovery.generation)
         try:
             # One user tool-call gets one deadline. Never multiply the conversational
             # timeout by the number of lights in a room.
@@ -1113,6 +1117,8 @@ class ToolRouter:
                     results.append({"target": call_args["name"], "result": result})
                     active_args = None
         except TimeoutError:
+            if active_args is not None:
+                self._recover_mcp_deadline(name, deadline_owner, execution_guard)
             result = {
                 "ok": False,
                 "error_kind": "timeout",
@@ -1134,6 +1140,30 @@ class ToolRouter:
             "summary": f"Handlingen blev udført på {len(results)} enheder.",
             "data": {"results": results},
         }
+
+    def _recover_mcp_deadline(
+        self,
+        name: str,
+        owner: tuple[HomeAssistantMCP | None, int, int],
+        execution_guard: Callable[[], bool] | None,
+    ) -> None:
+        # The router deadline can cancel an HTTP exchange before httpx reports a
+        # connection-shaped error. Hand only that MCP owner to existing recovery;
+        # never replay the timed-out action or disturb a newer discovery/session.
+        mcp, epoch, generation = owner
+        if (
+            mcp is None
+            or self._mcp is not mcp
+            or self._mcp_epoch != epoch
+            or self._discovery.generation != generation
+            or name not in self._discovery.mcp_names
+            or name in _PODCONNECT_DATA_TOOLS
+            or (execution_guard is not None and not execution_guard())
+        ):
+            return
+        self._record_discovery_failure(
+            McpError(f"MCP {name}: tool dispatch deadline exceeded", connection_shaped=True)
+        )
 
     async def approve_action(
         self,

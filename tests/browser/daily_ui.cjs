@@ -40,7 +40,7 @@ function status() {
     timeline_activity:[],capabilities:{time:true,home:true,web_search:true,weather:true,music:true,timers:false,missing:['timers'],discovery:{api_id:'assist'}},
     capability_details:{time:{verified:true,reason:'fixture time',source:'fixture HA'},home:{verified:false,reason:'fixture home',source:'fixture discovery'}}};
 }
-const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',idle_timeout_s:4,duck_level:20,rooms:[]};
+const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',idle_timeout_s:4,duck_level:20,max_session_min:15,mic_gain:16,rooms:[]};
 // Passive projection regression: input rows are fixtures, the renderer is shipped.
 // Build nonfinite values inside the browser task; JSON cannot carry NaN/Infinity.
 function measurementObservation(box, index) {

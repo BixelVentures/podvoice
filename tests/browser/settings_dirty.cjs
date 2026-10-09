@@ -20,6 +20,7 @@ function bounded(work,label,ms=FIXTURE_WAIT_MS) {
     .finally(()=>clearTimeout(timer));
 }
 const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_level:20,
+ max_session_min:15,mic_gain:16,turn_preset:'responsive',openai_turn:'semantic_vad',openai_threshold:0.5,openai_prefix_ms:300,openai_silence_ms:500,
  system_prompt:'Brugerens gemte prompt',system_prompt_default:'Fixture standardprompt',
  rooms:[{voicepe_host:'fixture-speaker.local',room:'fixture-room'}],live_alpha:true,
  live_alpha_active:{'fixture-room':false}});
@@ -101,6 +102,37 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
    await fresh();assert.equal(await dirty(),false);
    assert.equal(await page.locator('#s_live_alpha').isChecked(),true);
    assert.match(await page.locator('#s_live_alpha_active').textContent(),/fixture-room: Realtime/);
+   // Empty active numeric drafts cannot silently omit a setting and report success.
+   await page.locator('#s_turn_preset').selectOption('custom');
+   await page.locator('#s_openai_turn').selectOption('server_vad');
+   for(const id of ['idle_timeout_s','duck_level','max_session_min','mic_gain','openai_threshold','openai_prefix_ms','openai_silence_ms']) {
+    const field=page.locator('#s_'+id),beforeEmptyPosts=posts.length;
+    const beforeEmptyCalls=await page.evaluate(()=>window.fixtureSettingsPosts);
+    await field.fill('');
+    // Collapsed Advanced still owns its active settings; errors reopen it for focus.
+    await page.locator('#s_advanced').evaluate(e=>e.open=false);
+    await page.locator('#s_save').click();
+    await page.waitForFunction(()=>/^(Gemt|⚠️ Ikke gemt)/.test(document.querySelector('#s_status').textContent));
+    assert.equal(posts.length,beforeEmptyPosts,'empty active '+id+' issues no POST');
+    assert.equal(await page.evaluate(()=>window.fixtureSettingsPosts),beforeEmptyCalls,'no settings fetch starts');
+    assert.match(await page.locator('#s_status').textContent(),/^⚠️ Ikke gemt — Udfyld feltet/);
+    assert.equal(await field.evaluate(e=>e===document.activeElement),true,'invalid '+id+' receives focus');
+    assert.equal(saved[id],initial()[id]);assert.equal(await dirty(),true,'rejected numeric draft remains unsaved');
+    await field.fill(String(initial()[id]));await save();assert.equal(await dirty(),false);
+    await page.locator('#s_advanced').evaluate(e=>e.open=true);
+   }
+   // The existing custom semantic/disabled modes do not use the server-VAD numbers.
+   for(const mode of ['semantic_vad','none']) {
+    await page.locator('#s_openai_turn').selectOption(mode);
+    for(const id of ['openai_threshold','openai_prefix_ms','openai_silence_ms'])await page.locator('#s_'+id).fill('');
+    await save();assert.equal(await dirty(),false);
+    assert.equal(saved.openai_threshold,initial().openai_threshold);
+    assert.equal(saved.openai_prefix_ms,initial().openai_prefix_ms);
+    assert.equal(saved.openai_silence_ms,initial().openai_silence_ms);
+   }
+   for(const id of ['openai_threshold','openai_prefix_ms','openai_silence_ms'])await page.locator('#s_'+id).fill(String(initial()[id]));
+   await page.locator('#s_openai_turn').selectOption('semantic_vad');
+   await page.locator('#s_turn_preset').selectOption('responsive');await save();
    await page.locator('#s_addroom').click();assert.equal(await dirty(),true,'adding a row owns an unsaved draft');
    assert.equal(await page.locator('.roomrow').count(),2);
    // Cancel the actual navigation dialog; the draft and page remain intact.

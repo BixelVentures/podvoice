@@ -1,3 +1,8 @@
+## 2.0.14 — recover home control and validate settings
+
+- Invalidate stale Home Assistant discovery after a control deadline so the existing recovery owner can reconnect, without replaying the interrupted action.
+- Reject empty active numeric settings before saving, show the affected field and preserve unsaved changes; keep inactive custom turn settings and partial API updates unchanged.
+
 ## 2.0.13 — finish agreed action sequences
 
 - Clarify model-owned closing after the last confirmed step in an agreed finite sequence, while keeping unfinished tasks, questions and requested dialogue open.
