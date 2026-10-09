@@ -1,3 +1,9 @@
+## 2.0.15 — clarify completion of agreed action sequences
+
+- Clarify that waiting between agreed steps applies while steps remain, and ask the model to reassess the full request after each confirmed action result before acknowledging completion.
+- Migrate only the unchanged default prompt to version 18; preserve customized prompts and existing settings.
+- Add a source-bound Voice PE/Talk regression for retained music cleanup across a manager process change, including pending original outputs and stale release receipts.
+
 ## 2.0.14 — recover home control and validate settings
 
 - Invalidate stale Home Assistant discovery after a control deadline so the existing recovery owner can reconnect, without replaying the interrupted action.
