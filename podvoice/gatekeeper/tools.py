@@ -320,10 +320,11 @@ class ToolRouter:
         if not self._token or self._client is None:
             return
         try:
-            response = await self._client.get(
-                f"{C.SUPERVISOR_CORE_API}/services",
-                headers={"Authorization": f"Bearer {self._token}"},
-            )
+            async with asyncio.timeout(C.TOOL_TIMEOUT_S):
+                response = await self._client.get(
+                    f"{C.SUPERVISOR_CORE_API}/services",
+                    headers={"Authorization": f"Bearer {self._token}"},
+                )
             response.raise_for_status()
             domains = response.json()
             if isinstance(domains, dict):
@@ -418,7 +419,9 @@ class ToolRouter:
             if not force and snap.mcp_tools and age < _TOOLS_TTL_S:
                 return
             try:
-                compiled = self._compile_mcp_tools(await self._mcp.list_tools())
+                async with asyncio.timeout(C.TOOL_TIMEOUT_S):
+                    raw_tools = await self._mcp.list_tools()
+                compiled = self._compile_mcp_tools(raw_tools)
                 tools, pending, conflicts = self._admit_mcp_tools(compiled)
             except Exception as e:
                 failure = (

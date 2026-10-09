@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 
+from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
+
 TOOLS = {
     "podconnect_get_targets": "get_targets",
     "podconnect_move_playback": "move_playback",
@@ -306,10 +308,34 @@ def result(name: str, args: dict, data: object, *, selected_service: str | None 
             or type(data["play"]) is not bool
         ):
             raise ValueError
-        return {"ok": True, "data": json.loads(json.dumps(data, allow_nan=False))}
+        response = {"ok": True, "data": json.loads(json.dumps(data, allow_nan=False))}
+        if name == "podconnect_get_targets" and "config_entry_id" in args:
+            return _model_target_read(response)
+        return response
     except (ValueError, TypeError, KeyError):
         return {
             "ok": False,
             "error_kind": "invalid_response",
             "error": "Playback target response is unknown",
         }
+
+
+def _model_target_read(response: dict) -> dict:
+    """Project only a fully validated, detached read; never a move receipt.
+
+    HA owns the complete fresh binding and refetches it for each move. The model
+    retains all targets and language/status fields, including native IDs and the
+    currently selected room, but cannot authorize with opaque registry hashes.
+    """
+    for row in response["data"]["targets"]:
+        if row["kind"] == "configured_alias":
+            row["binding"].pop("incarnation")
+            row["binding"].pop("registry")
+    if tool_result_size(response) > MAX_TOOL_RESULT_BYTES:
+        return {
+            "ok": False,
+            "error_kind": "result_too_large",
+            "error": "The complete playback target catalog exceeds the tool-result byte limit; "
+            "no partial targets were returned.",
+        }
+    return response
