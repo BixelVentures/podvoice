@@ -1481,7 +1481,23 @@ class ThinSession:
             self._set_led(State.LISTENING)
             self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
         # Duck for the WHOLE conversation (no per-turn pumping — one calm level).
-        self.heartbeat.start(self.room, self.duck_level, C.TTL_LISTENING_MS)
+        heartbeat = self.heartbeat
+        history_session = self._history_session
+
+        def attention_retired(lease: dict) -> None:
+            if (
+                opening_is_current()
+                and self._history_session == history_session
+                and self.heartbeat is heartbeat
+                and heartbeat.lease == lease
+            ):
+                self._request_close("attention-lease-retired")
+
+        start_with_retirement = getattr(heartbeat, "start_with_retirement", None)
+        if callable(start_with_retirement):
+            start_with_retirement(self.room, self.duck_level, C.TTL_LISTENING_MS, attention_retired)
+        else:
+            heartbeat.start(self.room, self.duck_level, C.TTL_LISTENING_MS)
         if self.hub is not None:
             self.hub.incr("sessions")
             self.hub.set_level(self.room, self.duck_level)

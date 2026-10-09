@@ -33,6 +33,13 @@ og `release` præcis én gang efter diff-freeze og det review, ændringen kræve
 artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
 værktøjer eller Realtime-semantik.
 
+Tilføj version, changelog og øvrige release-metadata efter den målrettede udviklings-
+feedback. En allerede reviewet ændring med sådanne metadata skal ikke have en ekstra
+`fast`-kørsel, der falder tilbage til hele testsuiten. Bevar de målrettede resultater,
+kontrollér slutdiffets formatter/lint og scope, frys efter nødvendigt review, og kør
+hele den foreskrevne `release`-gate én gang. Det ændrer ingen release-gates eller
+produktions-timeouts; en kortere fast-deadline må ikke bruges som produktbevis.
+
 `fast` cacher kun stabile preflightdele og kører Ruff, format, mypy og fokuseret pytest
 parallelt med isolerede caches; der må ikke tilføjes en separat collection-pass. Målene
 er varm ≤8 s, kold ≤15 s og release ≤45 s. Brug lav intelligens til afgrænsede test-/

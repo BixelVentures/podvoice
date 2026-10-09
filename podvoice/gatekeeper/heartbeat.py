@@ -13,12 +13,13 @@ import asyncio
 import logging
 import random
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
 from . import constants as C
 from .interfaces import AttentionLike
-from .podconnect import AttentionDown, UnknownRoom, Unsupervised
+from .podconnect import AttentionDown, AttentionLeaseRetired, UnknownRoom, Unsupervised
 
 log = logging.getLogger(__name__)
 
@@ -62,15 +63,23 @@ class Heartbeat:
         self._lease: dict | None = None
         self._begin_expected: dict | None = None
         self._admitted = False
+        self._on_lease_retired: Callable[[dict], None] | None = None
 
     def start(self, room: str, level: int, ttl_ms: int) -> None:
         self._gen += 1
         self._lease = None
         self._begin_expected = None
         self._admitted = False
+        self._on_lease_retired = None
         self._target = HBTarget(room, level, ttl_ms, self._gen, str(uuid.uuid4()))
         if self._task is None or self._task.done():
             self._task = asyncio.ensure_future(self._loop())
+
+    def start_with_retirement(
+        self, room: str, level: int, ttl_ms: int, on_lease_retired: Callable[[dict], None]
+    ) -> None:
+        self.start(room, level, ttl_ms)
+        self._on_lease_retired = on_lease_retired
 
     def retarget(self, room: str, level: int, ttl_ms: int) -> None:
         # New generation so stale in-flight beats are dropped, then beat now so
@@ -131,10 +140,12 @@ class Heartbeat:
         if first_error is not None:
             raise first_error
 
-    async def _beat_once(self, tgt: HBTarget) -> bool:
+    async def _beat_once(self, tgt: HBTarget) -> bool | None:
         async with self._io_lock:
             if tgt.generation != self._gen:
                 return True
+            begin = True
+            outgoing: dict | None = None
             try:
                 if self._begin_expected is None:
                     expected = await self._att.challenge(tgt.room)
@@ -170,6 +181,25 @@ class Heartbeat:
                     raise AttentionDown("strict attention admission receipt missing")
                 self._admitted = True
                 return True
+            except AttentionLeaseRetired as exc:
+                if tgt.generation != self._gen:
+                    return True
+                if (
+                    not self._admitted
+                    or begin
+                    or exc.room != tgt.room
+                    or exc.lease != outgoing
+                    or exc.lease != self.lease
+                ):
+                    return False
+                # Fence every queued renewal before Thin awaits physical cleanup.
+                # Retain the original lease and task handles for stop() to join/release.
+                self._gen += 1
+                self._target = None
+                # Only Thin owns close. Never await it from a task stop() must join.
+                if self._on_lease_retired is not None:
+                    self._on_lease_retired(exc.lease)
+                return None
             except (AttentionDown, Unsupervised):
                 return False
             except UnknownRoom:
@@ -184,7 +214,7 @@ class Heartbeat:
             if tgt is None:
                 return
             ok = await self._beat_once(tgt)
-            if self._target is None:
+            if ok is None or self._target is None:
                 return
             if ok:
                 backoff_s = _BACKOFF_BASE_S
