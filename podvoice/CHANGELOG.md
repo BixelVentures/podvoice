@@ -1,3 +1,9 @@
+## 2.0.20 - bounded HA and music-attention recovery
+
+- Rediscover timer and PodConnect services automatically after a failed HA service read, using the existing recovery backoff while preserving healthy MCP tools and active conversation schemas. Delayed results cannot restore stale contracts or regress discovery ownership.
+- Observe pending music-attention retirement through GET requests bound to the original room and manager admission, within the existing teardown deadline. Each release invocation sends one original POST; existing full-teardown retries remain unchanged.
+- Prompt, model, firmware and conversation timing are unchanged. Live semantic closing and physical recovery acceptance remain unresolved.
+
 ## 2.0.19 - clean recovery after original music attention retires
 
 - Close the current voice conversation through its existing cleanup owner when compatible Speakers supplies exact proof that the original music-attention lease has durably retired. Temporary connection failures continue retrying.
