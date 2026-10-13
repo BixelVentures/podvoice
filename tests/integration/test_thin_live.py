@@ -100,6 +100,38 @@ def build(*, enabled=True, device=None):
 
 
 @pytest.mark.asyncio
+async def test_primary_lifecycle_capability_matches_shared_thin_wire_without_domain_tools():
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+    from gatekeeper.thin import LIVE_END_CONVERSATION_DECLARATION
+
+    session, sdk, _, tools, _ = build()
+    tools.declarations = lambda: []
+    primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    session.live_brain.instructions, session.live_brain.backend_instructions = primary, backend
+    await session.start()
+    try:
+        await session.wake()
+        config = sdk.session.start.call_args.kwargs["session"]
+        assert config["instructions"] == primary
+        responses = config["delegation"]["responses"]
+        assert responses["instructions"] == backend
+        assert responses["tool_choice"] == "auto"
+        end = [tool for tool in responses["tools"] if tool["name"] == "end_conversation"]
+        assert len(end) == 1
+        assert end[0]["parameters"] == LIVE_END_CONVERSATION_DECLARATION["parameters"]
+        assert end[0]["description"] == LIVE_END_CONVERSATION_DECLARATION["description"]
+        block = primary.split("Backend tools:\n", 1)[1].split("\n\n", 1)[0]
+        assert end[0]["name"] in block
+        assert "applikationen ejer faktisk afspilning, lukning og wake-rearm" in block
+        assert "accepted_not_closed" in end[0]["description"]
+        assert "status" not in [tool["name"] for tool in responses["tools"]]
+        assert tools.calls == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("enabled", [True, False])
 async def test_wait_description_is_projected_only_at_live_startup(enabled):
     from gatekeeper.thin import LIVE_WAIT_FOR_USER_DECLARATION, WAIT_FOR_USER_DECLARATION

@@ -300,3 +300,7 @@ Ingen agent må bruge feedbacksignalet til at maskere langsomhed eller udvikle p
 1 og 2 i samme kandidat. En UI-ændring må ikke ændre samtalens lifecycle som en skjult
 bivirkning. De fulde gates står i `docs/PRODUKTMÅL.md`, og den aktuelle rækkefølge står
 i `docs/STATUS.md`.
+
+## Repository-publicering
+
+GitHub Contents API kan returnere tomt indhold for filer over 1 MB, selv om Git-blobben ikke er tom. Brug aldrig sådan et svar som grundlag for en filændring. Hent Git-blobben eller brug en bevaret lokal fil med verificeret samme blob-SHA; kontroller både byteantal og blob-SHA før publicering. Et readback med tom body er ikke indholdsverifikation.

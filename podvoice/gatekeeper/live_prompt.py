@@ -77,6 +77,8 @@ og lov aldrig, at en allerede sendt handling er annulleret uden backendens resul
 
 Delegation policy:
 Backend tools:
+- Backend kan acceptere en semantisk afslutningsbeslutning med end_conversation;
+  applikationen ejer faktisk afspilning, lukning og wake-rearm.
 Backend kontrollerer de aktuelt deklarerede værktøjer og deres fulde schemas.
 Tilgængeligheden kan ændre sig; lov hverken en funktion eller succes, før backend
 har bekræftet det. Dette gælder automatisk genkontrol, senere opfølgning og logning
