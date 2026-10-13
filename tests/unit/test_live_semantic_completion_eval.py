@@ -77,6 +77,44 @@ def test_baseline_exact_and_variant_aligns_all_startup_layers_without_mutating_r
     assert "input" not in variant and "input" not in base
 
 
+@pytest.mark.parametrize(
+    "tail, generation, end_ms, after_seq, expected",
+    [
+        (" fire", 1, 400, -1, True),
+        (" fire.", 1, 400, -1, True),
+        (" fi", 1, 400, -1, False),
+        (" fire", 1, None, -1, False),
+        (" fire", 2, 400, -1, False),
+        (" fire", 1, 400, 3, False),
+        (" fem", 1, 400, -1, False),
+    ],
+)
+def test_answer_seen_known_complete_answer_does_not_depend_on_punctuation(
+    tail, generation, end_ms, after_seq, expected
+):
+    rows = [
+        dict(
+            kind="LiveTranscript",
+            seq=2,
+            generation=1,
+            direction="out",
+            text="Det er",
+            start_ms=100,
+            end_ms=200,
+        ),
+        dict(
+            kind="LiveTranscript",
+            seq=3,
+            generation=generation,
+            direction="out",
+            text=tail,
+            start_ms=300,
+            end_ms=end_ms,
+        ),
+    ]
+    assert module.answer_seen(rows, after_seq, ("fire", "4")) is expected
+
+
 def good_rows(case="completed-side-address"):
     rows = []
 

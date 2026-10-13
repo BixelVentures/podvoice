@@ -538,7 +538,22 @@ class ObservedLive(OpenAILiveSession):
     async def events(self):
         async for event in super().events():
             if isinstance(event, LiveAudioChunk):
-                self.evidence.write(f"provider-output-{event.generation}.pcm", event.pcm)
+                received_monotonic_s = time.monotonic()
+                name = f"provider-output-{event.generation}.pcm"
+                byte_start = self.evidence.sizes.get(name, 0)
+                self.evidence.write(name, event.pcm)
+                self.evidence.emit(
+                    "decoded_output_chunk",
+                    generation=event.generation,
+                    received_monotonic_s=received_monotonic_s,
+                    received_elapsed_s=received_monotonic_s - self.evidence.started,
+                    file=name,
+                    byte_start=byte_start,
+                    byte_end=self.evidence.sizes[name],
+                    byte_length=len(event.pcm),
+                    sha256=digest(event.pcm),
+                    physical_playback_proven=False,
+                )
             else:
                 self.evidence.emit(type(event).__name__, **dataclasses.asdict(event))
             yield event

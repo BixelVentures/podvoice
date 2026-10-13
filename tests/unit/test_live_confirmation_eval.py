@@ -81,6 +81,67 @@ def test_evidence_private_exclusive_and_bounded(tmp_path):
     evidence.close()
 
 
+@pytest.mark.asyncio
+async def test_decoded_output_receipts_bind_exact_saved_bytes_and_forward_unchanged(
+    tmp_path, monkeypatch
+):
+    from gatekeeper.openai_live import LiveSessionReady
+
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    ready = LiveSessionReady("synthetic", 1)
+    chunks = [
+        module.LiveAudioChunk(b"\x01\x00\x02\x00", 1),
+        module.LiveAudioChunk(b"\x03\x00\x04\x00\x05\x00", 1),
+        module.LiveAudioChunk(b"\x06\x00", 2),
+        module.LiveAudioChunk(b"\x07\x00\x08\x00", 1),
+    ]
+    original = [ready, *chunks]
+
+    async def production(self):
+        assert self is live
+        for event in original:
+            yield event
+
+    monkeypatch.setattr(module.OpenAILiveSession, "events", production)
+    try:
+        forwarded = [event async for event in live.events()]
+        assert all(actual is expected for actual, expected in zip(forwarded, original, strict=True))
+        rows = [row for row in evidence.rows if row["kind"] == "decoded_output_chunk"]
+        assert len(rows) == len(chunks)
+        assert [(row["generation"], row["byte_start"], row["byte_end"]) for row in rows] == [
+            (1, 0, 4),
+            (1, 4, 10),
+            (2, 0, 2),
+            (1, 10, 14),
+        ]
+        for row, event in zip(rows, chunks, strict=True):
+            saved = (evidence.directory / row["file"]).read_bytes()
+            recorded_chunk = saved[row["byte_start"] : row["byte_end"]]
+            assert recorded_chunk == event.pcm
+            assert row["byte_length"] == len(recorded_chunk)
+            assert row["sha256"] == module.digest(recorded_chunk)
+            assert row["received_monotonic_s"] >= evidence.started
+            assert row["received_elapsed_s"] == row["received_monotonic_s"] - evidence.started
+            assert row["received_elapsed_s"] <= row["elapsed_s"]
+            assert row["physical_playback_proven"] is False
+        assert (evidence.directory / "provider-output-1.pcm").read_bytes() == b"".join(
+            event.pcm for event in chunks if event.generation == 1
+        )
+        assert (evidence.directory / "provider-output-2.pcm").read_bytes() == chunks[2].pcm
+        assert [row for row in evidence.rows if row["kind"] == "LiveSessionReady"] == [
+            {
+                "seq": 1,
+                "elapsed_s": evidence.rows[1]["elapsed_s"],
+                "kind": "LiveSessionReady",
+                "session_id": "synthetic",
+                "generation": 1,
+            }
+        ]
+    finally:
+        evidence.close()
+
+
 def good_rows(fresh="negative"):
     rows = [
         {

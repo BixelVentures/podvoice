@@ -329,7 +329,7 @@ def answer_seen(rows, after_seq, endings):
     if not output or not all(rig.valid_interval(r) for r in output):
         return False
     text = "".join(r["text"] for r in output)
-    return rig.normalized(text).endswith(endings) and text.rstrip().endswith((".", "!"))
+    return rig.normalized(text).endswith(endings)
 
 
 def fixture_transcript(text):
