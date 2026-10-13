@@ -290,6 +290,8 @@ class ToolRouter:
         self._fetch_lock = asyncio.Lock()
         self._recovery_wakeup = asyncio.Event()
         self._mcp_epoch = 0
+        self._services_epoch = 0
+        self._services_retry: tuple[str, int, float] | None = None
         self._entity_index: dict[str, tuple[_CanonicalEntity, ...]] = {}
         self._entity_index_at = 0.0
         self._entity_lock = asyncio.Lock()
@@ -319,6 +321,8 @@ class ToolRouter:
         """
         if not self._token or self._client is None:
             return
+        self._services_epoch += 1
+        epoch = self._services_epoch
         try:
             async with asyncio.timeout(C.TOOL_TIMEOUT_S):
                 response = await self._client.get(
@@ -336,7 +340,6 @@ class ToolRouter:
             ):
                 raise ValueError("HA services response is not a list of objects")
             discovered: set[str] = set()
-            self.timers.discover(domains)
             target_contracts: tuple[tuple[str, str], ...] = ()
             for domain in domains:
                 if domain.get("domain") != "podconnect":
@@ -352,6 +355,12 @@ class ToolRouter:
                 discovered = set(names)
                 target_contracts = playback_targets.contracts(services)
                 break
+            # Only the latest service read may publish either domain. A cancelled
+            # or delayed older read cannot restore contracts after a newer failure.
+            if epoch != self._services_epoch:
+                return
+            self.timers.discover(domains)
+            self._services_retry = None
             snap = self._discovery
             self._discovery = _DiscoverySnapshot(
                 generation=snap.generation + 1,
@@ -377,6 +386,16 @@ class ToolRouter:
                 ", ".join(sorted(discovered)) or "none",
             )
         except Exception as e:
+            if epoch != self._services_epoch:
+                return
+            attempt = self._services_retry[1] + 1 if self._services_retry else 1
+            delay = _RECOVERY_BACKOFF_S[min(attempt - 1, len(_RECOVERY_BACKOFF_S) - 1)]
+            self._services_retry = (
+                f"HA service discovery: {e}"[:500],
+                attempt,
+                time.time() + delay,
+            )
+            self._recovery_wakeup.set()
             self.timers.discover([])
             snap = self._discovery
             self._discovery = _DiscoverySnapshot(
@@ -443,7 +462,7 @@ class ToolRouter:
             )
             info = getattr(self._mcp, "server_info", {}) or {}
             self._discovery = _DiscoverySnapshot(
-                generation=snap.generation + 1,
+                generation=self._discovery.generation + 1,
                 mcp_tools=tuple(tools),
                 mcp_names=names,
                 pending_names=frozenset(pending),
@@ -461,7 +480,8 @@ class ToolRouter:
                 retry_delay_s=None,
                 next_retry_at=None,
             )
-            self._recovery_wakeup.clear()
+            if self._services_retry is None:
+                self._recovery_wakeup.clear()
             if self._hub is not None:
                 self._hub.set_service("mcp", "up" if tools else "degraded")
             log.info(
@@ -623,9 +643,12 @@ class ToolRouter:
 
     def next_probe_delay(self) -> float:
         snap = self._discovery
+        delay = _TOOLS_TTL_S
         if snap.retry_state == "retrying" and snap.next_retry_at is not None:
-            return max(0.0, snap.next_retry_at - time.time())
-        return _TOOLS_TTL_S
+            delay = max(0.0, snap.next_retry_at - time.time())
+        if self._services_retry is not None:
+            delay = min(delay, max(0.0, self._services_retry[2] - time.time()))
+        return delay
 
     async def wait_for_recovery_signal(self) -> None:
         await self._recovery_wakeup.wait()
@@ -633,7 +656,7 @@ class ToolRouter:
 
     def discovery_status(self) -> dict[str, Any]:
         snap = self._discovery
-        return {
+        status = {
             "generation": snap.generation,
             "fetched_at": snap.fetched_at,
             "endpoint": snap.endpoint,
@@ -652,6 +675,18 @@ class ToolRouter:
             "retry_delay_s": snap.retry_delay_s,
             "next_retry_at": snap.next_retry_at,
         }
+        if self._services_retry is not None and (
+            snap.next_retry_at is None or self._services_retry[2] < snap.next_retry_at
+        ):
+            error, attempt, next_retry_at = self._services_retry
+            status.update(
+                last_error=error,
+                retry_state="retrying",
+                retry_attempt=attempt,
+                retry_delay_s=_RECOVERY_BACKOFF_S[min(attempt - 1, len(_RECOVERY_BACKOFF_S) - 1)],
+                next_retry_at=next_retry_at,
+            )
+        return status
 
     @staticmethod
     def _mcp_api_id(mcp: Any) -> str | None:

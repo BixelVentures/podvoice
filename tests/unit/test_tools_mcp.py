@@ -1239,3 +1239,288 @@ async def test_failed_service_rediscovery_removes_stale_podconnect_tools_for_nex
     assert any(item["name"].startswith("podconnect_") for item in active_session)
     assert not any(item["name"].startswith("podconnect_") for item in router.declarations())
     assert router.capabilities()["music"] is False
+
+
+class _RestRecoveryMCP:
+    url = MCP_URL
+
+    async def list_tools(self):
+        return [{"name": "GetLiveContext", "description": "state", "inputSchema": {}}]
+
+    async def call_tool(self, name, args):
+        assert name == "GetLiveContext"
+        return {"content": [{"type": "text", "text": "current state"}]}
+
+
+def _rest_recovery_services():
+    # Same explicit native contract as the composed HA timer fixture.
+    metadata = {
+        "timer_status": {"response": {"optional": False}, "fields": {"endpoint": {}}},
+        "timer_command": {
+            "response": {"optional": False},
+            "fields": {
+                name: {}
+                for name in (
+                    "endpoint",
+                    "epoch",
+                    "request_id",
+                    "action",
+                    "seconds",
+                    "name",
+                    "timer_id",
+                    "language",
+                    "alert_id",
+                    "phase",
+                    "sink_id",
+                )
+            },
+        },
+    }
+    metadata["timer_command"]["fields"]["action"] = {
+        "selector": {
+            "select": {
+                "options": [
+                    "start",
+                    "cancel",
+                    "acknowledge_finished",
+                    "claim_alert",
+                    "report_alert",
+                ]
+            }
+        }
+    }
+    return [
+        {"domain": "podvoice", "services": metadata},
+        {
+            "domain": "podconnect",
+            "services": {"recently_played": {}, "top_tracks": {}, "liked": {}},
+        },
+    ]
+
+
+async def test_rest_discovery_failure_automatically_recovers_both_domains_with_healthy_mcp():
+    import ast
+    import contextlib
+    from pathlib import Path
+
+    from gatekeeper import tools as tools_module
+
+    # Execute the shipped loop without importing unrelated browser test fixtures.
+    tree = ast.parse(Path(tools_module.__file__).with_name("__main__.py").read_text())
+    loops = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "_probe_loop"
+    ]
+    assert len(loops) == 1
+    loop_tree = ast.fix_missing_locations(ast.Module(body=loops, type_ignores=[]))
+
+    responses = [200, 502, 200]
+    reads = []
+    restored = asyncio.Event()
+
+    def peer(request):
+        assert request.method == "GET" and request.url.path == "/core/api/services"
+        status = responses[len(reads)]
+        reads.append(status)
+        if len(reads) == 3:
+            restored.set()
+        return httpx.Response(status, json=_rest_recovery_services())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(peer)) as client:
+        router = ToolRouter(_RestRecoveryMCP(), supervisor_token="synthetic", client=client)
+        await router.start()
+        active_schema = router.declarations()
+        active_bytes = json.dumps(active_schema, sort_keys=True)
+        assert router.timers.contract
+        await router.probe()
+        assert router.healthy and router._discovery.retry_state == "ready"
+        assert router.timers.contract == "" and not router._discovery.podconnect_services
+        assert router.discovery_status()["retry_state"] == "retrying"
+        assert router.discovery_status()["retry_delay_s"] == 1.0
+        assert "502" in router.discovery_status()["last_error"]
+        assert router._recovery_wakeup.is_set() and 0 < router.next_probe_delay() <= 1.0
+        assert "GetLiveContext" in {d["name"] for d in router.declarations()}
+        denied = await router.dispatch("podconnect_recently_played", {})
+        assert not denied["ok"] and len(reads) == 2
+        scope = {"asyncio": asyncio, "contextlib": contextlib, "tools": router}
+        exec(compile(loop_tree, "actual-shipped-probe-loop", "exec"), scope)
+        loop = asyncio.create_task(scope["_probe_loop"]())
+        try:
+            await asyncio.wait_for(restored.wait(), 2)
+            assert router.timers.contract and len(router._discovery.podconnect_services) == 3
+            assert router.discovery_status()["retry_state"] == "ready"
+            assert router.discovery_status()["last_error"] is None
+            assert router.next_probe_delay() == 600
+            assert json.dumps(active_schema, sort_keys=True) == active_bytes
+            assert reads == [200, 502, 200]  # Discovery only, no action replay.
+        finally:
+            loop.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await loop
+
+
+async def test_rest_discovery_repeated_failures_preserve_backoff_across_mcp_success():
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(502, text="services restarting")
+        )
+    ) as client:
+        router = ToolRouter(_RestRecoveryMCP(), supervisor_token="synthetic", client=client)
+        for attempt, delay in enumerate([1, 2, 5, 10, 30, 60, 60], start=1):
+            await router.probe()
+            status = router.discovery_status()
+            assert router.healthy and router._discovery.retry_state == "ready"
+            assert status["retry_attempt"] == attempt and status["retry_delay_s"] == delay
+            assert router._recovery_wakeup.is_set()
+            assert 0 < router.next_probe_delay() <= delay
+
+
+@pytest.mark.parametrize("older_status,newer_status", [(200, 502), (502, 200)])
+async def test_rest_discovery_delayed_overlap_cannot_overwrite_newer_read(
+    older_status, newer_status
+):
+    entered, release = asyncio.Event(), asyncio.Event()
+    count = 0
+
+    async def peer(request):
+        nonlocal count
+        count += 1
+        status = older_status if count == 1 else newer_status
+        if count == 1:
+            entered.set()
+            await release.wait()
+        return httpx.Response(status, json=_rest_recovery_services())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(peer)) as client:
+        router = ToolRouter(_RestRecoveryMCP(), supervisor_token="synthetic", client=client)
+        older = asyncio.create_task(router._refresh_podconnect_services())
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            await router._refresh_podconnect_services()
+            status = router.discovery_status()
+            contract = router.timers.contract
+            release.set()
+            await older
+            assert router.discovery_status() == status and router.timers.contract == contract
+            assert bool(contract) is (newer_status == 200)
+            assert bool(router._discovery.podconnect_services) is (newer_status == 200)
+            assert (router._services_retry is not None) is (newer_status == 502)
+        finally:
+            release.set()
+            await asyncio.gather(older, return_exceptions=True)
+
+
+@pytest.mark.parametrize("initial_status", [200, 502])
+async def test_rest_discovery_external_cancellation_preserves_last_published_state(initial_status):
+    entered, release = asyncio.Event(), asyncio.Event()
+    count = 0
+
+    async def peer(request):
+        nonlocal count
+        count += 1
+        if count == 2:
+            entered.set()
+            await release.wait()
+        return httpx.Response(initial_status, json=_rest_recovery_services())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(peer)) as client:
+        router = ToolRouter(_RestRecoveryMCP(), supervisor_token="synthetic", client=client)
+        await router.probe()
+        before = router.discovery_status()
+        contract = router.timers.contract
+        retry = router._services_retry
+        task = asyncio.create_task(router._refresh_podconnect_services())
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert router.discovery_status() == before
+            assert router.timers.contract == contract and router._services_retry == retry
+        finally:
+            task.cancel()
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_rest_discovery_total_deadline_schedules_recovery(monkeypatch):
+    from gatekeeper import tools as tools_module
+
+    monkeypatch.setattr(tools_module.C, "TOOL_TIMEOUT_S", 0.02)
+    entered = asyncio.Event()
+
+    async def peer(request):
+        entered.set()
+        await asyncio.Event().wait()
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(peer)) as client:
+        router = ToolRouter(_RestRecoveryMCP(), supervisor_token="synthetic", client=client)
+        await asyncio.wait_for(router.probe(), 1)
+        assert entered.is_set() and router.healthy
+        assert router._services_retry is not None
+        assert router.discovery_status()["retry_delay_s"] == 1
+        assert router._recovery_wakeup.is_set() and router.next_probe_delay() <= 1
+
+
+async def test_rest_discovery_scheduler_chooses_earlier_domain_retry(monkeypatch):
+    from gatekeeper import tools as tools_module
+
+    now = 100.0
+    monkeypatch.setattr(tools_module.time, "time", lambda: now)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(502, text="services restarting")
+        )
+    ) as client:
+        router = ToolRouter(_RestRecoveryMCP(), supervisor_token="synthetic", client=client)
+        await router.probe()  # REST deadline 101, MCP ready.
+        now = 99.0
+        router._record_discovery_failure("MCP disconnect")  # MCP deadline 100.
+        assert router.next_probe_delay() == 1
+        assert router.discovery_status()["last_error"] == "MCP disconnect"
+        now = 100.0
+        router._record_discovery_failure("MCP still down")  # MCP deadline 102.
+        assert router.next_probe_delay() == 1
+        assert router.discovery_status()["last_error"].startswith("HA service discovery:")
+
+
+async def test_rest_discovery_overlap_cannot_reuse_generation_for_stale_mcp_deadline():
+    entered, release = asyncio.Event(), asyncio.Event()
+    reads = 0
+
+    class DelayedMCP(_RestRecoveryMCP):
+        def __init__(self):
+            self.lists = 0
+
+        async def list_tools(self):
+            self.lists += 1
+            if self.lists == 2:
+                entered.set()
+                await release.wait()
+            return await super().list_tools()
+
+    def peer(request):
+        nonlocal reads
+        reads += 1
+        return httpx.Response(200 if reads == 1 else 502, json=_rest_recovery_services())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(peer)) as client:
+        router = ToolRouter(DelayedMCP(), supervisor_token="synthetic", client=client)
+        await router.start()
+        delayed = asyncio.create_task(router._refresh(force=True))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            await router._refresh_podconnect_services()
+            old_owner = (router._mcp, router._mcp_epoch, router._discovery.generation)
+            release.set()
+            await delayed
+            router._recover_mcp_deadline("GetLiveContext", old_owner, None)
+            assert router.healthy and router._discovery.retry_state == "ready"
+            assert router._discovery.generation > old_owner[2]
+            assert "GetLiveContext" in {d["name"] for d in router.declarations()}
+            assert router._services_retry is not None and router._recovery_wakeup.is_set()
+            assert router.timers.contract == "" and not router._discovery.podconnect_services
+        finally:
+            release.set()
+            await asyncio.gather(delayed, return_exceptions=True)
