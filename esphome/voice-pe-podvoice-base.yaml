@@ -246,7 +246,7 @@ switch:
     restore_mode: ALWAYS_OFF
     on_turn_off:
       # Disable stop wake word
-      - micro_wake_word.disable_model: stop
+      - lambda: "id(pv_reply).set_timer_required(false);"
       - script.execute: disable_repeat
       # Stop any current announcement (ie: stop the timer ring mid playback)
       - if:
@@ -271,7 +271,7 @@ switch:
           decibel_reduction: 20
           duration: 0.0s
       # Enable stop wake word
-      - micro_wake_word.enable_model: stop
+      - lambda: "id(pv_reply).set_timer_required(true);"
       # Ring timer
       - script.execute: ring_timer
       # Refresh LED
@@ -1446,33 +1446,6 @@ script:
           }
           id(is_timer_active) = output;
 
-  # Script used activate the stop word if the TTS step is long.
-  # Why is this wrapped on a script?
-  #   Becasue we want to stop the sequence if the TTS step is faster than that.
-  #   This allows us to prevent having the deactivation of the stop word before its own activation.
-  - id: activate_stop_word_once
-    then:
-      - wait_until:
-          condition:
-            media_player.is_announcing:
-              id: external_media_player
-          timeout: 5s
-      - delay: 1s
-      # Enable stop wake word
-      - if:
-          condition:
-            switch.is_off: timer_ringing
-          then:
-            - micro_wake_word.enable_model: stop
-            - wait_until:
-                not:
-                  media_player.is_announcing:
-                    id: external_media_player
-            - if:
-                condition:
-                  switch.is_off: timer_ringing
-                then:
-                  - micro_wake_word.disable_model: stop
 
 i2s_audio:
   - id: i2s_output
@@ -1697,7 +1670,19 @@ micro_wake_word:
         condition:
           and:
             - switch.is_off: master_mute_switch
-            - lambda: "return !id(podvoice_conversation_active);"
+            - lambda: 'return wake_word == "Stop";'
+        then:
+          - lambda: "id(pv_reply).local_stop();"
+          - if:
+              condition:
+                switch.is_on: timer_ringing
+              then:
+                - switch.turn_off: timer_ringing
+    - if:
+        condition:
+          and:
+            - switch.is_off: master_mute_switch
+            - lambda: 'return !id(podvoice_conversation_active) && wake_word != "Stop";'
         then:
           - if:
               condition:
@@ -1816,8 +1801,6 @@ voice_assistant:
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: control_leds
-          # Start a script that would potentially enable the stop word if the response is longer than a second
-          - script.execute: activate_stop_word_once
   on_tts_start:
     - if:
         condition:
@@ -1826,8 +1809,6 @@ voice_assistant:
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: control_leds
-          # Start a script that would potentially enable the stop word if the response is longer than a second
-          - script.execute: activate_stop_word_once
   # When the voice assistant ends ...
   on_end:
     - wait_until:

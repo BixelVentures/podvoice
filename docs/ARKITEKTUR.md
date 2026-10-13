@@ -101,7 +101,13 @@ Lukning har to adskilte ejere:
 Mens pucken afspiller et svar, sendes dens mikrofon ikke videre til OpenAI. Det er den
 pålidelige første version: ingen selvsvar og ingen falske afbrydelser fra højttaleren.
 Opfølgningen fortsætter i samme session, så half-duplex betyder ikke én kommando pr.
-wake. Fuld duplex og tale-stop midt i svar er en separat senere gate.
+wake. Fuld duplex er en separat senere gate. Den isolerede stop-word-kandidat bruger en
+lokal firmwaremodel som transport-stopknap: token+URL optages atomisk, lokal detektion
+stopper announcement og udsender et korreleret event. `ThinSession` forsegler nye
+provider-/tool-publiceringer synkront og lukker uden farvel. Firmware ejer den samlede
+producer → resampler → mixer-reference → fysisk output-callback-fence. `stopped_word`
+er aldrig normal svarslut og må ikke åbne opfølgning. Næste wake kræver fuld teardown.
+Se den særskilte gate i produktmål; funktionen er endnu ikke fysisk bevist.
 
 ## Firmwarekontrakten
 

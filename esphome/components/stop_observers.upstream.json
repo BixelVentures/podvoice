@@ -1,0 +1,19 @@
+{
+  "esphome": "2026.6.2",
+  "sha256": {
+    "mixer/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixer/speaker/mixer_speaker.cpp": "02803c9b7a0246b3fce012025fd905a39b138f0ba2aebc5c27eb97cb0a90154b",
+    "mixer/speaker/__init__.py": "63bd3bd872228bf36d50fdfb2342e9fc1dfa16acb3dce21f986521f5e5eb847a",
+    "mixer/speaker/automation.h": "54f63c63ee1d779f5ae10a4195f33e5d772814b27f005518cd73f0fb2f9ae9c3",
+    "mixer/speaker/mixer_speaker.h": "9d3d2b1e809c8da010f9f8bf52405cf005a430d203ee341d30e21d830567bb67",
+    "resampler/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resampler/speaker/__init__.py": "0e94a4ecf99acba9a09f64cca14d95b962d9db3159412e304c5e282d0ef24699",
+    "resampler/speaker/resampler_speaker.cpp": "62ae4727886ede2c9ed5acc98e325ce6cd169c1a0deb0cfdaebb72e2a2f1eebc",
+    "resampler/speaker/resampler_speaker.h": "fda537f3dec2557bc06eef7c6925370e96745e37e6a5f7f728d5d58a94d833e9",
+    "speaker_source/media_player.py": "c4cd24f2a5430e4885955312f047b2b97c68e4989bb1d2ad3abfe646aeb90c05",
+    "speaker_source/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speaker_source/automation.h": "7a5cb0baf75c273e9fb99c5f2c1b5e40a762226394a8e9fc9f4ad79d1eb30778",
+    "speaker_source/speaker_source_media_player.cpp": "193c211552746f9bf9bc4536b11dd388a8ff893b907745d356d5d630c12f0a38",
+    "speaker_source/speaker_source_media_player.h": "a44cc07963702f8c10e820e8412852187c325fbb689f0b5ae67c5df7683bd12b"
+  }
+}
