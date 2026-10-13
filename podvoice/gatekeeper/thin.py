@@ -377,6 +377,21 @@ WAIT_FOR_USER_DECLARATION = {
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
+LIVE_WAIT_FOR_USER_DECLARATION = {
+    **WAIT_FOR_USER_DECLARATION,
+    "description": WAIT_FOR_USER_DECLARATION["description"].replace(
+        "Use only when detected speech is clearly background, directed at someone else, "
+        "or not clearly addressed to the assistant, OR when the user merely acknowledges "
+        "an already delivered answer with no new request, question, or clear intent to end. "
+        "A pure thank-you normally calls for this silent wait, not a spoken courtesy reply. ",
+        "You receive delegated context, not original audio; Live owns listening and "
+        "addressee assessment. Use only when the provided context explicitly establishes "
+        "speech not addressed to the assistant, without a new request, question or intent "
+        "to end. A pure acknowledgement without a new request, question or ending intent "
+        "needs no tool: let Live listen silently. Clear ending intent requires "
+        "end_conversation, even when accompanied by thanks. ",
+    ),
+}
 APPROVE_ACTION_DECLARATION = {
     "name": APPROVE_ACTION_TOOL,
     "description": (
@@ -1596,7 +1611,7 @@ class ThinSession:
                 LIVE_END_CONVERSATION_DECLARATION
                 if self.live_alpha
                 else END_CONVERSATION_DECLARATION,
-                WAIT_FOR_USER_DECLARATION,
+                LIVE_WAIT_FOR_USER_DECLARATION if self.live_alpha else WAIT_FOR_USER_DECLARATION,
                 APPROVE_ACTION_DECLARATION,
             )
         )

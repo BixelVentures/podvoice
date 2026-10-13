@@ -100,6 +100,55 @@ def build(*, enabled=True, device=None):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_wait_description_is_projected_only_at_live_startup(enabled):
+    from gatekeeper.thin import LIVE_WAIT_FOR_USER_DECLARATION, WAIT_FOR_USER_DECLARATION
+
+    session, sdk, _, tools, _ = build(enabled=enabled)
+    await session.start()
+    try:
+        await session.wake()
+        declarations = session.brain.tool_declarations
+        names = [declaration["name"] for declaration in declarations]
+        assert names == ["status", "end_conversation", "wait_for_user", "approve_action"] + (
+            ["reconsider_action"] if enabled else []
+        )
+        wait = next(
+            declaration for declaration in declarations if declaration["name"] == "wait_for_user"
+        )
+        assert wait["parameters"] == WAIT_FOR_USER_DECLARATION["parameters"]
+        assert {key: value for key, value in wait.items() if key != "description"} == {
+            key: value for key, value in WAIT_FOR_USER_DECLARATION.items() if key != "description"
+        }
+        assert (
+            "pure thank-you normally calls for this silent wait"
+            in WAIT_FOR_USER_DECLARATION["description"]
+        )
+        if enabled:
+            assert wait == LIVE_WAIT_FOR_USER_DECLARATION
+            description = wait["description"]
+            assert "Live owns listening and addressee assessment" in description
+            assert "provided context explicitly establishes" in description
+            assert "needs no tool: let Live listen silently" in description
+            assert "Clear ending intent requires end_conversation" in description
+            assert "pure thank-you normally calls" not in description
+            config = sdk.session.start.call_args.kwargs["session"]
+            wire_wait = next(
+                tool
+                for tool in config["delegation"]["responses"]["tools"]
+                if tool["name"] == "wait_for_user"
+            )
+            assert wire_wait["description"] == description
+            assert config["delegation"]["responses"]["tool_choice"] == "auto"
+        else:
+            assert wait == WAIT_FOR_USER_DECLARATION
+            assert sdk.session.start.await_count == 0
+        assert tools.calls == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
 async def test_native_timed_mic_uses_one_consumer_and_submits_exact_pcm():
     class TimedDevice(Device):
         connection_generation = 4

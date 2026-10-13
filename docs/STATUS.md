@@ -17567,7 +17567,7 @@ Timerens faktiske reviewed komponentkilde er publiceret på WIP1fec384b53af8370c
 
 Samlet kandidat 2.0.21 — endelig uafhængig SOURCE GO på produktionsfingerprint4d1b5624820f72424af628cd25f6d8fdead68dd468823f1cdaa8dc1a613a76a5 og regressionfingerprinta1cfdee1e247b2de1a8b21eecc93f4514d62db0bf66f93735f225b63313e7d5a; ingen uløste findings. Reviewreceipt2975de908457251a538c70ae364f2edd4f657bc6ae8a9ba5397743e2271d294e inkluderer hele native/Talk startup→idle timer→original retirement→nextwake-kæden, faktisk publiceret komponentpin, settings/migration og præcis toolingbinding. Eksisterende bootgate blev korrigeret test-only efter real ESPHome-package-bevis: almindelig375/-100, Live375/-100/-99, hele hooks nøjagtig én gang; samme preexisting tre-hook-konfiguration på main. Real config/codegeneration PASS med faktisk immutable Gitkilde; lokal secretsfil er dummy, så ingen installérbar firmware eller fysisk accept udledes. Final formatter/lint/scope følger; derefter én diff-freeze og én samlet releasegate. Semantisk Live-afslutning er fortsat uløst, mål ACTIVE.
 
-<!-- candidate-scope-coupling
+<!-- historical-main4a-live-startup-native-idle-alarm-scope-coupling
 {
   "version": 5,
   "kind": "live_startup_native_idle_alarm",
@@ -17625,3 +17625,20 @@ Aktiv afslutningspost 13/10 — separat næste draft, ingen ændring af frozen2.
 Samlet kandidat2.0.21 lokalgate færdig13/10:3468uniqueunit og988integration PASS samt fire officielle browserworkersPASS68.55s med joinedcleanup; diffPASS. Final45filer var uændrede før/efter sidste gates, produktionbde8351ca91534440c07e2cd9852c38fe962f319f17499b6043f0bb23297e2b8/regression44295f8a1465f438de9c11a036dc9b56640ed201bc67eb0b78fef9f5314999df. Den oprindelige enkeltreleasekommando og alle FAILs bevares; kun ugyldige/uafsluttede stadier blev fortsat. Browseradmission var alene agenthelperens manglende NODE_PATH/cache-env, eksisterende pinnede dependencies genbrugt uden install/runtimepatch. SourceGO og faktisk firmwarecompile113114 er bevaret. Resultatpost er docs-only efter gate, shippede kode/testbytes urørte. Nu konkret commit/push og étPR/CI-flow. Installeret20 bevares, modelsemantisk afslutning er fortsat uløst; ingen ny fysisk golden/lifecycle/timer/latencyaccept følger.
 
 PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher38415648981 og verify38415648831 SUCCESS, begge architectureversionguards og faktiske native packagechecks bestået. Speakers18 ARMregistrydigest9cf94fc9968db66a283078236ae9113485bc76e14f63c8a662702fe3e9f6d456; actualimage nativepatch95ddc5fbe4850c91e8ef3ccb5496bf87ab49afa194228ea3e08b2fae637744da matcherreviewedsource. InheritedOCI-baselabel bruges ikke som PCrevision. HAinstallation følger, ikke fysiskaccept af tidligereConnectfejl.
+
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "ab1dc3be6122496353fdb51a14cf54024d639df35d1516b3e976128c2274df28",
+  "reviewer": "closing_wait_cause",
+  "rationale": "Independently reviewed combined source against the exact installed main4a tree: Live prompt and Live-only WAIT description preserve sole model semantics, unchanged standard WAIT, completed backend settlement, shared Thin ownership and adapter parity. Changed startup-contract regressions are bound in the external receipt. Retained private developer-eval source is unchanged from the reviewed quiet candidate; no force, oracle weakening or new provider call. This source scope admission does not establish provider or physical acceptance; prior FAIL evidence remains valid."
+}
+-->
