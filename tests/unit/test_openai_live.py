@@ -2001,45 +2001,6 @@ def diagnostic_wire_provider():
     return session, sdk, rows
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "options, expected_model, other_model",
-    [
-        ({}, "gpt-6-sol", "gpt-5.6-luna"),
-        ({"backend_model": "gpt-5.6-luna"}, "gpt-5.6-luna", "gpt-6-sol"),
-    ],
-)
-async def test_real_sdk_startup_backend_matches_budget_owner_and_explicit_override(
-    options, expected_model, other_model
-):
-    sdk = DiagnosticWireSDK()
-    budget = ProviderBudgetCoordinator()
-    session = OpenAILiveSession(
-        "test-key-not-a-credential",
-        tool_declarations=TOOLS,
-        client_factory=sdk.factory,
-        provider_budget=budget,
-        timeout_s=2,
-        **options,
-    )
-    try:
-        await session.connect()
-        startup = next(event for event in sdk.wire if event["type"] == "session.start")
-        configuration = startup["session"]
-        assert configuration["model"] == "gpt-live-1"
-        responses = configuration["delegation"]["responses"]
-        assert responses["model"] == expected_model
-        assert responses["max_output_tokens"] == 1024
-        assert "reasoning" not in responses
-        assert budget.snapshot(session.api_key, expected_model)["production_sessions"] == 1
-        assert budget.snapshot(session.api_key, other_model)["production_sessions"] == 0
-        assert budget.snapshot(session.api_key, expected_model)["authoritative"] is False
-        assert session.usage_snapshot()["backend_model"] == expected_model
-    finally:
-        await session.close()
-    assert budget.snapshot(session.api_key, expected_model)["production_sessions"] == 0
-
-
 def milestones(rows, kind):
     return [(row["stage"], row["outcome"]) for row in rows if row["kind"] == kind]
 

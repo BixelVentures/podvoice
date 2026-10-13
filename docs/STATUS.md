@@ -17638,9 +17638,9 @@ PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher3
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "12d1eeb999d61471255c7dee4157174c1e582e6a47665686e8d9746187040fef",
+  "fingerprint": "5fa2ce69153c1a1af4fd701c409655ef0a11f0f98e8d5d47eee7ee9ddee8d2c7",
   "reviewer": "closing_wait_cause",
-  "rationale": "Independent combined exact-source review against authentic main4a/tree3c89 admits the existing Live prompt and Live-only WAIT description plus one backend_model default change from gpt-5.6-luna to gpt-6-sol. Only model, configuration aggregate and openai_live source hash change in the actual offline Thin startup; primary, backend prompt, tool/schema, 1024 output cap and omitted reasoning remain unchanged. Shared Thin completed-result ownership, both I/O adapters, key-wide diagnostic exclusion, model budget ownership and explicit override are preserved. Entire tests bind to 3802134365f26feb875f215a79865b2de509f518b54eb81416351fbb687a0e83; externally reviewed tests/eval bind to e1e40962a5f1550769cddcff0a8bb7e3b3bbcd7e3ad4748fff0b4bdb4baddf5d. Generic V1 does not itself validate those external hashes. Prior strict FAIL and test-oracle FAIL evidence remain valid; source admission establishes no provider, physical or release acceptance."
+  "rationale": "Independent exact-source review admits one existing primary Backchannel policy block change on the previously reviewed offset/Luna base, preserving inherited Live-only WAIT ownership, unchanged standard Realtime contract, completed backend settlement and both Thin I/O paths. Sol comparison is preserved as unassessed WIP history but its model-default change and isolated model-regression test additions are rolled back in this separate primary experiment. Actual offline Thin startup changes only primary, aggregate and live_prompt source hash relative to offset/Luna; backend af00, tools74aa, Luna model, 1024 cap and omitted reasoning remain identical. Fifteen old prompt test functions are AST-identical; only two existing text contracts change. Whole tests bind to 2194ddc6d9afa92ff1746d774f6e83d26c3480c725895ed1d8e48ac550e62fde and external reviewed tests/eval bind to 787d676da1f502df33694479a967ce60af590e7165ae3f22abe1634f58eb5e3e, not validated by V1 itself. Source scope admission proves no provider, physical or release acceptance; all prior FAILs are retained."
 }
 -->
 
@@ -17720,3 +17720,27 @@ Leadens næste hypotese er primaryens inkonsistente tale-/delegationspolitik: ti
 Draftets base er den reviewede offset/Luna-kandidat, så Sol-defaulten tilbagerulles i dette særskilte eksperiment; kun den eksisterende primary Backchannel-blok ændres. Backendprompt, tools, modelvalg, input, Thin, firmware, gain/VAD/timeouts og installeret21 bevares. Ikke-mål: lokal fraseliste, muting, tvungen END, ny motor eller andre samtidige tuninger. Invarianter: modellen ejer hensigt; Thin ejer én mekanisk teardown/rearm; firmware ejer fysisk I/O. Hele kæden input→delegation/eller sikkert direkte svar→backendresultat→playback→teardown/rearm→nywake samt nye/staleevents og begge I/O gennemgås.
 
 Målrettede eksisterende promptkontrakter og lint/format før freeze, uafhængigt adversarialreview og opdateret exact-scope før samme bounded providerprøve. Explicit-close skal delegere og lukke uden tale før accept; ren tak skal bevare stille åben samtale, og meningsfuldt direkte svar skal bevares. Reelt tool-resultat forbliver efterfølgende krævet; ingen fysisk testklarhed fra delprøven. Fortsat tidlig tale, ingen delegation eller mistede svar falsificerer hypotesen. Rollback er kun primary-blokken. Kandidaten er IKKE TESTKLAR; målet ACTIVE og stående menneskelig prøvegodkendelse gælder.
+
+
+Samme aktive afslutningspost 13/10 — global primary Backchannel-policy, Luna-base.
+Kun den eksisterende primary Backchannel-blok ændres i dette separate eksperiment.
+Source87dd51e9 og primarybad29c11; backendaf00/tools74aa/Thin cddc/modelLuna er
+byteidentiske med reviewed offset-kandidat. Sol-modeldefault og Sol-only testtilføjelser
+medfølger ikke. Sols no-delegation FAIL og uafprøvede backendkapabilitet bevares ovenfor.
+
+17 eksisterende promptkontrakter og formatter/lint består; kun2 eksisterende
+textassertion-kontrakter er tilpasset, 15 andre funktioner AST-identiske. Én faktisk
+offline Thin-startup ændrer kun primary, aggregate og live_prompt-kildehash.
+Uafhængigt adversarial SOURCE GO/all64inventar er modtaget, root leadGO, og samme
+aktive generiske V1-binding opdateres. Ingen classifier/profileændring, release
+eller fysisk testklarhed. Næste providerprøve bruger samme bounded cases, keyRAM,
+OpenAIrecipient og strictoracle; max2/stopførsteFAILellerUNKNOWN. Frisk separat
+Restore Owner ejer egenTTYnødvendigsession, actualStop→noncegate→terminaleller120
+→Start/Kører inden180 med sidste60 restore; root udfører ingen analyse underpause.
+
+
+### 13/10 — global backchannel-prøve: hypotesen afkræftet
+
+Den primary-only/Luna-kandidat (source87dd, primarybad29, config3ebf) bestod17 eksisterende promptkontrakter/static, uafhængigt source-review og exact-scope produktion5fa2ce/external787d. Én faktisk explicit-close-prøve med fuldt kendt input og meningsfuldt åbningssvar gav igen FAIL. Primary delegerede12.781s, sagde “Okay”12.860s før backendresultat14.280s, og Luna valgte completedWAIT{}. Matching continuation gav0tools; END0/settlement0/ingen naturlig lukning. Observation45s og normalcleanup. Runtimefaults0; usage/audioevidence fuldført. Ren tak blev ikke startet. Global no-backchannel-instruks er dermed afkræftet som tilstrækkelig løsning; ingen ny fysisk accept eller testklarhed.
+
+Restore Owner iværksatte Start straks ved operatørens terminal og bekræftede faktisk HA2.0.21 Kører efter79.649s fra førStop, inden180. Root key15=null og privatformular lukket. Operatørstart brugte den nødvendige netværksadgang direkte; ingen gentagelse af første Sol-sandboxfejl. Samme standinghumanautorisation blev anvendt uden spørgsmål. Sol-WIP fbde2c8 er pushet; dets tidligere prøve nåede ingen backend og beviser ikke Sol-kapabilitet. De to primary- og backendfejl forbliver selvstændige, og styrket stilhedsprompt må ikke gentages blindt som forklaring. Kandidaten er fortsat IKKE TESTKLAR; installeret21 er uændret, målet ACTIVE. Næste årsagsarbejde skal skelne providerens delegation/primary-tale fra backendens klassifikation gennem faktisk input/config/output, før nogen ny produktændring. Ingen lokal fraseliste, muting, tvungen END eller anden motor.
