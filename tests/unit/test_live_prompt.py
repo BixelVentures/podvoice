@@ -311,3 +311,45 @@ def test_live_end_acceptance_is_not_a_completed_physical_close():
         LIVE_END_CONVERSATION_DECLARATION["parameters"]
         == END_CONVERSATION_DECLARATION["parameters"]
     )
+
+
+def test_closing_has_one_primary_decision_and_backend_execution_before_farewell():
+    primary, _ = live_instructions(SYSTEM_PROMPT_DA)
+    decision = primary.split("Delegate to the backend when:", 1)[1].split(
+        "Do not delegate to the backend when:", 1
+    )[0]
+    normalized = " ".join(decision.split())
+    assert "Du fortolker hele henvendelsen i kontekst og beslutter" in normalized
+    assert "backend udfører beslutningen gennem det deklarerede værktøj" in normalized
+    assert (
+        normalized.index("delegér afslutningen")
+        < normalized.index("Afvent det bekræftede resultat uden lytterreaktion eller indledning")
+        < normalized.index("derefter kan du give")
+    )
+    assert "closure_status=accepted_not_closed accepterer kun beslutningen" in normalized
+    assert "applikationen ejer sidste playback, fysisk lukning og rearm" in normalized
+    assert "Conversation completion policy:" not in primary  # No second overlapping owner policy.
+
+
+def test_quiet_acknowledgement_excludes_close_new_request_and_offer_acceptance():
+    primary, _ = live_instructions(SYSTEM_PROMPT_DA)
+    quiet = " ".join(primary.split("Do not delegate to the backend when:", 1)[1].split())
+    assert "uden ny anmodning, spørgsmål eller afslutningshensigt" in quiet
+    assert "stille fortsat lytning og ingen delegation eller svar" in quiet
+    assert "Høflighed i en ny anmodning, et spørgsmål eller accept af et konkret tilbud" in quiet
+    assert "Skjul aldrig et opgaveresultat, en fejl eller nødvendig opklaring" in quiet
+
+
+def test_fresh_followup_supersedes_pending_close_without_changing_background_or_stop():
+    primary, _ = live_instructions(SYSTEM_PROMPT_DA)
+    normalized = " ".join(primary.split())
+    assert "En ny henvendelse før lukning skal straks delegeres, også enkel matematik" in normalized
+    assert "kan tilsidesætte den gamle afslutning" in normalized
+    assert "medmindre en afslutning allerede er delegeret" in normalized
+    assert (
+        "Baggrundstale og en enkelt anmodning om at tie er ikke en sådan ny henvendelse"
+        in normalized
+    )
+    assert "baggrundstale forlænger ikke samtalen" in normalized
+    assert "stop musik" in primary and "bevar samtalen" in primary
+    assert "ved inaktivitet ejer applikationen timeouten" in normalized.lower()
