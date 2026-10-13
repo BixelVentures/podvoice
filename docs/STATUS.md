@@ -17665,3 +17665,23 @@ V1-record bevares. Næste årsagsarbejde er primaryens faktiske lyd/delegationsr
 og GPT-Live-backchannel-ejerskab. Stående menneskelig godkendelse gælder uændret de
 samme afgrænsede prøver og pausegrænser. Ingen ny PR/release/installation eller
 fysisk accept er godkendt; 2.0.21 arver ikke 2.0.19-beviser. Målet er ACTIVE.
+
+
+Samme aktive afslutningspost 13/10 — developer-only delegationsoffset.
+Kun diagnostikkens live_confirmation_eval-observatør er ændret: valgfri,
+indholdsfri delegation_offset_ms fra SDK-eventens topniveau offset_ms ved
+session.delegation.created. Feltet er delegationens position på sessionstidslinjen,
+ikke en input-/generationsgrænse eller bevis for semantisk turforståelse.
+Originaleventen videresendes uændret; grader, fixtures og pacing er bevaret.
+
+Uafhængigt SOURCE- og bindingreview har verificeret observatør/test og hele
+64-fils-inventaret. Produktionsfingerprint ab1dc3be6122496353fdb51a14cf54024d639df35d1516b3e976128c2274df28
+og eksisterende generiske V1-record er uændrede. Den eksterne test-/evalbinding er
+nu c3df15296d826719cdc06a7fbfdbbe4422240a47f53728320f99dac76a29d31d og inkluderer
+den nye eksisterende unit-regression; den hash valideres ikke af V1 selv.
+
+Én frisk faktisk Thin-offline-startupbinding ændrer kun diagnostikkildens hash;
+alle effektive runtimefelter, primary, backend, tools og configaggregate er identiske.
+Tidligere strict FAIL er ikke regraderet. Ingen ny providerprøve, HA-pause,
+produktion/runtimeændring, PR, release, installation eller fysisk accept følger.
+Kandidaten er fortsat IKKE TESTKLAR; målet er ACTIVE.

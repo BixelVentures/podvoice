@@ -990,6 +990,87 @@ async def test_third_connect_rejected_before_sdk_factory(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_sdk_delegation_offset_is_numeric_metadata_and_keeps_original_dispatch(
+    tmp_path, monkeypatch
+):
+    from openai.types.live.delegation_created_event import DelegationCreatedEvent
+
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    event = DelegationCreatedEvent(
+        type="session.delegation.created",
+        event_id="event-observer-only",
+        offset_ms=8500,
+        delegation={"id": "delegation-observer-only", "target": "responses", "type": "delegation"},
+    ).model_dump(mode="json")
+    private = "PRIVATE-CONTENT-DO-NOT-LOG"
+    forwarded = []
+
+    async def production(self, received, generation):
+        assert self is live and generation == 7
+        forwarded.append(received)
+
+    monkeypatch.setattr(module.OpenAILiveSession, "_handle", production)
+    try:
+        await live._handle(event, 7)
+        assert evidence.rows[-1]["delegation_offset_ms"] == 8500
+        assert forwarded[-1] is event
+        for offset in (
+            0,
+            86_400_000,
+            -1,
+            86_400_001,
+            True,
+            False,
+            8500.0,
+            "8500",
+            None,
+            {},
+            private,
+        ):
+            event = {
+                "type": "session.delegation.created",
+                "offset_ms": offset,
+                "delegation": {"offset_ms": 42, "content": private},
+                "api_key": private,
+                "input": private,
+            }
+            await live._handle(event, 7)
+            row = evidence.rows[-1]
+            valid = type(offset) is int and 0 <= offset <= 86_400_000
+            assert ("delegation_offset_ms" in row) is valid
+            if valid:
+                assert row["delegation_offset_ms"] == offset
+            assert forwarded[-1] is event
+        event = {
+            "type": "response.event",
+            "event": {"type": "session.delegation.created", "offset_ms": 42},
+        }
+        await live._handle(event, 7)
+        assert "delegation_offset_ms" not in evidence.rows[-1]
+        assert forwarded[-1] is event
+        rows = [row for row in evidence.rows if row["kind"] == "sdk_event"]
+        assert len(rows) == len(forwarded)
+        assert all(
+            set(row)
+            <= {
+                "seq",
+                "elapsed_s",
+                "kind",
+                "generation",
+                "protocol_type",
+                "nested_type",
+                "source",
+                "delegation_offset_ms",
+            }
+            for row in rows
+        )
+        assert private not in (evidence.directory / "timeline.jsonl").read_text()
+    finally:
+        evidence.close()
+
+
+@pytest.mark.asyncio
 async def test_sdk_pre_handler_metadata_precedes_unchanged_event_identity(tmp_path, monkeypatch):
     evidence = module.Evidence(tmp_path / "evidence")
     live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])

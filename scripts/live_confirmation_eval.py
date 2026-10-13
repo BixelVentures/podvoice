@@ -487,12 +487,18 @@ class ObservedLive(OpenAILiveSession):
             return "<invalid>"
 
         nested = event.get("event")
+        delegation_metadata = {}
+        if event.get("type") == "session.delegation.created":
+            offset_ms = event.get("offset_ms")
+            if type(offset_ms) is int and 0 <= offset_ms <= 86_400_000:
+                delegation_metadata["delegation_offset_ms"] = offset_ms
         self.evidence.emit(
             "sdk_event",
             source="sdk_pre_handler",
             generation=generation,
             protocol_type=event_type(event.get("type")) or "<invalid>",
             nested_type=event_type(nested.get("type")) if isinstance(nested, dict) else None,
+            **delegation_metadata,
         )
         await super()._handle(event, generation)
 
