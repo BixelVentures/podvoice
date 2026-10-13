@@ -335,3 +335,215 @@ async def test_public_stop_reads_joined_begin_identity_and_never_releases_unowne
             allow_get.set()
             allow_begin.set()
             await close_fixture(session, sdks, talk_task=talk_task, wire=wire, observers=observers)
+
+
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+@pytest.mark.parametrize(
+    "boundary",
+    [
+        "progress",
+        "cancel_stop",
+        "manager_changed",
+        "deadline",
+        "permanent_pending",
+        "stale_after_next_wake",
+    ],
+)
+async def test_original_release_settles_inline_before_rearm(adapter, boundary, monkeypatch):
+    """Real client/HB/Thin/SDK ownership, with inert current-manager snapshots.
+
+    Talk injects attention only to exercise the shared Thin seam; shipped Talk
+    uses _NoAttention and has no music ownership. This is not native restore proof.
+    """
+    from gatekeeper.openai_live import _load_live_sdk
+
+    _load_live_sdk()
+    process = "00000000-0000-4000-8000-000000000010"
+    state = {"revision": 0, "session": None, "released": False}
+    requests, sdks, observers, events = [], [], [], []
+    entered, allow, joined = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    settlement = [True]
+    pending_owner = [None]
+
+    def snapshot(outcome="pending", revision=None, manager_process=process):
+        return {
+            "contract": "native_attention_v1",
+            "outcome": outcome,
+            "active": False,
+            "challenge": {
+                "process": manager_process,
+                "revision": str(state["revision"] if revision is None else revision),
+            },
+            # Old child results do not authorize or veto this aggregate receipt.
+            "native_results": {"previous-output": {"outcome": "failed"}},
+        }
+
+    async def manager(request):
+        if request.method == "GET":
+            if state["released"] and settlement[0]:
+                pending_owner[0] = asyncio.current_task()
+                entered.set()
+                try:
+                    if boundary != "permanent_pending":
+                        await allow.wait()
+                finally:
+                    joined.set()
+                if boundary == "permanent_pending":
+                    row = snapshot()
+                elif boundary == "manager_changed":
+                    row = snapshot(
+                        "released", manager_process="00000000-0000-4000-8000-000000000099"
+                    )
+                elif boundary == "stale_after_next_wake" and state["revision"] == 2:
+                    row = snapshot("released", revision=1)
+                else:
+                    row = snapshot("released")
+            else:
+                row = snapshot("released" if state["released"] else "pending")
+            return httpx.Response(200, json={"rooms": {session.room: row}})
+        body = json.loads(request.content)
+        requests.append((request.url.path, body))
+        if request.url.path.endswith("/release"):
+            assert body == {"room": session.room, **hb.lease}
+            assert hb._task is hb._beat_task is None
+            assert not hb._retired_beats and not hb._stopping_tasks
+            state["released"] = True
+            return httpx.Response(200, json=snapshot() if settlement[0] else snapshot("released"))
+        assert body["session"] == state["session"] or body["begin"]
+        if body["begin"] and body["session"] != state["session"]:
+            assert body["expected"] == {"process": process, "revision": str(state["revision"])}
+            state["session"] = body["session"]
+            state["revision"] += 1
+            state["released"] = False
+        return httpx.Response(200, json=snapshot())
+
+    wire = talk_task = None
+    if adapter == "talk":
+        wire, _, session, _, _ = setup()
+    else:
+        session, _, _, _, _ = build()
+    session.hub = StatusHub()
+
+    def factory(**kwargs):
+        sdk = CycleWireSDK(webrtc=adapter == "talk")
+        sdk.allow_exit.set()
+        sdk.socket.release.set()
+        sdk.manager_release.set()
+        sdks.append(sdk)
+        if wire is not None:
+            wire.sdk = sdk
+        return sdk.factory(**kwargs)
+
+    session.live_brain.client_factory = factory
+    retain_aclose_observers(session, observers, monkeypatch)
+    original_trace = session._trace_event
+
+    def trace(kind, **data):
+        events.append((kind, data))
+        return original_trace(kind, **data)
+
+    monkeypatch.setattr(session, "_trace_event", trace)
+    original_stop = session.stop
+    stops = []
+
+    async def observe_stop(*args, **kwargs):
+        stops.append(asyncio.current_task())
+        await original_stop(*args, **kwargs)
+
+    monkeypatch.setattr(session, "stop", observe_stop)
+
+    async def wake(command):
+        if wire is None:
+            await session.wake()
+        else:
+            wire.send("wake", command_id=command)
+            await until(lambda: wire.result(command) is not None)
+            assert wire.result(command)["status"] == "accepted"
+        await until(lambda: hb._admitted)
+
+    async def begin_stop(command):
+        if wire is None:
+            public = asyncio.create_task(session.stop())
+            observers.append(public)
+        else:
+            wire.send("stop", command_id=command)
+        await asyncio.wait_for(entered.wait(), 2)
+        return stops[-1], session._close_task
+
+    async with httpx.AsyncClient(
+        base_url="http://synthetic-attention", transport=httpx.MockTransport(manager)
+    ) as http:
+        session.attention = AttentionClient("http://synthetic-attention", client=http)
+        hb = session.heartbeat = Heartbeat(session.attention, period_ms=10000, jitter_ms=0)
+        try:
+            if wire is None:
+                await session.start()
+            else:
+                talk_task = asyncio.create_task(run_talk(wire, session, session.voicepe))
+            await wake("first-wake")
+            first_lease = hb.lease
+            public, owner = await begin_stop("first-stop")
+            assert owner is not None and not owner.done()
+            assert hb.lease == first_lease
+            assert session.hub.snapshot()["metrics"]["attention_releases"] == 0
+            if adapter == "native":
+                assert session.voicepe.rearm_calls == 0
+            if boundary == "cancel_stop":
+                public.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await public
+                assert not owner.done() and not joined.is_set()
+            if boundary in ("deadline", "permanent_pending"):
+                # Real unchanged two-second Thin step cancels/joins the held GET.
+                await asyncio.wait_for(asyncio.shield(owner), 3)
+                assert joined.is_set() and pending_owner[0].done()
+                assert session._teardown_incomplete
+                assert ("teardown_step_timeout", {"step": "attention-release"}) in events
+            else:
+                allow.set()
+                await asyncio.wait_for(asyncio.shield(owner), 2)
+                assert joined.is_set() and pending_owner[0].done()
+                assert session._teardown_incomplete == (boundary == "manager_changed")
+            releases = [body for path, body in requests if path.endswith("/release")]
+            assert releases == [{"room": session.room, **first_lease}]
+            if boundary in ("deadline", "permanent_pending", "manager_changed"):
+                assert session.hub.snapshot()["metrics"]["attention_releases"] == 0
+                if adapter == "native":
+                    assert session.voicepe.rearm_calls == 0
+                # Existing full retry, not a second POST from the polling client.
+                settlement[0] = False
+                allow.set()
+                await until(lambda: not session._teardown_incomplete)
+            else:
+                assert not any(
+                    kind == "teardown_step_failed" and data.get("step") == "attention-release"
+                    for kind, data in events
+                )
+            if not public.done():
+                await asyncio.wait_for(asyncio.shield(public), 2)
+            if wire is not None and boundary == "cancel_stop":
+                wire.send("stop", command_id="joined-stop")
+                await until(lambda: wire.result("joined-stop") is not None)
+                assert wire.result("joined-stop")["status"] == "accepted"
+            await wake("second-wake")
+            assert hb.lease["session"] != first_lease["session"]
+            assert hb.lease["expected"]["revision"] == "2"
+            entered.clear()
+            joined.clear()
+            allow.clear()
+            settlement[0] = boundary == "stale_after_next_wake"
+            if settlement[0]:
+                _, owner2 = await begin_stop("second-stop")
+                assert hb.lease != first_lease
+                allow.set()
+                await asyncio.wait_for(asyncio.shield(owner2), 2)
+                assert session._teardown_incomplete
+                assert session.hub.snapshot()["metrics"]["attention_releases"] == 1
+                if adapter == "native":
+                    assert session.voicepe.rearm_calls == 1
+                settlement[0] = False
+                await until(lambda: not session._teardown_incomplete)
+        finally:
+            settlement[0] = False
+            allow.set()
+            await close_fixture(session, sdks, observers, wire=wire, talk_task=talk_task)

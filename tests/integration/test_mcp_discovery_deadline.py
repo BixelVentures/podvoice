@@ -240,15 +240,19 @@ async def test_service_discovery_deadline_or_external_cancel_preserves_mcp_domai
                 with pytest.raises(asyncio.CancelledError):
                     await task
                 assert router.discovery_status() == before
+                assert not router._recovery_wakeup.is_set()
             else:
                 await asyncio.wait_for(task, 1)
                 assert "podconnect_recently_played" not in {
                     d["name"] for d in router.declarations()
                 }
                 assert router.discovery_status()["generation"] > before["generation"]
+                assert router._recovery_wakeup.is_set()
+                assert router.discovery_status()["retry_state"] == "retrying"
+                assert router.discovery_status()["retry_delay_s"] == 1.0
+                assert 0 < router.next_probe_delay() <= 1.0
             assert cancelled.is_set()
             assert router.healthy and router._mcp.initialized and router._mcp_epoch == epoch
-            assert not router._recovery_wakeup.is_set()
             assert router._discovery.mcp_names == {"GetLiveContext", "HassGetState"}
             assert server.count("tools/call") == 1
         finally:
