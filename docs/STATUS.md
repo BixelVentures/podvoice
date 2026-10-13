@@ -3,12 +3,13 @@
 <!-- current-installed-bulk-20261012-02617 -->
 ## Aktuelt installeret — 13/10
 
-HA Green kører **PodVoice 2.0.20, Control 0.10.7 og Speakers 0.26.17**.
-Firmware er uændret. Versions-/artifactbinding og installation står i de aktive
-lead-poster nedenfor.
+HA Green kører **PodVoice 2.0.21, Control 0.10.7 og Speakers 0.26.18**.
+Voice PE er opdateret med den reviewede timerfirmware 113114; native kontrakt og
+Hey Chat + Hey Jarvis-ACK er bekræftet. Fysisk samtale-/timeraccept er stadig ukendt.
+Versions-/artifactbinding og installation står i de aktive lead-poster nedenfor.
 
 Seneste direkte brugerbevis er fra den tidligere PodVoice 2.0.19-installation med
-samme Speakers-version: mobil-Spotify til HomePod giver hurtigt
+Speakers 0.26.17: mobil-Spotify til HomePod giver hurtigt
 faktisk lyd, og flytning mellem højttalere spiller korrekt. Voice PE giver et helt
 hørbart svar og kan vækkes igen, men eksplicit afslutning bliver overset: Live
 delegerer ikke lukningen; den senere idlevej viser gul, og loggen viser pending
@@ -17642,3 +17643,25 @@ PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher3
   "rationale": "Independently reviewed combined source against the exact installed main4a tree: Live prompt and Live-only WAIT description preserve sole model semantics, unchanged standard WAIT, completed backend settlement, shared Thin ownership and adapter parity. Changed startup-contract regressions are bound in the external receipt. Retained private developer-eval source is unchanged from the reviewed quiet candidate; no force, oracle weakening or new provider call. This source scope admission does not establish provider or physical acceptance; prior FAIL evidence remains valid."
 }
 -->
+
+
+Samme aktive afslutningspost 13/10 — WAIT-kandidaten er fortsat IKKE TESTKLAR.
+Én faktisk syntetisk explicit-close-prøve på WIP 50ef6e2d viste END1, current
+settlement1 og naturlig Thin-modelclose/teardown/rearm før harnesscleanup. Hele
+prøven er strict FAIL: primary sagde "Okay." før accepted END. Batchen stoppede,
+så pure-thanks blev ikke startet. Tidligere FAIL-beviser bevares; ingen fysisk
+Voice PE-accept følger af den syntetiske kæde.
+
+Første nøgleadmission gav stdin-EOF før startgate: nul providerkald og ingen
+HA-pause. Ufarlig isolation bekræfter pipes-EOF og åbent TTY-input; den permanente
+AGENTS-launchregel kræver tty:true og samme åbne session. Ingen runtimepatch.
+Restore Owner ejede den efterfølgende Stop/gate/genstart uden rootfortsættelse;
+HA med installeret 2.0.21 viste Kører efter konservativt 64.206 s, inden 180 s med
+60 s reserveret til restore. Root analyserede og styrede ikke UI under pausen.
+Nøglen er ryddet, formularen lukket og providerens cleanup/usage fuldført.
+
+Produktions- og ekstern test-/evalbinding er uændrede; den eksisterende generiske
+V1-record bevares. Næste årsagsarbejde er primaryens faktiske lyd/delegationsrækkefølge
+og GPT-Live-backchannel-ejerskab. Stående menneskelig godkendelse gælder uændret de
+samme afgrænsede prøver og pausegrænser. Ingen ny PR/release/installation eller
+fysisk accept er godkendt; 2.0.21 arver ikke 2.0.19-beviser. Målet er ACTIVE.

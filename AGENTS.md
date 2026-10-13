@@ -53,7 +53,9 @@ ikke endnu en manuel workaround.
 En afgrænset HA-pause kræver en særskilt Restore Owner-agent med frisk, minimal
 kontekst, klargjort og med bekræftet ejerskab mens HA endnu viser Kører, før Stop.
 Kun Restore Owner ejer før-Stop-tidsgrænsen, Stop-kvitteringen, den eksisterende
-provider-startgate og genstarten. Efter stoppet providerarbejde skal Start iværksættes
+provider-startgate og genstarten. Operatøren skal startes med `exec_command`-indstillingen
+`tty: true`; samme åbne session bruges til den linjeafsluttede startgate, da stdin-EOF
+afbryder før provider. Efter stoppet providerarbejde skal Start iværksættes
 straks ved operatorens terminalresultat uanset verdict eller senest pause_start +120 s,
 og Kører verificeres inden pause_start +180 s; 60 s er reserveret til restore.
 Root må ikke selv pause HA eller udføre analyse, dokumentation eller review, mens HA
