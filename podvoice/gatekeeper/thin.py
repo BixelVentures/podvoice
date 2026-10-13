@@ -865,6 +865,7 @@ class ThinSession:
         return bool(
             getattr(self.voicepe, "_link_up", False)
             and getattr(self.voicepe, "supports_stop_context", False)
+            and getattr(self.voicepe, "supports_timer_output", False)
             and getattr(self.voicepe, "device_identity", None)
         )
 
@@ -909,12 +910,19 @@ class ThinSession:
                                 row
                                 for row in state["finished"]
                                 if (
-                                    (not row["alert_id"] and not row["stop_requested"])
-                                    or (
-                                        row["alert_id"]
-                                        and row["stop_requested"]
-                                        and not row["physical_stopped"]
-                                        and not row["physical_drained"]
+                                    (
+                                        kind == "talk"
+                                        or not row["alert_id"]
+                                        or self.voicepe.valid_timer_request(row["alert_id"])
+                                    )
+                                    and (
+                                        (not row["alert_id"] and not row["stop_requested"])
+                                        or (
+                                            row["alert_id"]
+                                            and row["stop_requested"]
+                                            and not row["physical_stopped"]
+                                            and not row["physical_drained"]
+                                        )
                                     )
                                 )
                             ),
@@ -992,7 +1000,12 @@ class ThinSession:
         """
         timer_id = receipt["id"]
         recovering = bool(receipt["alert_id"])
-        alert_id = receipt["alert_id"] or secrets.token_hex(16)
+        native = getattr(self.voicepe, "host", None) != "browser"
+        alert_id = receipt["alert_id"] or (
+            self.voicepe.timer_output_request() if native else secrets.token_hex(16)
+        )
+        if not alert_id or (native and not self.voicepe.valid_timer_request(alert_id)):
+            return  # Unsupported legacy/native receipt never grants cleanup of current I/O.
         sink_id = (
             getattr(self.voicepe, "timer_sink_identity", None)
             if getattr(self.voicepe, "host", None) == "browser"
@@ -1004,6 +1017,8 @@ class ThinSession:
         lease = None
         quiet = False
         cancelled = recovering
+        native_requested = recovering
+        output_requested = recovering
         async with self._teardown_lock:
             if not self._timer_idle(owns_lock=True):
                 return
@@ -1024,11 +1039,8 @@ class ThinSession:
                         cancelled = True
                         raise RuntimeError("timer alert interrupted before admission")
                     if getattr(self.voicepe, "host", None) != "browser":
-                        admit = (
-                            self.voicepe.set_live_context()
-                            if getattr(self.voicepe, "supports_live_semantic_stop", False)
-                            else self.voicepe.set_stop_context(True)
-                        )
+                        native_requested = True
+                        admit = self.voicepe.set_timer_context(alert_id)
                         if not await asyncio.wait_for(admit, TEARDOWN_STEP_TIMEOUT_S):
                             raise RuntimeError("timer native output admission failed")
                     if self._timer_interrupt.is_set() or self._closing:
@@ -1044,6 +1056,7 @@ class ThinSession:
                         self.room, audio_mod.error_tone(freqs=(880, 660), ms=(180, 260), amp=0.18)
                     )
                     self.reply_bus.end(self.room)
+                    output_requested = True
                     await asyncio.wait_for(self._play_reply_url(lease), TEARDOWN_STEP_TIMEOUT_S)
                     await asyncio.wait_for(
                         self._playback_started.wait(), FIXED_PLAYBACK_START_TIMEOUT_S
@@ -1069,48 +1082,67 @@ class ThinSession:
                 phases.append("unknown")
             finally:
                 try:
-                    quiet = (
-                        await asyncio.wait_for(
-                            self.voicepe.stop_playback(
-                                playback_id=(
-                                    lease.playback_id
+                    if native:
+                        outcome = (
+                            await self._retire_timer_output(alert_id)
+                            if native_requested
+                            else "absent"
+                        )
+                        quiet = outcome in ("absent", "retired")
+                        if not quiet:
+                            raise RuntimeError("timer exact retirement ACK missing")
+                        if "drained" not in phases:
+                            phases.append("stopped")
+                        if outcome == "retired":
+                            await asyncio.wait_for(self._rearm_device(), TEARDOWN_REARM_TIMEOUT_S)
+                        # Absence proof owns no physical/context/global state cleanup.
+                    elif not output_requested:
+                        quiet = True  # This new browser alarm dispatched no output to retire.
+                        if "drained" not in phases:
+                            phases.append("stopped")
+                    else:
+                        quiet = (
+                            await asyncio.wait_for(
+                                self.voicepe.stop_playback(
+                                    playback_id=lease.playback_id
                                     if lease
                                     else "pv-timer-" + alert_id
-                                    if recovering
-                                    and getattr(self.voicepe, "host", None) == "browser"
-                                    else None
-                                )
-                            ),
-                            TEARDOWN_STEP_TIMEOUT_S,
+                                ),
+                                TEARDOWN_STEP_TIMEOUT_S,
+                            )
+                            is True
                         )
-                        is True
-                    )
-                    if not quiet:
-                        raise RuntimeError("timer terminal sink ACK missing")
-                    if "drained" not in phases:
-                        phases.append("stopped")
-                    if getattr(self.voicepe, "host", None) != "browser":
-                        if not await asyncio.wait_for(
-                            self.voicepe.set_stop_context(False, closing=True),
-                            TEARDOWN_STEP_TIMEOUT_S,
-                        ):
-                            raise RuntimeError("timer native close ACK missing")
-                        await asyncio.wait_for(self._rearm_device(), TEARDOWN_REARM_TIMEOUT_S)
+                        if not quiet:
+                            raise RuntimeError("timer terminal sink ACK missing")
+                        if "drained" not in phases:
+                            phases.append("stopped")
                     if lease and self._playback_lease is lease:
                         self._invalidate_playback_lease("timer-terminal-ack")
-                    self._device_playing = False
-                    self._set_led(State.IDLE)
+                        self._device_playing = False
+                        self._set_led(State.IDLE)
                 except Exception:
                     if "drained" not in phases and "stopped" not in phases:
                         phases.append("unknown")
                     self._teardown_incomplete = True
                     self._set_led(State.IDLE, error=True)
-                    self._schedule_teardown_retry(release_music=True, silence_complete=quiet)
+                    self._schedule_teardown_retry(
+                        release_music=True,
+                        silence_complete=quiet,
+                        timer_retirement=(epoch, timer_id, alert_id, sink_id, tuple(phases), lease)
+                        if native
+                        else None,
+                    )
         # New wake need only wait for physical ownership, never HA network receipts.
         self._spawn(
             self._timer_report(epoch, timer_id, alert_id, sink_id, phases, cancelled=cancelled),
             "thin-timer-receipts",
         )
+
+    async def _retire_timer_output(self, alert_id: str) -> str:
+        result = await asyncio.wait_for(
+            self.voicepe.retire_timer_context(alert_id), TEARDOWN_STEP_TIMEOUT_S
+        )
+        return result.get("outcome", "unknown")
 
     # ------------------------------------------------------------- lifecycle
     async def start(self) -> None:
@@ -2363,7 +2395,9 @@ class ThinSession:
         self._stop_sent_t = None
         self._stop_sent_epoch = None
 
-    def _schedule_teardown_retry(self, *, release_music: bool, silence_complete: bool) -> None:
+    def _schedule_teardown_retry(
+        self, *, release_music: bool, silence_complete: bool, timer_retirement: tuple | None = None
+    ) -> None:
         """Retry the full close chain; never retry rearm on top of partial teardown."""
         if self._closing or (
             self._teardown_retry_task is not None and not self._teardown_retry_task.done()
@@ -2382,6 +2416,7 @@ class ThinSession:
 
         async def _retry() -> None:
             attempt = 0
+            receipt = None
             physical_silence_complete = silence_complete
             while current():
                 delay = REARM_RETRY_DELAYS_S[min(attempt, len(REARM_RETRY_DELAYS_S) - 1)]
@@ -2402,6 +2437,31 @@ class ThinSession:
                     if not current():
                         return
                     try:
+                        if timer_retirement is not None:
+                            try:
+                                outcome = await self._retire_timer_output(timer_retirement[2])
+                                if outcome == "retired":
+                                    await asyncio.wait_for(
+                                        self._rearm_device(), TEARDOWN_REARM_TIMEOUT_S
+                                    )
+                                if outcome not in ("absent", "retired"):
+                                    continue
+                            except Exception:
+                                continue  # Original custody never becomes generic current-context cleanup.
+                            original_lease = timer_retirement[5]
+                            if (
+                                original_lease is not None
+                                and self._playback_lease is original_lease
+                            ):
+                                self._invalidate_playback_lease("timer-terminal-ack")
+                                self._device_playing = False
+                                self._set_led(State.IDLE)
+                            self._teardown_incomplete = False
+                            phases = list(timer_retirement[4])
+                            if "drained" not in phases and "stopped" not in phases:
+                                phases.append("stopped")
+                            receipt = (timer_retirement[:4], tuple(phases))
+                            break
                         if not physical_silence_complete:
                             physical_silence_complete, _ = await self._teardown_step(
                                 "silence-device-retry",
@@ -2418,6 +2478,14 @@ class ThinSession:
                         )
                     finally:
                         self._restore_provider_trace_observer()
+            if receipt is not None:
+                owner, receipt_phases = receipt
+                self._spawn(
+                    self._timer_report(
+                        owner[0], owner[1], owner[2], owner[3], list(receipt_phases), cancelled=True
+                    ),
+                    "thin-timer-receipts",
+                )
 
         task = self._spawn(_retry(), "thin-full-teardown-retry")
         self._teardown_retry_task = task

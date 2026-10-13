@@ -118,6 +118,7 @@ def test_shipped_firmware_state_arbitrates_late_play_finish_and_stop(tmp_path, h
         "stop_idle_recovery_test.cpp",
         "live_stop_pipeline_test.cpp",
         "stop_retry_test.cpp",
+        "idle_timer_output_test.cpp",
     ],
 )
 def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path, harness):
@@ -152,7 +153,12 @@ def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path, ha
             "-Werror",
             *(
                 ["-DPODVOICE_TEST_REAL_STOP_GATE"]
-                if harness in ("stop_idle_recovery_test.cpp", "live_stop_pipeline_test.cpp")
+                if harness
+                in (
+                    "stop_idle_recovery_test.cpp",
+                    "live_stop_pipeline_test.cpp",
+                    "idle_timer_output_test.cpp",
+                )
                 else []
             ),
             "-I",

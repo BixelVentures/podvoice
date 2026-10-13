@@ -62,10 +62,10 @@ def test_missing_or_empty_object_accepts_explicit_alpha_without_new_defaults(
         path.write_text(contents)
     before = path.read_bytes() if path.exists() else None
     loaded = S.load_settings(path)
-    assert loaded["live_alpha"] is False and loaded["settings_version"] == 11
+    assert loaded["live_alpha"] is True and loaded["settings_version"] == 11
     assert (path.read_bytes() if path.exists() else None) == before
     saved = S.save_settings({"live_alpha": live_alpha}, path)
-    assert saved["live_alpha"] is live_alpha and saved["settings_version"] == 11
+    assert saved["live_alpha"] is True and saved["settings_version"] == 11
     assert S.load_settings(path) == saved
 
 
@@ -79,7 +79,7 @@ def test_legacy_read_projects_existing_policy_without_rewriting_source(
     loaded = S.load_settings(path)
     assert path.read_bytes() == before
     assert S.SETTINGS_VERSION == loaded["settings_version"] == 11
-    assert loaded["live_alpha"] is live_alpha
+    assert loaded["live_alpha"] is True
     for key in (
         "system_prompt",
         "wake_word",
@@ -159,7 +159,7 @@ def test_invalid_room_save_preserves_all_existing_rooms_and_alpha(tmp_path, live
         S.save_settings({"rooms": rooms}, path)
     assert path.read_bytes() == before
     assert S.load_settings(path)["rooms"] == source["rooms"]
-    assert S.load_settings(path)["live_alpha"] is live_alpha
+    assert S.load_settings(path)["live_alpha"] is True
 
 
 @pytest.mark.parametrize("live_alpha", [False, True])
@@ -213,7 +213,7 @@ def test_failed_commit_preserves_original_bytes_and_effective_config(
     assert calls  # The selected actual write/commit edge must really be attempted.
     assert path.read_bytes() == before
     assert _config(monkeypatch, tmp_path, path) == cfg
-    assert S.load_settings(path)["live_alpha"] is live_alpha
+    assert S.load_settings(path)["live_alpha"] is True
 
 
 @pytest.mark.parametrize("live_alpha", [False, True])
@@ -232,11 +232,12 @@ def test_named_205_byte_backup_restores_compatible_config_and_preferences(
     for key, value in values.items():
         if key not in {"live_alpha", "rooms"}:
             assert saved[key] == value
-    assert S.load_settings(path)["live_alpha"] is (not live_alpha)
+    assert S.load_settings(path)["live_alpha"] is True
     path.write_bytes(backup.read_bytes())
     assert path.read_bytes() == backup.read_bytes() == before
     assert _config(monkeypatch, tmp_path, path) == cfg
     loaded = S.load_settings(path)
     for key, value in values.items():
-        assert loaded[key] == value
-    assert loaded["live_alpha"] is live_alpha and loaded["settings_version"] == 11
+        assert loaded[key] == (True if key == "live_alpha" else value)
+    assert loaded["live_alpha"] is True and loaded["settings_version"] == 11
+    assert json.loads(path.read_text())["live_alpha"] is live_alpha

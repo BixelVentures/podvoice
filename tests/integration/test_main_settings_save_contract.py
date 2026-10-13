@@ -6,6 +6,7 @@ import asyncio
 import copy
 import json
 import signal
+import socket
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -100,7 +101,7 @@ def _session_owners(session):
                 session.playback._task,
                 session.live_brain._reader,
                 session.live_brain._startup_task,
-                session._realtime_brain._capacity_reader_task,
+                getattr(session._realtime_brain, "_capacity_reader_task", None),
             ]
         )
     )
@@ -124,7 +125,7 @@ def _assert_session_terminal(session, retained, observers):
     assert live._reader is None and live._startup_task is None
     assert live._connection is None and live._manager is None
     assert live._client is None and live._lease is None
-    assert session._realtime_brain._ws is None and session._realtime_brain._http is None
+    assert session._realtime_brain is session.live_brain
 
 
 async def _complete_session_shutdown(session, retained, observers):
@@ -224,6 +225,19 @@ async def _actual_main_app(monkeypatch, folder, options, *, supervisor_token="in
     client = None
     primary = None
     with monkeypatch.context() as patches:
+        # The only sockets in this fixture belong to the local TestServer/client.
+        # HA/Attention/TTS use MockTransport below; SDK and native I/O are inert.
+        connect = socket.socket.connect
+
+        def loopback_only(owner, address):
+            if not isinstance(address, tuple) or address[0] not in {
+                "127.0.0.1",
+                "::1",
+            }:
+                raise AssertionError("settings fixture forbids external socket connections")
+            return connect(owner, address)
+
+        patches.setattr(socket.socket, "connect", loopback_only)
         patches.setenv("SUPERVISOR_TOKEN", supervisor_token)
         patches.setenv("PODVOICE_OPTIONS", str(options))
         patches.setenv("PODVOICE_HISTORY", str(folder / "history.jsonl"))
@@ -642,14 +656,14 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
     monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
     original_saved = _preferences(path, initial_live)
     original_bytes = path.read_bytes()
-    expected = {**original_saved, "live_alpha": not initial_live}
+    expected = {**original_saved, "live_alpha": True}
     async with _actual_main_app(monkeypatch, tmp_path / "boot-one", options) as actual:
         session = actual.sessions["kitchen"]
         async with asyncio.timeout(20):
             await session.wake()
         active, device = _active_contract(session), _device_contract(actual.tools)
         timer = actual.timers
-        assert session._active and session.live_alpha is initial_live
+        assert session._active and session.live_alpha is True
         assert timer.snapshots == {}
         configure_count = len(actual.configure_calls)
         for invalid in (
@@ -678,12 +692,12 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         assert actual.restart_calls == []
         response = await actual.client.get("/api/settings")
         readback = await response.json()
-        assert readback["live_alpha"] is (not initial_live)
-        assert readback["live_alpha_active"] == {"kitchen": initial_live, "bedroom": None}
+        assert readback["live_alpha"] is True
+        assert readback["live_sessions"] == {"kitchen": True, "bedroom": None}
         assert readback["podconnect_token"] == settings.SECRET_MASK
         fresh_cfg = load_config(options)
-        assert fresh_cfg.live_alpha is (not initial_live)
-        assert actual.cfg.live_alpha is initial_live
+        assert fresh_cfg.live_alpha is True
+        assert actual.cfg.live_alpha is True
         assert replace(fresh_cfg, live_alpha=actual.cfg.live_alpha) == actual.cfg
         await session.wake()
         assert _active_contract(session) == active
@@ -695,9 +709,9 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         assert session.voicepe.audio_generation > old_generation
         async with asyncio.timeout(20):
             await session.wake()
-        assert session._active and session.live_alpha is (not initial_live)
-        assert session.brain is not active[0]
-        assert session.brain is (session._realtime_brain if initial_live else session.live_brain)
+        assert session._active and session.live_alpha is True
+        assert session.brain is active[0]
+        assert session.brain is session.live_brain
         assert _device_contract(actual.tools) == device
         assert actual.timers is timer and timer.snapshots == {}
         saved_bytes = path.read_bytes()
@@ -710,7 +724,7 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
             assert actual.restart_calls[-1].headers["Authorization"] == "Bearer inert-supervisor"
             assert path.read_bytes() == saved_bytes
             # Scripted supervisor HTTP does not restart the running main/session.
-            assert session._active and session.live_alpha is (not initial_live)
+            assert session._active and session.live_alpha is True
         assert not actual.forbidden
     assert actual.runner_cleaned and all(s.voicepe.closed for s in actual.sessions.values())
     # Fresh boot is a new actual run/load, not a claim of real Supervisor reboot.
@@ -719,12 +733,12 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         assert not boot.sessions["kitchen"]._active
         async with asyncio.timeout(20):
             await boot.sessions["kitchen"].wake()
-        assert boot.sessions["kitchen"].live_alpha is (not initial_live)
+        assert boot.sessions["kitchen"].live_alpha is True
         assert boot.tools._device_control._enabled and boot.tools._device_control._entities == (
             "vacuum.fixture",
         )
-        assert boot.cfg.live_alpha is (not initial_live)
-        assert actual.cfg.live_alpha is initial_live
+        assert boot.cfg.live_alpha is True
+        assert actual.cfg.live_alpha is True
         assert replace(boot.cfg, live_alpha=actual.cfg.live_alpha) == actual.cfg
         assert not boot.forbidden
 
@@ -766,7 +780,7 @@ async def test_actual_main_device_control_save_has_separate_shared_authorization
         assert not session._teardown_incomplete and session.voicepe.rearm_calls == 1
         async with asyncio.timeout(20):
             await session.wake()
-        assert session.live_alpha is initial_live
+        assert session.live_alpha is True
         assert not (old_control_names & set(session._tool_declaration_hashes))
         assert not (old_control_names & {row["name"] for row in session.brain.tool_declarations})
         assert actual.timers.snapshots == {} and not actual.forbidden

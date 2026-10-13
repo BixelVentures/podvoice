@@ -42,8 +42,8 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_113108_notifyisolation1"
-LIVE_FIRMWARE_BUILD = "podvoice_build_113112_liveclosing1"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_113113_timeroutput1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_113114_livetimeroutput1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -60,6 +60,8 @@ REQUIRED_SERVICES: dict[str, str] = {
     "podvoice_stop_context": "acknowledged conversation and turn bound Stop eligibility",
 }
 OPTIONAL_SERVICES: dict[str, str] = {
+    "podvoice_timer_output": "firmware-owned idle timer output admission",
+    "podvoice_timer_output_cancel": "retire only the original idle timer request",
     "podvoice_live_context": "Alpha playback admission with the local Stop keyword disabled",
     "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
     "podvoice_stop_word_enable": "on-device 'stop' word during replies (classic engine)",
@@ -217,6 +219,11 @@ class VoicePELink:
         self._reply_status_key: int | None = None
         self.supports_playback_ids = True
         self.supports_local_stop = False
+        self.supports_timer_output = False
+        self._timer_status_key: int | None = None
+        self._timer_idle_nonce: tuple[int, int, str] | None = None
+        self._timer_pending: tuple[tuple[int, int, str], str, asyncio.Future] | None = None
+        self._timer_cancel_pending: tuple[int, int, str, str, asyncio.Future] | None = None
         self.supports_stop_context = False
         self.supports_live_semantic_stop = False
         self.supports_live_wav = False
@@ -777,6 +784,8 @@ class VoicePELink:
         self.supports_live_semantic_stop = False
         self.supports_live_wav = False
         self._stop_context_key = None
+        self._timer_status_key = None
+        self.supports_timer_output = False
         self._reset_stop_context()
         self._wake_word_ack_key = None
         self.confirmed_wake_word = None
@@ -850,6 +859,15 @@ class VoicePELink:
                 None,
             )
             self._stop_context_key = getattr(stop_context, "key", None)
+            timer_status = next(
+                (
+                    e
+                    for e in text_sensors
+                    if getattr(e, "object_id", "") == "podvoice_timer_context"
+                ),
+                None,
+            )
+            self._timer_status_key = getattr(timer_status, "key", None)
             activity = next(
                 (
                     e
@@ -936,6 +954,13 @@ class VoicePELink:
                 and self.supports_stop_context
                 and self._stop_context_key is not None
                 and "podvoice_live_context" in self._user_services
+            )
+            self.supports_timer_output = (
+                "idle_timer_output_v1" in (getattr(podvoice_event, "event_types", None) or [])
+                and self.supports_stop_context
+                and self._timer_status_key is not None
+                and "podvoice_timer_output" in self._user_services
+                and "podvoice_timer_output_cancel" in self._user_services
             )
             self.supports_activity_observer = (
                 "podvoice_activity_observer_v1" in advertised
@@ -1802,6 +1827,9 @@ class VoicePELink:
         if key == self._activity_status_key and tname == "TextSensorState":
             self._on_activity_status(str(getattr(state, "state", "")))
             return
+        if key == self._timer_status_key and tname == "TextSensorState":
+            self._on_timer_context(str(getattr(state, "state", "")))
+            return
         if key == self._stop_context_key and tname == "TextSensorState":
             self._on_stop_context(str(getattr(state, "state", "")))
             return
@@ -1937,6 +1965,7 @@ class VoicePELink:
         ):
             if bool(getattr(state, "state", False)):
                 self._clear_wake_reference()
+                self._revoke_timer_admission()
             if self.on_mute is not None:
                 self._run_cb(self.on_mute, bool(getattr(state, "state", False)))
         if self.on_event is not None:
@@ -2195,7 +2224,171 @@ class VoicePELink:
         self._closing_disable_revision += 1
         self._closing_disable_sent = self._closing_disable_proof = None
 
+    def _revoke_timer_admission(self) -> None:
+        self._timer_idle_nonce = None
+        pending = self._timer_pending
+        if pending is not None and not pending[2].done():
+            pending[2].set_result(False)
+        cancel = self._timer_cancel_pending
+        if cancel is not None and not cancel[4].done():
+            cancel[4].set_result({"outcome": "unknown"})
+
+    def _on_timer_context(self, value: str) -> None:
+        parts = value.split(":")
+
+        def valid(token):
+            return len(token) == 32 and all(c in "0123456789abcdef" for c in token)
+
+        if len(parts) == 2 and parts[0] == "idle" and valid(parts[1]):
+            if self._stop_session is None and self._stop_orphan is None:
+                self._timer_idle_nonce = (
+                    self._connection_generation,
+                    self._stop_reset_generation,
+                    parts[1],
+                )
+            return
+        cancel = self._timer_cancel_pending
+        if parts[0] == "cancel" and cancel is not None:
+            connection, reset, request, token, waiter = cancel
+            if (
+                waiter.done()
+                or len(parts) not in (4, 7)
+                or parts[1] != request
+                or parts[2] != token
+                or (connection, reset) != (self._connection_generation, self._stop_reset_generation)
+            ):
+                return
+            if len(parts) == 4 and parts[3] == "absent":
+                waiter.set_result({"outcome": "absent"})
+            elif (
+                len(parts) == 7
+                and parts[6] == "retired"
+                and valid(parts[3])
+                and valid(parts[5])
+                and parts[4].isascii()
+                and parts[4].isdecimal()
+                and str(int(parts[4])) == parts[4]
+                and 1 <= int(parts[4]) <= 0x7FFFFFFF
+                and self._stop_session in (None, parts[3])
+            ):
+                # Terminal request proof grants cleanup only, never playback.
+                self._stop_session, self._stop_generation = parts[3], int(parts[4])
+                self._stop_orphan = None
+                self._stop_cancelled = True
+                self._stop_armed = self._stop_playback_allowed = False
+                self._stop_outcome = "cancelled"
+                self._reply_token, self._reply_phase = parts[5], "stopped"
+                self._reply_stopped.set()
+                waiter.set_result({"outcome": "retired"})
+            return
+        pending = self._timer_pending
+        if (
+            len(parts) != 4
+            or pending is None
+            or not valid(parts[0][:32])
+            or not valid(parts[0][32:])
+            or not all(valid(p) for p in parts[1:3])
+        ):
+            return
+        identity, request, waiter = pending
+        if (
+            waiter.done()
+            or request != parts[0]
+            or identity != (self._connection_generation, self._stop_reset_generation, parts[1])
+            or self._stop_session is not None
+            or self._stop_orphan not in (None, (parts[2], 1))
+        ):
+            return
+        if parts[3] != "armed":
+            waiter.set_result(False)
+            return
+        self._stop_session, self._stop_generation = parts[2], 1
+        self._stop_orphan = None
+        self._stop_cancelled = False
+        self._stop_armed = True
+        self._stop_outcome = "armed"
+        self._timer_idle_nonce = None
+        waiter.set_result(True)
+
+    def timer_output_request(self) -> str | None:
+        identity = self._timer_idle_nonce
+        if (
+            not self.supports_timer_output
+            or identity is None
+            or self._stop_session is not None
+            or identity[:2] != (self._connection_generation, self._stop_reset_generation)
+        ):
+            return None
+        return identity[2] + secrets.token_hex(16)
+
+    @staticmethod
+    def valid_timer_request(request: str) -> bool:
+        return len(request) == 64 and all(c in "0123456789abcdef" for c in request)
+
+    async def retire_timer_context(self, request_id: str) -> dict:
+        if not self.supports_timer_output or not self.valid_timer_request(request_id):
+            return {"outcome": "unknown"}  # Legacy receipt grants no current authority.
+        async with self._stop_control_lock:
+            waiter = asyncio.get_running_loop().create_future()
+            token = secrets.token_hex(16)
+            pending = (
+                self._connection_generation,
+                self._stop_reset_generation,
+                request_id,
+                token,
+                waiter,
+            )
+            self._timer_cancel_pending = pending
+            try:
+                if not await self._call_service(
+                    "podvoice_timer_output_cancel",
+                    {
+                        "expected_idle_nonce": request_id[:32],
+                        "request_id": request_id,
+                        "token": token,
+                    },
+                ):
+                    return {"outcome": "unknown"}
+                return await asyncio.wait_for(waiter, timeout=3.0)
+            finally:
+                if self._timer_cancel_pending is pending:
+                    self._timer_cancel_pending = None
+
+    async def set_timer_context(self, request_id: str) -> bool:
+        """Admit only exact firmware-owned idle output, never a conversation."""
+        identity = self._timer_idle_nonce
+        if (
+            not self.supports_timer_output
+            or identity is None
+            or self._stop_session is not None
+            or not self.valid_timer_request(request_id)
+            or request_id[:32] != identity[2]
+        ):
+            return False
+        async with self._stop_control_lock:
+            if (
+                identity != self._timer_idle_nonce
+                or identity[:2] != (self._connection_generation, self._stop_reset_generation)
+                or self._stop_session is not None
+            ):
+                return False
+            waiter = asyncio.get_running_loop().create_future()
+            pending = (identity, request_id, waiter)
+            self._timer_pending = pending
+            self._timer_idle_nonce = None
+            try:
+                if not await self._call_service(
+                    "podvoice_timer_output",
+                    {"expected_idle_nonce": identity[2], "request_id": request_id},
+                ):
+                    return False
+                return bool(await asyncio.wait_for(waiter, timeout=3.0))
+            finally:
+                if self._timer_pending is pending:
+                    self._timer_pending = None
+
     def _reset_stop_context(self) -> None:
+        self._revoke_timer_admission()
         self._forget_closing_disable()
         self._clear_wake_reference()
         self._activity_latest = None
@@ -2376,6 +2569,7 @@ class VoicePELink:
             if self._stop_session is not None:
                 return  # an idle sensor event cannot belong to an active conversation
             self._stop_idle_confirmed = False
+            self._revoke_timer_admission()
             if self.on_event:
                 self._run_cb(
                     self.on_event,
@@ -2401,6 +2595,7 @@ class VoicePELink:
             and token != self._retired_stop_session
         ):
             self._stop_idle_confirmed = False
+            self._revoke_timer_admission()
             self._stop_session = token
             self._stop_outcome = "disabled"
             self._stop_changed.set()
@@ -2415,6 +2610,8 @@ class VoicePELink:
                 "fault",
             ):
                 self._stop_idle_confirmed = False
+                if outcome in ("stopped", "fault", "cancelled"):
+                    self._revoke_timer_admission()
                 self._stop_orphan = (token, generation)
                 self._stop_outcome = "orphan"
                 self._stop_changed.set()

@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[2]
 OVERLAY = ROOT / "esphome" / "podvoice.yaml"
 BASE = ROOT / "esphome" / "voice-pe-podvoice-base.yaml"
-REVIEWED_COMPONENT_REF = "083424b18b67c54698b16a148c79502f58480cd7"
+REVIEWED_COMPONENT_REF = "1fec384b53af8370caf368ad3a12da8a41a891d5"
 
 
 def test_vendored_base_has_auditable_provenance():
@@ -58,7 +58,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_113108_notifyisolation1" in overlay
+    assert "podvoice_build_113113_timeroutput1" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
@@ -204,7 +204,7 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "3192bc58aac2e0f225abfe8dea148425f2f78097bf1b9c964cbb0c5be910a1b3"
+        "0dab4aef24a587d5f1ca4a556aa3060e7b45db3cfabc48aea5bc76145e5ee77b"
     )
 
 

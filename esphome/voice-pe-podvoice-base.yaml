@@ -337,8 +337,9 @@ binary_sensor:
           then:
             - if:
                 condition:
-                  lambda: "return id(timer_ringing).state && !id(podvoice_conversation_active);"
+                  lambda: "return (id(timer_ringing).state || id(pv_reply).timer_output_active()) && !id(podvoice_conversation_active);"
                 then:
+                  - lambda: "id(pv_reply).stop_timer_output();"
                   - switch.turn_off: timer_ringing
                 else:
                   # Active Stop is local, before the event crosses the network.
@@ -1688,8 +1689,9 @@ micro_wake_word:
         then:
           - if:
               condition:
-                switch.is_on: timer_ringing
+                lambda: "return id(timer_ringing).state || id(pv_reply).timer_output_active();"
               then:
+                - lambda: "id(pv_reply).stop_timer_output();"
                 - switch.turn_off: timer_ringing
               else:
                 - lambda: |-

@@ -184,7 +184,7 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # Panel-editable fields and their defaults. The OpenAI API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
-    "live_alpha": False,  # explicit provider opt-in, snapshotted by ThinSession at wake
+    "live_alpha": True,  # compatibility key: GPT-Live is the only production provider
     # Operator calibration for this experimental native boundary; 0 stays inactive.
     # Alpha ON alone cannot fabricate a measured guard or enable this candidate.
     "live_closing_guard_ms": 0,
@@ -355,8 +355,10 @@ def _project_settings(saved: dict) -> dict:
     data["wake_word"] = load_wake_word(data.get("wake_word"))
     data["speaker_path"] = "announce"
     data["full_duplex"] = False
-    # Corrupt or hand-edited truthy values must never enable an experimental provider.
-    data["live_alpha"] = data.get("live_alpha") is True
+    # Read-only migration to the single provider. Keep the old schema and all other
+    # saved values for image rollback; the first Save also backs up exact source bytes.
+    # No tuning/version reset accompanies this product-selection migration.
+    data["live_alpha"] = True
     for key, template in DEFAULTS.items():
         if isinstance(template, float):
             try:
@@ -479,6 +481,7 @@ def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
     data["engine"] = "thin"
     data["speaker_path"] = "announce"
     data["full_duplex"] = False
+    data["live_alpha"] = True  # stale clients cannot reactivate the retired provider
     if data["settings_version"] != SETTINGS_VERSION:
         raise ValueError("settings_version: versionen administreres af PodVoice")
     data = {k: _coerce(k, v, DEFAULTS[k]) for k, v in data.items()}

@@ -68,7 +68,7 @@ class Config:
     vad_threshold: float = C.VAD_THRESHOLD
     settings_error: str = ""
     settings_source_untrusted: bool = False
-    live_alpha: bool = False
+    live_alpha: bool = True
     settings_path: pathlib.Path | None = None
 
     @property
@@ -143,7 +143,7 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         supervisor_token=opts.get("supervisor_token", ""),
         settings_error=settings_error,
         settings_source_untrusted=settings_source_untrusted,
-        live_alpha=opts.get("live_alpha") is True,
+        live_alpha=True,  # compatibility field; saved OFF no longer selects a provider
         settings_path=settings_path,
         ha_mcp_url=str(opts.get("ha_mcp_url", "") or ""),
         ha_mcp_token=str(opts.get("ha_mcp_token", "") or ""),

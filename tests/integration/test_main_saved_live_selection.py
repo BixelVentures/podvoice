@@ -1,4 +1,4 @@
-"""Run-owned saved selection over actual main, native Thin and Talk, inert I/O."""
+"""Single-provider migration over actual main, native Thin and Talk, inert I/O."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ from integration.test_thin_live_ten_cycles import (
     close_fixture,
     retain_aclose_observers,
 )
-from unit.test_provider_ack_readiness import _QueueWS
 
 from gatekeeper import __main__ as main
 from gatekeeper import settings as S
@@ -50,22 +49,23 @@ async def test_actual_run_retains_verified_selection_across_fault_and_restores_n
     options.write_text(json.dumps({"openai_api_key": "inert-settings-contract"}))
     monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
     original = _preferences(path, initial_live)
+    path.write_text(json.dumps({**original, "live_alpha": initial_live}))
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         session = actual.sessions["kitchen"]
         selected = session.live_enabled
-        assert actual.cfg.live_alpha is initial_live and actual.cfg.settings_path == path
+        assert actual.cfg.live_alpha is True and actual.cfg.settings_path == path
         assert all(s.live_enabled is selected for s in actual.sessions.values())
         for kind in ("corrupt", "future", "nonfinite", "missing"):
             path.write_text(json.dumps(original))
             _fault(path, kind)
             assert S.load_settings(path, require_existing=True)["settings_source_untrusted"]
-            assert selected() is initial_live
+            assert selected() is True
         async with asyncio.timeout(20):
             await session.wake()
-        assert session._active and session.live_alpha is initial_live
+        assert session._active and session.live_alpha is True
         active = _active_contract(session)
         path.write_text(json.dumps({**original, "live_alpha": not initial_live}))
-        assert selected() is (not initial_live)
+        assert selected() is True
         await session.wake()  # an active owner does not switch engines
         assert _active_contract(session) == active
         old_epoch, old_generation = session._epoch, session.voicepe.audio_generation
@@ -75,10 +75,10 @@ async def test_actual_run_retains_verified_selection_across_fault_and_restores_n
         assert not session._teardown_incomplete and session.voicepe.rearm_calls == 1
         async with asyncio.timeout(20):
             await session.wake()
-        assert session.live_alpha is (not initial_live) and session._epoch > old_epoch
+        assert session.live_alpha is True and session._epoch > old_epoch
         assert session.voicepe.audio_generation > old_generation
         fresh = _active_contract(session)
-        if initial_live:
+        if session.live_alpha:
             # Retained old adapter callback, with the retired connection identity.
             await retired_brain._handle(
                 {
@@ -104,7 +104,8 @@ async def test_actual_committed_save_updates_selection_before_fault_and_first_wa
     path, options = tmp_path / "settings.json", tmp_path / "options.json"
     options.write_text(json.dumps({"openai_api_key": "inert-settings-contract"}))
     monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
-    _preferences(path, initial_live)
+    original = _preferences(path, initial_live)
+    path.write_text(json.dumps({**original, "live_alpha": initial_live}))
     original_bytes = path.read_bytes()
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         session = actual.sessions["kitchen"]
@@ -127,8 +128,8 @@ async def test_actual_committed_save_updates_selection_before_fault_and_first_wa
         assert response.status == 503
         assert len(actual.configure_calls) == count and _device_contract(actual.tools) == device
         _fault(path, "corrupt")
-        assert selected() is initial_live  # failed Save did not change the retained bit
-        # Restore the exact source; commit the opposite mode, without an intervening reader.
+        assert selected() is True  # failed Save cannot change the single provider
+        # Restore the exact source; submit the legacy opposite mode, without an intervening reader.
         path.write_bytes(original_bytes)
         assert path.read_bytes() == original_bytes
         response = await actual.client.post("/api/settings", json={"live_alpha": not initial_live})
@@ -136,8 +137,8 @@ async def test_actual_committed_save_updates_selection_before_fault_and_first_wa
         _fault(path, "missing")
         async with asyncio.timeout(20):
             await session.wake()
-        assert session._active and session.live_alpha is (not initial_live)
-        assert actual.cfg.live_alpha is initial_live  # boot snapshot stays immutable
+        assert session._active and session.live_alpha is True
+        assert actual.cfg.live_alpha is True  # boot snapshot stays immutable
         assert not actual.forbidden
 
 
@@ -149,6 +150,7 @@ async def test_actual_config_to_run_fault_keeps_same_snapshot_and_absolute_addre
     other = tmp_path / "other.json"
     options.write_text(json.dumps({"openai_api_key": "inert-settings-contract"}))
     original = _preferences(path, initial_live)
+    path.write_text(json.dumps({**original, "live_alpha": initial_live}))
     _preferences(other, not initial_live)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PODVOICE_SETTINGS", "settings.json")
@@ -169,7 +171,7 @@ async def test_actual_config_to_run_fault_keeps_same_snapshot_and_absolute_addre
         await prepare(enabled)
 
     async def fault_after_config(cfg):
-        assert cfg.settings_path == path and cfg.live_alpha is initial_live
+        assert cfg.settings_path == path and cfg.live_alpha is True
         _fault(path, "corrupt")
         monkeypatch.setenv("PODVOICE_SETTINGS", str(other))
         await run(cfg)
@@ -181,7 +183,7 @@ async def test_actual_config_to_run_fault_keeps_same_snapshot_and_absolute_addre
     monkeypatch.setattr(main, "_prepare_saved_live_alpha", observed_prepare)
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         session = actual.sessions["kitchen"]
-        assert prepared == [initial_live] and session.live_enabled() is initial_live
+        assert prepared == [True] and session.live_enabled() is True
         response = await actual.client.get("/api/settings")
         assert response.status == 409  # GET uses the original address, not the env replacement
         original_other = other.read_bytes()
@@ -190,21 +192,21 @@ async def test_actual_config_to_run_fault_keeps_same_snapshot_and_absolute_addre
         path.write_text(json.dumps(original))
         response = await actual.client.post("/api/settings", json={"live_alpha": not initial_live})
         assert response.status == 200 and other.read_bytes() == original_other
-        assert S.load_settings(path)["live_alpha"] is (not initial_live)
+        assert S.load_settings(path)["live_alpha"] is True
         assert (await actual.client.get("/api/voicepe/status?room=kitchen")).status == 200
         assert (await actual.client.post("/api/voicepe/s2?room=kitchen")).status == 200
         assert diagnoses == [("fixture-one.local", ""), ("fixture-one.local", "")]
         assert reads and all(address == path for address in reads)
         async with asyncio.timeout(20):
             await session.wake()
-        assert session.live_alpha is (not initial_live)
+        assert session.live_alpha is True
     # Separate actual run has its own seed and fixed path; no process-global last bit.
     monkeypatch.setattr(main, "run", run)
     monkeypatch.setenv("PODVOICE_SETTINGS", str(other))
     _preferences(other, initial_live)
     async with _actual_main_app(monkeypatch, tmp_path / "other-boot", options) as actual:
-        assert actual.cfg.settings_path == other and actual.cfg.live_alpha is initial_live
-        assert actual.sessions["kitchen"].live_enabled() is initial_live
+        assert actual.cfg.settings_path == other and actual.cfg.live_alpha is True
+        assert actual.sessions["kitchen"].live_enabled() is True
 
 
 @pytest.mark.parametrize("initial_live", [False, True])
@@ -218,19 +220,19 @@ async def test_actual_missing_empty_and_known_room_fault_have_distinct_selection
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         selected = actual.sessions["kitchen"].live_enabled
         path.unlink()
-        assert S.load_settings(path)["live_alpha"] is False  # normal first-file API policy
-        assert selected() is initial_live  # post-boot missing is not a trusted projection
+        assert S.load_settings(path)["live_alpha"] is True  # single-provider first-file policy
+        assert selected() is True  # post-boot missing is not a trusted projection
         path.write_text("{}")
-        assert selected() is False  # present empty object retains the documented default
+        assert selected() is True  # present empty object uses the single provider
         for malformed in ("true", 1, None, [], {}):
             path.write_text(json.dumps({"live_alpha": malformed}))
-            assert selected() is False  # existing explicit boolean normalization
+            assert selected() is True  # malformed legacy selection cannot choose another provider
         path.write_text(json.dumps({"live_alpha": initial_live, "rooms": [None]}))
         assert not S.load_settings(path).get("settings_source_untrusted")
-        assert selected() is initial_live  # bad room rows do not redefine a valid preference
+        assert selected() is True  # bad room rows do not redefine a valid preference
     # A fresh run still admits no physical room owner from those known-invalid rows.
     async with _actual_main_app(monkeypatch, tmp_path / "room-fault", options) as actual:
-        assert not actual.sessions and actual.cfg.live_alpha is initial_live
+        assert not actual.sessions and actual.cfg.live_alpha is True
         assert callable(actual.app[TALK])
 
 
@@ -243,42 +245,12 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
     options.write_text(json.dumps({"openai_api_key": "inert-settings-contract"}))
     monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
     original = _preferences(path, initial_live)
+    path.write_text(json.dumps({**original, "live_alpha": initial_live}))
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         wire, observers, sdks = BrowserWire(), [], []
         session, link = actual.app[TALK](wire.send_json, wire.send_bytes)
         assert session.live_enabled is actual.sessions["kitchen"].live_enabled
         assert session.heartbeat is session.attention and session.heartbeat.lease is None
-        # Keep the existing inert wire and actual Realtime parser/readiness owner.
-        # Only the peer response is supplied; never resolve the pending ACK future.
-        realtime = session._realtime_brain
-        ack_rows, provider_events = [], []
-        original_observer, original_send = realtime.provider_observer, _QueueWS.send_json
-
-        def provenance(row):
-            provider_events.append(dict(row))
-            if original_observer is not None:
-                original_observer(row)
-
-        async def acknowledge_sent_item(socket, payload):
-            await original_send(socket, payload)
-            item = payload.get("item", {})
-            if (
-                payload.get("type") == "conversation.item.create"
-                and item.get("type") == "message"
-                and item.get("role") == "user"
-            ):
-                assert socket is realtime._ws
-                generation = realtime._connection_generation
-                event = {
-                    "type": "conversation.item.added",
-                    "event_id": "inert-ack-" + payload["event_id"],
-                    "item": dict(item),
-                }
-                ack_rows.append((socket, generation, item["id"], event))
-                await socket.emit(event)
-
-        monkeypatch.setattr(realtime, "provider_observer", provenance)
-        monkeypatch.setattr(_QueueWS, "send_json", acknowledge_sent_item)
         session.live_brain.provider_budget = ProviderBudgetCoordinator()
         session._realtime_brain.provider_budget = session.live_brain.provider_budget
 
@@ -298,15 +270,15 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
             wire.send(first, command_id="first", text="inert typed fixture")
             await _observed(lambda: wire.result("first") is not None, main_task=task)
             assert wire.result("first")["status"] in {"accepted", "submitted"}
-            assert session._active and session.live_alpha is initial_live
+            assert session._active and session.live_alpha is True
             assert session.heartbeat.lease is None
-            if initial_live:
+            if session.live_alpha:
                 assert link._live_handshake is not None and link._live_handshake.valid
                 assert sdks and sdks[-1].wire  # actual SDK serializer/parser, inert peer
             active = session.brain, session._epoch, session.live_alpha
             old_peer = link._live_handshake
             path.write_text(json.dumps({**original, "live_alpha": not initial_live}))
-            assert session.live_enabled() is (not initial_live)
+            assert session.live_enabled() is True
             assert (session.brain, session._epoch, session.live_alpha) == active
             wire.send("stop", command_id="old-stop")
             await _observed(lambda: wire.result("old-stop") is not None, main_task=task)
@@ -318,7 +290,7 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
             )
             await _observed(lambda: wire.result("fresh") is not None, main_task=task)
             assert wire.result("fresh")["status"] in {"accepted", "submitted"}
-            assert session._active and session.live_alpha is (not initial_live)
+            assert session._active and session.live_alpha is True
             assert session.heartbeat.lease is None
             fresh = session.brain, session._epoch, session.live_alpha, link._live_handshake
             if old_peer is not None:
@@ -351,38 +323,15 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
             ]
             assert actual.app[HUB].snapshot()["metrics"]["attention_releases"] == 0
             typed_command = "first" if first == "text" else "fresh"
-            typed_live = initial_live if first == "text" else not initial_live
-            assert len(ack_rows) == int(not typed_live)
-            if typed_live:
-                assert wire.result(typed_command)["status"] == "submitted"
-            else:
-                assert wire.result(typed_command)["status"] == "accepted"
-                socket, generation, item_id, ack = ack_rows[0]
-                assert ack["item"]["id"] == item_id and ack["item"]["type"] == "message"
-                assert ack["item"]["role"] == "user"
-                assert socket in [owner.ws for owner in actual.realtime_http]
-                added = [row for row in provider_events if row["kind"] == "conversation_item_added"]
-                accepted = [row for row in provider_events if row["kind"] == "accepted_input_turn"]
-                assert any(
-                    row["item_id"] == item_id
-                    and row["generation"] == generation
-                    and row["provider_event_type"] == "conversation.item.added"
-                    for row in added
-                )
-                assert any(
-                    row["committed_item_id"] == item_id
-                    and row["root_item_id"] == item_id
-                    and row["generation"] == generation
-                    and row["input_kind"] == "text"
-                    for row in accepted
-                )
+            assert wire.result(typed_command)["status"] == "submitted"
+            assert actual.realtime_http == []  # no retired provider was constructed or opened
         except BaseException as exc:
             failure = exc
             raise
         finally:
             try:
                 await close_fixture(session, sdks, observers, wire=wire, talk_task=task)
-                assert session._realtime_brain._ws is None and session._realtime_brain._http is None
+                assert session._realtime_brain is session.live_brain
             except BaseException as exc:
                 if failure is None:
                     raise

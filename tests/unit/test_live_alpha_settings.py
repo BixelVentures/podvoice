@@ -1,4 +1,4 @@
-"""Alpha opt-in persistence and entrypoint wiring without a provider connection."""
+"""Single-provider migration and entrypoint wiring without a provider connection."""
 
 from __future__ import annotations
 
@@ -36,9 +36,9 @@ async def test_boot_import_failure_keeps_settings_available(monkeypatch):
     preparation.assert_awaited_once()
 
 
-def test_alpha_defaults_off_and_never_revives_legacy(tmp_path):
+def test_live_defaults_and_stale_off_never_revive_legacy(tmp_path):
     path = tmp_path / "settings.json"
-    assert settings.load_settings(path)["live_alpha"] is False
+    assert settings.load_settings(path)["live_alpha"] is True
     saved = settings.save_settings({"live_alpha": True, "full_duplex": True}, path)
     assert saved["live_alpha"] is True
     assert settings.load_settings(path)["live_alpha"] is True
@@ -46,7 +46,7 @@ def test_alpha_defaults_off_and_never_revives_legacy(tmp_path):
     assert saved["engine"] == "thin"
     assert saved["speaker_path"] == "announce"
     settings.save_settings({"live_alpha": False}, path)
-    assert settings.load_settings(path)["live_alpha"] is False
+    assert settings.load_settings(path)["live_alpha"] is True
 
 
 @pytest.mark.parametrize("value", ["true", "false", 1, None, [], {}])
@@ -55,10 +55,10 @@ def test_alpha_requires_explicit_boolean(tmp_path, value):
     with pytest.raises(ValueError, match="live_alpha: expected true/false"):
         settings.save_settings({"live_alpha": value}, path)
     path.write_text(json.dumps({"live_alpha": value}))
-    assert settings.load_settings(path)["live_alpha"] is False
+    assert settings.load_settings(path)["live_alpha"] is True
 
 
-def test_physical_builder_retains_realtime_and_exact_run_selection_callback(monkeypatch, tmp_path):
+def test_physical_builder_constructs_only_live_and_exact_run_callback(monkeypatch, tmp_path):
     from gatekeeper import __main__ as main
     from gatekeeper import thin
     from gatekeeper.config import Config, RoomMap
@@ -69,13 +69,11 @@ def test_physical_builder_retains_realtime_and_exact_run_selection_callback(monk
     monkeypatch.setitem(
         sys.modules, "gatekeeper.openai_live", SimpleNamespace(OpenAILiveSession=live_factory)
     )
-    realtime = SimpleNamespace()
-    monkeypatch.setattr(main, "make_session", Mock(return_value=realtime))
     monkeypatch.setattr(main, "_host_ip_for", lambda host: "192.0.2.1")
     monkeypatch.setattr(thin, "ThinSession", lambda **kwargs: SimpleNamespace(**kwargs))
     cfg = Config("http://attention", "", "", (), openai_api_key="test", system_prompt="Tilpasset")
     manager = object()
-    selected = Mock(return_value=False)
+    selected = Mock(return_value=True)
     session = main._build_session(
         cfg,
         RoomMap("puck.local", "r0"),
@@ -86,19 +84,19 @@ def test_physical_builder_retains_realtime_and_exact_run_selection_callback(monk
         live_audio=manager,
         live_enabled=selected,
     )
-    assert session.brain is realtime
+    assert session.brain is session.live_brain
     assert session.live_brain is live_factory.return_value
     assert session.full_duplex is False
     assert session.live_audio is manager
     assert session.live_reply_url == "http://192.0.2.1:8098/reply/live/{stream_id}.wav?t=token"
     assert session.reply_url == "http://192.0.2.1:8098/reply/r0.flac?t=token"
     assert session.live_enabled is selected
-    assert session.live_enabled() is False
+    assert session.live_enabled() is True
     settings.save_settings({"live_alpha": True}, path)
-    assert session.live_enabled() is False  # builder does not own persistence refresh
+    assert session.live_enabled() is True  # builder does not own persistence refresh
     selected.return_value = True
     assert session.live_enabled() is True
-    assert session.brain is realtime  # saving only changes next-wake selection
+    assert session.brain is session.live_brain  # saving only changes next-wake selection
     assert (
         "# BRUGERTILPASSET VEJLEDNING\nTilpasset"
         in live_factory.call_args.kwargs["backend_instructions"]
@@ -121,9 +119,9 @@ def test_talk_submitted_is_not_rejected_or_presented_as_acknowledged():
     assert "Sendt til Live; ingen separat modtagelseskvittering" in branch
     assert 'input.value = ""' in branch
     assert "input.value = pending.text" not in branch
-    assert 'id="s_live_alpha" type="checkbox"' in html
-    assert 'var FIELDS = ["live_alpha",' in html
-    assert "fra næste samtale" in html
+    assert 'id="s_live_alpha" type="checkbox"' not in html
+    assert 'var FIELDS = ["live_alpha",' not in html
+    assert "Voice PE og Talk bruger GPT-Live" in html
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -147,9 +145,9 @@ def test_config_selection_and_address_share_one_boot_read(tmp_path, monkeypatch,
     cfg = load_config(options)
     assert calls == [path]
     assert cfg.settings_path == path and cfg.settings_path.is_absolute()
-    assert cfg.live_alpha is enabled
+    assert cfg.live_alpha is True
     monkeypatch.setenv("PODVOICE_SETTINGS", str(tmp_path / "other.json"))
-    assert cfg.settings_path == path and cfg.live_alpha is enabled
+    assert cfg.settings_path == path and cfg.live_alpha is True
 
 
 def test_postboot_presence_uses_same_source_read_and_preserves_initial_missing_policy(
@@ -171,6 +169,43 @@ def test_postboot_presence_uses_same_source_read_and_preserves_initial_missing_p
     initial = settings.load_settings(path)
     strict = settings.load_settings(path, require_existing=True)
     assert calls == [path, path]
-    assert initial["live_alpha"] is False and not initial.get("settings_source_untrusted")
+    assert initial["live_alpha"] is True and not initial.get("settings_source_untrusted")
     assert strict["settings_source_untrusted"] and strict["settings_error"]
     assert not path.parent.joinpath(path.name + ".bak").is_file()
+
+
+@pytest.mark.parametrize("legacy_mode", [False, True])
+def test_single_provider_migration_is_read_only_preserves_values_and_exact_rollback(
+    tmp_path, legacy_mode
+):
+    from gatekeeper.config import from_options
+
+    path = tmp_path / "settings.json"
+    legacy = {
+        "settings_version": settings.SETTINGS_VERSION,
+        "live_alpha": legacy_mode,
+        "engine": "classic",
+        "rooms": [{"voicepe_host": "saved.local", "room": "Kitchen"}],
+        "system_prompt": "Min tilpassede vejledning",
+        "mic_gain": 23,
+        "idle_timeout_s": 7,
+        "openai_voice": "cedar",
+        "openai_model": "gpt-realtime-2.1-mini",
+        "force_mini": True,
+        "openai_threshold": 0.7,
+        "ha_mcp_token": "inert-rollback-secret",
+    }
+    previous = json.dumps(legacy, indent=1).encode()
+    path.write_bytes(previous)
+    loaded = settings.load_settings(path)
+    assert path.read_bytes() == previous  # loading cannot overwrite rollback bytes
+    assert loaded["live_alpha"] is True and loaded["engine"] == "thin"
+    for key in legacy.keys() - {"live_alpha", "engine"}:
+        assert loaded[key] == legacy[key]  # no tuning, voice, room, secret or prompt migration
+    assert from_options(legacy).live_alpha is True  # raw config cannot restore OFF either
+    saved = settings.save_settings({"live_alpha": False, "duck_level": 9}, path)
+    assert saved["live_alpha"] is True and saved["duck_level"] == 9
+    for key in legacy.keys() - {"live_alpha", "engine"}:
+        assert saved[key] == legacy[key]
+    assert path.with_name(path.name + ".bak").read_bytes() == previous
+    assert settings.masked(saved)["ha_mcp_token"] == settings.SECRET_MASK

@@ -4,6 +4,8 @@
 using namespace esphome;
 int main() {
   podvoice_reply::PodVoiceReply reply;
+  text_sensor::TextSensor timer_status;
+  reply.set_timer_status(&timer_status);
   speaker_source::SpeakerSourceMediaPlayer player;
   resampler::ResamplerSpeaker resampler;
   mixer_speaker::SourceSpeaker source;

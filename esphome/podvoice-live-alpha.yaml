@@ -4,7 +4,7 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_113112_liveclosing1
+  podvoice_build_marker: podvoice_build_113114_livetimeroutput1
 
 esphome:
   on_boot:

@@ -93,13 +93,27 @@ def main():
             else:
                 assert not live_actions
             boots = merged["esphome"]["on_boot"]
-            assert len(boots) == 2, (name, "Expected hardware and capture boot")
-            assert boots[0] == expected[0], (name, "Hardware boot changed or disappeared")
-            assert boots[1]["priority"] == -100
+            capture_boot = yaml_util.load_yaml(work / "podvoice.yaml")["esphome"]["on_boot"][0]
+            expected_boots = [expected[0], capture_boot]
+            assert capture_boot["priority"] == -100
             assert (
-                boots[1]["then"][0]["text_sensor.template.publish"]["id"]
+                capture_boot["then"][0]["text_sensor.template.publish"]["id"]
                 == "podvoice_capture_status"
             )
+            if name == "podvoice-live-alpha.yaml":
+                live_boot = config["esphome"]["on_boot"][0]
+                assert live_boot["priority"] == -99
+                assert "set_closing_led_cancel" in str(live_boot["then"][0]["lambda"])
+                assert "set_closing_led_request" in str(live_boot["then"][0]["lambda"])
+                assert "set_closing_tx_callback" in str(live_boot["then"][0]["lambda"])
+                expected_boots.append(live_boot)
+            rendered_boots = [yaml_util.dump(hook) for hook in boots]
+            expected_rendered = [yaml_util.dump(hook) for hook in expected_boots]
+            assert rendered_boots == expected_rendered, (
+                name,
+                "Boot hooks changed, lost or duplicated",
+            )
+            assert all(rendered_boots.count(hook) == 1 for hook in expected_rendered)
             # Reproduce the exact field failure, proving the oracle detects it.
             # Separate negative control uses the actual merge helper with the original mixed shapes.
             from esphome.config_helpers import merge_config

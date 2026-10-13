@@ -28,6 +28,7 @@ _FIELDS = {
     "stop_model": micro_wake_word.WakeWordModel,
     "detector": micro_wake_word.MicroWakeWord,
     "context_status": text_sensor.TextSensor,
+    "timer_status": text_sensor.TextSensor,
     "mute_switch": switch.Switch,
 }
 CONFIG_SCHEMA = cv.Schema(

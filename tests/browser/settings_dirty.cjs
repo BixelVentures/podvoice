@@ -23,7 +23,7 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
  max_session_min:15,mic_gain:16,turn_preset:'responsive',openai_turn:'semantic_vad',openai_threshold:0.5,openai_prefix_ms:300,openai_silence_ms:500,
  system_prompt:'Brugerens gemte prompt',system_prompt_default:'Fixture standardprompt',
  rooms:[{voicepe_host:'fixture-speaker.local',room:'fixture-room'}],live_alpha:true,
- live_alpha_active:{'fixture-room':false}});
+ live_sessions:{'fixture-room':false}});
 (async()=>{
  // Permanent guard counterexamples: missing route entry and rejected navigation
  // must terminate; these verify the helper used by actual owned I/O below.
@@ -81,31 +81,29 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
     assert.equal(await summary.innerText(),'Avanceret');
     await bounded(own(summary.click({timeout:FIXTURE_WAIT_MS})),'actual Avanceret summary click');
     assert.equal(await advanced.evaluate(e=>e.open),true);
-    const controls=['s_addroom','s_idle_timeout_s','s_live_alpha','s_live_alpha_active',
+    const controls=['s_addroom','s_idle_timeout_s','s_live_sessions',
       's_resetprompt','s_save','s_saverestart','s_status','s_system_prompt'];
     const envelopes=await page.evaluate(ids=>ids.map(id=>{
       const nodes=document.querySelectorAll('#'+id),e=nodes[0];
       return {id,count:nodes.length,pane:e?.closest('.pane')?.id,
         disclosure:e?.closest('details')?.querySelector(':scope > summary')?.textContent.trim()||null};
     }),controls);
-    const advancedIds=new Set(['s_live_alpha','s_live_alpha_active','s_resetprompt','s_system_prompt']);
+    const advancedIds=new Set(['s_live_sessions','s_resetprompt','s_system_prompt']);
     assert.deepEqual(envelopes,controls.map(id=>({id,count:1,pane:'pane-settings',
       disclosure:advancedIds.has(id)?'Avanceret':null})),'all nine fixture controls retain actual pane/disclosure owners');
     // Empty status/readback nodes need not have a box while the GET is held.
     // Interactive controls remain visible even when saving is correctly disabled.
-    for(const id of controls.filter(id=>!['s_live_alpha_active','s_status'].includes(id)))
+    for(const id of controls.filter(id=>!['s_live_sessions','s_status'].includes(id)))
       assert.equal(await page.locator('#'+id).isVisible(),true,'visible settings control '+id);
    }
    async function fresh(){saved=initial();mode='ok';await page.goto('http://panel.test/');await enterSettings();await page.waitForFunction(()=>!document.querySelector('#s_save').disabled);}
    // Successful initial refetch is clean; configured preference and effective
    // active-session readback deliberately disagree without being overwritten.
    await fresh();assert.equal(await dirty(),false);
-   assert.equal(await page.locator('#s_live_alpha').isChecked(),true);
-   assert.match(await page.locator('#s_live_alpha_active').textContent(),/fixture-room: Realtime/);
+   for(const id of ['s_live_alpha','s_engine','s_openai_model','s_force_mini','s_turn_preset','s_openai_turn','s_openai_threshold','s_openai_noise'])assert.equal(await page.locator('#'+id).count(),0,'retired setting absent '+id);
+   assert.match(await page.locator('#s_live_sessions').textContent(),/fixture-room: ukendt motor/);
    // Empty active numeric drafts cannot silently omit a setting and report success.
-   await page.locator('#s_turn_preset').selectOption('custom');
-   await page.locator('#s_openai_turn').selectOption('server_vad');
-   for(const id of ['idle_timeout_s','duck_level','max_session_min','mic_gain','openai_threshold','openai_prefix_ms','openai_silence_ms']) {
+   for(const id of ['idle_timeout_s','duck_level','max_session_min','mic_gain']) {
     const field=page.locator('#s_'+id),beforeEmptyPosts=posts.length;
     const beforeEmptyCalls=await page.evaluate(()=>window.fixtureSettingsPosts);
     await field.fill('');
@@ -121,18 +119,6 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
     await field.fill(String(initial()[id]));await save();assert.equal(await dirty(),false);
     await page.locator('#s_advanced').evaluate(e=>e.open=true);
    }
-   // The existing custom semantic/disabled modes do not use the server-VAD numbers.
-   for(const mode of ['semantic_vad','none']) {
-    await page.locator('#s_openai_turn').selectOption(mode);
-    for(const id of ['openai_threshold','openai_prefix_ms','openai_silence_ms'])await page.locator('#s_'+id).fill('');
-    await save();assert.equal(await dirty(),false);
-    assert.equal(saved.openai_threshold,initial().openai_threshold);
-    assert.equal(saved.openai_prefix_ms,initial().openai_prefix_ms);
-    assert.equal(saved.openai_silence_ms,initial().openai_silence_ms);
-   }
-   for(const id of ['openai_threshold','openai_prefix_ms','openai_silence_ms'])await page.locator('#s_'+id).fill(String(initial()[id]));
-   await page.locator('#s_openai_turn').selectOption('semantic_vad');
-   await page.locator('#s_turn_preset').selectOption('responsive');await save();
    await page.locator('#s_addroom').click();assert.equal(await dirty(),true,'adding a row owns an unsaved draft');
    assert.equal(await page.locator('.roomrow').count(),2);
    // Cancel the actual navigation dialog; the draft and page remain intact.
@@ -144,6 +130,7 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
    assert.equal(page.url(),'http://panel.test/');assert.equal(await page.locator('.roomrow').count(),2);
    await save();assert.equal(await dirty(),false,'accepted save clears this revision');
    assert.deepEqual(posts.at(-1).rooms,initial().rooms,'blank row adds no persisted room');
+   for(const key of ['live_alpha','engine','openai_model','force_mini','turn_preset','openai_turn','openai_threshold','openai_noise'])assert.ok(!(key in posts.at(-1)),'retired setting not POSTed '+key);
    await page.getByRole('button',{name:'Fjern rum',exact:true}).first().click();
    assert.equal(await dirty(),true,'remove owns the same draft');
    mode='reject';const beforeFailure=JSON.stringify(saved);await save();
