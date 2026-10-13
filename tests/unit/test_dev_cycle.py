@@ -1,3 +1,5 @@
+import ast
+import hashlib
 import json
 import os
 import signal
@@ -71,7 +73,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
     assert "cache-to:" not in build
-    assert "needs: lint-test" in publish
+    assert "needs: [lint-test, ui-browser]" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
     assert "docker/build-push-action@v6" in publish
@@ -102,7 +104,7 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
         assert "docker/build-push-action@v6" in job
     fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
     assert build.count(fork_guard) == 2
-    assert "needs: lint-test" in publish
+    assert "needs: [lint-test, ui-browser]" in publish
     assert "push: true" in publish
     assert "Refuse an existing release version" in publish
     assert "Record published digest" in publish
@@ -494,16 +496,71 @@ def test_unit_batches_cover_every_default_test_module_once(tmp_path, count):
     assert len(batches) == min(dev_cycle.UNIT_BATCH_COUNT, count)
 
 
+def test_real_git_scope_cases_remain_intact_and_use_all_eight_unit_children():
+    root = Path(__file__).parents[2]
+    unit = root / "tests/unit"
+    shards = [f"tests/unit/test_candidate_scope_git_{index}.py" for index in range(1, 9)]
+    batches = unit_batches(root)
+    flattened = [name for batch in batches for name in batch]
+    assert all(flattened.count(name) == 1 for name in shards)
+    assert len({index for index, batch in enumerate(batches) if set(shards) & set(batch)}) == 8
+    assert "tests/unit/_candidate_scope_git.py" not in flattened
+
+    definitions = []
+    for name in [
+        "test_candidate_scope.py",
+        "_candidate_scope_git.py",
+        *[Path(p).name for p in shards],
+    ]:
+        nodes = ast.parse((unit / name).read_text()).body
+        functions = [node for node in nodes if isinstance(node, ast.FunctionDef)]
+        if name == "_candidate_scope_git.py":
+            assert all(node.name.startswith("_") for node in functions)
+        else:
+            assert all(node.name.startswith("test_") for node in functions)
+            for node in functions:
+                is_git = any(argument.arg == "tmp_path" for argument in node.args.args)
+                assert is_git == name.startswith("test_candidate_scope_git_")
+        definitions.extend(functions)
+    names = [node.name for node in definitions]
+    assert len(names) == len(set(names))
+    inventory = [
+        (node.name, ast.dump(node, include_attributes=False))
+        for node in sorted(definitions, key=lambda node: node.name)
+    ]
+    # Frozen BEFORE relocation from monolithic source 28bac091c2415740… .
+    # Binds every original function body, helper and parameter decorator;
+    # never derive the expected value from the newly exported test modules.
+    digest = hashlib.sha256(json.dumps(inventory, separators=(",", ":")).encode()).hexdigest()
+    assert digest == "2cdd76fec4c21335635d8d1a7602d28f131f5237660500d837b3811b1ed3b2d8"
+
+
+@pytest.mark.parametrize("bound", [120, 240])
+def test_eight_unit_children_keep_per_child_bounds_and_derive_total_owner_bound(bound):
+    assert dev_cycle.UNIT_BATCH_COUNT == 8
+    assert dev_cycle.FAST_TIMEOUT_S == 120
+    assert dev_cycle.RELEASE_TIMEOUT_S == 240
+    stage = unit_stage("python", bound)
+    assert stage.command == (
+        "python",
+        "scripts/dev_cycle.py",
+        "unit-worker",
+        "--unit-timeout",
+        str(bound),
+    )
+    assert stage.timeout == 8 * (bound + 4) + dev_cycle.COLLECTION_TIMEOUT_S
+
+
 def test_unit_worker_without_tests_fails_closed(tmp_path):
     with pytest.raises(DevCycleError, match="no test modules"):
         unit_batches(tmp_path)
 
 
-@pytest.mark.parametrize("failure", [None, 1, 2])
+@pytest.mark.parametrize("failure", [None, 1, 2, 8])
 def test_unit_worker_is_sequential_preserves_output_and_stops_after_failure(
     monkeypatch, tmp_path, capsys, failure
 ):
-    batches = tuple((f"tests/unit/test_{index}.py",) for index in range(4))
+    batches = tuple((f"tests/unit/test_{index}.py",) for index in range(8))
     monkeypatch.setattr(dev_cycle, "unit_batches", lambda root: batches)
     monkeypatch.setattr(dev_cycle.os, "killpg", lambda *_args: None)
     started = []
@@ -533,7 +590,7 @@ def test_unit_worker_is_sequential_preserves_output_and_stops_after_failure(
     else:
         with pytest.raises(DevCycleError, match=f"batch {failure} failed"):
             run_unit_batches(tmp_path, {}, "python", 240)
-    assert len(started) == (4 if failure is None else failure)
+    assert len(started) == (8 if failure is None else failure)
     assert [command[-1] for command in started] == [batch[0] for batch in batches[: len(started)]]
     assert f"details for batch {len(started)}" in capsys.readouterr().out
 
@@ -629,3 +686,101 @@ def test_unit_stage_bounds_all_batches_and_worker_bypasses_parent_gate_lock(monk
     assert dev_cycle.main(["unit-worker", "--unit-timeout", "240"]) == 0
     assert captured[0][0] == tmp_path.resolve()
     assert captured[0][-1] == 240
+
+
+@pytest.mark.parametrize("working_directory", (".", "subdirectory"))
+def test_file_entry_bootstraps_browser_recipe_and_preserves_error_owner(
+    tmp_path, working_directory
+):
+    root = Path(__file__).parents[2]
+    checkout = tmp_path / "checkout"
+    for name in ("scripts/__init__.py", "scripts/dev_cycle.py", "scripts/browser_gate.py"):
+        target = checkout / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((root / name).read_bytes())
+    (checkout / "tests/browser").mkdir(parents=True)
+    (checkout / "subdirectory").mkdir()
+    driver = checkout / "scripts/file_entry_probe.py"
+    driver.write_text(
+        r"""
+import importlib
+import json
+import os
+import runpy
+import sys
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+original_cwd = Path.cwd()
+assert str(root) not in sys.path
+assert "scripts.dev_cycle" not in sys.modules
+# Match scripts/dev's file-entry path without pytest's checkout-root import setup.
+sys.path.insert(0, str(root / "scripts"))
+sys.argv = [str(root / "scripts/dev_cycle.py"), "--help"]
+try:
+    runpy.run_path(sys.argv[0], run_name="__main__")
+except SystemExit as exc:
+    assert exc.code == 0
+else:
+    raise AssertionError("actual CLI help did not exit")
+
+entry = sys.modules["scripts.dev_cycle"]
+assert entry.__name__ == "__main__"
+assert Path(entry.__file__).resolve() == root / "scripts/dev_cycle.py"
+assert importlib.import_module("scripts.dev_cycle") is entry
+browser = importlib.import_module("scripts.browser_gate")
+for name in ("cache_paths", "configured_cache_root", "require_durable_storage", "validate_cache_storage"):
+    assert getattr(browser, name) is getattr(entry, name)
+    assert getattr(browser, name).__globals__["DevCycleError"] is entry.DevCycleError
+
+launches = []
+def forbidden_worker(*args, **kwargs):
+    launches.append(args)
+    raise AssertionError("browser must not launch on refused dependencies/storage")
+browser.run_worker = forbidden_worker
+try:
+    entry.browser_recipe(root / "Documents", os.environ.copy(), 120)
+except entry.DevCycleError as exc:
+    assert type(exc) is entry.DevCycleError
+    assert "browser checkout uses synchronized storage" in str(exc)
+else:
+    raise AssertionError("actual storage refusal was lost across module owners")
+
+# Only bypass storage in this isolated ephemeral fixture to reach dependency preflight.
+browser.require_durable_storage = lambda path, owner: path
+browser.validate_cache_storage = lambda path: None
+missing_node = root / "intentionally-missing-pinned-node"
+assert not missing_node.exists()
+env = dict(os.environ, PODVOICE_NODE=str(missing_node))
+try:
+    entry.browser_recipe(root, env, 120)
+except entry.DevCycleError as exc:
+    assert type(exc) is entry.DevCycleError
+    assert "missing/mismatched pinned Node, Playwright or Chromium" in str(exc)
+    assert isinstance(exc.__cause__, browser.BrowserGateError)
+    assert isinstance(exc.__cause__.__cause__, FileNotFoundError)
+else:
+    raise AssertionError("missing pinned dependency was not refused")
+assert not launches
+assert Path.cwd() == original_cwd
+print(json.dumps({"same_owner": True, "storage_refused": True, "dependency_refused": True, "browser_launches": len(launches), "cwd": str(original_cwd)}))
+"""
+    )
+    cwd = (checkout / working_directory).resolve()
+    result = subprocess.run(
+        [sys.executable, "-I", "-B", str(driver)],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not result.stderr
+    assert json.loads(result.stdout.splitlines()[-1]) == {
+        "same_owner": True,
+        "storage_refused": True,
+        "dependency_refused": True,
+        "browser_launches": 0,
+        "cwd": str(cwd),
+    }

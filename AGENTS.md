@@ -189,6 +189,22 @@ Ved modstrid gælder stærkeste direkte bevis for den samme kandidat og samme p�
 4. deterministiske integration-, unit-, kontrakt- og statiske tests;
 5. transcript, UI, loguddrag, hypotese eller plausibel forklaring uden den fulde kæde.
 
+Semantisk provideraccept skal navngive den faktisk kørte adapter, primærmodel,
+backendmodel/delegation, prompt og værktøjssnapshot før resultatet bruges som
+årsagsbevis. `LiveRealtimeDriver` tester Realtime; navnet beviser ikke GPT-Live.
+Realtime/OFF og Live/ON arver aldrig hinandens semantikresultater. Ret ikke en
+produktionsprompt ud fra en anden providervej uden at afklare den ejergrænse.
+
+Effektiv prompt- og schemabinding skal udledes af den faktiske startupkonfiguration
+efter Thins capability- og policytilpasninger. Constructorværdier eller hashes af
+gemte baseinstruktioner er ikke wirebevis. Preflight skal kontrollere denne binding
+gennem den shippede wake-grænse før provideradmission og dække både understøttede
+og ikke-understøttede capabilities, når de vælger forskellige promptgrene.
+En binding før SDK beviser den forventede startup, ikke serverens accepterede
+konfiguration. Når startupkvitteringen eksponerer instruktioner og schema, bind
+indholdsfri fingeraftryk til samme generation. Manglende felter er ukendte;
+SDK-defaults er ikke bevis for, hvilke felter der var på wire.
+
 Et lavere lag kan finde fejl og stoppe en kandidat, men kan aldrig bortforklare en fejl
 fra et højere lag eller bevise fysisk funktion. Et tilfældigt korrekt svar beviser ikke
 input, værktøjsvalg eller lifecycle.

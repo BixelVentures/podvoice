@@ -8,6 +8,14 @@ const source = fs.readFileSync(path.join(root, 'podvoice/gatekeeper/static/index
 const proof = process.env.PODVOICE_UI_PROOF_DIR;
 if (proof) fs.mkdirSync(proof, {recursive:true});
 const reports = [];
+// Test-only observation bound; production deadlines and state are untouched.
+const FIXTURE_WAIT_MS=15000;
+function bounded(work,label,ms=FIXTURE_WAIT_MS) {
+  let timer;
+  return Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+' timed out')),ms);})])
+    .finally(()=>clearTimeout(timer));
+}
+
 function sample(phase='LISTENING', extra={}) {
   return {session_id:'fixture-session',generation:3,observed_at:Date.now()/1000,
     phase,authority:'GPT-Live',blocker:'quiet_window_incomplete',input_state:'quiet',
@@ -30,9 +38,11 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
     for (const width of [320,390,430,768,1440]) {
       for (const scheme of ['light','dark']) {
         const page=await browser.newPage({viewport:{width,height:1000},colorScheme:scheme});
-        const errors=[], commands=[];
-        let serverStatus=status(), injecting=false;
-        const heldPolls=[];
+        const errors=[], commands=[], testRequests=[];
+        let serverStatus=status(), injecting=false, onHeldPoll=null;
+        const heldPolls=[],ownedWork=[];
+        function own(work){ownedWork.push(work);work.catch(()=>{});return work;}
+        try {
         page.on('pageerror',e=>errors.push(e.message));
         await page.addInitScript(()=>{
           // Fixture I/O: real rendered app and controllers, no external sockets.
@@ -41,9 +51,14 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         });
         await page.route('http://panel.test/**',async route=>{
           const url=new URL(route.request().url());
+          if (/^\/api\/(?:eval(?:\/|$)|groundtest(?:\/|$)|stuetest(?:\/|$)|acceptance$)/.test(url.pathname))
+            testRequests.push({method:route.request().method(),path:url.pathname});
           if (url.pathname==='/') return route.fulfill({contentType:'text/html',body:source});
           let json={ok:true,status:'idle'};
-          if (url.pathname==='/api/status') { if(injecting)await new Promise(resolve=>heldPolls.push(resolve)); json=JSON.parse(JSON.stringify(serverStatus)); json.rooms.forEach(r=>{if(r.live_status)r.live_status.observed_at=Date.now()/1000;}); }
+          if (url.pathname==='/api/status') { if(injecting)await new Promise(resolve=>{
+            heldPolls.push(resolve);
+            if(onHeldPoll){const notify=onHeldPoll;onHeldPoll=null;notify();}
+          }); json=JSON.parse(JSON.stringify(serverStatus)); json.rooms.forEach(r=>{if(r.live_status)r.live_status.observed_at=Date.now()/1000;}); }
           if (url.pathname==='/api/settings') json=settings;
           if (url.pathname==='/api/models') json={models:[],voices:[],default:null};
           if (url.pathname==='/api/control') commands.push(route.request().postDataJSON());
@@ -62,6 +77,11 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         assert.equal(await page.locator('#pane-home details').count(),0,'daily use has no tutorial/diagnostic disclosures');
         assert.doesNotMatch(await page.locator('#pane-home').innerText(),/Styring:|Ro:|Streamstart|Sådan|LED/);
         assert.equal(await page.locator('#wake-example').count(),0);
+        for(const id of ['eval_live','eval_audio_idle','eval_protocol_owner','eval_golden','eval_close',
+          'eval_quiet_thanks','eval_device','eval_data','eval_replay','eval_numeric_ab','eval_numeric_preview',
+          'eval_result','g_start','g_test','g_actions','g_final_actions','g_hint','a_start','a_refresh','stuetest_script','acceptance'])
+          assert.equal(await page.locator('#'+id).count(),0,'conversation test UI removed: '+id);
+
         assert.equal(await page.locator('#s_live_alpha').count(),1,'actual saved preference retained');
         assert.equal(await page.locator('.primary-controls button').count(),2);
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),false);
@@ -131,7 +151,7 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         await page.evaluate(()=>{liveStatusWatermarks={};applyStatus({...lastStatus,rooms:[{...rooms['Køkken'],room:'R0',live_status:{...rooms['Køkken'].live_status,observed_at:Date.now()/1000,phase:'IDLE',wake_readiness:'recovered'}}]});});
         serverStatus=await page.evaluate(()=>lastStatus);
         assert.equal(await page.locator('#rooms .rname').innerText(),'Voice PE');
-        assert.equal(await page.locator('#pane-home .live-title').innerText(),'Vækkeord ikke bekræftet');
+        assert.equal(await page.locator('#pane-home .live-title').innerText(),'Vækning ikke bekræftet');
         assert.match(await page.locator('#rooms').innerText(),/Prøv dit vækkeord/);
         await clickControl('Start samtale i Voice PE');
         await clickControl('Stop i Voice PE');
@@ -152,17 +172,42 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         await page.evaluate(()=>{const rm=rooms.R0;applyStatus({...lastStatus,rooms:[{...rm,live_status:{...rm.live_status,observed_at:Date.now()/1000,wake_readiness:'proven'}}]});});
         serverStatus=await page.evaluate(()=>lastStatus);
         assert.equal(await page.locator('#pane-home .live-title').innerText(),'Klar');
+        for(const fixture of [
+          {word:'hey_chat_hey_jarvis',wake:'recovered',service:'degraded',title:'Vækning ikke bekræftet',wordLabel:'Ordvalg bekræftet af enheden: Hey Chat + Hey Jarvis',reason:'Wake-motoren afprøves'},
+          {word:null,wake:'proven',service:'up',title:'Klar',wordLabel:'Kan ikke bekræfte vækkeord',reason:'Wakeword blev fysisk registreret'},
+          {word:'hey_chat_hey_jarvis',wake:'proven',service:'degraded',title:'Klar',wordLabel:'Ordvalg bekræftet af enheden: Hey Chat + Hey Jarvis',reason:'Firmwarekontrakten mangler: fixture-contract'}
+        ]) {
+          await page.evaluate(f=>{const rm=rooms.R0;applyStatus({...lastStatus,
+            services:{...lastStatus.services,voicepe:f.service},
+            service_details:{...lastStatus.service_details,voicepe:{reason:f.reason,source:'fixture owner'}},
+            rooms:[{...rm,wake_word_confirmed:f.word,live_status:{...rm.live_status,observed_at:Date.now()/1000,wake_readiness:f.wake}}]});},fixture);
+          serverStatus=await page.evaluate(()=>lastStatus);
+          assert.equal(await page.locator('#pane-home .live-title').innerText(),fixture.title);
+          assert.ok((await page.locator('#s_wake_word_status').textContent()).includes(fixture.wordLabel));
+          const badge=page.locator('#svc span').filter({hasText:'Voice PE:'});
+          assert.equal(await badge.innerText(),'Voice PE: '+(fixture.service==='up'?'wake-klar':'ikke verificeret'));
+          assert.ok((await badge.getAttribute('title')).includes(fixture.reason),'original owner reason retained');
+          assert.equal(await page.evaluate(()=>rooms.R0.wake_word_confirmed),fixture.word,'projection never changes device ACK');
+          assert.equal(await page.evaluate(()=>rooms.R0.live_status.wake_readiness),fixture.wake,'projection never changes physical readiness');
+        }
         await page.evaluate(d=>{liveStatusWatermarks={};applyStatus(d);},status());
         serverStatus=await page.evaluate(()=>lastStatus);
         assert.equal(await page.locator('#rooms .rname').innerText(),'Køkken','configured friendly name is preserved');
-        injecting=false; heldPolls.splice(0).forEach(resolve=>resolve());
-
+        // A deliberate outstanding poll proves the fixture barrier, rather than
+        // relying on whether the real three-second poll happened to fire.
+        const deliberateHeld=new Promise(resolve=>onHeldPoll=resolve);
+        const deliberatePoll=own(page.evaluate(()=>poll()));
+        await bounded(deliberateHeld,'deliberate poll entered');
+        assert.ok(heldPolls.length>0,'actual poll is held before diagnostic injection');
         await page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:true,services:{...lastStatus.services,openai:'degraded'}}));
         serverStatus=await page.evaluate(()=>lastStatus);
         assert.match(await page.locator('#svc').innerText(),/midlertidigt låst/);
         assert.match(await page.locator('#svc span').first().getAttribute('title'),/Sikker systemtest/);
         await page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:false,services:{...lastStatus.services,openai:'up'}}));
         serverStatus=await page.evaluate(()=>lastStatus);
+        injecting=false; heldPolls.splice(0).forEach(resolve=>resolve());
+        await bounded(deliberatePoll,'deliberate poll final-state delivery');
+        assert.equal(await page.evaluate(()=>lastStatus.diagnostic_active),false,'held poll delivered the final owner state');
         await page.locator('#tab-test').click();
         assert.equal(await page.locator('#tab-test').innerText(),'Diagnose');
         await page.locator('.room-diagnostics > summary').focus();
@@ -233,12 +278,39 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         const zoomOverflow=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,out:Array.from(document.querySelectorAll('body *')).filter(e=>e.getClientRects().length && e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right}))}));
         assert.ok(zoomOverflow.scroll<=zoomOverflow.width,`200% overflow ${width}/${scheme}: ${JSON.stringify(zoomOverflow)}`);
         if(proof)await page.screenshot({path:path.join(proof,`home-${width}-${scheme}-zoom200.png`),fullPage:true});
+        assert.deepEqual(testRequests,[],`no hidden conversation-test fetches ${width}/${scheme}`);
         assert.deepEqual(errors,[],`page errors ${width}/${scheme}`);
+        // Re-run the shipped initializers after real navigation, then observe
+        // the next normal three-second status poll without advancing its clock.
+        serverStatus=status();
+        const reloadInitializers=['/api/status','/api/audio-trace','/api/settings'].map(endpoint=>
+          own(page.waitForResponse(r=>new URL(r.url()).pathname===endpoint && r.request().method()==='GET')));
+        await page.reload();
+        await bounded(Promise.all(reloadInitializers),'full-HTML reload initializers');
+        await page.waitForFunction(()=>document.querySelector('#pane-home .live-title')?.textContent==='Lytter' &&
+          document.getElementById('s_save')?.disabled===false);
+        const normalReloadPoll=own(page.waitForResponse(r=>new URL(r.url()).pathname==='/api/status'));
+        await bounded(normalReloadPoll,'normal status poll after reload');
+        assert.equal(await page.locator('#tab-home').getAttribute('aria-selected'),'true');
+        assert.equal(await page.locator('#trace_arm').count(),1,'passive audio evidence initializer retained');
+        assert.equal(await page.locator('#s_save').isEnabled(),true,'saved settings loaded after reload');
+        assert.deepEqual(testRequests,[],`no resumed conversation-test fetches ${width}/${scheme}`);
+        assert.deepEqual(errors,[],`page errors after reload ${width}/${scheme}`);
         reports.push({width,scheme,overflow:false,zoom200Overflow:false,focus:'preserved',commands:'unchanged',unchangedStatusAnnouncements:changes,contrast});
-        await page.close();
+        } finally {
+          injecting=false;onHeldPoll=null;
+          heldPolls.splice(0).forEach(resolve=>resolve());
+          // Closing the page cancels outstanding browser navigation/evaluation;
+          // join their original promises before another fixture owner starts.
+          try { await bounded(Promise.allSettled(ownedWork),'daily owned-work release join'); }
+          finally {
+            await bounded(page.close(),'daily page cleanup');
+            await bounded(Promise.allSettled(ownedWork),'daily owned-work canceled join');
+          }
+        }
       }
     }
     if(proof)fs.writeFileSync(path.join(proof,'browser-report.json'),JSON.stringify({evidence:'Chromium with synthetic API fixtures; no live HA, provider, VoiceOver or physical Voice PE',results:reports},null,2));
     console.log(JSON.stringify({pass:true,evidence:'Shipped HTML + Chromium + synthetic API fixtures',results:reports},null,2));
-  } finally {await browser.close();}
+  } finally {await bounded(browser.close(),'daily browser cleanup');}
 })().catch(e=>{console.error(e);process.exitCode=1;});

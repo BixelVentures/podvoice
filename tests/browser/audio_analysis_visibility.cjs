@@ -5,7 +5,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const source = fs.readFileSync(path.join(__dirname, '../../podvoice/gatekeeper/static/index.html'), 'utf8');
 const css = source.match(/<style>([\s\S]*?)<\/style>/)[1];
-const markup = source.match(/<button id="trace_arm"[\s\S]*?<div id="trace_analysis"[^>]*><\/div>/)[0] + source.match(/<div id="eval_numeric_preview"[^>]*>[\s\S]*?<\/div>/)[0];
+const markup = source.match(/<button id="trace_arm"[\s\S]*?<div id="trace_analysis"[^>]*><\/div>/)[0];
 const controller = source.match(/\/\/ ---- Local conversation diagnostics and explicit manual capture ----([\s\S]*?)<\/script>/)[1];
 (async () => {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PODVOICE_TEST_CHROMIUM });
@@ -63,7 +63,6 @@ const controller = source.match(/\/\/ ---- Local conversation diagnostics and ex
       assert.equal(await page.locator('#trace_analyse').isDisabled(), true);
       assert.equal(await page.locator('a[href="api/audio-trace/auto-p0001/wake_reference"]').count(), 1);
       assert.equal(await page.locator('a[href="api/audio-trace/auto-p0000/device"]').count(), 1);
-      assert.ok((await page.locator('#eval_numeric_preview').textContent()).includes('komplet manuel optagelse'));
       assert.deepEqual(errors, []);
       await page.close();
     }

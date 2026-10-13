@@ -206,11 +206,13 @@ async def test_real_collector_records_each_usage_once_before_next_response(dupli
     assert budget.cost_usd == pytest.approx(0.0004)
 
 
-def test_panel_has_explicit_nonphysical_profile_and_no_activation_claim():
+def test_panel_has_no_device_eval_trigger_or_simulated_activation_claim():
     source = (ev.pathlib.Path(ev.__file__).parent / "static" / "index.html").read_text()
-    assert 'startLiveEval(["device-control"], 1)' in source
-    assert "Test Roborock — simuleret robot" in source
-    assert "Ingen HA-handlinger sendt, ingen aktivering" in source
+    assert 'id="eval_device"' not in source
+    assert 'getElementById("eval_device")' not in source
+    assert 'startLiveEval(["device-control"]' not in source
+    assert "Test Roborock — simuleret robot" not in source
+    assert "Ingen HA-handlinger sendt, ingen aktivering" not in source
 
 
 async def test_middle_settings_can_commute_without_reordering_mode_or_start():
