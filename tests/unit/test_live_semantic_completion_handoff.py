@@ -312,3 +312,228 @@ def test_listener_contract_with_in_memory_server_only(monkeypatch, capsys, scena
     output = capsys.readouterr().out
     assert "synthetic-only-not-a-real-secret" not in output
     assert '"expires_s": 30' in output
+
+
+@pytest.fixture
+def prepared_operator():
+    """Existing operator only; fake receiver/control/provider, no network/listener."""
+    path = Path(__file__).resolve().parents[2] / "scripts/live_short_primary_operator.py"
+    spec = importlib.util.spec_from_file_location("prepared_operator", path)
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+
+def test_prepared_late_key_before_stop_cannot_consume_actual_pause(prepared_operator, monkeypatch):
+    op = prepared_operator
+    monkeypatch.setattr(op.secrets, "token_urlsafe", lambda _: "current")
+    clock = iter((100.0, 150.0))
+    emitted = []
+
+    def control(fd, deadline):
+        assert emitted[0]["provider_started"] is False and deadline == 220.0
+        return {
+            "phase": "ha_stopped",
+            "start_nonce": "current",
+            "pause_started_monotonic": 145.0,
+            "stopped_confirmed": True,
+        }
+
+    assert op.await_stopped_start(
+        now=lambda: next(clock),
+        receive=control,
+        emit=lambda value, **_: emitted.append(json.loads(value)),
+        fd=3,
+    ) == (145.0, 265.0)
+    assert op.PAUSE_LIMIT_S == 180 and op.RESTORE_RESERVE_S == 60
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"phase": "key_admitted"},
+        {"stopped_confirmed": False},
+        {"start_nonce": "old"},
+        {"pause_started_monotonic": 99.0},
+        {"pause_started_monotonic": 106.0},
+        {"pause_started_monotonic": float("nan")},
+        {"pause_started_monotonic": True},
+        {"extra": 1},
+    ],
+)
+def test_prepared_wrong_phase_stale_future_or_unconfirmed_gate(
+    prepared_operator, monkeypatch, changed
+):
+    op = prepared_operator
+    monkeypatch.setattr(op.secrets, "token_urlsafe", lambda _: "current")
+    clock = iter((100.0, 105.0))
+    control = {
+        "phase": "ha_stopped",
+        "start_nonce": "current",
+        "pause_started_monotonic": 102.0,
+        "stopped_confirmed": True,
+    }
+    with pytest.raises(ValueError):
+        op.await_stopped_start(
+            now=lambda: next(clock),
+            receive=lambda *_: control | changed,
+            emit=lambda *_, **__: None,
+            fd=3,
+        )
+
+
+def test_prepared_old_generation_cannot_start_next_generation(prepared_operator, monkeypatch):
+    op = prepared_operator
+    nonces = iter(("first", "next"))
+    monkeypatch.setattr(op.secrets, "token_urlsafe", lambda _: next(nonces))
+    control = {
+        "phase": "ha_stopped",
+        "start_nonce": "first",
+        "pause_started_monotonic": 102.0,
+        "stopped_confirmed": True,
+    }
+    clock = iter((100.0, 105.0))
+    assert op.await_stopped_start(
+        now=lambda: next(clock), receive=lambda *_: control, emit=lambda *_, **__: None, fd=3
+    ) == (102.0, 222.0)
+    clock = iter((106.0, 110.0))
+    with pytest.raises(ValueError):
+        op.await_stopped_start(
+            now=lambda: next(clock), receive=lambda *_: control, emit=lambda *_, **__: None, fd=3
+        )
+
+
+@pytest.mark.parametrize(
+    "payload", [b"", b"{}\n{}\n", b'{"phase":1,"phase":2}\n', b"not-json\n", b"x" * 4097]
+)
+def test_prepared_single_control_rejects_duplicate_eof_and_malformed(prepared_operator, payload):
+    with pytest.raises(ValueError):
+        prepared_operator.receive_start_control(
+            3, 120.0, now=lambda: 100.0, wait=lambda *args: ([3], [], []), read=lambda *_: payload
+        )
+
+
+def test_prepared_expiry_does_not_read(prepared_operator):
+    def forbidden(*_):
+        raise AssertionError("expired gate attempted read")
+
+    with pytest.raises(ValueError, match="expired"):
+        prepared_operator.receive_start_control(3, 120.0, now=lambda: 120.0, read=forbidden)
+
+
+@pytest.mark.parametrize("result", ["cancel", "expiry", "valid", "provider-cancel", "fail"])
+def test_prepared_actual_main_provider_boundary_and_cancellation_cleanup(
+    prepared_operator, monkeypatch, tmp_path, capsys, result
+):
+    op = prepared_operator
+    output = tmp_path / "result"
+    calls = []
+    h = SimpleNamespace(
+        verify_sources=lambda _: None,
+        receive_key=lambda: calls.append("key-in-RAM") or "fake-key",
+        CHILD_TIMEOUT_S=70,
+    )
+
+    def run(*_):
+        calls.append("provider-fake")
+        if result == "provider-cancel":
+            raise op.OperatorCancelled()
+        if result == "fail":
+            return 2, [{"report": "fake-report", "safe_to_continue": True}]
+        return 3, []
+
+    h.run_batch = run
+
+    class Loader:
+        def create_module(self, _):
+            return h
+
+        def exec_module(self, _):
+            pass
+
+    monkeypatch.setattr(
+        op.importlib.util,
+        "spec_from_file_location",
+        lambda *args: importlib.util.spec_from_loader("fake", Loader()),
+    )
+    monkeypatch.setattr(op, "digest", lambda *args: "pin")
+    pins = {
+        "handoff_path": "fake.py",
+        "files": {"fake.py": "pin"},
+        "roots": {"candidate": "fake-source", "baseline": "fake-source"},
+        "source_fingerprints": {"candidate": "pin"},
+        "manifest_sha256": "pin",
+        "fixtures": "fake-fixtures",
+        "expected_startup": {"candidate": "fake-startup"},
+    }
+    pinpath = tmp_path / "pins.json"
+    pinpath.write_text(json.dumps(pins))
+    monkeypatch.setattr(op, "verify", lambda *_: calls.append("sources-verified"))
+    monkeypatch.setattr(op, "verify_retained_baseline", lambda *_: None)
+    monkeypatch.setattr(op, "report_identity", lambda *_: None)
+    signals = []
+    monkeypatch.setattr(op.signal, "signal", lambda *args: signals.append(args) or None)
+    monkeypatch.setattr(op.signal, "setitimer", lambda *args: None)
+
+    def gate():
+        assert calls == ["sources-verified", "key-in-RAM"] and not output.exists()
+        if result == "cancel":
+            raise op.OperatorCancelled()
+        if result == "expiry":
+            raise ValueError("start_control_expired")
+        calls.append("actual-root-stop-confirmed")
+        return op.time.monotonic(), op.time.monotonic() + 120
+
+    monkeypatch.setattr(op, "await_stopped_start", gate)
+    monkeypatch.setattr(
+        op.sys,
+        "argv",
+        [
+            "runner",
+            "--pins",
+            str(pinpath),
+            "--pins-sha256",
+            "pin",
+            "--exclusive-provider-window",
+            "--output",
+            str(output),
+            "--new-180s-pause-approved",
+        ],
+    )
+    final_key = []
+
+    def profile(frame, event, _):
+        if frame.f_code is op.main.__code__ and event == "return":
+            final_key.append(frame.f_locals.get("key", "not-cleared"))
+
+    previous_profile = op.sys.getprofile()
+    op.sys.setprofile(profile)
+    try:
+        assert op.main() == 3
+    finally:
+        op.sys.setprofile(previous_profile)
+    crossed = result in {"valid", "provider-cancel", "fail"}
+    assert ("provider-fake" in calls) is crossed
+    assert calls.count("provider-fake") <= 1  # First failed/unknown case never starts next case.
+    assert output.exists() is crossed
+    assert final_key == [None]
+    assert "fake-key" not in capsys.readouterr().out and len(signals) >= 4
+
+
+@pytest.mark.parametrize("current, started", [(220.0, 102.0), (175.0, 102.0)])
+def test_prepared_expired_start_or_insufficient_child_window_is_rejected(
+    prepared_operator, monkeypatch, current, started
+):
+    op = prepared_operator
+    monkeypatch.setattr(op.secrets, "token_urlsafe", lambda _: "current")
+    clock = iter((100.0, current))
+    control = {
+        "phase": "ha_stopped",
+        "start_nonce": "current",
+        "pause_started_monotonic": started,
+        "stopped_confirmed": True,
+    }
+    with pytest.raises(ValueError):
+        op.await_stopped_start(
+            now=lambda: next(clock), receive=lambda *_: control, emit=lambda *_, **__: None, fd=3
+        )
