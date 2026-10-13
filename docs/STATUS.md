@@ -17636,9 +17636,9 @@ PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher3
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "912937d49eefea01cb004c0150230422dd89b67dd129f473187398dbdf680602",
+  "fingerprint": "9dcc1983311402167fbb70d7dcd1487cacb2fb1d2ebcc851d8cd3ca98278b373",
   "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
-  "rationale": "Independent SOURCE GO primary747e2200/recorder82bc093c/assessorc17f71eb/patch7cc7378a/staticbe193807. Only two prospectiveprimary policy clauses, one recorder pcm_all_zero field, and stricter developerassess functional+mapped appreceipt proof boundaries changed; all61other sourcebytes unchanged. No runtime/Schema/model/tool/mechanics/audio change. Completed/current boundEND+matching settlement and ordered natural modelclose/teardown/rearm required; fullfunction with earlytext or missing/nonzero/LSB prefix UNKNOWN for documented externalaudio+semanticreview, no automaticword/phraseclassifier or physicalproof. Silenttrue andpurethanks additionally require mappedzero postfixture; knownspeechchosenpolicyFAIL; ordinarynegative answerguards unchanged. Tests whole233 bind to 60c8dc80ded0ad898041584bf210ecebde99fe18768ea0dbdbba77d868b0c4ec; externaltests/eval/fixtures da2a8eb8434b467e0a69f2e9a5e3016699dbd822306b38485b658ab7d4cafd7d, independently reviewed separately because genericV1 does not verify externalhashes. Actualstartup bb8e37f9 reuses oneprimaryexportconfig6995/primaryedf1/backendaf00/tools74aa with only revieweddiagnostic sourcepin updates. Samefixtures and old103strictFAIL/409noDFAIL/411UNKNOWN/naturalclosingFAIL remainunregraded; currentfunctional evidence is synthetic only. Sameprofile/main4a/three domains. Finalpacketreview precedes one scope/check-only; no greenchecks/export/provider/key/HA/push replayed.",
+  "rationale": "IndependentSOURCEGOd74bbeca/d51678e6/staticreceipt aa3c7297 and root exactpatchGO: ONLYtwo newBackchannel receipt-example lines distinguish reception from closingaction beforecompleted/currentacceptedEND. Removingthem restores747fullmodule; all63other sourcebytes/testfiles/c17assess/82bcrecorder/pacing/schema/models/mechanics unchanged. Context ispendingdelegation; ordinarydirectanswers/validatedpostacceptedresults andsilenttrue unchanged; no localphraseclassifier/audiofilter/forcedEND. Whole233tests 60c8dc80ded0ad898041584bf210ecebde99fe18768ea0dbdbba77d868b0c4ec and externaltests/eval/Afslutfixtures da2a8eb8434b467e0a69f2e9a5e3016699dbd822306b38485b658ab7d4cafd7d unchanged andindependentlybound outsidegenericV1. ONEactualofflineexport4df0429b changesONLYprimary70a7/configf74b/live_promptsourcepin; backendprojectaf00/tools74aa/Sol/context preserved, fullserverwrapper mayreferencechangedprimary. AllpriorstrictFAIL/rawUNKNOWN/manualactionFAIL/originalnaturalmanualcompatibility/purethankscutoffUNKNOWN retained unregraded; syntheticfunctiondoesnotimplyphysicalaccept. SamegenericV1/main4a/three domains. Max1explicitAfslut ONLY underexisting180/120/60 freshownTTYrestore; newearlyactionclaim falsifieslastnarrowhypothesis, no automaticpromptstrengthening. FreshPINreview precedesonefinalmechanicalscope/check-only; no green18tests/export/provider/key/HA/push replay.",
   "reviewer": "sol_input_review",
   "version": 1
 }
@@ -17967,3 +17967,49 @@ Leadroot. Stærkestedirekteprovidertrace viser nu, at sammeprimary kan kvittere 
 Falsificerbarenkelhypotese: et konkret modtagelse-versus-handling-eksempel i eksisterendeprimaryBackchannelblock kan afgrænse det observerede fejlagtige kvitteringsvalg bedre end det abstraktebegreb. Mindsteprivatproduktændring er højstto tilføjede linjer: kvitter kun for modtagelsen, fx“Modtaget”; annoncer ikke afslutningshandlingen førcompleted/currentaccepteretEND. Resten afprimaryinklusivecapbullet, backend/Sol, tools/schema, Thin/native/Talk, firmware/mic/playback, gain/VAD/timeouts er byteidentiske. Ingenlokalfraseclassifier, muting, ekstra model, forcedEND, feedbacklyd ellersemantiskruntimeguard. Heleinput→primaryD/tale→completed/bound/currenttoolresult→matchingcontinuation→originalaudio→énclose/rearm→nywake samtstale/lateinput/cancel påbeggeI/O er bevaret; invarianter3/4/5/9/12/13/15. Prompten giver eksempel, appen må ikke strcmpfortolke det.
 
 Existingprompt/wirekontrakter ogformatter/lint, uafhængigtsource/adversarialreview, updatedexactbinding/startup og én boundedexplicitcase før nogenrelease. Nyearlyactionclaim/mistetD/END/inputforståelse afkræfter dennehypotese; ikkeautomatiskflere quietpromptforsøg. Naturligclosing/purethanks og tidligerefejl bevares somfelteregressioner, ingenarvetfysiskaccept. Rollbackkun de nye eksempel-linjer. Ståendehuman180/120/60prøvegodkendelse gælder uden gentagetspørgsmål. KandidatIKKE TESTKLAR; målACTIVE.
+
+
+Samme aktive14/10 kvitteringseksempel — faktisk sourcedraft/sourceGO.
+Privatproductd74bbeca/patchd51678e6 tilføjer præcis to Backchannel-linjer:
+“Kvitter kun for modtagelsen, fx ‘Modtaget’” og ingen annonceretafslutningshandling
+førcompleted og aktuelt accepteretend_conversation. Fjerneslinjerne, er hele747-
+modulet byteidentisk. Det er modellens eksempel i pending-delegationskontekst,
+ikke et lokaltfrasefilter eller ændring af direkte svar/alleredeaccepterederesultater.
+Alle63andre kildefiler, inklusivec17assessor/82bcrecorder, tests, mekanik, backend,
+tools/schema/Sol, fysiskI/O/firmware/gain/VAD/timeouts og pacing er uændrede.
+
+17 eksisterende promptkontrakter og én productionThin-config ved fakeSDK-start uden
+HA-domæner består; dette er ikke networkACK eller fysiskproof. Formatter/lintPASS.
+Én faktiskofflineThinexport4df0429b ændrer kunprimary70a7ca4a/configf74b71c9 og
+live_prompt-sourcepin; backendprojektionaf00/tools74aa/modelSol og tydeligAfslut-
+fixturecontext er uændrede. Wrapperen kan referere den ændredeprimary; ingenpåstand
+om fuldeserverinstructionsbyteidentitet. Uafhængigtsol_input_review adversarial
+SOURCEGO og rootens egetexactpatchreadbackGO er modtaget påd74/d516. Ingen ny
+unitmirrorassertion eller grøn-test/exportreplay er udført.
+
+Én sidsteprospektiv explicit-Afslut-case alene kræver updatedexistingV1/tree/pins
+og friskpakkereview/check-only før samme max1/stopfirstFAILUNKNOWN/18012060prøve.
+Natural“Ja, det var så lidt”manualkompatibilitet, purethanksrawUNKNOWN og explicit
+“jeg afslutter nu”manualFAIL forbliver uændredehistoriske resultater. Ny forkert
+handlingsannoncering eller mistetfunktionelEND/input falsificerer dennehypotese;
+intet automatisk næste quietpromptforsøg. Ingen provider/key/HA/push/release eller
+fysiskgate fra sourcedraftet. KandidatIKKE TESTKLAR, målACTIVE; ståendehuman-
+godkendelse til sammeboundedprøve gælder.
+
+
+14/10 faktiskkvitteringseksempel dbb05/sourcef4bd11ed/prod9dcc1983: serverkonfigureretprimary70a7/configf74b, fuldtmathinput ogkorrekt “Det er fire.”, fuldt “Afslut samtalen”input6, fixturestart8.843/slut10.211 ogsidsteord11.120. IngenD/backendresponse/END/WAIT/currentsettlement/naturliglukning før45.007observationdeadline; rawFAIL/runtimefaults0/usage/audio/cleanupkomplet. Det konkrete2linjeeksempel er derfor IKKE tilstrækkeligt tilfunktionelafslutning, uanset om det fjerner tidlig kvittering. Uafhængigactualwire/PCM-audit fortsætter udennyproviderprøve; dette er intetbevis for firmwareidle/Solklassifikationsfejl, da ingen backendopgave blev startet.
+
+RestoreOwner verificerede faktiskHA21Kører79.174s efterførStop, egenTTY54045terminal3 ogstraksStart, key27null/form607closed/configmasked. Ingenrelease/installation/fysiskgate. KandidatIKKE TESTKLAR; målACTIVE. Lead stopperher nye stilheds-/kvitteringspromptjusteringer og blindretry; tilstrækkelighedshypotesen erafkræftet, best-function747 ogd74failingbits/rapporter bevares.
+
+Leadnyårsagsgrænse er protokol versus I/O: read-onlyofficielLive/SDKaudit afsupporteddelegations-/backendkontrol, og read-onlynative/Talk/SyntheticCaptureaudit afautoritativeinput-end/mic-/capture-events før/efterfuldtinput. Undersøgelserne skal skelne dokumenteredeAPI-muligheder fraarkitekturforslag og bevaresom særskiltdirekteevidens. Ingenarkitektur-/clientmode-/klassifikations-/timeout-/VAD-/gain-/runtimepatch, lokalehensigtsfraser, forcedEND eller andenmotor er autoriseret af denneaudit. GPT-Live/Thin/VoicePELink ogmodellen somsemantiskejer bevares. Ingenmoving-forwardpånyt symptom ellerrelease førden samledekausalkæde eropdateret ognululøstealvorligereviewfindings; original747natural-close/manualackcompatibilitet ogpurethanksnegativeobservation arvesikke tild74. Målet fortsatheleVoicePE til dagligbrug, ikke kun passingclosingcase.
+
+
+14/10 uafhængigdbb05actualauditc8569285: actualstartup4df erexakt, serverprimary70a7/backendaf00/tools74aa bekræftet, ingenobservedinstructionupdate/cancel/providerfejl/generationsskift. Alle403precleanupdecoded/SDKchunks binder1934400bytes;349postclosingchunks8.853–44.979/byte259200–1934400 erexactzero. Sol/ENDklassifikation forbliveruafprøvet udenbackendopgave. RawFAIL e99d1915bevares. Read-onlynativeaudit fandtingenfirmware-EOSkommando, somharnessmangler: Livebrugerappend-løbendelyd, UserSpeechStopped erseparatRealtimevej; firmwareVAD/consumption feeds lokalidle/drain, ikkemodeldelegation. Talksideband skaberikkeekstraPCM. IngenlostdownstreamD fundet; providerens interneakustisketur/intent erukendt. Mute/unmute-ACK eringen dokumenteretturncommit; ingenmuting/EOSpatch.
+
+Read-onlyupstreamcapabilityauditb98d62a0 fandten faktiskeksisterendeAPI: primary/sideband response.create(event_id) kanSTARTEmangedbackendresponse ellerfortsætte eksisterendearbejde iResponsesmode. SDK3.13acceptkun event_id, ingenforcedEND/tool/inputknob. PodVoicebruger alleredecommandoen vedtypedinput via send_text→_continue_backend; providerinput-ACK ervistunavailable. Clientmode løserikkeselvnoD ogvilleændrekontekst/workflow; ingen sådan skift. Officielreference/guide ogSDKkilder erlæst, ikkerågaæt. Dokumentation definererikkenøjagtigtspokencontextsnapshot/autoritativedfærdigt-inputtur, ogclient_event_id/delegation_id kanværeoptional. Derfor understøtteskunkommandomuligheden, ikkefærdigproduktionsmekanik.
+
+### 14/10 — afgrænset managed-backend-start discriminator, ingen produkttrigger
+
+Leadroot. Falsificerbarprivatdiagnostikhypotese: påsammed74source/config ogfuldtkendtsyntetiskAfslut-input kan én eksisterendeSDKresponse.create meduniktevent_id starte en faktiskmanaged Solbeslutning, nåringenautomatiskD erobserveret. Sammebackendtoolauto bestemmerEND/WAIT/resultat; ingenENDtvang, ekstrauseritem, transcript-resend, promptændring, clientmode, ekstraengine ellerlokalproduktionshensigtsklassifikation. Helekendtefixture/transcript→request→providercreated/clientcorrelation→completed/currentbatch→toolresult/continuation→originalPCM→teardown/rearmkæde skalobserveres. Appstarterkunprøvearbejdet påkendtfixture; en sådan testbetingelse erikke en autoriseretturntrigger forreelleVoicePE/Talk-ture.
+
+Tilladmindste privateharnessdraft medén outboundcreate påden eksisterendeLiveconnection/sammesendlock efterden bevistkendte komplettefixture/input, kunhvisingenbackend/inflight/batch/teardown/newgeneration. Ingenprivateadapterflagfabrikation ellerændring afproduct/receipt/dispatch/oracle. HvisautomaticD races, exactevent/input/generationcorrelation mangler, inputændres ellercontextsnapshot erukendt, erresultatetUNKNOWN ogingenproduktaccept. Enlæsendemetadata-plan kan foreslås forsammesyntetiskeproviderresponse; ingenekstrainference elleruserroomdata. Budget/typedusage/invariant15 forden eneekstracommand ogmuligautoDrace skaladversarial-audites FØRnogenprovideradmission; unknownheadroom udløsernulrequest, ikkerundtoscriptguard. Max1case/stopfirstFAILUNKNOWN ogsamme18012060RestoreOwner/key-grænser gælder. Produktkode erikkeautoriseret afforsøget. Static/mindsteharnessregression/eksaktstartup-source-fixturebinding oguafhængigtreviewførfaktiskprøve; ingenoldgreen/exportreplaypåurørtsource. Rollback kunprivatharnessdelta. Backendstartevne ellerénkorrektEND beviserikkefysiskinputboundary/stability ellerløstfrontendtale. MålACTIVE/kandidatIKKE TESTKLAR.

@@ -67,6 +67,8 @@ resultat, farvel og påstand om lukning kræver et completed, valideret resultat
 og aktuel accept. En neutral modtagelseskvittering er ikke et meningsfuldt svar
 på opgaven. Giv fortsat sikre, meningsfulde direkte svar, opklaringer og dialog
 uden delegation.
+Kvitter kun for modtagelsen, fx “Modtaget”.
+Annoncér ikke afslutningshandlingen før completed og aktuelt accepteret end_conversation.
 
 Interruption policy:
 En anmodning om at stoppe din tale betyder ti og lyt videre i samme
