@@ -555,15 +555,144 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             [r for r in rows if r["seq"] < starts[1]["seq"]], starts[0]["seq"], ("fire", "4")
         )
     )
+    functional_chain_observed = False
+    if len(accepted) == len(ends) == len(settlements) == len(natural) == 1:
+        settlement, ending = settlements[0], natural[0]
+        lifecycle = [
+            e
+            for e in ending["timeline"]
+            if e["event"]
+            in (
+                "live_terminal_backend_settled",
+                "close_requested",
+                "teardown_complete",
+                "wake_rearm_recovered",
+            )
+        ]
+        follow_done = next(
+            (r for r in rows if r["seq"] == settlement.get("backend_completion_seq")), None
+        )
+        if (
+            [e["event"] for e in lifecycle]
+            == [
+                "live_terminal_backend_settled",
+                "close_requested",
+                "teardown_complete",
+                "wake_rearm_recovered",
+            ]
+            and follow_done is not None
+            and lifecycle[0]["seq"] == settlement.get("source_marker_seq")
+            and lifecycle[1].get("reason") == "model-close"
+            and isinstance(lifecycle[1].get("close_id"), str)
+            and lifecycle[1]["close_id"]
+            and all(e.get("close_id") == lifecycle[1]["close_id"] for e in lifecycle[1:])
+            and all(e.get("session_id") == settlement.get("session_id") for e in lifecycle)
+            and all(e.get("provider_generation") == 1 for e in lifecycle)
+            and all(
+                b["seq"] > a["seq"] and b["at_ms"] >= a["at_ms"] for a, b in pairwise(lifecycle)
+            )
+            and ending["seq"] > settlement["seq"]
+        ):
+            checked = terminal_observation(
+                rows,
+                lifecycle[0],
+                dict(
+                    **{
+                        k: settlement.get(k)
+                        for k in ("generation", "input_index", "response_id", "delegation_id")
+                    },
+                    continuation_id=follow_done.get("response_id"),
+                    current=settlement.get("receipt_current"),
+                ),
+                session_id=settlement.get("session_id"),
+                generation=1,
+                input_index=inputs[-1]["input_index"] if inputs else None,
+            )
+            functional_chain_observed = checked is not None and all(
+                settlement.get(k) == v for k, v in checked.items()
+            )
+    preaccept_output = bool(
+        accepted
+        and len(starts) > 1
+        and any(starts[1]["seq"] < r["seq"] < accepted[0][2]["seq"] for r in outputs)
+    )
+
+    def mapped_window_all_zero(start, end):
+        # An app-received byte prefix, never physical playback or speech classification.
+        if (
+            any(
+                type(r.get(k)) not in (int, float) or not math.isfinite(r[k])
+                for r in (start, end)
+                for k in ("seq", "elapsed_s")
+            )
+            or start["seq"] >= end["seq"]
+            or start["elapsed_s"] >= end["elapsed_s"]
+        ):
+            return False
+        prefix = [r for r in rows if r["kind"] == "decoded_output_chunk" and r["seq"] < end["seq"]]
+        sdk_count = sum(
+            r["kind"] == "sdk_event"
+            and r.get("protocol_type") == "session.output_audio.delta"
+            and r["seq"] < end["seq"]
+            for r in rows
+        )
+        if not prefix or len(prefix) != sdk_count:
+            return False
+        byte_end, received, origin, eligible = 0, -1, None, []
+        for chunk in prefix:
+            length = chunk.get("byte_length")
+            if (
+                type(chunk.get("generation")) is not int
+                or chunk["generation"] != 1
+                or chunk.get("file") != "provider-output-1.pcm"
+                or type(length) is not int
+                or not 0 < length <= 8_000_000
+                or type(chunk.get("byte_start")) is not int
+                or chunk["byte_start"] != byte_end
+                or type(chunk.get("byte_end")) is not int
+                or chunk["byte_end"] != byte_end + length
+                or chunk["byte_end"] > 8_000_000
+                or type(chunk.get("pcm_all_zero")) is not bool
+                or not isinstance(chunk.get("sha256"), str)
+                or re.fullmatch(r"[0-9a-f]{64}", chunk["sha256"]) is None
+                or any(
+                    type(chunk.get(k)) not in (int, float) or not math.isfinite(chunk[k])
+                    for k in ("received_elapsed_s", "received_monotonic_s", "elapsed_s")
+                )
+                or not received
+                <= chunk["received_elapsed_s"]
+                <= chunk["elapsed_s"]
+                < end["elapsed_s"]
+            ):
+                return False
+            actual_origin = chunk["received_monotonic_s"] - chunk["received_elapsed_s"]
+            if actual_origin < 0 or (origin is not None and abs(actual_origin - origin) > 1e-6):
+                return False
+            byte_end, received, origin = (
+                chunk["byte_end"],
+                chunk["received_elapsed_s"],
+                actual_origin,
+            )
+            if chunk["seq"] > start["seq"]:
+                if received < start["elapsed_s"]:
+                    return False
+                eligible.append(chunk)
+        return bool(eligible) and all(
+            r["pcm_all_zero"] is True and r["sha256"] == rig.digest(bytes(r["byte_length"]))
+            for r in eligible
+        )
+
+    preaccept_zero_proven = bool(
+        accepted and len(starts) > 1 and mapped_window_all_zero(starts[1], accepted[0][2])
+    )
+    quiet_zero_proven = bool(
+        len(starts) > 1 and rows and mapped_window_all_zero(starts[-1], rows[-1])
+    )
     if evidence_complete:
         verdict = "FAIL"
         if case in POSITIVE_CASES:
-            if ends and (
-                len(accepted) + len(rejected) != len(ends) or (accepted and not settlements)
-            ):
-                verdict = "UNKNOWN"
             if (
-                len(accepted) == len(ends) == len(settlements) == 1
+                functional_chain_observed
                 and opening_answered
                 and len(accepted[0][0]["calls"]) == 1
                 and (
@@ -578,13 +707,18 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                 and settlements[0]["receipt_current"] is True
                 and settlements[0]["seq"] > accepted[0][2]["seq"]
                 and not nonsemantic_close
-                and not any(
-                    r["seq"] > starts[1]["seq"]
-                    and (case == "completed-side-address" or r["seq"] < accepted[0][2]["seq"])
-                    for r in outputs
+                and not (
+                    accepted[0][1]["args"].get("silent", False)
+                    and any(r["seq"] > starts[1]["seq"] for r in outputs)
                 )
             ):
-                verdict = "OBSERVED_PASS"
+                verdict = (
+                    "UNKNOWN"
+                    if preaccept_output
+                    or not preaccept_zero_proven
+                    or (accepted[0][1]["args"].get("silent", False) and not quiet_zero_proven)
+                    else "OBSERVED_PASS"
+                )
         elif (
             stayed_open
             and negative_window_complete
@@ -597,7 +731,9 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                 else answer_seen(rows, starts[-1]["seq"], ("seks", "6"))
             )
         ):
-            verdict = "OBSERVED_PASS"
+            verdict = (
+                "UNKNOWN" if case == "pure-thanks" and not quiet_zero_proven else "OBSERVED_PASS"
+            )
         elif stayed_open and not negative_window_complete:
             verdict = "UNKNOWN"
     return dict(
@@ -618,6 +754,10 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         usage_complete=usage_complete,
         verdict_scope="synthetic_semantic_policy_only",
         semantic_review_required=True,
+        functional_chain_observed=functional_chain_observed,
+        preaccept_output_observed=preaccept_output,
+        preaccept_mapped_all_zero=preaccept_zero_proven,
+        quiet_mapped_all_zero=quiet_zero_proven,
         audio_audit_required=True,
         physical_close="UNKNOWN",
         acoustic_addressee="UNKNOWN",

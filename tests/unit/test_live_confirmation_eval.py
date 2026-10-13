@@ -82,8 +82,9 @@ def test_evidence_private_exclusive_and_bounded(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("sample", [b"\0\0", b"\x01\0", b"\x10\0"])
 async def test_decoded_output_receipts_bind_exact_saved_bytes_and_forward_unchanged(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, sample
 ):
     from gatekeeper.openai_live import LiveSessionReady
 
@@ -91,7 +92,7 @@ async def test_decoded_output_receipts_bind_exact_saved_bytes_and_forward_unchan
     live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
     ready = LiveSessionReady("synthetic", 1)
     chunks = [
-        module.LiveAudioChunk(b"\x01\x00\x02\x00", 1),
+        module.LiveAudioChunk(sample * 2, 1),
         module.LiveAudioChunk(b"\x03\x00\x04\x00\x05\x00", 1),
         module.LiveAudioChunk(b"\x06\x00", 2),
         module.LiveAudioChunk(b"\x07\x00\x08\x00", 1),
@@ -121,6 +122,8 @@ async def test_decoded_output_receipts_bind_exact_saved_bytes_and_forward_unchan
             assert recorded_chunk == event.pcm
             assert row["byte_length"] == len(recorded_chunk)
             assert row["sha256"] == module.digest(recorded_chunk)
+            assert type(row["pcm_all_zero"]) is bool
+            assert row["pcm_all_zero"] is (not any(recorded_chunk))
             assert row["received_monotonic_s"] >= evidence.started
             assert row["received_elapsed_s"] == row["received_monotonic_s"] - evidence.started
             assert row["received_elapsed_s"] <= row["elapsed_s"]

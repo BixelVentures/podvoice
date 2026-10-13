@@ -17630,17 +17630,17 @@ PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher3
 
 <!-- candidate-scope-coupling
 {
-  "version": 1,
   "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
-  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
   "domains": [
     "physical_output",
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "36c7d3dd672391b8350b177977ada255cf977cedc1310668f246872543569c1a",
+  "fingerprint": "912937d49eefea01cb004c0150230422dd89b67dd129f473187398dbdf680602",
+  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "rationale": "Independent SOURCE GO primary747e2200/recorder82bc093c/assessorc17f71eb/patch7cc7378a/staticbe193807. Only two prospectiveprimary policy clauses, one recorder pcm_all_zero field, and stricter developerassess functional+mapped appreceipt proof boundaries changed; all61other sourcebytes unchanged. No runtime/Schema/model/tool/mechanics/audio change. Completed/current boundEND+matching settlement and ordered natural modelclose/teardown/rearm required; fullfunction with earlytext or missing/nonzero/LSB prefix UNKNOWN for documented externalaudio+semanticreview, no automaticword/phraseclassifier or physicalproof. Silenttrue andpurethanks additionally require mappedzero postfixture; knownspeechchosenpolicyFAIL; ordinarynegative answerguards unchanged. Tests whole233 bind to 60c8dc80ded0ad898041584bf210ecebde99fe18768ea0dbdbba77d868b0c4ec; externaltests/eval/fixtures da2a8eb8434b467e0a69f2e9a5e3016699dbd822306b38485b658ab7d4cafd7d, independently reviewed separately because genericV1 does not verify externalhashes. Actualstartup bb8e37f9 reuses oneprimaryexportconfig6995/primaryedf1/backendaf00/tools74aa with only revieweddiagnostic sourcepin updates. Samefixtures and old103strictFAIL/409noDFAIL/411UNKNOWN/naturalclosingFAIL remainunregraded; currentfunctional evidence is synthetic only. Sameprofile/main4a/three domains. Finalpacketreview precedes one scope/check-only; no greenchecks/export/provider/key/HA/push replayed.",
   "reviewer": "sol_input_review",
-  "rationale": "Independent SOURCE GO7b7ab156/a4250410/staticreceiptb5c23201: only one truthful primary Backend tools lifecycle-capability bullet added to reviewed frozen PCM/pacing Sol candidate. Application owns actual playback/closure/rearm; END is semantic acceptance, not already closed. Other63source bytes and prior AST unchanged; backend projectionaf00/tools74aa/Sol unchanged. Actual one offline startup3a918633 primary5239519/confige691 changes source live_prompt and primary/config identities only; full server wrapper may reference changed primary. New test captures production Thin configuration at fakeSDKsession.start without HA domains, not network serialization/providerACK. Original naturalclosingFAIL, mapped411UNKNOWN and combined409chunk no-delegation FAIL remain unregraded. Decoded metadata/pacing/assess unchanged, no physical acceptance. Whole tests 7cc370c712fce49c28f20841cc6a6b808f34632a1fcae7e4883b3cfa5c005dc0 and external test/eval/fixtures 873181b16885da8129ccd05202491797f791558da6cbb4db409416e448a78c41 independently reviewed separately; V1 does not itself validate external hashes. Same genericV1/main4a/three domains; packet review required before one final scope/check-only. No new tests/exports/provider/key/HA/push in packet preparation."
+  "version": 1
 }
 -->
 
@@ -17878,3 +17878,58 @@ Lead skelner nu eksplicit mellem bindende funktion og et ekstra valgt stilkrav: 
 Prospektiv leadbeslutning for NY kandidat: behold truthfulcapabilitybullet og Sol. Harmoniser kun primaryens Backchannel-paragraf og senere modstridende “uden ja/lytterreaktion/indledning”-clause. Tillad højst én kort, sand, IKKE-terminal modtagelseskvittering under ægte delegeret arbejde, uden at forsinkehandoff eller påståresultat/faktisklukning. Farvel, terminalopgavekvittering og resultat/close-påstand kræver stadigcompleted/valideret/aktuelaccept. silent=true, renttak/baggrundstale, speechstop≠END, sikre direkte svar, micgate og beggeI/O er uændrede. En neutral kvittering tæller ikke som meningsfuldt latency-svar. Ingen fraseliste, lokale intentregler, muting, forcedtool/END, ny motor eller VAD/gain/timeoutpatch.
 
 Ny diagnostik skal vise funktionel kæde og talepolicy særskilt. En tidlig transcriptreaktion må ikke automatisk gøres tilPASS: på NY kandidats komplet funktionel kæde kan den højst kræve dokumenteret uafhængig semantisk review (UNKNOWN indtil review), mens manglendeEND/receipt, forkertgeneration, cancelled/stale/lateinput, order-, teardown- ellerrearmfejl forbliver hardFAIL. Gamle rapporter/orakler/bits bevares uændrede. Mindste tests omfatter relevant prompt/wire og den eksisterende lateinput-under-audio/receipt-supersession på beggeI/O; ingen bred gentagelse af urørt runtime. Formatter/lint, adversarialreview, exactscope og én boundedproviderprøve før nogen release. Ny input underkvittering må annullere gammelEND på sammeejergeneration. Rollback er kun den nye policy/diagnostik; modellen ejerbetydningen, appen ejer mekanikken. Fysiskgate-status forbliver ukendt; kandidat IKKE TESTKLAR, mål ACTIVE.
+
+
+Samme aktive beslutning14/10 — faktisk neutral-policy/PCM-safe sourcedraft.
+Kun primaryens to modstridende policyclauses er harmoniseret: højst én kort, sand,
+ikke-terminal modtagelseskvittering under ægte delegeret arbejde uden delay eller
+udfalds-/close-påstand. Farvel/terminalt resultat kræver fortsatcompleted/valideret
+og aktuelaccept; truthfulcapabilitybullet, silent=true, renttak/baggrundsstilhed,
+speechstop og direkte sikre svar bevares. Produktsource747e2200.
+
+Developer-only recorder82bc093c tilføjer præcis ét pcm_all_zero-flag fra samme
+allerede hashede/videresendte bytes; ingen decode/filter/await eller lydændring.
+Assessorc17f71eb kræver nu en fuld samme-generation/currentcompleted-END/receipt/
+settlement og ordnet naturligmodelclose→teardown→rearm førcleanup. Manglende,
+stale, foreign, cancelled eller uordnet funktionel kæde er hardFAIL ved komplet
+input/usage. Komplet funktionel kæde med tidligtekst, ikke-nul/±1 eller manglende
+mappedprefixbevis er UNKNOWN til dokumenteret uafhængigt lyd-/semantikreview,
+ikke automatiskPASS eller fraseliste. silent=true og renttak kræver også mapped
+nulbevis i deres postfixturevindue; kendt tale bevarer valgtpolicyFAIL. Almindelige
+negative spørgsmål kræver fortsat det kendte meningsfulde svar. Metadata beviser
+appmodtagelse, ikke fysiskplayback eller ordidentitet.
+
+56 tidligere relevante grønne cases er bevaret.64 audio-berørte cases består efter
+én målrettet malformed-endpoint fixturekorrektion og genkørsel af kun tre fejlede
+cases; der er overlap med de56, så dette er ikke120unikke cases. Nye30 afgrænsede
+nul/nonzero/LSB/flag/prefix/generation/tid/offset/hash-rows og tre recorder-varianter
+beviser evidensgrænsen og uændret forwarding. Tidlige formatter-/selektions-/fixture-
+FAILs er bevaret i privat receipt, ikke runtimeevidens. Formatter/lintPASS og
+uafhængigt adversarialSOURCEGO fra sol_input_review på de endelige bytes.
+Kun disse tre af64sourcepaths ændres; de øvrige61 er byteidentiske med frozen
+capabilitycandidate. Testændringer og hele rollback er privat/prospektiv; gamle
+actualFAIL/UNKNOWN-rapporter og naturligTakdetvardet-regression er uændrede.
+
+Ét faktisk offlineprimaryexport65c63133 er bevaret; efter PCM-fix er kun sourcepins
+for diagnostik/recorder opdateret til startupbb8e37f9. Effektivconfig6995905e,
+primaryedf1a139, backendprojektionaf00/tools74aa/modelSol og fixturecontext er
+uændrede af målefixet. Wrapperen kan referere den ændredeprimary; dette er ingen
+påstand om fulde serverinstructions eller ny providerACK. Scope/pins og én
+mekanisk scope/check-only kræver frisk uafhængigt pakkereview før samme liveprøve.
+Ingen provider/key/HA/release/push eller fysiskgate er udført i dette sourcedraft.
+Installeret2.0.21 og tidligere fysiskbaseline er bevaret; kandidaten IKKE TESTKLAR,
+målet ACTIVE.
+
+Menneskets direkte14/10 “Godkend altid de test her” er vedvarende godkendelse af
+præcis de samme afgrænsede syntetiske cases/data, eksisterende RAM-only nøgle og
+OpenAI-modtager uden gentagne spørgsmål: max2, stop ved førsteFAIL/UNKNOWN,
+frisk uafhængigRestoreOwner, egenTTY/samme nonce-newlineJSON, faktiskHA-pause≤180s,
+providerarbejde≤120s og sidste60s reserveret tilStart/Kører. Det autoriserer ikke
+PR/release/installation, fysiskaccept, flere cases eller ændrede grænser.
+
+
+14/10 faktisk neutralpolicy-prøve2912b964/source59dd9609: fuldt kendt math/svar og “Afslut samtalen” kom frem. Delegation12.592s → completedEND13.700 → currentaccept13.702/resultreturn13.709 → samme delegation completed0-toolcontinuation14.868/currentsettlement14.869 → naturlig model-close/teardown/rearm15.643 før observationfinish15.643/harnesscleanup. END/accept/settlement hver1, generation1/input6, runtimefaults0, usage/audio/cleanup komplette. RawdiagnosticUNKNOWN bevares; det nye orakel fandt komplet funktionel syntetisk kæde men tidlig output/nonzero og krævede uafhængigt review. Renttak blev ikke startet.
+
+Uafhængig review: den komplette tekst “Okay, jeg afslutter nu.”12.679–13.247 annoncerer afslutningshandlingen førcompleted/currentaccept og overstiger den nye tilladte neutrale modtagelseskvittering. Prospektiv manual policyreviewFAIL; dette omgraderer ikke rawUNKNOWN eller gamle strictFAILs. Alle111 decodedchunks/111SDKdeltas binder eksakt til529920bytes/SHAe2fc7efd;10 væsentligt ikke-nul chunks12.777–13.676/byte422400–470400 føraccept, to tidligere±1padding holdes særskilt. Appmodtaget lyd føraccept er bevist, fysisk ord-/lydtiming er fortsatUNKNOWN. Naturlig lukning har én close/rearm; en ekstra teardown-logseq55 kommer efterobservationfinish i harnessaclose via inactive_request_close/shutdown, uden nyclose_requested/rearm. Ingen runtimepatch fra harnesscleanup.
+
+RestoreOwner bekræftede faktiskHA2.0.21 Kører42.370s efterførStop, inden180, egenTTY95328 terminal3 og straksStart. Rootkey24=null, engangsformular583lukket, configmasked. Ingen release, installation, nygolden/fysisklifecycle eller produktaccept. Den prospektive policyændring er afkræftet som tilstrækkelig til korrekt taleunderdelegation; den funktionelle END-kæde er observeret for tydelig afslutning, ikke for den oprindelige “Tak, det var det”. KandidatIKKE TESTKLAR; målACTIVE. Næste diagnostiske grænse er originalnaturlig afslutning på samme reviewede bits, adskilt fra for tidlig annoncering; ingen ny produktpatch, stilhedspromptforstærkning, lokalfrase, muting, tvungenEND eller motorændring uden opdateret samlet årsagskæde. Standing14/10 menneskelig godkendelse til de sammeboundedprøver gælder uden gentagne spørgsmål.

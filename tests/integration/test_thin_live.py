@@ -2427,7 +2427,7 @@ async def test_confirmation_start_instruction_failure_closes_owned_session(failu
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("adapter", ["native", "talk"])
-@pytest.mark.parametrize("phase", ["rotation"])
+@pytest.mark.parametrize("phase", ["rotation", "terminal_audio"])
 async def test_sdk_queued_correction_retires_terminal_before_thin_delivery(
     monkeypatch, adapter, phase
 ):
@@ -2447,6 +2447,15 @@ async def test_sdk_queued_correction_retires_terminal_before_thin_delivery(
 
     monkeypatch.setattr(session, "_on_live_event", delay_input)
     try:
+        if phase == "terminal_audio":
+            if adapter == "native":
+                await session._on_live_event(LiveAudioChunk(b"\x10\x00" * 1920, 1))
+                await until(lambda: session._playback_lease is not None)
+            else:
+                # WebRTC audio stays in the browser; no fabricated app PCM lease
+                # or playback edge is needed to exercise the shared receipt owner.
+                assert session._live_webrtc and session._live_stream is None
+                await emit(sdk, {"type": "session.output_audio.delta", "delta": "EAAQAA=="})
         if phase == "rotation":
             await pending_confirmation(session, sdk)
             receipt = session.brain._terminal_receipt.future
@@ -2467,6 +2476,21 @@ async def test_sdk_queued_correction_retires_terminal_before_thin_delivery(
         )
         await asyncio.wait_for(delivered.wait(), 1)
         assert session.brain.input_sequence == 1 and session._live_input_revision == 0
+        if phase == "terminal_audio":
+            # SDK receipt supersession precedes Thin delivery; raw text does not
+            # decide addressedness or cancel an operation by local phrase matching.
+            assert not session.brain.terminal_receipt_current(receipt)
+            assert (session._playback_lease is not None) == (adapter == "native")
+            assert sdk.session.close.await_count == 0
+            release.set()
+            await until(lambda: session._live_input_revision == 1)
+            await emit(sdk, created("new", delegation="new-addressed-input"))
+            await until(lambda: not session._ending_conversation)
+            assert not session.brain.terminal_receipt_current(receipt)
+            assert session._active and sdk.session.close.await_count == 0
+            if adapter == "native":
+                assert link.rearm_calls == 0
+            return
         if phase != "grace":
             await emit(sdk, created("r2"), terminal("r2"))
         owner = session._live_rotation_task if phase == "rotation" else session._goodbye

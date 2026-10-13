@@ -552,6 +552,7 @@ class ObservedLive(OpenAILiveSession):
                     byte_end=self.evidence.sizes[name],
                     byte_length=len(event.pcm),
                     sha256=digest(event.pcm),
+                    pcm_all_zero=not any(event.pcm),
                     physical_playback_proven=False,
                 )
             else:

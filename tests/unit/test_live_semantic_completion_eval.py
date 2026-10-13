@@ -126,6 +126,18 @@ def good_rows(case="completed-side-address"):
     for index, name in enumerate(module.CASES[case]):
         emit("fixture_started", name=name)
         emit("fixture_finished", name=name)
+        emit("sdk_event", generation=1, protocol_type="session.output_audio.delta")
+        row = emit(
+            "decoded_output_chunk",
+            generation=1,
+            file="provider-output-1.pcm",
+            byte_start=index * 2,
+            byte_end=index * 2 + 2,
+            byte_length=2,
+            sha256=module.rig.digest(b"\0\0"),
+            pcm_all_zero=True,
+        )
+        row.update(received_elapsed_s=row["elapsed_s"], received_monotonic_s=100 + row["elapsed_s"])
         emit(
             "LiveTranscript",
             generation=1,
@@ -144,20 +156,48 @@ def good_rows(case="completed-side-address"):
                 start_ms=index * 1000 + 300,
                 end_ms=index * 1000 + 500,
             )
-    if case == "completed-side-address":
+    if case in module.POSITIVE_CASES:
+        input_index = len(module.CASES[case])
+        emit(
+            "LiveBackendStarted",
+            generation=1,
+            response_id="r1",
+            delegation_id="d1",
+            created_index=1,
+            input_index=input_index,
+        )
+        emit(
+            "LiveBackendComplete",
+            generation=1,
+            response_id="r1",
+            delegation_id="d1",
+            status="completed",
+            tool_call_count=1,
+        )
         emit(
             "LiveToolBatch",
             generation=1,
             response_id="r1",
-            calls=[dict(id="c1", name="end_conversation", args={"silent": True})],
+            delegation_id="d1",
+            calls=[
+                dict(
+                    id="c1",
+                    name="end_conversation",
+                    args={"silent": True} if case == "completed-side-address" else {},
+                    generation=1,
+                    response_id="r1",
+                )
+            ],
         )
         request = emit(
             "tool_results_request",
             generation=1,
             response_id="r1",
+            provider_receipt=dict(generation=1, input_sequence=input_index, backend_sequence=1),
             results=[
                 dict(
                     id="c1",
+                    name="end_conversation",
                     response=dict(
                         ok=True,
                         data=dict(
@@ -168,7 +208,75 @@ def good_rows(case="completed-side-address"):
             ],
         )
         emit("tool_results_return", generation=1, response_id="r1", request_seq=request["seq"])
-        emit("semantic_end_settled", generation=1, input_index=2, receipt_current=True)
+        emit(
+            "LiveBackendStarted",
+            generation=1,
+            response_id="r2",
+            delegation_id="d1",
+            created_index=2,
+            input_index=input_index,
+        )
+        follow_done = emit(
+            "LiveBackendComplete",
+            generation=1,
+            response_id="r2",
+            delegation_id="d1",
+            status="completed",
+            tool_call_count=0,
+        )
+        emit(
+            "semantic_end_settled",
+            generation=1,
+            input_index=input_index,
+            receipt_current=True,
+            session_id="s1",
+            response_id="r1",
+            delegation_id="d1",
+            call_id="c1",
+            request_seq=request["seq"],
+            backend_completion_seq=follow_done["seq"],
+            source_marker_seq=10,
+            physical_close_proven=False,
+        )
+        emit(
+            "natural_thin_end",
+            physical_close_proven=False,
+            timeline=[
+                dict(
+                    event="live_terminal_backend_settled",
+                    seq=10,
+                    at_ms=10,
+                    session_id="s1",
+                    provider_generation=1,
+                    close_id=None,
+                ),
+                dict(
+                    event="close_requested",
+                    seq=11,
+                    at_ms=11,
+                    session_id="s1",
+                    provider_generation=1,
+                    close_id="close1",
+                    reason="model-close",
+                ),
+                dict(
+                    event="teardown_complete",
+                    seq=12,
+                    at_ms=12,
+                    session_id="s1",
+                    provider_generation=1,
+                    close_id="close1",
+                ),
+                dict(
+                    event="wake_rearm_recovered",
+                    seq=13,
+                    at_ms=13,
+                    session_id="s1",
+                    provider_generation=1,
+                    close_id="close1",
+                ),
+            ],
+        )
     else:
         finish = next(r for r in reversed(rows) if r["kind"] == "fixture_finished")
         window = emit("negative_window_observed", session_active=True)
@@ -186,11 +294,14 @@ def assess(rows, case="completed-side-address", **kwargs):
     )
 
 
-def test_receipt_is_only_semantic_evidence_never_natural_or_physical_close():
+def test_positive_requires_observed_lifecycle_but_never_claims_physical_close():
     report = assess(good_rows())
     assert report["verdict"] == "OBSERVED_PASS"
     assert report["semantic_tool_acceptances"] == report["current_receipt_settlements"] == 1
-    assert report["natural_thin_end"] == []
+    assert report["functional_chain_observed"] and len(report["natural_thin_end"]) == 1
+    rows = good_rows()
+    rows.pop()
+    assert assess(rows)["verdict"] == "FAIL"
     assert report["physical_close"] == report["acoustic_addressee"] == "UNKNOWN"
     assert not report["physical_or_browser_proof"]
 
@@ -212,7 +323,7 @@ def test_cleanup_or_usage_missing_is_unknown(field):
 @pytest.mark.parametrize("field,value", [("input_index", 1), ("receipt_current", False)])
 def test_stale_receipt_cannot_pass(field, value):
     rows = good_rows()
-    rows[-1][field] = value
+    next(r for r in rows if r["kind"] == "semantic_end_settled")[field] = value
     assert assess(rows)["verdict"] != "OBSERVED_PASS"
 
 
@@ -290,7 +401,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
         module.evaluate(
             "not-a-key",
             "completed-side-address",
-            "implicit",
+            "baseline",
             manifest,
             fixtures,
             evidence,
@@ -344,6 +455,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
             sdk.session.close.assert_not_awaited()
         report, complete = await trial
         assert complete and report["connect_attempts"] == 1
+        assert not report["functional_chain_observed"]
         assert report["natural_thin_end"] == []
         assert report["current_receipt_settlements"] == int(mode == "positive")
         assert report["semantic_tool_acceptances"] == int(mode != "mixed-batch")
@@ -356,7 +468,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
             # Exercise the full oracle on actual Thin output, not a handcrafted
             # tool result. Fake SDK input proves harness mechanics only.
             assert report["audio_evidence_complete"]
-            assert report["verdict"] == "OBSERVED_PASS"
+            assert report["verdict"] == "FAIL"
         assert report["physical_close"] == "UNKNOWN"
         sdk.session.instructions.append.assert_not_awaited()
         sdk.session.close.assert_awaited_once()
@@ -396,11 +508,10 @@ def test_short_negative_window_and_cleanup_only_settlement_are_unknown():
     rows[-1]["elapsed_s"] -= 0.1
     assert assess(rows, "real-followup")["verdict"] == "UNKNOWN"
     rows = good_rows()
-    settlement = rows.pop()
-    rows.append(dict(kind="observation_finished", seq=settlement["seq"]))
-    rows.append(settlement)
+    settlement = next(r for r in rows if r["kind"] == "semantic_end_settled")
+    rows.insert(rows.index(settlement), dict(kind="observation_finished", seq=settlement["seq"]))
     report = assess(rows)
-    assert report["verdict"] == "UNKNOWN"
+    assert report["verdict"] == "FAIL"
     assert report["current_receipt_settlements"] == 0
 
 
@@ -411,7 +522,7 @@ def test_foreign_result_return_does_not_accept_end(field, value):
     rows = good_rows()
     next(r for r in rows if r["kind"] == "tool_results_return")[field] = value
     assert assess(rows)["semantic_tool_acceptances"] == 0
-    assert assess(rows)["verdict"] == "UNKNOWN"
+    assert assess(rows)["verdict"] == "FAIL"
 
 
 def test_positive_requires_completed_opening_answer_and_exclusive_end_batch():
@@ -427,10 +538,121 @@ def test_positive_requires_completed_opening_answer_and_exclusive_end_batch():
     assert assess(rows)["verdict"] == "FAIL"
 
 
-def test_impossible_flat_tool_result_is_unknown():
+def test_impossible_flat_tool_result_fails_positive_chain():
     rows = good_rows()
     response = next(r for r in rows if r["kind"] == "tool_results_request")["results"][0][
         "response"
     ]
     response.update(response.pop("data"))
-    assert assess(rows)["verdict"] == "UNKNOWN"
+    assert assess(rows)["verdict"] == "FAIL"
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    [
+        ("none", "OBSERVED_PASS"),
+        ("early-output", "UNKNOWN"),
+        ("early-terminal-claim", "UNKNOWN"),
+        ("missing-end", "FAIL"),
+        ("cancelled", "FAIL"),
+        ("foreign-continuation", "FAIL"),
+        ("stale-input", "FAIL"),
+        ("wrong-generation", "FAIL"),
+        ("missing-teardown", "FAIL"),
+        ("missing-rearm", "FAIL"),
+        ("wrong-close-owner", "FAIL"),
+        ("wrong-order", "FAIL"),
+        ("silent-output", "FAIL"),
+    ],
+)
+def test_new_positive_oracle_separates_functional_chain_from_unreviewed_speech(mutation, expected):
+    rows = good_rows("explicit-close")
+    if mutation in {"early-output", "early-terminal-claim", "silent-output"}:
+        returned = next(r for r in rows if r["kind"] == "tool_results_return")
+        rows.insert(
+            rows.index(returned),
+            dict(
+                kind="LiveTranscript",
+                seq=returned["seq"] - 0.5,
+                elapsed_s=returned["elapsed_s"] - 0.5,
+                generation=1,
+                direction="out",
+                text="Samtalen er lukket." if mutation == "early-terminal-claim" else "Ja.",
+                start_ms=1500,
+                end_ms=1700,
+            ),
+        )
+        if mutation == "silent-output":
+            next(r for r in rows if r["kind"] == "LiveToolBatch")["calls"][0]["args"] = {
+                "silent": True
+            }
+    elif mutation == "missing-end":
+        rows.remove(next(r for r in rows if r["kind"] == "LiveToolBatch"))
+    elif mutation == "cancelled":
+        next(r for r in rows if r["kind"] == "LiveBackendComplete")["status"] = "cancelled"
+    elif mutation == "foreign-continuation":
+        next(r for r in rows if r["kind"] == "LiveBackendComplete" and r["response_id"] == "r2")[
+            "delegation_id"
+        ] = "foreign"
+    elif mutation == "stale-input":
+        next(r for r in rows if r["kind"] == "semantic_end_settled")["receipt_current"] = False
+    elif mutation == "wrong-generation":
+        next(r for r in rows if r["kind"] == "LiveBackendComplete")["generation"] = 2
+    elif mutation in {"missing-teardown", "missing-rearm"}:
+        event = "teardown_complete" if mutation == "missing-teardown" else "wake_rearm_recovered"
+        lifecycle = next(r for r in rows if r["kind"] == "natural_thin_end")["timeline"]
+        lifecycle.remove(next(r for r in lifecycle if r["event"] == event))
+    elif mutation == "wrong-close-owner":
+        next(r for r in rows if r["kind"] == "natural_thin_end")["timeline"][-1]["close_id"] = (
+            "foreign"
+        )
+    elif mutation == "wrong-order":
+        next(r for r in rows if r["kind"] == "natural_thin_end")["timeline"][-1]["seq"] = 11
+    report = assess(rows, "explicit-close")
+    assert report["verdict"] == expected
+    assert report["semantic_review_required"] is True
+    assert report["physical_close"] == "UNKNOWN" and not report["physical_or_browser_proof"]
+    if expected == "UNKNOWN":
+        assert report["functional_chain_observed"] and report["preaccept_output_observed"]
+
+
+@pytest.mark.parametrize("case", ["explicit-close", "completed-side-address", "pure-thanks"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "zero",
+        "nonzero",
+        "one-lsb",
+        "missing-flag",
+        "untyped-flag",
+        "missing-prefix",
+        "wrong-generation",
+        "bad-time",
+        "bad-offset",
+        "wrong-zero-hash",
+    ],
+)
+def test_mapped_pcm_absence_is_required_without_a_speech_classifier(case, mutation):
+    rows = good_rows(case)
+    chunk = [r for r in rows if r["kind"] == "decoded_output_chunk"][-1]
+    if mutation in {"nonzero", "one-lsb"}:
+        raw = b"\x10\0" if mutation == "nonzero" else b"\x01\0"
+        chunk.update(pcm_all_zero=False, sha256=module.rig.digest(raw))
+    elif mutation == "missing-flag":
+        del chunk["pcm_all_zero"]
+    elif mutation == "untyped-flag":
+        chunk["pcm_all_zero"] = 1
+    elif mutation == "missing-prefix":
+        rows.remove(chunk)
+    elif mutation == "wrong-generation":
+        chunk["generation"] = 2
+    elif mutation == "bad-time":
+        chunk["received_elapsed_s"] = -1
+    elif mutation == "bad-offset":
+        chunk["byte_start"] += 2
+    elif mutation == "wrong-zero-hash":
+        chunk["sha256"] = module.rig.digest(b"\x01\0")
+    report = assess(rows, case)
+    assert report["verdict"] == ("OBSERVED_PASS" if mutation == "zero" else "UNKNOWN")
+    assert report["semantic_review_required"] and report["audio_audit_required"]
+    assert report["physical_close"] == "UNKNOWN"
