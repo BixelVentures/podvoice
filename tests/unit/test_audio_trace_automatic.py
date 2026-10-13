@@ -140,13 +140,13 @@ async def test_slow_pcm_worker_is_offloop_queue_bounded_and_terminal_reserved(
         recorder.audio("device", b"\1\0" * 320, 16000)
         assert await asyncio.to_thread(entered.wait, 2)
         started = time.monotonic()
-        for _ in range(200):
+        for _ in range(2200):
             recorder.audio("device", b"\1\0" * 320, 16000)
         result = recorder.finish("stop")
         assert time.monotonic() - started < 0.2
         assert result["persistence"] == "pending"
         state = recorder.snapshot()
-        assert state["queued"] <= 128
+        assert state["queued"] <= 2048
         assert state["dropped"]
         assert not await recorder.wait_pending(0.01)
         release.set()
@@ -395,7 +395,7 @@ async def test_mixed_loss_has_durable_capture_and_history_session_provenance(tmp
         recorder.audio("device", b"\1\0" * 320, 16000)
         assert await asyncio.to_thread(entered.wait, 2)
         root = recorder._trace_id
-        for index in range(120):
+        for index in range(2039):
             recorder.audio(("device", "provider", "speaker")[index % 3], b"\1\0" * 320, 16000)
         recorder.event("playback_started", playback_id="one")
         assert not recorder.diagnostic_event("history-one", event_name="playback_started")
@@ -452,7 +452,7 @@ async def test_diagnostic_loss_after_flush_is_saved_without_another_event(tmp_pa
         # Replay a full queue at the admission boundary without touching audio,
         # then remove that fixture before ordered writer shutdown.
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             assert not recorder.diagnostic_event("history", event_name="teardown_complete")
         assert await recorder.shutdown()
         saved = json.loads(next(tmp_path.glob("*.diagnostic")).read_text())
@@ -472,12 +472,12 @@ async def test_bounded_drop_ledger_eviction_never_restores_complete_truth(tmp_pa
         assert recorder.diagnostic_event("history", event_name="wake_received", terminal=True)
         assert await recorder.wait_pending()
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             assert not recorder.diagnostic_event("history", event_name="teardown_complete")
         assert recorder.diagnostic_event("history", event_name="wake_rearmed", terminal=True)
         assert await recorder.wait_pending()
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             for index in range(40):
                 assert not recorder.diagnostic_event(
                     f"unrelated-{index}", event_name="wake_received"
@@ -525,7 +525,7 @@ async def test_admitted_diagnostic_records_loss_eviction_before_writer_consumes_
         assert recorder.diagnostic_event("waiting", event_name="wake_received", terminal=True)
         assert await asyncio.to_thread(entered.wait, 2)
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             assert not recorder.diagnostic_event("waiting", event_name="teardown_complete")
             for index in range(40):
                 assert not recorder.diagnostic_event(
@@ -550,7 +550,7 @@ async def test_loss_before_first_admitted_diagnostic_cannot_be_cleared_by_evicti
     recorder = AudioTraceRecorder(tmp_path, automatic=True)
     try:
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             assert not recorder.diagnostic_event(
                 "lost-before-admission", event_name="wake_received"
             )
@@ -592,7 +592,7 @@ async def test_trusted_diagnostic_origin_is_bounded_duplicate_safe_and_generatio
     try:
         assert recorder.begin_diagnostic_session("old")
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             assert not recorder.diagnostic_event("old", event_name="wake_received")
             for index in range(40):
                 assert not recorder.diagnostic_event(
@@ -628,12 +628,12 @@ async def test_eviction_preserves_consistent_new_kind_and_stage_lower_bounds(tmp
         begin(recorder, "history")
         assert await recorder.wait_pending()
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             recorder.event("playback_started")
             recorder.audio("device", b"\1\0" * 4, 16000)
         recorder._writer._manifest("recording")  # Observe known loss before eviction.
         with monkeypatch.context() as patch:
-            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 2040)
             for index in range(40):
                 assert not recorder.diagnostic_event(
                     f"unrelated-{index}", event_name="wake_received"
