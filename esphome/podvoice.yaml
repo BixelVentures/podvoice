@@ -15,7 +15,7 @@
 substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
-  podvoice_build_marker: podvoice_build_113108_notifyisolation1
+  podvoice_build_marker: podvoice_build_113113_timeroutput1
   # The hardware base is vendored from upstream 26.6.0 with an auditable two-block
   # delta: wake word and center button emit PodVoice events and never start HA Assist.
 
@@ -55,7 +55,24 @@ api:
   # start doubles as the dead-man keepalive (PodVoice re-asserts it while a session
   # is active; the device force-stops if it goes quiet — see podvoice_audio SAFETY_MS).
   # NOTE: ESPHome 2026.x renamed `api: services:` -> `api: actions:` (confirmed on 2026.6.2).
+  on_client_connected:
+    - lambda: "id(pv_reply).invalidate_timer_admission();"
+  on_client_disconnected:
+    - lambda: "id(pv_reply).invalidate_timer_admission();"
   actions:
+    - action: podvoice_timer_output_cancel
+      variables:
+        expected_idle_nonce: string
+        request_id: string
+        token: string
+      then:
+        - lambda: "id(pv_reply).cancel_timer_output(expected_idle_nonce, request_id, token);"
+    - action: podvoice_timer_output
+      variables:
+        expected_idle_nonce: string
+        request_id: string
+      then:
+        - lambda: "id(pv_reply).begin_timer_output(expected_idle_nonce, request_id);"
     - action: podvoice_stream_start
       then:
         - lambda: "id(pv_audio).start_streaming();"
@@ -333,6 +350,7 @@ event:
         podvoice_playback_events_v1,
         correlated_local_stop_v1,
         correlated_stop_context_v2,
+        idle_timer_output_v1,
         podvoice_playback_started,
         podvoice_playback_finished,
         podvoice_playback_fault,
@@ -342,6 +360,10 @@ event:
 # can carry the full monotonic service token, so delayed/replayed ACK N cannot settle
 # waiter N+1. It is diagnostic transport state, never user-facing readiness truth.
 text_sensor:
+  - platform: template
+    name: "PodVoice Timer Context"
+    id: podvoice_timer_context
+    entity_category: diagnostic
   - platform: template
     id: podvoice_capture_status
     name: "PodVoice Capture Status"
@@ -386,14 +408,14 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 083424b18b67c54698b16a148c79502f58480cd7
+      ref: 1fec384b53af8370caf368ad3a12da8a41a891d5
       path: esphome/components
     components: [podvoice_reply, micro_wake_word]
     refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 083424b18b67c54698b16a148c79502f58480cd7
+      ref: 1fec384b53af8370caf368ad3a12da8a41a891d5
       path: esphome/components
     components: [mixer, resampler, speaker_source]
     refresh: 0s
@@ -408,7 +430,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 083424b18b67c54698b16a148c79502f58480cd7
+      ref: 1fec384b53af8370caf368ad3a12da8a41a891d5
       path: esphome/components
     components: [podvoice_audio, esp32_rmt_led_strip]
     refresh: 0s
@@ -455,6 +477,7 @@ podvoice_reply:
   stop_model: stop
   detector: mww
   context_status: podvoice_stop_context
+  timer_status: podvoice_timer_context
   mute_switch: master_mute_switch
   on_timer_stop:
     - switch.turn_off: timer_ringing

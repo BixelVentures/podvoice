@@ -67,24 +67,22 @@ async def test_known_room_fault_remains_repairable_and_preserves_talk_settings(
     async with _actual_main_app(monkeypatch, tmp_path / "room-fault-boot", options) as actual:
         assert actual.cfg.settings_error and not actual.cfg.settings_source_untrusted
         assert not actual.sessions
-        assert callable(actual.app[CONSOLE]) and callable(actual.app[TALK])
+        assert actual.app[CONSOLE] is None and callable(actual.app[TALK])
         result = await actual.client.get("/api/settings")
         body = await result.json()
         assert result.status == 200 and body["rooms"] == damaged["rooms"]
-        assert body["live_alpha"] is initial_live and body["settings_error"]
+        assert body["live_alpha"] is True and body["settings_error"]
         assert path.read_bytes() == previous
         result = await actual.client.post("/api/settings", json={"rooms": original["rooms"]})
         saved = (await result.json())["settings"]
-        assert result.status == 200 and saved["live_alpha"] is initial_live
+        assert result.status == 200 and saved["live_alpha"] is True
         assert "settings_error" not in saved
         assert path.with_name(path.name + ".bak").read_bytes() == previous
         assert not actual.sessions  # Save is not a room lifecycle owner; fresh boot required
     async with _actual_main_app(monkeypatch, tmp_path / "repaired-boot", options) as actual:
         assert not actual.cfg.settings_error and not actual.cfg.settings_source_untrusted
         assert set(actual.sessions) == {"kitchen", "bedroom"}
-        assert (await (await actual.client.get("/api/settings")).json())[
-            "live_alpha"
-        ] is initial_live
+        assert (await (await actual.client.get("/api/settings")).json())["live_alpha"] is True
 
 
 @pytest.mark.parametrize("initial_live", [False, True])
@@ -121,8 +119,8 @@ async def test_failed_atomic_save_never_reconfigures_actual_active_owner(
         assert len(calls) == 1 and path.read_bytes() == previous
         assert len(actual.configure_calls) == count
         assert _active_contract(session) == owner and _device_contract(actual.tools) == device
-        assert session._active and session.live_alpha is initial_live
-        assert S.load_settings(path)["live_alpha"] is initial_live
+        assert session._active and session.live_alpha is True
+        assert S.load_settings(path)["live_alpha"] is True
 
 
 @pytest.mark.parametrize("initial_live", [False, True])
@@ -160,7 +158,7 @@ async def test_nonfinite_save_never_reconfigures_actual_active_owner(
             assert path.read_bytes() == previous and backup.read_bytes() == old_backup
             assert len(actual.configure_calls) == count
             assert _active_contract(session) == owner and _device_contract(actual.tools) == device
-            assert session._active and session.live_alpha is initial_live
+            assert session._active and session.live_alpha is True
 
 
 @pytest.mark.parametrize("untrusted", [False, True])

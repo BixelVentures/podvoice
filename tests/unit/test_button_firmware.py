@@ -163,19 +163,35 @@ def test_active_button_stop_takes_precedence_over_ringing_timer(tmp_path):
     root = Path(__file__).parents[2]
     base = (root / "esphome/voice-pe-podvoice-base.yaml").read_text()
     click = base.split("    id: center_button", 1)[1].split("    on_multi_click:", 1)[0]
-    condition = re.search(r'lambda: "(return id\(timer_ringing\).*?;)"', click)[1]
+    match = re.search(r'lambda: "(return [^"\n]*id\(timer_ringing\)\.state[^"\n]*;)"', click)
+    assert match is not None, "shipped timer-only button condition is missing"
+    condition = match[1]
     cpp = tmp_path / "timer.cpp"
     cpp.write_text(
         """#include <cassert>
 #define id(x) x
 struct Timer { bool state=false; } timer_ringing;
+struct Reply { bool timer_active=false; bool timer_output_active(){ return timer_active; } } pv_reply;
 bool podvoice_conversation_active=false;
 bool timer_only(){ CONDITION }
 int main(){
- timer_ringing.state=true; assert(timer_only());
- podvoice_conversation_active=true; assert(!timer_only());
- timer_ringing.state=false; assert(!timer_only());
- podvoice_conversation_active=false; assert(!timer_only());
+ struct Case { bool traditional,native,conversation,expected; };
+ const Case cases[] = {
+  {false,false,false,false},
+  {true,false,false,true},
+  {false,true,false,true},
+  {true,true,false,true},
+  {false,false,true,false},
+  {true,false,true,false},
+  {false,true,true,false},
+  {true,true,true,false}
+ };
+ for (const auto &row : cases) {
+  timer_ringing.state=row.traditional;
+  pv_reply.timer_active=row.native;
+  podvoice_conversation_active=row.conversation;
+  assert(timer_only()==row.expected);
+ }
 }
 """.replace("CONDITION", condition)
     )

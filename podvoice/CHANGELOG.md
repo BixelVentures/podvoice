@@ -1,3 +1,9 @@
+## 2.0.21 - GPT-Live setup and idle timer output
+
+- Voice PE and Talk use GPT-Live through the existing shared conversation owner. Remove the daily Alpha/provider choice and settings that affect only the retired provider; preserve needed saved values and rollback data.
+- Admit idle timer alarms through an exact firmware-owned output request. Retire only the original alarm, preserve a concurrent physical wake, and keep HA receipts outside the wake ownership lock. Lost acknowledgements no longer retain an old local alarm lease.
+- Idle native alarms require the matching timer-output firmware profile. Legacy claims stay visibly unknown; no quiet proof is inferred from an upgrade. Semantic closing and physical lifecycle/function acceptance remain unresolved.
+
 ## 2.0.20 - bounded HA and music-attention recovery
 
 - Rediscover timer and PodConnect services automatically after a failed HA service read, using the existing recovery backoff while preserving healthy MCP tools and active conversation schemas. Delayed results cannot restore stale contracts or regress discovery ownership.

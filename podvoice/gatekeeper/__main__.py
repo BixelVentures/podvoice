@@ -1,6 +1,6 @@
 """Add-on entrypoint: build one canonical ThinSession per Voice PE and run.
 
-Reads settings + Supervisor credentials and wires OpenAI Realtime, VoicePELink,
+Reads settings + Supervisor credentials and wires GPT-Live, VoicePELink,
 HA/MCP tools, PodConnect attention and the reply bus. There is no runtime engine
 switch: production always follows ``docs/INVARIANTER.md``.
 """
@@ -25,14 +25,13 @@ import httpx
 from . import __version__, runtime_artifact_identity
 from . import constants as C
 from .config import Config, RoomMap, load_config
-from .console import console_factory, list_models
 from .diag import check_status, resolve_target, run_s1, run_s2
 from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
 from .live_audio import LiveAudioStreams
 from .mcp_client import HomeAssistantMCP
-from .openai_realtime import DEFAULT_MODEL, DEFAULT_REASONING_EFFORT, OPENAI_RATE, make_session
+from .openai_realtime import OPENAI_RATE
 from .playback import Playback
 from .podconnect import AttentionClient
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
@@ -153,7 +152,7 @@ def _start_protocol_owner_eval(
 
 
 async def _prepare_saved_live_alpha(enabled: bool) -> None:
-    """Warm pure SDK imports for the run owner's already selected opt-in."""
+    """Warm pure SDK imports for the single production provider."""
     if not enabled:
         return
     from .openai_live import prepare_live_sdk
@@ -161,7 +160,7 @@ async def _prepare_saved_live_alpha(enabled: bool) -> None:
     try:
         await prepare_live_sdk()
     except Exception as exc:
-        # Keep the settings panel available to disable Alpha. The real connection
+        # Keep the settings panel available to diagnose the dependency failure. The real connection
         # path repeats preparation under its existing bounded startup owner.
         _LOG.warning("Live SDK preparation failed: %s", type(exc).__name__)
 
@@ -172,7 +171,7 @@ def _make_live_brain(
     from .live_prompt import live_instructions
     from .openai_live import OpenAILiveSession
 
-    # Construction does not import the SDK or open a connection while Alpha is OFF.
+    # Construction does not import the SDK or open a provider connection.
     instructions, backend_instructions = live_instructions(cfg.system_prompt)
     return OpenAILiveSession(
         api_key=cfg.openai_api_key,
@@ -212,17 +211,7 @@ def _build_session(
         if speaker
         else ""
     )
-    brain = make_session(
-        cfg,
-        tool_declarations=declarations or None,
-        room_context=room_ctx,
-        # Voice PE ships half-duplex. Realtime may detect VAD edges, but it must not
-        # cancel an answer while PodVoice is closing the physical mic gate. The Talk
-        # surface below opts into true interruption separately.
-        interrupt_response=False,
-        # ThinSession is the sole response owner for every accepted physical turn.
-        manual_input_response=True,
-    )
+    brain = _make_live_brain(cfg, declarations, room_context=room_ctx)
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     voicepe.mic_channel = cfg.mic_channel
     voicepe.mic_gain = cfg.mic_gain
@@ -250,7 +239,7 @@ def _build_session(
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
         brain=brain,
-        live_brain=_make_live_brain(cfg, declarations, room_context=room_ctx),
+        live_brain=brain,
         live_enabled=live_enabled,
         live_close_guard_s=guard_s,
         live_close_guard_ref=guard_ref,
@@ -310,7 +299,7 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
     """Keep the panel's service dots meaningful even with no rooms / no conversation.
 
     - PodConnect: actively GET /api/attention (HTTP, no device-exclusivity issue).
-    - OpenAI: key presence is only "degraded/configured". A real Realtime
+    - OpenAI: key presence is only "degraded/configured". A real GPT-Live
       connection is the only event allowed to turn it green.
     Voice PE is left to the room link (a 2nd device connection would clash with the
     single-client native-API subscription).
@@ -347,7 +336,7 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
             hub.set_service(
                 "openai",
                 "degraded",
-                reason="API-nøgle fundet; afventer rigtig Realtime-forbindelse",
+                reason="API-nøgle fundet; afventer rigtig GPT-Live-forbindelse",
                 source="konfiguration",
             )
         await asyncio.sleep(30)
@@ -374,14 +363,11 @@ async def run(cfg: Config) -> None:
     from .audio_trace import AudioTraceRecorder
 
     settings_path = cfg.settings_path or _resolve(None).absolute()
-    selected_live = cfg.live_alpha
 
     def read_live_alpha() -> bool:
-        nonlocal selected_live
-        saved = load_settings(settings_path, require_existing=True)
-        if not saved.get("settings_source_untrusted"):
-            selected_live = saved.get("live_alpha") is True
-        return selected_live
+        # Keep Thin's historical injection surface, but production has no mode choice.
+        # The active provider snapshot remains owned by Thin at wake, never by Save.
+        return True
 
     if not cfg.settings_source_untrusted:
         await _prepare_saved_live_alpha(read_live_alpha())
@@ -392,8 +378,8 @@ async def run(cfg: Config) -> None:
         hub.set_service("voicepe", "down", reason=reason, source="settings")
         if cfg.settings_source_untrusted:
             hub.set_service("openai", "down", reason=reason, source="settings")
-    # Physical Alpha conversations keep bounded local diagnostic evidence by default.
-    # Thin admits capture only after wake; OFF and Talk retain explicit manual capture.
+    # Physical GPT-Live conversations keep bounded local diagnostic evidence by default.
+    # Thin admits capture only after wake; Talk retains explicit manual capture.
     audio_trace = AudioTraceRecorder(automatic=True)
     live_audio = LiveAudioStreams()
     reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.flac -> device media_player announce
@@ -435,9 +421,7 @@ async def run(cfg: Config) -> None:
     tools.configure_device_control(load_settings(settings_path))
 
     def save_runtime_settings(values: dict) -> dict:
-        nonlocal selected_live
         saved = save_settings(values, settings_path)
-        selected_live = saved["live_alpha"]  # exact validated committed result, before any wake
         tools.configure_device_control(saved)
         return saved
 
@@ -454,14 +438,12 @@ async def run(cfg: Config) -> None:
     artifact_kind, artifact_sha = runtime_artifact_identity()
     discovery = tools.discovery_status()
     _LOG.info(
-        "startup identity version=%s git_sha=%s artifact=%s:%s model=%s effort=%s "
+        "startup identity version=%s git_sha=%s artifact=%s:%s engine=gpt-live "
         "prompt=v%s:%s tool_schema=%s mcp_api=%s",
         __version__,
         os.environ.get("PODVOICE_GIT_SHA", "unknown"),
         artifact_kind,
         artifact_sha,
-        DEFAULT_MODEL,
-        DEFAULT_REASONING_EFFORT,
         PROMPT_VERSION,
         hashlib.sha256(SYSTEM_PROMPT_DA.strip().encode()).hexdigest(),
         discovery.get("schema_sha256") or "unavailable",
@@ -525,8 +507,6 @@ async def run(cfg: Config) -> None:
         "s2": lambda room=None: _diag_s2(room, path=settings_path),
     }
 
-    console_make = None if cfg.settings_source_untrusted else console_factory(cfg, tools)
-
     def _make_talk(send_json, send_bytes, model=None, voice=None):
         """One REAL ThinSession per Talk socket: the browser as a device. The mic
         button fires the same wake() as 'Okay Nabu'; the reply plays from the same
@@ -534,21 +514,14 @@ async def run(cfg: Config) -> None:
         from .talk import TALK_ROOM, BrowserLink, TalkHub
         from .thin import ThinSession
 
-        if console_make is None:
+        if not cfg.openai_api_key:
             raise RuntimeError("OpenAI API-nøgle mangler")
         if attention is None:  # no PodConnect client — no ducking to run
             raise RuntimeError("talk session needs the attention client")
-        # The browser captures at OpenAI's OWN 24 kHz, so nothing resamples the
-        # audio on the way in (the 48k->16k->24k round trip was mangling Danish).
-        # A laptop mic is a documented far-field source. Browser NS/AGC are disabled
-        # below, leaving one controlled OpenAI far_field pass; echo cancellation stays.
-        brain = console_make(
-            model,
-            voice,
-            input_rate=OPENAI_RATE,
-            noise="far_field",
-            interrupt_response=True,
-            manual_input_response=True,
+        # Browser I/O uses the same Live provider, with its existing 24 kHz boundary.
+        # Legacy model/voice query parameters cannot select another runtime.
+        brain = _make_live_brain(
+            cfg, tools.declarations() if tools is not None else [], input_rate=OPENAI_RATE
         )
         link = BrowserLink(send_json, send_bytes)
         # RELATIVE url: the browser resolves it against the panel page, so it works
@@ -561,9 +534,7 @@ async def run(cfg: Config) -> None:
             attention=no_room_music,
             heartbeat=no_room_music,
             brain=brain,
-            live_brain=_make_live_brain(
-                cfg, tools.declarations() if tools is not None else [], input_rate=OPENAI_RATE
-            ),
+            live_brain=brain,
             live_enabled=read_live_alpha,
             live_audio=live_audio,
             live_reply_url="reply/live/{stream_id}.wav"
@@ -660,13 +631,13 @@ async def run(cfg: Config) -> None:
     app = create_app(
         hub,
         sessions,
-        make_console=console_make,
+        make_console=None,  # retired direct Realtime console is not a product entrypoint
         make_talk=None if cfg.settings_source_untrusted else _make_talk,
-        models_provider=lambda: list_models(cfg),
+        models_provider=None,
         settings_get=lambda: {
             **masked(load_settings(settings_path)),  # tokens/PSK never leave the box in cleartext
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
-            "live_alpha_active": {
+            "live_sessions": {
                 room: bool(session.live_alpha) if session._active else None
                 for room, session in sessions.items()
             },

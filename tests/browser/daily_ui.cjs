@@ -303,7 +303,7 @@ async function openDiagnostics(page) {
 // API payloads are inert; this fixture never saves settings or opens Talk.
 async function settingsTouchTargets(browser) {
   const results=[];
-  const checkboxIds=['s_live_alpha','s_force_mini','s_extended_device_control','s_panel_lan_open'];
+  const checkboxIds=['s_extended_device_control','s_panel_lan_open'];
   for(const width of [320,360,390,430,768,1440])for(const scheme of ['light','dark']) {
     let page,context,primary,result;
     const cleanupErrors=[],errors=[],writes=[];
@@ -467,7 +467,7 @@ async function settingsTouchTargets(browser) {
           'eval_result','g_start','g_test','g_actions','g_final_actions','g_hint','a_start','a_refresh','stuetest_script','acceptance'])
           assert.equal(await page.locator('#'+id).count(),0,'conversation test UI removed: '+id);
 
-        assert.equal(await page.locator('#s_live_alpha').count(),1,'actual saved preference retained');
+        assert.equal(await page.locator('#s_live_alpha').count(),0,'single Live provider has no preference switch');
         assert.equal(await page.locator('.primary-controls button').count(),2);
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),false);
         assert.equal(await page.locator('#activity-section').evaluate(e=>e.open),false);

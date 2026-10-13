@@ -5,6 +5,7 @@ these tests do not claim physical room acceptance.
 """
 
 import asyncio
+import secrets
 
 import httpx
 import pytest
@@ -180,6 +181,7 @@ async def test_capability_truth_uses_fresh_bound_native_endpoint():
 class Device(FakeVoicePELink):
     on_media_state = None
     supports_stop_context = True
+    supports_timer_output = True
     supports_playback_ids = True
     supports_live_semantic_stop = True
     device_identity = "02:00:00:00:00:01"
@@ -190,7 +192,20 @@ class Device(FakeVoicePELink):
         self.wake_readiness = "proven"
         self.admission = []
 
-    async def set_live_context(self):
+    def timer_output_request(self):
+        return "f" * 32 + secrets.token_hex(16)
+
+    @staticmethod
+    def valid_timer_request(request_id):
+        return len(request_id) == 64
+
+    async def retire_timer_context(self, request_id):
+        stopped = await self.stop_playback()
+        if stopped:
+            await self.set_stop_context(False, closing=True)
+        return {"outcome": "retired" if stopped else "unknown"}
+
+    async def set_timer_context(self, request_id):
         self.admission.append("arm")
         return True
 
@@ -245,7 +260,7 @@ async def test_idle_alarm_truthful_drain_then_cancel_and_unknown_reconnect_stop(
             endpoint="kitchen",
             epoch=bridge.epoch,
             timer_id=two["id"],
-            alert_id="lost",
+            alert_id="f" * 32 + "a" * 32,
             sink_id="voice_pe:" + device.device_identity,
         )
         bridge.command(request_id="claim", action="claim_alert", **scope)
@@ -328,7 +343,7 @@ async def test_stop_while_claim_awaits_never_starts_alarm():
         await session._play_timer_alert(state["finished"][0], bridge.epoch)
         await asyncio.gather(*list(session._tasks))
         assert not device.announced_urls and not device.admission.count("arm")
-        assert device.stop_playback_calls == 1 and device.rearm_calls == 1
+        assert device.stop_playback_calls == 0 and device.rearm_calls == 0
         assert bridge.snapshot("kitchen")["finished"] == []
 
 
@@ -449,3 +464,75 @@ async def test_composed_talk_natural_expiry_and_same_page_recovery():
             "playback_id"
         ] == "pv-timer-retired"
         link.live_socket_closed()
+
+
+async def test_warm_talk_interrupted_new_claim_has_no_unissued_output_cleanup():
+    manager, bridge, client, tools, _, _ = build()
+    bridge.identities["kitchen"] = {"kind": "talk", "identity": "kitchen"}
+    tools.timers.bind("kitchen", "talk", "kitchen")
+    wire = []
+    link = None
+
+    async def send(payload):
+        wire.append(payload)
+        if payload["type"] == "play":
+            link.media_state(True, payload["playback_id"])
+            link.media_state(False, payload["playback_id"])
+        elif payload["type"] == "stop_playback":
+            link.receive_playback_stop({**payload, "stopped": True, "source_detached": True})
+
+    async def send_bytes(_data):
+        pass
+
+    link = BrowserLink(send, send_bytes, room="kitchen")
+    assert link.bind_timer_peer("a" * 32)
+    await link.play_url("http://fixture/warm", playback_id="warm-original")
+    assert link._playback_serial > 0
+    session, _ = session_for(tools)
+    session.voicepe = link
+    claim_entered, release_claim = asyncio.Event(), asyncio.Event()
+    original = session._timer_command
+
+    async def claim(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        if args[2] == "claim_alert":
+            claim_entered.set()
+            await release_claim.wait()
+        return result
+
+    session._timer_command = claim
+    made = bridge.command(
+        endpoint="kitchen", epoch=bridge.epoch, request_id="one", action="start", seconds=1
+    )
+    manager.finish(made["id"])
+    alarm = stop = None
+    async with client:
+        try:
+            state = await tools.timers.refresh("kitchen")
+            alarm = session._timer_alarm_task = asyncio.create_task(
+                session._play_timer_alert(state["finished"][0], bridge.epoch)
+            )
+            await asyncio.wait_for(claim_entered.wait(), 2)
+            stop = asyncio.create_task(session.stop())
+            for _ in range(20):
+                if session._timer_interrupt.is_set():
+                    break
+                await asyncio.sleep(0)
+            assert session._timer_interrupt.is_set()
+            release_claim.set()
+            await asyncio.wait_for(asyncio.gather(alarm, stop), 2)
+            await asyncio.wait_for(asyncio.gather(*list(session._tasks)), 2)
+            assert bridge.snapshot("kitchen")["finished"] == []
+            assert not session._teardown_incomplete and session._playback_lease is None
+            assert [payload["type"] for payload in wire] == ["play"]
+            assert link._last_playback_id == "warm-original" and link._playback_serial == 1
+        finally:
+            release_claim.set()
+            for task in (alarm, stop, *list(session._tasks)):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (alarm, stop, *list(session._tasks)) if task is not None),
+                return_exceptions=True,
+            )
+            link.live_socket_closed()

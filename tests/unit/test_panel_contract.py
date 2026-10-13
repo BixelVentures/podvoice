@@ -83,9 +83,9 @@ def test_actual_mic_preferences_remain_without_baseline_tutorial():
 
     assert 'id="s_mic_channel"' in html
     assert 'id="s_mic_gain"' in html
-    assert 'id="s_openai_noise"' in html
+    assert 'id="s_openai_noise"' not in html
     assert "AGC-less channel 1" in html
-    assert 'gpt-realtime-2.1">GPT Realtime 2.1 (standardkvalitet)' in html
+    assert 'gpt-realtime-2.1">GPT Realtime 2.1 (standardkvalitet)' not in html
     assert "Registrerede ord er en transskription, som kan være forkert." in html
     assert "noiseSuppression: false" in html
     assert "autoGainControl: false" in html
@@ -175,21 +175,30 @@ def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
     assert "genstart PodVoice" not in html
 
 
-def test_effective_model_and_custom_turn_controls_are_explicit():
+def test_only_live_controls_are_advertised_and_fixed_speech_voice_is_honest():
     html = PANEL.read_text()
 
-    assert 'id="s_model_effective"' in html
-    assert "Realtime-model efter genstart: GPT Realtime 2.1 mini (tvunget)" in html
-    assert 'id="s_custom_turn"' in html
+    assert "Voice PE og Talk bruger GPT-Live" in html
+    assert "Stemme til fejl- og timerbeskeder" in html
+    assert 'id="s_live_sessions"' in html
     for field in (
+        "live_alpha",
+        "engine",
+        "openai_model",
+        "force_mini",
+        "turn_preset",
         "openai_turn",
         "openai_threshold",
         "openai_prefix_ms",
         "openai_silence_ms",
         "openai_eagerness",
+        "openai_noise",
+        "custom_turn",
+        "model_effective",
     ):
+        assert f'id="s_{field}"' not in html
+    for field in ("openai_voice", "mic_gain", "mic_channel", "system_prompt", "max_session_min"):
         assert f'id="s_{field}"' in html
-    assert 'custom.hidden = !f("turn_preset")' in html
 
 
 def test_partial_room_mapping_is_never_silently_discarded():

@@ -1,18 +1,19 @@
 # PodVoice-systeminvarianter
 
-> Aktuel GPT-Live-status (7/10): v2.0.0 er udgivet og installeret som en
-> Alpha-milepæl med Live ON, ikke fysisk lifecycle-/produktgodkendt. Brugeren har
-> valgt GPT-Live som den normale fremtidige oplevelse; daglige Alpha-/ON/OFF-valg
-> fjernes først med kendt funktionsmatrix, eksplicit settingsmigration og rollback.
-> Den eksisterende OFF-indstilling bevarer nedenstående Realtime/half-duplex-
-> kontrakt indtil migration. ON er implementeret gennem samme ThinSession,
-> VoicePELink, ToolRouter og fysiske close/rearm-ejer, med kontinuerlig Live-lyd
-> og egne ærligt navngivne backend/session-events. Realtime-tur-/audio-done-/ACK-
-> events må ikke fabrikeres for Live. Fuld funktionsparitet, voice-bekræftelser,
-> Stop, Talk, fysisk duplex og dræn er adgangsgates, ikke antagelser. STATUS.md
-> er den ene aktuelle lead-post for implementering, installerede bits og bevis.
-> Ingen følsom handling åbnes ved en opdigtet næste-brugertur, og ON arver ingen
-> fysisk readiness fra OFF, en metadatalancering eller en UI-ændring.
+> Produktbeslutning (13/10): brugeren har valgt **kun GPT-Live** til både Voice PE
+> og Talk. Dagligt Alpha-/ON/OFF-valg og settings, der kun styrer den tidligere motor,
+> fjernes i den aktive kandidat. Settingsmigration bevarer nødvendige værdier og
+> rollback-data; en aktiv session må ikke skifte motor ved settingssave.
+> Installeret v2.0.20 kører endnu den tidligere Live ON-opsætning. Strømliningens kode,
+> migration og relevante adaptere skal reviewes før samlet udgivelse. Den ændrede
+> produktretning er ingen fysisk accept eller bevis for løst semantisk close.
+> GPT-Live bruger samme ThinSession, VoicePELink, ToolRouter og fysiske close/rearm-
+> ejer. Live-events skal navngives sandt; Realtime-tur-/audio-done-/ACK-events må ikke
+> fabrikeres. Nedenstående mekaniske ejerskab og fysiske sikkerhedskrav bevares.
+> Funktionsparitet, Stop, Talk og dræn skal stadig bevises på kandidatens egne bits.
+> STATUS.md er den ene aktuelle lead-post for installerede bits og direkte bevis.
+> Ingen følsom handling åbnes ved en opdigtet næste-brugertur, og strømlining arver
+> ingen fysisk readiness fra den tidligere motor eller en UI-ændring.
 
 
 

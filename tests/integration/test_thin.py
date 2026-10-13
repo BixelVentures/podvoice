@@ -4291,14 +4291,14 @@ async def test_puck_gets_the_shield_talk_gets_duplex():
     src = inspect.getsource(main_mod)
     build = src[src.index("def _build_session") : src.index("def _make_talk")]
     assert "full_duplex=False" in build  # physical puck is structurally half-duplex
-    assert "interrupt_response=False" in build
-    assert "manual_input_response=True" in build
+    assert "brain = _make_live_brain(" in build
+    assert "brain = make_session(" not in build
     assert "full_duplex=cfg.full_duplex" not in build
     assert "interrupt_response=cfg.full_duplex" not in build
     talk = src[src.index("def _make_talk") :]
     assert "full_duplex=True" in talk  # Talk tab = proving ground (browser AEC)
-    assert "interrupt_response=True" in talk
-    assert "manual_input_response=True" in talk
+    assert "brain = _make_live_brain(" in talk
+    assert "brain = console_make(" not in talk
 
 
 def test_production_builder_has_no_classic_fallback():

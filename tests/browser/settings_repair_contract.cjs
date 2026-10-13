@@ -70,7 +70,7 @@ module.exports=async function runSettingsRepairContracts(browser,{source,sourceS
         assert.equal(posts.length,0,'raw GET never writes');
         assert.equal(await page.locator('#s_idle_timeout_s').inputValue(),'4');
         assert.equal(await page.locator('#s_duck_level').inputValue(),'23');
-        assert.equal(await page.locator('#s_live_alpha').isChecked(),false);
+        assert.equal(await page.locator('#s_live_alpha').count(),0);
         assert.equal(await page.locator('#s_podconnect_token').inputValue(),'********');
         const rows=page.locator('#s_rooms .roomrow'),count=Array.isArray(item.rows)?item.rows.length:1;
         assert.equal(await rows.count(),count,'raw rows projected without silent removal');
@@ -111,7 +111,7 @@ module.exports=async function runSettingsRepairContracts(browser,{source,sourceS
         assert.equal(posts.length,1,'one explicit complete repair/remove Save');
         const body=posts[0];assert.ok(Array.isArray(body.rooms));
         assert.equal(body.idle_timeout_s,item.normal?4:7);
-        for(const key of ['live_alpha','duck_level','system_prompt','extended_device_control','device_control_entities','podconnect_token','ha_mcp_token','voicepe_noise_psk'])
+        for(const key of ['duck_level','system_prompt','extended_device_control','device_control_entities','podconnect_token','ha_mcp_token','voicepe_noise_psk'])
           assert.deepEqual(body[key],prefs[key],'preserved preference/masked secret '+key);
         if(Array.isArray(item.rows))assert.deepEqual(body.rooms[0],savedRow,'existing per-device credential preserved privately');
         const expectedCount=item.normal||item.add?count:item.remove?count-1:count;

@@ -28,14 +28,16 @@ def test_atomic_save_keeps_exact_previous_bytes_and_named_205_rollback(
     assert backup.read_bytes() == previous
     assert S.load_settings(path) == saved
     assert saved["podconnect_token"] == values["podconnect_token"]
-    assert saved["live_alpha"] is not live_alpha and saved["settings_version"] == 11
+    assert saved["live_alpha"] is True and saved["settings_version"] == 11
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert stat.S_IMODE(backup.stat().st_mode) == 0o600
     assert not list(tmp_path.glob(".podvoice.json*"))
     # Explicit restoration of the compatible 2.0.5 source, no image/Supervisor claim.
     path.write_bytes(backup.read_bytes())
     assert _config(monkeypatch, tmp_path, path) == old_config
-    assert S.load_settings(path)["live_alpha"] is live_alpha
+    assert S.load_settings(path)["live_alpha"] is True
+    assert path.read_bytes() == previous
+    assert json.loads(path.read_text())["live_alpha"] is live_alpha
 
 
 @pytest.mark.parametrize("edge", ["backup", "source"])
@@ -108,14 +110,14 @@ def test_known_json_room_fault_quarantines_rooms_but_preserves_repairable_prefer
     loaded = S.load_settings(path)
     cfg = _config(monkeypatch, tmp_path, path)
     assert loaded["settings_error"] and not loaded.get("settings_source_untrusted", False)
-    assert loaded["rooms"] == bad_rooms and loaded["live_alpha"] is live_alpha
+    assert loaded["rooms"] == bad_rooms and loaded["live_alpha"] is True
     assert cfg.rooms == () and cfg.settings_error and not cfg.settings_source_untrusted
     assert cfg.system_prompt == values["system_prompt"]
     assert resolve_target(loaded) == (None, "")
     assert path.read_bytes() == previous
     repaired = S.save_settings({"rooms": _preferences(live_alpha)["rooms"]}, path)
     assert "settings_error" not in repaired and "settings_source_untrusted" not in repaired
-    assert repaired["live_alpha"] is live_alpha
+    assert repaired["live_alpha"] is True
     assert path.with_name(path.name + ".bak").read_bytes() == previous
     assert len(_config(monkeypatch, tmp_path, path).rooms) == 2
 
@@ -203,7 +205,7 @@ def test_nonfinite_save_refuses_before_any_backup_or_write(tmp_path, live_alpha,
     with pytest.raises(ValueError):
         S.save_settings({"live_alpha": not live_alpha, **invalid}, path)
     assert path.read_bytes() == source_before and backup.read_bytes() == backup_before
-    assert S.load_settings(path)["live_alpha"] is live_alpha
+    assert S.load_settings(path)["live_alpha"] is True
     assert not list(tmp_path.glob(".podvoice.json*"))
 
 
@@ -237,6 +239,6 @@ def test_saved_finite_numeric_string_and_existing_nonnumeric_fallback_are_unchan
     loaded = S.load_settings(path)
     cfg = _config(monkeypatch, tmp_path, path)
     assert "settings_error" not in loaded and not cfg.settings_source_untrusted
-    assert loaded["vad_threshold"] == value and loaded["live_alpha"] is live_alpha
+    assert loaded["vad_threshold"] == value and loaded["live_alpha"] is True
     assert cfg.vad_threshold == (0.02 if value == "0.02" else S.DEFAULTS["vad_threshold"])
     assert len(cfg.rooms) == 2 and path.read_bytes() == previous

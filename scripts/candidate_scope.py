@@ -284,6 +284,57 @@ _NATIVE_IDLE_INPUT_UI_REGRESSIONS = {
 }
 
 
+# One exact reviewed chain: sole Live startup/settings/UI plus native idle alarm.
+# Names of adjacent owners do not grant other provider, prompt, tool or I/O surfaces.
+# Required regressions must actually differ from the base; their complete effective
+# bytes are independently reviewed and fingerprint-bound, not merely present.
+_LIVE_STARTUP_IDLE_ALARM_REQUIRED = {
+    "esphome/components/podvoice_reply/__init__.py",
+    "esphome/components/podvoice_reply/podvoice_reply.h",
+    "esphome/components/podvoice_reply/stop_context.h",
+    "esphome/podvoice-live-alpha.yaml",
+    "esphome/podvoice.yaml",
+    "esphome/voice-pe-podvoice-base.yaml",
+    "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/config.py",
+    "podvoice/gatekeeper/settings.py",
+    "podvoice/gatekeeper/static/index.html",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/voicepe.py",
+}
+_LIVE_STARTUP_IDLE_ALARM_REGRESSIONS = {
+    "tests/firmware/boot_package_regression.py",
+    "tests/browser/daily_ui.cjs",
+    "tests/browser/settings_dirty.cjs",
+    "tests/browser/settings_repair_contract.cjs",
+    "tests/firmware/activity_wire_test.cpp",
+    "tests/firmware/idle_timer_output_test.cpp",
+    "tests/firmware/live_stop_pipeline_test.cpp",
+    "tests/firmware/stop_idle_recovery_test.cpp",
+    "tests/firmware/stop_pipeline_test.cpp",
+    "tests/firmware/stop_retry_test.cpp",
+    "tests/integration/test_ha_timer_flow.py",
+    "tests/integration/test_ha_timer_native_output.py",
+    "tests/integration/test_main_saved_live_selection.py",
+    "tests/integration/test_main_settings_save_contract.py",
+    "tests/integration/test_settings_integrity_startup.py",
+    "tests/integration/test_thin.py",
+    "tests/unit/test_button_firmware.py",
+    "tests/unit/test_firmware_contract.py",
+    "tests/unit/test_live_alpha_settings.py",
+    "tests/unit/test_panel_contract.py",
+    "tests/unit/test_settings_atomic_commit.py",
+    "tests/unit/test_settings_integrity.py",
+    "tests/unit/test_stop_word.py",
+    "tests/unit/test_voicepe_contract.py",
+}
+
+
+_LIVE_STARTUP_IDLE_ALARM_SCOPE_REGRESSIONS = {
+    "tests/unit/test_candidate_scope_live_startup_idle_alarm.py",
+}
+
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -751,6 +802,63 @@ def _reviewed_native_idle_input_passive_ui(
     )
 
 
+def _reviewed_live_startup_idle_alarm(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    domains = ("audio_input", "physical_output", "realtime_semantics", "rearm")
+    if (
+        set(record) != fields
+        or record["kind"] != "live_startup_native_idle_alarm"
+        or report.domains != domains
+        or record["domains"] != list(domains)
+        or any(
+            not isinstance(record[key], str) or not record[key].strip()
+            for key in fields - {"version", "domains"}
+        )
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+    ):
+        return False
+    effective = _effective_changes(
+        root, report.base, (*report.production_files, *report.test_files)
+    )
+    production = {name for name in effective if name.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    metadata = "podvoice/gatekeeper/__init__.py"
+    regressions = {name for name in effective if name.startswith("tests/")}
+    if (
+        not regressions
+        <= _LIVE_STARTUP_IDLE_ALARM_REGRESSIONS | _LIVE_STARTUP_IDLE_ALARM_SCOPE_REGRESSIONS
+        or not _LIVE_STARTUP_IDLE_ALARM_REQUIRED <= effective
+        or not production <= _LIVE_STARTUP_IDLE_ALARM_REQUIRED | {metadata}
+        or not _LIVE_STARTUP_IDLE_ALARM_REGRESSIONS <= effective
+        or any(
+            not (root / name).is_file() or (root / name).is_symlink()
+            for name in production | regressions | _LIVE_STARTUP_IDLE_ALARM_REGRESSIONS
+        )
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    return record["fingerprint"] == production_fingerprint(
+        root, base_tip, report.base, report.production_files
+    ) and record["regression_fingerprint"] == regression_fingerprint(
+        root, base_tip, report.base, report.test_files
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
@@ -789,6 +897,18 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
         return failed
+    if record["version"] == 5:
+        # This composition preserves the idle-input owners; changing them still
+        # requires the existing strict v4 contract. It cannot swallow v3 surfaces.
+        if (
+            strict_v3_required
+            or strict_v4_required
+            or not _reviewed_live_startup_idle_alarm(root, report, base_tip, record)
+        ):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: live_startup_native_idle_alarm"
+        )
     if record["version"] == 4:
         if strict_v3_required or not _reviewed_native_idle_input_passive_ui(
             root, report, base_tip, record

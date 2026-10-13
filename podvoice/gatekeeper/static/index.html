@@ -434,50 +434,16 @@
 
       <section class="expose">
         <h2>GPT-Live</h2>
-        <div class="setgrid">
-          <label for="s_live_alpha">GPT-Live (eksperimentel)</label>
-          <input id="s_live_alpha" type="checkbox" aria-describedby="s_live_alpha_help">
-        </div>
-        <p id="s_live_alpha_help" class="sub">Gælder fra næste samtale. Fra bruger Realtime.</p>
-        <p id="s_live_alpha_active" class="sub" role="status"></p>
+        <p class="sub">Voice PE og Talk bruger GPT-Live. Forbindelse og enhedsstatus vises på forsiden.</p>
+        <p id="s_live_sessions" class="sub" role="status"></p>
       </section>
 
         <div class="exsub" style="margin-top:14px">Assistent</div>
         <div class="setgrid">
-          <label for="s_engine" hidden>Samtalemotor</label>
-          <select id="s_engine" hidden>
-            <option value="thin">PodVoice Realtime &mdash; én sammenhængende samtale</option>
-          </select>
-          <label for="s_openai_model">Realtime-model</label>
-          <select id="s_openai_model">
-            <option value="gpt-realtime-2.1">GPT Realtime 2.1 (standardkvalitet)</option>
-            <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (lavere pris)</option>
-          </select>
-          <label for="s_openai_voice">Realtime-stemme</label>
+          <label for="s_openai_voice">Stemme til fejl- og timerbeskeder</label>
           <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
-          <label for="s_turn_preset">Turtagning</label>
-          <select id="s_turn_preset">
-            <option value="responsive">Naturlig &mdash; hele sætninger</option>
-            <option value="conservative">Kort &mdash; energi-baseret</option>
-            <option value="custom">Tilpasset &mdash; vis rå indstillinger</option>
-          </select>
           <label for="s_max_session_min">Maks. samtale (min.)</label>
           <input id="s_max_session_min" type="number" min="1" max="55">
-          <label for="s_force_mini">Tving mini-model (tilsidesætter Model)</label>
-          <input id="s_force_mini" type="checkbox">
-        </div>
-        <p id="s_model_effective" class="sub" role="status"></p>
-        <div id="s_custom_turn" class="setgrid" hidden>
-          <label for="s_openai_turn">Turn detection</label>
-          <select id="s_openai_turn"><option value="server_vad">Server VAD</option><option value="semantic_vad">Semantisk VAD</option><option value="none">Fra</option></select>
-          <label for="s_openai_threshold">VAD-tærskel</label>
-          <input id="s_openai_threshold" type="number" min="0" max="1" step="0.05">
-          <label for="s_openai_prefix_ms">Lyd før tale (ms)</label>
-          <input id="s_openai_prefix_ms" type="number" min="0" max="5000">
-          <label for="s_openai_silence_ms">Stilhed før slut (ms)</label>
-          <input id="s_openai_silence_ms" type="number" min="100" max="10000">
-          <label for="s_openai_eagerness">Semantisk følsomhed</label>
-          <select id="s_openai_eagerness"><option value="auto">Auto</option><option value="low">Lav</option><option value="medium">Mellem</option><option value="high">Høj</option></select>
         </div>
         <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
         <p class="sub" style="margin:2px 0 0">API-nøglen gemmes i add-onens Konfiguration.</p>
@@ -491,12 +457,6 @@
           </select>
           <label for="s_mic_gain">Rå mikrofon-gain</label>
           <input id="s_mic_gain" type="number" min="1" max="64">
-          <label for="s_openai_noise">OpenAI-støjreduktion på Voice PE</label>
-          <select id="s_openai_noise">
-            <option value="off">Fra</option>
-            <option value="far_field">Lang afstand</option>
-            <option value="near_field">Kort afstand</option>
-          </select>
         </div>
 
 
@@ -574,7 +534,7 @@
               </details>
           <div class="section">
             <h2>Lydbevis</h2>
-            <p class="sub" style="margin:2px 0 10px">Alpha gemmer automatisk diagnose fra dine Voice PE-samtaler: hændelser, mikrofon, lyd sendt mod OpenAI og svarlyd. Der gemmes ikke løbende lyd mellem samtaler. Efter et registreret wake kan op til 1,5 sekunders lokal vækkeordsreference gemmes; den sendes ikke til OpenAI. Data beholdes lokalt i højst 24 timer og inden for 512 MiB. Lyd sendt mod OpenAI er ikke bevis for modtagelse; svarlyd er ikke en optagelse af lyden i rummet. Manuel optagelse er stadig mulig uden Alpha.</p>
+            <p class="sub" style="margin:2px 0 10px">GPT-Live gemmer automatisk diagnose fra dine Voice PE-samtaler: hændelser, mikrofon, lyd sendt mod OpenAI og svarlyd. Der gemmes ikke løbende lyd mellem samtaler. Efter et registreret wake kan op til 1,5 sekunders lokal vækkeordsreference gemmes; den sendes ikke til OpenAI. Data beholdes lokalt i højst 24 timer og inden for 512 MiB. Lyd sendt mod OpenAI er ikke bevis for modtagelse; svarlyd er ikke en optagelse af lyden i rummet. Manuel optagelse er også mulig.</p>
             <button id="trace_arm">Optag næste samtale</button>
             <button id="trace_cancel" class="ghost" hidden>Annullér</button>
             <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
@@ -1232,7 +1192,7 @@ setInterval(function () {
     analyse.disabled = !latestTrace || analysisBusy;
     box.innerHTML = "";
     if (!data || data.ok === false) { arm.disabled = true; cancel.hidden = true; box.appendChild(te("div", "empty", "Optagelsesstatus ukendt. " + ((data && data.error) || "Lydbevis er ikke tilgængeligt."))); return; }
-    if (data.automatic) box.appendChild(te("div", "sub", "Automatisk diagnose for Voice PE Alpha er slået til. Lokalt: højst 24 timer / 512 MiB; lange samtaler gemmes i dele."));
+    if (data.automatic) box.appendChild(te("div", "sub", "Automatisk diagnose for Voice PE er slået til. Lokalt: højst 24 timer / 512 MiB; lange samtaler gemmes i dele."));
     if (data.pending && data.pending.length) box.appendChild(te("div", "sub", "Gemmer " + data.pending.length + " samtale(r) i baggrunden."));
     if (data.errors && Object.keys(data.errors).length) box.appendChild(te("div", "empty", "Diagnosen er ufuldstændig: en lokal lagringsfejl er registreret."));
     if (data.dropped && Object.values(data.dropped).some(function (n) { return n > 0; })) box.appendChild(te("div", "empty", "Diagnosen har huller: måledata blev tabt, mens samtalen fortsatte."));
@@ -1998,15 +1958,12 @@ setInterval(function () {
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["live_alpha", "engine", "openai_model", "openai_voice", "voicepe_noise_psk",
-    "turn_preset", "wake_word", "idle_timeout_s", "max_session_min", "force_mini",
-    "openai_turn", "openai_threshold", "openai_prefix_ms", "openai_silence_ms", "openai_eagerness",
-    "mic_channel", "mic_gain", "openai_noise",
+  var FIELDS = ["openai_voice", "voicepe_noise_psk",
+    "wake_word", "idle_timeout_s", "max_session_min", "mic_channel", "mic_gain",
     "duck_level", "system_prompt", "panel_lan_open",
     "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token",
     "extended_device_control", "device_control_entities"];
-  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1,
-              openai_threshold: 1, openai_prefix_ms: 1, openai_silence_ms: 1 };
+  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1 };
   var settingsDirty = false;
   var settingsRevision = 0;
   var settingsSaveBusy = false;
@@ -2015,14 +1972,6 @@ setInterval(function () {
     setSaveStatus("Ikke gemt endnu");
   }
   function f(id) { return document.getElementById("s_" + id); }
-  function syncAdvancedTruth() {
-    var forced = !!(f("force_mini") && f("force_mini").checked);
-    if (f("openai_model")) f("openai_model").disabled = forced;
-    var effective = document.getElementById("s_model_effective");
-    if (effective) effective.textContent = forced ? "Realtime-model efter genstart: GPT Realtime 2.1 mini (tvunget)" : "Realtime-model efter genstart: " + (f("openai_model") ? f("openai_model").value : "serverens standard");
-    var custom = document.getElementById("s_custom_turn");
-    if (custom) custom.hidden = !f("turn_preset") || f("turn_preset").value !== "custom";
-  }
   function setVal(id, v) {
     var e = f(id); if (!e) return;
     if (id === "device_control_entities") { e.value = Array.isArray(v) ? v.join("\n") : ""; return; }
@@ -2033,8 +1982,7 @@ setInterval(function () {
     if (id === "device_control_entities") return e.value.split(/\r?\n/).map(function (v) { return v.trim(); }).filter(Boolean);
     if (e.type === "checkbox") return e.checked;
     if (NUM[id]) {
-      var customTurn = ["openai_threshold", "openai_prefix_ms", "openai_silence_ms"].indexOf(id) !== -1;
-      if (e.type === "number" && !e.value.trim() && (!customTurn || (f("turn_preset").value === "custom" && f("openai_turn").value === "server_vad"))) {
+      if (e.type === "number" && !e.value.trim()) {
         var disclosure = e.closest("details"); if (disclosure) disclosure.open = true;
         e.focus();
         var label = document.querySelector('label[for="' + e.id + '"]');
@@ -2162,17 +2110,16 @@ setInterval(function () {
         setSaveStatus(s && s.error ? s.error : "Kunne ikke hente de gemte indstillinger. Genindlæs siden.");
         return;
       }
-      var activeAlpha = document.getElementById("s_live_alpha_active");
-      var activeRooms = s.live_alpha_active || {};
-      activeAlpha.textContent = "Ved seneste hentning: " + (Object.keys(activeRooms).map(function (room) {
-        return room + ": " + (activeRooms[room] === null ? "ingen aktiv samtale" : activeRooms[room] ? "Live Alpha" : "Realtime");
+      var activeSessions = document.getElementById("s_live_sessions");
+      var activeRooms = s.live_sessions || {};
+      activeSessions.textContent = "Ved seneste hentning: " + (Object.keys(activeRooms).map(function (room) {
+        return room + ": " + (activeRooms[room] === null ? "ingen aktiv samtale" : activeRooms[room] ? "GPT-Live" : "ukendt motor");
       }).join(" · ") || "ingen aktive rum") + ".";
       savedWakeWord = s.wake_word || null;
       renderWakeWordStatus();
       pcRooms = Array.isArray(jobs[1].rooms) ? jobs[1].rooms : [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
-      syncAdvancedTruth();
       updateSecretHints(s);
       roomsWrap.innerHTML = "";
       var sourceRooms = "rooms" in s ? s.rooms : [];
@@ -2240,7 +2187,7 @@ setInterval(function () {
       if (!newerDraft) settingsDirty = false;
       if (!restart) {
         setSaveStatus(newerDraft ? "Sendte ændringer gemt — nyere ændringer er ikke gemt."
-          : "Gemt — Alpha-valget gælder fra næste samtale. Øvrige ændringer kan kræve genstart.");
+          : "Gemt — nogle ændringer kræver genstart for at gælde i samtaler.");
         return;
       }
       setSaveStatus(newerDraft ? "Sendte ændringer gemt — nyere ændringer er ikke gemt. Genstarter…" : "Gemt — genstarter…");
@@ -2262,9 +2209,8 @@ setInterval(function () {
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
   document.getElementById("pane-settings").addEventListener("input", function () {
-    markSettingsDirty(); syncAdvancedTruth();
+    markSettingsDirty();
   });
-  document.getElementById("pane-settings").addEventListener("change", syncAdvancedTruth);
   window.addEventListener("beforeunload", function (e) {
     if (!settingsDirty) return;
     e.preventDefault(); e.returnValue = "";
