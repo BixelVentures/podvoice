@@ -205,7 +205,7 @@ _ACCESS_OPEN_COVER_CLASSES = {"door", "garage", "gate", "window"}
 _TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
 
 
-def _mcp_result_to_contract(result: dict) -> dict:
+def _mcp_result_to_contract(result: dict, *, tool_name: str | None = None) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
     ``{ok, summary?, data?}`` on success, ``{ok: False, error_kind, error}`` on
     ``isError``. Text content that parses as JSON rides in ``data``; plain text is
@@ -235,6 +235,17 @@ def _mcp_result_to_contract(result: dict) -> dict:
             out.setdefault("data", parsed)
     if "summary" not in out and "data" not in out:
         out["empty"] = True
+    data = out.get("data")
+    # HA 2026.8.2 GetLiveContext returns domain failures as JSON text without
+    # MCP isError. Interpret only this accepted tool's documented typed envelope.
+    if (
+        tool_name == "GetLiveContext"
+        and isinstance(data, dict)
+        and data.get("success") is False
+        and isinstance(data.get("error"), str)
+        and data["error"].strip()
+    ):
+        out.update(ok=False, error_kind="tool_error", error=data["error"])
     return out
 
 
@@ -1500,7 +1511,7 @@ class ToolRouter:
                 args or {},
                 **({"execution_guard": execution_guard} if execution_guard is not None else {}),
             )
-            return compact_weather_result(name, _mcp_result_to_contract(result))
+            return compact_weather_result(name, _mcp_result_to_contract(result, tool_name=name))
         except McpError as e:
             if e.connection_shaped:
                 self._record_discovery_failure(e)

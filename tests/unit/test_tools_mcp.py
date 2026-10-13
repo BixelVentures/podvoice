@@ -273,6 +273,123 @@ def test_contract_folding_shapes():
     assert _mcp_result_to_contract({"content": []}) == {"ok": True, "empty": True}
 
 
+@pytest.mark.parametrize("structured", [False, True])
+def test_exact_ha_live_context_domain_failure_preserves_source_data(structured):
+    data = {"success": False, "error": "Area 'Fixture room' does not exist"}
+    envelope = (
+        {"structuredContent": data, "content": []}
+        if structured
+        else {"content": [{"type": "text", "text": json.dumps(data)}]}
+    )
+    original = json.loads(json.dumps(envelope))
+    assert _mcp_result_to_contract(envelope, tool_name="GetLiveContext") == {
+        "ok": False,
+        "error_kind": "tool_error",
+        "error": data["error"],
+        "data": data,
+    }
+    assert envelope == original
+
+
+@pytest.mark.parametrize(
+    "tool_name", [None, "CustomTool", "homeassistant__GetLiveContext", "getlivecontext"]
+)
+def test_unrelated_tool_or_identity_never_inherits_ha_domain_interpretation(tool_name):
+    data = {"success": False, "error": "A data field, not this tool's domain status"}
+    assert _mcp_result_to_contract({"structuredContent": data}, tool_name=tool_name) == {
+        "ok": True,
+        "data": data,
+    }
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"success": True, "result": "Live Context: fixture"},
+        {"success": 0, "error": "fixture"},
+        {"success": "false", "error": "fixture"},
+        {"success": False},
+        {"success": False, "error": None},
+        {"success": False, "error": 1},
+        {"success": False, "error": ""},
+        {"success": False, "error": "  "},
+        [False, "fixture"],
+        None,
+    ],
+)
+def test_other_known_tool_shapes_retain_existing_contract(data):
+    assert _mcp_result_to_contract(
+        {"structuredContent": data, "content": [{"type": "text", "text": json.dumps(data)}]},
+        tool_name="GetLiveContext",
+    ) == {"ok": True, "data": data}
+
+
+def test_ha_domain_fold_preserves_mcp_error_and_structured_priority():
+    failed = {"success": False, "error": "fixture domain failure"}
+    success = {"success": True, "result": "fixture context"}
+    content = [{"type": "text", "text": json.dumps(failed)}]
+    assert _mcp_result_to_contract(
+        {"structuredContent": success, "content": content}, tool_name="GetLiveContext"
+    ) == {"ok": True, "data": success}
+    assert _mcp_result_to_contract(
+        {
+            "isError": True,
+            "structuredContent": failed,
+            "content": [{"type": "text", "text": "transport error"}],
+        },
+        tool_name="GetLiveContext",
+    ) == {"ok": False, "error_kind": "tool_error", "error": "transport error"}
+    assert _mcp_result_to_contract(
+        {"content": [{"type": "text", "text": "plain text"}]}, tool_name="GetLiveContext"
+    ) == {"ok": True, "summary": "plain text"}
+    assert _mcp_result_to_contract({"content": []}, tool_name="GetLiveContext") == {
+        "ok": True,
+        "empty": True,
+    }
+
+
+@respx.mock
+async def test_boot_probe_domain_failure_is_not_healthy_and_success_can_recover():
+    from gatekeeper.hub import StatusHub
+
+    failed = True
+    calls = []
+
+    def rpc(request):
+        body = json.loads(request.content)
+        if body.get("method") != "tools/call":
+            return _rpc_response(request)
+        calls.append(body["params"])
+        data = (
+            {"success": False, "error": "No entities exposed to fixture assistant"}
+            if failed
+            else {"success": True, "result": "Live Context: fixture"}
+        )
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": {"content": [{"type": "text", "text": json.dumps(data)}]},
+            },
+        )
+
+    respx.post(MCP_URL).mock(side_effect=rpc)
+    hub = StatusHub()
+    async with httpx.AsyncClient() as client:
+        router = ToolRouter(HomeAssistantMCP(MCP_URL, "tok", client), client=client, hub=hub)
+        await router.start()
+        assert router.healthy is False
+        assert hub.snapshot()["services"]["mcp"] == "degraded"
+        assert router.discovery_status()["retry_state"] == "ready"
+        assert "GetLiveContext" in {d["name"] for d in router.declarations()}
+        failed = False
+        assert await router.probe()
+        assert router.healthy is True
+        assert hub.snapshot()["services"]["mcp"] == "up"
+    assert calls == [{"name": "GetLiveContext", "arguments": {}}] * 2
+
+
 def test_sse_framed_response_parses():
     text = 'event: message\ndata: {"jsonrpc":"2.0","id":7,"result":{"x":1}}\n\n'
     assert _sse_payload(text, 7)["result"] == {"x": 1}
