@@ -27,14 +27,18 @@ class PodVoiceReply : public Component {
   void set_mute_switch(switch_::Switch *v) { mute_switch_ = v; }
   Trigger<> *get_timer_stop_trigger() { return &timer_stop_trigger_; }
   void set_stop_model(micro_wake_word::WakeWordModel *v) { stop_model_ = v; }
+  void set_timer_status(text_sensor::TextSensor *value) { timer_status_ = value; }
   void setup() override {
 #ifdef USE_PODVOICE_ACTIVITY_OBSERVER
     source_->podvoice_observe_activity(activity_status_ != nullptr);
 #endif
     detector_->set_stop_model(stop_model_);
     muted_ = mute_switch_->state;
+    invalidate_timer_admission();
     mute_switch_->add_on_state_callback([this](bool muted) {
       muted_ = muted;
+      invalidate_timer_admission();
+      if (muted_) stop_timer_output();
       if (!context_.active) {
         context_.timer(timer_required_ && !muted_ && !timer_suspended_); request_context_();
       }
@@ -54,6 +58,46 @@ class PodVoiceReply : public Component {
         timer_stop_trigger_.trigger();
       }
     });
+  }
+  void invalidate_timer_admission() {
+    context_.idle(nonce_()); timer_idle_published_ = false;
+  }
+  bool timer_output_active() const { return context_.active && context_.output_only; }
+  void stop_timer_output() {
+    if (!timer_output_active() || context_.cancelled) return;
+    context_.detect(context_.command);
+    state_.cancel(state_.token, false); state_.blocked = true;
+    stop_(); publish_context_("stopped");
+  }
+  void begin_timer_output(const std::string &idle, const std::string &request) {
+    if (request.size() != 64 || idle.size() != 32 || request.substr(0, 32) != idle || muted_ || timer_required_ ||
+        idle_fault_ || timer_suspended_ || context_fault_() ||
+        detector_->stop_context_ack() != context_.command ||
+        (state_.phase != ReplyState::IDLE && state_.phase != ReplyState::STOPPED) ||
+        !context_.begin_output(idle, nonce_())) return;
+    timer_request_ = request; timer_expected_idle_ = idle;
+    live_worker_run_ = detector_->stop_context_worker_run();
+    request_context_();
+  }
+  void cancel_timer_output(const std::string &idle, const std::string &request, const std::string &token) {
+    if (idle.size() != 32 || request.size() != 64 || request.substr(0, 32) != idle || token.size() != 32) return;
+    if (!context_.output_only || !context_.active || timer_request_ != request || timer_expected_idle_ != idle) {
+      // Fence only original X; an old cancel can never revoke later idle Y.
+      if (!context_.active && context_.idle_nonce == idle) invalidate_timer_admission();
+      timer_status_->publish_state("cancel:" + request + ":" + token + ":absent"); return;
+    }
+    timer_cancel_command_ = token;
+    if (timer_cancel_token_.empty()) {
+      timer_cancel_token_ = state_.token.empty() ? token : state_.token;
+      if (!context_.set(context_.session, context_.generation + 1, false)) return;
+      request_context_();
+    }
+    cancel(timer_cancel_token_); publish_timer_retirement_();
+  }
+  void publish_timer_retirement_() {
+    if (context_.output_only && !timer_cancel_token_.empty() && ready_to_rearm() && state_.phase == ReplyState::STOPPED)
+      timer_status_->publish_state("cancel:" + timer_request_ + ":" + timer_cancel_command_ + ":" + context_.session + ":" +
+        std::to_string(context_.generation) + ":" + timer_cancel_token_ + ":retired");
   }
   bool begin_conversation() {
     if (idle_fault_ || timer_suspended_) return false;
@@ -127,6 +171,7 @@ class PodVoiceReply : public Component {
   void rearmed() {
     button_stop_latched_ = false;
     state_.reset(); context_.clear(); timer_suspended_ = false; idle_fault_ = false;
+    invalidate_timer_admission(); timer_request_.clear(); timer_cancel_token_.clear(); timer_cancel_command_.clear();
     context_.timer(timer_required_ && !muted_); request_context_();
   }
   void set_timer_required(bool value) {
@@ -148,6 +193,7 @@ class PodVoiceReply : public Component {
       context_status_->publish_state("00000000000000000000000000000000:0:fault");
     }
     publish_context_ack_();
+    publish_timer_retirement_();
     if (state_.phase == ReplyState::REQUESTED && player_->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
       state_.phase = ReplyState::PLAYING; publish_("started");
     }
@@ -254,10 +300,17 @@ class PodVoiceReply : public Component {
       state_.cancel(state_.token, false); state_.blocked = true;
       stop_(); context_published_ = true; publish_context_("fault");
     }
+    if (!context_.active && !muted_ && !idle_fault_ && !timer_suspended_ &&
+        !timer_idle_published_ && detector_->stop_context_ack() == context_.command) {
+      timer_status_->publish_state("idle:" + context_.idle_nonce); timer_idle_published_ = true;
+    }
     if (context_published_) return;
     if (fault && (context_.enabled || context_.playback_allowed)) {
       context_published_ = true; publish_context_("fault");
     } else if (detector_->stop_context_ack() == context_.command) {
+      if (context_.output_only && !timer_request_.empty())
+        timer_status_->publish_state(timer_request_ + ":" + timer_expected_idle_ + ":" +
+          context_.session + (context_.enabled && !context_.cancelled ? ":armed" : ":revoked"));
       context_published_ = true; publish_context_(context_.enabled ? "armed" : (context_.cancelled ? "cancelled" : (context_.playback_allowed ? "live" : "disabled")));
     }
   }
@@ -282,6 +335,14 @@ class PodVoiceReply : public Component {
   bool context_published_{false};
   uint32_t live_worker_run_{0};
   bool muted_{false};
+  static std::string nonce_() {
+    char value[33];
+    snprintf(value, sizeof(value), "%08x%08x%08x%08x", random_uint32(), random_uint32(), random_uint32(), random_uint32());
+    return value;
+  }
+  text_sensor::TextSensor *timer_status_{nullptr};
+  bool timer_idle_published_{false};
+  std::string timer_request_, timer_expected_idle_, timer_cancel_token_, timer_cancel_command_;
   bool timer_suspended_{false}, idle_fault_{false};
   speaker_source::SpeakerSourceMediaPlayer *player_;
   resampler::ResamplerSpeaker *resampler_;

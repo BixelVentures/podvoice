@@ -3,16 +3,24 @@
 #include <string>
 
 namespace esphome::podvoice_reply {
-// Main-loop state only. Nonce is minted by firmware at physical wake. Remote
-// commands cannot create/rebind a session, replay a generation, or clear Stop.
+// Main-loop state only. Conversation nonce is minted at physical wake. An idle
+// output nonce is minted only against the current firmware-owned idle capability.
+// Remote commands cannot rebind a conversation, replay a generation, or clear Stop.
 class StopContext {
  public:
   std::string session;
   uint32_t generation{0}, command{0};
-  bool enabled{false}, playback_allowed{false}, cancelled{false}, active{false};
+  bool enabled{false}, playback_allowed{false}, cancelled{false}, active{false}, output_only{false};
+  std::string idle_nonce;
+  void idle(const std::string &nonce) { idle_nonce = nonce; }
+  bool begin_output(const std::string &expected_idle, const std::string &nonce) {
+    if (active || expected_idle.empty() || expected_idle != idle_nonce) return false;
+    if (!begin(nonce)) return false;
+    output_only = true; return set(nonce, 1, true);
+  }
   bool begin(const std::string &nonce) {
     if (active || nonce.empty() || command >= 0xfffffffc) return false;
-    session = nonce; generation = 0; enabled = false; playback_allowed = false; cancelled = false; active = true;
+    idle_nonce.clear(); output_only = false; session = nonce; generation = 0; enabled = false; playback_allowed = false; cancelled = false; active = true;
     advance(false); return true;
   }
   bool set(const std::string &nonce, uint32_t next, bool value) {
@@ -38,7 +46,7 @@ class StopContext {
   bool admits(const std::string &nonce, uint32_t gen) const {
     return active && playback_allowed && !cancelled && nonce == session && gen == generation;
   }
-  void clear() { active = false; enabled = false; playback_allowed = false; cancelled = true; session.clear(); advance(false); }
+  void clear() { idle_nonce.clear(); output_only = false; active = false; enabled = false; playback_allowed = false; cancelled = true; session.clear(); advance(false); }
   void timer(bool value) { if (!active) advance(value); }
  private:
   void advance(bool value) {
