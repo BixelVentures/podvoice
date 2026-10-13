@@ -17638,9 +17638,9 @@ PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher3
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "ab1dc3be6122496353fdb51a14cf54024d639df35d1516b3e976128c2274df28",
+  "fingerprint": "12d1eeb999d61471255c7dee4157174c1e582e6a47665686e8d9746187040fef",
   "reviewer": "closing_wait_cause",
-  "rationale": "Independently reviewed combined source against the exact installed main4a tree: Live prompt and Live-only WAIT description preserve sole model semantics, unchanged standard WAIT, completed backend settlement, shared Thin ownership and adapter parity. Changed startup-contract regressions are bound in the external receipt. Retained private developer-eval source is unchanged from the reviewed quiet candidate; no force, oracle weakening or new provider call. This source scope admission does not establish provider or physical acceptance; prior FAIL evidence remains valid."
+  "rationale": "Independent combined exact-source review against authentic main4a/tree3c89 admits the existing Live prompt and Live-only WAIT description plus one backend_model default change from gpt-5.6-luna to gpt-6-sol. Only model, configuration aggregate and openai_live source hash change in the actual offline Thin startup; primary, backend prompt, tool/schema, 1024 output cap and omitted reasoning remain unchanged. Shared Thin completed-result ownership, both I/O adapters, key-wide diagnostic exclusion, model budget ownership and explicit override are preserved. Entire tests bind to 3802134365f26feb875f215a79865b2de509f518b54eb81416351fbb687a0e83; externally reviewed tests/eval bind to e1e40962a5f1550769cddcff0a8bb7e3b3bbcd7e3ad4748fff0b4bdb4baddf5d. Generic V1 does not itself validate those external hashes. Prior strict FAIL and test-oracle FAIL evidence remain valid; source admission establishes no provider, physical or release acceptance."
 }
 -->
 
@@ -17685,3 +17685,38 @@ alle effektive runtimefelter, primary, backend, tools og configaggregate er iden
 Tidligere strict FAIL er ikke regraderet. Ingen ny providerprøve, HA-pause,
 produktion/runtimeændring, PR, release, installation eller fysisk accept følger.
 Kandidaten er fortsat IKKE TESTKLAR; målet er ACTIVE.
+
+
+Samme aktive afslutningspost 13/10 — isoleret backend-modelsammenligning.
+Kun OpenAILiveSession-standardværdien backend_model ændres fra gpt-5.6-luna
+til gpt-6-sol. Primary f1df, backendprompt af00, tools74aa, outputloft1024,
+udeladt reasoning og hele Thin/native/Talk-mekanikken er bevaret. Modellen
+ejer sin egen budgetbucket; key-wide diagnostikeksklusion og eksplicit override
+består. Sol-pris er ukendt, og providererror/truncation er UNKNOWN.
+
+Ændrede filer består formatter/lint. Eksisterende 12 berørte regressioner består;
+ny startup/budget-default-og-override-regression består begge parametriseringer.
+Første test-oracle FAIL på forkert SDK-envelope-field er bevaret; kun testen
+blev rettet til faktisk session.start.session. Én offline startup er eksporteret.
+Uafhængigt exact-source/adversarialreview har SOURCE GO og opdaterer samme
+aktive generiske V1-scopebinding; classifier/profile er uændrede.
+
+Tidligere strict provider-FAILs, primaryens tidlige tale og ukendt robust semantik
+bevares. Ingen providerkald, HA-pause, release, installation eller fysisk accept
+er udført ved forberedelsen. Kandidaten er ikke testklar. Stående menneskelig
+godkendelse gælder samme max2 syntetiske prøver med stop ved første FAIL/UNKNOWN,
+180s actual HA-pause, 120s providerloft og sidste60s restore. Frisk separat
+Restore Owner ejer egen TTYsession og Stop/gate/terminal-eller-120/Start/Kører.
+
+
+### 13/10 — Sol-sammenligning og næste afgrænsede primary-politik
+
+Sol-draftet ændrer kun backend-defaulten (source ea11e846, primary f1df/backend af00/tools 74aa bevaret). 14 målrettede checks og statiske checks bestod; uafhængigt samlet source/operator-review gav GO, og eksisterende mekaniske scope bestod med produktion 12d1eeb9 og ekstern regression e1e40962. Ingen release eller installation. Første nye test-oracle-fejl og packet-fingerprintfejl bevares; kun deres respektive kontrol blev rettet/genkørt.
+
+Faktisk én explicit-close-prøve med serveraccepteret Sol-konfiguration ff93 og fuldt kendt input: åbningssvaret blev givet, hele “Tak, det var det” blev transskriberet. Primary delegerede ikke; ingen backendresponse, END eller settlement fandt sted, og observationen sluttede FAIL efter45s. Sol-kapabilitet og token-headroom er derfor uafprøvet; resultatet må ikke kaldes Sols semantiske fejl eller succes. Runtimefaults0, shutdown/usage/audioevidence fuldført. Ren tak blev ikke startet. Restore Owner startede straks ved terminal og bekræftede faktisk HA2.0.21 Kører efter88.138s fra førStop, inden180. Root key14 er null, privatformular lukket. Første sandboxopstart fejlede før receiver/output/Stop; samme reviewede invocation med nødvendig adgang gennemførte. Ingen runtimepatch eller fysisk accept.
+
+Leadens næste hypotese er primaryens inkonsistente tale-/delegationspolitik: tidligere Luna-prøver viste tale under delegation; denne prøve viser komplet afslutning uden delegation. Officiel Live-guide skelner mellem backchannels og fulde svar. Den nuværende Backchannel-blok begrænser stilhed til delegerede opgaver. Falsificerbar enkeltændring er en global Backchannel-blok, som tillader meningsfulde direkte svar/opklaringer/bekræftede resultater, men ingen selvstændige lytterreaktioner. Det er en uprøvet policyhypotese, ikke en protokolgaranti eller bevist årsag; tydelig afslutning skal stadig modeldelegeres og backend bekræfte END.
+
+Draftets base er den reviewede offset/Luna-kandidat, så Sol-defaulten tilbagerulles i dette særskilte eksperiment; kun den eksisterende primary Backchannel-blok ændres. Backendprompt, tools, modelvalg, input, Thin, firmware, gain/VAD/timeouts og installeret21 bevares. Ikke-mål: lokal fraseliste, muting, tvungen END, ny motor eller andre samtidige tuninger. Invarianter: modellen ejer hensigt; Thin ejer én mekanisk teardown/rearm; firmware ejer fysisk I/O. Hele kæden input→delegation/eller sikkert direkte svar→backendresultat→playback→teardown/rearm→nywake samt nye/staleevents og begge I/O gennemgås.
+
+Målrettede eksisterende promptkontrakter og lint/format før freeze, uafhængigt adversarialreview og opdateret exact-scope før samme bounded providerprøve. Explicit-close skal delegere og lukke uden tale før accept; ren tak skal bevare stille åben samtale, og meningsfuldt direkte svar skal bevares. Reelt tool-resultat forbliver efterfølgende krævet; ingen fysisk testklarhed fra delprøven. Fortsat tidlig tale, ingen delegation eller mistede svar falsificerer hypotesen. Rollback er kun primary-blokken. Kandidaten er IKKE TESTKLAR; målet ACTIVE og stående menneskelig prøvegodkendelse gælder.

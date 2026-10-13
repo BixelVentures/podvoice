@@ -296,7 +296,7 @@ class OpenAILiveSession:
         room_context: str = "",
         input_rate: int = 16000,
         voice: str = "marin",
-        backend_model: str = "gpt-5.6-luna",
+        backend_model: str = "gpt-6-sol",
         provider_budget: ProviderBudgetCoordinator = PROVIDER_BUDGET,
         client_factory: Callable[..., Any] | None = None,
         timeout_s: float = 15,
