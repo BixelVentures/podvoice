@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated startup-only implicit-completion experiment using the shipped Thin/Live.
+"""Isolated startup-only semantic-completion experiment using the shipped Thin/Live.
 
 Run baseline and implicit separately on the SAME validated fixtures. Each run has
 one connection and <=45s observation, then bounded cleanup. No mic, speaker or HA.
@@ -20,6 +20,7 @@ import json
 import logging
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -40,13 +41,20 @@ TEXTS = {
     "unfinished": "Nabu, hvad er to plus to? Bagefter vil jeg lægge noget til, men jeg skal lige tænke.",
     "tv": "Og nu til vejret. I morgen bliver det skyet med regn fra vest.",
     "resume": "Nabu, læg to til resultatet.",
+    "explicit_close": "Tak, det var det.",
+    "pure_thanks": "Tak.",
+    "polite_followup": "Tak, og hvad er tre plus tre?",
 }
 CASES = {
     "completed-side-address": ("math", "side_address"),
     "real-followup": ("math", "followup"),
     "brief-aside-correction": ("math", "aside_correction"),
     "tv-ongoing-query": ("unfinished", "tv", "resume"),
+    "explicit-close": ("math", "explicit_close"),
+    "pure-thanks": ("math", "pure_thanks"),
+    "polite-followup": ("math", "polite_followup"),
 }
+POSITIVE_CASES = frozenset({"completed-side-address", "explicit-close"})
 POLICY = (
     "Implicit completion applies only after the assistant has delivered a complete answer "
     "and there is no unfinished thought, pending question, task, correction or approval. "
@@ -112,10 +120,94 @@ class NoActions(rig.StubTools):
         raise RuntimeError("domain_dispatch_forbidden")
 
 
+class StartupBindingExported(RuntimeError):
+    """Offline admission stops before provider budget or client construction."""
+
+
+def source_identity():
+    sources = [
+        Path(__file__),
+        Path(rig.__file__),
+        *sorted((rig.ROOT / "podvoice/gatekeeper").glob("*.py")),
+        rig.ROOT / "pyproject.toml",
+        rig.ROOT / "podvoice/config.yaml",
+    ]
+    return {str(p.relative_to(rig.ROOT)): rig.digest(p.read_bytes()) for p in sources}
+
+
 class OneLive(rig.ObservedLive):
-    def __init__(self, key, evidence, *, variant, **kwargs):
+    def __init__(
+        self, key, evidence, *, variant, expected_startup=None, startup_binding_sink=None, **kwargs
+    ):
         self.variant = variant
+        self.expected_startup = expected_startup
+        self.startup_binding_sink = startup_binding_sink
+        self.startup_context = {}
         super().__init__(key, evidence, **kwargs)
+
+    async def _handle(self, event, generation):
+        if event.get("type") == "session.started":
+            # Observe the SDK-decoded resolved server configuration, not our
+            # constructor. SDK defaults may represent absent wire fields as null.
+            session = event.get("session")
+            delegation = session.get("delegation") if isinstance(session, dict) else None
+            responses = delegation.get("responses") if isinstance(delegation, dict) else None
+            observed = {
+                "source": "sdk_pre_handler",
+                "generation": generation,
+                "session_present": "session" in event,
+                "session_null": "session" in event and session is None,
+                "session_object": isinstance(session, dict),
+                "delegation_present": "delegation" in session
+                if isinstance(session, dict)
+                else None,
+                "delegation_null": delegation is None
+                if isinstance(session, dict) and "delegation" in session
+                else None,
+                "delegation_responses": isinstance(delegation, dict)
+                and delegation.get("type") == "responses",
+                "responses_object": isinstance(responses, dict),
+            }
+            for label, owner, field in (
+                ("primary", session, "instructions"),
+                ("backend", responses, "instructions"),
+                ("tools", responses, "tools"),
+            ):
+                present = field in owner if isinstance(owner, dict) else None
+                value = owner.get(field) if isinstance(owner, dict) else None
+                known = (
+                    isinstance(value, str)
+                    if label != "tools"
+                    else (
+                        isinstance(value, list)
+                        and all(
+                            isinstance(tool, dict) and isinstance(tool.get("type"), str)
+                            for tool in value
+                        )
+                    )
+                )
+                if label != "primary" and not observed["delegation_responses"]:
+                    known = False
+                digest = None
+                if known:
+                    try:
+                        raw = (
+                            value
+                            if label != "tools"
+                            else json.dumps(value, sort_keys=True, allow_nan=False)
+                        )
+                        digest = rig.digest(raw.encode())
+                    except (TypeError, ValueError, UnicodeError):
+                        known = False
+                observed[label] = {
+                    "present": present,
+                    "null": value is None if present else None,
+                    "typed_known": known,
+                    "sha256": digest,
+                }
+            with contextlib.suppress(Exception):
+                self.evidence.emit("server_startup_configuration", **observed)
+        await super()._handle(event, generation)
 
     async def connect(self):
         if self.starts:
@@ -160,6 +252,38 @@ class OneLive(rig.ObservedLive):
                 + BACKEND_POLICY
                 + " For that positive implicit completion, use end_conversation instead of this wait tool."
             )
+        binding = dict(
+            source_sha256=source_identity(),
+            sdk=importlib.metadata.version("openai"),
+            variant=self.variant,
+            context=self.startup_context,
+            confirmation_enabled=self.confirmation_enabled,
+            pending_confirmation=confirmation is not None,
+            prior_text_sha256=rig.digest(json.dumps(prior_text, sort_keys=True).encode()),
+            sha256=rig.digest(json.dumps(result, sort_keys=True).encode()),
+            primary_sha256=rig.digest(result["instructions"].encode()),
+            backend_sha256=rig.digest(result["delegation"]["responses"]["instructions"].encode()),
+            tools_sha256=rig.digest(
+                json.dumps(result["delegation"]["responses"]["tools"], sort_keys=True).encode()
+            ),
+            model=result["model"],
+            backend_model=result["delegation"]["responses"]["model"],
+            voice=result["audio"]["output"]["voice"],
+            startup_input_sha256=rig.digest(
+                json.dumps(result.get("input", []), sort_keys=True).encode()
+            ),
+        )
+        # This is after Thin capability binding and every variant adaptation,
+        # before OpenAILiveSession._connect reserves budget or creates a client.
+        if self.startup_binding_sink is not None:
+            self.startup_binding_sink(copy.deepcopy(binding))
+            raise StartupBindingExported("offline_startup_binding_exported")
+        if self.expected_startup is not None and binding != self.expected_startup:
+            self.evidence.emit("startup_identity_rejected", before_provider_admission=True)
+            raise RuntimeError("startup_identity_mismatch")
+        self.evidence.emit(
+            "startup_identity_accepted", binding=binding, guarded=self.expected_startup is not None
+        )
         self.evidence.emit(
             "configuration",
             variant=self.variant,
@@ -208,13 +332,152 @@ def answer_seen(rows, after_seq, endings):
     return rig.normalized(text).endswith(endings) and text.rstrip().endswith((".", "!"))
 
 
+def fixture_transcript(text):
+    """Compare complete controlled inputs while allowing numeric orthography.
+
+    This is a fixture-only oracle, never runtime speech or intent routing.
+    All remaining words must still match, including the entire closing input.
+    """
+    digits = {"to": "2", "tre": "3"}
+    rendered = re.sub(r"\b(?:to|tre)\b", lambda match: digits[match[0]], text.lower())
+    return rig.normalized(rendered)
+
+
+def terminal_observation(rows, marker, identity, *, session_id, generation, input_index):
+    """Bind the existing checked Thin edge to its actual completed END chain."""
+    if (
+        marker.get("event") != "live_terminal_backend_settled"
+        or marker.get("session_id") != session_id
+        or marker.get("provider_generation") != generation
+        or not isinstance(session_id, str)
+        or not session_id
+        or type(generation) is not int
+        or generation < 1
+        or type(input_index) is not int
+        or input_index < 1
+        or type(marker.get("provider_generation")) is not int
+        or type(identity.get("generation")) is not int
+        or type(identity.get("input_index")) is not int
+        or type(marker.get("seq")) is not int
+        or marker["seq"] < 1
+        or identity.get("current") is not True
+        or identity.get("generation") != generation
+        or identity.get("input_index") != input_index
+        or any(r["kind"] in ("observation_finished", "harness_cleanup_started") for r in rows)
+    ):
+        return None
+
+    def one(kind, response_id):
+        matches = [r for r in rows if r["kind"] == kind and r.get("response_id") == response_id]
+        return matches[0] if len(matches) == 1 else None
+
+    response = identity.get("response_id")
+    continuation = identity.get("continuation_id")
+    if (
+        not all(
+            isinstance(value, str) and value
+            for value in (response, continuation, identity.get("delegation_id"))
+        )
+        or response == continuation
+    ):
+        return None
+    started = one("LiveBackendStarted", response)
+    completed = one("LiveBackendComplete", response)
+    batch = one("LiveToolBatch", response)
+    request = one("tool_results_request", response)
+    returned = one("tool_results_return", response)
+    follow_started = one("LiveBackendStarted", identity.get("continuation_id"))
+    follow_done = one("LiveBackendComplete", identity.get("continuation_id"))
+    chain = [started, completed, batch, request, returned, follow_started, follow_done]
+    incoming = [r for r in transcripts(rows, "in") if r["generation"] == generation]
+    if not all(chain) or not incoming or incoming[-1]["input_index"] != input_index:
+        return None
+    if (
+        any(r.get("generation") != generation for r in chain)
+        or any(
+            r.get("delegation_id") != identity.get("delegation_id")
+            for r in (started, completed, batch, follow_started, follow_done)
+        )
+        or any(b["seq"] <= a["seq"] for a, b in pairwise(chain))
+        or completed.get("status") != "completed"
+        or completed.get("tool_call_count") != 1
+        or follow_done.get("status") != "completed"
+        or follow_done.get("tool_call_count") != 0
+        or started.get("input_index") != input_index
+        or follow_started.get("input_index") != input_index
+        or type(started.get("created_index")) is not int
+        or follow_started.get("created_index") != started["created_index"] + 1
+        or request.get("provider_receipt")
+        != {
+            "generation": generation,
+            "input_sequence": input_index,
+            "backend_sequence": started.get("created_index"),
+        }
+        or returned.get("request_seq") != request["seq"]
+        or not isinstance(batch.get("calls"), (list, tuple))
+        or len(batch["calls"]) != 1
+        or not isinstance(batch["calls"][0], dict)
+        or not isinstance(request.get("results"), (list, tuple))
+        or len(request["results"]) != 1
+        or not isinstance(request["results"][0], dict)
+    ):
+        return None
+    call, result = batch["calls"][0], request["results"][0]
+    if (
+        call.get("name") != "end_conversation"
+        or result.get("name") != "end_conversation"
+        or result.get("id") != call.get("id")
+        or not call.get("id")
+        or call.get("generation") != generation
+        or call.get("response_id") != response
+        or not isinstance(result.get("response"), dict)
+        or result["response"].get("ok") is not True
+        or result["response"].get("data")
+        != {"decision": "end_conversation", "closure_status": "accepted_not_closed"}
+    ):
+        return None
+    return dict(
+        generation=generation,
+        input_index=input_index,
+        session_id=session_id,
+        response_id=response,
+        delegation_id=identity["delegation_id"],
+        call_id=call["id"],
+        request_seq=request["seq"],
+        backend_completion_seq=follow_done["seq"],
+        source_marker_seq=marker["seq"],
+        receipt_current=True,
+        physical_close_proven=False,
+    )
+
+
+def lifecycle_projection(timeline):
+    """Keep every close reason and ordered ownership edges; full report retains all data."""
+    events = {
+        "wake_received",
+        "live_terminal_backend_settled",
+        "close_requested",
+        "teardown_complete",
+        "wake_rearm_requested",
+        "wake_rearm_recovered",
+    }
+    fields = {"seq", "event", "at_ms", "session_id", "provider_generation", "close_id", "reason"}
+    return [
+        {k: v for k, v in row.items() if k in fields}
+        for row in timeline
+        if row.get("event") in events
+    ]
+
+
 def assess(case, rows, *, clean, usage_complete, stayed_open):
     # Post-observation cleanup can produce results; those never count for this trial.
     cutoff = next((i for i, r in enumerate(rows) if r["kind"] == "observation_finished"), len(rows))
     rows = rows[:cutoff]
     inputs, outputs = transcripts(rows, "in"), transcripts(rows, "out")
     expected = "".join(TEXTS[name] for name in CASES[case])
-    recognized = rig.normalized("".join(r["text"] for r in inputs)) == rig.normalized(expected)
+    recognized = fixture_transcript("".join(r["text"] for r in inputs)) == fixture_transcript(
+        expected
+    )
     timing = (
         bool(inputs and outputs)
         and all(rig.valid_interval(r) for r in inputs + outputs)
@@ -254,15 +517,20 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             )
             if not success and not denied:
                 continue
-            if any(
-                r["kind"] == "tool_results_return"
-                and r["request_seq"] == request["seq"]
-                and r["generation"] == batch["generation"]
-                and r["response_id"] == batch["response_id"]
-                and r["seq"] > request["seq"]
-                for r in rows
-            ):
-                (accepted if success else rejected).append((batch, call))
+            returned = next(
+                (
+                    r
+                    for r in rows
+                    if r["kind"] == "tool_results_return"
+                    and r["request_seq"] == request["seq"]
+                    and r["generation"] == batch["generation"]
+                    and r["response_id"] == batch["response_id"]
+                    and r["seq"] > request["seq"]
+                ),
+                None,
+            )
+            if returned is not None:
+                (accepted if success else rejected).append((batch, call, returned))
                 break
     settlements = [r for r in rows if r["kind"] == "semantic_end_settled"]
     negative_windows = [r for r in rows if r["kind"] == "negative_window_observed"]
@@ -272,6 +540,12 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         and negative_windows[0]["elapsed_s"] - finished[-1]["elapsed_s"]
         >= rig.NEGATIVE_OBSERVATION_S
         and negative_windows[0]["session_active"] is True
+    )
+    natural = [r for r in rows if r["kind"] == "natural_thin_end"]
+    nonsemantic_close = any(
+        event["event"] == "close_requested" and event.get("reason") != "model-close"
+        for ending in natural
+        for event in ending["timeline"]
     )
     verdict = "UNKNOWN"
     evidence_complete = recognized and timing and fixtures_complete and clean and usage_complete
@@ -283,7 +557,7 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
     )
     if evidence_complete:
         verdict = "FAIL"
-        if case == "completed-side-address":
+        if case in POSITIVE_CASES:
             if ends and (
                 len(accepted) + len(rejected) != len(ends) or (accepted and not settlements)
             ):
@@ -292,13 +566,23 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                 len(accepted) == len(ends) == len(settlements) == 1
                 and opening_answered
                 and len(accepted[0][0]["calls"]) == 1
-                and accepted[0][1]["args"] == {"silent": True}
+                and (
+                    accepted[0][1]["args"] == {"silent": True}
+                    if case == "completed-side-address"
+                    else set(accepted[0][1]["args"]) <= {"silent"}
+                    and isinstance(accepted[0][1]["args"].get("silent", False), bool)
+                )
                 and accepted[0][0]["seq"] > finished[-1]["seq"]
                 and settlements[0]["input_index"] == inputs[-1]["input_index"]
                 and settlements[0]["generation"] == accepted[0][0]["generation"] == 1
                 and settlements[0]["receipt_current"] is True
-                and settlements[0]["seq"] > accepted[0][0]["seq"]
-                and not any(r["seq"] > starts[1]["seq"] for r in outputs)
+                and settlements[0]["seq"] > accepted[0][2]["seq"]
+                and not nonsemantic_close
+                and not any(
+                    r["seq"] > starts[1]["seq"]
+                    and (case == "completed-side-address" or r["seq"] < accepted[0][2]["seq"])
+                    for r in outputs
+                )
             ):
                 verdict = "OBSERVED_PASS"
         elif (
@@ -306,12 +590,16 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             and negative_window_complete
             and not ends
             and not settlements
-            and answer_seen(rows, starts[-1]["seq"], ("seks", "6"))
+            and opening_answered
+            and (
+                not any(r["seq"] > starts[-1]["seq"] for r in outputs)
+                if case == "pure-thanks"
+                else answer_seen(rows, starts[-1]["seq"], ("seks", "6"))
+            )
         ):
             verdict = "OBSERVED_PASS"
         elif stayed_open and not negative_window_complete:
             verdict = "UNKNOWN"
-    natural = [r for r in rows if r["kind"] == "natural_thin_end"]
     return dict(
         verdict=verdict,
         recognized=recognized,
@@ -323,6 +611,7 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         end_calls=len(ends),
         current_receipt_settlements=len(settlements),
         natural_thin_end=natural,
+        nonsemantic_close=nonsemantic_close,
         stayed_open=stayed_open,
         negative_window_complete=negative_window_complete,
         clean_shutdown=clean,
@@ -385,7 +674,20 @@ def make_fixtures(directory):
     rig.load_fixtures(directory, texts=TEXTS)
 
 
-async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_factory=None):
+async def evaluate(
+    key,
+    case,
+    variant,
+    manifest,
+    fixtures,
+    evidence,
+    *,
+    client_factory=None,
+    expected_startup=None,
+    startup_binding_sink=None,
+):
+    if client_factory is None and expected_startup is None and startup_binding_sink is None:
+        raise RuntimeError("expected_startup_binding_required")
     primary, backend = instructions(variant)
     tools, streams = NoActions(evidence), rig.LiveAudioStreams()
     capture = rig.SyntheticCapture(evidence, streams)
@@ -393,11 +695,21 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
         key,
         evidence,
         variant=variant,
+        expected_startup=expected_startup,
+        startup_binding_sink=startup_binding_sink,
         tool_declarations=[],
         instructions=primary,
         backend_instructions=backend,
         provider_budget=rig.ProviderBudgetCoordinator(),
         client_factory=client_factory,
+    )
+    live.startup_context = dict(
+        capture_hold_supported=bool(capture.supports_live_capture_hold),
+        hold_callable=callable(getattr(capture, "hold_live_capture", None)),
+        resume_callable=callable(getattr(capture, "resume_live_capture", None)),
+        execution_policy_present=hasattr(tools, "execution_policy"),
+        manifest_sha256=rig.digest(json.dumps(manifest, sort_keys=True).encode()),
+        fixtures_sha256={name: rig.digest(pcm) for name, pcm in sorted(fixtures.items())},
     )
     attention = rig.LocalAttention()
     session = rig.ThinSession(
@@ -417,6 +729,39 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
     )
     reason, clean, stayed_open = "observation_deadline", False, False
     names, stage, settled = CASES[case], 0, False
+    timeline_writer = session.hub.timeline
+
+    def observe_timeline(room, event, **details):
+        nonlocal settled
+        timeline_writer(room, event, **details)
+        with contextlib.suppress(Exception):
+            if event != "live_terminal_backend_settled" or settled:
+                return
+            receipt = live._terminal_receipt
+            if receipt is None or session._live_end_receipt is not receipt.future:
+                return
+            marker = session.hub.snapshot()["timeline_activity"][-1]
+            identity = dict(
+                current=live.closure_receipt_current(receipt.future),
+                generation=receipt.generation,
+                input_index=receipt.input_index,
+                response_id=receipt.response_id,
+                delegation_id=receipt.delegation_id,
+                continuation_id=receipt.continuation_id,
+            )
+            observed = terminal_observation(
+                evidence.rows,
+                marker,
+                identity,
+                session_id=session._history_session,
+                generation=live._connection_generation,
+                input_index=live.input_sequence,
+            )
+            if observed is not None:
+                evidence.emit("semantic_end_settled", **observed)
+                settled = True
+
+    session.hub.timeline = observe_timeline
     try:
         async with asyncio.timeout(OBSERVATION_S):
             if client_factory is None:
@@ -459,27 +804,8 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
                     stage = 2
                     since_finished = -1
                     capture.play_fixture(names[stage], fixtures[names[stage]])
-                receipt = session._live_end_receipt
                 if (
-                    not settled
-                    and receipt is not None
-                    and receipt.done()
-                    and not receipt.cancelled()
-                    and receipt.result() is True
-                    and live.closure_receipt_current(receipt)
-                    and session._ending_conversation
-                ):
-                    settled = True
-                    evidence.emit(
-                        "semantic_end_settled",
-                        generation=live._connection_generation,
-                        input_index=live.input_sequence,
-                        receipt_current=True,
-                        physical_close_proven=False,
-                    )
-                    # Keep observing. Cleanup must never manufacture natural closure.
-                if (
-                    case != "completed-side-address"
+                    case not in POSITIVE_CASES
                     and stage == len(names) - 1
                     and capture.clip is None
                     and since_finished >= rig.NEGATIVE_OBSERVATION_S
@@ -493,7 +819,7 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
                 reason = "thin_session_ended"
                 evidence.emit(
                     "natural_thin_end",
-                    timeline=copy.deepcopy(session.hub.snapshot()["timeline_activity"]),
+                    timeline=lifecycle_projection(session.hub.snapshot()["timeline_activity"]),
                     physical_close_proven=False,
                 )
     except TimeoutError:
@@ -561,6 +887,32 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
     return report, bool(done)
 
 
+async def export_startup_binding(variant, manifest, fixtures):
+    bindings = []
+
+    def forbidden_client(**_):
+        raise RuntimeError("offline_export_must_not_construct_sdk_client")
+
+    with tempfile.TemporaryDirectory(prefix="podvoice-startup-binding-") as temporary:
+        evidence = rig.Evidence(Path(temporary) / "evidence", observation_s=45, starts=1)
+        try:
+            await evaluate(
+                "offline-not-a-credential",
+                "completed-side-address",
+                variant,
+                manifest,
+                fixtures,
+                evidence,
+                client_factory=forbidden_client,
+                startup_binding_sink=bindings.append,
+            )
+        finally:
+            evidence.close()
+    if len(bindings) != 1:
+        raise RuntimeError("offline_startup_binding_not_captured")
+    return bindings[0]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=CASES)
@@ -569,35 +921,53 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--make-fixtures", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--export-startup-binding", action="store_true")
+    parser.add_argument("--expected-startup", type=Path)
     args = parser.parse_args()
     if args.make_fixtures:
-        if args.case or args.variant or args.output or args.validate_only:
+        if (
+            args.case
+            or args.variant
+            or args.output
+            or args.validate_only
+            or args.export_startup_binding
+            or args.expected_startup
+        ):
             parser.error("fixture generation is a separate offline command")
         make_fixtures(args.fixtures)
         print("Synthetic Sara fixtures created; no provider connection.")
         return 0
     manifest, fixtures = rig.load_fixtures(args.fixtures, texts=TEXTS)
     if args.validate_only:
+        if args.export_startup_binding or args.expected_startup:
+            parser.error("validation is a separate offline command")
         print("Synthetic fixtures validated; no provider connection.")
         return 0
-    if not args.case or not args.variant or not args.output:
-        parser.error("--case, --variant and --output required")
+    if args.export_startup_binding:
+        if args.case or args.expected_startup or not args.variant or not args.output:
+            parser.error("offline startup export requires only --variant, --fixtures and --output")
+        binding = asyncio.run(export_startup_binding(args.variant, manifest, fixtures))
+        with args.output.open("x", encoding="utf-8") as output:
+            args.output.chmod(0o600)
+            output.write(json.dumps(binding, sort_keys=True, indent=2))
+        print("Effective Thin startup binding exported; no provider connection.")
+        return 0
+    if not args.case or not args.variant or not args.output or not args.expected_startup:
+        parser.error("--case, --variant, --output and --expected-startup required")
+    if args.expected_startup.stat().st_size > 65536:
+        parser.error("expected startup binding is too large")
+    expected_startup = json.loads(args.expected_startup.read_text())
+    if not isinstance(expected_startup, dict):
+        parser.error("expected startup binding must be an object")
     key = os.environ.pop("OPENAI_API_KEY", None)
     if not key:
         raise SystemExit("OPENAI_API_KEY required; never pass credentials in arguments")
     evidence = rig.Evidence(args.output, observation_s=OBSERVATION_S, starts=1)
-    sources = [
-        Path(__file__),
-        Path(rig.__file__),
-        *sorted((rig.ROOT / "podvoice/gatekeeper").glob("*.py")),
-        rig.ROOT / "pyproject.toml",
-        rig.ROOT / "podvoice/config.yaml",
-    ]
     evidence.emit(
         "semantic_evaluation_identity",
         variant=args.variant,
         sdk=importlib.metadata.version("openai"),
-        source_sha256={str(p.relative_to(rig.ROOT)): rig.digest(p.read_bytes()) for p in sources},
+        source_sha256=source_identity(),
         manifest_sha256=rig.digest((args.fixtures / "manifest.json").read_bytes()),
         observation_s=OBSERVATION_S,
         cleanup_s=rig.CLEANUP_S,
@@ -620,7 +990,15 @@ def main():
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, task.cancel)
-        return await evaluate(key, args.case, args.variant, manifest, fixtures, evidence)
+        return await evaluate(
+            key,
+            args.case,
+            args.variant,
+            manifest,
+            fixtures,
+            evidence,
+            expected_startup=expected_startup,
+        )
 
     try:
         report, settled = asyncio.run(run())

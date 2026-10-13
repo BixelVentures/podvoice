@@ -330,6 +330,72 @@ def test_release_surface_falls_back_to_full_suite():
     assert "release/build/firmware" in reason
 
 
+def test_semantic_eval_tooling_selects_both_existing_owner_contracts():
+    tracked = [
+        *TRACKED_TESTS,
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/unit/test_live_semantic_completion_handoff.py",
+    ]
+    tests, _reason = select_tests(["scripts/live_semantic_completion_eval.py"], tracked)
+    assert tests == [
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/unit/test_live_semantic_completion_handoff.py",
+        "tests/unit/test_release_contract.py",
+    ]
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/unit/test_live_semantic_completion_handoff.py",
+    ],
+)
+def test_semantic_eval_tooling_missing_owner_contract_fails_closed(missing):
+    tracked = [
+        *TRACKED_TESTS,
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/unit/test_live_semantic_completion_handoff.py",
+    ]
+    tests, reason = select_tests(
+        ["scripts/live_semantic_completion_eval.py"], [path for path in tracked if path != missing]
+    )
+    assert tests == ["tests"]
+    assert "missing" in reason
+
+
+def test_actual_combined_semantic_and_attention_diff_keeps_every_owner_contract():
+    root = Path(__file__).parents[2]
+    tracked = sorted(str(path.relative_to(root)) for path in root.glob("tests/**/test_*.py"))
+    changes = [
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/podconnect.py",
+        "scripts/live_semantic_completion_eval.py",
+        "tests/integration/test_thin_attention_lease.py",
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/unit/test_podconnect.py",
+    ]
+    tests, reason = select_tests(changes, tracked)
+    assert tests == [
+        "tests/integration/test_thin_attention_lease.py",
+        "tests/unit/test_live_prompt.py",
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/unit/test_live_semantic_completion_handoff.py",
+        "tests/unit/test_podconnect.py",
+        "tests/unit/test_podconnect_target_tools.py",
+        "tests/unit/test_release_contract.py",
+    ]
+    assert "full suite still required before release" in reason
+    expanded, _reason = select_tests(
+        [*changes, "scripts/dev_cycle.py", "tests/unit/test_dev_cycle.py"], tracked
+    )
+    assert expanded == sorted([*tests, "tests/unit/test_dev_cycle.py"])
+    unknown, _reason = select_tests(
+        [*changes, "scripts/live_semantic_completion_other.py"], tracked
+    )
+    assert unknown == ["tests"]
+
+
 def test_gate_lock_rejects_second_process_wide_owner(tmp_path: Path):
     lock_path = tmp_path / "gate.lock"
     with GateLock(lock_path):

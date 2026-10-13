@@ -9,6 +9,7 @@ auto-releases.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -57,6 +58,36 @@ def _retired_update_receipt(data: object, body: dict, room: str) -> bool:
         except ValueError:
             return False
     revision = expected["revision"]
+    return (
+        isinstance(revision, str)
+        and 0 < len(revision) <= 20
+        and revision.isascii()
+        and revision.isdecimal()
+        and str(int(revision)) == revision
+        and 0 < int(revision) < (1 << 64)
+    )
+
+
+def _release_progress_snapshot(data: object, expected: dict) -> bool:
+    """Only the unchanged current manager admission can authorize GET settlement."""
+    if (
+        not isinstance(data, dict)
+        or data.get("contract") != "native_attention_v1"
+        or data.get("outcome") not in ("pending", "released")
+        or data.get("active") is not False
+        or data.get("challenge") != expected
+        or set(expected) != {"process", "revision"}
+    ):
+        return False
+    process, revision = expected["process"], expected["revision"]
+    if not isinstance(process, str):
+        return False
+    try:
+        identity = uuid.UUID(process)
+        if str(identity) != process or identity.int == 0:
+            return False
+    except ValueError:
+        return False
     return (
         isinstance(revision, str)
         and 0 < len(revision) <= 20
@@ -154,17 +185,36 @@ class AttentionClient:
         return dict(challenge)
 
     async def release(self, room: str, *, lease: dict | None = None) -> dict | None:
-        body = {"room": room}
+        body: dict = {"room": room}
+        expected = dict(lease["expected"]) if lease is not None else None
         if lease is not None:
-            body.update(session=lease["session"], expected=lease["expected"])
+            body.update(session=lease["session"], expected=expected)
         result = await self._post("/api/attention/release", body, room)
-        if lease is not None and (
-            not isinstance(result, dict)
-            or result.get("contract") != "native_attention_v1"
-            or result.get("outcome") != "released"
+        if lease is None:
+            return result
+        if (
+            isinstance(result, dict)
+            and result.get("contract") == "native_attention_v1"
+            and result.get("outcome") == "released"
         ):
+            # Original durable custody can be returned by a replacement manager.
+            # Its POST receipt already proves retirement; do not adopt its state.
+            return result
+        assert expected is not None
+        if not _release_progress_snapshot(result, expected):
             raise AttentionDown("native restoration pending or unknown")
-        return result
+        while True:
+            # Same cadence as the manager's existing bridge. Thin owns the release
+            # step's cancellation/deadline; there is no new task or timeout here.
+            await asyncio.sleep(0.2)
+            state = await self.state()
+            rooms = state.get("rooms") if isinstance(state, dict) else None
+            row = rooms.get(room) if isinstance(rooms, dict) else None
+            if not _release_progress_snapshot(row, expected):
+                raise AttentionDown("native restoration owner changed or unknown")
+            assert isinstance(row, dict)  # Guaranteed by the validated snapshot above.
+            if row["outcome"] == "released":
+                return row
 
     async def state(self) -> dict | None:
         try:

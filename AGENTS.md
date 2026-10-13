@@ -33,13 +33,6 @@ og `release` præcis én gang efter diff-freeze og det review, ændringen kræve
 artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
 værktøjer eller Realtime-semantik.
 
-Tilføj version, changelog og øvrige release-metadata efter den målrettede udviklings-
-feedback. En allerede reviewet ændring med sådanne metadata skal ikke have en ekstra
-`fast`-kørsel, der falder tilbage til hele testsuiten. Bevar de målrettede resultater,
-kontrollér slutdiffets formatter/lint og scope, frys efter nødvendigt review, og kør
-hele den foreskrevne `release`-gate én gang. Det ændrer ingen release-gates eller
-produktions-timeouts; en kortere fast-deadline må ikke bruges som produktbevis.
-
 `fast` cacher kun stabile preflightdele og kører Ruff, format, mypy og fokuseret pytest
 parallelt med isolerede caches; der må ikke tilføjes en separat collection-pass. Målene
 er varm ≤8 s, kold ≤15 s og release ≤45 s. Brug lav intelligens til afgrænsede test-/
@@ -201,6 +194,16 @@ backendmodel/delegation, prompt og værktøjssnapshot før resultatet bruges som
 årsagsbevis. `LiveRealtimeDriver` tester Realtime; navnet beviser ikke GPT-Live.
 Realtime/OFF og Live/ON arver aldrig hinandens semantikresultater. Ret ikke en
 produktionsprompt ud fra en anden providervej uden at afklare den ejergrænse.
+
+Effektiv prompt- og schemabinding skal udledes af den faktiske startupkonfiguration
+efter Thins capability- og policytilpasninger. Constructorværdier eller hashes af
+gemte baseinstruktioner er ikke wirebevis. Preflight skal kontrollere denne binding
+gennem den shippede wake-grænse før provideradmission og dække både understøttede
+og ikke-understøttede capabilities, når de vælger forskellige promptgrene.
+En binding før SDK beviser den forventede startup, ikke serverens accepterede
+konfiguration. Når startupkvitteringen eksponerer instruktioner og schema, bind
+indholdsfri fingeraftryk til samme generation. Manglende felter er ukendte;
+SDK-defaults er ikke bevis for, hvilke felter der var på wire.
 
 Et lavere lag kan finde fejl og stoppe en kandidat, men kan aldrig bortforklare en fejl
 fra et højere lag eller bevise fysisk funktion. Et tilfældigt korrekt svar beviser ikke

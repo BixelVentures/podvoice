@@ -996,6 +996,15 @@ def select_tests(changes: Sequence[str], tracked_tests: Sequence[str]) -> tuple[
             if "tests/unit/test_dev_cycle.py" in test_set:
                 selected.add("tests/unit/test_dev_cycle.py")
             continue
+        if path == "scripts/live_semantic_completion_eval.py":
+            contracts = {
+                "tests/unit/test_live_semantic_completion_eval.py",
+                "tests/unit/test_live_semantic_completion_handoff.py",
+            }
+            if not contracts.issubset(test_set):
+                return [FULL_SUITE_MARKER], "semantic evaluation owner contract is missing"
+            selected.update(contracts)
+            continue
         if path.startswith("scripts/"):
             return [FULL_SUITE_MARKER], f"unclassified automation changed: {path}"
         if (
