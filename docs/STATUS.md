@@ -17638,9 +17638,9 @@ PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher3
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "5fa2ce69153c1a1af4fd701c409655ef0a11f0f98e8d5d47eee7ee9ddee8d2c7",
-  "reviewer": "closing_wait_cause",
-  "rationale": "Independent exact-source review admits one existing primary Backchannel policy block change on the previously reviewed offset/Luna base, preserving inherited Live-only WAIT ownership, unchanged standard Realtime contract, completed backend settlement and both Thin I/O paths. Sol comparison is preserved as unassessed WIP history but its model-default change and isolated model-regression test additions are rolled back in this separate primary experiment. Actual offline Thin startup changes only primary, aggregate and live_prompt source hash relative to offset/Luna; backend af00, tools74aa, Luna model, 1024 cap and omitted reasoning remain identical. Fifteen old prompt test functions are AST-identical; only two existing text contracts change. Whole tests bind to 2194ddc6d9afa92ff1746d774f6e83d26c3480c725895ed1d8e48ac550e62fde and external reviewed tests/eval bind to 787d676da1f502df33694479a967ce60af590e7165ae3f22abe1634f58eb5e3e, not validated by V1 itself. Source scope admission proves no provider, physical or release acceptance; all prior FAILs are retained."
+  "fingerprint": "12d1eeb999d61471255c7dee4157174c1e582e6a47665686e8d9746187040fef",
+  "reviewer": "sol_input_review",
+  "rationale": "Independent source, fixture and packet review admits one developer-only TEXTS explicit_close literal and one synthetic Sara PCM/manifest item on the existing reviewed Solquiet candidate. All product, primary f1df, backend af00, tools74aa, Sol model and ff93 startup configuration remain identical to reviewed Sol; no global backchannel-policy change is carried. Assess, recognized-input oracle, pacing, two-case order, bounds and byteidentical b7/6a operator remain unchanged. Original natural-closing PCM/manifest and all prior FAILs remain separately pinned and unregraded; this input control cannot replace that mandatory regression. Entire tests still bind to 3802134365f26feb875f215a79865b2de509f518b54eb81416351fbb687a0e83. External tests/eval plus all10PCM and raw manifest bind to b4818f288a10a0003f5e63fad21223585b7be4187724effef86eecfdacbb5a07; V1 itself does not validate this external hash. New raw manifest b905 and normalized startup manifest d7ca are distinct verified contracts. Source scope admission establishes no provider, physical or release acceptance."
 }
 -->
 
@@ -17744,3 +17744,35 @@ Restore Owner ejer egenTTYnødvendigsession, actualStop→noncegate→terminalel
 Den primary-only/Luna-kandidat (source87dd, primarybad29, config3ebf) bestod17 eksisterende promptkontrakter/static, uafhængigt source-review og exact-scope produktion5fa2ce/external787d. Én faktisk explicit-close-prøve med fuldt kendt input og meningsfuldt åbningssvar gav igen FAIL. Primary delegerede12.781s, sagde “Okay”12.860s før backendresultat14.280s, og Luna valgte completedWAIT{}. Matching continuation gav0tools; END0/settlement0/ingen naturlig lukning. Observation45s og normalcleanup. Runtimefaults0; usage/audioevidence fuldført. Ren tak blev ikke startet. Global no-backchannel-instruks er dermed afkræftet som tilstrækkelig løsning; ingen ny fysisk accept eller testklarhed.
 
 Restore Owner iværksatte Start straks ved operatørens terminal og bekræftede faktisk HA2.0.21 Kører efter79.649s fra førStop, inden180. Root key15=null og privatformular lukket. Operatørstart brugte den nødvendige netværksadgang direkte; ingen gentagelse af første Sol-sandboxfejl. Samme standinghumanautorisation blev anvendt uden spørgsmål. Sol-WIP fbde2c8 er pushet; dets tidligere prøve nåede ingen backend og beviser ikke Sol-kapabilitet. De to primary- og backendfejl forbliver selvstændige, og styrket stilhedsprompt må ikke gentages blindt som forklaring. Kandidaten er fortsat IKKE TESTKLAR; installeret21 er uændret, målet ACTIVE. Næste årsagsarbejde skal skelne providerens delegation/primary-tale fra backendens klassifikation gennem faktisk input/config/output, før nogen ny produktændring. Ingen lokal fraseliste, muting, tvungen END eller anden motor.
+
+
+### 13/10 — afgrænset inputkontrol af afslutning, ingen ny prompttuning
+
+Forrige goalturn var PROGRESS: to faktiske providerprøver afkræftede den tilstrækkelige globale backchannel-hypotese og viste Sol uden delegation; kode/resultater er pushet fbde2c8/e2d9eab. Ingen providerproces er tilbage, HA21 er gendannet, målet ACTIVE.
+
+Lead vælger én diagnostisk inputkontrol på den allerede reviewede Sol/quiet-kandidat: syntetisk “Afslut samtalen.” efter samme åbningsspørgsmål, i stedet for “Tak, det var det”. Hypotese: et mindre tvetydigt afslutningsinput udløser faktisk delegation, så Sols completed-værktøjsvalg kan observeres. Ingen delegation falsificerer kun dette diskriminerende input; Sol forbliver uafprøvet. END kan højst understøtte backendkapabilitet for denne ene case; tidlig primary-tale er stadig FAIL. Den gamle naturlige afslutning er fortsat en obligatorisk fejlet regression og må ikke erstattes eller regraderes.
+
+Input→primaryhensigt/delegation→completedbackend→samme toolcommit/continuation→playback→teardown/rearm→nywake og begge I/O gennemgås. Berørte invarianter3/4/5/9/12/13/15; ingen produkt-/prompt-/schema-/model-/firmware-/VAD-/gain-/timeoutændring. Mindste developer-only ændring er én TEXTS-testliteral i en privat kopi plus ét faktisk Sara-PCM/manifestitem; de andre ni lydfiler, assess()/pacing og reviewedoperator bevares byteidentisk. Manifest og genkendt fuldt input skal svare til den nye lyd. Kendt originalfixture/FAIL bevares. Static/fixturevalidate/ét startup-export, kilde- og fixturebinding og uafhængig adversarialreview før den samme højst180s-pause, provider120/restore60, max2cases/stopfirstFAIL ellerUNKNOWN. Ingen tvungen delegation/END eller lokale hensigtsfraser. Rollback er kun det private diagnostikinput; installeret21 og kandidatens IKKE TESTKLAR-status bevares.
+
+
+Faktisk forberedelse af inputkontrol13/10: developer-source5fd64bd9, ét nyt
+Sara-PCM57bcbe39 og rawmanifestb905; de andre9PCM/manifestitems og alleproduktbytes
+er uændrede. OneThin-offline-startupfcde bevarer configff93/primaryf1df/backendaf00/
+tools74aa og modelSol. Kildensstatic/fixturevalidate består; første tomme sandbox-TTS
+og privat copiedmanifest-mode-fejl er bevaret, én gyldig Sara-generation er genbrugt.
+
+Uafhængigt SOURCE/FIXTURE/PIN GO5c77d12d og rootleadGO for eksisterende V1-binding
+er modtaget; alle1979filepins/SDKinventory/fingerprints er verificeret. Produkt12d1
+og entiretests3802 er uændrede fra reviewedSol; externaltest/eval8d3f plus complete
+fixtureinventory40e1 bindes som b4818f28. Rawmanifestb905 og normaliseret startup-
+contextmanifestd7ca er separate hashkontrakter. Oprindelig naturlig afslutning/fixture/
+alleFAILs er bevaret og forbliver obligatorisk regression, ingen regradering.
+Ingen ny providerprøve, HA-pause, release, installation eller fysisk accept er udført
+ved denne forberedelse. Kandidaten er IKKE TESTKLAR.
+
+
+Inputkontrol faktisk resultat13/10: komplet “Afslut samtalen”, delegation13.167s/offset9200ms, primary “Okay”13.548s/9600–9800ms før completedEND14.388s og toolaccept14.393s. END1/currentsettlement1, matching0-toolcontinuation15.484s og naturligThinlukning/rearm16.348s førcleanup; samletstrictFAIL på tidligprimarytale. Ingen runtimefaults, usage/audioevidence fuldført; renttak stoppetførstart. RestoreOwner verificeredeHA21Kører57.523s efterførStop, inden180. Rootkey16null/privatformclosed. Produkt, prompts og mechanics uændrede fraSolquiet; nyfixture/diagnosticsource alene. Ingen fysiskaccept/testklarhed.
+
+To læsendeGETs HTTP200/has_moreFalse af actualresponse04bcb335 bekræfter servermodelgpt-6-sol, completedEND{}, tool_choiceauto, max_output_tokens1024, reasoningmedium, output15/reasoning0tokens. Helebackendinput er math→“Det er fire”→“Afslut samtalen”; ingenprimaryACK. De26457bytes faktiskeinstructions er byteidentiske med den tidligere Luna-response0b5 (SHA49560ede). Rootkey17null/formclosed/helperterminal0, ingen nyinference/HApause. Dette beviserSol-kapabilitet for denne tydelige case og afkræfter modeladgang/truncation som årsag dér; model-og-input ændredes sammen relativt til den tidligere naturligeclosing, så det beviser ikke alene modelårsag eller løst “Tak, det var det”.
+
+Næsteleadårsagsgrænse: klassifikation skal sammenlignes med identisk faktisk backendinput/config, mensprimaryens tidlige tale skal afgrænses mod dens faktiske lyd/SDKevents. Ingen nye stilhedspromptforstærkninger eller runtimepatch før denne grænse er forklaret. KandidatIKKE TESTKLAR; målACTIVE og standinghumanprøveautorisationbevares.

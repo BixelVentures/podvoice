@@ -41,7 +41,7 @@ TEXTS = {
     "unfinished": "Nabu, hvad er to plus to? Bagefter vil jeg lægge noget til, men jeg skal lige tænke.",
     "tv": "Og nu til vejret. I morgen bliver det skyet med regn fra vest.",
     "resume": "Nabu, læg to til resultatet.",
-    "explicit_close": "Tak, det var det.",
+    "explicit_close": "Afslut samtalen.",
     "pure_thanks": "Tak.",
     "polite_followup": "Tak, og hvad er tre plus tre?",
 }

@@ -109,10 +109,9 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
-        normalized = " ".join(primary.split())
-        assert "Brug ingen backchannels eller selvstændige lytterreaktioner" in primary
-        assert "Ved delegation skal du vente i stilhed på resultatet" in normalized
-        assert "direkte svar og opklaringer uden delegation" in primary
+        assert "delegér straks og vent i stilhed" in primary
+        assert "Sig ingen lytterreaktion, generisk kvittering, indledning" in primary
+        assert "eller ventereplik før resultatet" in primary
         assert "stille fortsat lytning" in primary
         assert "ti og lyt videre i samme" in primary
         assert "stop musik" in primary
@@ -134,12 +133,11 @@ def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
 
 def test_contextual_intro_is_optional_and_cannot_claim_tool_success():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
-    normalized = " ".join(primary.split())
-    assert "Brug ingen backchannels eller selvstændige lytterreaktioner" in primary
-    assert "Tal kun for at give et meningsfuldt direkte svar" in normalized
-    assert "en nødvendig opklaring eller et bekræftet backendresultat" in normalized
-    assert "Ved delegation skal du vente i stilhed på resultatet" in normalized
-    assert "direkte svar og opklaringer uden delegation" in primary
+    assert "delegér straks og vent i stilhed" in primary
+    assert "det bekræftede resultat" in primary
+    assert "Sig ingen lytterreaktion, generisk kvittering, indledning" in primary
+    assert "Foregrib aldrig et værktøjsresultat" in primary
+    assert "sikre, meningsfulde direkte svar, opklaringer og dialog uden delegation" in primary
     assert "Live må give en kort, relevant indledning, mens du arbejder" in backend
     assert "forsink ikke værktøjskaldet for tale" in backend
     assert "ingen generisk ventereplik før eller under" not in primary + backend
