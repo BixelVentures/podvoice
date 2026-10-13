@@ -422,6 +422,63 @@ async def test_concurrent_probes_and_persistent_failure_remain_serial_bounded():
             await finish_probes(server, first, second)
 
 
+async def test_repeated_live_context_failure_keeps_backoff_until_full_health_recovers():
+    """A fresh tool list cannot reset recovery before the real health call succeeds."""
+    server = FaultServer()
+    fail_context = False
+
+    async def handle(request):
+        response = await server.handle(request)
+        body = json.loads(request.content)
+        if (
+            fail_context
+            and body["method"] == "tools/call"
+            and body["params"]["name"] == "GetLiveContext"
+        ):
+            return httpx.Response(502, text="synthetic live-context connection lost")
+        return response
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        router = await router_for(server, client)
+        accepted = copy.deepcopy(router.declarations())
+        first_epoch = router._mcp_epoch
+        assert router.healthy and router._mcp.initialized
+        fail_context = True
+        failures = []
+        expected_delays = [1, 2, 5, 10, 30, 60]
+        for _ in expected_delays:
+            assert not await router.probe()
+            status = router.discovery_status()
+            failures.append((status["retry_attempt"], status["retry_delay_s"]))
+            assert status["retry_state"] == "retrying" and "502" in status["last_error"]
+            assert router._recovery_wakeup.is_set()
+            assert 0 < router.next_probe_delay() <= status["retry_delay_s"]
+            assert router.declarations() == [] and not router._mcp.initialized
+
+        # Reach the successor health boundary even on the broken baseline. Only
+        # then compare the complete causal sequence with the required backoff.
+        fail_context = False
+        assert await router.probe()
+        recovered = router.discovery_status()
+        assert recovered["retry_state"] == "ready" and recovered["last_error"] is None
+        assert recovered["retry_attempt"] == 0 and recovered["retry_delay_s"] is None
+        assert not router._recovery_wakeup.is_set() and router.next_probe_delay() == 600
+        assert router.declarations() == accepted and router._mcp.initialized
+        assert router._mcp_epoch == first_epoch + len(expected_delays)
+        assert server.count("tools/list") == server.count("tools/call", "GetLiveContext") == 8
+        assert server.count("initialize") == server.count("notifications/initialized") == 7
+        assert server.count("tools/call", "HassGetState") == 0
+        assert all(
+            request["params"]["name"] == "GetLiveContext"
+            for request in server.requests
+            if request["method"] == "tools/call"
+        )
+        assert server.max_inflight == 1 and server.inflight == 0
+        assert failures == list(enumerate(expected_delays, start=1)), (
+            "Successful tools/list must not reset backoff while GetLiveContext still fails"
+        )
+
+
 @pytest.mark.parametrize("invalidate", ["schema", "execution"])
 async def test_queued_read_checks_contract_and_execution_after_discovery_join(invalidate):
     server = FaultServer()
