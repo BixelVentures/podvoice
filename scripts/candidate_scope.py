@@ -1281,12 +1281,394 @@ def _reviewed_podview_owner_adapters(
     )
 
 
+# PROPOSAL ONLY: append before reviewed_coupling; candidate gate is untouched.
+_PODVIEW_SCOPED_REQUIRED = (
+    _PODVIEW_OWNER_REQUIRED
+    | {
+        f"podvoice/gatekeeper/{name}.py"
+        for name in (
+            "config",
+            "web",
+            "thin",
+            "openai_realtime",
+            "podview_controls",
+            "podview_music_control",
+            "podview_vacuum_control",
+            "podview_receipts",
+        )
+    }
+    | {"custom_components/podvoice/timer_bridge.py"}
+)
+_PODVIEW_SCOPED_REGRESSIONS = _PODVIEW_OWNER_REGRESSIONS | {
+    "tests/integration/test_podview_controls.py",
+    "tests/integration/test_podview_device_setup.py",
+    "tests/integration/test_podview_music_control.py",
+    "tests/integration/test_podview_receipt_hooks.py",
+    "tests/integration/test_ha_timer_flow.py",
+    "tests/integration/ha_timer_bridge_runtime.py",
+    "tests/unit/test_podview_receipts.py",
+    "tests/unit/test_ha_timer_bridge.py",
+    "tests/unit/test_config_token.py",
+}
+
+
+def _companion_statement(owner: ast.AST, source: str) -> None:
+    expected = ast.parse(source).body[0]
+    matches = []
+    for node in ast.walk(owner):
+        for _, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                matches += [
+                    (value, item)
+                    for item in value
+                    if isinstance(item, ast.AST) and _ast_equal(item, expected)
+                ]
+    if len(matches) != 1:
+        raise ValueError("missing or duplicate exact companion statement")
+    matches[0][0].remove(matches[0][1])
+
+
+def _companion_methods(before: ast.Module, after: ast.Module, owner: str, names: set[str]) -> None:
+    old_class, new_class = _direct_class(before, owner), _direct_class(after, owner)
+    old, new = _methods(old_class), _methods(new_class)
+    if not names <= new.keys() or new.keys() - old.keys() != names - old.keys():
+        raise ValueError("unexpected companion method owner")
+    for name in names:
+        if name in old:
+            if type(old[name]) is not type(new[name]) or _method_header(
+                old[name]
+            ) != _method_header(new[name]):
+                raise ValueError("changed original method signature")
+            old_class.body.remove(old[name])
+        new_class.body.remove(new[name])
+
+
+def _companion_string_argument(method: ast.FunctionDef, name: str) -> None:
+    expected = ast.parse(f'def f(*, {name}: str = ""): pass').body[0]
+    assert isinstance(expected, ast.FunctionDef)
+    indices = [i for i, arg in enumerate(method.args.args) if arg.arg == name]
+    if len(indices) != 1:
+        raise ValueError("missing control policy argument")
+    i = indices[0]
+    default_index = i - (len(method.args.args) - len(method.args.defaults))
+    if default_index < 0:
+        raise ValueError("missing control policy default")
+    default = method.args.defaults[default_index]
+    if not _ast_equal(method.args.args[i], expected.args.kwonlyargs[0]) or not (
+        isinstance(default, ast.Constant) and default.value == ""
+    ):
+        raise ValueError("changed control policy default")
+    del method.args.args[i]
+    del method.args.defaults[default_index]
+
+
+def _podview_scoped_ast(root: Path, base: str) -> bool:
+    def pair(path):
+        return _owner_ast(_git(root, "show", f"{base}:{path}").encode()), _owner_ast(
+            (root / path).read_bytes()
+        )
+
+    prefix = "podvoice/gatekeeper/"
+    try:
+        before, after = pair(prefix + "__main__.py")
+        _remove_call_keyword(
+            after,
+            "ToolRouter",
+            "cleaning_journal_path",
+            'settings_path.parent / "cleaning-journal.json"',
+        )
+        _remove_call_keyword(
+            after, "create_app", "podview_control_policy", "cfg.podview_control_policy"
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "web.py")
+        functions = [
+            n for n in after.body if isinstance(n, ast.FunctionDef) and n.name == "create_app"
+        ]
+        if len(functions) != 1:
+            return False
+        _companion_string_argument(functions[0], "podview_control_policy")
+        _remove_call_keyword(after, "mount_podview", "control_policy", "podview_control_policy")
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "config.py")
+        _companion_statement(_direct_class(after, "Config"), 'podview_control_policy: str = ""')
+        _remove_call_keyword(
+            after,
+            "Config",
+            "podview_control_policy",
+            'str(opts.get("podview_control_policy", "")) if not settings_source_untrusted else ""',
+        )
+        _companion_statement(
+            after, 'merged["podview_control_policy"] = opts.get("podview_control_policy", "")'
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "tools.py")
+        _remove_exact_imports(
+            after,
+            (
+                "from pathlib import Path",
+                "from . import podview_music",
+                "from .podview_weather import weather_projection",
+                "from .podview_receipts import VisualReceiptOwner",
+            ),
+        )
+        methods = _methods(_direct_class(after, "ToolRouter"))
+        constructor = methods["__init__"]
+        _remove_path_argument(constructor, "cleaning_journal_path")
+        _remove_call_keyword(constructor, "DeviceControl", "journal_path", "cleaning_journal_path")
+        _companion_statement(constructor, "self.podview_receipts = VisualReceiptOwner()")
+        for name in _PODVIEW_READ_METHODS:
+            _read_method_only(methods[name])
+        _companion_methods(before, after, "ToolRouter", _PODVIEW_READ_METHODS)
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "device_control.py")
+        _remove_exact_imports(
+            after,
+            (
+                "from pathlib import Path",
+                "from .cleaning_journal import CleaningJournal, JournalError",
+            ),
+        )
+        methods = _methods(_direct_class(after, "DeviceControl"))
+        _remove_path_argument(methods["__init__"], "journal_path")
+        _companion_statement(
+            methods["__init__"], "self._cleaning_journal = CleaningJournal(journal_path)"
+        )
+        _companion_statement(
+            methods["__init__"], "self._display_tickets: dict[str, Capability] = {}"
+        )
+        _companion_statement(methods["configure"], "self._display_tickets.clear()")
+        issue = methods["_issue"]
+        test = ast.parse('capability.owner[0].startswith("podview:")', mode="eval").body
+        branches = [n for n in issue.body if isinstance(n, ast.If) and _ast_equal(n.test, test)]
+        if len(branches) != 1 or branches[0].orelse:
+            return False
+        issue.body.remove(branches[0])  # Original voice issuance tail remains AST-identical.
+        for name in ("observe", "cleaning_history"):
+            _read_method_only(methods[name])
+        _companion_methods(
+            before,
+            after,
+            "DeviceControl",
+            {"observe", "cleaning_history", "display_setup", "prepare", "execute"},
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "thin.py")
+        _companion_methods(
+            before,
+            after,
+            "ThinSession",
+            {"_run_live_batch", "_submit_tool_batch_if_ready", "_offer_visual_receipts"},
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "openai_realtime.py")
+        _companion_statement(
+            _direct_class(after, "OpenAIRealtimeSession"),
+            "_display_tool_receipt: tuple[int, list[dict]] | None = field(default=None, init=False, repr=False)",
+        )
+        _companion_methods(
+            before,
+            after,
+            "OpenAIRealtimeSession",
+            {"send_tool_results", "take_submitted_tool_results"},
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair("custom_components/podvoice/timer_bridge.py")
+        _remove_exact_imports(after, ("import time",))
+        methods = _methods(_direct_class(after, "TimerBridge"))
+        for method, name, expression in (
+            ("snapshot", "recent", "self._recent(endpoint)"),
+            ("command", "accepted_at", "time.time()"),
+        ):
+            expected = ast.parse(expression, mode="eval").body
+            matches = [
+                (node, keyword)
+                for node in ast.walk(methods[method])
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and _ast_equal(node.func, ast.parse("self._reply", mode="eval").body)
+                for keyword in node.keywords
+                if keyword.arg == name and _ast_equal(keyword.value, expected)
+            ]
+            if len(matches) != 1:
+                return False
+            matches[0][0].keywords.remove(matches[0][1])
+        _companion_methods(before, after, "TimerBridge", {"_recent"})
+        return _ast_equal(before, after)
+    except (SyntaxError, UnicodeError, ValueError, KeyError, RuntimeError):
+        return False
+
+
+def _scoped_config_only(root: Path, base: str) -> bool:
+    path = root / "podvoice/config.yaml"
+    if path.is_symlink() or not path.is_file():
+        return False
+    before, after = _git(root, "show", f"{base}:podvoice/config.yaml"), path.read_text()
+    # Exact textual additions reject duplicate keys/tags and unrelated YAML changes.
+    for header, statement in (
+        ("options:\n", '  podview_control_policy: ""\n'),
+        ("schema:\n", '  podview_control_policy: "str?"\n'),
+    ):
+        if after.count(statement) != 1 or after.count(header) != 1:
+            return False
+        block = re.split(r"\n(?=\S)", after.split(header, 1)[1], maxsplit=1)[0]
+        if statement.rstrip("\n") not in block.splitlines():
+            return False
+        after = after.replace(statement, "", 1)
+    version = r'^version: ([\'"]?)\d+\.\d+\.\d+\1$'
+    old, new = re.search(version, before, re.MULTILINE), re.search(version, after, re.MULTILINE)
+    if not old or not new:
+        return False
+    return (
+        before[: old.start()] + "VERSION" + before[old.end() :]
+        == after[: new.start()] + "VERSION" + after[new.end() :]
+    )
+
+
+def _scoped_manifest_only(root: Path, base: str, name: str) -> bool:
+    try:
+        old = json.loads(_git(root, "show", f"{base}:{name}"), object_pairs_hook=_unique_record)
+        new = json.loads((root / name).read_bytes(), object_pairs_hook=_unique_record)
+        if not isinstance(old, dict) or not isinstance(new, dict):
+            return False
+        versions = old.pop("version"), new.pop("version")
+        return old == new and all(
+            isinstance(v, str) and re.fullmatch(r"\d+\.\d+\.\d+", v) for v in versions
+        )
+    except (ValueError, KeyError, RuntimeError):
+        return False
+
+
+def _requires_podview_scoped_companion(root: Path, base: str) -> bool:
+    return bool(
+        _effective_changes(root, base, ())
+        & {
+            "podvoice/gatekeeper/podview_controls.py",
+            "podvoice/gatekeeper/podview_receipts.py",
+            "podvoice/gatekeeper/podview_music_control.py",
+            "podvoice/gatekeeper/podview_vacuum_control.py",
+        }
+    )
+
+
+def _reviewed_podview_scoped_companion(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "policy_fingerprint",
+        "config_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or type(record["version"]) is not int
+        or record["version"] != 2
+        or record["kind"] != "podview_scoped_companion"
+        or record["domains"] != list(report.domains)
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+        or any(
+            not isinstance(record[k], str) or not record[k].strip()
+            for k in fields - {"version", "domains"}
+        )
+    ):
+        return False
+    effective = _effective_changes(
+        root, report.base, (*report.production_files, *report.test_files)
+    )
+    production = {p for p in effective if p.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    tests = {p for p in effective if p.startswith("tests/")} | set(report.test_files)
+    static = {p for p in production if p.startswith("podvoice/gatekeeper/static/podview/")}
+    metadata, manifest = (
+        "podvoice/gatekeeper/__init__.py",
+        "custom_components/podvoice/manifest.json",
+    )
+    if (
+        not _PODVIEW_SCOPED_REQUIRED | _PODVIEW_SCOPED_REGRESSIONS <= effective
+        or not production <= _PODVIEW_SCOPED_REQUIRED | static | {metadata, manifest}
+    ):
+        return False
+    if any(
+        not (root / p).is_file() or (root / p).is_symlink()
+        for p in production | tests | {"scripts/candidate_scope.py", "podvoice/config.yaml"}
+    ):
+        return False
+    if (
+        len(static) > 128
+        or any(
+            Path(p).suffix.lower()
+            not in {
+                ".js",
+                ".css",
+                ".html",
+                ".json",
+                ".svg",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".woff",
+                ".woff2",
+            }
+            or (root / p).stat().st_size > 4 * 1024 * 1024
+            or (root / p).stat().st_mode & 0o111
+            for p in static
+        )
+        or sum((root / p).stat().st_size for p in static) > 16 * 1024 * 1024
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    if manifest in production and not _scoped_manifest_only(root, report.base, manifest):
+        return False
+    # Ignored build metadata cannot ride this reviewed composition.
+    baseline = _base_inventory(root, report.base)
+    for name in ("podvoice/build.yaml", "podvoice/Dockerfile", "podvoice/.dockerignore"):
+        if name in baseline:
+            mode, data = _effective_file(root, name)
+            if (
+                mode != baseline[name][0]
+                or data != _git(root, "show", f"{report.base}:{name}").encode()
+            ):
+                return False
+    return (
+        _podview_scoped_ast(root, report.base)
+        and _scoped_config_only(root, report.base)
+        and record["fingerprint"]
+        == production_fingerprint(root, base_tip, report.base, tuple(production))
+        and record["regression_fingerprint"]
+        == regression_fingerprint(root, base_tip, report.base, tuple(tests))
+        and record["policy_fingerprint"]
+        == hashlib.sha256((root / "scripts/candidate_scope.py").read_bytes()).hexdigest()
+        and record["config_fingerprint"]
+        == hashlib.sha256((root / "podvoice/config.yaml").read_bytes()).hexdigest()
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
     marker = "<!-- candidate-scope-coupling"
     strict_v3_required = _requires_passive_burst_ui_hil(root, report.base)
     podview_required = _requires_podview_owner_adapters(root, report.base)
+    scoped_required = _requires_podview_scoped_companion(root, report.base)
     failed = replace(report, passed=False, reason="invalid or stale reviewed coupling record")
     try:
         idle_ui_required, strict_v4_required = _native_idle_input_ui_review_requirements(
@@ -1295,6 +1677,12 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     except (SyntaxError, UnicodeError, ValueError):
         return failed
     if marker not in text:
+        if scoped_required:
+            return replace(
+                report,
+                passed=False,
+                reason="podview_scoped_companion requires exact independent review",
+            )
         if podview_required:
             return replace(
                 report,
@@ -1325,6 +1713,14 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         "rationale",
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
+        return failed
+    if record["version"] == 2 and record.get("kind") == "podview_scoped_companion":
+        if not _reviewed_podview_scoped_companion(root, report, base_tip, record):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: podview_scoped_companion"
+        )
+    if scoped_required:
         return failed
     if record["version"] == 2 and record.get("kind") == "podview_owner_adapters":
         if (
