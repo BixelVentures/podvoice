@@ -1662,6 +1662,275 @@ def _reviewed_podview_scoped_companion(
     )
 
 
+# Exact optional visual-selection follow-on. Existing profiles are unchanged.
+def _visual_repository_changes(root: Path, base: str) -> set[str]:
+    """Compare all repository paths, including hidden index changes and config."""
+    baseline = _base_inventory(root, base)
+    names = set(baseline)
+    for args in (("ls-files", "-z"), ("ls-files", "-z", "--others", "--exclude-standard")):
+        names.update(filter(None, _git(root, *args).split("\0")))
+    names.add("podvoice/config.yaml")
+    algorithm = _git(root, "rev-parse", "--show-object-format").strip()
+    changed = set()
+    for name in names:
+        mode, data = _effective_file(root, name)
+        if mode == "deleted" and name not in baseline:
+            continue
+        oid = hashlib.new(algorithm, b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        if baseline.get(name) != (mode, oid):
+            changed.add(name)
+    return changed
+
+
+def _visual_direct_function(tree: ast.Module, name: str) -> ast.AST:
+    matches = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
+    ]
+    if len(matches) != 1 or matches[0] not in tree.body:
+        raise ValueError("ambiguous visual startup owner")
+    return matches[0]
+
+
+def _visual_insert_before(owner: ast.AST, sources: tuple[str, ...], anchor: str) -> None:
+    """Remove one exact direct block at its approved position, never a callback."""
+    body = getattr(owner, "body", [])
+    expected = [ast.parse(source).body[0] for source in sources]
+    target = ast.parse(anchor).body[0]
+    indices = [index for index, node in enumerate(body) if _ast_equal(node, target)]
+    if len(indices) != 1:
+        raise ValueError("missing visual startup anchor")
+    end = indices[0]
+    start = end - len(expected)
+    if start < 0 or not all(
+        _ast_equal(a, b) for a, b in zip(body[start:end], expected, strict=True)
+    ):
+        raise ValueError("visual startup block moved")
+    del body[start:end]
+
+
+_PODVIEW_VISUAL_REQUIRED = {
+    "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/config.py",
+    "podvoice/gatekeeper/podview.py",
+    "podvoice/gatekeeper/podview_enrichment.py",
+    "podvoice/gatekeeper/podview_receipts.py",
+}
+_PODVIEW_VISUAL_REGRESSIONS = {
+    "tests/unit/test_podview_visual_value.py",
+    "tests/unit/test_config_token.py",
+    "tests/unit/test_podview_receipts.py",
+    "tests/integration/test_podview_bridge.py",
+}
+
+
+def _podview_visual_ast(root: Path, base: str) -> bool:
+    def pair(path):
+        return _owner_ast(_git(root, "show", f"{base}:{path}").encode()), _owner_ast(
+            (root / path).read_bytes()
+        )
+
+    prefix = "podvoice/gatekeeper/"
+    try:
+        before, after = pair(prefix + "__main__.py")
+        _visual_insert_before(
+            _visual_direct_function(after, "run"),
+            (
+                "from .podview_enrichment import configured_selector",
+                """tools.podview_receipts.configure_selector(
+            configured_selector(ha_client, cfg.openai_api_key, cfg.podview_visual_policy,
+            settings_path.parent / "podview-visual-budget.json"))""",
+            ),
+            "tools.configure_device_control(load_settings(settings_path))",
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "config.py")
+        config_class = _direct_class(after, "Config")
+        field = ast.parse('podview_visual_policy: str = ""').body[0]
+        fields = [node for node in config_class.body if _ast_equal(node, field)]
+        if len(fields) != 1:
+            return False
+        config_class.body.remove(fields[0])
+        _remove_call_keyword(
+            _visual_direct_function(after, "from_options"),
+            "Config",
+            "podview_visual_policy",
+            'str(opts.get("podview_visual_policy", "")) if not settings_source_untrusted else ""',
+        )
+        _visual_insert_before(
+            _visual_direct_function(after, "load_config"),
+            ('merged["podview_visual_policy"] = opts.get("podview_visual_policy", "")',),
+            'merged["podview_control_policy"] = opts.get("podview_control_policy", "")',
+        )
+        if not _ast_equal(before, after):
+            return False
+        before, after = pair(prefix + "podview.py")
+        old_cleanup = ast.parse("sink.close()", mode="eval").body
+        new_cleanup = ast.parse("await sink.aclose()", mode="eval").body
+        old_capability = ast.parse("False", mode="eval").body
+        new_capability = ast.parse(
+            'bool(getattr(receipt_owner, "selection_enabled", False))', mode="eval"
+        ).body
+        counts = [0, 0]
+
+        class RestoreApproved(ast.NodeTransformer):
+            def visit_Await(self, node):
+                if _ast_equal(node, new_cleanup):
+                    counts[0] += 1
+                    return old_cleanup
+                return self.generic_visit(node)
+
+            def visit_Dict(self, node):
+                for index, key in enumerate(node.keys):
+                    if isinstance(key, ast.Constant) and key.value == "visualEnrichment":
+                        if not _ast_equal(node.values[index], new_capability):
+                            raise ValueError("changed visual capability")
+                        counts[1] += 1
+                        node.values[index] = old_capability
+                return self.generic_visit(node)
+
+        RestoreApproved().visit(after)
+        return counts == [1, 1] and _ast_equal(before, after)
+    except (ValueError, SyntaxError, KeyError, RuntimeError):
+        return False
+
+
+def _visual_config_only(root: Path, base: str) -> bool:
+    path = root / "podvoice/config.yaml"
+    if path.is_symlink() or not path.is_file():
+        return False
+    before, after = _git(root, "show", f"{base}:podvoice/config.yaml"), path.read_text()
+    for header, statement in (
+        ("options:\n", '  podview_visual_policy: ""\n'),
+        ("schema:\n", '  podview_visual_policy: "str?"\n'),
+    ):
+        if after.count(statement) != 1 or after.count(header) != 1:
+            return False
+        block = re.split(r"\n(?=\S)", after.split(header, 1)[1], maxsplit=1)[0]
+        if statement.rstrip("\n") not in block.splitlines():
+            return False
+        after = after.replace(statement, "", 1)
+    version = r"^version: ([\'\"]?)\d+\.\d+\.\d+\1$"
+    old, new = re.search(version, before, re.MULTILINE), re.search(version, after, re.MULTILINE)
+    return bool(
+        old
+        and new
+        and before[: old.start()] + "VERSION" + before[old.end() :]
+        == after[: new.start()] + "VERSION" + after[new.end() :]
+    )
+
+
+def _reviewed_podview_visual_selection(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "policy_fingerprint",
+        "config_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or type(record["version"]) is not int
+        or record["version"] != 2
+        or record["kind"] != "podview_visual_selection"
+        or record["domains"] != list(report.domains)
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+        or any(
+            not isinstance(record[k], str) or not record[k].strip()
+            for k in fields - {"version", "domains"}
+        )
+    ):
+        return False
+    effective = _visual_repository_changes(root, report.base)
+    production = {p for p in effective if p.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    tests = {p for p in effective if p.startswith("tests/")} | set(report.test_files)
+    static = {p for p in production if p.startswith("podvoice/gatekeeper/static/podview/")}
+    metadata = "podvoice/gatekeeper/__init__.py"
+    if (
+        not _PODVIEW_VISUAL_REQUIRED | _PODVIEW_VISUAL_REGRESSIONS <= effective
+        or not production <= _PODVIEW_VISUAL_REQUIRED | static | {metadata}
+    ):
+        return False
+    if any(
+        not (root / p).is_file() or (root / p).is_symlink()
+        for p in production | tests | {"scripts/candidate_scope.py", "podvoice/config.yaml"}
+    ):
+        return False
+    if (
+        len(static) > 128
+        or any(
+            Path(p).suffix.lower()
+            not in {
+                ".js",
+                ".css",
+                ".html",
+                ".json",
+                ".svg",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".woff",
+                ".woff2",
+            }
+            or (root / p).stat().st_size > 4 * 1024 * 1024
+            or (root / p).stat().st_mode & 0o111
+            for p in static
+        )
+        or sum((root / p).stat().st_size for p in static) > 16 * 1024 * 1024
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    # No build/workflow/dependency or native-owner delta can ride this profile.
+    for name in effective:
+        if name not in production | tests | {
+            "docs/STATUS.md",
+            "scripts/candidate_scope.py",
+            "podvoice/config.yaml",
+            "pyproject.toml",
+        } and not name.startswith("docs/"):
+            return False
+    if "pyproject.toml" in effective:
+        if (root / "pyproject.toml").is_symlink() or not (root / "pyproject.toml").is_file():
+            return False
+        before = _git(root, "show", f"{report.base}:pyproject.toml")
+        after = (root / "pyproject.toml").read_text()
+        pattern = r'^version = "\d+\.\d+\.\d+"$'
+        if (
+            len(re.findall(pattern, before, re.MULTILINE)) != 1
+            or len(re.findall(pattern, after, re.MULTILINE)) != 1
+            or re.sub(pattern, 'version = "VERSION"', before, flags=re.MULTILINE)
+            != re.sub(pattern, 'version = "VERSION"', after, flags=re.MULTILINE)
+        ):
+            return False
+    return (
+        _podview_visual_ast(root, report.base)
+        and _visual_config_only(root, report.base)
+        and record["fingerprint"]
+        == production_fingerprint(root, base_tip, report.base, tuple(production))
+        and record["regression_fingerprint"]
+        == regression_fingerprint(root, base_tip, report.base, tuple(tests))
+        and record["policy_fingerprint"]
+        == hashlib.sha256((root / "scripts/candidate_scope.py").read_bytes()).hexdigest()
+        and record["config_fingerprint"]
+        == hashlib.sha256((root / "podvoice/config.yaml").read_bytes()).hexdigest()
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
@@ -1714,6 +1983,12 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
         return failed
+    if record["version"] == 2 and record.get("kind") == "podview_visual_selection":
+        if not _reviewed_podview_visual_selection(root, report, base_tip, record):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: podview_visual_selection"
+        )
     if record["version"] == 2 and record.get("kind") == "podview_scoped_companion":
         if not _reviewed_podview_scoped_companion(root, report, base_tip, record):
             return failed

@@ -346,7 +346,7 @@ class PodViewBridge:
                 "musicActions": [],
                 "answerRead": receipt_owner is not None,
                 "controlSetup": [],
-                "visualEnrichment": False,
+                "visualEnrichment": bool(getattr(receipt_owner, "selection_enabled", False)),
             },
         }
         # No grant is disclosed to viewers. A paired controller supplies its own token.
@@ -944,7 +944,7 @@ def mount(
     async def close_receipts(_app):
         sink = getattr(tools, "podview_receipts", None)
         if sink is not None:
-            sink.close()
+            await sink.aclose()
 
     app.on_cleanup.append(close_receipts)
     app.add_routes(

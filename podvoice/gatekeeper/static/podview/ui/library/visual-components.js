@@ -8,16 +8,17 @@ class VisualComponent extends HTMLElement {
  build(){
   if(this.built)return;this.built=true;this.family=this.localName.slice(3);this.classList.add('pv-component','pv-visual');this.dataset.component=this.family;
   this.note=make('p','pv-state-note');this.note.setAttribute('role','status');
-  this.body=make('div','pv-visual-body');this.summary=make('p','pv-visual-summary');this.body.append(this.summary);this.rows=new Map();
+  this.body=make('div','pv-visual-body');this.lead=make('div','pv-visual-lead');this.summary=make('p','pv-visual-summary');this.lead.append(this.summary);this.body.append(this.lead);this.rows=new Map();
   if(this.family==='sourced-image'){
    this.figure=make('figure','pv-answer-image');this.image=make('img');this.image.decoding='async';this.image.referrerPolicy='no-referrer';this.image.width=1000;this.image.height=600;
    this.imageError=make('p','pv-image-fallback','Billedet kunne ikke indlæses. Forklaring og kilde er bevaret.');this.imageError.hidden=true;
-   this.caption=make('figcaption');this.captionText=make('p');this.credit=make('span','pv-image-credit');this.caption.append(this.captionText,this.credit);
+   this.caption=make('figcaption');this.captionText=make('p');this.credit=make('span','pv-image-credit');this.caption.append(this.captionText);
    this.figure.append(this.image,this.imageError,this.caption);this.body.append(this.figure);
    this.image.addEventListener('error',()=>{this.image.hidden=true;this.imageError.hidden=false;});
    this.image.addEventListener('load',()=>{this.image.hidden=false;this.imageError.hidden=true;});
   }else{this.list=make(this.family==='fact-card'?'dl':'ol','pv-visual-list');this.body.append(this.list);}
-  this.sources=make('details','pv-visual-sources');this.sources.append(make('summary',null,'Kilder og grundlag'));this.sourceList=make('ul');this.sources.append(this.sourceList);this.sourceNodes=new Map();this.body.append(this.sources);this.append(this.note,this.body);
+  this.sources=make('details','pv-visual-sources');const sourceToggle=make('summary');sourceToggle.setAttribute('aria-label','Kilder og grundlag');sourceToggle.title='Kilder og grundlag';const sourceIcon=make('img');sourceIcon.src='assets/icons/three-dots.svg';sourceIcon.alt='';sourceToggle.append(sourceIcon);this.sources.append(sourceToggle);this.sourcePanel=make('div','pv-visual-source-panel');this.sourceList=make('ul');this.sourcePanel.append(this.sourceList);if(this.credit)this.sourcePanel.append(this.credit);this.sources.append(this.sourcePanel);this.sourceNodes=new Map();this.lead.append(this.sources);this.append(this.note,this.body);
+  this.sources.addEventListener('keydown',event=>{if(event.key==='Escape'&&this.sources.open){event.stopPropagation();this.sources.open=false;sourceToggle.focus();}});
  }
  reconcile(parent,map,items,build,update){
   const wanted=new Set(items.map(x=>x.id));for(const [id,node] of map)if(!wanted.has(id)){node.remove();map.delete(id);}
@@ -25,11 +26,12 @@ class VisualComponent extends HTMLElement {
  }
  render(){
   this.build();const d=this.data,state=d.state||'ready';this.dataset.state=state;this.setAttribute('aria-busy',String(state==='loading'||state==='pending'));
-  const labels={loading:'Gør svaret klar…',pending:'Opdaterer svaret…',empty:'Der er ikke noget at vise endnu.',error:'Visningen kunne ikke hentes.',offline:'Offline · sidst kendte oplysninger',unsupported:'Denne visning er ikke tilgængelig.'};
-  this.body.hidden=['empty','unsupported'].includes(state);copy(this.note,labels[state]||'');this.note.hidden=!this.note.textContent;
+  const labels={empty:'Der er ikke noget at vise endnu.',error:'Visningen kunne ikke hentes.',offline:'Offline · sidst kendte oplysninger',unsupported:'Denne visning er ikke tilgængelig.'};
+  this.body.hidden=['empty','unsupported'].includes(state);this.sources.hidden=this.body.hidden;copy(this.note,labels[state]||'');this.note.hidden=!this.note.textContent;
   if(this.body.hidden)return;
-  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[]});}catch{this.body.hidden=!this.lastContent;copy(this.note,state==='loading'?labels.loading:'Visningen kunne ikke læses.');this.note.hidden=false;return;}
-  this.lastContent=content;copy(this.summary,content.summary);
+  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[]});}catch{this.body.hidden=!this.lastContent;this.sources.hidden=this.body.hidden;const waiting=['loading','pending'].includes(state);copy(this.note,waiting?'':'Visningen kunne ikke læses.');this.note.hidden=waiting;return;}
+  this.lastContent=content;copy(this.summary,content.summary);this.summary.hidden=d.hideSummary===true;
+  this.dataset.count=String((content.facts||content.events||content.nodes||[]).length);
   if(this.family==='sourced-image'){
    const img=content.image;if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
   }else{
@@ -43,7 +45,7 @@ class VisualComponent extends HTMLElement {
     copy(value,this.family==='fact-card'?item.value:item.label);copy(detail,item.detail);row.dataset.position=String(index+1);
    });
   }
-  this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{const owner=s.kind==='owner_receipt';if((li.children[0].tagName==='BUTTON')!==owner){const control=make(owner?'button':'a');if(owner){control.type='button';control.className='text-control';control.addEventListener('click',()=>this.dispatchEvent(new CustomEvent('owner-source',{bubbles:true,composed:true,detail:{receiptId:li.dataset.receiptId}})));}else{control.target='_blank';control.rel='noopener noreferrer';}li.children[0].replaceWith(control);}copy(li.children[0],s.label);if(owner)li.children[0].disabled=['offline','loading','pending'].includes(state);li.dataset.receiptId=owner?s.receiptId:'';if(!owner)li.children[0].href=s.url;copy(li.children[1],owner?'Modtaget værktøjsresultat':s.scope);});
+  this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{const owner=s.kind==='owner_receipt';if((li.children[0].tagName==='BUTTON')!==owner){const control=make(owner?'button':'a');if(owner){control.type='button';control.className='text-control';control.addEventListener('click',()=>control.dispatchEvent(new CustomEvent('owner-source',{bubbles:true,composed:true,detail:{receiptId:li.dataset.receiptId}})));}else{control.target='_blank';control.rel='noopener noreferrer';}li.children[0].replaceWith(control);}copy(li.children[0],s.label);if(owner)li.children[0].disabled=['offline','loading','pending'].includes(state);li.dataset.receiptId=owner?s.receiptId:'';if(!owner)li.children[0].href=s.url;copy(li.children[1],owner?'Modtaget værktøjsresultat':s.scope);});
  }
 }
 for(const family of visualFamilies)customElements.define(`pv-${family}`,class extends VisualComponent{});

@@ -23,17 +23,19 @@ export class SceneMotion {
   }
  }
  capture(focus){
-  const feed=this.host.querySelector('.responses'),player=this.host.querySelector('.player');this.scroll.set(focus,feed.scrollTop);
+  const feed=this.host.querySelector('.responses'),player=this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])');this.scroll.set(focus,feed.scrollTop);
   const box=player&&!player.hidden?player.getBoundingClientRect():null;this.cancel();return box;
  }
  enter(previous,next,oldPlayer,back=false){
   const feed=this.host.querySelector('.responses');feed.scrollTop=back?this.scroll.get(next)||0:0;
   const content=[...feed.children].find(node=>!node.hidden&&node.getClientRects().length&&node.id!=='resource-rail');
-  if(content)this.animate(content,[{opacity:.65,transform:'translateY(6px)'},{opacity:1,transform:'none'}]);
-  const player=this.host.querySelector('.player');if(!player||player.hidden)return;
+  const changesRest=previous==='photo'||next==='photo';
+  if(changesRest){const frame=this.host.querySelector('.frame');if(frame)this.animate(frame,[{opacity:.8,transform:'translateY(8px) scale(.99)',filter:'blur(.8px)'},{opacity:1,transform:'none',filter:'none'}],380);}
+  else if(content)this.animate(content,[{opacity:.65,transform:'translateY(6px)'},{opacity:1,transform:'none'}]);
+  const player=this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])');if(!player||player.hidden)return;
   const box=player.getBoundingClientRect();if(oldPlayer?.width&&box.width){
    const dx=oldPlayer.x-box.x,dy=oldPlayer.y-box.y,sx=oldPlayer.width/box.width,sy=oldPlayer.height/box.height;
-   if(Math.abs(dx)+Math.abs(dy)+Math.abs(oldPlayer.width-box.width)+Math.abs(oldPlayer.height-box.height)>.5)this.animate(player,[{transformOrigin:'0 0',transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`},{transformOrigin:'0 0',transform:'none'}],320);
+   if(Math.abs(dx)+Math.abs(dy)+Math.abs(oldPlayer.width-box.width)+Math.abs(oldPlayer.height-box.height)>.5)this.animate(player,[{transformOrigin:'0 0',transform:`translate(${dx}px,${dy}px) scale(${sx},${sy})`},{transformOrigin:'0 0',transform:'none'}],changesRest?380:320);
   }
  }
 }
