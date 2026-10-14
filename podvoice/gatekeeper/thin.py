@@ -360,7 +360,7 @@ LIVE_END_CONVERSATION_DECLARATION = {
     + " Music controls, including pause and stop, keep the conversation open after the "
     "truthful result unless the user also explicitly asks to end the conversation.",
 }
-WAIT_FOR_USER_DECLARATION = {
+WAIT_FOR_USER_DECLARATION: dict[str, Any] = {
     "name": WAIT_FOR_USER_TOOL,
     "description": (
         "Use only when detected speech is clearly background, directed at someone else, "

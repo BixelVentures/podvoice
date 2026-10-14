@@ -92,15 +92,19 @@ def instructions(variant):
         return primary, backend
     primary = replace_once(
         primary,
-        "usikker henvendelse: lyt videre i stilhed. Du skal ikke delegere for at være stille.",
-        "usikker henvendelse: lyt videre i stilhed. Den snævre implicitte afslutningsregel "
-        "nedenfor gælder kun et positivt forstået skift efter en afsluttet udveksling.",
+        "Lyt stille ved baggrundstale eller usikker\n"
+        "henvendelse, uden delegation; baggrundstale forlænger ikke samtalen.",
+        "Lyt stille ved baggrundstale eller usikker\n"
+        "henvendelse; baggrundstale forlænger ikke samtalen. Den snævre implicitte "
+        "afslutningsregel nedenfor gælder kun et positivt forstået skift efter en "
+        "afsluttet udveksling.",
     )
     primary = replace_once(
         primary,
-        "bekræftede oplysninger; eller når det kun gælder baggrundstale og lytterreaktioner.",
-        "bekræftede oplysninger; eller når det kun gælder baggrundstale og lytterreaktioner "
-        "uden den positivt forståede implicitte afslutning nedenfor.",
+        "bekræftede oplysninger, medmindre en afslutning allerede er delegeret.",
+        "bekræftede oplysninger, medmindre en afslutning allerede er delegeret. "
+        "Baggrundstale og lytterreaktioner kræver ikke delegation, medmindre den "
+        "positivt forståede implicitte afslutning nedenfor gælder.",
     )
     backend = replace_once(
         backend,

@@ -57,7 +57,13 @@ def test_baseline_exact_and_variant_aligns_all_startup_layers_without_mutating_r
         )
         evidence.close()
     base, variant = configs["baseline"], configs["implicit"]
-    assert base["instructions"] == primary
+    production = module.rig.OpenAILiveSession(
+        "not-a-key",
+        tool_declarations=shipped,
+        instructions=primary,
+        backend_instructions=backend,
+    )._configuration()
+    assert base == production
     assert base["delegation"]["responses"]["instructions"] == backend
     assert base["delegation"]["responses"]["tools"][0]["description"] == original["description"]
     assert module.POLICY in variant["instructions"]
