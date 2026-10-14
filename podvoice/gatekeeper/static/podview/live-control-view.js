@@ -1,10 +1,11 @@
 import {controlTask,controlArgs} from './control-model.js';
+import './robot-control-panel.js';
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 // Presentation-only client. All tickets, scopes and effect owners stay server-side.
 export class LiveControlView{
  constructor(host){this.host=host;this.generation=0;this.opening=0;this.spent=new Map();this.receipts=new Map();this.dialog=make('dialog',undefined,'live-control-dialog');const header=make('header'),title=make('h2','Betjening'),close=make('button','Luk','dialog-close');this.title=title;title.id='control-title';this.dialog.setAttribute('aria-labelledby',title.id);close.type='button';close.addEventListener('click',()=>this.dialog.close());header.append(title,close);this.note=make('p','', 'control-feedback');this.note.setAttribute('role','status');this.body=make('div',undefined,'control-options');this.receiptNote=make('p','','control-feedback');this.receiptNote.setAttribute('role','status');this.receiptNote.hidden=true;this.dialog.append(header,this.note,this.receiptNote,this.body);host.append(this.dialog);this.dialog.addEventListener('close',()=>{this.opening++;this.task=null;clearTimeout(this.expiryTimer);this.body.replaceChildren();if(this.opener?.isConnected)this.opener.focus();});
   this.musicButton=make('button','Betjen musik','text-control');this.musicButton.type='button';this.musicButton.addEventListener('click',()=>this.openMusic(this.musicButton));host.querySelector('.player').append(this.musicButton);
-  this.robotButton=make('button','Vælg rengøring','text-control');this.robotButton.type='button';this.robotButton.addEventListener('click',()=>this.openRobot(this.robotButton));document.getElementById('device-detail').after(this.robotButton);
+  this.robotButton=make('button','Betjen robot','text-control');this.robotButton.type='button';this.robotButton.addEventListener('click',()=>this.openRobot(this.robotButton));document.getElementById('device-detail').after(this.robotButton);
  }
  allowed(domain){return this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities.controlSetup?.includes(domain);}
  render(){
@@ -13,6 +14,7 @@ export class LiveControlView{
   this.authority=authority;
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.invalidate('Betjeningen er udløbet · hent den igen.',false);
   const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!p?.target||p.stale;this.musicButton.disabled=this.pending||this.setupPending;this.robotButton.hidden=!this.allowed('vacuum')||!d?.live;this.robotButton.disabled=this.pending||this.setupPending||d?.stale;
+  if(this.robotPanel&&this.dialog.open&&this.domain==='vacuum'){const device=this.robotDevice();this.robotPanel.observed?.(device);this.robotPanel.disabled=!!(this.pending||this.setupPending||!this.task||this.spent.has(this.task.taskId)||!this.allowed('vacuum')||device?.stale);}
   this.renderReceipt();
  }
  receiptText(row){return row.outcome==='accepted'?'Anmodningen er modtaget · afventer observeret status.':row.outcome==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':row.outcome==='pending'?'Handlingen afventer svar fra hjemmet.':'Handlingen blev afvist.';}
@@ -28,7 +30,7 @@ export class LiveControlView{
  invalidate(message='Forbindelsen mangler · hent betjeningen igen.',render=true){
   this.generation++;this.opening++;this.task=null;clearTimeout(this.expiryTimer);
   if(this.pending&&this.activeOperation){this.remember(this.activeOperation,'unknown');this.note.textContent='Forbindelsen blev afbrudt · handlingen gentages ikke.';}else if(this.dialog.open)this.note.textContent=message;
-  for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;if(render)this.render();
+  for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();
  }
  openMusic(opener){const p=this.host.liveMedia?.playback;if(!p?.target||!this.allowed('music'))return;this.open('music',{accountId:p.config_entry_id,kind:'spotify_device',targetId:p.target.id},opener);}
  openRobot(opener,recipeId){const d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');if(!d?.live||!this.allowed('vacuum'))return;this.open('vacuum',{entityId:d.id},opener,recipeId);}
@@ -37,7 +39,8 @@ export class LiveControlView{
   catch{if(opening===this.opening&&generation===this.generation)this.note.textContent='Betjeningen kunne ikke hentes. Adgangen eller status kan have ændret sig.';}
   finally{this.setupPending=false;this.render();}
  }
- buildOptions(){this.body.replaceChildren();for(const option of this.task.options){const section=make('section',undefined,'control-option'),form=make('form'),schema=option.argsSchema;if(schema.kind!=='none')form.append(make('h3',option.label));
+ robotDevice(){return this.host.state.devices.find(d=>d.kind==='vacuum'&&d.id===this.target?.entityId);}
+ buildOptions(){this.body.replaceChildren();this.robotPanel=null;if(this.task.domain==='vacuum'){const device=this.robotDevice(),panel=document.createElement('pv-robot-control-panel');panel.data={task:this.task,device,history:device?.history};panel.addEventListener('robot-control-action',event=>this.send(event.detail.optionId,event.detail.args));panel.addEventListener('robot-control-recipe',event=>this.open('vacuum',this.target,this.opener,event.detail.recipeId));this.robotPanel=panel;this.body.append(panel);return;}for(const option of this.task.options){const section=make('section',undefined,'control-option'),form=make('form'),schema=option.argsSchema;if(schema.kind!=='none')form.append(make('h3',option.label));
    if(schema.kind==='choice'){const grid=make('div',undefined,'control-choice-grid');for(const c of schema.choices){const label=make('label'),input=make('input');input.type='radio';input.name='choiceId';input.value=c.id;input.required=true;label.append(input,make('span',c.label));grid.append(label);}form.append(grid);}
    if(schema.kind==='cleaning'){const grid=make('div',undefined,'control-choice-grid');for(const area of schema.areas){const label=make('label'),input=make('input');input.type='checkbox';input.name='areaIds';input.value=area.id;label.append(input,make('span',area.label));grid.append(label);}const repeat=make('select');repeat.name='repeat';repeat.setAttribute('aria-label','Antal rengøringer');for(let n=1;n<=3;n++){const o=make('option',n===1?'1 gang':n+' gange');o.value=String(n);repeat.append(o);}form.append(grid,repeat);}
    if(schema.kind==='percent'){const label=make('label','Vælg lydstyrke'),input=make('input'),value=make('output');input.type='range';input.name='percent';input.min='0';input.max=String(schema.max);input.step='1';input.value=String(Math.min(schema.max,this.task.volume??0));value.textContent=this.task.volume===null?'Vælg på skyderen':input.value+' %';input.setAttribute('aria-label','Vælg lydstyrke');input.addEventListener('input',()=>{value.textContent=input.value+' %';form.querySelector('[type=submit]').disabled=false;});label.append(input,value);form.append(label);}

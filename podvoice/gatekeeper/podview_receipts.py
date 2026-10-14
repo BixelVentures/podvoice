@@ -7,6 +7,7 @@ access before looking up the opaque receipt IDs. No status-log inference.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import math
 import secrets
@@ -14,6 +15,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
+from .podview_enrichment import VisualSelector
 from .podview_weather import MAX_CURRENT_AGE_S, MAX_RETRIEVAL_AGE_S, weather_projection
 
 
@@ -94,7 +96,7 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
                 datetime.fromisoformat(data["stateUpdatedAt"]).timestamp() + MAX_CURRENT_AGE_S,
             ),
         }
-        return f"Vejret i {data['location']}", facts, len(facts) > 1, provenance
+        return f"Vejret i {data['location']}", facts, False, provenance
     if tool_name == "google_web_sogning":
         data = result.get("data")
         if isinstance(data, dict):
@@ -128,6 +130,70 @@ class VisualReceiptOwner:
         self._clock = clock
         self._rooms: dict[str, dict] = {}
         self._closed = False
+        self._selector: VisualSelector | None = None
+        self._selection: asyncio.Task | None = None
+
+    def configure_selector(self, selector: VisualSelector | None) -> None:
+        """Startup-only optional provider. No browser request can enable it."""
+        if self._rooms or self._closed:
+            raise RuntimeError("visual selector configuration is startup-only")
+        self._selector = selector
+
+    @property
+    def selection_enabled(self) -> bool:
+        return bool(self._selector is not None and self._selector.available and not self._closed)
+
+    async def _select(self, room_id: str, state: dict, row: dict) -> None:
+        selector = self._selector
+        if selector is None:
+            return
+        try:
+            current = self._current(room_id)
+            if current is not state or row not in state["items"]:
+                return
+            deadline = self._clock() + 5
+            revision = state["revision"]
+
+            def current_receipt() -> bool:
+                current = self._current(room_id)
+                return (
+                    current is state
+                    and row in state["items"]
+                    and state["revision"] == revision
+                    and self._clock() < deadline
+                )
+
+            async with asyncio.timeout(5):
+                selected = await selector.select(
+                    copy.deepcopy(row["item"]["content"]), current=current_receipt
+                )
+
+            current = self._current(room_id)
+            if (
+                current is not state
+                or row not in state["items"]
+                or not selected
+                or not current_receipt()
+            ):
+                return
+            content = row["item"]["content"]
+            chosen = selected.get("content", {}).get("facts", [])
+            # Independent owner closure: no provider fact can be added or edited.
+            if not chosen or any(f not in content["facts"] for f in chosen):
+                return
+            ids = [f["id"] for f in chosen]
+            if len(set(ids)) != len(ids):
+                return
+            source_ids = {f["sourceId"] for f in chosen}
+            row["item"]["content"] = {
+                "summary": content["summary"],
+                "facts": copy.deepcopy(chosen),
+                "sources": [s for s in content["sources"] if s["id"] in source_ids],
+            }
+            row["item"]["displaySuggested"] = True
+            state["revision"] += 1
+        except (Exception, asyncio.CancelledError):
+            return  # Optional display cannot change ACK, playback, close or rearm.
 
     def offer(
         self,
@@ -168,7 +234,7 @@ class VisualReceiptOwner:
             projected = _facts(tool_name, result)
             if projected is None:
                 return False
-            summary, facts, suggested, provenance = projected
+            summary, facts, _suggested, provenance = projected
             if not all(_text(f["value"], 80) and _text(f["detail"], 200) for f in facts):
                 return False
             if not current():
@@ -227,13 +293,22 @@ class VisualReceiptOwner:
             "inputRevision": input_revision,
             "observedAt": time.time(),
             "family": "fact-card",
-            "displaySuggested": suggested,
+            "displaySuggested": False,
             "provenance": provenance,
             "content": content,
         }
-        state["items"].insert(0, {"item": item, "deadline": self._clock() + 120, "tool": tool_name})
+        row = {"item": item, "deadline": self._clock() + 120, "tool": tool_name}
+        state["items"].insert(0, row)
         del state["items"][3:]
         state["revision"] += 1
+        if self._selector is not None and not state.get("selection_offered"):
+            state["selection_offered"] = True
+            if self._selection is None or self._selection.done():
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    return True
+                self._selection = loop.create_task(self._select(room_id, state, row))
         return True
 
     def _current(self, room_id: str, owner: object | None = None) -> dict | None:
@@ -262,7 +337,11 @@ class VisualReceiptOwner:
             "schema": "podview.answers.v1",
             "roomId": room_id,
             "revision": state["revision"] if state else 0,
-            "items": copy.deepcopy([r["item"] for r in state["items"]]) if state else [],
+            "items": copy.deepcopy(
+                [r["item"] for r in state["items"] if r["item"]["displaySuggested"] is True]
+            )
+            if state
+            else [],
         }
 
     def source(self, room_id: str, receipt_id: str, owner: object | None = None) -> dict | None:
@@ -272,7 +351,7 @@ class VisualReceiptOwner:
             if state
             else None
         )
-        if row is None:
+        if row is None or row["item"]["displaySuggested"] is not True:
             return None
         item = row["item"]
         return {
@@ -289,4 +368,11 @@ class VisualReceiptOwner:
 
     def close(self) -> None:
         self._closed = True
+        if self._selection is not None:
+            self._selection.cancel()
         self._rooms.clear()
+
+    async def aclose(self) -> None:
+        self.close()
+        if self._selection is not None:
+            await asyncio.gather(self._selection, return_exceptions=True)

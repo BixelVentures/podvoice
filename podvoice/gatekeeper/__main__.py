@@ -427,6 +427,16 @@ async def run(cfg: Config) -> None:
         hub=hub,
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
+    from .podview_enrichment import configured_selector
+
+    tools.podview_receipts.configure_selector(
+        configured_selector(
+            ha_client,
+            cfg.openai_api_key,
+            cfg.podview_visual_policy,
+            settings_path.parent / "podview-visual-budget.json",
+        )
+    )
     tools.configure_device_control(load_settings(settings_path))
 
     def save_runtime_settings(values: dict) -> dict:

@@ -35,6 +35,7 @@ class Config:
     podview_pairing_room: str = ""
     podview_pairing_sha256: str = ""
     podview_control_policy: str = ""
+    podview_visual_policy: str = ""
     # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
     # add-on already holds; override both for a non-supervised setup (direct
     # http://<ha>:8123/api/mcp + a long-lived access token).
@@ -144,6 +145,9 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),
+        podview_visual_policy=str(opts.get("podview_visual_policy", ""))
+        if not settings_source_untrusted
+        else "",
         podview_control_policy=str(opts.get("podview_control_policy", ""))
         if not settings_source_untrusted
         else "",
@@ -261,6 +265,7 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["openai_api_key"] = opts.get("openai_api_key", "")
     merged["supervisor_token"] = opts.get("supervisor_token", "")
     # These owner-authority fields come ONLY from Supervisor options, never panel settings.
+    merged["podview_visual_policy"] = opts.get("podview_visual_policy", "")
     merged["podview_control_policy"] = opts.get("podview_control_policy", "")
     merged["podview_pairing_room"] = opts.get("podview_pairing_room", "")
     merged["podview_pairing_sha256"] = opts.get("podview_pairing_sha256", "")

@@ -9,7 +9,7 @@ from integration.test_podview_bridge import owner
 from integration.test_thin import LiveFake, _build, _build_talk_session, _wait_until
 from integration.test_thin_live import build, emit, until
 from unit.test_openai_live import call, created, terminal
-from unit.test_podview_receipts import offer
+from unit.test_podview_receipts import offer, selected_store
 
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE
@@ -21,7 +21,7 @@ from gatekeeper.web import create_app
 @pytest.mark.parametrize("surface", ["voicepe", "talk", "live"])
 @pytest.mark.parametrize("outcome", ["current", "failed", "session", "revision", "sink_failed"])
 async def test_receipts_follow_actual_successful_current_submission(surface, outcome):
-    store = VisualReceiptOwner()
+    store = selected_store()
     entered, release, completed = asyncio.Event(), asyncio.Event(), asyncio.Event()
     if surface == "live":
         session, sdk, _, tools, _ = build()
@@ -98,6 +98,8 @@ async def test_receipts_follow_actual_successful_current_submission(surface, out
             await until(lambda: not session._tool_tasks)
         else:
             await _wait_until(lambda: not session._tool_tasks)
+        if store._selection is not None:
+            await store._selection
         items = store.snapshot("kitchen")["items"]
         assert bool(items) is (outcome == "current"), getattr(provider, "sent_tool_results", "live")
         if items:
@@ -115,8 +117,9 @@ async def test_receipts_follow_actual_successful_current_submission(surface, out
 async def test_actual_ingress_answers_sources_context_room_and_expiry():
     session, _ = owner()
     alive = [True]
-    store = VisualReceiptOwner()
+    store = selected_store()
     assert offer(store, owner=session, session_id="s1", current=lambda: alive[0])
+    await store._selection
     tools = SimpleNamespace(podview_receipts=store)
     app = create_app(StatusHub(), {"kitchen": session, "bedroom": owner()[0]}, tools=tools)
     async with TestClient(TestServer(app)) as client:
@@ -149,8 +152,9 @@ async def test_actual_ingress_answers_sources_context_room_and_expiry():
 
 async def test_replaced_session_object_cannot_keep_old_receipt_even_if_old_active():
     session, _ = owner()
-    store = VisualReceiptOwner()
+    store = selected_store()
     assert offer(store, owner=session, session_id="s1")
+    await store._selection
     app = create_app(
         StatusHub(), {"kitchen": session}, tools=SimpleNamespace(podview_receipts=store)
     )
@@ -266,3 +270,30 @@ async def test_native_receipt_plain_output_cannot_interrupt_exact_ack_bookkeepin
         reader.cancel()
         await asyncio.gather(submission, reader, return_exceptions=True)
         await brain.close()
+
+
+@pytest.mark.parametrize("decision", ["disabled", "decline", "timeout", "refusal"])
+async def test_ingress_does_not_export_unselected_answers_or_sources(decision):
+    from unittest.mock import AsyncMock
+
+    session, _ = owner()
+    store = VisualReceiptOwner()
+    if decision != "disabled":
+        selector = AsyncMock()
+        selector.select.return_value = None
+        if decision == "timeout":
+            selector.select.side_effect = TimeoutError("bounded provider timeout")
+        store.configure_selector(selector)
+    assert offer(store, owner=session, session_id="s1")
+    receipt = store._rooms["kitchen"]["items"][0]["item"]["receiptId"]
+    if store._selection is not None:
+        await store._selection
+    app = create_app(
+        StatusHub(), {"kitchen": session}, tools=SimpleNamespace(podview_receipts=store)
+    )
+    async with TestClient(TestServer(app)) as client:
+        answers = await (await client.get("/view/api/answers")).json()
+        assert answers["items"] == []
+        assert (await client.get("/view/api/sources/" + receipt)).status == 404
+        snapshot = await (await client.get("/view/api/snapshot")).json()
+        assert snapshot["answers"]["sessionId"] is None

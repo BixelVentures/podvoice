@@ -1,0 +1,5 @@
+#timer-alert{touch-action:pan-y;z-index:22}
+#timer-alert #timer-alert-dismiss{width:auto;min-width:72px;padding:10px 14px;background:#ffc5b0;color:#192a2d;font-weight:650}
+#timer-alert #timer-alert-dismiss:hover:not(:disabled){background:#ffd8c9;color:#192a2d}
+#timer-alert .timer-notice-open{min-width:48px;padding:8px;background:transparent;color:#c9d9dc;font-size:12px}
+#timer-alert .timer-notice-open:hover:not(:disabled){background:#30464a;color:#fff}

@@ -39,8 +39,8 @@ for(const outcome of ['accepted','unknown'])test(`late ${outcome} survives dialo
 test('scope revoke then restore fences an in-flight setup in the same boot',async()=>{
  const f=fixture();try{const opening=f.view.open('vacuum',target,new Node('button'));f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();f.host.liveSnapshot.capabilities.controlSetup=['vacuum'];f.view.render();f.setup.resolve(f.offer());await opening;assert.equal(f.view.task,null);assert.equal(f.view.body.children.length,0);assert.equal(f.calls(),0);}finally{f.view.cleanup();}
 });
-test('revocation disables existing dialog controls and restoration does not revive its task',async()=>{
- const f=fixture();try{await open(f);const button=f.view.body.querySelectorAll('button')[0];assert.equal(button.disabled,false);f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();assert.equal(button.disabled,true);assert.equal(f.view.task,null);f.host.liveSnapshot.capabilities.controlSetup=['vacuum'];f.view.render();await f.view.send('pause',{});assert.equal(f.calls(),0);}finally{f.view.cleanup();}
+test('revocation disables existing robot controls and restoration does not revive its task',async()=>{
+ const f=fixture();try{await open(f);const panel=f.view.robotPanel;assert.equal(panel.disabled,false);f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();assert.equal(panel.disabled,true);assert.equal(f.view.task,null);f.host.liveSnapshot.capabilities.controlSetup=['vacuum'];f.view.render();assert.equal(panel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);}finally{f.view.cleanup();}
 });
 test('expired task becomes visibly inert before it can send',async()=>{
  const f=fixture();try{await open(f);f.view.task.expiresAt=Date.now()/1000-1;f.view.render();assert.equal(f.view.task,null);assert.ok(f.view.body.querySelectorAll('button').every(x=>x.disabled));assert.match(f.view.note.textContent,/udløbet/);await f.view.send('pause',{});assert.equal(f.calls(),0);}finally{f.view.cleanup();}

@@ -41,3 +41,30 @@
 .pv-component[data-component=vacuum-widget] .pv-meta{color:var(--pv-vacuum-muted)}
 .pv-component[data-component=vacuum-widget] .pv-instrument{background:#fafafabf;border:0}
 .pv-component[data-component=vacuum-widget] .pv-instrument>img{filter:none}
+
+/* Provenance remains available without competing with the useful answer. */
+.pv-visual-lead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.pv-visual-lead .pv-visual-summary{flex:1;margin-bottom:20px}
+.pv-visual-sources,.answer-widget .response-heading>.sources{position:relative;flex:0 0 48px;margin:0;border:0;color:var(--pv-screen-muted)}
+.pv-visual-sources summary,.answer-widget .response-heading>.sources summary{display:flex;align-items:center;justify-content:center;width:48px;height:48px;padding:0;list-style:none;border-radius:50%;cursor:pointer}
+.pv-visual-sources summary::-webkit-details-marker,.answer-widget .response-heading>.sources summary::-webkit-details-marker{display:none}
+.pv-visual-sources summary img,.answer-widget .response-heading>.sources summary img{width:22px;height:22px;opacity:.7}
+.pv-visual-sources summary:hover,.answer-widget .response-heading>.sources summary:hover{background:var(--pv-screen-control)}
+.pv-visual-sources[open] summary,.answer-widget .response-heading>.sources[open] summary{background:var(--pv-screen-control)}
+.pv-visual-sources>.pv-visual-source-panel,.answer-widget .response-heading>.sources>pv-source-list{position:absolute;z-index:6;top:52px;right:0;width:min(320px,calc(100vw - 64px));max-height:300px;overflow:auto;overscroll-behavior:contain;padding:16px 20px;background:var(--pv-screen-surface);border-radius:var(--pv-screen-radius-art);box-shadow:0 12px 36px #11121726;margin:0}
+.answer-widget .response-heading>.sources:not([open])>pv-source-list{display:none}
+.pv-visual-sources .pv-visual-source-panel li{padding:0 0 12px}
+.pv-visual-sources .pv-visual-source-panel li:last-child{padding-bottom:0}
+.pv-visual-sources .text-control{width:100%;text-align:left;padding:8px 0;color:var(--pv-screen-action-ink)}
+.answer-widget .response-heading>.answer-heading-target{min-width:0;flex:1}
+.answer-widget .response-heading>.answer-source-menu{align-self:flex-start}
+.answer-widget .pv-visual-lead:has(>.pv-visual-summary[hidden]){display:none}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item:first-child{padding:22px 26px}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item{padding:18px 0}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item:first-child .pv-visual-value{font-size:clamp(42px,9cqw,64px)}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-value{font-size:clamp(25px,5.5cqw,36px)}
+.answer-widget .pv-visual .pv-visual-summary{font-size:24px;line-height:1.3;max-width:40ch}
+@media(max-width:759px){.answer-widget .response-heading{gap:4px}.answer-widget .pv-visual-list{gap:0 16px}.answer-widget .pv-component[data-component=fact-card] .pv-visual-item:first-child{padding:20px}.answer-widget .pv-visual .pv-visual-summary{font-size:22px}}
+
+.pv-visual-sources:not([open])>.pv-visual-source-panel{display:none}
+.pv-visual-source-panel .pv-image-credit{display:block;padding-top:12px;line-height:1.5}

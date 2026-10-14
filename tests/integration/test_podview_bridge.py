@@ -161,7 +161,15 @@ async def test_selector_copies_only_source_facts_and_rejects_invented_ids():
         "facts": [
             {"id": "f1", "label": "Tid", "value": "12", "detail": "minutter", "sourceId": "s1"}
         ],
-        "sources": [{"id": "s1", "label": "HA", "url": "https://example.com", "scope": "Test"}],
+        "sources": [
+            {
+                "id": "s1",
+                "label": "HA",
+                "kind": "owner_receipt",
+                "receiptId": "a" * 32,
+                "scope": "tool_result",
+            }
+        ],
     }
     selected = {"show": True, "fact_ids": ["f1"]}
 
@@ -183,11 +191,20 @@ async def test_selector_copies_only_source_facts_and_rejects_invented_ids():
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-        selector = VisualSelector(client, "secret", "configured-model")
-        result = await selector.select(content)
+        from gatekeeper.podview_enrichment import MODEL, RequestAllowance
+        from gatekeeper.provider_budget import ProviderBudgetCoordinator
+
+        selector = VisualSelector(
+            client,
+            "secret",
+            MODEL,
+            allowance=RequestAllowance(2),
+            budget=ProviderBudgetCoordinator(),
+        )
+        result = await selector.select(content, current=lambda: True)
         assert result["content"] == content
         selected["fact_ids"] = ["invented"]
-        assert await selector.select(content) is None
+        assert await selector.select(content, current=lambda: True) is None
 
 
 async def test_replaced_owner_epoch_binding_expiry_and_bad_ids_reject(monkeypatch):
