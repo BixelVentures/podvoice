@@ -18186,11 +18186,11 @@ Lossless source/provider-input/provider-output WAVs er kun afledte private lytte
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "c04eb422b2f6824ec718fcd28a6372518acffbb8de5abcce4f78533e522bcb49",
-  "regression_fingerprint": "758367cc65bb865808a96e194e4c962c9f3aae409198b8d0c6ecacae3371cac1",
+  "fingerprint": "619bd28558d327ee0483e6cd6caedd8cab3e45311fe0ff83592ee935623bac4c",
+  "regression_fingerprint": "01cec59d0748da50c7610eaa99f03285be50eb478a0780ae975ef777b3d04ac7",
   "policy_fingerprint": "d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21",
-  "reviewer": "release_next",
-  "rationale": "Prospective independent narrow review retains the previously reviewed 2.0.22 metadata and typing-only current runtime. Nonshipping implicit eval anchors now match current exact startup; offline baseline observer compares entire configuration to the actual production builder with identical inputs. Whole runtime production and scope policy unchanged; updated regression tree and external helper bytes bound. No provider or physical acceptance inherited."
+  "reviewer": "fix_capacity_stop",
+  "rationale": "Independent review approves explicit MCP structured failure propagation: exact boolean False, one HA wrapper only when outer ok absent, precedence and original data retained. Existing Thin native/Talk dispatch returns tool failure to provider without exception-driven close. Previously reviewed candidate runtime unchanged. No physical acceptance inherited."
 }
 -->
 
@@ -18268,3 +18268,12 @@ Lead udvider kun observer-regressionen: behold instructions(baseline)==rawprimar
 14/10 COMPOSED LOCAL RELEASE GO — independentrelease_retention godkenderdenfaktiskesammensattecoverage: current125unitmodules er nøjagtigt48retained+77remaining udenmangler/dubletter; originalremaining4–8terminal53383exit0, fem100%-logs/hashreceiptverificeret. Retained48modules, integrations46modules, conftest, dependencies, runtime c04 oggate7370 er uændrede; kunnonshippinghelper/observeriunit4ændretogreviewet4733. SammeeksternePython3.12/tool_environment/_stage_environment og240s-bounds dokumenteret. Finalscope1b573PASS ogtreoriginalediff_checkformerPASS050c21, allesyvreviewedesourcehashes uændredeeftertests. Ingenlokalbrowsertrigger.
 
 Denførste standardreleasekommando er historiskexit2, ikke retroaktivgrøn. Godkendelsen er composedlocalchecks forsourcef58716579254ff8183cb93973f1b54a994551c98/treec7c70c1b214a45dc666849caebcd71f641e96a7b; all8fullactualGitblobcontents/sha/size/mode verificeretførlease, freshheadverified. Ingenyderligeretests/providerpåkrævetafretentionreviewet. RootfortsætterénPR/exactcommitCIinklbrowser/ARM64, derefteréngrønmainartifactinstallation. CI/build/installation/fysiskgolden10/10/domæner/latency/stabilitet stadigåbne; goalACTIVE.
+
+
+### 14/10 — structured HA tool errors and field search correction
+
+Lead root. Field evidence showed two MAX_TOKENS search failures wrapped as successful output, repeated backend work and subsequent local capacity refusal/forced close. The search agent's observed 150-token cap was changed to 1024 after independent review and official HA search guidance. The same previously failed query now returns nonempty output and response_type=action_done; factual accuracy and physical Voice PE behavior remain unverified.
+
+The smallest shared owner fix promotes only explicit boolean ok:false in MCP structured/JSON results, including one known HA success/result wrapper when the outer payload has no ok field. Original data and structuredContent/isError precedence remain. No error-prose classification, recursive unwrapping, schema change, quota/timeout increase, local semantic rule or new close path. Current Thin returns this normal tool failure to the model without throwing or requesting close; Voice PE and Talk share that path. HA's paired script preserves ConversationResult error status while retaining successful output-only shape.
+
+Independent adversarial review by fix_capacity_stop found ambiguous outer status and approved the corrected exact source. Original 104 module cases passed; the 20 affected cases pass after correction; unaffected checks retained. Formatting/lint/type checks pass. One refreshed existing scope binding passes against actual main4a; a stale local origin/main was refreshed through public HTTPS without checkout/reset. No new binding helper or policy expansion. Previously reviewed candidate runtime/tests remain unchanged except this fix and its regressions. Official exact-head CI, installation, physical golden chain/10 cycles and full functional/latency/stability gates remain open. Rollback is the previous source and script; no acceptance inherited. Goal ACTIVE.

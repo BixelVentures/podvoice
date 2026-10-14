@@ -1,0 +1,26 @@
+alias: Google Web Søgning
+description: Bruges til at søge på internettet efter dagsaktuel viden.
+fields:
+  query:
+    description: Søgeterm
+    required: true
+    selector:
+      text: {}
+sequence:
+  - action: conversation.process
+    data:
+      agent_id: conversation.google_ai_search
+      text: '{{ query }}'
+    response_variable: search_result
+  - variables:
+      result: >-
+        {% set response = search_result.response %}
+        {% set output = response.speech.plain.speech %}
+        {% if response.response_type == 'error' %}
+          {{ dict(output=output, ok=false,
+                  error=response.data.code | default('unknown'), message=output) }}
+        {% else %}
+          {{ dict(output=output) }}
+        {% endif %}
+  - stop: Search complete
+    response_variable: result

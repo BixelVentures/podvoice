@@ -220,8 +220,9 @@ _TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
 def _mcp_result_to_contract(result: dict) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
     ``{ok, summary?, data?}`` on success, ``{ok: False, error_kind, error}`` on
-    ``isError``. Text content that parses as JSON rides in ``data``; plain text is
-    the spoken ``summary``."""
+    ``isError`` or an explicit structured ``ok: False``. HA script responses may
+    wrap that contract in ``{success: True, result: ...}``. JSON text rides in
+    ``data``; plain text is the spoken ``summary``."""
     texts = [
         c.get("text", "")
         for c in (result.get("content") or [])
@@ -245,6 +246,27 @@ def _mcp_result_to_contract(result: dict) -> dict:
             out["summary"] = text
         else:
             out.setdefault("data", parsed)
+    payload = out.get("data")
+    if isinstance(payload, dict):
+        if (
+            "ok" not in payload
+            and payload.get("success") is True
+            and isinstance(payload.get("result"), dict)
+        ):
+            payload = payload["result"]
+        if payload.get("ok") is False:
+            out.update(
+                ok=False,
+                error_kind="tool_error",
+                error=next(
+                    (
+                        value
+                        for value in (payload.get("message"), payload.get("error"))
+                        if isinstance(value, str) and value.strip()
+                    ),
+                    "the tool reported an error",
+                ),
+            )
     if "summary" not in out and "data" not in out:
         out["empty"] = True
     return out
