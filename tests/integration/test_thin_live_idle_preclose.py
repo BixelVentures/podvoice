@@ -467,7 +467,9 @@ async def test_stop_cancels_preclose_and_old_task_cannot_cross_next_wake(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_semantic_end_remains_model_owned_during_tv_and_cancels_app_preclose(monkeypatch):
+async def test_semantic_end_cancels_app_preclose_but_fresh_input_retires_transport_permission(
+    monkeypatch,
+):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     try:
@@ -492,9 +494,13 @@ async def test_semantic_end_remains_model_owned_during_tv_and_cancels_app_preclo
                     end_ms=100,
                 )
             )
-            assert session._live_finalizing  # END already committed without UI idle delay.
-            assert sdk.session.close.await_count == 1
-            assert session._ending_conversation
+            # Raw evidence does not change the SDK/model's accepted END. It
+            # retires only the newly pending Native provider-close permission.
+            await until(lambda: not session._ending_conversation)
+            assert receipt.result() is True
+            assert session._live_end_receipt is None and session._goodbye is None
+            assert not session._live_finalizing and sdk.session.close.await_count == 0
+            assert session._active and link.rearm_calls == 0
             assert sdk.session.instructions.append.await_count == 0
     finally:
         await session.aclose()

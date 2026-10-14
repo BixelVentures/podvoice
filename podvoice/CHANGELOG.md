@@ -1,9 +1,28 @@
+## 2.0.25 - candidate: scoped PodView companion controls
+
+- Preserve the published2.0.24 conversation and timer-result changes. Serve the frozen2107 touch UI through existing authenticated Home Assistant ingress.
+- Show provider-observed playback and queue, HA weather and allowed vacuum state without issuing voice control tickets. Keep stale/unavailable states explicit; lights remain unconnected.
+- Add separately configured room/device/action scopes for paired direct Spotify transport and supported vacuum settings, start/reuse, pause, stop and return. Tasks expire, effects are sent once, and uncertain outcomes are never automatically retried. Acknowledgement is not physical proof.
+- Retain three actual cleaning request records and bounded native accepted timer settings. Native timer history requires the matching PodVoice HA integration0.1.1 and clears with its owner/Core restart.
+- Present bounded, source-bound tool-result cards after existing provider submission, with exact conversation context. No additional model call, arbitrary HTML, invented source URL or new voice owner.
+- Direct Spotify transport requires PodConnect Control0.10.9. Catalogue/new-play selection, configured-alias music transport and artwork remain unavailable. No current installation or physical acceptance is claimed by this candidate.
+
+## 2.0.24 - test release: native replies and music recovery
+
+- Remove instructions requesting generic receipt/progress speech and ask for silent tool delegation. Preserve direct answers, clarification, confirmed results and model-owned closing.
+- Preserve the complete playback-target catalog with a catalog-specific 4096-byte allowance in validation, serialization and pre-dispatch capacity reservation. Generic results and mutation limits remain unchanged.
+- Prevent normal native cleanup from sharing a sequential provider/attention bottleneck after proven physical I/O cutoff. Keep one close owner, the existing deadlines and a correlated rearm after both cleanups finish; uncertain and error paths remain sequential.
+- Keep native semantic closing open for fresh, current output/work quiet after backend completion, so a delayed primary reply can arrive before provider finalization. New input retires the old closing permission; exact playback finish still owns rearm. This uses the configured quiet interval and does not claim a latency improvement.
+- Add an inert GPT-Live timer-creation regression to the existing semantic evaluator. It requires a current confirmed 10-second action and meaningful answer; it never creates a real home timer.
+- Known limitation: the current synthetic probe still contains one second of unidentified pre-result audio. The strict silence check remains failed; no verified spoken “Modtaget” is established by that trace. This is a requested test release, with physical timer alarm, room transfer, lifecycle and latency acceptance still open.
+
 ## 2.0.23 - PodView companion display
 
 - Serve the touch companion inside the existing authenticated Home Assistant ingress, with the current room conversation and native timer state; no additional add-on or voice engine.
 - Add explicit administrator-provisioned, one-use pairing for short-lived native timer start/cancel control, tied to the exact room, endpoint, epoch and revision. Viewer access alone never grants control.
 - Read admitted PodConnect targets and music history through the existing server owner; provider credentials remain server-side. Optional fact selection is prepared but remains disabled until provider budget and publication ownership are admitted.
 - Package the Danish touch UI and preserve demo/live separation. Source checks and CI are distinct from installation and physical iPad/Voice PE acceptance.
+
 
 ## 2.0.22 - GPT-Live closing and HA recovery
 

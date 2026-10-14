@@ -2379,7 +2379,7 @@ async def test_diagnostics_real_sdk_fault_stage_keeps_exception_and_never_replay
     await session.admit_tool_batch("r1", 1)
     if phase == "encode":
 
-        def fail_encode(_):
+        def fail_encode(_, *, max_bytes=2048):
             raise ConnectionError("private-result sk-private-credential")
 
         monkeypatch.setattr("gatekeeper.openai_live.bounded_tool_output", fail_encode)
@@ -2920,3 +2920,35 @@ async def test_live_observed_15437_target_keeps_reservation_without_shadow_quota
         session.capacity_sleep.assert_not_awaited()
     finally:
         await session._release()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name,limit", [("podconnect_get_targets", 4096), ("status", 2048)])
+async def test_actual_live_call_reserves_and_sends_only_its_named_result_allowance(name, limit):
+    import json
+
+    from gatekeeper.data_result import tool_result_size
+
+    session, sdk, _ = provider()
+    session.tool_declarations = [{**TOOLS[0], "name": name}]
+    await session.connect()
+    try:
+        await stage(session, [call(name=name)])
+        await session.admit_tool_batch("r1", 1)
+        assert session._batches["r1"].reserved_tokens == 30 + session.max_output_tokens + limit
+        result = {"ok": True, "data": {"metadata": "x" * 2400}}
+        await session.send_tool_results(
+            "r1",
+            [{"id": "c1", "name": "podconnect_get_targets", "response": result}],
+            generation=1,
+        )
+        # Caller-supplied name cannot enlarge the actual staged call's allowance.
+        output = sdk.response.item.create.await_args.kwargs["item"]["output"]
+        decoded = json.loads(output)
+        assert tool_result_size(decoded) <= limit
+        if name == "podconnect_get_targets":
+            assert decoded == result
+        else:
+            assert decoded["result_truncated"] is True
+    finally:
+        await session.close()

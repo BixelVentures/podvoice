@@ -42,7 +42,7 @@ from referencing.exceptions import Unresolvable
 
 from . import constants as C
 from .audio import StreamResampler, resample_pcm16
-from .data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output
+from .data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output, tool_result_limit
 from .prompt import SYSTEM_PROMPT_DA
 from .provider_budget import (
     PROVIDER_BUDGET,
@@ -454,6 +454,7 @@ class OpenAIRealtimeSession:
     _outstanding_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _cancelled_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _tool_call_response_ids: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _tool_call_result_limits: dict[str, int] = field(default_factory=dict, init=False, repr=False)
     # function_call_arguments.done is only a proposal. OpenAI documents response.done
     # as the authoritative terminal event, so proposals stay quarantined by response
     # id until that exact response explicitly completes.
@@ -709,6 +710,7 @@ class OpenAIRealtimeSession:
         self._semantic_end_source_call_id = None
         self._silent_tool_call_ids.clear()
         self._outstanding_tool_calls.clear()
+        self._tool_call_result_limits.clear()
         self._cancelled_tool_calls.clear()
         self._tool_call_response_ids.clear()
         self._staged_tool_calls.clear()
@@ -1595,7 +1597,9 @@ class OpenAIRealtimeSession:
             if not call_id:
                 raise ValueError("tool result omitted call id")
             resp = r.get("response")
-            output = self._bounded_tool_output(resp)
+            output = self._bounded_tool_output(
+                resp, max_bytes=self._tool_call_result_limits.get(call_id, MAX_TOOL_RESULT_BYTES)
+            )
             item_id = _safe_client_item_id(f"pv_tool_{uuid.uuid4().hex[:24]}")
             pending = self._register_item_create(
                 item_id=item_id,
@@ -1655,23 +1659,23 @@ class OpenAIRealtimeSession:
             raise
 
         if submission_generation == self._connection_generation:
-            self._display_tool_receipt = (
-                submission_generation,
-                [
-                    {
-                        "id": str(pending.call_id),
-                        "name": result.get("name"),
-                        "response": json.loads(output),
-                    }
-                    for result, output, pending in submissions[:16]
-                ],
-            )
+            display_results = []
+            for result, output, pending in submissions[:16]:
+                try:
+                    decoded = json.loads(output)
+                except (ValueError, RecursionError):
+                    continue  # Plain provider output is valid but is not structured display data.
+                display_results.append(
+                    {"id": str(pending.call_id), "name": result.get("name"), "response": decoded}
+                )
+            self._display_tool_receipt = (submission_generation, display_results)
 
         # Only an exact item ACK makes a call satisfied. Until this point every call
         # remains outstanding and response.create is causally impossible.
         for r, _output, pending in submissions:
             call_id = str(pending.call_id)
             self._outstanding_tool_calls.discard(call_id)
+            self._tool_call_result_limits.pop(call_id, None)
             if bool(r.get("suppress_response")):
                 self._silent_tool_call_ids.add(call_id)
             else:
@@ -1749,6 +1753,7 @@ class OpenAIRealtimeSession:
                 self._semantic_end_source_call_id = None
                 self._silent_tool_call_ids.clear()
                 self._outstanding_tool_calls.clear()
+                self._tool_call_result_limits.clear()
                 self._cancelled_tool_calls.clear()
                 self._tool_call_response_ids.clear()
                 self._staged_tool_calls.clear()
@@ -2352,6 +2357,7 @@ class OpenAIRealtimeSession:
                 if self.interrupt_response:
                     self._cancelled_tool_calls.update(self._outstanding_tool_calls)
                     self._outstanding_tool_calls.clear()
+                    self._tool_call_result_limits.clear()
                 self._speech_stop_emitted = False
                 if self.interrupt_response:
                     yield Interrupted(
@@ -2615,7 +2621,10 @@ class OpenAIRealtimeSession:
                     max(
                         TOOL_FOLLOWUP_MINIMUM_RESERVE,
                         usage.provider_total_tokens
-                        + MAX_TOOL_RESULT_TOKENS * max(1, len(staged_calls))
+                        + (
+                            sum(tool_result_limit(call.name) for call in staged_calls.values())
+                            or MAX_TOOL_RESULT_TOKENS
+                        )
                         + MAX_OUTPUT_TOKENS
                         + TOOL_FOLLOWUP_PROTOCOL_MARGIN,
                     )
@@ -2933,6 +2942,9 @@ class OpenAIRealtimeSession:
                     # response while a later sibling is still undispatched.
                     calls = list(staged_calls.values())
                     self._outstanding_tool_calls.update(call.call_id for call in calls)
+                    self._tool_call_result_limits.update(
+                        (call.call_id, tool_result_limit(call.name)) for call in calls
+                    )
                     self._tool_call_response_ids.update((call.call_id, rid) for call in calls)
                     self._next_response_capacity_tokens = followup_tokens
                     self._pending_create = True

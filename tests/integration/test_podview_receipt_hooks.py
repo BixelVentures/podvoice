@@ -207,3 +207,62 @@ async def test_real_native_provider_receipt_requires_matching_item_ack_and_gener
         reader.cancel()
         await asyncio.gather(submission, reader, return_exceptions=True)
         await brain.close()
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+async def test_native_receipt_plain_output_cannot_interrupt_exact_ack_bookkeeping(mixed):
+    import json
+
+    from integration.test_thin import _AdapterQueueWS
+
+    from gatekeeper.openai_realtime import OpenAIRealtimeSession
+
+    brain = OpenAIRealtimeSession(api_key="fixture")
+    ws = _AdapterQueueWS()
+    brain._ws = ws
+    results = [{"id": "plain", "name": "google_web_sogning", "response": "plain result"}]
+    if mixed:
+        results.append(
+            {
+                "id": "catalog",
+                "name": "podconnect_get_targets",
+                "response": {"data": "x" * 3000},
+            }
+        )
+    brain._outstanding_tool_calls.update(result["id"] for result in results)
+    brain._tool_call_result_limits = {result["id"]: 4096 for result in results}
+    continuations = []
+
+    async def continuation():
+        assert not brain._outstanding_tool_calls
+        assert not brain._tool_call_result_limits
+        continuations.append(True)
+
+    brain._create_tool_result_response = continuation
+
+    async def receive():
+        async for _ in brain.events():
+            pass
+
+    reader = asyncio.create_task(receive())
+    submission = asyncio.create_task(brain.send_tool_results(results))
+    try:
+        await _wait_until(lambda: len(ws.sent) == len(results))
+        assert not submission.done()
+        assert brain._outstanding_tool_calls == {result["id"] for result in results}
+        for sent in ws.sent:
+            await ws.emit({"type": "conversation.item.added", "item": sent["item"]})
+        assert await submission is False
+        assert continuations == [True]
+        receipt = brain.take_submitted_tool_results()
+        if mixed:
+            assert len(ws.sent[1]["item"]["output"].encode()) > 2048
+            assert receipt == [{**results[1], "response": json.loads(ws.sent[1]["item"]["output"])}]
+        else:
+            assert receipt == []
+        assert brain.take_submitted_tool_results() == []
+    finally:
+        submission.cancel()
+        reader.cancel()
+        await asyncio.gather(submission, reader, return_exceptions=True)
+        await brain.close()

@@ -14,6 +14,47 @@ spor, grønne deltests eller plausible lydhypoteser bliver til en ny produktions
 `docs/HANDOVER-v2.md` er historiske research-/handoverfiler. De må bruges som baggrund,
 men aldrig som autoritet over de fire filer ovenfor.
 
+## Bindende regler for hurtig levering
+
+De ti regler gælder som standard for alle mennesker og agenter:
+
+1. **Saml rettelser i én udgivelse.** Brug én samlet kandidat, ét PR/merge-flow og én installation; undgå en release for hver lille del.
+2. **Kontrollér den berørte ændring under udvikling.** Kør den kausale regression og den relevante adapter. Gem den brede kontrol til den frosne kandidat.
+3. **Genbrug beståede checks på uændrede bits.** Ved en fixture-/toolingfejl repareres årsagen én gang. Fortsæt kun det ugyldiggjorte trin og de endnu ikke kørte trin; behold tidligere resultater.
+4. **Arbejd parallelt på uafhængige issues.** Fordel implementation, review og nødvendige leveringsopgaver efter ledige agentpladser, med én lead og tydeligt filejerskab.
+5. **Review den berørte kode og ejergrænse.** Dæk nabotrinnene og relevante races én gang. Genbrug review af uændret kode; genlæs ikke hele repoet ved hver iteration.
+6. **Brug ét fast udviklingsmiljø.** Genbrug den eksisterende Python-venv, dependencies, caches og kendte kommandoer. Etablér ikke et nyt miljø pr. issue.
+7. **Kør fra den vedvarende usynkroniserede klon.** Documents/worktrees i synkroniseret storage er redigering og handover; lokale gates køres i dev-klonen.
+8. **Genbrug optagelser og spor til offline fejlsøgning.** Udnyt eksisterende direkte evidens før nye providerkald eller fysiske prøver. Nye prøver skal afgøre et konkret uløst spørgsmål.
+9. **Push løbende uden at udgive hver gang.** Bevar arbejdet på samme branch/PR. Når brugeren bestiller udgivelse, færdiggøres publicering og installation af den godkendte kandidat; et push alene er ikke leverancen.
+10. **Saml fysisk afprøvning i én serie.** Brugeren skal have ét kort samlet forløb. Er enheden slukket/offline, fortsættes det uafhængige softwarearbejde, og fysisk accept står åbent.
+
+Agentvalg: brug den hurtigste tilstrækkeligt kompetente model til nye opgaver.
+Afgrænsede docs-, status-, GitHub- og deterministiske fixtureopgaver kan starte med
+GPT-6-Luna på low/medium; brug GPT-6-Sol til krævende runtime- og ejeranalyse.
+Genbrug en allerede indlæst agents arbejde, hvis modelskift blot gentager konteksten.
+Et påkrævet uafhængigt high-risk review bevares; tunge reviews gentages kun ved nye
+fund eller ændrede bits.
+
+Før freeze skal ændrede signaturer, callbacks og admission-grænser spores gennem
+alle berørte kaldesteder, wrappers og testfixtures. Ret disse i samme ændringssæt,
+så en forældet fixture ikke først opdages efter en lang samlet gate.
+
+Dokumentationsændringer og isolerede fixture-rettelser udløser kun relevante
+statiske/fokuserede kontroller. Genkør ikke en hel lokal releasegate eller manuel CI
+på grund af dem. Den obligatoriske officielle CI køres på den endelige kandidat;
+lokal bred kontrol tilføjes kun ved en konkret fejl eller nødvendigt offline arbejde.
+
+Testopsætning er et middel til at levere issue-rettelsen. Genbrug eksisterende
+harness og den mindst mulige adapter; lad ikke et reparationsforløb vokse til et
+selvstændigt testprodukt. En fejlet prøve bevares som fejlet, og test-/providerbevis,
+udgivelse, installation og fysisk accept beskrives hver for sig.
+
+Ved pause: gem det konkrete igangværende arbejde og angiv åbne issues med status
+**planlagt build**, **udgivet/afventer test** eller **ingen version aftalt**.
+Hvis brugeren præciserer, at den igangværende udgivelse skal færdiggøres før pausen,
+færdiggøres den afgrænsede levering uden at starte nye forbedringsspor.
+
 ## Hurtig standardcyklus
 
 Lokale gates må ikke køres fra Documents, Desktop, iCloud, OneDrive eller anden
@@ -36,13 +77,6 @@ Kør én scopekontrol mod aktuel main ved freeze, ikke ved hver lille iteration.
 `lifecycle` bruges kun, når dens mekaniske scope dækker hele diffet. Derefter ét
 merge-flow og én installation af grøn main. SafeEval/preflight bruges kun ved ændret
 prompt, schema, værktøjer eller Realtime-semantik. Fysisk afprøvning samles i én serie.
-
-En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
-bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,
-uafhængigt reviewet profil. Skift ikke base eller en generisk klassifikation for at
-få den samme release til at passere. Repoet er public: hent almindelig Git-ancestry
-via HTTPS uden credentials og uden checkout/reset, før manuel GitData-rekonstruktion
-overvejes. Gamle lokale auth-fejl er ikke en produktfejl.
 
 En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
 bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,

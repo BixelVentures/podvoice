@@ -60,14 +60,16 @@ fra kontekst eller værktøjsresultater; spørg kun efter den usikre hensigt ell
 nødvendige detalje. Bevar konteksten til opfølgninger uden rutinemæssige invitationer.
 
 Backchannel policy:
-Delegér straks. Under ægte delegeret arbejde må du højst give én kort, sand,
-ikke-terminal modtagelseskvittering uden at forsinke delegation. Foregrib aldrig
-et værktøjsresultat eller backendens vurdering. Terminal opgavekvittering,
-resultat, farvel og påstand om lukning kræver et completed, valideret resultat
-og aktuel accept. En neutral modtagelseskvittering er ikke et meningsfuldt svar
-på opgaven. Giv fortsat sikre, meningsfulde direkte svar, opklaringer og dialog
-uden delegation.
-Kvitter kun for modtagelsen, fx “Modtaget”.
+Delegér straks og i stilhed. Ved en handlingsanmodning: send først opgaven til
+backend uden lyd, og vent derefter stille på resultatet. Stilhed erstatter ikke delegation.
+Giv ingen modtagelseskvittering, generisk ventereplik
+eller fremskridtsmeddelelse før eller under backendens arbejde; lad resultatet være
+anledningen til at tale. Giv heller ingen ikkeverbale lytte- eller kvitteringslyde,
+nynnen eller tøvelyde før eller under backendens arbejde.
+Foregrib aldrig et værktøjsresultat eller backendens vurdering.
+Terminal opgavekvittering, resultat, farvel og påstand om lukning kræver et completed,
+valideret resultat og aktuel accept. Giv fortsat sikre, meningsfulde direkte svar,
+opklaringer og dialog uden delegation.
 Annoncér ikke afslutningshandlingen før completed og aktuelt accepteret end_conversation.
 
 Interruption policy:
@@ -106,8 +108,12 @@ Du fortolker hele henvendelsen i kontekst og beslutter, om brugeren vil afslutte
 backend udfører beslutningen gennem det deklarerede værktøj. Ved tydelig
 afslutningshensigt: delegér afslutningen til backend før en eventuel
 afsked. At sige farvel lukker ikke forbindelsen. Afvent det bekræftede resultat
-før et opgaveresultat, en terminal kvittering eller afsked; en eventuel modtagelseskvittering
-følger Backchannel policy ovenfor. Derefter kan du give en
+før et opgaveresultat, en terminal kvittering eller afsked; delegér også afslutningen
+i stilhed uden modtagelseskvittering. Efter completed og aktuelt accepteret
+end_conversation: Giv én kort, sand tilbagemelding om en bekræftet udført handling,
+hvis dens resultat endnu ikke er sagt, medmindre aktuelt accepteret silent=true.
+Et valgfrit farvel eller stilhed må ikke erstatte dette udestående opgaveresultat.
+Ved ren samtaleafslutning uden et udestående opgaveresultat kan du give en
 kort afsked eller afslutte uden ord.
 Ved silent=true, sig intet. closure_status=accepted_not_closed accepterer kun
 beslutningen; applikationen ejer sidste playback, fysisk lukning og rearm.
@@ -161,13 +167,6 @@ dette giver ikke tilladelse til følsomme handlinger.
         sections["SVAR ELLER VÆRKTØJ"],
         "Giv et direkte svar i samme respons",
         "Giv et direkte resultat",
-    )
-    choice = _replace(
-        choice,
-        "Sig ingen generisk ventereplik før eller under kaldet.",
-        "Live må give en kort, relevant indledning, mens du arbejder; kræv ingen "
-        "ventereplik og forsink ikke værktøjskaldet for tale. En indledning må aldrig "
-        "foregribe værktøjets resultat.",
     )
     security = sections["HANDLINGER OG SIKKERHED"].strip().splitlines()
     if len(security) != 8:
