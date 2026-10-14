@@ -1,3 +1,9 @@
+# Official CI158 correction — 14 October2026
+
+Official final-head run38626897327 failed two tests; shipped-browser, ARM64 build, Ruff/format and mypy passed. The project metadata version was omitted when preparing25; pyproject.toml is corrected from24 to25 without dependency/build changes and now matches add-on config. Native ten-cycle quiet readiness at cycle4 failed because the fractional fixture base represented nominal25s as24.999999999999943, which the unchanged strict native policy correctly rejects; subtracting a large host clock into the synthetic offset also lost low-order time precision. The fixture now uses an anchor plus elapsed host time, supplies one more actual contiguous0.1s native report, and proves fractional-boundary, exact-owner and stale-report rejection. Attributed focused checks:15 release-contract and3 affected native cases PASS; static66 PASS. Independent bounded source review GO on exactly these metadata/fixture bytes. The original official run remains FAIL and a new final-head CI is required. Successful browser/ARM64 evidence applies only to unchanged bytes. No runtime tuning, PR merge, release, installation or physical acceptance occurred.
+
+---
+
 # Authorized final composed freeze — 14 October2026
 
 Human explicitly answered “Ja tak!” to applying the linked reviewed podview_scoped_companion proposal with existing safeguards preserved. Exact proposal patch SHA256 cbca0755d30a05bd56333b54320314a35bf9a737afd13a6dea1cad16c3906dfa applied without widening. Resulting policy SHA256 febbac99ad449daf0823cdf2eeee6f881998b6014b8cd2ad332c4da0413cc8a5 and regression SHA256 db6567d1fd40ec249a0bed14df7ecbe32b15d3c8a8f61ce40305eea9e2c515f2 match reviewed bytes. The original443 policy regressions and54 new boundary cases were previously tested in a throwaway; affected authoritative fast runs on the actual candidate before release. One independent fresh-context Ultra review owns final semantic approval and exact base/source/tests/config/policy binding; implementer has not created that approval record. Published main24 ancestry and frozen2107 runtime UI remain unchanged. No release/install/physical claim at this point.
@@ -14,11 +20,11 @@ Bounded current-main continuation: published main d1bb25c26375da4fb690503f452974
   "merge_base": "d1bb25c26375da4fb690503f45297431d7a1af07",
   "domains": ["ha_tools", "physical_output"],
   "fingerprint": "447b016df1782cc0f07934e3238aecd1fefb17b7585fe3961f16dc003b28c66a",
-  "regression_fingerprint": "5721d3d7bef94d16763cc278524d18fec1df38cf45c8105a5fc1e60cea56a70b",
+  "regression_fingerprint": "d5a894114a0c9eca0bd49f5093ffa0c771c1d55201c56ca10ed59fa098827726",
   "policy_fingerprint": "febbac99ad449daf0823cdf2eeee6f881998b6014b8cd2ad332c4da0413cc8a5",
   "config_fingerprint": "bc00286851e6dcab70b12b4e6ceb0bfba871cdf0af097bcd66205c629cc1f38c",
-  "reviewer": "composed_final_ultra — independent final high-risk whole-candidate source review",
-  "rationale": "Whole-candidate high-risk source review against b9c934 remains valid: published d1bb25c adds only 2.0.24 publication and installation documentation, with identical PodView production, regression, policy, Supervisor config and packaged UI bytes. Scoped touch mutations stay under explicit pairing plus server-owned single-use offers and existing HA or PodConnect owners; possible-send failures remain terminal unknown. Native timer history is Core-lifetime only; display receipts cannot alter voice ACK, result, cleanup or rearm. This rebase is source admission only; official CI, publication, installation and physical PodView gates remain separate."
+  "reviewer": "composed_final_ultra — independent whole-candidate review and bounded CI fixture continuation",
+  "rationale": "Whole-candidate high-risk source review against b9c934 remains valid: published d1bb25c adds only 2.0.24 publication and installation documentation. After failed official CI158, the only new effective changes are the exact 2.0.25 project-version metadata correction and native ten-cycle fixture clock/coverage correction with causal regressions; independent bounded review found no runtime, packaged UI, scope policy or Supervisor config change. Scoped touch mutations retain explicit pairing, server-owned single-use offers and existing HA or PodConnect owners; possible-send failures remain terminal unknown. Native timer history is Core-lifetime only; display receipts cannot alter voice ACK, result, cleanup or rearm. This record is source admission only; official final-head CI, publication, installation and physical PodView gates remain separate."
 }
 -->
 
