@@ -3603,12 +3603,19 @@ class ThinSession:
                     self._live_end_receipt = receipt
                     self._live_end_delegation_id = batch.delegation_id
                     self._ending_conversation = True
+                    input_index = self._live_backend_inputs.get(batch.response_id)
+                    input_currency = (
+                        (revision, input_index)
+                        if revision is not None and input_index is not None
+                        else None
+                    )
                     self._goodbye = self._spawn(
                         self._await_live_end(
                             receipt,
                             epoch,
                             batch.generation,
                             silent=semantic_end.args.get("silent") is True,
+                            input_currency=input_currency,
                         ),
                         "live-goodbye",
                     )
@@ -4652,6 +4659,7 @@ class ThinSession:
         generation: int,
         *,
         silent: bool,
+        input_currency: tuple[int, int] | None,
     ) -> None:
         """Wait outside the tool lock for actual required backend settlement."""
 
@@ -4676,7 +4684,7 @@ class ThinSession:
             self._trace_event("live_terminal_backend_settled", provider_generation=generation)
             # Silent means no new farewell, not permission to discard existing
             # output. Both semantic variants retain the same quiet/drain owner.
-            await self._finish_live_conversation(epoch, receipt)
+            await self._finish_live_conversation(epoch, receipt, input_currency=input_currency)
         except asyncio.CancelledError:
             receipt.cancel()
             raise
@@ -4684,11 +4692,18 @@ class ThinSession:
             if current():
                 self._request_close("live-terminal-settlement-failed", error_kind="connection")
 
-    async def _finish_live_conversation(self, epoch: float, receipt: asyncio.Future[bool]) -> None:
+    async def _finish_live_conversation(
+        self,
+        epoch: float,
+        receipt: asyncio.Future[bool],
+        *,
+        input_currency: tuple[int, int] | None = None,
+    ) -> None:
         """Semantic END settles backend work, then drains the provider and speaker.
 
-        The UI inactivity period belongs only to app-timeout. Keep receiving final
-        audio until session.closed, finish the stream, and await the physical tail.
+        Native END starts a fresh bounded output/work quiet period after backend
+        settlement. It does not prove that future primary speech cannot arrive.
+        Keep receiving until session.closed, then await the exact physical tail.
         """
         if self._live_close_judge is not None:
             await self._run_live_closing_attempt(epoch, receipt=receipt)
@@ -4697,6 +4712,48 @@ class ThinSession:
             # Parked browser drain remains explicitly unconfirmed, separately
             # bounded, and cannot establish the native physical output boundary.
             await asyncio.sleep(LIVE_CLOSE_GRACE_S)
+        else:
+            from .openai_live import LiveTranscript
+
+            brain = self.brain
+            generation = brain._connection_generation
+            deadline = time.monotonic() + self.idle_timeout_s + brain.timeout_s
+            # Earlier native silence belonged to an unfinished backend. Only new
+            # observations may admit this settled owner's provider-close edge.
+            self._live_end_window.reset("backend_settled")
+            while True:
+                if (
+                    not self._active
+                    or self._epoch != epoch
+                    or self._transport_closing
+                    or self._live_finalizing
+                    or self.brain is not brain
+                    or brain._connection_generation != generation
+                    or self._live_end_receipt is not receipt
+                ):
+                    return
+                if (
+                    input_currency is None
+                    or input_currency != (self._live_input_revision, brain.input_sequence)
+                    or any(
+                        isinstance(event, LiveTranscript)
+                        and event.generation == generation
+                        and event.direction == "in"
+                        and event.text.strip()
+                        for event in brain._queue._queue
+                    )
+                    or not self._semantic_receipt_current(receipt)
+                ):
+                    # Retire this transport permission, without deciding what
+                    # any new fragment means or changing SDK receipt semantics.
+                    self._cancel_live_end()
+                    return
+                if time.monotonic() >= deadline:
+                    self._request_close("live-close-output-quiet-unconfirmed", error_kind="device")
+                    return
+                if self._live_quiet_ready(semantic=True):
+                    break
+                await asyncio.sleep(HEARTBEAT_S)
         await self._finalize_live_conversation(epoch, reason="model-close", receipt=receipt)
 
     async def _finalize_live_conversation(

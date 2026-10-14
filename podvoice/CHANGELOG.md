@@ -1,10 +1,11 @@
-## 2.0.24 - quiet delegation and field recovery
+## 2.0.24 - test release: native replies and music recovery
 
-- Delegate tool work silently instead of speaking generic receipt or progress messages. Preserve direct answers, clarification, confirmed results and model-owned closing.
+- Remove instructions requesting generic receipt/progress speech and ask for silent tool delegation. Preserve direct answers, clarification, confirmed results and model-owned closing.
 - Preserve the complete playback-target catalog with a catalog-specific 4096-byte allowance in validation, serialization and pre-dispatch capacity reservation. Generic results and mutation limits remain unchanged.
 - Prevent normal native cleanup from sharing a sequential provider/attention bottleneck after proven physical I/O cutoff. Keep one close owner, the existing deadlines and a correlated rearm after both cleanups finish; uncertain and error paths remain sequential.
+- Keep native semantic closing open for fresh, current output/work quiet after backend completion, so a delayed primary reply can arrive before provider finalization. New input retires the old closing permission; exact playback finish still owns rearm. This uses the configured quiet interval and does not claim a latency improvement.
 - Add an inert GPT-Live timer-creation regression to the existing semantic evaluator. It requires a current confirmed 10-second action and meaningful answer; it never creates a real home timer.
-- This candidate still requires provider, artifact and physical acceptance. No timer alarm, room transfer, lifecycle or latency pass is inferred from source checks.
+- Known limitation: the current synthetic probe still contains one second of unidentified pre-result audio. The strict silence check remains failed; no verified spoken “Modtaget” is established by that trace. This is a requested test release, with physical timer alarm, room transfer, lifecycle and latency acceptance still open.
 
 ## 2.0.23 - PodView companion display
 

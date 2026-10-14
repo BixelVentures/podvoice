@@ -242,18 +242,60 @@ async def until(predicate):
 
 
 def quiet_policy_fixture(session, monkeypatch):
-    """Hold finalizer admission for deterministic receipt-race permutations.
+    """Hold receipt races, then supply explicitly simulated current native quiet.
 
-    This test-only pause exposes pre-admission races; native semantic closure has
-    no production idle/grace period. Its immediate path is tested without this fixture.
+    The shared fake speaker consumes its stream and the actual native parser /
+    NativeIdleWindow receive a saved-default four-second source/host clock trace.
+    This is fixture evidence, never firmware, room or provider timing proof.
     """
     from gatekeeper import thin
+    from gatekeeper.settings import DEFAULTS
 
     finish = session._finish_live_conversation
+    native = None
+    next_index = 0
 
-    async def held_admission(epoch, receipt):
+    async def held_admission(epoch, receipt, **kwargs):
+        nonlocal native, next_index
         await asyncio.sleep(thin.LIVE_CLOSE_GRACE_S)
-        await finish(epoch, receipt)
+        if session._live_webrtc:
+            await finish(epoch, receipt, **kwargs)
+            return
+        if native is None:
+            from test_thin_live_quiet_close import native_activity
+
+            monkeypatch.setattr(
+                session.voicepe, "on_activity", session._on_activity_observation, raising=False
+            )
+            monkeypatch.setattr(
+                session.voicepe, "accepts_activity", lambda row: False, raising=False
+            )
+            native, _ = native_activity(session, session.voicepe, monkeypatch)
+            session.idle_timeout_s = DEFAULTS["idle_timeout_s"]
+        task = asyncio.create_task(finish(epoch, receipt, **kwargs))
+        try:
+            await until(
+                lambda: task.done() or session._live_end_window.reset_reason == "backend_settled"
+            )
+            if not task.done():
+                stream = session._live_stream
+                if stream is not None:
+                    if not stream.claimed:
+                        session.live_audio.claim(stream.id)
+                    while stream.buffered_bytes:
+                        await stream.next_chunk()
+                    await until(lambda: session._live_pending_audio is None)
+                    while stream.buffered_bytes:
+                        await stream.next_chunk()
+                stop = next_index + int(session.idle_timeout_s * 10) + 1
+                for index in range(next_index, stop):
+                    native(index, empty=not session._live_output_bytes)
+                next_index = stop
+            await task
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     monkeypatch.setattr(session, "_finish_live_conversation", held_admission)
 
@@ -954,7 +996,7 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
 @pytest.mark.parametrize("phase", ["settlement", "grace"])
 @pytest.mark.parametrize("source", ["voice", "typed"])
 @pytest.mark.parametrize("silent", [False, True])
-async def test_typed_correction_revokes_end_but_raw_fragment_is_not_a_decision(
+async def test_fresh_input_retires_native_end_permission_without_deciding_meaning(
     monkeypatch, phase, source, silent
 ):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
@@ -985,8 +1027,10 @@ async def test_typed_correction_revokes_end_but_raw_fragment_is_not_a_decision(
             assert session._ending_conversation and not receipt.cancelled()
             if phase == "settlement":
                 await emit(sdk, created("r2"), terminal("r2"))
-            await until(lambda: link.rearm_calls == 1)
-            assert receipt.result() is True and sdk.session.close.await_count == 1
+            await until(lambda: not session._ending_conversation)
+            assert receipt.result() is True  # SDK settlement still ignores raw fragments.
+            assert session._live_end_receipt is None
+            assert session._active and sdk.session.close.await_count == 0 and link.rearm_calls == 0
             return
         await until(lambda: not session._ending_conversation)
         if phase == "settlement":
@@ -1050,9 +1094,9 @@ async def test_new_backend_after_terminal_settlement_invalidates_old_close(monke
     grace_entered = asyncio.Event()
     original_finish = session._finish_live_conversation
 
-    async def observe_grace(epoch, receipt):
+    async def observe_grace(epoch, receipt, **kwargs):
         grace_entered.set()
-        await original_finish(epoch, receipt)
+        await original_finish(epoch, receipt, **kwargs)
 
     monkeypatch.setattr(session, "_finish_live_conversation", observe_grace)
     await session.start()
@@ -1187,9 +1231,9 @@ async def test_fresh_end_during_old_grace_keeps_its_own_intent(monkeypatch):
     entered = asyncio.Event()
     original_finish = session._finish_live_conversation
 
-    async def observe_grace(epoch, receipt):
+    async def observe_grace(epoch, receipt, **kwargs):
         entered.set()
-        await original_finish(epoch, receipt)
+        await original_finish(epoch, receipt, **kwargs)
 
     monkeypatch.setattr(session, "_finish_live_conversation", observe_grace)
     await session.start()

@@ -138,6 +138,8 @@ def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
 def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
     assert "Delegér straks og i stilhed" in primary
+    assert "Ved en handlingsanmodning: send først opgaven til\nbackend uden lyd" in primary
+    assert "vent derefter stille på resultatet. Stilhed erstatter ikke delegation" in primary
     assert "Giv ingen modtagelseskvittering, generisk ventereplik" in primary
     assert "eller fremskridtsmeddelelse før eller under backendens arbejde" in primary
     assert "Giv heller ingen ikkeverbale lytte- eller kvitteringslyde" in primary

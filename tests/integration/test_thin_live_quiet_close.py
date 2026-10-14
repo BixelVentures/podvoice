@@ -1,73 +1,129 @@
-"""Semantic intent bypasses inactivity, never provider or physical drain proof."""
+"""Settled END requires fresh native quiet, then provider and physical drain."""
 
 import asyncio
 import base64
+import copy
 import json
-import time
 from types import SimpleNamespace
 
 import pytest
+from test_thin_activity_observer import ObservedDevice
 from test_thin_live import build, emit, propose_end, until
 from test_thin_live_idle import setup
+from test_thin_live_idle_preclose import clock_patch
+from test_thin_live_ten_cycles import transcript
+from unit.test_live_idle import observation
 from unit.test_openai_live import DiagnosticWireSDK, call, created, terminal
+from unit.test_voicepe_activity import emit as emit_activity
+from unit.test_voicepe_activity import fixture as activity_fixture
 
-import gatekeeper.thin as thin_module
+import gatekeeper.voicepe as voicepe_module
+from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript
+
+
+def native_activity(session, link, patch):
+    """Actual adapter parser/identity gate; simulated firmware, never room proof."""
+    native, _, template = activity_fixture()
+    clock = [100.0]
+    clock_patch(patch, clock)
+    patch.setattr(voicepe_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    patch.setattr(link, "accepts_activity", native.accepts_activity)
+    native.on_activity = link.on_activity
+
+    def deliver(index, *, empty=False, stale=False):
+        row = observation(index, empty=empty)
+        clock[0] = row["received_monotonic"]
+        raw = copy.deepcopy(template)
+        raw.update(seq=row["sequence"], source_ms=row["source_timestamp_ms"])
+        raw["input"].update(row["input"])
+        raw["output"].update(row["output"])
+        raw["output"].update(
+            consumed_us=index * 100000,
+            mixer_consumed_frames=row["output"]["consumed_frames"],
+            mixer_pending_frames=0,
+        )
+        native._reply_id = session._playback_lease.playback_id if session._playback_lease else None
+        raw["context_generation"] -= int(stale)
+        emit_activity(native, raw)
+        return native._activity_latest
+
+    return deliver, clock
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("semantic,silent", [(True, False), (True, True)])
-async def test_semantic_close_bypasses_idle_then_waits_for_exact_playback_finish(
-    monkeypatch, semantic, silent
+@pytest.mark.parametrize("silent", [False, True])
+async def test_settlement_discards_old_quiet_and_preserves_later_primary_then_physical_tail(
+    monkeypatch, silent
 ):
     session, sdk, link = await setup()
-    clock = [100.0]
+    session.brain.timeout_s = 30
     entered = asyncio.Event()
     original = session._finish_live_conversation
 
-    async def observe_end(epoch, receipt):
+    async def observe_end(epoch, receipt, **kwargs):
         entered.set()
-        await original(epoch, receipt)
+        await original(epoch, receipt, **kwargs)
 
     try:
-        if semantic:
-            monkeypatch.setattr(session, "_finish_live_conversation", observe_end)
+        with monkeypatch.context() as patch:
+            deliver, _ = native_activity(session, link, patch)
+            # An entire old window cannot authorize the post-backend edge.
+            for i in range(41):
+                deliver(i)
+            assert session._live_quiet_ready(semantic=True)
+            patch.setattr(session, "_finish_live_conversation", observe_end)
+            sdk_generation = session.brain._connection_generation
             await propose_end(session, sdk, silent=silent)
             await emit(sdk, created("r2"), terminal("r2"))
             await asyncio.wait_for(entered.wait(), 1)
-        with monkeypatch.context() as patch:
-            patch.setattr(
-                thin_module,
-                "time",
-                SimpleNamespace(
-                    monotonic=lambda: clock[0],
-                    time=time.time,
-                    time_ns=time.time_ns,
-                ),
+            assert not session._live_quiet_ready(semantic=True)
+            assert sdk.session.close.await_count == 0
+            # Primary arrives after settlement, before the fresh window. Actual
+            # SDK delivery is preserved, not replayed or treated as backend done.
+            pcm = b"\x01\x00" * 1920
+            await emit(
+                sdk, dict(type="session.output_audio.delta", delta=base64.b64encode(pcm).decode())
             )
-            # Semantic closure never waits for the saved idle interval or VAD.
-            session.idle_timeout_s = 3600
+            await until(lambda: session._live_close_output_revision > 0)
+            stream = session.live_audio.claim(session._live_stream.id)
+            while stream.buffered_bytes:
+                await stream.next_chunk()
+            await until(lambda: session._live_pending_audio is None)
+            while stream.buffered_bytes:
+                await stream.next_chunk()
+            for i in range(41, 81):
+                deliver(i)
+            assert not session._live_quiet_ready(semantic=True)
+            assert sdk.session.close.await_count == 0
+            deliver(81)
+            assert session._live_quiet_ready(semantic=True), session._live_end_window.diagnostics(
+                now=108.1, owner=session._live_quiet_owner(), idle_s=4
+            )
             await asyncio.wait_for(session._live_provider_closed.wait(), 1)
-            assert sdk.session.close.await_count == 1
-            assert session._live_stream.finished
+            assert sdk.session.close.await_count == 1 and stream.finished
             assert session._active and link.rearm_calls == 0
             lease = session._playback_lease
             session._on_media_state(False, "old-playback")
             assert session._active and link.rearm_calls == 0
             session._on_media_state(False, lease.playback_id)
             await until(lambda: not session._active and link.rearm_calls == 1)
-            assert sdk.session.close.await_count == 1
+            await asyncio.wait_for(asyncio.shield(session._close_task), 1)
+            await session.wake()
+            assert session._active and link.rearm_calls == 1
+            # A queued old-generation provider output cannot cross the next wake.
+            old_revision = session._live_close_output_revision
+            await session._on_live_event(LiveAudioChunk(pcm, sdk_generation))
+            assert session._live_close_output_revision == old_revision
     finally:
         await session.aclose()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("evidence", ["missing", "stale", "audible"])
-@pytest.mark.parametrize("silent", [False, True])
-async def test_semantic_close_ignores_quiet_evidence_but_preserves_physical_drain(
-    monkeypatch, evidence, silent
+async def test_missing_current_native_quiet_fails_bounded_without_provider_cut(
+    monkeypatch, evidence
 ):
     session, sdk, link = await setup()
-    session.idle_timeout_s = 0.01
     session.brain.timeout_s = 0.1
     closes = []
     try:
@@ -75,29 +131,87 @@ async def test_semantic_close_ignores_quiet_evidence_but_preserves_physical_drai
             patch.setattr(
                 session, "_request_close", lambda reason, **kw: closes.append((reason, kw))
             )
-            await propose_end(session, sdk, silent=silent)
+            clock = [100.0]
+            clock_patch(patch, clock)
+            await propose_end(session, sdk)
             await emit(sdk, created("r2"), terminal("r2"))
+            await until(lambda: session._live_end_window.reset_reason == "backend_settled")
             if evidence != "missing":
-                from unit.test_live_idle import observation
-
                 row = observation(0)
                 if evidence == "audible":
-                    row["received_monotonic"] = time.monotonic()
-                    row["output"]["peak"] = 100
-                    row["output"]["sum_squares"] = 10000
+                    row["received_monotonic"] = clock[0]
+                    row["output"].update(peak=100, sum_squares=10000)
                 link.latest = row
                 link.on_activity(row)
-            await asyncio.wait_for(session._live_provider_closed.wait(), 1)
-            assert sdk.session.close.await_count == 1
-            assert session._live_stream.finished
-            assert closes == [] and link.rearm_calls == 0
-            lease = session._playback_lease
-            session._on_media_state(False, "old-playback")
-            assert closes == []
-            session._on_media_state(False, lease.playback_id)
+            clock[0] += session.idle_timeout_s + session.brain.timeout_s + 0.1
             await until(lambda: bool(closes))
-            assert closes == [("model-close", {})]
+            assert closes == [("live-close-output-quiet-unconfirmed", {"error_kind": "device"})]
+            assert sdk.session.close.await_count == 0
+            assert not session._live_stream.finished and link.rearm_calls == 0
     finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("owner", ["fragment", "queued_fragment", "typed", "new_backend", "tool"])
+async def test_pending_native_admission_retires_input_or_blocks_owned_work(monkeypatch, owner):
+    session, sdk, link = await setup(output=False)
+    session.brain.timeout_s = 30
+    held = None
+    entered, release = asyncio.Event(), asyncio.Event()
+    original_event = session._on_live_event
+
+    async def barrier(event):
+        await original_event(event)
+        if (
+            isinstance(event, LiveTranscript)
+            and event.direction == "out"
+            and event.text == "barrier"
+        ):
+            entered.set()
+            await release.wait()
+
+    try:
+        with monkeypatch.context() as patch:
+            deliver, _ = native_activity(session, link, patch)
+            patch.setattr(session, "_on_live_event", barrier)
+            await propose_end(session, sdk)
+            await emit(sdk, created("r2"), terminal("r2"))
+            await until(lambda: session._live_end_window.reset_reason == "backend_settled")
+            if owner in {"fragment", "queued_fragment"}:
+                if owner == "queued_fragment":
+                    marker = transcript("barrier")
+                    marker["type"] = "session.output_transcript.delta"
+                    await emit(sdk, marker)
+                    await asyncio.wait_for(entered.wait(), 1)
+                await emit(sdk, transcript("ny lyd"))
+            elif owner == "typed":
+                await session._submit_live_text("ny besked", "typed-test-1")
+            elif owner == "new_backend":
+                await emit(sdk, created("r3"))
+            else:
+                held = asyncio.create_task(asyncio.Event().wait())
+                session._tool_tasks["held"] = held
+            for i in range(41):
+                deliver(i, empty=True)
+            await asyncio.sleep(0.3)
+            assert sdk.session.close.await_count == 0 and link.rearm_calls == 0
+            if owner == "tool":
+                assert session._ending_conversation
+                held.cancel()
+                await asyncio.gather(held, return_exceptions=True)
+                for i in range(41, 82):
+                    deliver(i, empty=True)
+                await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+            else:
+                assert not session._ending_conversation
+                assert session._live_end_receipt is None
+                assert session._goodbye is None
+    finally:
+        release.set()
+        if held:
+            held.cancel()
+            await asyncio.gather(held, return_exceptions=True)
         await session.aclose()
 
 
@@ -113,10 +227,10 @@ async def test_semantic_admission_cannot_close_after_owner_changes(monkeypatch, 
     closes = []
     generation = session.brain._connection_generation
 
-    async def observe_end(epoch, receipt):
+    async def observe_end(epoch, receipt, **kwargs):
         entered.set()
         await release.wait()
-        await original(epoch, receipt)
+        await original(epoch, receipt, **kwargs)
 
     try:
         with monkeypatch.context() as patch:
@@ -130,7 +244,7 @@ async def test_semantic_admission_cannot_close_after_owner_changes(monkeypatch, 
             else:
                 session._transport_closing = True
             release.set()
-            await asyncio.wait_for(asyncio.shield(session._goodbye), 1)
+            await asyncio.wait_for(asyncio.gather(session._goodbye, return_exceptions=True), 1)
             assert closes == []
             assert sdk.session.close.await_count == 0
             assert link.rearm_calls == 0
@@ -189,34 +303,7 @@ async def test_missing_close_ack_and_missing_playback_finish_are_distinct(monkey
 
 
 @pytest.mark.asyncio
-async def test_semantic_close_runs_one_real_teardown_and_next_wake():
-    session, sdk, link = await setup()
-    session.idle_timeout_s = 0.01
-    session.brain.timeout_s = 0.1
-    try:
-        await propose_end(session, sdk)
-        await emit(sdk, created("r2"), terminal("r2"))
-        await asyncio.wait_for(session._live_provider_closed.wait(), 1)
-        assert session._active and link.rearm_calls == 0
-        session._on_media_state(False, session._playback_lease.playback_id)
-        await until(lambda: not session._active and link.rearm_calls == 1)
-        await asyncio.wait_for(asyncio.shield(session._close_task), 1)
-        assert not session._teardown_incomplete
-        assert sdk.session.close.await_count == 1
-        assert session._playback_lease is None
-        session.idle_timeout_s = 4
-        session.brain.timeout_s = 5
-        await session.wake()
-        assert session._active
-        assert link.rearm_calls == 1
-        await asyncio.sleep(0.15)
-        assert session._active
-    finally:
-        await session.aclose()
-
-
-@pytest.mark.asyncio
-async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_drain():
+async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_drain(monkeypatch):
     """Actual SDK wire parsing proves preservation, not provider or room acceptance."""
     pcm = b"\x01\x00" * 1920
 
@@ -236,11 +323,11 @@ async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_
             else:
                 await super().send(data)
 
-    session, _, _, _, link = build()
+    session, _, _, _, link = build(device=ObservedDevice())
     sdk = TailAfterCloseSDK()
     session.live_brain.client_factory = sdk.factory
-    session.live_brain.timeout_s = 2
-    session.idle_timeout_s = 3600
+    session.idle_timeout_s = 4
+    session.live_brain.timeout_s = 30
     await session.start()
     try:
         await session.wake()
@@ -253,7 +340,12 @@ async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_
             event["event_id"] for event in sdk.wire if event["type"] == "response.create"
         )
         await emit(sdk, continuation, terminal("r2"))
-        await until(lambda: session._live_provider_closed.is_set() and session._device_playing)
+        await until(lambda: session._live_end_window.reset_reason == "backend_settled")
+        with monkeypatch.context() as patch:
+            deliver, _ = native_activity(session, link, patch)
+            for i in range(41):
+                deliver(i, empty=True)
+            await until(lambda: session._live_provider_closed.is_set() and session._device_playing)
         assert receipt.result() is True
         assert session._live_finalizing and session._active
         assert session._live_output_bytes == len(pcm)
@@ -270,4 +362,104 @@ async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_
         assert not session._active and sdk.released
         assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
     finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_consumed_input_before_finish_entry_retires_original_end(monkeypatch):
+    session, sdk, _ = await setup(output=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = session._finish_live_conversation
+
+    async def delayed_finish(epoch, receipt, **kwargs):
+        entered.set()
+        await release.wait()
+        await original(epoch, receipt, **kwargs)
+
+    try:
+        monkeypatch.setattr(session, "_finish_live_conversation", delayed_finish)
+        await propose_end(session, sdk)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await asyncio.wait_for(entered.wait(), 1)
+        revision = session._live_input_revision
+        await emit(sdk, transcript("ny lyd"))
+        await until(
+            lambda: session._live_input_revision > revision and session.brain._queue.empty()
+        )
+        release.set()
+        await until(lambda: session._goodbye is None)
+        assert not session._ending_conversation and session._live_end_receipt is None
+        assert sdk.session.close.await_count == 0
+    finally:
+        release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("expired", [False, True])
+async def test_configured_long_quiet_and_ready_but_expired_admission(monkeypatch, expired):
+    session, sdk, link = await setup(output=False)
+    session.idle_timeout_s = 20  # Valid saved setting, larger than the provider timeout.
+    session.brain.timeout_s = 15
+    closes = []
+    try:
+        with monkeypatch.context() as patch:
+            deliver, _ = native_activity(session, link, patch)
+            patch.setattr(
+                session, "_request_close", lambda reason, **kw: closes.append((reason, kw))
+            )
+            await propose_end(session, sdk, silent=True)
+            await emit(sdk, created("r2"), terminal("r2"))
+            await until(lambda: session._live_end_window.reset_reason == "backend_settled")
+            if expired:
+                # No sleeps/yields while source callbacks build a fresh ready
+                # window after the owner's original absolute deadline.
+                for i in range(160, 361):
+                    deliver(i, empty=True)
+            else:
+                for i in range(201):
+                    deliver(i, empty=True)
+            assert session._live_quiet_ready(semantic=True)
+            if expired:
+                await until(lambda: bool(closes))
+                assert sdk.session.close.await_count == 0
+                assert closes == [("live-close-output-quiet-unconfirmed", {"error_kind": "device"})]
+            else:
+                await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+                await until(lambda: bool(closes))
+                assert sdk.session.close.await_count == 1 and closes == [("model-close", {})]
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_consumed_input_during_admission_cannot_become_end_owner(monkeypatch):
+    session, sdk, _ = await setup(output=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+    admit = session.brain.admit_tool_batch
+
+    async def held_admission(response_id, generation):
+        if not entered.is_set():
+            entered.set()
+            await release.wait()
+        await admit(response_id, generation)
+
+    try:
+        monkeypatch.setattr(session.brain, "admit_tool_batch", held_admission)
+        await emit(sdk, created(), call(name="end_conversation", arguments="{}"), terminal())
+        await asyncio.wait_for(entered.wait(), 1)
+        revision = session._live_input_revision
+        await emit(sdk, transcript("ny lyd"))
+        await until(
+            lambda: session._live_input_revision > revision and session.brain._queue.empty()
+        )
+        assert session._live_end_receipt is None
+        release.set()
+        await until(lambda: sdk.response.create.await_count == 1)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await until(lambda: session._goodbye is None)
+        assert not session._ending_conversation and session._live_end_receipt is None
+        assert sdk.session.close.await_count == 0
+    finally:
+        release.set()
         await session.aclose()

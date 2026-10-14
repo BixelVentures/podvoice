@@ -388,20 +388,20 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
     monkeypatch.setattr(module, "OBSERVATION_S", 0.7)
     admission_held = asyncio.Event()
     if mode == "positive":
-        finalize = module.rig.ThinSession._finalize_live_conversation
+        finish = module.rig.ThinSession._finish_live_conversation
         admission_release = asyncio.Event()
 
-        async def hold_semantic_admission(session, epoch, **kwargs):
-            if kwargs.get("receipt") is not None:
-                # Hold only this harness oracle's observation boundary. Native
-                # runtime now finalizes immediately after a current END receipt;
-                # cleanup must cancel this explicit hold, never invent an end.
+        async def hold_semantic_admission(session, epoch, receipt, **kwargs):
+            if receipt is not None:
+                # Hold this oracle's settled-receipt observation before native
+                # quiet admission. This capture supplies no native observations;
+                # cleanup must cancel the explicit hold, never invent an end.
                 admission_held.set()
                 await admission_release.wait()
-            await finalize(session, epoch, **kwargs)
+            await finish(session, epoch, receipt, **kwargs)
 
         monkeypatch.setattr(
-            module.rig.ThinSession, "_finalize_live_conversation", hold_semantic_admission
+            module.rig.ThinSession, "_finish_live_conversation", hold_semantic_admission
         )
     trial = asyncio.create_task(
         module.evaluate(
