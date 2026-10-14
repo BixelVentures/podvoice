@@ -41,13 +41,18 @@ jobs:
           cache-dependency-path: |
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
-      - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - name: Check development-runner changes
+      - name: Install development-check dependencies
+        if: needs.scope.outputs.tooling_only == 'true'
+        run: pip install -r podvoice/requirements-dev.txt
+      - name: Install product dependencies
+        if: needs.scope.outputs.tooling_only != 'true'
+        run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+      - name: Check development tools and documentation
         if: needs.scope.outputs.tooling_only == 'true'
         run: |
-          ruff check scripts/dev_cycle.py tests/unit/test_dev_cycle.py
-          ruff format --check scripts/dev_cycle.py tests/unit/test_dev_cycle.py
-          python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_release_contract.py
+          ruff check scripts/dev_cycle.py scripts/ci_scope.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
+          ruff format --check scripts/dev_cycle.py scripts/ci_scope.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
+          python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
       - run: ruff check .
         if: needs.scope.outputs.tooling_only != 'true'
       - run: ruff format --check .

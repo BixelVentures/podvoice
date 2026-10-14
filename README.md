@@ -1,9 +1,8 @@
 # PodVoice
 
-Start med [docs/STATUS.md](docs/STATUS.md): v1.13.11 er officielt den første fysisk
-virkende half-duplex-baseline, mens 10/10-gaten og produktmålet stadig er åbne. Den
-bindende samtalekontrakt findes i [docs/INVARIANTER.md](docs/INVARIANTER.md), og alle
-menneskelige og agentiske ændringer følger læserækkefølgen i [AGENTS.md](AGENTS.md).
+Start med [docs/STATUS.md](docs/STATUS.md) for aktuel installeret baseline og åbne gates.
+[AGENTS.md](AGENTS.md) viser læserækkefølge og udviklingskontroller; den fulde bindende
+agentkontrakt er bevaret i [docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md).
 
 A standalone voice-AI gatekeeper for a **PodConnect** home, packaged as a **Home Assistant Add-on**.
 

@@ -1,107 +1,66 @@
-# Hurtig udviklingssløjfe
+# Udviklingsflow
 
-Målet er praktisk: varm `fast` højst 8 sekunder, kold `fast` højst 15 sekunder og den
-fulde lokale releasegate højst 45 sekunder på den usynkroniserede clone. Den fulde
-releasekontrol ændres ikke af den hurtige sløjfe.
+Vælg den korteste kontrol, der faktisk dækker ændringen. Safety, scope, review og fysisk
+accept er bindende i [AGENTKONTRAKT](AGENTKONTRAKT.md) og [AGENTS.md](../AGENTS.md).
+Denne side vælger rækkefølge, ikke en vej uden om gates.
 
-## Den korte vej
+## Én beslutningsgang
 
-Arbejd fra en lokal mappe uden filsynkronisering, fx `~/Developer/PodVoice`, og hold
-mindst cirka 15 % af disken fri. `~/Documents` gav tidligere lange pauser før pytest
-overhovedet kunne samle tests; på en frisk lokal clone tog hele testsuiten cirka 35
-sekunder.
+1. **Læs aktuel sandhed:** start med [STATUS](STATUS.md). For runtime, Realtime, VAD,
+   audio, firmware, prompt, værktøjskontrakt, lifecycle eller release: læs desuden
+   [INVARIANTER](INVARIANTER.md), [PRODUKTMÅL](PRODUKTMÅL.md),
+   [ARKITEKTUR](ARKITEKTUR.md) og relevante sektioner i [AGENTKONTRAKT](AGENTKONTRAKT.md).
+   Rutine-docs/tooling behøver ikke gennemgå alle produktdokumenter.
+2. **Afgræns:** fastlæg lead og filejerskab. Opret STATUS-beslutningspost før risikofyldt
+   produktkode. Historiske arkiver er ikke aktuel status.
+3. **Fokuseret feedback:** kør relevant eksisterende regression. For kode, fx
+   `scripts/dev fast --test tests/path/test_file.py::test_case`; gentag `--test` for flere
+   noder i én kørsel. Uden `--test` vælger `fast` konservativt ud fra diffet. Det er
+   udviklingsfeedback, ikke kandidataccept. Den valgte pytest udføres hver gang; Ruff og
+   mypy bruger deres eksisterende inkrementelle caches. Der indføres intet separat resultatcache.
+4. **Lifecycle:** brug `scripts/dev lifecycle` kun når dens mekaniske scope dækker hele diffet.
+   Det beviser ikke live provideradfærd eller fysisk accept.
+5. **Freeze én samlet kandidat:** kontrollér exact tree/scope én gang mod aktuel main,
+   review berørt ejerskab og fasthold PASS for uændrede bytes.
+6. **Officiel CI:** kør én gang på exact candidate. Den brede CI dækker relevante statiske
+   checks, pytest samt browser/build efter scope. Den snævre docs/devtools-CI kører kun
+   `test_dev_cycle`, `test_ci_scope` og `test_release_contract`. Den gælder kun kendt docs- /
+   devtools-scope; ukendt, runtime, config, requirements, produkt- og workflowændring bruger
+   fuld CI. Docs-only ændringer springer add-on imagebuild over.
+7. **Lokal releasegate:** `scripts/dev release` kun ved konkret CI-fejl eller nødvendigt
+   offlinearbejde. Isolér fejl; gentag kun ugyldiggjorte trin.
+8. **Adskil beviser:** merge, main-CI, publiceret artifact, installation, providerprøve,
+   fysisk golden chain og 10/10 lifecycle er forskellige udfald.
 
-Brug et Python 3.12-miljø med begge requirements-filer installeret og kør:
-
-```sh
-PODVOICE_PYTHON=/sti/til/venv/bin/python ./scripts/dev fast
-```
-
-Kommandoen gør fire små ting:
-
-1. stopper hurtigt ved langsom fil-I/O, en optaget gate eller manglende værktøjer;
-2. cacher den stabile preflight og holder isolerede Python-, Ruff-, mypy- og pytest-
-   caches uden for worktreet;
-3. kører Ruff, format, mypy og den fokuserede pytest samtidig og stopper søskende ved
-   første fejl; der findes ingen separat `pytest --collect-only`-runde;
-4. kører ændrede tests og direkte modulkontrakter. Ukendt, firmware- eller
-   releasepåvirkning falder automatisk tilbage til hele testsuiten.
-
-`PODVOICE_PYTHON`, Ruff og mypy skal komme fra det samme Python 3.12-venv; globale
-værktøjer bruges ikke som skjult fallback. Git-base og det ændrede scope fastholdes før
-og efter kørslen, så en ændring under testen gør resultatet ugyldigt. Outputtet kaldes
-derfor `focused/partial`, også når den konservative fallback kører mange tests.
-
-Kun én lokal gate må køre ad gangen på maskinen. Agenter kan stadig analysere og skrive
-parallelt, men de skal ikke starte konkurrerende pytest-, mypy- eller git-gates.
-
-## Før et release-checkpoint
-
-Før tests må kandidaten kun eje ét produktionsdomæne:
+## Kommandoer
 
 ```sh
-python3 scripts/candidate_scope.py --base <forrige-fysiske-kandidat>
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev fast --test tests/path/test_file.py
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev lifecycle --base origin/main
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev release --base origin/main
 ```
 
-Kommandoen fejler, hvis samme delta blander fx rearm, fysisk output/volume, Realtime,
-audio-input eller HA-værktøjer, eller hvis produktionskode mangler en ændret regression.
-En samlet, eksplicit bestilt stop→drain→rearm-feature kan kræve netop `physical_output`
-og `rearm`. Lead må kun registrere den kobling efter uafhængigt review i en enkelt
-`candidate-scope-coupling` JSON-kommentar i aktiv `docs/STATUS.md`: schema-version,
-eksakt base-tip/merge-base, de to domæner, reviewer, kausal begrundelse og SHA-256 af
-hele den effektive produktionsfilmanifest (inklusive tilføjelser, sletninger, bytes,
-executable-bit og symlink-target). Revieweren skal kontrollere fingerprintet selv.
-Defaultafvisningen bevares; ændrede bits/base, manglende regression eller ugyldig/dobbelt
-post fejler lukket. Posten er en auditerbar reviewattestation, ikke kryptografisk
-identitetsbevis. Den skal fjernes i næste kandidat og giver ingen fysisk godkendelse.
-Releaseværktøjet fastholder sin eksakte diff-base; frisk PR/main-kontrol ved merge er
-stadig nødvendig. Der findes intet generelt skip-flag eller frit domænevalg.
-Version, changelog og release-metadata tæller ikke som et selvstændigt produktionsdomæne.
-Sammenlign med den umiddelbart forrige fysiske kandidat, ikke en gammel `main`, så hver
-installeret kandidat har præcis ét kausalt delta.
+Genbrug én vedvarende Python 3.12-venv og eksterne caches. Lokale gates køres fra den
+usynkroniserede dev-klon; Documents/worktrees er redigerings- og handoverflade. Undgå
+konkurrerende pytest/mypy/git-gates på samme maskine. Runnerens stage-tider bruges til
+lokal tidsdiagnose.
 
-Når ændringen er samlet og reviewet:
+## Tidsforventninger
 
-```sh
-PODVOICE_PYTHON=/sti/til/venv/bin/python ./scripts/dev release
-```
+En manuel cacheprototyp blev kasseret: på en repræsentativ lille `fast --test`-node målte
+Ruff/mypy med deres eksisterende caches 0,350/0,351 s; prototypen målte 1,573 s koldt og
+1,080 s på varmt cache-hit. Den varme prototype var ca. 0,73 s langsommere, og dens
+binding dækkede ikke ekstern konfiguration/Python path. Det er måling af disse runner-stages,
+ikke af hele udviklingssløjfen eller CI; ingen ny cachemekanisme shipper.
 
-Den kører Ruff/format, mypy, unit- og integrationstest parallelt med isolerede caches og
-derefter diff-check af committed, staged og unstaged diff. Hver fase viser sin egen tid.
-Derefter er
-GitHub CI på den eksakte commit og den efterfølgende ARM64-imagebuild stadig påkrævet.
-Den hurtige kommando er feedback, ikke releasebevis.
+Der er ingen aktuelle løfter om `fast` på 8/15 sekunder, lokal release på 45 sekunder
+eller fuld suite på 35 sekunder. De tal i ældre noter var miljøbundne, ikke aktuelle
+målinger. Den seneste tidligere leveringsobservation var cirka syv minutter for hver af
+PR- og main-CI med fuld suite. Det er historisk CI-observation, ikke lokalt estimat eller
+garanti. Mål konkrete stages før optimering; bevar kausale regressioner, timeout- og
+cleanup-ejere samt fysiske gates.
 
-CI starter test og ARM64-build samtidig. Docs-only ændringer springer imagebuild over,
-og ARM64 bruger en fast BuildKit-cache-scope. Kun `main` publicerer det versionerede
-GHCR-image; teststatus og image-digest skal begge være grønne før installation.
-
-## Den korte fysiske canary
-
-Arm én fysisk audio-trace og tal den faste kæde på højst cirka 90 sekunder: direkte
-svar → to samme-session-opfølgninger → drej lydstyrken under ét svar → modelsemantisk
-lukning → næste wake og frisk session. Hent trace-manifestet og kør:
-
-```sh
-python3 scripts/field_canary.py TRACE.json --volume-check pass
-```
-
-`pass` er den ene nødvendige menneskelige observation: drejehjulet ændrede den aktive
-Nabu-lyd uden at bryde den næste opfølgning. Resten scores maskinelt af det strikte
-trace-orakel. `not-run` og `fail` er altid røde. En grøn canary er adgang til den næste
-gate, aldrig 10/10 eller releasegodkendelse.
-
-Hvis canary fejler, installeres ingen ny kombinationspatch. Bevar trace, markér den ene
-kandidat NO-GO og vælg enten ét nyt delta eller exact rollback til forrige fysiske
-kandidat.
-
-## Hvis det igen tager minutter før tests starter
-
-Kør kun preflighten:
-
-```sh
-./scripts/dev preflight
-```
-
-Flyt worktreet ud af en synkroniseret mappe, frigør disk eller vent på den ene viste
-gateejer. Forlæng ikke timeouts som første løsning; outputtet viser den langsomme fase.
+Hvis gates fejler eller tests tager minutter om at starte, læs stage-resultater og isolér
+én langsom/ugyldiggjort fase. Timeout, sandboxfejl og flaky adfærd er tooling-/testinfo,
+ikke produktevidens. Forlæng ikke timeout eller patch runtime uden reproducerbar årsag.
+Firmwaremiljø og package-merge kontrolleres som beskrevet i AGENTKONTRAKT.
