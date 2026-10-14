@@ -257,16 +257,22 @@ def test_main_requires_exclusive_window_before_listener(args, monkeypatch):
     assert exc.value.code == 2
 
 
-@pytest.mark.parametrize("scenario", ["accepted-once", "duplicate-header", "expiry"])
+@pytest.mark.parametrize(
+    "scenario",
+    ["accepted-once", "duplicate-header", "expiry", "late-pre-pause", "pre-pause-expiry"],
+)
 def test_listener_contract_with_in_memory_server_only(monkeypatch, capsys, scenario):
     import io
     from email.message import Message
 
-    clock, statuses, servers = [0], [], []
+    clock, statuses, servers, alarms = [0], [], [], []
+    pre_pause = scenario in {"late-pre-pause", "pre-pause-expiry"}
+    provider_calls = []
+    monkeypatch.setattr(module, "run_batch", lambda *_: provider_calls.append("provider"))
     monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
     monkeypatch.setattr(module.secrets, "token_urlsafe", lambda _: "nonce")
     monkeypatch.setattr(module.signal, "signal", lambda *_: None)
-    monkeypatch.setattr(module.signal, "setitimer", lambda *_: None)
+    monkeypatch.setattr(module.signal, "setitimer", lambda *args: alarms.append(args))
 
     class Server:
         server_port = 1234
@@ -281,6 +287,9 @@ def test_listener_contract_with_in_memory_server_only(monkeypatch, capsys, scena
             if scenario == "expiry":
                 clock[0] = module.ADMISSION_S + 1
                 return
+            if pre_pause:
+                clock[0] = 60 if scenario == "late-pre-pause" else 90
+                assert provider_calls == []  # Admission occurs before caller's Stop gate.
             values = request()
             handler = object.__new__(self.handler)
             handler.path = values["path"]
@@ -292,23 +301,49 @@ def test_listener_contract_with_in_memory_server_only(monkeypatch, capsys, scena
             handler.rfile = io.BytesIO(values["body"])
             handler.reply = lambda status, _: statuses.append(status)
             handler.do_POST()
-            if scenario == "accepted-once":
+            if scenario in {"accepted-once", "late-pre-pause"}:
                 handler.rfile = io.BytesIO(values["body"])
                 handler.do_POST()
             else:
-                clock[0] = module.ADMISSION_S + 1
+                clock[0] = (module.PRE_PAUSE_ADMISSION_S if pre_pause else module.ADMISSION_S) + 1
 
         def server_close(self):
             self.closed = True
 
     monkeypatch.setattr(module, "HTTPServer", Server)
-    key = module.receive_key()
-    assert key == ("synthetic-only-not-a-real-secret" if scenario == "accepted-once" else None)
+    key = module.receive_key(pre_pause=True) if pre_pause else module.receive_key()
+    assert key == (
+        "synthetic-only-not-a-real-secret"
+        if scenario in {"accepted-once", "late-pre-pause"}
+        else None
+    )
     assert (
         statuses
-        == ({"accepted-once": [200, 410], "duplicate-header": [400], "expiry": []}[scenario])
+        == {
+            "accepted-once": [200, 410],
+            "duplicate-header": [400],
+            "expiry": [],
+            "late-pre-pause": [200, 410],
+            "pre-pause-expiry": [410],
+        }[scenario]
     )
     assert len(servers) == 1 and servers[0].closed and servers[0].requests == 1
     output = capsys.readouterr().out
     assert "synthetic-only-not-a-real-secret" not in output
-    assert '"expires_s": 30' in output
+    assert f'"expires_s": {90 if pre_pause else 30}' in output
+    assert alarms == [
+        (module.signal.ITIMER_REAL, 90 if pre_pause else 30),
+        (module.signal.ITIMER_REAL, 0),
+    ]
+    assert provider_calls == []
+
+
+@pytest.mark.parametrize("flag", [None, 0, 1, "true", [], {}])
+def test_invalid_pre_pause_flag_rejected_before_listener_bind(monkeypatch, flag):
+    def forbidden(*_):
+        pytest.fail("invalid setup flag must not bind a listener or start provider")
+
+    monkeypatch.setattr(module, "HTTPServer", forbidden)
+    monkeypatch.setattr(module, "run_batch", forbidden)
+    with pytest.raises(ValueError, match="invalid_pre_pause_admission"):
+        module.receive_key(pre_pause=flag)

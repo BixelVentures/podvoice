@@ -209,3 +209,47 @@ def test_single_provider_migration_is_read_only_preserves_values_and_exact_rollb
         assert saved[key] == legacy[key]
     assert path.with_name(path.name + ".bak").read_bytes() == previous
     assert settings.masked(saved)["ha_mcp_token"] == settings.SECRET_MASK
+
+
+@pytest.mark.asyncio
+async def test_same_native_and_talk_brains_read_saved_ceiling_at_each_next_connect(tmp_path):
+    from test_openai_live import SDK
+
+    from gatekeeper.__main__ import _make_live_brain
+    from gatekeeper.config import from_options
+
+    path = tmp_path / "settings.json"
+    key = "synthetic-factory-ceiling-key"
+    cfg = from_options({"openai_api_key": key}, settings_path=path)
+    native = _make_live_brain(cfg, [], input_rate=16000)
+    talk = _make_live_brain(cfg, [], input_rate=24000)
+    native.client_factory = SDK().factory
+    talk.client_factory = SDK().factory
+    ledger = native.provider_budget
+    assert talk.provider_budget is ledger
+    await native.connect()
+    assert ledger.snapshot(key, native.backend_model)["limit"] == 40_000
+    ledger.account_usage(key, native.backend_model, 12_365, lease=native._lease)
+    settings.save_settings({"openai_backend_tpm": 1_000_000}, path, provider_api_key=key)
+    assert ledger.snapshot(key, native.backend_model)["limit"] == 40_000
+    assert ledger.lease_is_active(native._lease)
+    await native.close()
+    await native.connect()  # same retained native brain, next wake
+    assert ledger.snapshot(key, native.backend_model)["limit"] == 1_000_000
+    assert ledger.snapshot(key, native.backend_model)["authoritative"] is False
+    assert ledger.snapshot(key, native.backend_model)["remaining"] < 1_000_000
+    await native.close()
+    await talk.connect()  # already-created Talk brain uses the same admission binding
+    assert ledger.snapshot(key, talk.backend_model)["limit"] == 1_000_000
+    await talk.close()
+    changed = from_options({"openai_api_key": "other-factory-key"}, settings_path=path)
+    other = _make_live_brain(changed, [], input_rate=24000)
+    other.client_factory = SDK().factory
+    await other.connect()
+    assert other.provider_budget is ledger
+    assert ledger.snapshot(changed.openai_api_key, other.backend_model)["limit"] == 40_000
+    await other.close()
+    native.api_key = "swapped-existing-brain-key"
+    await native.connect()
+    assert ledger.snapshot(native.api_key, native.backend_model)["limit"] == 40_000
+    await native.close()

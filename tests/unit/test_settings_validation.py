@@ -109,3 +109,43 @@ def test_11359_music_prompt_migrates_but_custom_prompt_survives(tmp_path):
     assert settings_mod.load_settings(p)["system_prompt"] == SYSTEM_PROMPT_DA
     save_settings({"system_prompt": "Min egen musikprompt"}, p)
     assert settings_mod.load_settings(p)["system_prompt"] == "Min egen musikprompt"
+
+
+def test_backend_ceiling_save_binds_private_current_key_and_hides_record(tmp_path):
+    from gatekeeper.settings import local_backend_limit
+
+    path = tmp_path / "settings.json"
+    saved = save_settings(
+        {"openai_backend_tpm": 1_000_000, "openai_backend_tpm_key_id": "spoofed"},
+        path,
+        provider_api_key="synthetic-household-key",
+    )
+    assert local_backend_limit(saved, "synthetic-household-key", "gpt-6-sol") == 1_000_000
+    assert local_backend_limit(saved, "other-key", "gpt-6-sol") == 0
+    assert local_backend_limit(saved, "synthetic-household-key", "other-model") == 0
+    assert "synthetic-household-key" not in path.read_text()
+    assert "openai_backend_tpm_key_id" not in masked(saved)
+    assert "openai_backend_tpm_model" not in masked(saved)
+    assert (
+        local_backend_limit(load_settings(path), "synthetic-household-key", "gpt-6-sol")
+        == 1_000_000
+    )
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match="ændret"):
+        save_settings({"openai_backend_tpm": 1_000_000}, path, provider_api_key="other-key")
+    assert path.read_bytes() == before
+    save_settings({"openai_backend_tpm": 0}, path, provider_api_key="other-key")
+    rebound = save_settings({"openai_backend_tpm": 1_000_000}, path, provider_api_key="other-key")
+    assert local_backend_limit(rebound, "other-key", "gpt-6-sol") == 1_000_000
+
+
+@pytest.mark.parametrize("value", [True, -1, 1.5, "1000000", 10**400])
+def test_backend_ceiling_invalid_or_missing_key_preserves_settings(tmp_path, value):
+    path = tmp_path / "settings.json"
+    save_settings({}, path)
+    before = path.read_bytes()
+    with pytest.raises(ValueError):
+        save_settings({"openai_backend_tpm": value}, path, provider_api_key="synthetic")
+    with pytest.raises(ValueError, match="API-nøgle"):
+        save_settings({"openai_backend_tpm": 1_000_000}, path)
+    assert path.read_bytes() == before

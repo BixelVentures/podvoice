@@ -3,12 +3,13 @@
 <!-- current-installed-bulk-20261012-02617 -->
 ## Aktuelt installeret — 13/10
 
-HA Green kører **PodVoice 2.0.20, Control 0.10.7 og Speakers 0.26.17**.
-Firmware er uændret. Versions-/artifactbinding og installation står i de aktive
-lead-poster nedenfor.
+HA Green kører **PodVoice 2.0.21, Control 0.10.7 og Speakers 0.26.18**.
+Voice PE er opdateret med den reviewede timerfirmware 113114; native kontrakt og
+Hey Chat + Hey Jarvis-ACK er bekræftet. Fysisk samtale-/timeraccept er stadig ukendt.
+Versions-/artifactbinding og installation står i de aktive lead-poster nedenfor.
 
 Seneste direkte brugerbevis er fra den tidligere PodVoice 2.0.19-installation med
-samme Speakers-version: mobil-Spotify til HomePod giver hurtigt
+Speakers 0.26.17: mobil-Spotify til HomePod giver hurtigt
 faktisk lyd, og flytning mellem højttalere spiller korrekt. Voice PE giver et helt
 hørbart svar og kan vækkes igen, men eksplicit afslutning bliver overset: Live
 delegerer ikke lukningen; den senere idlevej viser gul, og loggen viser pending
@@ -17567,7 +17568,7 @@ Timerens faktiske reviewed komponentkilde er publiceret på WIP1fec384b53af8370c
 
 Samlet kandidat 2.0.21 — endelig uafhængig SOURCE GO på produktionsfingerprint4d1b5624820f72424af628cd25f6d8fdead68dd468823f1cdaa8dc1a613a76a5 og regressionfingerprinta1cfdee1e247b2de1a8b21eecc93f4514d62db0bf66f93735f225b63313e7d5a; ingen uløste findings. Reviewreceipt2975de908457251a538c70ae364f2edd4f657bc6ae8a9ba5397743e2271d294e inkluderer hele native/Talk startup→idle timer→original retirement→nextwake-kæden, faktisk publiceret komponentpin, settings/migration og præcis toolingbinding. Eksisterende bootgate blev korrigeret test-only efter real ESPHome-package-bevis: almindelig375/-100, Live375/-100/-99, hele hooks nøjagtig én gang; samme preexisting tre-hook-konfiguration på main. Real config/codegeneration PASS med faktisk immutable Gitkilde; lokal secretsfil er dummy, så ingen installérbar firmware eller fysisk accept udledes. Final formatter/lint/scope følger; derefter én diff-freeze og én samlet releasegate. Semantisk Live-afslutning er fortsat uløst, mål ACTIVE.
 
-<!-- candidate-scope-coupling
+<!-- historical-main4a-live-startup-native-idle-alarm-scope-coupling
 {
   "version": 5,
   "kind": "live_startup_native_idle_alarm",
@@ -17625,3 +17626,673 @@ Aktiv afslutningspost 13/10 — separat næste draft, ingen ændring af frozen2.
 Samlet kandidat2.0.21 lokalgate færdig13/10:3468uniqueunit og988integration PASS samt fire officielle browserworkersPASS68.55s med joinedcleanup; diffPASS. Final45filer var uændrede før/efter sidste gates, produktionbde8351ca91534440c07e2cd9852c38fe962f319f17499b6043f0bb23297e2b8/regression44295f8a1465f438de9c11a036dc9b56640ed201bc67eb0b78fef9f5314999df. Den oprindelige enkeltreleasekommando og alle FAILs bevares; kun ugyldige/uafsluttede stadier blev fortsat. Browseradmission var alene agenthelperens manglende NODE_PATH/cache-env, eksisterende pinnede dependencies genbrugt uden install/runtimepatch. SourceGO og faktisk firmwarecompile113114 er bevaret. Resultatpost er docs-only efter gate, shippede kode/testbytes urørte. Nu konkret commit/push og étPR/CI-flow. Installeret20 bevares, modelsemantisk afslutning er fortsat uløst; ingen ny fysisk golden/lifecycle/timer/latencyaccept følger.
 
 PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher38415648981 og verify38415648831 SUCCESS, begge architectureversionguards og faktiske native packagechecks bestået. Speakers18 ARMregistrydigest9cf94fc9968db66a283078236ae9113485bc76e14f63c8a662702fe3e9f6d456; actualimage nativepatch95ddc5fbe4850c91e8ef3ccb5496bf87ab49afa194228ea3e08b2fae637744da matcherreviewedsource. InheritedOCI-baselabel bruges ikke som PCrevision. HAinstallation følger, ikke fysiskaccept af tidligereConnectfejl.
+
+
+<!-- historical candidate-scope-coupling
+{
+  "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "66768491e6704a9bd9809f4c77b2d5c77d5269de199d34323f2653e31bf0a184",
+  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "rationale": "Inventory source95fe/d74 and all122 production bytes remain exactly reviewed66768491 unchanged. Added PUBLIC TOOLING ONLY: scripts/live_semantic_completion_handoff.py ddb9eb3b preserves defaultADMISSION30 and existingADMISSION+BATCH<=240, explicitly typedpre_pause=True enables90 setup before caller-ownedStop, invalidnonbool failsbeforebind; sameprivacy/bodycaps/oneuse/cleanup/defaultCLI. Existingunit48f15a68 contains permanent late60/expiry90/nonbool guards; 42focusedpublic checks plus4private actualrunner-gate fake checks passed, isolatedinitialfixture/config failures retained. Source/adversarialGO publicbe68/ddb9/48f1/private1fff before publication; no new runtime/prompt/managedstart/clientmode/receipt/dispatch behavior. Whole233 tests 6d5a0073f29fa5683ae4b28af8792523fcef7880dabe907271c009c0501c5b23; separate external eval/test/unchangedAfslut fixtures af07155cf65b4dfcdde23cc1a46b1294f729ccc44f08e30f1ba0364907b29a86. Same genericV1/main4a/physical_output,realtime_semantics,rearm; binding refreshed for public WIP publication, NOT alteration of immutable paid candidate82ec/startup8dd/c3bed packet or oldactualreports. Newpublichelper is not inserted into completed/preparedprovider roots. Prior38greens/scope/export/fixtures not rerun; only publication last-diff scope after independentbindingGO. #109 separate. AllrawFAIL/UNKNOWN remainunregraded and physical/release/installation acceptance UNKNOWN; no candidate testready claim.",
+  "reviewer": "sol_input_review",
+  "version": 1
+}
+-->
+
+
+Samme aktive afslutningspost 13/10 — WAIT-kandidaten er fortsat IKKE TESTKLAR.
+Én faktisk syntetisk explicit-close-prøve på WIP 50ef6e2d viste END1, current
+settlement1 og naturlig Thin-modelclose/teardown/rearm før harnesscleanup. Hele
+prøven er strict FAIL: primary sagde "Okay." før accepted END. Batchen stoppede,
+så pure-thanks blev ikke startet. Tidligere FAIL-beviser bevares; ingen fysisk
+Voice PE-accept følger af den syntetiske kæde.
+
+Første nøgleadmission gav stdin-EOF før startgate: nul providerkald og ingen
+HA-pause. Ufarlig isolation bekræfter pipes-EOF og åbent TTY-input; den permanente
+AGENTS-launchregel kræver tty:true og samme åbne session. Ingen runtimepatch.
+Restore Owner ejede den efterfølgende Stop/gate/genstart uden rootfortsættelse;
+HA med installeret 2.0.21 viste Kører efter konservativt 64.206 s, inden 180 s med
+60 s reserveret til restore. Root analyserede og styrede ikke UI under pausen.
+Nøglen er ryddet, formularen lukket og providerens cleanup/usage fuldført.
+
+Produktions- og ekstern test-/evalbinding er uændrede; den eksisterende generiske
+V1-record bevares. Næste årsagsarbejde er primaryens faktiske lyd/delegationsrækkefølge
+og GPT-Live-backchannel-ejerskab. Stående menneskelig godkendelse gælder uændret de
+samme afgrænsede prøver og pausegrænser. Ingen ny PR/release/installation eller
+fysisk accept er godkendt; 2.0.21 arver ikke 2.0.19-beviser. Målet er ACTIVE.
+
+
+Samme aktive afslutningspost 13/10 — developer-only delegationsoffset.
+Kun diagnostikkens live_confirmation_eval-observatør er ændret: valgfri,
+indholdsfri delegation_offset_ms fra SDK-eventens topniveau offset_ms ved
+session.delegation.created. Feltet er delegationens position på sessionstidslinjen,
+ikke en input-/generationsgrænse eller bevis for semantisk turforståelse.
+Originaleventen videresendes uændret; grader, fixtures og pacing er bevaret.
+
+Uafhængigt SOURCE- og bindingreview har verificeret observatør/test og hele
+64-fils-inventaret. Produktionsfingerprint ab1dc3be6122496353fdb51a14cf54024d639df35d1516b3e976128c2274df28
+og eksisterende generiske V1-record er uændrede. Den eksterne test-/evalbinding er
+nu c3df15296d826719cdc06a7fbfdbbe4422240a47f53728320f99dac76a29d31d og inkluderer
+den nye eksisterende unit-regression; den hash valideres ikke af V1 selv.
+
+Én frisk faktisk Thin-offline-startupbinding ændrer kun diagnostikkildens hash;
+alle effektive runtimefelter, primary, backend, tools og configaggregate er identiske.
+Tidligere strict FAIL er ikke regraderet. Ingen ny providerprøve, HA-pause,
+produktion/runtimeændring, PR, release, installation eller fysisk accept følger.
+Kandidaten er fortsat IKKE TESTKLAR; målet er ACTIVE.
+
+
+Samme aktive afslutningspost 13/10 — isoleret backend-modelsammenligning.
+Kun OpenAILiveSession-standardværdien backend_model ændres fra gpt-5.6-luna
+til gpt-6-sol. Primary f1df, backendprompt af00, tools74aa, outputloft1024,
+udeladt reasoning og hele Thin/native/Talk-mekanikken er bevaret. Modellen
+ejer sin egen budgetbucket; key-wide diagnostikeksklusion og eksplicit override
+består. Sol-pris er ukendt, og providererror/truncation er UNKNOWN.
+
+Ændrede filer består formatter/lint. Eksisterende 12 berørte regressioner består;
+ny startup/budget-default-og-override-regression består begge parametriseringer.
+Første test-oracle FAIL på forkert SDK-envelope-field er bevaret; kun testen
+blev rettet til faktisk session.start.session. Én offline startup er eksporteret.
+Uafhængigt exact-source/adversarialreview har SOURCE GO og opdaterer samme
+aktive generiske V1-scopebinding; classifier/profile er uændrede.
+
+Tidligere strict provider-FAILs, primaryens tidlige tale og ukendt robust semantik
+bevares. Ingen providerkald, HA-pause, release, installation eller fysisk accept
+er udført ved forberedelsen. Kandidaten er ikke testklar. Stående menneskelig
+godkendelse gælder samme max2 syntetiske prøver med stop ved første FAIL/UNKNOWN,
+180s actual HA-pause, 120s providerloft og sidste60s restore. Frisk separat
+Restore Owner ejer egen TTYsession og Stop/gate/terminal-eller-120/Start/Kører.
+
+
+### 13/10 — Sol-sammenligning og næste afgrænsede primary-politik
+
+Sol-draftet ændrer kun backend-defaulten (source ea11e846, primary f1df/backend af00/tools 74aa bevaret). 14 målrettede checks og statiske checks bestod; uafhængigt samlet source/operator-review gav GO, og eksisterende mekaniske scope bestod med produktion 12d1eeb9 og ekstern regression e1e40962. Ingen release eller installation. Første nye test-oracle-fejl og packet-fingerprintfejl bevares; kun deres respektive kontrol blev rettet/genkørt.
+
+Faktisk én explicit-close-prøve med serveraccepteret Sol-konfiguration ff93 og fuldt kendt input: åbningssvaret blev givet, hele “Tak, det var det” blev transskriberet. Primary delegerede ikke; ingen backendresponse, END eller settlement fandt sted, og observationen sluttede FAIL efter45s. Sol-kapabilitet og token-headroom er derfor uafprøvet; resultatet må ikke kaldes Sols semantiske fejl eller succes. Runtimefaults0, shutdown/usage/audioevidence fuldført. Ren tak blev ikke startet. Restore Owner startede straks ved terminal og bekræftede faktisk HA2.0.21 Kører efter88.138s fra førStop, inden180. Root key14 er null, privatformular lukket. Første sandboxopstart fejlede før receiver/output/Stop; samme reviewede invocation med nødvendig adgang gennemførte. Ingen runtimepatch eller fysisk accept.
+
+Leadens næste hypotese er primaryens inkonsistente tale-/delegationspolitik: tidligere Luna-prøver viste tale under delegation; denne prøve viser komplet afslutning uden delegation. Officiel Live-guide skelner mellem backchannels og fulde svar. Den nuværende Backchannel-blok begrænser stilhed til delegerede opgaver. Falsificerbar enkeltændring er en global Backchannel-blok, som tillader meningsfulde direkte svar/opklaringer/bekræftede resultater, men ingen selvstændige lytterreaktioner. Det er en uprøvet policyhypotese, ikke en protokolgaranti eller bevist årsag; tydelig afslutning skal stadig modeldelegeres og backend bekræfte END.
+
+Draftets base er den reviewede offset/Luna-kandidat, så Sol-defaulten tilbagerulles i dette særskilte eksperiment; kun den eksisterende primary Backchannel-blok ændres. Backendprompt, tools, modelvalg, input, Thin, firmware, gain/VAD/timeouts og installeret21 bevares. Ikke-mål: lokal fraseliste, muting, tvungen END, ny motor eller andre samtidige tuninger. Invarianter: modellen ejer hensigt; Thin ejer én mekanisk teardown/rearm; firmware ejer fysisk I/O. Hele kæden input→delegation/eller sikkert direkte svar→backendresultat→playback→teardown/rearm→nywake samt nye/staleevents og begge I/O gennemgås.
+
+Målrettede eksisterende promptkontrakter og lint/format før freeze, uafhængigt adversarialreview og opdateret exact-scope før samme bounded providerprøve. Explicit-close skal delegere og lukke uden tale før accept; ren tak skal bevare stille åben samtale, og meningsfuldt direkte svar skal bevares. Reelt tool-resultat forbliver efterfølgende krævet; ingen fysisk testklarhed fra delprøven. Fortsat tidlig tale, ingen delegation eller mistede svar falsificerer hypotesen. Rollback er kun primary-blokken. Kandidaten er IKKE TESTKLAR; målet ACTIVE og stående menneskelig prøvegodkendelse gælder.
+
+
+Samme aktive afslutningspost 13/10 — global primary Backchannel-policy, Luna-base.
+Kun den eksisterende primary Backchannel-blok ændres i dette separate eksperiment.
+Source87dd51e9 og primarybad29c11; backendaf00/tools74aa/Thin cddc/modelLuna er
+byteidentiske med reviewed offset-kandidat. Sol-modeldefault og Sol-only testtilføjelser
+medfølger ikke. Sols no-delegation FAIL og uafprøvede backendkapabilitet bevares ovenfor.
+
+17 eksisterende promptkontrakter og formatter/lint består; kun2 eksisterende
+textassertion-kontrakter er tilpasset, 15 andre funktioner AST-identiske. Én faktisk
+offline Thin-startup ændrer kun primary, aggregate og live_prompt-kildehash.
+Uafhængigt adversarial SOURCE GO/all64inventar er modtaget, root leadGO, og samme
+aktive generiske V1-binding opdateres. Ingen classifier/profileændring, release
+eller fysisk testklarhed. Næste providerprøve bruger samme bounded cases, keyRAM,
+OpenAIrecipient og strictoracle; max2/stopførsteFAILellerUNKNOWN. Frisk separat
+Restore Owner ejer egenTTYnødvendigsession, actualStop→noncegate→terminaleller120
+→Start/Kører inden180 med sidste60 restore; root udfører ingen analyse underpause.
+
+
+### 13/10 — global backchannel-prøve: hypotesen afkræftet
+
+Den primary-only/Luna-kandidat (source87dd, primarybad29, config3ebf) bestod17 eksisterende promptkontrakter/static, uafhængigt source-review og exact-scope produktion5fa2ce/external787d. Én faktisk explicit-close-prøve med fuldt kendt input og meningsfuldt åbningssvar gav igen FAIL. Primary delegerede12.781s, sagde “Okay”12.860s før backendresultat14.280s, og Luna valgte completedWAIT{}. Matching continuation gav0tools; END0/settlement0/ingen naturlig lukning. Observation45s og normalcleanup. Runtimefaults0; usage/audioevidence fuldført. Ren tak blev ikke startet. Global no-backchannel-instruks er dermed afkræftet som tilstrækkelig løsning; ingen ny fysisk accept eller testklarhed.
+
+Restore Owner iværksatte Start straks ved operatørens terminal og bekræftede faktisk HA2.0.21 Kører efter79.649s fra førStop, inden180. Root key15=null og privatformular lukket. Operatørstart brugte den nødvendige netværksadgang direkte; ingen gentagelse af første Sol-sandboxfejl. Samme standinghumanautorisation blev anvendt uden spørgsmål. Sol-WIP fbde2c8 er pushet; dets tidligere prøve nåede ingen backend og beviser ikke Sol-kapabilitet. De to primary- og backendfejl forbliver selvstændige, og styrket stilhedsprompt må ikke gentages blindt som forklaring. Kandidaten er fortsat IKKE TESTKLAR; installeret21 er uændret, målet ACTIVE. Næste årsagsarbejde skal skelne providerens delegation/primary-tale fra backendens klassifikation gennem faktisk input/config/output, før nogen ny produktændring. Ingen lokal fraseliste, muting, tvungen END eller anden motor.
+
+
+### 13/10 — afgrænset inputkontrol af afslutning, ingen ny prompttuning
+
+Forrige goalturn var PROGRESS: to faktiske providerprøver afkræftede den tilstrækkelige globale backchannel-hypotese og viste Sol uden delegation; kode/resultater er pushet fbde2c8/e2d9eab. Ingen providerproces er tilbage, HA21 er gendannet, målet ACTIVE.
+
+Lead vælger én diagnostisk inputkontrol på den allerede reviewede Sol/quiet-kandidat: syntetisk “Afslut samtalen.” efter samme åbningsspørgsmål, i stedet for “Tak, det var det”. Hypotese: et mindre tvetydigt afslutningsinput udløser faktisk delegation, så Sols completed-værktøjsvalg kan observeres. Ingen delegation falsificerer kun dette diskriminerende input; Sol forbliver uafprøvet. END kan højst understøtte backendkapabilitet for denne ene case; tidlig primary-tale er stadig FAIL. Den gamle naturlige afslutning er fortsat en obligatorisk fejlet regression og må ikke erstattes eller regraderes.
+
+Input→primaryhensigt/delegation→completedbackend→samme toolcommit/continuation→playback→teardown/rearm→nywake og begge I/O gennemgås. Berørte invarianter3/4/5/9/12/13/15; ingen produkt-/prompt-/schema-/model-/firmware-/VAD-/gain-/timeoutændring. Mindste developer-only ændring er én TEXTS-testliteral i en privat kopi plus ét faktisk Sara-PCM/manifestitem; de andre ni lydfiler, assess()/pacing og reviewedoperator bevares byteidentisk. Manifest og genkendt fuldt input skal svare til den nye lyd. Kendt originalfixture/FAIL bevares. Static/fixturevalidate/ét startup-export, kilde- og fixturebinding og uafhængig adversarialreview før den samme højst180s-pause, provider120/restore60, max2cases/stopfirstFAIL ellerUNKNOWN. Ingen tvungen delegation/END eller lokale hensigtsfraser. Rollback er kun det private diagnostikinput; installeret21 og kandidatens IKKE TESTKLAR-status bevares.
+
+
+Faktisk forberedelse af inputkontrol13/10: developer-source5fd64bd9, ét nyt
+Sara-PCM57bcbe39 og rawmanifestb905; de andre9PCM/manifestitems og alleproduktbytes
+er uændrede. OneThin-offline-startupfcde bevarer configff93/primaryf1df/backendaf00/
+tools74aa og modelSol. Kildensstatic/fixturevalidate består; første tomme sandbox-TTS
+og privat copiedmanifest-mode-fejl er bevaret, én gyldig Sara-generation er genbrugt.
+
+Uafhængigt SOURCE/FIXTURE/PIN GO5c77d12d og rootleadGO for eksisterende V1-binding
+er modtaget; alle1979filepins/SDKinventory/fingerprints er verificeret. Produkt12d1
+og entiretests3802 er uændrede fra reviewedSol; externaltest/eval8d3f plus complete
+fixtureinventory40e1 bindes som b4818f28. Rawmanifestb905 og normaliseret startup-
+contextmanifestd7ca er separate hashkontrakter. Oprindelig naturlig afslutning/fixture/
+alleFAILs er bevaret og forbliver obligatorisk regression, ingen regradering.
+Ingen ny providerprøve, HA-pause, release, installation eller fysisk accept er udført
+ved denne forberedelse. Kandidaten er IKKE TESTKLAR.
+
+
+Inputkontrol faktisk resultat13/10: komplet “Afslut samtalen”, delegation13.167s/offset9200ms, primary “Okay”13.548s/9600–9800ms før completedEND14.388s og toolaccept14.393s. END1/currentsettlement1, matching0-toolcontinuation15.484s og naturligThinlukning/rearm16.348s førcleanup; samletstrictFAIL på tidligprimarytale. Ingen runtimefaults, usage/audioevidence fuldført; renttak stoppetførstart. RestoreOwner verificeredeHA21Kører57.523s efterførStop, inden180. Rootkey16null/privatformclosed. Produkt, prompts og mechanics uændrede fraSolquiet; nyfixture/diagnosticsource alene. Ingen fysiskaccept/testklarhed.
+
+To læsendeGETs HTTP200/has_moreFalse af actualresponse04bcb335 bekræfter servermodelgpt-6-sol, completedEND{}, tool_choiceauto, max_output_tokens1024, reasoningmedium, output15/reasoning0tokens. Helebackendinput er math→“Det er fire”→“Afslut samtalen”; ingenprimaryACK. De26457bytes faktiskeinstructions er byteidentiske med den tidligere Luna-response0b5 (SHA49560ede). Rootkey17null/formclosed/helperterminal0, ingen nyinference/HApause. Dette beviserSol-kapabilitet for denne tydelige case og afkræfter modeladgang/truncation som årsag dér; model-og-input ændredes sammen relativt til den tidligere naturligeclosing, så det beviser ikke alene modelårsag eller løst “Tak, det var det”.
+
+Næsteleadårsagsgrænse: klassifikation skal sammenlignes med identisk faktisk backendinput/config, mensprimaryens tidlige tale skal afgrænses mod dens faktiske lyd/SDKevents. Ingen nye stilhedspromptforstærkninger eller runtimepatch før denne grænse er forklaret. KandidatIKKE TESTKLAR; målACTIVE og standinghumanprøveautorisationbevares.
+
+
+### 13/10 — faktisk PCM-timing før ny primaryændring
+
+Uafhængig audit bekræfter tekstsporets “Okay” førEND men kan ikke placere dets faktiske rålyd føraccept: recordedoutput eadee5ac er531840bytes/24kHzmonos16le/11.08s;111SDKoutputdeltas har receipttid men ingen længde/hash/sampleoffset. Det samlede PCM-spor er intakt. Transcript9600–9800ms og delegation9200ms har ingen bevist originrelation til lokaltPCM; vinduet med sammePCMnumre indeholder kun±1padding. Derfor er audible-before-END UNKNOWN, ikke bevist af transcript eller syntheticplayback. StrictsemanticFAIL bevares.
+
+Lead autoriserer mindste developer-only måling i en privat kopi af sammeSolinput-kandidat: registrér eksisterende decoded-output-chunks ved deres faktiske forbruger/fileappend med generation, monotonicreceipttid, byteoffset/længde og SHA256. Ingen ny decode, inputfilter, talesemantik, audioændring, prompt, model, dispatch, queueorden eller awaits. Byteoffsets skal binde eksakt til samme gemtePCM; transcript-/SDKoffset må ikke opfinde mapping. Berørte invarianter8/10/11/12/15; målingen følger fysiskinput→primary/SDK→decoder→det eksisterendeThin/speaker-input→backendaccept→teardown/rearm, men måler softwaremodtagelse og ikke fysisk afspilning.
+
+Hypotese: der findes faktisk ikke-stille closingaudio ved den eksisterende appmodtagelse før acceptedEND. Ny mapping kan understøtte eller afkræfte den lokale tidsgrænse; indholdsidentitet/physicalplayback kan stadig være ukendt. En afgrænset eksisterende recorderregression skal bevise eksakte offsets/hashes på successivechunks/generationer og uændret videresendelse; grader/assess/pacing bevares. Static/fixturevalidate/ét startup-export og source/adversarial/externalbinding før nogen ny prøve. Rollback kun developermetadata. Parallelt read-only undersøges, om±1padding reelt påvirker eksisterende idle-prædikater; ingen VAD/gain/timeoutpatch fra den endnu uprøvede antagelse. Direkte standaloneResponses-sammenligning har ingen bevist Sol-prisadmission endnu og må ikke udføres, før invariant15 er afklaret. Der er andre sikre årsagsskridt; det er ikke en hel-goal-blocker. Installeret21/Kører, målACTIVE/kandidatIKKE TESTKLAR.
+
+
+Faktisk developer-only draft13/10: kun ObservedLive.events i existing
+live_confirmation_eval.py ændres med decoded_output_chunk metadata ved samme
+filappend og før uændret yield. Sourcee3a01f31/patchfbbd5f7b; generation, app-
+receipttid og præcise eksisterende samefile-byteoffsets/længde/SHA bindes, ingen
+ny decode/await/filter/queue/control eller transcript-/SDKoriginmapping.
+
+Tre målrettede recorder/bounds/SDKorder-cases består0.30s; én ny case påviser
+successivechunks/generationers præcise gemtebytes/hash/offset og sammeeventobjekter.
+Alle gamle testAST og assess/pacing/produkt/andre63sourcebytes er uændrede.
+Formatter/lint/eksisterendefixturevalidate består, oneactualThin-offline-startup
+89d429 ændrer kun recorder-sourcepin; configff93/primaryf1df/backendaf00/tools74aa/
+Sol/Afslutfixtures er uændrede. Uafhængigt sol_input_review SOURCE GO35c32ccb
+foreligger; packet/externalbinding gennemgås separat før actualscope/provider.
+
+OriginalnaturalclosingFAIL og gamle råPCM-origin-UNKNOWN bevares. Målingen
+beviser kun softwaremodtagelse og gemtebytes, ikke ordindhold eller fysiskplayback.
+Ingen provider/key/HA/PR/release/installation/publication i denne forberedelse;
+kandidatIKKE TESTKLAR og installeret21/Kører bevares.
+
+
+Uafhængigt PCMmapper PIN/BINDING GO39249132: alle1979pins/SDKinventory og
+sourcefingerprints består; product122files12d1/whole233tests74c423 og external
+mapper/test/sammefixtureaggregatea6959d er selvstændigt genberegnet. Sammeaktive
+V1record bevarer profile/base/domains. Final mechanicalscope og check-only følger
+uden nye testcase/fullsuite/provider/key/HA-kald.
+
+
+### 13/10 — isoleret backendvalg og varig prøvebetingelse
+
+Den uafhængigt reviewede backendcontroller a18c1b92 er kørt én gang: count1, semanticResponse1, samme-response inputGET1, ingen dispatch/continuation/retry. Den gamle faktisk observerede asc-inputside user→developer og alle understøttede requestkontroller matcher den nye serverresponse. Luna havde valgt completed WAIT{}; Sol vælger nu completed end_conversation{}. Input8181/output37/reasoning20/total8218; count8181 og prospektiv reserve$0.0306925 inden den reviewede grænse. Rapportd90faa18 er uafhængigt kontrolleret. Dette understøtter én klassifikationssammenligning på det synlige API-lag, ikke en statistisk modelårsag, managed-Live-rettelse eller fysisk accept.
+
+Restore Owner startede HA straks efter terminal0 og bekræftede2.0.21 Kører efter27.727s fra førStop, inden180. Rootkey21=null/form559lukket. Første automatiske godkendelsesafvisning blev løst ved reevaluering af præcis samme kommando med brugerens eksisterende direkte godkendelser; ingen alternativ eksekvering eller ny menneskelig forespørgsel.
+
+PCM-målingen e3a01f31 er reviewet og kørt én gang; resultat UNKNOWN fordi “Det er fire” uden punktum ikke opfyldte prøveværktøjets gamle åbningsbetingelse. Afslutningsinput blev aldrig sendt. Alle411 chunks binder eksakt til1972800 PCM-bytes uden huller/overlap; dette beviser softwaremodtagelse, ikke fysisk lyd. HA blev gendannet efter71.980s. Den efterfølgende mindste developer-only rettelse fjerner kun terminaltegnsætningskravet; generation, gyldigt tidsinterval, kendt svarsuffix, captureguard og2s pacing er uændrede. Én parameteriseret regression og eksisterende berørt kontrakt:8PASS; formatter/lintPASS. Tidligere UNKNOWN/FAILs bevares. Ingen produkt-, prompt-, firmware-, gain-, VAD- eller timeoutændring fra disse toolingforløb.
+
+Installeret2.0.21 er bevaret. Kandidaten er IKKE TESTKLAR; ingen ny golden chain, fysisk lifecycle eller samlet funktions-/latencyaccept. Standing human approval gælder de samme bounded OpenAI-prøver uden gentagne spørgsmål. Målet ACTIVE.
+
+
+Koden ovenfor er samlet pushet som WIP8a1eb49cd044ff2b8b67e04fcb2c74a267b75533 på codex/pv-next-whole-intent-priority, parentb41305e, tree664254e4. De fire source/testblobs og STATUS-indhold er frisk verificeret før lease-update, og branchhead er frisk verificeret bagefter. Ingen PR, release eller installation. Privat captured-response-controller og data er ikke tilføjet som ubrugelig produktkode.
+
+
+Combined developer-only kandidat: frozenmapper e3a01 + reviewet punctuationfixda0fd
+med test80115/c063. Ingen produktændring eller ny config: ff93/f1df/af00/tools74aa/
+Sol og de eksisterende Afslutfixtures er identiske. Den tidligere faktiske offline-
+startup89d429 arves; kun det beregnede semantic-eval-sourcepin opdateres, ingen ny
+offlineexport/test/fullsuite/provider/key/HA/publicering ved packetsamling. Eksisterende
+aktuelle UNKNOWN/FAILs og PCM-origin-usikkerhed bevares, ikke regraderet.
+
+
+Uafhængigt combined SOURCE/PIN/BINDING GOd9416770: alle1984pins og SDKinventar
+matcher, candidate/sourcefingerprint og inheritedstartup162c17 er verificeret.
+Kun semantic-diagnostic-sourcepin er ændret fra actualexport89d429; ff93/context
+er identiske. Prod12d1/whole233tests7cc3c8/externalc3cdf4 er uafhængigt genberegnet.
+Root restituerede faktiskhistoriskSTATUS i840cbdf, blob756a1/1672081bytes via
+nontruncatedGitTreeGET; fire source/testblobs fra8a1 forblev uændrede.
+Ingen nye tests/exports/fullsuite/provider/key/HA i combinedforberedelsen.
+
+
+### 13/10 — fuldt afslutningsinput, primary delegerer stadig ikke
+
+Forrige goalturn var PROGRESS: faktisk kontrolleret backendklassifikation END på gammelt input, reviewet toolingrettelse og sourcepush. Målet forbliver fuldt funktionsdygtig Voice PE; ingen fysisk gate er opnået.
+
+Den kombinerede developer-only PCM/pacingkandidat d9416770 bestod uafhængigt review, præcis én scopekontrol og én check-only. Ét faktisk samme forløb er kørt med f1df/af00/Sol, configff93 og reviewet tydeligAfslut-PCM. Åbningsinput/svar og hele “Afslut samtalen” blev observeret med gyldige intervaller. Den rettede prøvebetingelse virkede: afslutningsfixture start8.868s/slut10.233s, fuldt afslutningsinput10.464/11.242s. Ingen primarydelegation, backendresponse, END, WAIT eller toolaccept nåede frem før45s. StrictFAIL på observationdeadline; renttak blev ikke startet. Dette er reel primary-delegationsfejl i den syntetiske kæde, ikke tegnsætningsblokering eller en ny Sol-klassifikationsfejl. Actual PCM/SDK-wireaudit fortsætter uden ny patch.
+
+Restore Owner bekræftede faktisk2.0.21 Kører73.450s efterførStop, inden180; egenTTY80445 terminal3 og genstart straks derefter. Rootkey22=null/form567lukket. Ingen PR, release, installation eller fysisk accept fra denne prøve.
+
+Leadens næste årsagsgrænse er korrekt faktisk primarycontext/ACK og delegationseventrækkefølge gennem start→åbningssvar→fuldt afslutningsinput→ingen backend→idle/teardown/rearm, med mindst ét trin på hver side og begge ThinI/O. Sols standaloneEND understøtter kun backendvalget, når primary faktisk delegerer. Ingen blind promptforstærkning, lokal fraseliste, tvungen END, VAD/gain/timeouttuning eller anden motor. Invarianter3/4/5/9/12/13/15 bevares. OriginaleFAIL/UNKNOWNspor bevares; kandidat IKKE TESTKLAR, mål ACTIVE.
+
+
+### 13/10 — backendkapabilitet synlig for primary, én afgrænset hypotese
+
+Lead root. Uafhængige actual PCM/source/wireaudit bekræfter: serverens startACK indeholder præcisf1df/af00/tools74aa, ingen senere instructionupdate/stalegeneration eller providerfejl; fuldt afslutningsinput kom frem. Alle357 outputchunks efter closingfixture-start er eksakt nul. Backendcapability/Sol/tokenloft nåede derfor ingen afslutningsopgave. Mere quiet-promptstyrke, ditherpatch eller backendtuning har ingen årsagsstøtte.
+
+Officiel Live-promptingguide, recommended-prompt-structure, faktisk hentet13/10: primary skal liste backendkapabiliteter under “Backend tools”; modellen bruger listen til at vælge handoff. Vores eksisterende block giver generelle tilgængeligheds-/løftepolitikker; end_conversation er beskrevet længere nede, men ingen konkret kapabilitetsliste står i blocken. Thin._configure_brain deklarerer altid lifecycleværktøjet for hver Voice PE/Talk-session, separat fra HA, så denne ene kapabilitet kan sandt oplyses uden opdigtet hjemmefunktion eller ny API.
+
+Falsificerbar hypotese: den manglende konkrete lifecyclekapabilitet i anbefalet primaryblock medvirker til manglende delegation. Mindste private produktdraft tilføjer kun én sand kapabilitetslinje om end_conversation under den eksisterende Backend tools-heading; behold senere afslutningsregler, primarybackchannel/interruption, backendprompt, alle schemas/toolauto, modelSol, firmware, gain/VAD/timeouts og mekanikken. Ingen dynamisk ny cap-router, lokale fraser, forcedtool/END, ny motor eller andre funktioner. Det er en konkret source/guide-kontraktgap, ikke bevist årsag eller lovet rettelse.
+
+Berørte invarianter3/4/5/9/12/13/15; samme input→primaryhensigt/delegation→completedbackend→acceptedEND/continuation→fysisk playback→teardown/rearm→næste wake med nye/staleevents og begge ThinI/O bevares. Korte eksisterende promptkontrakter og faktisk wire/declaration-sammenhæng, formatter/lint førfreeze, uafhængigt adversarialreview og updatedexactscope før én samme bounded providerprøve. Knownmath, renttak, almindelige opgaver og afbryd tale må ikke tvinges til END; denne viden er krav, ikke resultater. NoD eller forkert semantictool/samtalelukning falsificerer den tilstrækkelige hypotese; ingen blind retry. Rollback kun den nye primarylinje. Installeret21/Kører er bevaret; kandidat IKKE TESTKLAR, mål ACTIVE og stående menneskelig godkendelse til samme180/120/60prøver gælder.
+
+
+### 14/10 — kapabilitetsprøve giver funktionel kæde, ekstra tavshedspolicy fejler
+
+Én faktisk reviewet82c748af-prøve med source026454e7/primary5239519/confige691 gav fuldt kendt input og opening. Handoff11.300s→completedEND12.393→currentaccept/resultreturn12.403→matching0-toolcontinuation13.951→currentsettlement13.952→naturlig model-close/én teardown/rearm14.793 førcleanup. END/accept/settlement er hver1; runtimefejl0 og usage/cleanup komplette. Uafhængig review verificerer generation1/input5 og den samme completed/call/receipt-kæde. Dette er FUNCTIONAL_SYNTHETIC_CHAIN_OBSERVED, ikke fysisk proof eller statistisk årsag til den nye bullet. Den nuværende strictFAIL bevares: “Ja.”11.903 og fem faktisk ikke-padding PCM-chunks11.916–12.316 blev modtaget førcompletedEND. Alle103 chunks/494400bytes matcher offsets/hashes. Ordidentitet og fysisk lyd er endnu ukendt; intet transcriptoffset er brugt som rålydtiming. Renttak blev ikke startet.
+
+Restore Owner verificerede2.0.21 Kører42.183s fra førStop, inden180; egenTTY14094 terminal3 og straksStart. Rootkey23=null/form575lukket. Ingen release, installation, golden eller fysisk accept.
+
+Lead skelner nu eksplicit mellem bindende funktion og et ekstra valgt stilkrav: invarianter5/12/13 kræver completed/bound END før terminalt resultat/farvel, aktuel accept, korrekt dræn og én teardown/rearm. Vores blanketkrav om INGEN primarytale førresultat er stærkere og afviser også en neutral modtagelseskvittering uden udfaldsløfte. Uafhængig review fortolker “Ja.” som sådan en mulig neutral kvittering; denne fortolkning omgraderer ikke gammelFAIL eller beviser fysisk ordlyd. Den seneste noD/noEND-fejl er fortsat en selvstændig funktionel fejl.
+
+Prospektiv leadbeslutning for NY kandidat: behold truthfulcapabilitybullet og Sol. Harmoniser kun primaryens Backchannel-paragraf og senere modstridende “uden ja/lytterreaktion/indledning”-clause. Tillad højst én kort, sand, IKKE-terminal modtagelseskvittering under ægte delegeret arbejde, uden at forsinkehandoff eller påståresultat/faktisklukning. Farvel, terminalopgavekvittering og resultat/close-påstand kræver stadigcompleted/valideret/aktuelaccept. silent=true, renttak/baggrundstale, speechstop≠END, sikre direkte svar, micgate og beggeI/O er uændrede. En neutral kvittering tæller ikke som meningsfuldt latency-svar. Ingen fraseliste, lokale intentregler, muting, forcedtool/END, ny motor eller VAD/gain/timeoutpatch.
+
+Ny diagnostik skal vise funktionel kæde og talepolicy særskilt. En tidlig transcriptreaktion må ikke automatisk gøres tilPASS: på NY kandidats komplet funktionel kæde kan den højst kræve dokumenteret uafhængig semantisk review (UNKNOWN indtil review), mens manglendeEND/receipt, forkertgeneration, cancelled/stale/lateinput, order-, teardown- ellerrearmfejl forbliver hardFAIL. Gamle rapporter/orakler/bits bevares uændrede. Mindste tests omfatter relevant prompt/wire og den eksisterende lateinput-under-audio/receipt-supersession på beggeI/O; ingen bred gentagelse af urørt runtime. Formatter/lint, adversarialreview, exactscope og én boundedproviderprøve før nogen release. Ny input underkvittering må annullere gammelEND på sammeejergeneration. Rollback er kun den nye policy/diagnostik; modellen ejerbetydningen, appen ejer mekanikken. Fysiskgate-status forbliver ukendt; kandidat IKKE TESTKLAR, mål ACTIVE.
+
+
+Samme aktive beslutning14/10 — faktisk neutral-policy/PCM-safe sourcedraft.
+Kun primaryens to modstridende policyclauses er harmoniseret: højst én kort, sand,
+ikke-terminal modtagelseskvittering under ægte delegeret arbejde uden delay eller
+udfalds-/close-påstand. Farvel/terminalt resultat kræver fortsatcompleted/valideret
+og aktuelaccept; truthfulcapabilitybullet, silent=true, renttak/baggrundsstilhed,
+speechstop og direkte sikre svar bevares. Produktsource747e2200.
+
+Developer-only recorder82bc093c tilføjer præcis ét pcm_all_zero-flag fra samme
+allerede hashede/videresendte bytes; ingen decode/filter/await eller lydændring.
+Assessorc17f71eb kræver nu en fuld samme-generation/currentcompleted-END/receipt/
+settlement og ordnet naturligmodelclose→teardown→rearm førcleanup. Manglende,
+stale, foreign, cancelled eller uordnet funktionel kæde er hardFAIL ved komplet
+input/usage. Komplet funktionel kæde med tidligtekst, ikke-nul/±1 eller manglende
+mappedprefixbevis er UNKNOWN til dokumenteret uafhængigt lyd-/semantikreview,
+ikke automatiskPASS eller fraseliste. silent=true og renttak kræver også mapped
+nulbevis i deres postfixturevindue; kendt tale bevarer valgtpolicyFAIL. Almindelige
+negative spørgsmål kræver fortsat det kendte meningsfulde svar. Metadata beviser
+appmodtagelse, ikke fysiskplayback eller ordidentitet.
+
+56 tidligere relevante grønne cases er bevaret.64 audio-berørte cases består efter
+én målrettet malformed-endpoint fixturekorrektion og genkørsel af kun tre fejlede
+cases; der er overlap med de56, så dette er ikke120unikke cases. Nye30 afgrænsede
+nul/nonzero/LSB/flag/prefix/generation/tid/offset/hash-rows og tre recorder-varianter
+beviser evidensgrænsen og uændret forwarding. Tidlige formatter-/selektions-/fixture-
+FAILs er bevaret i privat receipt, ikke runtimeevidens. Formatter/lintPASS og
+uafhængigt adversarialSOURCEGO fra sol_input_review på de endelige bytes.
+Kun disse tre af64sourcepaths ændres; de øvrige61 er byteidentiske med frozen
+capabilitycandidate. Testændringer og hele rollback er privat/prospektiv; gamle
+actualFAIL/UNKNOWN-rapporter og naturligTakdetvardet-regression er uændrede.
+
+Ét faktisk offlineprimaryexport65c63133 er bevaret; efter PCM-fix er kun sourcepins
+for diagnostik/recorder opdateret til startupbb8e37f9. Effektivconfig6995905e,
+primaryedf1a139, backendprojektionaf00/tools74aa/modelSol og fixturecontext er
+uændrede af målefixet. Wrapperen kan referere den ændredeprimary; dette er ingen
+påstand om fulde serverinstructions eller ny providerACK. Scope/pins og én
+mekanisk scope/check-only kræver frisk uafhængigt pakkereview før samme liveprøve.
+Ingen provider/key/HA/release/push eller fysiskgate er udført i dette sourcedraft.
+Installeret2.0.21 og tidligere fysiskbaseline er bevaret; kandidaten IKKE TESTKLAR,
+målet ACTIVE.
+
+Menneskets direkte14/10 “Godkend altid de test her” er vedvarende godkendelse af
+præcis de samme afgrænsede syntetiske cases/data, eksisterende RAM-only nøgle og
+OpenAI-modtager uden gentagne spørgsmål: max2, stop ved førsteFAIL/UNKNOWN,
+frisk uafhængigRestoreOwner, egenTTY/samme nonce-newlineJSON, faktiskHA-pause≤180s,
+providerarbejde≤120s og sidste60s reserveret tilStart/Kører. Det autoriserer ikke
+PR/release/installation, fysiskaccept, flere cases eller ændrede grænser.
+
+
+14/10 faktisk neutralpolicy-prøve2912b964/source59dd9609: fuldt kendt math/svar og “Afslut samtalen” kom frem. Delegation12.592s → completedEND13.700 → currentaccept13.702/resultreturn13.709 → samme delegation completed0-toolcontinuation14.868/currentsettlement14.869 → naturlig model-close/teardown/rearm15.643 før observationfinish15.643/harnesscleanup. END/accept/settlement hver1, generation1/input6, runtimefaults0, usage/audio/cleanup komplette. RawdiagnosticUNKNOWN bevares; det nye orakel fandt komplet funktionel syntetisk kæde men tidlig output/nonzero og krævede uafhængigt review. Renttak blev ikke startet.
+
+Uafhængig review: den komplette tekst “Okay, jeg afslutter nu.”12.679–13.247 annoncerer afslutningshandlingen førcompleted/currentaccept og overstiger den nye tilladte neutrale modtagelseskvittering. Prospektiv manual policyreviewFAIL; dette omgraderer ikke rawUNKNOWN eller gamle strictFAILs. Alle111 decodedchunks/111SDKdeltas binder eksakt til529920bytes/SHAe2fc7efd;10 væsentligt ikke-nul chunks12.777–13.676/byte422400–470400 føraccept, to tidligere±1padding holdes særskilt. Appmodtaget lyd føraccept er bevist, fysisk ord-/lydtiming er fortsatUNKNOWN. Naturlig lukning har én close/rearm; en ekstra teardown-logseq55 kommer efterobservationfinish i harnessaclose via inactive_request_close/shutdown, uden nyclose_requested/rearm. Ingen runtimepatch fra harnesscleanup.
+
+RestoreOwner bekræftede faktiskHA2.0.21 Kører42.370s efterførStop, inden180, egenTTY95328 terminal3 og straksStart. Rootkey24=null, engangsformular583lukket, configmasked. Ingen release, installation, nygolden/fysisklifecycle eller produktaccept. Den prospektive policyændring er afkræftet som tilstrækkelig til korrekt taleunderdelegation; den funktionelle END-kæde er observeret for tydelig afslutning, ikke for den oprindelige “Tak, det var det”. KandidatIKKE TESTKLAR; målACTIVE. Næste diagnostiske grænse er originalnaturlig afslutning på samme reviewede bits, adskilt fra for tidlig annoncering; ingen ny produktpatch, stilhedspromptforstærkning, lokalfrase, muting, tvungenEND eller motorændring uden opdateret samlet årsagskæde. Standing14/10 menneskelig godkendelse til de sammeboundedprøver gælder uden gentagne spørgsmål.
+
+
+14/10 source/test/resultater samlet pushet WIPf4e4a13d05e55aec5e3ad9596a5da0e86e2effaa, parentca152999/tree39007cfaffacf65e80611ac70f12bec6a7eb1ce9. Syvreviewede source/testfiler og fuld1693272-byte STATUS med eksisterendeV1/main4a-binding912937d4 er publiceret. AlleotteGitTreeSHA/size og faktiske fuldcontentreadbacks er eksakt verificeret førlease-update; frisk branchhead bekræftet bagefter. Samtlige tidligereb7historikbytes bevares bortset fra den reviewede aktiveV1fingerprint/rationale. Ingen PR, release eller installation; rawUNKNOWN/manualpolicyFAIL og IKKE TESTKLAR består.
+
+### 14/10 — original naturlig afslutning og rent tak, samme produktbits
+
+Leadroot. Stærkeste nye evidens: tydeligAfslut-input på747/82bc/c17 gavcompleted/currentEND og naturligsyntetiskclose/rearm, men foregreb handlingen med “jeg afslutter nu”; gammel naturligTakdetvardet havdeingenprimarydelegation, mens identisk backendinput standaloneSol gavcompletedEND. NeutralACK-policy er derfor ikke tilstrækkelig talepolicyrettelse og må ikke frigives. Heleinput→primaryhandoff→completed/bound/currenttoolcommit→matchingcontinuation→playbackdrain→énclose/rearm→næstewake og nærliggendelateinput/stale/cancel-fejlveje er gennemgået; fysiskwake/drain er fortsatUNKNOWN. Invarianter3/4/5/9/12/13/15 er berørt; modellen ejer betydningen og appen kunmekanikken.
+
+Næste afgrænsede diagnostiske hypotese: den nu synlige lifecyclekapabilitet gør også det oprindelige naturlige afslutningsinput delegerbart på samme produkt747, mens renttak holder samtalen åben og stille. IngenD/END ved fuldt naturligtinput eller lukning/tale pårenttak afkræfter denne konkrete kontrakt; en heldig funktionelkæde er ikke statistisk stabilitet eller fysiskaccept. Ingen produkt-/prompt-/backend-/tools-/schema-/firmware-/gain/VAD/timeoutændring. Ikke-mål: at tune bort resultatet, påtvinge delegation, ny lokalfrase, muting eller ny motor.
+
+Mindste private diagnostikændring er kun TEXTS explicit_close tilbage til original “Tak, det var det”, med bevaret originalSaraPCM/manifest (andre ni fixtures uændrede), og én copiedoperator-caseplanrækkefølge: renttak først, derefter naturligclosing; max2/stopfirstFAIL ellerUNKNOWN gælder. Rækkefølgen forhindrer en tidligclosingUNKNOWN i gentagne gange at udelukke den endnu uprøvede negativcase; den omgraderer eller genkører ikke nogen gammel rapport. 6aRAMhandoff/180total/120provider/60restore/egenTTY noncegate bevares. Statics, exactfixture/source/pin-binding og uafhængigt adversarialreview før prøve; alleredegrønne tests/actualprompt-export genkøres ikke på urørtkode. Nyfixture skal matche kendt fuldt faktisk input; forkert/ufuldstændig input erUNKNOWN. Rollback kun privateTEXTS/caseplan, og ingeninstallation ændres. Standinghumanprøvegodkendelse gælder; målACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 faktiskoriginalnatural/thanks4922-prøve: renttak blev korrekt genkendt efterfuldt math/svar, samtalen forblev åben, END/D/terminal0 og negativvinduet8s komplet. Ingenouttranscript eftertak og alle decodedchunks efterfixturestart eksaktzero. RawUNKNOWN/stopfirstUNKNOWN bevares; naturligclosing blev ikke startet. HA21 er faktiskKører43.238s efterførStop, egenTTY4818 terminal3 og straksStart, key25null/form591closed/configmasked.
+
+Lead fandt et konkret developeroracle-hul, ikke et nyt produkt-/stilhedsproblem: quiet_zero brugerrows[-1], men sidsterow er usagecleanup18.304s, efterobservationfinish17.351/consumerstop. SDK137/decoded135; de eneste to ekstraSDKdeltas seq30717.447 og30817.826 kommer undercleanup uden consumer. Derfor afviser prefixcount appens ellers komplette quietobservation. Hypotese: afgræns zeroevidens ved den validerede faktiske negative_observation/window-finish, ikke efterfølgende shutdown. Mindsteprivate developer-onlyrettelse skal vælge samme-session/ordenbundet observationcutoff og bevare alle eksisterende inwindow prefix/gen/offset/hash/time/currentness krav. Manglende/ubundet cutoff eller umappet SDKdelta INDE i vinduet forbliverUNKNOWN; nonzero/1LSB ogkendt transcript giver fortsat eksisterendeUNKNOWN/FAIL. Silentpositivevindue skal også slutte ved egentlig observation, ikkecleanup. Ingen produkt-/prompt-/PCM-/pacing-/timeoutændring. En permanent regression injicerer forsinketSDKdelta efterobservation/consumergrænsen og beviser isolation; en umappet delta førgrænsen kan stadig ikkePASS. Gamlerapporter/bits erimmutable. Uafhængigadversarialreview/static og kunberørteoraclechecks før en ny offlinereassessment af samme råtrace; ingen paidretry eller HApause for renttak. FortsatIKKE TESTKLAR, målACTIVE; originalnaturlig afslutning er næste særskiltadmitterede ikke-kørte case.
+
+
+14/10 korrektionspost efteruafhængigsource/traceaudit: leadens første endmarker/cleanup-hypotese ovenfor er FORKERT og afkræftet. assess56d5/c17 afkorter allerede rows vedførsteobservation_finished301; reel quietendpoint ernegative_window30017.350s. Der findes135SDKdeltas men134decodedchunks vedendpoint: SDK29917.348s får exactzero decoded30317.352s eftermarker301/cleanup302. Cleanup-SDK307/308 er allerede korrekt udeladt; endmarker-onlyændring ville ikke løse denne in-flightobservationsgrænse. Ingen sådan patch er udført. Alle135recordedchunks binder eksakt til648000bytes,81postTak/preendpointchunks og énlatechunk erzero, mathsignaltail slutter7.736 førTak8.936; ingenvoiceoutput/backend/END efterTak10.059, negative8svindue/stayedopen komplette. Manualauditd1b474e9 bevarer raw17c4049cUNKNOWN; boundednegativsemantik erobserveret, fuldtcutoffmapping/fysiskstilhed/PASS påstås ikke.
+
+Leadnæste afgrænsedeadmission: ÉN originalnaturligcase, derikke blev kørt i4922, på nøjagtigtsamme249e94f0source/747produkt/56d5diagnostik/82bcrecorder og originalSara55e30/manifested3f. Kun copiedoperatorCASE_PLAN bliver candidate=(explicit-close,), baselineempty; immutablegamle2caseoperator4b0,prøver og rawUNKNOWN bevares. Max1/stopfirstFAILUNKNOWN,6aRAMhandoff/180/120/60 og freshRestoreOwner gælder. Det er ikke en retry afTak eller ændretproduktsemantik. Fuldnuværendesource/config/prompt/schema/currentness/playback/close/rearmbinding genbruges, nyoperatorpin/caseplan får uafhængigtadversarialreview/formatter/lint ogéncheck-only førden sammehuman-approvedprøve. Ingen endmarkerpatch, ny VAD/gain/prompt/motor eller fysisktestklarhed. Den observerede in-flightcutoff kan senere få en særskilt permanenttoolingregression/snapshot-ejer på dokumenteretkausalgrænse; intet retroaktivtPASS ellerpacing/runtimeworkaround. MåletACTIVE.
+
+
+14/10 faktiskoriginalnatural-only12b3/source249e94: fuldt “Tak, det var det”input7 på faktiskserverprimaryedf1 gavD11.753→completedEND12.885/currentaccept12.886/resultreturn12.890→sammeDcompleted0-toolcontinuation14.180/currentsettlement14.181→syntetiskplaybackfinish/naturligmodel-close/teardown/rearm14.995 førcleanup. Uafhængigmanualauditfa7b8992 bedømmer hele“Ja, det var så lidt.”12.122–12.681 som kort ikke-terminal takkvittering for alleredeleveret math, uden annonceretlukning/farvel/resultat-/physicalclosepåstand. Rawd338f49dUNKNOWN medearlyoutput bevares; manualsemantiskkompatibilitet er særskilt. Alle106decoded/106SDKchunks matcher507840bytes;93/93præacceptprefix komplet,7væsentlignonnulchunks12.239–12.840/byte412800–446400 plus2separate±1padding. Ingennytinput/raceinjektion i denneactualprøve. Énteardown/rearmførcleanup; ekstrashutdownteardown efterharnessaclose dokumenteret, ikketo modelcloseejere. Originalnaturligdelegationsfejl er dermed ikkeobserveret i denneene kandidatprøve; ingen statistiskårsag eller fysisk/stabilitetsaccept. Tidligereexplicit“jeg afslutter nu”manualFAIL forbliver uløst påsameprodukt747.
+
+RestoreOwner verificeredefaktiskHA21Kører43.828s efterførStop, egenTTY10838terminal3 ogstraksStart; key26null/form599closed/configmasked. Ingen release/installation ellerfysiskgate. MålACTIVE/kandidatIKKE TESTKLAR.
+
+### 14/10 — konkret kvitteringseksempel, sidste afgrænsede primaryhypotese
+
+Leadroot. Stærkestedirekteprovidertrace viser nu, at sammeprimary kan kvittere ikke-terminalt pånaturligtinput, men den tydeligeimperativ “Afslut samtalen” udløser handlingsannoncering førENDaccept. Det generiske abstracte “ikke-terminal modtagelseskvittering” skelner ikke konsekvent modtagelse fra handling i observeretmodeloutput. Årsagen er afgrænset til modellens primarytale under faktiskD→pendingbackend; ENDklassifikation/currentreceipt/dispatch/playbackdrain/teardown/rearm fungerer i begge syntetiskecases. OfficielLive-migration/server-controls hentet14/10 bekræfter, at Live kan tale underbackendarbejde, at korrektionsinstructions ikke kan tilbagekalde hørtlyd, og at hård speech-check førplayback kræver buffering/VAD/approval medlatency. Ingen sådan audioarkitektur er autoriseret her; guiderne gør ikke prompt tilhardgaranti.
+
+Falsificerbarenkelhypotese: et konkret modtagelse-versus-handling-eksempel i eksisterendeprimaryBackchannelblock kan afgrænse det observerede fejlagtige kvitteringsvalg bedre end det abstraktebegreb. Mindsteprivatproduktændring er højstto tilføjede linjer: kvitter kun for modtagelsen, fx“Modtaget”; annoncer ikke afslutningshandlingen førcompleted/currentaccepteretEND. Resten afprimaryinklusivecapbullet, backend/Sol, tools/schema, Thin/native/Talk, firmware/mic/playback, gain/VAD/timeouts er byteidentiske. Ingenlokalfraseclassifier, muting, ekstra model, forcedEND, feedbacklyd ellersemantiskruntimeguard. Heleinput→primaryD/tale→completed/bound/currenttoolresult→matchingcontinuation→originalaudio→énclose/rearm→nywake samtstale/lateinput/cancel påbeggeI/O er bevaret; invarianter3/4/5/9/12/13/15. Prompten giver eksempel, appen må ikke strcmpfortolke det.
+
+Existingprompt/wirekontrakter ogformatter/lint, uafhængigtsource/adversarialreview, updatedexactbinding/startup og én boundedexplicitcase før nogenrelease. Nyearlyactionclaim/mistetD/END/inputforståelse afkræfter dennehypotese; ikkeautomatiskflere quietpromptforsøg. Naturligclosing/purethanks og tidligerefejl bevares somfelteregressioner, ingenarvetfysiskaccept. Rollbackkun de nye eksempel-linjer. Ståendehuman180/120/60prøvegodkendelse gælder uden gentagetspørgsmål. KandidatIKKE TESTKLAR; målACTIVE.
+
+
+Samme aktive14/10 kvitteringseksempel — faktisk sourcedraft/sourceGO.
+Privatproductd74bbeca/patchd51678e6 tilføjer præcis to Backchannel-linjer:
+“Kvitter kun for modtagelsen, fx ‘Modtaget’” og ingen annonceretafslutningshandling
+førcompleted og aktuelt accepteretend_conversation. Fjerneslinjerne, er hele747-
+modulet byteidentisk. Det er modellens eksempel i pending-delegationskontekst,
+ikke et lokaltfrasefilter eller ændring af direkte svar/alleredeaccepterederesultater.
+Alle63andre kildefiler, inklusivec17assessor/82bcrecorder, tests, mekanik, backend,
+tools/schema/Sol, fysiskI/O/firmware/gain/VAD/timeouts og pacing er uændrede.
+
+17 eksisterende promptkontrakter og én productionThin-config ved fakeSDK-start uden
+HA-domæner består; dette er ikke networkACK eller fysiskproof. Formatter/lintPASS.
+Én faktiskofflineThinexport4df0429b ændrer kunprimary70a7ca4a/configf74b71c9 og
+live_prompt-sourcepin; backendprojektionaf00/tools74aa/modelSol og tydeligAfslut-
+fixturecontext er uændrede. Wrapperen kan referere den ændredeprimary; ingenpåstand
+om fuldeserverinstructionsbyteidentitet. Uafhængigtsol_input_review adversarial
+SOURCEGO og rootens egetexactpatchreadbackGO er modtaget påd74/d516. Ingen ny
+unitmirrorassertion eller grøn-test/exportreplay er udført.
+
+Én sidsteprospektiv explicit-Afslut-case alene kræver updatedexistingV1/tree/pins
+og friskpakkereview/check-only før samme max1/stopfirstFAILUNKNOWN/18012060prøve.
+Natural“Ja, det var så lidt”manualkompatibilitet, purethanksrawUNKNOWN og explicit
+“jeg afslutter nu”manualFAIL forbliver uændredehistoriske resultater. Ny forkert
+handlingsannoncering eller mistetfunktionelEND/input falsificerer dennehypotese;
+intet automatisk næste quietpromptforsøg. Ingen provider/key/HA/push/release eller
+fysiskgate fra sourcedraftet. KandidatIKKE TESTKLAR, målACTIVE; ståendehuman-
+godkendelse til sammeboundedprøve gælder.
+
+
+14/10 faktiskkvitteringseksempel dbb05/sourcef4bd11ed/prod9dcc1983: serverkonfigureretprimary70a7/configf74b, fuldtmathinput ogkorrekt “Det er fire.”, fuldt “Afslut samtalen”input6, fixturestart8.843/slut10.211 ogsidsteord11.120. IngenD/backendresponse/END/WAIT/currentsettlement/naturliglukning før45.007observationdeadline; rawFAIL/runtimefaults0/usage/audio/cleanupkomplet. Det konkrete2linjeeksempel er derfor IKKE tilstrækkeligt tilfunktionelafslutning, uanset om det fjerner tidlig kvittering. Uafhængigactualwire/PCM-audit fortsætter udennyproviderprøve; dette er intetbevis for firmwareidle/Solklassifikationsfejl, da ingen backendopgave blev startet.
+
+RestoreOwner verificerede faktiskHA21Kører79.174s efterførStop, egenTTY54045terminal3 ogstraksStart, key27null/form607closed/configmasked. Ingenrelease/installation/fysiskgate. KandidatIKKE TESTKLAR; målACTIVE. Lead stopperher nye stilheds-/kvitteringspromptjusteringer og blindretry; tilstrækkelighedshypotesen erafkræftet, best-function747 ogd74failingbits/rapporter bevares.
+
+Leadnyårsagsgrænse er protokol versus I/O: read-onlyofficielLive/SDKaudit afsupporteddelegations-/backendkontrol, og read-onlynative/Talk/SyntheticCaptureaudit afautoritativeinput-end/mic-/capture-events før/efterfuldtinput. Undersøgelserne skal skelne dokumenteredeAPI-muligheder fraarkitekturforslag og bevaresom særskiltdirekteevidens. Ingenarkitektur-/clientmode-/klassifikations-/timeout-/VAD-/gain-/runtimepatch, lokalehensigtsfraser, forcedEND eller andenmotor er autoriseret af denneaudit. GPT-Live/Thin/VoicePELink ogmodellen somsemantiskejer bevares. Ingenmoving-forwardpånyt symptom ellerrelease førden samledekausalkæde eropdateret ognululøstealvorligereviewfindings; original747natural-close/manualackcompatibilitet ogpurethanksnegativeobservation arvesikke tild74. Målet fortsatheleVoicePE til dagligbrug, ikke kun passingclosingcase.
+
+
+14/10 uafhængigdbb05actualauditc8569285: actualstartup4df erexakt, serverprimary70a7/backendaf00/tools74aa bekræftet, ingenobservedinstructionupdate/cancel/providerfejl/generationsskift. Alle403precleanupdecoded/SDKchunks binder1934400bytes;349postclosingchunks8.853–44.979/byte259200–1934400 erexactzero. Sol/ENDklassifikation forbliveruafprøvet udenbackendopgave. RawFAIL e99d1915bevares. Read-onlynativeaudit fandtingenfirmware-EOSkommando, somharnessmangler: Livebrugerappend-løbendelyd, UserSpeechStopped erseparatRealtimevej; firmwareVAD/consumption feeds lokalidle/drain, ikkemodeldelegation. Talksideband skaberikkeekstraPCM. IngenlostdownstreamD fundet; providerens interneakustisketur/intent erukendt. Mute/unmute-ACK eringen dokumenteretturncommit; ingenmuting/EOSpatch.
+
+Read-onlyupstreamcapabilityauditb98d62a0 fandten faktiskeksisterendeAPI: primary/sideband response.create(event_id) kanSTARTEmangedbackendresponse ellerfortsætte eksisterendearbejde iResponsesmode. SDK3.13acceptkun event_id, ingenforcedEND/tool/inputknob. PodVoicebruger alleredecommandoen vedtypedinput via send_text→_continue_backend; providerinput-ACK ervistunavailable. Clientmode løserikkeselvnoD ogvilleændrekontekst/workflow; ingen sådan skift. Officielreference/guide ogSDKkilder erlæst, ikkerågaæt. Dokumentation definererikkenøjagtigtspokencontextsnapshot/autoritativedfærdigt-inputtur, ogclient_event_id/delegation_id kanværeoptional. Derfor understøtteskunkommandomuligheden, ikkefærdigproduktionsmekanik.
+
+### 14/10 — afgrænset managed-backend-start discriminator, ingen produkttrigger
+
+Leadroot. Falsificerbarprivatdiagnostikhypotese: påsammed74source/config ogfuldtkendtsyntetiskAfslut-input kan én eksisterendeSDKresponse.create meduniktevent_id starte en faktiskmanaged Solbeslutning, nåringenautomatiskD erobserveret. Sammebackendtoolauto bestemmerEND/WAIT/resultat; ingenENDtvang, ekstrauseritem, transcript-resend, promptændring, clientmode, ekstraengine ellerlokalproduktionshensigtsklassifikation. Helekendtefixture/transcript→request→providercreated/clientcorrelation→completed/currentbatch→toolresult/continuation→originalPCM→teardown/rearmkæde skalobserveres. Appstarterkunprøvearbejdet påkendtfixture; en sådan testbetingelse erikke en autoriseretturntrigger forreelleVoicePE/Talk-ture.
+
+Tilladmindste privateharnessdraft medén outboundcreate påden eksisterendeLiveconnection/sammesendlock efterden bevistkendte komplettefixture/input, kunhvisingenbackend/inflight/batch/teardown/newgeneration. Ingenprivateadapterflagfabrikation ellerændring afproduct/receipt/dispatch/oracle. HvisautomaticD races, exactevent/input/generationcorrelation mangler, inputændres ellercontextsnapshot erukendt, erresultatetUNKNOWN ogingenproduktaccept. Enlæsendemetadata-plan kan foreslås forsammesyntetiskeproviderresponse; ingenekstrainference elleruserroomdata. Budget/typedusage/invariant15 forden eneekstracommand ogmuligautoDrace skaladversarial-audites FØRnogenprovideradmission; unknownheadroom udløsernulrequest, ikkerundtoscriptguard. Max1case/stopfirstFAILUNKNOWN ogsamme18012060RestoreOwner/key-grænser gælder. Produktkode erikkeautoriseret afforsøget. Static/mindsteharnessregression/eksaktstartup-source-fixturebinding oguafhængigtreviewførfaktiskprøve; ingenoldgreen/exportreplaypåurørtsource. Rollback kunprivatharnessdelta. Backendstartevne ellerénkorrektEND beviserikkefysiskinputboundary/stability ellerløstfrontendtale. MålACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 WIPd74source/resultat/actualaudits ognyprotokolplan pushet6a79ce3d26c622fe556fe5cb299df6ddd9f90cbd, parent1ee9/tree5501cb436fd8f52a93327855e43622372be61731. Reviewedlive_promptblob88762a3 ogfuld1710938byteSTATUSd141adf5 medreviewedV1/prod9dcc er eksaktfullreadback/GitTreeSHA+size-verificeret førlease-update; friskbranchheadverificeret bagefter. Helehistoriabevares undtagenreviewedactiveV1record, nyeactual/årsagsposter appendes. IngenPR/release/installation; kandidatIKKE TESTKLAR.
+
+Privatmanaged-startfeasibilityprototypeafaa9a78/receiptc9ac3ee5 erofflinereviewet; Nonebudgetbound giver0wirecommands. Femfakeguards/staticPASS beviserikkeactualwirebudget eller races. Provider/pinadmissionNO-GO: initial15k/local40k leaseerownership ogkanværepartialfunded; actualtooltop-upfølgercompletedusage, backendcount4 checksaftercreated, ogmanagedinput+muligautomaticD/manual/continuation/USDupperbound ermanglende. EnSDKsendkanændreowner underawait/reconnectqueue; ingenpostsend/timeoutproof. IngenAPIrequest/key/HA/provider erudført. Detteeretnytafgrænsetadmissiongap, ikkeårsagtilalleproduceredeNoD-fejl ellerhel-goalBLOCKEDaudit.
+
+Leadnæstenafgrænsederead-onlyfeasibility: understøttetLiveclientdelegationmedpræcissammeGPT-LivefrontendogeksisterendeSolbackend kunneflyttekunbackendtransport/context-budgetejer tilappen. Det eringenstandardRealtime/fallback/ekstramodel. Dokumenterne skalførstbevise, atclientmode ikkeautokørerhostedResponses, atclientenkanbygge/count/sendepræcisrequestbody underénsamletlease/pacing/pricecap, ogatappinitieretarbejdeudenfrontendD er lovligtviaresultcontext meddelegation_id:null. Native/Talk/requestorigin/inputgeneration/currentness/automaticDdedup/stale/cancel/close/rearm skal gennemgås; ingénfakeproviderD ellerlokalintentklassifikation. Det erendnuetarkitekturforslag, ingenproduktionændring, nyProviderprobe ellerpåstandomcompletedinput-grænse. Egenfuldtkendtsyntetiskfixturekankunbruges tilafgrænsetprotokoldiscriminator, ikkepåståsproduktionsEOS. Source/privacy/budgetproof ogadversarialleadreviewskalforeligge førensådanprivatimplementering/kald. MålACTIVE; heleVoicePE-scope består.
+
+
+14/10 — client-mode feasibility afsluttet, ingen ekstra providerprøve.
+Lead root modtog uafhængigt read-only SDK/docs/budgetreview. Clientdelegation er en understøttet transport med app-ejet backend og context append uden frontenddelegation; response.create kræver derimod Responses-mode. Det beviser en API-mulighed, ikke en fungerende erstatning for den aktuelle managed batch/END/continuation-kontrakt. Et null-context append-ACK er ikke accepteret END, og en app-jobidentitet må ikke blive til opdigtet providerdelegation. Native/Talk har fortsat ingen dokumenteret Live transcript-done/commit-grænse. Automatisk eller app-initieret arbejde skal derfor have dokumenteret inputaktualitet, dubletkontrol og begge I/O-lifecycles før en produktkonvertering.
+
+Direkte Sol-klassifikation af kendt afslutning er allerede bevist; endnu en classification-only prøve ville ikke bevise den manglende Thin-lukning. Lead afviser derfor dette ekstra prøveforløb og holder client-mode på forslagstadiet. Der er ikke ændret runtime, prompt, motor, providerbudget, installerede bits eller fysisk kandidatstatus. Managed-start-prototypens liveadmission forbliver NO-GO; den eksisterende konkrete frontend-noD-fejl og tidlige handlingsannoncering er åbne. Uafhængige agenter undersøger nu faktiske resterende timer- og HA/MCP-recoveryfejl mod shippede sourcebits i parallel. Ingen fulde gate-genkørsler, HA-pause eller nøgleadgang her. Stående menneskelig godkendelse til de samme afgrænsede tests gælder fortsat uden gentagne spørgsmål. Hele Voice PE-målet er ACTIVE; kandidat IKKE TESTKLAR.
+
+
+### 14/10 — aktiv rettelse #109: backoff efter vellykket liste men fejlet health
+Lead root. Direkte kausal regression på shippet main4a/source63 (test6631f290/logb9892456) viser seks tools/list200→GetLiveContext502 med gentaget attempt1/delay1 i stedet for1/2/5/10/30/60, efterfulgt af health200 og korrekt recovery. Årsagshypotese: discovery-success nulstiller MCP retryhistorik før egentlig helbredssucces. Kæden RESTdiscovery→MCP handshake/list/schema→read-only GetLiveContext→discovery failure/epoch→samme eksisterende retryloop→aktuel healthsuccess→ny schemasnapshot til næste wake berøres; aktive Thin/Talk/native sessioner, frozen schemas, tool-dispatch og deres playback/teardown/rearm skal bevares. Berørte invarianter er HA som dataejer, immutable åbent schema, stale generation/epoch afvises, completed/current batch og én close/rearm. Discovery skal stadig publicere aktuelle validerede schemas; kun retryhistorik beholdes indtil aktuel fuld healthsuccess. En gammel healthsuccess eller overlap må ikke nulstille en nyere fejl.
+
+Lead autoriserer mindste isolerede sourcefix i tools.py på eksisterende shippede regressiondraft. Ingen prompt, Liveprotokol, timersystem, VAD, firmware, gain, timeoutværdi, action replay eller ny scheduler. Eksisterende permanent RED regression skal blive GREEN; relevante eksisterende MCP/currentness/REST/isolerede adapterchecks og formatter/lint køres én gang efter diff. Uafhængig adversarialreview af reset/currentness/overlap før freeze; eksisterende scopekontrol/exacttree skal bestå sidste diff. Rollback kun tools.py og nødvendig regressiondelta; ingen release eller installation før samlet reviewed releasekandidat. Feltets aktuelle mDNSoffline bruges ikke som produkthypotese. Denne rettelse kan udvikles parallelt med uløst frontendnoD; den påstår ikke at løse afslutning eller fysisk recovery. Målet ACTIVE, fysisk kandidatstatus uændret/IKKE TESTKLAR.
+
+
+### 14/10 — aktiv domain-delegation disclosure, ikke ny lukningsprompttuning
+Lead root. Read-only vendor/source/configaudit reproducerer eksakt candidateprimary70a7/backendaf00/tools74aa og finder ingen ulovlig Responseskonfiguration eller instruktion, der slår alle delegationer fra. Konkrete frontendkapabilitetsgab: sessionens HA/PC/timer-schemas bliver til backendtools, men primarys Backend tools-blok oplyser kun END og generisk availabilitykontrol. Den aktuelle officielle Livepromptingguide bruger netop capabilitylisten til at vælge handoff. NoD-closing er IKKE bevist forårsaget af dette; END er allerede navngivet. Seneste syntetiske noD-rig har slet ikke domain-schemas og kan ikke godkende eller afkræfte home/weather/music/timerdelegation.
+
+Lead autoriserer en isoleret source-only rettelse, som ved samme validerede immutable startup-schema giver primary en kort bounded inventory over faktisk deklarerede backendkapabiliteter. Det ændrer kun modellens kendskab til tilgængelige værktøjer, aldrig lokal intentsrouting, dispatchrettigheder, availabilitybevis eller success/closuresemantik. Ingen raw HA tool-description-instruktioner, privat roomdata eller fabrikerede tools må indlejres. Listen skal genereres efter eksisterende schemavalidering, gengive navne entydigt, følge begge native/Talk og confirmation-startups og ikke ændre backend/schema/budget/lyd/lifecycle. Berørte invarianter er immutable sessionschemas, model-ejet valg, backendcompleted/current batch/authorization og sand availability. Hypotese: afhjælp det konkrete disclosuregap for domainopgaver; actualdelegationsadfærd skal senere måles på domain-declared kandidat, ikke sluttes fra END-rig.
+
+Stop/noD/earlyclosing-feltregressioner og historiske rapporter bevares uændret. Ikke-mål: endnu et kvittering/stilhedseksempel, tvungenEND, clientmode, ny model, VAD/gain/timeout eller audioapproval. Mindste regressionsscope er faktisk startupsnapshot inventoryparitet, absentdomain og ugyldige/adversarial navne, confirmation/native/Talk fælles builder; formatter/lint og uafhængig adversarialreview før freeze. SafeEval/preflight og updatedexacttree/scope kræves før enhver release af promptændringen, men ingen provider/kald/HApause er autoriseret fra sourcedraft alene. Rollback kun inventorydelta; shippet21 forbliver installeret. Målet ACTIVE; kandidat IKKE TESTKLAR.
+
+
+14/10 #109 sourcefix afsluttet og pushet: independent SOURCE/BINDING GO tools94e8cd8d/testb71aa0b4/patch3259201c, wholeprod8d878531/wholetests4c370bf2 på isoleret main4a/parent30e0. Faktisk eksisterende scopekontrol PASS én gang; sand mekanisk klassifikation single unclassified_runtime, semantisk MCPhealthreset. Ingen classifierudvidelse. Seks fokuserede og112 relevante eksisterende checks PASS; sandboxbind-failure og stale-overlap-forventning blev isoleret/korrigeret én gang med kun berørte nodes genkørt. Formatter/lint PASS sidste diff. Gamle healthsuccess efter fejl/nydiscovery/instanceskift/HTTPclientclose er inert; cancel bevarer retrydeadline. Separate REST-retries og aktive native/Talk/schemas/action policy er bevaret.
+
+WIP commit07ed153774df4aee2bcfd3e243be3ee1b2802e6e på eksisterende codex/pv109-health-backoff-regression, tree1aac423b6621a2387b2448e1a88bda0935b82f5c, parent30e0. Tools5e905946/test2a257a7e og fuld1659018-byte STATUSd6eb75a1 er eksakt GitTreeSHA/size og fuldactualGitblob-content-verificeret før expectedheadlease-update; frisk branchhead verificeret bagefter. Branchens historiske1655586-byte STATUS er bevaret undtagen active-marker→historical én gang og nye leadposter. CanonicalclosingV1/prod9dcc er IKKE genbrugt til denne isolate eller ændret. Ingen PR/merge/release/installation, provider/key/HApause eller fysiskaccept. Sourcefejlen er rettet/pushet; #109 fysisk/releaseaccept står åben. Mål ACTIVE.
+
+Frisk read-only HA-log14/10 til02:02 viser periodisk MCP tools/list200/GetLiveContext200 og attention200; Voice PE-mDNS kan ikke resolveres. Denne aktuelle enhedstilgængelighed tillader ikke fysisk timer/voiceaccept. Uafhængig #110audit fandt ingen ny sourcefejl i shippet21+paired113114; HA-owned timer schemas tilføjes separat efter RESTservices+friskt endpoint/MAC-status og skjules korrekt ved offline endpoint. Det er ikke bevis for nuværende timeravailability eller fysisk expiry/Stop/rearm. Ingen ny timerpatch eller menneskelig testanmodning.
+
+
+Samme aktive domain-disclosure — faktisk source/resultat.
+Privat openai_live95fe918c tilføjer én bounded helper og ét kald i eksisterende shared startupbuilder efter valideret immutable schema og confirmationadaptation. Primary får kun JSON-kodede faktiske værktøjsnavne; ingen raw descriptions, schema-værdier, roomdata eller opfundne kapabiliteter. Ugyldige navne, mere end128navne eller mere end8192encodedbytes afvises før providerbudget/client. Navne er data, ikke lokal intentsrouting. d74primarybase med tidligere fejlede eksempel-linjer, backend/Sol/tools/schema, Thin/native/Talk/receipts/recording/assessor/pacing/DSP er ellers uændrede.
+
+37 målrettede checks består (13nye og24eksisterende); formatter/lint består. Review fandt én berørt gammel Thinassertion om rawprimarylighed. Kun den assertion blev rettet til actualwire-inventoryparitet og eksakt removal→originalprimary; backend/auto/ENDschema/no-domains/noeffects bevaret. Det ene berørte node og changedfile-statics består, uden genkørsel af37grønne checks. Unitf475f7cb og integration8428e918 er eneste testdelta. Uafhængig SOURCE+proposed binding GO og rootleadGO på patche767158a er modtaget.
+
+ExistinggenericV1/main4a/tre domæner binder whole122production66768491e6704a9bd9809f4c77b2d5c77d5269de199d34323f2653e31bf0a184, whole233testsd16d1f91e950276c7498c269dd803a5f6f1ac452065c21a1df8b33c66b09e9df og separat external e3f065916cf8794e1ce8af9182a5e5bcf7c960f94b10aa688b31277374ccf65c. Én faktisk mechanicalscope efter review PASSexit0/0.236s; source er først nu frosset. #109 er ikke komponeret i denne isolerede source/scope. Ingen offlineexport, SafeEval/provider/key/HA/release/installation eller fysiskgate er udført. Disclosuregap i domains er source-rettet, men faktiskdelegation og den tidligere closing-noD-fejl er fortsat ubevist/uløst; alle gamleFAIL/UNKNOWN uændrede. KandidatIKKE TESTKLAR, målACTIVE.
+
+
+14/10 inventorysource/resultater og alle nye leadposter samlet WIP-pushet221028003fedcca2af1780bb9117e4293515ae0b, parent6a79/treeed37f34297aa5e823556825b4eb0186ce4aab469. Tre reviewedsource/testfiler95fe/f475/8428 og fuld1722755-byte STATUS021303a7 er eksakt GitTreeSHA/size og fullactualGitblobcontents-verificeret før expectedheadlease-update; friskbranchhead verificeret bagefter. Alle tidligere publicerede historiske bytes er bevaret undtagen samme reviewedactiveV1 replacement66768491, og nye canonicalleadposter er appendet via entydig historisk endanchor. Canonicalhistorik er også bevaret selv om ældre markerplacering er forskellig fra publiceringssnapshottet. #109-fix ligger separat på07ed/branchpv109, ikke i inventorykandidatens reviewedtree. Ingen PR/merge/release/installation, providerpause/keyprøve eller fysiskaccept. Allfinished source indtilnu er pushet. HAinfo er friskverificeret som Kører2.0.21; ingen ny installation. MålACTIVE; inventorykandidatIKKE TESTKLAR, semantiskafslutning fortsat uløst.
+
+
+### 14/10 — inventorykandidat: afgrænset faktisk regressionspreflight
+Lead root. Forrige goalturn er PROGRESS: #109-recovery og schema-bound frontendinventory er source-rettet, uafhængigt reviewet, scopekontrolleret og pushet07ed/221028. Hele dagligbrugs-målet er ikke opnået. Inventorysource95fe/prod667 er frosset; det gamle d74source/config gav fuldtAfslut-input men ingenD/END før45s. Den nye inventory oplyser frontend om de faktisk deklarerede lifecycletools i denne kontrol. Ét eksisterende math→Afslut-scenario kan falsificere, at det ændrede startupsnapshot nu tillader en fuld modelvalgt closingkæde; det er ikke et bevis for at inventory var den gamle noD-årsag eller for domain/fysiskaccept.
+
+Tillad én existing max1case på source95fe/d74/82recorder/c17assessor og uændrede originalAfslut-fixtures. Kæden kendt input→faktisk serverstartup/schema→automatiskD→completed/currentEND/budget→samtidig PCM→matchingcontinuation→syntetiskdrain→énclose/rearm skal korreleres; ingen manuel response.create-start, forcedEND, typed-resend, lokalphrase, clientmode, ny model eller ændret orakel. Samme eksisterende managed automatiske backend/pacing/reservation/preflight anvendes. Managed-start-prototypens NO-GO er uændret og må ikke blandes ind. Tidlig handlingsannoncering, noD/END, ukendt input/config/usage eller stale events afkræfter denne prøve; stop ved førsteFAIL/UNKNOWN, ingen blindretry/prompttuning. Rawrapport forbliver immutable; eventuel kort ikke-terminal kvittering skal have særskilt uafhængig fullcontext/PCMaudit.
+
+Én faktisk offlineThinstartup-export for det ændrede builderoutput, kun nødvendige source/startup/operatorpinændringer og én check-only efter uafhængig admissionreview før key/HA/provider. De38grønne kontroller, scope og uændrede fixtures genkøres ikke. Eksisterende runner32c002d og RAMhandoff6a er byteidentiske, kun nye paths/startup/pins. FreshRestoreOwner kræves: egenTTY og samme exactnonce-newlinegate førPause; stop→faktiskKører≤180s, providerarbejde≤120s, sidste60s reserve og genstart straks terminal. Root laver kun restorewatch mens pausen kører. Stående menneskelig test-/RAM-nøgle-/kortpausegodkendelse gælder uden nyt spørgsmål. Rollback alene private diagnostikpins/paths; ingen installation eller produktændring. KandidatIKKE TESTKLAR; målACTIVE.
+
+
+Samme inventorypreflight — faktisk admission GO før nøgle/HA/provider. Uafhængig sol_input_review har verificeret alle2161pins (2081immutableold+80specifiknew), source82ec3046/base79a480 og exact32c/6a/max1/18012060/stopfirstFAILUNKNOWN; alle61actualsourcepins passer. Én faktiskofflineThinexport8dd6724c ændrer kun primary3b1a6aef/configf0fe6789 og source95fe versus gammel4df/70a7/f74; backendaf00/tools74aa/context/fixtures uændrede. Én check-only PASSexit0/0.210s; receipt8bbbaf06/pins173ff4d8. Ingen38grønne/scope/fixture/exportreplay. Lead root giver faktisk GO til dette ene automatiske managedD-scenario under den stående menneskelige godkendelse og frisk RestoreOwner. Ingen manuel startprototype, ændretprismodul, clientmode, installation eller fysiskaccept er autoriseret. RestoreOwner sol_input_restore starter egen liveheldTTY førStop og ejer hele≤180s restorekæden; root er kun watch under pausen. Førkommando kan auto-review vurdere den eksisterende præcise menneskelige godkendelse; en eventuel afvisning må ikke omgås. KandidatIKKE TESTKLAR; målACTIVE.
+
+
+Samme inventorypreflight — verificeret zero-start toolinghændelse. Fresh ownTTY4872 sluttedeexit2 med No key admitted/no provider started; 30sreceive_key-deadline udløb før aflevering. IngenHAStop, ingenactualstartnonce eller outputdir/providercase. Rootkey28=null og carrier615closed/masked. RestoreOwner verificerede2.0.21 Kører. Det er ikke en productFAIL/UNKNOWN eller en anvendt pause; ingen automatisk paidretry. Absolut tidssekvens for form/modtager/rodlatens kan ikke udledes af filerne og opfindes ikke.
+
+Lead root vælger permanent tooling-regression fremfor endnu et løb mod samme korte setupfrist. Mindste change er en eksplicit receive_key(pre_pause=True) vej med90s setup FØRHAStop; default publicreceive_key() bevarer30s og det eksisterende standalone budget ADMISSION+BATCH≤240. Default/CLI/providerpauser må ikke udvides. Privatrunner kalder kun pre_pause=True før sin eksisterende await_stopped_start-gate; startgate120, actualpause180, provider120, sidste60restore, max1 og stopfirstFAILUNKNOWN er uændrede. Privatehelper får samme lille eksplicitte pre_pause implementering; gamle6a/32c-filer/prøvepacket173ff forbliver immutable, nye artifacts/pins udgør en ny reviewed revision. Inventorycandidate95fe/d74/82/c17/source82ec/startup8dd og alle38greens/scope/fixtures ændres ikke.
+
+Permanent source/test i isoleret toolingdraft skal bevise modtagelse ved fx60s setup, nul child/provider uden faktiskstop-gate, expiry ved90s og bevare olddefault30/nonce/Host/Origin/bodycaps/énmodtagelse/servercleanup/RAMonly. Ugyldigt flag afvises førbind; intet UI/nøgle/sourcefelt offentliggøres. Source-only formatting/lint og uafhængigt adversarialreview af den nye RAMsetup/admission/PINdelta før én check-only på invalidatedhelper; gamle grønne source/export/scope/fixtures genkøres ikke. Ingen ny produktpatch eller runtimehypotese afventende denne hændelse. Lead giver implementeringsGO til dette toolingdraft under den eksisterende præcise test-/nøgle-/recipientgodkendelse; genstart af actualprovider kræver frisk reviewed packet og frisk ownTTY. MålACTIVE/kandidatIKKE TESTKLAR.
+
+
+Samme toolinghændelse — source/PIN/check og ny actualGO. Uafhængig sourceGO be68e967 publichelperddb9/unit48f og privatepatch1fff5988/helper2df1/runner8d10. Offentligtdefault30 og ADMISSION+BATCH≤240 er uændrede; explicitpre_pause=True90 er eneste privatecall ASTdelta før faktiskstop-gate. Privacy/nonce/Host/Origin/bodycaps/oneuse/RAMcleanup er bevaret.42public receiverchecks og4private faktiskrunner-gatechecks PASS; kun to fejl i fixture/configvalidering blev isoleret og berørte checks rettet/genkørt, ingen runtimepatch. Candidate82ec/startup8dd/source95fe/d74/82/c17 er uændrede. De46kontroller er værktøjsbevis, ikke provideraccept.
+
+Fresh2174pinsc3bed7ae er uafhængigt verificeret: alle2161oldentries præcisbevaret plus13specifiknew, gamle173ff/8bbb/6a/32c immutable. Én faktiskcheck-only PASSexit0/0.242s/receipt9966b1d0. Ingen42/4/38/scope/export/fixtures genkørt. Lead root giver ny actualGO til FØRSTE actualproviderscenario på inventorykandidaten med dette nye præcisreviewede setup. Zero-start4872 brugte nul prøve-/pausekald. FreshRestoreOwner sol_input_restore skal eje NYliveheldTTY og freshnonce førStop; faktiskpause≤180/provider≤120/60restore, max1/stopfirstFAILUNKNOWN; Rootkunwatchmenspaused. Ståendehuman-key/test/recipientgodkendelse anvendes uden nytspørgsmål. Defaulttidsbudget og HA-installation ændres ikke; noD-failure må aldrig udledes af nøgle-/sandboxsetup. MålACTIVE/kandidatIKKE TESTKLAR.
+
+
+### 14/10 — inventorykandidat: faktisk afslutning, samlet prøve UNKNOWN
+
+Lead root. Første faktiske providerprøve med inventorysource95fe/startup8dd/configf0fe afsluttede automatisk samtalen: fuldt “Afslut samtalen” → automatisk delegation12.395s → completed/current END13.685s → accepteret aktuelt receipt13.687s → samme delegations continuation13.931s → current settlement14.945s → naturlig syntetisk close/teardown/rearm15.878s før harness-cleanup. Ingen manuel response.create, forced END, input-resend eller lokal intentionsregel. Primary sagde “Modtaget.” under igangværende backendarbejde; uafhængig transcript-only kvitteringskontrol PASS. Ingen runtimefaults, manglende usage eller efterfølgende input/stale-event i denne observation.
+
+Raw rapport c73728e4 og uafhængig audit9fa485f5 forbliver samlet UNKNOWN/recognized=false. Åbningsfixture “Hvad er to plus to?” blev til “2 plus 2”; matematisk kerne og forespørgsel er semantisk konsistente, men fuld hørelse/verbatim coverage er ikke bevist. Korrekt svar “Det er4.” eller korrekt END opgraderer ikke dette. Begge komplette fixtures findes unikt i source-PCM; hele attempted-wire-input er eksakt resamplerprefix fra source0, og alle112 outputchunks binder534720bytes. Fem SDK-inputevents har hver én adapterfragment uden observeret filter. Dette beviser hverken providerens fulde lydmodtagelse eller fysisk Voice PE. Ingen påvist prefix-drop eller forkert betydning; ingen ASR/runtimepatch udledes af literal-comparatorens afvisning. Lokal lossless lyd blev tilbudt til reviewer, men værktøjet understøttede ikke gennemlytning; audible context står UNKNOWN. Rå rapport/originaler ændres ikke, og samme betalte scenario genkøres ikke.
+
+Fresh RestoreOwner sol_input_restore ejede TTY69741 og HA-info831368620. Journal viser før-Stop562758.449758 → faktisk2.0.21Kører562809.845113416,51.395355416s. Terminalexit3, straks genstart; dokumenteret screenshot/private journal er bevaret. Key29=null, carrier623 lukket, HA-konfiguration skjult. Zero-start4872 er fortsat nul provider/pause. Pause≤180s/provider≤120s/restore-reserve60s var bevaret. Ingen ny release, installation, fysisk golden chain,10/10 eller stabilitetsaccept.
+
+Lead bevarer kandidat IKKE TESTKLAR og hele målet ACTIVE. Denne prøve er direkte positiv evidens for den automatiske syntetiske afslutningskæde og neutral kvittering på de nye bits; én prøve etablerer ikke inventory som årsag til gamle noD-fejl. Originale FAIL/UNKNOWN og naturlig afslutning/rent tak bevares. Den permanente setup-toolingrettelse publiceres som source i samme WIP-batch med egen opdateret test/external binding; den ændrer ikke den frosne runtimeprøve. Næste praktiske grænse er faktisk domain-readiness og varieret semantisk afslutning på GPT-Live, efter afgrænset admission; ingen gentagne grønne checks eller spekulativ clientmode-konvertering. Stående menneskelig godkendelse til de samme afgrænsede prøver gælder uden nye spørgsmål.
+
+
+Samme offentlige toolingpublication — sidste diff. Uafhængig SOURCE/BINDING/publicationGO og rootleadGO på exactrecordf85d396e er fulgt af én faktisk eksisterende mechanicalscope på main4a: PASSexit0, sammephysical_output/realtime_semantics/rearm. Whole122production66768491 er uændret; whole233tests6d5a0073 og separat externalaf07155c binder kun den nye publichelperddb9/unit48f1. Publicsource er først nu frosset til samme WIPbatch. De42public/4private/38inventorychecks, fixtures og export er ikke genkørt; completedprovider/UNKNOWN-resultater og alle privatecandidatebits er uændrede. Ingenrelease/installation/fysiskaccept; kandidatIKKE TESTKLAR, målACTIVE.
+
+
+14/10 — frisk read-only driftskontrol efter prøven. Uafhængig sol_input_restore verificerede2.0.21Kører, aktuelle HA-services og GetLiveContext success samt PodConnect Attention success. Panel viser GPT-Live standby/degraded uden aktiv samtale, ikke en observeret providerfejl. GetDateTime og vejr/media er faktisk admitted i18 MCPtools; assistfingerprint549e06838ba9. De synlige capabilitymarkører er fundet/ikke bevist, ikke fysisk funktionsaccept. Exact GetDateTime argument-schema og session-bound snapshot er ikke eksponeret i den undersøgte UI/log, så ingen schema opfindes eller offlinefixture promoveres til liveadmission.
+
+Voice PE er fortsat offline; native mDNS/connect fejler for den konfigurerede enhed, seneste observerede timeout03:01:56. Det er aktuel utilgængelighed, ikke en ny bevist sourcefejl. Timerpanelets aggregate fundet kan ikke bevise r0: endpoint-binding kræver faktisk native link/identitet/timer-capability og fjernes ved offline. Ingen ny fysisk prøve, providerpause, nøglelæsning eller runtimepatch af denne audit. Før næste domæneprøve kræves actual admitted schema/readiness, samme Thin/GPT-Live og isoleret sideeffektfri resultvej; legacy SafeEvaldriver må ikke bruges som GPT-Live-bevis. Mål ACTIVE.
+
+
+
+Samme offentlige toolingpublication — sidste diff. Uafhængig SOURCE/BINDING/publicationGO og rootleadGO på exactrecordf85d396e er fulgt af én faktisk eksisterende mechanicalscope på main4a: PASSexit0, sammephysical_output/realtime_semantics/rearm. Whole122production66768491 er uændret; whole233tests6d5a0073 og separat externalaf07155c binder kun den nye publichelperddb9/unit48f1. Publicsource er først nu frosset til samme WIPbatch. De42public/4private/38inventorychecks, fixtures og export er ikke genkørt; completedprovider/UNKNOWN-resultater og alle privatecandidatebits er uændrede. Ingenrelease/installation/fysiskaccept; kandidatIKKE TESTKLAR, målACTIVE.
+
+14/10 samlet sourcepush bfc605b9d3f60d242d8912b5d052c6a23a91118c på eksisterende inventory-WIP, parent221028/treeded765cb. Publichelper fe3d/unitf4f4 og fuld1736085-byte STATUS6a599701 blev actualfullGitblob-content+treeSHA/size-verificeret før expectedheadlease; frisk remotehead er verificeret. Færdig tooling/source og alle nye actualprovider/readinessposter er publiceret. #109-kode står separat på07ed; ingen merge/release/installation eller fysiskaccept. Målet ACTIVE.
+
+
+### 14/10 — aktiv samlet kandidat: inventory og #109-recovery
+
+Lead root. Forrige goalturn er PROGRESS: faktisk GPT-Live closingkæde blev observeret, rå UNKNOWN og fysisk grænse bevaret, permanent prepause-tooling rettet/reviewet og samlet pushed bfc605. Næste sourcearbejde samler de to færdige, adskilte ejerrettelser i én udgivelseskandidat. Stærk direkte #109-evidens er tools/list200→health502, gentaget attempt1; reviewed tools94e8/testb71a på07ed retter retryhistorik og stale healthsuccess. Inventory95fe og offentlig toolingddb9 ligger påbfc605. Ingen sourcekonflikt forventes, men dette er en hypotese, ikke et resultat.
+
+Kæden HA discovery/health/retry→næste immutable deklarationssnapshot→fælles Thin/GPT-Live startup→modelvalgt completed/current batch→playback/close/rearm skal være sammenhængende. Aktive sessioners schemas og dispatchrettigheder ændres ikke ved recovery; gamle healthcallbacks skal fortsat være inert. Berørte invarianter er schemaimmutabilitet, data-/handlings- og close-ejerskab, epoch/generation-currentness og budget før dispatch. Ikke-mål: endnu en promptændring, ny motor, clientmode, VAD/lydtuning, ny scheduler, HA-genstart eller fysiskaccept.
+
+Tillad kun komposition af de eksakte reviewed tools94e8/testb71a bytes på den fulde bfc605 tree i usynkroniseret privat draft. Bevar alle andre filer og publiceret historik. Uafhængig adversarial composite-review skal kontrollere actualdiff og fælles grænser. Eksisterende beståede118+38+46 checks genkøres ikke alene for komposition; kun faktisk konfliktscope eller ny mekanisk kobling begrunder ny målrettet kontrol. Formatter/lint på importerede filer og reviewed exact-tree/scope på sidste samlede diff før freeze; ingen lifecycle-narrow gate eller fuld release før samlet relevant liveadmission. Rollback kun denne komposition;07ed ogbfc605 forbliver immutable. Tidligere live/physical evidens arves ikke som samlet kandidataccept. Målet ACTIVE, kandidat IKKE TESTKLAR.
+
+
+Samme aktive komposition — source/resultat og sand WIP-binding.
+Alle408 faktiskpublicerede bfc605 Gitblobs/modes/byteantal er verificeret mod nontruncatedded765 GitTree; den eksakte unsignedbfc605 Gitcommit/tree er rekonstrueret i isoleret draft. Et arvet AGENTS-cachemismatch blev rettet til faktiskpublishedblob førbaseproof, ikke en produktændring. Kun tools94e8cd8d/testb71aa0b4 importeres frareviewed07ed; actual07edparent30e0 og begge bfcbasefiler modmain4a er kontrolleret. Ingen tidligereinventory95fe/d74, offentligprepause-tooling, Thin, schema/dispatch/receipt/native/Talk- ellerhistoriabytes overskrives. Importerede2files formatter/lint PASS; alleredegrønne118/38/46, provider/export/release er ikke genkørt.
+
+Aktiv exactwholebinding for sourceWIP-komposition bruger actualbfc605 base/mergebase og reviewer sol_input_restore: whole122production 5d916ef652d8cec182ee59ec2ce0d61f0912fa3f11ae712144114058759189db, whole233tests 2daa95f503af7c7f066bf65330444227a21a07723224ced76f382a13313bfb2d, separat externaltest/eval/unchangedfixtures 0cd1158c2182ebad8ce052644adfef55f75089436b7c8aaddac73db7a353c14f. Den eksisterende scope har singleunclassified_runtime for tools+test-deltaen; den gamle main4a3domainV1 er bevaret somhistoriskJSON, ikke aktivcoupling. Binding/sourceadmission afventer finalindependentGO og ONEaktuel scope førfreeze.
+
+Den fulde kandidatrelativmain4a har firedomæner ha_tools/physical_output/realtime_semantics/rearm, wholeproduction 6247405b5392065fcb3c7e4b723af130fef916c7e09cc0270cac3e0a33efee72, wholetests e08c8fa5acd65029ff42e0cc645b8b16d9ffbeef8a7a3812835f55970d19f39e. Den tuple er IKKE release-admitteret af den eksisterende genericV1; hverken denne WIPbase, tidligere delchecks eller en senere lifecycle-narrowgate må skjule/omgå den samlede main-scopegrænse. Ingen classifier/profile/CIændring her. Sammensat provider/fysisk/releaseaccept arves ikke; kandidatIKKE TESTKLAR, målACTIVE.
+
+
+Samme komposition — final sourcefreeze. Uafhængig sol_input_restore SOURCE/BINDING GO og rootleadGO er fulgt af præcis én eksisterende scopekontrol mod actualbfc605: PASSexit0/0.061s, singleunclassified_runtime/tools+test. Wholeactualbinding5d916ef6/2daa95f5/external0cd1158c er reviewet; main4a4domainNOT_RELEASE_ADMITTED og kandidatIKKE TESTKLAR bevares eksplicit. Source er først nu frosset til WIP-publicering; ingen118/38/46checks, provider/export/release er genkørt, og ingen samlet fysiskaccept arves.
+
+
+### 14/10 — næste afgrænsede closing-paritet, ikke gentagelse af Afslut
+
+Lead root. Den nye inventory har faktisk gennemført den klare “Afslut samtalen”-kæde med neutral “Modtaget.”; rå whole UNKNOWN og fuld hørelse er bevaret. Daglig brug kræver også den oprindelige “Tak, det var det”, som brugeren anvendte i feltet. Tidligere747-observation var funktionel men UNKNOWN og må ikke arves til den nye komposition. Reelle domæneschemas er endnu ikke sikkert eksporteret; der findes ingen zero-provider HTTP-vej til actualToolRouter snapshot. Dette er ikke årsag til at opfinde schemas eller skifte motor.
+
+Tillad forberedelse af én eksisterende math→oprindelig “Tak, det var det”-case på den præcise nye, reviewed composite source, først efter dens sourcefreeze. Genbrug original manifest/PCM55e30ba3 og math92cad uændret, eksisterende fælles Thin/GPT-Live/Sol, recorder/orakel/dispatch/budget og90s prepause/actual180-provider120-restore60. Eneste nødvendige private scenariodelta er kendt fixturetekst i den eksisterende evaluator; ingen runtimeprompt, ny classifier, lokalhensigtsregel, forcedEND eller managed/clientprotokol. Source/fixtures/actualstartup skal være eksakte; én offline startup-export for denne nye kildekombination, uafhængig admissionreview og én check-only før enhver provider. Gamle source/fixture/gategreens genkøres ikke.
+
+Falsificerbar hypotese er udelukkende at denne naturlige afslutning på de nye bits kan vælge automatiskD→completed/currentEND→matchingcontinuation→syntetiskclose/rearm med sand kvittering. NoD, forkert afslutningspåstand, unknowninput/usage/config eller staleevents stopper denne ene case; ingen retry eller næste automatiskcase. RawUNKNOWN forbliver UNKNOWN; semantisk konsistent matematisk kerne er ikke påvist lydtab og må ikke udløse en patch. Uafhængig event/kvitteringsaudit kræves, og ingen Talk/physical/golden/stabilitetsaccept udledes. FreshRestoreOwner med egenTTY/freshnonce førStop og root kun restorewatch under faktiskpause. Stående menneskelig godkendelse anvendes; actualGO er først efter præcistreviewet packet, ikke fra denne plan. Rollback kun privatcasepacket; eksisterende installerede21 ogmål ACTIVE/kandidat IKKE TESTKLAR består.
+
+
+Samme aktive komposition — source/resultat og sand WIP-binding.
+Alle408 faktiskpublicerede bfc605 Gitblobs/modes/byteantal er verificeret mod nontruncatedded765 GitTree; den eksakte unsignedbfc605 Gitcommit/tree er rekonstrueret i isoleret draft. Et arvet AGENTS-cachemismatch blev rettet til faktiskpublishedblob førbaseproof, ikke en produktændring. Kun tools94e8cd8d/testb71aa0b4 importeres frareviewed07ed; actual07edparent30e0 og begge bfcbasefiler modmain4a er kontrolleret. Ingen tidligereinventory95fe/d74, offentligprepause-tooling, Thin, schema/dispatch/receipt/native/Talk- ellerhistoriabytes overskrives. Importerede2files formatter/lint PASS; alleredegrønne118/38/46, provider/export/release er ikke genkørt.
+
+Aktiv exactwholebinding for sourceWIP-komposition bruger actualbfc605 base/mergebase og reviewer sol_input_restore: whole122production 5d916ef652d8cec182ee59ec2ce0d61f0912fa3f11ae712144114058759189db, whole233tests 2daa95f503af7c7f066bf65330444227a21a07723224ced76f382a13313bfb2d, separat externaltest/eval/unchangedfixtures 0cd1158c2182ebad8ce052644adfef55f75089436b7c8aaddac73db7a353c14f. Den eksisterende scope har singleunclassified_runtime for tools+test-deltaen; den gamle main4a3domainV1 er bevaret somhistoriskJSON, ikke aktivcoupling. Binding/sourceadmission afventer finalindependentGO og ONEaktuel scope førfreeze.
+
+Den fulde kandidatrelativmain4a har firedomæner ha_tools/physical_output/realtime_semantics/rearm, wholeproduction 6247405b5392065fcb3c7e4b723af130fef916c7e09cc0270cac3e0a33efee72, wholetests e08c8fa5acd65029ff42e0cc645b8b16d9ffbeef8a7a3812835f55970d19f39e. Den tuple er IKKE release-admitteret af den eksisterende genericV1; hverken denne WIPbase, tidligere delchecks eller en senere lifecycle-narrowgate må skjule/omgå den samlede main-scopegrænse. Ingen classifier/profile/CIændring her. Sammensat provider/fysisk/releaseaccept arves ikke; kandidatIKKE TESTKLAR, målACTIVE.
+
+
+Samme komposition — final sourcefreeze. Uafhængig sol_input_restore SOURCE/BINDING GO og rootleadGO er fulgt af præcis én eksisterende scopekontrol mod actualbfc605: PASSexit0/0.061s, singleunclassified_runtime/tools+test. Wholeactualbinding5d916ef6/2daa95f5/external0cd1158c er reviewet; main4a4domainNOT_RELEASE_ADMITTED og kandidatIKKE TESTKLAR bevares eksplicit. Source er først nu frosset til WIP-publicering; ingen118/38/46checks, provider/export/release er genkørt, og ingen samlet fysiskaccept arves.
+
+14/10 samlet inventory+recovery source pushet4102101a39decae37faa03c6b3ab93083268e5d6, parentbfc605/treea489a635. Actualtools5e905/test2a257 og fuld1743991-byte STATUS53c95e6a er fullactualGitblob-content+treeSHA/size-verificeret før expectedheadlease, frisk remotehead verificeret. De to færdige rettelser ligger nu på samme WIPbranch. Wholebinding basebfc og source-scopePASS gælder kun denne sourcekomposition; main4a releasegrænse/fysiskaccept er fortsat åbne. Ingen ny udgivelse/installation eller providerprøve. Mål ACTIVE.
+
+
+14/10 natural closing actual-admission GO. Uafhængig SOURCE/PIN-review9d66dbb1 verificerer2252pins e99b10c6 (alle2174gamle uændret+78new), frozencomposite og kun fixturetekst56d5, originalSara55e30/math92cad/manifested3f. Én offlineactualThinexport12f00 ændrer kun tools94 sourcepin, evalfixturetekstpin og manifest/closingfixturecontext; faktiskconfigf0fe/primary3b1a/backendaf00/tools74aa/Sol er uændrede. Én check-only PASSexit0/0.266s, finalreceipt0033056a. Gamle grønne kontroller/fixtures/export genkøres ikke. Leadroot giver faktiskGO til netop denne ene oprindelige naturlige afslutning, ingen retry/næstecase efterFAIL/UNKNOWN. Frisk RestoreOwner kræves førStop med egenliveTTY/freshnonce; max1/prepause90/actual180/provider120/restore60, rootkunwatchunderpause. Stående human-test/nøgle/recipient-godkendelse gælder uden nytspørgsmål. Ingen main-release/installation/physicalclaim; kandidatIKKE TESTKLAR/målACTIVE.
+
+### 14/10 — aktiv permanent toolingrettelse: præcis fælles schema/health scope
+
+Leadroot. Den faktisk sammensatte kilde har ingen sourcekonflikt og uafhængig whole-tree review uden findings, men eksisterende genericV1 understøtter ikke dens fire main4a-domæner. Den lille bfc-relative scope er kun source-WIP, og må ikke blive mainrelease-bevis. Read-only policyaudit viser at én eksplicit, afgrænset V2profil kan reviewes i den samme bulk-PR; ingen separat tooling-udgivelse behøves. Årsagshypotese er en manglende præcis udviklingsprofil for den sammenhængende HA-health→immutable schema→Live startup→modelværktøj/close-kæde, ikke en runtimefejl.
+
+Tillad separat usynkroniseret toolingdraft med kind live_schema_startup_mcp_health: præcis required/effective runtimeflade live_prompt.py/openai_live.py/thin.py/tools.py og fire-domænetupleha_tools/physical_output/realtime_semantics/rearm. Kun valgfri __init__.py releaseversionsmetadata må supplere, og kun hvis eksisterende fuld baseline-byte/versionkontrol beviser én versionslinje og intet andet. Ingen andre firmware/UI/runtimefiler, generisk firetuple, engineændring eller ændret classifierpattern. Eksisterende V2passive-UI og strictV3/V4admission skal bevares. Hele production- og regressionfingerprints, eksakt base/mergebase, policyfilhash og ikke-tom uafhængig reviewer/rationale bindes; aktuelle required prompt/startup/Thin/MCP-regressioner skal være faktiskændrede, ikke blot eksistere. Delete/symlink, missing/extra/hidden/stale/staged-reversal, ukendte kinds/fields og dublerede markers/JSONkeys skal afvises.
+
+Mindste ændring er kun scripts/candidate_scope.py plus meningsfulde policyregressioner, med eksisterende relevante legacyadmission/rejection-checks, formatter/lint og uafhængig adversarialreview førfreeze. Runtimekomposition og den godkendte natural-providerpacket forbliver immutable; policyfilen er ikke en provider-/lydændring. Ny actualmainscope køres præcisén gang på sidste reviewedpolicy+source+binding-diff, først efterpeerGO. Source-scopePASS er aldrig live-, fysisk- eller release-gatePASS. Ingen ekstra provider, HA-pause, fuld releasegate, CIændring eller nyproduktionsvej af denne toolingrettelse. Rollback kunpolicy/testdelta. KandidatIKKE TESTKLAR, helemåletACTIVE.
+
+
+### 14/10 — naturlig afslutning: faktisk funktion og uafhængig semantisk PASS
+
+Leadroot. Første math→“Tak, det var det” på composite c88/startup12f blev udført én gang. Hele inputtet er recognized=true og semantisk/fixture-konsistent: “Hvad er to plus to?” og “Tak, det var det”. Svaret var “Det er fire.”. AutomatiskD11.613s → completed/currentEND12.918s → accepteret currentreceipt12.920s (generation1/input8/backend1) → sammeDcontinuation13.143s/completed14.066s → currentsettlement14.067s → naturlig model-close/teardown/rearm15.002s FØRharnesscleanup15.002687s. Ingen manuel backendstart, forcedEND, runtimepromptændring eller lokal hensigtsregel.
+
+Uafhængig actualaudit a173e4df giver manual semantic/transcript policy PASS: “Modtaget.”11.654–11.817s var kort ikke-terminal modtagetkvittering efter faktiskD, uden tidlig handling/farvel/resultatpåstand. Rå rapport441cd1e UNKNOWN bevares uændret; ingen audible/physical/stability/domainaccept. Alle103 SDK/decoded outputchunks binder491520bytes med korrekt generation/order/hash;14 postacceptchunks er exactzero. Begge komplette fixtures er unikke i source, hele attempted-wire489598bytes er eksakt resamplerprefix fra source326400bytes. Otte SDKinput- ogfire SDKoutputevents har hver ét adapterfragment; ingen påvist filter/tab. Exact actualserverconfigf0fe/primary3b1a/backendaf00/tools74aa og61sourcepins passer. Én naturlig precleanupteardown/énrearm; ekstra shutdownteardown er cleanup. Ingen nye input/stale/cancel/runtimefaults, usage og cleanup komplette. Den tidligere literal-prefixusikkerhed er løst for DENNE prøve alene; gamle FAIL/UNKNOWN genbedømmes ikke.
+
+FreshRestoreOwner sol_input_restore verificeredeINFO63221Kører før egenTTY79568 og actualStoppet/freshnonce. Host clock førStop565590.257098791 → faktisk21Kører565645.619637208:55.362538417s. Start blev udført straks terminalexit3; restore≤180/provider≤120/reserve60 opfyldt. En forkert sandbox-clock blev opdaget og rettet FØRStop; der udledes ingen produktfejl eller falsk tidslinje af den. Privat0600 journal og PNGa786e459 bevaret. Key30=null, engangsformular635 lukket/config365skjult. Ingen ny versioninstalleret.
+
+Lossless source/provider-input/provider-output WAVs er kun afledte private lyttematerialer til den aftalte samlede senere serie; samples matcher originalPCM eksakt. Ingen gennemlytning/ASR/providerinference er foretaget af konverteringen. NativeVoicePE golden chain/10/10, faktisk hjem/vejr/musik/timerfunktion og latency/stabilitet er fortsat åbne. KandidatIKKE TESTKLAR, hele måletACTIVE. Direkte positiv evidens findes nu for både klar og oprindelig naturlig automatisk lukning på inventoryvejen; den samlede semantiske og fysiske matrix er stadig større end disse to cases.
+
+
+14/10 permanent præcis schema/startup/MCP-health scope: source d326d4cf/test c749a507 er uafhængigt reviewet i296709eb efter authentic ancestry tilmain4a.57 nye policygrænser og13 udvalgte eksisterende legacycases består; initial syntetiskfixturefejl er bevaret og55+13 er ikke genkørt efter den lille extra-test-guardrettelse. Formatter/lint PASS. De tidligere bfc-relative WIP-bindings/source-scopeposter ovenfor er kronologisk historik; følgende ene activeV2-record binder nu den aktuelle fulde main4a-kilde, hele regressiontræet og selve policyfilen. Dette er sourcekontrol, ingen provider/fysisk/releaseaccept.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "domains": [
+    "audio_input",
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328",
+  "reviewer": "timer_daily_use",
+  "rationale": "Independent full composition review: server-bound current key/model ceiling applies at actual next Native/Talk connect; preserves active leases, spent usage, telemetry authority, lower observed ceiling and diagnostic exclusion. Previously reviewed closing, MCP recovery and explicit tool failures retain their source ownership. No physical acceptance inherited."
+}
+-->
+
+14/10 faktisk finalsource-scope: én unchangedcandidate_scope --base4a PASSexit0/0.310s med exact reviewed coupling live_schema_startup_mcp_health; fire runtimeflader, alle234 tests og policyhash passer. Policy/testsource er først nu frosset. Ingen releasegate/provider/HA/export/CI eller fysisk gate er kørt af denne toolingrettelse; kandidatIKKE TESTKLAR, hele måletACTIVE. Gamle FAIL/UNKNOWN og bfc-WIPbeviser bevares uden retrograde.
+
+
+14/10 sourcepublicering: reviewed scopepolicy og regressioner, fuld STATUS og kort AGENTS-workflowpræcisering pushet8c57b095a9aaaadb3413d23c70e0beca832ef698/tree d3cfb14225c0f41b42471fc61504c25dbd1ecd27 på codex/pv-next-whole-intent-priority. Alle fire fulde Gitblobcontents+sha/size/mode verificeret før expectedheadlease, frisk head efter. Ingen release/installation/fysiskaccept; mål ACTIVE.
+
+
+### 14/10 — samme kandidat: nødvendige semantiske modprøver før samlet release
+
+Lead root. Direkte positiv natural-close evidence er registreret ovenfor; den beviser ikke, at almindeligt tak eller høflig opfølgning forbliver åbne. De eksisterende negative cases skal derfor bruge præcis den frosne composite-runtime, evaluator, originalPCM, actualThinstartup/schema/backend og uændrede orakler. Falsificerbar hypotese: automatisk model-ejerskab vælger ikke END/close på disse to ikke-afsluttende ture. Ingen runtime/prompt/VAD/timeout/firmwareændring eller lokal hensigtsregel tillades. Hele input→primary/backend→tool/result→playback→teardown/rearm-kæden og in-flight recording-cutoff skal fortsat bedømmes ærligt; FAIL/UNKNOWN stopper uden symptompatch eller retry.
+
+Tillad forberedelse af højst to allerede eksisterende cases i rækkefølgen polite-followup→pure-thanks, kun privat runner CASE_PLAN-delta. Eksisterende global batch90s, actual HA-pause≤180s, providerdeadline Stop+120s/reserve60s og stop ved første FAIL/UNKNOWN bevares. Startup/eval/fixtures/sourcechecks genbruges kun ved verificeret byteidentitet. Independent adversarial packet-admission og fresh restore-owner/egenTTY/freshnonce kræves før Stop; denne plan er ikke actualGO. Stående menneskelig godkendelse gælder. Rollback kun privat prøveplan; ingen release/installation/fysiskclaim. Kandidat IKKE TESTKLAR, mål ACTIVE.
+
+
+14/10 frisk installeret21 driftsbaseline via eksisterende Tal-UI, uden mikrofon: GetDateTime ok med14/10/2026 10:01:16CEST og tilsvarende svar; weather_forecast ok, actualsource HomeAssistant/Met.no10:02:26+02:00, partlycloudy10°C/vind23.8km/h og tilsvarende svar. Dette er faktiske viste ToolRouter-resultater fra installeret backend; ingen kandidat-primaryD/fysiskclaim og ingen ekstra logkorrelation endnu.
+
+Den entydigt navngivne PodVoice kontrol timer blev oprettet300s i HA med ownerhome_assistant_intent/id01M4WQ0WFQW9PZZYB832R9VEM7/stateactive/audiblefalse. Faktisk status kvitterer talkendpoint/contractpodvoice_native_timers_v1/sammeepoch/id263s. Faktisk cancelok/sameid/statecancelled er observeret; kun egen timer blev annulleret, og egen Tal-samtale705 blev lukket med UI Afslut. Timerexpiry/alarmlyd/puck/restart er ikke prøvet eller godkendt. VoicePE er fortsat offline på friskpanel705. Privat screenshot pv-installed-talk-domain-baseline-20261014.png bevarer cancelbevis.
+
+14/10 actual negative-controls admission GO: uafhængig SOURCE/PIN-review669d8fe9 verificerer2253actualpins/alle2252oldexact og alle57runtimefiles mod friskpublished8c57/tree d3cf. Sourcec88/startup12f/eval/fixtures/oracle er uændrede, kun privateCASE_PLAN polite-followup→pure-thanks. Én check-only PASSexit0/0.651s chunk96357f; ingenprovider. FreshRestoreOwner negative_owner egenINFO708 viser21Kører; egenconfig711 er maskeret, ingenkeyaccess/Stop endnu. Root giver faktiskGO til netop dette max2/stopfirstFAILUNKNOWN/noretry-boundedpacket efter afsluttet egenTalk/timercleanup. Eksisterende privatRAM-engangsoverførsel til samme OpenAIrecipient og fuld180/provider120/reserve60 gælder under den stående human-godkendelse. Owner skal få egenliveTTY/freshnonce og hostmonotonic førStop og starteHAstraks ved terminal/deadline; rootkunwatchunderpause. Ingen ændring af auth/securityhelper, runtime, schema, oracle eller providerbudget. KandidatIKKE TESTKLAR, målACTIVE.
+
+
+14/10 faktisk operatorafvisning førprovider: owner negative_owner sendte forkert controlphase og udelod stopped_confirmed til liveTTY1356. Readerens præcise fieldset afviste før output.mkdir/run_batch; terminalexit3, outputdirectoryabsent, provider0cases. Ingen rå caseFAIL/UNKNOWN, ingen produkt-/lydhypotese eller runtimepatch. Owner startede HA straks og beviste21Kører; hostpreStop588966.203611958→observedrestore589010.393708625, konservativ44.190096667s. Privatreceiptbb8f762b/PNG2bc03b3d, nøgleRAM ryddet/formlukket/feltmaskeret. Ingen retry udført i det vindue.
+
+Lead isolerer årsagen én gang til operatørens manuelt forkert serialiserede protokol. Den eksisterende sikkerhedskontrol virkede korrekt. En evt. frisk operatorstart skal alene anvende den observerede eksisterende firefeltskontrakt: phase=ha_stopped, freshstart_nonce fra sammeTTY, aktuelt hostpause_started_monotonic og stopped_confirmed=true efter faktiskStoppet. Ingen software-, oracle-, sourcepin-, deadline- eller authændring; eksisterende review/check-only kan kun genbruges ved byteidentitet. Uafhængig boundaryaudit kræves før nyactualGO; providerprøver er fortsat0/2, samletmålACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 frisk korrigeret operatorvindue actualGO: uafhængig468df58a boundaryreview har direkte verificeret zero-provider afvisning og actualrestored21Kører. Det gamle vindue er afsluttet; root godkender ét nyt separat boundedvindue under ståendehumanalltests-godkendelse, stadigmax2/polite→pure/firstFAILUNKNOWN/noretry. Sammepins92c6/runner5ac7/sourcec88/startup12f/review669/check-only0.651 genbruges uændret; ingen nye gates/export eller produktændringer. Ownernegative_owner skal læse actualreaderens nøjagtige firefeltskontrakt og bruge fresh egenTTY/nonce/hostclock førStop, phaseha_stopped+stopped_confirmedtrue først efter faktiskStoppet. Actual180/provider120/reserve60 og immediateStartterminal/deadline bevares; rootkunwatch. Providercases0førnytlaunch, ingen råcaseFAILUNKNOWN omgås. Ingen yderligere operatorgentagelse autoriseres af denne post. MålACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 afsluttede negative providerprøver: sameTTY41533exit0, exactly2råOBSERVED_PASS/recognizedtrue, begge clean/usage/audio/windowcomplete. Uafhængigactualaudit5f5ea9c6: fuldtmath→Takogopfølgning giverFire/Seks ogopen8.021s; fuldtmath→Tak giverkunFireførTak, ingenpostTaktranscript, alle83postfixturedecodedchunksEXACTZERO, open8.001s. BeggeD/END/currentsettlement0 ogingenprecleanupteardown/close. Actualstartupguard/serverconfig/primary3b1a/backendaf00/tools74aa/sourcec88 matcher, allePCM/chunkhashes/wireprefixer/fuldefixturesverificeret;147/147 og135/135SDKdecodedførboundary, kun3/2ekstraSDKundercleanup ogingeninflightgap. Ingenfindings; yderligerebetaltclosingreplay er ikke begrundet.
+
+Freshowner immediateStart efterterminal, faktisk21Kører. Host589382.227842083→589468.754587541: konservativ86.526745458s inden180, provider120/reserve60bevares. Privatreceipt56e71ac0/PNG5d8eee5f, keynull/feltmaskeret/carrierlukket, ingenextra/retry. Installeret21Talktime/weather/timerbaseline ovenfor er separat; ingen kandidatdomæne-/fysisk-/latency-/stabilitetsclaim. MålACTIVE.
+
+### 14/10 — aktiv samlet releaseforberedelse2.0.22
+
+Leadroot. Den samlede published8c57-kilde bevarer GPT-Live og den ene Thin/native/Talk-kæde. Direkte closingpositiver og de to nødvendige negative controls har nu independentsemantic evidence udenfindings. Hypotese for release er kun, at uændret reviewedruntime med ensartet versionsmetadata kan bygges og installeres som én samlet kandidat; fysiskVoicePEoffline tillader ingen golden/10cyklus-/produktaccept. Hele input→Live/Sol/tool→playback→teardown/rearm-ejerskab forbliver uændret. Berørte invarianter er exactshippedbits, énruntime/nativeadapter/modelsemantik og sand fysiskgate.
+
+Tillad mindste2.0.22draft: pyprojectproject.version, podvoice/config.yamlversion og præcisén __init__.__version__linje samt honestCHANGELOG/STATUS. Ingen firmware/UI/dependency/runtime/prompt/timeoutændring. Genberegnwholemainproductionbinding eftermetadata; faktiskuændrede regressions/policyhashes bevares. Uafhængig metadata/exactbindingreview+formatter/lint førfreeze, énfinalscope påsidstediff og derefter præcisén scripts/dev release modfriskactualmain4a. IngenextraFast/lifecycle/syntetiskreplay. ÉnPR/CI/ARM64/mainartifact-installation eftergrønnepåkrævedechecks, ingen småsideudgivelser. Version2.0.22registry-ledighed er ikke endnu bevist; CIgenbrugsværnbevares. Rollback tidligere installeret21 med eksplicitukendt fysiskstatus, ikke arvetgolden. KandidatfortsatIKKE TESTKLAR fremtilrelevantePRODUKTMÅLgates; fulde målACTIVE.
+
+
+14/102.0.22actualmetadata/bindingGO: independentb0c06923 verifiesactual8c57fullGitblobbaseline, threeversionfields21→22,642byteCHANGELOGprepend/historyunchanged, fullbaselineoneversionguardTRUE. Main4aprod a7bfba0a/regressiond899/policyd326 independently verified; no runtimeprompt/schema/audio/firmware/UIchange. Exactreviewed961aaa7eactiveV2 applied. RootadmitsONEfinalscope thenfreeze/ONEreleasegate; not physicalreleaseaccept.
+
+14/10 ny brugeroplysning: VoicePEsattilstrøm. Friskreload afactualHApanel705 viser21/statuslive, VoicePE “Vækning ikke bekræftet”/“Prøv dit vækkeord” og ikke længereOffline; ChatGPTstandby, HA/PodConnectverificeret. Tidligere eftergenstart stale-pane-status blev ikke brugt som fysiskofflinebevis. Ingen wake/golden/lyd/fysiskfunktion endnu bekræftet. MålACTIVE.
+
+
+14/102.0.22 finalscope PASSexit0/0.366s b627b9 med exactreviewedV2a7bf/d899/d326modmain4a. Alle4metadatafilhashes uændrede efterreview, staticsPASS og __initversionguardbevist. Runtime/regressions/policy er nu frosset til én samlet releasegate. Ingen fysiskaccept eller nyinstallation udledes.
+
+
+14/10 samlede releasegate stoppede førpytest: den vedvarende byteidentiske409fil-worktree har faktiskmain4a/HEAD8c57, formatter256filesPASS og main-scopePASS. Mypy fandt kun thin.py382: infereret Collection[str] på den heterogene WAIT_FOR_USER_DECLARATION, som senere anvender description.replace. Dette er direkte statictypingfejl, ingen fysisk-/providerfejl. Første temp-folderafvisning kørte ingenchecks; source blevbyteverificeret flyttet til vedvarende Developer/podvoice-release22, eksisterende devAGENTSændring blev bevaret.
+
+Lead tillader mindste eksisterende ejergrænserettelse: samme dict[str,Any]-annotation som naboens END_CONVERSATION_DECLARATION. Ingen literal/schema/prompt/værktøj/mic/playback/teardown/rearmændring; helederes kausalekæde bevares. Hypotese er korrekt declaredheterogeneousjsonobject fjerner mypyfejlen. Hele modulAST skal være ens når den ene annotation normaliseres tiloprindeligAssign; formatter/lint og kun faktiskfejlede mypykontrol køres førnytfreeze. Independentexactdiff/bindingreview kræves; nyproductionfingerprint, uændrede tests/policy. Ingen providerreplay udløses af den ikke-adfærdsmæssige typingannotation. Gammelbinding er nuhistorisk indtilupdatedreview; kandidatenIKKE TESTKLAR, målACTIVE.
+
+
+14/10 finaltyping-only SOURCE/BINDING GO7eed6021 binderpacket1e0a4b88/record94c2 ogwholeprod c04eb422/d899regressions/d326policy. Sole16byteannotation/normaliseretwholeAST/schema-værdieridentiske; eksisterendefuture/Anyimport, ingen runtime/scriptannotationintrospektion. Sourcepins er faktiskændret; gamlec88providerprøver får ikke ny literalidentity, men semantik er bevaret ogingenbetaltreplay/exportbegrundet. Mypy57PASS634b27, formatter/lint e9dc58/db0816PASS. Rootapplicerernewexactbinding ogadmittererONEinvalidatedscopecheck førnytfreeze ogresterende samlede releasechecks. Ingen fysiskaccept, målACTIVE.
+
+
+14/10 typedcandidate releasegate: scope/formatter/typechecks og begge integrationcohortsPASS (233.76s), unitbatches1–3PASS. Unitbatch4 stoppede ved test_baseline_exact_and_variant_aligns_all_startup_layers_without_mutating_runtime: scripts/live_semantic_completion_eval.py93 replace_once afviser startup_policy_source_changed. Dette er observeret forældet evalvariant-anchor i et ikke-shippet research/prøvescript; ingen runtime-/provider-/fysiskfejl ogingen ændringaf produktretning udledes. Entireunitstage356.37s medterminalexit2 før resterendebatches; grønnestages/genbrug kun på faktiskuændredebytes.
+
+Lead tillader isoleretmindste eval-fixture/source-anchor-kompatibilitetsrettelse mod faktiskaktuelstartup. Førkode skal exactmismatch identificeres, ogbaseline-instructions, implicitvariantens eksisterendehensigt, replace_once præcist-one failclosed og alleproducerende runtime/schema/Sol/native/Talk/promptbytes bevares. Eksisterende failingregression og relevanttestmodule er permanentrepro; ingen blanketrelaxation afguard, testforventningssænkning eller nysemantik. Independentadversarialsource review/statics førfreeze. Kun ugyldiggjort test/toolinggate må genkøres; eksisterende passingintegration/typechecks/cases genbruges nårhashesunchanged. Wholeprod c04 må ikke få nysemantiskclaim. KandidatIKKE TESTKLAR, målACTIVE.
+
+
+14/10 isoleret evalmodule eftertoexactanchor-tilpasninger: formatter/lintPASS, førstefejl er nu staleassertion base.instructions==rawprimary. Actualreviewedruntime tilføjer allerede boundedinventory med4lifecycletoolnames; dermed fejler den gamle observerforventning, mens råbaselineinstructionsfunktion fortsatmatcher rig. Ingenruntime-/providerfejl, ingen skjult ændringaf input/semantisklukning.
+
+Lead udvider kun observer-regressionen: behold instructions(baseline)==rawprimary/rawbackend og allevariant/schema/sideeffectforventninger. Erstat den ene gamle rawprimary-configassert med exactfuld baselineconfiguration lig den aktuelle production OpenAILiveSession._configuration medsammedeclarations/instructions/backendinputs. Det er en stærkere shipped-startuporacle, ikke kopieringafinventorystrings eller svækkelse. Ingen dummyadditionaltools/declarations, fixtureudskiftning, testskip, runtimeændring eller providerkald. Targetedmodule må genkøres kunfordinyt observerdiff ugyldiggør sidste red. Independentreview beggeeval-anchor+testobservationsdiff sammen. MålACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 independent eval/observer SOURCE/BINDING GO4733b2a8 bindsfrozenaca4packet/a30cadrecord: kun4implicitvariantliteraler ogén gammelassert erstattetmedfuldactualproductionconfig/sammeinputs; baseline/POLICY/backend/exact-oneguard/inflightendingexception/allsemanticschema/immutabilitychecks bevaret.73targetedmoduletestsPASS/staticsPASS; prod c04/policy d326 uændret, wholeTest758367cc independentlyverified. Rootappliernewbinding/finalscope; remainingoriginalunitbatches4–8 med samme pytestargs og240s-bounds skal kompletteres. Originalfailedreleasecommand er stadigexit2; kun composedcoverage kan samles, efterfulgt exactcommitCI/ARM64. Ingen source/providerreplays forpasses1–3/integration underverifiedunchangedbindings. MålACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 samletsource2.0.22 WIP-publicering: alle færdigereviewede rettelser, versionsmetadata, typingannotation ogsnæverikke-shippeteval/observerfix samles påsammebranch. Faktiskfinalscope758/c04/d326PASS1b573a/0.516s førfreeze. Den tidligerekommandoreleaseexit2 er bevaret; integrationscohorts ogunit1–3 kan kunretineres påverifiedunchangedbindings. Resterendeoriginalunit4–8 er nødvendigcoverage, sammepytestargs/env/240s-bounds, ingenblanketgrønerklæring. ExactcommitCI/ARM64/installation ogfysiskVoicePEgolden/10/10/domæner/latency/stabilitet er fortsatåbne. Ingen ekstra providerprøver, målACTIVE/kandidatIKKE TESTKLAR.
+
+
+14/10 COMPOSED LOCAL RELEASE GO — independentrelease_retention godkenderdenfaktiskesammensattecoverage: current125unitmodules er nøjagtigt48retained+77remaining udenmangler/dubletter; originalremaining4–8terminal53383exit0, fem100%-logs/hashreceiptverificeret. Retained48modules, integrations46modules, conftest, dependencies, runtime c04 oggate7370 er uændrede; kunnonshippinghelper/observeriunit4ændretogreviewet4733. SammeeksternePython3.12/tool_environment/_stage_environment og240s-bounds dokumenteret. Finalscope1b573PASS ogtreoriginalediff_checkformerPASS050c21, allesyvreviewedesourcehashes uændredeeftertests. Ingenlokalbrowsertrigger.
+
+Denførste standardreleasekommando er historiskexit2, ikke retroaktivgrøn. Godkendelsen er composedlocalchecks forsourcef58716579254ff8183cb93973f1b54a994551c98/treec7c70c1b214a45dc666849caebcd71f641e96a7b; all8fullactualGitblobcontents/sha/size/mode verificeretførlease, freshheadverified. Ingenyderligeretests/providerpåkrævetafretentionreviewet. RootfortsætterénPR/exactcommitCIinklbrowser/ARM64, derefteréngrønmainartifactinstallation. CI/build/installation/fysiskgolden10/10/domæner/latency/stabilitet stadigåbne; goalACTIVE.
+
+
+### 14/10 — structured HA tool errors and field search correction
+
+Lead root. Field evidence showed two MAX_TOKENS search failures wrapped as successful output, repeated backend work and subsequent local capacity refusal/forced close. The search agent's observed 150-token cap was changed to 1024 after independent review and official HA search guidance. The same previously failed query now returns nonempty output and response_type=action_done; factual accuracy and physical Voice PE behavior remain unverified.
+
+The smallest shared owner fix promotes only explicit boolean ok:false in MCP structured/JSON results, including one known HA success/result wrapper when the outer payload has no ok field. Original data and structuredContent/isError precedence remain. No error-prose classification, recursive unwrapping, schema change, quota/timeout increase, local semantic rule or new close path. Current Thin returns this normal tool failure to the model without throwing or requesting close; Voice PE and Talk share that path. HA's paired script preserves ConversationResult error status while retaining successful output-only shape.
+
+Independent adversarial review by fix_capacity_stop found ambiguous outer status and approved the corrected exact source. Original 104 module cases passed; the 20 affected cases pass after correction; unaffected checks retained. Formatting/lint/type checks pass. One refreshed existing scope binding passes against actual main4a; a stale local origin/main was refreshed through public HTTPS without checkout/reset. No new binding helper or policy expansion. Previously reviewed candidate runtime/tests remain unchanged except this fix and its regressions. Official exact-head CI, installation, physical golden chain/10 cycles and full functional/latency/stability gates remain open. Rollback is the previous source and script; no acceptance inherited. Goal ACTIVE.
+
+
+### 14/10 — confirmed backend capacity in the combined 2.0.22 candidate
+
+The latest installed conversation exhausted the conservative local 40,000-token fallback and closed after an admission deadline. The actual backend project ceiling has now been checked. The reviewed fix adds one advanced confirmed-capacity setting, bound by the server to the actual current key and backend model. Native and Talk apply it at their next actual connect, including the same retained native brain after a new wake. Changing keys/models invalidates the binding. Active leases, accumulated usage, lower observed limits, diagnostic exclusion and honest telemetry authority are preserved. No global quota increase, timeout increase, local semantic rule or alternative engine is introduced.
+
+Independent timer_daily_use source and full-composition review GO: exact nine-file quota patch f91365ed13c577e277cb6e0a5aad6ff850bc20bca70149355c0d22dc0fef9249, only these nine production/test files differ from actual public e130. Whole production 8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328, whole tests e44fadc7fc7131512d9a99cb1a059444c6d492c7bcd30eee938ef63b01e2c154, unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Existing generic V1 admits the naturally classified five-domain composition without policy changes. Formatter/lint/type checks and focused causal/key/model/lease/diagnostic/telemetry regressions passed; one final existing scope check and diff check passed. Unchanged prior checks are retained. Candidate source frozen for one exact-head official CI and one combined main artifact/install. Google Search settings and the structured-error script were corrected separately on HA; the failed query now returns action_done, without proving factual correctness or Voice PE audio. Physical golden chain, ten cycles, functional matrix, latency and stability remain open. Goal ACTIVE.
+
+
+14/10 exact-head721 CI: lint-test and ARM build pass; browser job failed at the settings-repair Gemt wait because synthetic API fixtures omitted the new required number default. The actual server returns openai_backend_tpm=0. Independent review approved only four fixture/control-regression files; production code, policy, HTML and waits are unchanged. Existing daily_ui, wake_words and settings_dirty workers now all pass with verified cleanup. The missing pinned Chromium was provisioned once in the declared durable cache; a first sandbox launch failure occurred before assertions and is not product evidence. No runtime patch or manual CI replay follows that environment error.
+
+Final independent fixture/binding GO: unchanged production 8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328, updated whole tests 5dcee2b988182bd65a743708636a14c486cd6fe4f6a738a839ad9f9918c72e05, unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Final existing scope and diff checks pass; frozen source proceeds to one new exact-head CI for these changed test bits. Earlier failed CI remains failed; physical Voice PE lifecycle/function/latency/stability acceptance remains open. Goal ACTIVE.
+
+
+### 14/10 — attention fixture startup boundary corrected, production unchanged
+
+Exact c38 CI passed browser and ARM-build checks but failed the deadline-Talk attention case at its next wake. The unchanged target passes locally. Delaying only synthetic second-client allocation reproduces the startup timeout/rejected-wake path; the observer's event-argument collision masked the real failure payload. This demonstrates fixture susceptibility, not the literal CI allocation duration. Prepare two inert fake SDK peers before timed wake, retain actual admitted factory selection and all original 0.2-second startup/2-second attention deadlines, accept the exact Talk Stop receipt before the next wake, and rename the observer parameter. Both native/Talk stalled-startup cases retain real rejection, cancellation, connection failure, client closure, released budget ownership, zero tool calls and joined cleanup. Production, firmware, policy and HTML bytes remain unchanged.
+
+Independent attention_ci_review source and whole-binding GO: integrated test SHA256 7a0234c18051b351369fc973968254fffa59ba8a043fd9a0090e65f52c5112b4, production 8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328, whole tests 0f250a771bf5d2e91b9c582a8400d4c2526ecda9b1eb6ba36f5ad89a421a18d8, unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Fourteen affected cases passed before the two new timeout witnesses were strengthened; those two strengthened cases then passed, retaining the twelve unchanged cases. Formatter/lint, final existing scope and diff checks passed. Only this test and this append change from c38; earlier failure remains failed, with no product patch or manual CI replay. One final exact-head CI precedes the combined 2.0.22 main artifact/install. Physical acceptance remains open; goal ACTIVE.
+
+User parks exploration of GPT-Live-native web search as issue #151. Retain the existing corrected HA search route now; do not change or explore the backend in this delivery.

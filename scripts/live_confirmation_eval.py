@@ -487,12 +487,18 @@ class ObservedLive(OpenAILiveSession):
             return "<invalid>"
 
         nested = event.get("event")
+        delegation_metadata = {}
+        if event.get("type") == "session.delegation.created":
+            offset_ms = event.get("offset_ms")
+            if type(offset_ms) is int and 0 <= offset_ms <= 86_400_000:
+                delegation_metadata["delegation_offset_ms"] = offset_ms
         self.evidence.emit(
             "sdk_event",
             source="sdk_pre_handler",
             generation=generation,
             protocol_type=event_type(event.get("type")) or "<invalid>",
             nested_type=event_type(nested.get("type")) if isinstance(nested, dict) else None,
+            **delegation_metadata,
         )
         await super()._handle(event, generation)
 
@@ -532,7 +538,23 @@ class ObservedLive(OpenAILiveSession):
     async def events(self):
         async for event in super().events():
             if isinstance(event, LiveAudioChunk):
-                self.evidence.write(f"provider-output-{event.generation}.pcm", event.pcm)
+                received_monotonic_s = time.monotonic()
+                name = f"provider-output-{event.generation}.pcm"
+                byte_start = self.evidence.sizes.get(name, 0)
+                self.evidence.write(name, event.pcm)
+                self.evidence.emit(
+                    "decoded_output_chunk",
+                    generation=event.generation,
+                    received_monotonic_s=received_monotonic_s,
+                    received_elapsed_s=received_monotonic_s - self.evidence.started,
+                    file=name,
+                    byte_start=byte_start,
+                    byte_end=self.evidence.sizes[name],
+                    byte_length=len(event.pcm),
+                    sha256=digest(event.pcm),
+                    pcm_all_zero=not any(event.pcm),
+                    physical_playback_proven=False,
+                )
             else:
                 self.evidence.emit(type(event).__name__, **dataclasses.asdict(event))
             yield event

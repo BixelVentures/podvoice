@@ -663,3 +663,94 @@ def test_key_global_owner_serializes_eval_children_across_models():
     second = admit_eval(ledger, model="model-b", tokens=10_000, production_headroom=0)
     assert ledger.release(second) is True
     assert ledger.release(owner) is True
+
+
+def test_local_ceiling_is_key_and_model_scoped_and_never_provider_authority():
+    ledger = coordinator()
+    assert ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    assert ledger.snapshot("household", "gpt-6-sol")["limit"] == 1_000_000
+    assert ledger.snapshot("household", "gpt-6-sol")["authoritative"] is False
+    assert ledger.snapshot("other-key", "gpt-6-sol")["limit"] == 40_000
+    assert ledger.snapshot("household", "gpt-live-1")["limit"] == 40_000
+
+
+def test_local_ceiling_preserves_spent_usage_and_cannot_change_active_owners():
+    ledger = coordinator()
+    lease = ledger.production_started("household", "gpt-6-sol")
+    ledger.account_usage("household", "gpt-6-sol", 12_365, lease=lease)
+    before = ledger.snapshot("household", "gpt-6-sol")
+    assert ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000) is False
+    assert ledger.snapshot("household", "gpt-6-sol") == before
+    assert ledger.release(lease)
+    assert ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    assert ledger.snapshot("household", "gpt-6-sol")["remaining"] == 987_635
+    assert ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    assert ledger.snapshot("household", "gpt-6-sol")["remaining"] == 987_635
+    assert ledger.configure_local_limit("household", "gpt-6-sol", 0)
+    assert ledger.snapshot("household", "gpt-6-sol")["remaining"] == 27_635
+
+
+@pytest.mark.parametrize("edge", ["reserve", "retry"])
+def test_configured_ceiling_survives_both_exclusive_eval_epoch_edges(edge):
+    ledger = coordinator()
+    ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    owner = ledger.diagnostic_started("household")
+    assert not ledger.configure_local_limit("household", "gpt-6-sol", 2_000_000)
+    kwargs = dict(tokens=15_000, production_headroom=0, diagnostic_lease=owner)
+    if edge == "retry":
+        assert ledger.eval_retry_after("household", "gpt-6-sol", **kwargs) == 0
+    trial = ledger.reserve_eval("household", "gpt-6-sol", **kwargs)
+    snapshot = ledger.snapshot("household", "gpt-6-sol")
+    assert snapshot["limit"] == 1_000_000
+    assert snapshot["authoritative"] is False
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("household", "other-model")
+    assert ledger.release(trial)
+    assert ledger.release(owner)
+
+
+@pytest.mark.parametrize("invalid", [True, -1, 1.5, "1000000", 10**400])
+def test_local_ceiling_rejects_invalid_values(invalid):
+    with pytest.raises(ValueError):
+        coordinator().configure_local_limit("household", "gpt-6-sol", invalid)
+
+
+def test_local_ceiling_cannot_raise_a_lower_provider_snapshot():
+    ledger = coordinator()
+    ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    assert ledger.update_rate_limits(
+        "household",
+        "gpt-6-sol",
+        [{"name": "tokens", "limit": 80_000, "remaining": 20_000, "reset_seconds": 45}],
+    )
+    before = ledger.snapshot("household", "gpt-6-sol")
+    assert ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    assert ledger.snapshot("household", "gpt-6-sol") == before
+    assert before["limit"] == 80_000 and before["authoritative"] is True
+
+
+def test_configured_and_other_key_production_owners_share_no_capacity():
+    ledger = coordinator()
+    ledger.configure_local_limit("household", "gpt-6-sol", 1_000_000)
+    configured = ledger.production_started("household", "gpt-6-sol")
+    unrelated = ledger.production_started("other", "gpt-6-sol")
+    ledger.account_usage("household", "gpt-6-sol", 50_000, lease=configured)
+    assert ledger.snapshot("other", "gpt-6-sol")["remaining"] == 40_000
+    with pytest.raises(ProviderBudgetUnavailable, match="another production"):
+        ledger.production_started("household", "gpt-6-sol")
+    assert ledger.release(configured)
+    assert ledger.release(unrelated)
+
+
+@pytest.mark.parametrize("observed", [False, True])
+def test_explicit_local_ceiling_caps_larger_provider_telemetry(observed):
+    ledger = coordinator()
+    ledger.configure_local_limit("household", "gpt-6-sol", 80_000)
+    method = ledger.update_rate_limits_observed if observed else ledger.update_rate_limits
+    method(
+        "household",
+        "gpt-6-sol",
+        [{"name": "tokens", "limit": 1_000_000, "remaining": 900_000, "reset_seconds": 60}],
+    )
+    snapshot = ledger.snapshot("household", "gpt-6-sol")
+    assert snapshot["limit"] == 80_000 and snapshot["remaining"] == 80_000

@@ -81,6 +81,70 @@ def test_evidence_private_exclusive_and_bounded(tmp_path):
     evidence.close()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sample", [b"\0\0", b"\x01\0", b"\x10\0"])
+async def test_decoded_output_receipts_bind_exact_saved_bytes_and_forward_unchanged(
+    tmp_path, monkeypatch, sample
+):
+    from gatekeeper.openai_live import LiveSessionReady
+
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    ready = LiveSessionReady("synthetic", 1)
+    chunks = [
+        module.LiveAudioChunk(sample * 2, 1),
+        module.LiveAudioChunk(b"\x03\x00\x04\x00\x05\x00", 1),
+        module.LiveAudioChunk(b"\x06\x00", 2),
+        module.LiveAudioChunk(b"\x07\x00\x08\x00", 1),
+    ]
+    original = [ready, *chunks]
+
+    async def production(self):
+        assert self is live
+        for event in original:
+            yield event
+
+    monkeypatch.setattr(module.OpenAILiveSession, "events", production)
+    try:
+        forwarded = [event async for event in live.events()]
+        assert all(actual is expected for actual, expected in zip(forwarded, original, strict=True))
+        rows = [row for row in evidence.rows if row["kind"] == "decoded_output_chunk"]
+        assert len(rows) == len(chunks)
+        assert [(row["generation"], row["byte_start"], row["byte_end"]) for row in rows] == [
+            (1, 0, 4),
+            (1, 4, 10),
+            (2, 0, 2),
+            (1, 10, 14),
+        ]
+        for row, event in zip(rows, chunks, strict=True):
+            saved = (evidence.directory / row["file"]).read_bytes()
+            recorded_chunk = saved[row["byte_start"] : row["byte_end"]]
+            assert recorded_chunk == event.pcm
+            assert row["byte_length"] == len(recorded_chunk)
+            assert row["sha256"] == module.digest(recorded_chunk)
+            assert type(row["pcm_all_zero"]) is bool
+            assert row["pcm_all_zero"] is (not any(recorded_chunk))
+            assert row["received_monotonic_s"] >= evidence.started
+            assert row["received_elapsed_s"] == row["received_monotonic_s"] - evidence.started
+            assert row["received_elapsed_s"] <= row["elapsed_s"]
+            assert row["physical_playback_proven"] is False
+        assert (evidence.directory / "provider-output-1.pcm").read_bytes() == b"".join(
+            event.pcm for event in chunks if event.generation == 1
+        )
+        assert (evidence.directory / "provider-output-2.pcm").read_bytes() == chunks[2].pcm
+        assert [row for row in evidence.rows if row["kind"] == "LiveSessionReady"] == [
+            {
+                "seq": 1,
+                "elapsed_s": evidence.rows[1]["elapsed_s"],
+                "kind": "LiveSessionReady",
+                "session_id": "synthetic",
+                "generation": 1,
+            }
+        ]
+    finally:
+        evidence.close()
+
+
 def good_rows(fresh="negative"):
     rows = [
         {
@@ -986,6 +1050,87 @@ async def test_third_connect_rejected_before_sdk_factory(tmp_path):
         assert sdk.session.start.await_count == 2
     finally:
         await live.close()
+        evidence.close()
+
+
+@pytest.mark.asyncio
+async def test_sdk_delegation_offset_is_numeric_metadata_and_keeps_original_dispatch(
+    tmp_path, monkeypatch
+):
+    from openai.types.live.delegation_created_event import DelegationCreatedEvent
+
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    event = DelegationCreatedEvent(
+        type="session.delegation.created",
+        event_id="event-observer-only",
+        offset_ms=8500,
+        delegation={"id": "delegation-observer-only", "target": "responses", "type": "delegation"},
+    ).model_dump(mode="json")
+    private = "PRIVATE-CONTENT-DO-NOT-LOG"
+    forwarded = []
+
+    async def production(self, received, generation):
+        assert self is live and generation == 7
+        forwarded.append(received)
+
+    monkeypatch.setattr(module.OpenAILiveSession, "_handle", production)
+    try:
+        await live._handle(event, 7)
+        assert evidence.rows[-1]["delegation_offset_ms"] == 8500
+        assert forwarded[-1] is event
+        for offset in (
+            0,
+            86_400_000,
+            -1,
+            86_400_001,
+            True,
+            False,
+            8500.0,
+            "8500",
+            None,
+            {},
+            private,
+        ):
+            event = {
+                "type": "session.delegation.created",
+                "offset_ms": offset,
+                "delegation": {"offset_ms": 42, "content": private},
+                "api_key": private,
+                "input": private,
+            }
+            await live._handle(event, 7)
+            row = evidence.rows[-1]
+            valid = type(offset) is int and 0 <= offset <= 86_400_000
+            assert ("delegation_offset_ms" in row) is valid
+            if valid:
+                assert row["delegation_offset_ms"] == offset
+            assert forwarded[-1] is event
+        event = {
+            "type": "response.event",
+            "event": {"type": "session.delegation.created", "offset_ms": 42},
+        }
+        await live._handle(event, 7)
+        assert "delegation_offset_ms" not in evidence.rows[-1]
+        assert forwarded[-1] is event
+        rows = [row for row in evidence.rows if row["kind"] == "sdk_event"]
+        assert len(rows) == len(forwarded)
+        assert all(
+            set(row)
+            <= {
+                "seq",
+                "elapsed_s",
+                "kind",
+                "generation",
+                "protocol_type",
+                "nested_type",
+                "source",
+                "delegation_offset_ms",
+            }
+            for row in rows
+        )
+        assert private not in (evidence.directory / "timeline.jsonl").read_text()
+    finally:
         evidence.close()
 
 

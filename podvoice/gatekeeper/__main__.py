@@ -37,7 +37,7 @@ from .podconnect import AttentionClient
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
-from .settings import _resolve, load_settings, masked, save_settings
+from .settings import _resolve, load_settings, local_backend_limit, masked, save_settings
 from .speech import Speech
 from .tools import ToolRouter
 from .usage import UsageMeter
@@ -180,6 +180,9 @@ def _make_live_brain(
         room_context=room_context,
         input_rate=input_rate,
         tool_declarations=declarations,
+        local_token_limit=lambda api_key, model: local_backend_limit(
+            load_settings(cfg.settings_path), api_key, model
+        ),
     )
 
 
@@ -421,7 +424,7 @@ async def run(cfg: Config) -> None:
     tools.configure_device_control(load_settings(settings_path))
 
     def save_runtime_settings(values: dict) -> dict:
-        saved = save_settings(values, settings_path)
+        saved = save_settings(values, settings_path, provider_api_key=cfg.openai_api_key)
         tools.configure_device_control(saved)
         return saved
 
@@ -636,6 +639,9 @@ async def run(cfg: Config) -> None:
         models_provider=None,
         settings_get=lambda: {
             **masked(load_settings(settings_path)),  # tokens/PSK never leave the box in cleartext
+            "openai_backend_tpm": local_backend_limit(
+                load_settings(settings_path), cfg.openai_api_key, "gpt-6-sol"
+            ),
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
             "live_sessions": {
                 room: bool(session.live_alpha) if session._active else None

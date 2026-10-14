@@ -347,6 +347,7 @@ async def test_public_stop_reads_joined_begin_identity_and_never_releases_unowne
         "deadline",
         "permanent_pending",
         "stale_after_next_wake",
+        "startup_deadline",
     ],
 )
 async def test_original_release_settles_inline_before_rearm(adapter, boundary, monkeypatch):
@@ -424,11 +425,16 @@ async def test_original_release_settles_inline_before_rearm(adapter, boundary, m
         session, _, _, _, _ = build()
     session.hub = StatusHub()
 
-    def factory(**kwargs):
-        sdk = CycleWireSDK(webrtc=adapter == "talk")
+    # AsyncMock/SDK peer construction is fixture setup, not provider startup.
+    # Keep both actual startup and attention deadlines unchanged.
+    peers = [CycleWireSDK(webrtc=adapter == "talk") for _ in range(2)]
+    for sdk in peers:
         sdk.allow_exit.set()
         sdk.socket.release.set()
         sdk.manager_release.set()
+
+    def factory(**kwargs):
+        sdk = peers[len(sdks)]
         sdks.append(sdk)
         if wire is not None:
             wire.sdk = sdk
@@ -438,9 +444,9 @@ async def test_original_release_settles_inline_before_rearm(adapter, boundary, m
     retain_aclose_observers(session, observers, monkeypatch)
     original_trace = session._trace_event
 
-    def trace(kind, **data):
-        events.append((kind, data))
-        return original_trace(kind, **data)
+    def trace(event_name, **data):
+        events.append((event_name, data))
+        return original_trace(event_name, **data)
 
     monkeypatch.setattr(session, "_trace_event", trace)
     original_stop = session.stop
@@ -525,6 +531,36 @@ async def test_original_release_settles_inline_before_rearm(adapter, boundary, m
                 wire.send("stop", command_id="joined-stop")
                 await until(lambda: wire.result("joined-stop") is not None)
                 assert wire.result("joined-stop")["status"] == "accepted"
+            if wire is not None and boundary != "cancel_stop":
+                await until(lambda: wire.result("first-stop") is not None)
+                assert wire.result("first-stop")["status"] == "accepted"
+            if boundary == "startup_deadline":
+                failed = peers[1]
+                if wire is None:
+                    failed.block_type = "session.start"
+                    await session.wake()
+                    assert failed.blocked.is_set()
+                else:
+                    create_entered, create_cancelled = asyncio.Event(), asyncio.Event()
+
+                    async def held_create(**kwargs):
+                        create_entered.set()
+                        try:
+                            await asyncio.Event().wait()
+                        except asyncio.CancelledError:
+                            create_cancelled.set()
+                            raise
+
+                    failed.client.live.create.side_effect = held_create
+                    wire.send("wake", command_id="second-wake")
+                    await until(lambda: wire.result("second-wake") is not None)
+                    assert wire.result("second-wake")["status"] == "rejected"
+                    assert create_entered.is_set() and create_cancelled.is_set()
+                assert ("failure", {"kind": "connection"}) in events
+                assert session.live_brain._lease is None
+                failed.client.close.assert_awaited_once()
+                assert session.tools.calls == []
+                return
             await wake("second-wake")
             assert hb.lease["session"] != first_lease["session"]
             assert hb.lease["expected"]["revision"] == "2"

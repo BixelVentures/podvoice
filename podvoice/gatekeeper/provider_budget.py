@@ -16,6 +16,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+MAX_LOCAL_TOKEN_LIMIT = 2**53 - 1  # JSON integer precision, not a provider quota.
+
 
 class ProviderBudgetUnavailable(RuntimeError):
     """An eval reservation would compete with production or exceed headroom."""
@@ -33,6 +35,7 @@ class BudgetLease:
 @dataclass
 class _Bucket:
     limit: int
+    local_limit: int | None
     remaining: float
     reset_at: float
     refill_at: float
@@ -112,6 +115,7 @@ class ProviderBudgetCoordinator:
                 self._bucket_key_ids.pop(stale, None)
             bucket = _Bucket(
                 limit=self._default_limit,
+                local_limit=None,
                 remaining=float(self._default_limit),
                 reset_at=now + self._window_s,
                 refill_at=now,
@@ -121,6 +125,41 @@ class ProviderBudgetCoordinator:
             self._bucket_key_ids[bucket_id] = self._key_id(api_key)
         self._roll_window(bucket, now)
         return bucket_id, bucket
+
+    def configure_local_limit(self, api_key: str, model: str, tokens: int) -> bool:
+        """Bind a configured ceiling without claiming provider remaining telemetry.
+
+        Zero restores the conservative fallback. Changing a ceiling preserves spent
+        tokens and cannot alter a live production/eval owner or diagnostic epoch.
+        """
+        if type(tokens) is not int or not 0 <= tokens <= MAX_LOCAL_TOKEN_LIMIT:
+            raise ValueError("invalid local provider ceiling")
+        now = self._monotonic()
+        with self._lock:
+            _, bucket = self._bucket(api_key, model, now)
+            target = tokens or self._default_limit
+            if target == (bucket.local_limit or self._default_limit) and (tokens > 0) == (
+                bucket.local_limit is not None
+            ):
+                return True
+            if (
+                bucket.production
+                or bucket.eval_reservations
+                or self._key_id(api_key) in self._diagnostics
+            ):
+                return False
+            spent = max(0.0, bucket.limit - bucket.remaining)
+            bucket.local_limit = tokens or None
+            if bucket.authoritative:
+                bucket.limit = min(bucket.limit, target)
+                bucket.remaining = min(bucket.remaining, float(bucket.limit))
+            else:
+                bucket.limit = target
+                bucket.remaining = max(0.0, target - spent)
+            bucket.refill_per_s = bucket.limit / self._window_s
+            bucket.refill_at = now
+            self._roll_window(bucket, now)
+            return True
 
     def diagnostic_started(self, api_key: str) -> BudgetLease:
         """Acquire one process-wide, model-independent maintenance owner."""
@@ -252,11 +291,11 @@ class ProviderBudgetCoordinator:
                 )
             assert owner is not None
             if bucket_id not in owner.initialized_buckets:
-                bucket.limit = self._default_limit
-                bucket.remaining = self._default_limit
+                bucket.limit = bucket.local_limit or self._default_limit
+                bucket.remaining = bucket.limit
                 bucket.reset_at = now + self._window_s
                 bucket.refill_at = now
-                bucket.refill_per_s = self._default_limit / self._window_s
+                bucket.refill_per_s = bucket.limit / self._window_s
                 bucket.authoritative = False
                 owner.initialized_buckets.add(bucket_id)
             if bucket.production:
@@ -305,11 +344,11 @@ class ProviderBudgetCoordinator:
             ):
                 return None
             if bucket_id not in owner.initialized_buckets:
-                bucket.limit = self._default_limit
-                bucket.remaining = self._default_limit
+                bucket.limit = bucket.local_limit or self._default_limit
+                bucket.remaining = bucket.limit
                 bucket.reset_at = now + self._window_s
                 bucket.refill_at = now
-                bucket.refill_per_s = self._default_limit / self._window_s
+                bucket.refill_per_s = bucket.limit / self._window_s
                 bucket.authoritative = False
                 owner.initialized_buckets.add(bucket_id)
             if bucket.production or bucket.eval_reservations:
@@ -770,6 +809,8 @@ class ProviderBudgetCoordinator:
         with self._lock:
             _bucket_id, bucket = self._bucket(api_key, model, now)
             effective_limit = min(bucket.limit, limit) if downward_only else limit
+            if bucket.local_limit is not None:
+                effective_limit = min(effective_limit, bucket.local_limit)
             bucket.limit = effective_limit
             observed_remaining = float(min(effective_limit, remaining))
             bucket.remaining = (
@@ -826,6 +867,8 @@ class ProviderBudgetCoordinator:
             before_remaining = bucket.remaining
             before_authoritative = bucket.authoritative
             effective_limit = min(bucket.limit, limit) if downward_only else limit
+            if bucket.local_limit is not None:
+                effective_limit = min(effective_limit, bucket.local_limit)
             bucket.limit = effective_limit
             observed_remaining = float(min(effective_limit, remaining))
             bucket.remaining = (

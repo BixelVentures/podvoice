@@ -19,7 +19,7 @@ import logging
 import math
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
@@ -220,8 +220,9 @@ _TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
 def _mcp_result_to_contract(result: dict) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
     ``{ok, summary?, data?}`` on success, ``{ok: False, error_kind, error}`` on
-    ``isError``. Text content that parses as JSON rides in ``data``; plain text is
-    the spoken ``summary``."""
+    ``isError`` or an explicit structured ``ok: False``. HA script responses may
+    wrap that contract in ``{success: True, result: ...}``. JSON text rides in
+    ``data``; plain text is the spoken ``summary``."""
     texts = [
         c.get("text", "")
         for c in (result.get("content") or [])
@@ -245,6 +246,27 @@ def _mcp_result_to_contract(result: dict) -> dict:
             out["summary"] = text
         else:
             out.setdefault("data", parsed)
+    payload = out.get("data")
+    if isinstance(payload, dict):
+        if (
+            "ok" not in payload
+            and payload.get("success") is True
+            and isinstance(payload.get("result"), dict)
+        ):
+            payload = payload["result"]
+        if payload.get("ok") is False:
+            out.update(
+                ok=False,
+                error_kind="tool_error",
+                error=next(
+                    (
+                        value
+                        for value in (payload.get("message"), payload.get("error"))
+                        if isinstance(value, str) and value.strip()
+                    ),
+                    "the tool reported an error",
+                ),
+            )
     if "summary" not in out and "data" not in out:
         out["empty"] = True
     return out
@@ -476,14 +498,18 @@ class ToolRouter:
                 schema_sha256=effective_schema_hash,
                 last_error=None,
                 retry_state="ready",
-                retry_attempt=0,
-                retry_delay_s=None,
-                next_retry_at=None,
+                retry_attempt=self._discovery.retry_attempt,
+                retry_delay_s=self._discovery.retry_delay_s,
+                next_retry_at=self._discovery.next_retry_at,
             )
-            if self._services_retry is None:
+            # A valid schema is not successful live health. Retain the existing
+            # schedule even if the following health request is cancelled.
+            if self._discovery.retry_attempt == 0 and self._services_retry is None:
                 self._recovery_wakeup.clear()
             if self._hub is not None:
-                self._hub.set_service("mcp", "up" if tools else "degraded")
+                self._hub.set_service(
+                    "mcp", "up" if tools and self._discovery.retry_attempt == 0 else "degraded"
+                )
             log.info(
                 "MCP assist tools: %d admitted (%s); pending=%s conflicts=%s",
                 len(tools),
@@ -644,7 +670,7 @@ class ToolRouter:
     def next_probe_delay(self) -> float:
         snap = self._discovery
         delay = _TOOLS_TTL_S
-        if snap.retry_state == "retrying" and snap.next_retry_at is not None:
+        if snap.next_retry_at is not None:
             delay = max(0.0, snap.next_retry_at - time.time())
         if self._services_retry is not None:
             delay = min(delay, max(0.0, self._services_retry[2] - time.time()))
@@ -732,11 +758,22 @@ class ToolRouter:
             and self._discovery.retry_state == "ready"
             and "GetLiveContext" in self._discovery.mcp_names
         ):
+            health_owner = (self._mcp, self._mcp_epoch, self._discovery.generation)
             try:
                 r = await self.dispatch("GetLiveContext", {})
                 ok = bool(r.get("ok")) and bool(r.get("data") or r.get("summary"))
             except Exception as e:
                 log.warning("MCP probe failed: %s", e)
+            if health_owner != (self._mcp, self._mcp_epoch, self._discovery.generation) or (
+                self._client is not None and self._client.is_closed
+            ):
+                return False  # Old health cannot publish or retire a newer recovery owner.
+            if ok:
+                self._discovery = replace(
+                    self._discovery, retry_attempt=0, retry_delay_s=None, next_retry_at=None
+                )
+                if self._services_retry is None:
+                    self._recovery_wakeup.clear()
         if ok != self.healthy:
             log.warning("home-control probe: %s", "RECOVERED" if ok else "FAILED (no live context)")
         self.healthy = ok

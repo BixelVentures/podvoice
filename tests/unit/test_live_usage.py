@@ -63,6 +63,7 @@ def test_backend_exact_units_cache_write_rates_and_response_dedup(tmp_path):
         ({"input_tokens": 20, "output_tokens": 10, "total_tokens": 30}, "gpt-5.6-luna"),
         (backend(service_tier="priority"), "gpt-5.6-luna"),
         (backend(), "another-model"),
+        (backend(), "gpt-6-sol"),
         (backend(input_tokens=300000, total_tokens=300100), "gpt-5.6-luna"),
     ],
 )

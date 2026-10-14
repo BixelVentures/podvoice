@@ -436,6 +436,11 @@
         <h2>GPT-Live</h2>
         <p class="sub">Voice PE og Talk bruger GPT-Live. Forbindelse og enhedsstatus vises på forsiden.</p>
         <p id="s_live_sessions" class="sub" role="status"></p>
+        <div class="setgrid">
+          <label for="s_openai_backend_tpm">OpenAI-kapacitet (tokens/min.)</label>
+          <input id="s_openai_backend_tpm" type="number" min="0" step="1" aria-describedby="s_openai_backend_tpm_hint">
+        </div>
+        <p id="s_openai_backend_tpm_hint" class="sub">Indtast projektets bekræftede grænse for gpt-6-sol fra OpenAI. 0 betyder ikke bekræftet. Gælder fra næste samtale.</p>
       </section>
 
         <div class="exsub" style="margin-top:14px">Assistent</div>
@@ -1958,12 +1963,12 @@ setInterval(function () {
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["openai_voice", "voicepe_noise_psk",
+  var FIELDS = ["openai_backend_tpm", "openai_voice", "voicepe_noise_psk",
     "wake_word", "idle_timeout_s", "max_session_min", "mic_channel", "mic_gain",
     "duck_level", "system_prompt", "panel_lan_open",
     "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token",
     "extended_device_control", "device_control_entities"];
-  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1 };
+  var NUM = { openai_backend_tpm: 1, duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1 };
   var settingsDirty = false;
   var settingsRevision = 0;
   var settingsSaveBusy = false;

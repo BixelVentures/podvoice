@@ -19,7 +19,7 @@ function bounded(work,label,ms=FIXTURE_WAIT_MS) {
   return Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+' timed out')),ms);})])
     .finally(()=>clearTimeout(timer));
 }
-const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_level:20,
+const initial=()=>({openai_backend_tpm:0,engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_level:20,
  max_session_min:15,mic_gain:16,turn_preset:'responsive',openai_turn:'semantic_vad',openai_threshold:0.5,openai_prefix_ms:300,openai_silence_ms:500,
  system_prompt:'Brugerens gemte prompt',system_prompt_default:'Fixture standardprompt',
  rooms:[{voicepe_host:'fixture-speaker.local',room:'fixture-room'}],live_alpha:true,
@@ -81,14 +81,14 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
     assert.equal(await summary.innerText(),'Avanceret');
     await bounded(own(summary.click({timeout:FIXTURE_WAIT_MS})),'actual Avanceret summary click');
     assert.equal(await advanced.evaluate(e=>e.open),true);
-    const controls=['s_addroom','s_idle_timeout_s','s_live_sessions',
+    const controls=['s_openai_backend_tpm','s_addroom','s_idle_timeout_s','s_live_sessions',
       's_resetprompt','s_save','s_saverestart','s_status','s_system_prompt'];
     const envelopes=await page.evaluate(ids=>ids.map(id=>{
       const nodes=document.querySelectorAll('#'+id),e=nodes[0];
       return {id,count:nodes.length,pane:e?.closest('.pane')?.id,
         disclosure:e?.closest('details')?.querySelector(':scope > summary')?.textContent.trim()||null};
     }),controls);
-    const advancedIds=new Set(['s_live_sessions','s_resetprompt','s_system_prompt']);
+    const advancedIds=new Set(['s_openai_backend_tpm','s_live_sessions','s_resetprompt','s_system_prompt']);
     assert.deepEqual(envelopes,controls.map(id=>({id,count:1,pane:'pane-settings',
       disclosure:advancedIds.has(id)?'Avanceret':null})),'all nine fixture controls retain actual pane/disclosure owners');
     // Empty status/readback nodes need not have a box while the GET is held.
@@ -103,7 +103,7 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
    for(const id of ['s_live_alpha','s_engine','s_openai_model','s_force_mini','s_turn_preset','s_openai_turn','s_openai_threshold','s_openai_noise'])assert.equal(await page.locator('#'+id).count(),0,'retired setting absent '+id);
    assert.match(await page.locator('#s_live_sessions').textContent(),/fixture-room: ukendt motor/);
    // Empty active numeric drafts cannot silently omit a setting and report success.
-   for(const id of ['idle_timeout_s','duck_level','max_session_min','mic_gain']) {
+   for(const id of ['openai_backend_tpm','idle_timeout_s','duck_level','max_session_min','mic_gain']) {
     const field=page.locator('#s_'+id),beforeEmptyPosts=posts.length;
     const beforeEmptyCalls=await page.evaluate(()=>window.fixtureSettingsPosts);
     await field.fill('');
@@ -147,17 +147,21 @@ const initial=()=>({engine:'thin',wake_word:'okay_nabu',idle_timeout_s:4,duck_le
    let release;holdPost=new Promise(resolve=>{release=resolve;holdReleases.push(resolve);});
    const entered=new Promise(resolve=>notifyPost=resolve);
    await page.locator('#s_idle_timeout_s').fill('5');
+   await page.locator('#s_openai_backend_tpm').fill('1000000');
    await page.locator('#s_save').click();await bounded(entered,'held POST entered');
    assert.equal(await page.locator('#s_save').isDisabled(),true);assert.equal(await page.locator('#s_saverestart').isDisabled(),true);
    const sends=await page.evaluate(()=>window.fixtureSettingsPosts);
    await page.evaluate(()=>{document.querySelector('#s_save').onclick();document.querySelector('#s_saverestart').onclick();});
    assert.equal(await page.evaluate(()=>window.fixtureSettingsPosts),sends,'duplicate save entries issue zero requests');
    await page.locator('#s_idle_timeout_s').fill('6');
+   await page.locator('#s_openai_backend_tpm').fill('2000000');
    release();holdPost=null;notifyPost=null;
    await page.waitForFunction(()=>document.querySelector('#s_status').textContent.includes('nyere ændringer er ikke gemt'));
    assert.equal(posts.at(-1).idle_timeout_s,5);assert.equal(saved.idle_timeout_s,5);
+   assert.equal(posts.at(-1).openai_backend_tpm,1000000);assert.equal(saved.openai_backend_tpm,1000000);
+   assert.equal(await page.locator('#s_openai_backend_tpm').inputValue(),'2000000');
    assert.equal(await page.locator('#s_idle_timeout_s').inputValue(),'6');assert.equal(await dirty(),true);
-   await save();assert.equal(saved.idle_timeout_s,6);assert.equal(await dirty(),false);
+   await save();assert.equal(saved.idle_timeout_s,6);assert.equal(saved.openai_backend_tpm,2000000);assert.equal(await dirty(),false);
    assert.equal(await page.locator('#s_save').isDisabled(),false);assert.equal(await page.locator('#s_saverestart').isDisabled(),false);
    mode='restart-reject';await page.locator('#s_saverestart').click();
    await page.waitForFunction(()=>document.querySelector('#s_status').textContent.includes('genstarten fejlede'));

@@ -8,6 +8,9 @@ Fixed sequential batch: baseline positive, implicit positive, implicit follow-up
 --idle-check instead runs only the isolated native quiet and TV protocol probes.
 30s admission + <=210s children leaves ~60s in a five-minute operator pause for
 stop/restart. This helper cannot guarantee HA recovery; the operator owns it.
+The bounded operator may explicitly request 90s preparation while HA still runs.
+It must obtain a fresh stopped gate afterward; preparation does not extend its
+separate provider, pause or restoration deadlines. The standalone default is 30s.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ TRIALS = (
 )
 IDLE_TRIALS = ((None, "quiet"), (None, "tv"))
 ADMISSION_S = 30
+PRE_PAUSE_ADMISSION_S = 90
 BATCH_S = 210
 CHILD_TIMEOUT_S = 70
 REJECTION_CODES = frozenset(
@@ -102,8 +106,11 @@ class AdmissionExpired(BaseException):
     pass
 
 
-def receive_key():
-    deadline = time.monotonic() + ADMISSION_S
+def receive_key(*, pre_pause: bool = False):
+    if type(pre_pause) is not bool:
+        raise ValueError("invalid_pre_pause_admission")
+    admission_s = PRE_PAUSE_ADMISSION_S if pre_pause else ADMISSION_S
+    deadline = time.monotonic() + admission_s
     endpoint = "/" + secrets.token_urlsafe(32)
     accepted = []
 
@@ -190,10 +197,10 @@ def receive_key():
         raise AdmissionExpired()
 
     previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, ADMISSION_S)
+    signal.setitimer(signal.ITIMER_REAL, admission_s)
     try:
         print(
-            json.dumps({"form_url": f"http://{authority}{endpoint}", "expires_s": ADMISSION_S}),
+            json.dumps({"form_url": f"http://{authority}{endpoint}", "expires_s": admission_s}),
             flush=True,
         )
         requests = 0

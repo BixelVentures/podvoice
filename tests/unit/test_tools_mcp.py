@@ -273,6 +273,87 @@ def test_contract_folding_shapes():
     assert _mcp_result_to_contract({"content": []}) == {"ok": True, "empty": True}
 
 
+@pytest.mark.parametrize("structured", [False, True])
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_contract_folds_explicit_script_failure(structured, wrapped):
+    failure = {
+        "output": "Search did not complete",
+        "ok": False,
+        "error": "failed_to_handle",
+        "message": "Search did not complete",
+    }
+    data = {"success": True, "result": failure} if wrapped else failure
+    result = (
+        {"structuredContent": data}
+        if structured
+        else {"content": [{"type": "text", "text": json.dumps(data)}]}
+    )
+    assert _mcp_result_to_contract(result) == {
+        "ok": False,
+        "error_kind": "tool_error",
+        "error": "Search did not complete",
+        "data": data,
+    }
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"output": "Sorry, I had a problem: FinishReason.MAX_TOKENS"},
+        {"ok": 0, "error": "not an explicit boolean"},
+        {"ok": "false", "error": "not an explicit boolean"},
+        {"ok": True, "result": {"ok": False}},
+        {"ok": True, "success": True, "result": {"ok": False}},
+        {"ok": 0, "success": True, "result": {"ok": False}},
+        {"ok": "false", "success": True, "result": {"ok": False}},
+        {"success": "true", "result": {"ok": False}},
+        {"success": True, "result": {"result": {"ok": False}}},
+        {"success": True, "result": []},
+    ],
+)
+def test_contract_does_not_classify_prose_or_arbitrary_nested_data(payload):
+    assert _mcp_result_to_contract({"structuredContent": payload}) == {
+        "ok": True,
+        "data": payload,
+    }
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected"),
+    [
+        ({"ok": False, "message": "", "error": "failed_to_handle"}, "failed_to_handle"),
+        ({"ok": False, "message": {}, "error": []}, "the tool reported an error"),
+        ({"ok": False, "success": True, "result": {"ok": True}}, "the tool reported an error"),
+    ],
+)
+def test_contract_failure_message_fallback_and_direct_failure_priority(failure, expected):
+    result = _mcp_result_to_contract({"structuredContent": failure})
+    assert result["ok"] is False and result["error"] == expected
+    assert result["data"] == failure
+
+
+def test_contract_structured_success_wins_over_conflicting_json_failure():
+    data = {"output": "actual successful answer"}
+    result = _mcp_result_to_contract(
+        {
+            "structuredContent": data,
+            "content": [{"type": "text", "text": '{"ok": false, "error": "ignored"}'}],
+        }
+    )
+    assert result == {"ok": True, "data": data}
+
+
+def test_contract_mcp_error_wins_over_conflicting_structured_success():
+    result = _mcp_result_to_contract(
+        {
+            "isError": True,
+            "structuredContent": {"ok": True},
+            "content": [{"type": "text", "text": "transport tool error"}],
+        }
+    )
+    assert result == {"ok": False, "error_kind": "tool_error", "error": "transport tool error"}
+
+
 def test_sse_framed_response_parses():
     text = 'event: message\ndata: {"jsonrpc":"2.0","id":7,"result":{"x":1}}\n\n'
     assert _sse_payload(text, 7)["result"] == {"x": 1}
