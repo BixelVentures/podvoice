@@ -1608,3 +1608,23 @@ def test_explicit_fast_node_avoids_full_suite_and_browser_but_keeps_static_check
     )
     assert checked == [True]
     assert "focused/partial" in capsys.readouterr().out
+
+
+def test_ci_workflow_change_keeps_full_build_but_cannot_republish_existing_version():
+    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    build, publish = workflow.split("  build-addon:\n", maxsplit=1)[1].split(
+        "  publish-addon:\n", maxsplit=1
+    )
+    # The actual normal-push release filter is package-only. Workflow changes still
+    # exercise the ARM build, but do not enter its immutable release-version gate.
+    assert "addon:\n              - 'podvoice/**'\n" in publish
+    assert "- '.github/workflows/ci.yml'" not in publish
+    assert "- '.github/workflows/ci.yml'" in build
+    assert "needs: [scope, lint-test, ui-browser]" in publish
+    manual_or_package = (
+        "if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'"
+    )
+    assert publish.count(manual_or_package) == 8
+    assert "github.ref == 'refs/heads/main'" in publish
+    assert "Refuse an existing release version" in publish
+    assert "Release version already exists and is immutable." in publish
