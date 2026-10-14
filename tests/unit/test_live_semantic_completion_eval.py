@@ -388,20 +388,20 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
     monkeypatch.setattr(module, "OBSERVATION_S", 0.7)
     admission_held = asyncio.Event()
     if mode == "positive":
-        finalize = module.rig.ThinSession._finalize_live_conversation
+        finish = module.rig.ThinSession._finish_live_conversation
         admission_release = asyncio.Event()
 
-        async def hold_semantic_admission(session, epoch, **kwargs):
-            if kwargs.get("receipt") is not None:
-                # Hold only this harness oracle's observation boundary. Native
-                # runtime now finalizes immediately after a current END receipt;
-                # cleanup must cancel this explicit hold, never invent an end.
+        async def hold_semantic_admission(session, epoch, receipt, **kwargs):
+            if receipt is not None:
+                # Hold this oracle's settled-receipt observation before native
+                # quiet admission. This capture supplies no native observations;
+                # cleanup must cancel the explicit hold, never invent an end.
                 admission_held.set()
                 await admission_release.wait()
-            await finalize(session, epoch, **kwargs)
+            await finish(session, epoch, receipt, **kwargs)
 
         monkeypatch.setattr(
-            module.rig.ThinSession, "_finalize_live_conversation", hold_semantic_admission
+            module.rig.ThinSession, "_finish_live_conversation", hold_semantic_admission
         )
     trial = asyncio.create_task(
         module.evaluate(
@@ -662,3 +662,370 @@ def test_mapped_pcm_absence_is_required_without_a_speech_classifier(case, mutati
     assert report["verdict"] == ("OBSERVED_PASS" if mutation == "zero" else "UNKNOWN")
     assert report["semantic_review_required"] and report["audio_audit_required"]
     assert report["physical_close"] == "UNKNOWN"
+
+
+@pytest.mark.asyncio
+async def test_timer_probe_uses_shipped_schema_and_result_validator_without_home_effect(tmp_path):
+    from gatekeeper.execution_policy import ExecutionContext
+    from gatekeeper.ha_timers import HomeAssistantTimers
+
+    evidence = module.rig.Evidence(tmp_path / "timer-stub", observation_s=45, starts=1)
+    tools = module.TimerProbeTools(evidence)
+    context = ExecutionContext("probe-history", "live:1:response", "live")
+    try:
+        assert tools.declarations() == HomeAssistantTimers.declarations(
+            tools._probe_timers, tools.endpoint
+        )
+        assert len(tools.declarations()) == 3
+        kwargs = dict(
+            execution_context=context, timer_endpoint=tools.endpoint, completed_call_id="c10"
+        )
+        denied = await tools.dispatch(
+            "podvoice_start_timer", {"seconds": 10}, execution_guard=lambda: False, **kwargs
+        )
+        assert denied["ok"] is False and tools.calls == 0
+        wrong = await tools.dispatch(
+            "podvoice_start_timer", {"seconds": 11}, execution_guard=lambda: True, **kwargs
+        )
+        assert wrong["ok"] is False and tools.calls == 0
+        result = await tools.dispatch(
+            "podvoice_start_timer", {"seconds": 10}, execution_guard=lambda: True, **kwargs
+        )
+        assert result == dict(
+            ok=True,
+            owner="home_assistant_intent",
+            epoch="0" * 32,
+            id="synthetic-timer-10",
+            state="active",
+            seconds=10,
+            name="",
+            audible=False,
+        )
+        assert tools.calls == 1
+        assert evidence.rows[-1]["result"] == result
+        assert evidence.rows[-1]["real_home_mutation"] is False
+        assert evidence.rows[-1]["call_id"] == "c10"
+    finally:
+        await tools.aclose()
+        evidence.close()
+    assert tools.client.is_closed
+
+
+def timer_probe_rows():
+    rows = good_rows("timer-10s")[:-1]
+
+    def emit(kind, **fields):
+        r = dict(kind=kind, seq=len(rows), elapsed_s=len(rows), **fields)
+        rows.append(r)
+        return r
+
+    emit(
+        "LiveBackendStarted",
+        generation=1,
+        response_id="timer-response",
+        delegation_id="timer-d",
+        created_index=1,
+        input_index=2,
+    )
+    emit(
+        "LiveBackendComplete",
+        generation=1,
+        response_id="timer-response",
+        delegation_id="timer-d",
+        status="completed",
+        tool_call_count=1,
+    )
+    call = dict(id="timer-call", name="podvoice_start_timer", args={"seconds": 10})
+    emit(
+        "LiveToolBatch",
+        generation=1,
+        response_id="timer-response",
+        delegation_id="timer-d",
+        calls=[call],
+    )
+    result = dict(
+        ok=True,
+        owner="home_assistant_intent",
+        epoch="0" * 32,
+        id="synthetic-timer-10",
+        state="active",
+        seconds=10,
+        name="",
+        audible=False,
+    )
+    emit(
+        "timer_probe_result",
+        name=call["name"],
+        args=call["args"],
+        call_id=call["id"],
+        session_id="probe-history",
+        result=result,
+        real_home_mutation=False,
+    )
+    request = emit(
+        "tool_results_request",
+        generation=1,
+        response_id="timer-response",
+        provider_receipt=dict(generation=1, input_sequence=2, backend_sequence=1),
+        results=[dict(id=call["id"], name=call["name"], response=result)],
+    )
+    emit(
+        "tool_results_return",
+        generation=1,
+        response_id="timer-response",
+        request_seq=request["seq"],
+    )
+    emit(
+        "LiveTranscript",
+        generation=1,
+        direction="out",
+        text="Timeren er sat til ti sekunder.",
+        start_ms=1600,
+        end_ms=1800,
+        input_index=2,
+    )
+    finish = next(r for r in reversed(rows) if r["kind"] == "fixture_finished")
+    r = emit("negative_window_observed", session_active=True)
+    r["elapsed_s"] = max(r["elapsed_s"], finish["elapsed_s"] + module.rig.NEGATIVE_OBSERVATION_S)
+    return rows
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        None,
+        "numeric_orthography",
+        "short_reference",
+        "receipt_only",
+        "early_speech",
+        "wrong_seconds",
+        "stale_input",
+        "wrong_backend",
+        "wrong_result",
+        "duplicate_start",
+        "incomplete",
+        "missing_return",
+        "premature_audio",
+    ],
+)
+def test_timer_probe_requires_current_completed_action_before_meaningful_answer(corruption):
+    rows = timer_probe_rows()
+
+    def row(kind):
+        return next(r for r in rows if r["kind"] == kind)
+
+    if corruption == "numeric_orthography":
+        inputs = [r for r in rows if r["kind"] == "LiveTranscript" and r["direction"] == "in"]
+        inputs[-1]["text"] = inputs[-1]["text"].replace("10", "ti")
+    elif corruption == "short_reference":
+        [r for r in rows if r["kind"] == "LiveTranscript" and r["direction"] == "out"][-1][
+            "text"
+        ] = "Den er sat til ti sekunder."
+    elif corruption == "receipt_only":
+        [r for r in rows if r["kind"] == "LiveTranscript" and r["direction"] == "out"][-1][
+            "text"
+        ] = "Modtaget."
+    elif corruption == "early_speech":
+        r = [r for r in rows if r["kind"] == "LiveTranscript" and r["direction"] == "out"][-1]
+        r["seq"] = row("tool_results_return")["seq"] - 0.5
+    elif corruption == "wrong_seconds":
+        row("LiveToolBatch")["calls"][0]["args"]["seconds"] = 11
+    elif corruption == "stale_input":
+        row("tool_results_request")["provider_receipt"]["input_sequence"] = 1
+    elif corruption == "wrong_backend":
+        row("LiveBackendComplete")["delegation_id"] = "other"
+    elif corruption == "wrong_result":
+        row("timer_probe_result")["result"]["ok"] = False
+    elif corruption == "duplicate_start":
+        rows.append(copy.deepcopy(row("LiveToolBatch")))
+    elif corruption == "incomplete":
+        row("LiveBackendComplete")["status"] = "incomplete"
+    elif corruption == "missing_return":
+        rows.remove(row("tool_results_return"))
+    elif corruption == "premature_audio":
+        chunks = [r for r in rows if r["kind"] == "decoded_output_chunk"]
+        chunks[-1]["pcm_all_zero"] = False
+    report = assess(rows, "timer-10s")
+    expected = (
+        "OBSERVED_PASS"
+        if corruption in (None, "numeric_orthography")
+        else "UNKNOWN"
+        if corruption == "short_reference"
+        else "FAIL"
+    )
+    assert report["verdict"] == expected
+    if corruption == "short_reference":
+        assert report["timer_action_chain_observed"]
+        assert report["semantic_review_required"]
+    assert report["physical_close"] == "UNKNOWN" and not report["physical_or_browser_proof"]
+
+
+@pytest.mark.asyncio
+async def test_timer_semantic_fixture_survives_real_thin_startup_without_alarm_owner(tmp_path):
+    from gatekeeper.execution_policy import ExecutionContext
+
+    evidence = module.rig.Evidence(tmp_path / "timer-owner", observation_s=45, starts=1)
+    tools = module.TimerProbeTools(evidence)
+    streams = module.rig.LiveAudioStreams()
+    capture = module.rig.SyntheticCapture(evidence, streams)
+    sdk = SDK()
+    primary, backend = module.instructions("baseline")
+    live = module.OneLive(
+        "not-a-key",
+        evidence,
+        variant="baseline",
+        client_factory=sdk.factory,
+        tool_declarations=[],
+        instructions=primary,
+        backend_instructions=backend,
+        provider_budget=module.rig.ProviderBudgetCoordinator(),
+    )
+    attention = module.rig.LocalAttention()
+    session = module.rig.ThinSession(
+        room=tools.endpoint,
+        attention=attention,
+        heartbeat=attention,
+        brain=module.rig.DisabledRealtime(),
+        live_brain=live,
+        live_enabled=lambda: True,
+        live_audio=streams,
+        live_reply_url="http://synthetic.invalid/{stream_id}.wav",
+        voicepe=capture,
+        playback=module.rig.Playback(sink=capture.play_pcm),
+        tools=tools,
+        hub=module.rig.StatusHub(),
+    )
+    try:
+        await session.start()
+        await session.wake()
+        assert session._active and live.provider_session_started
+        context = ExecutionContext(session._history_session, "live:1:timer-response", "live")
+        result = await tools.dispatch(
+            "podvoice_start_timer",
+            {"seconds": 10},
+            execution_context=context,
+            timer_endpoint=tools.endpoint,
+            completed_call_id="timer-call",
+            execution_guard=lambda: session._active and not session._closing,
+        )
+        assert result["ok"] is True, result
+        assert result["seconds"] == 10 and result["state"] == "active"
+        assert tools.calls == 1
+        assert session._timer_poll_task is None
+        assert session._timer_alarm_task is None
+        assert evidence.rows[-1]["real_home_mutation"] is False
+    finally:
+        await session.aclose()
+        await tools.aclose()
+        evidence.close()
+    assert sdk.released and tools.client.is_closed
+    assert session._timer_poll_task is None or session._timer_poll_task.done()
+
+
+@pytest.mark.asyncio
+async def test_backend_text_observer_keeps_literal_sdk_arrivals_without_authority(tmp_path):
+    evidence = module.rig.Evidence(tmp_path / "backend-text", observation_s=45, starts=1)
+    sdk = SDK()
+    live = module.OneLive(
+        "not-a-key", evidence, variant="baseline", tool_declarations=[], client_factory=sdk.factory
+    )
+    text_event = dict(
+        type="response.event",
+        event_id="event-synthetic",
+        delegation_id="delegation-synthetic",
+        secret_header="excluded",
+        event=dict(
+            type="response.output_text.delta",
+            response_id="response-synthetic",
+            item_id="item-synthetic",
+            sequence_number=4,
+            delta="Timeren er sat.",
+            raw_config="excluded",
+        ),
+    )
+    try:
+        await live.connect()
+        for event in (
+            text_event,
+            copy.deepcopy(text_event),  # Duplicate remains separate forensic evidence.
+            {**text_event, "event": {**text_event["event"], "sequence_number": 2, "delta": "Sen"}},
+            {
+                "type": "response.event",
+                "event": {"type": "response.output_text.done", "text": "Timeren er sat."},
+            },
+        ):
+            await sdk.incoming.put(event)
+        await until(
+            lambda: len([r for r in evidence.rows if r["kind"] == "backend_text_observed"]) == 4
+        )
+        observed = [r for r in evidence.rows if r["kind"] == "backend_text_observed"]
+        assert [r["sequence_number"] for r in observed] == [4, 4, 2, None]
+        assert [r["text"] for r in observed] == [
+            "Timeren er sat.",
+            "Timeren er sat.",
+            "Sen",
+            "Timeren er sat.",
+        ]
+        assert observed[0]["response_id"] == "response-synthetic"
+        assert observed[0]["delegation_id"] == "delegation-synthetic"
+        assert observed[0]["generation"] == live._connection_generation == 1
+        assert observed[-1]["response_id"] is observed[-1]["delegation_id"] is None
+        assert all(r["text_complete"] for r in observed)
+        assert not any("secret_header" in r or "raw_config" in r for r in observed)
+        assert not live._responses and not live._batches and live.backend_sequence == 0
+        assert sdk.session.close.await_count == sdk.response.create.await_count == 0
+        # The real observer entry point retains old-generation evidence without
+        # promoting it into a current response or changing superclass handling.
+        await live._handle(text_event, 0)
+        stale = [r for r in evidence.rows if r["kind"] == "backend_text_observed"][-1]
+        assert stale["generation"] == 0 and stale["text"] == "Timeren er sat."
+        assert not live._responses and live._connection_generation == 1
+    finally:
+        await live.close()
+        evidence.close()
+    assert sdk.released
+
+
+@pytest.mark.asyncio
+async def test_backend_text_observer_bounds_utf8_and_total_without_breaking_reader(tmp_path):
+    evidence = module.rig.Evidence(tmp_path / "bounded-backend-text", observation_s=45, starts=1)
+    sdk = SDK()
+    live = module.OneLive(
+        "not-a-key", evidence, variant="baseline", tool_declarations=[], client_factory=sdk.factory
+    )
+    event = dict(
+        type="response.event",
+        delegation_id="synthetic",
+        event=dict(type="response.output_text.done", text="😀" * 1100),
+    )
+    try:
+        await live.connect()
+        await sdk.incoming.put(event)
+        await until(lambda: any(r["kind"] == "backend_text_observed" for r in evidence.rows))
+        observed = [r for r in evidence.rows if r["kind"] == "backend_text_observed"][-1]
+        assert observed["text"] == "😀" * 1024 and not observed["text_complete"]
+        assert len(observed["text"].encode()) == 4096
+        for _ in range(15):
+            await sdk.incoming.put(event)
+        await sdk.incoming.put(
+            {**event, "event": {"type": "response.output_text.delta", "delta": "More"}}
+        )
+        await sdk.incoming.put(
+            {
+                **event,
+                "event": {"type": "response.output_text.done", "text": {"secret": "excluded"}},
+            }
+        )
+        await until(
+            lambda: len([r for r in evidence.rows if r["kind"] == "backend_text_observed"]) == 18
+        )
+        observed = [r for r in evidence.rows if r["kind"] == "backend_text_observed"]
+        assert sum(len((r["text"] or "").encode()) for r in observed) == 65536
+        assert observed[-2]["text"] == "" and not observed[-2]["text_complete"]
+        assert observed[-1]["text"] is None and not observed[-1]["text_complete"]
+        assert not live._responses and not live._batches and live.last_error is None
+        assert sdk.session.close.await_count == sdk.response.create.await_count == 0
+    finally:
+        await live.close()
+        evidence.close()
+    assert sdk.released

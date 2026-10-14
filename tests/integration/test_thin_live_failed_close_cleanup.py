@@ -746,9 +746,13 @@ async def test_new_owned_work_after_heartbeat_join_cannot_use_saved_attention_pe
         sdks[0].socket.release.set()
         sdks[0].manager_release.set()
         session._teardown_retry_wakeup.set()
-        await until(
-            lambda: not session._teardown_incomplete and session._teardown_retry_task is None
-        )
+        try:
+            await until(
+                lambda: not session._teardown_incomplete and session._teardown_retry_task is None
+            )
+        except TimeoutError as exc:
+            exc.add_note(f"Recovery trace tail: {_rows[-12:]!r}")
+            raise
         if adapter == "native":
             assert link.rearm_calls == 1
     finally:

@@ -27,7 +27,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 
 from .audio import StreamResampler
-from .data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output
+from .data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output, tool_result_limit
 from .execution_policy import PendingAction
 from .live_prompt import live_confirmation_capable_instructions, live_confirmation_instructions
 from .provider_budget import (
@@ -1467,7 +1467,7 @@ class OpenAILiveSession:
         tokens = (
             batch.usage["total_tokens"]
             + self.max_output_tokens
-            + self.result_byte_limit * len(batch.event.calls)
+            + sum(tool_result_limit(call.name) for call in batch.event.calls)
         )
         while True:
             if (
@@ -1677,8 +1677,15 @@ class OpenAILiveSession:
                 response_id=response_id,
                 delegation_id=batch.event.delegation_id,
             ):
-                outputs = [bounded_tool_output(result.get("response")) for result in results]
-                if any(len(output.encode("utf-8")) > self.result_byte_limit for output in outputs):
+                limits = [tool_result_limit(call.name) for call in batch.event.calls]
+                outputs = [
+                    bounded_tool_output(result.get("response"), max_bytes=limit)
+                    for result, limit in zip(results, limits, strict=True)
+                ]
+                if any(
+                    len(output.encode("utf-8")) > limit
+                    for output, limit in zip(outputs, limits, strict=True)
+                ):
                     raise LiveProtocolError("live_result_too_large")
             batch.submitting = True
             async with self._send_lock:

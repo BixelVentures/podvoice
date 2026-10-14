@@ -102,7 +102,7 @@ async def answer(session, sdk, cycle, turn, tools):
     )
 
 
-async def semantic_end(session, sdk, cycle, *, webrtc=False):
+async def semantic_end(session, sdk, cycle, *, webrtc=False, native_context=None):
     rid, cid = f"end-{cycle}", f"end-call-{cycle}"
     count = sum(e["type"] == "response.create" for e in sdk.wire)
     await emit(sdk, created(rid), call(cid, name="end_conversation", arguments="{}"), terminal(rid))
@@ -113,8 +113,38 @@ async def semantic_end(session, sdk, cycle, *, webrtc=False):
         e["event_id"] for e in reversed(sdk.wire) if e["type"] == "response.create"
     )
     if not webrtc:
-        await emit(sdk, continuation, terminal(f"end-continuation-{cycle}"))
-        await observed(session._live_provider_closed.is_set)
+        link, clock = native_context
+        # The native quiet owner uses the configured provider timeout, not this
+        # fixture's compressed 0.2-second startup/transport-fault budget. Restore
+        # that budget before physical drain, teardown and the next SDK startup.
+        provider_timeout = session.brain.timeout_s
+        session.brain.timeout_s = 15.0
+        try:
+            await emit(sdk, continuation, terminal(f"end-continuation-{cycle}"))
+            await observed(
+                lambda: (
+                    session._live_end_window.reset_reason == "backend_settled"
+                    and session._live_end_receipt.done()
+                )
+            )
+            assert not session._live_provider_closed.is_set()
+            assert not session._live_quiet_ready(semantic=True)
+            # Fresh current-owner native coverage begins only after backend
+            # settlement reset; older output or quiet cannot authorize closing.
+            quiet_base = clock[0]
+            for index in range(math.ceil(session.idle_timeout_s * 10) + 1):
+                native_sample(session, link, clock, quiet_base, index)
+            assert session._live_quiet_ready(semantic=True)
+            # Keep simulating the existing native reporting cadence while the
+            # unchanged close owner resumes; one stale row is not fresh quiet.
+            async with asyncio.timeout(WAIT_S):
+                while not session._live_provider_closed.is_set():
+                    await asyncio.sleep(0.1)
+                    if not session._live_provider_closed.is_set():
+                        index += 1
+                        native_sample(session, link, clock, quiet_base, index, historical=False)
+        finally:
+            session.brain.timeout_s = provider_timeout
         return
 
     # A real settled terminal receipt enters the shipped SIX-second Talk phase;
@@ -508,7 +538,13 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                             asyncio.gather(producer, return_exceptions=True), WAIT_S
                         )
                 else:
-                    await semantic_end(session, sdk, cycle, webrtc=not native)
+                    await semantic_end(
+                        session,
+                        sdk,
+                        cycle,
+                        webrtc=not native,
+                        native_context=(link, clock) if native else None,
+                    )
 
                 if native:
                     assert session._active and link.rearm_calls == cycle - 1

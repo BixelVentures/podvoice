@@ -411,3 +411,62 @@ async def test_complete_target_projection_reaches_actual_adapter_wire(adapter, o
         assert len(posts) == 1 and raw == original
     finally:
         await client.aclose()
+
+
+@pytest.mark.parametrize("catalog", [False, True])
+async def test_actual_realtime_catalog_result_preserves_reserved_bytes_and_exact_output(catalog):
+    from test_eval_commit_capacity import completed_batch
+    from test_production_capacity import Rig
+
+    from gatekeeper.data_result import tool_result_limit
+    from gatekeeper.openai_realtime import MAX_OUTPUT_TOKENS, TOOL_FOLLOWUP_PROTOCOL_MARGIN
+
+    name = "podconnect_get_targets" if catalog else "set_level"
+    r = Rig(used=0)
+    r.brain.tool_declarations = [
+        {
+            "name": name,
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+        }
+    ]
+    events = completed_batch()
+    events[0].update(name=name, arguments="{}")
+    submission = None
+    await r.start(events)
+    try:
+        assert r.brain._production_admission.tokens == (
+            6569 + tool_result_limit(name) + MAX_OUTPUT_TOKENS + TOOL_FOLLOWUP_PROTOCOL_MARGIN
+        )
+        await r.brain.admit_tool_batch("resp_capacity", 1)
+        result = {"ok": True, "data": {"metadata": "x" * 2400}}
+        submission = asyncio.create_task(
+            r.brain.send_tool_results(
+                [
+                    {
+                        "id": "capacity_call",
+                        "name": "podconnect_get_targets",
+                        "response": result,
+                    }
+                ]
+            )
+        )
+        output = await asyncio.wait_for(r.wire.outputs.get(), 1)
+        decoded = json.loads(output["output"])
+        if catalog:
+            assert decoded == result
+        else:
+            assert decoded["result_truncated"] is True
+            assert tool_result_size(decoded) <= MAX_TOOL_RESULT_BYTES
+        await r.wire.emit({"type": "conversation.item.added", "item": output})
+        await asyncio.wait_for(submission, 1)
+        assert not r.brain._tool_call_result_limits
+    finally:
+        if submission is not None:
+            submission.cancel()
+            await asyncio.gather(submission, return_exceptions=True)
+        await r.close()

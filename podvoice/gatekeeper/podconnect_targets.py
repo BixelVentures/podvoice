@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
+from .data_result import MAX_PLAYBACK_TARGET_RESULT_BYTES, tool_result_size
 
 TOOLS = {
     "podconnect_get_targets": "get_targets",
@@ -331,7 +331,7 @@ def _model_target_read(response: dict) -> dict:
         if row["kind"] == "configured_alias":
             row["binding"].pop("incarnation")
             row["binding"].pop("registry")
-    if tool_result_size(response) > MAX_TOOL_RESULT_BYTES:
+    if tool_result_size(response) > MAX_PLAYBACK_TARGET_RESULT_BYTES:
         return {
             "ok": False,
             "error_kind": "result_too_large",

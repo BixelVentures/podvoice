@@ -1,4 +1,17 @@
-# PodView integration candidate · 14 October 2026
+# Aktuel lead-status · 14/10 2026
+
+Lead: root. Målet er **fuldt funktionsdygtig Voice PE til daglig brug ASAP**. Det brede mål står på brugerens anmodning på PAUSE; den igangværende samlede 2.0.24-udgivelse færdiggøres efter brugerens efterfølgende udtrykkelige besked.
+
+- **Installeret:** PodVoice2.0.23 kører på HA Green; Speakers0.26.18. Seneste kontrollerede genstart efter den afgrænsede årsagsprøve er gennemført.
+- **Voice PE:** brugeren bekræfter, at pucken er slukket. Ingen ny fysisk afprøvning efterspørges nu.
+- **Samlet kandidat:** 2.0.24 i draft [PR155](https://github.com/BixelVentures/podvoice/pull/155); endnu ikke merged, udgivet eller installeret. Kandidaten er **IKKE TESTKLAR**.
+- **Under rettelse:** stille handlingsdelegation uden generiske kvitteringer, komplet højttalerkatalog til musikflytning og native afslutning/oprindelig musikgendannelse. Aktuel årsagsprøve viser, at backendcompletion kommer før det efterfølgende talesvar; default provider-close må ikke forveksle de to.
+- **Åbent bevis:** den nye prompt har endnu ikke bevist stabil delegation; én CI-recovery-timeout er uafklaret; den nye close-boundary er integreret efter uafhængigt kode-review og afventer samlede gates. Timerens faktiske alarm, musikflytning via Voice PE, afslutning/næste wake, latency og stabilitet mangler samlet accept på samme artifact.
+- **Arbejdsform:** uafhængig kode/review parallelt, én samlet udgivelse/installation efter relevante gates og én samlet fysisk serie, når enheden igen er tilgængelig.
+
+Detaljerede aktive årsagsbeslutninger og faktiske resultater står nederst i denne log. Ældre versions-/kandidatposter nedenfor er historik og giver ingen automatisk aktuel accept.
+
+## Historisk PodView integration candidate · 14 October 2026
 
 Lead: PodView bridge implementation agent. Isolated version 2.0.23 candidate against public main `dfcde085e241360d3cf472bdd224b3dee70d3d0a`; active dirty release22 and parallel field23 checkouts remain untouched. User authorized implementation, independent security review, normal PR/CI/merge/publication and installation. No installation or physical acceptance has occurred for this candidate.
 
@@ -18325,3 +18338,227 @@ User parks exploration of GPT-Live-native web search as issue #151. Retain the e
 Merged runtime35a and current main58c have identical entire add-on trees; main58c full CI passed but public registry version2.0.22 remained404 after the first publication was blocked. Move all seven incidental heavy fake SDK allocations outside timed startup in six test files. Keep actual factory admission/generation labels,0.2/2-second deadlines, ten cycles, stale/failed startup cases and cleanup unchanged. All21 affected sibling cases pass;20 unchanged Native/Talk cycles retained. Independent attention_ci_review whole-AST/source GO; no production or firmware changes.
 
 The existing main publisher now inspects the current configured version after all full checks. Missing manifest/exact image is published once; existing tags without packaging changes skip, packaging/manual collisions fail immutable, and authentication/helper/network errors fail closed. QEMU precedes Buildx; source SHA labels, build args, package permissions, concurrency and PR ARM-build stay unchanged. Thirteen focused actual-shell/original workflow cases and static checks pass; independent final publisher GO. No new helpers, dependencies, workflow or provider calls. The earlier runtime coupling record is preserved above as merged historical evidence; this repair has no production delta and requires no new runtime coupling. One combined repair PR/green main artifact/install; physical Voice PE acceptance remains open, goal ACTIVE. Native-web exploration remains parked in151.
+
+### 14/10 — combined field candidate 2.0.23
+
+Lead root; independent reviewer attention_ci_review. Observed field failures: generic receipt/progress speech, a clear ten-second timer request without any backend action, a complete ten-target catalog measuring 2108 UTF-8 bytes against the old 2048-byte limit, and successful provider cleanup consuming attention's shared deadline. The original native release outcome for the latter attempt is not recoverable through existing read surfaces and remains unknown.
+
+The affected chain is input → Live delegation → current backend/tool result → physical playback → silence/mic cutoff → provider and music cleanup → correlated rearm → next wake. Preserve one Thin/Live production owner, model-owned meaning, current tool authority, fresh target bindings, half-duplex physical truth and one rearm. No local phrase filter, target guessing, changed firmware, VAD/gain or longer deadline is introduced.
+
+Actual integrated changes: silent primary delegation and canonical no-preamble backend policy; complete catalog-only 4096-byte validation/serialization/reservation with generic and mutation limits unchanged; normal native cleanup may overlap provider finalization with heartbeat join and the original attention release only after verified physical/mic/context cutoff and terminal publication/domain owners. Immutable clean-close permission keeps technical errors, unknown reasons, shutdown, retries and Talk sequential. Both new cleanup owners finish before rearm; this does not claim all pre-existing serial domain owners are globally joined.
+
+Component and whole-composition SOURCE GO are bound to the current bytes. Retained targeted prompt/catalog checks, 14 inert timer-oracle checks and 34 native/Talk close/settlement/fault checks passed. Fixtures use actual adapter/protocol implementations with simulated peers; they prove no room audio or native AP2 restoration. The existing timer evaluator requires a current confirmed ten-second action and meaningful post-result answer; receipt-only/early/stale output fails, conservative unrecognized wording remains UNKNOWN for semantic review. It cannot create a real HA timer.
+
+Whole production fingerprint: 6bf5a785854958a514811bad1ed89b3f15eb91df11c6cbd19331a8dad10e18a2. Whole regression fingerprint: 5eb5c22f05cba79f15a5e8f235310b81748d12115314e07dea775295b51ab03f. Scope policy unchanged: d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Provider evaluator SHA256: 5f9551dd4da5a4b76aa91cc864a7c175eacaa7c3766b9f96e378b216a69672db.
+
+Next gated work is the existing bounded synthetic timer-creation and explicit-close checks on this exact source, one official CI/merge/publisher flow and one installation. Provider work, CI, publication and installation have not yet run for 2.0.23. Actual installed baseline remains PodVoice 2.0.22 with Speakers 0.26.18. Physical timer expiry, room transfer, closing speed, golden chain, ten uninterrupted cycles, latency and stability remain open; candidate is NOT TEST-READY and the full goal remains ACTIVE. Rollback affects only this combined diff and does not inherit later physical acceptance.
+
+<!-- superseded-unreleased-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "dfcde085e241360d3cf472bdd224b3dee70d3d0a",
+  "merge_base": "dfcde085e241360d3cf472bdd224b3dee70d3d0a",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "6bf5a785854958a514811bad1ed89b3f15eb91df11c6cbd19331a8dad10e18a2",
+  "reviewer": "attention_ci_review — independent whole-composition SOURCE GO",
+  "rationale": "One model-owned silent delegation and complete target-result chain, plus conditional native cleanup after proven physical I/O cutoff. Current source, tests and metadata independently checked; old unsafe/error/Talk/retry paths and all deadlines preserved. Source approval does not imply provider, artifact or physical acceptance."
+}
+-->
+
+14/10 final source freeze: existing exact-coupling scope and diff checks PASS; one focused dev fast check PASS, including lint/format of 15 changed Python files, type checks on all 57 source files and 15 release-contract cases. Exact production/test/policy bindings above are unchanged. Final two-case operator binding/pins independently reviewed and one invalidated-source check-only passed. No provider or HA pause has started; these checks do not prove physical function.
+
+
+14/10 — candidate continuation after provider observation and main integration. First admission attempt ran no provider call; PodVoice 2.0.22 was restored inside the 180-second pause limit. The second attempt ran one timer case and stopped at FAIL. Real Live delegation and podvoice_start_timer(seconds=10) were observed, but the inert timer adapter returned stale_schema; no home mutation occurred and explicit-close was not run. Pre-result output transcript [hum] is retained as unresolved audio evidence, not silently reclassified. Original report remains failed. HA was restored to running 2.0.22 within 103 seconds.
+
+The harness exposed its creation-only HomeAssistantTimers adapter as public .timers. Actual Thin startup admitted physical alarm polling, which removed the synthetic snapshot because the capture has no physical timer identity. The permanent constructor → actual Thin start/wake → guarded inert dispatch regression reproduces the same stale_schema. Lead admits only a private probe adapter and this startup regression, preserving production, real validators, current dispatch and verdict oracle. Independent adversarial review precedes integration and another bounded observation; no runtime patch is inferred from the harness fault.
+
+Public main a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc already published PodView as 2.0.23. Preserve that entire main tree and all prior field repairs; the combined field candidate is now 2.0.24. Only changelog metadata conflicted during rebase; both entries are preserved. Earlier dfc-bound freeze/source approval is historical and does not approve the new composition. Refresh exact-tree review/binding before the one CI/publication/install. Candidate remains NOT TEST-READY; physical timer alarm, music transfer, closing latency, next wake and stability are still open. Goal ACTIVE.
+
+
+14/10 fixture correction integrated after independent attention_contract SOURCE GO: private _probe_timers and actual Thin-start/wake regression only, exact patch 52c58816e12be9e0543e3844a0d52612e1b04351d531ac57be5d75645c622dc9. Retain two affected passing checks and formatter/lint; production and verdict oracle unchanged. Original paid FAIL and one second of nonzero pre-result provider PCM remain unresolved; provider PCM is not physical playback. No new paid call has run. Fresh HA info now shows PodVoice 2.0.23 running, with automatic updates enabled; earlier restoration to 2.0.22 was true at that time and is not current installation proof. Root has not installed field candidate 2.0.24.
+
+
+14/10 whole 2.0.24 independent SOURCE GO: all 499 baseline entries, exact 19 effective repair paths, modes, hidden/untracked inventory and reviewed component identities checked against public a6ac main. Production 13f9a2b01330e31f7334d9f1b96ff31e30bf37494a122cbe685bb93c575816e8; regression 8806fd19dfaca3bbec046d3ef9f446629e1bec3624cb099718fd9446f0179449; unchanged scope policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Current native/Talk/component/static checks retained only on identical reviewed bytes. PodView remains intact. Original provider FAIL and pre-result audio remain unresolved; source may be pushed as draft, but no provider, artifact, installation or physical approval is inferred.
+
+<!-- superseded-unreleased-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "13f9a2b01330e31f7334d9f1b96ff31e30bf37494a122cbe685bb93c575816e8",
+  "reviewer": "attention_ci_review \u2014 independent whole 2.0.24 composition SOURCE GO",
+  "rationale": "One model-owned silent delegation and complete target-result chain, plus conditional native cleanup after proven physical I/O cutoff. All 499 main entries and 19 repair paths independently checked; PodView pairing/routes/assets/owners preserved. Existing error/Talk/retry paths and deadlines preserved. Source approval is not provider or physical acceptance."
+}
+-->
+
+
+14/10 existing final scope check PASS on exact whole 2.0.24 reviewed composition, production domains physical_output/rearm; diff check PASS. New 24 operator independently approved exact pins eebd2f8036977772e0b4f4bd5e5b9d3e2a3449b63b5e3ded470af89401ffd47b, full 59 runtime files/current metadata, unchanged wire configuration and 180/120/60-second pause/provider/restoration bounds.
+
+One fresh paid timer case ran and stopped at FAIL; explicit-close did not run. The real guarded inert podvoice_start_timer(seconds=10) returned ok:true/active at 13.590 seconds, and a subsequent backend end_conversation was accepted at 15.910 seconds. The report remains FAIL (thin_session_ended), with pre-result output observed and timer_action_chain_observed:false. No real home timer was created. The fixture stale_schema is resolved; the complete timer response/ending/silence chain is not accepted. Lead admits read-only causal/semantic review of the actual request, output and model ending before any runtime or oracle change. Do not patch another symptom or convert the successful tool result into broad acceptance.
+
+PodVoice 2.0.23 was restored and observed running within 72 seconds of the bounded pause. Key was RAM-only, private carrier/config views closed, local operator terminal exit3; no second provider case or blind retry. Candidate 2.0.24 remains NOT TEST-READY. Source may be pushed as one draft for preservation and review; merge/release/install remain gated on unresolved provider and physical evidence. Goal ACTIVE.
+
+
+### 14/10 — active continuation: nonverbal backchannels and incomplete semantic observation
+
+Lead root. Independent read-only reviews by close_cause and attention_contract separate the confirmed fault from uncertainty. Automatic END after the confirmed standalone timer start matches the current product prompt; the oracle already permits a valid completed close. The observed pre-result primary output Mm plus nonzero PCM is a direct violation of quiet delegation. The existing speech rule excludes generic receipts/progress but does not explicitly name nonverbal backchannels. Hypothesis: an explicit output-style prohibition removes this backchannel category without suppressing direct answers, clarification, current results or model-owned ending.
+
+Chain reviewed: known synthetic input → actual Live delegation → completed backend timer call → real validator/current inert result → terminal backend END/result → primary output → provider close → local drain/rearm. The primary emitted before the timer result; the later action succeeded. The final backend text is absent from the observer, and the default no-judge semantic path sends provider session.close immediately after final backend completion. Already received output continues to be decoded/drained until session.closed; future synthesis may be cancelled upstream. Model-chosen silence versus upstream cancellation remains UNKNOWN. No native quiet window was consulted, so the proposed stale-thinking-PCM explanation is disproved. Do not patch native quiet, deadlines, firmware or mic-gates from this probe.
+
+Lead admits only an explicit nonverbal-backchannel instruction in the existing Live primary prompt plus its focused regression. Native/Talk use that same prompt; semantic routing, ending, confirmed action authority, backend policy, schemas and all mechanics stay unchanged. Independent review, formatter/lint and only affected prompt checks precede new binding. Rollback is that prompt-only delta. No automatic provider retry is admitted on the unchanged censored observer. The isolated evaluator may retain bounded synthetic backend text for causal observation through its existing SDK observer, with no verdict/runtime change; review the actual event path and permanent observer regression before any new call. Existing native/Talk late-audio regression is retained, not mistaken for proof of future provider synthesis. Candidate NOT TEST-READY; goal ACTIVE.
+
+
+14/10 narrow prompt clarification independently approved by attention_ci_review and integrated: exact source 7f75cc8434b360abdc00c9afa450cb693c05b105b6b5a9ed78acdf2566f5bed7, focused test 2ad0e6ec99834c1ec5bb1d1ae38711db534f67ed814c0676c9f94b3409aa7148. Only nonverbal backchannels before/during backend work are explicitly excluded; backend/default/custom prompt, direct answers, results and closing semantics unchanged. Affected static/prompt checks retained on exact bytes. Effectiveness not proved.
+
+Lead additionally admits preparation of ONE lower-layer causal reference on the previously observed 24 primary/runtime, with the corrected inert timer fixture and bounded backend-text observer. The private evaluator may hold its first current semantic provider-close edge for the already existing LIVE_CLOSE_GRACE_S=6 seconds before forwarding real close, with identical SDK/Thin/validators/input and no real home action. No shipped runtime timing, new timeout, fake native ACK/judge or browser I/O flag is changed. Preserve input/receipt/generation currency and immediate cancellation/cleanup; use the same 45/70-second case bounds and 180/120/60-second pause/provider/restoration limits, max one timer case and no retry. Independent adversarial review and exact operator pins precede execution. Its sole question is whether useful primary confirmation can arrive after the immediate close edge when the provider remains open. It is PROVIDER_REFERENCE_ONLY_HELD_CLOSE_EDGE evidence, never candidate/native lifecycle or physical acceptance; original FAIL reports and the pre-result receipt fault remain unchanged. No broad pass or production patch follows from absence alone.
+
+
+14/10 bounded synthetic backend-text observer integrated after independent close_cause SOURCE GO: exact patch 8743235dc8eba6dc0df4cbdd7e1c9b3bfd430a904e94f14b1ae4a2381bc42d6d, eval1118a965fcb25fa50a60c00287f1515c2adc836caff6f9c9d9cf909309e14701, testf428563982a14dd43f7fbf4387cedac836e6891f5588c47fb06f437b1da98758. Only observer records literal bounded synthetic backend text/identities; verdict/oracle, production, event handling, authorization and case limits unchanged. Retain two actual SDK-reader checks and formatter/lint on exact integrated bytes. Older current source binding is superseded pending renewed whole-tree review; no changed-source PASS inherited. Source push updates the same draft PR155, with no merge/release/installation.
+
+
+14/10 exact published draft a4d5b82 CI38602344016: scope, browser and ARM add-on build PASS; pytest FAILED at the encode diagnostic fault injector because its old one-argument mock rejected the newly explicit max_bytes keyword before raising its intended ConnectionError. This is a test-double signature mismatch, not a provider/runtime failure; the original failed CI remains failed. Admit only the same fault injector's explicit max_bytes=2048 keyword parameter, preserving its exception, leak/replay assertions and all production bytes. Formatter/lint and the affected three encode/send/continue diagnostic cases precede renewed exact test binding. No manual CI rerun, timeout change or production patch follows.
+
+
+14/10 independent updated whole-source GO: all 499 baseline entries and exact 19 intended paths checked; production a882a549ae4fb19e7f9fc49ea5f98da16388d4f1c5d62fb17355c447da3589d7; tests 8f5186351d80e8424ba46c93afacec0b9d44f6337cfe69a7d123752d268608ba; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Only the reviewed nonverbal prompt category changes production from prior draft. Observer and encode mock fixes retain oracle, mechanics and original failed evidence. All affected formatter/lint/regressions passed on exact bytes, unaffected checks retained. One final existing scope gate precedes same PR155 source update. Neither source approval nor CI establishes provider or physical readiness.
+
+<!-- superseded-unreleased-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "a882a549ae4fb19e7f9fc49ea5f98da16388d4f1c5d62fb17355c447da3589d7",
+  "reviewer": "attention_ci_review \u2014 independent updated whole 2.0.24 SOURCE GO",
+  "rationale": "Preserve the complete source-reviewed quiet-delegation/target-result/native-cleanup composition and PodView. Only the explicit nonverbal pre-result style category changes production from the prior reviewed draft. Bounded synthetic observer and fault-injector signature alter tests only. All existing ownership, error/Talk/retry behavior and deadlines preserved. Provider and physical acceptance remain unapproved."
+}
+-->
+
+
+14/10 exact published head975936bb1d6fd57a5089cc72b9ca778eee8c7757 official CI38604757069 SUCCESS (scope, Python checks/full tests, browser and ARM build); earlier a4 CI failure is retained. This is source/build evidence, not provider or physical acceptance.
+
+ONE held-close reference ran under independently approved pins86fa147e5176e516b1af6d1e922fb537b28e80c6d61d19aff32e49f86407f7bf. Inert timer start succeeded, and the complete backend text was observed: Timeren er sat til ti sekunder. The reference did not fulfill its intended six-second close hold: inherited eight-second negative observation after timer input completion ended the run only 1.97 seconds after terminal backend settlement; cleanup canceled the held edge. Both author/reviewer identify this test-controller interaction as tooling, not runtime evidence. Raw FAIL and the useful backend-text observation remain; upstream cutoff versus model silence is still UNKNOWN. HA2.0.23 restored within103 seconds; operator terminal3, private key cleared and transfer views closed. No real home mutation or release acceptance.
+
+Lead admits two bounded follow-ups before any more paid call. First, permanently cover the actual evaluator negative-cutoff/held-owner interaction, then exclude only the private causal reference timer case from the generic negative cutoff via its existing positive-observation set. Keep unchanged timer-first verdict oracle, original frozen59runtime/primary965, real SDK/Thin, six-second reference hold and all45/70/90/180/120/60 bounds. No new framework, numeric deadline or production patch; independent exact review required.
+
+Second, align only Live primary task-result speech with the canonical backend task-completion acknowledgement rule. The backend supplied the truthful result, while primary broadly permits wordless endings after END. Hypothesis: distinguishing completed-action confirmation from a pure optional farewell avoids silently discarding a remaining task result. Require one short truthful confirmed-task acknowledgement after current accepted completion except accepted silent=true; retain optional farewell/silence for pure conversation closure. Preserve all END choice/order, routing, tool authority, custom backend, direct answers, clarification, input/receipt currency and mechanics. Shared Native/Talk prompt regressions and static checks, independent review and renewed source binding precede the same bulk candidate update. This is not a claim that immediate provider close is harmless or the sole cause; no timeout/audio/firmware/quiet-owner change is admitted. Rollback is this primary-only paragraph. Candidate NOT TEST-READY; full goal ACTIVE.
+
+
+14/10 primary task-result alignment integrated after independent attention_contract SOURCE GO: patch383d0efe584f99835cd674c597d19352723b279025eba4f188af21fd96df2704/source32e37cd9cf8a545564a4f2a12648cd5212d702da680e6352115cb5179583fcb0/test98d76e932de4ff0f816770fc7dc7dc18595f83f594b332ea27ab61869779ae24. Only the primary's optional-ending paragraph distinguishes an unspoken confirmed-action result from a pure optional farewell. Accepted silent=true, actual-level truth, END order/choice, all mechanics and default/custom backend bytes remain unchanged. Focused prompt regression and formatter/lint retained on exact integrated bytes. Prior source binding is superseded; old975greenCI remains true for old bytes only. Renew whole source binding before same draft PR update. Effectiveness and upstream-close ambiguity remain unproved.
+
+User confirms the physical Voice PE is currently switched off. This explains the freshly observed HA hostname-resolution/offline state; no network/runtime patch is inferred. Continue all software work; physical acceptance waits for the device to return. Goal ACTIVE, candidate NOT TEST-READY.
+
+
+14/10 final task-result whole SOURCE GO: all499 entries against published975 tree verified, onlySTATUS/prompt32e/test98 differ. Production 8893b59598adc5e0ef8acf45a4983e5df1f35523f7cd97473641aae78ee76194; tests eb91254b4cb36e852150232effbf5f0cb56a47b83fde23d3eb7dc360599e0595; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Actual production classification is physical_output/realtime_semantics/rearm; the earlier two-domain assumption was stale and is corrected without changing scope policy. Exact prompt/static regression and all unchanged previous controls retained. Private reference cutoff fix independently SOURCE GO; no new paid call yet. Prefer the focused current-candidate timer/explicit-close check next; retain the old-primary held reference as a causal fallback, rather than repeating an obsolete prompt unnecessarily. Physical PE is off, so no physical acceptance can be claimed.
+
+<!-- superseded-unreleased-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "8893b59598adc5e0ef8acf45a4983e5df1f35523f7cd97473641aae78ee76194",
+  "reviewer": "attention_contract \u2014 independent final task-result whole-tree SOURCE GO",
+  "rationale": "One model-owned input/delegation/current tool result/meaningful completed-action reply/semantic END chain couples physical output, Live semantics and correlated rearm. All499 published entries and only3 updated paths independently checked. Existing cleanup, native/Talk, silent intent, error/retry behavior and deadlines preserved. Source approval does not imply provider or physical acceptance."
+}
+-->
+
+
+### 14/10 — active continuation: complete input but absent action handoff
+
+Lead root. Current primary32e, exact published80161a3 candidate, ran one bounded timer case through actual SDK/Thin/inert guarded adapter; explicit-close was not run after FAIL. Both independent auditors verified the complete known timer input byte-for-byte through shipped resampling and recorded provider input. ASR recognized the complete request. No delegation, backend response, tool dispatch, rejection or provider fault occurred before the negative observation ended7.14seconds after final ASR (8seconds after fixture completion). All87 post-timer audio chunks were zero. This proves no action in that window, not permanent loss or a timer/HA failure. Original FAIL remains; no deadline extension or regrading. HA2.0.23 restored within160.113seconds of its180second pause; key cleared, carrier/config closed, operator terminal3. Physical PE is user-confirmed OFF.
+
+Chain reviewed: physical/synthetic input and generation currency → provider audio/ASR → primary delegation → backend completed batch → guarded timer result → current primary result speech/semantic END → provider close → playback drain → teardown/rearm. This observation stops before delegation; backend/tool/close owners were not entered. Prior immediate-close ambiguity and task-result confirmation remain unresolved, and stronger evidence cannot be inferred from this silence. Relevant invariants: one model owns routing/meaning; current completed batch authorizes effects; shared Thin/native/Talk mechanics and physical playback truth remain unchanged.
+
+Falsifiable hypothesis: the primary quiet-work instruction needs explicit positive sequencing so quiet waiting follows an actual handoff. Admit only clarification of the existing primary Backchannel paragraph: delegate the complete backend task immediately, then wait silently for its result. Preserve model-owned tool choice, nonverbal prohibition, truthful task result, accepted silent intent, END choice/order, custom backend, direct answers and clarification. Non-goals: no timer-specific parser, forced tool, new engine/authority, numeric timeout/audio/VAD/firmware tuning or broad prompt rewrite. Affected default/custom prompt regression, formatter/lint and independent adversarial review precede refreshed exact-tree binding; one focused actual-provider observation may follow changed source, never a blind unchanged retry. Rollback is this paragraph only; candidate remains NOT TEST-READY.
+
+Exact801 CI38608625272 failed one teardown-retry integration wait after static/type checks passed; scope, browser and ARM build passed. Failure is test_new_owned_work_after_heartbeat_join_cannot_use_saved_attention_permission[True-rotation-native] at final recovery observation. Admit one independent causal investigation of test/owned tasks and retry scheduling, with minimal test-only correction only if a controller defect is proved. No runtime patch, increased deadline or manual CI rerun may follow from this timeout alone. All original failed evidence remains. Goal ACTIVE.
+
+
+14/10 positive-handoff clarification integrated after independent close_cause SOURCE GO: patch0acc293f69f584cdca300ee772d7b64b3ec4f8653ea3a58292981a121deb9959/sourcec4d3dc8903c4a9fbe4cf897f1851dc1e72dca0775b26290f6b0a0e2d21593cc6/testf2c2c9ed5ba3ff715f6818ff7dd4f78a363cf603ec6c9bba32a4b0a4bf6c264e. Only existing primary Backchannel sequencing changed; backend/default/custom and other58runtime files unchanged. Exact draft formatter/lint and affected prompt regression PASS; effectiveness not proved. Prior exact-tree binding superseded pending composed review.
+
+CI801 diagnosis: exact failing case passed locally once. One controlled260ms positive-recovery scheduler stall exhausted the deliberately compressed250ms recovery budget, then10s retry backoff outlasted the2s observer. This demonstrates susceptibility, not the actual CI trigger. No runtime/controller fix or increased deadline is justified. Diagnostic-only test patchda69b862a4ba17c58e664a7594c6513c3913df991cd90267f1680fa6b1dadf03 adds the already-recorded trace tail to the same re-raised TimeoutError; all original predicates, negative assertions, timings and failure remain. Formatter/lint PASS. Actual CI failure remains unresolved, no blind replay.
+
+One causal fallback-v2 admission was rejected before any provider call because root sent incorrect start-control fields; restored running23 within73.116seconds. Correct operator input was then used for ONE already-reviewed original-primary held-close reference. Actual operator terminal3 and reportFAIL retained; user hardware remains OFF. HA23 restored within64.755seconds of the separate180second limit, key cleared and private views closed. The complete six-second reference hold allowed meaningful primary output after current backend settlement, including the truthful timer-result sentence; exact timing/audio/currency are under independent audit. Original pre-result speech remains a policy FAIL, and this original-primary reference is not current candidate acceptance. No production grace delay has been added; lead must update the close-owner cause boundary from actual evidence before any runtime change. Goal ACTIVE; candidate NOT TEST-READY.
+
+
+### 14/10 — active close-owner decision after complete held-reference evidence
+
+Lead root. Independent close_cause verified full6.000556second reference hold, no cancellation/invalidation/cutoff. Current backend settlement16.473832 preceded first genuine nonzero primary PCM16.956495 by0.482664seconds. Forty-eight nonzero100ms chunks (4.8seconds) carried the timer confirmation; last nonzero21.727603 preceded forwarded close22.474690. Full185chunks/886080B and resampled inputprefix were byte-verified; known timer input complete. Old primary still violated quiet policy and spoke technical closure status, so reportFAIL remains. This demonstrates backend completion is not primary speech completion on the same unchanged Thin close boundary; it does not prove the sole cause of all missing output or accept current primary/physical behavior.
+
+Official Live session guidance confirms no WebSocket output-audio-done event. Do not invent an ACK or infer final speech from transcript/backend completion. Current default native semantic path sends provider-close immediately at backend settlement; the held reference directly exposes valid later speech this boundary can preempt. Chain reviewed including current input/receipt/generation, backend work, future primary output, queued/current output, native consumption, provider-close, exact playback-finish, one teardown/rearm, Stop and fresh input cancellation. Invariants: model-owned END and meaning, one Thin mechanical owner, fresh current output evidence, physical finish separate from providerfinalization.
+
+Lead admits the smallest conservative native-default boundary repair: after current accepted terminal backend settlement reset the existing semantic NativeIdleWindow, then require its existing current consumed-zero/work-clear policy before providerfinalization. Use existing configured quiet interval and existing bounded task deadline; do not add a new fixed six-second production sleep, judge, audio-done claim, semantic parser, timing constant or firmware change. Revalidate receipt/input/epoch/generation throughout; Stop/new input/stale callbacks must retire the pending finalizer; failure remains bounded and fail-closed. Preserve Talk's separate existing fallback and judge path. This is explicitly an application quiet policy, not proof that future provider output is impossible. It can add the existing inactivity interval after the last speech; correctness is restored before later measured latency tuning. No unmeasured faster threshold is admitted.
+
+Permanent regression must inject final backend settlement before delayed primary output, old pre-settlement quiet and stale generation/input/receipt, then prove no early providerclose; only fresh completed policy permits finalization, and actual playbackfinish remains required before rearm. Cover silent/no-output END, pendingtools, missing/stale native evidence, Stop/cancel and opposite Talk adapter. Focused composed sharedThin/native/Talk/static checks, independent adversarial review and renewed exact-tree binding precede one actual-provider semantic gate on the frozen combined candidate. If existing policy cannot be reused without changing ownership or preserving cancellation, stop at source proposal and record why. Rollback is this close-boundary delta; candidate NOT TEST-READY and goal ACTIVE.
+
+
+Lead close-owner clarification before implementing input currency: SDK closure_receipt_current deliberately ignores raw ASR so fragments are not semantic decisions. Preserve that SDK contract. Only the newly introduced pending native quiet admission snapshots Thin input revision; a new nonempty fragment retires that old mechanical finalization permission through the existing cancellation/ending reset, without classifying the fragment or deciding a new intent. New backend/typed input/Stop retain their existing owners. Background fragments can consequently defer an old END and later fall through existing app-idle policy; this explicit safety tradeoff preserves unheard input and does not add local semantic routing. Regression must cover queued fragment at the finalizer seam and ensure no ending latch/task survives retirement. No global ASR, SDK receipt or Talk/judge behavior change.
+
+
+Adversarial pre-entry finding accepted: a fresh fragment can already be SDK-parsed and Thin-consumed between END receipt creation and finish entry, so taking a new input snapshot at finish would absorb it. Bind the new native admission currency immutably at existing END receipt creation and propagate it through the existing await/finish methods. The default native END path must require that owned currency rather than silently recapture later; judge/Talk behavior and SDK semantics remain unchanged. Add the fully consumed pre-entry fragment counterexample plus queued-at-finalize case. This is the same minimal mechanical-owner fix, not a new semantic authority or separate architecture. Source finding remains open until regression and independent review resolve it.
+
+
+Adversarial settings finding accepted: supported idle_timeout_s has no upper bound3+, so a fresh semantic quiet interval cannot always fit inside brain.timeout_s alone. The proposed15second-only cap would break valid settings; do not adopt it. Lead admits the existing configured quiet interval plus existing brain task timeout as the bounded wait budget, still constrained by the pre-existing whole-session cap. This adds no fixed timeout value or new setting; it explicitly reserves the configured quiet interval while preserving a bounded output/work allowance. Default configured4second post-speech interval remains an acknowledged latency tradeoff, not a speed improvement. Cover the long valid setting in a deterministic boundary regression without a real long wait.
+
+
+Adversarial neighbor finding confirmed: exclusive END can await tool admission while SDK/Thin already consume raw input10 after the response-owned input9. Capturing current currency at receipt creation would still absorb input10 because legacy exclusive-END receipt intentionally ignores raw input. Bind the new native wait to the already-recorded response-owned Thin revision and _live_backend_inputs entry for that same response, not a later current snapshot. Missing/changed owner currency must retire the old mechanical permission. Preserve global exclusive-END/SDK semantics and all other adapters; cover actual SDK input fully consumed during the admitted await before receipt creation. This completes the same explicitly conservative raw-input retirement policy at its original causal owner boundary.
+
+
+14/10 user clarified pause scope: finish the already-active change set, explicitly release/install it, then report status. The broad goal remains UI-paused; this concrete completion/release work is explicitly authorized and introduces no new feature scope. Integrate exact independently approved close patchce2e/Thine070/test9d26 unchanged. Native source findings are resolved; retained22 focused+3 opposite controls and causal baseline RED remain lower-layer evidence. Older native-positive fixtures require explicit simulated current observations; no production bypass or unchanged-source provider replay. Physical PE remains OFF; no actual timer alarm/golden/lifecycle/latency/stability acceptance follows from this test candidate.
+
+
+Native positive fixture compatibility: the existing fake SDK task budget0.2s is shorter than unchanged heartbeat polling0.25s beyond a freshly measured4s interval. For the positive ten-cycle/native fixture only, use the actual production-configured15s task budget so the test represents the newly admitted configured-quiet plus task-budget contract. Keep Talk's0.2 and negative/error timing assertions unchanged. This adapts an invalidated positive fixture to the changed contract; no production deadline or unexplained old CI recovery timeout is relaxed. Actual native parser, consumed samples, fresh backend-settled reset and all10cycle/rearm assertions remain required.
+
+
+Current provider-admission decision before implementation/call: the existing SyntheticCapture has no native consumed-output observations, so it cannot exercise the repaired native quiet gate. Admit a private protocol-fixture subclass only: drain actual claimed provider PCM at the existing FRAME_S/real sample-rate cadence; compute exact nonzero/zero metrics and contiguous consumed counters; feed those bytes/counters through the actual unstarted VoicePELink activity parser and preserve parser identity/currentness. Input/VAD stays unknown, no fabricated room silence, native API transport/ACK, ready monkeypatch, judge, WebRTC flag or held-close delay. Mark every emitted observation/evidence as SIMULATED_NATIVE_PROTOCOL_NULL_SINK/physical_verified=false. The native mechanics and provider source remain exact candidate bytes; this lower-layer gate cannot prove physical playback/rearm.
+
+The already-demonstrated eight-second generic negative timer cutoff conflicts with a positive action plus terminal speech and fresh configured quiet. Only the private timer probe uses the existing positive-observation membership; original timer-first result oracle/failed reports and45/70/90/180/120/60bounds remain unchanged. Before a paid call require focused actual-evaluate/parser controls for late primary, exact real-time consumed zeros, nonzero/owner invalidation and single cleanup, static checks, independent exact review and source/startup/pin binding. One current-candidate timer then explicit-close, max2/stop-firstFAIL-orUNKNOWN/no retry, same standing key/OpenAI/pause authorization. Admission requires quiet delegation, correct inert guarded timer result, current model END/result speech and exact lower-layer finalization; physical acceptance remains explicitly UNKNOWN. If PCM cannot establish quiet or any semantic requirement fails, retain that FAIL/UNKNOWN and stop release until cause is resolved. No runtime workaround to fit this fixture is admitted.
+
+
+14/10 final combined source review and preparation: all499 entries preserved,24 effective repair paths against actual a6main; relative801 exactly10 approved paths changed and489 unchanged Gitblob/mode entries. All8 integrated changed Python files passed formatter/lint and diff-check on exact bytes. Native source/quiet regression ce2e, legacyfixtures deb78a6 and ten-cycle e12a retain independent SOURCE GO and only their affected checks. Production e4352504634bda1740a333060d1c297ccf4233f3f55f4b3459c40ac48ee07224; regression fe4a1cea259fc115d0db5516a4d922995074d6b57de3e272c0f04cb0b86a7edd; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. No full release/provider/artifact/installation/physical PASS yet. Next one final scope check and diff-freeze, then exactly one required local release gate and one same-PR publication/CI flow; provider admission runs against identical production bytes with explicitly simulated native output, physical acceptance remains UNKNOWN.
+
+<!-- candidate-scope-coupling
+{
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "e4352504634bda1740a333060d1c297ccf4233f3f55f4b3459c40ac48ee07224",
+  "version": 1,
+  "reviewer": "attention_ci_review \u2014 final composition inventory/binding; independent production SOURCE GOs retained from close_cause and attention_contract",
+  "rationale": "One current model-owned delegation/result/END chain shares native output, correlated cleanup and rearm. Exactly499 entries and24 intended paths checked; all changed production/test bytes match independently reviewed packets. Native post-backend consumed-zero admission retires stale input permission and preserves exact physical drain; Talk/error paths and existing configured deadlines retained. Conservative quiet interval is not a speed or physical acceptance claim. Unchanged PodView and all earlier failed evidence preserved."
+}
+-->
+
+
+### 14/10 — bounded user-directed test publication, outstanding style issue retained
+
+The user explicitly corrected pause to require finishing the current bundle and repeatedly ordered publication/installation ("Sikke gemme i repo. Udgiv for pokker"). Lead root interprets this as authorization to deliver the useful current fixes as a clearly labeled TEST RELEASE with a known noncritical style limitation; it is not a user statement that any failed test passed, nor full product/lifecycle approval. No new runtime changes or blind provider retry are admitted. Default stop-line and all safety/currentness/side-effect/physical-truth requirements remain binding; this dated delivery decision does not authorize a future agent to silently waive gates.
+
+Actual current-candidate e070/c4 paid timer case: guarded inert HA-shaped start returned active10seconds, current END accepted, a truthful timer-result reply arrived after backend settlement and survived to orderly finalization. All233decodedchunks/1117440B contiguous and hash-verified; no runtime faults, clean shutdown and complete usage. Input fully recognized. Physical home mutation and room proof are absent. The new close boundary demonstrably preserves the late reply (settlement17.333→firstreplyPCM17.784); exact protocol-fixture session.closed28.4105→same simulated playbackend28.4111→teardown/rearm28.428. Existing quiet policy took7.3275s after last consumed nonzero; no latency success is claimed.
+
+Original report remains FAIL: NEW pre-result nonzero PCM at13.164–14.067,10packets/1s, peak8960/RMS941 before result14.684. Transcript only [... ]; no verified spoken Modtaget or false success claim. Audio semantics remain UNKNOWN because direct listening is unavailable. The fully silent/nonverbal-style hypothesis is NOT accepted; issue153 remains open. This limited style failure is carried transparently in this requested test release rather than falsely marked green or triggering another prompt-tuning cycle. Explicit-close secondcase was NOT RUN because stop-firstFAIL held. No physical timeralarm/roomtransfer/golden/10cycle/latency/stability approval follows. HA2.0.23 restored and verified running within87.679s of180s limit; key cleared, private views closed, operator81230terminal3.
+
+The one frozen local release command a8db8ba failed only in unitbatch5's held semantic observer: new native quiet now precedes the fixture's old finalize hook, and its SyntheticCapture has no native observations. Production is unchanged. Pure test patchc4f681532c941e88a343421f95b4b2beb3ca783b04d953532920d55aee3f7963 moves the deliberate hold to actual settled-receipt finish entry and forwards the same arguments; all original failure/cleanup/assertions/deadlines retained. Affectedpositive/staticPASS. Integration allPASS267.75s, unitbatches1–4, Ruff/format/mypy and scope results retained on unchanged bits. The invalidated original unitbatch5 and previously unrun6–8 now all PASS via the exact canonical worker and unchanged bounds: four batches,62 modules, terminal0. Earlier green stages are retained without replay; original release invocation FAIL remains recorded. Updated regression fingerprint3b67349d827c0266601e06bd806201017d89df7258167edae82a8a44ed5c8750; runtime production binding remains e4352504634bda1740a333060d1c297ccf4233f3f55f4b3459c40ac48ee07224.
+
+The ten speed rules are now explicit binding AGENTS.md instructions in dev and current workspace. New bounded status/GitHub tasks use GPT-6-Luna; completed deep technical reviews are reused. Existing issues153/118/110/103/124/107 now explicitly identify planned2.0.24 and pending acceptance; update to published/installed only after actual delivery proof. Broad goal remains paused; finish this concrete release, then status.
+
+
+Final delivery source freeze: pure held-observer fixture4d0 and the explicit delivery/speed documentation are the only changes after a8db8ba. All remaining unitbatches5–8 PASS (receipt pv24-unit-release-resume-receipt, terminal0); retained integration/unit1–4/type/static evidence composes the software checks without another full run. Production fingerprint e4352504634bda1740a333060d1c297ccf4233f3f55f4b3459c40ac48ee07224 and scope policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21 remain unchanged; final regression fingerprint3b67349d827c0266601e06bd806201017d89df7258167edae82a8a44ed5c8750. The current repair has25 intended paths including AGENTS.md, with all499 public files preserved. The same PR155 receives one source update and automatic official CI; merge, test publication and installation are separate delivery steps. Provider style remains FAIL and physical acceptance UNKNOWN.
