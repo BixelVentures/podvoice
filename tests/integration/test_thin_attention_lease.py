@@ -585,3 +585,265 @@ async def test_original_release_settles_inline_before_rearm(adapter, boundary, m
             settlement[0] = False
             allow.set()
             await close_fixture(session, sdks, observers, wire=wire, talk_task=talk_task)
+
+
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+@pytest.mark.parametrize(
+    "boundary",
+    ["progress", "cancel_stop", "held_tool", "attention_failed", "known_error", "technical_reason"],
+)
+async def test_native_quiescent_close_preserves_attention_budget_and_joins_owners(
+    adapter, boundary, monkeypatch
+):
+    """Actual Thin/SDK/client and native control parsers; simulated ACKs, no room proof."""
+    import time
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from unit.test_voicepe_contract import (
+        FULL_CAPABILITIES,
+        FULL_SERVICES,
+        EventInfo,
+        TextSensorInfo,
+        TextSensorState,
+        _link,
+        _StubClient,
+    )
+
+    import gatekeeper.thin as thin_module
+    from gatekeeper.openai_live import LiveAudioChunk, _load_live_sdk
+
+    _load_live_sdk()
+    entered, allow_provider, release_entered = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    tool_entered, allow_tool = asyncio.Event(), asyncio.Event()
+    native_commands = []
+    requests = []
+    state = {"revision": 0, "session": None, "release": False, "ready_at": 0.0}
+    fail_attention = [boundary == "attention_failed"]
+
+    class NativePeer(_StubClient):
+        async def execute_service(self, svc, args):
+            await super().execute_service(svc, args)
+            native_commands.append((svc.name, dict(args)))
+            loop = asyncio.get_running_loop()
+            if svc.name == "podvoice_live_context":
+                loop.call_soon(
+                    native._on_stop_context, f"{args['session']}:{args['generation']}:live"
+                )
+            elif svc.name == "podvoice_stop_context":
+                loop.call_soon(
+                    native._on_stop_context, f"{args['session']}:{args['generation']}:disabled"
+                )
+            elif svc.name == "podvoice_reply_cancel":
+                loop.call_soon(native._on_reply_status, f"{args['token']}:stopped")
+            elif svc.name == "podvoice_rearm_wake_word":
+                loop.call_soon(native._on_state, TextSensorState(f"{args['token']}:recovered"))
+                loop.call_soon(native._on_stop_context, f"{args['token'] + 1:032x}:0:disabled")
+
+    native = None
+    if adapter == "native":
+        client = NativePeer(
+            [*FULL_SERVICES, "podvoice_live_context"],
+            [
+                TextSensorInfo("podvoice_rearm_ack", 4),
+                TextSensorInfo("podvoice_reply_status", 5),
+                TextSensorInfo("podvoice_stop_context", 43),
+                EventInfo(
+                    "podvoice_event",
+                    3,
+                    [*FULL_CAPABILITIES, "live_semantic_stop_v1", "podvoice_live_wav_v1"],
+                ),
+            ],
+        )
+        client.disconnect = AsyncMock()
+        native = _link(client)
+        native.room = "kitchen"
+        await native._resolve_entities()
+        native.start = AsyncMock()  # Native service/parser fixture has no network startup.
+        native._on_stop_context(f"{'a' * 32}:0:disabled")
+        session, _, _, _, _ = build(device=native)
+        wire = talk_task = None
+    else:
+        wire, _, session, _, _ = setup()
+        talk_task = None
+    session.hub = StatusHub()
+    session.live_brain.timeout_s = 15  # Installed constructor default, not teardown tuning.
+    sdks = []
+
+    class DelayedTerminal(CycleWireSDK):
+        async def send(self, data):
+            if json.loads(data)["type"] == "session.close":
+                entered.set()
+                await allow_provider.wait()
+            await super().send(data)
+
+    peers = [DelayedTerminal(webrtc=adapter == "talk"), CycleWireSDK(webrtc=adapter == "talk")]
+    for peer in peers:
+        peer.allow_exit.set()
+        peer.socket.release.set()
+        peer.manager_release.set()
+
+    def factory(**kwargs):
+        sdk = peers[len(sdks)]
+        sdks.append(sdk)
+        if wire is not None:
+            wire.sdk = sdk
+        return sdk.factory(**kwargs)
+
+    session.live_brain.client_factory = factory
+    observers = []
+    retain_aclose_observers(session, observers, monkeypatch)
+    process = "00000000-0000-4000-8000-000000000010"
+
+    def snapshot(outcome):
+        return {
+            "contract": "native_attention_v1",
+            "active": False,
+            "outcome": outcome,
+            "challenge": {"process": process, "revision": str(state["revision"])},
+        }
+
+    async def manager(request):
+        if request.method == "GET":
+            ready = state["release"] and time.monotonic() >= state["ready_at"]
+            return httpx.Response(
+                200, json={"rooms": {session.room: snapshot("released" if ready else "pending")}}
+            )
+        body = json.loads(request.content)
+        requests.append((request.url.path, body))
+        if request.url.path.endswith("/release"):
+            assert session.heartbeat._task is session.heartbeat._beat_task is None
+            assert not session.heartbeat._stopping_tasks
+            assert body == {"room": session.room, **session.heartbeat.lease}
+            release_entered.set()
+            if fail_attention[0]:
+                return httpx.Response(503)
+            state["release"] = True
+            state["ready_at"] = time.monotonic() + (1.5 if len(sdks) == 1 else 0)
+            return httpx.Response(200, json=snapshot("pending"))
+        if body["begin"] and body["session"] != state["session"]:
+            state["revision"] += 1
+            state["session"] = body["session"]
+            state["release"] = False
+        return httpx.Response(200, json=snapshot("pending"))
+
+    async def resistant_tool():
+        tool_entered.set()
+        while not allow_tool.is_set():
+            try:
+                await allow_tool.wait()
+            except asyncio.CancelledError:
+                pass
+
+    clock_offset = [0.0]
+    clock = SimpleNamespace(**vars(time))
+    clock.monotonic = lambda: time.monotonic() + clock_offset[0]
+    public = owner = held = None
+    async with httpx.AsyncClient(
+        base_url="http://synthetic", transport=httpx.MockTransport(manager)
+    ) as http:
+        session.attention = AttentionClient("http://synthetic", client=http)
+        session.heartbeat = Heartbeat(session.attention, period_ms=10000, jitter_ms=0)
+        try:
+            if wire is not None:
+                talk_task = asyncio.create_task(run_talk(wire, session, session.voicepe))
+                wire.send("wake", command_id="budget-wake")
+                await until(lambda: wire.result("budget-wake") is not None)
+            else:
+                await session.start()
+                await session.wake()
+            await until(lambda: session.heartbeat._admitted)
+            old_generation = session.brain._connection_generation
+            original_lease = session.heartbeat.lease
+            if boundary == "held_tool":
+                held = asyncio.create_task(resistant_tool())
+                session._tool_tasks["held-domain"] = held
+                await tool_entered.wait()
+            monkeypatch.setattr(thin_module, "time", clock)
+            close_started = time.monotonic()
+            if boundary in {"known_error", "technical_reason"}:
+                owner = session._request_close(
+                    "live-tool-failed",
+                    error_kind="connection" if boundary == "known_error" else None,
+                )
+                public = None
+            else:
+                public = asyncio.create_task(session.stop())
+                observers.append(public)
+            await asyncio.wait_for(entered.wait(), 2)
+            owner = session._close_task
+            eligible = adapter == "native" and boundary in {
+                "progress",
+                "cancel_stop",
+                "attention_failed",
+            }
+            if eligible:
+                await asyncio.wait_for(release_entered.wait(), 1)
+                assert not owner.done() and not sdks[0].released
+                # The actual native adapter has acknowledged the physical cutoff.
+                assert native._closing_disable_proof is not None
+                before_commands = list(native_commands)
+                with pytest.raises(RuntimeError, match="not armed"):
+                    await native.play_url("http://late-output", playback_id="late")
+                await session._on_live_event(LiveAudioChunk(b"\1\0" * 2000, old_generation))
+                assert native_commands == before_commands and session._playback_lease is None
+                assert not any(name == "podvoice_rearm_wake_word" for name, _ in native_commands)
+                if boundary == "cancel_stop":
+                    public.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await public
+                    assert not owner.done()
+                if boundary != "attention_failed":
+                    await until(
+                        lambda: session.hub.snapshot()["metrics"]["attention_releases"] == 1
+                    )
+                clock_offset[0] = max(0.0, 4.37 - (time.monotonic() - close_started))
+            else:
+                assert not release_entered.is_set()  # Unknown owner/Talk stays serial.
+            allow_provider.set()
+            await asyncio.wait_for(asyncio.shield(owner), 3)
+            releases = [body for path, body in requests if path.endswith("/release")]
+            assert releases == [{"room": session.room, **original_lease}]
+            if boundary == "attention_failed":
+                assert session._teardown_incomplete
+                if native is not None:
+                    assert not any(
+                        name == "podvoice_rearm_wake_word" for name, _ in native_commands
+                    )
+            else:
+                assert not session._teardown_incomplete and sdks[0].released
+                assert not any(
+                    task.get_name() == "thin-close-music" for task in asyncio.all_tasks()
+                )
+                allow_tool.set()
+                if held is not None:
+                    await held
+                if wire is None:
+                    await session.wake()
+                else:
+                    wire.send("wake", command_id="next-budget-wake")
+                    await until(lambda: wire.result("next-budget-wake") is not None)
+                new_stream = session._live_stream
+                calls_before = list(native_commands)
+                await session._on_live_event(LiveAudioChunk(b"\1\0" * 2000, old_generation))
+                assert session._live_stream is new_stream and native_commands == calls_before
+                assert session._active and session._close_task is None
+        finally:
+            allow_provider.set()
+            allow_tool.set()
+            fail_attention[0] = False
+            if held is not None:
+                await held
+            if native is not None:
+                # Existing close_fixture retries shutdown after disconnect; that
+                # fake-only assumption cannot call the real native client twice.
+                cleanup = asyncio.create_task(session.aclose(), name="native-budget-fixture-aclose")
+                await cleanup
+                assert native._closed and not session._active and not session._teardown_incomplete
+                assert session.playback._task is None
+                assert not session._tool_tasks and all(task.done() for task in session._tasks)
+                assert all(task.done() for task in observers)
+                assert session.live_brain._reader is session.live_brain._connection is None
+                assert session.live_brain._client is session.live_brain._lease is None
+            else:
+                await close_fixture(session, sdks, observers, wire=wire, talk_task=talk_task)

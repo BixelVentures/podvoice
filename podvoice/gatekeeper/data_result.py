@@ -5,6 +5,18 @@ from __future__ import annotations
 import json
 
 MAX_TOOL_RESULT_BYTES = 2_048
+MAX_PLAYBACK_TARGET_RESULT_BYTES = 4_096
+
+
+def tool_result_limit(name: str) -> int:
+    """Only the complete playback catalog gets a measured read-specific allowance."""
+    return (
+        MAX_PLAYBACK_TARGET_RESULT_BYTES
+        if name == "podconnect_get_targets"
+        else MAX_TOOL_RESULT_BYTES
+    )
+
+
 DEFAULT_DATA_LIMIT = 5
 
 
@@ -83,10 +95,10 @@ def _invalid_tracks() -> dict:
     }
 
 
-def bounded_tool_output(response: object) -> str:
+def bounded_tool_output(response: object, *, max_bytes: int = MAX_TOOL_RESULT_BYTES) -> str:
     """Bound provider context while preserving truthful mutation acknowledgements."""
     output = tool_result_json(response)
-    if len(output.encode("utf-8")) <= MAX_TOOL_RESULT_BYTES:
+    if len(output.encode("utf-8")) <= max_bytes:
         return output
     if isinstance(response, dict):
         summary = response.get("summary")

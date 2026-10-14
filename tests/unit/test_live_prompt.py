@@ -109,10 +109,12 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
-        assert "Delegér straks" in primary
-        assert "højst give én kort, sand" in primary
-        assert "ikke-terminal modtagelseskvittering uden at forsinke delegation" in primary
-        assert "completed, valideret resultat" in primary
+        assert "Delegér straks og i stilhed" in primary
+        assert "Giv ingen modtagelseskvittering, generisk ventereplik" in primary
+        assert "eller fremskridtsmeddelelse før eller under backendens arbejde" in primary
+        assert "valideret resultat og aktuel accept" in primary
+        assert "Sig ingen generisk ventereplik før eller under kaldet" in backend
+        assert "Kvitter kun for modtagelsen" not in primary
         assert "og aktuel accept" in primary
         assert "stille fortsat lytning" in primary
         assert "ti og lyt videre i samme" in primary
@@ -133,20 +135,24 @@ def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
     assert "uden at indsamle et\nvirkningsløst ja" in primary
 
 
-def test_contextual_intro_is_optional_and_cannot_claim_tool_success():
+def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
-    assert "Delegér straks" in primary
-    assert "højst give én kort, sand" in primary
-    assert "ikke-terminal modtagelseskvittering uden at forsinke delegation" in primary
+    assert "Delegér straks og i stilhed" in primary
+    assert "Giv ingen modtagelseskvittering, generisk ventereplik" in primary
+    assert "eller fremskridtsmeddelelse før eller under backendens arbejde" in primary
     assert "det bekræftede resultat" in primary
-    assert "og aktuel accept" in primary
+    assert "valideret resultat og aktuel accept" in primary
     assert "før et opgaveresultat, en terminal kvittering eller afsked" in primary
+    assert "delegér også afslutningen\ni stilhed uden modtagelseskvittering" in primary
+    assert "kort afsked eller afslutte uden ord" in primary
     assert "Ved silent=true, sig intet" in primary
-    assert "Foregrib aldrig\net værktøjsresultat" in primary
-    assert "sikre, meningsfulde direkte svar, opklaringer og dialog\nuden delegation" in primary
-    assert "Live må give en kort, relevant indledning, mens du arbejder" in backend
-    assert "forsink ikke værktøjskaldet for tale" in backend
-    assert "ingen generisk ventereplik før eller under" not in primary + backend
+    assert "Foregrib aldrig et værktøjsresultat" in primary
+    assert "sikre, meningsfulde direkte svar,\nopklaringer og dialog uden delegation" in primary
+    assert "Sig ingen generisk ventereplik før eller under kaldet" in backend
+    assert "Live må give en kort, relevant indledning" not in backend
+    assert "Kvitter kun for modtagelsen" not in primary
+    assert "“Modtaget”" not in primary
+    assert "Skjul aldrig et opgaveresultat, en fejl eller nødvendig opklaring" in primary
     assert _sections()["RESULTATER OG FEJL"].strip() in backend
 
 

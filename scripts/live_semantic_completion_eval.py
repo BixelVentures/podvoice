@@ -35,6 +35,7 @@ MAX_BACKEND_RESPONSES = 4
 VARIANTS = ("baseline", "implicit")
 TEXTS = {
     "math": "Hvad er to plus to?",
+    "timer_10s": "Sæt en timer på 10 sekunder.",
     "side_address": "Peter, nu taler jeg med dig. Hvad skal vi have til aftensmad?",
     "followup": "Nabu, og hvad er tre plus tre?",
     "aside_correction": "Vent lidt, Peter, jeg spørger lige Nabu færdig. Nabu, jeg mente tre plus tre.",
@@ -51,6 +52,7 @@ CASES = {
     "brief-aside-correction": ("math", "aside_correction"),
     "tv-ongoing-query": ("unfinished", "tv", "resume"),
     "explicit-close": ("math", "explicit_close"),
+    "timer-10s": ("math", "timer_10s"),
     "pure-thanks": ("math", "pure_thanks"),
     "polite-followup": ("math", "polite_followup"),
 }
@@ -122,6 +124,200 @@ class NoActions(rig.StubTools):
     async def dispatch(self, *args, **kwargs):
         self.evidence.emit("forbidden_domain_dispatch")
         raise RuntimeError("domain_dispatch_forbidden")
+
+
+class TimerProbeTools(NoActions):
+    """Use shipped HA admission/validators with an inert HTTP transport only."""
+
+    endpoint = "synthetic-semantic-completion"
+    epoch = "0" * 32
+
+    def __init__(self, evidence):
+        import httpx
+
+        from gatekeeper.ha_timers import HomeAssistantTimers
+
+        super().__init__(evidence)
+        self.calls = 0
+        self.client = httpx.AsyncClient(transport=httpx.MockTransport(self._reply))
+        self._probe_timers = HomeAssistantTimers(self.client, "synthetic-not-a-credential")
+        self._probe_timers.contract = "synthetic-shipped-timer-contract"
+        self._probe_timers.bind(self.endpoint, "native", "synthetic-device")
+        self._probe_timers.snapshots[self.endpoint] = self._status()
+        self._probe_timers.observed_at[self.endpoint] = rig.time.monotonic()
+        self._declarations = self._probe_timers.declarations(self.endpoint)
+
+    def _status(self):
+        return dict(
+            ok=True,
+            owner="home_assistant_intent",
+            epoch=self.epoch,
+            contract="podvoice_native_timers_v1",
+            endpoint=self.endpoint,
+            binding=dict(kind="native", identity="synthetic-device", device_id="synthetic-device"),
+            timers=[],
+            finished=[],
+        )
+
+    def _reply(self, request):
+        import httpx
+
+        from gatekeeper import constants as constants
+
+        base = constants.SUPERVISOR_CORE_API + "/services/podvoice/"
+        data = json.loads(request.content)
+        if str(request.url) == base + "timer_status?return_response" and data == {
+            "endpoint": self.endpoint
+        }:
+            result = self._status()
+        elif (
+            str(request.url) == base + "timer_command?return_response"
+            and request.method == "POST"
+            and data.get("endpoint") == self.endpoint
+            and data.get("epoch") == self.epoch
+            and data.get("action") == "start"
+            and type(data.get("seconds")) is int
+            and data["seconds"] == 10
+            and isinstance(data.get("request_id"), str)
+            and len(data["request_id"]) == 64
+            and self.calls == 0
+        ):
+            self.calls += 1
+            result = dict(
+                ok=True,
+                owner="home_assistant_intent",
+                epoch=self.epoch,
+                id="synthetic-timer-10",
+                state="active",
+                seconds=10,
+                name=data.get("name", ""),
+                audible=False,
+            )
+        else:
+            raise RuntimeError("timer_probe_forbidden_request")
+        return httpx.Response(200, json={"service_response": result})
+
+    def declarations(self):
+        return copy.deepcopy(self._declarations)
+
+    async def dispatch(
+        self,
+        name,
+        args,
+        *,
+        execution_guard,
+        execution_context,
+        timer_endpoint=None,
+        completed_call_id=None,
+        **kwargs,
+    ):
+        if (
+            name != "podvoice_start_timer"
+            or timer_endpoint != self.endpoint
+            or not execution_context.valid
+            or not completed_call_id
+            or type(args.get("seconds")) is not int
+            or args["seconds"] != 10
+            or not execution_guard()
+        ):
+            return {"ok": False, "error_kind": "timer_probe_not_admitted"}
+        result = await self._probe_timers.dispatch(
+            name,
+            args,
+            self.endpoint,
+            execution_context.session_id,
+            completed_call_id,
+            execution_guard=execution_guard,
+        )
+        self.evidence.emit(
+            "timer_probe_result",
+            name=name,
+            args=args,
+            call_id=completed_call_id,
+            session_id=execution_context.session_id,
+            result=result,
+            real_home_mutation=False,
+        )
+        return result
+
+    async def aclose(self):
+        await self.client.aclose()
+
+
+def timer_action_chain(rows, outputs, starts):
+    """Grade only the controlled timer fixture; never classify runtime speech."""
+    batches = [
+        r
+        for r in rows
+        if r["kind"] == "LiveToolBatch"
+        and any(c["name"] == "podvoice_start_timer" for c in r["calls"])
+    ]
+    if len(batches) != 1 or len(batches[0]["calls"]) != 1 or len(starts) != 2:
+        return None
+    batch = batches[0]
+    call = batch["calls"][0]
+    if type(call["args"].get("seconds")) is not int or call["args"]["seconds"] != 10:
+        return None
+
+    def one(kind, predicate):
+        matches = [r for r in rows if r["kind"] == kind and predicate(r)]
+        return matches[0] if len(matches) == 1 else None
+
+    started = one("LiveBackendStarted", lambda r: r["response_id"] == batch["response_id"])
+    done = one("LiveBackendComplete", lambda r: r["response_id"] == batch["response_id"])
+    result = one("timer_probe_result", lambda r: r["call_id"] == call["id"])
+    request = one("tool_results_request", lambda r: r["response_id"] == batch["response_id"])
+    returned = one("tool_results_return", lambda r: r["response_id"] == batch["response_id"])
+    chain = [started, done, batch, result, request, returned]
+    if not all(chain) or any(b["seq"] <= a["seq"] for a, b in pairwise(chain)):
+        return None
+    incoming = [r for r in transcripts(rows, "in") if r["seq"] <= started["seq"]]
+    if (
+        not incoming
+        or started["seq"] <= starts[-1]["seq"]
+        or any(r.get("generation") != 1 for r in (started, done, batch, request, returned))
+        or started.get("input_index") != incoming[-1]["input_index"]
+        or done.get("status") != "completed"
+        or done.get("tool_call_count") != 1
+        or not done.get("delegation_id")
+        == batch.get("delegation_id")
+        == started.get("delegation_id")
+        or request.get("provider_receipt")
+        != dict(
+            generation=1,
+            input_sequence=incoming[-1]["input_index"],
+            backend_sequence=started.get("created_index"),
+        )
+        or returned.get("request_seq") != request["seq"]
+        or result.get("real_home_mutation") is not False
+        or result.get("args") != call["args"]
+        or request.get("results")
+        != [dict(id=call["id"], name=call["name"], response=result["result"])]
+        or result["result"].get("ok") is not True
+        or result["result"].get("state") != "active"
+        or type(result["result"].get("seconds")) is not int
+        or result["result"]["seconds"] != 10
+        or result["result"].get("audible") is not False
+        or any(starts[-1]["seq"] < r["seq"] < returned["seq"] for r in outputs)
+    ):
+        return None
+    return starts[-1], returned
+
+
+def timer_answer_verdict(outputs, returned):
+    """A conservative fixture phrase cannot disprove another truthful response."""
+    text = rig.normalized("".join(r["text"] for r in outputs if r["seq"] > returned["seq"]))
+    if not text or text == "modtaget":
+        return "FAIL"  # Missing answer or the specific observed receipt-only regression.
+    # This controlled positive is automatic fixture evidence, never alarm proof.
+    if (
+        "timer" in text
+        and "sekund" in text
+        and ("10" in text or " ti " in " " + text + " ")
+        and ("start" in text or "sat" in text)
+    ):
+        return "OBSERVED_PASS"
+    return "UNKNOWN"  # Current action/result with another reply needs semantic review.
 
 
 class StartupBindingExported(RuntimeError):
@@ -479,9 +675,11 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
     rows = rows[:cutoff]
     inputs, outputs = transcripts(rows, "in"), transcripts(rows, "out")
     expected = "".join(TEXTS[name] for name in CASES[case])
-    recognized = fixture_transcript("".join(r["text"] for r in inputs)) == fixture_transcript(
-        expected
-    )
+    actual_input = "".join(r["text"] for r in inputs)
+    if case == "timer-10s":
+        # Only the known timer fixture allows the spoken orthography of ten.
+        actual_input = re.sub(r"\bti\b", "10", actual_input, flags=re.IGNORECASE)
+    recognized = fixture_transcript(actual_input) == fixture_transcript(expected)
     timing = (
         bool(inputs and outputs)
         and all(rig.valid_interval(r) for r in inputs + outputs)
@@ -692,9 +890,22 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
     quiet_zero_proven = bool(
         len(starts) > 1 and rows and mapped_window_all_zero(starts[-1], rows[-1])
     )
+    timer_chain = timer_action_chain(rows, outputs, starts) if case == "timer-10s" else None
     if evidence_complete:
         verdict = "FAIL"
-        if case in POSITIVE_CASES:
+        if case == "timer-10s":
+            if (
+                opening_answered
+                and timer_chain is not None
+                and mapped_window_all_zero(*timer_chain)
+                and not nonsemantic_close
+                and (
+                    (stayed_open and negative_window_complete and not ends)
+                    or functional_chain_observed
+                )
+            ):
+                verdict = timer_answer_verdict(outputs, timer_chain[1])
+        elif case in POSITIVE_CASES:
             if (
                 functional_chain_observed
                 and opening_answered
@@ -756,6 +967,7 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         negative_window_complete=negative_window_complete,
         clean_shutdown=clean,
         usage_complete=usage_complete,
+        timer_action_chain_observed=timer_chain is not None,
         verdict_scope="synthetic_semantic_policy_only",
         semantic_review_required=True,
         functional_chain_observed=functional_chain_observed,
@@ -833,7 +1045,8 @@ async def evaluate(
     if client_factory is None and expected_startup is None and startup_binding_sink is None:
         raise RuntimeError("expected_startup_binding_required")
     primary, backend = instructions(variant)
-    tools, streams = NoActions(evidence), rig.LiveAudioStreams()
+    tools = TimerProbeTools(evidence) if case == "timer-10s" else NoActions(evidence)
+    streams = rig.LiveAudioStreams()
     capture = rig.SyntheticCapture(evidence, streams)
     live = OneLive(
         key,
@@ -984,6 +1197,8 @@ async def evaluate(
                 clean = not session._teardown_incomplete
         else:
             evidence.emit("cleanup_incomplete")
+        if isinstance(tools, TimerProbeTools):
+            await tools.aclose()
         usage_complete = len(live.snapshots) == 1 and all(
             s["voice_final"] and s["backend_usage_complete"] for s in live.snapshots.values()
         )
@@ -1031,7 +1246,7 @@ async def evaluate(
     return report, bool(done)
 
 
-async def export_startup_binding(variant, manifest, fixtures):
+async def export_startup_binding(variant, manifest, fixtures, *, case="completed-side-address"):
     bindings = []
 
     def forbidden_client(**_):
@@ -1042,7 +1257,7 @@ async def export_startup_binding(variant, manifest, fixtures):
         try:
             await evaluate(
                 "offline-not-a-credential",
-                "completed-side-address",
+                case,
                 variant,
                 manifest,
                 fixtures,
@@ -1088,9 +1303,13 @@ def main():
         print("Synthetic fixtures validated; no provider connection.")
         return 0
     if args.export_startup_binding:
-        if args.case or args.expected_startup or not args.variant or not args.output:
+        if args.expected_startup or not args.variant or not args.output:
             parser.error("offline startup export requires only --variant, --fixtures and --output")
-        binding = asyncio.run(export_startup_binding(args.variant, manifest, fixtures))
+        binding = asyncio.run(
+            export_startup_binding(
+                args.variant, manifest, fixtures, case=args.case or "completed-side-address"
+            )
+        )
         with args.output.open("x", encoding="utf-8") as output:
             args.output.chmod(0o600)
             output.write(json.dumps(binding, sort_keys=True, indent=2))

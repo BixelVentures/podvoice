@@ -11,7 +11,11 @@ import pytest
 
 from gatekeeper import constants as C
 from gatekeeper import podconnect_targets as targets
-from gatekeeper.data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
+from gatekeeper.data_result import (
+    MAX_PLAYBACK_TARGET_RESULT_BYTES,
+    MAX_TOOL_RESULT_BYTES,
+    tool_result_size,
+)
 from gatekeeper.execution_policy import Risk, assess_tool
 from gatekeeper.tools import ToolRouter
 
@@ -699,7 +703,7 @@ def nine_target_catalog(*, oversized=False):
             }
         )
     if oversized:
-        rows[0]["ha_context"]["aliases"] = ["🌍" * 120] * 4
+        rows[0]["ha_context"]["aliases"] = ["🌍" * 250] * 4
     return {"config_entry_id": "A", "targets": rows, "errors": {}}
 
 
@@ -754,10 +758,15 @@ def test_full_binding_must_be_valid_before_any_projection(invalid):
 def test_complete_target_projection_obeys_exact_utf8_boundary(extra_byte):
     raw = nine_target_catalog()
     expected = {"ok": True, "data": expected_model_catalog(raw)}
-    padding = MAX_TOOL_RESULT_BYTES - tool_result_size(expected) + extra_byte
+    padding = MAX_PLAYBACK_TARGET_RESULT_BYTES - tool_result_size(expected) + extra_byte
     assert padding >= 0
-    # Existing multibyte names/aliases remain intact; exact ASCII tail hits the wire boundary.
-    raw["targets"][0]["name"] += "x" * padding
+    # Spread padding across already-present bounded strings, without losing rows.
+    for row in raw["targets"][:2]:
+        for node in (row, row["ha_context"]):
+            count = min(padding, 1024 - len(node["name"]))
+            node["name"] += "x" * count
+            padding -= count
+    assert padding == 0
     original = copy.deepcopy(raw)
     result = targets.result(
         "podconnect_get_targets",
@@ -770,7 +779,7 @@ def test_complete_target_projection_obeys_exact_utf8_boundary(extra_byte):
         assert "data" not in result and "result_truncated" not in result
     else:
         assert result == {"ok": True, "data": expected_model_catalog(raw)}
-        assert tool_result_size(result) == MAX_TOOL_RESULT_BYTES
+        assert tool_result_size(result) == MAX_PLAYBACK_TARGET_RESULT_BYTES
     assert raw == original
 
 
@@ -778,7 +787,8 @@ def test_multibyte_overbudget_catalog_is_honest_not_partial_success():
     raw = nine_target_catalog(oversized=True)
     original = copy.deepcopy(raw)
     assert (
-        tool_result_size({"ok": True, "data": expected_model_catalog(raw)}) > MAX_TOOL_RESULT_BYTES
+        tool_result_size({"ok": True, "data": expected_model_catalog(raw)})
+        > MAX_PLAYBACK_TARGET_RESULT_BYTES
     )
     result = targets.result(
         "podconnect_get_targets",
@@ -805,3 +815,31 @@ def test_account_list_and_full_native_move_receipt_remain_unchanged():
         {"config_entry_id": "A", "kind": "configured_alias", "target_id": "r1"},
         move,
     ) == {"ok": True, "data": move}
+
+
+def complete_field_shape_catalog(count=10):
+    raw = nine_target_catalog()
+    raw["config_entry_id"] = "synthetic-account-identity"
+    for row in raw["targets"][:2]:
+        row["name"] += " in the synthetic development household"
+    for index in range(9, count):
+        row = copy.deepcopy(raw["targets"][-1])
+        row.update(target_id=f"output-extra-{index}", name=f"Additional output {index}")
+        raw["targets"].append(row)
+    return raw
+
+
+@pytest.mark.parametrize("count", [10, 11])
+def test_complete_current_catalog_and_extra_device_fit_measured_read_allowance(count):
+    raw = complete_field_shape_catalog(count)
+    original = copy.deepcopy(raw)
+    result = targets.result(
+        "podconnect_get_targets",
+        {"config_entry_id": raw["config_entry_id"]},
+        raw,
+        selected_service="get_targets_with_room_context",
+    )
+    assert result == {"ok": True, "data": expected_model_catalog(original)}
+    assert len(result["data"]["targets"]) == count
+    assert MAX_TOOL_RESULT_BYTES < tool_result_size(result) <= MAX_PLAYBACK_TARGET_RESULT_BYTES
+    assert raw == original

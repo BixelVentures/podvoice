@@ -2033,6 +2033,9 @@ class ThinSession:
             release_music=True,
             deadline=close_deadline,
             silence_complete=silence_complete,
+            allow_parallel_music=error_kind is None
+            and reason
+            in {"stop", "stop-word", "app-idle-timeout", "model-close", "model-close-silent"},
         )
         if error_kind is not None:
             self._hub_state("IDLE", None)
@@ -2053,6 +2056,7 @@ class ThinSession:
         release_music: bool,
         deadline: float | None = None,
         silence_complete: bool = True,
+        allow_parallel_music: bool = False,
     ) -> None:
         if not self._provider_trace_observer_installed and self._private_contract_brain is None:
             async with self._teardown_lock:
@@ -2060,6 +2064,7 @@ class ThinSession:
                     release_music=release_music,
                     deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
                     silence_complete=silence_complete,
+                    allow_parallel_music=allow_parallel_music,
                 )
             return
         try:
@@ -2068,6 +2073,7 @@ class ThinSession:
                     release_music=release_music,
                     deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
                     silence_complete=silence_complete,
+                    allow_parallel_music=allow_parallel_music,
                 )
         finally:
             self._restore_provider_trace_observer()
@@ -2136,7 +2142,12 @@ class ThinSession:
             await asyncio.shield(asyncio.gather(*owned, return_exceptions=True))
 
     async def _teardown_locked(
-        self, *, release_music: bool, deadline: float, silence_complete: bool
+        self,
+        *,
+        release_music: bool,
+        deadline: float,
+        silence_complete: bool,
+        allow_parallel_music: bool = False,
     ) -> None:
         teardown_deadline = deadline
         rearm_reserve = (
@@ -2155,6 +2166,20 @@ class ThinSession:
         ):
             with contextlib.suppress(Exception):
                 self.usage.add_transcription_seconds(transcription_seconds, room=self.room)
+        # Capture actual publication/I/O owners before cancellation clears their
+        # registries. An empty cleared map is not evidence that its tasks stopped.
+        close_io_owners = (
+            self._reader,
+            self._pump,
+            self._keepalive,
+            self._stop_context_task,
+            self._goodbye,
+            self._live_opening_task,
+            self._live_rotation_task,
+            self._live_close_task,
+            *self._tool_tasks.values(),
+            getattr(self._playback_lease, "watchdog", None),
+        )
         self._invalidate_playback_lease("teardown")
         self._active = False
         self._live_mic_submitted = None
@@ -2251,13 +2276,101 @@ class ThinSession:
             stale = self.voicepe.drain_mic()
             if stale:
                 _LOG.info("thin: cleared %d mic frames after conversation close", stale)
-        provider_complete, _ = await self._teardown_step(
-            "provider-close",
-            self.brain.close(),
-            deadline=teardown_deadline,
-            timeout_s=self.brain.timeout_s if self.live_alpha else None,
-            reserve_s=rearm_reserve,
+        # Native Live's physical stop and closing-context ACK fence output before
+        # independent provider/attention cleanup. Other adapters and uncertain
+        # rotation/reconnect owners retain the existing serial close path.
+        stop_context_complete = True
+        stop_context_attempted = False
+        parallel_music = bool(
+            allow_parallel_music
+            and release_music
+            and self.live_alpha
+            and not self._live_webrtc
+            and self._transport_closing
+            and silence_complete
+            and stream_complete
+            and opening_complete
+            and getattr(self.voicepe, "supports_stop_context", False)
+            and (self._live_stream is None or self._live_stream.cancelled)
+            and not self._live_rotation_io
+            and not self._live_idle_preclose_owners
+            and not self._teardown_retry_wakeup.is_set()
+            and all(
+                task is None or (task.done() and (task.cancelled() or task.exception() is None))
+                for task in close_io_owners
+            )
         )
+        if parallel_music:
+            stop_context_attempted = True
+            context_ok, context_disabled = await self._teardown_step(
+                "stop-context-disable",
+                self.voicepe.set_stop_context(False, closing=True),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            stop_context_complete = context_ok and context_disabled is True
+            parallel_music = stop_context_complete and not self._teardown_retry_wakeup.is_set()
+            if stop_context_complete:
+                self._local_stop_armed = False
+
+        async def release_music_io(reserve_s: float) -> tuple[bool, bool]:
+            heartbeat_complete = True
+            attention_complete = True
+            if release_music:
+                heartbeat_complete, _ = await self._teardown_step(
+                    "heartbeat-stop",
+                    self.heartbeat.stop(),
+                    deadline=teardown_deadline,
+                    reserve_s=reserve_s,
+                )
+                attention_ok = False
+                if heartbeat_complete:
+                    # Joining also freezes any BEGIN identity prepared before stop ran.
+                    attention_lease = self.heartbeat.lease
+                    if attention_lease is None:
+                        attention_ok = True  # No own BEGIN, therefore no release obligation.
+                    else:
+                        # A release cannot overtake a live periodic or immediate beat.
+                        attention_ok, _ = await self._teardown_step(
+                            "attention-release",
+                            self.attention.release(self.room, lease=attention_lease),
+                            deadline=teardown_deadline,
+                            reserve_s=(
+                                reserve_s
+                                if not self._teardown_retry_wakeup.is_set()
+                                and not self._live_rotation_io
+                                and not self._live_idle_preclose_owners
+                                else rearm_reserve
+                            ),
+                        )
+                        if attention_ok and self.hub is not None:
+                            self.hub.incr("attention_releases")
+                            self.hub.set_level(self.room, 100)
+                attention_complete = attention_ok
+            return heartbeat_complete, attention_complete
+
+        music_result = None
+        music_task = None
+        if parallel_music:
+            self._teardown_incomplete = True
+            music_task = asyncio.create_task(
+                release_music_io(rearm_reserve), name="thin-close-music"
+            )
+        try:
+            provider_complete, _ = await self._teardown_step(
+                "provider-close",
+                self.brain.close(),
+                deadline=teardown_deadline,
+                timeout_s=self.brain.timeout_s if self.live_alpha else None,
+                reserve_s=rearm_reserve,
+            )
+            if music_task is not None:
+                music_result = await music_task
+        finally:
+            if music_task is not None:
+                if not music_task.done():
+                    music_task.cancel()
+                await asyncio.gather(music_task, return_exceptions=True)
         rotation_io_complete = True
         idle_preclose_complete = True
         if self.live_alpha:
@@ -2278,9 +2391,10 @@ class ThinSession:
                 )
             self._discard_live_confirmation()
             self._live_rotating = False
-        stop_context_complete = True
-        if (self.live_alpha or not self.full_duplex) and getattr(
-            self.voicepe, "supports_stop_context", False
+        if (
+            not stop_context_attempted
+            and (self.live_alpha or not self.full_duplex)
+            and getattr(self.voicepe, "supports_stop_context", False)
         ):
             context_ok, context_disabled = await self._teardown_step(
                 "stop-context-disable",
@@ -2303,39 +2417,10 @@ class ThinSession:
             and not self._teardown_retry_wakeup.is_set()
             else rearm_reserve
         )
-        heartbeat_complete = True
-        attention_complete = True
-        if release_music:
-            heartbeat_complete, _ = await self._teardown_step(
-                "heartbeat-stop",
-                self.heartbeat.stop(),
-                deadline=teardown_deadline,
-                reserve_s=music_cleanup_reserve,
-            )
-            attention_ok = False
-            if heartbeat_complete:
-                # Joining also freezes any BEGIN identity prepared before stop ran.
-                attention_lease = self.heartbeat.lease
-                if attention_lease is None:
-                    attention_ok = True  # No own BEGIN, therefore no release obligation.
-                else:
-                    # A release cannot overtake a live periodic or immediate beat.
-                    attention_ok, _ = await self._teardown_step(
-                        "attention-release",
-                        self.attention.release(self.room, lease=attention_lease),
-                        deadline=teardown_deadline,
-                        reserve_s=(
-                            music_cleanup_reserve
-                            if not self._teardown_retry_wakeup.is_set()
-                            and not self._live_rotation_io
-                            and not self._live_idle_preclose_owners
-                            else rearm_reserve
-                        ),
-                    )
-                    if attention_ok and self.hub is not None:
-                        self.hub.incr("attention_releases")
-                        self.hub.set_level(self.room, 100)
-            attention_complete = attention_ok
+        if music_result is None:
+            heartbeat_complete, attention_complete = await release_music_io(music_cleanup_reserve)
+        else:
+            heartbeat_complete, attention_complete = music_result
         teardown_complete = (
             silence_complete
             and not self._teardown_retry_wakeup.is_set()

@@ -1,9 +1,18 @@
+## 2.0.24 - quiet delegation and field recovery
+
+- Delegate tool work silently instead of speaking generic receipt or progress messages. Preserve direct answers, clarification, confirmed results and model-owned closing.
+- Preserve the complete playback-target catalog with a catalog-specific 4096-byte allowance in validation, serialization and pre-dispatch capacity reservation. Generic results and mutation limits remain unchanged.
+- Prevent normal native cleanup from sharing a sequential provider/attention bottleneck after proven physical I/O cutoff. Keep one close owner, the existing deadlines and a correlated rearm after both cleanups finish; uncertain and error paths remain sequential.
+- Add an inert GPT-Live timer-creation regression to the existing semantic evaluator. It requires a current confirmed 10-second action and meaningful answer; it never creates a real home timer.
+- This candidate still requires provider, artifact and physical acceptance. No timer alarm, room transfer, lifecycle or latency pass is inferred from source checks.
+
 ## 2.0.23 - PodView companion display
 
 - Serve the touch companion inside the existing authenticated Home Assistant ingress, with the current room conversation and native timer state; no additional add-on or voice engine.
 - Add explicit administrator-provisioned, one-use pairing for short-lived native timer start/cancel control, tied to the exact room, endpoint, epoch and revision. Viewer access alone never grants control.
 - Read admitted PodConnect targets and music history through the existing server owner; provider credentials remain server-side. Optional fact selection is prepared but remains disabled until provider budget and publication ownership are admitted.
 - Package the Danish touch UI and preserve demo/live separation. Source checks and CI are distinct from installation and physical iPad/Voice PE acceptance.
+
 
 ## 2.0.22 - GPT-Live closing and HA recovery
 

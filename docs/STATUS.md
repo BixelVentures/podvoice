@@ -18325,3 +18325,69 @@ User parks exploration of GPT-Live-native web search as issue #151. Retain the e
 Merged runtime35a and current main58c have identical entire add-on trees; main58c full CI passed but public registry version2.0.22 remained404 after the first publication was blocked. Move all seven incidental heavy fake SDK allocations outside timed startup in six test files. Keep actual factory admission/generation labels,0.2/2-second deadlines, ten cycles, stale/failed startup cases and cleanup unchanged. All21 affected sibling cases pass;20 unchanged Native/Talk cycles retained. Independent attention_ci_review whole-AST/source GO; no production or firmware changes.
 
 The existing main publisher now inspects the current configured version after all full checks. Missing manifest/exact image is published once; existing tags without packaging changes skip, packaging/manual collisions fail immutable, and authentication/helper/network errors fail closed. QEMU precedes Buildx; source SHA labels, build args, package permissions, concurrency and PR ARM-build stay unchanged. Thirteen focused actual-shell/original workflow cases and static checks pass; independent final publisher GO. No new helpers, dependencies, workflow or provider calls. The earlier runtime coupling record is preserved above as merged historical evidence; this repair has no production delta and requires no new runtime coupling. One combined repair PR/green main artifact/install; physical Voice PE acceptance remains open, goal ACTIVE. Native-web exploration remains parked in151.
+
+### 14/10 — combined field candidate 2.0.23
+
+Lead root; independent reviewer attention_ci_review. Observed field failures: generic receipt/progress speech, a clear ten-second timer request without any backend action, a complete ten-target catalog measuring 2108 UTF-8 bytes against the old 2048-byte limit, and successful provider cleanup consuming attention's shared deadline. The original native release outcome for the latter attempt is not recoverable through existing read surfaces and remains unknown.
+
+The affected chain is input → Live delegation → current backend/tool result → physical playback → silence/mic cutoff → provider and music cleanup → correlated rearm → next wake. Preserve one Thin/Live production owner, model-owned meaning, current tool authority, fresh target bindings, half-duplex physical truth and one rearm. No local phrase filter, target guessing, changed firmware, VAD/gain or longer deadline is introduced.
+
+Actual integrated changes: silent primary delegation and canonical no-preamble backend policy; complete catalog-only 4096-byte validation/serialization/reservation with generic and mutation limits unchanged; normal native cleanup may overlap provider finalization with heartbeat join and the original attention release only after verified physical/mic/context cutoff and terminal publication/domain owners. Immutable clean-close permission keeps technical errors, unknown reasons, shutdown, retries and Talk sequential. Both new cleanup owners finish before rearm; this does not claim all pre-existing serial domain owners are globally joined.
+
+Component and whole-composition SOURCE GO are bound to the current bytes. Retained targeted prompt/catalog checks, 14 inert timer-oracle checks and 34 native/Talk close/settlement/fault checks passed. Fixtures use actual adapter/protocol implementations with simulated peers; they prove no room audio or native AP2 restoration. The existing timer evaluator requires a current confirmed ten-second action and meaningful post-result answer; receipt-only/early/stale output fails, conservative unrecognized wording remains UNKNOWN for semantic review. It cannot create a real HA timer.
+
+Whole production fingerprint: 6bf5a785854958a514811bad1ed89b3f15eb91df11c6cbd19331a8dad10e18a2. Whole regression fingerprint: 5eb5c22f05cba79f15a5e8f235310b81748d12115314e07dea775295b51ab03f. Scope policy unchanged: d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Provider evaluator SHA256: 5f9551dd4da5a4b76aa91cc864a7c175eacaa7c3766b9f96e378b216a69672db.
+
+Next gated work is the existing bounded synthetic timer-creation and explicit-close checks on this exact source, one official CI/merge/publisher flow and one installation. Provider work, CI, publication and installation have not yet run for 2.0.23. Actual installed baseline remains PodVoice 2.0.22 with Speakers 0.26.18. Physical timer expiry, room transfer, closing speed, golden chain, ten uninterrupted cycles, latency and stability remain open; candidate is NOT TEST-READY and the full goal remains ACTIVE. Rollback affects only this combined diff and does not inherit later physical acceptance.
+
+<!-- superseded-unreleased-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "dfcde085e241360d3cf472bdd224b3dee70d3d0a",
+  "merge_base": "dfcde085e241360d3cf472bdd224b3dee70d3d0a",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "6bf5a785854958a514811bad1ed89b3f15eb91df11c6cbd19331a8dad10e18a2",
+  "reviewer": "attention_ci_review — independent whole-composition SOURCE GO",
+  "rationale": "One model-owned silent delegation and complete target-result chain, plus conditional native cleanup after proven physical I/O cutoff. Current source, tests and metadata independently checked; old unsafe/error/Talk/retry paths and all deadlines preserved. Source approval does not imply provider, artifact or physical acceptance."
+}
+-->
+
+14/10 final source freeze: existing exact-coupling scope and diff checks PASS; one focused dev fast check PASS, including lint/format of 15 changed Python files, type checks on all 57 source files and 15 release-contract cases. Exact production/test/policy bindings above are unchanged. Final two-case operator binding/pins independently reviewed and one invalidated-source check-only passed. No provider or HA pause has started; these checks do not prove physical function.
+
+
+14/10 — candidate continuation after provider observation and main integration. First admission attempt ran no provider call; PodVoice 2.0.22 was restored inside the 180-second pause limit. The second attempt ran one timer case and stopped at FAIL. Real Live delegation and podvoice_start_timer(seconds=10) were observed, but the inert timer adapter returned stale_schema; no home mutation occurred and explicit-close was not run. Pre-result output transcript [hum] is retained as unresolved audio evidence, not silently reclassified. Original report remains failed. HA was restored to running 2.0.22 within 103 seconds.
+
+The harness exposed its creation-only HomeAssistantTimers adapter as public .timers. Actual Thin startup admitted physical alarm polling, which removed the synthetic snapshot because the capture has no physical timer identity. The permanent constructor → actual Thin start/wake → guarded inert dispatch regression reproduces the same stale_schema. Lead admits only a private probe adapter and this startup regression, preserving production, real validators, current dispatch and verdict oracle. Independent adversarial review precedes integration and another bounded observation; no runtime patch is inferred from the harness fault.
+
+Public main a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc already published PodView as 2.0.23. Preserve that entire main tree and all prior field repairs; the combined field candidate is now 2.0.24. Only changelog metadata conflicted during rebase; both entries are preserved. Earlier dfc-bound freeze/source approval is historical and does not approve the new composition. Refresh exact-tree review/binding before the one CI/publication/install. Candidate remains NOT TEST-READY; physical timer alarm, music transfer, closing latency, next wake and stability are still open. Goal ACTIVE.
+
+
+14/10 fixture correction integrated after independent attention_contract SOURCE GO: private _probe_timers and actual Thin-start/wake regression only, exact patch 52c58816e12be9e0543e3844a0d52612e1b04351d531ac57be5d75645c622dc9. Retain two affected passing checks and formatter/lint; production and verdict oracle unchanged. Original paid FAIL and one second of nonzero pre-result provider PCM remain unresolved; provider PCM is not physical playback. No new paid call has run. Fresh HA info now shows PodVoice 2.0.23 running, with automatic updates enabled; earlier restoration to 2.0.22 was true at that time and is not current installation proof. Root has not installed field candidate 2.0.24.
+
+
+14/10 whole 2.0.24 independent SOURCE GO: all 499 baseline entries, exact 19 effective repair paths, modes, hidden/untracked inventory and reviewed component identities checked against public a6ac main. Production 13f9a2b01330e31f7334d9f1b96ff31e30bf37494a122cbe685bb93c575816e8; regression 8806fd19dfaca3bbec046d3ef9f446629e1bec3624cb099718fd9446f0179449; unchanged scope policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Current native/Talk/component/static checks retained only on identical reviewed bytes. PodView remains intact. Original provider FAIL and pre-result audio remain unresolved; source may be pushed as draft, but no provider, artifact, installation or physical approval is inferred.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "13f9a2b01330e31f7334d9f1b96ff31e30bf37494a122cbe685bb93c575816e8",
+  "reviewer": "attention_ci_review \u2014 independent whole 2.0.24 composition SOURCE GO",
+  "rationale": "One model-owned silent delegation and complete target-result chain, plus conditional native cleanup after proven physical I/O cutoff. All 499 main entries and 19 repair paths independently checked; PodView pairing/routes/assets/owners preserved. Existing error/Talk/retry paths and deadlines preserved. Source approval is not provider or physical acceptance."
+}
+-->
+
+
+14/10 existing final scope check PASS on exact whole 2.0.24 reviewed composition, production domains physical_output/rearm; diff check PASS. New 24 operator independently approved exact pins eebd2f8036977772e0b4f4bd5e5b9d3e2a3449b63b5e3ded470af89401ffd47b, full 59 runtime files/current metadata, unchanged wire configuration and 180/120/60-second pause/provider/restoration bounds.
+
+One fresh paid timer case ran and stopped at FAIL; explicit-close did not run. The real guarded inert podvoice_start_timer(seconds=10) returned ok:true/active at 13.590 seconds, and a subsequent backend end_conversation was accepted at 15.910 seconds. The report remains FAIL (thin_session_ended), with pre-result output observed and timer_action_chain_observed:false. No real home timer was created. The fixture stale_schema is resolved; the complete timer response/ending/silence chain is not accepted. Lead admits read-only causal/semantic review of the actual request, output and model ending before any runtime or oracle change. Do not patch another symptom or convert the successful tool result into broad acceptance.
+
+PodVoice 2.0.23 was restored and observed running within 72 seconds of the bounded pause. Key was RAM-only, private carrier/config views closed, local operator terminal exit3; no second provider case or blind retry. Candidate 2.0.24 remains NOT TEST-READY. Source may be pushed as one draft for preservation and review; merge/release/install remain gated on unresolved provider and physical evidence. Goal ACTIVE.
