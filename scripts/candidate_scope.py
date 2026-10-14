@@ -335,6 +335,22 @@ _LIVE_STARTUP_IDLE_ALARM_SCOPE_REGRESSIONS = {
 }
 
 
+# Exact schema discovery -> immutable Live startup -> shared Thin lifecycle chain.
+# This named profile never grants a generic four-domain admission.
+_LIVE_SCHEMA_HEALTH_REQUIRED = {
+    "podvoice/gatekeeper/live_prompt.py",
+    "podvoice/gatekeeper/openai_live.py",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/tools.py",
+}
+_LIVE_SCHEMA_HEALTH_REGRESSIONS = {
+    "tests/unit/test_live_prompt.py",
+    "tests/unit/test_openai_live.py",
+    "tests/integration/test_thin_live.py",
+    "tests/integration/test_thin_mcp_recovery.py",
+}
+
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -859,6 +875,67 @@ def _reviewed_live_startup_idle_alarm(
     )
 
 
+def _reviewed_live_schema_startup_mcp_health(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "policy_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    domains = ("ha_tools", "physical_output", "realtime_semantics", "rearm")
+    if (
+        set(record) != fields
+        or record["kind"] != "live_schema_startup_mcp_health"
+        or report.domains != domains
+        or record["domains"] != list(domains)
+        or any(
+            not isinstance(record[key], str) or not record[key].strip()
+            for key in fields - {"version", "domains"}
+        )
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+    ):
+        return False
+    effective = _effective_changes(
+        root, report.base, (*report.production_files, *report.test_files)
+    )
+    production = {name for name in effective if name.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    regressions = {name for name in effective if name.startswith("tests/")} | set(report.test_files)
+    metadata = "podvoice/gatekeeper/__init__.py"
+    policy = root / "scripts/candidate_scope.py"
+    if (
+        not _LIVE_SCHEMA_HEALTH_REQUIRED <= effective
+        or not production <= _LIVE_SCHEMA_HEALTH_REQUIRED | {metadata}
+        or not _LIVE_SCHEMA_HEALTH_REGRESSIONS <= effective
+        or any(
+            not (root / name).is_file() or (root / name).is_symlink()
+            for name in production | regressions
+        )
+        or not policy.is_file()
+        or policy.is_symlink()
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    return (
+        record["fingerprint"]
+        == production_fingerprint(root, base_tip, report.base, report.production_files)
+        and record["regression_fingerprint"]
+        == regression_fingerprint(root, base_tip, report.base, report.test_files)
+        and record["policy_fingerprint"] == hashlib.sha256(policy.read_bytes()).hexdigest()
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
@@ -897,6 +974,16 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
         return failed
+    if record["version"] == 2 and record.get("kind") == "live_schema_startup_mcp_health":
+        if (
+            strict_v3_required
+            or strict_v4_required
+            or not _reviewed_live_schema_startup_mcp_health(root, report, base_tip, record)
+        ):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: live_schema_startup_mcp_health"
+        )
     if record["version"] == 5:
         # This composition preserves the idle-input owners; changing them still
         # requires the existing strict v4 contract. It cannot swallow v3 surfaces.

@@ -33,6 +33,13 @@ og `release` præcis én gang efter diff-freeze og det review, ændringen kræve
 artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
 værktøjer eller Realtime-semantik.
 
+En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
+bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,
+uafhængigt reviewet profil. Skift ikke base eller en generisk klassifikation for at
+få den samme release til at passere. Repoet er public: hent almindelig Git-ancestry
+via HTTPS uden credentials og uden checkout/reset, før manuel GitData-rekonstruktion
+overvejes. Gamle lokale auth-fejl er ikke en produktfejl.
+
 `fast` cacher kun stabile preflightdele og kører Ruff, format, mypy og fokuseret pytest
 parallelt med isolerede caches; der må ikke tilføjes en separat collection-pass. Målene
 er varm ≤8 s, kold ≤15 s og release ≤45 s. Brug lav intelligens til afgrænsede test-/

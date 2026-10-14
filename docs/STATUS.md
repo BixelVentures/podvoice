@@ -18135,3 +18135,63 @@ Lead root. Den nye inventory har faktisk gennemført den klare “Afslut samtale
 Tillad forberedelse af én eksisterende math→oprindelig “Tak, det var det”-case på den præcise nye, reviewed composite source, først efter dens sourcefreeze. Genbrug original manifest/PCM55e30ba3 og math92cad uændret, eksisterende fælles Thin/GPT-Live/Sol, recorder/orakel/dispatch/budget og90s prepause/actual180-provider120-restore60. Eneste nødvendige private scenariodelta er kendt fixturetekst i den eksisterende evaluator; ingen runtimeprompt, ny classifier, lokalhensigtsregel, forcedEND eller managed/clientprotokol. Source/fixtures/actualstartup skal være eksakte; én offline startup-export for denne nye kildekombination, uafhængig admissionreview og én check-only før enhver provider. Gamle source/fixture/gategreens genkøres ikke.
 
 Falsificerbar hypotese er udelukkende at denne naturlige afslutning på de nye bits kan vælge automatiskD→completed/currentEND→matchingcontinuation→syntetiskclose/rearm med sand kvittering. NoD, forkert afslutningspåstand, unknowninput/usage/config eller staleevents stopper denne ene case; ingen retry eller næste automatiskcase. RawUNKNOWN forbliver UNKNOWN; semantisk konsistent matematisk kerne er ikke påvist lydtab og må ikke udløse en patch. Uafhængig event/kvitteringsaudit kræves, og ingen Talk/physical/golden/stabilitetsaccept udledes. FreshRestoreOwner med egenTTY/freshnonce førStop og root kun restorewatch under faktiskpause. Stående menneskelig godkendelse anvendes; actualGO er først efter præcistreviewet packet, ikke fra denne plan. Rollback kun privatcasepacket; eksisterende installerede21 ogmål ACTIVE/kandidat IKKE TESTKLAR består.
+
+
+Samme aktive komposition — source/resultat og sand WIP-binding.
+Alle408 faktiskpublicerede bfc605 Gitblobs/modes/byteantal er verificeret mod nontruncatedded765 GitTree; den eksakte unsignedbfc605 Gitcommit/tree er rekonstrueret i isoleret draft. Et arvet AGENTS-cachemismatch blev rettet til faktiskpublishedblob førbaseproof, ikke en produktændring. Kun tools94e8cd8d/testb71aa0b4 importeres frareviewed07ed; actual07edparent30e0 og begge bfcbasefiler modmain4a er kontrolleret. Ingen tidligereinventory95fe/d74, offentligprepause-tooling, Thin, schema/dispatch/receipt/native/Talk- ellerhistoriabytes overskrives. Importerede2files formatter/lint PASS; alleredegrønne118/38/46, provider/export/release er ikke genkørt.
+
+Aktiv exactwholebinding for sourceWIP-komposition bruger actualbfc605 base/mergebase og reviewer sol_input_restore: whole122production 5d916ef652d8cec182ee59ec2ce0d61f0912fa3f11ae712144114058759189db, whole233tests 2daa95f503af7c7f066bf65330444227a21a07723224ced76f382a13313bfb2d, separat externaltest/eval/unchangedfixtures 0cd1158c2182ebad8ce052644adfef55f75089436b7c8aaddac73db7a353c14f. Den eksisterende scope har singleunclassified_runtime for tools+test-deltaen; den gamle main4a3domainV1 er bevaret somhistoriskJSON, ikke aktivcoupling. Binding/sourceadmission afventer finalindependentGO og ONEaktuel scope førfreeze.
+
+Den fulde kandidatrelativmain4a har firedomæner ha_tools/physical_output/realtime_semantics/rearm, wholeproduction 6247405b5392065fcb3c7e4b723af130fef916c7e09cc0270cac3e0a33efee72, wholetests e08c8fa5acd65029ff42e0cc645b8b16d9ffbeef8a7a3812835f55970d19f39e. Den tuple er IKKE release-admitteret af den eksisterende genericV1; hverken denne WIPbase, tidligere delchecks eller en senere lifecycle-narrowgate må skjule/omgå den samlede main-scopegrænse. Ingen classifier/profile/CIændring her. Sammensat provider/fysisk/releaseaccept arves ikke; kandidatIKKE TESTKLAR, målACTIVE.
+
+
+Samme komposition — final sourcefreeze. Uafhængig sol_input_restore SOURCE/BINDING GO og rootleadGO er fulgt af præcis én eksisterende scopekontrol mod actualbfc605: PASSexit0/0.061s, singleunclassified_runtime/tools+test. Wholeactualbinding5d916ef6/2daa95f5/external0cd1158c er reviewet; main4a4domainNOT_RELEASE_ADMITTED og kandidatIKKE TESTKLAR bevares eksplicit. Source er først nu frosset til WIP-publicering; ingen118/38/46checks, provider/export/release er genkørt, og ingen samlet fysiskaccept arves.
+
+14/10 samlet inventory+recovery source pushet4102101a39decae37faa03c6b3ab93083268e5d6, parentbfc605/treea489a635. Actualtools5e905/test2a257 og fuld1743991-byte STATUS53c95e6a er fullactualGitblob-content+treeSHA/size-verificeret før expectedheadlease, frisk remotehead verificeret. De to færdige rettelser ligger nu på samme WIPbranch. Wholebinding basebfc og source-scopePASS gælder kun denne sourcekomposition; main4a releasegrænse/fysiskaccept er fortsat åbne. Ingen ny udgivelse/installation eller providerprøve. Mål ACTIVE.
+
+
+14/10 natural closing actual-admission GO. Uafhængig SOURCE/PIN-review9d66dbb1 verificerer2252pins e99b10c6 (alle2174gamle uændret+78new), frozencomposite og kun fixturetekst56d5, originalSara55e30/math92cad/manifested3f. Én offlineactualThinexport12f00 ændrer kun tools94 sourcepin, evalfixturetekstpin og manifest/closingfixturecontext; faktiskconfigf0fe/primary3b1a/backendaf00/tools74aa/Sol er uændrede. Én check-only PASSexit0/0.266s, finalreceipt0033056a. Gamle grønne kontroller/fixtures/export genkøres ikke. Leadroot giver faktiskGO til netop denne ene oprindelige naturlige afslutning, ingen retry/næstecase efterFAIL/UNKNOWN. Frisk RestoreOwner kræves førStop med egenliveTTY/freshnonce; max1/prepause90/actual180/provider120/restore60, rootkunwatchunderpause. Stående human-test/nøgle/recipient-godkendelse gælder uden nytspørgsmål. Ingen main-release/installation/physicalclaim; kandidatIKKE TESTKLAR/målACTIVE.
+
+### 14/10 — aktiv permanent toolingrettelse: præcis fælles schema/health scope
+
+Leadroot. Den faktisk sammensatte kilde har ingen sourcekonflikt og uafhængig whole-tree review uden findings, men eksisterende genericV1 understøtter ikke dens fire main4a-domæner. Den lille bfc-relative scope er kun source-WIP, og må ikke blive mainrelease-bevis. Read-only policyaudit viser at én eksplicit, afgrænset V2profil kan reviewes i den samme bulk-PR; ingen separat tooling-udgivelse behøves. Årsagshypotese er en manglende præcis udviklingsprofil for den sammenhængende HA-health→immutable schema→Live startup→modelværktøj/close-kæde, ikke en runtimefejl.
+
+Tillad separat usynkroniseret toolingdraft med kind live_schema_startup_mcp_health: præcis required/effective runtimeflade live_prompt.py/openai_live.py/thin.py/tools.py og fire-domænetupleha_tools/physical_output/realtime_semantics/rearm. Kun valgfri __init__.py releaseversionsmetadata må supplere, og kun hvis eksisterende fuld baseline-byte/versionkontrol beviser én versionslinje og intet andet. Ingen andre firmware/UI/runtimefiler, generisk firetuple, engineændring eller ændret classifierpattern. Eksisterende V2passive-UI og strictV3/V4admission skal bevares. Hele production- og regressionfingerprints, eksakt base/mergebase, policyfilhash og ikke-tom uafhængig reviewer/rationale bindes; aktuelle required prompt/startup/Thin/MCP-regressioner skal være faktiskændrede, ikke blot eksistere. Delete/symlink, missing/extra/hidden/stale/staged-reversal, ukendte kinds/fields og dublerede markers/JSONkeys skal afvises.
+
+Mindste ændring er kun scripts/candidate_scope.py plus meningsfulde policyregressioner, med eksisterende relevante legacyadmission/rejection-checks, formatter/lint og uafhængig adversarialreview førfreeze. Runtimekomposition og den godkendte natural-providerpacket forbliver immutable; policyfilen er ikke en provider-/lydændring. Ny actualmainscope køres præcisén gang på sidste reviewedpolicy+source+binding-diff, først efterpeerGO. Source-scopePASS er aldrig live-, fysisk- eller release-gatePASS. Ingen ekstra provider, HA-pause, fuld releasegate, CIændring eller nyproduktionsvej af denne toolingrettelse. Rollback kunpolicy/testdelta. KandidatIKKE TESTKLAR, helemåletACTIVE.
+
+
+### 14/10 — naturlig afslutning: faktisk funktion og uafhængig semantisk PASS
+
+Leadroot. Første math→“Tak, det var det” på composite c88/startup12f blev udført én gang. Hele inputtet er recognized=true og semantisk/fixture-konsistent: “Hvad er to plus to?” og “Tak, det var det”. Svaret var “Det er fire.”. AutomatiskD11.613s → completed/currentEND12.918s → accepteret currentreceipt12.920s (generation1/input8/backend1) → sammeDcontinuation13.143s/completed14.066s → currentsettlement14.067s → naturlig model-close/teardown/rearm15.002s FØRharnesscleanup15.002687s. Ingen manuel backendstart, forcedEND, runtimepromptændring eller lokal hensigtsregel.
+
+Uafhængig actualaudit a173e4df giver manual semantic/transcript policy PASS: “Modtaget.”11.654–11.817s var kort ikke-terminal modtagetkvittering efter faktiskD, uden tidlig handling/farvel/resultatpåstand. Rå rapport441cd1e UNKNOWN bevares uændret; ingen audible/physical/stability/domainaccept. Alle103 SDK/decoded outputchunks binder491520bytes med korrekt generation/order/hash;14 postacceptchunks er exactzero. Begge komplette fixtures er unikke i source, hele attempted-wire489598bytes er eksakt resamplerprefix fra source326400bytes. Otte SDKinput- ogfire SDKoutputevents har hver ét adapterfragment; ingen påvist filter/tab. Exact actualserverconfigf0fe/primary3b1a/backendaf00/tools74aa og61sourcepins passer. Én naturlig precleanupteardown/énrearm; ekstra shutdownteardown er cleanup. Ingen nye input/stale/cancel/runtimefaults, usage og cleanup komplette. Den tidligere literal-prefixusikkerhed er løst for DENNE prøve alene; gamle FAIL/UNKNOWN genbedømmes ikke.
+
+FreshRestoreOwner sol_input_restore verificeredeINFO63221Kører før egenTTY79568 og actualStoppet/freshnonce. Host clock førStop565590.257098791 → faktisk21Kører565645.619637208:55.362538417s. Start blev udført straks terminalexit3; restore≤180/provider≤120/reserve60 opfyldt. En forkert sandbox-clock blev opdaget og rettet FØRStop; der udledes ingen produktfejl eller falsk tidslinje af den. Privat0600 journal og PNGa786e459 bevaret. Key30=null, engangsformular635 lukket/config365skjult. Ingen ny versioninstalleret.
+
+Lossless source/provider-input/provider-output WAVs er kun afledte private lyttematerialer til den aftalte samlede senere serie; samples matcher originalPCM eksakt. Ingen gennemlytning/ASR/providerinference er foretaget af konverteringen. NativeVoicePE golden chain/10/10, faktisk hjem/vejr/musik/timerfunktion og latency/stabilitet er fortsat åbne. KandidatIKKE TESTKLAR, hele måletACTIVE. Direkte positiv evidens findes nu for både klar og oprindelig naturlig automatisk lukning på inventoryvejen; den samlede semantiske og fysiske matrix er stadig større end disse to cases.
+
+
+14/10 permanent præcis schema/startup/MCP-health scope: source d326d4cf/test c749a507 er uafhængigt reviewet i296709eb efter authentic ancestry tilmain4a.57 nye policygrænser og13 udvalgte eksisterende legacycases består; initial syntetiskfixturefejl er bevaret og55+13 er ikke genkørt efter den lille extra-test-guardrettelse. Formatter/lint PASS. De tidligere bfc-relative WIP-bindings/source-scopeposter ovenfor er kronologisk historik; følgende ene activeV2-record binder nu den aktuelle fulde main4a-kilde, hele regressiontræet og selve policyfilen. Dette er sourcekontrol, ingen provider/fysisk/releaseaccept.
+
+<!-- candidate-scope-coupling
+{
+  "version": 2,
+  "kind": "live_schema_startup_mcp_health",
+  "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "6247405b5392065fcb3c7e4b723af130fef916c7e09cc0270cac3e0a33efee72",
+  "regression_fingerprint": "d899e230be6949b95158f717e9c77ac5fdc098fa3c3daf166824cfec8cdcc5ab",
+  "policy_fingerprint": "d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21",
+  "reviewer": "sol_input_restore",
+  "rationale": "Prospective independent exact whole-tree review of schema-bound primary inventory, existing model-owned terminal receipt/Thin closure and MCP health recovery; four required changed regressions, existing backend/schema/model/audio/I-O owners reviewed, no physical or release gate inferred. Tooling policy review is separate from source-scope execution; historical FAIL/UNKNOWN preserved."
+}
+-->
+
+14/10 faktisk finalsource-scope: én unchangedcandidate_scope --base4a PASSexit0/0.310s med exact reviewed coupling live_schema_startup_mcp_health; fire runtimeflader, alle234 tests og policyhash passer. Policy/testsource er først nu frosset. Ingen releasegate/provider/HA/export/CI eller fysisk gate er kørt af denne toolingrettelse; kandidatIKKE TESTKLAR, hele måletACTIVE. Gamle FAIL/UNKNOWN og bfc-WIPbeviser bevares uden retrograde.
