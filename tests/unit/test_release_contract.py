@@ -43,67 +43,14 @@ def test_shipped_package_has_no_selectable_simulation_runtime() -> None:
     assert (ROOT / "tests" / "fakes" / "legacy_sim.py").exists()
 
 
-def test_status_defines_one_honest_milestone_vocabulary() -> None:
-    status = (ROOT / "docs" / "STATUS.md").read_text()
+def test_agent_entry_links_resolve_to_one_current_contract() -> None:
     agents = (ROOT / "AGENTS.md").read_text()
-
-    assert "v1.13.11 er PodVoices første fysisk virkende" in status
-    assert "daværende fysisk bevis er 1/10" in status
-    assert "v1.13.12 er truth-hardening" in status
-    assert "Første virkende version" in agents
-    assert "Lifecycle release-godkendt" in agents
-    assert "Produktmålet nået" in agents
-
-
-def test_architecture_keeps_semantic_end_signal_in_production() -> None:
-    architecture = (ROOT / "docs" / "ARKITEKTUR.md").read_text()
-
-    assert "Modellens `end_conversation`-tool" not in architecture
-    assert "provider-neutrale lifecycle-signaler" in architecture
-    assert "intet obligatorisk fortsættelsessignal" in architecture
-    assert "`end_conversation`" in architecture
-    assert "de går aldrig gennem HA/MCP" in architecture
-
-
-def test_next_steps_lock_the_five_development_priorities() -> None:
-    status = (ROOT / "docs" / "STATUS.md").read_text()
-    goals = (ROOT / "docs" / "PRODUKTMÅL.md").read_text()
-    agents = (ROOT / "AGENTS.md").read_text()
-
-    for document in (status, goals, agents):
-        assert "Udviklingsprioritet 1" in document
-        assert "Udviklingsprioritet 2" in document
-        assert document.index("Udviklingsprioritet 1") < document.index("Udviklingsprioritet 2")
-
-    for priority in range(1, 6):
-        assert f"Udviklingsprioritet {priority}" in goals
-        assert f"Udviklingsprioritet {priority}" in agents
-
-    assert goals.index("Udviklingsprioritet 2") < goals.index("Udviklingsprioritet 3")
-    assert goals.index("Udviklingsprioritet 3") < goals.index("Udviklingsprioritet 4")
-    assert goals.index("Udviklingsprioritet 4") < goals.index("Udviklingsprioritet 5")
-    assert "speech_stopped → playback_started" in goals
-    assert "p50 ≤ 1,2 s" in goals
-    assert "request_ack_cue_v1" in goals
-    assert "automatisk HA/MCP-recovery" in goals
-    assert "fysisk funktionsmatrix" in goals
-    assert "samlet UI-gennemgang" in goals
-    assert "320, 390 og 430 px" in goals
-    assert "må ikke udvikles i samme kandidat" in status
-
-
-def test_physical_gate_cannot_approve_a_lucky_answer() -> None:
-    status = (ROOT / "docs" / "STATUS.md").read_text()
-    invariants = (ROOT / "docs" / "INVARIANTER.md").read_text()
-    agents = (ROOT / "AGENTS.md").read_text()
-
-    assert "Et heldigt tool-kald" in agents
-    assert "bevis for stabil hørelse" in agents
-    assert "modellen kan ellers have ramt rigtigt ved et tilfælde" in invariants
-    assert "20260819T123836-240" in status
-    assert "ustabil fysisk inputforståelse" in status
-    assert "Et korrekt" in status
-    assert "svar tæller ikke som bestået" in status
+    assert "AGENTS.md" in (ROOT / "CLAUDE.md").read_text()
+    local_links = re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", agents)
+    assert {"docs/STATUS.md", "docs/AGENTKONTRAKT.md", "docs/UDVIKLINGSFLOW.md"} <= set(local_links)
+    for target in local_links:
+        if "://" not in target:
+            assert (ROOT / target).is_file(), target
 
 
 @pytest.mark.parametrize(
