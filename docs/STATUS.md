@@ -1,15 +1,15 @@
 # Aktuel lead-status · 14/10 2026
 
-Lead: root. Målet er **fuldt funktionsdygtig Voice PE til daglig brug ASAP**. Det brede mål står på brugerens anmodning på PAUSE; den igangværende samlede 2.0.24-udgivelse færdiggøres efter brugerens efterfølgende udtrykkelige besked.
+Lead: root. Målet er **fuldt funktionsdygtig Voice PE til daglig brug ASAP**. Det brede mål er fortsat **PAUSET** efter brugerens anmodning. Den særskilt bestilte samlede udgivelse er nu færdig.
 
-- **Installeret:** PodVoice2.0.23 kører på HA Green; Speakers0.26.18. Seneste kontrollerede genstart efter den afgrænsede årsagsprøve er gennemført.
-- **Voice PE:** brugeren bekræfter, at pucken er slukket. Ingen ny fysisk afprøvning efterspørges nu.
-- **Samlet kandidat:** 2.0.24 i draft [PR155](https://github.com/BixelVentures/podvoice/pull/155); endnu ikke merged, udgivet eller installeret. Kandidaten er **IKKE TESTKLAR**.
-- **Under rettelse:** stille handlingsdelegation uden generiske kvitteringer, komplet højttalerkatalog til musikflytning og native afslutning/oprindelig musikgendannelse. Aktuel årsagsprøve viser, at backendcompletion kommer før det efterfølgende talesvar; default provider-close må ikke forveksle de to.
-- **Åbent bevis:** den nye prompt har endnu ikke bevist stabil delegation; én CI-recovery-timeout er uafklaret; den nye close-boundary er integreret efter uafhængigt kode-review og afventer samlede gates. Timerens faktiske alarm, musikflytning via Voice PE, afslutning/næste wake, latency og stabilitet mangler samlet accept på samme artifact.
-- **Arbejdsform:** uafhængig kode/review parallelt, én samlet udgivelse/installation efter relevante gates og én samlet fysisk serie, når enheden igen er tilgængelig.
+- **Installeret:** PodVoice **2.0.24 kører på HA Green**, med GPT-Live. Én katalogopdatering og én installation med sikkerhedskopi; opstartsloggen matcher den udgivne main b9c934edc1530a7750db370fe3b58dbb576c86f6.
+- **Udgivet:** [PR #155](https://github.com/BixelVentures/podvoice/pull/155) er merged; både endelig PR-CI38618596539 og main-CI38619741156 er grønne. Det er en tydeligt mærket **testudgivelse**, ikke fuld produkt-/lifecycleaccept.
+- **Indhold:** bevar forsinket talesvar efter handling, komplet højttalerkatalog, native oprydning/musikgendannelse og promptændring mod generiske kvitteringer. De ti regler for hurtig levering og valg af hurtigste tilstrækkeligt kompetente agent står nu i AGENTS.md.
+- **Kendt begrænsning:** streng stilhedsprøve er fortsat **FAIL** på ét sekund uidentificeret lyd før timerresultatet. Ingen verificeret talt “Modtaget” eller falsk succes i sporet. #153 er åbent; ingen påstand om fuldt fjernet fyld eller hurtigere lukning.
+- **Voice PE:** frisk opstartslog melder wake detector recovered og awaiting first physical proof. Den tidligere OFF-oplysning er historik, ikke aktuel forbindelsesstatus.
+- **Afventer samlet fysisk accept:** timeralarm/stop, musikflytning via Voice PE, afslutning/næste wake, latency og stabilitet. Issues #153/#118/#110/#103/#124/#107 er åbne og markeret udgivet/installeret, afventer prøve. Ingen nye delprøver eller forbedringsspor startes efter denne afgrænsede levering.
 
-Detaljerede aktive årsagsbeslutninger og faktiske resultater står nederst i denne log. Ældre versions-/kandidatposter nedenfor er historik og giver ingen automatisk aktuel accept.
+Detaljerede årsagsbeslutninger og faktiske resultater står nederst. Historiske poster giver ingen automatisk aktuel accept.
 
 ## Historisk PodView integration candidate · 14 October 2026
 
@@ -18562,3 +18562,10 @@ The ten speed rules are now explicit binding AGENTS.md instructions in dev and c
 
 
 Final delivery source freeze: pure held-observer fixture4d0 and the explicit delivery/speed documentation are the only changes after a8db8ba. All remaining unitbatches5–8 PASS (receipt pv24-unit-release-resume-receipt, terminal0); retained integration/unit1–4/type/static evidence composes the software checks without another full run. Production fingerprint e4352504634bda1740a333060d1c297ccf4233f3f55f4b3459c40ac48ee07224 and scope policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21 remain unchanged; final regression fingerprint3b67349d827c0266601e06bd806201017d89df7258167edae82a8a44ed5c8750. The current repair has25 intended paths including AGENTS.md, with all499 public files preserved. The same PR155 receives one source update and automatic official CI; merge, test publication and installation are separate delivery steps. Provider style remains FAIL and physical acceptance UNKNOWN.
+
+
+### 14/10 — 2.0.24 publication and HA Green installation complete
+
+Final source6488ad0f9c90404e5a67965c6923a11359f6939d passed PR-CI38618596539; merged main b9c934edc1530a7750db370fe3b58dbb576c86f6 passed main-CI38619741156 and publisher job116047598735. Version2.0.24 and matching sha-main image were published with digest sha256:f35e429c45464e175d4c8b20972b8b20945940e8ceeeef46aca369a29ad160a0. No manual CI retry or further provider probe.
+
+HA app catalog refreshed; one backed-up update installed2.0.24, appinfo Kører. Actual startup21:18:12.420 identifies the same mainSHA, engine=gpt-live and artifact=rootfs-v1:5f34ba7bb1171630b8d58830a74febcda82468cb2d940af432c3082336b578f7. Private installation screenshot retained. All six issue release headers updated with actual installation and remaining physical acceptance. Strict silence FAIL is retained; no physical golden/lifecycle/timer/transfer/latency/stability claim. Broad goal remains PAUSED; bounded requested delivery is complete. This receipt changes documentation only, not shipped bits.
