@@ -24,9 +24,11 @@ panel_title: PodVoice
 # Settings page and stored in the add-on's /data (see settings.py).
 options:
   openai_api_key: ""
+  podview_control_policy: ""
   podview_pairing_room: ""
   podview_pairing_sha256: ""
 schema:
   openai_api_key: "password?"
+  podview_control_policy: "str?"
   podview_pairing_room: "str?"
   podview_pairing_sha256: "password?"

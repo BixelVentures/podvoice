@@ -420,7 +420,13 @@ async def run(cfg: Config) -> None:
         mcp_url = f"{mcp_url.rstrip('/')}/assist"
     mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
     mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
-    tools = ToolRouter(mcp, supervisor_token=cfg.supervisor_token, client=ha_client, hub=hub)
+    tools = ToolRouter(
+        mcp,
+        supervisor_token=cfg.supervisor_token,
+        client=ha_client,
+        hub=hub,
+        cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
+    )
     tools.configure_device_control(load_settings(settings_path))
 
     def save_runtime_settings(values: dict) -> dict:
@@ -634,6 +640,7 @@ async def run(cfg: Config) -> None:
     app = create_app(
         hub,
         sessions,
+        podview_control_policy=cfg.podview_control_policy,
         podview_pairing_room=cfg.podview_pairing_room,
         podview_pairing_sha256=cfg.podview_pairing_sha256,
         podview_pairing_store=settings_path.parent / "podview-pairing-used",

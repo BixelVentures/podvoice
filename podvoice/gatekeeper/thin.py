@@ -3211,6 +3211,8 @@ class ThinSession:
         from .openai_live import LiveProtocolError
 
         revision = self._live_backend_revisions.get(batch.response_id)
+        visual_provider = self.brain
+        visual_session_id = self._history_session
         reviewed: _LiveReview | None = None
         stage = "admission"
         completed_results = 0
@@ -3544,6 +3546,20 @@ class ThinSession:
                     batch.response_id, results, generation=batch.generation
                 )
                 observe("returned")
+            self._offer_visual_receipts(
+                results,
+                epoch=epoch,
+                session_id=visual_session_id,
+                turn_id=f"live:{batch.generation}:{batch.response_id}",
+                provider_generation=batch.generation,
+                input_revision=revision,
+                task_id=f"answer:{batch.delegation_id}",
+                current=lambda: (
+                    current()
+                    and self.brain is visual_provider
+                    and revision == self._live_input_revision
+                ),
+            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -6592,6 +6608,9 @@ class ThinSession:
                 item["suppress_response"] = True
             tool_results.append(item)
         submission_epoch = self._epoch
+        visual_provider = self.brain
+        visual_session_id = self._history_session
+        visual_generation = getattr(visual_provider, "_connection_generation", None)
         async with self._tool_lock:
             try:
                 if (
@@ -6603,6 +6622,9 @@ class ThinSession:
                 ):
                     return
                 silent_complete = await self.brain.send_tool_results(tool_results)
+                submitted_results: list[dict] = getattr(
+                    visual_provider, "take_submitted_tool_results", lambda: []
+                )()
             except Exception as exc:
                 _LOG.warning("thin: submitting tool batch %s failed: %s", batch.batch_id, exc)
                 self._trace_event("tool_result_submit_failed", batch_id=batch.batch_id)
@@ -6615,11 +6637,66 @@ class ThinSession:
                 ):
                     self._request_close("error:connection", error_kind="connection")
                 return
+        self._offer_visual_receipts(
+            submitted_results,
+            epoch=submission_epoch,
+            session_id=visual_session_id,
+            turn_id=self._external_turn_id(batch.turn),
+            provider_generation=batch.provider_generation,
+            input_revision=batch.turn.serial,
+            task_id=f"answer:{self._external_turn_id(batch.turn)}",
+            current=lambda: (
+                self._epoch == submission_epoch
+                and self.brain is visual_provider
+                and getattr(visual_provider, "_connection_generation", None) == visual_generation
+                and self._closure_turn is batch.turn
+                and not batch.turn.superseded
+                and self._active
+                and not self._transport_closing
+            ),
+        )
         if silent_complete is True:
             for call, _result in ordered:
                 if call.name == WAIT_FOR_USER_TOOL:
                     self._complete_silent_wait_turn(call.id)
                 self._complete_silent_end_turn(call.id)
+
+    def _offer_visual_receipts(
+        self,
+        results: list[dict],
+        *,
+        epoch: float,
+        session_id: str,
+        turn_id: str | None,
+        provider_generation: int | None,
+        input_revision: int | None,
+        task_id: str,
+        current,
+    ) -> None:
+        """Optional bounded sink only after successful provider result submission."""
+        from .data_result import bounded_tool_output
+
+        sink = getattr(self.tools, "podview_receipts", None)
+        if sink is None or turn_id is None or input_revision is None:
+            return
+        try:
+            for result in results[:16]:
+                sink.offer(
+                    self,
+                    room_id=self.room,
+                    session_id=session_id,
+                    session_epoch=epoch,
+                    turn_id=turn_id,
+                    provider_generation=provider_generation,
+                    task_id=task_id,
+                    input_revision=input_revision,
+                    call_id=result.get("id"),
+                    tool_name=result.get("name"),
+                    result=json.loads(bounded_tool_output(result.get("response"))),
+                    current=lambda: current() and self._history_session == session_id,
+                )
+        except Exception:
+            pass  # Optional presentation must not alter speech or tool lifecycle.
 
     @staticmethod
     def _valid_end_args(args: dict) -> bool:

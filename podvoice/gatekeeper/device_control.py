@@ -14,12 +14,14 @@ import re
 import secrets
 import time
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any
 
 import aiohttp
 import httpx
 
 from . import constants as C
+from .cleaning_journal import CleaningJournal, JournalError
 
 GET_CAPABILITIES = "ha_get_device_capabilities"
 EXECUTE_ACTION = "ha_execute_device_action"
@@ -163,13 +165,17 @@ class PreparedAction:
 
 
 class DeviceControl:
-    def __init__(self, client: httpx.AsyncClient | None, token: str) -> None:
+    def __init__(
+        self, client: httpx.AsyncClient | None, token: str, *, journal_path: Path | None = None
+    ) -> None:
         self._client = client
         self._token = token
+        self._cleaning_journal = CleaningJournal(journal_path)
         self._enabled = False
         self._entities: tuple[str, ...] = ()
         self._generation = 0
         self._tickets: dict[str, Capability] = {}
+        self._display_tickets: dict[str, Capability] = {}
         # Terminal starts outlive capability refresh and feature toggles. An unknown
         # send must remain blocked even on a later conversational turn.
         self._starts: dict[tuple[str, tuple[str, str]], bool] = {}
@@ -184,11 +190,67 @@ class DeviceControl:
         if (active, allowed) != (self._enabled, self._entities):
             self._generation += 1
             self._tickets.clear()
+            self._display_tickets.clear()
             self._enabled, self._entities = active, allowed
 
     @property
     def available(self) -> bool:
         return self._enabled and self._client is not None and bool(self._token)
+
+    async def observe(self) -> dict:
+        """Read allowlisted vacuum states without issuing or superseding tickets."""
+        generation = self._generation
+        self._check(generation)
+        rows = []
+        for entity_id in self._entities:
+            if not entity_id.startswith("vacuum."):
+                continue
+            value = await self._json("GET", f"states/{entity_id}")
+            self._check(generation)
+            if (
+                not isinstance(value, dict)
+                or value.get("entity_id") != entity_id
+                or not isinstance(value.get("state"), str)
+                or value.get("state")
+                not in {
+                    "cleaning",
+                    "paused",
+                    "returning",
+                    "docked",
+                    "idle",
+                    "error",
+                    "unavailable",
+                    "unknown",
+                }
+                or not isinstance(value.get("attributes"), dict)
+            ):
+                raise CapabilityError("Ugyldig passiv enhedsstatus")
+            attrs = value["attributes"]
+            battery = attrs.get("battery_level")
+            name = attrs.get("friendly_name")
+            rows.append(
+                {
+                    "entityId": entity_id,
+                    "name": name[:120] if isinstance(name, str) else "Robotstøvsuger",
+                    "state": value["state"],
+                    "battery": battery
+                    if type(battery) in {int, float} and 0 <= battery <= 100
+                    else None,
+                    "observedAt": time.time(),
+                    "source": "home_assistant_state",
+                }
+            )
+        self._check(generation)
+        return {"status": "observed", "items": rows}
+
+    def cleaning_history(self) -> dict:
+        """Owner receipts only; never reusable capabilities or physical completion."""
+        self._check(self._generation)
+        history = self._cleaning_journal.history()
+        history["items"] = [
+            row for row in history["items"] if row["recipe"]["vacuum_entity_id"] in self._entities
+        ]
+        return history
 
     def declarations(self) -> list[dict]:
         return copy.deepcopy(_DECLARATIONS) if self.available else []
@@ -479,10 +541,22 @@ class DeviceControl:
 
     def _issue(self, capability: Capability) -> str:
         self._check(capability.generation)
+        if capability.owner[0].startswith("podview:"):
+            self._display_tickets = {
+                key: value
+                for key, value in self._display_tickets.items()
+                if time.monotonic() - value.issued_at <= _TOKEN_TTL_S
+                and not (value.vacuum == capability.vacuum and value.owner == capability.owner)
+            }
+            if len(self._display_tickets) >= 128:
+                raise CapabilityError("Skærmens opsætningskapacitet er nået")
+            token = secrets.token_urlsafe(24)
+            self._display_tickets[token] = capability
+            return token
         self._tickets = {
             k: v for k, v in self._tickets.items() if time.monotonic() - v.issued_at <= _TOKEN_TTL_S
         }
-        # A new read supersedes earlier reads for the same robot.
+        # A new voice read supersedes earlier voice reads for the same robot.
         self._tickets = {k: v for k, v in self._tickets.items() if v.vacuum != capability.vacuum}
         token = secrets.token_urlsafe(24)
         self._tickets[token] = capability
@@ -511,13 +585,80 @@ class DeviceControl:
             )
         return {"ok": True, "data": data, "capability_token": self._issue(cap)}
 
+    async def display_setup(
+        self, vacuum: str, owner: tuple[str, str], recipe_id: str | None = None
+    ) -> dict:
+        """Server-only explicit setup; caller must establish a scoped paired owner.
+
+        Tokens/steps are internal capabilities, never display authority by themselves.
+        No setting or start is sent here. The existing prepare/execute path owns effects.
+        """
+        if not owner[0].startswith("podview:") or not owner[1]:
+            raise CapabilityError("Skærmopsætning kræver en særskilt serverejer")
+        cap, data = await self._snapshot(vacuum, self._generation, owner)
+        steps = []
+        if recipe_id is not None:
+            history = self.cleaning_history()
+            record = next((r for r in history["items"] if r["id"] == recipe_id), None)
+            if record is None or record["outcome"] != "accepted_by_ha":
+                raise CapabilityError("Kun en bekræftet tidligere opsætning kan genbruges")
+            recipe = record["recipe"]
+            expected = {
+                "vacuum_entity_id": cap.vacuum,
+                "device_identity": cap.identity,
+                "map_entity_id": cap.map_entity,
+                "map_fingerprint": cap.map_fingerprint,
+                "mapping_identity": cap.mapping_identity,
+            }
+            if any(recipe[key] != value for key, value in expected.items()):
+                raise CapabilityError("Robot eller kort er ændret siden den tidligere opsætning")
+            areas = dict(cap.area_segments)
+            if any(area not in areas for area in recipe["area_ids"]):
+                raise CapabilityError("Et tidligere område findes ikke på det aktive kort")
+            controls = {row["entity_id"]: row for row in data["controls"]}
+            values = {row["entity_id"]: row["value"] for row in recipe["verified_settings"]}
+            ordered = sorted(
+                values,
+                key=lambda key: (
+                    0
+                    if controls.get(key, {}).get("role") == "cleaning_mode"
+                    else 2
+                    if key == vacuum
+                    else 1,
+                    key,
+                ),
+            )
+            for entity in ordered:
+                value = values[entity]
+                if entity == vacuum and value in data["fan_speed_options"]:
+                    action, arguments = "vacuum.set_fan_speed", {"fan_speed": value}
+                elif entity in controls and value in controls[entity]["options"]:
+                    action, arguments = "select.select_option", {"option": value}
+                else:
+                    raise CapabilityError("En tidligere indstilling understøttes ikke længere")
+                steps.append({"entity_id": entity, "action": action, "arguments": arguments})
+            steps.append(
+                {
+                    "entity_id": vacuum,
+                    "action": "vacuum.send_command",
+                    "arguments": {
+                        "command": "app_segment_clean",
+                        "area_ids": list(recipe["area_ids"]),
+                        "repeat": recipe["repeat"],
+                    },
+                }
+            )
+        self._check(cap.generation)
+        return {"data": data, "capability_token": self._issue(cap), "steps": steps}
+
     async def prepare(self, args: dict, owner: tuple[str, str]) -> PreparedAction:
         if set(args) != {"capability_token", "entity_id", "action", "arguments"}:
             raise CapabilityError("Handlingen kræver præcise argumenter fra capability-opslaget")
         token = args["capability_token"]
         if not isinstance(token, str):
             raise CapabilityError("Ugyldig capability_token")
-        cap = self._tickets.pop(token, None)  # consume BEFORE the first await
+        tickets = self._display_tickets if owner[0].startswith("podview:") else self._tickets
+        cap = tickets.pop(token, None)  # consume BEFORE the first await
         if cap is None or cap.owner != owner or time.monotonic() - cap.issued_at > _TOKEN_TTL_S:
             raise CapabilityError("Capability er brugt eller udløbet; gentag ikke en uvis handling")
         self._check(cap.generation)
@@ -602,6 +743,16 @@ class DeviceControl:
         else:
             raise CapabilityError("Handling eller mål er ikke tilladt")
         self._check(cap.generation)
+        if action == "vacuum.send_command":
+            # Record only settings whose exact values the final joint state read
+            # also checks. This does not issue or persist another capability.
+            verified = dict(current.expected)
+            if data["fan_speed"] in data["fan_speed_options"]:
+                verified[cap.vacuum] = data["fan_speed"]
+            for control in data["controls"]:
+                if control["state"] in control["options"]:
+                    verified[control["entity_id"]] = control["state"]
+            current = replace(current, expected=tuple(verified.items()))
         prepared = PreparedAction(current, entity, action, service_data)
         await self._validate_current(prepared)
         return prepared
@@ -679,6 +830,8 @@ class DeviceControl:
         cap = prepared.capability
         domain, service = prepared.action.split(".")
         start_key = (cap.vacuum, cap.owner)
+        journal_id = None
+        history_recorded = True
         if prepared.action == "vacuum.send_command":
             if start_key in self._starts or any(
                 vacuum == cap.vacuum and unknown for (vacuum, _), unknown in self._starts.items()
@@ -688,10 +841,39 @@ class DeviceControl:
                 )
             if len(self._starts) >= 1024:
                 raise CapabilityError("Startjournal er fuld; ingen handling sendt")
+            params = prepared.data["params"][0]
+            selected = set(params["segments"])
+            recipe = {
+                "vacuum_entity_id": cap.vacuum,
+                "device_identity": cap.identity,
+                "map_entity_id": cap.map_entity,
+                "map_name": cap.map_name,
+                "map_fingerprint": cap.map_fingerprint,
+                "mapping_identity": cap.mapping_identity,
+                "area_ids": [
+                    area for area, segments in cap.area_segments if set(segments) <= selected
+                ],
+                "segments": list(params["segments"]),
+                "repeat": params["repeat"],
+                "verified_settings": [
+                    {"entity_id": entity, "value": value} for entity, value in cap.expected
+                ],
+            }
+            try:
+                journal_id = self._cleaning_journal.begin(recipe)
+            except JournalError as exc:
+                raise CapabilityError(str(exc)) from exc
             self._starts[start_key] = True
         # No retries: a transport error after this boundary has an unknown outcome.
         await self._json("POST", f"services/{domain}/{service}", prepared.data)
         if prepared.action == "vacuum.send_command":
+            assert journal_id is not None
+            try:
+                self._cleaning_journal.accepted(journal_id)
+            except JournalError:
+                # The successful POST already proves HA acceptance. Local receipt
+                # durability cannot turn that known result into an unknown effect.
+                history_recorded = False
             self._starts[start_key] = False
         result: dict[str, Any] = {
             "ok": True,
@@ -702,6 +884,8 @@ class DeviceControl:
                 "action": prepared.action,
             },
         }
+        if not history_recorded:
+            result["data"]["history_recorded"] = False
         if (
             prepared.action != "vacuum.send_command"
             and self.available

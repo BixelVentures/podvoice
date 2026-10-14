@@ -24,6 +24,7 @@ def test_podview_authority_only_comes_from_supervisor_options(monkeypatch, tmp_p
         config,
         "load_options",
         lambda path=None: {
+            "podview_control_policy": "owner-policy",
             "podview_pairing_room": "owner-room",
             "podview_pairing_sha256": "a" * 64,
         },
@@ -32,19 +33,27 @@ def test_podview_authority_only_comes_from_supervisor_options(monkeypatch, tmp_p
     monkeypatch.setattr(
         settings,
         "load_settings",
-        lambda path: {"podview_pairing_room": "attacker-room", "podview_pairing_sha256": "b" * 64},
+        lambda path: {
+            "podview_control_policy": "attacker-policy",
+            "podview_pairing_room": "attacker-room",
+            "podview_pairing_sha256": "b" * 64,
+        },
     )
     loaded = config.load_config()
+    assert loaded.podview_control_policy == "owner-policy"
     assert loaded.podview_pairing_room == "owner-room"
     assert loaded.podview_pairing_sha256 == "a" * 64
     monkeypatch.setattr(config, "load_options", lambda path=None: {})
     loaded = config.load_config()
+    assert loaded.podview_control_policy == ""
     assert loaded.podview_pairing_room == loaded.podview_pairing_sha256 == ""
     denied = config.from_options(
         {
             "settings_source_untrusted": True,
+            "podview_control_policy": "owner-policy",
             "podview_pairing_room": "owner-room",
             "podview_pairing_sha256": "a" * 64,
         }
     )
+    assert denied.podview_control_policy == ""
     assert denied.podview_pairing_room == denied.podview_pairing_sha256 == ""

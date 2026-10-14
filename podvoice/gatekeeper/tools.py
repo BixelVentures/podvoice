@@ -20,6 +20,7 @@ import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
@@ -29,6 +30,7 @@ from jsonschema.exceptions import SchemaError
 
 from . import constants as C
 from . import podconnect_targets as playback_targets
+from . import podview_music
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -42,6 +44,8 @@ from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .ha_timers import TOOLS as TIMER_TOOLS
 from .ha_timers import HomeAssistantTimers
 from .mcp_client import HomeAssistantMCP, McpError
+from .podview_receipts import VisualReceiptOwner
+from .podview_weather import weather_projection
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
 from .weather_result import compact_weather_result
 
@@ -284,9 +288,13 @@ class ToolRouter:
         client: httpx.AsyncClient | None = None,
         hub=None,  # StatusHub — the panel's "home control" service dot
         execution_policy: ExecutionPolicy | None = None,
+        cleaning_journal_path: Path | None = None,
     ) -> None:
         self._mcp = mcp
-        self._device_control = DeviceControl(client, supervisor_token)
+        self.podview_receipts = VisualReceiptOwner()
+        self._device_control = DeviceControl(
+            client, supervisor_token, journal_path=cleaning_journal_path
+        )
         self._token = supervisor_token
         self._client = client
         self._hub = hub
@@ -1757,45 +1765,187 @@ class ToolRouter:
                 "error": "Playback target service outcome is unknown; no retry was sent",
             }
 
-    async def podview_read(self, kind: str, account: str | None = None) -> dict:
-        """Passive screen facade: never rediscover or mutate voice capability state."""
+    def podview_home_available(self) -> bool:
+        owner = self._device_control
+        return owner.available and owner._client is not None and not owner._client.is_closed
+
+    def podview_home_binding(self) -> tuple:
+        owner = self._device_control
+        return (
+            owner,
+            owner._generation,
+            owner._client,
+            bool(owner._client and owner._client.is_closed),
+            hashlib.sha256(owner._token.encode()).digest(),
+            owner.available,
+        )
+
+    async def podview_home_read(self) -> dict:
+        owner = self._device_control
+        try:
+            result = await owner.observe()
+            history = owner.cleaning_history()
+            for row in result["items"]:
+                row["history"] = {
+                    **history,
+                    "items": [
+                        record
+                        for record in history["items"]
+                        if record["recipe"]["vacuum_entity_id"] == row["entityId"]
+                    ],
+                }
+        except (CapabilityError, httpx.HTTPError, ValueError):
+            return {"status": "unavailable", "items": []}
+        return result if owner is self._device_control else {"status": "unavailable", "items": []}
+
+    def _podview_weather_declaration(self) -> dict | None:
+        """Only the admitted current weather owner may accept the empty home read."""
+        snapshot, owner = self._discovery, self._mcp
+        if (
+            owner is None
+            or not owner.initialized
+            or snapshot.retry_state != "ready"
+            or snapshot.api_id != "assist"
+            or self._mcp_api_id(owner) != "assist"
+            or snapshot.endpoint != self._safe_endpoint(owner.url)
+        ):
+            return None
+        declarations = [
+            declaration
+            for declaration in snapshot.mcp_tools
+            if declaration.get("name") in {"HassGetWeather", "weather_forecast"}
+            and declaration.get("name") in snapshot.mcp_names
+        ]
+        if len(declarations) != 1:
+            return None
+        declaration = declarations[0]
+        schema = declaration.get("parameters")
+        if not isinstance(schema, dict):
+            return None
+        try:
+            if not Draft202012Validator(schema).is_valid({}):
+                return None
+        except Exception:
+            return None  # unresolved/unsupported schema is not default-home authority
+        return declaration
+
+    def podview_weather_available(self) -> bool:
+        return self._podview_weather_declaration() is not None
+
+    def podview_weather_binding(self) -> tuple:
+        # Retain the exact snapshot as well as its identity to fence cache reuse.
+        return (
+            self._mcp,
+            self._mcp_epoch,
+            getattr(self._mcp, "url", None),
+            id(self._discovery),
+            self._discovery,
+        )
+
+    async def podview_weather_read(self) -> dict:
+        """No rediscovery, voice schema mutation, default argument invention or retry."""
+        unavailable = {"status": "unavailable", "data": None}
+        declaration, owner = self._podview_weather_declaration(), self._mcp
+        if declaration is None or owner is None:
+            return unavailable
+        binding = self.podview_weather_binding()
+
+        def current() -> bool:
+            return binding == self.podview_weather_binding() and self.podview_weather_available()
+
+        try:
+            result = await owner.call_tool(declaration["name"], {}, execution_guard=current)
+            if not current():
+                return unavailable
+            return weather_projection(_mcp_result_to_contract(result))
+        except Exception:
+            return unavailable  # no error detail or discovery mutation crosses this read facade
+
+    def podview_music_binding(self) -> tuple:
+        """Exact server owners, including equal-content discovery replacements."""
+        discovery, client = self._discovery, self._client
+        mcp = getattr(self, "_mcp", None)
+        return (
+            discovery,
+            id(discovery),
+            client,
+            id(client),
+            mcp,
+            id(mcp),
+            getattr(self, "_services_epoch", 0),
+            getattr(self, "_mcp_epoch", 0),
+            frozenset(discovery.podconnect_services),
+            hashlib.sha256(self._token.encode()).digest(),
+        )
+
+    def podview_music_reads(self) -> list[str]:
+        if not self._token or self._client is None or self._client.is_closed:
+            return []
+        services = self._discovery.podconnect_services
         names = {
-            "recent": "podconnect_recently_played",
-            "top": "podconnect_top_tracks",
-            "liked": "podconnect_liked",
+            "recent": "recently_played",
+            "top": "top_tracks",
+            "liked": "liked",
+            **podview_music.SERVICES,
         }
+        reads = [kind for kind, name in names.items() if name in services]
+        if any(d.get("name") == "podconnect_get_targets" for d in self.declarations()):
+            reads.insert(0, "targets")
+        return reads
+
+    async def podview_read(self, kind: str, account: str | None = None) -> dict:
+        """Passive service transport: never refresh discovery or voice declarations."""
         if account is not None and (
-            kind != "targets" or not isinstance(account, str) or not 1 <= len(account) <= 1024
+            kind not in {"targets", "playback", "queue"}
+            or not isinstance(account, str)
+            or not 1 <= len(account) <= 1024
         ):
             return {"ok": False, "error_kind": "invalid_account"}
-        if kind in names:
-            tool = names[kind]
-            if _PODCONNECT_DATA_TOOLS[tool][0] not in self._discovery.podconnect_services:
-                return {"ok": False, "error_kind": "unavailable"}
-            return await self._podconnect_data(tool, 20)
-        if kind == "targets":
-            declaration = next(
-                (d for d in self.declarations() if d.get("name") == "podconnect_get_targets"), None
-            )
-            if declaration is None or not self._token or self._client is None:
-                return {"ok": False, "error_kind": "unavailable"}
-            selected = playback_targets.service(
-                "podconnect_get_targets", self._discovery.podconnect_services
-            )
-            args = {"config_entry_id": account} if account else {}
-            response = await self._client.post(
+        if kind in podview_music.SERVICES and account is None:
+            return {"ok": False, "error_kind": "invalid_account"}
+        if kind not in self.podview_music_reads():
+            return {"ok": False, "error_kind": "unavailable"}
+        binding = self.podview_music_binding()
+        names = {
+            "recent": "recently_played",
+            "top": "top_tracks",
+            "liked": "liked",
+            **podview_music.SERVICES,
+        }
+        selected = (
+            playback_targets.service("podconnect_get_targets", self._discovery.podconnect_services)
+            if kind == "targets"
+            else names[kind]
+        )
+        args: dict[str, Any] = {"config_entry_id": account} if account else {}
+        if kind == "queue":
+            args["limit"] = 20
+        client = self._client
+        assert client is not None
+        async with asyncio.timeout(8):
+            async with client.stream(
+                "POST",
                 f"{C.SUPERVISOR_CORE_API}/services/podconnect/{selected}?return_response",
                 headers={"Authorization": f"Bearer {self._token}"},
                 json=args,
-            )
-            response.raise_for_status()
+            ) as response:
+                response.raise_for_status()
+                raw = bytearray()
+                async for chunk in response.aiter_bytes(8192):
+                    raw.extend(chunk)
+                    if len(raw) > 262144:
+                        return podview_music.unavailable()
+        if binding != self.podview_music_binding() or kind not in self.podview_music_reads():
+            return podview_music.unavailable()
+        payload = json.loads(raw)
+        data = payload.get("service_response") if isinstance(payload, dict) else None
+        if kind in podview_music.SERVICES:
+            return podview_music.project_owner(kind, data, account)
+        if kind == "targets":
             return playback_targets.result(
-                "podconnect_get_targets",
-                args,
-                response.json().get("service_response"),
-                selected_service=selected,
+                "podconnect_get_targets", args, data, selected_service=selected
             )
-        return {"ok": False, "error_kind": "unsupported_read"}
+        return select_track_result(data, 20)
 
     async def _podconnect_data(self, tool_name: str, limit: int) -> dict:
         """Call one documented PodConnect Control response service through HA."""

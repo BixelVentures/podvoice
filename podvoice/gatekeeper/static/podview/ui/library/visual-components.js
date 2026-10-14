@@ -28,7 +28,7 @@ class VisualComponent extends HTMLElement {
   const labels={loading:'Gør svaret klar…',pending:'Opdaterer svaret…',empty:'Der er ikke noget at vise endnu.',error:'Visningen kunne ikke hentes.',offline:'Offline · sidst kendte oplysninger',unsupported:'Denne visning er ikke tilgængelig.'};
   this.body.hidden=['empty','unsupported'].includes(state);copy(this.note,labels[state]||'');this.note.hidden=!this.note.textContent;
   if(this.body.hidden)return;
-  let content;try{content=validateVisualContent(this.family,d.content);}catch{this.body.hidden=!this.lastContent;copy(this.note,state==='loading'?labels.loading:'Visningen kunne ikke læses.');this.note.hidden=false;return;}
+  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[]});}catch{this.body.hidden=!this.lastContent;copy(this.note,state==='loading'?labels.loading:'Visningen kunne ikke læses.');this.note.hidden=false;return;}
   this.lastContent=content;copy(this.summary,content.summary);
   if(this.family==='sourced-image'){
    const img=content.image;if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
@@ -43,7 +43,7 @@ class VisualComponent extends HTMLElement {
     copy(value,this.family==='fact-card'?item.value:item.label);copy(detail,item.detail);row.dataset.position=String(index+1);
    });
   }
-  this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{copy(li.children[0],s.label);li.children[0].href=s.url;copy(li.children[1],s.scope);});
+  this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{const owner=s.kind==='owner_receipt';if((li.children[0].tagName==='BUTTON')!==owner){const control=make(owner?'button':'a');if(owner){control.type='button';control.className='text-control';control.addEventListener('click',()=>this.dispatchEvent(new CustomEvent('owner-source',{bubbles:true,composed:true,detail:{receiptId:li.dataset.receiptId}})));}else{control.target='_blank';control.rel='noopener noreferrer';}li.children[0].replaceWith(control);}copy(li.children[0],s.label);if(owner)li.children[0].disabled=['offline','loading','pending'].includes(state);li.dataset.receiptId=owner?s.receiptId:'';if(!owner)li.children[0].href=s.url;copy(li.children[1],owner?'Modtaget værktøjsresultat':s.scope);});
  }
 }
 for(const family of visualFamilies)customElements.define(`pv-${family}`,class extends VisualComponent{});

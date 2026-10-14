@@ -1,4 +1,10 @@
 /* PodView shared design tokens. Historical workshop styling: legacy-components.css. */
+/* Retained temporary conversation surface: one anchor, no layout participation. */
+:root{--pv-vacuum-surface:#f3e2dd;--pv-vacuum-ink:#573d36;--pv-vacuum-muted:#7f5b52;--pv-vacuum-hover:#ecd6cf}
+.voice-surface{position:fixed;z-index:12;top:12px;left:50%;translate:-50% 0;width:280px;min-height:60px;padding:8px 18px;display:flex;align-items:center;gap:14px;border-radius:26px;background:var(--pv-instrument);color:#fafafa;box-shadow:0 8px 24px #0b19221c;pointer-events:none;isolation:isolate}
+.voice-surface[hidden]{display:none}.voice-mark{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--pv-timer-accent);transition:background 160ms ease}.voice-mark img{width:22px;height:22px}.voice-copy{min-width:0;display:grid;gap:3px;min-height:42px;align-content:center}.voice-copy strong{font-size:18px;line-height:1.25;font-weight:600;letter-spacing:-.02em}.voice-copy span{font-size:13px;line-height:1.3;color:var(--pv-instrument-muted)}.voice-surface[data-phase=ready] .voice-mark{background:var(--pv-quiet-surface)}.voice-surface[data-phase=thinking] .voice-mark,.voice-surface[data-phase=waiting] .voice-mark{background:var(--pv-instrument-muted)}
+@media(max-width:759px){.voice-surface{top:auto;bottom:max(16px,env(safe-area-inset-bottom));width:260px;min-height:66px;padding:10px 16px}}
+@media(prefers-reduced-motion:reduce){.voice-mark{transition:none}}
 :root{--pv-screen-paper:#ededed;--pv-screen-surface:#fafafa;--pv-screen-ink:#111217;--pv-screen-muted:#65676d;--pv-screen-accent:#147fe0;--pv-screen-selection:#e5f3fd;--pv-screen-radius:32px;--pv-screen-motion:240ms;--pv-screen-control:#eeeef0;--pv-screen-hover:#e2e5e9;--pv-screen-line:#e2e4e7;--pv-screen-action-ink:#07548e;--pv-screen-danger:#9b3530;--pv-screen-danger-surface:#f9eeeb;--pv-screen-fast:120ms;--pv-screen-ease:cubic-bezier(.2,.7,.2,1);--pv-screen-type-small:14px;--pv-screen-type-body:18px;--pv-screen-type-title:22px;--pv-screen-space-2:8px;--pv-screen-space-3:12px;--pv-screen-space-4:16px;--pv-screen-space-6:24px;--pv-screen-radius-control:24px;--pv-screen-radius-row:22px;--pv-screen-radius-field:14px;--pv-screen-font:Arial,Helvetica,sans-serif}
 
 :root{--pv-screen-radius-frame:28px;--pv-screen-radius-art:14px;--pv-screen-radius-choice:18px;--pv-screen-outline:#d6d9dd;--pv-screen-photo-fallback:#203432;--pv-screen-photo-scrim:#071e2880;--pv-screen-photo-scrim-bottom:#071e288c}
@@ -10,3 +16,13 @@
 /* Shared interaction geometry: visible focus, rounded hit areas, restrained feedback. */
 :root{--pv-hit-min:48px;--pv-hit-radius:16px;--pv-hit-inset:12px;--pv-focus-ring:#365e63;--pv-touch-wash:rgba(38,62,67,.075)}
 :root{--pv-timer-accent:#ffc8b5;--pv-timer-control:#304449;--pv-timer-control-hover:#40595e}
+
+[data-motion=reduced] .voice-mark{transition:none}
+/* Sheets keep their native modal/focus behavior; motion explains arrival only. */
+dialog{opacity:0;transform:translateY(10px);transition:opacity 160ms ease,transform 240ms cubic-bezier(.16,1,.3,1),display 240ms allow-discrete,overlay 240ms allow-discrete}
+dialog[open]{opacity:1;transform:none}
+dialog::backdrop{opacity:0;transition:opacity 160ms ease,display 240ms allow-discrete,overlay 240ms allow-discrete}
+dialog[open]::backdrop{opacity:1}
+@starting-style{dialog[open]{opacity:0;transform:translateY(10px)}dialog[open]::backdrop{opacity:0}}
+body:has(pv-widget-host[data-motion=reduced]) dialog,body:has(pv-widget-host[data-motion=reduced]) dialog::backdrop{transition:none;transform:none}
+@media(prefers-reduced-motion:reduce){dialog,dialog::backdrop{transition:none;transform:none}}

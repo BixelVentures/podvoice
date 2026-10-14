@@ -17,9 +17,9 @@ function rows(items, max, check) {
   ids.add(item.id);
  }
 }
-export function validateVisualContent(family, raw) {
+export function validateVisualContent(family, raw, {ownerReceiptIds=[]}={}) {
  if (!visualFamilies.includes(family) || !raw || !string(raw.summary, 600)) fail();
- rows(raw.sources, 4, s => string(s.label, 120) && link(s.url) && string(s.scope, 240));
+ rows(raw.sources, 4, s => string(s.label,120) && (s.kind==='owner_receipt'?/^[a-f0-9]{32}$/.test(s.receiptId)&&ownerReceiptIds.includes(s.receiptId)&&s.scope==='tool_result':link(s.url)&&string(s.scope,240)));
  const sourceIds = new Set(raw.sources.map(s => s.id));
  const sourced = x => sourceIds.has(x.sourceId);
  if (family === 'fact-card') rows(raw.facts, 6, f => string(f.label, 80) && string(f.value, 80) && string(f.detail, 200) && sourced(f));
@@ -27,7 +27,7 @@ export function validateVisualContent(family, raw) {
  if (family === 'answer-timeline') rows(raw.events, 8, e => string(e.time, 80) && string(e.label, 120) && string(e.detail, 240) && ['planned','observed'].includes(e.status) && sourced(e));
  if (family === 'simple-diagram') rows(raw.nodes, 5, n => string(n.label, 80) && string(n.detail, 200) && sourced(n));
  // Return a closed shape: model-supplied HTML/styles/actions never enter the renderer.
- const result = {summary: raw.summary, sources: raw.sources.map(({id,label,url,scope}) => ({id,label,url,scope}))};
+ const result = {summary: raw.summary, sources: raw.sources.map(s=>s.kind==='owner_receipt'?{id:s.id,label:s.label,kind:'owner_receipt',receiptId:s.receiptId,scope:'tool_result'}:{id:s.id,label:s.label,url:s.url,scope:s.scope})};
  if (family === 'fact-card') result.facts = raw.facts.map(({id,label,value,detail,sourceId}) => ({id,label,value,detail,sourceId}));
  if (family === 'sourced-image') { const {url,alt,caption,credit,kind,sourceId} = raw.image; result.image = {url,alt,caption,credit,kind,sourceId}; }
  if (family === 'answer-timeline') result.events = raw.events.map(({id,time,label,detail,status,sourceId}) => ({id,time,label,detail,status,sourceId}));

@@ -936,11 +936,357 @@ def _reviewed_live_schema_startup_mcp_health(
     )
 
 
+# Exact passive owner composition, including the existing DeviceControl POST journal.
+_PODVIEW_OWNER_REQUIRED = {
+    "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/cleaning_journal.py",
+    "podvoice/gatekeeper/device_control.py",
+    "podvoice/gatekeeper/podview.py",
+    "podvoice/gatekeeper/podview_music.py",
+    "podvoice/gatekeeper/podview_weather.py",
+    "podvoice/gatekeeper/tools.py",
+}
+_PODVIEW_OWNER_REGRESSIONS = {
+    "tests/integration/test_cleaning_journal.py",
+    "tests/integration/test_podview_bridge.py",
+    "tests/integration/test_podview_music.py",
+    "tests/unit/test_weather_result.py",
+}
+_PODVIEW_READ_METHODS = {
+    "podview_home_available",
+    "podview_home_binding",
+    "podview_home_read",
+    "_podview_weather_declaration",
+    "podview_weather_available",
+    "podview_weather_binding",
+    "podview_weather_read",
+    "podview_music_binding",
+    "podview_music_reads",
+    "podview_read",
+}
+
+
+def _owner_ast(source: bytes) -> ast.Module:
+    return ast.parse(source)
+
+
+def _ast_equal(before: ast.AST, after: ast.AST) -> bool:
+    return ast.dump(before, include_attributes=False) == ast.dump(after, include_attributes=False)
+
+
+def _remove_exact_imports(tree: ast.Module, statements: Sequence[str]) -> None:
+    for statement in statements:
+        expected = ast.parse(statement).body[0]
+        matches = [node for node in tree.body if _ast_equal(node, expected)]
+        if len(matches) != 1:
+            raise ValueError("missing or duplicate adapter import")
+        tree.body.remove(matches[0])
+
+
+def _direct_class(tree: ast.Module, name: str) -> ast.ClassDef:
+    matches = [
+        node for node in ast.walk(tree) if isinstance(node, ast.ClassDef) and node.name == name
+    ]
+    if len(matches) != 1 or matches[0] not in tree.body:
+        raise ValueError("ambiguous adapter class owner")
+    return matches[0]
+
+
+def _methods(owner: ast.ClassDef) -> dict:
+    result = {}
+    for node in owner.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name in result:
+                raise ValueError("duplicate method owner")
+            result[node.name] = node
+    return result
+
+
+def _remove_path_argument(method: ast.FunctionDef | ast.AsyncFunctionDef, name: str) -> None:
+    args = method.args
+    expected = ast.parse(f"def f(*, {name}: Path | None = None): pass").body[0]
+    assert isinstance(expected, ast.FunctionDef)
+    matches = [index for index, arg in enumerate(args.kwonlyargs) if arg.arg == name]
+    if len(matches) != 1:
+        raise ValueError("missing journal constructor argument")
+    index = matches[0]
+    if (
+        not _ast_equal(args.kwonlyargs[index], expected.args.kwonlyargs[0])
+        or not isinstance(args.kw_defaults[index], ast.Constant)
+        or args.kw_defaults[index].value is not None
+    ):
+        raise ValueError("journal constructor contract changed")
+    del args.kwonlyargs[index]
+    del args.kw_defaults[index]
+
+
+def _remove_call_keyword(tree: ast.AST, function: str, name: str, expression: str) -> None:
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == function
+    ]
+    if len(calls) != 1:
+        raise ValueError("ambiguous constructor call")
+    call = calls[0]
+    keywords = [keyword for keyword in call.keywords if keyword.arg == name]
+    if len(keywords) != 1 or not _ast_equal(
+        keywords[0].value, ast.parse(expression, mode="eval").body
+    ):
+        raise ValueError("incorrect journal path binding")
+    call.keywords.remove(keywords[0])
+
+
+def _read_method_only(method: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+    # New display methods cannot replace voice owners through instance writes or
+    # dynamic namespace mutation while their enclosing class looks unchanged.
+    for node in ast.walk(method):
+        if isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            raise ValueError("display read changes an attribute owner")
+        if isinstance(node, ast.Attribute) and node.attr == "__dict__":
+            raise ValueError("dynamic instance namespace")
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr
+            in {
+                "dispatch",
+                "_dispatch_device",
+                "_dispatch_canonical_batch",
+                "_refresh_podconnect_services",
+                "begin_execution_turn",
+                "end_execution_turn",
+                "authorize",
+                "execute",
+                "configure_device_control",
+                "_issue",
+            }
+        ):
+            raise ValueError("display read enters action or discovery owner")
+        if isinstance(node, (ast.Global, ast.Nonlocal, ast.Import, ast.ImportFrom)):
+            raise ValueError("display read changes namespace ownership")
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id
+            in {"setattr", "delattr", "exec", "eval", "globals", "locals", "vars", "__import__"}
+        ):
+            raise ValueError("dynamic owner mutation")
+
+
+def _method_header(node: ast.AST) -> tuple:
+    def value(item):
+        if isinstance(item, ast.AST):
+            return ast.dump(item, include_attributes=False)
+        if isinstance(item, list):
+            return tuple(value(child) for child in item)
+        return item
+
+    return tuple((key, value(item)) for key, item in ast.iter_fields(node) if key != "body")
+
+
+def _podview_owner_ast(root: Path, merge_base: str) -> bool:
+    """Compare preserved AST in full; remove only explicitly admitted deltas."""
+
+    def pair(name):
+        return _owner_ast(
+            _git(root, "show", f"{merge_base}:podvoice/gatekeeper/{name}.py").encode()
+        ), _owner_ast((root / f"podvoice/gatekeeper/{name}.py").read_bytes())
+
+    try:
+        before, after = pair("__main__")
+        _remove_call_keyword(
+            after,
+            "ToolRouter",
+            "cleaning_journal_path",
+            'settings_path.parent / "cleaning-journal.json"',
+        )
+        if not _ast_equal(before, after):
+            return False
+        for filename, class_name, allowed, imports in (
+            (
+                "tools",
+                "ToolRouter",
+                _PODVIEW_READ_METHODS,
+                (
+                    "from pathlib import Path",
+                    "from . import podview_music",
+                    "from .podview_weather import weather_projection",
+                ),
+            ),
+            (
+                "device_control",
+                "DeviceControl",
+                {"observe", "cleaning_history", "prepare", "execute"},
+                (
+                    "from pathlib import Path",
+                    "from .cleaning_journal import CleaningJournal, JournalError",
+                ),
+            ),
+        ):
+            before, after = pair(filename)
+            old_class, new_class = (
+                _direct_class(before, class_name),
+                _direct_class(after, class_name),
+            )
+            old_methods, new_methods = _methods(old_class), _methods(new_class)
+            if not allowed <= new_methods.keys() or set(new_methods) - set(
+                old_methods
+            ) != allowed - set(old_methods):
+                return False
+            _remove_exact_imports(after, imports)
+            constructor = new_methods["__init__"]
+            argument = "cleaning_journal_path" if filename == "tools" else "journal_path"
+            _remove_path_argument(constructor, argument)
+            if filename == "tools":
+                _remove_call_keyword(constructor, "DeviceControl", "journal_path", argument)
+            else:
+                expected = ast.parse("self._cleaning_journal = CleaningJournal(journal_path)").body[
+                    0
+                ]
+                matches = [node for node in constructor.body if _ast_equal(node, expected)]
+                if len(matches) != 1:
+                    return False
+                constructor.body.remove(matches[0])
+            if not _ast_equal(old_methods["__init__"], constructor):
+                return False
+            for name in allowed:
+                current = new_methods[name]
+                if filename == "tools" or name in {"observe", "cleaning_history"}:
+                    _read_method_only(current)
+                if name in old_methods:
+                    old = old_methods[name]
+                    # Signatures/decorators are still owned by the original API.
+                    if type(old) is not type(current) or _method_header(old) != _method_header(
+                        current
+                    ):
+                        return False
+                    old_class.body.remove(old)
+                new_class.body.remove(current)
+            if not _ast_equal(before, after):
+                return False
+        return True
+    except (SyntaxError, UnicodeError, ValueError, KeyError, RuntimeError):
+        return False
+
+
+def _requires_podview_owner_adapters(root: Path, merge_base: str) -> bool:
+    changed = _effective_changes(root, merge_base, ())
+    return bool(
+        changed
+        & {
+            "podvoice/gatekeeper/cleaning_journal.py",
+            "podvoice/gatekeeper/podview_music.py",
+            "podvoice/gatekeeper/podview_weather.py",
+        }
+    ) and bool(
+        changed
+        & {
+            "podvoice/gatekeeper/tools.py",
+            "podvoice/gatekeeper/device_control.py",
+            "podvoice/gatekeeper/podview.py",
+        }
+    )
+
+
+def _reviewed_podview_owner_adapters(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "policy_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or type(record["version"]) is not int
+        or record["version"] != 2
+        or record["kind"] != "podview_owner_adapters"
+        or record["domains"] != list(report.domains)
+        or report.domains != ("ha_tools", "physical_output")
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+        or any(
+            not isinstance(record[key], str) or not record[key].strip()
+            for key in fields - {"version", "domains"}
+        )
+    ):
+        return False
+    effective = _effective_changes(
+        root, report.base, (*report.production_files, *report.test_files)
+    )
+    production = {name for name in effective if name.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    tests = {name for name in effective if name.startswith("tests/")} | set(report.test_files)
+    metadata = "podvoice/gatekeeper/__init__.py"
+    static = {name for name in production if name.startswith("podvoice/gatekeeper/static/podview/")}
+    if (
+        not _PODVIEW_OWNER_REQUIRED <= effective
+        or not _PODVIEW_OWNER_REGRESSIONS <= effective
+        or not production <= _PODVIEW_OWNER_REQUIRED | static | {metadata}
+    ):
+        return False
+    policy = root / "scripts/candidate_scope.py"
+    if (
+        not policy.is_file()
+        or policy.is_symlink()
+        or any(
+            not (root / name).is_file() or (root / name).is_symlink() for name in production | tests
+        )
+    ):
+        return False
+    if (
+        len(static) > 128
+        or any(
+            Path(name).suffix.lower()
+            not in {
+                ".js",
+                ".css",
+                ".html",
+                ".json",
+                ".svg",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".woff",
+                ".woff2",
+            }
+            or (root / name).stat().st_size > 4 * 1024 * 1024
+            or (root / name).stat().st_mode & 0o111
+            for name in static
+        )
+        or sum((root / name).stat().st_size for name in static) > 16 * 1024 * 1024
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    return (
+        _podview_owner_ast(root, report.base)
+        and record["fingerprint"]
+        == production_fingerprint(root, base_tip, report.base, report.production_files)
+        and record["regression_fingerprint"]
+        == regression_fingerprint(root, base_tip, report.base, report.test_files)
+        and record["policy_fingerprint"] == hashlib.sha256(policy.read_bytes()).hexdigest()
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
     marker = "<!-- candidate-scope-coupling"
     strict_v3_required = _requires_passive_burst_ui_hil(root, report.base)
+    podview_required = _requires_podview_owner_adapters(root, report.base)
     failed = replace(report, passed=False, reason="invalid or stale reviewed coupling record")
     try:
         idle_ui_required, strict_v4_required = _native_idle_input_ui_review_requirements(
@@ -949,6 +1295,12 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     except (SyntaxError, UnicodeError, ValueError):
         return failed
     if marker not in text:
+        if podview_required:
+            return replace(
+                report,
+                passed=False,
+                reason="podview_owner_adapters requires exact independent review",
+            )
         if strict_v3_required:
             return replace(
                 report, passed=False, reason="passive_burst_ui_hil requires strict v3 review"
@@ -973,6 +1325,18 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         "rationale",
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
+        return failed
+    if record["version"] == 2 and record.get("kind") == "podview_owner_adapters":
+        if (
+            strict_v3_required
+            or strict_v4_required
+            or not _reviewed_podview_owner_adapters(root, report, base_tip, record)
+        ):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: podview_owner_adapters"
+        )
+    if podview_required:
         return failed
     if record["version"] == 2 and record.get("kind") == "live_schema_startup_mcp_health":
         if (

@@ -1,0 +1,150 @@
+"""Optional visual receipt ownership, exact source projection and bounded retention."""
+
+import copy
+
+from unit.test_weather_result import weather_payload
+
+from gatekeeper.podview_receipts import VisualReceiptOwner
+
+
+def offer(store, **overrides):
+    args = dict(
+        owner=object(),
+        room_id="kitchen",
+        session_id="session",
+        session_epoch=1,
+        turn_id="turn",
+        provider_generation=1,
+        task_id="answer:turn",
+        input_revision=2,
+        call_id="call",
+        tool_name="google_web_sogning",
+        result={"ok": True, "data": 2004},
+        current=lambda: True,
+    )
+    args.update(overrides)
+    return store.offer(**args)
+
+
+def test_scalar_has_explicit_receipt_citation_not_invented_web_url():
+    store = VisualReceiptOwner()
+    assert offer(store)
+    item = store.snapshot("kitchen")["items"][0]
+    assert item["displaySuggested"] is False
+    assert item["content"]["facts"][0]["value"] == "2004"
+    source = item["content"]["sources"][0]
+    assert source["kind"] == "owner_receipt" and "url" not in source
+    receipt = store.source("kitchen", source["receiptId"])
+    assert receipt["externalSourcesProvided"] is False
+    assert store.source("bedroom", source["receiptId"]) is None
+    receipt["facts"][0]["value"] = "changed"
+    assert store.source("kitchen", source["receiptId"])["facts"][0]["value"] == "2004"
+
+
+def test_unknown_tools_results_errors_and_large_text_never_become_cards():
+    store = VisualReceiptOwner()
+    for result in [
+        {"ok": False, "data": "secret"},
+        {"ok": True, "data": {"token": "secret"}},
+        {"ok": True, "data": "x" * 81},
+        {"ok": True, "data": True},
+    ]:
+        assert not offer(store, result=result)
+    assert not offer(store, tool_name="arbitrary_tool")
+    assert not offer(store, result={"ok": True, "data": {"success": False, "result": 2004}})
+    assert store.snapshot("kitchen")["items"] == []
+
+
+def test_stale_current_exception_close_and_expiry_discard_receipts():
+    now = [0.0]
+    alive = [True]
+    store = VisualReceiptOwner(clock=lambda: now[0])
+    assert offer(store, current=lambda: alive[0])
+    receipt = store.snapshot("kitchen")["items"][0]["receiptId"]
+    alive[0] = False
+    assert store.snapshot("kitchen")["items"] == []
+    assert store.source("kitchen", receipt) is None
+    assert not offer(store, current=lambda: False)
+    assert not offer(store, current=lambda: 1 / 0)
+    assert offer(store)
+    now[0] = 121
+    assert store.snapshot("kitchen")["items"] == []
+    store.close()
+    assert not offer(store)
+
+
+def test_owner_turn_and_input_replacement_remove_old_sources_and_dedupe_is_bounded():
+    store = VisualReceiptOwner()
+    owner = object()
+    assert offer(store, owner=owner)
+    old = store.snapshot("kitchen")["items"][0]["receiptId"]
+    assert not offer(store, owner=owner)
+    for number in range(1, 32):
+        assert offer(store, owner=owner, call_id=f"call{number}")
+    assert not offer(store, owner=owner, call_id="overflow")
+    assert len(store.snapshot("kitchen")["items"]) == 3
+    assert offer(store, owner=owner, input_revision=3)
+    assert len(store.snapshot("kitchen")["items"]) == 1
+    assert store.source("kitchen", old) is None
+    assert offer(store, owner=object())
+    assert len(store.snapshot("kitchen")["items"]) == 1
+
+
+def test_owner_rechecked_after_projection():
+    store = VisualReceiptOwner()
+    states = iter([True, False])
+    assert not offer(store, current=lambda: next(states))
+    assert store.snapshot("kitchen")["items"] == []
+
+
+def test_weather_facts_copy_only_actual_structured_fields(monkeypatch):
+    from datetime import datetime
+
+    from gatekeeper import podview_weather
+
+    payload = weather_payload()
+    stamp = datetime.fromisoformat(payload["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr(podview_weather.time, "time", lambda: stamp)
+    payload["data"]["result"]["token"] = "private-token"
+    before = copy.deepcopy(payload)
+    store = VisualReceiptOwner()
+    assert offer(store, tool_name="weather_forecast", result=payload)
+    item = store.snapshot("kitchen")["items"][0]
+    assert item["displaySuggested"] is True
+    assert [f["value"] for f in item["content"]["facts"]] == ["15.1 °C", "partlycloudy"]
+    assert "private-token" not in str(item)
+    assert payload == before
+
+
+def test_room_capacity_and_bad_identity_fail_closed():
+    store = VisualReceiptOwner()
+    assert not offer(store, input_revision=True)
+    assert not offer(store, session_id="")
+    for number in range(12):
+        assert offer(store, room_id=str(number))
+    assert not offer(store, room_id="overflow")
+
+
+def test_packed_weather_preserves_source_age_and_expires_without_refresh(monkeypatch):
+    from datetime import datetime
+
+    from gatekeeper import podview_weather
+    from gatekeeper.weather_result import compact_weather_result
+
+    payload = weather_payload()
+    stamp = datetime.fromisoformat(payload["data"]["result"]["retrieved_at"]).timestamp()
+    now = [stamp + 899]
+    monkeypatch.setattr(podview_weather.time, "time", lambda: now[0])
+    packed = compact_weather_result("weather_forecast", payload)
+    assert isinstance(packed["data"]["result"]["forecast"], dict)
+    store = VisualReceiptOwner()
+    assert offer(store, tool_name="weather_forecast", result=packed)
+    item = store.snapshot("kitchen")["items"][0]
+    assert item["provenance"]["retrievedAt"] == payload["data"]["result"]["retrieved_at"]
+    assert item["provenance"]["validUntil"] == stamp + 900
+    now[0] += 2
+    assert store.snapshot("kitchen")["items"] == []
+    assert store.source("kitchen", item["receiptId"]) is None
+    packed["data"]["result"]["forecast"]["returned_rows"] = 999
+    now[0] = stamp
+    assert not offer(store, tool_name="weather_forecast", result=packed)
