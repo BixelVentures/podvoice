@@ -1,106 +1,65 @@
 # PodVoice
 
-Start med [docs/STATUS.md](docs/STATUS.md) for aktuel installeret baseline og åbne gates.
-[AGENTS.md](AGENTS.md) viser læserækkefølge og udviklingskontroller; den fulde bindende
-agentkontrakt er bevaret i [docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md).
+PodVoice is a Home Assistant add-on for voice conversations through a custom-firmware
+[Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/). Start with the
+[current status](docs/STATUS.md) for the installed version, known limits and open acceptance
+gates. Product behavior and measurable goals are in [docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md).
 
-A standalone voice-AI gatekeeper for a **PodConnect** home, packaged as a **Home Assistant Add-on**.
+## How it works
 
-A custom-firmware [HA Voice PE](https://www.home-assistant.io/voice-pe/) streams mic audio to
-PodVoice, which runs a realtime [OpenAI Realtime](https://platform.openai.com/docs/guides/realtime)
-conversation (`gpt-realtime-2.1` by default; mini is an explicit cost mode) and **ducks the room's music** through PodConnect's
-Attention API while you talk — then restores it when you're done. Dialogue comes out of the Voice PE
-speaker; music keeps playing (quietly) on the HomePod underneath. Home control goes through **Home
-Assistant's own MCP server on the LAN** — nothing about the house is internet-reachable, and HA's
-expose settings are the single permission list.
+**GPT-Live is the only production conversation engine.** `ThinSession` owns the conversation
+for both Voice PE and Talk. Voice PE firmware owns physical wake, microphone forwarding,
+playback events and rearm. The puck uses a half-duplex audio path; Talk is a separate browser
+I/O adapter. Talk can exercise the shared software engine, but it does not prove the puck's
+microphone, speaker, wake, or physical lifecycle.
 
-Current public facts are handled by the home's existing Gemini search agent exposed through Home
-Assistant, alongside the other home tools. PodVoice does not install a second competing search
-provider.
+Home data and actions belong to Home Assistant. PodVoice uses only the connected MCP tools
+and other statically admitted adapters available to the current session. PodConnect owns its
+music services and physical HomePod playback. Web search depends on the existing Home
+Assistant search integration. The live capability and service status in the panel indicate
+what the current installation exposes; a configured integration alone is not proof that an
+action works end to end.
 
-It is a **sibling** to PodConnect — separate process, separate failure domain, no shared code. They
-meet at exactly one contract: PodConnect's `POST /api/attention` (duck) / `/api/attention/release`.
-If PodVoice ever crashes, PodConnect's heartbeat TTL auto-restores the volume within ~2 seconds, so
-**the music can never get stuck quiet.**
+## Home Assistant panel
 
-## Why an Add-on (not a plugin inside Home Assistant)
-You install it from the HA Add-on Store and configure it in the HA UI — no extra server, no extra
-hardware. But unlike a `custom_components` plugin, it runs in its **own container**, so a provider
-socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
-deployment model as PodConnect.
+Open PodVoice from the Home Assistant sidebar. The panel has Home, Talk, History and Settings
+views. Use it to inspect the current connection/readiness state, talk through the browser, and
+manage the add-on's available settings. The panel does not provide a simulation mode or a
+conversation test wizard. Product and physical acceptance remain separate; see
+[docs/STATUS.md](docs/STATUS.md).
 
-HA-owned timers additionally use a small `custom_components/podvoice` bridge inside
-Home Assistant. HA owns the countdown; the add-on still owns dialogue and device audio.
-A provider connection failure does not move timer ownership into the add-on.
+## Requirements and first setup
 
-## Status (første virkende half-duplex-baseline)
-**OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
-REST tool bridge are deleted. What ships now:
-- one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event
-  handlers there ([docs/realtime-config.md](docs/realtime-config.md));
-- turn-detection **presets** (responsive / conservative / custom) tunable live in Settings — the
-  default uses semantic completion for natural follow-ups, while the half-duplex echo shield
-  prevents the puck from feeding its own reply back to Realtime
-  ([docs/audio-path.md](docs/audio-path.md) maps the audio path and corrects two firmware premises);
-- cost control: sessions open only on wake, idle/max-duration caps, per-response token metering and
-  `sensor.podvoice_cost_today` / `_month` in HA;
-- home control via a **local MCP client** to HA's MCP server (LAN), HA-owned timers on
-  explicitly configured Voice PE/Talk endpoints, and the exposed Gemini search agent;
-- a panel capability check that shows whether Realtime can actually see web/search and music tools,
-  not just whether HA's MCP server is reachable;
-- Realtime-ejet semantisk afslutningsintention; modellen foreslår afslutning på den
-  aktuelle tur, mens PodVoice først lukker transporten efter det fysiske slutsvar.
+You need Home Assistant, an OpenAI API key, a Voice PE running the PodVoice firmware, and the
+Home Assistant MCP integration for home tools. PodConnect is needed for its music and speaker
+services. Voice PE setup and currently accepted versions are described by the release and
+status documentation; do not infer physical acceptance from a successful add-on install.
 
-The firmware has exactly one wake owner and never starts a stock Home Assistant Assist run.
-The measurable product and release gates live in
-**[docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md)**.
+Install PodVoice from the Home Assistant add-on repository and set the OpenAI key in the
+Home Assistant add-on configuration. Use PodVoice Settings for connected services and rooms,
+using the room identifiers you
+will use for devices and optional HA-owned timer endpoints. The timer bridge installation is
+separate and is documented below.
 
-## Sidebar panel & simulation mode
-PodVoice ships a **Home Assistant Ingress sidebar panel** (served on `:8098` — PodConnect owns `:8099`):
-per-room state, service health (ChatGPT / Voice PE / PodConnect / Home control), live capability
-pills (time / home / web-search / music / timers), the live ducking level, a live transcript, and
-controls, plus a `/health` endpoint and live metrics. The **Talk tab** runs the REAL engine with
-the browser as a device: the mic button is the wake word and every rule (tools, idle close, echo
-shield, goodbye) is the same code path the puck runs.
+## Develop and check
 
-**Try it with no hardware or keys:** enable simulation under the panel's advanced settings
-(or run `python -m gatekeeper` with a simulated config). A built-in scenario driver (`sim.py`)
-animates the full wake → duck → speak → lounge → release
-flow per room so you can watch the panel work before the Voice PE / OpenAI key arrive.
-
-## Develop & test
-
-The fast local feedback loop and the unchanged release gate are described in
-[`docs/UDVIKLINGSFLOW.md`](docs/UDVIKLINGSFLOW.md).
+Follow [docs/UDVIKLINGSFLOW.md](docs/UDVIKLINGSFLOW.md). Create the shared Python 3.12
+virtual environment once, outside the synchronized checkout, then reuse it:
 
 ```sh
-python3.12 -m venv .venv && . .venv/bin/activate
-pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-ruff check . && ruff format --check . && mypy podvoice/gatekeeper && python -m pytest
-```
-The core is stdlib/httpx/aiohttp-only and fully unit-tested; the SDK-bound module (`voicepe`)
-lazy-imports `aioesphomeapi` and is exercised through fakes, so the whole suite runs without
-hardware or API keys.
-
-## The conversation loop (at a glance)
-```
-IDLE ──wake word / button──▶ ACTIVE (one Realtime session; follow-ups stay here)
-  ▲                          music ducked; mic streams ONLY now)
-  └── Realtime end-intent / timeout / error ──▶ socket closed, mic off, wake rearmed
+python3.12 -m venv ~/Developer/venvs/podvoice
+~/Developer/venvs/podvoice/bin/pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
 ```
 
-## Components
-- `esphome/podvoice.yaml` — the Voice PE firmware overlay plus an auditable vendored
-  upstream base. Wake opens only PodVoice's mic channel; stock HA Assist is never started.
-- `gatekeeper/` — the Python asyncio service (engines, OpenAI Realtime client, MCP tool router, Attention client + heartbeat, usage meter, panel).
-- `podvoice/` — the HA add-on packaging (`config.yaml`, `Dockerfile`, `run.sh`).
-- `config.example.yaml` — OpenAI API key, PodConnect base URL + token, Voice-PE → room map.
+For focused feedback, run one command from the persistent unsynchronized clone, substituting
+the affected test module or node:
 
-## Requires
-- Home Assistant (Green or any supervised install) with the **PodConnect** add-on (Speakers ≥ 0.14.0)
-  exposing the Attention API on `:8099`, and the **Model Context Protocol Server** integration enabled.
-- An HA Voice PE flashed with the custom firmware in `esphome/`.
-- An OpenAI API key.
+```sh
+PODVOICE_PYTHON=~/Developer/venvs/podvoice/bin/python scripts/dev fast --test tests/path/test_file.py
+```
+
+The focused check is development feedback, not release or physical acceptance. The frozen
+candidate's official CI and the hardware gates listed in STATUS remain required.
 
 ## HA-owned timers
 
