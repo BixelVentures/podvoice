@@ -17567,7 +17567,7 @@ Timerens faktiske reviewed komponentkilde er publiceret på WIP1fec384b53af8370c
 
 Samlet kandidat 2.0.21 — endelig uafhængig SOURCE GO på produktionsfingerprint4d1b5624820f72424af628cd25f6d8fdead68dd468823f1cdaa8dc1a613a76a5 og regressionfingerprinta1cfdee1e247b2de1a8b21eecc93f4514d62db0bf66f93735f225b63313e7d5a; ingen uløste findings. Reviewreceipt2975de908457251a538c70ae364f2edd4f657bc6ae8a9ba5397743e2271d294e inkluderer hele native/Talk startup→idle timer→original retirement→nextwake-kæden, faktisk publiceret komponentpin, settings/migration og præcis toolingbinding. Eksisterende bootgate blev korrigeret test-only efter real ESPHome-package-bevis: almindelig375/-100, Live375/-100/-99, hele hooks nøjagtig én gang; samme preexisting tre-hook-konfiguration på main. Real config/codegeneration PASS med faktisk immutable Gitkilde; lokal secretsfil er dummy, så ingen installérbar firmware eller fysisk accept udledes. Final formatter/lint/scope følger; derefter én diff-freeze og én samlet releasegate. Semantisk Live-afslutning er fortsat uløst, mål ACTIVE.
 
-<!-- candidate-scope-coupling
+<!-- historical-candidate-scope-coupling
 {
   "version": 5,
   "kind": "live_startup_native_idle_alarm",
@@ -17625,3 +17625,31 @@ Aktiv afslutningspost 13/10 — separat næste draft, ingen ændring af frozen2.
 Samlet kandidat2.0.21 lokalgate færdig13/10:3468uniqueunit og988integration PASS samt fire officielle browserworkersPASS68.55s med joinedcleanup; diffPASS. Final45filer var uændrede før/efter sidste gates, produktionbde8351ca91534440c07e2cd9852c38fe962f319f17499b6043f0bb23297e2b8/regression44295f8a1465f438de9c11a036dc9b56640ed201bc67eb0b78fef9f5314999df. Den oprindelige enkeltreleasekommando og alle FAILs bevares; kun ugyldige/uafsluttede stadier blev fortsat. Browseradmission var alene agenthelperens manglende NODE_PATH/cache-env, eksisterende pinnede dependencies genbrugt uden install/runtimepatch. SourceGO og faktisk firmwarecompile113114 er bevaret. Resultatpost er docs-only efter gate, shippede kode/testbytes urørte. Nu konkret commit/push og étPR/CI-flow. Installeret20 bevares, modelsemantisk afslutning er fortsat uløst; ingen ny fysisk golden/lifecycle/timer/latencyaccept følger.
 
 PC29: PR34 er merged643b86488a6af9392f82f6098531c61ee16b6f4c. Første publisher38415648981 og verify38415648831 SUCCESS, begge architectureversionguards og faktiske native packagechecks bestået. Speakers18 ARMregistrydigest9cf94fc9968db66a283078236ae9113485bc76e14f63c8a662702fe3e9f6d456; actualimage nativepatch95ddc5fbe4850c91e8ef3ccb5496bf87ab49afa194228ea3e08b2fae637744da matcherreviewedsource. InheritedOCI-baselabel bruges ikke som PCrevision. HAinstallation følger, ikke fysiskaccept af tidligereConnectfejl.
+
+
+### 14/10 — aktiv isoleret #109 health-backoff sourcefix
+
+Lead root. Ny isoleret kopi af bevaret shippet RED-draft; original tools9b7 og RED-log urorte. Vellykket tools/list bevarer MCP retry attempt/delay/deadline, mens schemas stadig publiceres. Kun aktuelt successful GetLiveContext paa samme MCP-instance, epoch og discoverygeneration nulstiller historikken. Forsinket success efter nyere fejl/REST-publicering/instance-skift/clientclose er inert for healthy, hub og recoverywake. Annulleret health bevarer eksisterende schedulerdeadline, og separat REST-retry kan ikke ryddes af MCP-health. Ingen prompt, Live, timeoutvaerdi, active schema, action replay, ny scheduler, firmware eller HA-aendring.
+
+Original RED-regression GREEN; fire uendrede held-health-boundarycases og korrigeret uafhaengigt REST-generationsoverlap PASS. Format/lint changed2files PASS. Source til independent review, ikke frosset/release/testklar. Tidligere MCP-overlaptest var serialiseret og erstattet, ikke brugt som kausal overlapbevis. Scopecheck og resterende eksisterende router/REST/Thin begge-I/O checks afventer; ingen full releasegate/genkoersel/provider/key/HA/push.
+
+Isoleret exact-tree-binding (review pending):
+
+```json
+{
+  "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "production_fingerprint": "8d8785311117345e93ac64e2a8b7950c7d038f5048586e577f3e650aed91983e",
+  "regression_fingerprint": "4c370bf24627cce603494fabe00a4a1e831324334465377dbcebd2405a8eeadd",
+  "lead": "root",
+  "reviewer": "sol_input_review - independent exact SOURCE and whole-tree BINDING GO94e8/b71/325/8d878531/4c370bf2",
+  "scope": "single unclassified_runtime via unchanged classifier; semantic change is MCP health reset; no active V1 coupling"
+}
+```
+
+14/10 samme isolerede sourcepost: independent SOURCE GO paa tools94e8/testb71/patch325. Eksisterende samtidige-probe forventning er reviewet: gammel generation giver False, ny generation giver True; same MCP-instance, exactschema, healthy/up/ready og serialitet bevares. 110 tidligere eksisterende checks PASS; to oprindelige failures bevares: loopback-sandboxbind foer produktkode og stale-health-forventning. Kun loopback-node eskaleret og den aendrede samtidige-node genkoert PASS. Seks nye fokuserede greens er ikke gentaget. Final changed2files format/lint PASS. Exactbinding verificeres uafhaengigt foer ONE unchangedclassifier scopecheck og freeze; ingen release/push/HA/provider.
+
+14/10 samme sourcepost afsluttet: korrigeret sand mekanisk klassifikation single unclassified_runtime (semantisk scope MCP health-reset), ingen classifieraendring. Independent exact SOURCE/BINDING GO94e8/b71/325 samt wholeprod8d878531/wholetests4c370bf2. ONE actual candidate_scope --base origin/main --json PASS exit0 paa parent30e0/main4a, kun tools.py og eksisterende test_thin_mcp_recovery.py. OriginalREDnode1 og nye boundary5 samt112 eksisterende kausale router/REST/Thin native+Talk checks PASS med de to dokumenterede afgrensede korrektioner; ingen nye6greens/110existinggreens gentaget. Final formatter/lint changed2files PASS. Source-diff frosset til WIP-publicationspacket, ingen fullrelease/version/install/HA/provider eller fysiskaccept. Root skal godkende og publicere samme eksisterende regressionbranch; leadpost/fingerprints bevarer alle tidligere sourcehistoriske bytes.
