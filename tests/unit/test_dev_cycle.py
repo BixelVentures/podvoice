@@ -62,7 +62,8 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     buildx = "      - uses: docker/setup-buildx-action@v3\n"
     build_push = "      - uses: docker/build-push-action@v6\n"
 
-    assert not build.startswith("    needs:")
+    assert "needs: [scope]" in build
+    assert "needs: [lint-test" not in build
     assert build.count(qemu) == build.count(buildx) == build.count(build_push) == 1
     assert build.index(qemu) < build.index(buildx) < build.index(build_push)
     assert "dorny/paths-filter@v3" in build
@@ -74,7 +75,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
     assert "cache-to:" not in build
-    assert "needs: [lint-test, ui-browser]" in publish
+    assert "needs: [scope, lint-test, ui-browser]" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
     assert "docker/build-push-action@v6" in publish
@@ -105,7 +106,7 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
         assert "docker/build-push-action@v6" in job
     fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
     assert build.count(fork_guard) == 2
-    assert "needs: [lint-test, ui-browser]" in publish
+    assert "needs: [scope, lint-test, ui-browser]" in publish
     assert "push: true" in publish
     assert "Refuse an existing release version" in publish
     assert "Record published digest" in publish
