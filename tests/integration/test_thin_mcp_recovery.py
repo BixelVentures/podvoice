@@ -399,6 +399,7 @@ async def test_concurrent_probes_and_persistent_failure_remain_serial_bounded():
     server = FaultServer()
     async with httpx.AsyncClient(transport=httpx.MockTransport(server.handle)) as client:
         router = await router_for(server, client)
+        accepted, mcp = copy.deepcopy(router.declarations()), router._mcp
         server.paged = server.hold_page = True
         first = asyncio.create_task(router.probe())
         second = None
@@ -408,7 +409,15 @@ async def test_concurrent_probes_and_persistent_failure_remain_serial_bounded():
             await asyncio.sleep(0)
             assert server.max_inflight == 1 and server.count("initialize") == 1
             server.page_release.set()
-            assert await asyncio.wait_for(first, 1) and await asyncio.wait_for(second, 1)
+            # The second list publishes a newer schema before the queued first
+            # health call returns. Only that current health owner may report success.
+            assert not await asyncio.wait_for(first, 1)
+            assert await asyncio.wait_for(second, 1)
+            assert router.healthy and router._hub.snapshot()["services"]["mcp"] == "up"
+            assert router.discovery_status()["retry_state"] == "ready"
+            assert router.discovery_status()["retry_attempt"] == 0
+            assert router.declarations() == accepted and router._mcp is mcp and mcp.initialized
+            assert server.count("initialize") == 1
             server.paged = server.hold_page = False
             server.list_failures = 8
             delays = []
@@ -420,6 +429,132 @@ async def test_concurrent_probes_and_persistent_failure_remain_serial_bounded():
             assert server.count("tools/call", "HassGetState") == 0 and server.max_inflight == 1
         finally:
             await finish_probes(server, first, second)
+
+
+async def test_repeated_live_context_failure_keeps_backoff_until_full_health_recovers():
+    """A fresh tool list cannot reset recovery before the real health call succeeds."""
+    server = FaultServer()
+    fail_context = False
+
+    async def handle(request):
+        response = await server.handle(request)
+        body = json.loads(request.content)
+        if (
+            fail_context
+            and body["method"] == "tools/call"
+            and body["params"]["name"] == "GetLiveContext"
+        ):
+            return httpx.Response(502, text="synthetic live-context connection lost")
+        return response
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        router = await router_for(server, client)
+        accepted = copy.deepcopy(router.declarations())
+        first_epoch = router._mcp_epoch
+        assert router.healthy and router._mcp.initialized
+        fail_context = True
+        failures = []
+        expected_delays = [1, 2, 5, 10, 30, 60]
+        for _ in expected_delays:
+            assert not await router.probe()
+            status = router.discovery_status()
+            failures.append((status["retry_attempt"], status["retry_delay_s"]))
+            assert status["retry_state"] == "retrying" and "502" in status["last_error"]
+            assert router._recovery_wakeup.is_set()
+            assert 0 < router.next_probe_delay() <= status["retry_delay_s"]
+            assert router.declarations() == [] and not router._mcp.initialized
+
+        # Reach the successor health boundary even on the broken baseline. Only
+        # then compare the complete causal sequence with the required backoff.
+        fail_context = False
+        assert await router.probe()
+        recovered = router.discovery_status()
+        assert recovered["retry_state"] == "ready" and recovered["last_error"] is None
+        assert recovered["retry_attempt"] == 0 and recovered["retry_delay_s"] is None
+        assert not router._recovery_wakeup.is_set() and router.next_probe_delay() == 600
+        assert router.declarations() == accepted and router._mcp.initialized
+        assert router._mcp_epoch == first_epoch + len(expected_delays)
+        assert server.count("tools/list") == server.count("tools/call", "GetLiveContext") == 8
+        assert server.count("initialize") == server.count("notifications/initialized") == 7
+        assert server.count("tools/call", "HassGetState") == 0
+        assert all(
+            request["params"]["name"] == "GetLiveContext"
+            for request in server.requests
+            if request["method"] == "tools/call"
+        )
+        assert server.max_inflight == 1 and server.inflight == 0
+        assert failures == list(enumerate(expected_delays, start=1)), (
+            "Successful tools/list must not reset backoff while GetLiveContext still fails"
+        )
+
+
+@pytest.mark.parametrize(
+    "boundary", ["failure", "rest_discovery", "replacement", "close", "cancel"]
+)
+async def test_pending_health_preserves_recovery_and_stale_success_is_inert(boundary):
+    """Late read success cannot retire a newer owner or erase a cancelled retry schedule."""
+    server = FaultServer()
+    entered, release = asyncio.Event(), asyncio.Event()
+    hold_context = False
+
+    async def handle(request):
+        if request.url.path.endswith("/services"):
+            return httpx.Response(200, json=[])
+        response = await server.handle(request)
+        body = json.loads(request.content)
+        if (
+            hold_context
+            and body["method"] == "tools/call"
+            and body["params"]["name"] == "GetLiveContext"
+        ):
+            entered.set()
+            await release.wait()
+        return response
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        router = await router_for(server, client)
+        router._record_discovery_failure(McpError("first health failure", connection_shaped=True))
+        hold_context = True
+        task = asyncio.create_task(router.probe())
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            pending = router.discovery_status()
+            assert pending["retry_attempt"] == 1 and pending["retry_delay_s"] == 1
+            assert 0 < router.next_probe_delay() <= 1
+            assert router._recovery_wakeup.is_set() and not router.healthy
+            assert router._hub.snapshot()["services"]["mcp"] != "up"
+            if boundary == "failure":
+                router._record_discovery_failure(McpError("newer failure", connection_shaped=True))
+            elif boundary == "rest_discovery":
+                router._token = "public-inert-test-token"
+                await asyncio.wait_for(router._refresh_podconnect_services(), 1)
+            elif boundary == "replacement":
+                router._mcp = HomeAssistantMCP(URL, "public-inert-test-token", client)
+            elif boundary == "close":
+                await client.aclose()
+            else:
+                # The actual loop consumes the signal before recomputing the delay.
+                router._recovery_wakeup.clear()
+                task.cancel()
+            snapshot = router.discovery_status()
+            services = router._hub.snapshot()["services"]
+            wake_pending = router._recovery_wakeup.is_set()
+            release.set()
+            if boundary == "cancel":
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            else:
+                assert not await asyncio.wait_for(task, 1)
+            assert router.discovery_status() == snapshot
+            assert router._hub.snapshot()["services"] == services and not router.healthy
+            assert router._recovery_wakeup.is_set() == wake_pending
+            assert 0 < router.next_probe_delay() <= snapshot["retry_delay_s"]
+            assert server.count("tools/call", "HassGetState") == 0 and server.inflight == 0
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.parametrize("invalidate", ["schema", "execution"])
