@@ -37,6 +37,10 @@ class BrowserGateError(RuntimeError):
     """Missing proof or failed assertions, including incomplete cleanup."""
 
 
+class MissingBrowserOwner(BrowserGateError):
+    """Leader vanished; never signal, and require final verified group absence."""
+
+
 @dataclass(frozen=True)
 class Identity:
     pid: int
@@ -220,7 +224,12 @@ class Registry:
                 "incomplete cleanup: browser group was not admitted; no kill authorized"
             )
         current = identity(group)
-        if current is None or admitted.pid != group or admitted.group != group:
+        if current is None:
+            raise MissingBrowserOwner(
+                "incomplete cleanup: orphan browser owner is unverifiable (leader absent); "
+                "no kill authorized"
+            )
+        if admitted.pid != group or admitted.group != group:
             valid = False
         elif self.worker.poll() is None:
             # The original live worker and direct-parent admission remain exact.
@@ -245,8 +254,9 @@ class Registry:
     def cleanup(self, canceled: bool) -> list[int]:
         """SDK TERM grace, then fresh owned browser groups and worker join.
 
-        A leaderless group is failure. Never kill by stale PGID alone. Cleanup
-        still joins the independently proven worker when a browser is unknown.
+        Never kill a leaderless group by stale PGID alone. A vanished leader
+        may finish exiting; only verified final absence permits success. Changed
+        owners remain failures. Independently proven workers are still joined.
         """
 
         def presence(group: int) -> bool | None:
@@ -270,6 +280,10 @@ class Registry:
                 if presence(group) is True:
                     try:
                         self.signal_browser(group, sig)
+                    except MissingBrowserOwner:
+                        # Exit can win the race after presence(). No signal was
+                        # sent; the final presence check must prove absence.
+                        pass
                     except (OSError, BrowserGateError) as exc:
                         failures.append(str(exc))
             bound = time.monotonic() + 3

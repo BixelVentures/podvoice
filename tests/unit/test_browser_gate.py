@@ -591,7 +591,9 @@ def _cleanup_presence_fixture(monkeypatch, scenario):
         if pid == worker.pid:
             return admitted_worker
         assert pid == child.pid
-        return changed if scenario == "changed_birth" else child
+        if scenario.startswith("leaderless"):
+            return None
+        return changed if scenario.startswith("changed_birth") else child
 
     def killpg(group, sig):
         if sig:
@@ -603,6 +605,12 @@ def _cleanup_presence_fixture(monkeypatch, scenario):
             raise ProcessLookupError(errno.ESRCH, "fixture joined worker")
         assert group == child.group
         child_probes.append(clock[0])
+        if scenario in ("leaderless_absent", "changed_birth_absent"):
+            if len(child_probes) == 1:
+                return
+            raise ProcessLookupError(errno.ESRCH, "fixture verified final absence")
+        if scenario == "leaderless_persistent":
+            return
         if scenario == "term_unknown_absent":
             if len(child_probes) == 1:
                 return
@@ -664,6 +672,38 @@ def test_actual_registry_cleanup_unknown_then_changed_birth_refuses_child_and_jo
     assert worker.wait_bounds == [2] and worker.poll() == 0
     assert len(probes) > 1 and 6 <= clock[0] < 6.1
     assert child.group in registry.groups
+
+
+def test_actual_registry_cleanup_vanished_leader_then_absence_never_signals_browser(monkeypatch):
+    registry, worker, child, clock, probes, signals = _cleanup_presence_fixture(
+        monkeypatch, "leaderless_absent"
+    )
+    assert registry.cleanup(False) == [child.group]
+    assert signals == [(worker.pid, signal.SIGTERM)]
+    assert worker.wait_bounds == [2] and worker.poll() == 0
+    assert len(probes) >= 3 and clock[0] == 0
+
+
+def test_actual_registry_cleanup_persistent_leaderless_group_fails_and_joins_worker(monkeypatch):
+    registry, worker, _child, clock, probes, signals = _cleanup_presence_fixture(
+        monkeypatch, "leaderless_persistent"
+    )
+    with pytest.raises(browser_gate.BrowserGateError, match="process group did not join"):
+        registry.cleanup(False)
+    assert signals == [(worker.pid, signal.SIGTERM)]
+    assert worker.wait_bounds == [2] and worker.poll() == 0
+    assert len(probes) > 1 and 6 <= clock[0] < 6.1
+
+
+def test_actual_registry_cleanup_changed_birth_stays_failure_after_absence(monkeypatch):
+    registry, worker, _child, clock, probes, signals = _cleanup_presence_fixture(
+        monkeypatch, "changed_birth_absent"
+    )
+    with pytest.raises(browser_gate.BrowserGateError, match="owner is unverifiable"):
+        registry.cleanup(False)
+    assert signals == [(worker.pid, signal.SIGTERM)]
+    assert worker.wait_bounds == [2] and worker.poll() == 0
+    assert len(probes) >= 3 and clock[0] == 0
 
 
 def test_global_group_exists_remains_strict_on_eperm(monkeypatch):

@@ -42,6 +42,50 @@ alle fem forventede NEW-hashes. Den anden chat har grønt konfigurationstjek og 
 den samlede Core-genstart/PodConnect-aktivering. De friske endpoint-svar ovenfor er
 rootens efterkontrol af den indlæste timerprotokol; fysisk alarm/Stop afventer morgen.
 
+## Aktiv beslutning · browseroprydning efter main27
+
+**Lead:** root. Main `24c7972461569f5502413de647d546f6323448ef` har samme tree
+`887acd52fc68df9ca30c2e98907c2f2cfba6f5ea` som grønt PR-head. PR-CI
+`38645138649` bestod; main-CI `38645991683` stoppede browserjobbet med
+`settings_dirty: incomplete cleanup: orphan browser owner is unverifiable; no kill authorized`.
+Arbejderens assertions og register bestod; den afsluttende kontrol rapporterede ingen
+levende eller ukendt procesgruppe. Den præcise tidligere identitetsafvigelse er ukendt:
+fejlteksten sammenblander forsvundet leder og ændret ejer. 2.0.27 er ikke publiceret
+eller installeret på dette grundlag. Øvrige CI-resultater bevares.
+
+**Kæde/hypotese:** registreret launch → succesfuld UI/SDK-close → gruppe observeres
+levende → lederens identitet læses → signal eller afvisning → bounded join → endelig
+fraværskontrol. En leder kan forsvinde mellem tilstedeværelses- og identitetslæsning;
+den gemte fejl overlever i dag selv verificeret fravær. Mindste rettelse skelner alene
+den manglende leder fra ændret/genbrugt identitet og accepterer først fuldt verificeret
+fravær. Ingen signalering uden identitetsbevis; ændret ejer, vedvarende lederløs gruppe,
+ukendt presence og worker-fejl forbliver hårde fejl. Dette er en falsificerbar tooling-
+hypotese, ikke bevis for den præcise transient i CI.
+
+**Regression/gate/rollback:** injicér levende gruppe → manglende leder → verificeret
+fravær; bevis nul browsersignaler. Modprøver: vedvarende lederløs, ændret birth trods
+senere fravær, ukendt presence og normal worker-join. Formatter/lint, eksisterende
+browser-runner-regressioner, scopekontrol og uafhængigt adversarial review før freeze.
+Officiel CI skal derefter bevise den faktiske browsergate og sikre publisherkæde.
+Rollback-grænse er alene toolingdiffet; ingen produkt-, prompt-, timeout-, firmware-
+eller PodView-ændring. Fysisk 27-latency/lyd/lifecycle forbliver umålt.
+
+**Faktisk ændring/resultat før freeze:** kun `identity(group) is None` giver nu en
+særskilt intern MissingBrowserOwner; cleanup sender intet signal dér og kræver fortsat
+verificeret fravær af samtlige grupper til sidst. Andre ejerafvigelser gemmes som hård
+fejl selv ved senere fravær. De tre kausale modprøver er føjet til eksisterende harness.
+Hele browser-runner-modulet bestod (exit 0); formatter/lint og sidste scope/diffcheck
+PASS. Uafhængigt adversarial SOURCE review: night27_freeze GO, ingen P0–P2.
+Reviewet browser_gate.py SHA-256 da174c149a26df1da5ae2ec9cebabe3bb5873c7c54674ee7cf61874eba39fbd9;
+test_browser_gate.py e8a26040b2a524ffa4039e6c00e4ba4657e681a339f4afacef724f8c798238ad.
+Main27-kørslen er afsluttet: scope/unit/rest PASS, browser FAIL, build/publisher skipped.
+Recovery har uændrede produktbytes/version 2.0.27 og bevarer hele PodView26. Den
+ukendte toolingsti udløser fuld officiel matrix/browser; eksisterende missing-image-
+recovery må først publicere, når alle dens gates er grønne. Ingen manuel CI-genkørsel.
+Den nøjagtige historiske transient og fysisk accept forbliver ukendt. Changelog27's
+formulering om uændret fysisk svartid er alene kildeafgrænsning; fysisk svartid er
+ikke målt på 27 og angives udtrykkeligt som umålt i release-noten.
+
 ## Aktiv beslutning · nattens softwaremål / #156
 
 **Lead:** root. Brugeren har genoptaget arbejde og godkendt nødvendige installs,
