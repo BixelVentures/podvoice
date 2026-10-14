@@ -61,7 +61,8 @@
          -webkit-font-smoothing: antialiased; line-height: 1.45; }
   .wrap { max-width: 1080px; margin: 0 auto; }
 
-  .brand { display:flex; align-items:center; gap:12px; }
+  .podview-link { margin-left:auto; min-height:44px; display:inline-flex; align-items:center; padding:8px 12px; color:inherit; }
+  .brand { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
   .brandmark { width:42px; height:42px; border-radius:50%; display:grid; place-items:center;
                border:3px solid var(--accent); box-shadow:inset 0 0 0 5px var(--accent-soft); font:700 .72rem ui-monospace,monospace; }
   .home-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr); gap:24px; align-items:start; }
@@ -331,6 +332,7 @@
   <header class="brand">
     <div class="brandmark" aria-hidden="true">PV</div>
     <div><h1>PodVoice</h1><p class="sub" id="sub">Dansk taleassistent</p></div>
+    <a class="podview-link" href="view/">Åbn PodView</a>
   </header>
 
   <div class="tabs" role="tablist" aria-label="PodVoice visninger">

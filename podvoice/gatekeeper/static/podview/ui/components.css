@@ -1,0 +1,12 @@
+/* PodView shared design tokens. Historical workshop styling: legacy-components.css. */
+:root{--pv-screen-paper:#ededed;--pv-screen-surface:#fafafa;--pv-screen-ink:#111217;--pv-screen-muted:#65676d;--pv-screen-accent:#147fe0;--pv-screen-selection:#e5f3fd;--pv-screen-radius:32px;--pv-screen-motion:240ms;--pv-screen-control:#eeeef0;--pv-screen-hover:#e2e5e9;--pv-screen-line:#e2e4e7;--pv-screen-action-ink:#07548e;--pv-screen-danger:#9b3530;--pv-screen-danger-surface:#f9eeeb;--pv-screen-fast:120ms;--pv-screen-ease:cubic-bezier(.2,.7,.2,1);--pv-screen-type-small:14px;--pv-screen-type-body:18px;--pv-screen-type-title:22px;--pv-screen-space-2:8px;--pv-screen-space-3:12px;--pv-screen-space-4:16px;--pv-screen-space-6:24px;--pv-screen-radius-control:24px;--pv-screen-radius-row:22px;--pv-screen-radius-field:14px;--pv-screen-font:Arial,Helvetica,sans-serif}
+
+:root{--pv-screen-radius-frame:28px;--pv-screen-radius-art:14px;--pv-screen-radius-choice:18px;--pv-screen-outline:#d6d9dd;--pv-screen-photo-fallback:#203432;--pv-screen-photo-scrim:#071e2880;--pv-screen-photo-scrim-bottom:#071e288c}
+/* PodView instruments: quiet surfaces, precise data, one warm active signal. */
+:root{--pv-instrument:#192326;--pv-instrument-muted:#b6c3c6;--pv-signal:#ef795f;--pv-quiet-surface:#e6eeec;--pv-instrument-line:#4c595b}
+:root{--pv-screen-accent:#335f65;--pv-screen-selection:#e0ebe7;--pv-screen-action-ink:#23464b}
+/* Shared resource anatomy: overview and compact supporting widgets. */
+:root{--pv-resource-gap:12px;--pv-resource-radius:24px;--pv-light-surface:#f3e7c8;--pv-light-ink:#654b22;--pv-resource-quiet:#e3e9e6}
+/* Shared interaction geometry: visible focus, rounded hit areas, restrained feedback. */
+:root{--pv-hit-min:48px;--pv-hit-radius:16px;--pv-hit-inset:12px;--pv-focus-ring:#365e63;--pv-touch-wash:rgba(38,62,67,.075)}
+:root{--pv-timer-accent:#ffc8b5;--pv-timer-control:#304449;--pv-timer-control-hover:#40595e}

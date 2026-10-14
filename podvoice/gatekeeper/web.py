@@ -388,6 +388,9 @@ def create_app(
     live_audio: LiveAudioStreams | None = None,
     reply_token: str | None = None,
     locked: bool = False,
+    podview_pairing_room: str = "",
+    podview_pairing_sha256: str = "",
+    podview_pairing_store: Path | None = None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -399,6 +402,17 @@ def create_app(
     ingress/loopback sources (see _make_guard).
     """
     app = web.Application(middlewares=[_make_guard(locked, reply_token)])
+    from .podview import mount as mount_podview
+
+    mount_podview(
+        app,
+        sessions,
+        tools,
+        assets=_STATIC / "podview",
+        pairing_room=podview_pairing_room,
+        pairing_sha256=podview_pairing_sha256,
+        pairing_store=podview_pairing_store,
+    )
     app[HUB] = hub
     app[SESSIONS] = sessions
     app[CONSOLE] = make_console

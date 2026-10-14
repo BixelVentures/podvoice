@@ -1,0 +1,586 @@
+"""Real ingress route and owner-bound bridge regressions; no physical claims."""
+
+import asyncio
+import json
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import httpx
+import pytest
+from aiohttp.test_utils import TestClient, TestServer
+
+from gatekeeper.events import State
+from gatekeeper.hub import StatusHub
+from gatekeeper.podview import BRIDGE, PodViewBridge, _trusted
+from gatekeeper.podview_enrichment import VisualSelector
+from gatekeeper.web import create_app
+
+
+def owner():
+    timers = SimpleNamespace(
+        available=lambda room: True,
+        snapshots={
+            "kitchen": {
+                "epoch": "a" * 32,
+                "timers": [{"id": "t1", "name": "Pasta", "seconds_left": 60, "state": "active"}],
+                "finished": [],
+            }
+        },
+        bindings={"kitchen": ("voice_pe", "device-a")},
+        command=AsyncMock(return_value={"ok": True, "secret": "never forward"}),
+    )
+
+    async def dispatch(name, args, room, session_id, request_id, execution_guard=None):
+        if execution_guard is not None and not execution_guard():
+            return {"ok": False}
+        return await timers.command(room, **args)
+
+    timers.dispatch = AsyncMock(side_effect=dispatch)
+    session = SimpleNamespace(
+        _active=True,
+        _history_session="s1",
+        _external_turn_id=lambda: "s1:1",
+        sm=SimpleNamespace(state=State.LISTENING),
+        tools=SimpleNamespace(timers=timers),
+        brain=SimpleNamespace(api_key="SECRET"),
+    )
+    return session, timers
+
+
+def envelope(bridge):
+    snap = bridge.snapshot("kitchen")
+    return {
+        "bootId": snap["bootId"],
+        "roomId": "kitchen",
+        "taskId": "timers:" + "a" * 32,
+        "revision": snap["revision"],
+        "requestId": "request-1",
+        "action": "timer.start",
+        "args": {"seconds": 300, "name": "Pasta"},
+    }
+
+
+async def test_real_app_snapshot_events_and_csrf_default_fail_closed():
+    session, timers = owner()
+    app = create_app(StatusHub(), {"kitchen": session}, locked=True)
+    async with TestClient(TestServer(app)) as client:
+        r = await client.get("/view/api/snapshot")
+        data = await r.json()
+        assert data["voice"] == {
+            "phase": "LISTENING",
+            "sessionId": "s1",
+            "turnId": "s1:1",
+            "active": True,
+        }
+        assert data["timers"]["items"][0]["secondsLeft"] == 60
+        assert data["capabilities"]["timerActions"] == []
+        assert "SECRET" not in json.dumps(data)
+        assert (await client.get("/view/api/snapshot?room=other")).status == 409
+        assert (
+            await client.get("/view/api/snapshot", headers={"Sec-Fetch-Site": "cross-site"})
+        ).status == 403
+        body = envelope(app[BRIDGE])
+        assert (await client.post("/view/api/actions", json=body)).status == 403
+        response = await client.post(
+            "/view/api/actions", json=body, headers={"X-PodView-Request": "1"}
+        )
+        assert (await response.json())["error"] == "control_not_paired"
+        assert not timers.command.await_count
+        stream = await client.get("/view/api/events")
+        assert (await stream.content.readline()).strip() == b"event: snapshot"
+        assert (await stream.content.readline()).startswith(b"id: ")
+        event = json.loads((await stream.content.readline()).decode().removeprefix("data: "))
+        assert event["bootId"] == data["bootId"]
+        stream.close()
+
+
+def test_strict_source_and_freshness_does_not_infer_expiry():
+    assert _trusted("172.30.32.2") and _trusted("127.0.0.1")
+    assert not _trusted("172.30.32.3") and not _trusted("192.168.1.20") and not _trusted(None)
+    session, timers = owner()
+    bridge = PodViewBridge({"kitchen": session})
+    first = bridge.snapshot("kitchen")
+    timers.available = lambda room: False
+    second = bridge.snapshot("kitchen")
+    assert second["timers"]["items"] == [] and second["timers"]["status"] == "unavailable"
+    assert second["revision"] > first["revision"]
+    session._active = False
+    assert bridge.snapshot("kitchen")["voice"]["sessionId"] is None
+
+
+async def test_exact_pairing_revision_and_duplicate_requests_run_at_most_once():
+    session, timers = owner()
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+    assert (await bridge.action({**body, "revision": 0}, token))["error"] == "stale_action"
+    assert (await bridge.action(body, "wrong"))["error"] == "control_not_paired"
+    first, duplicate = await asyncio.gather(bridge.action(body, token), bridge.action(body, token))
+    assert first == duplicate and first["outcome"] == "accepted"
+    assert timers.command.await_count == 1 and not first["physicalResultVerified"]
+    assert (await bridge.action({**body, "args": {"seconds": 600}}, token))[
+        "error"
+    ] == "request_reused"
+    bridge.revoke("kitchen")
+    assert (await bridge.action(body, token))["error"] == "control_not_paired"
+
+
+async def test_unknown_outcome_is_fenced_and_never_retried():
+    session, timers = owner()
+    timers.command.side_effect = TimeoutError()
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+    result = await bridge.action(body, token)
+    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+    assert await bridge.action(body, token) == result
+    assert timers.command.await_count == 1
+
+
+async def test_music_facade_is_bounded_cached_and_error_details_redacted():
+    session, _ = owner()
+    tools = SimpleNamespace(
+        declarations=lambda: [{"name": "podconnect_liked"}],
+        podview_read=AsyncMock(return_value={"ok": False, "error": "Bearer SECRET"}),
+    )
+    app = create_app(StatusHub(), {"kitchen": session}, tools=tools)
+    async with TestClient(TestServer(app)) as client:
+        for _ in range(3):
+            r = await client.get("/view/api/music?kind=liked")
+            assert "SECRET" not in await r.text()
+        assert tools.podview_read.await_count == 1
+        assert (await client.get("/view/api/music?kind=move")).status == 400
+        assert app[BRIDGE].snapshot("kitchen")["capabilities"]["musicRead"] == ["liked"]
+
+
+async def test_selector_copies_only_source_facts_and_rejects_invented_ids():
+    content = {
+        "summary": "Svar",
+        "facts": [
+            {"id": "f1", "label": "Tid", "value": "12", "detail": "minutter", "sourceId": "s1"}
+        ],
+        "sources": [{"id": "s1", "label": "HA", "url": "https://example.com", "scope": "Test"}],
+    }
+    selected = {"show": True, "fact_ids": ["f1"]}
+
+    def respond(request):
+        assert request.url.path == "/v1/responses"
+        body = json.loads(request.content)
+        assert body["store"] is False and body["text"]["format"]["strict"] is True
+        return httpx.Response(
+            200,
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": json.dumps(selected)}],
+                    }
+                ],
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        selector = VisualSelector(client, "secret", "configured-model")
+        result = await selector.select(content)
+        assert result["content"] == content
+        selected["fact_ids"] = ["invented"]
+        assert await selector.select(content) is None
+
+
+async def test_replaced_owner_epoch_binding_expiry_and_bad_ids_reject(monkeypatch):
+    session, timers = owner()
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+    malformed = {**body, "action": "timer.cancel", "args": {"timer_id": []}}
+    assert (await bridge.action(malformed, token))["error"] == "unsupported_action"
+    timers.bindings["kitchen"] = ("voice_pe", "device-b")
+    assert (await bridge.action(body, token))["error"] == "control_not_paired"
+    timers.bindings["kitchen"] = ("voice_pe", "device-a")
+    timers.snapshots["kitchen"]["epoch"] = "b" * 32
+    assert (await bridge.action(body, token))["error"] == "control_not_paired"
+    timers.snapshots["kitchen"]["epoch"] = "a" * 32
+    bridge.sessions["kitchen"] = owner()[0]
+    assert (await bridge.action(body, token))["error"] == "control_not_paired"
+    bridge.sessions["kitchen"] = session
+    monkeypatch.setattr("gatekeeper.podview.time.monotonic", lambda: float("inf"))
+    assert (await bridge.action(body, token))["error"] == "control_not_paired"
+    assert timers.command.await_count == 0
+
+
+def test_music_projection_never_copies_extra_provider_fields():
+    from gatekeeper.podview import _music_public
+
+    raw = {
+        "ok": True,
+        "access_token": "secret",
+        "data": {
+            "authorization": "secret",
+            "tracks": [
+                {
+                    "name": "Song",
+                    "artist": "Band",
+                    "uri": "spotify:track:id",
+                    "access_token": "secret",
+                }
+            ],
+        },
+    }
+    public = _music_public("recent", raw)
+    assert public["data"]["tracks"] == [
+        {"name": "Song", "artist": "Band", "uri": "spotify:track:id"}
+    ]
+    assert "secret" not in json.dumps(public)
+    targets = _music_public(
+        "targets",
+        {
+            "ok": True,
+            "data": {
+                "config_entry_id": "account-1",
+                "targets": [
+                    {
+                        "kind": "configured_alias",
+                        "target_id": "room-a",
+                        "name": "Stuen",
+                        "binding": {"registry": "secret"},
+                    }
+                ],
+            },
+        },
+    )
+    assert targets["data"]["targets"][0]["targetId"] == "room-a"
+    assert "secret" not in json.dumps(targets)
+
+
+async def test_screen_reads_do_not_refresh_shared_discovery():
+    from gatekeeper.tools import ToolRouter
+
+    router = ToolRouter.__new__(ToolRouter)
+    router._token = "server-only"
+    discovery = SimpleNamespace(podconnect_services={"get_targets", "recently_played"})
+    router._discovery = discovery
+    router._refresh_podconnect_services = AsyncMock(
+        side_effect=AssertionError("must not rediscover")
+    )
+    router.declarations = lambda: [{"name": "podconnect_get_targets"}]
+
+    def handler(request):
+        assert request.method == "POST"
+        if "get_targets" in request.url.path:
+            return httpx.Response(
+                200,
+                json={
+                    "service_response": {"accounts": [{"config_entry_id": "a1", "title": "Music"}]}
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "service_response": {
+                    "tracks": [{"name": "Song", "artist": "Band", "uri": "spotify:track:1"}]
+                }
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        router._client = client
+        assert (await router.podview_read("targets"))["ok"]
+        assert (await router.podview_read("recent"))["ok"]
+    assert router._discovery is discovery
+    assert router._refresh_podconnect_services.await_count == 0
+
+
+async def test_actual_thin_projection_does_not_create_or_close_session():
+    from test_thin_live_idle import setup
+
+    session, _, link = await setup(output=False)
+    try:
+        before = (session._history_session, session._active, session._epoch, link.rearm_calls)
+        bridge = PodViewBridge({session.room: session})
+        for _ in range(3):
+            data = bridge.snapshot(session.room)
+            assert data["voice"]["sessionId"] == session._history_session
+        assert (
+            session._history_session,
+            session._active,
+            session._epoch,
+            link.rearm_calls,
+        ) == before
+    finally:
+        await session.aclose()
+
+
+async def test_admin_pairing_cookie_authority_and_single_use_across_restart(tmp_path):
+    import hashlib
+
+    code = "x" * 43
+    digest = hashlib.sha256(code.encode()).hexdigest()
+    session, timers = owner()
+    options = dict(
+        podview_pairing_room="kitchen",
+        podview_pairing_sha256=digest,
+        podview_pairing_store=tmp_path / "used",
+    )
+    app = create_app(StatusHub(), {"kitchen": session}, locked=True, **options)
+    headers = {"X-PodView-Request": "1"}
+    async with TestClient(TestServer(app)) as client:
+        assert (
+            await client.post("/view/api/pair", json={"roomId": "kitchen", "code": code})
+        ).status == 403
+        assert (
+            await client.post(
+                "/view/api/pair",
+                json={"roomId": "kitchen", "code": code},
+                headers={**headers, "Sec-Fetch-Site": "cross-site"},
+            )
+        ).status == 403
+        for body in ({"roomId": "other", "code": code}, {"roomId": "kitchen", "code": "y" * 43}):
+            assert (await client.post("/view/api/pair", json=body, headers=headers)).status == 403
+        before = await (await client.get("/view/api/snapshot")).json()
+        response = await client.post(
+            "/view/api/pair", json={"roomId": "kitchen", "code": code}, headers=headers
+        )
+        assert response.status == 200
+        assert await response.json() == {"ok": True, "paired": True, "expiresIn": 300}
+        cookie = response.headers["Set-Cookie"]
+        assert "HttpOnly" in cookie and "SameSite=Strict" in cookie and "Path=/view/" in cookie
+        assert code not in cookie and digest not in cookie
+        paired = await (await client.get("/view/api/snapshot")).json()
+        assert paired["capabilities"]["timerActions"] == ["timer.start", "timer.cancel"]
+        assert paired["revision"] == before["revision"]
+        body = envelope(app[BRIDGE])
+        action = await client.post("/view/api/actions", json=body, headers=headers)
+        assert (await action.json())["outcome"] == "accepted"
+        assert timers.command.await_count == 1
+        duplicate = await client.post("/view/api/actions", json=body, headers=headers)
+        assert (await duplicate.json())["outcome"] == "accepted" and timers.command.await_count == 1
+        assert (
+            await client.post(
+                "/view/api/pair", json={"roomId": "kitchen", "code": code}, headers=headers
+            )
+        ).status == 403
+        app[BRIDGE].revoke("kitchen")
+        assert (await (await client.get("/view/api/snapshot")).json())["capabilities"][
+            "timerActions"
+        ] == []
+        assert (await (await client.post("/view/api/actions", json=body, headers=headers)).json())[
+            "error"
+        ] == "control_not_paired"
+    reboot = PodViewBridge(
+        {"kitchen": session},
+        pairing_room="kitchen",
+        pairing_sha256=digest,
+        pairing_store=tmp_path / "used",
+    )
+    assert reboot.pair("kitchen", code) is None
+
+
+def test_pairing_admission_bounds_and_unavailable_owner(tmp_path):
+    import hashlib
+    import time
+
+    session, timers = owner()
+    code = "x" * 43
+
+    def bridge():
+        return PodViewBridge(
+            {"kitchen": session},
+            pairing_room="kitchen",
+            pairing_sha256=hashlib.sha256(code.encode()).hexdigest(),
+            pairing_store=tmp_path / "used",
+        )
+
+    gate = bridge()
+    for _ in range(5):
+        assert gate.pair("kitchen", "z" * 43) is None
+    assert gate.pair("kitchen", code) is None
+    gate = bridge()
+    gate._pairing_deadline = time.monotonic() - 1
+    assert gate.pair("kitchen", code) is None
+    timers.available = lambda room: False
+    assert bridge().pair("kitchen", code) is None
+    assert not (tmp_path / "used").exists()
+
+
+async def test_ingress_cookie_scope_and_secure_flag(tmp_path):
+    import hashlib
+
+    session, _ = owner()
+    code = "a" * 43
+    app = create_app(
+        StatusHub(),
+        {"kitchen": session},
+        podview_pairing_room="kitchen",
+        podview_pairing_sha256=hashlib.sha256(code.encode()).hexdigest(),
+        podview_pairing_store=tmp_path / "used",
+    )
+    async with TestClient(TestServer(app)) as client:
+        headers = {
+            "X-PodView-Request": "1",
+            "X-Ingress-Path": "/api/hassio_ingress/opaque-token",
+            "X-Forwarded-Proto": "https",
+        }
+        bad = await client.post(
+            "/view/api/pair",
+            json={"roomId": "kitchen", "code": code},
+            headers={**headers, "X-Ingress-Path": "//attacker/"},
+        )
+        assert bad.status == 403
+        response = await client.post(
+            "/view/api/pair", json={"roomId": "kitchen", "code": code}, headers=headers
+        )
+        assert response.status == 200
+        assert "Path=/api/hassio_ingress/opaque-token/view/" in response.headers["Set-Cookie"]
+        assert "Secure" in response.headers["Set-Cookie"]
+
+
+@pytest.mark.parametrize(
+    "phase", ["active", "unclaimed", "requested", "started", "unknown", "drained", "stopped"]
+)
+async def test_paired_cancel_uses_real_owner_reconciliation_and_preserves_unconfirmed_alerts(phase):
+    from integration.test_ha_timer_flow import build
+
+    manager, native, client, tools, calls, _ = build()
+    async with client:
+        created = native.command(
+            endpoint="kitchen",
+            epoch=native.epoch,
+            request_id="fixture-create",
+            action="start",
+            seconds=60,
+            name="Pasta",
+        )
+        if phase != "active":
+            manager.finish(created["id"])
+            if phase != "unclaimed":
+                scope = {
+                    "timer_id": created["id"],
+                    "alert_id": "actual-alert",
+                    "sink_id": "voice_pe:fixture",
+                }
+                assert native.command(
+                    endpoint="kitchen",
+                    epoch=native.epoch,
+                    request_id="claim",
+                    action="claim_alert",
+                    **scope,
+                )["ok"]
+                if phase != "requested":
+                    assert native.command(
+                        endpoint="kitchen",
+                        epoch=native.epoch,
+                        request_id="started",
+                        action="report_alert",
+                        phase="started",
+                        **scope,
+                    )["ok"]
+                if phase in ("unknown", "drained", "stopped"):
+                    assert native.command(
+                        endpoint="kitchen",
+                        epoch=native.epoch,
+                        request_id=phase,
+                        action="report_alert",
+                        phase=phase,
+                        **scope,
+                    )["ok"]
+        await tools.timers.refresh("kitchen")
+        session, _ = owner()
+        session.tools = tools
+        bridge = PodViewBridge({"kitchen": session})
+        token = bridge.grant_timer_control("kitchen")
+        snapshot = bridge.snapshot("kitchen")
+        body = {
+            "bootId": snapshot["bootId"],
+            "roomId": "kitchen",
+            "taskId": "timers:" + native.epoch,
+            "revision": snapshot["revision"],
+            "requestId": "screen-finish",
+            "action": "timer.cancel",
+            "args": {"timer_id": created["id"]},
+        }
+        result = await bridge.action(body, token)
+        assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+        after = native.snapshot("kitchen")
+        should_remove = phase in ("active", "unclaimed", "drained", "stopped")
+        assert (not after["timers"] and not after["finished"]) is should_remove
+        actions = [c["action"] for c in calls if "action" in c]
+        assert actions == (
+            ["cancel", "acknowledge_finished"]
+            if phase in ("unclaimed", "drained", "stopped")
+            else ["cancel"]
+        )
+        calls_before = len(calls)
+        assert await bridge.action(body, token) == result
+        assert len(calls) == calls_before
+        if not should_remove:
+            assert (
+                after["finished"][0]["stop_requested"]
+                and not after["finished"][0]["physical_stopped"]
+            )
+
+
+@pytest.mark.parametrize("replacement", ["epoch", "owner"])
+async def test_cancel_reconciliation_never_acknowledges_after_owner_or_epoch_change(replacement):
+    from integration.test_ha_timer_flow import build
+
+    manager, native, client, tools, calls, _ = build()
+    async with client:
+        created = native.command(
+            endpoint="kitchen",
+            epoch=native.epoch,
+            request_id="fixture-create",
+            action="start",
+            seconds=60,
+        )
+        manager.finish(created["id"])
+        await tools.timers.refresh("kitchen")
+        session, _ = owner()
+        session.tools = tools
+        bridge = PodViewBridge({"kitchen": session})
+        token = bridge.grant_timer_control("kitchen")
+        snapshot = bridge.snapshot("kitchen")
+        body = {
+            "bootId": snapshot["bootId"],
+            "roomId": "kitchen",
+            "taskId": "timers:" + native.epoch,
+            "revision": snapshot["revision"],
+            "requestId": "screen-finish",
+            "action": "timer.cancel",
+            "args": {"timer_id": created["id"]},
+        }
+        refresh = tools.timers.refresh
+        refreshes = 0
+
+        async def replace_before_second_status(room):
+            nonlocal refreshes
+            refreshes += 1
+            if refreshes == 2:
+                if replacement == "epoch":
+                    native.epoch = "b" * 32
+                else:
+                    bridge.sessions["kitchen"] = owner()[0]
+            return await refresh(room)
+
+        tools.timers.refresh = replace_before_second_status
+        result = await bridge.action(body, token)
+        assert result["physicalResultVerified"] is False
+        assert [c["action"] for c in calls if "action" in c] == ["cancel"]
+        assert len(native.snapshot("kitchen")["finished"]) == 1
+        before = len(calls)
+        assert (await bridge.action(body, token))["error"] == "control_not_paired"
+        assert len(calls) == before
+
+
+async def test_native_paused_state_is_preserved_and_unknown_state_denies_control():
+    session, timers = owner()
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    timers.snapshots["kitchen"]["timers"][0]["state"] = "paused"
+    assert bridge.snapshot("kitchen")["timers"]["items"][0]["status"] == "paused"
+    timers.snapshots["kitchen"]["timers"][0]["state"] = "invented"
+    snapshot = bridge.snapshot("kitchen", token)
+    assert snapshot["timers"]["status"] == "unavailable"
+    assert snapshot["timers"]["items"] == [] and snapshot["capabilities"]["timerActions"] == []
+    assert (await bridge.action(envelope(bridge), token))["error"] == "timer_unavailable"
+    assert not timers.command.await_count

@@ -1757,6 +1757,46 @@ class ToolRouter:
                 "error": "Playback target service outcome is unknown; no retry was sent",
             }
 
+    async def podview_read(self, kind: str, account: str | None = None) -> dict:
+        """Passive screen facade: never rediscover or mutate voice capability state."""
+        names = {
+            "recent": "podconnect_recently_played",
+            "top": "podconnect_top_tracks",
+            "liked": "podconnect_liked",
+        }
+        if account is not None and (
+            kind != "targets" or not isinstance(account, str) or not 1 <= len(account) <= 1024
+        ):
+            return {"ok": False, "error_kind": "invalid_account"}
+        if kind in names:
+            tool = names[kind]
+            if _PODCONNECT_DATA_TOOLS[tool][0] not in self._discovery.podconnect_services:
+                return {"ok": False, "error_kind": "unavailable"}
+            return await self._podconnect_data(tool, 20)
+        if kind == "targets":
+            declaration = next(
+                (d for d in self.declarations() if d.get("name") == "podconnect_get_targets"), None
+            )
+            if declaration is None or not self._token or self._client is None:
+                return {"ok": False, "error_kind": "unavailable"}
+            selected = playback_targets.service(
+                "podconnect_get_targets", self._discovery.podconnect_services
+            )
+            args = {"config_entry_id": account} if account else {}
+            response = await self._client.post(
+                f"{C.SUPERVISOR_CORE_API}/services/podconnect/{selected}?return_response",
+                headers={"Authorization": f"Bearer {self._token}"},
+                json=args,
+            )
+            response.raise_for_status()
+            return playback_targets.result(
+                "podconnect_get_targets",
+                args,
+                response.json().get("service_response"),
+                selected_service=selected,
+            )
+        return {"ok": False, "error_kind": "unsupported_read"}
+
     async def _podconnect_data(self, tool_name: str, limit: int) -> dict:
         """Call one documented PodConnect Control response service through HA."""
         service_name = _PODCONNECT_DATA_TOOLS[tool_name][0]

@@ -634,6 +634,9 @@ async def run(cfg: Config) -> None:
     app = create_app(
         hub,
         sessions,
+        podview_pairing_room=cfg.podview_pairing_room,
+        podview_pairing_sha256=cfg.podview_pairing_sha256,
+        podview_pairing_store=settings_path.parent / "podview-pairing-used",
         make_console=None,  # retired direct Realtime console is not a product entrypoint
         make_talk=None if cfg.settings_source_untrusted else _make_talk,
         models_provider=None,
