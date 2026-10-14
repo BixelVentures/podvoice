@@ -110,6 +110,7 @@ module.exports=async function runSettingsRepairContracts(browser,{source,sourceS
         await page.waitForFunction(()=>document.querySelector('#s_status').textContent.startsWith('Gemt'),null,{timeout:FIXTURE_WAIT_MS});
         assert.equal(posts.length,1,'one explicit complete repair/remove Save');
         const body=posts[0];assert.ok(Array.isArray(body.rooms));
+        assert.equal(body.openai_backend_tpm,0,'room repair preserves actual unconfirmed capacity default');
         assert.equal(body.idle_timeout_s,item.normal?4:7);
         for(const key of ['duck_level','system_prompt','extended_device_control','device_control_entities','podconnect_token','ha_mcp_token','voicepe_noise_psk'])
           assert.deepEqual(body[key],prefs[key],'preserved preference/masked secret '+key);

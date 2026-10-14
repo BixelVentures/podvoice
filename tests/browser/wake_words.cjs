@@ -21,7 +21,7 @@ ${settings}`;
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
-      let saved = {engine:'thin', wake_word:'okay_nabu', idle_timeout_s:4, duck_level:0, max_session_min:15, mic_gain:16, rooms:[]};
+      let saved = {openai_backend_tpm:0,engine:'thin', wake_word:'okay_nabu', idle_timeout_s:4, duck_level:0, max_session_min:15, mic_gain:16, rooms:[]};
       let reject = false, offline = false, restarts = 0;
       await page.route('http://panel.test/**', async route => {
         const req = route.request(), url = req.url();
@@ -30,7 +30,9 @@ ${settings}`;
         if (url.endsWith('/api/settings')) {
           if (req.method() === 'POST') {
             if (reject) return route.fulfill({status:400, json:{ok:false, error:'wake_word: invalid'}});
-            saved = {...saved, ...req.postDataJSON()};
+            const body = req.postDataJSON();
+            assert.equal(body.openai_backend_tpm,0,'unchanged confirmed-capacity default reaches POST');
+            saved = {...saved, ...body};
             return route.fulfill({json:{ok:true, settings:saved}});
           }
           return route.fulfill({json:saved});
