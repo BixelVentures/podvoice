@@ -2,7 +2,7 @@ import {visibleTimers,timerTime,adjustTimerDuration,readTimerDuration} from './t
 export class TimerView {
  constructor(host,detail,overview){
   this.host=host;this.detail=detail;this.overview=overview;this.nodes=new Map();this.connected=true;
-  detail.innerHTML=`<header class="response-heading"><div><h1 id="timers-title" tabindex="-1">Timere</h1></div></header>
+  detail.innerHTML=`<header class="response-heading"><div><h1 id="timers-title" tabindex="-1">Timere</h1><p>Hold styr på tiden</p></div></header>
    <form class="timer-create" aria-label="Ny timer"><h2>Ny timer</h2>
     <div class="timer-stepper"><button type="button" class="timer-adjust" data-adjust="-60" aria-label="1 minut mindre"><img src="assets/icons/dash.svg" alt=""></button><div class="timer-selected"><output aria-live="polite" aria-label="Valgt tid">5:00</output><span>min : sek</span></div><button type="button" class="timer-adjust" data-adjust="60" aria-label="1 minut mere"><img src="assets/icons/plus.svg" alt=""></button></div>
     <div class="timer-presets" aria-label="Faste tider">${[1,5,10,15,30].map(n=>`<button type="button" data-minutes="${n}" aria-pressed="${n===5}">${n} min.</button>`).join('')}</div>

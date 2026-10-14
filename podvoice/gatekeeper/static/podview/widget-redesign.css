@@ -193,3 +193,4 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:116px}
 .live-pair-button{align-self:flex-start;min-height:48px;margin-bottom:12px;color:var(--pv-screen-action-ink)}#pair-code{display:block;width:100%;min-height:52px;border:1px solid #b5c2c5;border-radius:12px;font-size:20px;padding:12px;margin:8px 0 16px}.pair-status{font-size:16px;color:var(--muted)}
 .timer-customize:focus{outline:none;box-shadow:none}.timer-customize:focus-visible{text-decoration:underline;text-underline-offset:5px}
 @media(min-width:760px){[data-view=active][data-level=home] .responses{margin-top:-72px;height:calc(100% + 72px)}}
+[data-level=detail] .view-nav #show-photo{width:64px;height:56px;min-width:64px;padding:0;justify-content:flex-start;border-radius:16px}[data-level=detail] .view-nav #show-photo img{width:32px;height:24px;margin:0}

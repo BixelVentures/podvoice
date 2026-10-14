@@ -211,7 +211,7 @@
     },
     {
       "path": "podvoice-view.js",
-      "sha256": "b8aec285fbdb148bc0414739f39617339bee403b2c98314dead5356c39ad0a3f"
+      "sha256": "848e732a5e12ee054ac85ad50590f4b8270a3d94c6c473f1a3ea8a3b627ce430"
     },
     {
       "path": "preview-scenes.js",
@@ -219,7 +219,7 @@
     },
     {
       "path": "scene-model.js",
-      "sha256": "35ae0e242a258d5b20d254a386b465753259f7a0e4d4e9286aedc00c68950b3c"
+      "sha256": "7ec284bf3131077283f5298b7845692a5d6b350341a5d7814f5a819cfe44f9e5"
     },
     {
       "path": "scenes.css",
@@ -239,7 +239,7 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "c34f9d9f0e435fd86c5968f2479b66919d93d86853af9b02b0abcd7a267c41fc"
+      "sha256": "a4d01d0bc8d9dcec2a15681d53c8009d40a4ea5b81061524a1e63403034096ac"
     },
     {
       "path": "ui/catalog.js",
@@ -307,7 +307,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "f519972ae612d813c3e931a0670158017f9a1e6647401b653e03c7dae7a9b488"
+      "sha256": "4878d35e70084cde91a9e9432c79126d89cefad7d451ef33dc30ed599133eedd"
     },
     {
       "path": "widget-view.css",
@@ -315,7 +315,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "12f88faa5ca9a1cf370af34ab2c8ca79169a97f49c2701405ad31796f866da4f"
+      "sha256": "762bbb9fe6e8af1789dcc952d3c17e457c5d757257f1f90161c4e87fd5c9d0b7"
     },
     {
       "path": "workshop.css",

@@ -76,7 +76,7 @@ jobs:
           cache: npm
           cache-dependency-path: tests/browser/package-lock.json
       - name: Verify packaged PodView transport and owner contracts
-        run: node --experimental-default-type=module --test tests/podview/*.test.mjs
+        run: node --test tests/podview/*.test.mjs
       - name: Install pinned development browser dependencies
         working-directory: tests/browser
         run: |

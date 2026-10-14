@@ -10,16 +10,16 @@ export const ACTIVITIES = [
  {id:'make-card',icon:'card',title:'Lav et kort',minutes:30,materials:3,description:'Papir, farver og lim til et lille kort.',steps:['Find papir, farver og lim.','Fold papiret som et kort.','Tegn eller lim noget på forsiden.','Skriv en hilsen indeni.']},
 ];
 export const FORMATS = ['comparison','concise','choices','chart','steps','checklist',...visualFamilies];
-export function initialScene(){return {sessionId:'demo-session-1',generation:1,connected:true,focus:'music',music:initialWidgetState(),answers:[],serial:0,pendingAnswer:null,conflict:null,timer:null,extraTimers:[],timerHistory:[],notice:'',devices:[],deviceOperation:0,timerSerial:0};}
+export function initialScene(){return {sessionId:'demo-session-1',generation:1,connected:true,focus:'music',navStack:[],music:initialWidgetState(),answers:[],serial:0,pendingAnswer:null,conflict:null,timer:null,extraTimers:[],timerHistory:[],notice:'',devices:[],deviceOperation:0,timerSerial:0};}
 export const binding=(s,a)=>({sessionId:s.sessionId,taskId:a.id,revision:a.revision});
 const matches=(s,e,a)=>!!a&&e.sessionId===s.sessionId&&e.taskId===a.id&&e.revision===a.revision;
 export const focusedAnswer=s=>s.answers.find(a=>a.id===s.focus);
 function request(s,kind){const serial=s.serial+1;const id=`demo-answer-${serial}`;const answer={id,revision:1,kind,status:'waiting',selected:'paper-fold',filter:'all',step:0,checked:[],hidden:false,title:kind==='steps'?'Fold et papirfly':kind==='checklist'?'Klar til at lave et kort?':kind==='concise'?'Skal jeg tage en jakke med?':'En pause uden skærm',source:'Lokalt aktivitetseksempel',freshness:'Eksempeldata · planlagte tider',updatedAt:null};if(visualExamples[kind])Object.assign(answer,{title:visualExamples[kind].title,meta:visualExamples[kind].meta,content:validateVisualContent(kind,visualExamples[kind].content)});return {...s,serial,focus:id,answers:[...s.answers.map(a=>['waiting','partial'].includes(a.status)?{...a,status:'interrupted'}:a),answer],pendingAnswer:{id,generation:s.generation},conflict:null,notice:''};}
-export function sceneTransition(s,e){
+function sceneBaseTransition(s,e){
  if(['timer-start','timer','tick','timer-notice-dismiss'].includes(e.type))return timerTransition(s,e);
  switch(e.type){
  case 'show': {if(e.id==='timers'||e.id==='weather'||e.id==='now'||e.id==='music'||e.id==='photo'||s.devices.some(d=>d.id===e.id)||s.answers.some(a=>a.id===e.id&&!a.hidden))return {...s,focus:e.id,detailOrigin:(e.id==='timers'||e.id==='weather'||s.devices.some(d=>d.id===e.id))&&e.id!==s.focus&&s.focus!=='timers'&&s.focus!=='weather'&&!s.devices.some(d=>d.id===s.focus)?s.focus:s.detailOrigin,notice:''};return s;}
- case 'device-back':return sceneTransition(s,{type:'show',id:s.detailOrigin||'now'});
+ case 'device-back':return navigationBack(s);
  case 'request': {if(!s.connected||!FORMATS.includes(e.kind))return s;const a=focusedAnswer(s);if(a&&['steps','checklist'].includes(a.kind)&&a.status!=='done'&&!e.resolved)return {...s,conflict:{kind:e.kind}};return request(s,e.kind);}
  case 'conflict':if(!s.conflict)return s;return e.choice==='replace'?request(s,s.conflict.kind):{...s,conflict:null};
  case 'answer-result': {if(!s.pendingAnswer||e.id!==s.pendingAnswer.id||e.generation!==s.generation||!['partial','ready','error','empty'].includes(e.status))return s;return {...s,pendingAnswer:e.status==='partial'?s.pendingAnswer:null,answers:s.answers.map(a=>a.id===e.id?{...a,status:e.status,updatedAt:e.at??null}:a)};}
@@ -47,7 +47,20 @@ export function sceneTransition(s,e){
  default:return s;
  }
 }
+const validFocus=(s,id)=>['photo','now','music','timers','weather'].includes(id)||s.devices.some(d=>d.id===id&&!d.hidden)||s.answers.some(a=>a.id===id&&!a.hidden);
+function navigationBack(s){
+ const answer=focusedAnswer(s);if(answer?.originKind)return sceneBaseTransition(s,{type:'answer-action',...binding(s,answer),action:'back',optionId:'back'});
+ const stack=[...(s.navStack||[])];let id;while(stack.length){const candidate=stack.pop();if(candidate!==s.focus&&validFocus(s,candidate)){id=candidate;break;}}
+ id||=validFocus(s,s.detailOrigin)&&s.detailOrigin!==s.focus?s.detailOrigin:'now';
+ return {...s,focus:id,navStack:stack,notice:''};
+}
+export function sceneTransition(s,e){
+ if(['back','device-back'].includes(e.type))return navigationBack(s);
+ const next=sceneBaseTransition(s,e);if(next===s||next.focus===s.focus)return next;
+ const stack=e.type==='show'&&e.id==='photo'?[]:[...(s.navStack||[]),s.focus].slice(-32);
+ return {...next,navStack:stack};
+}
 export const visibleActivities=a=>ACTIVITIES.filter(x=>a.filter==='all'||(a.filter==='quick'?x.minutes<=20:x.materials===1));
 
-export const deviceLabel=d=>({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen · rengøringsresultat ukendt',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
+export const deviceLabel=d=>d.kind==='light'&&d.status==='unavailable'?'Ikke tilsluttet endnu':({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen · rengøringsresultat ukendt',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
 export function deviceActions(d){if(d.kind==='light')return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.status==='on'?'Sluk lys':'Tænd lys'}]:[];return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}
