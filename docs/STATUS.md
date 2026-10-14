@@ -54,8 +54,8 @@ acceptkrav svækkes.
 - Historisk STATUS matcher SHA-256 og byteantal; lokale Markdown-links, formatter/lint og scopekontrol PASS. Den detaljerede kontrakt er redigeret for navigation/duplicering; ingen exact-copy-claim.
 - Målrettet lokal regression fandt ét manglende agentlink; det blev rettet, og kun den fejlede node blev gentaget (PASS, fast 0,8 s). Øvrige testresultater blev bevaret.
 - Uafhængigt source review: GO. Cache- og shell-wrapper-findings er løst; ingen ny manuel cache leveres.
-- PR #159 er merged som `4768a3584b0e64e0c57a46163f390b1f39f83372`. Endeligt PR-head `f783aae` bestod CI `38628544699` på 8m52s: lint/test, browser og ARM-build grønne. Automatisk main-CI afventer ved denne dokumentationskvittering.
-- Førmåling for en ren STATUS-ændring: CI `38624071975` på `d1bb25c` tog 9m21s; pytest 7m57s. Denne rene docs-kvittering afprøver automatisk den nye smalle vej med de tre eksisterende tooling-moduler; resultat og faktisk eftertid registreres i issue #157 og udviklingsudgivelsen.
-- Udgivelseskanal: `dev-tools-2026.10.14`, efter grøn main og docs-CI. Ingen ny HA-version eller installation indgår.
+- PR #159 er merged som `4768a3584b0e64e0c57a46163f390b1f39f83372`. Endeligt PR-head `f783aae` bestod CI `38628544699` på 8m52s: lint/test, browser og ARM-build grønne. Main-CI `38629952851` bestod på 9m21s; ingen add-on-version blev genpubliceret.
+- Førmåling for en ren STATUS-ændring: CI `38624071975` på `d1bb25c` tog 9m21s; pytest 7m57s. Ny docs-CI `38630020233` bestod: scope 7 s og lint/test 33 s; browser/build/publish blev sprunget over. Det tidligere docs lint/test-job tog 8m36s. Ny samlet tid var 9m38s inklusive ca. 8m58s i kø bag main, så dette beviser mindre aktivt arbejde, ikke kortere wall-clock i denne kørsel.
+- **Udgivet:** [dev-tools-2026.10.14](https://github.com/BixelVentures/podvoice/releases/tag/dev-tools-2026.10.14), kildecommit `0787aff94bbdca13e487dde5ceca3616aa924c02`. Issue #157 er lukket. Ingen ny HA-version eller installation indgår.
 - Runtime/provider/fysisk gates: ikke ændret eller kørt af docsarbejdet; baselineaccept
   står som ovenfor.
