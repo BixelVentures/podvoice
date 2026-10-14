@@ -63,7 +63,7 @@ def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
     opts.write_text(json.dumps({"openai_api_key": "o"}))
 
     cfg = load_config(opts)
-    assert cfg.engine == "thin"  # from settings
+    assert S.load_settings(sp)["engine"] == "thin"  # persisted selection stays inert
     assert cfg.openai_api_key == "o"  # from options (keys only)
     assert cfg.podconnect_base_url == "http://x:8099"
     assert cfg.idle_timeout_s == 4

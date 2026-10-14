@@ -111,7 +111,7 @@ async def test_expiry_config_change_and_capacity_are_bounded(setup):
     first = await owner.display_setup(ROBOT, OWNER)
     token = first["capability_token"]
     cap = owner._display_tickets[token]
-    owner._display_tickets[token] = replace(cap, issued_at=0)
+    owner._display_tickets[token] = replace(cap, issued_at=cap.issued_at - 121)
     result = await rig.act(token, context=ExecutionContext(*OWNER))
     assert result["ok"] is False and rig.writes == []
     for number in range(128):

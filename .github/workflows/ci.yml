@@ -32,6 +32,10 @@ jobs:
   lint-test:
     needs: [scope]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cohort: ${{ fromJSON(needs.scope.outputs.tooling_only == 'true' && '["unit"]' || '["unit", "rest"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,13 +58,17 @@ jobs:
           ruff format --check scripts/dev_cycle.py scripts/ci_scope.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
           python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
       - run: ruff check .
-        if: needs.scope.outputs.tooling_only != 'true'
+        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
       - run: ruff format --check .
-        if: needs.scope.outputs.tooling_only != 'true'
+        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
       - run: mypy podvoice/gatekeeper
-        if: needs.scope.outputs.tooling_only != 'true'
-      - run: python -m pytest -q
-        if: needs.scope.outputs.tooling_only != 'true'
+        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+      - name: Unit tests
+        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        run: python -m pytest -q tests/unit --durations=15 --durations-min=1
+      - name: Remaining tests
+        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'rest'
+        run: python -m pytest -q --ignore=tests/unit --durations=15 --durations-min=1
 
   ui-browser:
     needs: [scope]

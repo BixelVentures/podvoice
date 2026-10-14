@@ -9,7 +9,6 @@ import signal
 import socket
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from types import SimpleNamespace
 
 import aiohttp
@@ -696,9 +695,7 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         assert readback["live_sessions"] == {"kitchen": True, "bedroom": None}
         assert readback["podconnect_token"] == settings.SECRET_MASK
         fresh_cfg = load_config(options)
-        assert fresh_cfg.live_alpha is True
-        assert actual.cfg.live_alpha is True
-        assert replace(fresh_cfg, live_alpha=actual.cfg.live_alpha) == actual.cfg
+        assert fresh_cfg == actual.cfg
         await session.wake()
         assert _active_contract(session) == active
         old_generation = session.voicepe.audio_generation
@@ -737,9 +734,7 @@ async def test_actual_main_save_keeps_active_owner_until_next_wake_and_isolates_
         assert boot.tools._device_control._enabled and boot.tools._device_control._entities == (
             "vacuum.fixture",
         )
-        assert boot.cfg.live_alpha is True
-        assert actual.cfg.live_alpha is True
-        assert replace(boot.cfg, live_alpha=actual.cfg.live_alpha) == actual.cfg
+        assert boot.cfg == actual.cfg
         assert not boot.forbidden
 
 

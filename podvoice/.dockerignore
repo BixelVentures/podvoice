@@ -7,3 +7,7 @@ tests/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+gatekeeper/orchestrator.py
+gatekeeper/state.py
+gatekeeper/gatekeeper.py
+gatekeeper/watchdog.py
