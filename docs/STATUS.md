@@ -30,7 +30,7 @@ main-CI 423 s. En manuel cacheprototype på én repræsentativ lille `run_fast`-
 Ruff/mypy eksisterende-cachetider på 0,350/0,351 s; prototypen gav 1,573 s koldt og
 1,080 s varmt, altså ca. 0,73 s dårligere varm stage, samt utilstrækkelig binding til ekstern
 konfiguration/Python path. Det er stage-måling, ikke end-to-end CI-tid; cacheforslaget er
-kasseret og runneragenten tilbageruller kun sine to ændrede filer.
+kasseret; begge runnerfiler er uændrede mod baseline.
 
 **Beslutning:** forkort AGENTS.md til opgavebaseret læsevalg, ti leveringsregler,
 modelrouting og kontroltabel. Rutine-docs/tooling læser AGENTS og STATUS; runtime og
@@ -45,12 +45,17 @@ og runtime-guards beholdes. Cacheprototypen er kasseret; `fast --test` kører py
 og bruger kun eksisterende Ruff/mypy incremental caches. Ingen runtime-, review- eller fysisk
 acceptkrav svækkes.
 
-**Resultater — udfyldes af lead ved freeze:**
+**Faktiske resultater:**
 
 - AGENTS.md før/efter: 358 → 106 linjer.
 - STATUS.md før/efter: 18.571 → 56 linjer.
 - Historisk STATUS-fil SHA-256: `d3817644c0a7e079057bbc5cce37925fa147fe954cfa4cdc6e21e57bda0cd1ad`.
 - Aktuel AGENTKONTRAKT SHA-256 efter de-duplicering: `bc9f7929f00000b5712a425ad73551785daf5e87f0747c94f20ddbc621defa3e`. Oprindelig AGENTS-tekst kan genskabes fra baseline `d1bb25c` i Git-historikken.
-- Verificeret: hele den arkiverede STATUS-fil matcher SHA-256 og byteantal; lokale Markdown-links og `git diff --check` PASS. Den detaljerede kontrakt er redigeret for navigation/duplicering; ingen exact-copy-claim. Docsagent kørte ingen tests/provider/runtime; runneragens selektive tilbagerulning og rootens fokuserede regressioner/CI/release afventer.
+- Historisk STATUS matcher SHA-256 og byteantal; lokale Markdown-links, formatter/lint og scopekontrol PASS. Den detaljerede kontrakt er redigeret for navigation/duplicering; ingen exact-copy-claim.
+- Målrettet lokal regression fandt ét manglende agentlink; det blev rettet, og kun den fejlede node blev gentaget (PASS, fast 0,8 s). Øvrige testresultater blev bevaret.
+- Uafhængigt source review: GO. Cache- og shell-wrapper-findings er løst; ingen ny manuel cache leveres.
+- PR #159 er merged som `4768a3584b0e64e0c57a46163f390b1f39f83372`. Endeligt PR-head `f783aae` bestod CI `38628544699` på 8m52s: lint/test, browser og ARM-build grønne. Automatisk main-CI afventer ved denne dokumentationskvittering.
+- Førmåling for en ren STATUS-ændring: CI `38624071975` på `d1bb25c` tog 9m21s; pytest 7m57s. Denne rene docs-kvittering afprøver automatisk den nye smalle vej med de tre eksisterende tooling-moduler; resultat og faktisk eftertid registreres i issue #157 og udviklingsudgivelsen.
+- Udgivelseskanal: `dev-tools-2026.10.14`, efter grøn main og docs-CI. Ingen ny HA-version eller installation indgår.
 - Runtime/provider/fysisk gates: ikke ændret eller kørt af docsarbejdet; baselineaccept
   står som ovenfor.
