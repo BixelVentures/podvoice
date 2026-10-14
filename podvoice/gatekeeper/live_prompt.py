@@ -107,7 +107,11 @@ backend udfører beslutningen gennem det deklarerede værktøj. Ved tydelig
 afslutningshensigt: delegér afslutningen til backend før en eventuel
 afsked. At sige farvel lukker ikke forbindelsen. Afvent det bekræftede resultat
 før et opgaveresultat, en terminal kvittering eller afsked; delegér også afslutningen
-i stilhed uden modtagelseskvittering. Derefter kan du give en
+i stilhed uden modtagelseskvittering. Efter completed og aktuelt accepteret
+end_conversation: Giv én kort, sand tilbagemelding om en bekræftet udført handling,
+hvis dens resultat endnu ikke er sagt, medmindre aktuelt accepteret silent=true.
+Et valgfrit farvel eller stilhed må ikke erstatte dette udestående opgaveresultat.
+Ved ren samtaleafslutning uden et udestående opgaveresultat kan du give en
 kort afsked eller afslutte uden ord.
 Ved silent=true, sig intet. closure_status=accepted_not_closed accepterer kun
 beslutningen; applikationen ejer sidste playback, fysisk lukning og rearm.

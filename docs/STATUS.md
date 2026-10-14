@@ -18415,7 +18415,7 @@ Lead additionally admits preparation of ONE lower-layer causal reference on the 
 
 14/10 independent updated whole-source GO: all 499 baseline entries and exact 19 intended paths checked; production a882a549ae4fb19e7f9fc49ea5f98da16388d4f1c5d62fb17355c447da3589d7; tests 8f5186351d80e8424ba46c93afacec0b9d44f6337cfe69a7d123752d268608ba; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Only the reviewed nonverbal prompt category changes production from prior draft. Observer and encode mock fixes retain oracle, mechanics and original failed evidence. All affected formatter/lint/regressions passed on exact bytes, unaffected checks retained. One final existing scope gate precedes same PR155 source update. Neither source approval nor CI establishes provider or physical readiness.
 
-<!-- candidate-scope-coupling
+<!-- superseded-unreleased-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
@@ -18427,5 +18427,38 @@ Lead additionally admits preparation of ONE lower-layer causal reference on the 
   "fingerprint": "a882a549ae4fb19e7f9fc49ea5f98da16388d4f1c5d62fb17355c447da3589d7",
   "reviewer": "attention_ci_review \u2014 independent updated whole 2.0.24 SOURCE GO",
   "rationale": "Preserve the complete source-reviewed quiet-delegation/target-result/native-cleanup composition and PodView. Only the explicit nonverbal pre-result style category changes production from the prior reviewed draft. Bounded synthetic observer and fault-injector signature alter tests only. All existing ownership, error/Talk/retry behavior and deadlines preserved. Provider and physical acceptance remain unapproved."
+}
+-->
+
+
+14/10 exact published head975936bb1d6fd57a5089cc72b9ca778eee8c7757 official CI38604757069 SUCCESS (scope, Python checks/full tests, browser and ARM build); earlier a4 CI failure is retained. This is source/build evidence, not provider or physical acceptance.
+
+ONE held-close reference ran under independently approved pins86fa147e5176e516b1af6d1e922fb537b28e80c6d61d19aff32e49f86407f7bf. Inert timer start succeeded, and the complete backend text was observed: Timeren er sat til ti sekunder. The reference did not fulfill its intended six-second close hold: inherited eight-second negative observation after timer input completion ended the run only 1.97 seconds after terminal backend settlement; cleanup canceled the held edge. Both author/reviewer identify this test-controller interaction as tooling, not runtime evidence. Raw FAIL and the useful backend-text observation remain; upstream cutoff versus model silence is still UNKNOWN. HA2.0.23 restored within103 seconds; operator terminal3, private key cleared and transfer views closed. No real home mutation or release acceptance.
+
+Lead admits two bounded follow-ups before any more paid call. First, permanently cover the actual evaluator negative-cutoff/held-owner interaction, then exclude only the private causal reference timer case from the generic negative cutoff via its existing positive-observation set. Keep unchanged timer-first verdict oracle, original frozen59runtime/primary965, real SDK/Thin, six-second reference hold and all45/70/90/180/120/60 bounds. No new framework, numeric deadline or production patch; independent exact review required.
+
+Second, align only Live primary task-result speech with the canonical backend task-completion acknowledgement rule. The backend supplied the truthful result, while primary broadly permits wordless endings after END. Hypothesis: distinguishing completed-action confirmation from a pure optional farewell avoids silently discarding a remaining task result. Require one short truthful confirmed-task acknowledgement after current accepted completion except accepted silent=true; retain optional farewell/silence for pure conversation closure. Preserve all END choice/order, routing, tool authority, custom backend, direct answers, clarification, input/receipt currency and mechanics. Shared Native/Talk prompt regressions and static checks, independent review and renewed source binding precede the same bulk candidate update. This is not a claim that immediate provider close is harmless or the sole cause; no timeout/audio/firmware/quiet-owner change is admitted. Rollback is this primary-only paragraph. Candidate NOT TEST-READY; full goal ACTIVE.
+
+
+14/10 primary task-result alignment integrated after independent attention_contract SOURCE GO: patch383d0efe584f99835cd674c597d19352723b279025eba4f188af21fd96df2704/source32e37cd9cf8a545564a4f2a12648cd5212d702da680e6352115cb5179583fcb0/test98d76e932de4ff0f816770fc7dc7dc18595f83f594b332ea27ab61869779ae24. Only the primary's optional-ending paragraph distinguishes an unspoken confirmed-action result from a pure optional farewell. Accepted silent=true, actual-level truth, END order/choice, all mechanics and default/custom backend bytes remain unchanged. Focused prompt regression and formatter/lint retained on exact integrated bytes. Prior source binding is superseded; old975greenCI remains true for old bytes only. Renew whole source binding before same draft PR update. Effectiveness and upstream-close ambiguity remain unproved.
+
+User confirms the physical Voice PE is currently switched off. This explains the freshly observed HA hostname-resolution/offline state; no network/runtime patch is inferred. Continue all software work; physical acceptance waits for the device to return. Goal ACTIVE, candidate NOT TEST-READY.
+
+
+14/10 final task-result whole SOURCE GO: all499 entries against published975 tree verified, onlySTATUS/prompt32e/test98 differ. Production 8893b59598adc5e0ef8acf45a4983e5df1f35523f7cd97473641aae78ee76194; tests eb91254b4cb36e852150232effbf5f0cb56a47b83fde23d3eb7dc360599e0595; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Actual production classification is physical_output/realtime_semantics/rearm; the earlier two-domain assumption was stale and is corrected without changing scope policy. Exact prompt/static regression and all unchanged previous controls retained. Private reference cutoff fix independently SOURCE GO; no new paid call yet. Prefer the focused current-candidate timer/explicit-close check next; retain the old-primary held reference as a causal fallback, rather than repeating an obsolete prompt unnecessarily. Physical PE is off, so no physical acceptance can be claimed.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "8893b59598adc5e0ef8acf45a4983e5df1f35523f7cd97473641aae78ee76194",
+  "reviewer": "attention_contract \u2014 independent final task-result whole-tree SOURCE GO",
+  "rationale": "One model-owned input/delegation/current tool result/meaningful completed-action reply/semantic END chain couples physical output, Live semantics and correlated rearm. All499 published entries and only3 updated paths independently checked. Existing cleanup, native/Talk, silent intent, error/retry behavior and deadlines preserved. Source approval does not imply provider or physical acceptance."
 }
 -->

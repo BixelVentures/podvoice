@@ -158,6 +158,22 @@ def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     assert _sections()["RESULTATER OG FEJL"].strip() in backend
 
 
+def test_confirmed_action_result_precedes_optional_farewell_unless_silent_is_accepted():
+    for system_prompt in (SYSTEM_PROMPT_DA, "Brugerdefineret backendregel."):
+        primary, _ = live_instructions(system_prompt)
+        assert "Efter completed og aktuelt accepteret\nend_conversation" in primary
+        assert "Giv én kort, sand tilbagemelding om en bekræftet udført handling" in primary
+        assert "hvis dens resultat endnu ikke er sagt" in primary
+        assert "medmindre aktuelt accepteret silent=true" in primary
+        assert (
+            "Et valgfrit farvel eller stilhed må ikke erstatte dette udestående opgaveresultat"
+            in primary
+        )
+        assert "Ved ren samtaleafslutning uden et udestående opgaveresultat" in primary
+        assert "kort afsked eller afslutte uden ord" in primary
+        assert "Ved silent=true, sig intet" in primary
+
+
 def test_v15_quiet_acknowledgement_keeps_live_listening_without_turn_tool():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
     assert "rent modtaget-signal" in primary
