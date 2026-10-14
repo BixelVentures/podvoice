@@ -1555,3 +1555,55 @@ def test_cancellation_native_gap_joins_child_and_preserves_original_interruption
     assert signals == [(123, signal.SIGKILL)]
     assert process.returncode == -signal.SIGKILL
     assert not getattr(error.value, "__notes__", [])
+
+
+@pytest.mark.parametrize(
+    "mode", ["release", "lifecycle", "preflight", "unit-worker", "integration-worker"]
+)
+def test_explicit_test_selection_cannot_narrow_a_release_or_worker(mode):
+    with pytest.raises(SystemExit) as error:
+        dev_cycle.parse_args([mode, "--test", "tests/integration/test_thin.py::test_one"])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("node", ["--help", "tests", "../test_escape.py", "tests/unit/missing.py"])
+def test_explicit_fast_selection_rejects_untracked_modules(node, monkeypatch, tmp_path):
+    monkeypatch.setattr(dev_cycle, "_git", lambda *_args: "tests/integration/test_thin.py")
+    snapshot = ScopeSnapshot("head", "base", ("podvoice/config.yaml",), "", ())
+    with pytest.raises(DevCycleError, match="tracked test module or node"):
+        dev_cycle.run_fast(tmp_path, {}, "python", snapshot, [node])
+
+
+def test_explicit_fast_node_avoids_full_suite_and_browser_but_keeps_static_checks(
+    monkeypatch, tmp_path, capsys
+):
+    runtime = "podvoice/gatekeeper/thin.py"
+    path = tmp_path / runtime
+    path.parent.mkdir(parents=True)
+    path.write_text("value = 1\n")
+    monkeypatch.setattr(dev_cycle, "_git", lambda *_args: "tests/integration/test_thin.py")
+    monkeypatch.setattr(dev_cycle, "sibling_tool", lambda _python, name: name)
+    stages = []
+    monkeypatch.setattr(
+        dev_cycle, "run_parallel", lambda _root, _env, actual: stages.extend(actual)
+    )
+    checked = []
+    monkeypatch.setattr(dev_cycle, "diff_check", lambda *_args: checked.append(True))
+    monkeypatch.setattr(
+        dev_cycle, "browser_recipe", lambda *_args: pytest.fail("full browser gate")
+    )
+    snapshot = ScopeSnapshot(
+        "head", "base", (runtime, "podvoice/config.yaml", "scripts/dev_cycle.py"), "", ()
+    )
+    node = "tests/integration/test_thin.py::test_one"
+    dev_cycle.run_fast(tmp_path, {}, "python", snapshot, [node, node])
+    assert {stage.name for stage in stages} == {"ruff", "format", "mypy", "pytest"}
+    assert next(stage.command for stage in stages if stage.name == "pytest") == (
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        node,
+    )
+    assert checked == [True]
+    assert "focused/partial" in capsys.readouterr().out

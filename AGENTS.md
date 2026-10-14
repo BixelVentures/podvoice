@@ -27,11 +27,22 @@ PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev lifecycle --base origin/main
 PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev release --base origin/main
 ```
 
-Kør `fast` under udvikling, `lifecycle` kun når dens mekaniske scope dækker hele diffet,
-og `release` præcis én gang efter diff-freeze og det review, ændringen kræver. Derefter
-ét PR/merge-flow uden manuelle CI-genkørsler og én installation af den grønne main-
-artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
-værktøjer eller Realtime-semantik.
+Normalcyklus: ret årsagen → kør den berørte regression med `fast --test` → ét
+fokuseret review → push til én samlet PR. Flaget kan gentages med flere pytest-noder;
+det bevarer statiske checks og er kun delvis udviklingsfeedback. Genkør ikke beståede
+checks på uændrede filer. Browser og fuld testsuite køres i officiel CI én gang på det
+frosne ændringssæt; lokal `release` bruges kun til konkret CI-fejl eller offline arbejde.
+Kør én scopekontrol mod aktuel main ved freeze, ikke ved hver lille iteration.
+`lifecycle` bruges kun, når dens mekaniske scope dækker hele diffet. Derefter ét
+merge-flow og én installation af grøn main. SafeEval/preflight bruges kun ved ændret
+prompt, schema, værktøjer eller Realtime-semantik. Fysisk afprøvning samles i én serie.
+
+En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
+bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,
+uafhængigt reviewet profil. Skift ikke base eller en generisk klassifikation for at
+få den samme release til at passere. Repoet er public: hent almindelig Git-ancestry
+via HTTPS uden credentials og uden checkout/reset, før manuel GitData-rekonstruktion
+overvejes. Gamle lokale auth-fejl er ikke en produktfejl.
 
 `fast` cacher kun stabile preflightdele og kører Ruff, format, mypy og fokuseret pytest
 parallelt med isolerede caches; der må ikke tilføjes en separat collection-pass. Målene
@@ -49,6 +60,20 @@ runtime-patch. Isolér årsagen én gang; ret workflowet eller testens observere
 slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjorde. Hvis
 samme procesforsinkelse gentager sig, er næste handling en permanent tooling-regression,
 ikke endnu en manuel workaround.
+
+En afgrænset HA-pause kræver en særskilt Restore Owner-agent med frisk, minimal
+kontekst, klargjort og med bekræftet ejerskab mens HA endnu viser Kører, før Stop.
+Kun Restore Owner ejer før-Stop-tidsgrænsen, Stop-kvitteringen, den eksisterende
+provider-startgate og genstarten. Operatøren skal startes med `exec_command`-indstillingen
+`tty: true`; samme åbne session bruges til den linjeafsluttede startgate, da stdin-EOF
+afbryder før provider. Efter stoppet providerarbejde skal Start iværksættes
+straks ved operatorens terminalresultat uanset verdict eller senest pause_start +120 s,
+og Kører verificeres inden pause_start +180 s; 60 s er reserveret til restore.
+Root må ikke selv pause HA eller udføre analyse, dokumentation eller review, mens HA
+er stoppet; restore må ikke afhænge af en besked eller fortsættelse fra root.
+Eksisterende menneskelig godkendelse og operatorens providerdeadline bevares.
+Dette er et ansvars- og deadlinekrav, ikke en hård tilgængelighedsgaranti ved agent-,
+browser-, netværks- eller HA-fejl.
 
 En sendt provider-control-event er aldrig i sig selv bevis for sin påståede effekt.
 Ved `clear`, `commit`, `delete`, `cancel`, `truncate` og `response.create` skal
@@ -236,8 +261,8 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
    tæller som fejl/ukendt, indtil lydkæden er forklaret. Et heldigt tool-kald er ikke
    bevis for stabil hørelse.
 8. Ret den mindste ejergrænse uden samtidige tuninger eller nye abstraktioner. Kør først
-   målrettet regression og relevant adapter, derefter tidligere feltregressioner og én
-   fuld releasegate på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
+   målrettet regression og relevant adapter, derefter relevante tidligere feltregressioner og én
+   fuld CI-kontrol på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
    værktøjer eller Realtime-semantik.
 9. Rollback og byteidentitet arver aldrig “golden” eller “stabil”; kandidaten skal bestå
    alle senere feltregressioner. Stabilitet kræver samme artifact 10/10 ubrudt.
@@ -286,3 +311,7 @@ Ingen agent må bruge feedbacksignalet til at maskere langsomhed eller udvikle p
 1 og 2 i samme kandidat. En UI-ændring må ikke ændre samtalens lifecycle som en skjult
 bivirkning. De fulde gates står i `docs/PRODUKTMÅL.md`, og den aktuelle rækkefølge står
 i `docs/STATUS.md`.
+
+## Repository-publicering
+
+GitHub Contents API kan returnere tomt indhold for filer over 1 MB, selv om Git-blobben ikke er tom. Brug aldrig sådan et svar som grundlag for en filændring. Hent Git-blobben eller brug en bevaret lokal fil med verificeret samme blob-SHA; kontroller både byteantal og blob-SHA før publicering. Et readback med tom body er ikke indholdsverifikation.
