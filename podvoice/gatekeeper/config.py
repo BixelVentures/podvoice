@@ -32,6 +32,8 @@ class Config:
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
     supervisor_token: str = ""
+    podview_pairing_room: str = ""
+    podview_pairing_sha256: str = ""
     # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
     # add-on already holds; override both for a non-supervised setup (direct
     # http://<ha>:8123/api/mcp + a long-lived access token).
@@ -141,6 +143,12 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),
+        podview_pairing_room=str(opts.get("podview_pairing_room", ""))
+        if not settings_source_untrusted
+        else "",
+        podview_pairing_sha256=str(opts.get("podview_pairing_sha256", ""))
+        if not settings_source_untrusted
+        else "",
         settings_error=settings_error,
         settings_source_untrusted=settings_source_untrusted,
         live_alpha=True,  # compatibility field; saved OFF no longer selects a provider
@@ -236,9 +244,10 @@ def load_options(path: pathlib.Path = OPTIONS_PATH) -> dict:
 
 
 def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
-    """Merge panel-managed settings (/data/podvoice.json) with the key-only add-on
-    options. The HA Configuration tab holds only the API keys; everything else is
-    edited in the panel's Settings page (settings.py)."""
+    """Merge panel settings with Supervisor-owned keys and explicit pairing authority.
+
+    Pairing fields from ordinary panel settings are always discarded.
+    """
     from .settings import _resolve, load_settings  # local import avoids an import cycle
 
     opts = load_options(path)
@@ -247,4 +256,7 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     # The add-on options provide only the secrets that stay in HA Configuration.
     merged["openai_api_key"] = opts.get("openai_api_key", "")
     merged["supervisor_token"] = opts.get("supervisor_token", "")
+    # These owner-authority fields come ONLY from Supervisor options, never panel settings.
+    merged["podview_pairing_room"] = opts.get("podview_pairing_room", "")
+    merged["podview_pairing_sha256"] = opts.get("podview_pairing_sha256", "")
     return from_options(merged, settings_path=settings_path)
