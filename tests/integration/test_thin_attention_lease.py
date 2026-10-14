@@ -188,8 +188,10 @@ async def test_public_stop_reads_joined_begin_identity_and_never_releases_unowne
         session, _, _, _, _ = build()
     hub = session.hub = StatusHub()
 
+    peers = [CycleWireSDK(webrtc=adapter == "talk") for _ in range(2)]
+
     def factory(**kwargs):
-        sdk = CycleWireSDK(webrtc=adapter == "talk")
+        sdk = peers[len(sdks)]
         sdk.allow_exit.set()
         sdk.socket.release.set()
         sdk.manager_release.set()

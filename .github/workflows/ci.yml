@@ -141,7 +141,8 @@ jobs:
   publish-addon:
     if: >-
       needs.scope.outputs.tooling_only != 'true' &&
-      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [scope, lint-test, ui-browser]
     runs-on: ubuntu-latest
     steps:
@@ -156,45 +157,50 @@ jobs:
             addon:
               - 'podvoice/**'
       - uses: docker/setup-qemu-action@v3
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
       - uses: docker/setup-buildx-action@v3
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
       - id: version
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         run: |
           echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
-      - id: artifact
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
-        run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Refuse an existing release version
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
+      - name: Inspect immutable release version
+        id: release
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          ADDON_CHANGED: ${{ steps.changes.outputs.addon }}
+          RELEASE_EVENT: ${{ github.event_name }}
         run: |
-          set +e
-          inspect_output="$(docker buildx imagetools inspect \
-            ghcr.io/bixelventures/aarch64-addon-podvoice:${{ steps.version.outputs.version }} 2>&1)"
-          inspect_status=$?
-          set -e
-          if [ "$inspect_status" -eq 0 ]; then
-            echo "Release version already exists and is immutable." >&2
-            exit 1
+          set -euo pipefail
+          release_image="ghcr.io/bixelventures/aarch64-addon-podvoice:$RELEASE_VERSION"
+          if inspect_output="$(docker buildx imagetools inspect "$release_image" 2>&1)"; then
+            if [ "$ADDON_CHANGED" == 'true' ] || [ "$RELEASE_EVENT" == 'workflow_dispatch' ]; then
+              echo "Release version already exists and is immutable." >&2
+              exit 1
+            fi
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            inspect_status=$?
           fi
           case "$inspect_output" in
-            *"manifest unknown"*|*"not found"*) ;;
+            *"manifest unknown"*|*"$release_image: not found"*)
+              echo "required=true" >> "$GITHUB_OUTPUT"
+              ;;
             *)
               echo "$inspect_output" >&2
               exit "$inspect_status"
               ;;
           esac
+      - id: artifact
+        if: steps.release.outputs.required == 'true'
+        run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Publish exact tested main image
         id: publish
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
+        if: steps.release.outputs.required == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./podvoice
@@ -208,5 +214,5 @@ jobs:
           cache-from: type=gha,scope=podvoice-aarch64
           # Optional cache export must not hold a completed image push open.
       - name: Record published digest
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
+        if: steps.release.outputs.required == 'true'
         run: echo "published_digest=${{ steps.publish.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

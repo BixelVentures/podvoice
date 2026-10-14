@@ -39,8 +39,10 @@ async def test_current_retirement_closes_sole_native_owner_and_preserves_origina
     session.room = room
     _load_live_sdk()  # Same actual pure bootstrap as production, before bounded SDK connect.
 
+    peers = [CycleWireSDK(webrtc=False) for _ in range(2)]
+
     def factory(**kwargs):
-        sdk = CycleWireSDK(webrtc=False)
+        sdk = peers[len(sdks)]
         sdk.allow_exit.set()
         sdk.socket.release.set()
         sdk.manager_release.set()
@@ -190,8 +192,10 @@ async def test_shipped_talk_no_attention_stays_unowned_through_stop_and_next_wak
     sdks, observers = [], []
     _load_live_sdk()
 
+    peers = [CycleWireSDK(webrtc=True) for _ in range(2)]
+
     def factory(**kwargs):
-        sdk = CycleWireSDK(webrtc=True)
+        sdk = peers[len(sdks)]
         sdk.allow_exit.set()
         sdk.socket.release.set()
         sdk.manager_release.set()
