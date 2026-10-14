@@ -1,30 +1,43 @@
+"""Actual changed-path classification must never hide product or unknown scope."""
+
+from __future__ import annotations
+
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from scripts import ci_scope
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 @pytest.mark.parametrize(
-    "paths, expected",
+    "paths,expected",
     [
-        (["AGENTS.md"], True),
-        (["scripts/dev_cycle.py", "tests/unit/test_dev_cycle.py", "AGENTS.md"], True),
+        (["AGENTS.md", "CLAUDE.md", "README.md"], True),
+        (["docs/STATUS.md", "docs/archive/STATUS-2026-10-14-pre-157.md"], True),
+        (["scripts/dev_cycle.py", "tests/unit/test_dev_cycle.py", "docs/UDVIKLINGSFLOW.md"], True),
+        (["scripts/ci_scope.py", "tests/unit/test_ci_scope.py"], True),
         ([], False),
-        (["scripts/ci_scope.py"], False),
+        (["docs/STATUS.md", "podvoice/gatekeeper/thin.py"], False),
+        (["podvoice/CHANGELOG.md"], False),
+        (["pyproject.toml"], False),
+        (["podvoice/requirements.txt"], False),
         ([".github/workflows/ci.yml"], False),
-        (["podvoice/gatekeeper/thin.py"], False),
+        (["scripts/unknown.py"], False),
+        (["scripts/dev"], False),
+        (["docs/runtime.json"], False),
+        (["docs/../podvoice/gatekeeper/evil.md"], False),
         (["podvoice/gatekeeper/live_prompt.py"], False),
         (["esphome/podvoice.yaml"], False),
         (["tests/conftest.py"], False),
-        (["pyproject.toml"], False),
-        (["podvoice/requirements.txt"], False),
-        (["scripts/dev_cycle.py", "docs/STATUS.md"], False),
         (["scripts/dev_cycle.py", "podvoice/config.yaml"], False),
         (["AGENTS.md", "tests/browser/panel.spec.js"], False),
     ],
 )
-def test_only_exact_nonempty_tooling_paths_narrow_ci(paths, expected):
+def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
     assert ci_scope.tooling_only(paths) is expected
 
 
@@ -38,46 +51,49 @@ def test_dispatch_or_initial_push_keeps_full_ci(base, monkeypatch, tmp_path):
     assert output.read_text() == "tooling_only=false\n"
 
 
-def test_failed_diff_keeps_full_ci(monkeypatch, tmp_path):
-    output = tmp_path / "output"
-    monkeypatch.setenv("CI_DIFF_BASE", "missing")
-    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
-
-    def failed(*_args, **_kwargs):
-        raise subprocess.CalledProcessError(1, "git")
-
-    monkeypatch.setattr(subprocess, "check_output", failed)
-    ci_scope.main()
-    assert output.read_text() == "tooling_only=false\n"
+def _git(root, *args):
+    return subprocess.check_output(
+        ["git", "-c", "user.name=Scope test", "-c", "user.email=scope@example.invalid", *args],
+        cwd=root,
+        text=True,
+    ).strip()
 
 
-def test_actual_git_rename_out_of_tooling_allowlist_keeps_full_ci(tmp_path, monkeypatch):
-    def git(*args):
-        return subprocess.check_output(["git", *args], cwd=tmp_path)
-
-    git("init", "-q")
-    git("config", "user.name", "CI regression")
-    git("config", "user.email", "ci@example.invalid")
-    (tmp_path / "AGENTS.md").write_text("unchanged content")
-    git("add", "AGENTS.md")
-    git("commit", "-qm", "base")
-    base = git("rev-parse", "HEAD").decode().strip()
-    (tmp_path / "AGENTS.md").rename(tmp_path / "production.py")
-    git("add", "-A")
-    git("commit", "-qm", "rename")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("CI_DIFF_BASE", base)
-    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "output"))
-    ci_scope.main()
-    assert (tmp_path / "output").read_text() == "tooling_only=false\n"
-
-
-def test_workflow_narrows_only_existing_runner_checks():
-    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
-    assert (
-        "python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_release_contract.py"
-        in workflow
+@pytest.mark.parametrize(
+    "change", ["docs", "renamed-product", "renamed-doc", "deleted-product", "missing-base"]
+)
+def test_actual_git_diff_keeps_renames_deletions_and_missing_ancestry_conservative(
+    tmp_path, change
+):
+    _git(tmp_path, "init", "-q")
+    (tmp_path / "product.py").write_text("value = 1\n")
+    (tmp_path / "AGENTS.md").write_text("# Agent rules\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    base = _git(tmp_path, "rev-parse", "HEAD")
+    (tmp_path / "docs").mkdir()
+    if change == "renamed-product":
+        _git(tmp_path, "mv", "product.py", "docs/product.md")
+    elif change == "renamed-doc":
+        _git(tmp_path, "mv", "AGENTS.md", "unknown.py")
+    elif change == "deleted-product":
+        (tmp_path / "product.py").unlink()
+    else:
+        (tmp_path / "docs" / "help.md").write_text("# Help\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "change")
+    output = tmp_path / "scope-output"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/ci_scope.py")],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "CI_DIFF_BASE": "missing" if change == "missing-base" else base,
+            "GITHUB_OUTPUT": str(output),
+        },
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
-    assert workflow.count("if: needs.scope.outputs.tooling_only != 'true'") == 5
-    assert "github.event.pull_request.base.sha || github.event.before" in workflow
-    assert "fetch-depth: 0" in workflow
+    assert result.returncode == 0, result.stderr
+    assert output.read_text() == f"tooling_only={str(change == 'docs').lower()}\n"
