@@ -62,7 +62,8 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     buildx = "      - uses: docker/setup-buildx-action@v3\n"
     build_push = "      - uses: docker/build-push-action@v6\n"
 
-    assert not build.startswith("    needs:")
+    assert "needs: [scope]" in build
+    assert "needs: [lint-test" not in build
     assert build.count(qemu) == build.count(buildx) == build.count(build_push) == 1
     assert build.index(qemu) < build.index(buildx) < build.index(build_push)
     assert "dorny/paths-filter@v3" in build
@@ -74,7 +75,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
     assert "cache-to:" not in build
-    assert "needs: [lint-test, ui-browser]" in publish
+    assert "needs: [scope, lint-test, ui-browser]" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
     assert "docker/build-push-action@v6" in publish
@@ -105,7 +106,7 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
         assert "docker/build-push-action@v6" in job
     fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
     assert build.count(fork_guard) == 2
-    assert "needs: [lint-test, ui-browser]" in publish
+    assert "needs: [scope, lint-test, ui-browser]" in publish
     assert "push: true" in publish
     assert "Refuse an existing release version" in publish
     assert "Record published digest" in publish
@@ -1555,3 +1556,75 @@ def test_cancellation_native_gap_joins_child_and_preserves_original_interruption
     assert signals == [(123, signal.SIGKILL)]
     assert process.returncode == -signal.SIGKILL
     assert not getattr(error.value, "__notes__", [])
+
+
+@pytest.mark.parametrize(
+    "mode", ["release", "lifecycle", "preflight", "unit-worker", "integration-worker"]
+)
+def test_explicit_test_selection_cannot_narrow_a_release_or_worker(mode):
+    with pytest.raises(SystemExit) as error:
+        dev_cycle.parse_args([mode, "--test", "tests/integration/test_thin.py::test_one"])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("node", ["--help", "tests", "../test_escape.py", "tests/unit/missing.py"])
+def test_explicit_fast_selection_rejects_untracked_modules(node, monkeypatch, tmp_path):
+    monkeypatch.setattr(dev_cycle, "_git", lambda *_args: "tests/integration/test_thin.py")
+    snapshot = ScopeSnapshot("head", "base", ("podvoice/config.yaml",), "", ())
+    with pytest.raises(DevCycleError, match="tracked test module or node"):
+        dev_cycle.run_fast(tmp_path, {}, "python", snapshot, [node])
+
+
+def test_explicit_fast_node_avoids_full_suite_and_browser_but_keeps_static_checks(
+    monkeypatch, tmp_path, capsys
+):
+    runtime = "podvoice/gatekeeper/thin.py"
+    path = tmp_path / runtime
+    path.parent.mkdir(parents=True)
+    path.write_text("value = 1\n")
+    monkeypatch.setattr(dev_cycle, "_git", lambda *_args: "tests/integration/test_thin.py")
+    monkeypatch.setattr(dev_cycle, "sibling_tool", lambda _python, name: name)
+    stages = []
+    monkeypatch.setattr(
+        dev_cycle, "run_parallel", lambda _root, _env, actual: stages.extend(actual)
+    )
+    checked = []
+    monkeypatch.setattr(dev_cycle, "diff_check", lambda *_args: checked.append(True))
+    monkeypatch.setattr(
+        dev_cycle, "browser_recipe", lambda *_args: pytest.fail("full browser gate")
+    )
+    snapshot = ScopeSnapshot(
+        "head", "base", (runtime, "podvoice/config.yaml", "scripts/dev_cycle.py"), "", ()
+    )
+    node = "tests/integration/test_thin.py::test_one"
+    dev_cycle.run_fast(tmp_path, {}, "python", snapshot, [node, node])
+    assert {stage.name for stage in stages} == {"ruff", "format", "mypy", "pytest"}
+    assert next(stage.command for stage in stages if stage.name == "pytest") == (
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        node,
+    )
+    assert checked == [True]
+    assert "focused/partial" in capsys.readouterr().out
+
+
+def test_ci_workflow_change_keeps_full_build_but_cannot_republish_existing_version():
+    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    build, publish = workflow.split("  build-addon:\n", maxsplit=1)[1].split(
+        "  publish-addon:\n", maxsplit=1
+    )
+    # The actual normal-push release filter is package-only. Workflow changes still
+    # exercise the ARM build, but do not enter its immutable release-version gate.
+    assert "addon:\n              - 'podvoice/**'\n" in publish
+    assert "- '.github/workflows/ci.yml'" not in publish
+    assert "- '.github/workflows/ci.yml'" in build
+    assert "needs: [scope, lint-test, ui-browser]" in publish
+    manual_or_package = (
+        "if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'"
+    )
+    assert publish.count(manual_or_package) == 8
+    assert "github.ref == 'refs/heads/main'" in publish
+    assert "Refuse an existing release version" in publish
+    assert "Release version already exists and is immutable." in publish

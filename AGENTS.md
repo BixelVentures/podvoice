@@ -27,11 +27,22 @@ PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev lifecycle --base origin/main
 PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev release --base origin/main
 ```
 
-Kør `fast` under udvikling, `lifecycle` kun når dens mekaniske scope dækker hele diffet,
-og `release` præcis én gang efter diff-freeze og det review, ændringen kræver. Derefter
-ét PR/merge-flow uden manuelle CI-genkørsler og én installation af den grønne main-
-artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
-værktøjer eller Realtime-semantik.
+Normalcyklus: ret årsagen → kør den berørte regression med `fast --test` → ét
+fokuseret review → push til én samlet PR. Flaget kan gentages med flere pytest-noder;
+det bevarer statiske checks og er kun delvis udviklingsfeedback. Genkør ikke beståede
+checks på uændrede filer. Browser og fuld testsuite køres i officiel CI én gang på det
+frosne ændringssæt; lokal `release` bruges kun til konkret CI-fejl eller offline arbejde.
+Kør én scopekontrol mod aktuel main ved freeze, ikke ved hver lille iteration.
+`lifecycle` bruges kun, når dens mekaniske scope dækker hele diffet. Derefter ét
+merge-flow og én installation af grøn main. SafeEval/preflight bruges kun ved ændret
+prompt, schema, værktøjer eller Realtime-semantik. Fysisk afprøvning samles i én serie.
+
+En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
+bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,
+uafhængigt reviewet profil. Skift ikke base eller en generisk klassifikation for at
+få den samme release til at passere. Repoet er public: hent almindelig Git-ancestry
+via HTTPS uden credentials og uden checkout/reset, før manuel GitData-rekonstruktion
+overvejes. Gamle lokale auth-fejl er ikke en produktfejl.
 
 En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
 bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,
@@ -257,8 +268,8 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
    tæller som fejl/ukendt, indtil lydkæden er forklaret. Et heldigt tool-kald er ikke
    bevis for stabil hørelse.
 8. Ret den mindste ejergrænse uden samtidige tuninger eller nye abstraktioner. Kør først
-   målrettet regression og relevant adapter, derefter tidligere feltregressioner og én
-   fuld releasegate på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
+   målrettet regression og relevant adapter, derefter relevante tidligere feltregressioner og én
+   fuld CI-kontrol på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
    værktøjer eller Realtime-semantik.
 9. Rollback og byteidentitet arver aldrig “golden” eller “stabil”; kandidaten skal bestå
    alle senere feltregressioner. Stabilitet kræver samme artifact 10/10 ubrudt.

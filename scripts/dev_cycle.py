@@ -1047,10 +1047,18 @@ def run_fast(
     env: dict[str, str],
     python: str,
     snapshot: ScopeSnapshot,
+    requested_tests: Sequence[str] = (),
 ) -> None:
     changes = list(snapshot.changes)
     tracked_tests = _git(root, "ls-files", "tests/**/test_*.py").splitlines()
-    tests, reason = select_tests(changes, tracked_tests)
+    if requested_tests:
+        for node in requested_tests:
+            if node.split("::", 1)[0] not in tracked_tests:
+                raise DevCycleError(f"--test must name a tracked test module or node: {node}")
+        tests = sorted(set(requested_tests))
+        reason = "explicit development selection; full release coverage still required"
+    else:
+        tests, reason = select_tests(changes, tracked_tests)
     print(f"focused/partial scope: {', '.join(tests)} ({reason})", flush=True)
 
     ruff = sibling_tool(python, "ruff")
@@ -1075,7 +1083,7 @@ def run_fast(
     else:
         stages.append(Stage("pytest", (python, "-m", "pytest", "-q", *tests), timeout))
     run_parallel(root, env, stages)
-    if browser_scope(changes):
+    if not requested_tests and browser_scope(changes):
         browser_recipe(root, env, 120)
     diff_check(root, env, snapshot.merge_base)
 
@@ -1173,12 +1181,21 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument("--base", default=os.environ.get("PODVOICE_BASE", "origin/main"))
     parser.add_argument(
+        "--test",
+        action="append",
+        default=[],
+        help="fast only: run this tracked pytest module/node (repeatable), not a release gate",
+    )
+    parser.add_argument(
         "--unit-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
     )
     parser.add_argument(
         "--integration-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.test and args.mode != "fast":
+        parser.error("--test is only available for fast development feedback")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1210,7 +1227,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.mode in {"fast", "lifecycle", "release"}:
                 before = scope_snapshot(root, args.base)
                 if args.mode == "fast":
-                    run_fast(root, env, python, before)
+                    run_fast(root, env, python, before, args.test)
                 elif args.mode == "lifecycle":
                     run_lifecycle(root, env, python, before)
                 else:
