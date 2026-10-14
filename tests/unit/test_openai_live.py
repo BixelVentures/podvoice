@@ -2879,3 +2879,44 @@ async def test_backend_timing_orders_received_and_enqueued_without_private_paylo
         assert "kitchen" not in str(timing)
     finally:
         await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("local_limit", [0, 1_000_000])
+async def test_live_observed_15437_target_keeps_reservation_without_shadow_quota_failure(
+    local_limit,
+):
+    session, sdk, rows, _clock = paced_wire_provider()
+    session.provider_budget.configure_local_limit(
+        session.api_key, session.backend_model, local_limit
+    )
+    await session.connect()
+    session.capacity_sleep = AsyncMock()
+    try:
+        # Retained admission inputs: current completed usage 12365, target 15437,
+        # local available 521. This reproduces the final causal boundary without
+        # inventing the usage of earlier responses absent from the retained log.
+        session.provider_budget.account_usage(
+            session.api_key, session.backend_model, 27_114, lease=session._lease
+        )
+        response_id, call_id = await completed_budget_batch(session, 1, 12_365)
+        if local_limit:
+            await session.admit_tool_batch(response_id, 1)
+            assert session.tool_batch_is_admitted(response_id, 1)
+            await session.send_tool_results(
+                response_id, [{"id": call_id, "response": {"ok": True}}], generation=1
+            )
+            admitted = next(r for r in rows if r["kind"] == "live_tool_admission")
+            assert admitted["target_tokens"] == 15_437
+            assert admitted["authoritative"] is False
+            assert sum(e["type"] == "response.item.create" for e in sdk.wire) == 1
+        else:
+            with pytest.raises(ProviderBudgetUnavailable, match="capacity_unavailable"):
+                await session.admit_tool_batch(response_id, 1)
+            blocked = next(r for r in rows if r["kind"] == "live_tool_admission")
+            assert blocked["remaining"] == 521
+            assert blocked["target_tokens"] == 15_437
+            assert not any(e["type"] == "response.item.create" for e in sdk.wire)
+        session.capacity_sleep.assert_not_awaited()
+    finally:
+        await session._release()

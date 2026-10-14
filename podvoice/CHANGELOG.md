@@ -3,6 +3,8 @@
 - Give GPT-Live a bounded inventory of the tools available in its current session, preserving model-owned delegation, follow-up handling and semantic closing.
 - Keep completion acknowledgments tied to confirmed current results; retain the existing playback, teardown and rearm owners.
 - Preserve MCP recovery backoff until a current complete health check succeeds, so stale or cancelled checks cannot reset a newer recovery attempt.
+- Preserve explicit HA/MCP tool failures so the model receives truthful failure results.
+- Bind a confirmed OpenAI project token ceiling to the current key and backend; apply it at the next conversation without resetting active usage or reservation ownership.
 - Synthetic closing and follow-up controls have been checked. Physical Voice PE lifecycle, home-control recovery, function and latency acceptance remain pending.
 
 ## 2.0.21 - GPT-Live setup and idle timer output

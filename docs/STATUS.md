@@ -18176,21 +18176,19 @@ Lossless source/provider-input/provider-output WAVs er kun afledte private lytte
 
 <!-- candidate-scope-coupling
 {
-  "version": 2,
-  "kind": "live_schema_startup_mcp_health",
+  "version": 1,
   "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
   "merge_base": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
   "domains": [
+    "audio_input",
     "ha_tools",
     "physical_output",
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "619bd28558d327ee0483e6cd6caedd8cab3e45311fe0ff83592ee935623bac4c",
-  "regression_fingerprint": "01cec59d0748da50c7610eaa99f03285be50eb478a0780ae975ef777b3d04ac7",
-  "policy_fingerprint": "d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21",
-  "reviewer": "fix_capacity_stop",
-  "rationale": "Independent review approves explicit MCP structured failure propagation: exact boolean False, one HA wrapper only when outer ok absent, precedence and original data retained. Existing Thin native/Talk dispatch returns tool failure to provider without exception-driven close. Previously reviewed candidate runtime unchanged. No physical acceptance inherited."
+  "fingerprint": "8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328",
+  "reviewer": "timer_daily_use",
+  "rationale": "Independent full composition review: server-bound current key/model ceiling applies at actual next Native/Talk connect; preserves active leases, spent usage, telemetry authority, lower observed ceiling and diagnostic exclusion. Previously reviewed closing, MCP recovery and explicit tool failures retain their source ownership. No physical acceptance inherited."
 }
 -->
 
@@ -18277,3 +18275,10 @@ Lead root. Field evidence showed two MAX_TOKENS search failures wrapped as succe
 The smallest shared owner fix promotes only explicit boolean ok:false in MCP structured/JSON results, including one known HA success/result wrapper when the outer payload has no ok field. Original data and structuredContent/isError precedence remain. No error-prose classification, recursive unwrapping, schema change, quota/timeout increase, local semantic rule or new close path. Current Thin returns this normal tool failure to the model without throwing or requesting close; Voice PE and Talk share that path. HA's paired script preserves ConversationResult error status while retaining successful output-only shape.
 
 Independent adversarial review by fix_capacity_stop found ambiguous outer status and approved the corrected exact source. Original 104 module cases passed; the 20 affected cases pass after correction; unaffected checks retained. Formatting/lint/type checks pass. One refreshed existing scope binding passes against actual main4a; a stale local origin/main was refreshed through public HTTPS without checkout/reset. No new binding helper or policy expansion. Previously reviewed candidate runtime/tests remain unchanged except this fix and its regressions. Official exact-head CI, installation, physical golden chain/10 cycles and full functional/latency/stability gates remain open. Rollback is the previous source and script; no acceptance inherited. Goal ACTIVE.
+
+
+### 14/10 — confirmed backend capacity in the combined 2.0.22 candidate
+
+The latest installed conversation exhausted the conservative local 40,000-token fallback and closed after an admission deadline. The actual backend project ceiling has now been checked. The reviewed fix adds one advanced confirmed-capacity setting, bound by the server to the actual current key and backend model. Native and Talk apply it at their next actual connect, including the same retained native brain after a new wake. Changing keys/models invalidates the binding. Active leases, accumulated usage, lower observed limits, diagnostic exclusion and honest telemetry authority are preserved. No global quota increase, timeout increase, local semantic rule or alternative engine is introduced.
+
+Independent timer_daily_use source and full-composition review GO: exact nine-file quota patch f91365ed13c577e277cb6e0a5aad6ff850bc20bca70149355c0d22dc0fef9249, only these nine production/test files differ from actual public e130. Whole production 8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328, whole tests e44fadc7fc7131512d9a99cb1a059444c6d492c7bcd30eee938ef63b01e2c154, unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Existing generic V1 admits the naturally classified five-domain composition without policy changes. Formatter/lint/type checks and focused causal/key/model/lease/diagnostic/telemetry regressions passed; one final existing scope check and diff check passed. Unchanged prior checks are retained. Candidate source frozen for one exact-head official CI and one combined main artifact/install. Google Search settings and the structured-error script were corrected separately on HA; the failed query now returns action_done, without proving factual correctness or Voice PE audio. Physical golden chain, ten cycles, functional matrix, latency and stability remain open. Goal ACTIVE.

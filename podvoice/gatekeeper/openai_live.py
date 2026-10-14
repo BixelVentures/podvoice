@@ -323,6 +323,7 @@ class OpenAILiveSession:
         voice: str = "marin",
         backend_model: str = "gpt-6-sol",
         provider_budget: ProviderBudgetCoordinator = PROVIDER_BUDGET,
+        local_token_limit: Callable[[str, str], int] | None = None,
         client_factory: Callable[..., Any] | None = None,
         timeout_s: float = 15,
         webrtc_offer: str | None = None,
@@ -363,6 +364,7 @@ class OpenAILiveSession:
         self.voice = voice
         self.backend_model = backend_model
         self.provider_budget = provider_budget
+        self.local_token_limit = local_token_limit
         self.client_factory = client_factory
         self.timeout_s = timeout_s
         self.capacity_monotonic: Callable[[], float] = time.monotonic
@@ -609,6 +611,12 @@ class OpenAILiveSession:
             self._used_webrtc_offers.add(hashlib.sha256(self.webrtc_offer.encode()).hexdigest())
             self._webrtc_offer_consumed = True
         # Diagnostic ownership is key-global even though token accounting is backend-specific.
+        if self.local_token_limit is not None:
+            self.provider_budget.configure_local_limit(
+                self.api_key,
+                self.backend_model,
+                self.local_token_limit(self.api_key, self.backend_model),
+            )
         self._lease = self.provider_budget.production_started(self.api_key, self.backend_model)
         self._cancel_terminal_receipt()
         self._connection_generation += 1

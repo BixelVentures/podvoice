@@ -8,6 +8,7 @@ is the right place for it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -19,6 +20,7 @@ import tempfile
 from . import constants as C
 from .device_control import validate_entities
 from .prompt import SYSTEM_PROMPT_DA
+from .provider_budget import MAX_LOCAL_TOKEN_LIMIT
 from .wake_words import DEFAULT_WAKE_WORD, WAKE_WORDS, load_wake_word
 
 _LOG = logging.getLogger("podvoice.settings")
@@ -184,6 +186,9 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # Panel-editable fields and their defaults. The OpenAI API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
+    "openai_backend_tpm": 0,  # confirmed project ceiling; zero uses local fallback
+    "openai_backend_tpm_model": "",
+    "openai_backend_tpm_key_id": "",
     "live_alpha": True,  # compatibility key: GPT-Live is the only production provider
     # Operator calibration for this experimental native boundary; 0 stays inactive.
     # Alpha ON alone cannot fabricate a measured guard or enable this candidate.
@@ -408,10 +413,27 @@ SECRET_MASK = "********"
 def masked(settings: dict) -> dict:
     """Copy with secret values replaced by the mask (empty stays empty)."""
     out = dict(settings)
+    out.pop("openai_backend_tpm_model", None)
+    out.pop("openai_backend_tpm_key_id", None)
     for k in SECRET_SETTINGS:
         if out.get(k):
             out[k] = SECRET_MASK
     return out
+
+
+def local_backend_limit(settings: dict, api_key: str, model: str) -> int:
+    """A saved project ceiling applies only to the exact server-bound key/model."""
+    tokens = settings.get("openai_backend_tpm")
+    expected = hashlib.sha256(api_key.encode() + b"\0" + model.encode()).hexdigest()
+    if (
+        api_key
+        and type(tokens) is int
+        and 0 < tokens <= MAX_LOCAL_TOKEN_LIMIT
+        and settings.get("openai_backend_tpm_model") == model
+        and settings.get("openai_backend_tpm_key_id") == expected
+    ):
+        return tokens
+    return 0
 
 
 def _coerce(key: str, value, template) -> object:
@@ -419,6 +441,14 @@ def _coerce(key: str, value, template) -> object:
 
     Persisting an unvalidated value used to crash-loop the whole add-on at next boot
     (int("loud") in config loading) — one bad panel POST bricked the assistant."""
+    if key == "openai_backend_tpm":
+        if type(value) is not int or not 0 <= value <= MAX_LOCAL_TOKEN_LIMIT:
+            raise ValueError("OpenAI-kapacitet: skriv et gyldigt helt tal på mindst 0.")
+        return value
+    if key in {"openai_backend_tpm_model", "openai_backend_tpm_key_id"}:
+        if not isinstance(value, str) or len(value) > 128:
+            raise ValueError("Ugyldig gemt OpenAI-kapacitet.")
+        return value
     if key == "device_control_entities":
         return list(validate_entities(value))
     if key == "live_closing_guard_ms":
@@ -462,7 +492,9 @@ def _coerce(key: str, value, template) -> object:
     return value
 
 
-def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
+def save_settings(
+    values: dict, path: pathlib.Path | None = None, *, provider_api_key: str = ""
+) -> dict:
     """Validate + merge ``values`` (only known keys) into the saved settings and persist.
 
     Raises ValueError (with a human-readable message for the panel) instead of ever
@@ -471,13 +503,33 @@ def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
     saved, previous = _read_source(src)  # strict refusal before any migration/write
     data = _project_settings(saved)
     for k, v in values.items():
-        if k not in DEFAULTS:
+        if k not in DEFAULTS or k in {"openai_backend_tpm_model", "openai_backend_tpm_key_id"}:
             continue
         if k in SECRET_SETTINGS and v == SECRET_MASK:
             continue  # round-tripped mask — keep the stored secret
         if k == "settings_version" and (type(v) is not int or v != SETTINGS_VERSION):
             raise ValueError("settings_version: versionen administreres af PodVoice")
         data[k] = _coerce(k, v, DEFAULTS[k])
+    if "openai_backend_tpm" in values:
+        if data["openai_backend_tpm"] > 0:
+            if not provider_api_key:
+                raise ValueError("OpenAI API-nøgle mangler; kapaciteten blev ikke gemt.")
+            model = "gpt-6-sol"
+            if (
+                saved.get("openai_backend_tpm_key_id")
+                and data["openai_backend_tpm"] == saved.get("openai_backend_tpm")
+                and not local_backend_limit(saved, provider_api_key, model)
+            ):
+                raise ValueError(
+                    "OpenAI-nøglen er ændret. Gem 0 før du bekræfter kapaciteten igen."
+                )
+            data["openai_backend_tpm_model"] = model
+            data["openai_backend_tpm_key_id"] = hashlib.sha256(
+                provider_api_key.encode() + b"\0" + model.encode()
+            ).hexdigest()
+        else:
+            data["openai_backend_tpm_model"] = ""
+            data["openai_backend_tpm_key_id"] = ""
     data["engine"] = "thin"
     data["speaker_path"] = "announce"
     data["full_duplex"] = False
