@@ -285,8 +285,10 @@ async def test_actual_close_restores_private_owner_before_fresh_capture_and_reje
     sdks, observers = [], []
     task = None
 
+    peers = [CycleWireSDK(webrtc=not native) for _ in range(2)]
+
     def factory(**kwargs):
-        sdk = CycleWireSDK(webrtc=not native)
+        sdk = peers[len(sdks)]
         sdk.allow_exit.set()
         if wire:
             wire.sdk = sdk

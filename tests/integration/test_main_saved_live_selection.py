@@ -254,8 +254,10 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
         session.live_brain.provider_budget = ProviderBudgetCoordinator()
         session._realtime_brain.provider_budget = session.live_brain.provider_budget
 
+        peers = [CycleWireSDK(webrtc=True) for _ in range(2)]
+
         def factory(**kwargs):
-            sdk = CycleWireSDK(webrtc=True)
+            sdk = peers[len(sdks)]
             sdk.allow_exit.set()
             wire.sdk = sdk
             sdks.append(sdk)

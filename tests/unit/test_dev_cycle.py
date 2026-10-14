@@ -82,9 +82,11 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "org.opencontainers.image.revision=${{ github.sha }}" in publish
     assert "PODVOICE_GIT_SHA=${{ github.sha }}" in publish
     assert "sha-${{ github.sha }}" in publish
-    assert "Refuse an existing release version" in publish
-    assert 'if [ "$inspect_status" -eq 0 ]' in publish
-    assert '"manifest unknown"' in publish and '"not found"' in publish
+    assert "Inspect immutable release version" in publish
+    assert (
+        'if inspect_output="$(docker buildx imagetools inspect "$release_image" 2>&1)"' in publish
+    )
+    assert '"manifest unknown"' in publish and '"$release_image: not found"' in publish
     assert 'exit "$inspect_status"' in publish
     assert "steps.publish.outputs.digest" in publish
     manifest = (Path(__file__).parents[2] / "podvoice" / "config.yaml").read_text()
@@ -108,7 +110,7 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
     assert build.count(fork_guard) == 2
     assert "needs: [scope, lint-test, ui-browser]" in publish
     assert "push: true" in publish
-    assert "Refuse an existing release version" in publish
+    assert "Inspect immutable release version" in publish
     assert "Record published digest" in publish
 
 
@@ -1615,16 +1617,22 @@ def test_ci_workflow_change_keeps_full_build_but_cannot_republish_existing_versi
     build, publish = workflow.split("  build-addon:\n", maxsplit=1)[1].split(
         "  publish-addon:\n", maxsplit=1
     )
-    # The actual normal-push release filter is package-only. Workflow changes still
-    # exercise the ARM build, but do not enter its immutable release-version gate.
+    # Workflow changes exercise the ARM build and inspect the current immutable
+    # version. Only a missing version may recover publication after green checks.
     assert "addon:\n              - 'podvoice/**'\n" in publish
     assert "- '.github/workflows/ci.yml'" not in publish
     assert "- '.github/workflows/ci.yml'" in build
     assert "needs: [scope, lint-test, ui-browser]" in publish
-    manual_or_package = (
-        "if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'"
+    assert publish.count("if: steps.release.outputs.required == 'true'") == 3
+    assert 'echo "required=false" >> "$GITHUB_OUTPUT"' in publish
+    assert 'echo "required=true" >> "$GITHUB_OUTPUT"' in publish
+    assert (
+        "if [ \"$ADDON_CHANGED\" == 'true' ] || [ \"$RELEASE_EVENT\" == 'workflow_dispatch' ]"
+        in publish
     )
-    assert publish.count(manual_or_package) == 8
+    qemu = "      - uses: docker/setup-qemu-action@v3\n"
+    buildx = "      - uses: docker/setup-buildx-action@v3\n"
+    assert publish.index(qemu) < publish.index(buildx)
     assert "github.ref == 'refs/heads/main'" in publish
-    assert "Refuse an existing release version" in publish
+    assert "Inspect immutable release version" in publish
     assert "Release version already exists and is immutable." in publish

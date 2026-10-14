@@ -18174,7 +18174,7 @@ Lossless source/provider-input/provider-output WAVs er kun afledte private lytte
 
 14/10 permanent præcis schema/startup/MCP-health scope: source d326d4cf/test c749a507 er uafhængigt reviewet i296709eb efter authentic ancestry tilmain4a.57 nye policygrænser og13 udvalgte eksisterende legacycases består; initial syntetiskfixturefejl er bevaret og55+13 er ikke genkørt efter den lille extra-test-guardrettelse. Formatter/lint PASS. De tidligere bfc-relative WIP-bindings/source-scopeposter ovenfor er kronologisk historik; følgende ene activeV2-record binder nu den aktuelle fulde main4a-kilde, hele regressiontræet og selve policyfilen. Dette er sourcekontrol, ingen provider/fysisk/releaseaccept.
 
-<!-- candidate-scope-coupling
+<!-- merged-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "4a0caeae8f699c805b300ef9e7f9a5deeed0c469",
@@ -18296,3 +18296,10 @@ Exact c38 CI passed browser and ARM-build checks but failed the deadline-Talk at
 Independent attention_ci_review source and whole-binding GO: integrated test SHA256 7a0234c18051b351369fc973968254fffa59ba8a043fd9a0090e65f52c5112b4, production 8a74a16480e781fb6b0221fd25af48e6b943c8f781c0301ca0d47c959b0b5328, whole tests 0f250a771bf5d2e91b9c582a8400d4c2526ecda9b1eb6ba36f5ad89a421a18d8, unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Fourteen affected cases passed before the two new timeout witnesses were strengthened; those two strengthened cases then passed, retaining the twelve unchanged cases. Formatter/lint, final existing scope and diff checks passed. Only this test and this append change from c38; earlier failure remains failed, with no product patch or manual CI replay. One final exact-head CI precedes the combined 2.0.22 main artifact/install. Physical acceptance remains open; goal ACTIVE.
 
 User parks exploration of GPT-Live-native web search as issue #151. Retain the existing corrected HA search route now; do not change or explore the backend in this delivery.
+
+
+### 14/10 - active nonruntime repair: deterministic SDK fixtures and missing-version recovery
+
+Merged runtime35a and current main58c have identical entire add-on trees; main58c full CI passed but public registry version2.0.22 remained404 after the first publication was blocked. Move all seven incidental heavy fake SDK allocations outside timed startup in six test files. Keep actual factory admission/generation labels,0.2/2-second deadlines, ten cycles, stale/failed startup cases and cleanup unchanged. All21 affected sibling cases pass;20 unchanged Native/Talk cycles retained. Independent attention_ci_review whole-AST/source GO; no production or firmware changes.
+
+The existing main publisher now inspects the current configured version after all full checks. Missing manifest/exact image is published once; existing tags without packaging changes skip, packaging/manual collisions fail immutable, and authentication/helper/network errors fail closed. QEMU precedes Buildx; source SHA labels, build args, package permissions, concurrency and PR ARM-build stay unchanged. Thirteen focused actual-shell/original workflow cases and static checks pass; independent final publisher GO. No new helpers, dependencies, workflow or provider calls. The earlier runtime coupling record is preserved above as merged historical evidence; this repair has no production delta and requires no new runtime coupling. One combined repair PR/green main artifact/install; physical Voice PE acceptance remains open, goal ACTIVE. Native-web exploration remains parked in151.

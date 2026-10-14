@@ -346,9 +346,12 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
     session, _, flag, tools, _ = build(device=link)
     sdks, retired = [], []
     clock = AdvancingClock()
+    # Building inert SDK/AsyncMock peers is fixture setup, not provider startup.
+    # Each admitted factory still selects one fresh peer under unchanged deadlines.
+    peers = [CycleWireSDK(webrtc=not native) for _ in range(10)]
 
     def factory(**kwargs):
-        sdk = CycleWireSDK(webrtc=not native)
+        sdk = peers[len(sdks)]
         if native:
             sdk.tail_event = audio(f"terminal-tail-{len(sdks) + 1}")
         else:

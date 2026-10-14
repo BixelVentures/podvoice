@@ -257,6 +257,8 @@ async def test_actual_main_talk_persists_private_only_metadata_without_adopting_
     monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
     _preferences(path, True)
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
+        peers = [CycleWireSDK(webrtc=True) for _ in range(2)]
+
         native = actual.sessions["kitchen"]
         await native.wake()
         recorder = native.audio_trace
@@ -269,7 +271,7 @@ async def test_actual_main_talk_persists_private_only_metadata_without_adopting_
         session.live_brain.provider_budget = ProviderBudgetCoordinator()
 
         def factory(**kwargs):
-            sdk = CycleWireSDK(webrtc=True)
+            sdk = peers[len(sdks)]
             sdk.allow_exit.set()
             wire.sdk = sdk
             sdks.append(sdk)
