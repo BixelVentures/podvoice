@@ -58,7 +58,6 @@ class Config:
     wake_word: str = "okay_nabu"  # device wake model, re-asserted on every connect
     idle_timeout_s: int = 4  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
-    engine: str = "thin"  # canonical PodVoice lifecycle; classic is legacy only
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
     speaker_path: str = "announce"  # announce (proven) | auto | direct — see 1.11.1
     panel_lan_open: bool = False  # True = allow direct LAN access to the panel (unauth'd)
@@ -72,7 +71,6 @@ class Config:
     vad_threshold: float = C.VAD_THRESHOLD
     settings_error: str = ""
     settings_source_untrusted: bool = False
-    live_alpha: bool = True
     settings_path: pathlib.Path | None = None
 
     @property
@@ -159,7 +157,6 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         else "",
         settings_error=settings_error,
         settings_source_untrusted=settings_source_untrusted,
-        live_alpha=True,  # compatibility field; saved OFF no longer selects a provider
         settings_path=settings_path,
         ha_mcp_url=str(opts.get("ha_mcp_url", "") or ""),
         ha_mcp_token=str(opts.get("ha_mcp_token", "") or ""),
@@ -181,9 +178,6 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         wake_word=load_wake_word(opts.get("wake_word")),
         idle_timeout_s=max(_int(opts, "idle_timeout_s", 4), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
-        # One production engine. Keeping a saved legacy value must never resurrect the
-        # parallel classic lifecycle after an upgrade.
-        engine="thin",
         # Thin engine ALWAYS streams the reply: waiting for full generation before the
         # first byte was 1-4s of pure self-inflicted latency per reply. The smoothed
         # streaming path (prebuffer + silence-fill) is the delivery for thin; classic

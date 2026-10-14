@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY gatekeeper/ ./gatekeeper/
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
+RUN python -c "import gatekeeper.__main__, gatekeeper.thin, gatekeeper.openai_live, gatekeeper.talk, gatekeeper.audio_trace, gatekeeper.audio_analysis, gatekeeper.eval_harness"
 # Bind every physical trace to the actual completed image payload, including the
 # base image, Python runtime, installed wheels and FLAC binary. Volatile runtime
 # mounts are excluded by the deterministic builder.

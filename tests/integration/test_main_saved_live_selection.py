@@ -53,7 +53,7 @@ async def test_actual_run_retains_verified_selection_across_fault_and_restores_n
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         session = actual.sessions["kitchen"]
         selected = session.live_enabled
-        assert actual.cfg.live_alpha is True and actual.cfg.settings_path == path
+        assert actual.cfg.settings_path == path
         assert all(s.live_enabled is selected for s in actual.sessions.values())
         for kind in ("corrupt", "future", "nonfinite", "missing"):
             path.write_text(json.dumps(original))
@@ -138,7 +138,7 @@ async def test_actual_committed_save_updates_selection_before_fault_and_first_wa
         async with asyncio.timeout(20):
             await session.wake()
         assert session._active and session.live_alpha is True
-        assert actual.cfg.live_alpha is True  # boot snapshot stays immutable
+        assert selected() is True  # boot's production provider stays fixed
         assert not actual.forbidden
 
 
@@ -171,7 +171,7 @@ async def test_actual_config_to_run_fault_keeps_same_snapshot_and_absolute_addre
         await prepare(enabled)
 
     async def fault_after_config(cfg):
-        assert cfg.settings_path == path and cfg.live_alpha is True
+        assert cfg.settings_path == path
         _fault(path, "corrupt")
         monkeypatch.setenv("PODVOICE_SETTINGS", str(other))
         await run(cfg)
@@ -205,7 +205,7 @@ async def test_actual_config_to_run_fault_keeps_same_snapshot_and_absolute_addre
     monkeypatch.setenv("PODVOICE_SETTINGS", str(other))
     _preferences(other, initial_live)
     async with _actual_main_app(monkeypatch, tmp_path / "other-boot", options) as actual:
-        assert actual.cfg.settings_path == other and actual.cfg.live_alpha is True
+        assert actual.cfg.settings_path == other
         assert actual.sessions["kitchen"].live_enabled() is True
 
 
@@ -232,7 +232,7 @@ async def test_actual_missing_empty_and_known_room_fault_have_distinct_selection
         assert selected() is True  # bad room rows do not redefine a valid preference
     # A fresh run still admits no physical room owner from those known-invalid rows.
     async with _actual_main_app(monkeypatch, tmp_path / "room-fault", options) as actual:
-        assert not actual.sessions and actual.cfg.live_alpha is True
+        assert not actual.sessions
         assert callable(actual.app[TALK])
 
 

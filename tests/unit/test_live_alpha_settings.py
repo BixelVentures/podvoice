@@ -145,9 +145,8 @@ def test_config_selection_and_address_share_one_boot_read(tmp_path, monkeypatch,
     cfg = load_config(options)
     assert calls == [path]
     assert cfg.settings_path == path and cfg.settings_path.is_absolute()
-    assert cfg.live_alpha is True
     monkeypatch.setenv("PODVOICE_SETTINGS", str(tmp_path / "other.json"))
-    assert cfg.settings_path == path and cfg.live_alpha is True
+    assert cfg.settings_path == path
 
 
 def test_postboot_presence_uses_same_source_read_and_preserves_initial_missing_policy(
@@ -178,7 +177,6 @@ def test_postboot_presence_uses_same_source_read_and_preserves_initial_missing_p
 def test_single_provider_migration_is_read_only_preserves_values_and_exact_rollback(
     tmp_path, legacy_mode
 ):
-    from gatekeeper.config import from_options
 
     path = tmp_path / "settings.json"
     legacy = {
@@ -202,7 +200,6 @@ def test_single_provider_migration_is_read_only_preserves_values_and_exact_rollb
     assert loaded["live_alpha"] is True and loaded["engine"] == "thin"
     for key in legacy.keys() - {"live_alpha", "engine"}:
         assert loaded[key] == legacy[key]  # no tuning, voice, room, secret or prompt migration
-    assert from_options(legacy).live_alpha is True  # raw config cannot restore OFF either
     saved = settings.save_settings({"live_alpha": False, "duck_level": 9}, path)
     assert saved["live_alpha"] is True and saved["duck_level"] == 9
     for key in legacy.keys() - {"live_alpha", "engine"}:

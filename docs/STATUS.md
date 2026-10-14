@@ -1,14 +1,20 @@
-# Aktuel status · 14. oktober 2026
+# Aktuel status · 15. oktober 2026
 
-**Lead:** root. Det brede produktmål er fortsat **PAUSET**. Denne fil viser aktuel baseline
+**Lead:** root. Brugeren har **aktiveret nattens softwaremål**; fysisk accept afventer morgenprøven. Denne fil viser aktuel baseline
 og aktive beslutninger. Ældre forløb er bevaret i det
 [historiske statusarkiv](archive/STATUS-2026-10-14-pre-157.md); det er ikke aktuel evidens.
 
 ## Installeret baseline
 
-- **HA Green:** PodVoice **2.0.25** er ifølge den aktuelle parent-installationskvittering installeret og Kører. Udgivet main er `ae9df631f90ff9ed0288be824ed957aec95e01f9`; native integration0.1.1 og PodConnectControl0.10.9 er efter Core-genstart verificeret i UI, og begge native timerendpoints var tomme. Det beviser ikke fysisk audio-/handlingsaccept.
-- **Udgivelse:** PR #155 er merged; PR-CI `38618596539` og main-CI `38619741156` var grønne.
-  Det er en testudgivelse, ikke produkt- eller lifecycleaccept.
+- **HA Green:** PodVoice **2.0.25** med GPT-Live kører. Installeret via den normale
+  HA-opdatering og frisk opstart matcher `ae9df631f90ff9ed0288be824ed957aec95e01f9`;
+  artifact `rootfs-v1:8feaac42b465d326864996b5175014d5f3b760c35278ef167280b65badd2b25c`.
+  HA/MCP er forbundet; Voice PE er forbundet med firmwarekontrakt og valgt wake-model
+  bekræftet. Firmware er `podvoice_build_113114_livetimeroutput1`. Det beviser
+  konfiguration/forbindelse, ikke fysisk wake eller lyd.
+- **Udgivelse:** PR #158 er merged som `ae9df63`; PR-CI `38632352933` og
+  main-CI/publisher `38633846409` bestod. Det er en testudgivelse, ikke produkt-
+  eller lifecycleaccept.
 - **Kendt fejl:** streng stilhedsprøve fejler stadig på ét sekund uidentificeret lyd før
   timerresultatet. Issue #153 står åbent; fuldt fjernet fyld eller hurtigere lukning er
   ikke bevist.
@@ -16,6 +22,189 @@ og aktive beslutninger. Ældre forløb er bevaret i det
   latency og stabilitet afventer én samlet prøve. Åbne installerede/afventende issues:
   #153, #118, #110, #103, #124 og #107. Aktuel baseline har ikke bevist ny golden chain
   eller 10/10 fysisk lifecycle.
+
+## Aktiv installation · HA timerintegration 0.1.1
+
+2.0.25 er installeret og startup-identiteten verificeret. Efter frisk læsning af den
+anden chats aktive native-installation beholdes deres ejerskab af Core-genstarten.
+Root udfører ingen yderligere native-filændringer eller genstarter under det forløb.
+Før genstart returnerede begge endpoints ok med tomme timer-/alarmkøer og uden
+recent-felt. Efter den anden operatørs Core-genstart er r0 og talk læst igen via
+HA-handlingen: begge ok, timers=[], finished=[] og recent til stede. Det beviser
+aktiveret 0.1.1-protokol; ingen timer eller alarm blev startet eller afbrudt.
+Den eksisterende faste installer /homeassistant/.podview-native-installer-172ecb1b.py
+skal hashmatche 172ecb1b744cd17377ded20d0db4a8d417951dfe3625e84cd7db941b49a728e3 og
+må kun hente de fem reviewede filer fra immutable ae9df63. Den opretter privat
+backup og stopper/rollbacker ved uventede filer/hashes eller concurrent writer.
+Rootens installerforsøg blev afvist før ændring, fordi de nye filer allerede var
+installeret af den anden operatør. Frisk read-only læsning bekræfter version 0.1.1 og
+alle fem forventede NEW-hashes. Den anden chat har grønt konfigurationstjek og ejer nu
+den samlede Core-genstart/PodConnect-aktivering. De friske endpoint-svar ovenfor er
+rootens efterkontrol af den indlæste timerprotokol; fysisk alarm/Stop afventer morgen.
+
+## Aktiv beslutning · nattens softwaremål / #156
+
+**Lead:** root. Brugeren har genoptaget arbejde og godkendt nødvendige installs,
+udgivelser og genstarter. Fysisk prøve foretages af brugeren i morgen. Prioritet:
+daglig brug → én samlet fysisk serie → afgrænset #156-oprydning → målte CI-ventetider.
+PR #158 er merged som ae9df63 og 2.0.25 kører på Green som registreret ovenfor.
+Nattens branch er genbaseret på den main. PodView-chatten ejer næste UI-udgivelse
+2.0.26; oprydningen forberedes isoleret uden konkurrerende version eller genstart.
+
+**Direkte evidens og afgrænsning:** 2.0.24 har allerede rettelser til typed musikmål,
+HA-ejede timere og native lukning; frisk read-only ejerreview fandt ingen ny
+kildebevist fejl i disse kæder. Fysisk musikflytning, timeralarm/Stop og nyt wake er
+stadig ukendt på denne kandidat. #153 har ikke bevist betydningen af den korte
+provider-PCM; det begrunder ingen ny prompt-/lydtuning.
+
+**#156-hypotese:** Config spejler engine/live_alpha, selv om load/from_options og
+begge builders allerede vælger Thin/GPT-Live ubetinget. Ingen produktionslæsere af
+netop disse Config-felter er fundet. Fjernelse af de to ubrugte spejle skal bevare
+samme options → settings/migration → builder → ThinSession → native/Talk → fysisk
+playback → teardown/rearm-kæde. Gemte settings/migration og aktive samtaler ændres ikke.
+Seneste PodView-main ae9df63 og dens Config.podview_control_policy er bevaret.
+Invarianter: én samtaleejer, én GPT-Live-vej, samme native/Talk-kontrakt og nul
+skjulte engineskift. Ikke-mål: reply_streaming, prompt, VAD, lyd, timeouts, legacy-
+massefjerning eller en ny abstraction.
+
+**Anden afgrænset #156-bid:** Docker kopierer stadig hele gatekeeper-pakken, selv om
+orchestrator/state/gatekeeper/watchdog kun bruges af historiske regressioner. En frisk
+AST-gennemgang af øvrige runtime-moduler finder ingen imports af disse fire ejere.
+Hypotese: de kan udelades fra den faktiske image-kontekst, mens kilder og historiske
+tests bevares i repoet. Kun fire .dockerignore-mønstre og et import-check af den
+faktisk pakkede __main__ samt dens lazy startup-moduler i den eksisterende
+ARM-build tillades. Ingen Realtime-
+adapter, direct-PCM-helper, settings/migration eller historisk regression slettes.
+Kontrol: entrypoint, Thin, GPT-Live, Talk og de lazy trace/analyse/eval-moduler
+importeres fra det pakkede image uden at kalde main eller starte forbindelser.
+Første review afviste entrypoint-importen alene, fordi den ikke nåede lazy startup-
+imports; samme ene build-kommando er udvidet til de konkrete moduler. Uafhængigt
+review og officiel ARM-build stopper ved dependencyfejl; dynamiske runtimekald
+og fysisk funktion bevises ikke af importkontrollen.
+Dette er package-oprydning, ikke ny samtalelogik eller en ekstra testsuite.
+Endeligt uafhængigt SOURCE review: night_product_chain GO på de to packagingfiler
+og afgrænset importclaim. ARM-build bestod senere i de registrerede officielle
+kontroller; endelig release af oprydningen er fortsat ikke udført.
+Dockerfile SHA-256 94b320b4ecacff5ae278fdc1745013a1bc9c0d3781342c5f45cd30eb48cec8c3;
+.dockerignore SHA-256 6496394485ba30d8eafdf1d333d1cb828f02d4c3d7c77076dd06d7a45c484b46.
+
+**Planlagte kontroller:** følg Config-signaturen gennem alle constructors/fixtures;
+relevante eksisterende config/settings/main-regressioner og statiske checks én gang;
+uafhængigt adversarial review, exact-tree/scope og officiel CI på frosset samlet diff.
+Rollback-grænse: hele dette afgrænsede ændringssæt; installeret baseline arver ingen
+fysisk accept. CI-optimering må kun føjes til ved konkret dokumenteret ventetid og
+skal bevare causal ordering, timeout/error, teardown og stale-generation-bevis.
+
+**Prøven 15. oktober (plan, ikke resultat):** én samlet serie på ca. 5–10 minutter. Før start
+registreres installeret version, git/artifact og firmware; de skal være uændrede ved
+slutningen. Baselineparret ovenfor er 2.0.25/livetimeroutput1, indtil næste samlede
+udgivelse faktisk er installeret. Begge HomePods, der skal bruges til flytning, skal
+være online; brugeren skal kun høre/rapportere, lead følger eksisterende log/trace.
+
+1. Start musik fra Spotify på mobilen og vælg den første HomePod. Bekræft faktisk lyd.
+2. Sig “Hey Chat, hvad er klokken?”, vent på hele svaret, og spørg “Og hvilken ugedag
+   er det?”. Sig derefter “Tak, det var det”. Hør begge svar/farvel; bemærk gentaget
+   “Modtaget”, gul/rød ventetid, og om musikken bliver dæmpet og vender tilbage.
+3. Efter lukning: nyt “Hey Chat, flyt musikken til [det andet tilgængelige rum]”.
+   Bekræft lyd fra den ønskede højttaler og afslut samtalen. Tavshed, tidslinje eller
+   API-success tæller ikke som musikflytning.
+4. Nyt wake: “Sæt en timer på ti sekunder”, afslut samtalen og vent på faktisk alarm.
+   Sig “Stop”; hvis det ikke virker, tryk én gang på pucken og registrér stemme-Stop
+   som fejl. Derefter nyt wake og et kort spørgsmål for at kontrollere rearm.
+
+Lead samler første udfald/version/trace i denne post og retter konkrete fejl samlet.
+Serien er daglig-brug-triage; den erstatter ikke 10/10 ubrudt fysisk lifecycle,
+lydoptaget latency eller de øvrige fulde gates i PRODUKTMÅL.
+
+**Afgrænset CI-forkortelse under vurdering:** Den nye tidsrapport bekræfter, at
+Talk-ti-cyklusprøvens 60 s kontrollerer shippet close-grace og ikke må komprimeres.
+Lead undersøger kun GitHubs eksisterende job-matrix: unit-tests på én runner og
+resten via default discovery med --ignore=tests/unit på en anden. Separate GitHub-
+VM'er ejer deres processer; den kasserede lokale processtyring genindføres ikke.
+Hypotese: uændrede testcases/tidsgrænser kan overlappe, hvis cohorternes node-union
+matcher fuld collection præcist og ingen globale fixture-/filafhængigheder findes.
+Invarianter: alle tests, statics og browser/build før publish, fail-fast=false,
+fuld main/publishergate og uændret produkttid. Ikke-mål: nyt framework, ny cache,
+nyt lokalt runnerlag eller mindre assertions. Før ændring kræves afgrænset source-
+review; derefter mekanisk collection-union og eksisterende CI/release-kontrakter.
+Ved uafklaret coverage/ejerskab forkastes dette lille forslag. Uafhængigt source-
+proposal GO foreligger. Faktisk collection giver fuld 5.086, unit 3.864 og rest 1.222;
+unionen er præcis/disjoint, uden mangler, ekstra eller dubletter. Sorteret fuld node-
+SHA256 d31c50e469709753920e0588a9ae86f0639d2a005571efc83d6620feabbf93d8.
+Main har ingen required-check-navne eller aktive rulesets. Kun den eksisterende lint-
+test-jobdefinition ændres: tooling-only får fortsat én unit-række, produkt får unit
+og rest på separate VM'er; statics kører én gang. Publisherens needs/guards er uændrede.
+38/38 eksisterende release-/CI-scope-tests samt formatter/lint/mypy (66 moduler)
+bestod på 2,4 s. Endeligt uafhængigt workflow SOURCE GO: night_product_chain,
+workflow SHA256 92c78ce41a0b8d8cfb58d8fd0bf840748cc79fa7b8664a598b689452c5c0f3b4.
+Der er endnu ingen målt matrixhastighed eller faktisk matrix-CI-PASS.
+
+**Tidligere CI-beslutning (udvides af job-isoleringen ovenfor):** tre eksisterende brede CI-logs viser pytest 472–481 sekunder;
+Ruff <1 sekund og mypy ca. 15–17 sekunder. Brugeren har nedtonet CI-sporet. Kun
+--durations=15 --durations-min=1 føjes til den eksisterende fulde pytest-kommando,
+så næste nødvendige CI kan navngive ventetiderne. Ingen ekstra suite eller framework.
+Et forsøg med to direkte pytest-processer blev kasseret før freeze: uafhængigt review
+fandt risiko for detached testbørn ved failfast. Default discovery, cleanup,
+job/publish-afhængigheder og produkttimeouts er derfor uændrede.
+
+**Officiel draftkontrol:** PR #160 / head 5ee80c01dec2cf7888d516bae8974f9915a1bd65,
+tree 262d0bbbe6dff2c09efce5a26d9527012cd1e549. CI 38640361087 fejlede i en
+uændret PodView-test: test_expiry_config_change_and_capacity_are_bounded sætter
+issued_at=0, som er gyldigt ved runner-uptime under tokenens 120 sekunder. Faktisk
+ok=True er dermed foreneligt med produktreglen, ikke en påvist runtimefejl. Samme
+DeviceControl/test bytes som main ae9df63; kildeårsagen er uafhængigt reviewet af
+night_product_chain. Mindste test-only rettelse bruger cap.issued_at-121 som den
+allerede eksisterende voice-expiry-test. No-write-, kapacitets- og config-toggle-
+assertions bevares; ingen produkttimeout ændres. Det berørte testmodul bestod
+10/10, formatter/lint og mypy (66 moduler) PASS, fast i alt 1,2 s. Original CI
+forbliver FAIL. Den rettede public commit 6eb87a752dacc3430b59ddf1f86d6a3aa95ab121
+bestod hele CI 38641756028: scope, lint/test, browser og ARM. Pytest tog ca. 555,6 s;
+Talks 60,53 s og øvrige validerede timeoutgrænser bevares. Det er source/build-
+godkendelse af oprydningen, ikke ny release/installation eller fysisk accept.
+
+Scope, browser og ARM-imagebuild bestod. Den pakkede importkommando bestod og nåede
+build_identity/export. Disse uændrede kilde/buildresultater bevares; den ændrede test
+og dens formatter/lint kontrolleres særskilt før nyt exact-head CI. Ingen manuel
+CI-genkørsel på gamle bits. Den brede pytest tog ca. 466,5 s; langsomste case var
+Talks faktiske SDK-ti-cyklusprøve på 60,25 s (10 × shippet 6 s close-grace), native
+13,49 s og MCP discovery-deadline 10,03 s. Uafhængig gennemgang fandt ingen sikker
+forkortelse af den dominerende Talksventetid; der tilføjes intet nyt framework.
+
+**Aktuelt / 2.0.27-beslutning:** den reviewede oprydning og den grønne CI-matrix
+samles oven på merged PodView2.0.26. Configs nye podview_visual_policy og
+podview_control_policy, Supervisor-only indlæsning, alle UI-assets og AI-grænser
+bevares. Kun de oprindeligt reviewede ubrugte engine/live_alpha-spejle fjernes.
+PR160 på 312ea881 bestod CI38643540645 fuldt: unit/rest, browser og ARM. Pytest-
+kritisk vej var 266,4s mod555,6s i serial reference, ca.52% kortere; hele CI299s.
+Det er én sammenlignelig observation, ikke et løfte om fremtidig kø-/runnertid.
+Rebase/versionering er afgrænset source-reviewet af night_product_chain: alle
+PodView26 UI/server/scopepolicy-bytes er uændrede fra7efe8cb bortset fra det allerede
+reviewede Config-diff og ren versionsmetadata. Prod-manifest SHA256 (rækkefølge:
+.dockerignore,Dockerfile,config.yaml,__init__.py,config.py):
+704d0de0983e17ab49f84ad903a7042da48df26f8f5cc6168c6fb511a7be6c95.
+Config SHA256 d52de19fb1bd451733d9d0d2ed1ee2fe469c241453efecb565d2e3f1944476f5;
+workflow92c78ce41a0b8d8cfb58d8fd0bf840748cc79fa7b8664a598b689452c5c0f3b4.
+Efter rebase bestod67/67 berørte Config/main/Supervisor-authority/versioncases,
+formatter/lint og mypy66; fast2,4s. Ny collection:5.149=3.923unit+1.226rest,
+eksakt disjoint uden mangler/ekstra; SHA256
+1fd8cf71ec5907bf0f5d8c3cf89a290cca34259b358295f7980799a9c650d4c6.
+Nyt exact-head CI kræves på27. Publicering/installation afventer grøn mainartifact;
+fysisk accept arves ikke.
+PodView2.0.26 er merged som 7efe8cbd7fbcfd506fd2162f428945f751e8f6cb. Nattens
+ændringer genbaseres på præcis den main; den publicering færdiggøres først. Næste
+oprydningsrelease planlægges som 2.0.27, uden ændring af PodViews godkendte policy.
+Ingen ændringer i seneste PodView-assets eller nye timerkontrakter. Tre afgrænsede agentgennemgange er udført parallelt. De to ubrugte
+Config-spejle er fjernet og fire eksisterende testfiler tilpasset; gemte settings og
+builders er uændrede. Første statiske check fandt én ubrugt testimport; den blev
+fjernet før de endnu ukørte tests. Fokuseret fast-gate: 63/63 PASS, formatter/lint
+PASS, mypy PASS (59 moduler), samlet 3,1 s. Efter genbasering på PodView-main bestod
+64/64 relevante config/main/release-cases samt formatter/lint og mypy (66 moduler),
+samlet 2,8 s. Uafhængigt SOURCE review: night_product_chain GO på alle seks
+kode-/test-/workflowfiler; ingen dynamiske Config-læsere, constructors, settings-
+migration eller native/Talk-ejerskab blev ændret. Kandidaten er endnu ikke frosset:
+aktuel main efter PR #158 skal indgå i scope/binding, officiel CI og versionering. Ingen
+providerprøve eller fysisk accept er udført af oprydningskandidaten. Baseline 2.0.25
+er installeret; oprydningen er endnu ikke udgivet eller installeret.
 
 ## Aktiv beslutning · #157 udviklingsflow og agentdokumentation
 
@@ -59,62 +248,12 @@ acceptkrav svækkes.
 - Runtime/provider/fysisk gates: ikke ændret eller kørt af docsarbejdet; baselineaccept
   står som ovenfor.
 
+## Bevaret integrationsbaseline · PodView2.0.26 / PR161
 
-## Aktiv beslutning · PodView2.0.25 / PR158
-
-PodView companion source is independently reviewed against published2.0.24 and preserves its native timer/provider result fixes. Frozen2107 assets:99 files, manifest SHA256 aeb40dd478ee3256da1977d8f92e12437bae5b1b0c0bfe5497aa63ea02069077;138 packaged UI tests passed. Explicitly authorized room-scoped pairing/controls, passive home/media/weather, accepted cleaning/timer histories and source-bound tool-result cards retain existing owners; lights, new-play selection, configured-alias music transport and artwork remain unavailable. No installation or physical acceptance is claimed.
-
-Official CI38626897327 failed release metadata and a synthetic native quiet-clock fixture; browser, ARM64, Ruff/format and mypy passed. The independently reviewed correction changes pyproject version to25 and test clock arithmetic/contiguous sample coverage only;15 release-contract plus3 causal native cases passed. Exact repaired tree7f70826d0e69dec31a4a03b29c9087e37182ccff was published as701571a (same entire tree as approved f081ded). Original failed CI remains failed.
-
-Main subsequently advanced to18b3eb9 via reviewed #157 tooling/docs work. Independent bounded current-main review GO: the staged reconciliation keeps every new-main AGENTS, workflow, CI-scope, release-contract and other non-STATUS path byte-identical to18b3; its only additional paths are this STATUS resolution and [the candidate archive](archive/PODVIEW-2.0.25-CANDIDATE.md). The main historical archive exactly matches prior d1bb25c STATUS (SHA-256 d3817644c0a7e079057bbc5cce37925fa147fe954cfa4cdc6e21e57bda0cd1ad); the candidate archive preserves all165 candidate-added lines, with only its former active scope marker renamed historical. The approved701571a production, config, candidate-scope policy and packaged UI bytes remain unchanged. New `ci_scope.tooling_only` returns false for all99 candidate paths, including runtime/config/scope policy, so the composed PR requires full official CI. The active record below binds current main18b3 and the full effective source/test trees. Prior failed CI remains failed; no release, installation or physical claim follows.
-
-<!-- historical-candidate-scope-coupling
-{
-  "version": 2,
-  "kind": "podview_scoped_companion",
-  "base_tip": "18b3eb9d9dcd94266dc13f1775387bb97beafe4f",
-  "merge_base": "18b3eb9d9dcd94266dc13f1775387bb97beafe4f",
-  "domains": ["ha_tools", "physical_output"],
-  "fingerprint": "85893530fa1ad5cff8ade3d29e17be1b64a38b875dfd837d75c4767ddf0c55a1",
-  "regression_fingerprint": "9aaec29bd7bfa0d77712238f38555327eca47b46e690207b9fda981b15837d22",
-  "policy_fingerprint": "febbac99ad449daf0823cdf2eeee6f881998b6014b8cd2ad332c4da0413cc8a5",
-  "config_fingerprint": "bc00286851e6dcab70b12b4e6ceb0bfba871cdf0af097bcd66205c629cc1f38c",
-  "reviewer": "composed_final_ultra — independent whole-candidate review plus bounded CI and current-main continuations",
-  "rationale": "Whole-candidate high-risk source review against published b9c934 remains valid. The reviewed CI repair changed only 2.0.25 project metadata and native ten-cycle fixture evidence. The new 18b3 main changes docs, agent contract, workflow, CI-scope and release-contract tests, and the staged reconciliation keeps every new-main file except STATUS byte-identical; candidate decisions are preserved in a historical archive. Approved 701571a production, Supervisor config, candidate-scope policy and packaged UI bytes remain unchanged. New CI-scope policy selects full CI for the effective PodView runtime/config/scope diff. Scoped touch mutations retain explicit pairing, server-owned single-use offers and existing HA or PodConnect owners; possible-send failures remain terminal unknown. Native timer history is Core-lifetime only; display receipts cannot alter voice ACK, result, cleanup or rearm. This record is source admission only; official final-head CI, publication, installation and physical PodView gates remain separate."
-}
--->
-
-
-## Aktiv beslutning · PodView26 AI visual value (planned build)
-
-Lead: root; implementation: podvoice_bridge. Actual released base is ae9df631f90ff9ed0288be824ed957aec95e01f9 (2.0.25). Source inspection found the optional Responses selector unused and weather displaySuggested derived from fact count. The causal hypothesis is that wiring an optional, bounded AI selection to the existing completed-tool receipt owner removes local semantic selection without changing the conversation/provider/tool ACK chain. Every existing fact and source remains server-owned; only show/known fact IDs may be selected.
-
-Scope: receipt owner, optional selector/admission, Supervisor-only opt-in configuration and startup wiring. No ThinSession, provider adapter, speech prompt, tools schema, lifecycle, hardware or home mutations. Speech never awaits selection. All cards default to not suggested; late/failed/refused/unknown replies remain invisible. Exact room/owner/session/epoch/turn/provider/task/revision and expiry fences remain authoritative. One optional request at a time, no retries, bounded input/output, persistent finite request budget and diagnostic mutual exclusion. The user explicitly approved the bounded first AI step: GPT-6 Luna, maximum20 prepaid total calls,4096 request bytes,256 output tokens, no retries/refill, using the existing server credential. Supervisor default remains empty; activation is a separate installation step. No paid request was made in implementation/tests.
-
-Planned regression: positive/decline ID selection, invented IDs/URLs/refusal/malformed/oversize outputs, stale turn and cancellation-resistant replies, expiry/close, duplicate receipt, persistent exhausted/malformed budget, diagnostic exclusion and nonblocking voice admission. Existing native/OpenAI tool receipt hooks stay byte-identical. Independent adversarial review and exact final composed source/UI CI precede release. No physical acceptance claim; rollback is 2.0.25 and empty optional policy.
-
-Actual26 preparation: frozen parent UI source captured byte-identically before subsequent work;103 packaged runtime assets, manifest SHA256 `9a0e5fec77c5c8db973c6927331d59b7cdba2ae20684e468c110d5a90db34be3`. All154 packaged Node tests passed. Focused AI/receipt/config/bridge tests, Ruff/format and mypy66 modules passed after bounded review repairs. The prior25 scope profile correctly rejects this narrower follow-on. The separate visual-selection admission profile was independently reviewed, corrected for whole-repository inventory and exact startup/config placement, and applied under existing implementation authorization. All old profile functions remain unchanged;29 new policy cases,2 affected final cases and33 compatibility cases passed. Whole-candidate fresh Ultra review GO binds staged tree e42a9029efe955f48b94f9173808bfd580ce3946. Official CI is not yet completed. Research/tool-search enrichment, new music selection, alias transport, artwork and physical acceptance are not implemented by this slice.
-
-
-Final source review found one blocker: model decline controlled auto-open but still exported receipts into manual history. The receipt owner now exports only AI-admitted items and refuses source lookup for pending/declined IDs.62 affected receipt/selector/actual ingress and Voice PE/Talk/live hook tests passed, plus Ruff/format/mypy66. The same independent Ultra reviewer confirmed the bounded correction and returned GO for exact staged source tree `e42a9029efe955f48b94f9173808bfd580ce3946`; only this STATUS evidence/binding is added afterward. No additional runtime/UI/source policy change follows that review. The broad old-policy rerun was interrupted after80 passing cases and is explicitly not a full-suite result; official final-head CI remains required. No paid provider request or26 installation occurred during source work.
-
-<!-- candidate-scope-coupling
-{
-  "version": 2,
-  "kind": "podview_visual_selection",
-  "base_tip": "ae9df631f90ff9ed0288be824ed957aec95e01f9",
-  "merge_base": "ae9df631f90ff9ed0288be824ed957aec95e01f9",
-  "domains": [
-    "ha_tools",
-    "physical_output",
-    "realtime_semantics",
-    "rearm"
-  ],
-  "fingerprint": "e2b23d54c180188a951b8df2899d4c0e798f9e4e9213bd433569da7c893f8591",
-  "regression_fingerprint": "2210e343d5b47c4efc59d27a4d678949fd39464d98508b94765c8f988144e52d",
-  "policy_fingerprint": "e7d62c562c3da994e9e4879ea16be919d4314b793c65b391414b5296d217205b",
-  "config_fingerprint": "7ddde9950aa613f689053b4751a35bf0c7b0f8a70df409cc019854c099041ba0",
-  "reviewer": "visual26_final_ultra \u2014 independent fresh Ultra whole-candidate review and bounded visual-admission continuation",
-  "rationale": "Independent source GO on staged tree e42a9029efe955f48b94f9173808bfd580ce3946 against released ae9df. Only five server files change: startup-only optional selector setup, Supervisor-only empty-default policy, truthful visual capability/awaited receipt cleanup, bounded fixed-model selection and receipt owner admission. ThinSession, provider adapters, provider budget, tool ACK, native/device owners and build/workflows remain byte-identical. The separate admission profile preserves all existing profiles, inventories every repository path, anchors startup/config AST changes and binds source/test/policy/config fingerprints. Frozen parent UI103 assets manifest9a0e5fec77c5c8db973c6927331d59b7cdba2ae20684e468c110d5a90db34be3 passed154 packaged tests. AI selects only known facts; pending/declined/stale sources are not exported. Finite prepaid startup allowance, exact current-owner/revision/source-expiry fences and no-retry behavior are reviewed. This is source admission only; official CI, immutable release/image, installation, provider and physical acceptance remain separate."
-}
--->
+Main `7efe8cbd7fbcfd506fd2162f428945f751e8f6cb` bevarer hele den reviewede26-
+leverance. PR-CI `38643032300` bestod; main/publisher `38644287035` var ved seneste
+læsning i gang. Root ændrer hverken den anden chats arbejdsbranch, dens ufærdige
+musik-/robotarbejde eller den godkendte20-kaldspolicy. Komplet pre-freeze-beslutning,
+Ultra-review og exact-tree-binding er bevaret i [baseline-STATUS](https://github.com/BixelVentures/podvoice/blob/7efe8cbd7fbcfd506fd2162f428945f751e8f6cb/docs/STATUS.md).
+Ingen26-installation eller aktivering udledes af merge/CI. Ovenstående installerede
+baseline opdateres først ved faktisk HA-readback.

@@ -1,3 +1,17 @@
+## 2.0.27 - smaller runtime package and faster development checks
+
+- Preserve the complete merged PodView2.0.26 UI and its separately bounded, opt-in visual selection policy.
+- Remove unused Config engine/live-alpha mirrors. Saved settings, migration, GPT-Live, native/Talk and physical audio owners are unchanged.
+- Exclude four retired classic runtime modules from the image while retaining source and historical regressions. Check packaged entrypoint and lazy startup imports during the existing ARM build.
+- Run the same complete pytest collection on isolated unit/remainder CI runners. One measured run reduced the pytest critical path from555.6s to266.4s; physical response time is unchanged. Correct a boot-age-dependent expiry fixture without changing production timeouts.
+- Physical alarm/Stop, voice music transfer, semantic close and next wake still require the combined room test. The earlier unidentified pre-result audio remains unresolved.
+
+## 2.0.26 - bounded PodView visual selection and touch refinements
+
+- Preserve source-owned facts and let the separately configured, finite GPT-6 Luna selector admit only known display content. Empty default, no retries, bounded calls and exact current-owner/source expiry remain enforced.
+- Refine the packaged touch UI, timer notice, weather and robot presentation. This release does not complete artwork, new music selection or active search enrichment.
+- Voice lifecycle, tool acknowledgements and physical acceptance remain separate from display admission.
+
 ## 2.0.25 - candidate: scoped PodView companion controls
 
 - Preserve the published2.0.24 conversation and timer-result changes. Serve the frozen2107 touch UI through existing authenticated Home Assistant ingress.
