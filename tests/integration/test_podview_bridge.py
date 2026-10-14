@@ -141,6 +141,8 @@ async def test_music_facade_is_bounded_cached_and_error_details_redacted():
     session, _ = owner()
     tools = SimpleNamespace(
         declarations=lambda: [{"name": "podconnect_liked"}],
+        podview_music_reads=lambda: ["liked"],
+        podview_music_binding=lambda: (),
         podview_read=AsyncMock(return_value={"ok": False, "error": "Bearer SECRET"}),
     )
     app = create_app(StatusHub(), {"kitchen": session}, tools=tools)
@@ -584,3 +586,188 @@ async def test_native_paused_state_is_preserved_and_unknown_state_denies_control
     assert snapshot["timers"]["items"] == [] and snapshot["capabilities"]["timerActions"] == []
     assert (await bridge.action(envelope(bridge), token))["error"] == "timer_unavailable"
     assert not timers.command.await_count
+
+
+async def test_passive_home_projects_cleaning_without_touching_voice_tickets():
+    from gatekeeper.tools import ToolRouter
+
+    calls = []
+
+    def respond(request):
+        calls.append((request.method, request.url.path))
+        assert request.method == "GET"
+        assert request.url.path.endswith("/states/vacuum.robot")
+        return httpx.Response(
+            200,
+            json={
+                "entity_id": "vacuum.robot",
+                "state": "cleaning",
+                "attributes": {
+                    "friendly_name": "Robot",
+                    "battery_level": 78,
+                    "token": "PRIVATE",
+                    "map": "PRIVATE",
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        tools = ToolRouter(None, supervisor_token="PRIVATE", client=http)
+        tools.configure_device_control(
+            {"extended_device_control": True, "device_control_entities": ["vacuum.robot"]}
+        )
+        voice_ticket = object()
+        tools._device_control._tickets["voice-ticket"] = voice_ticket
+        tools._device_control._starts[("vacuum.robot", ("voice", "turn"))] = True
+        session, _ = owner()
+        app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+        async with TestClient(TestServer(app)) as client:
+            snap = await (await client.get("/view/api/snapshot")).json()
+            assert snap["capabilities"]["homeRead"] == ["vacuum"]
+            first = await (await client.get("/view/api/home")).json()
+            second = await (await client.get("/view/api/home")).json()
+            assert first == second
+            assert first["schema"] == "podview.home.v1"
+            row = first["vacuum"]["items"][0]
+            assert row["state"] == "cleaning" and row["battery"] == 78
+            assert row["actions"] == [] and row["history"]["status"] == "unavailable"
+            assert "PRIVATE" not in json.dumps(first)
+            assert len(calls) == 1
+            assert tools._device_control._tickets == {"voice-ticket": voice_ticket}
+            assert tools._device_control._starts == {("vacuum.robot", ("voice", "turn")): True}
+            assert (
+                await client.get("/view/api/home", headers={"Sec-Fetch-Site": "cross-site"})
+            ).status == 403
+            tools._device_control._token = ""
+            revoked = await (await client.get("/view/api/home")).json()
+            assert revoked["vacuum"] == {"status": "unavailable", "items": []}
+            assert len(calls) == 1
+            tools._device_control._token = "PRIVATE"
+            tools.configure_device_control({"extended_device_control": False})
+            denied = await (await client.get("/view/api/home")).json()
+            assert denied["vacuum"] == {"status": "unavailable", "items": []}
+            assert len(calls) == 1
+
+
+@pytest.mark.parametrize("replace_owner", [False, True])
+async def test_passive_home_rejects_generation_or_owner_change_during_read(replace_owner):
+    from gatekeeper.device_control import DeviceControl
+    from gatekeeper.tools import ToolRouter
+
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def respond(request):
+        entered.set()
+        await release.wait()
+        return httpx.Response(
+            200, json={"entity_id": "vacuum.robot", "state": "cleaning", "attributes": {}}
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        tools = ToolRouter(None, supervisor_token="PRIVATE", client=http)
+        tools.configure_device_control(
+            {"extended_device_control": True, "device_control_entities": ["vacuum.robot"]}
+        )
+        task = asyncio.create_task(tools.podview_home_read())
+        await entered.wait()
+        if replace_owner:
+            tools._device_control = DeviceControl(http, "PRIVATE")
+        else:
+            tools.configure_device_control({"extended_device_control": False})
+        release.set()
+        assert await task == {"status": "unavailable", "items": []}
+
+
+@pytest.mark.parametrize("state", ["unknown", "unavailable", "error"])
+async def test_passive_home_preserves_observed_fault_states_without_inventing_reason(state):
+    from gatekeeper.tools import ToolRouter
+
+    def respond(request):
+        return httpx.Response(
+            200,
+            json={
+                "entity_id": "vacuum.robot",
+                "state": state,
+                "attributes": {"battery_level": True},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+        tools = ToolRouter(None, supervisor_token="PRIVATE", client=http)
+        tools.configure_device_control(
+            {"extended_device_control": True, "device_control_entities": ["vacuum.robot"]}
+        )
+        data = await tools.podview_home_read()
+        assert data["items"][0]["state"] == state
+        assert data["items"][0]["battery"] is None
+        assert "reason" not in data["items"][0]
+
+
+async def test_home_domains_are_independent_and_weather_revocation_clears_cache():
+    weather_owner = [object()]
+    weather = {"status": "observed", "data": {"source": "admitted_weather", "current": None}}
+    tools = SimpleNamespace(
+        podview_home_available=lambda: False,
+        podview_home_binding=lambda: None,
+        podview_home_read=AsyncMock(side_effect=RuntimeError("vacuum unavailable")),
+        podview_weather_available=lambda: weather_owner[0] is not None,
+        podview_weather_binding=lambda: weather_owner[0],
+        podview_weather_read=AsyncMock(return_value=weather),
+    )
+    session, _ = owner()
+    app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+    async with TestClient(TestServer(app)) as client:
+        snapshot = await (await client.get("/view/api/snapshot")).json()
+        assert snapshot["capabilities"]["homeRead"] == ["weather"]
+        first = await (await client.get("/view/api/home")).json()
+        assert first["weather"] == weather
+        assert first["vacuum"] == {"status": "unavailable", "items": []}
+        weather_owner[0] = None
+        second = await (await client.get("/view/api/home")).json()
+        assert second["weather"] == {"status": "unavailable", "data": None}
+        assert second["revision"] > first["revision"]
+
+
+async def test_home_session_replacement_discards_inflight_domains():
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def read():
+        entered.set()
+        await release.wait()
+        return {"status": "observed", "data": {"source": "old_owner"}}
+
+    tools = SimpleNamespace(
+        podview_home_available=lambda: False,
+        podview_home_binding=lambda: None,
+        podview_home_read=AsyncMock(return_value={"status": "unavailable", "items": []}),
+        podview_weather_available=lambda: True,
+        podview_weather_binding=lambda: "owner",
+        podview_weather_read=read,
+    )
+    session, _ = owner()
+    sessions = {"kitchen": session}
+    app = create_app(StatusHub(), sessions, tools=tools, locked=True)
+    async with TestClient(TestServer(app)) as client:
+        pending = asyncio.create_task(client.get("/view/api/home"))
+        await entered.wait()
+        sessions["kitchen"] = owner()[0]
+        release.set()
+        result = await (await pending).json()
+        assert result["weather"] == {"status": "unavailable", "data": None}
+        assert result["vacuum"] == {"status": "unavailable", "items": []}
+        assert not app[BRIDGE]._home_busy
+
+
+async def test_passive_home_does_not_advertise_closed_transport():
+    from gatekeeper.tools import ToolRouter
+
+    http = httpx.AsyncClient()
+    tools = ToolRouter(None, supervisor_token="PRIVATE", client=http)
+    tools.configure_device_control(
+        {"extended_device_control": True, "device_control_entities": ["vacuum.robot"]}
+    )
+    session, _ = owner()
+    bridge = PodViewBridge({"kitchen": session}, tools=tools)
+    assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == ["vacuum"]
+    await http.aclose()
+    assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == []

@@ -18,6 +18,8 @@ from pathlib import Path
 
 from aiohttp import web
 
+from . import podview_music, podview_weather
+
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
 _ALLOWED_PHASES = {"IDLE", "LISTENING", "THINKING", "AI_SPEAKING", "LOUNGE_WINDOW"}
@@ -35,9 +37,14 @@ def _error(kind: str, status: int = 409) -> web.Response:
     return web.json_response({"ok": False, "error": kind, "retryAllowed": False}, status=status)
 
 
-def _music_public(kind: str, value: object) -> dict:
+def _music_public(kind: str, value: object, account: str | None = None) -> dict:
     """Display contract is closed even when owner/provider contracts retain extra fields."""
     unavailable = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
+    if kind in podview_music.SERVICES:
+        if not isinstance(value, dict):
+            return unavailable
+        raw = value.get("data") if value.get("ok") is True else value
+        return podview_music.project_owner(kind, raw, account)
     if not isinstance(value, dict) or value.get("ok") is not True:
         return unavailable
     data = value.get("data")
@@ -114,19 +121,27 @@ class PodViewBridge:
         tools=None,
         *,
         assets: Path | None = None,
+        control_policy: str = "",
         pairing_room: str = "",
         pairing_sha256: str = "",
         pairing_store: Path | None = None,
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
         self.boot_id = secrets.token_hex(16)
+        from .podview_controls import TouchControls
+        from .podview_music_control import MusicControlFacade
+
+        self.controls = TouchControls(self, control_policy, MusicControlFacade(tools))
         self._revisions: dict[str, tuple[str, int]] = {}
         self._grants: dict[str, tuple] = {}
         self._receipts: dict[str, tuple[str, dict]] = {}
         self._action_lock = asyncio.Lock()
         self._streams = 0
-        self._music_cache: dict[str, tuple[float, dict]] = {}
+        self._music_cache: dict[tuple, tuple] = {}
         self._music_busy = False
+        self._home_busy = False
+        self._home_cache: dict[str, tuple] = {}
+        self._home_revision = 0
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""
         self._pairing_store = pairing_store
@@ -214,6 +229,42 @@ class PodViewBridge:
     def revoke(self, room: str) -> None:
         self._grants.pop(room, None)
 
+    @staticmethod
+    def _timer_history(state: dict) -> dict:
+        result: dict = {"status": "unavailable", "scope": "core_lifetime", "items": []}
+        rows = state.get("recent")
+        if not isinstance(rows, list) or len(rows) > 12:
+            return result
+        seen = set()
+        previous = float("inf")
+        for row in rows:
+            if (
+                not isinstance(row, dict)
+                or set(row) != {"id", "name", "seconds", "accepted_at"}
+                or not isinstance(row["id"], str)
+                or not 1 <= len(row["id"]) <= 200
+                or row["id"] in seen
+                or not isinstance(row["name"], str)
+                or len(row["name"]) > 120
+                or type(row["seconds"]) is not int
+                or not 1 <= row["seconds"] <= 86400
+                or type(row["accepted_at"]) not in (int, float)
+                or not 0 < row["accepted_at"] <= min(previous, time.time() + 5)
+            ):
+                return {**result, "items": []}
+            seen.add(row["id"])
+            previous = row["accepted_at"]
+            result["items"].append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "seconds": row["seconds"],
+                    "acceptedAt": row["accepted_at"],
+                }
+            )
+        result["status"] = "observed"
+        return result
+
     def snapshot(self, room: str, token: str = "") -> dict:
         session = self.sessions[room]
         active = bool(getattr(session, "_active", False))
@@ -253,18 +304,20 @@ class PodViewBridge:
             for group, status in (("timers", "running"), ("finished", "finished"))
             for row in timer_state.get(group, [])
         ]
-        music_tools = {d.get("name") for d in self.tools.declarations()} if self.tools else set()
-        music_reads = [
-            kind
-            for kind, name in {
-                "targets": "podconnect_get_targets",
-                "recent": "podconnect_recently_played",
-                "top": "podconnect_top_tracks",
-                "liked": "podconnect_liked",
-            }.items()
-            if name in music_tools
-        ]
+        music_reads: list[str] = getattr(self.tools, "podview_music_reads", lambda: [])()
+        receipt_owner = getattr(self.tools, "podview_receipts", None)
+        answers = (
+            receipt_owner.snapshot(room, self.sessions[room]) if receipt_owner is not None else None
+        )
+        latest_answer = answers["items"][0] if answers and answers["items"] else {}
         result: dict = {
+            "answers": {
+                "revision": answers["revision"] if answers else 0,
+                **{
+                    key: latest_answer.get(key)
+                    for key in ("sessionId", "turnId", "taskId", "inputRevision")
+                },
+            },
             "schema": "podview.snapshot.v1",
             "bootId": self.boot_id,
             "roomId": room,
@@ -275,11 +328,24 @@ class PodViewBridge:
                 "epoch": timer_state.get("epoch"),
                 "owner": "home_assistant_intent",
             },
+            "timerHistory": self._timer_history(timer_state)
+            if fresh
+            else {"status": "unavailable", "scope": "core_lifetime", "items": []},
             "capabilities": {
                 "timerRead": fresh,
+                "homeRead": [
+                    kind
+                    for kind, method in (
+                        ("vacuum", "podview_home_available"),
+                        ("weather", "podview_weather_available"),
+                    )
+                    if getattr(self.tools, method, lambda: False)()
+                ],
                 "timerActions": [],
                 "musicRead": music_reads,
                 "musicActions": [],
+                "answerRead": receipt_owner is not None,
+                "controlSetup": [],
                 "visualEnrichment": False,
             },
         }
@@ -292,6 +358,7 @@ class PodViewBridge:
         # Authorization is per connection, not part of the shared resource revision.
         if fresh and self._grant_current(room, token):
             result["capabilities"]["timerActions"] = ["timer.start", "timer.cancel"]
+        result["capabilities"]["controlSetup"] = self.controls.domains(room, token)
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:
@@ -391,6 +458,24 @@ class PodViewBridge:
             except (TimeoutError, Exception):
                 pass  # no diagnostic/secret exception detail crosses the display boundary
             return receipt
+
+
+async def _control(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    if request.content_length is None or request.content_length > 4096:
+        return _error("bounded_body_required", 413)
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError
+    except (ValueError, json.JSONDecodeError):
+        return _error("invalid_control", 400)
+    owner = request.app[BRIDGE].controls
+    handler = owner.setup if request.path.endswith("/setup") else owner.action
+    result = await handler(body, request.cookies.get(_PAIR_COOKIE, ""))
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
 async def _guard(request: web.Request) -> web.Response | None:
@@ -515,45 +600,296 @@ async def _actions(request: web.Request) -> web.Response:
     )
 
 
+def _music_binding(bridge: PodViewBridge, room: str) -> tuple:
+    tools, session = bridge.tools, bridge.sessions.get(room)
+    session_tools = getattr(session, "tools", None)
+    return (
+        tools,
+        id(tools),
+        tools.podview_music_binding(),
+        session,
+        id(session),
+        session_tools,
+        id(session_tools),
+        getattr(session, "_history_session", None),
+        getattr(session, "_epoch", None),
+    )
+
+
+async def _answers(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    bridge = request.app[BRIDGE]
+    room = _room(request, bridge)
+    if room is None or set(request.query) - {"room"}:
+        return _error("unknown_room", 404)
+    sink = getattr(bridge.tools, "podview_receipts", None)
+    if sink is None:
+        return _error("answers_unavailable", 404)
+    receipt_id = request.match_info.get("receipt_id")
+    if receipt_id is not None:
+        if re.fullmatch(r"[a-f0-9]{32}", receipt_id) is None:
+            return _error("unknown_source", 404)
+        result = sink.source(room, receipt_id, bridge.sessions[room])
+        if result is None:
+            return _error("unknown_source", 404)
+    else:
+        result = sink.snapshot(room, bridge.sessions[room])
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
+
+
 async def _music(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
         return denied
     bridge = request.app[BRIDGE]
-    if _room(request, bridge) is None:
+    room = _room(request, bridge)
+    if room is None:
         return _error("room_required")
-    if not bridge.tools or not hasattr(bridge.tools, "podview_read"):
+    tools = bridge.tools
+    if not all(
+        hasattr(tools, method)
+        for method in ("podview_read", "podview_music_reads", "podview_music_binding")
+    ):
+        bridge._music_cache.clear()
         return _error("music_unavailable", 503)
     kind = request.query.get("kind", "targets")
-    if kind not in {"targets", "recent", "top", "liked"}:
+    if kind not in {"targets", "recent", "top", "liked", "playback", "queue"}:
         return _error("unsupported_read", 400)
     account = request.query.get("account")
-    if account is not None and (kind != "targets" or not 1 <= len(account) <= 1024):
+    if (
+        account is not None
+        and (kind not in {"targets", "playback", "queue"} or not 1 <= len(account) <= 1024)
+    ) or (kind in podview_music.SERVICES and account is None):
         return _error("invalid_account", 400)
-    cache_key = kind + ":" + (account or "")
-    if cache_key not in bridge._music_cache and len(bridge._music_cache) >= 16:
-        bridge._music_cache = {
-            k: v for k, v in bridge._music_cache.items() if time.monotonic() - v[0] < 15
-        }
-        if len(bridge._music_cache) >= 16:
-            return _error("music_capacity", 429)
+    if kind not in tools.podview_music_reads():
+        bridge._music_cache.clear()
+        return _error("music_unavailable", 503)
+    binding = _music_binding(bridge, room)
+    cache_key = (room, kind, account)
+    # Old owner values may neither be returned nor consume the bounded cache.
+    bridge._music_cache = {
+        key: value
+        for key, value in bridge._music_cache.items()
+        if time.monotonic() - value[0] < value[3]
+        and key[0] in bridge.sessions
+        and value[1] == _music_binding(bridge, key[0])
+        and key[1] in tools.podview_music_reads()
+    }
     cached = bridge._music_cache.get(cache_key)
-    if cached and time.monotonic() - cached[0] < 15:
-        return web.json_response(cached[1], headers={"Cache-Control": "no-store"})
+    if cached:
+        result = (
+            _music_public(kind, cached[2], account) if kind in podview_music.SERVICES else cached[2]
+        )
+        return web.json_response(result, headers={"Cache-Control": "no-store"})
+    if kind != "playback" and len(bridge._music_cache) >= 16:
+        return _error("music_capacity", 429)
     if bridge._music_busy:
         return _error("music_busy", 429)
     bridge._music_busy = True
     try:
-        raw = await asyncio.wait_for(bridge.tools.podview_read(kind, account), timeout=10)
-        result = _music_public(kind, raw)
-        if not result.get("ok"):
-            result = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
-        bridge._music_cache[cache_key] = time.monotonic(), result
-    except (TimeoutError, Exception):
+        raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=10)
+        result = _music_public(kind, raw, account)
+    except Exception:
         result = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
-        bridge._music_cache[cache_key] = time.monotonic(), result
     finally:
         bridge._music_busy = False
+    if (
+        bridge.tools is not tools
+        or room not in bridge.sessions
+        or binding != _music_binding(bridge, room)
+        or kind not in tools.podview_music_reads()
+    ):
+        return _error("music_unavailable", 503)
+    # Playback must consult its owner again; it never gets a fresh bridge timestamp.
+    if kind != "playback":
+        bridge._music_cache[cache_key] = (
+            time.monotonic(),
+            binding,
+            result,
+            2 if kind == "queue" else 15,
+        )
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
+
+
+def _home_history(value: object, entity_id: str) -> dict:
+    """Display only owner receipts; IDs never carry action authority."""
+    unavailable = {"status": "unavailable", "items": []}
+    if not isinstance(value, dict) or value.get("status") != "observed":
+        return unavailable
+    if value.get("source") != "device_control_start_journal" or value.get("durable") is not True:
+        return unavailable
+    rows = value.get("items")
+    if not isinstance(rows, list) or len(rows) > 3:
+        return unavailable
+    from .cleaning_journal import _record
+
+    items: list[dict] = []
+    for raw in rows:
+        if not isinstance(raw, dict):
+            return unavailable
+        row = {
+            key: raw.get(key) for key in ("id", "recorded_at", "accepted_at", "outcome", "recipe")
+        }
+        recipe = row["recipe"]
+        if not _record(row) or not isinstance(recipe, dict):
+            return unavailable
+        if recipe["vacuum_entity_id"] != entity_id:
+            return unavailable
+        items.append(
+            {
+                "id": row["id"],
+                "recordedAt": row["recorded_at"],
+                "acceptedAt": row["accepted_at"],
+                "outcome": row["outcome"],
+                "recipe": {
+                    "areaIds": recipe["area_ids"],
+                    "mapName": recipe["map_name"],
+                    "repeat": recipe["repeat"],
+                    "verifiedSettings": [
+                        {"entityId": v["entity_id"], "value": v["value"]}
+                        for v in recipe["verified_settings"]
+                    ],
+                },
+                "physicalResultVerified": False,
+                "actions": [],
+            }
+        )
+    return {"status": "observed", "source": "device_control_start_journal", "items": items}
+
+
+def _home_vacuum(value: object) -> dict:
+    unavailable = {"status": "unavailable", "items": []}
+    if not isinstance(value, dict) or value.get("status") != "observed":
+        return unavailable
+    items = value.get("items")
+    if not isinstance(items, list) or len(items) > 12:
+        return unavailable
+    result, seen = [], set()
+    for row in items:
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("entityId"), str)
+            or not re.fullmatch(r"vacuum\.[a-z0-9_]+", row["entityId"])
+            or row["entityId"] in seen
+            or not isinstance(row.get("state"), str)
+            or row.get("state")
+            not in {
+                "cleaning",
+                "paused",
+                "returning",
+                "docked",
+                "idle",
+                "error",
+                "unknown",
+                "unavailable",
+            }
+            or row.get("source") != "home_assistant_state"
+            or not isinstance(row.get("name"), str)
+            or type(row.get("observedAt")) not in {int, float}
+            or not 0 <= row["observedAt"] <= time.time() + 1
+        ):
+            return unavailable
+        seen.add(row["entityId"])
+        battery = row.get("battery")
+        result.append(
+            {
+                "entityId": row["entityId"],
+                "name": row["name"][:120],
+                "state": row["state"],
+                "battery": battery
+                if isinstance(battery, (int, float))
+                and not isinstance(battery, bool)
+                and 0 <= battery <= 100
+                else None,
+                "observedAt": row["observedAt"],
+                "source": "home_assistant_state",
+                "settings": {"status": "unavailable", "items": []},
+                "history": _home_history(row.get("history"), row["entityId"]),
+                "actions": [],
+            }
+        )
+    return {"status": "observed", "items": result}
+
+
+async def _home(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    bridge = request.app[BRIDGE]
+    room = _room(request, bridge)
+    if room is None:
+        return _error("room_required")
+    tools = bridge.tools
+    if not tools or not all(
+        hasattr(tools, name)
+        for name in ("podview_home_read", "podview_home_binding", "podview_home_available")
+    ):
+        return _error("home_unavailable", 503)
+
+    def binding_now():
+        return (
+            tools,
+            (tools.podview_home_binding(), tools.podview_home_available()),
+            (
+                getattr(tools, "podview_weather_binding", lambda: None)(),
+                getattr(tools, "podview_weather_available", lambda: False)(),
+            ),
+            bridge.sessions.get(room),
+        )
+
+    binding = binding_now()
+    cached = bridge._home_cache.get(room)
+    if (
+        cached
+        and cached[1] == binding
+        and time.monotonic() - cached[0] < 5
+        and podview_weather.observation_is_current(cached[2].get("weather"))
+    ):
+        return web.json_response(cached[2], headers={"Cache-Control": "no-store"})
+    if bridge._home_busy:
+        return _error("home_busy", 429)
+    bridge._home_busy = True
+
+    async def read_domain(method, unavailable):
+        try:
+            read = getattr(tools, method, None)
+            return await asyncio.wait_for(read(), timeout=8) if read else unavailable
+        except Exception:
+            return unavailable
+
+    try:
+        raw, weather = await asyncio.gather(
+            read_domain("podview_home_read", {"status": "unavailable", "items": []}),
+            read_domain("podview_weather_read", {"status": "unavailable", "data": None}),
+        )
+        latest = binding_now()
+        same_owner = tools is bridge.tools and binding[3] is latest[3]
+        vacuum = (
+            _home_vacuum(raw)
+            if same_owner and binding[1] == latest[1] and tools.podview_home_available()
+            else {"status": "unavailable", "items": []}
+        )
+        if not (
+            same_owner
+            and binding[2] == latest[2]
+            and getattr(tools, "podview_weather_available", lambda: False)()
+        ):
+            weather = {"status": "unavailable", "data": None}
+    finally:
+        bridge._home_busy = False
+    bridge._home_revision += 1
+    result = {
+        "schema": "podview.home.v1",
+        "bootId": bridge.boot_id,
+        "roomId": room,
+        "revision": bridge._home_revision,
+        "observedAt": time.time(),
+        "vacuum": vacuum,
+        "weather": weather,
+    }
+    bridge._home_cache[room] = time.monotonic(), binding, result
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
@@ -589,6 +925,7 @@ def mount(
     tools=None,
     *,
     assets: Path | None = None,
+    control_policy: str = "",
     pairing_room: str = "",
     pairing_sha256: str = "",
     pairing_store: Path | None = None,
@@ -597,18 +934,31 @@ def mount(
         sessions,
         tools,
         assets=assets,
+        control_policy=control_policy,
         pairing_room=pairing_room,
         pairing_sha256=pairing_sha256,
         pairing_store=pairing_store,
     )
     app[BRIDGE] = bridge
+
+    async def close_receipts(_app):
+        sink = getattr(tools, "podview_receipts", None)
+        if sink is not None:
+            sink.close()
+
+    app.on_cleanup.append(close_receipts)
     app.add_routes(
         [
             web.get("/view/api/snapshot", _snapshot),
             web.get("/view/api/events", _events),
             web.post("/view/api/actions", _actions),
+            web.post("/view/api/control/setup", _control),
+            web.post("/view/api/control/actions", _control),
             web.post("/view/api/pair", _pair),
             web.get("/view/api/music", _music),
+            web.get("/view/api/home", _home),
+            web.get("/view/api/answers", _answers),
+            web.get("/view/api/sources/{receipt_id}", _answers),
             web.get("/view/", _assets),
             web.get("/view/{asset:.*}", _assets),
         ]

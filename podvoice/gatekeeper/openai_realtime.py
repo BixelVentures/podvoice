@@ -429,6 +429,9 @@ class OpenAIRealtimeSession:
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
     _connection_generation: int = field(default=0, init=False, repr=False)
+    _display_tool_receipt: tuple[int, list[dict]] | None = field(
+        default=None, init=False, repr=False
+    )
     # High-quality 16k->24k resampler, rebuilt per connect() so filter state is fresh.
     _resampler: StreamResampler | None = field(default=None, init=False, repr=False)
     # Realtime rejects response.create while a response is active. A function call arrives
@@ -1557,7 +1560,16 @@ class OpenAIRealtimeSession:
                 )
         await self._send_response_create(input_turn=input_turn)
 
+    def take_submitted_tool_results(self) -> list[dict]:
+        """Optional presentation reads exact ACKed outputs; never changes speech authority."""
+        receipt, self._display_tool_receipt = self._display_tool_receipt, None
+        if receipt is None or self._ws is None or receipt[0] != self._connection_generation:
+            return []
+        return receipt[1]
+
     async def send_tool_results(self, results: list) -> bool:
+        self._display_tool_receipt = None
+        submission_generation = self._connection_generation
         if self._ws is None:
             return False
         obligation: _ProductionToolAdmission | None = None
@@ -1645,6 +1657,18 @@ class OpenAIRealtimeSession:
             for _result, _output, pending in submissions:
                 self._forget_item_create(pending)
             raise
+
+        if submission_generation == self._connection_generation:
+            display_results = []
+            for result, output, pending in submissions[:16]:
+                try:
+                    decoded = json.loads(output)
+                except (ValueError, RecursionError):
+                    continue  # Plain provider output is valid but is not structured display data.
+                display_results.append(
+                    {"id": str(pending.call_id), "name": result.get("name"), "response": decoded}
+                )
+            self._display_tool_receipt = (submission_generation, display_results)
 
         # Only an exact item ACK makes a call satisfied. Until this point every call
         # remains outstanding and response.create is causally impossible.

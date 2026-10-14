@@ -42,6 +42,6 @@ test('pairing retains authority only in HttpOnly cookie and reopens snapshot str
  assert.deepEqual(transport.snapshot.capabilities.timerActions,['timer.start','timer.cancel']);
  await transport.action({action:'timer.start',args:{seconds:300,name:'Pasta'},requestId:'r1'});
  const request=calls.at(-1)[1];assert.equal(request.credentials,'same-origin');assert.equal(request.headers['X-PodView-Grant'],undefined);
- assert.equal(JSON.stringify(transport).includes('x'.repeat(43)),false);
  transport.close();
+ assert.equal(JSON.stringify(transport).includes('x'.repeat(43)),false);
 });

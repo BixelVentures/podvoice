@@ -223,3 +223,40 @@ def test_unknown_native_cancel_survives_cleanup_eviction(bridge, monkeypatch):
     ]
     assert command(bridge, "stop", action="cancel", timer_id=created["id"]) == result
     assert len(attempts) == 1
+
+
+def test_recent_settings_are_original_accepted_receipts_not_countdowns(bridge, monkeypatch):
+    monkeypatch.setattr(module.time, "time", lambda: 100.0)
+    first = command(bridge, "first", action="start", seconds=600, name="Pasta")
+    bridge.manager.timers[first["id"]].seconds_left = 5
+    monkeypatch.setattr(module.time, "time", lambda: 200.0)
+    second = command(bridge, "second", action="start", seconds=300, name="Æg")
+    bridge.manager.finish(second["id"])
+    command(bridge, "cancel", action="cancel", timer_id=first["id"])
+    assert command(bridge, "first", action="start", seconds=600, name="Pasta") == first
+    recent = bridge.snapshot("kitchen")["recent"]
+    assert recent == [
+        {"id": second["id"], "name": "Æg", "seconds": 300, "accepted_at": 200.0},
+        {"id": first["id"], "name": "Pasta", "seconds": 600, "accepted_at": 100.0},
+    ]
+    assert bridge.snapshot("talk")["recent"] == []
+    restarted = TimerBridge(CoreTimers(), {"kitchen": "new"})
+    assert restarted.snapshot("kitchen")["recent"] == []
+
+
+def test_recent_settings_bounded_deduplicated_and_unknown_excluded(bridge, monkeypatch):
+    for index in range(15):
+        created = command(bridge, str(index), action="start", seconds=index + 1, name="Mad")
+        bridge.manager.finish(created["id"])
+        command(bridge, "ack" + str(index), action="acknowledge_finished", timer_id=created["id"])
+    duplicate_settings = command(bridge, "new-use", action="start", seconds=15, name="Mad")
+    recent = bridge.snapshot("kitchen")["recent"]
+    assert len(recent) == 12 and recent[0]["id"] == duplicate_settings["id"]
+    assert [r["seconds"] for r in recent] == list(range(15, 3, -1))
+
+    def uncertain(*args, **kwargs):
+        raise RuntimeError("possibly started")
+
+    monkeypatch.setattr(bridge.manager, "start_timer", uncertain)
+    assert not command(bridge, "unknown", action="start", seconds=555)["ok"]
+    assert bridge.snapshot("kitchen")["recent"] == recent

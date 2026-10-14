@@ -11,7 +11,7 @@ class AnswerWidget extends HTMLElement {
  const q=s=>this.querySelector(s);q('h1').textContent=answer.title;q('.answer-meta').textContent=answer.meta||'';
  for(const selector of ['.answer-choices','.comparison','.chart','.guide','.checklist','.answer-back','.answer-actions','.sources','.intro','.answer-status','.open-weather-answer']){const node=q(selector);if(node)node.hidden=true;}
  if(!this.visualNode){this.visualNode=document.createElement(`pv-${answer.kind}`);this.visualNode.classList.add('answer-visual');q('.answer-scroll').prepend(this.visualNode);}
- this.visualNode.data={state:answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':!scene.connected?'offline':answer.status,content:answer.status==='waiting'?undefined:answer.content};
+ this.visualNode.data={state:answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':!scene.connected?'offline':answer.status,ownerReceiptIds:answer.ownerReceiptIds||[],content:answer.status==='waiting'?undefined:answer.content};
  q('.retry-answer').hidden=!['error','empty','interrupted'].includes(answer.status);q('.retry-answer').disabled=!scene.connected;
  }
  emit(event){this.dispatchEvent(new CustomEvent('widget-action',{bubbles:true,detail:event}));}

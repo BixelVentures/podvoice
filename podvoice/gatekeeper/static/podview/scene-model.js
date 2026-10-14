@@ -47,7 +47,7 @@ function sceneBaseTransition(s,e){
  default:return s;
  }
 }
-const validFocus=(s,id)=>['photo','now','music','timers','weather'].includes(id)||s.devices.some(d=>d.id===id&&!d.hidden)||s.answers.some(a=>a.id===id&&!a.hidden);
+const validFocus=(s,id)=>['photo','now','music','timers'].includes(id)||(id==='weather'&&(!s.live||!!s.liveWeather))||s.devices.some(d=>d.id===id&&!d.hidden)||s.answers.some(a=>a.id===id&&!a.hidden);
 function navigationBack(s){
  const answer=focusedAnswer(s);if(answer?.originKind)return sceneBaseTransition(s,{type:'answer-action',...binding(s,answer),action:'back',optionId:'back'});
  const stack=[...(s.navStack||[])];let id;while(stack.length){const candidate=stack.pop();if(candidate!==s.focus&&validFocus(s,candidate)){id=candidate;break;}}
@@ -62,5 +62,5 @@ export function sceneTransition(s,e){
 }
 export const visibleActivities=a=>ACTIVITIES.filter(x=>a.filter==='all'||(a.filter==='quick'?x.minutes<=20:x.materials===1));
 
-export const deviceLabel=d=>d.kind==='light'&&d.status==='unavailable'?'Ikke tilsluttet endnu':({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen · rengøringsresultat ukendt',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
-export function deviceActions(d){if(d.kind==='light')return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.status==='on'?'Sluk lys':'Tænd lys'}]:[];return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}
+export const deviceLabel=d=>d.live?(d.stale?'Sidst kendt: ':'')+({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]:d.kind==='light'&&d.status==='unavailable'?'Ikke tilsluttet endnu':({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen · rengøringsresultat ukendt',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
+export function deviceActions(d){if(d.live)return [];if(d.kind==='light')return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.status==='on'?'Sluk lys':'Tænd lys'}]:[];return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}

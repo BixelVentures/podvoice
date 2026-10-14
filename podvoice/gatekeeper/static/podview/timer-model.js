@@ -1,5 +1,6 @@
 // Local demo only. Live timing/expiry must come from the HA native timer owner.
 export const timersFor=s=>[s.timer,...(s.extraTimers||[])].filter(Boolean);
+export const timerStateLabel=t=>t.stale?'Sidst kendte tid':t.status==='done'?'Tiden er gået':t.status==='paused'?'På pause':'Tæller ned';
 export const visibleTimers=s=>timersFor(s).filter(t=>t.status!=='cancelled'&&!t.hidden);
 const mapTimers=(s,fn)=>{const timer=s.timer?fn(s.timer):null,extraTimers=(s.extraTimers||[]).map(fn);return timer===s.timer&&extraTimers.every((t,i)=>t===s.extraTimers[i])?s:{...s,timer,extraTimers};};
 export function timerTransition(s,e){

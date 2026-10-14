@@ -536,3 +536,34 @@ async def test_warm_talk_interrupted_new_claim_has_no_unissued_output_cleanup():
                 return_exceptions=True,
             )
             link.live_socket_closed()
+
+
+async def test_native_recent_settings_survive_addon_reader_recreation_not_core_restart():
+    from gatekeeper.ha_timers import HomeAssistantTimers
+    from gatekeeper.podview import PodViewBridge
+
+    manager, _native, client, tools, _, _ = build()
+    async with client:
+        await tools.timers.refresh("kitchen")
+        started = await tools.timers.dispatch(
+            "podvoice_start_timer", {"seconds": 600, "name": "Pasta"}, "kitchen", "session", "call"
+        )
+        assert started["ok"]
+        manager.timers[started["id"]].seconds_left = 5
+        reader = HomeAssistantTimers(client, "fixture")
+        reader.contract = tools.timers.contract
+        reader.bind("kitchen", "voice_pe", "02:00:00:00:00:01")
+        refreshed = await reader.refresh("kitchen")
+        history = PodViewBridge._timer_history(refreshed)
+        assert history["status"] == "observed"
+        assert history["items"][0]["seconds"] == 600
+        assert history["items"][0]["acceptedAt"] == started["accepted_at"]
+        assert history["scope"] == "core_lifetime"
+        assert PodViewBridge._timer_history({})["status"] == "unavailable"
+        for value in (float("nan"), float("inf"), True, -1):
+            corrupt = {"recent": [{**refreshed["recent"][0], "accepted_at": value}]}
+            assert PodViewBridge._timer_history(corrupt) == {
+                "status": "unavailable",
+                "scope": "core_lifetime",
+                "items": [],
+            }

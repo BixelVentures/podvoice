@@ -1,3 +1,12 @@
+## 2.0.25 - candidate: scoped PodView companion controls
+
+- Preserve the published2.0.24 conversation and timer-result changes. Serve the frozen2107 touch UI through existing authenticated Home Assistant ingress.
+- Show provider-observed playback and queue, HA weather and allowed vacuum state without issuing voice control tickets. Keep stale/unavailable states explicit; lights remain unconnected.
+- Add separately configured room/device/action scopes for paired direct Spotify transport and supported vacuum settings, start/reuse, pause, stop and return. Tasks expire, effects are sent once, and uncertain outcomes are never automatically retried. Acknowledgement is not physical proof.
+- Retain three actual cleaning request records and bounded native accepted timer settings. Native timer history requires the matching PodVoice HA integration0.1.1 and clears with its owner/Core restart.
+- Present bounded, source-bound tool-result cards after existing provider submission, with exact conversation context. No additional model call, arbitrary HTML, invented source URL or new voice owner.
+- Direct Spotify transport requires PodConnect Control0.10.9. Catalogue/new-play selection, configured-alias music transport and artwork remain unavailable. No current installation or physical acceptance is claimed by this candidate.
+
 ## 2.0.24 - test release: native replies and music recovery
 
 - Remove instructions requesting generic receipt/progress speech and ask for silent tool delegation. Preserve direct answers, clarification, confirmed results and model-owned closing.

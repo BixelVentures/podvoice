@@ -73,7 +73,10 @@ async def main():
             )
 
         pasta = await call("start", "native-pasta", seconds=30, name="pasta")
+        timer_ids = set(bridge.manager.timers)
+        assert pasta["id"] in timer_ids
         assert await call("start", "native-pasta", seconds=30, name="pasta") == pasta
+        assert set(bridge.manager.timers) == timer_ids
         tea = await call("start", "native-tea", seconds=1, name="te")
         talk = await call("start", "native-talk", "talk", seconds=40, name="kaffe")
         assert await async_unload_entry(hass, entry) is False
@@ -116,11 +119,30 @@ async def main():
         await call("acknowledge_finished", "drain-finished", timer_id=tea["id"])
         await call("cancel", "cancel-pasta", timer_id=pasta["id"])
         await call("cancel", "cancel-talk", "talk", timer_id=talk["id"])
+        history = await hass.services.async_call(
+            "podvoice",
+            "timer_status",
+            {"endpoint": "kitchen"},
+            blocking=True,
+            return_response=True,
+        )
+        assert history["recent"] == [
+            {key: receipt[key] for key in ("id", "name", "seconds", "accepted_at")}
+            for receipt in (tea, pasta)
+        ]
+        assert history["recent"][0]["seconds"] == 1
+        assert history["recent"][1]["seconds"] == 30
+        timer_ids = set(bridge.manager.timers)
+        assert pasta["id"] not in timer_ids
+        assert await call("start", "native-pasta", seconds=30, name="pasta") == pasta
+        assert set(bridge.manager.timers) == timer_ids
+        assert bridge.snapshot("kitchen")["recent"] == history["recent"]
+        assert bridge.snapshot("talk")["recent"][0]["id"] == talk["id"]
         assert await async_unload_entry(hass, entry) is True
         assert not hass.services.has_service("podvoice", "timer_command")
         assert all(not bridge.manager.is_timer_device(device) for device in bridge.devices.values())
         print(
-            "HA2026.8.2 REAL SETUP + DEVICE REGISTRY + NATIVE EXPIRY + SCOPED CANCEL + UNLOAD PASS"
+            "HA2026.8.2 REAL SETUP + DEVICE REGISTRY + NATIVE EXPIRY + SCOPED CANCEL + ACCEPTED HISTORY + UNLOAD PASS"
         )
     finally:
         await hass.async_stop()

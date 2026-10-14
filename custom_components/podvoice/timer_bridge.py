@@ -9,6 +9,7 @@ no cancellation window or competing coroutine between the native effect and cach
 from __future__ import annotations
 
 import secrets
+import time
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
@@ -89,6 +90,21 @@ class TimerBridge:
             while len(self._cleanup_requests) > MAX_CLEANUP_REQUESTS:
                 self._cleanup_requests.popitem(last=False)
 
+    def _recent(self, endpoint: str) -> list[dict]:
+        # Existing terminal start receipts own identity/time; this is not a new timer store.
+        rows, seen = [], set()
+        for (room, _), (signature, receipt) in reversed(self._requests.items()):
+            if room != endpoint or signature[0] != "start" or receipt.get("ok") is not True:
+                continue
+            settings = (receipt["name"], receipt["seconds"])
+            if settings in seen:
+                continue
+            seen.add(settings)
+            rows.append({key: receipt[key] for key in ("id", "name", "seconds", "accepted_at")})
+            if len(rows) == 12:
+                break
+        return rows
+
     def snapshot(self, endpoint: str) -> dict:
         if self._closed or endpoint not in self.devices:
             return self._reply(ok=False, error="endpoint_unavailable")
@@ -110,6 +126,7 @@ class TimerBridge:
             binding={"device_id": device_id, **self.identities.get(endpoint, {})},
             timers=timers,
             finished=[dict(item) for item in self._finished[endpoint].values()],
+            recent=self._recent(endpoint),
         )
 
     def command(
@@ -210,7 +227,13 @@ class TimerBridge:
                 # shutdown task admission). Keep the tombstone, never repeat it.
                 return dict(unknown)
             result = self._reply(
-                ok=True, id=created, state="active", seconds=seconds, name=name, audible=False
+                ok=True,
+                id=created,
+                state="active",
+                seconds=seconds,
+                name=name,
+                audible=False,
+                accepted_at=time.time(),
             )
         else:
             if not isinstance(timer_id, str) or not timer_id or seconds is not None or name:

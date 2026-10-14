@@ -132,9 +132,14 @@ async def semantic_end(session, sdk, cycle, *, webrtc=False, native_context=None
             # Fresh current-owner native coverage begins only after backend
             # settlement reset; older output or quiet cannot authorize closing.
             quiet_base = clock[0]
-            for index in range(math.ceil(session.idle_timeout_s * 10) + 1):
+            # Include the next full native report beyond the threshold: a
+            # fractional host base can represent exactly 25s as 24.999999999999943.
+            # Keep the shipped strict comparison and every native proof field.
+            for index in range(math.ceil(session.idle_timeout_s * 10) + 2):
                 native_sample(session, link, clock, quiet_base, index)
-            assert session._live_quiet_ready(semantic=True)
+            assert session._live_quiet_ready(semantic=True), session._live_end_window.diagnostics(
+                owner=session._live_quiet_owner(), now=clock[0], idle_s=session.idle_timeout_s
+            )
             # Keep simulating the existing native reporting cadence while the
             # unchanged close owner resumes; one stale row is not fresh quiet.
             async with asyncio.timeout(WAIT_S):
@@ -195,15 +200,53 @@ class AdvancingClock:
     """
 
     def __init__(self):
-        self.offset = 100.0 - time.monotonic()
+        self.anchor = time.monotonic()
+        self.value = 100.0
 
     def __getitem__(self, index):
         assert index == 0
-        return time.monotonic() + self.offset
+        return self.value + (time.monotonic() - self.anchor)
 
     def __setitem__(self, index, value):
         assert index == 0
-        self.offset = value - time.monotonic()
+        self.anchor = time.monotonic()
+        self.value = value
+
+
+def test_affine_clock_assignment_cannot_manufacture_future_native_arrival(monkeypatch):
+    # Subtracting the large host clock into an offset loses low-order bits;
+    # at this epoch the old expression reads 500.0999755859375 after assigning 500.1.
+    host = [1_000_000_000_000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: host[0])
+    clock = AdvancingClock()
+    clock[0] = 500.1
+    assert clock[0] == 500.1
+    host[0] += 0.125
+    assert clock[0] == 500.225  # Real elapsed time still consumes owner budgets.
+
+
+def test_fractional_cycle_four_base_needs_next_native_report_at_quiet_boundary():
+    from gatekeeper.live_idle import NativeIdleWindow
+
+    owner = ("fixture",)
+    window = NativeIdleWindow(freshness_s=0.2)
+    for index in range(251):
+        row = observation(index)
+        row["received_monotonic"] += 500.3 - 100.0
+        window.observe(
+            row, owner=owner, now=row["received_monotonic"], work_clear=True, output_started=True
+        )
+    evidence = window.diagnostics(owner=owner, now=row["received_monotonic"], idle_s=25)
+    assert evidence["blocker"] == "quiet_window_incomplete"
+    assert 24.99 < evidence["quiet_s"] < 25
+    row = observation(251)
+    row["received_monotonic"] += 500.3 - 100.0
+    window.observe(
+        row, owner=owner, now=row["received_monotonic"], work_clear=True, output_started=True
+    )
+    assert window.ready(owner=owner, now=row["received_monotonic"], idle_s=25)
+    assert not window.ready(owner=("replacement",), now=row["received_monotonic"], idle_s=25)
+    assert not window.ready(owner=owner, now=row["received_monotonic"] + 0.201, idle_s=25)
 
 
 def native_sample(session, link, clock, base, index, *, nonzero=False, historical=True):

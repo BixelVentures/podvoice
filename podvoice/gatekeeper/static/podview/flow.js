@@ -7,3 +7,6 @@ window.addEventListener('message',e=>{if(e.source!==frame.contentWindow||e.origi
 const observer=new ResizeObserver(([{contentRect}])=>{frame.style.transform=`scale(${contentRect.width/1024})`;frame.parentElement.style.height=`${contentRect.width/1024*600+16}px`;});observer.observe(frame.parentElement);window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
 
 for(const button of document.querySelectorAll('[data-visual]'))button.addEventListener('click',()=>send('visual',{kind:button.dataset.visual}));
+
+document.querySelector("#overview").onclick=()=>send("overview");
+for(const button of document.querySelectorAll("[data-voice]"))button.addEventListener("click",()=>send("voice",{phase:button.dataset.voice}));
