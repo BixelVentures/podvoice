@@ -140,6 +140,8 @@ def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     assert "Delegér straks og i stilhed" in primary
     assert "Giv ingen modtagelseskvittering, generisk ventereplik" in primary
     assert "eller fremskridtsmeddelelse før eller under backendens arbejde" in primary
+    assert "Giv heller ingen ikkeverbale lytte- eller kvitteringslyde" in primary
+    assert "nynnen eller tøvelyde før eller under backendens arbejde" in primary
     assert "det bekræftede resultat" in primary
     assert "valideret resultat og aktuel accept" in primary
     assert "før et opgaveresultat, en terminal kvittering eller afsked" in primary

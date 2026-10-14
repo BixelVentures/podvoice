@@ -18370,7 +18370,7 @@ Public main a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc already published PodView a
 
 14/10 whole 2.0.24 independent SOURCE GO: all 499 baseline entries, exact 19 effective repair paths, modes, hidden/untracked inventory and reviewed component identities checked against public a6ac main. Production 13f9a2b01330e31f7334d9f1b96ff31e30bf37494a122cbe685bb93c575816e8; regression 8806fd19dfaca3bbec046d3ef9f446629e1bec3624cb099718fd9446f0179449; unchanged scope policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Current native/Talk/component/static checks retained only on identical reviewed bytes. PodView remains intact. Original provider FAIL and pre-result audio remain unresolved; source may be pushed as draft, but no provider, artifact, installation or physical approval is inferred.
 
-<!-- candidate-scope-coupling
+<!-- superseded-unreleased-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
@@ -18391,3 +18391,41 @@ Public main a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc already published PodView a
 One fresh paid timer case ran and stopped at FAIL; explicit-close did not run. The real guarded inert podvoice_start_timer(seconds=10) returned ok:true/active at 13.590 seconds, and a subsequent backend end_conversation was accepted at 15.910 seconds. The report remains FAIL (thin_session_ended), with pre-result output observed and timer_action_chain_observed:false. No real home timer was created. The fixture stale_schema is resolved; the complete timer response/ending/silence chain is not accepted. Lead admits read-only causal/semantic review of the actual request, output and model ending before any runtime or oracle change. Do not patch another symptom or convert the successful tool result into broad acceptance.
 
 PodVoice 2.0.23 was restored and observed running within 72 seconds of the bounded pause. Key was RAM-only, private carrier/config views closed, local operator terminal exit3; no second provider case or blind retry. Candidate 2.0.24 remains NOT TEST-READY. Source may be pushed as one draft for preservation and review; merge/release/install remain gated on unresolved provider and physical evidence. Goal ACTIVE.
+
+
+### 14/10 — active continuation: nonverbal backchannels and incomplete semantic observation
+
+Lead root. Independent read-only reviews by close_cause and attention_contract separate the confirmed fault from uncertainty. Automatic END after the confirmed standalone timer start matches the current product prompt; the oracle already permits a valid completed close. The observed pre-result primary output Mm plus nonzero PCM is a direct violation of quiet delegation. The existing speech rule excludes generic receipts/progress but does not explicitly name nonverbal backchannels. Hypothesis: an explicit output-style prohibition removes this backchannel category without suppressing direct answers, clarification, current results or model-owned ending.
+
+Chain reviewed: known synthetic input → actual Live delegation → completed backend timer call → real validator/current inert result → terminal backend END/result → primary output → provider close → local drain/rearm. The primary emitted before the timer result; the later action succeeded. The final backend text is absent from the observer, and the default no-judge semantic path sends provider session.close immediately after final backend completion. Already received output continues to be decoded/drained until session.closed; future synthesis may be cancelled upstream. Model-chosen silence versus upstream cancellation remains UNKNOWN. No native quiet window was consulted, so the proposed stale-thinking-PCM explanation is disproved. Do not patch native quiet, deadlines, firmware or mic-gates from this probe.
+
+Lead admits only an explicit nonverbal-backchannel instruction in the existing Live primary prompt plus its focused regression. Native/Talk use that same prompt; semantic routing, ending, confirmed action authority, backend policy, schemas and all mechanics stay unchanged. Independent review, formatter/lint and only affected prompt checks precede new binding. Rollback is that prompt-only delta. No automatic provider retry is admitted on the unchanged censored observer. The isolated evaluator may retain bounded synthetic backend text for causal observation through its existing SDK observer, with no verdict/runtime change; review the actual event path and permanent observer regression before any new call. Existing native/Talk late-audio regression is retained, not mistaken for proof of future provider synthesis. Candidate NOT TEST-READY; goal ACTIVE.
+
+
+14/10 narrow prompt clarification independently approved by attention_ci_review and integrated: exact source 7f75cc8434b360abdc00c9afa450cb693c05b105b6b5a9ed78acdf2566f5bed7, focused test 2ad0e6ec99834c1ec5bb1d1ae38711db534f67ed814c0676c9f94b3409aa7148. Only nonverbal backchannels before/during backend work are explicitly excluded; backend/default/custom prompt, direct answers, results and closing semantics unchanged. Affected static/prompt checks retained on exact bytes. Effectiveness not proved.
+
+Lead additionally admits preparation of ONE lower-layer causal reference on the previously observed 24 primary/runtime, with the corrected inert timer fixture and bounded backend-text observer. The private evaluator may hold its first current semantic provider-close edge for the already existing LIVE_CLOSE_GRACE_S=6 seconds before forwarding real close, with identical SDK/Thin/validators/input and no real home action. No shipped runtime timing, new timeout, fake native ACK/judge or browser I/O flag is changed. Preserve input/receipt/generation currency and immediate cancellation/cleanup; use the same 45/70-second case bounds and 180/120/60-second pause/provider/restoration limits, max one timer case and no retry. Independent adversarial review and exact operator pins precede execution. Its sole question is whether useful primary confirmation can arrive after the immediate close edge when the provider remains open. It is PROVIDER_REFERENCE_ONLY_HELD_CLOSE_EDGE evidence, never candidate/native lifecycle or physical acceptance; original FAIL reports and the pre-result receipt fault remain unchanged. No broad pass or production patch follows from absence alone.
+
+
+14/10 bounded synthetic backend-text observer integrated after independent close_cause SOURCE GO: exact patch 8743235dc8eba6dc0df4cbdd7e1c9b3bfd430a904e94f14b1ae4a2381bc42d6d, eval1118a965fcb25fa50a60c00287f1515c2adc836caff6f9c9d9cf909309e14701, testf428563982a14dd43f7fbf4387cedac836e6891f5588c47fb06f437b1da98758. Only observer records literal bounded synthetic backend text/identities; verdict/oracle, production, event handling, authorization and case limits unchanged. Retain two actual SDK-reader checks and formatter/lint on exact integrated bytes. Older current source binding is superseded pending renewed whole-tree review; no changed-source PASS inherited. Source push updates the same draft PR155, with no merge/release/installation.
+
+
+14/10 exact published draft a4d5b82 CI38602344016: scope, browser and ARM add-on build PASS; pytest FAILED at the encode diagnostic fault injector because its old one-argument mock rejected the newly explicit max_bytes keyword before raising its intended ConnectionError. This is a test-double signature mismatch, not a provider/runtime failure; the original failed CI remains failed. Admit only the same fault injector's explicit max_bytes=2048 keyword parameter, preserving its exception, leak/replay assertions and all production bytes. Formatter/lint and the affected three encode/send/continue diagnostic cases precede renewed exact test binding. No manual CI rerun, timeout change or production patch follows.
+
+
+14/10 independent updated whole-source GO: all 499 baseline entries and exact 19 intended paths checked; production a882a549ae4fb19e7f9fc49ea5f98da16388d4f1c5d62fb17355c447da3589d7; tests 8f5186351d80e8424ba46c93afacec0b9d44f6337cfe69a7d123752d268608ba; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. Only the reviewed nonverbal prompt category changes production from prior draft. Observer and encode mock fixes retain oracle, mechanics and original failed evidence. All affected formatter/lint/regressions passed on exact bytes, unaffected checks retained. One final existing scope gate precedes same PR155 source update. Neither source approval nor CI establishes provider or physical readiness.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "a882a549ae4fb19e7f9fc49ea5f98da16388d4f1c5d62fb17355c447da3589d7",
+  "reviewer": "attention_ci_review \u2014 independent updated whole 2.0.24 SOURCE GO",
+  "rationale": "Preserve the complete source-reviewed quiet-delegation/target-result/native-cleanup composition and PodView. Only the explicit nonverbal pre-result style category changes production from the prior reviewed draft. Bounded synthetic observer and fault-injector signature alter tests only. All existing ownership, error/Talk/retry behavior and deadlines preserved. Provider and physical acceptance remain unapproved."
+}
+-->

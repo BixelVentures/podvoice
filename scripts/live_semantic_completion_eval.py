@@ -343,9 +343,48 @@ class OneLive(rig.ObservedLive):
         self.expected_startup = expected_startup
         self.startup_binding_sink = startup_binding_sink
         self.startup_context = {}
+        self._backend_text_bytes = 0
         super().__init__(key, evidence, **kwargs)
 
     async def _handle(self, event, generation):
+        nested = event.get("event")
+        if (
+            event.get("type") == "response.event"
+            and isinstance(nested, dict)
+            and nested.get("type") in {"response.output_text.delta", "response.output_text.done"}
+        ):
+            # Synthetic forensic evidence only: retain literal arrivals, including
+            # duplicates and stale generations, without authorizing or joining them.
+            text = nested.get("delta" if nested["type"].endswith(".delta") else "text")
+            captured, complete = None, False
+            if isinstance(text, str):
+                with contextlib.suppress(UnicodeError):
+                    limit = min(4096, max(0, 65536 - self._backend_text_bytes))
+                    captured = text[:limit].encode("utf-8")[:limit].decode("utf-8", errors="ignore")
+                    self._backend_text_bytes += len(captured.encode("utf-8"))
+                    complete = len(captured) == len(text)
+            identity = {
+                field: value if isinstance(value, str) and len(value) <= 128 else None
+                for field, value in (
+                    ("event_id", event.get("event_id")),
+                    ("delegation_id", event.get("delegation_id")),
+                    ("response_id", nested.get("response_id")),
+                    ("item_id", nested.get("item_id")),
+                )
+            }
+            with contextlib.suppress(Exception):
+                self.evidence.emit(
+                    "backend_text_observed",
+                    source="sdk_pre_handler",
+                    generation=generation,
+                    nested_type=nested["type"],
+                    sequence_number=nested.get("sequence_number")
+                    if type(nested.get("sequence_number")) is int
+                    else None,
+                    text=captured,
+                    text_complete=complete,
+                    **identity,
+                )
         if event.get("type") == "session.started":
             # Observe the SDK-decoded resolved server configuration, not our
             # constructor. SDK defaults may represent absent wire fields as null.

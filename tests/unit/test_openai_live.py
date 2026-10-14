@@ -2379,7 +2379,7 @@ async def test_diagnostics_real_sdk_fault_stage_keeps_exception_and_never_replay
     await session.admit_tool_batch("r1", 1)
     if phase == "encode":
 
-        def fail_encode(_):
+        def fail_encode(_, *, max_bytes=2048):
             raise ConnectionError("private-result sk-private-credential")
 
         monkeypatch.setattr("gatekeeper.openai_live.bounded_tool_output", fail_encode)

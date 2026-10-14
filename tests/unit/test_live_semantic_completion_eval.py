@@ -920,3 +920,112 @@ async def test_timer_semantic_fixture_survives_real_thin_startup_without_alarm_o
         evidence.close()
     assert sdk.released and tools.client.is_closed
     assert session._timer_poll_task is None or session._timer_poll_task.done()
+
+
+@pytest.mark.asyncio
+async def test_backend_text_observer_keeps_literal_sdk_arrivals_without_authority(tmp_path):
+    evidence = module.rig.Evidence(tmp_path / "backend-text", observation_s=45, starts=1)
+    sdk = SDK()
+    live = module.OneLive(
+        "not-a-key", evidence, variant="baseline", tool_declarations=[], client_factory=sdk.factory
+    )
+    text_event = dict(
+        type="response.event",
+        event_id="event-synthetic",
+        delegation_id="delegation-synthetic",
+        secret_header="excluded",
+        event=dict(
+            type="response.output_text.delta",
+            response_id="response-synthetic",
+            item_id="item-synthetic",
+            sequence_number=4,
+            delta="Timeren er sat.",
+            raw_config="excluded",
+        ),
+    )
+    try:
+        await live.connect()
+        for event in (
+            text_event,
+            copy.deepcopy(text_event),  # Duplicate remains separate forensic evidence.
+            {**text_event, "event": {**text_event["event"], "sequence_number": 2, "delta": "Sen"}},
+            {
+                "type": "response.event",
+                "event": {"type": "response.output_text.done", "text": "Timeren er sat."},
+            },
+        ):
+            await sdk.incoming.put(event)
+        await until(
+            lambda: len([r for r in evidence.rows if r["kind"] == "backend_text_observed"]) == 4
+        )
+        observed = [r for r in evidence.rows if r["kind"] == "backend_text_observed"]
+        assert [r["sequence_number"] for r in observed] == [4, 4, 2, None]
+        assert [r["text"] for r in observed] == [
+            "Timeren er sat.",
+            "Timeren er sat.",
+            "Sen",
+            "Timeren er sat.",
+        ]
+        assert observed[0]["response_id"] == "response-synthetic"
+        assert observed[0]["delegation_id"] == "delegation-synthetic"
+        assert observed[0]["generation"] == live._connection_generation == 1
+        assert observed[-1]["response_id"] is observed[-1]["delegation_id"] is None
+        assert all(r["text_complete"] for r in observed)
+        assert not any("secret_header" in r or "raw_config" in r for r in observed)
+        assert not live._responses and not live._batches and live.backend_sequence == 0
+        assert sdk.session.close.await_count == sdk.response.create.await_count == 0
+        # The real observer entry point retains old-generation evidence without
+        # promoting it into a current response or changing superclass handling.
+        await live._handle(text_event, 0)
+        stale = [r for r in evidence.rows if r["kind"] == "backend_text_observed"][-1]
+        assert stale["generation"] == 0 and stale["text"] == "Timeren er sat."
+        assert not live._responses and live._connection_generation == 1
+    finally:
+        await live.close()
+        evidence.close()
+    assert sdk.released
+
+
+@pytest.mark.asyncio
+async def test_backend_text_observer_bounds_utf8_and_total_without_breaking_reader(tmp_path):
+    evidence = module.rig.Evidence(tmp_path / "bounded-backend-text", observation_s=45, starts=1)
+    sdk = SDK()
+    live = module.OneLive(
+        "not-a-key", evidence, variant="baseline", tool_declarations=[], client_factory=sdk.factory
+    )
+    event = dict(
+        type="response.event",
+        delegation_id="synthetic",
+        event=dict(type="response.output_text.done", text="😀" * 1100),
+    )
+    try:
+        await live.connect()
+        await sdk.incoming.put(event)
+        await until(lambda: any(r["kind"] == "backend_text_observed" for r in evidence.rows))
+        observed = [r for r in evidence.rows if r["kind"] == "backend_text_observed"][-1]
+        assert observed["text"] == "😀" * 1024 and not observed["text_complete"]
+        assert len(observed["text"].encode()) == 4096
+        for _ in range(15):
+            await sdk.incoming.put(event)
+        await sdk.incoming.put(
+            {**event, "event": {"type": "response.output_text.delta", "delta": "More"}}
+        )
+        await sdk.incoming.put(
+            {
+                **event,
+                "event": {"type": "response.output_text.done", "text": {"secret": "excluded"}},
+            }
+        )
+        await until(
+            lambda: len([r for r in evidence.rows if r["kind"] == "backend_text_observed"]) == 18
+        )
+        observed = [r for r in evidence.rows if r["kind"] == "backend_text_observed"]
+        assert sum(len((r["text"] or "").encode()) for r in observed) == 65536
+        assert observed[-2]["text"] == "" and not observed[-2]["text_complete"]
+        assert observed[-1]["text"] is None and not observed[-1]["text_complete"]
+        assert not live._responses and not live._batches and live.last_error is None
+        assert sdk.session.close.await_count == sdk.response.create.await_count == 0
+    finally:
+        await live.close()
+        evidence.close()
+    assert sdk.released
