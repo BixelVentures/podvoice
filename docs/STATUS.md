@@ -2,6 +2,24 @@
 
 Human explicitly answered “Ja tak!” to applying the linked reviewed podview_scoped_companion proposal with existing safeguards preserved. Exact proposal patch SHA256 cbca0755d30a05bd56333b54320314a35bf9a737afd13a6dea1cad16c3906dfa applied without widening. Resulting policy SHA256 febbac99ad449daf0823cdf2eeee6f881998b6014b8cd2ad332c4da0413cc8a5 and regression SHA256 db6567d1fd40ec249a0bed14df7ecbe32b15d3c8a8f61ce40305eea9e2c515f2 match reviewed bytes. The original443 policy regressions and54 new boundary cases were previously tested in a throwaway; affected authoritative fast runs on the actual candidate before release. One independent fresh-context Ultra review owns final semantic approval and exact base/source/tests/config/policy binding; implementer has not created that approval record. Published main24 ancestry and frozen2107 runtime UI remain unchanged. No release/install/physical claim at this point.
 
+Independent final composed SOURCE GO on frozen HEAD 4f49337503a48da2b5ad1ff767746350e23da961 against published main24 b9c934edc1530a7750db370fe3b58dbb576c86f6. Reviewed the whole effective diff and the scoped owner boundaries: pairing/viewer separation, exact session/task/option/revision admission, stale and duplicate action fences, CSRF, music and vacuum possible-send outcomes, durable cleaning unknowns, native timer history, and both provider result hooks including plain output and exact ACK cleanup. The closed source-card projection and live UI adapters do not confer effect authority or claim physical success. The actual-candidate policy fast reports54 PASS with Ruff/format/mypy66; earlier401 main24 composition,93 receipt correction,2 actual-name ACK cases and138 packaged UI cases retain their attributed receipts on unchanged bytes. This is source admission only; official CI, release artifacts, installation and physical Voice PE acceptance remain separate. New-play selection, configured-alias transport, artwork and lights are still unavailable.
+
+<!-- candidate-scope-coupling
+{
+  "version": 2,
+  "kind": "podview_scoped_companion",
+  "base_tip": "b9c934edc1530a7750db370fe3b58dbb576c86f6",
+  "merge_base": "b9c934edc1530a7750db370fe3b58dbb576c86f6",
+  "domains": ["ha_tools", "physical_output"],
+  "fingerprint": "ac402515472072216ffec3ef3cfd39012f9bdb41d2563f7a19b63129d8360260",
+  "regression_fingerprint": "2fe595cc24f67497569eab9e5e13b284e801f9d7d79dd6c02617f94526274f07",
+  "policy_fingerprint": "febbac99ad449daf0823cdf2eeee6f881998b6014b8cd2ad332c4da0413cc8a5",
+  "config_fingerprint": "bc00286851e6dcab70b12b4e6ceb0bfba871cdf0af097bcd66205c629cc1f38c",
+  "reviewer": "composed_final_ultra — independent final high-risk whole-candidate source review",
+  "rationale": "Exact main24 ancestry and effective source, regression, scope-policy and Supervisor-config bytes reviewed. Scoped touch mutations stay under explicit pairing plus server-owned single-use offers and exact existing HA or PodConnect owners; possible-send failures remain terminal unknown. Native timer history is Core-lifetime only; display receipts follow successful provider submission and cannot alter voice ACK, result, cleanup or rearm. Static live adapters show observed and unknown states without inventing physical acceptance. This scope record is no substitute for official CI, publication, installation or physical Voice PE gates."
+}
+-->
+
 ---
 
 # Stop-the-line receipt decoding correction — 14 October2026
@@ -18669,7 +18687,7 @@ The already-demonstrated eight-second generic negative timer cutoff conflicts wi
 
 14/10 final combined source review and preparation: all499 entries preserved,24 effective repair paths against actual a6main; relative801 exactly10 approved paths changed and489 unchanged Gitblob/mode entries. All8 integrated changed Python files passed formatter/lint and diff-check on exact bytes. Native source/quiet regression ce2e, legacyfixtures deb78a6 and ten-cycle e12a retain independent SOURCE GO and only their affected checks. Production e4352504634bda1740a333060d1c297ccf4233f3f55f4b3459c40ac48ee07224; regression fe4a1cea259fc115d0db5516a4d922995074d6b57de3e272c0f04cb0b86a7edd; unchanged policy d326d4cf7acbb4140b250cd609c7c972c4f55222cc6c338a02e21cddcdaf2a21. No full release/provider/artifact/installation/physical PASS yet. Next one final scope check and diff-freeze, then exactly one required local release gate and one same-PR publication/CI flow; provider admission runs against identical production bytes with explicitly simulated native output, physical acceptance remains UNKNOWN.
 
-<!-- candidate-scope-coupling
+<!-- historical-v2.0.24-candidate-scope-coupling
 {
   "base_tip": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
   "merge_base": "a6ac07dc7335caf2eb9e5c6c6c3b66f5211387bc",
