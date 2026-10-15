@@ -1,11 +1,71 @@
-# Aktuel status · #166 dokumentation / #156 / GPT-Live v2.x · 15. oktober 2026
+# Aktuel status · 2.0.29 leveret / resterende produktarbejde · 15. oktober 2026
 
 **Lead:** root. V2.x er **kun GPT-Live med full duplex** for Voice PE og Talk.
 Brugeren har præciseret den allerede valgte retning; det er ikke en ny featurebestilling.
 Mit tidligere #164-P1-fund og #156-dokumenternes krav om lukket mic under svar var
 forkerte anvendelser af en v1.x-kontrakt. De er trukket tilbage; intet mic-gatefix laves.
 
-## Aktiv beslutning · #164 og oprydning af forældede krav
+## Leveret og installeret er adskilt
+
+**2.0.29 er publiceret:** PR #165 er merged som `a1bdc2ba1cf9e80f62874e4764586ec10d6d8042`,
+exact tree `e670ecc2de6a235e68a0228e2c97b1e17a633c7e`. Slut-PR-CI
+[38705578552](https://github.com/BixelVentures/podvoice/actions/runs/38705578552) og
+[main-CI/publisher 38706448103](https://github.com/BixelVentures/podvoice/actions/runs/38706448103)
+er grønne. Versionstag 2.0.29 og source-SHA-tag er faktisk pushet med digest
+`sha256:3ad2d0a886cd294cf430ec85aed37cc85c433a467749666c2e4b56da6f117376`.
+#156 og #166 er lukkede med leveringskvittering; #157 har den samlede opfølgning.
+
+**Frisk HA-readback 15/10:** PodVoice-panelet viser v2.0.28/status live efter reload.
+HA/MCP og PodConnect vises verificeret; Voice PE-vækning er ikke bekræftet. Dette er
+ikke en image-digest-, lyd-, barge-in- eller lifecycleaccept. Root har ikke installeret,
+genstartet eller flashet noget; den fysiske prøveversion er ikke ændret herfra.
+
+## Aktivt arbejde · parallel færdiggørelse uden ny fysisk serie
+
+Brugeren bestiller hastighed, recovery, mobil/settings og stabilitetsarbejde parallelt
+med mindste tilstrækkeligt kompetente agenter. Tre GPT-6-Luna/medium-spor har gennemgået
+de konkrete rester; runtimeændringer kræver fortsat årsagsbevis og leadbeslutning.
+
+- **#113:** den manglende navngivne Supervisor-rollbackvej er nu skrevet i add-on-DOCS
+  og uafhængigt kontrolleret mod config/settings-kilder og officielle HA-backupdocs.
+  App-backup gendanner version/data; panel-`.bak` alene gør ikke. Ingen rollback udført.
+- **#150:** den faktiske HA `google_web_sogning`-YAML er nu læst. Den bevarer
+  `response_type=error` som eksplicit `ok:false` med kode/besked; den gamle påstand om
+  ulæst konfiguration er ophævet. Én offentlig, syntetisk URL-søgning er kørt uden
+  Voice PE. Efter brugerens konkrete godkendelse blev den gemte Sporing læst:
+  15/10 kl. 10.49.11–10.49.12, 1,03 s, `response_type=action_done`, efterfulgt af
+  `result: {output: https://www.home-assistant.io/}` og normal afslutning. Ingen
+  script-, agent-, nøgle- eller driftsændring. #150's software/backendrettelse er
+  afsluttet; #119 og fysisk Voice PE-/Talk-funktionsaccept står separat åbne.
+  Den første automatiske afvisning og den efterfølgende brugergodkendelse bevares
+  som proceshistorik; ingen ekstra kørsel blev brugt til at læse resultatet.
+- **#153:** et eksisterende syntetisk spor er fundet i
+  `/private/tmp/pv24-timer-close-results-20261014/candidate/baseline-timer-10s/`.
+  Provider-PCM bliver ikke-nul omkring 12,499 s; providertranscript er `Mm.` ved
+  12,532 s, før timerdelegation/resultat omkring 13,588/13,590 s. Prøvens promptfil
+  er bundet til `a4d5b82c0567954119b5648666ff9e89f58d43c1` / SHA-256
+  `96534d2c3682e8896c2871f3a769ecbc203bf540157e95d4967409a3167d736c`.
+  Det er den GAMLE prompt uden det eksplicitte forbud mod ikkeverbale kvitteringer,
+  som blev tilføjet i `975936bb1d6fd57a5089cc72b9ca778eee8c7757` og bevares i 29.
+  Aktuel promptfil SHA-256 er
+  `1f10f64d44962dc905c5a0f77882d9c62c89ee84cda867664810d03bb5c1b050`.
+  Sporet beviser provider-output i dén gamle prøve, ikke en aktuel promptfejl, lokal
+  timerkvittering eller den konkrete feltlyd. Rapporten forbliver FAIL; ingen rumlyd/
+  akustisk accept arves. Ingen ny promptpatch er begrundet af denne prøve.
+- **#104–107:** ingen ny målt fysisk flaskehals eller kildebevist unødig ventetid.
+  Lukkegrace er ikke første-svar-latens. Ingen blind ændring af prompt, buffer eller timeout.
+- **#109/#111:** eksisterende recovery dækker bounded probe/backoff, atomisk discovery,
+  stale schema/generation og ingen genafspilning af side effects. Ingen ny kildebevist
+  fejl er fundet; reel HA/Connect recoveryaccept står fortsat åben.
+- **#115:** readiness/settings-koden og de eksisterende browserregressioner dækker
+  kendte fejlveje. Faktisk HA-app/Safari/VoiceOver/tastatur/safe-area mangler fortsat.
+- **#116:** syvdøgnsperioden er ikke startet som godkendt stabilitetsbevis. Den kræver
+  accepteret samme artifact; observation er ikke flere ugers kodearbejde.
+
+Denne opfølgning ændrer kun dokumentation/kvitteringer. Ingen ny produktversion,
+providerprøvesuite, testplatform, firmware-, prompt-, lyd- eller lifecycleændring.
+
+## Afsluttet beslutning · #164 og oprydning af forældede krav
 
 **Observeret fejl:** docs/agentkontrakt blandede v1.x-half-duplex og Realtime-wirekrav
 ind i GPT-Live v2.x. Det gav et fejloprettet P1-issue. Kilden og den eksisterende
@@ -73,8 +133,8 @@ på det reviewede diff. Sidste mekaniske scope PASS mod main e272d181.
 **Afgrænsning:** #166 ændrer docs, præcis CI-scope og issues; #156's tidligere
 reviewede konstruktions-/replay-/packagingændring leveres samlet med version29.
 Thin/provider/prompt/schema/audio/firmware ændres ikke. PodView28 bevares.
-Slut-PR/main-CI og publisher afventer; kvitteringer registreres i PR/issues uden
-post-CI docs-commits. Fysisk testinstallation og dens accept står separat.
+Slut-PR/main-CI og publisher er nu PASS som registreret ovenfor og i PR/issues.
+Denne nye opfølgning er særskilt docsarbejde; fysisk accept står stadig separat.
 
 **Ny leveringsordre:** brugeren beder nu om at merge alle færdige ændringer, så nyeste
 samlede version er klar. #165/#156 og #166 samles derfor i én 2.0.29-kandidat fra
@@ -100,8 +160,9 @@ main-checks og immutable guard; fixturehash
 `ba734d0c5fceb6dc214dc1bcb75b95887afb4862e92bc15c85077e7d15b145a6`. Der følger ingen
 runtime-, version-, CI-policy- eller payloadændring. Tidligere produktchecks og
 reviews genbruges; kun de to berørte noder og filens statiske checks køres lokalt.
-Den nye officielle exact-head CI og derefter normale main-publisher skal bestå før
-færdig levering. Endelige kvitteringer står i PR/issues, ikke et nyt post-CI commit.
+Kravet om ny officiel exact-head CI og derefter normal main-publisher er nu opfyldt.
+Endelige kvitteringer står ovenfor og i PR/issues; ingen tests eller produktbytes
+blev ændret efter den beståede kandidat.
 
 ## Kilde- og leveringsbinding
 
@@ -118,8 +179,9 @@ cafba1b85e0c2dc535a5124ded432afcf7a7572306056c63da2552e0f01d2898  pyproject.toml
 ```
 
 
-- PodVoice main / udgivet 2.0.28: `e272d1813930b819c019ca48469bf6f796f4fec0`.
-- #156-produktrefaktorering: [draft PR #165](https://github.com/BixelVentures/podvoice/pull/165),
+- PodVoice main / udgivet 2.0.29: `a1bdc2ba1cf9e80f62874e4764586ec10d6d8042`.
+  Forrige udgivne 2.0.28 var `e272d1813930b819c019ca48469bf6f796f4fec0`.
+- Første #156-kildefreeze (historisk): [nu merged PR #165](https://github.com/BixelVentures/podvoice/pull/165),
   kode/test-head `bb9db7f57d547b404b704b77d043243dff91fd1b`, tree
   `fbe3e8ff7a6a8ed34be138ec65d4587593bd6df7`. Exact-head CI
   [38697957426](https://github.com/BixelVentures/podvoice/actions/runs/38697957426)
@@ -131,10 +193,11 @@ cafba1b85e0c2dc535a5124ded432afcf7a7572306056c63da2552e0f01d2898  pyproject.toml
   Speakers 0.26.18/RSS-writerfix kom fra `643b86488a6af9392f82f6098531c61ee16b6f4c`,
   [native check](https://github.com/BixelVentures/podconnect/actions/runs/38415648831)
   og [publisher](https://github.com/BixelVentures/podconnect/actions/runs/38415648981) grønne.
-- Sidste egen HA-readback herfra er fortsat PodVoice2.0.27/`669e739a`, artifact
+- Frisk egen HA-panel-readback viser 2.0.28/status live som beskrevet ovenfor.
+  Sidste egen fulde artifactkvittering er 2.0.27/`669e739a`, artifact
   `rootfs-v1:c5855fa18a9f01ef9c7dcfbe0498b8cb64c0a95cbf36ff911fea60efb02559fb`,
-  firmware `podvoice_build_113114_livetimeroutput1`. Nyere installation ejes af PodView-
-  chatten og er ikke genlæst i denne audit. GitHub-release er ikke HA-readback.
+  firmware `podvoice_build_113114_livetimeroutput1`; disse er historiske og arves ikke
+  som nye 28/29-identiteter. GitHub/image-publicering er ikke HA-readback.
 - Brugeren har tidligere bekræftet Texas Sun→næste nummer, hurtig mobil→HomePod-lyd
   og perfekt højttaler→højttaler-flytning. Det er delvis fysisk evidens, ikke nul test;
   det arver ikke fuld accept på en nyere samlet kandidat.
@@ -166,18 +229,18 @@ Prioritet er næste handling, ikke en påstand om, at alle gamle symptomer stadi
 | [#110](https://github.com/BixelVentures/podvoice/issues/110) · P1 | HA-timer/lyd/Stop-kode findes; fysisk accept åben | Hør reel alarm, stop den, bekræft stilhed og næste wake. Manglende lyd er ikke løst alene af status/CI. |
 | [#111](https://github.com/BixelVentures/podvoice/issues/111) · P1 | Recovery/attention-kode leveret; samlet accept åben | Aktuel Spotify/Connect-recovery, hørbar duck/restore og næste wake; saml med #118 og PC#9/#10. |
 | [#112](https://github.com/BixelVentures/podvoice/issues/112) · P1 | Fysisk funktionsmatrix åben | Dansk/hjem/vejr/web/musik/timer/opfølgning samt tale under svar→relevant afbrydelse/fortsættelse uden selvsvar. Åben mic er ikke alene bevis. |
-| [#113](https://github.com/BixelVentures/podvoice/issues/113) · P2 | Live-only migration leveret; reel rollback åben | Navngiven faktisk Supervisor/image+config rollback og platformaccept mangler. Gamle motorvælgere er ikke produktfunktion. |
+| [#113](https://github.com/BixelVentures/podvoice/issues/113) · P2 | Live-only migration leveret; rollbackvej dokumenteret | Supervisor/app-backup-vej er dokumenteret; faktisk rollback og platformaccept mangler. Gamle motorvælgere er ikke produktfunktion. |
 | [#115](https://github.com/BixelVentures/podvoice/issues/115) · P2 | Browserrettelser leveret; samlet platformaccept åben | Samlet mobil/HA-app/Safari/VoiceOver, keyboard/safe-area, Talk/autoplay/drain og tilgængelighed; ingen ny samtaletest-UI. |
 | [#116](https://github.com/BixelVentures/podvoice/issues/116) · P3 | Syvdøgns observation ikke accepteret | Efter funktions-/platformaccept: observer samme version uden manuelle genstarter. Dette er ikke syv dages yderligere kodearbejde. |
 | [#118](https://github.com/BixelVentures/podvoice/issues/118) · P1 | Mål-/flyttekode leveret; delvis fysisk bekræftelse | Kreditér det bevis; fuld aktuel kandidat/queue/duck/close/nextwake-accept mangler. Ingen ny kildebevist flyttefejl fra audit alene. |
 | [#119](https://github.com/BixelVentures/podvoice/issues/119) · P2 | Kapacitetsbeskyttelse kodet; oprindelig årsag uafklaret | Skeln gammel lokal afvisning/providerkvote fra aktuel drift. Ved gentagelse: korrelér tool-batch→resultat→cleanup; ingen kvote-/timeouttuning uden årsag. |
 | [#124](https://github.com/BixelVentures/podvoice/issues/124) · P1 | Input/close-rettelser leveret; fysisk accept åben | Ny tale må ugyldiggøre gammel close, også under svar. Kontroller fuld lyd, fortsættelse, lukning og ny wake; ingen mic-lukning som workaround. |
-| [#150](https://github.com/BixelVentures/podvoice/issues/150) · P2 | PodVoice-fejlkontrakt rettet; HA-konfiguration uafklaret | Aktuelle HA-scriptbytes er ikke læst i denne audit. Bekræft faktisk resultat eller sand fejl; kode alene beviser ikke ekstern scriptrettelse. |
+| [#150](https://github.com/BixelVentures/podvoice/issues/150) · P2 | Lukket; fejlkontrakt og HA-backend verificeret | Faktisk HA-YAML bevarer ok:false; én aktuel URL-søgning gav action_done og sandt output på 1,03 s. Fysisk accept følges særskilt. |
 | [#151](https://github.com/BixelVentures/podvoice/issues/151) · Senere | Eksplicit udsat af brugeren | Bevar udsættelsen. Undersøg senere; ingen skjult feature- eller releaseblokering nu. |
-| [#153](https://github.com/BixelVentures/podvoice/issues/153) · P1 | Observeret taleproblem; årsag stadig åben | Afklar hvad der faktisk høres i aktuel version og bind input/provider/speaker. Fjern gammel 'afventer merge'-status; ingen blind tekst-/PCM-filterpatch. |
-| [#156](https://github.com/BixelVentures/podvoice/issues/156) · P2 | 2.0.29-kandidat klar; slut-CI/merge afventer | Brugeren har bestilt samlet merge/udgivelse efter grøn CI; fysisk installation urørt. |
+| [#153](https://github.com/BixelVentures/podvoice/issues/153) · P1 | Tale-/backchannelrettelser leveret; aktuel accept åben | Det kendte Mm-spor brugte gammel prompt før rettelsen; ingen ny fejl på aktuelle bits er bevist. Bind faktisk feltlyd før ny patch. |
+| [#156](https://github.com/BixelVentures/podvoice/issues/156) · P2 | Lukket; 2.0.29 publiceret | PR/main/publisher PASS; fysisk installation ikke ændret herfra. |
 | [#164](https://github.com/BixelVentures/podvoice/issues/164) · Forældet | Lukket som forældet fejlfortolkning | Intet mic-gatefix; faktisk afbrydelse/akustik følges i #112/#103. |
-| [#166](https://github.com/BixelVentures/podvoice/issues/166) · P1 levering | Agent-/docs-/CI-oprydning kildefærdig | Samlet slut-CI, merge og 29-publicering; ingen HA-installation her. |
+| [#166](https://github.com/BixelVentures/podvoice/issues/166) · P1 levering | Lukket; agent-/docs-/CI-oprydning leveret | Samlet 29-publicering PASS; ingen HA-installation her. |
 | PodConnect | Aktuel status | Næste handling |
 |---|---|---|
 | [#6](https://github.com/BixelVentures/podconnect/issues/6) · P2 | Autoplay-fix leveret; én fysisk overgang bekræftet | Følgende nummer/øvrige kø/start/reconnect/OFF/stop-veje er ikke fuldt accepteret; ingen ny kildebevist fejl. |
@@ -191,8 +254,8 @@ Prioritet er næste handling, ikke en påstand om, at alle gamle symptomer stadi
 
 ## Prioritet nu
 
-1. Merge/publicér den samlede reviewede 2.0.29-kandidat efter grøn slut-CI.
-   #164 er lukket; #156/#166's leveringskvittering opdateres efter faktisk resultat.
+1. 2.0.29 er merged og publiceret; #156/#166/#157 har faktiske kvitteringer.
+   Lever den afgrænsede rollback-/driftsdokumentation; HA-resultatkontrollen er PASS.
 2. Daglig brug: afklar faktisk gentaget kvittering (#153), close under ny tale/lukketid
    (#124/#103/#107), musik/attention (#118/#111, PC#9/#10) og timeralarm/Stop (#110).
    Kod kun ved en aktuel kausal fejl; flere af rettelserne er allerede leveret.

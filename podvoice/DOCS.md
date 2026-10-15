@@ -39,6 +39,29 @@ kompatibilitets-/rollbackdata; de aktiverer ikke en alternativ produktionsmotor 
 lukker GPT-Live-input under svar. Ændr ikke lydtuning uden en konkret trace eller
 måling.
 
+## Rollback af add-onen
+
+**Supervisor-rollback med pre-update-backup** er den understøttede vej tilbage til
+en tidligere PodVoice-version. Før opdatering: slå backup til i PodVoice-add-onens
+opdateringsdialog, og kontrollér under **Indstillinger → System → Backups**, at
+backupen er oprettet. Notér dato og PodVoice-version i backupdetaljerne. Home Assistant
+opretter her en backup af add-onen og dens data; den automatiske backup pr. add-on
+erstattes ved næste tilsvarende opdatering, mens manuelle backups bevares.
+
+Ved rollback: åbn den matchende pre-update-backup under **Indstillinger → System →
+Backups**, vælg gendannelse af **PodVoice-add-onen alene**, og kontrollér bagefter den
+installerede version og panelets indstillinger. Gendan ikke Home Assistant Core eller
+andre apps for at rulle PodVoice tilbage. Supervisor-backuppen omfatter app-version og
+app-data; PodVoice læser add-onens options fra `/data/options.json`, mens panelets
+indstillinger ligger separat i `/data/podvoice.json`.
+
+`/data/podvoice.json.bak` er kun den forrige panelindstillingsfil; den gendanner hverken
+Supervisor-options eller app-version. Ændr ikke image-tags eller container manuelt.
+Hvis der ikke findes en matchende pre-update-backup, så stop og få en versionsspecifik
+gendannelsesplan, før der ændres på installationen. Se Home Assistants dokumentation om
+[backup før add-on-opdatering](https://www.home-assistant.io/blog/2025/02/05/release-20252/)
+og [gendannelse af backups](https://www.home-assistant.io/common-tasks/general/).
+
 ## Kontrollér funktion
 
 Panelets forside viser forbindelser og kapabiliteter; **Avanceret → Fejlfinding** har
