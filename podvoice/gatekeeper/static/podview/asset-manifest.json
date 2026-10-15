@@ -267,7 +267,7 @@
     },
     {
       "path": "live-music-view.js",
-      "sha256": "8b21aa86c619a9e43763e3186025b86aba41f78c34d505b8379e94fe49d64227"
+      "sha256": "df11050f0b1943645a04179751768a546fecbd5afd57e5b9ee74af08f0b8e307"
     },
     {
       "path": "live-music.css",
@@ -295,7 +295,7 @@
     },
     {
       "path": "music-selection-model.js",
-      "sha256": "665f7217112cc0c04b30ffdb4ba1b0e22b83d1d8c2f1c3df562192319ebbe873"
+      "sha256": "2292a381737b739d1ed7054009df6ce197d1b36f1b8a59be9cfc2b06bf8b8468"
     },
     {
       "path": "ordbog.css",
@@ -331,7 +331,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "cea2e64181ffac44ac010f1bde9169005b2a747c0daef0e8b248de1963ebacbc"
+      "sha256": "1e0cab4f1952bcc11d2773f1a5f4d8e7fb6ea73e435d7dd5e975942bebe6724b"
     },
     {
       "path": "podvoice-view.js",
@@ -491,7 +491,7 @@
     },
     {
       "path": "voice-surface.js",
-      "sha256": "ad34fc51e212293181285932c5cab504eca29bc543547fc6cf26630d72df13c0"
+      "sha256": "7d3fa142acd4244e2c4e9320ca886d50b5ef74753749d348edcbf49df154d0ed"
     },
     {
       "path": "weather-observation.js",
@@ -515,7 +515,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "63df805a31dac5cf18af445b2006a69e9535c8b3a09acf2b670eb16f1fa6500a"
+      "sha256": "790626ad0bb6d239381771479159f3c09758fe4c7ac6f8259683ebd9b71b6ff0"
     },
     {
       "path": "workshop.css",

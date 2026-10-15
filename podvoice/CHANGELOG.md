@@ -1,3 +1,10 @@
+## 2.0.32 - read-only mood preview and bounded visual feedback
+
+- Show actual same-account mood playlist previews without granting playback control. Preview contains no options, task IDs or candidate authority; playback still requires the existing exact native target and paired control route. Navigation retains cards; explicit refresh alone chooses again.
+- Bound the mood aggregate to ten seconds within the browser request budget, and the model response stream to four seconds total. Preserve joined cancellation, existing cards and unchanged paid quotas; no latency measurement or extra retry is claimed.
+- Expose only actual current visual-selector preparation through the existing voice status detail. Keep real listening/speaking phases, answer identity, locked layout and normal voice lifecycle unchanged.
+- This release does not expand the original visual20 allowance, enable ongoing visual calls, implement native queue-occurrence jumps or claim physical/device acceptance.
+
 ## 2.0.31 - retained Spotify mood playlists and current PodView surfaces
 
 - Add explicitly approved optional ongoing mood allowance (20/day,200/calendar month, Copenhagen), durable reservation and explicit cold pre-selector Supervisor setup with one-shot receipt; retain finite-policy support without automatic migration or visual-budget expansion. Initial session/explicit refresh only; no background rotation or retries.

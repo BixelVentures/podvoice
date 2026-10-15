@@ -1151,7 +1151,10 @@ def run_release(
                 "candidate-scope",
                 (
                     python,
-                    "scripts/candidate_scope_admission31.py",
+                    (
+                        "scripts/candidate_scope_admission31.py",
+                        "scripts/candidate_scope_admission32.py",
+                    )[snapshot.merge_base != "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c"],
                     "--base",
                     snapshot.merge_base,
                 ),

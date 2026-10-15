@@ -62,3 +62,12 @@ export function selectionCurrent(offer,snapshot,account,source){
  if(context.revisionScope==='answer_task')return ['sessionId','turnId','taskId','inputRevision','revision'].every(key=>snapshot.answers?.[key]===context[key])&&snapshot.voice?.sessionId===context.sessionId;
  return context.revisionScope==='music_selection';
 }
+
+// Read-only preview is source data, never a MusicSelection task or candidate set.
+export function moodPreview(body,account,snapshot,requestedAt=Date.now()){
+ const p=body?.preview,d=body?.data,now=Date.now();
+ if(body?.ok!==true||body.schema!=='podview.mood-preview.v1'||Object.keys(body).sort().join(',')!=='data,ok,preview,schema'||!p||Object.keys(p).sort().join(',')!=='bootId,configEntryId,expiresIn,ownerEpoch,readOnly,roomId,source,voiceSessionId,voiceTurnId'||p.readOnly!==true||p.bootId!==snapshot?.bootId||p.roomId!==snapshot?.roomId||p.configEntryId!==account||p.source!=='spotify_web_api'||!text(p.ownerEpoch,128)||p.expiresIn!==60||!snapshot?.capabilities?.musicRead?.includes('mood')||(p.voiceSessionId??null)!==(snapshot?.voice?.sessionId??null)||(p.voiceTurnId??null)!==(snapshot?.voice?.turnId??null)||![p.voiceSessionId,p.voiceTurnId].every(v=>v===null||text(v,1024))||!Number.isFinite(requestedAt)||requestedAt>now||requestedAt+60000<=now||!d||Object.keys(d).sort().join(',')!=='config_entry_id,owner_epoch,source,tracks'||d.config_entry_id!==account||d.owner_epoch!==p.ownerEpoch||d.source!=='spotify_web_api'||!Array.isArray(d.tracks)||d.tracks.length!==3)return null;
+ const tracks=[];for(const row of d.tracks){if(!row||Object.keys(row).sort().join(',')!=='artist,name,themeArt,themeId,themeTitle,uri'||!text(row.name,256)||!PLAYLIST.test(row.uri)||!THEMES[row.themeId]||row.themeTitle!==THEMES[row.themeId][0]||row.artist!==row.themeTitle||row.themeArt!==THEMES[row.themeId][1])return null;tracks.push({...row});}
+ if(new Set(tracks.map(row=>row.uri)).size!==3||new Set(tracks.map(row=>row.themeId)).size!==3)return null;
+ return {tracks,readOnly:true,expiresAt:requestedAt+60000};
+}

@@ -82,7 +82,11 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
             )
         if current and current["condition"] is not None:
             facts.append(
-                {"label": "Vejrforhold", "value": current["condition"], "detail": "Aktuel måling"}
+                {
+                    "label": "Vejrforhold",
+                    "value": current["condition"],
+                    "detail": "Aktuel måling",
+                }
             )
         if not facts:
             return None
@@ -244,6 +248,10 @@ class VisualReceiptOwner:
             state["revision"] += 1
         except (Exception, asyncio.CancelledError):
             return  # Optional display cannot change ACK, playback, close or rearm.
+        finally:
+            if state.get("pending_row") is row:
+                state.pop("pending_row", None)
+                state.pop("pending_task", None)
 
     def offer(
         self,
@@ -423,7 +431,7 @@ class VisualReceiptOwner:
         state["items"].insert(0, row)
         del state["items"][3:]
         state["revision"] += 1
-        if self._selector is not None and not state.get("selection_offered"):
+        if self.selection_enabled and not state.get("selection_offered"):
             state["selection_offered"] = True
             if self._selection is None or self._selection.done():
                 try:
@@ -431,6 +439,9 @@ class VisualReceiptOwner:
                 except RuntimeError:
                     return True
                 self._selection = loop.create_task(self._select(room_id, state, row))
+                state["pending_row"] = row
+                state["pending_task"] = self._selection
+                state["pending_deadline"] = self._clock() + 5
         return True
 
     def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
@@ -503,7 +514,36 @@ class VisualReceiptOwner:
             assert state is not None
             if item.get("schema") == "podview.research.v1":
                 item["answerRevision"] = state["revision"]
+        pending = state.get("pending_row") if state else None
+        task = state.get("pending_task") if state else None
+        try:
+            pending_current = bool(state and state["current"]())
+        except Exception:
+            pending_current = False
+        pending_visible = bool(
+            state
+            and pending is not None
+            and pending in state["items"]
+            and task is not None
+            and not task.done()
+            and self._clock() < state["pending_deadline"]
+            and pending_current
+        )
+        pending_payload = {}
+        if pending_visible:
+            assert state is not None and pending is not None
+            pending_payload = {
+                "pending": {
+                    "roomId": room_id,
+                    "revision": state["revision"],
+                    **{
+                        key: pending["item"][key]
+                        for key in ("sessionId", "turnId", "taskId", "inputRevision")
+                    },
+                }
+            }
         return {
+            **pending_payload,
             "schema": "podview.answers.v1",
             "roomId": room_id,
             "revision": state["revision"] if state else 0,
@@ -518,7 +558,10 @@ class VisualReceiptOwner:
     def source(self, room_id: str, receipt_id: str, owner: object | None = None) -> dict | None:
         state = self._current(room_id, owner)
         row = (
-            next((r for r in state["items"] if r["item"]["receiptId"] == receipt_id), None)
+            next(
+                (r for r in state["items"] if r["item"]["receiptId"] == receipt_id),
+                None,
+            )
             if state
             else None
         )

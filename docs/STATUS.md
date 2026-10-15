@@ -1,4 +1,50 @@
-# Exact31 independent source review
+# Aktiv leadbeslutning · 2.0.32 · sidste konkrete PodView-mangler
+
+Lead: root. Status: **planlagt build; ikke udgivet eller testklar**. v2.X har reserveret32. Basen er faktisk publiceret31, commit `729668ffa45067bfb75fd6928ccac9f9beaf5576`, tree `93491e271a0eaaa7065acc1a72d1d957720c40db`; alle656 kildeblobs er sammenholdt med GitHubs træ og kopieret uændret til denne isolerede kandidat. Nedenstående31-admission er historisk og giver ingen32-GO.
+
+Direkte evidens: Green31 kører med korrekt startupgit/rootfs, HA/MCP og Voice PE-forbindelse. PodView-indgangen virker. Vejr viser faktiske timer/dage, afrunding og Met.no; bylabel er særskilt ændret til brugeroplyst Mårslet, ikke automatisk geokodet. Første musikåbning viser dog deaktiveret Stemning trods cold-setup ready: read-kapabiliteten er koblet til en skrivegrant, som mangler sammen med verificeret native Spotify-ID. Kildeaudit fandt desuden12s browserdeadline mod40s mooddeadline samt manglende særskilt første visual-selection-feedback. Der er ikke målt faktisk model-/rumlatens.
+
+Afgrænset årsagshypotese og plan:
+
+- Bevar normal tale/ThinSession, audio, lifecycle, firmware, provider-/værktøjsschema, autoplay, rum- og startvolumenejere. Kun PodView-læsning/visuel feedback berøres.
+- Samordn mood totaldeadline under browserens deadline og giv modelstreamen en faktisk totaldeadline. Bevar TaskGroup-cleanup, busy-fence, ingen retry/refund og eksisterende kort ved fejl. Kandidaten har separat scoped Sol-review; dette er ikke en fysisk hastighedsmåling.
+- Adskil autentificeret read-only mood-preview fra skriveautoritet. Preview må ikke indeholde task/options/candidateSet eller opgraderes til afspilning i browseren. Bevar præcis konto, boot/session/generation, observeret owner-epoch, kildeudløb og den allerede godkendte20/dag200/måned-kvote. Eksisterende play-/setup-/action-guards skal forblive uændrede. Navigation bevarer samme kort; kun første musikåbning eller Andre forslag kan vælge nye.
+- Vis kun faktisk aktuelt selector-arbejde som et bundet, endeligt pendingfelt. Genbrug eksisterende VoiceSurface-tekst uden ny geometri; lytter/taler er fortsat den faktiske samtalefase. Pending må ikke ændre svarrevision/indhold eller overleve fejl, cancel, owner-/inputskift eller lukning.
+
+Kæde og regressioner: autentificeret frame → eksakt musik-readkonto/owner eller completed visual tool-receipt → eksisterende formålsbudget/selector → kildebunden rendering; afvis stale/krydsede svar efter alle awaits. Ingen ny samtale- eller hjemmehandling. Test read-only uden cookie og nul playmyndighed, ejer-/kontoskift, kortbevaring, timeout med joinede børn, bounded partial-body-cleanup, visual pending→ready/failure/cancel/close samt gamle snapshots uden det nye felt. Adversarial review udføres af anden Sol; brugeren har fravalgt Ultra. Fokuserede checks køres fra usynkroniseret mirror; endelig sammensat admission/CI/publication/install og faktisk Green-prøve resterer.
+
+Separat løbende visual-kvote er stadig ubesvaret og må ikke integreres/aktiveres. Gamle finite20 må ikke nulstilles. Robot-only policy er forberedt med verificeret vacuum og uden musik; faktisk grant/betjening er særskilt. Live-køhop mangler native forekomst-/revisionskontrakt og må ikke erstattes med ny URI-afspilning. Låst UI, Humør-afklaringen og det eksplicit senere skærm-/lysspor bevares.
+
+Rollbackgrænse: hele32-deltaet til immutable31; ingen ændring af31-kilde eller Green under arbejdet. Kvotefiler/engangsreceipts må ikke rulles tilbage for at genvinde kald. De tre isolerede kandidatspor flettes kun som præcise diffs efter review; ny eksakt32-admission og metadata kræves før udgivelse. Ingen samlet færdigmelding eller faktisk AI-/fysisk accept følger af denne beslutning.
+
+---
+
+# Exact32 independent source review (unreviewed placeholder; rejects)
+
+<!-- podview32-admission
+{
+  "version": 7,
+  "kind": "podview32_preview_deadline_feedback",
+  "base_tip": "729668ffa45067bfb75fd6928ccac9f9beaf5576",
+  "merge_base": "729668ffa45067bfb75fd6928ccac9f9beaf5576",
+  "domains": [
+    "physical_output"
+  ],
+  "fingerprint": "b476b1536036bb01dfbf0853f9f11ffae246f00f2cb098021b123d4ffd3a793e",
+  "regression_fingerprint": "b6f9feeb5ef5a3fc71e50ac10ef469d6b3ceb6bbcfc76431006754d1058043c8",
+  "runtime_fingerprint": "9946831c405a7fc38a51d11d25384f3d5b404775c42a18ad407bb137fd7c00c6",
+  "config_fingerprint": "68f5feb69cd3bb7935a7c194ca850e903ee8ddb84fa45975e13cdffafc47a05e",
+  "policy_fingerprint": "3db262ab92a0dd8c13cb99eb3de64bc6d01a38e52a566bd76ff39d51283e351c",
+  "tooling_fingerprint": "520034bd80f3986c44f3f630b9eb317b47223923cb952666b62f07662b830084",
+  "manifest_fingerprint": "e3d0b4744fcfa31ec0fe4fc42b5cf6d1cee49ffbd3e8e0f56acd1c8a9691e639",
+  "reviewer": "Independent GPT-6 Sol /root/timer_robot_acceptance_sol; exact32 final source review",
+  "rationale": "Independent exact combined32 source/admission GO, 15 October 2026. Review SHA256 d8ee61c6c9ff8d5fe2b7bc0d566304d1a3dcc79665ae1231cc15629894f104df. Causal preview/pending and strict closure verified; CI, installation and Green acceptance remain separate."
+}
+-->
+
+---
+
+# Exact31 independent source review (historisk baseline)
 
 <!-- podview31-admission
 {

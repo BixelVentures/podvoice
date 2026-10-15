@@ -1,8 +1,8 @@
 // Display-only conversation surface. PodVoice remains the sole speech owner.
 const phases={LISTENING:['listening','Lytter…','Tal bare'],THINKING:['thinking','Tænker…','Et øjeblik'],AI_SPEAKING:['responding','Svarer…',''],LOUNGE_WINDOW:['ready','Klar til mere','Du kan spørge videre'],UNKNOWN:['waiting','Vent et øjeblik…','']};
-export function voicePresentation(voice,connected=true){
+export function voicePresentation(voice,connected=true,visualPending=null){
  if(!connected||voice?.active!==true||!phases[voice.phase])return null;
- const [phase,label,detail]=phases[voice.phase];return {phase,label,detail,key:[voice.sessionId||'',voice.turnId||'',phase].join(':')};
+ const [phase,label,detail]=phases[voice.phase];const pending=visualPending?.sessionId===voice.sessionId&&typeof visualPending?.taskId==='string'&&Number.isInteger(visualPending?.revision);const extra=pending&&!detail?'Forbereder visning…':detail;return {phase,label,detail:extra,key:[voice.sessionId||'',voice.turnId||'',phase,...(pending&&!detail?[visualPending.taskId,visualPending.revision]:[])].join(':')};
 }
 const make=(tag,cls)=>{const n=document.createElement(tag);if(cls)n.className=cls;return n;};
 export class VoiceSurface{

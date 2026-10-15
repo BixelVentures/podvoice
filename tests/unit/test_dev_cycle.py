@@ -421,7 +421,16 @@ def test_scope_change_invalidates_focused_result():
         require_unchanged_scope(before, after)
 
 
-def test_release_runs_candidate_scope_against_frozen_merge_base(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "frozen_base,entry",
+    [
+        ("frozen-base", "scripts/candidate_scope_admission32.py"),
+        ("0e56c593c6ce9a3e1666b5fd535d3424cc691b9c", "scripts/candidate_scope_admission31.py"),
+    ],
+)
+def test_release_runs_candidate_scope_against_frozen_merge_base(
+    monkeypatch, tmp_path, frozen_base, entry
+):
     captured = []
 
     monkeypatch.setattr("scripts.dev_cycle.sibling_tool", lambda _python, name: name)
@@ -435,15 +444,15 @@ def test_release_runs_candidate_scope_against_frozen_merge_base(monkeypatch, tmp
         tmp_path,
         {},
         "python",
-        ScopeSnapshot("head", "frozen-base", (), "", ()),
+        ScopeSnapshot("head", frozen_base, (), "", ()),
     )
 
     scope = next(stage for stage in captured if stage.name == "candidate-scope")
     assert scope.command == (
         "python",
-        "scripts/candidate_scope_admission31.py",
+        entry,
         "--base",
-        "frozen-base",
+        frozen_base,
     )
 
 

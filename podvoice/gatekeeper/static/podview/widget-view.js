@@ -103,7 +103,7 @@ class WidgetHost extends HTMLElement {
   const phase=this.journey?.state?.phase;
   const demoPhase={listening:'LISTENING',thinking:'THINKING'}[phase];
   const voice=this.live?this.liveSnapshot?.voice:this.mockVoice||{phase:demoPhase,active:!!demoPhase,sessionId:this.state.sessionId,turnId:String(this.journey?.state?.run||0)};
-  const value=voicePresentation(voice,this.live?this.liveStatus==='connected':this.state.connected);
+  const value=voicePresentation(voice,this.live?this.liveStatus==='connected':this.state.connected,this.live?this.liveSnapshot?.visualPending:null);
   if(value)value.key=(this.liveSnapshot?.bootId||'demo')+':'+value.key;
   this.voiceSurface?.update(value);
  }

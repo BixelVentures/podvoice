@@ -175,8 +175,11 @@ async def test_track_grant_cannot_authorize_playlist(mood_rig):
     bridge = mood_rig.app[BRIDGE]
     bridge.controls.policy["music"][0]["actions"] = ["play_track"]
     async with TestClient(TestServer(mood_rig.app)) as client:
-        assert not (await mood(client))["ok"]
-        assert mood_rig.router.podview_mood_selector.select.await_count == 0
+        body = await mood(client)
+        assert body["ok"] and body["schema"] == "podview.mood-preview.v1"
+        assert "candidateSet" not in body
+        assert not bridge.music_selection.sources and not bridge.music_selection.tasks
+        assert bridge.controls.music.execute_context.await_count == 0
 
 
 async def test_default_off_no_allowance_old_visual_policy_cannot_activate(tmp_path):
@@ -502,6 +505,67 @@ async def test_playlist_batch_joins_child_cleanup_before_busy_fence_release(mood
         assert not bridge._music_busy and not bridge.music_selection.sources
         assert not bridge.music_selection.tasks
         assert router.podview_mood_selector.select.await_count == 1
+    finally:
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
+    mood_rig, monkeypatch
+):
+    """Drive deadline expiry at a barrier; no elapsed-time performance assertion."""
+    from gatekeeper import podview
+
+    bridge, router = mood_rig.app[BRIDGE], mood_rig.router
+    request = SimpleNamespace(
+        query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
+    assert json.loads((await podview._mood_music(request, bridge, "kitchen")).body)["ok"]
+    retained = bridge._mood_retained
+    retained_rows = copy.deepcopy(retained["rows"])
+    request.query["refresh"] = "1"
+    original_read, real_timeout = router.podview_read, asyncio.timeout
+    deadlines, entered, cleaned, queries = [], asyncio.Event(), [], []
+
+    def capture_timeout(delay):
+        manager = real_timeout(delay)
+        if delay == 10:
+            deadlines.append(manager)
+        return manager
+
+    async def blocked(kind, account=None, query=None):
+        if kind != "playlist_search":
+            return await original_read(kind, account, query)
+        queries.append(query)
+        if len(queries) == 3:
+            entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await asyncio.sleep(0)
+            assert bridge._music_busy
+            cleaned.append(query)
+
+    monkeypatch.setattr(podview.asyncio, "timeout", capture_timeout)
+    router.podview_read = blocked
+    task = asyncio.create_task(podview._mood_music(request, bridge, "kitchen"))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)  # Deadlock guard only.
+        assert len(deadlines) == 1 and len(queries) == 3
+        deadlines[0].reschedule(asyncio.get_running_loop().time())
+        result = json.loads((await task).body)
+        assert result == {
+            "ok": False,
+            "error": "mood_unavailable",
+            "retryAllowed": False,
+        }
+        assert sorted(cleaned) == sorted(queries) and len(cleaned) == 3
+        assert not bridge._music_busy and not bridge.music_selection.sources
+        assert not bridge.music_selection.tasks and bridge._mood_retained is retained
+        assert retained["rows"] == retained_rows
+        assert router.podview_mood_selector.select.await_count == 2
+        assert bridge.controls.music.execute_context.await_count == 0
     finally:
         if not task.done():
             task.cancel()
