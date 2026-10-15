@@ -1,66 +1,96 @@
 # Udviklingsflow
 
-Vælg den korteste kontrol, der faktisk dækker ændringen. Safety, scope, review og fysisk
-accept er bindende i [AGENTKONTRAKT](AGENTKONTRAKT.md) og [AGENTS.md](../AGENTS.md).
-Denne side vælger rækkefølge, ikke en vej uden om gates.
+Denne side omsætter arbejdskontrakten til den faktiske udviklingssløjfe. Den definerer
+hverken ny produktretning eller acceptgate. Den fulde risikokontrol står i
+[AGENTKONTRAKT](AGENTKONTRAKT.md); aktuel kandidat- og fysisk status står kun i
+[STATUS](STATUS.md).
 
-## Én beslutningsgang
+## Ti korte arbejdsregler
 
-1. **Læs aktuel sandhed:** start med [STATUS](STATUS.md). For runtime, Realtime, VAD,
-   audio, firmware, prompt, værktøjskontrakt, lifecycle eller release: læs desuden
-   [INVARIANTER](INVARIANTER.md), [PRODUKTMÅL](PRODUKTMÅL.md),
-   [ARKITEKTUR](ARKITEKTUR.md) og relevante sektioner i [AGENTKONTRAKT](AGENTKONTRAKT.md).
-   Rutine-docs/tooling behøver ikke gennemgå alle produktdokumenter.
-2. **Afgræns:** fastlæg lead og filejerskab. Opret STATUS-beslutningspost før risikofyldt
-   produktkode. Historiske arkiver er ikke aktuel status.
-3. **Fokuseret feedback:** kør relevant eksisterende regression. For kode, fx
-   `scripts/dev fast --test tests/path/test_file.py::test_case`; gentag `--test` for flere
-   noder i én kørsel. Uden `--test` vælger `fast` konservativt ud fra diffet. Det er
-   udviklingsfeedback, ikke kandidataccept. Den valgte pytest udføres hver gang; Ruff og
-   mypy bruger deres eksisterende inkrementelle caches. Der indføres intet separat resultatcache.
-4. **Lifecycle:** brug `scripts/dev lifecycle` kun når dens mekaniske scope dækker hele diffet.
-   Det beviser ikke live provideradfærd eller fysisk accept.
-5. **Freeze én samlet kandidat:** kontrollér exact tree/scope én gang mod aktuel main,
-   review berørt ejerskab og fasthold PASS for uændrede bytes.
-6. **Officiel CI:** kør én gang på exact candidate. Den brede CI dækker relevante statiske
-   checks, pytest samt browser/build efter scope. Den snævre docs/devtools-CI kører kun
-   `test_dev_cycle`, `test_ci_scope` og `test_release_contract`. Den gælder kun kendt docs- /
-   devtools-scope; ukendt, runtime, config, requirements, produkt- og workflowændring bruger
-   fuld CI. Docs-only ændringer springer add-on imagebuild over.
-7. **Lokal releasegate:** `scripts/dev release` kun ved konkret CI-fejl eller nødvendigt
-   offlinearbejde. Isolér fejl; gentag kun ugyldiggjorte trin.
-8. **Adskil beviser:** merge, main-CI, publiceret artifact, installation, providerprøve,
-   fysisk golden chain og 10/10 lifecycle er forskellige udfald.
+1. Læs STATUS først; ved runtime/lifecycle/lyd ændres læs også INVARIANTER,
+   PRODUKTMÅL og ARKITEKTUR.
+2. Én teknisk lead ejer beslutningen; afgræns fil- og reviewejere før arbejde.
+3. Saml beslægtede rettelser i én kandidat, ét PR-flow og én installation.
+4. Kør den kausale regression og relevante adapter tidligt med eksisterende harness.
+5. Genbrug beståede checks på uændrede bytes; gentag kun ugyldiggjorte eller endnu
+   ikke kørte trin.
+6. Brug én vedvarende Python 3.12-venv og eksterne caches i usynkroniseret dev-klon.
+7. fast --test er fokuseret feedback, ikke releaseaccept; lifecycle vælges kun, når
+   dens manifest dækker hele ændringen.
+8. Frys én exact-tree kandidat, kontrollér scope og review berørte ejergrænser.
+9. Kør officiel CI én gang på endelig kandidat; lokal release kun ved konkret
+   CI-fejl eller nødvendigt offlinearbejde.
+10. Hold kilde, CI, providerprøve, publicering, installation og fysisk accept adskilt;
+    saml fysiske prøver i én serie.
 
-## Kommandoer
+## Lokale kommandoer
 
-```sh
-PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev fast --test tests/path/test_file.py
+Brug ekstern Python 3.12 fra den faste venv. scripts/dev starter
+scripts/dev_cycle.py; ingen ny test-runner eller resultatcache skal etableres.
+
+~~~sh
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev fast --base origin/main --test tests/path/test_file.py::test_case
 PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev lifecycle --base origin/main
 PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev release --base origin/main
-```
+~~~
 
-Genbrug én vedvarende Python 3.12-venv og eksterne caches. Lokale gates køres fra den
-usynkroniserede dev-klon; Documents/worktrees er redigerings- og handoverflade. Undgå
-konkurrerende pytest/mypy/git-gates på samme maskine. Runnerens stage-tider bruges til
-lokal tidsdiagnose.
+--test kan gentages for flere eksisterende pytest-moduler/noder i samme fast-kørsel.
+De eksplicit valgte tests køres hver gang; berørte Ruff/format/mypy-stages og pytest
+kører parallelt med isolerede stage-caches. Uden --test vælger fast konservativt ud
+fra diffet. Hvis ændringen kræver hele testsuiten, opdeler fast/release workerne unit i
+otte sekventielle batches og integration i to sekventielle kohorter (den faktiske
+ten-cycle SDK-kohorte først, derefter resten); stage-ejerne kører parallelt og fejler
+hurtigt. lifecycle er kun den eksisterende mekaniske manifestkontrol, ikke live eval,
+release, golden chain eller fysisk evidens.
 
-## Tidsforventninger
+Lokal release parallelliserer scope, Ruff/format, mypy, unit- og integrationstages;
+browser-gate køres kun når scope kræver det. Det slutter med exact-tree/diffkontrol og
+er stadig ikke officiel CI eller ARM64 artifact. Kør ikke gates fra Documents,
+Desktop, iCloud, OneDrive eller andre synkroniserede worktrees.
 
-En manuel cacheprototyp blev kasseret: på en repræsentativ lille `fast --test`-node målte
-Ruff/mypy med deres eksisterende caches 0,350/0,351 s; prototypen målte 1,573 s koldt og
-1,080 s på varmt cache-hit. Den varme prototype var ca. 0,73 s langsommere, og dens
-binding dækkede ikke ekstern konfiguration/Python path. Det er måling af disse runner-stages,
-ikke af hele udviklingssløjfen eller CI; ingen ny cachemekanisme shipper.
+## Hvad den officielle CI faktisk gør
 
-Der er ingen aktuelle løfter om `fast` på 8/15 sekunder, lokal release på 45 sekunder
-eller fuld suite på 35 sekunder. De tal i ældre noter var miljøbundne, ikke aktuelle
-målinger. Den seneste tidligere leveringsobservation var cirka syv minutter for hver af
-PR- og main-CI med fuld suite. Det er historisk CI-observation, ikke lokalt estimat eller
-garanti. Mål konkrete stages før optimering; bevar kausale regressioner, timeout- og
-cleanup-ejere samt fysiske gates.
+.github/workflows/ci.yml starter scopeklassifikation. For en almindelig produktændring
+kører pytest unit og rest som separate matrix-cohorts parallelt; browserkontrakt/
+Playwright er sin egen job, og PR ARM64 build kører når addon-/workflow-scope rammes.
+På main offentliggøres image først efter krævede kontroller, med immutable versionguard.
+Ingen af disse checks er fysisk provider- eller puckaccept.
 
-Hvis gates fejler eller tests tager minutter om at starte, læs stage-resultater og isolér
-én langsom/ugyldiggjort fase. Timeout, sandboxfejl og flaky adfærd er tooling-/testinfo,
-ikke produktevidens. Forlæng ikke timeout eller patch runtime uden reproducerbar årsag.
-Firmwaremiljø og package-merge kontrolleres som beskrevet i AGENTKONTRAKT.
+Kun eksplicit tooling-/dokumentationsscope bruger snæver CI: de fem filer i
+`TOOLING_FILES`, Markdown i repo-roden eller `docs/`, samt de fire præcise dokumentstier
+`podvoice/DOCS.md`, `podvoice/CHANGELOG.md`, `scripts/LIVE_ALPHA_PROBE.md` og
+`spikes/README.md`. Her kører Ruff, format og de tre eksisterende testfiler
+`test_dev_cycle.py`, `test_ci_scope.py` og `test_release_contract.py`. Escapede
+backslashes, traversal, symlinks, manglende filer og ukendte stier får ikke undtagelsen;
+manglende diff-base giver fuld scope.
+
+CI's tre scopeoutputs har hver sit formål: `tooling_only` vælger den snævre lint/test-
+matrix; `addon_changed` er sand for ændringer i `podvoice/` bortset fra de to
+topniveau-dokumenter `DOCS.md` og `CHANGELOG.md`; `pr_addon_changed` er sand ved payload
+eller ændring i `.github/workflows/ci.yml`. Derfor giver fx `spikes/README.md` snæver
+lint/test-CI uden add-on-imagebuild, mens en ren workflowændring udløser fuld CI og PR-
+imagebuild. Ukendt scope eller manglende Git-ancestry lukker aldrig checks ned.
+
+#156's runtimeforenkling er en separat kildeændring med sin egen kandidat og CI-kvittering
+i STATUS. #157 er udviklingsflow-/CI-ændringen; de to issues må ikke blandes sammen.
+Den skalering, som koden allerede gennemfører, er parallel unit/rest CI og genbrug af
+eksisterende stage-caches, ikke at springe tests over.
+
+## Målte CI-kvitteringer og backlog
+
+- #157's tooling-only PR #159 (dev-tools-2026.10.14) er lukket. Den officielle
+  [CI-kørsel 38631679611](https://github.com/BixelVentures/podvoice/actions/runs/38631679611)
+  blev målt til 38 s samlet: scope 8 s, lint/test 24 s. Det er én konkret docs/devtools-
+  kørsel, ikke en garanti for fremtidige CI-kørsler eller produktændringer.
+- #157's pytest-split PR #160's [main-CI 38647659658](https://github.com/BixelVentures/podvoice/actions/runs/38647659658)
+  målte pytest-kritisk sti fra 555,6 s til 266,4 s med unit/rest-cohorts. Det er
+  pytest-kritisk sti, ikke total workflowtid, lokal fast-tid eller Voice PE-svartid.
+- Ingen aktive løfter om fast på 8/15 s, lokal release på 45 s eller fuld suite på
+  35 s. Ældre tal var miljøbundne. Fremtidig backlog kræver først ny stage-måling;
+  den må ikke fremstilles som nuværende ydelse.
+
+Ved fejl eller langsom fase: læs den konkrete stage og årsag. Timeout, sandboxfejl og
+flaky test er tooling-/testinformation, ikke produktevidens. Ret workflow-/testens
+slutbetingelse ved gentaget procesforsinkelse; patch ikke runtime uden reproduceret
+produktårsag. Docs-only og isolerede fixtures bruger relevante fokuserede checks; de
+udløser ikke lokal bred releasegate.

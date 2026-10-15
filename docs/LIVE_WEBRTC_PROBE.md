@@ -1,8 +1,10 @@
 # Isolated Live WebRTC transport proof
 
-This developer script is not imported by PodVoice and changes no runtime transport.
-It has not been run against OpenAI or a browser yet. Root coordinates that explicit
-API test separately. Unit tests use an in-process fake SDK and create no sockets.
+This isolated developer script is not imported by PodVoice and changes no runtime
+transport. This document records no provider or browser outcome; consult
+`docs/STATUS.md` for current evidence. Unit tests use an in-process fake SDK and
+create no sockets. A probe result cannot certify the GPT-Live production path,
+full-duplex interruption or physical Voice PE playback.
 
 The source is the official Live flow in the cached guides and SDK 3.13:
 
@@ -12,9 +14,10 @@ The source is the official Live flow in the cached guides and SDK 3.13:
 
 ## Preparation and launch
 
-Use Python 3.12 with `scripts/requirements-live-alpha.txt` plus the repository's pinned
-`aiohttp` dependency. The already prepared environment is
-`/private/tmp/podvoice-live-sdk-venv`. Run from the isolated clone, not Documents.
+Use the existing external Python 3.12 development venv with
+`scripts/requirements-live-alpha.txt` and the repository's pinned `aiohttp`
+dependency. Set `PODVOICE_PYTHON` to that interpreter and run from the persistent
+unsynced dev clone, as `AGENTS.md` requires. Do not create a per-probe venv.
 
 A fixture is raw signed PCM16 little-endian, mono, 24 kHz, at most ten seconds, with
 an independently verified SHA-256. Use only the previously authorized synthetic
@@ -31,7 +34,7 @@ is needed in this official server-created Live flow.
 Example launch after the authorized handoff has populated that environment variable:
 
 ```sh
-/private/tmp/podvoice-live-sdk-venv/bin/python scripts/live_webrtc_probe.py \
+"$PODVOICE_PYTHON" scripts/live_webrtc_probe.py \
   --fixture /absolute/path/to/verified-synthetic-danish.pcm \
   --fixture-sha256 VERIFIED_SHA256 \
   --report /private/tmp/podvoice-live-webrtc-report.json
@@ -80,6 +83,16 @@ The server remains alive at most three minutes if no session is started. Reports
 contain fixed event labels, session identity, numeric usage and restricted browser
 media telemetry, not API keys, SDP, ICE addresses, arbitrary transcripts or tool text.
 
+## Optional farewell artifact trial
+
+The script also accepts `--farewell-trial`, but only with `--timeline`,
+`--provider-audio` and `--browser-capture`. This mode uses the fixture as primary
+input instead of the default typed request and saves separate provider PCM and a
+muted browser `captureStream` recording. Review the actual saved content and timing;
+`session.closed`, nonzero bytes or a successful report do not establish complete
+semantic farewell or audible speaker output. The artifacts are private and the
+paths must be new; this is an explicit, separately authorized provider trial.
+
 ## Interpret the evidence
 
 - `sideband_attached` before `answer_returned` proves server attachment ordering.
@@ -107,7 +120,7 @@ and review the actual protocol before attempting a different handshake.
 ## Offline checks
 
 ```sh
-/private/tmp/podvoice-live-sdk-venv/bin/python -m pytest \
+"$PODVOICE_PYTHON" -m pytest \
   tests/unit/test_live_webrtc_probe.py tests/unit/test_live_alpha_probe.py
 ```
 

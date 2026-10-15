@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tooling_only: ${{ steps.scope.outputs.tooling_only }}
+      addon_changed: ${{ steps.scope.outputs.addon_changed }}
+      pr_addon_changed: ${{ steps.scope.outputs.pr_addon_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -106,43 +108,33 @@ jobs:
 
   build-addon:
     needs: [scope]
-    if: github.event_name == 'pull_request' && needs.scope.outputs.tooling_only != 'true'
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.scope.outputs.tooling_only != 'true' &&
+      needs.scope.outputs.pr_addon_changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            addon:
-              - 'podvoice/**'
-              - '.github/workflows/ci.yml'
       # home-assistant/builder is deprecated; build the aarch64 image with
       # docker buildx + an explicit FROM (BUILD_FROM no longer auto-injected
       # since Supervisor 2026.04.0). See PLAN.md §11 / §6 B.2.
       - uses: docker/setup-qemu-action@v3
-        if: steps.changes.outputs.addon == 'true'
       - uses: docker/setup-buildx-action@v3
-        if: steps.changes.outputs.addon == 'true'
       - id: version
-        if: steps.changes.outputs.addon == 'true'
         run: |
           echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
       - id: artifact
-        if: steps.changes.outputs.addon == 'true'
         run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         if: >-
-          steps.changes.outputs.addon == 'true' &&
           github.event.pull_request.head.repo.full_name == github.repository
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
-        if: steps.changes.outputs.addon == 'true'
         with:
           context: ./podvoice
           platforms: linux/arm64
@@ -164,13 +156,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - uses: dorny/paths-filter@v3
-        if: github.event_name == 'push'
-        id: changes
-        with:
-          filters: |
-            addon:
-              - 'podvoice/**'
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - id: version
@@ -186,7 +171,7 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          ADDON_CHANGED: ${{ steps.changes.outputs.addon }}
+          ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}
           RELEASE_EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail

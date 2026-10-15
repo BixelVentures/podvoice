@@ -1,156 +1,63 @@
-# PodVoice
+# PodVoice · installation og daglig brug
 
-PodVoice turns a custom-firmware Home Assistant Voice PE into a hands-free, spoken
-assistant that talks back in Danish using OpenAI's Realtime API. When you start
-talking, PodVoice politely turns your music down on the HomePod so you can be heard,
-runs the conversation, and turns the music back up when you are done. It runs as its
-own add-on so a hiccup in the AI or the network can never crash Home Assistant or
-leave your music stuck quiet.
+PodVoice forbinder en Voice PE med PodConnect, Home Assistant og GPT-Live. Voice PE
+ejer wake og fysisk lyd; `VoicePELink` og den fælles `ThinSession` fører samtalen til
+`OpenAILiveSession`. Talk i panelet bruger samme samtalemotor med browserens mikrofon
+og højttaler. Begge er v2.x full-duplex-samtaler: nyt input kan fortsætte, mens et svar
+afspilles. Talk eller sendt lyd alene beviser ikke den fysiske oplevelse på Voice PE.
 
-## Before you start (prerequisites)
+Aktuel produktstatus, bindende regler og den detaljerede kæde findes i
+[STATUS](../docs/STATUS.md), [INVARIANTER](../docs/INVARIANTER.md),
+[PRODUKTMÅL](../docs/PRODUKTMÅL.md) og [ARKITEKTUR](../docs/ARKITEKTUR.md).
 
-You need three things working first:
+## Før installation
 
-1. **The PodConnect add-on**, with its Attention API reachable on port `:8099`.
-   PodVoice asks PodConnect to turn the music down and back up; without it the
-   conversation still works, but the music will not duck.
-2. **A Voice PE flashed with the PodVoice firmware** (`esphome/podvoice.yaml`).
-   The stock firmware will not work — PodVoice needs the custom firmware so it can
-   listen continuously. You will set an encryption key (Noise PSK) when you flash it;
-   keep that key, you will paste it into PodVoice below.
-3. **An OpenAI API key** (platform.openai.com, billing enabled). This powers the
-   spoken conversation (`gpt-realtime-2.1` by default; mini is an explicit cost mode).
-4. **Home Assistant's MCP server** — add the "Model Context Protocol Server"
-   integration once, and expose the devices, scripts and agents the assistant may
-   touch under **Settings → Voice assistants**. That list IS the assistant's permissions.
+- Installer PodConnect Speakers, og hav URL/token til Attention API klar. Det ejer
+  dæmpning og gendannelse af musik; PodConnect Control/HA ejer musikhandlinger.
+- Flash Voice PE med projektets firmware fra `esphome/podvoice.yaml`, og gem dens
+  ESPHome API-krypteringsnøgle (Noise PSK). Stock HA Assist må ikke overtage enheden.
+- Opret en OpenAI API-nøgle med adgang til GPT-Live, og aktivér Home Assistants
+  Model Context Protocol Server. Eksponér kun de enheder og scripts, assistenten må
+  bruge, i Home Assistants stemmeassistentindstillinger.
 
-## Installing
+## Start add-onen
 
-1. In Home Assistant go to **Settings → Add-ons → Add-on Store**.
-2. Click the **⋮** menu (top right) → **Repositories**, paste the PodVoice repository
-   URL, and click **Add**.
-3. Find **PodVoice** in the store list and click **Install**. The first install takes
-   a few minutes while the container is built.
-4. Open the **Configuration** tab. It holds **only the API key** (everything else is set
-   in the panel — see below):
-   - **openai_api_key** — your OpenAI API key
-5. Click **Save**, then go to the **Info** tab and press **Start**.
-6. Open **PodVoice** in the sidebar → expand **Settings** → fill in the rest (PodConnect URL +
-   token, your Voice PE PSK, rooms, model) → **Save & restart**.
+1. Tilføj PodVoice-repositoriet i **Indstillinger → Add-ons → Add-on Store →
+   Repositories**, og installer add-onen.
+2. Gem `openai_api_key` under add-onens **Konfiguration**, og start add-onen. Det er
+   OpenAI-nøglen til samtalen.
+3. Åbn PodVoice-panelets **Indstillinger**. Indtast Voice PE PSK, Voice PE-adresse og
+   tilhørende PodConnect-rum. Kontrollér PodConnect URL/token under **Avanceret**.
+4. Vælg **Gem og genstart**. **Gem til senere** skriver indstillingerne uden genstart.
+   Kontrollér derefter forbindelse og enhedens wakeword-bekræftelse i panelet.
 
-## Settings (in the panel, not the Configuration tab)
+Panelet har daglige valg for vækkeord, idle-lukning og musikdæmpning samt avancerede
+indstillinger for blandt andet mikrofonkanal/gain, maksimal samtaletid og HA/MCP.
+Der er ingen daglig provider- eller Realtime-modelvælger. Gemte gamle
+`openai_model`, `force_mini`, `live_alpha` og `full_duplex`-felter er
+kompatibilitets-/rollbackdata; de aktiverer ikke en alternativ produktionsmotor eller
+lukker GPT-Live-input under svar. Ændr ikke lydtuning uden en konkret trace eller
+måling.
 
-Everything except the API key lives on the panel's **Settings** page (saved inside the add-on, with
-a **Save & restart** button). The HA **Configuration** tab is intentionally just the key.
+## Kontrollér funktion
 
-| Setting | What it does |
-|---|---|
-| Model | `gpt-realtime-2.1` (quality default) or `gpt-realtime-2.1-mini` (explicit cost mode). |
-| Interruption style | **Conservative** (default — the speaker's own voice can never cut a reply off), Responsive, or Custom (raw knobs under Advanced). |
-| Close after silence / Max conversation | Cost control: how long a conversation may idle (default 25 s) and run (default 15 min). |
-| Always use the mini model | Cost guard — clamps every session (rooms + Talk tab) to the mini model. |
-| PodConnect URL | Where PodConnect's Attention API lives. Usually `http://homeassistant.local:8099`. |
-| PodConnect token | The secret token that lets PodVoice control the music. |
-| Voice PE PSK | The encryption key shared with the Voice PE firmware. |
-| Rooms | Pair each Voice PE (`voicepe_host`) with a PodConnect `room` so the right room ducks. |
-| Advanced tuning | Duck/lounge levels, lounge window, heartbeat, watchdog, VAD threshold — leave as is unless you know why. |
+Panelets forside viser forbindelser og kapabiliteter; **Avanceret → Fejlfinding** har
+forbindelses-, lydstrøm- og højttalerkontrol. En anmodet testtone eller et grønt
+statusfelt beviser ikke, at samtalen høres korrekt i rummet. Hør selv første svar,
+tal under et svar, prøv opfølgning, lukning og næste wake. Den gældende fysiske
+accept står i [STATUS](../docs/STATUS.md).
 
-**Save & restart** writes the settings and restarts the add-on so they take effect (plain **Save**
-keeps them but you'd restart the add-on yourself).
+Talk-fanen kan tage tekst og, hvor browseren tillader det, mikrofoninput. Browserens
+mikrofon kræver en sikker kontekst som HTTPS eller localhost; Home Assistant-paneler
+kan desuden begrænse den indlejrede mikrofon. Talk deler Live/Thin-koden, men er ikke
+en fysisk Voice PE-prøve.
 
-## Checking that it is healthy
+Hjemmestyring og den aktuelle websøgevej kommer fra HA/MCP; PodVoice opfinder ikke
+fakta, når værktøjet mangler eller fejler. Musikstyring og -søgning går gennem
+PodConnect Control i HA; PodConnect Speakers bruges til fysisk attention/ducking.
+Timeren ejes af HA, ikke af en lokal nedtælling i PodVoice.
 
-Open the add-on's **Log** tab. A healthy PodVoice prints a plain-language status line
-roughly once a minute, for example:
-
-```
-[PodVoice] OK · lytter · ChatGPT: forbundet · HomePod-styring: forbundet · sidste svar: 0.34s
-```
-
-A steady stream of these `OK` lines means everything is connected and working. If
-something is wrong you will see an `ADVARSEL` (warning) line that says what is failing,
-for example that the HomePod control is unavailable and the music will not duck.
-
-## Setting up the Voice PE (when it arrives)
-
-Open the **PodVoice** sidebar → **Voice PE setup**. It walks you through it and gives three
-click-buttons so you never need a terminal:
-1. Flash `esphome/podvoice.yaml` via the **ESPHome** add-on (set its API encryption key = your PSK).
-2. Do **not** add the Voice PE to Home Assistant Assist (PodVoice must own its mic).
-3. In **Settings**, enter the PSK and add a room → **Save & restart**.
-4. **Check connection** (is it reachable?), **Check audio stream** (continuous-audio test), and
-   **Test speaker** (plays a tone — confirm you hear it).
-
-## Home control, web search & music (like Assist)
-
-PodVoice can control your home, run exposed lookup tools, and control music — both in the panel
-console and by voice — through the same Home Assistant MCP tool list that OpenAI Realtime receives.
-
-**Home control:** expose the entities and domains in Home Assistant's own Voice Assistant / Assist
-settings. PodVoice no longer keeps a separate allowlist. Once exposed through HA/MCP, you can say
-things like *"tænd lyset i køkkenet"*, *"sæt varmen til 21"*, or *"tilføj mælk til
-indkøbslisten"*.
-
-**Web search:** expose your existing Gemini/search agent or a search script to Assist/MCP. PodVoice
-does not add a second competing search provider. The panel shows whether a web/search tool is
-actually visible; if it is missing, current facts should fail honestly instead of being invented.
-
-**Music:** PodVoice uses the split PodConnect design instead of pretending that one surface can do
-everything. PodConnect Speakers URL/token are for the physical HomePod path: automatic ducking while
-the family talks, safe restore afterwards, and account-agnostic stop/release when needed. Normal
-voice music commands like *pause*, *next*, *play something*, *skru ned*, Spotify search, library and
-listening-history questions should go through PodConnect Control's Home Assistant `media_player` and
-`podconnect.*` services. PodVoice discovers Control's response-returning `recently_played`,
-`top_tracks` and `liked` services directly through Home Assistant and exposes only those actually
-installed as Realtime tools; no wrapper script is required. If the user asks external follow-up questions about a
-song, artist, album, concert or meaning, PodVoice may use the normal web/search tool. The panel shows
-whether a music tool is actually visible.
-
-## The sidebar panel
-
-Once started, PodVoice adds a **PodVoice** item to the Home Assistant sidebar. Open it to see,
-per room: the current state (idle / listening / speaking / follow-up), whether the music is
-ducked and how far, the last response time, live connection health for ChatGPT, the Voice PE, Home
-control (MCP), and PodConnect, plus capability pills for time, home, web/search, music and timers.
-There's a live transcript and three buttons per room — **Listen** (start a
-conversation as if you pressed the button), **Stop** (end it and restore music), and **Test tone**
-(play a sound out the Voice PE speaker to check audio). No secrets are shown here; configuration
-still lives in the **Configuration** tab.
-
-### Talk to the assistant from the panel
-
-The panel has a **Talk** tab — a software stand-in for the Voice PE running the REAL engine. Type or
-speak and the assistant answers out loud (the reply is spoken in your browser) with a live transcript.
-With a real OpenAI key set it's the real assistant; without the key the surface is unavailable
-instead of inventing a demo reply. A **model dropdown** and a **voice dropdown** affect only that browser session.
-All the selectable models are realtime voice models — there is nothing to get wrong here.
-
-There's also a 🎤 mic button for hands-free voice **in** — but browsers only allow microphone access on
-a secure page. If you open Home Assistant over plain `http://…` on your LAN, the mic is disabled
-(you'll see a note) while typing + spoken replies keep working. Open HA over **HTTPS / Nabu Casa** (or
-`localhost`) and the mic turns on automatically.
-
-## Troubleshooting
-
-- **The add-on will not start / errors right away.** Check the Log tab. The most common
-  cause is a missing or mistyped required field (OpenAI key, PodConnect token, Voice PE
-  host, or Noise PSK). Re-check the **Configuration** tab and Save again.
-- **It hears me but the music does not turn down.** PodConnect is probably unreachable.
-  Confirm the PodConnect add-on is running, that `podconnect_base_url` is correct
-  (usually `http://homeassistant.local:8099`), and that `podconnect_token` matches the
-  token configured in PodConnect. The conversation still works at full volume in the
-  meantime — by design, PodVoice never blocks talking just because ducking failed.
-- **It never responds when I talk.** This is usually the Voice PE link. Confirm
-  `voicepe_host` is reachable and that `voicepe_noise_psk` exactly matches the key in
-  the Voice PE firmware. Also make sure the Voice PE is **not** added to Home Assistant's
-  Assist — PodVoice must be the only thing using its microphone.
-- **The reply gets cut off, or there is a short error tone.** PodVoice gave up on a
-  slow turn (the watchdog). This is normal protection against a stuck connection; just
-  ask again. If it happens constantly, check your internet connection and the OpenAI
-  API key's quota.
-- **A warning about the music control keeps appearing.** PodConnect is down or the
-  token is wrong. The music will automatically return to its normal volume on its own
-  within a couple of seconds — it can never get stuck quiet.
-
-If problems persist, set the add-on log level to debug (if available) and check the Log
-tab for more detail. Secrets are always hidden in the logs.
+Hvis noget fejler, læs panelets konkrete status og add-on-loggen. Ved manglende
+Voice PE-forbindelse: kontrollér adresse, PSK og firmware. Ved manglende musikdæmpning:
+kontrollér PodConnect URL/token. Ved værktøjsfejl: kontrollér HA/MCP-eksponering.
+Bevar event- og lydspor fra den berørte samtale, før indstillinger ændres.

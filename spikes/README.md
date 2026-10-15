@@ -1,5 +1,7 @@
 # PodVoice hardware spikes (S1 & S2)
 
+> **HISTORICAL SPIKE NOTES — NOT CURRENT SETUP INSTRUCTIONS.** These S1/S2 Gemini-era bring-up assumptions do not define the GPT-Live-only, full-duplex v2.x path. Keep this page as provenance; follow [the document index](../docs/README.md) and current [STATUS](../docs/STATUS.md) before any device work.
+
 These two scripts retire the project's existential unknowns the moment you have a
 real, custom-firmware **HA Voice PE** on the LAN. They are operational tools, not
 part of the add-on. See **[PLAN.md](../PLAN.md) §4.2, §4.5, §12, §13** for context.

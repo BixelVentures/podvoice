@@ -1,14 +1,17 @@
-# Maskinel PodVoice-evaluering
+# Diagnostisk Realtime-evaluering
 
-Den maskinelle eval er et ekstra bevislag under de bindende gates i
-`docs/PRODUKTMÅL.md`. Den kan aldrig erstatte den fysiske Voice PE-gate.
+`gatekeeper.eval_harness` og Test-fanens live-preflight er bevarede
+**OpenAI Realtime-diagnostikker**. De kører ikke den shippede GPT-Live-samtalemotor
+og kan ikke godkende v2.x-produktion, fysisk Voice PE-lyd eller fuld duplex.
+De bindende gates og den aktuelle kandidatstatus står i `docs/PRODUKTMÅL.md` og
+`docs/STATUS.md`. Brug kun denne guide til at forstå og betjene den afgrænsede
+historiske diagnostik.
 
 ## Hvad den beviser
 
 `gatekeeper.eval_harness` kører faste danske samtalescenarier gennem en lille
-`ConversationDriver`-kontrakt. Samme oracle kan derfor bruges af den direkte
-Realtime-adapter, Talk og en simuleret Voice PE-adapter uden at skabe flere
-samtalemotorer.
+`ConversationDriver`-kontrakt. Oraclet afprøver Realtime-adapteren og dens
+simulerede I/O-fixtures; det er ikke GPT-Live-/Talk-produktionskontraktens oracle.
 
 Kernescenarierne dækker:
 
@@ -35,8 +38,8 @@ bagudrettet autorisere batchen.
 
 Live-eval er opt-in og bruger `SafeEvalTools`. Routeren indeholder ingen HA-, MCP-
 eller PodConnect-klient og returnerer kun faste testresultater. Et ukendt værktøj
-nægtes. Når add-onen kalder evalueringen, eksponeres den fulde aktuelle liste af
-produktionsdeklarationer for Realtime plus ét eksplicit mærket, eval-lokalt følsomt
+nægtes. Når add-onen kalder evalueringen, eksponeres det frosne skemas
+Realtime-deklarationer plus ét eksplicit mærket, eval-lokalt følsomt
 fixture-værktøj. Dispatch forbliver den sikre lokale router. Fixturet genbruger
 produktionens `ExecutionPolicy`: det første kald returnerer præcis samme
 `needs_confirmation`-wireformat med `approval.challenge_id`, og godkendelse går gennem
@@ -51,8 +54,9 @@ samme rækkefølge; evalueringen har ingen kopieret skemavariant. Audio-replay b
 fortsat profilen `production-replay` uden eval-fixture, så trace-schemahashen kan
 sammenlignes direkte med produktionssporet.
 
-Dermed kan den rigtige produktionsprompt, Realtime-model og værktøjskonkurrence testes
-uden at tænde lys, starte musik eller ændre hjemmet.
+Dermed kan Realtime-driverens prompt-, model- og værktøjskonkurrence undersøges
+uden at tænde lys, starte musik eller ændre hjemmet. Selv et grønt resultat
+siger intet om den aktuelle GPT-Live-providers semantik eller fysisk afspilning.
 
 I add-on-panelets Test-fane køres samme afgrænsede suite med **Kør sikker preflight**.
 Det ingressbeskyttede endpoint er `POST /api/eval/live`; requesten kan kun vælge kendte
@@ -132,14 +136,16 @@ trace-oraklet og ti simulerede cyklusser.
 Gaten er altid **focused/partial**. Den foretager ingen live API-kald og beviser hverken
 Realtime-semantik, add-on-image, fysisk puck eller golden chain. Ukendte produktions-,
 semantik-, funktions- og testflader afvises i stedet for at give en falsk grøn status;
-en ændret dækket testfil køres i sin helhed. Den fulde lokale releasegate, exact-commit
-CI/ARM64-build, sikker live-preflight og de fysiske gates er fortsat separate og
-obligatoriske på den frosne kandidat.
+en ændret dækket testfil køres i sin helhed. Officiel CI og de fysiske gates
+er separate beviser for den frosne kandidat. SafeEval/preflight køres efter `AGENTS.md` kun ved ændret prompt, schema,
+værktøjer eller relevant providersemantik; Realtime-preflight erstatter aldrig
+en GPT-Live-gate.
 
-Audio-replay reserverer desuden eksakt PCM-varighed gange antal lydforsøg til OpenAIs
-særskilt fakturerede `gpt-live-transcribe`-pris på $0,017/minut. Tekstkontrollen har
-ingen transskriptionsafgift. Beløbet indgår i samme $5-loft før provider-socket og
-rapporteres særskilt som `transcription_budget`; `budget.cost_usd` er det samlede
+Audio-replay reserverer desuden eksakt PCM-varighed gange antal lydforsøg
+med harnessets konservative `gpt-live-transcribe`-prisparameter på $0,017/minut.
+Dette er en kodeværdi for budgetvagten, ikke en aktuel prisattestation.
+Tekstkontrollen har ingen transskriptionsafgift. Beløbet indgår i samme
+$5-loft før provider-socket og rapporteres særskilt som `transcription_budget`; `budget.cost_usd` er det samlede
 estimat. Produktionsmåleren registrerer konservativt faktisk videresendt mikrofonlyd
 som en separat transskriptionspost, fordi `response.done.usage` kun beskriver
 Realtime-responsen.
@@ -151,8 +157,8 @@ Et scenarie bliver kun grønt, når dets eksakte fixtureargumenter og krævede
 værktøjsudfald også er observeret; et tilfældigt korrekt slutsvar kan ikke erstatte en
 afvist fixture eller et forkert værktøjskald.
 
-Første semantiske scenariesession bruger den eksakte produktionsprompt, hele det frosne
-schema og kun lokale safe fixtures. En completed `response.done` med gyldig, typet usage
+Første diagnostiske scenariesession bruger sit frosne Realtime-prompt-/skemasnapshot
+og kun lokale safe fixtures. En completed `response.done` med gyldig, typet usage
 er nødvendig før næste providerkant; værktøjer frigives først efter den eksisterende
 resultatkapacitetsgate. `rate_limits.updated` er valgfri pacingtelemetri. Fravær eller
 malformed telemetry bruger current-runs konservative lokale vindue; timeout,
@@ -202,7 +208,8 @@ kan isoleres.
 
 ## Bevisgrænse
 
-Maskinen kan bevise providerprotokol, prompt/tool-adfærd, kontekst, timeout,
-korrelation og simuleret lifecycle. Kun den fysiske puck kan bevise wakeword,
-same-breath-mikrofon, gain/AEC, LED, reel højttalerstart/-slut, rumekko og faktisk
-wake-rearm. En release kræver derfor fortsat både live-eval og de fysiske gates.
+Dette harness kan give deterministisk kontraktbevis og, når en eksplicit live-kørsel
+faktisk er gennemført, Realtime-specifik providerdiagnostik. Det beviser ikke
+GPT-Live-inputaccept, naturlig afbrydelse, faktisk Voice PE-playback eller rearm.
+V2.x-godkendelse følger de aktuelle gates i `docs/PRODUKTMÅL.md`; fysisk bevis
+kræver den faktiske puck og korrelerede rum-/device-spor.

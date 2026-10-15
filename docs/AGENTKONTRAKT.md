@@ -1,5 +1,10 @@
 # Detaljerede agentkrav
 
+> V2.x-retningen er kun GPT-Live med full duplex, præciseret af brugeren 15/10.
+> V1.x-half-duplex er historisk, ikke produktionskrav. Kontinuerlig Live-input under
+> svar er tilsigtet. OpenAI Realtime-wirekrav gælder alene den beholdte diagnostik/
+> regression; de må ikke blive GPT-Live-gates eller begrunde lukning af aktiv Live-mic.
+
 Disse krav gælder ved de risikofyldte opgavetyper, der er angivet i
 [AGENTS.md](../AGENTS.md). Læs kun de sektioner, som matcher arbejdet; de fire
 produktdokumenter er autoritative for runtime-retning og gates.
@@ -37,8 +42,9 @@ checks på uændrede filer. Browser og fuld testsuite køres i officiel CI én g
 frosne ændringssæt; lokal `release` bruges kun til konkret CI-fejl eller offline arbejde.
 Kør én scopekontrol mod aktuel main ved freeze, ikke ved hver lille iteration.
 `lifecycle` bruges kun, når dens mekaniske scope dækker hele diffet. Derefter ét
-merge-flow og én installation af grøn main. SafeEval/preflight bruges kun ved ændret
-prompt, schema, værktøjer eller Realtime-semantik. Fysisk afprøvning samles i én serie.
+merge-flow og én installation af grøn main. Fokuseret preflight af den faktiske GPT-Live-vej bruges kun ved ændret prompt,
+schema, værktøjer eller GPT-Live-semantik. Realtime-SafeEval beviser kun sin egen
+diagnostik/sammenligning, aldrig GPT-Live-semantik; se EVALUERING.md. Fysisk afprøvning samles i én serie.
 
 En WIP-base beviser kun sit eget source-delta. Før merge/release skal hele kandidaten
 bindes og scopekontrolleres mod aktuel main; sammensatte ejergrænser kræver en præcis,
@@ -76,7 +82,9 @@ Eksisterende menneskelig godkendelse og operatorens providerdeadline bevares.
 Dette er et ansvars- og deadlinekrav, ikke en hård tilgængelighedsgaranti ved agent-,
 browser-, netværks- eller HA-fejl.
 
-En sendt provider-control-event er aldrig i sig selv bevis for sin påståede effekt.
+For den beholdte historiske Realtime-protokolprobe gælder følgende, ikke for
+GPT-Live-produktion: En sendt provider-control-event er aldrig i sig selv bevis for
+sin påståede effekt.
 Ved `clear`, `commit`, `delete`, `cancel`, `truncate` og `response.create` skal
 regressionen fortsætte gennem de efterfølgende korrelerede serverevents og bevise den
 tilstand, som runtime bygger videre på. En fake, der kun tæller outbound-kaldet, kan
@@ -87,8 +95,8 @@ diagnosefelter og frisk optagelsesstatus efter seneste genstart/opdatering. Hist
 runtime-tidslinje, aktiveret næste optagelse og faktisk gemt lyd er forskellige beviser.
 En gammel lydfil eller en lokalt testet diagnostikpatch må aldrig kaldes aktiv diagnose.
 
-Manuel `input_audio_buffer.commit` er aldrig bevis for, at en aktiv provider-VAD er
-terminal. En afvist spændvidde må først frigive næste mic-open efter natural matching
+Kun i samme historiske Realtime-probe: manuel `input_audio_buffer.commit` er aldrig
+bevis for, at en aktiv provider-VAD er terminal. En afvist spændvidde må først frigive næste mic-open efter natural matching
 `speech_stopped`, commit/item og eksakt delete-ACK; manglende terminalkant skal lukke
 samme session bounded fail-closed.
 
@@ -97,80 +105,18 @@ ESPHome-Python. Den reelle package-merge skal bevare hele hardware-bootsekvensen
 alle overlay-hooks præcis én gang; rå YAML-tekst er ikke dette bevis. Ved ændret
 boot skal genereret C++ også kontrolleres før upload.
 
-## Den eneste produktionsretning
+## Produktretning og accept har ét hjem
 
-- Voice PE-firmware ejer fysisk wake, mic-latch, playback-events og rearm-bevis.
-- `VoicePELink` er den eneste native-API-adapter.
-- `ThinSession` er den eneste runtime-samtalemotor for Voice PE og Talk.
-- OpenAI Realtime ejer sprog, turforståelse, værktøjsvalg og semantisk afslutning.
-- Voice PE er half-duplex og bruger FLAC-announcement. Talk er en separat browser-I/O-
-  overflade og må ikke bruges som fysisk bevis for pucken.
-- PodVoice ejer kun mekanikken: mic-gate, værktøjsdispatch, fysisk playback, én teardown
-  og én rearm. Lokale fraser eller ASR-aliaser må ikke eje samtalens betydning.
+[ARKITEKTUR](ARKITEKTUR.md) beskriver den eneste GPT-Live/full-duplex-produktionsvej,
+I/O og faktiske Live WAV-output. [INVARIANTER](INVARIANTER.md) ejer input-/output-
+generationer, tool-/close-autoritet, privacy og lifecycle.
+[PRODUKTMÅL](PRODUKTMÅL.md) ejer præcise gates, tællinger, latency og definitionerne af
+første virkende version, lifecycle-godkendelse og produktaccept. V1.x-milepæle arves
+ikke som v2.x-accept. [STATUS](STATUS.md) ejer aktuel prioritet og fysisk evidens.
 
-Classic (`orchestrator.py`, `state.py`, `gatekeeper.py`, `watchdog.py`) og direct PCM er
-karantæneret legacy/regressionskode. De må ikke importeres af add-on-builderen, aktiveres
-af settings eller udvikles som parallel produktionsvej. En ændring dér skal enten fjerne
-legacy eller bevare en historisk regression; den må ikke introducere ny produktlogik.
-
-## Bindende samtaleloop
-
-Al runtime-, firmware-, test- og UI-udvikling skal bevare præcis denne ene kæde:
-
-```text
-IDLE
-  → fysisk “Okay Nabu”
-LISTENING
-  → speech_stopped
-THINKING
-  → fysisk playback_started
-AI_SPEAKING
-  → fysisk playback_finished + ekkohale
-LOUNGE_WINDOW
-  → opfølgning i samme Realtime-session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
-  → Realtime end_conversation eller fire sekunders fysisk stilhed
-CLOSING
-  → præcis én teardown → korreleret firmware-rearm
-IDLE
-```
-
-`CLOSING` er navnet på den ene close-transaction, ikke en sjette `State`; de eneste
-runtime-stateværdier er fortsat de fem produktstates.
-
-Fire sekunders timeout betyder ubrudt fysisk stilhed i en åben lyttefase. En accepteret
-`speech_started` annullerer straks idle-deadlinen indtil matching `speech_stopped`;
-idle-close må atomisk genkontrollere, at state fortsat er `LISTENING` eller
-`LOUNGE_WINDOW`, og at ingen brugertale er aktiv. Timeout må aldrig lukke i `THINKING`,
-`AI_SPEAKING`, en værktøjsrunde eller et åbent start→stop-interval. Regressionen skal
-krydse den virkelige deadline med begge VAD-kanter, ikke springe direkte til stop.
-
-`State` er den eneste half-duplex mic-gate for Voice PE: kun `LISTENING` og
-`LOUNGE_WINDOW` må sende fysisk lyd til Realtime. Talk kan være full-duplex gennem samme
-`ThinSession`, men beviser ikke puckens lydvej. Én synkron audio-generation-grænse må
-kun skæres ved første gyldige `speech_stopped`, efter den aktuelle playback-leases
-fysiske finish plus ekkohale, og ved exact korreleret rearm-ACK. Der skæres aldrig ved
-wake, fordi same-breath-prefix skal bevares.
-
-LED er feedback på samme kæde, ikke en anden state machine: bright cyan ved
-`LISTENING`, amber ved `THINKING`, green først ved fysisk `playback_started`, dim cyan
-ved `LOUNGE_WINDOW` og slukket efter fuld teardown. Fejlet fysisk stop/rearm skal vises
-som fault, ikke falsk mørk readiness. Firmware ejer wake-latch, mic-forward,
-playback-events og rearm-bevis; add-onen sender kun LED-kommandoen for den aktuelle
-`ThinSession`-state.
-
-Enhver løsning med ny session per tur, lokal frase-/matematik-/semantikmotor,
-obligatorisk fortsættelsesværktøj, parallel runtime, wake-cut, timer-ejet turafslutning
-eller uobserveret firmware/gain/VAD/prompt-tuning er modstridende og må ikke merges.
-
-## Ord med præcis betydning
-
-- **Første virkende version:** mindst én frisk fysisk golden chain har bevist wake →
-  første svar → opfølgning → modelsemantisk lukning → fysisk farvel → teardown/rearm →
-  ny wake. Den milepæl er opnået af v1.13.11 og registreret i `docs/STATUS.md`.
-- **Lifecycle release-godkendt:** samme kandidat har bestået 10/10 automatiske og 10/10
-  ubrudte fysiske cyklusser. Ikke det samme som “første virkende version”.
-- **Produktmålet nået:** funktions-, latens-, stabilitets- og benchmark-gates i
-  `docs/PRODUKTMÅL.md` er bestået. Må aldrig udledes af én vellykket samtale.
+Disse kontrakter kopieres ikke her. Legacy Realtime-prober beskriver kun deres egen
+adapter; de kan ikke vælge produktionsmotor, lukke aktiv Live-input under svar eller
+opfinde Live VAD/ACK-events. Se [EVALUERING](EVALUERING.md) for skellet.
 
 ## Lead review og beslutningsejerskab
 
@@ -211,14 +157,14 @@ Ved modstrid gælder stærkeste direkte bevis for den samme kandidat og samme p�
 
 1. fysisk Voice PE-trace med device-/provider-/speakerlyd og korrelerede firmwareevents;
 2. sammensat test af den shippede add-on/firmware og rigtig provider/protokol;
-3. rigtig Talk/Thin-integration og sikker live Realtime-eval;
+3. rigtig Talk/Thin-integration og sikker eval af den faktisk valgte provider;
 4. deterministiske integration-, unit-, kontrakt- og statiske tests;
 5. transcript, UI, loguddrag, hypotese eller plausibel forklaring uden den fulde kæde.
 
 Semantisk provideraccept skal navngive den faktisk kørte adapter, primærmodel,
 backendmodel/delegation, prompt og værktøjssnapshot før resultatet bruges som
 årsagsbevis. `LiveRealtimeDriver` tester Realtime; navnet beviser ikke GPT-Live.
-Realtime/OFF og Live/ON arver aldrig hinandens semantikresultater. Ret ikke en
+Historisk Realtime-diagnostik og GPT-Live-produktion arver aldrig hinandens semantikresultater. Ret ikke en
 produktionsprompt ud fra en anden providervej uden at afklare den ejergrænse.
 
 Effektiv prompt- og schemabinding skal udledes af den faktiske startupkonfiguration
@@ -247,7 +193,7 @@ igen.
 Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
 
 1. Navngiv de berørte invarianter.
-2. Bevar én samlet half-duplex-kæde; optimer ikke én komponent på bekostning af den
+2. Bevar én samlet GPT-Live full-duplex-kæde; optimer ikke én komponent på bekostning af den
    fysiske eventrækkefølge.
 3. Omsæt hver fysisk fejl til en permanent regression med den observerede kausale
    eventrækkefølge. Ved generation-/release-/stale-callback-risiko skal testen injicere
@@ -263,8 +209,8 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
    bevis for stabil hørelse.
 8. Ret den mindste ejergrænse uden samtidige tuninger eller nye abstraktioner. Kør først
    målrettet regression og relevant adapter, derefter relevante tidligere feltregressioner og én
-   fuld CI-kontrol på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
-   værktøjer eller Realtime-semantik.
+   fuld CI-kontrol på det frosne diff. Ved ændret prompt, schema, værktøjer eller
+   GPT-Live-semantik bruges kun relevant prøve af den faktiske providervej.
 9. Rollback og byteidentitet arver aldrig “golden” eller “stabil”; kandidaten skal bestå
    alle senere feltregressioner. Stabilitet kræver samme artifact 10/10 ubrudt.
 
@@ -281,38 +227,14 @@ rearm. Efter implementering gentages gennemgangen mod det faktiske diff og revie
 adversarial findings.
 
 Gain, VAD, bip, prompt og timeouts må kun ændres på baggrund af en trace eller en på
-forhånd defineret måling. Tænke-lyd, duplex og barge-in er selvstændige gatede features;
-de må ikke kobles ind i den virkende half-duplex-kæde som en uobserveret bivirkning.
+forhånd defineret måling. Tænke-lyd er en separat feature. Full duplex og naturlig
+afbrydelse er v2.x-produktretningen; deres fysiske funktion skal dokumenteres, ikke
+udskydes med et gammelt half-duplex-krav eller erklæres bevist af åben mic alene.
 
-## Bindende udviklingsprioritet
+## Prioritet og måling
 
-Når den aktive kandidat har bestået golden chain og 10/10 fysisk lifecycle, er næste
-arbejde i denne rækkefølge:
-
-1. **Udviklingsprioritet 1 — oplevet fysisk svartid.** Mål
-   `speech_stopped → playback_started`, del kæden op og
-   optimer den største dokumenterede flaskehals én ad gangen. Første lyd skal være
-   meningsfuld tale; et earcon eller en generisk værktøjspreamble tæller ikke som svar.
-   Målet er p50 ≤ 1,2 s for enkle ture og et stretchmål så tæt på 1,0 s som muligt uden
-   at bryde forståelse, værktøjer, playback-sandhed eller lifecycle.
-2. **Udviklingsprioritet 2 — diskret modtaget-signal.** Først efter latency-gaten må et
-   ca. 80 ms firmwarelokalt signal ved `UserSpeechStopped` udvikles som en isoleret
-   mixer-sidekanal. Det må ikke bruge announcement-vejen, forsinke Realtime eller eje
-   nogen samtaletilstand.
-3. **Udviklingsprioritet 3 — automatisk HA/MCP-recovery.** Hjem og vejr skal selv komme
-   tilbage efter tabt HA/MCP-forbindelse uden manuel reload, add-on-genstart eller tab
-   af en aktiv Realtime-samtale.
-4. **Udviklingsprioritet 4 — fysisk funktionsmatrix.** Dansk, hjem, vejr, web, musik,
-   timere og opfølgninger skal bestå de målbare antal i `docs/PRODUKTMÅL.md`.
-5. **Udviklingsprioritet 5 — samlet UI-gennemgang.** Panelet skal vise sand readiness,
-   fejl og næste handling, fungere på mobil/HA-app/desktop og bestå de definerede
-   accessibility-, Talk-, settings- og browsergates.
-
-Ingen agent må bruge feedbacksignalet til at maskere langsomhed eller udvikle prioritet
-1 og 2 i samme kandidat. En UI-ændring må ikke ændre samtalens lifecycle som en skjult
-bivirkning. De fulde gates står i `docs/PRODUKTMÅL.md`, og den aktuelle rækkefølge står
-i `docs/STATUS.md`.
-
-## Repository-publicering
-
-GitHub Contents API kan returnere tomt indhold for filer over 1 MB, selv om Git-blobben ikke er tom. Brug aldrig sådan et svar som grundlag for en filændring. Hent Git-blobben eller brug en bevaret lokal fil med verificeret samme blob-SHA; kontroller både byteantal og blob-SHA før publicering. Et readback med tom body er ikke indholdsverifikation.
+Følg aktuel rækkefølge i [STATUS](STATUS.md) og gates i
+[PRODUKTMÅL](PRODUKTMÅL.md). Oplevet svartid måles fra fysisk taleslut til første
+meningsfulde svarlyd på samme kandidat, med rum-/deviceproveniens; et earcon eller en
+preamble må ikke maskere ventetiden. Feedbacksignal, UI og anden isoleret ændring må
+ikke ændre lifecycle eller skjule en ubevist funktion som sideeffekt.

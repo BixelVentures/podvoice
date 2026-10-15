@@ -1,7 +1,6 @@
 # Reliability Overhaul v2 — HANDOVER til Mads (0.91.0)
 
-> **HISTORISK HANDOVER.** Den beskrevne branch, status og tjekliste er ikke længere
-> gældende. Brug `../AGENTS.md` og `STATUS.md`; denne fil må ikke styre produktion.
+> **HISTORISK HANDOVER (0.91).** Branch, settings, provider, status, matrix og hardwaretjek nedenfor er udløbne. Det er ikke en runbook eller produktkontrakt for GPT-Live-only/full-duplex v2.x. Se [dokumentindekset](README.md) og [STATUS](STATUS.md) sammen med de autoritative produktfiler.
 
 Alt kode-arbejde i fase 0–3 er implementeret, testet (320 tests, ruff+mypy rene)
 og ligger på branchen `claude/podvoice-reliability-v2-6g8yjz`. Det, der er

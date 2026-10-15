@@ -51,10 +51,11 @@ wake → LISTENING → THINKING → AI_SPEAKING → LOUNGE_WINDOW
 ```
 
 `CLOSING` er en transaktionsfase, ikke en ekstra runtime-`State`. De fem eksisterende
-stateværdier er fortsat den eneste mic-gate.
+stateværdier viser lifecycle; de er ikke en half-duplex-mic-gate i GPT-Live.
 
-Voice PE skal kun sende mic-lyd i `LISTENING` og `LOUNGE_WINDOW`; dette er et fysisk
-acceptkrav, som softwaretilstandsnavne alene ikke beviser. GPT-Live ejer sprog,
+V2.x kræver full duplex: aktiv Voice PE-input skal også nå GPT-Live under svar.
+Brugeren skal kunne tale ind over svaret og fortsætte i samme session. Fysisk
+afbrydelse og fravær af selvsvar skal bevises på pucken, ikke udledes af flags. GPT-Live ejer sprog,
 matematik, kontekst, værktøjsvalg og semantisk close. PodVoice må kun eje mic-gate,
 dispatch, playback, timeout, teardown og rearm. Terminalresponsen er højst én kort
 sand opgavekvittering eller ét kort farvel; ingen lyd eller fejlet lyd lukker stille. Ingen lokal keywordliste må afgøre
@@ -65,11 +66,10 @@ betydning.
 De følgende produktionskrav gælder GPT-Live: aktuel session-/connection-generation og
 epoch, input-index bundet til den completed backend-delegation før tool-batch dispatch,
 aktuel playback-lease og fysisk playback-events. `LiveAudioChunk` har ikke Realtime
-response-/item-id; kræv derfor ikke et opdigtet wire-ACK. Den fysiske mic skal fortsat
-være lukket under svar og ekkohale, og dette skal bevises på device/firmware. Den
-aktuelle GPT-Live-input-pump er ikke gated af `State` under almindelig playback; derfor
-er målet ikke dokumenteret opfyldt. #164 sporer afklaringen separat; der hævdes ingen
-akustisk eller fysisk proof.
+response-/item-id; kræv derfor ikke et opdigtet wire-ACK. Kontinuerlig Live-input
+under svar er tilsigtet og kodet/testet, ikke #164's påståede P1-fejl. Hørbar korrekt
+afbrydelse, intet selvsvar og sikker fortsættelse er stadig fysisk accept i #112/#103;
+der må ikke afledes en akustisk garanti fra den åbne input-pump.
 
 De eksplicitte `response.create`, `input_audio_buffer.*`, committed-item og delete-ACK-
 krav nedenfor er fortsat en separat regression for den beholdte OpenAI Realtime-
@@ -84,13 +84,14 @@ diagnostikadapter. De tæller ikke som GPT-Live-produktionsbevis.
   backend; tool-dispatch kræver completed delegation/response, matching aktuelt input-index,
   uændret inputrevision og godkendt `LiveToolBatch`. Stale, cancelled, incomplete, duplicate
   eller ukorrelerede hændelser giver nul sideeffekt.
-- `State` er eneste software-mic-gate: kun `LISTENING` og `LOUNGE_WINDOW` er åbne.
-  Fra accepteret brugertur gennem `THINKING`, svarlyd og ekkohale er gaten lukket;
-  kun matching fysisk playback-finish plus hale åbner den igen. Trace-replay skal
-  afvise providerlyd under lukket gate og opfølgning før fysisk playback-finish plus hale;
-  dette fysiske krav kræver fortsat device-/firmwarebevis. Den aktuelle GPT-Live-input-
-  pump er ikke gated af `State` under almindelig playback, så den dokumenterer ikke, at
-  kravet er opfyldt; se separat #164, uden at dette ændrer acceptkravet.
+- Live-input forbliver åbent i den aktive samtale under THINKING og AI_SPEAKING;
+  inaktiv session, privacy, closing og eksisterende bounded confirmation-hold afgrænser
+  forwarding. Ny inputrevision invaliderer gammel tool-/close-autoritet. Stale input
+  eller output må ikke krydse afbrydelse, generation eller teardown/rearm.
+- Full-duplex-regression skal dække input under eget svar og den faktiske output-/
+  interruptkontrakt. Fysisk input, korrekt afbrydelse, nyt svar i samme session og
+  ingen selvsvar skal accepteres på samme artifact. En transcript-fragmenthændelse
+  må ikke omdøbes til et provider-interrupt-ACK.
 - GPT-Live har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
 - GPT-Live bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
@@ -128,7 +129,7 @@ matching stop, commit/item/delete-ACK og fail-closed ved manglende ACK. Disse er
 Realtime-adapterkrav, ikke GPT-Live-produktionskrav eller bevis. GPT-Live-produktions-
 accepten ovenfor bruger aktuelle session-/epoch-/generation, input-index, completed
 backend/delegation, `LiveToolBatch`, audio-generation og playback-lease; den fysiske
-lukkede mic-gate kræver stadig device-/firmwarebevis.
+full-duplex- og akustikaccept kræver stadig device-/firmwarebevis.
 
 ### Maskinel adgangsgate før fysisk test
 
@@ -139,7 +140,7 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
   tool-ordering, semantisk close, én teardown og én rearm;
 - sammensat GPT-Live-regression for aktuelt input-index → completed delegation/response →
   `LiveToolBatch` → guarded dispatch samt stale generation/input og duplicate/replay,
-  sammen med playback-lease, fysisk mic-lukning og frisk opfølgning i samme session;
+  sammen med playback-lease, kontinuerlig input, afbrydelse og opfølgning i samme session;
   ingen provider-ACK må fabrikeres. Den særskilte Realtime-protokolprobe bevarer de
   historiske crossed-start → nul-PCM → stop/commit/item/delete-ACK-regressioner;
 - rigtig Talk-WebSocket med hello/lease/input-ACK, ordnede events og korreleret playback;
@@ -150,8 +151,8 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
   response-bundet `LiveToolBatch`. Ændret prompt, schema, værktøjer, model, reasoning
   eller audiosemantik kræver fokuseret semantisk preflight uden sideeffekter;
 - trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
-  close-, capture- og rearm-events samt faldende audio-generation, providerlyd under
-  lukket mic-gate og opfølgning før fysisk playback-finish plus ekkohale;
+  close-, capture- og rearm-events samt faldende audio-generation, forwarding efter
+  teardown, stale output efter afbrydelse og close på forældet inputrevision;
 - rå providerpermutationer for completed/cancelled/failed/incomplete, schema/ACK-fejl,
   multi-call atomik, approval replay/expiry og rate-limit før sideeffekt.
 
@@ -166,8 +167,10 @@ samme sessionskontrakt. Kun tidsturene må bruge HA `GetDateTime`; matematik og 
 besvares direkte. En ren response-owner-/ACK-ændring kører først den smallere officielle
 protokolprobe og genkører kun den semantiske 5×-gate ved ændret semantikscope eller ny
 ren fysisk evidens for en semantikfejl. Samlet prisloft er $5, uden budgetprobe og uden
-hjem-, musik- eller timerhandlinger. En bred SafeEval køres ikke igen, medmindre prompt,
-schema, værktøjer eller GPT-Live-semantik faktisk er ændret.
+hjem-, musik- eller timerhandlinger. Ved ændret GPT-Live-prompt/schema/værktøj/semantik
+bruges en fokuseret prøve af den faktiske GPT-Live-vej. Den beholdte Realtime-SafeEval
+kan kun bevise sin egen diagnostik eller en eksplicit sideeffektfri sammenligning;
+den er aldrig GPT-Live-releasebevis. Se EVALUERING.md.
 
 ### Lifecycle-confidence 97/100
 
@@ -176,7 +179,7 @@ schema, værktøjer eller GPT-Live-semantik faktisk er ændret.
 | Område | Point | Obligatorisk bevis |
 |---|---:|---|
 | Én session og korrekt turkronologi | 20 | Alle maskinelle og fysiske kæder grønne |
-| Half-duplex og audio-isolation | 20 | Ingen providerlyd under lukket gate; race-regression grøn |
+| Full duplex og audio-isolation | 20 | Input under svar, korrekt afbrydelse/fortsættelse, intet selvsvar og grøn race-regression |
 | GPT-Live-semantik og værktøjsvalg | 15 | Fokuseret live-gate 5/5 |
 | Playback, teardown og rearm | 20 | Præcis én af hver; næste wake virker |
 | Stale/duplicate/out-of-order-sikkerhed | 10 | Alle relevante permutationer fail-closed |
@@ -239,11 +242,15 @@ Hastighedsarbejdet starter først efter golden chain og 10/10 fysisk lifecycle p
 kandidat. Den autoritative brugeroplevede måling er:
 
 ```text
-speech_stopped → playback_started
+fysisk taleslut → første meningsfulde svarlyd fra Voice PE
 ```
 
-Begge kanter skal komme fra den fysiske Voice PE-kædes observerede firmware-events;
-modeltelemetry eller et beregnet lydestimat må ikke erstatte dem.
+Begge tidspunkter måles i den korrelerede rum-/deviceoptagelse med dokumenteret
+proveniens og fælles tidsgrundlag. `speech_stopped` kan bruges som målelabel, men
+er ikke et firmware-/provider-event, som GPT-Live-adapteren udsender. Firmware-
+playback-events korrelerer outputtransporten; de beviser ikke alene første tale i
+en vedvarende stream. Modeltelemetry eller et beregnet lydestimat erstatter ikke
+den faktisk hørbare grænse.
 
 `response_audio_started` er kun modeltelemetry. Et kort lydsignal, generisk “et
 øjeblik” eller en værktøjspreamble er ikke et meningsfuldt svar og må ikke stoppe
@@ -275,8 +282,10 @@ eller død wake. Først når målene er fysisk målt, bliver baseline låst til 
 
 ## Udviklingsprioritet 2 — diskret modtaget-signal
 
-Efter den låste latency-baseline må PodVoice få ét kort signal, når GPT-Live har
-observeret `UserSpeechStopped`. Formålet er kun at bekræfte “din tur er modtaget” på
+Efter den låste latency-baseline må PodVoice få ét kort signal ved en faktisk
+observeret, korreleret Live-turslut-/admission-grænse. Den nuværende Live-adapter
+udsender ikke `UserSpeechStopped`; indtil en egnet grænse er dokumenteret, forbliver
+signalet gated og må ikke udløses af opdigtede VAD-events. Formålet er kun at bekræfte “din tur er modtaget” på
 ture, der stadig kræver behandling; det må aldrig få en langsom kæde til at fremstå som
 et hurtigt svar.
 
@@ -395,7 +404,9 @@ Før fysisk featuregodkendelse kræves maskinel gate og fysisk godkendt grundkæ
 - Audio fra rum/device/provider samt tidslinje gemmes med token/playback/session-id.
   Ukendt lyd, selvafbrydelse, delt-output-fejl eller død wake giver NO-GO.
 
-## Parkeret
+## Afgrænsning mod naturlig samtaleafbrydelse
 
-Vilkårlig taleafbrydelse og fortsættelse i samme samtale kræver en separat featuregate.
-De må ikke indføres ved at sende mikrofonframes til OpenAI under Voice PE-afspilning.
+Naturlig taleafbrydelse og fortsættelse er allerede v2.x-produktretningen og skal
+fysisk accepteres som sådan; en bestået lokal Stop-prøve beviser ikke den funktion.
+Kontinuerlig mikrofoninput under Voice PE-afspilning er tilsigtet, men beviser ikke
+alene korrekt fysisk afbrydelse eller fravær af selvsvar.

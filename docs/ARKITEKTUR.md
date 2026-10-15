@@ -63,15 +63,16 @@ De deler:
 - GPT-Live-ejet hensigtsfortolkning samt transport-ejet udførelse, timeout og fejlteardown;
 - de fem states `IDLE`, `LISTENING`, `THINKING`, `AI_SPEAKING` og `LOUNGE_WINDOW`.
 
-Den fysiske half-duplex-ekkoport gælder kun Voice PE. Talk er den eksplicitte
-full-duplex-browseradapter med browser-AEC; den deler ejerskab og lifecycle, men er ikke
-fysisk bevis for puckens mic-gate.
+V2.x-retningen er full duplex på både Voice PE og Talk. Native Live-input fortsætter
+under eget svar; det er en bevidst produktionsvej, ikke en half-duplex-overtrædelse.
+Talk bruger browserens I/O/AEC og deler ejerskab/lifecycle, men beviser ikke puckens
+akustik eller faktiske afbrydelse. Den fysiske accept står separat i STATUS.
 
 Kun adapteren er forskellig:
 
 | | Input | Output |
 |---|---|---|
-| Voice PE | 16 kHz PCM via `podvoice_audio` | FLAC-announcement på puckens højttaler |
+| Voice PE | 16 kHz PCM via `podvoice_audio` | Live WAV-announcement på puckens højttaler |
 | Talk | Browserens mikrofon | Browserens audioelement |
 
 Talk er derfor en softwareprøve af motoren, men kan ikke bevise Voice PE-mikrofon,
@@ -101,19 +102,20 @@ submitted; GPT-Live typed input returnerer `provider_ack=unavailable`, hvilket i
 providerbevis for en komplet brugertur. Talk-events sendes i én ordnet kø og bærer connection-, session-, turn-
 og playback-id, så en sen event fra en gammel socket eller afspilning er virkningsløs.
 
-Hvert publiceret svar får én playback-lease i `ThinSession`, bundet til den konkrete
-samtale, tur, output-item og playback-generation. Providerens backend-complete-event
-afslutter kun genereringen. Tilstanden forbliver optaget gennem ventet afspilningsstart, fysisk
-playback og ekkohale; først den samme leases `playback_finished` åbner næste tur. Voice
-PE serialiserer det ene inflight-svar gennem firmwarefasen, mens Talk også bærer det
-eksplicitte playback-id. Et event fra et tidligere svar kan derfor ikke ændre den
-aktuelle tur.
+Den fysiske outputstrøm har én korreleret playback-lease i `ThinSession`, bundet til
+session, stream/outputgeneration og firmware-events; Talk bærer også playback-id.
+Backend-complete er genereringstilstand, ikke fysisk stilhed. Playback-start/slut
+styrer output- og afsluttende drain; de åbner ikke først brugerinput. Nyt aktuelt
+Live-input kan komme under eget svar og ugyldiggøre gammel tool-/close-autoritet.
+Stale playback-events må ikke ændre en nyere outputgeneration eller næste session.
+Output skal afsluttes eller afbrydes sandt før teardown/rearm; det påstår ikke, at
+hørbar afbrydelse allerede er bevist på installeret hardware.
 
 ## Ejerskab
 
 - Voice PE-firmware ejer wakeword, conversation-latch, fysisk mic-forward,
   playback-start/slut/fault og korreleret rearm-bevis.
-- PodVoice/`ThinSession` ejer samtalens transport, state-ejet mic-gate, LED-kommando,
+- PodVoice/`ThinSession` ejer samtalens transport, session-/generationsafgrænset mic-input, LED-kommando,
   værktøjsdispatch, timeout, teardown og rearm-anmodning.
 - GPT-Live ejer forståelse, svar og valg af eksponerede værktøjer.
 - Home Assistant ejer alle live-data og handlinger. Det eksplicitte MCP API-id
@@ -179,42 +181,41 @@ Lukning har to adskilte ejere:
 - Et eksplicit hardware-stop, timeout og tekniske fejl er transport-sikkerhed og kan
   lukke deterministisk uden semantisk modelbeslutning.
 
-## Half-duplex først
+## V2.x: GPT-Live full duplex
 
-Half-duplex-ejerskabet nedenfor er fælles for GPT-Live, Voice PE og ThinSession.
-De efterfølgende konkrete OpenAI Realtime-wireeksempler beskriver den historiske
-diagnostik-/regressionsadapter. De er ikke krav til GPT-Live og må ikke bruges som
-bevis for, at produktionsprovideren udsendte en bestemt Realtime-ACK.
+Der er én produktionsvej: aktiv native mic → VoicePELink → ThinSession →
+OpenAILiveSession samtidig med Live-output → /reply/live/{stream_id}.wav → Voice PE-playback.
+`_pump_mic` lader `live_alpha` fremføre aktuelle micframes under svar; eksisterende
+native integrationstest kræver netop provider-append mens device spiller.
 
-Den krævede fysiske mic-gate er lukket under GPT-Live-svarlyd og ekkohale. Den aktuelle
-GPT-Live-input-pump er ikke gated af `State` under almindelig playback og dokumenterer
-derfor ikke, at målet er opfyldt. #164 sporer denne særskilte implementerings-/
-acceptance-gap; det ændrer ikke målet eller hævder fysisk/acoustic proof. Tabellen er
-målkontrakten for den ene software-mic-gate, ikke installations- eller capturebevis:
+Det gamle `full_duplex`-flag er ikke sandheden om GPT-Live-input. Native builderens
+`False` bevarer legacy-konfiguration, mens Live har sin egen kontinuerlige inputsti.
+Flaget må hverken bruges som fysisk duplexbevis eller blot sættes True uden review
+af alle dets øvrige callback-/afbrydelsesgrene.
 
-| State | Mic til GPT-Live | LED |
+| State/fase | V2.x Live-input | Mekanisk grænse |
 |---|---|---|
-| `IDLE` | lukket | slukket efter bevist teardown |
-| `LISTENING` | åben | klar cyan |
-| `THINKING` | lukket | amber |
-| `AI_SPEAKING` | lukket | grøn fra fysisk playback-start |
-| `LOUNGE_WINDOW` | åben | dæmpet cyan |
+| `IDLE` | ingen forwarding | privacy/inaktiv session |
+| `LISTENING` | åben | aktiv session og generation |
+| `THINKING` | fortsat åben | nyt input invaliderer gammel tool-/close-autoritet |
+| `AI_SPEAKING` | fortsat åben | GPT-Live ejer betydning; PodVoice ejer fysisk output |
+| `LOUNGE_WINDOW` | åben | opfølgning i samme session |
+| closing/confirmation-rotation | afgrænset af eksisterende ejer | ingen stale input efter teardown/rotation |
 
-Den native callback fanger sin audio-generation synkront. `VoicePELink` må kun øge
-generationen og dræne køen ved gyldigt `speech_stopped`, efter current playback-finish
-plus ekkohale og ved korreleret rearm-ACK. En delayed callback fra tur A kan derfor ikke
-blive opfølgning B. Der skæres aldrig ved wake, så same-breath-prefix bevares.
+Åben mic er ikke alene bevis for hørbar afbrydelse. Live-transcripts er fragmenter,
+ikke lokale Stop-kommandoer eller et opdigtet speech-start/interrupt-ACK. Aktuel input-,
+provider-, stream- og playback-generation skal følges gennem eventuel afbrydelse,
+relevant nyt svar, close og næste wake. Den fysiske funktion kræver korreleret
+device-/provider-/højttalerbevis uden selvsvar; #112/#103 ejer denne accept.
 
-Tidslinjen binder hele kæden som `session_id → provider_generation → turn_id →
-audio_generation → response/tool → playback_id → close_id → rearm_token`, så et
-tilfældigt korrekt svar aldrig kan skjule forkert input eller forkert ejer.
+Kildegennemgangen finder kontinuerlig input, men ingen eksplicit kobling fra et
+almindeligt Live-inputfragment til VoicePELink.stop_playback. Provideren kan ændre
+sit løbende output; dets hørbare resultat er ikke målt her. Der påstås derfor hverken
+en ny runtimefejl eller bevist fysisk barge-in. #164's tidligere krav om at lukke mic
+under svar skyldtes forældet v1.x-dokumentation og er trukket tilbage.
 
-Half-duplex betyder ikke én kommando pr. wake: GPT-Live-forbindelsen holdes åben og
-konteksten bevares gennem opfølgninger. Fuld duplex er en separat senere gate; lokalt stop har sin egen gate.
-
-Dette er den bindende målkontrakt; `docs/STATUS.md` afgør, om de installerede bits har
-bevist den. Voice PE beholder providerens VAD, mens `ThinSession` fortsat ejer den
-fysiske half-duplex-gate og lifecycle.
+Legacy half-duplex/VAD/commit/ACK-regressioner beholdes til den gamle adapter nedenfor;
+de må ikke styre GPT-Live-produktionen eller lukke en tilsigtet aktiv Live-mikrofon.
 
 ### Historisk OpenAI Realtime-wirekontrakt (kun diagnostik/regression)
 

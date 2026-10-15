@@ -55,46 +55,39 @@ køb, ekstern kommunikation, væsentlig sletning og andre klassificerede sideeff
 kræver en server-ejet, kortlivet godkendelse bundet til session, handling, mål og
 argumenter. Et afvigende eller gammelt kald skal afvises fail-closed.
 
-## Bindende Voice PE-kontrakt er half-duplex
+## Bindende v2.x-kontrakt: GPT-Live og full duplex
 
-Når `full_duplex == false`, skal alle disse være sande samtidig:
+Brugeren har præciseret den allerede valgte v2.x-retning 15/10: Voice PE og Talk skal
+bruge GPT-Live med samtidig lytning og tale. V1.x-half-duplex er ikke en produktgate.
+`full_duplex=False` i den gamle native konfiguration er ikke bevis for lukket Live-input:
+`ThinSession._pump_mic` undtager eksplicit `live_alpha`, og den native regression
+`test_selection_is_next_wake_and_stop_rejects_stale_stream_and_generation` sender
+PCM under device-playback og kræver provider-append. #164's gamle P1 mic-gab er derfor
+forældet kravdrift, ikke en dokumenteret runtimefejl.
 
-Denne sektion beskriver målkontrakten. `docs/STATUS.md` er eneste sandhed om, hvilke
-bits der faktisk er installeret og fysisk bevist.
-
-1. GPT-Live er produktionsprovideren. `ThinSession` afviser events fra en inaktiv session,
-   lukning eller forkert `_connection_generation`. `LiveSessionReady` og
-   `LiveTransportReady` er kun provider-/transporttilstand; de beviser ikke fysisk wake,
-   mic-gate eller playback.
-2. Den eksisterende `State` skal fortsat være eneste software-mic-gate:
-   `LISTENING` og `LOUNGE_WINDOW` er åbne; `IDLE`, `THINKING` og `AI_SPEAKING` er
-   lukkede. Playback-flags, timere og `_speaking` må ikke blive konkurrerende gateejere.
-   Fra den accepterede brugertur lukkes gaten; først den aktuelle playback-leases
-   fysiske finish plus ekkohale må åbne `LOUNGE_WINDOW`. Ingen
-   software-state, model-event eller provider-ACK erstatter device-/firmwarebevis for,
-   at mikrofonframes ikke krydser den lukkede fysiske gate. Den aktuelle GPT-Live-kode
-   pumper native inputaudio under aktiv session og har ikke en capture-hold omkring
-   almindelig playback; det er derfor ikke dokumenteret, at den opfylder dette lukkede
-   mic-mål. #164 sporer dette separat; ingen fysisk/acoustic proof er udledt her.
-3. En brugerinput-fragmenthændelse er ikke en komplet eller ACK'et tur. GPT-Live's
-   `LiveTranscript.input_index` og `LiveBackendStarted.input_index` er input-sekvensbevis;
-   ved tool-dispatch kræver `ThinSession` fortsat, at batchens generation og det aktuelle
-   input-index matcher den backendrespons, som oprettede batchen.
-4. `LiveBackendComplete` skal være `completed`, før `LiveToolBatch` accepteres.
-   `ThinSession` skal fortsat afvise inaktiv/stale epoch, gammel provider-generation,
-   ny inputrevision, fremmed response/delegation, replay og kald, der fejler serverpolicy.
-   En provider batch eller et korrekt svar alene er ikke autorisation.
-5. GPT-Live's `LiveAudioChunk` har provider-generation og sample-rate, ikke en
-   Realtime response-/item-ACK. Kun PCM fra aktiv session/generation/stream må komme til
-   live audio-streamen; fysisk playback-start/slut skal matche den aktuelle playback-lease
-   og firmware-event. Playback-finish plus ekkohale og korreleret rearm forbliver de
-   fysiske grænser for næste wake.
-6. En GPT-Live input- eller tool-resultatsti må ikke opfinde `conversation.item.added`,
-   `response.create`, commit- eller delete-ACKs. Typed Talk-input har den faktiske
-   submitted/provider-ack-unavailable kontrakt; backend- og værktøjseffekter skal stadig
-   bindes til current input, response, delegation og generation.
-7. Voice PE må ikke love barge-in. Talk-browseren er den separate full-duplex-overflade
-   og må eksplicit bruge browser-AEC; den er ikke bevis for puckens fysiske mic-gate.
+1. GPT-Live er eneste produktionsprovider; samme ThinSession ejer native og Talk.
+   Kun aktiv session-/connection-/audio-generation må fremføre input eller output.
+   Privacy, inaktiv session, transport-close og den eksisterende bounded confirmation-
+   rotation respekteres; kontinuerligt input betyder ikke forwarding efter teardown.
+2. `State` viser lifecycle, ikke et forbud mod at tale under svar. Aktiv Live-input må
+   fortsætte under THINKING og AI_SPEAKING. Playback-flags må ikke skabe en ny
+   samtaleejer eller genindføre v1.x-gating som en skjult rettelse.
+3. GPT-Live ejer turskifte og afbrydelsesbetydning. Transcript-fragmenter er ikke i sig
+   selv en fuld brugertur, lokal stopkommando eller et provider-interrupt-ACK. Opfind
+   ikke speech-start/stop- eller Realtime-item-events, som Live ikke sender.
+4. Ny aktuel inputrevision skal gøre gammel close-/tool-autoritet ugyldig. Tool-batches
+   kræver completed backend/delegation, matching input-index/generation og serverpolicy.
+   Stale, cancelled, duplicate og ukorrelerede events udfører nul sideeffekter.
+5. PodVoice ejer mekanisk stream-/playback-afbrydelse efter faktisk Live-kontrakt, én
+   teardown og én rearm. Stale output må ikke genoptages efter afbrydelse, rotation
+   eller ny generation. Softwareflag eller sendt stop er ikke fysisk stopbevis.
+6. Full-duplex-accept kræver faktisk ny tale under svar, håndtering af gammelt output,
+   relevant ny respons i samme session og fortsat close/næste wake uden selvsvar.
+   Åben mic, unit-test og Talk er ikke fysisk bevis for puckens akustik/afbrydelse.
+   Det bevis følges i #112 med lifecycle i #103; det er ikke en mic-lukningsopgave.
+7. Native og Talk har hver sin I/O-/akustikgrænse. Browser-AEC beviser ikke Voice PE.
+   `LiveAudioChunk`/`LiveBackendComplete` beskriver provider-output/backend, ikke
+   automatisk korreleret fysisk playback-finish eller provider-ACK for brugerinput.
 
 ### Historisk OpenAI Realtime-protokolprobe (kun diagnostik/regression)
 
@@ -122,16 +115,17 @@ Grænsen øger generationen synkront og dræner køen. En callback, der allerede
 fanget den gamle generation, er derefter inert. Der må aldrig skæres ved wake eller
 idempotent stream-keepalive; det ville klippe den bevidst bevarede same-breath-lyd.
 
-De forbudte kombinationer er: **lokal half-duplex mic-gate + server-side automatisk
-response-interrupt** og **lokalt kasseret tur + server-side automatisk response**. Den
-første gav feltfejlen 2026-08-18; den anden gav trace `20260901T101334-410`, hvor en
-kasseret start overlevede playback og opslugte den næste opfølgning.
+Historiske v1.x-regressioner beskytter mod lokalt kasseret tur med efterfølgende
+automatisk response og mod blandet half-duplex-gate/automatisk interrupt i den gamle
+Realtime-adapter. De må ikke bruges som et forbud mod tilsigtet GPT-Live full duplex.
+Aktive input-/outputejere og generationer skal stadig stemme overens.
 
 Den isolerede `correlated_local_stop_v1`-kandidat tilføjer en lokal stemmestyret
 transport-stopknap under eget svar. Kun microWakeWord-modellen `Stop` må udløse den;
 ikke ASR-tekst, VAD eller providerfraser. Stop låser playback før lokal afbrydelse,
 lukker stille gennem samme close-owner og kræver korreleret pipeline-drain før rearm.
-Stopaktivering er playback-/timer-ejet; mikrofonlyd til OpenAI forbliver gated.
+Stopaktivering er playback-/timer-ejet; den må ikke genindføre half-duplex-gating
+i den aktive GPT-Live-samtale. Inaktiv/closing input forbliver afgrænset.
 Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
 
 ## Livscyklus
@@ -167,25 +161,30 @@ Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
    wake er fortsat det stærkeste kontinuitetsbevis.
 8. Provider-eventrækkefølge er ikke nødvendigvis den fysiske samtalerækkefølge. En
    færdig inputtransskription kan komme efter svaret; historik skal derfor tidsstemples
-   ved brugerens `speech_stopped`-grænse og må aldrig vise svar før årsag.
+   ved faktisk observeret input og bevare årsagsrækkefølgen; et GPT-Live
+   `speech_stopped`-event må ikke opfindes.
 9. Alle brugerinput skal ejes af `ThinSession`, før de sendes til provider. Tale opretter
-   turen ved den autoritative taleslutgrænse; skrevet Talk-input skal gå gennem en
-   tilsvarende offentlig turindgang. En adapter må aldrig kalde providerens `send_text`
-   direkte, undertrykke sendefejl eller vise input som accepteret uden en korreleret
-   serverkvittering. På Voice PE må et committed provider-item ikke skabe en respons,
-   før Thin har accepteret den samme fysiske talespændvidde og sendt det ene korrelerede
-   response-request.
+   inputejerskab fra faktisk Live-sekvens/generation; skrevet Talk-input skal gå
+   gennem den offentlige turindgang. En adapter må aldrig kalde providerens `send_text`
+   direkte eller undertrykke sendefejl. Talk viser først submitted efter PodVoices
+   korrelerede kommando-/session-/turnkvittering; det er ikke et provider-item-ACK.
+   GPT-Live har her `provider_ack=unavailable`, ikke bevist provideraccept.
+   GPT-Live ejer den kontinuerlige talestrøm; Realtime-adapterens
+   committed-item/response-request er kun dens særskilte diagnostikkontrakt.
 10. WebSocket-forbindelse, provider-readiness, samtalestatus og inputaccept er fire
     forskellige sandheder. UI må ikke udlede "klar" af en åben socket. Hver session,
     tur, providerrespons, værktøjskald og playback skal kunne korreleres; events fra en
     gammel forbindelse eller gammel playback må ikke ændre den aktuelle tilstand.
-    Den sammenhængende trace-nøgle er `session_id → provider_generation → turn_id →
-    audio_generation → response_id/tool-call-id → playback_id → close_id → rearm_token`.
+    Trace binder faktiske session-/providergenerationer, input-index/revision,
+    audio-/streamgeneration, playback-lease, close-id og rearm-token. Backend-
+    response/delegation/call-id bruges, hvor de faktisk findes; Live-lydchunks må
+    ikke få opfundne turn-/item-id'er.
 11. `LiveBackendComplete` er kun backendens terminalstatus, aldrig bevis for et stille rum;
     `LiveAudioChunk` binder heller ikke hver lydchunk til et response-/item-id.
-    Et publiceret svar ejer én tur-bundet playback-lease fra request gennem fysisk start,
-    fysisk finish og ekkohale. Først den samme leases finish må åbne opfølgningen eller
-    lukke efter modelsemantisk farvel. Manglende start fejler lukket; stale, dublerede,
+    Native Live bruger en session-/stream-/generationsbundet playback-lease gennem
+    fysisk start, finish eller korreleret afbrydelse; ingen per-turn/item-korrelation
+    påstås for LiveAudioChunk. Nyt Live-input kan komme under svar;
+    modelsemantisk farvel må ikke lukke på forældet inputautoritet. Manglende start fejler lukket; stale, dublerede,
     omvendte eller fremmede playback-events er virkningsløse.
 12. Et provider-værktøjskald er kun en kandidat, indtil den samme korrelerede
     providerrespons afsluttes med den officielle status `completed`. Kandidater fra
@@ -260,5 +259,5 @@ Ved ændringer i VAD, mic-gating, audio buffering, tool-rounds, playback eller t
 
 1. Angiv hvilke invarianter der berøres.
 2. Tilføj en regressionstest fra den konkrete fysiske eventrækkefølge.
-3. Kontrollér den modsatte overflade: Voice PE half-duplex versus Talk full-duplex.
+3. Kontrollér den modsatte overflade: native Voice PE versus Talk, begge med GPT-Live full-duplex-retning.
 4. Afvis enhver konfiguration, hvor to lag begge tror, de ejer interruption/lukning.

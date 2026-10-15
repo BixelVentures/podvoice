@@ -1,127 +1,45 @@
-# Historical OpenAI Realtime reference — diagnostic protocol (verified 2026-08-12)
+# Historical OpenAI Realtime protocol reference
 
-> This file is a protocol-specific reference for the retained OpenAI Realtime
-> diagnostic/regression adapter. It does not describe the production provider, select
-> a runtime, or define GPT-Live acceptance. The production architecture is recorded in
-> [`ARKITEKTUR.md`](ARKITEKTUR.md); current installed and physical evidence is in
-> [`STATUS.md`](STATUS.md). The GPT-Live-1 migration seam below is superseded history.
+This is a dated v1.x reference for the retained diagnostic/regression adapter
+`podvoice/gatekeeper/openai_realtime.py`. It is **not** a v2.x production provider,
+settings guide, model recommendation, release gate or GPT-Live acceptance test.
+The current source of authority is [`STATUS.md`](STATUS.md),
+[`INVARIANTER.md`](INVARIANTER.md), [`PRODUKTMÅL.md`](PRODUKTMÅL.md) and
+[`ARKITEKTUR.md`](ARKITEKTUR.md). The user has explicitly selected GPT-Live-only,
+full-duplex v2.x. Any half-duplex mic gate or Realtime VAD advice below applies
+only when interpreting old traces and tests.
 
-Verified against developers.openai.com (search retrieval) + the live generated
-OpenAI SDK/OpenAPI spec (which already carries gpt-realtime-2.1). The Realtime
-**Beta was removed 2026-05-12**; everything below is the GA surface.
+## Scope of the old protocol
 
-## Beta-remnant audit of our provider (openai_realtime.py)
+The retained adapter uses the Realtime GA WebSocket endpoint with
+`session.type: "realtime"`, `session.update`, `input_audio_buffer.append`,
+`response.create` and `response.done`. Historical output events include
+`response.output_audio.delta`; historical input-VAD events include
+`input_audio_buffer.speech_started`, `speech_stopped` and `committed`.
+These event names must not be projected onto `ThinSession`'s GPT-Live input,
+output stream or physical Voice PE capture edges.
 
-Result: **clean** — the module was written against GA and re-verified now.
+The v1.x configuration supported `server_vad`, `semantic_vad` and manual turn
+detection, with old Settings presets such as `responsive` and `conservative`.
+Its `noise_reduction`, gain, idle and half-duplex assumptions were choices for
+that historical path. They do not define the current native full-duplex
+interruption contract. Inspect the actual Live provider and Voice PE adapter
+before proposing a current change.
 
-- No `OpenAI-Beta` header; URL `wss://api.openai.com/v1/realtime?model=...` ✅
-- `session.update` uses `session.type: "realtime"` + nested `audio.input/output` ✅
-- Event names in use are the GA names (beta → GA renames were
-  `response.audio.*` → `response.output_audio.*`, `response.audio_transcript.*` →
-  `response.output_audio_transcript.*`): `response.output_audio.delta`,
-  `response.output_audio_transcript.delta`,
-  `conversation.item.input_audio_transcription.completed`,
-  `response.function_call_arguments.done`, `input_audio_buffer.speech_started` /
-  `speech_stopped` / `committed` / `timeout_triggered`, `response.created`,
-  `response.done`, `conversation.item.truncate`, `input_audio_buffer.append`,
-  `conversation.item.create`, `response.create` ✅ (all confirmed in the GA spec)
-- Stale beliefs fixed:
-  1. `idle_timeout_ms` **exists** (added ~2025-09; server_vad only) — old comments
-     claimed it didn't. PodVoice deliberately does not send it because it triggers a
-     model re-prompt rather than closing the conversation; client idle is the closer.
-  2. Input transcription is asynchronous guidance and is **not** what the Realtime
-     model itself heard. OpenAI Docs now says to start with `gpt-live-transcribe`.
-     PodVoice uses it with `languages:["da"]` and Danish domain context; the live
-     model requires plural `languages`, not singular `language`.
+The historical adapter also processed `response.done.usage`,
+`rate_limits.updated`, tool-call events and session teardown. Retained
+evaluation and replay code can exercise these behaviors as **Realtime-specific
+diagnostics**; `docs/EVALUERING.md` explains their limits. A green Realtime
+fixture or live diagnostic cannot validate GPT-Live semantics, hardware
+playback, barge-in or the current physical gate.
 
-## Models (Task 1.1)
+The old design used a local HA/MCP client and exposed its tools as function
+calls; no historical inference about a publicly reachable home endpoint is
+needed for current deployment decisions. Do not use old model aliases,
+prices, token estimates or SDK/API observations from August 2026 as current
+vendor facts or runtime settings. Check the actual provider documentation and
+running code when those facts matter.
 
-| id | role | notes |
-|---|---|---|
-| `gpt-realtime-2.1` | **quality default** | official model card: highest reasoning; improved alphanumerics, silence/noise handling and interruption behavior |
-| `gpt-realtime-2.1-mini` | explicit cost mode | official model card: distilled, faster and lower-cost; `force_mini` clamps all sessions |
-| `gpt-realtime-2` | legacy | previous default; kept selectable for rollback only |
-
-Both 2.1 models: 128k context, 32k max output, ≥25% p95 latency cut via caching.
-Dated snapshot ids were NOT verifiable — use the aliases.
-
-## Turn detection (the Task 1.3 tunables)
-
-`session.audio.input.turn_detection`:
-
-- **`server_vad`** (energy-based): `threshold` (0–1, default 0.5),
-  `prefix_padding_ms` (300), `silence_duration_ms` (500), `create_response`,
-  `interrupt_response`, `idle_timeout_ms` (nullable; timer runs after the last
-  reply finishes playing → emits `input_audio_buffer.timeout_triggered`).
-- **`semantic_vad`** (model decides when you're done): `eagerness`:
-  `low` (waits up to ~8 s) | `medium` (~4 s) | `high` (~2 s) | `auto` (=medium),
-  `create_response`, `interrupt_response`. **No idle_timeout_ms here** — our
-  client-side idle fallback covers this mode.
-- `null` = manual (push-to-talk style). No new detection types shipped in 2026;
-  gpt-realtime-2.1's interruption improvements are model behavior, not new fields.
-
-PodVoice presets (Settings → "Interruption style", applied live per session):
-
-| preset | wire config | rationale |
-|---|---|---|
-| `responsive` (**default fra 1.12.25**) | `semantic_vad`, eagerness `auto` | de to fysiske gain-16-traces viste en tom server-VAD-mikrotur midt i en naturlig opfølgning; semantic VAD venter på meningsmæssig afslutning |
-| `conservative` | `server_vad` threshold **0.45**, prefix **800 ms**, silence **500 ms**, no `idle_timeout_ms` | eksplicit fallback til korte/energi-baserede ture; half-duplex-skjoldet håndterer stadig højttalerekko |
-| `custom` | raw knobs `openai_turn/threshold/prefix_ms/silence_ms/eagerness` | the 1.4 matrix sweeps |
-
-Other verified session facts: PodVoice uses PCM at **24 kHz** in and out;
-`noise_reduction.near_field` is for close-talking headset-style microphones and
-`far_field` for laptop/conference microphones. Noise filtering runs before both VAD
-and the model. Therefore source processing is explicit:
-
-- Voice PE ch1: XMOS AEC+IC+NS, no AGC, fysisk målt gain 16 → OpenAI noise reduction `null`/off.
-- Talk/Mac: browser echo cancellation on, browser NS/AGC requested off → OpenAI
-  `far_field`. Actual browser settings and rates are logged because simple media
-  constraints are best-effort.
-
-Alternatives to PCM are G.711 `audio/pcmu/pcma`; voices include `marin`/`cedar`
-(recommended) plus `alloy`,
-`ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`; `audio.output.speed`
-0.25–1.5; `noise_reduction`: `near_field`/`far_field`/null; sessions and sockets
-hard-cap at **60 min** (we close at `max_session_min`, default 15).
-
-## Usage & pricing (drives usage.py)
-
-`response.done` → `response.usage`:
-`{input_tokens, output_tokens, total_tokens, input_token_details: {text_tokens,
-audio_tokens, image_tokens, cached_tokens, cached_tokens_details: {...}},
-output_token_details: {text_tokens, audio_tokens}}`.
-Audio ≈ 1 token/100 ms in, 1 token/50 ms out.
-
-Per 1M tokens (official model cards, checked 2026-08-12; the HA sensors remain
-estimates because the final invoice depends on actual token accounting):
-
-| | text in / cached / out | audio in / cached / out |
-|---|---|---|
-| gpt-realtime-2.1 | $4.00 / $0.40 / $24.00 | $32.00 / $0.40 / $64.00 |
-| gpt-realtime-2.1-mini | $0.60 / ~$0.06 / $2.40 | $10.00 / $0.30 / $20.00 |
-
-The full model is 3.2× mini on audio input and output token price. `force_mini`
-therefore remains an explicit owner-controlled cost guard.
-
-Primary sources: [Realtime sessions](https://developers.openai.com/api/docs/api-reference/realtime-sessions),
-[Realtime transcription](https://developers.openai.com/api/docs/guides/realtime-transcription),
-[GPT-Realtime-2.1](https://developers.openai.com/api/docs/models/gpt-realtime-2.1),
-[GPT-Realtime-2.1 mini](https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini),
-[GPT Live Transcribe](https://developers.openai.com/api/docs/models/gpt-live-transcribe).
-
-## MCP (confirms the Task 3.1 topology)
-
-The Realtime API supports **server-side** MCP (`tools: [{type: "mcp", server_url:
-...}]`) — but `server_url` must be an HTTPS endpoint reachable from OpenAI (their
-new "Secure MCP Tunnel" is the alternative). Exposing the house to the internet is
-the wrong tradeoff → PodVoice runs a **local MCP client** against HA's LAN MCP
-server and surfaces the tools as ordinary function calls. Nothing about the home
-is internet-reachable.
-
-## Superseded GPT-Live-1 migration note
-
-The provider module (openai_realtime.py) owns model id, session config, socket
-lifecycle and event decoding. Design assumption for GPT-Live-1: streaming
-audio-in/audio-out with turn-taking + tool events — same shape. Target migration:
-model string + new event handlers in that one file. No other assumptions are
-built in (no API/docs exist as of 2026-07).
+References for the retained adapter:
+[Realtime sessions](https://developers.openai.com/api/docs/api-reference/realtime-sessions)
+and [Realtime transcription](https://developers.openai.com/api/docs/guides/realtime-transcription).

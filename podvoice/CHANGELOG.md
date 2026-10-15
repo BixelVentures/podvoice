@@ -1,3 +1,12 @@
+## 2.0.29 - shared GPT-Live runtime and clear v2.x contracts
+
+- Share native/Talk session settings and replay-evidence validation while preserving both adapters and both replay admission checks.
+- Exclude three further retired modules from the image; retain their source and historical regressions.
+- Align agent, product and operator documentation with the already selected GPT-Live-only/full-duplex direction and native Live WAV stream. Withdraw the obsolete half-duplex mic-close issue; this does not claim new interruption behavior or physical acceptance.
+- Classify the entire documentation set, remove duplicated active requirements, and update all existing PodVoice/linked PodConnect issues against current code and delivery evidence.
+- Use one fail-closed Git-diff owner for required CI and image scope. Exact nonpayload guides avoid unnecessary image work; actual payload/config/workflow changes retain their checks and immutable version guard.
+- Preserve all 2.0.28 PodView functionality and defaults. No prompt/schema/audio/firmware tuning; the physical test installation is unchanged.
+
 ## 2.0.28 - genuine PodView data and source-owned music choices
 
 - Preserve all2.0.27 runtime package and complete-CI changes and the reviewed browser-gate correction.
