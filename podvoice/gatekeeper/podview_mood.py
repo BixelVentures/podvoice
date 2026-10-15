@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 
+from .mood_diagnostics import note
 from .podview_enrichment import (
     MODEL,
     RESERVED_TOKENS,
@@ -69,6 +70,10 @@ class MoodSelector(VisualSelector):
     room_kind: str = ""
 
     async def select(self, content, *, current=lambda: False):
+        def failed(reason, status=None):
+            note(reason, status)
+            return None
+
         allowance = self.allowance
         if (
             allowance is None
@@ -80,7 +85,7 @@ class MoodSelector(VisualSelector):
             or not 0 <= content["hour"] <= 23
             or content["roomKind"] != self.room_kind
         ):
-            return None
+            return failed("not_ready")
         lease = None
         try:
             public = {
@@ -124,10 +129,10 @@ class MoodSelector(VisualSelector):
             }
             encoded = json.dumps(body).encode()
             if len(encoded) > 4096:
-                return None
+                return failed("request_too_large")
             lease = self.budget.production_started(self._key, MODEL, tokens=RESERVED_TOKENS)
             if not self.budget.has_capacity(lease, RESERVED_TOKENS):
-                return None
+                return failed("provider_capacity")
             reserved = (
                 await allowance.reserve_async()
                 if isinstance(allowance, OngoingAllowance)
@@ -138,10 +143,12 @@ class MoodSelector(VisualSelector):
                 or not current()
                 or not self.budget.has_capacity(lease, RESERVED_TOKENS)
             ):
-                return None
+                return failed(
+                    "reservation_rejected" if not reserved else "owner_or_capacity_changed"
+                )
             self.budget.account_usage(self._key, MODEL, RESERVED_TOKENS, lease=lease)
             if not current():
-                return None
+                return failed("owner_changed")
             # HTTP I/O timeouts alone do not bound a slowly arriving response body.
             async with asyncio.timeout(4):
                 async with self.client.stream(
@@ -161,17 +168,19 @@ class MoodSelector(VisualSelector):
                     raw = bytearray()
                     async for chunk in response.aiter_bytes():
                         if len(raw) + len(chunk) > 16384:
-                            return None
+                            return failed("response_too_large")
                         raw.extend(chunk)
             data = _closed_json(bytes(raw))
-            if not current() or data.get("status") != "completed":
-                return None
+            if not current():
+                return failed("owner_changed")
+            if data.get("status") != "completed":
+                return failed("response_not_completed")
             messages = [item for item in data.get("output", []) if item.get("type") == "message"]
             if len(messages) != 1:
-                return None
+                return failed("response_messages_invalid")
             parts = messages[0].get("content", [])
             if len(parts) != 1 or parts[0].get("type") != "output_text":
-                return None
+                return failed("response_parts_invalid")
             result = _closed_json(parts[0]["text"])
             ids = (
                 result.get("theme_ids")
@@ -184,18 +193,18 @@ class MoodSelector(VisualSelector):
                 and len(ids) == 3
                 and all(isinstance(x, str) and x in THEMES for x in ids)
                 and len(set(ids)) == 3
-                else None
+                else failed("theme_ids_invalid")
             )
-        except (
-            httpx.HTTPError,
-            TimeoutError,
-            ValueError,
-            TypeError,
-            KeyError,
-            AttributeError,
-            ProviderBudgetUnavailable,
-        ):
-            return None
+        except httpx.HTTPStatusError as error:
+            return failed("provider_http", error.response.status_code)
+        except httpx.HTTPError:
+            return failed("provider_transport")
+        except TimeoutError:
+            return failed("model_timeout")
+        except ProviderBudgetUnavailable:
+            return failed("provider_budget")
+        except (ValueError, TypeError, KeyError, AttributeError):
+            return failed("model_parse")
         finally:
             self.budget.release(lease)
 

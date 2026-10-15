@@ -1,0 +1,118 @@
+"""Actual aggregate route, no HTTP server or external connections."""
+
+# ruff: noqa: F811 - imported pytest fixtures are injected by name.
+
+import asyncio
+import logging
+
+import pytest
+from integration.test_podview_mood_playlists import mood_rig  # noqa: F401
+from integration.test_podview_mood_preview import read, unpaired
+from integration.test_podview_music_selection import rig  # noqa: F401
+
+from gatekeeper import mood_diagnostics as diag
+
+
+@pytest.mark.parametrize(
+    "mode,phase,outcome,reason",
+    [
+        ("success", "publish", "success", "none"),
+        ("owner", "playback_before", "mood_owner_unavailable", "none"),
+        ("exception", "playback_before", "mood_unavailable", "route_exception"),
+        ("owner_timeout", "playback_before", "mood_unavailable", "owner_timeout"),
+        ("budget", "playback_before", "mood_budget_unavailable", "none"),
+        ("selection", "model", "mood_selection_unavailable", "none"),
+        ("catalogue", "playlist_search", "mood_catalogue_unavailable", "none"),
+        ("cancel", "playback_before", "cancelled", "cancelled"),
+    ],
+)
+async def test_actual_terminal_record_one_per_attempt_and_cleanup(
+    mood_rig, caplog, mode, phase, outcome, reason
+):
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    bridge = unpaired(mood_rig)
+    original = mood_rig.router.podview_read
+
+    async def replacement(*a, **k):
+        if mode == "owner":
+            return {"ok": False}
+        if mode == "exception":
+            raise ValueError("NEVER_LOG_PRIVATE_EXCEPTION")
+        if mode == "owner_timeout":
+            raise TimeoutError("NEVER_LOG_PRIVATE_EXCEPTION")
+        if mode == "cancel":
+            raise asyncio.CancelledError()
+        return await original(*a, **k)
+
+    mood_rig.router.podview_read = replacement
+    if mode == "budget":
+        mood_rig.router.podview_mood_selector.available = False
+    if mode == "selection":
+        mood_rig.router.podview_mood_selector.select.return_value = None
+    if mode == "catalogue":
+        mood_rig.playlist_account = "foreign"
+    if mode == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            await read(mood_rig)
+    else:
+        body = await read(mood_rig)
+        assert body.get("error", "success") == outcome
+    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    assert lines == [
+        f"mood_result phase={phase} outcome={outcome} reason={reason} http_status=none"
+    ]
+    assert not bridge._music_busy and diag._CURRENT.get() is None
+    assert "NEVER_LOG_PRIVATE_EXCEPTION" not in caplog.text
+    if mode in {"owner", "exception", "owner_timeout", "cancel", "budget"}:
+        assert mood_rig.router.podview_mood_selector.select.await_count == 0
+
+
+async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, caplog, monkeypatch):
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    bridge = unpaired(mood_rig)
+    entered = asyncio.Event()
+    timers = []
+    real_timeout = asyncio.timeout
+
+    def capture(seconds):
+        timer = real_timeout(seconds)
+        if seconds == 10:
+            timers.append(timer)
+        return timer
+
+    async def blocked(*a, **k):
+        entered.set()
+        await asyncio.Event().wait()
+
+    mood_rig.router.podview_read = blocked
+    monkeypatch.setattr(asyncio, "timeout", capture)
+    task = asyncio.create_task(read(mood_rig))
+    await entered.wait()
+    assert len(timers) == 1
+    timers[0].reschedule(asyncio.get_running_loop().time())
+    assert (await task)["error"] == "mood_unavailable"
+    assert not bridge._music_busy
+    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    assert lines == [
+        "mood_result phase=playback_before outcome=mood_unavailable reason=route_deadline http_status=none"
+    ]
+    assert mood_rig.router.podview_mood_selector.select.await_count == 0
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_raising_log_handler_cannot_replace_actual_success_or_cancellation(
+    mood_rig, monkeypatch, cancel
+):
+    bridge = unpaired(mood_rig)
+    monkeypatch.setattr(diag._LOG, "info", lambda *a: (_ for _ in ()).throw(ValueError("PRIVATE")))
+    if cancel:
+
+        async def cancelled(*a, **k):
+            raise asyncio.CancelledError()
+
+        mood_rig.router.podview_read = cancelled
+        with pytest.raises(asyncio.CancelledError):
+            await read(mood_rig)
+    else:
+        assert (await read(mood_rig))["ok"] is True
+    assert not bridge._music_busy and diag._CURRENT.get() is None

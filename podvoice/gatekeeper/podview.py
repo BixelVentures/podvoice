@@ -1408,6 +1408,7 @@ async def _music(request: web.Request) -> web.Response:
 
 async def _mood_music(request, bridge, room):
     """One aggregate source set, never three mutually replacing search tasks."""
+    from . import mood_diagnostics as diagnostic_log
     from .podview_mood import THEMES
 
     tools = bridge.tools
@@ -1461,13 +1462,20 @@ async def _mood_music(request, bridge, room):
     if writable:
         bridge.music_selection.sources.clear()
         bridge.music_selection.tasks.clear()
+    diagnostic, diagnostic_token = diagnostic_log.begin()
+    total_deadline = None
+
+    def failed(error):
+        diagnostic.outcome = error
+        return _error(error)
+
     try:
         # Leave two seconds for ingress/response within the browser 12-second deadline.
-        async with asyncio.timeout(10):
+        async with asyncio.timeout(10) as total_deadline:
             before = await tools.podview_read("playback", account)
             epoch = before.get("data", {}).get("owner_epoch") if before.get("ok") else None
             if not isinstance(epoch, str) or not epoch or not current():
-                return _error("mood_owner_unavailable")
+                return failed("mood_owner_unavailable")
             retained = getattr(bridge, "_mood_retained", None)
             key = (binding, account, room, id(grant), epoch)
             expected = None
@@ -1482,11 +1490,14 @@ async def _mood_music(request, bridge, room):
                 expected = {row["themeId"]: row for row in retained["rows"]}
                 ids = list(expected)
             elif request.query.get("renew") == "1":
-                return _error("mood_refresh_required")
+                return failed("mood_refresh_required")
             else:
                 if not selector.available:
-                    return _error("mood_budget_unavailable")
+                    return failed("mood_budget_unavailable")
+                diagnostic.phase = "time_context"
                 coarse = await tools.podview_mood_context(current)
+                if coarse is not None:
+                    diagnostic.phase = "model"
                 ids = await selector.select(coarse, current=current) if coarse is not None else None
             if (
                 not current()
@@ -1495,7 +1506,7 @@ async def _mood_music(request, bridge, room):
                 or any(not isinstance(x, str) or x not in THEMES for x in ids)
                 or len(set(ids)) != 3
             ):
-                return _error("mood_selection_unavailable")
+                return failed("mood_selection_unavailable")
 
             async def read_theme(theme_id):
                 if not current():
@@ -1509,6 +1520,7 @@ async def _mood_music(request, bridge, room):
 
             # Exactly three independent reads; TaskGroup joins cancellation/failure cleanup
             # before the request can release its busy fence or publish any authority.
+            diagnostic.phase = "playlist_search"
             async with asyncio.TaskGroup() as reads:
                 lookups = [reads.create_task(read_theme(theme_id)) for theme_id in ids]
             rows, seen = [], set()
@@ -1522,7 +1534,7 @@ async def _mood_music(request, bridge, room):
                     or data.get("owner_epoch") != epoch
                     or data.get("source") != "spotify_web_api"
                 ):
-                    return _error(
+                    return failed(
                         "mood_refresh_required"
                         if expected is not None
                         else "mood_catalogue_unavailable"
@@ -1542,7 +1554,7 @@ async def _mood_music(request, bridge, room):
                     None,
                 )
                 if playlist is None:
-                    return _error(
+                    return failed(
                         "mood_refresh_required" if expected is not None else "mood_catalogue_empty"
                     )
                 seen.add(playlist["uri"])
@@ -1556,15 +1568,18 @@ async def _mood_music(request, bridge, room):
                         "themeArt": theme["image"],
                     }
                 )
+            diagnostic.phase = "playback_after"
             after = await tools.podview_read("playback", account)
             if (
                 not current()
                 or not after.get("ok")
                 or after.get("data", {}).get("owner_epoch") != epoch
             ):
-                return _error("mood_owner_replaced")
+                return failed("mood_owner_replaced")
+            diagnostic.phase = "publish"
             if not writable:
                 bridge._mood_retained = {"key": key, "rows": copy.deepcopy(rows)}
+                diagnostic.outcome = "success"
                 return web.json_response(
                     {
                         "ok": True,
@@ -1594,8 +1609,9 @@ async def _mood_music(request, bridge, room):
                 context, {"tracks": rows}, binding, epoch, epoch, kind="mood"
             )
             if identifier is None:
-                return _error("mood_source_rejected")
+                return failed("mood_source_rejected")
             bridge._mood_retained = {"key": key, "rows": copy.deepcopy(rows)}
+            diagnostic.outcome = "success"
             return web.json_response(
                 {
                     "ok": True,
@@ -1616,10 +1632,23 @@ async def _mood_music(request, bridge, room):
                 },
                 headers={"Cache-Control": "no-store"},
             )
+    except asyncio.CancelledError:
+        diagnostic.outcome = "cancelled"
+        diagnostic_log.note("cancelled")
+        raise
+    except TimeoutError:
+        diagnostic_log.note(
+            "route_deadline"
+            if total_deadline is not None and total_deadline.expired()
+            else "owner_timeout"
+        )
+        return failed("mood_unavailable")
     except Exception:
-        return _error("mood_unavailable")
+        diagnostic_log.note("route_exception")
+        return failed("mood_unavailable")
     finally:
         bridge._music_busy = False
+        diagnostic_log.finish(diagnostic, diagnostic_token)
 
 
 async def _music_selection(request: web.Request) -> web.Response:
