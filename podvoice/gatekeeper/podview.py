@@ -1272,10 +1272,13 @@ async def _mood_music(request, bridge, room):
                 or len(set(ids)) != 3
             ):
                 return _error("mood_selection_unavailable")
+
             async def read_theme(theme_id):
                 if not current():
                     raise RuntimeError("mood owner replaced before lookup")
-                reply = await tools.podview_read("playlist_search", account, THEMES[theme_id]["query"])
+                reply = await tools.podview_read(
+                    "playlist_search", account, THEMES[theme_id]["query"]
+                )
                 if not current():
                     raise RuntimeError("mood owner replaced during lookup")
                 return reply

@@ -19,9 +19,14 @@ def command():
 @pytest.fixture
 def operator_files(tmp_path):
     policy = {
-        "purpose": "podview_mood_v1", "mode": "ongoing", "model": "gpt-6-luna",
-        "daily_limit": 20, "monthly_limit": 200, "timezone": "Europe/Copenhagen",
-        "room_kind": "kitchen", "approval_ref": "call_995d972f52084767a6f728e3706488da",
+        "purpose": "podview_mood_v1",
+        "mode": "ongoing",
+        "model": "gpt-6-luna",
+        "daily_limit": 20,
+        "monthly_limit": 200,
+        "timezone": "Europe/Copenhagen",
+        "room_kind": "kitchen",
+        "approval_ref": "call_995d972f52084767a6f728e3706488da",
     }
     path = tmp_path / "policy.json"
     path.write_text(json.dumps(policy))
@@ -29,7 +34,9 @@ def operator_files(tmp_path):
 
 
 @pytest.mark.parametrize("mutation", ["approval_ref", "daily_limit", "monthly_limit", "extra"])
-def test_operator_rejects_contract_change_without_touching_ledger(command, operator_files, mutation):
+def test_operator_rejects_contract_change_without_touching_ledger(
+    command, operator_files, mutation
+):
     policy, path, ledger = operator_files
     policy[mutation] = "other" if mutation == "approval_ref" else 1
     path.write_text(json.dumps(policy))
@@ -66,6 +73,8 @@ def test_operator_finite_requires_exact_hash_and_carries_all_prepaid(command, op
     with pytest.raises(SystemExit):
         command.main(args)
     assert ledger.read_bytes() == before
-    assert command.main([*args, "--expected-finite-sha256", hashlib.sha256(before).hexdigest()]) == 0
+    assert (
+        command.main([*args, "--expected-finite-sha256", hashlib.sha256(before).hexdigest()]) == 0
+    )
     state = json.loads(ledger.read_bytes())
     assert state["day_used"] == state["month_used"] == state["total_used"] == 20

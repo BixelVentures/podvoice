@@ -446,12 +446,16 @@ async def run(cfg: Config) -> None:
     )
     if cfg.podview_mood_setup_policy:
         _LOG.info("PodView mood cold setup: %s", "ready" if mood_setup_ready else "rejected")
-    tools.podview_mood_selector = configured_mood_selector(
-        ha_client,
-        cfg.openai_api_key,
-        cfg.podview_mood_policy,
-        settings_path.parent / "podview-mood-budget.json",
-    ) if mood_setup_ready else None
+    tools.podview_mood_selector = (
+        configured_mood_selector(
+            ha_client,
+            cfg.openai_api_key,
+            cfg.podview_mood_policy,
+            settings_path.parent / "podview-mood-budget.json",
+        )
+        if mood_setup_ready
+        else None
+    )
 
     tools.podview_receipts.configure_selector(
         configured_selector(

@@ -11,8 +11,22 @@ from gatekeeper.podview_mood_budget import OngoingAllowance, OngoingPolicy
 
 @pytest.fixture
 def inputs(tmp_path):
-    policy = {"purpose": "podview_mood_v1", "mode": "ongoing", "model": "gpt-6-luna", "daily_limit": 20, "monthly_limit": 200, "timezone": "Europe/Copenhagen", "room_kind": "kitchen", "approval_ref": setup.APPROVAL_REF}
-    request = {"approval_ref": setup.APPROVAL_REF, "policy_sha256": OngoingPolicy.parse(policy).fingerprint, "operator_nonce": "a" * 32, "expected_finite_sha256": ""}
+    policy = {
+        "purpose": "podview_mood_v1",
+        "mode": "ongoing",
+        "model": "gpt-6-luna",
+        "daily_limit": 20,
+        "monthly_limit": 200,
+        "timezone": "Europe/Copenhagen",
+        "room_kind": "kitchen",
+        "approval_ref": setup.APPROVAL_REF,
+    }
+    request = {
+        "approval_ref": setup.APPROVAL_REF,
+        "policy_sha256": OngoingPolicy.parse(policy).fingerprint,
+        "operator_nonce": "a" * 32,
+        "expected_finite_sha256": "",
+    }
     return tmp_path / "settings.json", policy, request
 
 
@@ -23,7 +37,9 @@ def apply(inputs):
 
 def test_default_empty_never_provisions_or_creates_state(inputs, monkeypatch):
     path, policy, _ = inputs
-    monkeypatch.setattr(OngoingAllowance, "provision", lambda *a, **k: pytest.fail("default provisioned"))
+    monkeypatch.setattr(
+        OngoingAllowance, "provision", lambda *a, **k: pytest.fail("default provisioned")
+    )
     assert setup.setup_mood_budget(path, json.dumps(policy), "")
     assert list(path.parent.iterdir()) == []
 
@@ -41,7 +57,18 @@ def test_cold_setup_repeat_and_restart_only_open_without_reset(inputs, monkeypat
     assert json.loads(before)["total_used"] == 1
 
 
-@pytest.mark.parametrize("lost", ["ledger", "marker", "receipt", "corrupt_marker", "corrupt_receipt", "pending", "ledger_and_marker"])
+@pytest.mark.parametrize(
+    "lost",
+    [
+        "ledger",
+        "marker",
+        "receipt",
+        "corrupt_marker",
+        "corrupt_receipt",
+        "pending",
+        "ledger_and_marker",
+    ],
+)
 def test_loss_corruption_partial_state_cannot_recreate_or_refill(inputs, lost):
     assert apply(inputs)
     path, _, _ = inputs
@@ -129,7 +156,9 @@ def test_complete_receipt_write_failure_stays_pending_without_reprovision(inputs
 
 def test_relative_settings_path_and_nonempty_invalid_requests_rejected(inputs):
     path, policy, request = inputs
-    assert not setup.setup_mood_budget(type(path)("settings.json"), json.dumps(policy), json.dumps(request))
+    assert not setup.setup_mood_budget(
+        type(path)("settings.json"), json.dumps(policy), json.dumps(request)
+    )
     assert not setup.setup_mood_budget(path, json.dumps(policy), "{}")
     assert list(path.parent.iterdir()) == []
 
@@ -140,19 +169,28 @@ def test_setup_authority_only_from_supervisor_never_panel_settings(inputs, monke
 
     path, _, _ = inputs
     monkeypatch.setattr(settings, "_resolve", lambda _: path)
-    monkeypatch.setattr(settings, "load_settings", lambda _: {"podview_mood_setup_policy": "attacker"})
+    monkeypatch.setattr(
+        settings, "load_settings", lambda _: {"podview_mood_setup_policy": "attacker"}
+    )
     monkeypatch.setattr(config, "load_options", lambda _: {})
     assert config.load_config().podview_mood_setup_policy == ""
     monkeypatch.setattr(config, "load_options", lambda _: {"podview_mood_setup_policy": "operator"})
     assert config.load_config().podview_mood_setup_policy == "operator"
-    assert config.from_options({"settings_source_untrusted": True, "podview_mood_setup_policy": "operator"}).podview_mood_setup_policy == ""
+    assert (
+        config.from_options(
+            {"settings_source_untrusted": True, "podview_mood_setup_policy": "operator"}
+        ).podview_mood_setup_policy
+        == ""
+    )
 
 
 def test_setup_call_precedes_selector_and_failed_setup_disables_it():
     from pathlib import Path
 
     source = (Path(__file__).parents[2] / "podvoice/gatekeeper/__main__.py").read_text()
-    assert source.index("mood_setup_ready = setup_mood_budget(") < source.index("tools.podview_mood_selector =")
+    assert source.index("mood_setup_ready = setup_mood_budget(") < source.index(
+        "tools.podview_mood_selector ="
+    )
     assert "settings_path, cfg.podview_mood_policy, cfg.podview_mood_setup_policy" in source
     assert "if mood_setup_ready else None" in source
 

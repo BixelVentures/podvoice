@@ -43,22 +43,29 @@ def setup_mood_budget(settings_path: Path, policy_raw: str, request_raw: str) ->
         request = _closed_json(request_raw)
         policy = OngoingPolicy.parse(_closed_json(policy_raw))
         if (
-            (policy.daily_limit, policy.monthly_limit, policy.approval_ref) != (20, 200, APPROVAL_REF)
+            (policy.daily_limit, policy.monthly_limit, policy.approval_ref)
+            != (20, 200, APPROVAL_REF)
             or not isinstance(request, dict)
-            or set(request) != {"approval_ref", "policy_sha256", "operator_nonce", "expected_finite_sha256"}
+            or set(request)
+            != {"approval_ref", "policy_sha256", "operator_nonce", "expected_finite_sha256"}
             or request["approval_ref"] != APPROVAL_REF
             or request["policy_sha256"] != policy.fingerprint
             or not isinstance(request["operator_nonce"], str)
             or re.fullmatch(r"[0-9a-f]{32,128}", request["operator_nonce"]) is None
             or not isinstance(request["expected_finite_sha256"], str)
-            or (request["expected_finite_sha256"] != "" and re.fullmatch(r"[0-9a-f]{64}", request["expected_finite_sha256"]) is None)
+            or (
+                request["expected_finite_sha256"] != ""
+                and re.fullmatch(r"[0-9a-f]{64}", request["expected_finite_sha256"]) is None
+            )
         ):
             return False
         ledger = settings_path.parent / "podview-mood-budget.json"
         receipt = settings_path.parent / "podview-mood-setup.json"
         identity = {
             "version": 1,
-            "request_sha256": hashlib.sha256(json.dumps(request, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "request_sha256": hashlib.sha256(
+                json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
             "policy_sha256": hashlib.sha256(policy_raw.encode()).hexdigest(),
         }
         try:

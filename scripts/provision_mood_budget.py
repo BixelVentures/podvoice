@@ -28,7 +28,11 @@ def main(argv=None) -> int:
         if len(raw) > 512:
             raise ValueError("policy too large")
         policy = OngoingPolicy.parse(_closed_json(raw))
-        if (policy.daily_limit, policy.monthly_limit, policy.approval_ref) != (20, 200, APPROVAL_REF):
+        if (policy.daily_limit, policy.monthly_limit, policy.approval_ref) != (
+            20,
+            200,
+            APPROVAL_REF,
+        ):
             raise ValueError("policy differs from explicit approved ongoing contract")
         expected = args.expected_finite_sha256
         if expected is not None and re.fullmatch(r"[0-9a-f]{64}", expected) is None:
@@ -39,7 +43,9 @@ def main(argv=None) -> int:
             raise ValueError("ledger rejected; do not remove or reset state to retry")
     except (OSError, ValueError, TypeError) as exc:
         parser.exit(1, f"Mood provisioning rejected: {exc}\n")
-    print("Approved mood ledger ready; no provider request sent. Configure matching policy before startup.")
+    print(
+        "Approved mood ledger ready; no provider request sent. Configure matching policy before startup."
+    )
     return 0
 
 

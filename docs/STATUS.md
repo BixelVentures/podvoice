@@ -11,15 +11,15 @@
     "physical_output",
     "realtime_semantics"
   ],
-  "fingerprint": "91c3dafaea54807f65c43c823ebccf82bcf80867ef3e6fe5f91cf7e1896b251a",
-  "regression_fingerprint": "00a9299fdd9adfc489db0fb2fd211153f7bf65e5069026bcf5ec053aae24e7a0",
-  "runtime_fingerprint": "49cf662c334e9f2b522183b509f52cacc0a66c3cfdbcf404677e5d8d2b24e557",
+  "fingerprint": "a6f8158ed06811228c63ccec62953f6631726a6943b2c3e6f55a8bdb9ec1e88a",
+  "regression_fingerprint": "27ff15cc00c6323afdd8e461bf31c8dae6c9ec63f36ba95751afcea45f8fa680",
+  "runtime_fingerprint": "3cae433dd5bdf13e63f1f94008d9a14115bc5812aff37396b8095b638d3b11d1",
   "config_fingerprint": "f90690b3174c5b96ca0c9931d85e6a55b3ac4a109358238bbc9dd9976efb277f",
-  "policy_fingerprint": "010a4cd0e95bfddcecd748eb5ef6ad930f1de1206ea85a6a61c68c7d212ed23d",
-  "tooling_fingerprint": "289c7253a02d35d501cc9fa9004aacde66d8d0adb9b7ff067fc3cbe8d35ba35b",
-  "manifest_fingerprint": "0b6ed43fc9bc1b7d09a4cbc7d156328b557da84f006662bd3681269cb6e29563",
-  "reviewer": "Independent GPT-6 Sol /root/ongoing_operator_review_sol; report SHA256 8907b25575de06388eb14bba50389861b7056ff234a30514f43e6655e6137e2c",
-  "rationale": "Exact source, all six pin maps, staged ha_tools/physical_output/realtime_semantics, default-off config, cold setup and immutable historical policies independently reviewed. Visual and mood setup have separate scoped Sol GO; source checks do not imply release, installation or physical acceptance."
+  "policy_fingerprint": "fb31fdde4e2ffd5366767ddec0c90e0ce48b9404b654ff542bf8d9fc1e61ae90",
+  "tooling_fingerprint": "520034bd80f3986c44f3f630b9eb317b47223923cb952666b62f07662b830084",
+  "manifest_fingerprint": "561a4a0df22a04ca08b02bea18796be8f29eb2b53e71fdb7e2823680f9a5f1a7",
+  "reviewer": "Independent GPT-6 Sol /root/ongoing_operator_review_sol; format-only delta report SHA256 5bc6477a11f058eac0a3a3414cbf7818a8fa45f8b66c03de4be12b6ffdb7766c; original source review 8907b25575de06388eb14bba50389861b7056ff234a30514f43e6655e6137e2c",
+  "rationale": "Exact reviewed31 source plus seven AST-identical formatting repairs after official Ruff failure. All six pin maps and actual staged three-domain closure independently pass. Prior visual, mood and cold-setup semantic review remains valid on unchanged AST; source evidence is separate from publication, installation and physical acceptance."
 }
 -->
 

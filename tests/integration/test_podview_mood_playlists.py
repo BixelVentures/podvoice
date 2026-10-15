@@ -408,14 +408,18 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
             await gates[query].wait()
             result = await original(kind, account, query)
             if mutation in ("account", "epoch"):
-                result["data"]["config_entry_id" if mutation == "account" else "owner_epoch"] = "other"
+                result["data"]["config_entry_id" if mutation == "account" else "owner_epoch"] = (
+                    "other"
+                )
             return result
         finally:
             finished.append(query)
             completed[query].set()
 
     router.podview_read = blocked
-    request = SimpleNamespace(query={"account": "account-alpha"}, cookies={"podview_control": "grant"})
+    request = SimpleNamespace(
+        query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
         # Timeout is only a deadlock guard: proof is the barrier, never elapsed time.
@@ -435,7 +439,11 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
         assert len(finished) == 3 and not bridge._music_busy
         if mutation is None:
             assert body["ok"]
-            assert [row["themeId"] for row in body["data"]["tracks"]] == ["cooking", "italian", "calm"]
+            assert [row["themeId"] for row in body["data"]["tracks"]] == [
+                "cooking",
+                "italian",
+                "calm",
+            ]
             assert len(bridge.music_selection.sources) == 1
         else:
             assert not body["ok"] and not bridge.music_selection.sources
@@ -477,7 +485,9 @@ async def test_playlist_batch_joins_child_cleanup_before_busy_fence_release(mood
             cleaned.append(query)
 
     router.podview_read = blocked
-    request = SimpleNamespace(query={"account": "account-alpha"}, cookies={"podview_control": "grant"})
+    request = SimpleNamespace(
+        query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
         await asyncio.wait_for(entered.wait(), 2)
