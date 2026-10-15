@@ -72,9 +72,9 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/controller-retained-cards.test.mjs",
         "tests/podview/fixtures/podvoice31/podvoice-transport.js",
         "tests/podview/fixtures/podvoice31/request-deadline.js",
-        "tests/podview/live-media-view.test.mjs",
         "tests/podview/mood-preview.test.mjs",
         "tests/podview/queue-occurrence.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
         "tests/podview/visual-pending.test.mjs",
         "tests/podview/weather-fact-display.test.mjs",
         "tests/unit/test_candidate_scope_admission32.py",
@@ -85,8 +85,8 @@ REQUIRED_TESTS = frozenset(
     ]
 )
 REVIEWER = "Independent GPT-6 Sol /root/timer_robot_acceptance_sol; exact32 final source review"
-MANIFEST_SHA = "457565ccf92b93983ea0a038fd939a7326cf08e23a406f7f5759dcc612100d2d"
-PROFILE_AST = "9893563d656911447d397ecbbfa14a74ee6730c9328c90f5ac86a60ca199bd0d"
+MANIFEST_SHA = "91597306f95bf0e4a6ea54dcf5e680917ad1bed87dc1c80e09ca5e2c49707219"
+PROFILE_AST = "16f62a44bbe3c904f2411ecddd667feba3250c755380edd2b6117d5de40a5f03"
 IMMUTABLE: dict[str, str] = {
     "scripts/candidate_scope.py": "98280acb2f4b9736ba135ef83217f409c864bb190d359aee476fe7a991a37b75",
     "scripts/candidate_scope_admission.py": "033f0e269129ec9f0b9bc353fc114f79100dd40f98868e25c856e50d8749de01",

@@ -44,14 +44,14 @@ Rollbackgrænse: hele32-deltaet til immutable31; ingen ændring af31-kilde eller
     "physical_output"
   ],
   "fingerprint": "fe4b8476576e2b8bd1ca2966c25dff480721b40549e011152ced35147c7ee8bd",
-  "regression_fingerprint": "2acb439757defaf1ae37ee71b83f05c2b06264bb4db3d30e7035f7df6d5e82de",
+  "regression_fingerprint": "be16aa10d56b451ef280be645e4ed2edc1fc4e967f825af1085a40a59d1220a8",
   "runtime_fingerprint": "8bad38fb13bacb92ae8b2c545a069cda3c81a890ad54fa56a9637da649647f12",
   "config_fingerprint": "8a49c9bdc3101f557431e30e0f1d5b23525dda275551c3672ecbe185ff4a4013",
-  "policy_fingerprint": "4b5b00644033cd8c3fcc7d5a8854aa9e6c677b91142948961e3ee15a3d28fff1",
+  "policy_fingerprint": "8f2ec8bdb4aca2c21f19c4dd1711be441d0b2a9653f3b0b4e45a53d37c9e46fa",
   "tooling_fingerprint": "8bab6fe0425d7294eb033fdb6281d21a9b745ec97e3f9dc82a3a7b671924ea7e",
-  "manifest_fingerprint": "457565ccf92b93983ea0a038fd939a7326cf08e23a406f7f5759dcc612100d2d",
+  "manifest_fingerprint": "91597306f95bf0e4a6ea54dcf5e680917ad1bed87dc1c80e09ca5e2c49707219",
   "reviewer": "Independent GPT-6 Sol /root/timer_robot_acceptance_sol; exact32 final source review",
-  "rationale": "Independent exact expanded combined32 source/admission GO, 15 October 2026. Review SHA256 0ca49ffe0c935f309f2c9d6ab4ef44c5f3e57f04a9c4cf8578606e58d5c01148. Exact composed continuity/queue/weather/preview/pending inventory and fail-closed admission verified; official CI, installation, user visual approval and physical acceptance remain separate."
+  "rationale": "Prior expanded runtime source GO preserved; independent CI test-only repair GO b5f73160d0bb5a9d26049812d5012cd567abb5076eb91d941eba6c3403abbdf4. Full packaged385 and actual Ruff/format pass; no runtime edits; official CI and Green acceptance remain separate."
 }
 -->
 

@@ -7,12 +7,13 @@ from dataclasses import replace
 from unittest.mock import AsyncMock
 
 import pytest
-from gatekeeper.podview import BRIDGE, PodViewBridge
-from gatekeeper.podview_continuity import ContinuityDenied
-from gatekeeper.podview_queue import ACTION
 from integration.test_podview_controller_continuity import enroll, renew
 from integration.test_podview_music import Rig
 from integration.test_podview_queue_occurrence import accepted, action, source
+
+from gatekeeper.podview import BRIDGE, PodViewBridge
+from gatekeeper.podview_continuity import ContinuityDenied
+from gatekeeper.podview_queue import ACTION
 
 
 @pytest.fixture
