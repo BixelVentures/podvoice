@@ -85,9 +85,26 @@ e5e06a851f18b14d434893271fa80a1c27a512f9c27550a2ba57a69a141c2a59  podvoice/gatek
 4523f241e408ed224785f5ac5a0352b11a552bc9d7fbc4544d0f2b3f04507510  podvoice/gatekeeper/web.py
 ```
 
-Sidste scopekontrol: PASS, én unclassified_runtime-domain. Første officielle
-exact-head PR-CI og ARM-build afventer; dette er ikke fysisk testklarhed eller accept.
-Ingen manuelle CI-genkørsler eller lokal bred releasegate indgår.
+Sidste scopekontrol: PASS, én unclassified_runtime-domain. PR #165 har offentligt
+head `f9a97f6b284892ffccc049dc64a2a9166f8990ef` / tree
+`51b6c8b6e0804371b408f48c46bb5495923deb0b`. Første officielle CI
+[38696690975](https://github.com/BixelVentures/podvoice/actions/runs/38696690975)
+bestod scope, browser og faktisk ARM-build, men fejlede i to forældede testantagelser:
+builder-fixturen krævede direkte ThinSession-return i stedet for den nye delegation;
+music-scope-fixturen kopierede den nye main-kilde mod sit gamle syntetiske digest.
+Dette run bevares som fejlet. Ingen runtime- eller validatorændring følger.
+
+Fixture-opfølgningen følger begge faktiske builderfunktioner og kontrollerer fortsat
+fravær af classic-fallback. Den syntetiske music-fixture binder kun sin kopierede
+main-kilde til egne bytes via pytest-monkeypatch; de øvrige reviewede digests, negative
+mutationer og den rigtige scope-policy bevares. Produktmanifestet ovenfor er uændret.
+Kun de to berørte fixturekontroller blev genkørt lokalt: hele music-scope-testfilen
+og den ene builder-regression PASS. Ændrede fixtures Ruff/format og sidste scope PASS;
+tidligere produktresultater og review genbruges. Uafhængigt fixture-review GO på
+begge rettelser; ingen policy- eller produktændring. Den nye
+exact-head CI-kvittering registreres i PR #165 og issue #156 uden et nyt docs-commit.
+Ingen manuelle CI-genkørsler eller lokal bred releasegate indgår. Dette er fortsat
+ikke fysisk testklarhed eller accept.
 
 ## Separat kildefund · #164 · ingen version aftalt
 

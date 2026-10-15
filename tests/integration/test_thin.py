@@ -4306,12 +4306,14 @@ def test_production_builder_has_no_classic_fallback():
 
     from gatekeeper import __main__ as main_mod
 
-    src = inspect.getsource(main_mod)
-    build = src[src.index("def _build_session") : src.index("def _make_talk")]
-    assert "return ThinSession(" in build
-    assert "RoomSession" not in build
-    assert "Gatekeeper(" not in build
-    assert "TurnWatchdog" not in build
+    build = inspect.getsource(main_mod._build_session)
+    shared = inspect.getsource(main_mod._make_thin_session)
+    assert "return _make_thin_session(" in build
+    assert "return ThinSession(" in shared
+    for source in (build, shared):
+        assert "RoomSession" not in source
+        assert "Gatekeeper(" not in source
+        assert "TurnWatchdog" not in source
 
 
 async def test_long_reply_is_not_cut_by_the_idle_close():

@@ -20,6 +20,17 @@ SOURCE = Path(__file__).parents[2]
 P = "podvoice/gatekeeper/"
 
 
+@pytest.fixture(autouse=True)
+def synthetic_review_manifest(monkeypatch):
+    """Pin the synthetic fixture's unrelated shared-builder source snapshot."""
+    path = P + "__main__.py"
+    digest = hashlib.sha256((SOURCE / path).read_bytes()).hexdigest()
+    # This fixture exercises receipt validation against synthetic approved bytes.
+    # #156 changes __main__.py outside the music-owner profile; keep the other
+    # production paths on their independently pinned reviewed digests.
+    monkeypatch.setitem(_PODVIEW_MUSIC_SELECTION_REVIEWED, path, digest)
+
+
 def fixture(root):
     def git(*args):
         return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
