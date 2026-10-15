@@ -279,6 +279,32 @@ def _mcp_result_to_contract(result: dict) -> dict:
     return out
 
 
+def _mood_clock_payload(data):
+    """Flat time, documented envelope or exact HA→ok/data composition; never recursion."""
+
+    def valid(value):
+        return bool(
+            isinstance(value, dict)
+            and all(key not in value or value[key] is True for key in ("ok", "success"))
+            and not value.get("error")
+            and not value.get("error_kind")
+        )
+
+    if not valid(data):
+        return None
+    if "result" in data:
+        if data.get("success") is not True or any(key in data for key in ("ok", "data", "time")):
+            return None
+        data = data["result"]
+    if valid(data) and "data" in data:
+        if data.get("ok") is not True or any(key in data for key in ("success", "result", "time")):
+            return None
+        data = data["data"]
+    if not valid(data) or "result" in data or "data" in data:
+        return None
+    return data
+
+
 class ToolRouter:
     """Local tools + HA-MCP tools behind the ToolBridgeLike surface
     (``declarations()`` / ``dispatch()``) the engines and console already use."""
@@ -2071,20 +2097,36 @@ class ToolRouter:
 
     async def podview_mood_context(self, current) -> dict | None:
         """Coarse time from the existing HA GetDateTime owner, never a local clock."""
+        from .mood_diagnostics import note
+
         selector = getattr(self, "podview_mood_selector", None)
-        if selector is None or self._mcp is None or not current():
+        if selector is None or self._mcp is None:
+            note("time_owner_missing")
+            return None
+        if not current():
+            note("owner_changed")
             return None
         if not any(row.get("name") == "GetDateTime" for row in self.declarations()):
+            note("time_tool_missing")
             return None
         result = await self._mcp.call_tool("GetDateTime", {}, execution_guard=current)
         body = _mcp_result_to_contract(result)
-        data = body.get("data")
+        data = _mood_clock_payload(body.get("data"))
         value = data.get("time") if isinstance(data, dict) else None
-        if not body.get("ok") or not current() or not isinstance(value, str):
+        if not body.get("ok"):
+            note("time_result_invalid")
+            return None
+        if not current():
+            note("owner_changed")
+            return None
+        if not isinstance(value, str):
+            note("time_result_invalid")
             return None
         import re
 
         match = re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]+)?)?", value)
+        if not match:
+            note("time_format_invalid")
         return {"hour": int(match[1]), "roomKind": selector.room_kind} if match else None
 
     def podview_music_reads(self) -> list[str]:

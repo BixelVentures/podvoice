@@ -1,3 +1,9 @@
+## 2.0.33
+
+- Stemning accepterer dokumenterede HA-klokkesvar med eksplicitte success-envelopes, mens modstridende og fejlbehæftede svar fortsat afvises.
+- Afgrænset fasediagnostik forklarer Mood-fejl uden kildeindhold, private identifikatorer eller ekstra kald.
+- Godkendt UI, AI-kvoter, deadlines, startvolumen- og kontrolkontrakter er uændrede. Faktisk Green-musik og betjening skal fortsat verificeres.
+
 ## 2.0.32 - retained PodView control and exact native queue selections
 
 - Keep real same-account mood playlist previews visible without playback authority. Only first opening or explicit refresh chooses new cards; navigation and controller renewal preserve their exact content. Bound mood work to ten seconds and model response streams to four seconds total, without retries or quota changes.

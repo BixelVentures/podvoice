@@ -1151,7 +1151,9 @@ def run_release(
                 "candidate-scope",
                 (
                     python,
-                    (
+                    "scripts/candidate_scope_admission33.py"
+                    if snapshot.merge_base == "abe759678168ba6408e10ae0a8a3621249631d13"
+                    else (
                         "scripts/candidate_scope_admission31.py",
                         "scripts/candidate_scope_admission32.py",
                     )[snapshot.merge_base != "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c"],
