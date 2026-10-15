@@ -1,10 +1,6 @@
 # Spor B: Den tynde klient — planen der slår Gemini for Home (juli 2026)
 
-> **Historisk research-/retningnotat.** Det beskriver hvorfor PodVoice valgte den
-> tynde OpenAI Realtime-retning frem for Gemini Live i juli 2026. Det er ikke længere
-> en trin-for-trin leveranceplan. Den bindende læserækkefølge er `../AGENTS.md` →
-> [STATUS.md](STATUS.md) → [INVARIANTER.md](INVARIANTER.md) →
-> [PRODUKTMÅL.md](PRODUKTMÅL.md) → [ARKITEKTUR.md](ARKITEKTUR.md).
+> **HISTORISK RESEARCH-/RETNINGNOTAT.** Gemini-vurderingerne og de konkrete model-, transport- og leveranceforslag beskriver juli 2026, ikke den aktuelle GPT-Live-only/full-duplex v2.x-kontrakt eller en aktiv plan. Se [dokumentindekset](README.md) og [STATUS](STATUS.md), [INVARIANTER](INVARIANTER.md), [PRODUKTMÅL](PRODUKTMÅL.md) og [ARKITEKTUR](ARKITEKTUR.md).
 
 Skrevet 2026-07-02 efter tre dybde-research-briefs (GPT-Realtime-2, Gemini Live, LiveKit/Pipecat/
 Vapi/Retell best practice). Erstatter den gamle lap-plan. Princip: **modellen ejer samtalen;

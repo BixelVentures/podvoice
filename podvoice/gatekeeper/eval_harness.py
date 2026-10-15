@@ -322,6 +322,45 @@ def _valid_replay_count(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5
 
 
+def _valid_replay_evidence(
+    fixture: AudioReplayFixture,
+    scenario: EvalScenario,
+    turn_index: int,
+    repeats: int,
+    text_repeats: int,
+    mode: str | None,
+) -> bool:
+    """Check the same replay evidence at job admission and immediately before use."""
+    matched = match_scenario_turn(fixture.diagnostic_transcript)
+    return not (
+        not _valid_replay_count(repeats)
+        or not _valid_replay_count(text_repeats)
+        or mode not in (None, NUMERIC_FOLLOWUP_AB_MODE)
+        or fixture.rate != 24_000
+        or not fixture.pcm
+        or len(fixture.pcm) > fixture.rate * 2 * 8
+        or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
+        or not isinstance(turn_index, int)
+        or isinstance(turn_index, bool)
+        or turn_index < 0
+        or turn_index >= len(scenario.turns)
+        or fixture.turn_index != turn_index
+        or matched is None
+        or matched[0].id != scenario.id
+        or matched[1] != turn_index
+        or (turn_index > 0 and not fixture.exact_sample_offsets)
+        or (
+            mode == NUMERIC_FOLLOWUP_AB_MODE
+            and (
+                scenario.id != "arithmetic-followup-observed"
+                or turn_index != 1
+                or repeats != 5
+                or text_repeats != 5
+            )
+        )
+    )
+
+
 def _replay_kind(mode: str | None) -> str:
     return "semantic-audio-ab" if mode == NUMERIC_FOLLOWUP_AB_MODE else "audio-replay"
 
@@ -3522,34 +3561,7 @@ class LiveEvalService:
                 "deadline_s": self._max_run_s,
                 "error": "En live-evaluering kører allerede.",
             }
-        matched = match_scenario_turn(fixture.diagnostic_transcript)
-        if (
-            not _valid_replay_count(repeats)
-            or not _valid_replay_count(text_repeats)
-            or mode not in (None, NUMERIC_FOLLOWUP_AB_MODE)
-            or fixture.rate != 24_000
-            or not fixture.pcm
-            or len(fixture.pcm) > fixture.rate * 2 * 8
-            or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
-            or not isinstance(turn_index, int)
-            or isinstance(turn_index, bool)
-            or turn_index < 0
-            or turn_index >= len(scenario.turns)
-            or fixture.turn_index != turn_index
-            or matched is None
-            or matched[0].id != scenario.id
-            or matched[1] != turn_index
-            or (turn_index > 0 and not fixture.exact_sample_offsets)
-            or (
-                mode == NUMERIC_FOLLOWUP_AB_MODE
-                and (
-                    scenario.id != "arithmetic-followup-observed"
-                    or turn_index != 1
-                    or repeats != 5
-                    or text_repeats != 5
-                )
-            )
-        ):
+        if not _valid_replay_evidence(fixture, scenario, turn_index, repeats, text_repeats, mode):
             return {"ok": False, "status": "invalid", "error": "Ugyldigt replay-bevis."}
         run_id = self._new_run_id()
         self._active_run_id = run_id
@@ -4096,33 +4108,8 @@ class LiveEvalService:
             }
         async with self._lock:
             run_id = run_id or self._new_run_id()
-            matched = match_scenario_turn(fixture.diagnostic_transcript)
-            if (
-                not _valid_replay_count(repeats)
-                or not _valid_replay_count(text_repeats)
-                or mode not in (None, NUMERIC_FOLLOWUP_AB_MODE)
-                or fixture.rate != 24_000
-                or not fixture.pcm
-                or len(fixture.pcm) > fixture.rate * 2 * 8
-                or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
-                or not isinstance(turn_index, int)
-                or isinstance(turn_index, bool)
-                or turn_index < 0
-                or turn_index >= len(scenario.turns)
-                or fixture.turn_index != turn_index
-                or matched is None
-                or matched[0].id != scenario.id
-                or matched[1] != turn_index
-                or (turn_index > 0 and not fixture.exact_sample_offsets)
-                or (
-                    mode == NUMERIC_FOLLOWUP_AB_MODE
-                    and (
-                        scenario.id != "arithmetic-followup-observed"
-                        or turn_index != 1
-                        or repeats != 5
-                        or text_repeats != 5
-                    )
-                )
+            if not _valid_replay_evidence(
+                fixture, scenario, turn_index, repeats, text_repeats, mode
             ):
                 return {
                     "ok": False,

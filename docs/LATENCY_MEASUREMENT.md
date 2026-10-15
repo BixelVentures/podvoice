@@ -1,19 +1,22 @@
 # Offline måling af fysisk svartid
 
-`scripts/latency_report.py` læser de gemte `AudioTraceRecorder`-manifests. Scriptet
-kalder ingen provider, ændrer ingen indstillinger og afspiller ingen lyd. Det er
-regnskab og reviewstøtte; `docs/STATUS.md` ejer fortsat kandidatens faktiske gate-status.
+`scripts/latency_report.py` er en offline reporter for gemte, eventindekserede
+`AudioTraceRecorder`-manifests. Den kalder ingen provider og afspiller ingen lyd.
+Dens eksisterende skema er knyttet til historiske tur-/playback-events; det er
+ikke GPT-Live-produktionens fysiske måleprotokol. De bindende mål og kandidatens
+bevisstatus står i `docs/PRODUKTMÅL.md` og `docs/STATUS.md`.
 
 ## Før optagelse
 
-Lead skal først have samme artifacts golden chain, 10/10 automatisk og 10/10 ubrudt
-fysisk lifecycle samt afklaret diagnose/input/svarfejl. Read-only analyse af gamle
-filer er tilladt før denne gate; fysisk hastighedsarbejde og runtimeoptimering er ikke.
+Fastlæg kandidatens identitet og de nødvendige forudgående gates efter
+`docs/PRODUKTMÅL.md` og `docs/STATUS.md`. Gamle filer kan analyseres offline, men
+deres resultater arves ikke af en ny kandidat.
 
 Fastlås artifact-kind/hash, version, firmware-build, model, prompt/context-hashes,
-kanal/gain, inputrate, rumopsætning og manuskript. Gennemfør 40 enkle ture og mindst
-20 værktøjsture; lokal og ekstern værktøjstid er forskellige kohorter. Bevar fejl
-og ukendte prøver i nævneren. Følg same-breath, opfølgninger og næste wake.
+kanal/gain, inputrate, rumopsætning og manuskript. Den aktuelle fysiske gate
+er mindst 20 enkle ture og 20 værktøjsture; lokal og ekstern værktøjstid er
+forskellige kohorter. Reporterens historiske `eligible_for_lead_review`-grænse
+kræver derimod 40 gyldige enkle samples. Bevar fejl og ukendte prøver i nævneren. Følg same-breath, opfølgninger og næste wake.
 
 ## Manifests og clocks
 
@@ -31,32 +34,35 @@ fjernelig procesforsinkelse.
 
 ## Fysisk meningsfuldt svar
 
-Godkendelige samplekanter er fysisk `speech_stopped`/`user_speech_stopped` med
-`source="firmware"`, `playback_started` og samme leases `playback_finished`.
-Session, tur, provider-generation og playback-id skal kunne korreleres. En provider-
-transskription, `live_input_fragment`, `response_audio_started` eller første start af
-en kontinuerlig Live-stream kan ikke erstatte disse kanter.
+GPT-Live-målet måles fra **observeret slutning af brugerens tale i rum-/device-lyd**
+til **første meningsfulde, fysisk hørbare svar i rumlyden**. Gem de originale
+optagelser, korrelation til session/stream/generation, reviewerens markeringer,
+clock-alignment og usikkerhed. Et provider-transcript, `live_input_fragment`,
+`response_audio_started`, PCM sendt til firmware eller blot første stream-start
+beviser ingen af de to fysiske kanter. Kontinuerligt input og overlappende tale
+skal kunne fremgå; antag ikke en lukket mikrofon eller en opdigtet Live
+`speech_stopped`-event. Markér en ukorreleret prøve ukendt.
 
-Den nuværende kontinuerlige Alpha-stream kan derfor mangle de kanter, denne gate
-kræver. Markér det ukendt; fremstil ikke Realtime-events eller kunstige sampletider.
-Et fysisk instrumenteringsbehov er en separat lead-beslutning før runtimeændring.
-På det aktuelt shippede kontinuerlige Alpha-format er den fysiske stopkant og
-per-tur-playback-korrelation ikke registreret: værktøjet kan i dag analysere de
-eksisterende delstræk, men kan ikke indsamle eller godkende en fysisk 40+20-serie.
-De følgende reviewfelter beskriver krav til kommende fysisk dokumenteret måling.
+En navngiven reviewer lytter til rum-, device- og providerlyd, kontrollerer at
+kendt input er konsistent, og markerer hvor meningsfuld tale faktisk høres. Earcon,
+tavshed og generisk preamble tæller ikke. En lydsample, energi eller et hash kan
+bevise filidentitet, men ikke mening. Usikkerhed i begge fysiske kanter indgår
+konservativt i latency. Bevar fejl og ukendte prøver i nævneren.
 
-En navngiven reviewer skal lytte til rum-, device- og provider-WAV og attestere:
-kendt input er konsistent, svaret er korrekt, og meningsfuld tale begynder ved den
-valgte fysiske playback-kant. Earcon, tavshed og generisk preamble tæller ikke. Hvis
-tale først begynder senere, er denne kant ugyldig: stop ikke uret tidligere. Værktøjet
-validerer filhash/PCM-format og afviser præcis nul-PCM, men hverken energi, RMS eller
-en lille ikke-nul sample kan bevise sprog eller mening. Fuld talegennemlytning er
-menneskeligt bevis, aldrig en automatisk inference.
+Nedenstående reporter kræver derimod `speech_stopped`/`user_speech_stopped` fra
+`source="firmware"`, ordnede playback-events, turn-/playback-id og et reviewed
+rumclock-receipt, der mapper rum-samples til netop disse events. Den må kun bruges,
+når kildetracet faktisk har dette skema. Tilføj ikke syntetiske events eller
+turn-id'er for at få et GPT-Live-spor igennem reporteren. En fysisk GPT-Live-serie
+kan gennemgås mod de originale korrelerede optagelser og den aktuelle gate i
+`docs/PRODUKTMÅL.md`; denne reporter kan ikke alene score den.
 
-## Kørsel og reviewprotokol
+## Historisk reporterskema og reviewprotokol
+
+Brug kun dette eksempel på kompatible, allerede gemte manifests med en konfigureret
+ekstern Python 3.12-venv (`PODVOICE_PYTHON` fra repoets udviklingsmiljø):
 
 ```sh
-PODVOICE_PYTHON=/private/tmp/podvoice-venv-20261006/bin/python
 "$PODVOICE_PYTHON" scripts/latency_report.py /privat/trace-p0000.json /privat/trace-p0001.json \
   --protocol /privat/review.json --output /privat/latency-report.json
 ```
@@ -88,8 +94,8 @@ observerede uncertainty. En ukendt offset/clock kræver ukendt måling, ikke en 
 Begge kanters usikkerhed indgår konservativt i `latency_upper_bound_ms`; bindende
 p50/p90-mål bedømmes mod dette øvre tal, så usikkerhed ikke skjules ved målets grænse.
 
-Et værktøjssample har desuden `tool_spans` med `start_index`/`finish_index` for native
-`provider_live_tool_result` (`dispatch/started` → `dispatch_returned/returned`).
+Et kompatibelt værktøjssample har desuden `tool_spans` med
+`start_index`/`finish_index` for `provider_live_tool_result` (`dispatch/started` → `dispatch_returned/returned`).
 `call_id`, session, generation og tur skal matche de fysiske kanter, og hele spandet
 skal ligge mellem taleslut og det meningsfulde svar. Rapporten udleder selv alle
 faktiske dispatch-/returnkanter og kræver, at `tool_spans` dækker dem præcist.
@@ -108,8 +114,8 @@ Recorderens artifactfelt mærkes eksplicit som recorded metadata, og rapporten b
 selve reporterværktøjets SHA. Faktisk installeret OCI/rootfs-/firmware-identitet skal
 stadig kontrolleres med kandidatens uafhængige installationsreceipt.
 
-Percentiler bruger lineær interpolation ved index `(n-1)*q`. Bindende mål er simple
-p50 ≤ 1200 ms/p90 ≤ 1800 ms og lokale tools p50 ≤ 1500 ms/p90 ≤ 2500 ms. P95 er
+Percentiler bruger lineær interpolation ved index `(n-1)*q`. Reporterens numeriske
+mål følger de aktuelt bindende grænser: simple p50 ≤ 1200 ms/p90 ≤ 1800 ms og lokale tools p50 ≤ 1500 ms/p90 ≤ 2500 ms. P95 er
 deskriptiv og har ingen ny opdigtet acceptgrænse. Eksterne værktøjer har særskilt
 ventetid, ikke samme numeriske lokale-tool-mål. Ingen fejl/ukendt prøve må ignoreres
 for at opnå et grønt resultat.

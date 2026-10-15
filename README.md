@@ -4,13 +4,17 @@ PodVoice is a Home Assistant add-on for voice conversations through a custom-fir
 [Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/). Start with the
 [current status](docs/STATUS.md) for the installed version, known limits and open acceptance
 gates. Product behavior and measurable goals are in [docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md).
+The [documentation index](docs/README.md) distinguishes current guides, diagnostics,
+proposals and historical material; agents start at [AGENTS.md](AGENTS.md).
 
 ## How it works
 
 **GPT-Live is the only production conversation engine.** `ThinSession` owns the conversation
 for both Voice PE and Talk. Voice PE firmware owns physical wake, microphone forwarding,
-playback events and rearm. The puck uses a half-duplex audio path; Talk is a separate browser
-I/O adapter. Talk can exercise the shared software engine, but it does not prove the puck's
+playback events and rearm. V2.x targets full-duplex GPT-Live on Voice PE and Talk: the
+active conversation keeps listening while it speaks. Native Live already submits input
+during playback; audible interruption and acoustic isolation require physical evidence
+on the same candidate. Talk is a separate browser I/O adapter. Talk can exercise the shared software engine, but it does not prove the puck's
 microphone, speaker, wake, or physical lifecycle.
 
 Home data and actions belong to Home Assistant. PodVoice uses only the connected MCP tools

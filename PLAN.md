@@ -1,11 +1,6 @@
 # PodVoice — Master Plan
 
-> **HISTORICAL DOCUMENT (superseded 2026-07-02).** This was the original architecture
-> plan. Det er ikke en aktuel autoritet. Læs i stedet `AGENTS.md`,
-> `docs/STATUS.md`, `docs/INVARIANTER.md`, `docs/PRODUKTMÅL.md` og
-> `docs/ARKITEKTUR.md` i den rækkefølge. File references below kan beskrive slettet
-> scaffolding og må aldrig genaktivere Gemini, Classic eller stock HA Assist.
-
+> **HISTORISK ARKITEKTURPLAN — IKKE AKTUEL RETNING.** Dette dokument indeholder Gemini/Classic- og tidlige hardwareantagelser. Det er bevaret som provenance, ikke som roadmap, acceptance eller tilladelse til at genaktivere gammel runtime. Aktuel v2.x-retning: GPT-Live-only, full duplex for Voice PE og Talk. Se [dokumentindekset](docs/README.md) og de autoritative filer i [AGENTS.md](AGENTS.md).
 
 
 > Standalone voice-AI gatekeeper for a PodConnect home, shipped as a **Home Assistant Add-on**.

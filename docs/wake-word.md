@@ -25,6 +25,10 @@ VoicePELink → ThinSession. Eventnavnet er en eksisterende intern kontrakt, ogs
 Hey Chat. Stock HA Assist startes aldrig. Stopmodellen beholder sin separate ejer.
 Tilføj modeller i den vendorede bases liste, ikke et overlay med en ekstra wake-trigger.
 
+Efter wake fortsætter GPT-Live v2.x med samme `ThinSession` og samtidig input/output.
+Wakeword-kvitteringen bekræfter kun det valgte lokale firmwaremodelnavn; den er
+hverken et GPT-Live-input-ACK eller bevis for en hørbar afbrydelse under svar.
+
 Før installation kræves software-/firmwaregates og uafhængigt review. Før godkendelse
 kræves frisk golden chain, 10/10 ubrudte lifecycle-cyklusser samt Hey Chat-gaten i
 `docs/PRODUKTMÅL.md` (40 wakes, selvsvar og baggrundslyd). `docs/STATUS.md` er den

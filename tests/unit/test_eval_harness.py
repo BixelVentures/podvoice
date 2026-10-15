@@ -4507,6 +4507,38 @@ def test_audio_replay_start_fails_closed_on_tampered_pcm():
     assert "replay" in report["error"].lower()
 
 
+async def test_audio_replay_revalidates_pcm_after_start_before_background_run():
+    pcm = b"\x00\x00" * 24_000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    fixture = AudioReplayFixture(
+        trace_id="trace-mutated-after-start",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+    )
+    ledger = _known_provider_budget()
+    service = LiveEvalService(provider_budget=ledger)
+
+    started = service.start_replay(
+        api_key="secret", fixture=fixture, scenario=scenario, turn_index=0
+    )
+    assert started["status"] == "running"
+    object.__setattr__(fixture, "pcm", b"\x01\x00" * 24_000)
+    assert service._job is not None
+    await service._job
+
+    report = service.status(started["run_id"])
+    assert report["status"] == "invalid"
+    assert report["kind"] == "audio-replay"
+    assert report["run_id"] == started["run_id"]
+    assert report["error"] == "Ugyldigt replay-bevis."
+    assert ledger.diagnostic_is_active("secret") is False
+
+
 async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkeypatch):
     class ForbiddenDriver:
         def __init__(self, *args, **kwargs):

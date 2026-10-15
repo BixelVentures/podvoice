@@ -22,7 +22,6 @@ from typing import Any
 from aiohttp import web
 
 from . import __version__, runtime_artifact_identity
-from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
 from .live_audio import LiveAudioError, LiveAudioStreams, live_wav_header
@@ -1211,6 +1210,8 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
         await ws.send_json({"type": "error", "error": "console not configured"})
         await ws.close()
         return ws
+    from .console import run_console
+
     q = request.query
     await run_console(
         ws,

@@ -1,7 +1,7 @@
 """PodVoice gatekeeper — standalone voice-AI gatekeeper for a PodConnect home.
 
 A custom-firmware HA Voice PE streams raw audio to this service; it runs an
-OpenAI Realtime conversation and ducks the room's music through
+GPT-Live full-duplex conversation and ducks the room's music through
 PodConnect's Attention API while the conversation is live.
 
 See ``docs/INVARIANTER.md`` for the binding architecture contract.
@@ -13,7 +13,7 @@ import hashlib
 from functools import lru_cache
 from pathlib import Path
 
-__version__ = "2.0.28"
+__version__ = "2.0.29"
 
 _ARTIFACT_SUFFIXES = frozenset({".html", ".json", ".py"})
 _BUILT_ARTIFACT_IDENTITY = Path("/app/runtime-artifact.sha256")

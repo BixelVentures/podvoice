@@ -20,9 +20,15 @@ ROOT = Path(__file__).resolve().parents[2]
         (["docs/STATUS.md", "docs/archive/STATUS-2026-10-14-pre-157.md"], True),
         (["scripts/dev_cycle.py", "tests/unit/test_dev_cycle.py", "docs/UDVIKLINGSFLOW.md"], True),
         (["scripts/ci_scope.py", "tests/unit/test_ci_scope.py"], True),
+        (["podvoice/DOCS.md", "podvoice/CHANGELOG.md"], True),
+        (["scripts/LIVE_ALPHA_PROBE.md", "spikes/README.md"], True),
         ([], False),
         (["docs/STATUS.md", "podvoice/gatekeeper/thin.py"], False),
-        (["podvoice/CHANGELOG.md"], False),
+        (["podvoice/gatekeeper/README.md"], False),
+        (["podvoice/gatekeeper/templates/README.md"], False),
+        (["podvoice/docs/README.md"], False),
+        (["podvoice/DOCS.md/../gatekeeper/README.md"], False),
+        (["podvoice\\gatekeeper\\evil.md"], False),
         (["pyproject.toml"], False),
         (["podvoice/requirements.txt"], False),
         ([".github/workflows/ci.yml"], False),
@@ -41,6 +47,23 @@ def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
     assert ci_scope.tooling_only(paths) is expected
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "podvoice/config.yaml",
+        "podvoice/requirements.txt",
+        "podvoice/run.sh",
+        "podvoice/Dockerfile",
+        "podvoice/.dockerignore",
+        "podvoice/gatekeeper/thin.py",
+        "podvoice/gatekeeper/README.md",
+        "podvoice/../docs/STATUS.md",
+    ],
+)
+def test_every_real_or_escaped_addon_path_still_requires_an_image(path):
+    assert ci_scope.addon_payload_changed([path])
+
+
 @pytest.mark.parametrize("base", ["", "0" * 40])
 def test_dispatch_or_initial_push_keeps_full_ci(base, monkeypatch, tmp_path):
     output = tmp_path / "output"
@@ -48,7 +71,7 @@ def test_dispatch_or_initial_push_keeps_full_ci(base, monkeypatch, tmp_path):
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.setattr(subprocess, "check_output", lambda *_args, **_kw: pytest.fail("git"))
     ci_scope.main()
-    assert output.read_text() == "tooling_only=false\n"
+    assert output.read_text() == ("tooling_only=false\naddon_changed=true\npr_addon_changed=true\n")
 
 
 def _git(root, *args):
@@ -60,7 +83,19 @@ def _git(root, *args):
 
 
 @pytest.mark.parametrize(
-    "change", ["docs", "renamed-product", "renamed-doc", "deleted-product", "missing-base"]
+    "change",
+    [
+        "docs",
+        "addon-docs",
+        "addon-changelog",
+        "addon-symlink-doc",
+        "addon-runtime-md",
+        "workflow",
+        "renamed-product",
+        "renamed-doc",
+        "deleted-product",
+        "missing-base",
+    ],
 )
 def test_actual_git_diff_keeps_renames_deletions_and_missing_ancestry_conservative(
     tmp_path, change
@@ -68,6 +103,9 @@ def test_actual_git_diff_keeps_renames_deletions_and_missing_ancestry_conservati
     _git(tmp_path, "init", "-q")
     (tmp_path / "product.py").write_text("value = 1\n")
     (tmp_path / "AGENTS.md").write_text("# Agent rules\n")
+    (tmp_path / "podvoice").mkdir()
+    (tmp_path / "podvoice" / "DOCS.md").write_text("# Before\n")
+    (tmp_path / "podvoice" / "CHANGELOG.md").write_text("# Before\n")
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-qm", "baseline")
     base = _git(tmp_path, "rev-parse", "HEAD")
@@ -78,6 +116,19 @@ def test_actual_git_diff_keeps_renames_deletions_and_missing_ancestry_conservati
         _git(tmp_path, "mv", "AGENTS.md", "unknown.py")
     elif change == "deleted-product":
         (tmp_path / "product.py").unlink()
+    elif change == "addon-docs":
+        (tmp_path / "podvoice" / "DOCS.md").write_text("# After\n")
+    elif change == "addon-changelog":
+        (tmp_path / "podvoice" / "CHANGELOG.md").write_text("# After\n")
+    elif change == "addon-symlink-doc":
+        (tmp_path / "podvoice" / "DOCS.md").unlink()
+        (tmp_path / "podvoice" / "DOCS.md").symlink_to("CHANGELOG.md")
+    elif change == "addon-runtime-md":
+        (tmp_path / "podvoice" / "gatekeeper").mkdir()
+        (tmp_path / "podvoice" / "gatekeeper" / "README.md").write_text("# Runtime\n")
+    elif change == "workflow":
+        (tmp_path / ".github" / "workflows").mkdir(parents=True)
+        (tmp_path / ".github" / "workflows" / "ci.yml").write_text("name: CI\n")
     else:
         (tmp_path / "docs" / "help.md").write_text("# Help\n")
     _git(tmp_path, "add", "-A")
@@ -96,4 +147,52 @@ def test_actual_git_diff_keeps_renames_deletions_and_missing_ancestry_conservati
         timeout=15,
     )
     assert result.returncode == 0, result.stderr
-    assert output.read_text() == f"tooling_only={str(change == 'docs').lower()}\n"
+    scoped = change in {"docs", "addon-docs", "addon-changelog"}
+    addon_changed = change in {
+        "addon-symlink-doc",
+        "addon-runtime-md",
+        "missing-base",
+    }
+    pr_addon_changed = addon_changed or change == "workflow"
+    assert output.read_text() == (
+        f"tooling_only={str(scoped).lower()}\n"
+        f"addon_changed={str(addon_changed).lower()}\n"
+        f"pr_addon_changed={str(pr_addon_changed).lower()}\n"
+    )
+
+
+def test_existing_nonancestor_base_cannot_narrow_a_docs_only_diff(tmp_path):
+    _git(tmp_path, "init", "-q")
+    (tmp_path / "product.py").write_text("value = 1\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    baseline = _git(tmp_path, "rev-parse", "HEAD")
+    _git(tmp_path, "checkout", "-qb", "sibling")
+    (tmp_path / "sibling.md").write_text("# Other branch\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "sibling docs")
+    unrelated = _git(tmp_path, "rev-parse", "HEAD")
+    _git(tmp_path, "checkout", "-qb", "candidate", baseline)
+    (tmp_path / "candidate.md").write_text("# Candidate docs\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "candidate docs")
+    output = tmp_path / "scope-output"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/ci_scope.py")],
+        cwd=tmp_path,
+        env={**os.environ, "CI_DIFF_BASE": unrelated, "GITHUB_OUTPUT": str(output)},
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert output.read_text() == ("tooling_only=false\naddon_changed=true\npr_addon_changed=true\n")
+
+
+def test_workflow_uses_the_same_exact_path_classifier_for_build_and_release():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    assert "addon_changed: ${{ steps.scope.outputs.addon_changed }}" in workflow
+    assert "pr_addon_changed: ${{ steps.scope.outputs.pr_addon_changed }}" in workflow
+    assert "needs.scope.outputs.pr_addon_changed == 'true'" in workflow
+    assert "ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}" in workflow
+    assert "dorny/paths-filter" not in workflow

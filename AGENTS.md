@@ -11,7 +11,7 @@ Git-historikken før issue #157. Det historiske statuslog er bevaret i
 Til almindelige docs-, tooling- og fixtureopgaver: læs denne fil og
 [docs/STATUS.md](docs/STATUS.md); åbn kun de filer, ændringen berører.
 
-Til runtime, Realtime, VAD, audio, firmware, prompt, værktøjskontrakt, lifecycle eller
+Til runtime, provider, VAD, audio, firmware, prompt, værktøjskontrakt, lifecycle eller
 release: læs alle fire autoritative produktdokumenter i rækkefølge:
 
 1. [docs/STATUS.md](docs/STATUS.md) — aktuel kandidat, evidens og beslutninger.
@@ -22,7 +22,8 @@ release: læs alle fire autoritative produktdokumenter i rækkefølge:
 Læs derefter de relevante sektioner i
 [docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md), herunder ændringskontrol,
 stoplinje, beviskrav, review, fysisk diagnose og releasegrænser. Planer og handovers er
-historisk baggrund, aldrig autoritet over de fire produktfiler.
+historisk baggrund, aldrig autoritet over de fire produktfiler. Hele filoversigten og
+klassifikationen findes i [dokumentationsindekset](docs/README.md).
 
 ## Ti regler for levering
 
@@ -55,7 +56,7 @@ De autoritative kommandoer og arbejdsgangen står i [docs/UDVIKLINGSFLOW.md](doc
 | Isoleret fixture/tooling | Berørte statiske checks og fokuseret test | Genbrug PASS på uændrede checks; officiel CI |
 | Produktkode | `scripts/dev fast --test <test-module-or-node>` | Exact-tree/scope, review og officiel CI |
 | Lifecycle | `scripts/dev lifecycle`, kun dækkende mekanisk scope | Samlede mål og gates i PRODUKTMÅL |
-| Prompt/schema/tool/Realtime | Berørte regressioner og relevant SafeEval/preflight | Uafhængigt adversarial review og officiel CI |
+| Prompt/schema/tool/provider | Berørte regressioner og faktisk provider-preflight | Uafhængigt adversarial review og officiel CI |
 | Firmware/build | Firmwaremiljø- og bootregression | Generated C++ ved bootændring; fysisk evidens separat |
 | Konkret CI-fejl/offlinearbejde | Isolér ugyldiggjort årsag | Lokal `scripts/dev release` kun ved behov |
 
@@ -71,7 +72,9 @@ beslutningspost i STATUS før kode, uafhængigt adversarial review før merge/re
 opdaterede faktiske resultater. En plan er ikke et resultat.
 
 Voice PE-firmware ejer fysisk wake/playback/rearm; `VoicePELink` er eneste nativeadapter;
-`ThinSession` er samtalemotor; OpenAI Realtime ejer semantik. Talk beviser ikke puckens
+`ThinSession` er samtalemotor; GPT-Live ejer semantik. V2.x er full duplex: aktiv
+Live-input må fortsætte under svar; v1.x-half-duplex må ikke genindføres som krav.
+Legacy `full_duplex`-flags beviser ikke Live-adfærd. Talk beviser ikke puckens
 fysiske lydvej. Classic og direct PCM er karantæneret legacy. Tests, Talk, CI, transcript
 eller korrekt svar alene giver ikke fysisk accept.
 

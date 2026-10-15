@@ -3,6 +3,7 @@
 import ast
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -18,6 +19,24 @@ from scripts.candidate_scope import (
 
 SOURCE = Path(__file__).parents[2]
 P = "podvoice/gatekeeper/"
+
+
+def synthetic_reviewed_source(path):
+    """Keep this historical profile's version independent of a release bump."""
+    value = (SOURCE / path).read_text()
+    if path == "podvoice/config.yaml":
+        value = re.sub(r'^version: "[^\"]+"$', 'version: "2.0.28"', value, flags=re.MULTILINE)
+    return value
+
+
+@pytest.fixture(autouse=True)
+def synthetic_review_manifest(monkeypatch):
+    """Pin only the fixture's unrelated builder/config snapshots, never production."""
+    for path in (P + "__main__.py", "podvoice/config.yaml"):
+        digest = hashlib.sha256(synthetic_reviewed_source(path).encode()).hexdigest()
+        # Test synthetic approved bytes without changing the actual scope policy.
+        # All other production paths keep their independently pinned digests.
+        monkeypatch.setitem(_PODVIEW_MUSIC_SELECTION_REVIEWED, path, digest)
 
 
 def fixture(root):
@@ -66,7 +85,7 @@ def fixture(root):
     # Candidate source is copied verbatim from the approved source manifest.
     # No historical object/network/workspace path is required by this test.
     for path in _PODVIEW_MUSIC_SELECTION_REVIEWED:
-        value = (SOURCE / path).read_text()
+        value = synthetic_reviewed_source(path)
         put(
             path,
             value + '\nSCOPE_BASE = "home assistant playback"\n'
@@ -83,7 +102,7 @@ def fixture(root):
     git("commit", "-qm", "base")
     base = git("rev-parse", "HEAD")
     for path in _PODVIEW_MUSIC_SELECTION_REVIEWED:
-        put(path, (SOURCE / path).read_text())
+        put(path, synthetic_reviewed_source(path))
     put("scripts/candidate_scope.py", policy)
     put(P + "__init__.py", '__version__ = "2.0.28"\n')
     put("pyproject.toml", '[project]\nversion = "2.0.28"\n')
