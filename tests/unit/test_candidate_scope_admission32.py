@@ -260,3 +260,101 @@ def test_foreign_base_without32_record_never_inherits_generic_pass(candidate, mo
     report = new.legacy.CandidateScope("head", base, (), (), (), True, "generic PASS")
     monkeypatch.setattr(new.previous, "inspect_repository", lambda *_: report)
     assert not new.inspect_repository(root, "HEAD").passed
+
+
+@pytest.fixture
+def controller_config(tmp_path, monkeypatch):
+    base = 'version: "2.0.31"\noptions:\n  existing: true\nschema:\n  existing: bool\n'
+    candidate = (
+        base.replace("2.0.31", "2.0.32")
+        .replace(
+            "  existing: true\n",
+            '  existing: true\n  podview_controller_enabled: false\n  podview_controller_days: 30\n  podview_controller_pairing_seconds: 600\n  podview_controller_generation: ""\n',
+        )
+        .replace(
+            "  existing: bool\n",
+            '  existing: bool\n  podview_controller_enabled: "bool?"\n  podview_controller_days: "int(1,30)?"\n  podview_controller_pairing_seconds: "int(600,86400)?"\n  podview_controller_generation: "password?"\n',
+        )
+    )
+    baselines = {
+        "podvoice/config.yaml": base,
+        "podvoice/gatekeeper/__init__.py": '__version__ = "2.0.31"\n',
+        "pyproject.toml": 'version = "2.0.31"\n',
+    }
+    monkeypatch.setattr(
+        new.legacy, "_git", lambda root, command, ref: baselines[ref.split(":", 1)[1]]
+    )
+    monkeypatch.setattr(
+        new.legacy,
+        "_visual_repository_changes",
+        lambda root, base: {"podvoice/gatekeeper/podview_continuity.py"},
+    )
+    for name, value in baselines.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value.replace("2.0.31", "2.0.32"))
+    path = tmp_path / "podvoice/config.yaml"
+    path.write_text(candidate)
+    return tmp_path, path, candidate
+
+
+def test_exact_default_off_controller_config(controller_config):
+    root, _, _ = controller_config
+    assert new.config_only(root)
+
+
+@pytest.mark.parametrize(
+    "old,replacement",
+    [
+        ("podview_controller_enabled: false", "podview_controller_enabled: true"),
+        ("podview_controller_days: 30", "podview_controller_days: 31"),
+        ("podview_controller_pairing_seconds: 600", "podview_controller_pairing_seconds: 86400"),
+        ('podview_controller_generation: ""', 'podview_controller_generation: "secret"'),
+        ('podview_controller_enabled: "bool?"', 'podview_controller_enabled: "str?"'),
+        ('podview_controller_days: "int(1,30)?"', 'podview_controller_days: "int?"'),
+        (
+            'podview_controller_pairing_seconds: "int(600,86400)?"',
+            'podview_controller_pairing_seconds: "int?"',
+        ),
+        ('podview_controller_generation: "password?"', 'podview_controller_generation: "str?"'),
+        ("  podview_controller_days: 30\n", ""),
+        ("  existing: true", "  existing: false"),
+        (
+            "  podview_controller_enabled: false",
+            "  podview_controller_enabled: false\n  podview_controller_enabled: true",
+        ),
+    ],
+)
+def test_controller_config_rejects_scope_or_default_changes(controller_config, old, replacement):
+    root, path, candidate = controller_config
+    path.write_text(candidate.replace(old, replacement))
+    assert not new.config_only(root)
+
+
+def test_controller_schema_cannot_move_into_option_section(controller_config):
+    root, path, candidate = controller_config
+    schema = '  podview_controller_enabled: "bool?"\n'
+    path.write_text(candidate.replace(schema, "").replace("options:\n", "options:\n" + schema))
+    assert not new.config_only(root)
+
+
+def test_continuity_runtime_requires_all_config_fences(controller_config):
+    root, path, _ = controller_config
+    path.write_text('version: "2.0.32"\noptions:\n  existing: true\nschema:\n  existing: bool\n')
+    assert not new.config_only(root)
+
+
+def test_new_revoker_tooling_exact_changed_pin_and_unknown_script(candidate):
+    root, base, put, refresh, git = candidate
+    name = "scripts/revoke-podview-controller.py"
+    # Altering a tooling byte after an exact manifest invalidates admission.
+    put(name, "# changed revocation operator\n")
+    refresh()
+    assert not new.inspect_repository(root, base).passed
+    put(name, "# unchanged operator\n")
+    refresh()
+    assert new.inspect_repository(root, base).passed
+    put("scripts/unreviewed-revoker.py", "# unknown operator\n")
+    git("add", ".")
+    refresh()
+    assert not new.inspect_repository(root, base).passed

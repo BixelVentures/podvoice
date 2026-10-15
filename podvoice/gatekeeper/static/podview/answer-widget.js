@@ -1,3 +1,4 @@
+import {weatherFactDisplay} from './weather-fact-display.js';
 import {visualFamilies} from './visual-content.js';
 import {visualExamples} from './visual-examples.js';
 import {ACTIVITIES,visibleActivities} from './scene-model.js';
@@ -18,7 +19,7 @@ class AnswerWidget extends HTMLElement {
  if(this.visualNode&&this.visualNode.localName!==`pv-${answer.kind}`){this.visualNode.sources.remove();this.visualNode.remove();this.visualNode=null;}
  if(!this.visualNode){this.visualNode=document.createElement(`pv-${answer.kind}`);this.visualNode.classList.add('answer-visual');q('.answer-scroll').prepend(this.visualNode);this.visualNode.sources.classList.add('answer-source-menu');q('.response-heading').insertBefore(this.visualNode.sources,q('.dismiss'));}
  const exampleExplanation=!answer.live&&['fact-card','sourced-image','answer-timeline'].includes(answer.kind)&&summary===visualExamples[answer.kind].content.summary;
- this.visualNode.data={forecast:answer.kind==='answer-timeline'&&answer.provenance?.kind==='ha_weather',state:!connected?'offline':answer.readStatus||(answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':answer.status),ownerReceiptIds:answer.ownerReceiptIds||[],hideSummary:summaryHeading||exampleExplanation,content:answer.status==='waiting'?undefined:answer.content};
+ this.visualNode.data={forecast:answer.kind==='answer-timeline'&&answer.provenance?.kind==='ha_weather',state:!connected?'offline':answer.readStatus||(answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':answer.status),ownerReceiptIds:answer.ownerReceiptIds||[],hideSummary:summaryHeading||exampleExplanation,content:answer.status==='waiting'?undefined:weatherFactDisplay(answer)};
  q('.retry-answer').hidden=!['error','empty','interrupted'].includes(answer.readStatus||answer.status);q('.retry-answer').disabled=!connected;
  }
  emit(event){this.dispatchEvent(new CustomEvent('widget-action',{bubbles:true,detail:event}));}

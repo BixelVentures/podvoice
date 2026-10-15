@@ -32,6 +32,10 @@ class Config:
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
     supervisor_token: str = ""
+    podview_controller_enabled: bool = False
+    podview_controller_days: int = 30
+    podview_controller_pairing_seconds: int = 600
+    podview_controller_generation: str = ""
     podview_pairing_room: str = ""
     podview_pairing_sha256: str = ""
     podview_control_policy: str = ""
@@ -165,6 +169,18 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         podview_control_policy=str(opts.get("podview_control_policy", ""))
         if not settings_source_untrusted
         else "",
+        podview_controller_pairing_seconds=opts.get("podview_controller_pairing_seconds", 600)
+        if not settings_source_untrusted
+        and type(opts.get("podview_controller_pairing_seconds", 600)) is int
+        else 600,
+        podview_controller_enabled=opts.get("podview_controller_enabled") is True
+        and not settings_source_untrusted,
+        podview_controller_days=opts.get("podview_controller_days", 30)
+        if type(opts.get("podview_controller_days", 30)) is int
+        else 0,
+        podview_controller_generation=str(opts.get("podview_controller_generation", ""))
+        if not settings_source_untrusted
+        else "",
         podview_pairing_room=str(opts.get("podview_pairing_room", ""))
         if not settings_source_untrusted
         else "",
@@ -281,6 +297,12 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["podview_robot_read_policy"] = opts.get("podview_robot_read_policy", "")
     merged["podview_research_visual_policy"] = opts.get("podview_research_visual_policy", "")
     merged["podview_control_policy"] = opts.get("podview_control_policy", "")
+    merged["podview_controller_enabled"] = opts.get("podview_controller_enabled", False)
+    merged["podview_controller_pairing_seconds"] = opts.get(
+        "podview_controller_pairing_seconds", 600
+    )
+    merged["podview_controller_days"] = opts.get("podview_controller_days", 30)
+    merged["podview_controller_generation"] = opts.get("podview_controller_generation", "")
     merged["podview_pairing_room"] = opts.get("podview_pairing_room", "")
     merged["podview_pairing_sha256"] = opts.get("podview_pairing_sha256", "")
     return from_options(merged, settings_path=settings_path)

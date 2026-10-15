@@ -21,6 +21,11 @@ export class LiveMusicCatalogueView{
  restore(entry){this.cards=entry?.cards||[];this.sample=entry?.sample||[];this.offset=entry?.offset||0;this.renderedKind=entry?.kind||null;this.status=entry?.status||'';this.busy=false;}
  interrupt(){const pending=this.pendingRead;if(pending){const entry=this.entries.get(pending.key);if(entry)entry.status=entry.cards.length?'Viser seneste musik.':'Ingen sange at vise endnu.';this.host.liveMusicGeneration=(this.host.liveMusicGeneration||0)+1;}this.pendingRead=null;this.busy=false;}
  open(){if(this.host.state?.focus!=='music')return;this.ensureContext();if(this.pendingRead||this.entries.has(this.key())||!this.account||!this.connected||!this.capabilities.includes(this.selected))return;this.select(this.selected);}
+ renewRetained(renewal){
+  if(!renewal?.owner||typeof renewal.owner!=='object'||!Number.isSafeInteger(renewal.generation)||renewal.generation<0)return;this.ensureContext();this.controllerRenewalSeen??=new WeakMap();const previous=this.controllerRenewalSeen.get(renewal.owner);if(previous!==undefined&&renewal.generation<=previous)return;this.controllerRenewalSeen.set(renewal.owner,renewal.generation);
+  const entry=this.entries.get(this.key());if(this.host.state?.focus!=='music'||this.pendingRead||this.busy||!this.connected||!this.account||!this.capabilities.includes(this.selected)||this.host.liveSnapshot?.capabilities?.musicSelection!==true||!entry?.cards?.length||this.host.liveSelection?.active||this.host.liveSelection?.pending)return;
+  this.beginRead(this.selected,'renew');
+ }
  select(kind){
   if(!['mood','top','recent','liked'].includes(kind))return;this.ensureContext();this.interrupt();this.selected=kind;
   const entry=this.entries.get(this.key());if(entry){this.restore(entry);this.armExpiry(entry);this.render();if(entry.cards.length&&this.connected&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&this.capabilities.includes(kind)&&(!collectionCurrent(entry.source,this.host.liveSnapshot,this.account)||entry.selectionSpent))this.beginRead(kind,'renew');return;}

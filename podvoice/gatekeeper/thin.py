@@ -578,6 +578,18 @@ class _Mini:
             await self._owner.stop(reason=event.kind or "stop")
 
 
+def _direct_weather_input(name: object, args: object) -> bool:
+    """Only the closed existing typed weather request; no intent/prose heuristic."""
+    return (
+        isinstance(name, str)
+        and name in {"weather_forecast", "HassGetWeather"}
+        and isinstance(args, dict)
+        and set(args) <= {"forecast_type"}
+        and isinstance(args.get("forecast_type", "daily"), str)
+        and args.get("forecast_type", "daily") in {"daily", "hourly"}
+    )
+
+
 class ThinSession:
     """One room, thin-engine mode. Mirrors RoomSession's outward surface
     (start/aclose/audio_health/sm/reply_bus/reply_url/voicepe/playback) so the
@@ -3679,6 +3691,14 @@ class ThinSession:
                     and set(call.args) == {"query"}
                     and isinstance(call.args["query"], str)
                     and 0 < len(call.args["query"]) <= 240
+                },
+                weather_calls={
+                    wire.id
+                    for wire, call in zip(batch.calls, calls, strict=True)
+                    if len(calls) == 1
+                    and len(batch.calls) == 1
+                    and wire.name == call.name
+                    and _direct_weather_input(call.name, call.args)
                 },
                 read_current=lambda completed: (
                     self._epoch == epoch
@@ -6847,6 +6867,11 @@ class ThinSession:
                 and isinstance(call.args["query"], str)
                 and 0 < len(call.args["query"]) <= 240
             },
+            weather_calls={
+                call.id
+                for call, _ in ordered
+                if len(ordered) == 1 and _direct_weather_input(call.name, call.args)
+            },
             read_current=lambda completed: (
                 self._epoch == submission_epoch
                 and self._history_session == visual_session_id
@@ -6883,6 +6908,7 @@ class ThinSession:
         current,
         queries: dict[str, str] | None = None,
         read_current=None,
+        weather_calls: set[str] | None = None,
     ) -> None:
         """Optional bounded sink only after successful provider result submission."""
         from .data_result import bounded_tool_output
@@ -6912,6 +6938,12 @@ class ThinSession:
                     and result.get("name") == "google_web_sogning"
                     else None,
                     read_current=read_current,
+                    direct_weather=(
+                        len(results) == 1
+                        and isinstance(source_call_id, str)
+                        and weather_calls is not None
+                        and source_call_id in weather_calls
+                    ),
                 )
         except Exception:
             pass  # Optional presentation must not alter speech or tool lifecycle.

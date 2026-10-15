@@ -7,7 +7,7 @@
     },
     {
       "path": "answer-widget.js",
-      "sha256": "eed9cf1e1ecb244450fb4d52b7c848fc40cb37006c6738f2f803ca342b5ee87b"
+      "sha256": "f72c89cef9195f0584f1cded26bcb9fae4c6cb29c7687390914c93d2c600125e"
     },
     {
       "path": "app.js",
@@ -259,7 +259,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "8a832d88bc3740fec2fe5328860c7ad395a6850795f57ac9c82370cc9b663ea7"
+      "sha256": "0e1ffa02a9ba73d86bebf7834ef67f6d42631e841a386b07eba0488ed0e96b82"
     },
     {
       "path": "live-music-selection-view.js",
@@ -267,11 +267,15 @@
     },
     {
       "path": "live-music-view.js",
-      "sha256": "df11050f0b1943645a04179751768a546fecbd5afd57e5b9ee74af08f0b8e307"
+      "sha256": "471a3b75b5fb89b09abef9a23796bd0ba778b0fd87f3d098210d63692442e6cf"
     },
     {
       "path": "live-music.css",
       "sha256": "7a2f25e7eed179f9e996e1b02360117400e73d74b9d5a635af83b48bf169484a"
+    },
+    {
+      "path": "live-queue-view.js",
+      "sha256": "a7b9e6ba46f61ba25c0a0adf91313475284aedbf102019ad91b680f9af1c9ba7"
     },
     {
       "path": "media-observation.js",
@@ -327,11 +331,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "86e9ad3ba00e45cf2be6d23df10a86b6ab6f2d703232a5165a3034b0ea63439d"
+      "sha256": "3b5b79970dd574189cc2b90628900abec3646fc7c089f0f0cc3247be8d893e58"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "1e0cab4f1952bcc11d2773f1a5f4d8e7fb6ea73e435d7dd5e975942bebe6724b"
+      "sha256": "819134d1d5fc08457f70bcf1200b55bc9927fe5444ad1a99b86c968b32518061"
     },
     {
       "path": "podvoice-view.js",
@@ -387,7 +391,7 @@
     },
     {
       "path": "setup.js",
-      "sha256": "9c8406591b3d4401c052ab1980ba45c1b56f679eac7b136ca1836061f1d6046d"
+      "sha256": "1cb964c48bda45c0164585e613b20d9388730527e8e65ff152b9525b64d5fc9f"
     },
     {
       "path": "spotify-artwork.js",
@@ -494,6 +498,10 @@
       "sha256": "7d3fa142acd4244e2c4e9320ca886d50b5ef74753749d348edcbf49df154d0ed"
     },
     {
+      "path": "weather-fact-display.js",
+      "sha256": "018c7311cd5045197aac039fb66b3521a68f9277758328a4f7aed106fe26ba1f"
+    },
+    {
       "path": "weather-observation.js",
       "sha256": "29d369abc2c39fad04a47b2c30c08aead9b57a38821ca4bc1bb4f80587b3766d"
     },
@@ -515,7 +523,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "790626ad0bb6d239381771479159f3c09758fe4c7ac6f8259683ebd9b71b6ff0"
+      "sha256": "243fb03a31df4b2c979557a59616d3db964fc5b7b82e301c5d75389467fdb505"
     },
     {
       "path": "workshop.css",

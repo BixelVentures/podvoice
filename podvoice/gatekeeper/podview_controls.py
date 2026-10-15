@@ -13,7 +13,16 @@ from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
 from .podview_vacuum_control import VacuumTransport
 
-_MUSIC = {"pause", "resume", "next", "previous", "volume", "play_track", "play_context"}
+_MUSIC = {
+    "pause",
+    "resume",
+    "next",
+    "previous",
+    "volume",
+    "play_track",
+    "play_context",
+    "play_queue_occurrence",
+}
 _LABELS = {
     "pause": "Pause",
     "resume": "Afspil",
@@ -100,7 +109,8 @@ class TouchControls:
         result = []
         if (
             any(
-                set(row["actions"]) & (_MUSIC - {"play_track", "play_context"})
+                set(row["actions"])
+                & (_MUSIC - {"play_track", "play_context", "play_queue_occurrence"})
                 for row in self.policy["music"]
             )
             and self.music.tools is self.bridge.tools
@@ -256,7 +266,7 @@ class TouchControls:
                     )
                     public_options = []
                     for action in offered["data"]["actions"]:
-                        if action in {"play_track", "play_context"}:
+                        if action in {"play_track", "play_context", "play_queue_occurrence"}:
                             continue  # Selected tracks use the separate source-bound task.
                         if action not in rule["actions"]:
                             continue

@@ -26,43 +26,67 @@ RECORD_MARKER = "<!-- podview32-admission"
 STATIC = previous.STATIC
 CONFIG = previous.CONFIG
 POLICY = frozenset({PROFILE, MANIFEST, "scripts/dev_cycle.py", ".github/workflows/ci.yml"})
-TOOLING = previous.TOOLING
+TOOLING = frozenset(["scripts/provision_mood_budget.py", "scripts/revoke-podview-controller.py"])
 FIELDS = previous.FIELDS
 
 # Final combined diff, independent reviewer and all pins are filled only at freeze.
 # Empty values reject; no historical approval or generic PASS admits this candidate.
-DOMAINS = ("physical_output",)
+DOMAINS = ("ha_tools", "physical_output")
 PRODUCTION = frozenset(
     [
+        "podvoice/gatekeeper/__main__.py",
+        "podvoice/gatekeeper/config.py",
         "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_continuity.py",
+        "podvoice/gatekeeper/podview_controls.py",
         "podvoice/gatekeeper/podview_mood.py",
+        "podvoice/gatekeeper/podview_queue.py",
         "podvoice/gatekeeper/podview_receipts.py",
+        "podvoice/gatekeeper/static/podview/answer-widget.js",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/live-media-view.js",
         "podvoice/gatekeeper/static/podview/live-music-view.js",
+        "podvoice/gatekeeper/static/podview/live-queue-view.js",
         "podvoice/gatekeeper/static/podview/music-selection-model.js",
+        "podvoice/gatekeeper/static/podview/player-view.js",
         "podvoice/gatekeeper/static/podview/podvoice-transport.js",
+        "podvoice/gatekeeper/static/podview/setup.js",
         "podvoice/gatekeeper/static/podview/voice-surface.js",
+        "podvoice/gatekeeper/static/podview/weather-fact-display.js",
         "podvoice/gatekeeper/static/podview/widget-view.js",
+        "podvoice/gatekeeper/thin.py",
         "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/web.py",
     ]
 )
 REQUIRED_TESTS = frozenset(
     [
+        "tests/integration/test_controller_continuity_characterization.py",
+        "tests/integration/test_direct_weather_completion.py",
+        "tests/integration/test_podview_controller_continuity.py",
         "tests/integration/test_podview_mood_playlists.py",
         "tests/integration/test_podview_mood_preview.py",
+        "tests/integration/test_podview_queue_occurrence.py",
+        "tests/integration/test_queue_controller_boundary.py",
+        "tests/podview/controller-continuity.test.mjs",
+        "tests/podview/controller-retained-cards.test.mjs",
         "tests/podview/fixtures/podvoice31/podvoice-transport.js",
         "tests/podview/fixtures/podvoice31/request-deadline.js",
+        "tests/podview/live-media-view.test.mjs",
         "tests/podview/mood-preview.test.mjs",
+        "tests/podview/queue-occurrence.test.mjs",
         "tests/podview/visual-pending.test.mjs",
+        "tests/podview/weather-fact-display.test.mjs",
         "tests/unit/test_candidate_scope_admission32.py",
         "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_direct_weather_receipts.py",
         "tests/unit/test_mood_selector.py",
         "tests/unit/test_podview_visual_pending.py",
     ]
 )
 REVIEWER = "Independent GPT-6 Sol /root/timer_robot_acceptance_sol; exact32 final source review"
-MANIFEST_SHA = "e3d0b4744fcfa31ec0fe4fc42b5cf6d1cee49ffbd3e8e0f56acd1c8a9691e639"
-PROFILE_AST = "4a3b1dc16b638b7b0690eedb32fe464224332005f09b22d894e826a5857e71e8"
+MANIFEST_SHA = "457565ccf92b93983ea0a038fd939a7326cf08e23a406f7f5759dcc612100d2d"
+PROFILE_AST = "9893563d656911447d397ecbbfa14a74ee6730c9328c90f5ac86a60ca199bd0d"
 IMMUTABLE: dict[str, str] = {
     "scripts/candidate_scope.py": "98280acb2f4b9736ba135ef83217f409c864bb190d359aee476fe7a991a37b75",
     "scripts/candidate_scope_admission.py": "033f0e269129ec9f0b9bc353fc114f79100dd40f98868e25c856e50d8749de01",
@@ -114,19 +138,53 @@ def record_at(root: Path) -> dict | None:
 
 
 def config_only(root: Path) -> bool:
-    for name, pattern, expected in (
-        ("podvoice/config.yaml", r'^version: "[^"\n]+"$', 'version: "2.0.32"'),
-        ("podvoice/gatekeeper/__init__.py", r'^__version__ = "[^"\n]+"$', '__version__ = "2.0.32"'),
-        ("pyproject.toml", r'^version = "[^"\n]+"$', 'version = "2.0.32"'),
-    ):
-        if not previous.version_only(
+    """Only version32 and exact default-off controller option/schema additions."""
+    name = "podvoice/config.yaml"
+    before = legacy._git(root, "show", f"{BASE}:{name}")
+    after = safe_file(root, name).decode()
+    options = {
+        "podview_controller_enabled": ("false", '"bool?"'),
+        "podview_controller_days": ("30", '"int(1,30)?"'),
+        "podview_controller_pairing_seconds": ("600", '"int(600,86400)?"'),
+        "podview_controller_generation": ('""', '"password?"'),
+    }
+    effective = legacy._visual_repository_changes(root, BASE)
+    continuity = "podvoice/gatekeeper/podview_continuity.py" in effective
+    present = any(key in after for key in options)
+    if continuity or present:
+        lines = after.splitlines(keepends=True)
+        if lines.count("options:\n") != 1 or lines.count("schema:\n") != 1:
+            return False
+        option_at, schema_at = lines.index("options:\n"), lines.index("schema:\n")
+        if option_at >= schema_at:
+            return False
+        remove = []
+        for key, (default, shape) in options.items():
+            first, second = f"  {key}: {default}\n", f"  {key}: {shape}\n"
+            if key in before or lines.count(first) != 1 or lines.count(second) != 1:
+                return False
+            if not option_at < lines.index(first) < schema_at < lines.index(second):
+                return False
+            remove.extend((first, second))
+        after = "".join(line for line in lines if line not in remove)
+    if not previous.version_only(before, after, r'^version: "[^"\n]+"$', 'version: "2.0.32"'):
+        return False
+    return all(
+        previous.version_only(
             legacy._git(root, "show", f"{BASE}:{name}"),
             safe_file(root, name).decode(),
             pattern,
             expected,
-        ):
-            return False
-    return True
+        )
+        for name, pattern, expected in (
+            (
+                "podvoice/gatekeeper/__init__.py",
+                r'^__version__ = "[^"\n]+"$',
+                '__version__ = "2.0.32"',
+            ),
+            ("pyproject.toml", r'^version = "[^"\n]+"$', 'version = "2.0.32"'),
+        )
+    )
 
 
 def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: dict) -> bool:
@@ -203,7 +261,7 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         or {p for p in effective if p.startswith("tests/")} != set(tests)
         or not REQUIRED_TESTS <= effective
         or any(
-            p not in PRODUCTION | set(tests) | POLICY | CONFIG | {"podvoice/CHANGELOG.md"}
+            p not in PRODUCTION | set(tests) | POLICY | CONFIG | TOOLING | {"podvoice/CHANGELOG.md"}
             and not p.startswith("docs/")
             for p in effective
         )

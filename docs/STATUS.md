@@ -1,3 +1,15 @@
+# Active lead decision · final combined32 expansion · 15 October 2026
+
+Lead root. PR170 head6ffedeb0 is an immutable reviewed checkpoint, not install GO. The human asks to finish music binding, pairing and AI together and test later; Green installation is held for one final bundle. The checkpoint review/pins authorize only those bytes. Additional changes below invalidate admission until a fresh exact freeze and independent review.
+
+Integrate the independently reviewed narrow no-cost typed weather completion: one actually submitted successful validated native weather call, no enabled/inflight/prior-rejecting selector, no research/web/prose expansion or new lookup/model allowance. Preserve receipt source/session/turn/owner/revision/120-second/normal-close/privacy guards. Use whole-degree/Danish display copies only; canonical values and locked UI geometry remain unchanged.
+
+Prepare explicitly provisioned default-off controller continuity: one administrator one-use pairing code enrolls that particular profile/room for at most30 absolute days, hash-only durable registry and revocation/policy pins, fresh short300-second action grants from actual current owners. HA ingress viewing is never control authority. Re-enrollment replaces the previous room controller; keep scopes, exact native account/output, shared35 start policy and existing cap. Require independent security/restart/corruption/rollback/expiry review before integration/activation. No automatic physical action or replay.
+
+Queue selection requires real one-use native occurrence/list/session/connection tokens through current Control and server-owned PodVoice offers. URI starts and repeated Next are not substitutes. Native account diagnostics cannot mint playback authority. Preserve original finite visual20 with no reset; separate ongoing visual quota remains unapproved, mood20/day200/month unchanged. No claim of generic visualAI, approved visual widget, physical acceptance or overall readiness. Speakers21/Control14 are reserved with sole Green writer and require exact immutable prebuilds then one coupled install.
+
+---
+
 # Aktiv leadbeslutning · 2.0.32 · sidste konkrete PodView-mangler
 
 Lead: root. Status: **planlagt build; ikke udgivet eller testklar**. v2.X har reserveret32. Basen er faktisk publiceret31, commit `729668ffa45067bfb75fd6928ccac9f9beaf5576`, tree `93491e271a0eaaa7065acc1a72d1d957720c40db`; alle656 kildeblobs er sammenholdt med GitHubs træ og kopieret uændret til denne isolerede kandidat. Nedenstående31-admission er historisk og giver ingen32-GO.
@@ -28,17 +40,18 @@ Rollbackgrænse: hele32-deltaet til immutable31; ingen ændring af31-kilde eller
   "base_tip": "729668ffa45067bfb75fd6928ccac9f9beaf5576",
   "merge_base": "729668ffa45067bfb75fd6928ccac9f9beaf5576",
   "domains": [
+    "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "b476b1536036bb01dfbf0853f9f11ffae246f00f2cb098021b123d4ffd3a793e",
-  "regression_fingerprint": "b6f9feeb5ef5a3fc71e50ac10ef469d6b3ceb6bbcfc76431006754d1058043c8",
-  "runtime_fingerprint": "9946831c405a7fc38a51d11d25384f3d5b404775c42a18ad407bb137fd7c00c6",
-  "config_fingerprint": "68f5feb69cd3bb7935a7c194ca850e903ee8ddb84fa45975e13cdffafc47a05e",
-  "policy_fingerprint": "3db262ab92a0dd8c13cb99eb3de64bc6d01a38e52a566bd76ff39d51283e351c",
-  "tooling_fingerprint": "520034bd80f3986c44f3f630b9eb317b47223923cb952666b62f07662b830084",
-  "manifest_fingerprint": "e3d0b4744fcfa31ec0fe4fc42b5cf6d1cee49ffbd3e8e0f56acd1c8a9691e639",
+  "fingerprint": "fe4b8476576e2b8bd1ca2966c25dff480721b40549e011152ced35147c7ee8bd",
+  "regression_fingerprint": "2acb439757defaf1ae37ee71b83f05c2b06264bb4db3d30e7035f7df6d5e82de",
+  "runtime_fingerprint": "8bad38fb13bacb92ae8b2c545a069cda3c81a890ad54fa56a9637da649647f12",
+  "config_fingerprint": "8a49c9bdc3101f557431e30e0f1d5b23525dda275551c3672ecbe185ff4a4013",
+  "policy_fingerprint": "4b5b00644033cd8c3fcc7d5a8854aa9e6c677b91142948961e3ee15a3d28fff1",
+  "tooling_fingerprint": "8bab6fe0425d7294eb033fdb6281d21a9b745ec97e3f9dc82a3a7b671924ea7e",
+  "manifest_fingerprint": "457565ccf92b93983ea0a038fd939a7326cf08e23a406f7f5759dcc612100d2d",
   "reviewer": "Independent GPT-6 Sol /root/timer_robot_acceptance_sol; exact32 final source review",
-  "rationale": "Independent exact combined32 source/admission GO, 15 October 2026. Review SHA256 d8ee61c6c9ff8d5fe2b7bc0d566304d1a3dcc79665ae1231cc15629894f104df. Causal preview/pending and strict closure verified; CI, installation and Green acceptance remain separate."
+  "rationale": "Independent exact expanded combined32 source/admission GO, 15 October 2026. Review SHA256 0ca49ffe0c935f309f2c9d6ab4ef44c5f3e57f04a9c4cf8578606e58d5c01148. Exact composed continuity/queue/weather/preview/pending inventory and fail-closed admission verified; official CI, installation, user visual approval and physical acceptance remain separate."
 }
 -->
 

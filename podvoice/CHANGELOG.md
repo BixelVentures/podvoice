@@ -1,9 +1,10 @@
-## 2.0.32 - read-only mood preview and bounded visual feedback
+## 2.0.32 - retained PodView control and exact native queue selections
 
-- Show actual same-account mood playlist previews without granting playback control. Preview contains no options, task IDs or candidate authority; playback still requires the existing exact native target and paired control route. Navigation retains cards; explicit refresh alone chooses again.
-- Bound the mood aggregate to ten seconds within the browser request budget, and the model response stream to four seconds total. Preserve joined cancellation, existing cards and unchanged paid quotas; no latency measurement or extra retry is claimed.
-- Expose only actual current visual-selector preparation through the existing voice status detail. Keep real listening/speaking phases, answer identity, locked layout and normal voice lifecycle unchanged.
-- This release does not expand the original visual20 allowance, enable ongoing visual calls, implement native queue-occurrence jumps or claim physical/device acceptance.
+- Keep real same-account mood playlist previews visible without playback authority. Only first opening or explicit refresh chooses new cards; navigation and controller renewal preserve their exact content. Bound mood work to ten seconds and model response streams to four seconds total, without retries or quota changes.
+- Add explicitly provisioned, default-off controller continuity for one actual browser profile per room, with a maximum30-day absolute expiry, durable revocation and fresh five-minute action grants. Reopening renews the precise retained cards through the existing server source path; it never rotates them or replays an action.
+- Bind queue choices to actual one-use native occurrence identifiers through Speakers21/Control14. Duplicate songs remain distinct. Current account, native room/output, policy, session and task guards stay mandatory; stale or unknown outcomes never retry or fall back to URI starts or repeated Next.
+- Show actual visual-selector preparation in the existing voice status. Eligible completed native weather results can directly display their exact source facts without another model call; whole-degree/Danish presentation leaves canonical values unchanged. Preserve the locked UI and retained content.
+- Keep original finite visual20 and ongoing mood allowances separate. Ongoing visual AI remains disabled pending its distinct approval. Publication, installation, relevant visual-answer approval and physical music/robot/timer acceptance are separate gates.
 
 ## 2.0.31 - retained Spotify mood playlists and current PodView surfaces
 

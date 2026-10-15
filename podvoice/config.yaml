@@ -30,6 +30,10 @@ options:
   podview_robot_read_policy: ""
   podview_research_visual_policy: ""
   podview_control_policy: ""
+  podview_controller_enabled: false
+  podview_controller_days: 30
+  podview_controller_pairing_seconds: 600
+  podview_controller_generation: ""
   podview_pairing_room: ""
   podview_pairing_sha256: ""
 schema:
@@ -40,5 +44,9 @@ schema:
   podview_robot_read_policy: "str?"
   podview_research_visual_policy: "str?"
   podview_control_policy: "str?"
+  podview_controller_enabled: "bool?"
+  podview_controller_days: "int(1,30)?"
+  podview_controller_pairing_seconds: "int(600,86400)?"
+  podview_controller_generation: "password?"
   podview_pairing_room: "str?"
   podview_pairing_sha256: "password?"

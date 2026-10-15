@@ -270,6 +270,7 @@ class VisualReceiptOwner:
         current: Callable[[], bool],
         tool_query: str | None = None,
         read_current: Callable[[bool], bool] | None = None,
+        direct_weather: bool = False,
     ) -> bool:
         """Offer after result submission; no coroutine, network request or retry."""
         if self._closed or not all(
@@ -361,6 +362,7 @@ class VisualReceiptOwner:
             state = previous
         if call_id in state["seen"] or len(state["seen"]) >= 32:
             return False
+        first_receipt = not state["seen"]
         state["seen"].add(call_id)
         receipt_id = secrets.token_hex(16)
         source_id = "source:" + receipt_id
@@ -428,6 +430,19 @@ class VisualReceiptOwner:
                     displayedStart=events[0]["time"],
                     displayedEnd=events[-1]["time"],
                 )
+        # Trusted Thin completion hint plus exact typed projection, never a browser
+        # intent or a heuristic interpretation of web prose. Never overrule AI.
+        if (
+            direct_weather is True
+            and research is None
+            and provenance.get("kind") == "ha_weather"
+            and tool_name in {"weather_forecast", "HassGetWeather"}
+            and not self.selection_enabled
+            and not state.get("selection_offered")
+            and first_receipt
+            and (self._selection is None or self._selection.done())
+        ):
+            item["displaySuggested"] = True
         state["items"].insert(0, row)
         del state["items"][3:]
         state["revision"] += 1
