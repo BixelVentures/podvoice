@@ -54,6 +54,7 @@
     "tests/integration/test_podview_controls.py": "5d4c7c723010ef789f409e1d37c2bafa103ddd2447d368c18e4c304a70e792fc",
     "tests/integration/test_podview_music_control.py": "4232c26106f146c7589a5fa4f9a8e82431ab44fb4867b0c9c809e6fe3eb62485",
     "tests/integration/test_podview_music_selection.py": "19f63143e4aca206db42a4bb3e28162ed03b0ca7a726111e58d94280cc4f5528",
+    "tests/integration/test_thin_live_failed_close_cleanup.py": "7cacf625ab196edcab2b3e1a063268570a2722b1e24c84acd1856db7b48c317b",
     "tests/podview/ingress-kiosk.test.mjs": "9554a2572736858d95587d6824f6cea4747d3336122c0178397e79b0240a9c15",
     "tests/podview/music-selection.test.mjs": "a99de7913cf296cb6cba2312d9b0c796b5a9bb13b82618bb35e1ce36c487edac",
     "tests/podview/podvoice-transport.test.mjs": "884e98d131fcc34fd5645accc8758b32be6d50444546f36830c00f65ccf51396",

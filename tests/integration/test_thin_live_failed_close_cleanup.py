@@ -10,6 +10,7 @@ from test_thin_live import build, until
 from unit.test_openai_live import DiagnosticWireSDK, call, created, terminal
 from websockets.asyncio.client import ClientConnection
 
+from gatekeeper import thin
 from gatekeeper.openai_live import OpenAILiveSession
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.talk import BrowserLink, run_talk
@@ -78,10 +79,11 @@ class OwnedWireSDK(DiagnosticWireSDK):
             )
 
 
-async def fixture(adapter, monkeypatch, *, held=True, attention=None):
-    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.04)
-    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_TOTAL_TIMEOUT_S", 0.25)
-    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_REARM_TIMEOUT_S", 0.12)
+async def fixture(adapter, monkeypatch, *, held=True, attention=None, fault_deadlines=True):
+    if fault_deadlines:
+        monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.04)
+        monkeypatch.setattr("gatekeeper.thin.TEARDOWN_TOTAL_TIMEOUT_S", 0.25)
+        monkeypatch.setattr("gatekeeper.thin.TEARDOWN_REARM_TIMEOUT_S", 0.12)
     monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (10.0,))
     sdks = [OwnedWireSDK(webrtc=adapter == "talk", held=held), OwnedWireSDK()]
     sdks[1].webrtc = adapter == "talk"
@@ -98,7 +100,7 @@ async def fixture(adapter, monkeypatch, *, held=True, attention=None):
         tool_declarations=[],
         client_factory=factory,
         provider_budget=budget,
-        timeout_s=0.1 if adapter == "talk" else 0.5,
+        **({"timeout_s": 0.1 if adapter == "talk" else 0.5} if fault_deadlines else {}),
     )
     wire = BrowserWire() if adapter == "talk" else None
     link = BrowserLink(wire.send_json, wire.send_bytes) if wire else None
@@ -316,6 +318,7 @@ async def test_successful_provider_close_preserves_cleanup_reserve_and_single_cl
         adapter,
         monkeypatch,
         held=False,
+        fault_deadlines=False,
     )
     calls = []
     step = session._teardown_step
@@ -328,7 +331,7 @@ async def test_successful_provider_close_preserves_cleanup_reserve_and_single_cl
     try:
         await session.stop()
         assert not session._teardown_incomplete and not session._active
-        expected = 0.12 if adapter == "native" else 0.0
+        expected = thin.TEARDOWN_REARM_TIMEOUT_S if adapter == "native" else 0.0
         assert ("heartbeat-stop", expected) in calls and ("attention-release", expected) in calls
         assert len(session.attention.release_calls) == 1
         assert live._lease is None and sdks[0].released and sdks[0].client.close.await_count == 1
