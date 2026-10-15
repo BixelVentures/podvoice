@@ -13,12 +13,14 @@ export function timerTransition(s,e){
  if(e.type==='timer-start'){
   const seconds=e.seconds??60;
   if(!s.connected||!Number.isInteger(seconds)||seconds<1||seconds>86400||!Number.isFinite(e.now))return s;
-  if(visibleTimers(s).length>=32)return {...s,notice:'Der er allerede 32 timere. Afslut en, før du starter en ny.'};
+  // The product exposes one unresolved timer. Existing owner records survive,
+  // but hiding/dismissing that timer cannot admit another local start.
+  if(timersFor(s).some(t=>t.status!=='cancelled'))return s;
   const name=(typeof e.name==='string'?e.name.trim().slice(0,120):'')||'Timer ved bordet',timerSerial=s.timerSerial+1;
   const recipe={name,seconds};
   return {...s,timerSerial,timer:{id:`local-timer-${timerSerial}`,name,duration:seconds,status:'running',remaining:seconds,deadline:e.now+seconds*1000,hidden:false},extraTimers:visibleTimers(s),timerHistory:[recipe,...(s.timerHistory||[]).filter(x=>x.name!==name||x.seconds!==seconds)].slice(0,6),notice:''};
  }
- if(e.type==='tick')return mapTimers(s,t=>{if(t.status!=='running')return t;const remaining=Math.max(0,Math.ceil((t.deadline-e.now)/1000));return remaining===t.remaining?t:{...t,remaining,status:remaining===0?'done':'running'};});
+ if(e.type==='tick')return !Number.isFinite(e.now)?s:mapTimers(s,t=>{if(t.status!=='running'||!Number.isFinite(t.deadline))return t;const remaining=Math.max(0,Math.ceil((t.deadline-e.now)/1000));return remaining===t.remaining?t:{...t,remaining,status:remaining===0?'done':'running'};});
  if(e.type==='timer-notice-dismiss')return mapTimers(s,t=>t.id===e.id&&t.status==='done'&&!t.noticeDismissed?{...t,noticeDismissed:true}:t);
  if(e.type==='timer')return mapTimers(s,t=>{
   if(t.id!==e.id||t.status==='cancelled')return t;
@@ -26,8 +28,8 @@ export function timerTransition(s,e){
   if(e.action==='hide')return {...t,hidden:true};
   if(e.action==='show')return {...t,hidden:false};
   if(e.action==='cancel')return {...t,status:'cancelled',remaining:0};
-  if(e.action==='pause'&&t.status==='running')return {...t,status:'paused',remaining:Math.max(0,Math.ceil((t.deadline-e.now)/1000))};
-  if(e.action==='resume'&&t.status==='paused')return {...t,status:'running',deadline:e.now+t.remaining*1000};
+  if(e.action==='pause'&&t.status==='running'&&Number.isFinite(e.now)&&Number.isFinite(t.deadline)){const remaining=Math.max(0,Math.ceil((t.deadline-e.now)/1000));return {...t,status:remaining===0?'done':'paused',remaining};}
+  if(e.action==='resume'&&t.status==='paused'&&Number.isFinite(e.now)&&Number.isFinite(t.remaining))return {...t,status:t.remaining===0?'done':'running',deadline:e.now+t.remaining*1000};
   return t;
  });
  return s;

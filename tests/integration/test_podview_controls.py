@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -13,7 +14,7 @@ from unit.test_device_control import ROBOT, Rig
 
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE, PodViewBridge
-from gatekeeper.podview_controls import policy
+from gatekeeper.podview_controls import TouchControls, policy
 from gatekeeper.web import create_app
 
 
@@ -423,3 +424,39 @@ async def test_idle_robot_can_return_without_hiding_supported_cleaning_setup(fix
     assert rig.writes == [("services/vacuum/return_to_base", {"entity_id": ROBOT})]
     if not advanced:
         assert not rig.router._device_control._display_tickets
+
+
+def test_native_room_binding_is_additive_and_legacy_transport_survives():
+    original = config()
+    original["music"][0]["actions"] = ["pause", "resume", "play_track"]
+    # Legacy configuration still parses, but cannot authorize a native track start.
+    assert policy(json.dumps(original)) == original
+    updated = config()
+    updated["music"][0].update(
+        actions=["play_track"],
+        nativeRoomId="native-stable-room",
+        nativeHomepodId="homepod-stable-id",
+    )
+    assert policy(json.dumps(updated)) == updated
+    for field, value in (("nativeRoomId", ""), ("nativeHomepodId", True)):
+        malformed = config()
+        malformed["music"][0].update(nativeRoomId="native-room", nativeHomepodId="homepod-id")
+        malformed["music"][0][field] = value
+        assert policy(json.dumps(malformed)) == {}
+    partial = config()
+    partial["music"][0]["nativeRoomId"] = "native-room"
+    assert policy(json.dumps(partial)) == {}
+
+
+def test_legacy_track_rule_does_not_open_selection_without_native_binding():
+    tools = object()
+    bridge = SimpleNamespace(tools=tools, _grant_current=lambda room, token: token == "grant")
+    music = SimpleNamespace(tools=tools, track_available=True)
+    original = config()
+    original["music"][0]["actions"] = ["pause", "play_track"]
+    controls = TouchControls(bridge, json.dumps(original), music)
+    assert not controls.selection_allowed("kitchen", "grant")
+    original["music"][0].update(nativeRoomId="native-room", nativeHomepodId="homepod-id")
+    controls = TouchControls(bridge, json.dumps(original), music)
+    assert controls.selection_allowed("kitchen", "grant")
+    assert not controls.selection_allowed("kitchen", "revoked")

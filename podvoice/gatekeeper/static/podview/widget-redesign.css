@@ -204,7 +204,7 @@ button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120
 
 .live-art-fallback{background:var(--pv-screen-control);padding:28%;object-fit:contain}.live-queue-track{cursor:default;min-height:72px}.live-queue-note,.weather-source,.robot-history-note{color:var(--pv-screen-muted);font-size:14px;line-height:1.5}.live-accounts{display:flex;flex-wrap:wrap;gap:12px}.robot-recent{margin-top:24px}.robot-recipe-row{padding:20px 24px;border-radius:24px;background:var(--pv-screen-surface);margin-top:12px}.robot-recipe-row p{margin:8px 0}.robot-recipe-row small{color:var(--pv-screen-muted)}
 
-[data-mode=live] .player .volume,#music-detail[data-mode=live] .volume,[data-mode=live] .player .transport,#music-detail[data-mode=live] .transport{display:none}#music-detail .live-queue-track{grid-template-columns:20px minmax(0,1fr)}
+#music-detail .live-queue-track{grid-template-columns:20px minmax(0,1fr)}
 
 .owner-source-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto}.owner-source-dialog dl>div{padding:16px 0;border-top:1px solid var(--pv-screen-line)}.owner-source-dialog dd{margin:8px 0;font-size:28px}.owner-source-dialog p{line-height:1.5}.pv-visual-sources button{min-height:48px;text-align:left}
 
@@ -248,3 +248,68 @@ pv-widget-host{--overview-lift:72px}
 @keyframes voice-listening-breath{0%,100%{transform:scale(1)}45%{transform:scale(1.1)}}
 [data-motion=reduced] .voice-surface .voice-mark{animation:none}
 @media(prefers-reduced-motion:reduce){.voice-surface .voice-mark{animation:none}}
+
+/* The clock/weather and Back share one fixed header slot across active pages. */
+@media(min-width:760px){
+ [data-view=active] .view-nav{height:64px;min-height:64px;max-height:64px;align-items:center}
+ [data-view=active] .player .output{width:calc(100% + 24px);margin-inline:-12px;padding:8px 12px!important;min-width:0}
+ [data-view=active] .player{min-width:0;overflow-x:hidden}
+}
+#show-photo img{width:40px!important;height:24px!important;max-width:none}
+/* Keep the queue heading outside the scrolling content; no sticky patch over tracks. */
+#music-detail[open]{display:flex;flex-direction:column;padding:28px;overflow:hidden}
+#music-detail header{flex:none;min-height:48px;margin-bottom:20px}
+#music-detail .now-playing-detail{flex:none;min-width:0}
+#music-detail .detail-queue{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:none;overflow:visible}
+#music-detail .detail-queue>h3{position:static;background:transparent;padding:0 0 12px;margin:0}
+#music-detail #queue{min-height:0;max-height:220px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;padding:4px}
+/* A short landscape frame reserves three complete queue rows before the edge fade. */
+@media(min-width:760px) and (min-height:480px) and (max-height:650px){
+ #music-detail[open]{height:calc(100dvh - 32px);padding-bottom:20px}
+ #music-detail header{margin-bottom:0}
+ #music-detail .now-playing-detail{grid-template-columns:192px minmax(0,1fr);gap:24px}
+ #music-detail .detail-controls{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;align-items:center;min-width:0}
+ #music-detail .detail-controls h3,#music-detail .detail-controls>p{grid-column:1/-1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ #music-detail .detail-controls h3{font-size:28px;line-height:1.1;margin:0 0 4px}
+ #music-detail .detail-controls>p{font-size:16px;line-height:20px;margin:0}
+ #music-detail .detail-controls .transport{grid-column:1/-1;margin:4px 0 26px;gap:24px}
+ #music-detail .detail-output{grid-column:1;width:auto;margin:0;padding:8px 12px;min-height:48px}
+ #music-detail .detail-controls .volume{grid-column:2;min-width:0;gap:8px}
+ #music-detail .detail-queue{margin-top:8px;padding-top:8px}
+ #music-detail .detail-queue>h3{padding-bottom:4px}
+ #music-detail #queue{max-height:228px;padding-bottom:24px}
+}
+@media(max-height:479px){#music-detail[open]{overflow-y:auto}#music-detail .detail-queue{flex:none}#music-detail #queue{max-height:160px}}
+#now-rest{display:block;font:inherit;letter-spacing:inherit;line-height:inherit;background:transparent;text-align:left;padding:0;min-height:48px}
+#music-response .music-subhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
+#music-response .music-subhead p{margin:0;min-width:0}
+#music-refresh{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;min-width:140px;min-height:48px;margin-block:-2px;padding:10px 14px;background:var(--pv-screen-control);border:1px solid var(--pv-screen-line);border-radius:24px;font-size:14px;line-height:20px;color:var(--pv-screen-muted);white-space:nowrap;transition:background 120ms ease,color 120ms ease,border-color 120ms ease}
+#music-refresh img{width:18px;height:18px;flex:none;opacity:.75}
+@media(hover:hover){#music-refresh:hover:not(:disabled){background:var(--pv-screen-hover);color:var(--pv-screen-ink)}}
+#music-refresh:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:3px}
+#music-refresh:active:not(:disabled){background:var(--pv-touch-wash);color:var(--pv-screen-ink)}
+#music-refresh:disabled{cursor:default;opacity:.45}
+#music-refresh[aria-busy=true]{background:var(--pv-quiet-surface);border-color:transparent;color:var(--pv-screen-muted);cursor:wait;opacity:1}
+#music-refresh[aria-busy=true] img{opacity:.5}
+@media(max-width:759px){#music-response .music-subhead{flex-wrap:wrap}}
+/* Edge treatment follows scroll position; it disappears at the actual content end. */
+[data-scroll-axis=x][data-scroll-edge=end]{mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 28px),transparent)}
+[data-scroll-axis=x][data-scroll-edge=start]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 100%)}
+[data-scroll-axis=x][data-scroll-edge="start end"]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+[data-scroll-axis=y][data-scroll-edge=end]{mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 20px),transparent)}
+[data-scroll-axis=y][data-scroll-edge=start]{mask-image:linear-gradient(to bottom,transparent,#000 20px,#000 100%)}
+[data-scroll-axis=y][data-scroll-edge="start end"]{mask-image:linear-gradient(to bottom,transparent,#000 20px,#000 calc(100% - 20px),transparent)}
+/* A generous heading hit area without changing the heading's measured line box. */
+#now-rest{position:relative;min-height:0}
+#now-rest::after{content:'';position:absolute;inset:-6px 0}
+
+/* A cancelled touch never retains the pressed scale/brightness. */
+[data-touch-cancelled=true]:active{transform:none!important;filter:none!important}
+#result-list [data-touch-cancelled=true] .result-art{transform:none!important}
+/* Real heading hit bounds, rather than a pseudo-element outside the cancel guard. */
+#now-title{display:flow-root;overflow:visible}
+#now-rest{padding-block:6px;margin-block:-6px;min-height:48px}
+#now-rest::after{content:none}
+
+/* Keep the sole timer start action in its established position. */
+.timer-create-footer{justify-content:flex-end}

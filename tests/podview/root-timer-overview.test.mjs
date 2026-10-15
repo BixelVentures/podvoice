@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {timerPresentation} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
+import {TimerView,timerPresentation} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
 
 test('timer UI exposes one current record while preserving every native ID internally',()=>{
  const timers=[
@@ -40,4 +40,15 @@ test('timer start becomes available only after the current record is resolved',(
  assert.equal(timerPresentation([]).canStart,true);
  assert.equal(timerPresentation([{id:'old',status:'cancelled'}]).canStart,true);
  assert.equal(timerPresentation([{id:'old',status:'done',noticeDismissed:true}]).canStart,false);
+});
+
+test('retained hidden timer nodes cannot cause duplicate toast on overview or detail',()=>{
+ const old={hidden:true,dataset:{timerId:'old'}},current={hidden:false,dataset:{timerId:'current'}};
+ const rail={hidden:true,children:[]},overview={querySelectorAll:()=>[old,current]},detail={hidden:false,querySelectorAll:()=>[old,current]};
+ const previous=globalThis.document;globalThis.document={getElementById:id=>id==='resource-rail'?rail:{hidden:false}};
+ try{let represented;const view={host:{state:{}},currentTimer:{id:'current',status:'done',remaining:0},overviewList:overview,detail,notice:{render(...args){represented=args[4];}}};
+  for(const focus of ['now','timers']){TimerView.prototype.renderNotice.call(view,focus,true,false);assert.equal(represented,'current');}
+  rail.hidden=false;rail.children=[old,current];TimerView.prototype.renderNotice.call(view,'photo',true,false);assert.equal(represented,'current');
+  current.dataset.timerId='other';TimerView.prototype.renderNotice.call(view,'photo',true,false);assert.equal(represented,null);
+ }finally{globalThis.document=previous;}
 });

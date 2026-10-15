@@ -30,3 +30,21 @@ test('reduced motion and background/removal cancel every glyph immediately; reco
  f.host.liveTransport.connected=true;f.motion.sync();const active=f.photo.calls.at(-1);f.host.isConnected=false;f.observer().callback();assert.equal(active.cancelled,true);assert.equal(f.observer().active,false);assert.equal(f.motion.attached,false);
  f.host.isConnected=true;f.motion.sync();assert.equal(f.motion.attached,true);f.motion.cleanup();assert.equal(f.motion.animations.size,0);const count=f.photo.calls.length;f.media.dispatchEvent(new Event('change'));assert.equal(f.photo.calls.length,count);
 });
+
+test('cleaning glyph expires without another snapshot and cancelled queued expiry cannot revive it',()=>{
+ const f=fixture(),jobs=new Map();let now=100000,serial=0;f.device.observedAt=now/1000;
+ const motion=new RobotMotion(f.host,{document:f.doc,media:f.media,Observer:null,now:()=>now,setTimer:(fn,ms)=>{const id=++serial;jobs.set(id,{fn,ms});return id;},clearTimer:id=>jobs.delete(id)});
+ try{motion.sync();assert.equal(jobs.size,1);const first=[...jobs.values()][0];assert.equal(first.ms,90001);motion.sync();assert.equal(jobs.size,1);
+  now+=90001;first.fn();assert.equal(motion.animations.size,0);assert.equal(motion.expiryTimer,null);
+  f.device.observedAt=now/1000;motion.sync();const queued=[...jobs.values()].at(-1).fn;const count=f.photo.calls.length;
+  motion.cleanup();queued();assert.equal(motion.animations.size,0);assert.equal(f.photo.calls.length,count);assert.equal(motion.attached,false);
+ }finally{motion.cleanup();f.motion.cleanup();}
+});
+
+test('default freshness timers preserve the browser receiver for schedule and cleanup',()=>{
+ const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,jobs=new Map();let serial=0;
+ globalThis.setTimeout=function(fn,ms){assert.equal(this,globalThis);const id=++serial;jobs.set(id,{fn,ms});return id;};
+ globalThis.clearTimeout=function(id){assert.equal(this,globalThis);jobs.delete(id);};
+ const f=fixture();try{f.motion.sync();assert.equal(jobs.size,1);assert.ok([...jobs.values()][0].ms>0);f.motion.cleanup();assert.equal(jobs.size,0);}
+ finally{f.motion.cleanup();globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+});

@@ -1,3 +1,4 @@
+import {renderPlayerControls} from './player-view.js';
 import {controlTask,controlArgs} from './control-model.js';
 import {observationFresh} from './media-observation.js';
 import './robot-control-panel.js';
@@ -5,8 +6,8 @@ const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefi
 // Presentation-only client. All tickets, scopes and effect owners stay server-side.
 export class LiveControlView{
  constructor(host){this.host=host;this.generation=0;this.opening=0;this.spent=new Map();this.receipts=new Map();this.dialog=make('dialog',undefined,'live-control-dialog');const header=make('header'),title=make('h2','Betjening'),close=make('button','Luk','dialog-close');this.title=title;title.id='control-title';this.dialog.setAttribute('aria-labelledby',title.id);close.type='button';close.addEventListener('click',()=>this.dialog.close());header.append(title,close);this.note=make('p','', 'control-feedback');this.note.setAttribute('role','status');this.body=make('div',undefined,'control-options');this.receiptNote=make('p','','control-feedback');this.receiptNote.setAttribute('role','status');this.receiptNote.hidden=true;this.dialog.append(header,this.note,this.receiptNote,this.body);host.append(this.dialog);this.dialog.addEventListener('close',()=>{this.opening++;this.task=null;clearTimeout(this.expiryTimer);this.body.replaceChildren();if(this.opener?.isConnected)this.opener.focus();});
-  this.musicButton=make('button','Betjen musik','text-control');this.musicButton.type='button';this.musicButton.addEventListener('click',()=>this.openMusic(this.musicButton));host.querySelector('.player').append(this.musicButton);
-  this.musicStatus=make('p','','native-music-feedback');this.musicStatus.setAttribute('role','status');host.querySelector('.player').append(this.musicStatus);this.musicDetailStatus=make('p','','native-music-feedback');document.getElementById('music-detail')?.querySelector?.('.detail-controls')?.append(this.musicDetailStatus);
+  this.musicButton=make('button','Betjen musik','text-control');this.musicButton.type='button';this.musicButton.addEventListener('click',()=>this.openMusic(this.musicButton));
+  this.musicStatus=make('p');this.musicDetailStatus=this.musicStatus;
   for(const id of ['volume','detail-volume']){const input=document.getElementById(id);if(!input)continue;input.addEventListener('pointerdown',()=>{this.musicVolumeGesture=input;});for(const event of ['pointerup','pointercancel','change','blur'])input.addEventListener(event,()=>{if(this.musicVolumeGesture===input)this.musicVolumeGesture=null;});}
   this.robotButton=make('button','Betjen robot','text-control');this.robotButton.type='button';this.robotButton.addEventListener('click',()=>this.openRobot(this.robotButton));document.getElementById('device-detail').after(this.robotButton);
  }
@@ -61,18 +62,13 @@ export class LiveControlView{
   const fresh=!!context&&offer?.context.key===context.key&&offer.task.expiresAt*1000>Date.now();
   const options=fresh?offer.task.options:[],blocked=this.pending||this.setupPending||this.musicIntentPending||!fresh||this.spent.has(offer?.task.taskId)||this.musicFence?.key===context?.key&&this.musicFence?.outcome==='unknown';
   const has=action=>options.filter(option=>option.action===action).length===1,toggle=context&&this.host.liveMedia.playback.state==='playing'?'pause':'resume';
-  const show=(ids,action)=>{for(const id of ids){const button=document.getElementById(id);if(!button)continue;button.hidden=!has(action);button.disabled=blocked;}};
-  show(['previous','detail-previous'],'previous');show(['next','detail-next'],'next');show(['play-pause','detail-toggle'],toggle);
-  for(const id of ['play-pause','detail-toggle'])document.getElementById(id)?.setAttribute('aria-label',toggle==='pause'?'Sæt musik på pause':'Fortsæt musikken');
   const transport=has(toggle)||has('next')||has('previous');
-  for(const selector of ['.player .transport','#music-detail .transport']){const node=this.host.querySelector(selector)||document.querySelector?.(selector);if(node)node.hidden=!transport;}
   const volumes=options.filter(option=>option.action==='volume'),volume=volumes.length===1?volumes[0]:null,actualVolume=fresh?offer.task.volume:null;
   const canVolume=!!volume&&Number.isInteger(actualVolume)&&actualVolume>=volume.argsSchema.min&&actualVolume<=volume.argsSchema.max;
-  for(const selector of ['.player .volume','#music-detail .volume']){const node=this.host.querySelector(selector)||document.querySelector?.(selector);if(node)node.hidden=!canVolume;}
-  for(const id of ['volume','detail-volume']){const input=document.getElementById(id);if(!input)continue;input.disabled=blocked||!canVolume;if(canVolume){input.min=String(volume.argsSchema.min);input.max=String(volume.argsSchema.max);if(this.musicVolumeGesture!==input)input.value=String(actualVolume);}}
-  if(canVolume)for(const id of ['volume-value','detail-volume-value']){const output=document.getElementById(id);if(output)if(this.musicVolumeGesture!==document.getElementById(id==='volume-value'?'volume':'detail-volume'))output.textContent=actualVolume+' %';}
+  renderPlayerControls(this.host,{playing:toggle==='pause',previous:has('previous'),next:has('next'),toggle:has(toggle),blocked,volume:canVolume?actualVolume:null,canVolume,min:volume?.argsSchema.min??0,max:volume?.argsSchema.max??100,gesture:this.musicVolumeGesture});
   const fence=this.musicFence,feedback=fence&&context&&fence.key===context.key?fence.outcome==='pending'?'Afventer hjemmet…':fence.outcome==='unknown'?'Udfald ukendt · gentages ikke':fence.outcome==='accepted'?'Afventer status':fence.outcome==='rejected'?'Handlingen blev afvist':fence.outcome==='unavailable'?'Betjeningen kunne ikke hentes':fence.outcome==='invalid'?'Kontrollér dit valg':'' : '';
   for(const node of [this.musicStatus,this.musicDetailStatus]){node.hidden=!feedback;node.textContent=feedback;}
+  if(feedback){this.host.showFeedback?.(feedback,true);this.musicFeedback=feedback;}else if(this.musicFeedback&&this.host.feedbackMessage===this.musicFeedback){this.host.showFeedback?.('',false);this.musicFeedback='';}
   if(transport||canVolume)this.musicButton.hidden=true;
   this.host.setAttribute('data-native-music-controls',transport||canVolume?'true':'false');
  }

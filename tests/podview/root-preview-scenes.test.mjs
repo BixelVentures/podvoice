@@ -24,3 +24,9 @@ test('device detail returns one actual step without stopping resources',()=>{
 });
 
 test('weather detail returns to the same task and keeps its resources',()=>{let s=previewScene('music-stack');const music=s.music,timer=s.timer;s=sceneTransition(s,{type:'show',id:'weather'});assert.equal(s.focus,'weather');s=sceneTransition(s,{type:'device-back'});assert.equal(s.focus,'music');assert.deepEqual(s.music,music);assert.deepEqual(s.timer,timer);});
+
+test('the music entry keeps household fixtures when navigating to overview and rest',()=>{
+ const s=previewScene('top');assert.deepEqual(s.devices.map(d=>d.kind),['vacuum','light']);
+ const now=sceneTransition(s,{type:'show',id:'now'}),rest=sceneTransition(now,{type:'show',id:'photo'});
+ assert.equal(now.devices,s.devices);assert.equal(rest.devices,s.devices);assert.equal(rest.music,s.music);
+});

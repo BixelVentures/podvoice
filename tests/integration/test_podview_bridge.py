@@ -815,3 +815,41 @@ async def test_passive_home_does_not_advertise_closed_transport():
     assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == ["vacuum"]
     await http.aclose()
     assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == []
+
+
+async def test_actual_weather_advice_reaches_home_and_cache_cannot_extend_its_period(monkeypatch):
+    from datetime import timedelta
+
+    from unit.test_weather_result import _advice_payload, _PassiveWeatherMCP
+
+    from gatekeeper import podview_weather
+
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=6)
+    result["forecast"][0]["datetime"] = (fixed + timedelta(minutes=5)).isoformat()
+    result["forecast"].append(
+        {"datetime": (fixed + timedelta(days=1)).isoformat(), "temperature": 6}
+    )
+    fixture = _PassiveWeatherMCP()
+    fixture.payload = payload
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as http:
+        tools = await fixture.router(http)
+        declarations = tools.declarations()
+        session, _ = owner()
+        app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+        async with TestClient(TestServer(app)) as client:
+            first = await (await client.get("/view/api/home")).json()
+            advice = first["weather"]["data"]["advice"]
+            assert advice["summary"] == "Overvej en varm jakke."
+            assert advice["children"] == "Tag en varm jakke med."
+            assert advice["evidence"][0]["value"] == 6
+            assert advice["validUntil"] == fixed.timestamp() + 300
+            assert (await (await client.get("/view/api/home")).json()) == first
+            assert len(fixture.calls) == 1
+            monkeypatch.setattr(podview_weather.time, "time", lambda: advice["validUntil"])
+            expired = await (await client.get("/view/api/home")).json()
+            assert expired["weather"]["status"] == "observed"
+            assert expired["weather"]["data"]["advice"] is None
+            assert expired["weather"]["data"]["retrievedAt"] == result["retrieved_at"]
+            assert len(fixture.calls) == 2  # Only existing reads; no helper/model/dispatch.
+        assert tools.declarations() == declarations
+        assert tools._dispatch.await_count == 0 and tools._refresh.await_count == 0

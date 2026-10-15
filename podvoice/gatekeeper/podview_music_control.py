@@ -19,6 +19,7 @@ from typing import Any
 from . import constants as C
 
 _TIMEOUT_S = 8
+_TRACK_TIMEOUT_S = 16  # Native Control owns a bounded 14-second prepare/commit/send.
 _MAX_BYTES = 65536
 _SERVICES = frozenset({"get_playback_controls", "control_playback"})
 _ACTIONS = frozenset({"pause", "resume", "next", "previous", "volume", "play_track"})
@@ -46,6 +47,9 @@ _ERRORS = frozenset(
         "unsupported_action",
         "volume_above_approved_limit",
         "outcome_unknown",
+        "native_start_unavailable",
+        "native_start_policy_changed",
+        "native_account_unproven",
     }
 )
 
@@ -152,6 +156,57 @@ def _controls(value: Any, account: str, target: str, *, offered: bool = False) -
         "valid_until": deadline,
         "physical_result_verified": False,
     }
+
+
+def native_start(value: Any, target: str, room: str, homepod: str) -> dict:
+    """Closed projection of the native owner's room/start-volume readiness proof."""
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != "podconnect.start_volume.v1"
+        or value.get("ready") is not True
+        or value.get("engine_device_id") != target
+        or value.get("room_id") != room
+        or value.get("homepod_id") != homepod
+        or not isinstance(value.get("policy_revision"), str)
+        or re.fullmatch(r"[a-f0-9]{64}", value["policy_revision"]) is None
+        or value.get("mode") not in {"fresh_start", "same_session"}
+        or type(value.get("output_selected")) is not bool
+    ):
+        raise ValueError("invalid native start proof")
+    _text(room, 128)
+    _text(homepod, 128)
+    start = _integer(value.get("start_volume_percent"), 0, 100)
+    output = _integer(value.get("output_volume_percent"), 0, 100)
+    binding = value.get("alias_binding")
+    if not isinstance(binding, dict) or binding.get("ready") is not True:
+        raise ValueError("native alias unavailable")
+    alias = {key: _text(binding.get(key), 128) for key in ("room_id", "incarnation", "registry")}
+    if value["mode"] == "same_session" and (
+        not value["output_selected"] or alias["room_id"] != room
+    ):
+        raise ValueError("native session unavailable")
+    return {
+        "schema": "podconnect.start_volume.v1",
+        "ready": True,
+        "engine_device_id": target,
+        "room_id": room,
+        "homepod_id": homepod,
+        "policy_revision": value["policy_revision"],
+        "start_volume_percent": start,
+        "mode": value["mode"],
+        "output_selected": value["output_selected"],
+        "output_volume_percent": output,
+        "alias_binding": {"ready": True, **alias},
+    }
+
+
+def start_volume(proof: dict) -> int:
+    """Same native session retains manual volume; fresh starts use its fixed policy."""
+    return (
+        proof["output_volume_percent"]
+        if proof["mode"] == "same_session"
+        else proof["start_volume_percent"]
+    )
 
 
 def _failure(kind: str, *, possible_send: bool = False, identity: dict | None = None) -> dict:
@@ -293,8 +348,10 @@ class MusicControlFacade:
         except Exception:
             return _failure("unavailable")
 
-    async def setup_track(self, account: str, target: str, current: Callable[[], bool]) -> dict:
-        """Read an exact fresh device and known volume from the provider owner."""
+    async def setup_track(
+        self, account: str, target: str, room: str, homepod: str, current: Callable[[], bool]
+    ) -> dict:
+        """Read exact account/device and configured native room/output readiness."""
         try:
             _text(account)
             _text(target)
@@ -309,13 +366,19 @@ class MusicControlFacade:
                     client,
                     token,
                     "get_track_play_controls",
-                    {"config_entry_id": account, "kind": "spotify_device", "target_id": target},
+                    {
+                        "config_entry_id": account,
+                        "kind": "spotify_device",
+                        "target_id": target,
+                        "room_id": _text(room, 128),
+                    },
                 )
             if not self._current(binding, current):
                 return _failure("owner_replaced")
             data = _controls(result, account, target)
             if not data["track_play_supported"] or data["actions"] != ["play_track"]:
                 return _failure("unsupported_action")
+            data["native_start"] = native_start(result.get("native_start"), target, room, homepod)
             return {"ok": True, "data": data}
         except Exception:
             return _failure("unavailable")
@@ -381,6 +444,8 @@ class MusicControlFacade:
             account = _text(controls.get("config_entry_id"))
             target = _text(controls.get("target", {}).get("target_id"))
             value = _controls(controls, account, target, offered=True)
+            proof = controls.get("native_start", {})
+            proof = native_start(proof, target, proof.get("room_id"), proof.get("homepod_id"))
             if (
                 value["status"] != "ready"
                 or not value["track_play_supported"]
@@ -397,6 +462,8 @@ class MusicControlFacade:
                 or not 0 <= max_volume <= 100
                 or value["volume_percent"] is None
                 or value["volume_percent"] > max_volume
+                or proof["start_volume_percent"] > max_volume
+                or start_volume(proof) > max_volume
             ):
                 return _failure("volume_above_approved_limit")
             sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
@@ -418,11 +485,18 @@ class MusicControlFacade:
                 "request_id": identity["request_id"],
                 "command_sequence": sequence,
                 "action": "play_track",
-                "args": {"track_uri": uri, "max_volume": max_volume},
+                "args": {
+                    "track_uri": uri,
+                    "max_volume": max_volume,
+                    "room_id": proof["room_id"],
+                    "homepod_id": proof["homepod_id"],
+                    "start_policy_revision": proof["policy_revision"],
+                    "alias_incarnation": proof["alias_binding"]["incarnation"],
+                },
             }
             binding = self.binding()
             client, token = self.tools._client, self.tools._token
-            async with asyncio.timeout(_TIMEOUT_S):
+            async with asyncio.timeout(_TRACK_TIMEOUT_S):
                 if not self._current(binding, current):
                     return _failure("owner_replaced", identity=identity)
                 possible_send = True

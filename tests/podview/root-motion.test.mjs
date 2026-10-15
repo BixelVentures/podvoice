@@ -69,3 +69,9 @@ test('motion cleanup cancels every owned resource animation',()=>withMotionPrefe
  assert.equal(b.animations[0].cancelled,1);
  assert.equal(f.motion.animations.size,0);
 }));
+
+test('a reduced-motion retarget drops the cancelled animation owner immediately',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(100);f.motion.animate(tile,[{opacity:0},{opacity:1}]);const animation=tile.animations[0];
+ f.host.dataset.motion='reduced';f.motion.animate(tile,[{opacity:0},{opacity:1}]);
+ assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,0);assert.equal(tile.animations.length,1);
+}));

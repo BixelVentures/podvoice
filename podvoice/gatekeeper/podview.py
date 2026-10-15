@@ -206,6 +206,7 @@ class PodViewBridge:
         self._streams = 0
         self._music_cache: dict[tuple, tuple] = {}
         self._music_busy = False
+        self._music_source_generation = 0
         self._home_busy = False
         self._home_cache: dict[str, tuple] = {}
         self._home_revision = 0
@@ -346,7 +347,13 @@ class PodViewBridge:
             or time.monotonic() >= task["deadline"]
             or not _selection_voice_source_current(self, source, room, token)
             or not _selection_rule_current(
-                self, room, task["account"], task["target"], task["maxVolume"], grant
+                self,
+                room,
+                task["account"],
+                task["target"],
+                task["maxVolume"],
+                grant,
+                task["nativeBinding"],
             )
         ):
             return None
@@ -396,13 +403,19 @@ class PodViewBridge:
                 is not None
                 and _selection_voice_source_current(self, source, room, token)
                 and _selection_rule_current(
-                    self, room, task["account"], task["target"], task["maxVolume"], grant
+                    self,
+                    room,
+                    task["account"],
+                    task["target"],
+                    task["maxVolume"],
+                    grant,
+                    task["nativeBinding"],
                 )
             )
 
         async def fresh_controls():
             result = await self.controls.music.setup_track(
-                task["account"], task["target"], selected_current
+                task["account"], task["target"], *task["nativeBinding"], selected_current
             )
             return result.get("data", {}) if result.get("ok") is True else {}
 
@@ -915,7 +928,13 @@ def _selection_voice_source_current(
 
 
 def _selection_rule_current(
-    bridge: PodViewBridge, room: str, account: str, target_id: str, max_volume: int, grant: tuple
+    bridge: PodViewBridge,
+    room: str,
+    account: str,
+    target_id: str,
+    max_volume: int,
+    grant: tuple,
+    native_binding: tuple,
 ) -> bool:
     """An old offer cannot outlive its exact room grant or action rule."""
     rules = bridge.controls.policy.get("music")
@@ -928,6 +947,7 @@ def _selection_rule_current(
             and row.get("accountId") == account
             and row.get("targetId") == target_id
             and row.get("maxVolume") == max_volume
+            and (row.get("nativeRoomId"), row.get("nativeHomepodId")) == native_binding
             and isinstance(row.get("actions"), list)
             and "play_track" in row["actions"]
             for row in rules
@@ -1013,13 +1033,16 @@ async def _music(request: web.Request) -> web.Response:
     binding = _music_binding(bridge, room)
     token = request.cookies.get(_PAIR_COOKIE, "")
     selection_requested = bool(
-        kind == "search"
+        kind in {"search", *library_kinds}
+        and account is not None
         and bridge._grant_current(room, token)
         and bridge.controls.selection_allowed(room, token)
     )
+    selection_grant = bridge._grants.get(room) if selection_requested else None
+    context_query = (query or "") if kind == "search" else f"{kind}:{query or 'collection'}"
     search_context = (
-        _music_search_context(bridge, room, account, query, token)
-        if kind == "search" and account is not None and query is not None
+        _music_search_context(bridge, room, account, context_query, token)
+        if account is not None and (kind == "search" or selection_requested)
         else None
     )
     cache_key = (
@@ -1058,17 +1081,24 @@ async def _music(request: web.Request) -> web.Response:
         return _error("music_busy", 429)
     bridge._music_busy = True
     before_epoch = None
+    source_generation = None
+    if selection_requested:
+        bridge._music_source_generation += 1
+        source_generation = bridge._music_source_generation
+        # An admitted refresh replaces pending intent before its first await.
+        bridge.music_selection.sources.clear()
+        bridge.music_selection.tasks.clear()
     try:
-        if kind == "search" and selection_requested:
-            assert account is not None and query is not None
+        if selection_requested:
+            assert account is not None
             search_context = _music_search_context(
-                bridge, room, account, query, token, mint_touch=True
+                bridge, room, account, context_query, token, mint_touch=True
             )
+        if selection_requested and "playback" in tools.podview_music_reads():
+            before = await asyncio.wait_for(tools.podview_read("playback", account), timeout=10)
+            if before.get("ok") is True:
+                before_epoch = before.get("data", {}).get("owner_epoch")
         if kind == "search":
-            if selection_requested and "playback" in tools.podview_music_reads():
-                before = await asyncio.wait_for(tools.podview_read("playback", account), timeout=10)
-                if before.get("ok") is True:
-                    before_epoch = before.get("data", {}).get("owner_epoch")
             raw = await asyncio.wait_for(tools.podview_read(kind, account, query), timeout=10)
         else:
             raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=10)
@@ -1084,10 +1114,10 @@ async def _music(request: web.Request) -> web.Response:
         or kind not in tools.podview_music_reads()
     ):
         return _error("music_unavailable", 503)
-    if kind == "search":
-        assert account is not None and query is not None
+    if kind == "search" or selection_requested:
+        assert account is not None
         current_context = _music_search_context(
-            bridge, room, account, query, request.cookies.get(_PAIR_COOKIE, "")
+            bridge, room, account, context_query, request.cookies.get(_PAIR_COOKIE, "")
         )
         if current_context != search_context:
             return _error("music_unavailable", 503)
@@ -1108,16 +1138,29 @@ async def _music(request: web.Request) -> web.Response:
                         pass
                     if (
                         before_epoch is not None
+                        and source_generation == bridge._music_source_generation
+                        and bridge._grants.get(room) is selection_grant
+                        and bridge._grant_current(room, token)
+                        and bridge.controls.selection_allowed(room, token)
                         and after_epoch == before_epoch
                         and binding == _music_binding(bridge, room)
                         and current_context
-                        == _music_search_context(bridge, room, account, query, token)
+                        == _music_search_context(bridge, room, account, context_query, token)
                     ):
                         identifier = bridge.music_selection.register(
-                            search_context, result["data"], binding, before_epoch, after_epoch
+                            search_context,
+                            result["data"],
+                            binding,
+                            before_epoch,
+                            after_epoch,
+                            kind=kind,
                         )
                         if identifier is not None:
-                            result["candidateSet"] = {**candidate_set, "candidateSetId": identifier}
+                            result["candidateSet"] = (
+                                {**candidate_set, "candidateSetId": identifier}
+                                if kind == "search"
+                                else bridge.music_selection.candidate_set(identifier)
+                            )
     # Playback must consult its owner again; it never gets a fresh bridge timestamp.
     if kind != "playback" and not selection_requested:
         bridge._music_cache[cache_key] = (
@@ -1157,11 +1200,16 @@ async def _music_selection(request: web.Request) -> web.Response:
     def source_current(source: dict) -> bool:
         return _selection_source_current(bridge, source, room, token)
 
-    def exact_rule_current(account: str, target_id: str, max_volume: int, grant: tuple) -> bool:
-        return _selection_rule_current(bridge, room, account, target_id, max_volume, grant)
+    def exact_rule_current(
+        account: str, target_id: str, max_volume: int, grant: tuple, native_binding: tuple
+    ) -> bool:
+        return _selection_rule_current(
+            bridge, room, account, target_id, max_volume, grant, native_binding
+        )
 
     if request.path.endswith("/setup"):
-        if set(body) != {"bootId", "roomId", "candidateSetId", "target"} or not isinstance(
+        required = {"bootId", "roomId", "candidateSetId", "target"}
+        if set(body) not in (required, required | {"candidateIds"}) or not isinstance(
             body["candidateSetId"], str
         ):
             return _error("invalid_music_selection", 400)
@@ -1176,6 +1224,8 @@ async def _music_selection(request: web.Request) -> web.Response:
             or not source_current(source)
         ):
             return _error("stale_music_selection")
+        if bridge.music_selection.selected_tracks(source, body.get("candidateIds")) is None:
+            return _error("invalid_candidate_ids", 400)
         rule = next(
             (
                 row
@@ -1183,11 +1233,14 @@ async def _music_selection(request: web.Request) -> web.Response:
                 if row["accountId"] == target["accountId"]
                 and row["targetId"] == target["targetId"]
                 and "play_track" in row["actions"]
+                and row.get("nativeRoomId")
+                and row.get("nativeHomepodId")
             ),
             None,
         )
         if rule is None:
             return _error("target_not_granted", 403)
+        native_binding = (rule["nativeRoomId"], rule["nativeHomepodId"])
         grant = bridge._grants.get(room)
         if grant is None:
             return _error("music_selection_not_paired", 403)
@@ -1196,13 +1249,17 @@ async def _music_selection(request: web.Request) -> web.Response:
             return bool(
                 source_current(source)
                 and exact_rule_current(
-                    target["accountId"], target["targetId"], rule["maxVolume"], grant
+                    target["accountId"],
+                    target["targetId"],
+                    rule["maxVolume"],
+                    grant,
+                    native_binding,
                 )
             )
 
         facade = bridge.controls.music
         controls = await facade.setup_track(
-            target["accountId"], target["targetId"], selected_current
+            target["accountId"], target["targetId"], *native_binding, selected_current
         )
         if controls.get("ok") is not True or not selected_current():
             return _error("music_selection_unavailable")
@@ -1219,6 +1276,7 @@ async def _music_selection(request: web.Request) -> web.Response:
             approved_max_volume=rule["maxVolume"],
             authority=authority,
             current=selected_current,
+            candidate_ids=body.get("candidateIds"),
         )
         return web.json_response(
             offer
@@ -1248,13 +1306,17 @@ async def _music_selection(request: web.Request) -> web.Response:
     def action_current() -> bool:
         return bool(
             source_current(source)
-            and exact_rule_current(task["account"], task["target"], task["maxVolume"], grant)
+            and exact_rule_current(
+                task["account"], task["target"], task["maxVolume"], grant, task["nativeBinding"]
+            )
         )
 
     facade = bridge.controls.music
 
     async def fresh_controls():
-        result = await facade.setup_track(task["account"], task["target"], action_current)
+        result = await facade.setup_track(
+            task["account"], task["target"], *task["nativeBinding"], action_current
+        )
         return result.get("data", {}) if result.get("ok") is True else {}
 
     result = await bridge.music_selection.execute(

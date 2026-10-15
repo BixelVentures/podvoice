@@ -1,0 +1,41 @@
+import {TRACKS} from './widget-model.js';
+import {fixtureArtwork} from './music-results.js';
+import {renderSpotifyArtwork} from './spotify-artwork.js';
+import {observationFresh} from './media-observation.js';
+const txt=value=>typeof value==='string'?value:'';
+const fixtureArt=art=>fixtureArtwork(art?.startsWith('https:')?art:`assets/${art}`);
+export function localPlayerModel(state){const m=state.music,t=TRACKS[m.playback.track],base={active:m.playback.active,playing:m.playback.playing,fresh:state.connected,title:t.title,artist:t.artist,target:m.playback.room,fixtureArt:fixtureArt(t.art),canOutput:state.connected,canDiscover:state.connected,volume:m.playback.volume};const preview=state.playerPreview;
+ if(!preview)return base;
+ if(preview==='missing-art')return {...base,active:true,fixtureArt:null,uri:t.uri,artwork:null};
+ if(preview==='offline')return {...base,active:true,fresh:false,canOutput:false,canDiscover:false};
+ return {...base,active:false,canOutput:false,empty:preview==='loading'?'Henter afspilning…':preview==='error'?'Afspilningen kunne ikke hentes.':'Der spiller ikke noget lige nu.'};
+}
+export function localControlModel(state){const m=state.music;return {playing:m.playback.playing,previous:!state.playerPreview,next:!state.playerPreview,toggle:!state.playerPreview,blocked:!state.connected||!!state.playerPreview,volume:state.playerPreview?null:m.playback.volume,canVolume:!state.playerPreview};}
+export function livePlayerModel(playback,connected,status){const fresh=observationFresh(playback)&&connected;return {active:!!playback&&playback.state!=='no_active_playback',playing:playback?.state==='playing',fresh:!!fresh,title:playback?.item?.name||'Musik',artist:playback?.item?.artists.join(', ')||'',target:playback?.target?.name||'Højttaler ikke oplyst',uri:playback?.item?.uri,artwork:playback?.item?.artwork,canOutput:false,canDiscover:!!connected,volume:null,empty:playback?.state==='no_active_playback'&&fresh?'Der spiller ikke noget lige nu.':status==='loading'?'Henter afspilning…':status==='error'?'Afspilningen kunne ikke hentes.':status==='account-selection'?'Vælg en musikkonto.':!connected?'Forbindelsen mangler.':'Ingen afspilning at vise'};}
+export function localQueueModel(state){if(state.playerPreview)return [];const m=state.music;return TRACKS.map((track,index)=>({id:track.id,title:track.title,artist:track.artist,fixtureArt:fixtureArt(track.art),order:(index-m.playback.track+TRACKS.length)%TRACKS.length,revision:m.revision,selectable:state.connected})).filter(row=>row.order!==0).sort((a,b)=>a.order-b.order);}
+// An occurrence/snapshot identity is an observation, never a play grant.
+export function liveQueueModel(queue){return (queue?.items||[]).map((item,index)=>({id:item.id,title:item.name,artist:item.artists.join(', '),uri:item.uri,artwork:item.artwork,order:index+1,selectable:false}));}
+export function renderPlayerControls(host,{playing=false,previous=false,next=false,toggle=false,blocked=false,volume=null,canVolume=false,min=0,max=100,gesture=null}={}){
+ const doc=host.ownerDocument||document,$=id=>doc.getElementById(id);
+ for(const[ids,allowed]of [[['previous','detail-previous'],previous],[['next','detail-next'],next],[['play-pause','detail-toggle'],toggle]])for(const id of ids){const button=$(id);if(button){button.hidden=false;button.disabled=blocked||!allowed;}}
+ for(const id of ['play-pause','detail-toggle'])$(id)?.setAttribute('aria-label',playing?'Sæt musik på pause':'Fortsæt musikken');
+ for(const selector of ['.player .transport','#music-detail .transport','.player .volume','#music-detail .volume']){const node=host.querySelector(selector)||doc.querySelector?.(selector);if(node)node.hidden=false;}
+ const known=Number.isInteger(volume)&&volume>=0&&volume<=100;
+ for(const id of ['volume','detail-volume']){const input=$(id);if(!input)continue;input.disabled=blocked||!canVolume||!known;input.min=String(min);input.max=String(max);if(input!==gesture)input.value=String(known?volume:0);const output=$(id==='volume'?'volume-value':'detail-volume-value');if(output&&input!==gesture)output.textContent=known?volume+' %':'—';}
+}
+export class PlayerView{
+ constructor(host,{chooseQueue=()=>{}}={}){this.host=host;this.doc=host.ownerDocument;this.chooseQueue=chooseQueue;this.rows=new Map();this.queue=this.doc.getElementById('queue');this.queue.replaceChildren();this.emptyCopy=this.doc.getElementById('player-empty').querySelector('p');this.emptyCopy.setAttribute('role','status');this.emptyCopy.setAttribute('aria-live','polite');this.emptyCopy.setAttribute('aria-atomic','true');}
+ artwork(node,item){if(item.fixtureArt&&fixtureArtwork(item.fixtureArt)){node.classList.remove('spotify-artwork','live-art-fallback');if(node.getAttribute('src')!==item.fixtureArt)node.src=item.fixtureArt;node.alt=`Albumomslag til ${txt(item.title)}`;}else renderSpotifyArtwork(node,{uri:item.uri,name:item.title,artwork:item.artwork});}
+ renderPlayer(vm){const $=id=>this.doc.getElementById(id);this.host.dataset.playback=vm.active?'active':'empty';this.host.querySelector('.player').hidden=!vm.active;$('player-empty').hidden=vm.active;$('empty-find-music').disabled=vm.canDiscover===false;
+  if(!vm.active){if($('music-detail').open)$('music-detail').close();for(const id of ['track-name','track-artist','player-room','detail-track','detail-artist'])$(id).textContent='';const message=vm.empty||'Der spiller ikke noget lige nu.';if(this.emptyCopy.textContent!==message)this.emptyCopy.textContent=message;return;}
+  for(const id of ['track-name','detail-track'])$(id).textContent=txt(vm.title);for(const id of ['track-artist','detail-artist'])$(id).textContent=txt(vm.artist);$('player-room').textContent=txt(vm.target);$('player-state').textContent=vm.fresh?(vm.playing?'Spiller på':'På pause'):'Sidst kendt';$('detail-title').textContent=vm.fresh?(vm.playing?'Spiller nu':'På pause'):'Sidst kendte afspilning';$('detail-output').querySelector('span').textContent=txt(vm.target);
+  for(const id of ['output','detail-output']){$(id).disabled=!vm.canOutput;$(id).setAttribute('aria-label',vm.canOutput?`Skift højttaler. ${txt(vm.target)} er valgt`:txt(vm.target));}
+  for(const id of ['play-icon','detail-play-icon'])$(id).src=`assets/icons/${vm.playing?'pause':'play'}-fill.svg`;for(const id of ['cover','detail-cover'])this.artwork($(id),vm);
+ }
+ renderControls(vm){renderPlayerControls(this.host,vm);}
+ createRow(id){const doc=this.doc,row=doc.createElement('button');row.type='button';row.className='queue-track';row.dataset.trackId=id;const order=doc.createElement('span'),cover=doc.createElement('img'),copy=doc.createElement('span'),title=doc.createElement('strong'),artist=doc.createElement('small'),play=doc.createElement('img');order.className='queue-order';cover.alt='';play.className='queue-play';play.src='assets/icons/play-fill.svg';play.alt='';copy.append(title,artist);row.append(order,cover,copy,play);row.addEventListener('click',()=>{if(!row.disabled&&row.queueItem?.selectable)this.chooseQueue(row.queueItem);});return row;}
+ renderQueue(items,{status='ready',empty='Ingen sange i køen.'}={}){this.doc.getElementById('queue-title').textContent=status==='stale'?'Sidst kendte kø':'Næste i køen';this.queue.dataset.status=status;this.queue.setAttribute('aria-label',status==='stale'?'Sidst kendte kø':status==='error'?'Køen kunne ikke opdateres':'Næste i køen');const wanted=new Set(items.map(item=>item.id));
+  items.forEach((item,index)=>{let row=this.rows.get(item.id);if(!row){row=this.createRow(item.id);this.rows.set(item.id,row);}row.queueItem=item;row.dataset.revision=String(item.revision??'');row.disabled=item.selectable!==true;row.setAttribute('aria-label',`${item.selectable?'Afspil':'Kun visning:'} ${txt(item.title)}`);row.children[0].textContent=String(item.order);this.artwork(row.children[1],item);row.children[2].children[0].textContent=txt(item.title);row.children[2].children[1].textContent=txt(item.artist);if(this.queue.children[index]!==row)this.queue.insertBefore(row,this.queue.children[index]||null);});
+  for(const[id,row]of this.rows)if(!wanted.has(id)){row.remove();this.rows.delete(id);}if(!items.length){this.empty??=this.doc.createElement('p');this.empty.className='queue-empty';this.empty.textContent=empty;if(this.empty.parentNode!==this.queue)this.queue.append(this.empty);}else this.empty?.remove();
+ }
+}

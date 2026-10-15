@@ -66,3 +66,22 @@ test('notice suppression matches the exact finished ID on a visible timer surfac
  assert.equal(element.dataset.timerId,'other');
  assert.equal([...jobs.values()][0].ms,7000);
 });
+
+test('music feedback appearing during an alarm cancels its old visual expiry',()=>{
+ const {notice,element,jobs,all,dispatched}=setup(),timer={id:'done',status:'done'};
+ notice.render(timer,'music',false,false);const old=all.get([...jobs.keys()][0]);
+ notice.render(timer,'music',false,true);assert.equal(element.hidden,true);assert.equal([...jobs.values()][0].ms,350);
+ old();assert.deepEqual(dispatched,[]);
+ notice.render(timer,'music',false,false);assert.equal(element.hidden,false);assert.equal([...jobs.values()][0].ms,7000);
+ notice.cleanup();assert.equal(jobs.size,0);
+});
+
+test('default alarm timers preserve the browser receiver for schedule and cleanup',()=>{
+ const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,jobs=new Map();let serial=0;
+ globalThis.setTimeout=function(fn,ms){assert.equal(this,globalThis);const id=++serial;jobs.set(id,{fn,ms});return id;};
+ globalThis.clearTimeout=function(id){assert.equal(this,globalThis);jobs.delete(id);};
+ try{const element=new FakeElement(),notice=new TimerNotice({dispatch(){},focusHeading(){}},element);
+  notice.render({id:'browser-timer',status:'done'},'music',false,false);assert.equal(jobs.size,1);assert.equal([...jobs.values()][0].ms,7000);
+  notice.cleanup();assert.equal(jobs.size,0);
+ }finally{globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+});

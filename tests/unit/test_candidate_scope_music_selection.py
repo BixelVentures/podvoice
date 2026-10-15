@@ -19,11 +19,18 @@ from scripts.candidate_scope import (
 
 SOURCE = Path(__file__).parents[2]
 P = "podvoice/gatekeeper/"
+HISTORICAL_SOURCE = json.loads(
+    (SOURCE / "tests/fixtures/candidate_scope/music-selection-e272d.json").read_text()
+)
+assert HISTORICAL_SOURCE["commit"] == "e272d1813930b819c019ca48469bf6f796f4fec0"
 
 
 def synthetic_reviewed_source(path):
-    """Keep this historical profile's version independent of a release bump."""
-    value = (SOURCE / path).read_text()
+    """Use exact reviewed28 bytes; no historical Git objects or network in CI."""
+    entry = HISTORICAL_SOURCE["files"][path]
+    value = entry["source"]
+    assert hashlib.sha256(value.encode()).hexdigest() == entry["sha256"]
+    assert entry["sha256"] == _PODVIEW_MUSIC_SELECTION_REVIEWED[path]
     if path == "podvoice/config.yaml":
         value = re.sub(r'^version: "[^\"]+"$', 'version: "2.0.28"', value, flags=re.MULTILINE)
     return value

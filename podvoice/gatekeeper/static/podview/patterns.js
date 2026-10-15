@@ -28,6 +28,7 @@ const states=[
  ['vacuum','Robot','Én status, relevante kontroller, detaljer ved behov. På vej til basen er ikke det samme som rengøring afsluttet.'],
  ['light','Lys','En enkel tilstand og en enkel handling. Flere kontroller tilføjes kun, når den konkrete enhed understøtter dem.']
 ];
+for(const [status,label]of [['empty','Ingen afspilning'],['loading','Henter afspilning'],['missing-art','Manglende omslag'],['offline','Sidst kendt afspilning'],['error','Afspilning fejlede']])for(const [mode,name]of [['rest','Ro'],['active','Høj player']])states.push([`player-${mode}-${status}`,`${name} · ${label}`,'Deterministisk lokal prøve af samme player. Ingen konto- eller højttalerhandlinger.']);
 const nav=document.querySelector('#states');
 for(const [id,label,rule] of states){const b=document.createElement('button');b.textContent=label;b.type='button';b.dataset.id=id;b.addEventListener('click',()=>select(id));nav.append(b);}
 function select(id){const s=states.find(x=>x[0]===id);for(const b of nav.children)b.setAttribute('aria-pressed',String(b.dataset.id===id));document.querySelector('#state-preview').src=`/?stage=${id}`;document.querySelector('#state-title').textContent=s[1];document.querySelector('#state-rule').textContent=s[2];document.querySelector('#state-open').href=`/?stage=${id}`;}
