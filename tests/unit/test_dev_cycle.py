@@ -66,7 +66,8 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "needs: [lint-test" not in build
     assert build.count(qemu) == build.count(buildx) == build.count(build_push) == 1
     assert build.index(qemu) < build.index(buildx) < build.index(build_push)
-    assert "dorny/paths-filter@v3" in build
+    assert "needs.scope.outputs.pr_addon_changed == 'true'" in build
+    assert "dorny/paths-filter" not in workflow
     login = "      - uses: docker/login-action@v3\n"
     assert build.count(login) == 1
     assert build.index(login) < build.index(build_push)
@@ -1614,14 +1615,21 @@ def test_explicit_fast_node_avoids_full_suite_and_browser_but_keeps_static_check
 
 def test_ci_workflow_change_keeps_full_build_but_cannot_republish_existing_version():
     workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    scope = workflow.split("  scope:\n", maxsplit=1)[1].split("  lint-test:\n", maxsplit=1)[0]
     build, publish = workflow.split("  build-addon:\n", maxsplit=1)[1].split(
         "  publish-addon:\n", maxsplit=1
     )
     # Workflow changes exercise the ARM build and inspect the current immutable
     # version. Only a missing version may recover publication after green checks.
-    assert "addon:\n              - 'podvoice/**'\n" in publish
-    assert "- '.github/workflows/ci.yml'" not in publish
-    assert "- '.github/workflows/ci.yml'" in build
+    assert "run: python3 scripts/ci_scope.py" in scope
+    assert "pr_addon_changed: ${{ steps.scope.outputs.pr_addon_changed }}" in scope
+    assert "addon_changed: ${{ steps.scope.outputs.addon_changed }}" in scope
+    assert (
+        "pr_addon_changed = addon_changed or WORKFLOW in paths"
+        in (Path(__file__).parents[2] / "scripts/ci_scope.py").read_text()
+    )
+    assert "needs.scope.outputs.pr_addon_changed == 'true'" in build
+    assert "ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}" in publish
     assert "needs: [scope, lint-test, ui-browser]" in publish
     assert publish.count("if: steps.release.outputs.required == 'true'") == 3
     assert 'echo "required=false" >> "$GITHUB_OUTPUT"' in publish

@@ -86,6 +86,23 @@ manuel CI-retry uden faktisk invalideret årsag. HA/Voice PE installeres eller f
 ikke af denne ordre: den eksisterende fysiske prøveversion står urørt. Rollback er
 forrige immutable image; en ny udgivelse arver ikke fysisk accept.
 
+## Slut-CI · afgrænset fixtureopfølgning
+
+Første slutrun [38703933906](https://github.com/BixelVentures/podvoice/actions/runs/38703933906)
+på head `beb12fc0e4b336d5f712b238fddcf75de269fafc`, tree
+`741b8eb02e13cf88c896185f2f02065fd5be138e` bestod scope, rest, browser og ARM-build;
+unit fejlede på to gamle `test_dev_cycle.py`-assertions om det fjernede dorny-filter.
+Lead havde ikke fanget disse to kaldesteds-/workflowfixtures før freeze. Run bevares
+som fejlet. Kun de to assertions er opdateret til den faktiske fælles scope-/publish-
+kontrakt; hele assertionkæden og øvrige referencer er gennemgået. De to noder bestod
+2/2, Ruff/format/diff-check PASS. Lead-review bekræfter bevarede parallelle ARM-/
+main-checks og immutable guard; fixturehash
+`ba734d0c5fceb6dc214dc1bcb75b95887afb4862e92bc15c85077e7d15b145a6`. Der følger ingen
+runtime-, version-, CI-policy- eller payloadændring. Tidligere produktchecks og
+reviews genbruges; kun de to berørte noder og filens statiske checks køres lokalt.
+Den nye officielle exact-head CI og derefter normale main-publisher skal bestå før
+færdig levering. Endelige kvitteringer står i PR/issues, ikke et nyt post-CI commit.
+
 ## Kilde- og leveringsbinding
 
 29-produkt-/metadatamanifest SHA-256: `6cfd0eb10f1cbbce389759e3a65161435154b249d5f6d2cc6a263455081a4020`.
