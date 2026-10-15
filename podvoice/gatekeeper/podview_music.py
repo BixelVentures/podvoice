@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 
-SERVICES = {"playback": "get_playback_snapshot", "queue": "get_queue"}
+SERVICES = {
+    "playback": "get_playback_snapshot",
+    "queue": "get_queue",
+    "search": "search_tracks",
+}
 _ERRORS = frozenset(
     {
         "unavailable",
@@ -19,6 +25,45 @@ _ERRORS = frozenset(
         "malformed_response",
     }
 )
+_ARTWORK_PATH = re.compile(r"^/image/[A-Za-z0-9_-]{1,128}$")
+_TRACK_URI = re.compile(r"^spotify:track:[A-Za-z0-9]{22}$")
+
+
+def normalize_search_query(value: Any) -> str:
+    """Keep search text bounded and literal; it is never interpreted as markup."""
+    if not isinstance(value, str):
+        raise ValueError("invalid search query")
+    query = value.strip()
+    if not 1 <= len(query) <= 160:
+        raise ValueError("invalid search query")
+    return query
+
+
+def _artwork(value: Any) -> dict | None:
+    """Accept only PodConnect's optional Spotify image reference; never arbitrary URLs."""
+    if not isinstance(value, dict) or set(value) != {"kind", "provider", "url"}:
+        return None
+    url = value.get("url")
+    if not isinstance(url, str) or not 1 <= len(url) <= 512:
+        return None
+    try:
+        parsed = urlsplit(url)
+        if (
+            value.get("kind") != "album_cover"
+            or value.get("provider") != "spotify"
+            or parsed.scheme != "https"
+            or parsed.hostname != "i.scdn.co"
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.port is not None
+            or parsed.query
+            or parsed.fragment
+            or not _ARTWORK_PATH.fullmatch(parsed.path)
+        ):
+            return None
+    except ValueError:
+        return None
+    return {"kind": "album_cover", "provider": "spotify", "url": url}
 
 
 def unavailable(kind: str = "unavailable") -> dict:
@@ -59,16 +104,21 @@ def _item(value: Any) -> dict | None:
     artists = value.get("artists")
     if not isinstance(artists, list) or len(artists) > 20:
         raise ValueError("invalid artists")
-    return {
+    projected = {
         "type": kind,
         "uri": uri,
         "name": _text(value.get("name")),
         "artists": [_text(v) for v in artists],
         "duration_ms": _number(value.get("duration_ms")),
     }
+    if kind == "track":
+        artwork = _artwork(value.get("artwork"))
+        if artwork is not None:
+            projected["artwork"] = artwork
+    return projected
 
 
-def project_owner(kind: str, value: Any, account: str | None) -> dict:
+def project_owner(kind: str, value: Any, account: str | None, *, query: str | None = None) -> dict:
     """Preserve source provenance, copying only fields admitted by the v1 contracts."""
     try:
         _text(account)
@@ -79,11 +129,68 @@ def project_owner(kind: str, value: Any, account: str | None) -> dict:
             return unavailable(
                 error if isinstance(error, str) and error in _ERRORS else "unavailable"
             )
-        if (
-            value.get("config_entry_id") != account
-            or value.get("schema") != f"podconnect.{kind}.v1"
-        ):
+        expected_schema = (
+            "podconnect.search_tracks.v1" if kind == "search" else f"podconnect.{kind}.v1"
+        )
+        if value.get("config_entry_id") != account or value.get("schema") != expected_schema:
             raise ValueError("wrong account or schema")
+        if kind == "search":
+            expected_query = normalize_search_query(query)
+            actual_query = normalize_search_query(value.get("query"))
+            limit = value.get("limit")
+            rows = value.get("tracks")
+            if (
+                actual_query != expected_query
+                or value.get("source") != "spotify_web_api"
+                or value.get("coverage") != "spotify_search_sample"
+                or type(limit) is not int
+                or limit != 3
+                or not isinstance(rows, list)
+                or len(rows) > limit
+                or type(value.get("source_sample_count")) is not int
+                or value["source_sample_count"] != len(rows)
+                or type(value.get("returned_count")) is not int
+                or value["returned_count"] != len(rows)
+                or (
+                    value.get("source_has_more") is not None
+                    and type(value.get("source_has_more")) is not bool
+                )
+            ):
+                raise ValueError("invalid search sample")
+            tracks = []
+            for row in rows:
+                if not isinstance(row, dict) or set(row) - {"name", "artist", "uri", "artwork"}:
+                    raise ValueError("invalid search track")
+                track: dict[str, Any] = {
+                    "name": _text(row.get("name"), 256),
+                    "artist": _text(row.get("artist"), 512),
+                    "uri": _text(row.get("uri"), 64),
+                }
+                if not _TRACK_URI.fullmatch(track["uri"]):
+                    raise ValueError("invalid search URI")
+                artwork = _artwork(row.get("artwork"))
+                if artwork is not None:
+                    track["artwork"] = artwork
+                tracks.append(track)
+            search_result: dict[str, Any] = {
+                "ok": True,
+                "data": {
+                    "ok": True,
+                    "schema": value["schema"],
+                    "config_entry_id": account,
+                    "source": "spotify_web_api",
+                    "query": actual_query,
+                    "coverage": "spotify_search_sample",
+                    "limit": limit,
+                    "source_sample_count": len(tracks),
+                    "returned_count": len(tracks),
+                    "source_has_more": value["source_has_more"],
+                    "tracks": tracks,
+                },
+            }
+            if len(json.dumps(search_result, allow_nan=False).encode()) > 65536:
+                raise ValueError("search response exceeds budget")
+            return search_result
         epoch = _text(value.get("owner_epoch"), 128)
         result: dict[str, Any] = {
             "ok": True,

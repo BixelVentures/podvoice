@@ -1,4 +1,5 @@
 import {weatherObservation} from './weather-observation.js';
+import {robotObservation} from './robot-observation.js';
 // Closed passive projection. It never issues capabilities, stores HA keys,
 // infers a cleaning area, or treats an accepted command as observed cleaning.
 const text=(v,max=120)=>typeof v==='string'?v.slice(0,max):'';
@@ -8,7 +9,7 @@ export function validateHome(value,roomId){
  const seen=new Set(),items=[];
  if(value.vacuum.status==='observed')for(const row of value.vacuum.items){
   if(!/^vacuum\.[a-z0-9_]+$/.test(row.entityId)||seen.has(row.entityId)||!states.has(row.state)||row.source!=='home_assistant_state'||!Number.isFinite(row.observedAt))throw new Error('invalid_vacuum_observation');
-  seen.add(row.entityId);items.push({entityId:row.entityId,name:text(row.name)||'Robotstøvsuger',state:row.state,battery:Number.isFinite(row.battery)&&row.battery>=0&&row.battery<=100?row.battery:null,observedAt:row.observedAt,source:row.source,history:historyObservation(row.history)});
+  seen.add(row.entityId);items.push({entityId:row.entityId,name:text(row.name)||'Robotstøvsuger',state:row.state,battery:Number.isFinite(row.battery)&&row.battery>=0&&row.battery<=100?row.battery:null,observedAt:row.observedAt,source:row.source,history:historyObservation(row.history),telemetry:robotObservation(row.telemetry,row.entityId)});
  }
  // Settings/actions are deliberately excluded until their separate owner
  // contract is implemented. Extra remote fields cannot silently enable controls.
@@ -17,8 +18,11 @@ export function validateHome(value,roomId){
 }
 export function applyHome(scene,home,allowed=["vacuum","weather"]){
  const previous=scene.devices.filter(d=>d.source==='home_assistant_state');
- const rows=!allowed.includes('vacuum')?[]:home.vacuum.status==='observed'?home.vacuum.items.map(item=>({id:item.entityId,kind:'vacuum',name:item.name,source:item.source,history:item.history,observedAt:item.observedAt,battery:item.battery,revision:home.revision,live:true,status:({returning:'docking',idle:'stopped',error:'fault'})[item.state]||item.state,pending:null,hidden:false,timeline:[]})):previous.map(d=>({...d,stale:true}));
- const devices=[...scene.devices.filter(d=>d.source!=='home_assistant_state'),...rows],removed=previous.some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
+ const rows=!allowed.includes('vacuum')?[]:home.vacuum.status==='observed'?home.vacuum.items.map(item=>({id:item.entityId,kind:'vacuum',name:item.name,source:item.source,history:item.history,telemetry:item.telemetry,observedAt:item.observedAt,battery:item.battery,revision:home.revision,live:true,status:({returning:'docking',idle:'stopped',error:'fault'})[item.state]||item.state,pending:null,hidden:false,timeline:[]})):previous.map(d=>({...d,stale:true}));
+ // Stable family slots match the approved overview, regardless of which
+ // observation arrives first. Activity or urgency never reorders them.
+ const slot=d=>d.kind==='vacuum'?0:d.kind==='light'?1:2;
+ const devices=[...scene.devices.filter(d=>d.source!=='home_assistant_state'),...rows].sort((a,b)=>slot(a)-slot(b)),removed=previous.some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
  return {...scene,liveWeather:!allowed.includes('weather')?null:home.weather|| (scene.liveWeather?{...scene.liveWeather,stale:true}:null),devices,focus:removed?'now':scene.focus,homeRevision:home.revision};
 }
 

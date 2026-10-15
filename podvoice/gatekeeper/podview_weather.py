@@ -17,6 +17,7 @@ _NUMBERS = {
     "humidity",
     "cloud_coverage",
     "uv_index",
+    "templow",
 }
 
 
@@ -90,8 +91,9 @@ def weather_projection(response: object) -> dict:
     ):
         return unavailable
     forecast = result.get("forecast")
+    forecast_type = result.get("forecast_type")
     if (
-        not _text(result.get("forecast_type"), 32)
+        not _text(forecast_type, 32)
         or not isinstance(forecast, list)
         or not 1 <= len(forecast) <= 512
     ):
@@ -112,6 +114,13 @@ def weather_projection(response: object) -> dict:
             projected["condition"] = row["condition"]
         for key in _NUMBERS.intersection(row):
             number = row[key]
+            # Home Assistant documents native_temperature as the higher daily
+            # temperature and native_templow as its optional low. Do not give
+            # those meanings to hourly/twice-daily temperatures.
+            if key == "templow" and forecast_type != "daily":
+                continue
+            if key == "templow" and number is None:
+                continue
             if not _number(number):
                 return unavailable
             if key in {"precipitation_probability", "humidity", "cloud_coverage"} and not (
@@ -121,6 +130,13 @@ def weather_projection(response: object) -> dict:
             if key in {"precipitation", "wind_speed", "uv_index"} and number < 0:
                 return unavailable
             projected[key] = number
+        if forecast_type == "daily":
+            high = row.get("temperature")
+            if not _number(high):
+                return unavailable
+            projected["highTemperature"] = high
+            if "templow" in row and row["templow"] is not None:
+                projected["lowTemperature"] = projected.pop("templow")
         if len(projected) == 1:
             return unavailable
         if len(rows) < _MAX_FORECAST_ROWS:
@@ -139,7 +155,7 @@ def weather_projection(response: object) -> dict:
             "current": {"condition": condition, "temperature": temperature}
             if has_current
             else None,
-            "forecastType": result["forecast_type"],
+            "forecastType": forecast_type,
             "forecast": rows,
             "coverage": {
                 "totalRows": len(forecast),

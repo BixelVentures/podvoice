@@ -13,7 +13,7 @@ from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
 from .podview_vacuum_control import VacuumTransport
 
-_MUSIC = {"pause", "resume", "next", "previous", "volume"}
+_MUSIC = {"pause", "resume", "next", "previous", "volume", "play_track"}
 _LABELS = {
     "pause": "Pause",
     "resume": "Afspil",
@@ -92,12 +92,25 @@ class TouchControls:
         if self.policy.get("roomId") != room or not self.bridge._grant_current(room, token):
             return []
         result = []
-        if self.policy["music"] and self.music.tools is self.bridge.tools and self.music.available:
+        if (
+            any(set(row["actions"]) & (_MUSIC - {"play_track"}) for row in self.policy["music"])
+            and self.music.tools is self.bridge.tools
+            and self.music.available
+        ):
             result.append("music")
         owner = getattr(self.bridge.tools, "_device_control", None)
         if self.policy["vacuum"] and owner is not None and owner.available:
             result.append("vacuum")
         return result
+
+    def selection_allowed(self, room: str, token: str) -> bool:
+        return bool(
+            self.policy.get("roomId") == room
+            and self.bridge._grant_current(room, token)
+            and self.music.tools is self.bridge.tools
+            and self.music.track_available
+            and any("play_track" in row["actions"] for row in self.policy["music"])
+        )
 
     def _binding(self, room: str, domain: str) -> tuple:
         tools = self.bridge.tools
@@ -218,6 +231,8 @@ class TouchControls:
                     )
                     public_options = []
                     for action in offered["data"]["actions"]:
+                        if action == "play_track":
+                            continue  # Selected tracks use the separate source-bound task.
                         if action not in rule["actions"]:
                             continue
                         oid = secrets.token_hex(12)

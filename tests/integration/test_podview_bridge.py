@@ -236,20 +236,46 @@ def test_music_projection_never_copies_extra_provider_fields():
         "access_token": "secret",
         "data": {
             "authorization": "secret",
+            "config_entry_id": "account-1",
             "tracks": [
                 {
                     "name": "Song",
                     "artist": "Band",
                     "uri": "spotify:track:id",
+                    "artwork": {
+                        "kind": "album_cover",
+                        "provider": "spotify",
+                        "url": "https://i.scdn.co/image/ab67616d0000b2730123456789abcdef",
+                    },
                     "access_token": "secret",
                 }
             ],
         },
+        "selection": {
+            "requested_limit": 1,
+            "source_sample_count": 1,
+            "returned_count": 1,
+            "more_in_sample": False,
+            "size_limited": False,
+            "coverage": "untrusted source text",
+        },
     }
     public = _music_public("recent", raw)
     assert public["data"]["tracks"] == [
-        {"name": "Song", "artist": "Band", "uri": "spotify:track:id"}
+        {
+            "name": "Song",
+            "artist": "Band",
+            "uri": "spotify:track:id",
+            "artwork": {
+                "kind": "album_cover",
+                "provider": "spotify",
+                "url": "https://i.scdn.co/image/ab67616d0000b2730123456789abcdef",
+            },
+        }
     ]
+    assert public["selection"]["coverage"].startswith("Source sample only")
+    assert public["data"]["config_entry_id"] == "account-1"
+    assert not _music_public("recent", raw, "account-other")["ok"]
     assert "secret" not in json.dumps(public)
     targets = _music_public(
         "targets",
@@ -297,7 +323,8 @@ async def test_screen_reads_do_not_refresh_shared_discovery():
             200,
             json={
                 "service_response": {
-                    "tracks": [{"name": "Song", "artist": "Band", "uri": "spotify:track:1"}]
+                    "config_entry_id": "a1",
+                    "tracks": [{"name": "Song", "artist": "Band", "uri": "spotify:track:1"}],
                 }
             },
         )

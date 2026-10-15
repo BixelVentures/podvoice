@@ -1,3 +1,4 @@
+import {robotRoom} from './robot-observation.js';
 import {visualExamples} from './visual-examples.js';
 import {visualFamilies,validateVisualContent} from './visual-content.js';
 import {timerTransition} from './timer-model.js';
@@ -62,5 +63,5 @@ export function sceneTransition(s,e){
 }
 export const visibleActivities=a=>ACTIVITIES.filter(x=>a.filter==='all'||(a.filter==='quick'?x.minutes<=20:x.materials===1));
 
-export const deviceLabel=d=>d.live?(d.stale?'Sidst kendt: ':'')+({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]:d.kind==='light'&&d.status==='unavailable'?'Ikke tilsluttet endnu':({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen · rengøringsresultat ukendt',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
+export const deviceLabel=d=>d.live?(d.stale?'Sidst kendt: ':'')+({cleaning:robotRoom(d)?`Rengør · ${robotRoom(d)}`:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]:d.kind==='light'&&d.status==='unavailable'?'Ikke tilsluttet endnu':({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen · rengøringsresultat ukendt',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
 export function deviceActions(d){if(d.live)return [];if(d.kind==='light')return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.status==='on'?'Sluk lys':'Tænd lys'}]:[];return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}

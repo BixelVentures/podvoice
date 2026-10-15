@@ -1,5 +1,6 @@
 // Retained, native button anatomy shared by the overview and supporting stack.
 // Visuals reflect known local state only; there is no invented device telemetry.
+import {timerProgress} from '../timer-model.js';
 export function createResourceTile(open){
  const b=document.createElement('button');b.type='button';b.className='resource-preview';
  b.innerHTML='<span class="resource-visual" aria-hidden="true"><svg viewBox="0 0 80 80"><circle class="resource-dial-track" cx="40" cy="40" r="34"/><circle class="resource-dial-progress" cx="40" cy="40" r="34" pathLength="100"/></svg><img alt=""><span class="resource-value"></span></span><span class="resource-label"><strong></strong><small></small></span><img class="resource-chevron" src="assets/icons/chevron-right.svg" alt="">';
@@ -11,6 +12,7 @@ export function updateResourceTile(b,r){
  b.querySelector('.resource-value').textContent=r.value||'';
  const icon=b.querySelector('.resource-visual img');icon.hidden=r.kind==='timer';
  if(!icon.hidden)icon.src=`assets/icons/${r.kind==='vacuum'?'vacuum':'lightbulb'}.svg`;
- b.querySelector('svg').style.display=r.kind==='timer'?'':'none';b.style.setProperty('--remaining',Math.max(0,Math.min(100,(r.remaining||0)/(r.duration||60)*100)));
+ const progress=r.kind==='timer'?timerProgress(r):null;b.dataset.progressKnown=String(progress!==null);
+ b.querySelector('svg').style.display=r.kind==='timer'?'':'none';b.style.setProperty('--remaining',progress??0);
  b.setAttribute('aria-label',`${r.title}${r.value?' · '+r.value:''} · ${r.detail}. Åbn detaljer`);
 }

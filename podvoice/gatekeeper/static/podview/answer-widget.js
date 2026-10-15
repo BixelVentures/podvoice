@@ -17,7 +17,7 @@ class AnswerWidget extends HTMLElement {
  for(const selector of ['.answer-choices','.comparison','.chart','.guide','.checklist','.answer-back','.answer-actions','.sources','.intro','.answer-status','.open-weather-answer']){const node=q(selector);if(node)node.hidden=true;}
  if(!this.visualNode){this.visualNode=document.createElement(`pv-${answer.kind}`);this.visualNode.classList.add('answer-visual');q('.answer-scroll').prepend(this.visualNode);this.visualNode.sources.classList.add('answer-source-menu');q('.response-heading').insertBefore(this.visualNode.sources,q('.dismiss'));}
  const exampleExplanation=!answer.live&&['fact-card','sourced-image','answer-timeline'].includes(answer.kind)&&summary===visualExamples[answer.kind].content.summary;
- this.visualNode.data={state:answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':!scene.connected?'offline':answer.status,ownerReceiptIds:answer.ownerReceiptIds||[],hideSummary:summaryHeading||exampleExplanation,content:answer.status==='waiting'?undefined:answer.content};
+ this.visualNode.data={forecast:answer.kind==='answer-timeline'&&answer.provenance?.kind==='ha_weather',state:answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':!scene.connected?'offline':answer.status,ownerReceiptIds:answer.ownerReceiptIds||[],hideSummary:summaryHeading||exampleExplanation,content:answer.status==='waiting'?undefined:answer.content};
  q('.retry-answer').hidden=!['error','empty','interrupted'].includes(answer.status);q('.retry-answer').disabled=!scene.connected;
  }
  emit(event){this.dispatchEvent(new CustomEvent('widget-action',{bubbles:true,detail:event}));}

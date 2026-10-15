@@ -18,7 +18,7 @@ import re
 import secrets
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -69,6 +69,7 @@ class PendingAction:
     normalized_args: str
     args_sha256: str
     expires_at: float
+    confirmation_json: str = field(default="", kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +120,7 @@ _SAFE_TEMP_C = (17.0, 24.0)
 # inferred from substrings ("play" in "display", for example).  New reversible tools
 # must be added through reviewed exact metadata rather than silently becoming trusted.
 _EXPLICIT_READ_ONLY = {
+    "podview_music_options",
     "podvoice_timer_status",
     "GetDateTime",
     "GetLiveContext",
@@ -241,6 +243,8 @@ def assess_tool(
     # Declaration prose can strengthen a denial but never grant permission.
     if _contains(description_text, ("unlock", "disarm", "purchase", "delete")):
         return Assessment(Risk.HIGH_RISK, "sensitive_tool_description", target)
+    if name == "podview_music_select_option":
+        return Assessment(Risk.HIGH_RISK, "selected_music_change", target)
     # Exact product-reviewed reads must be recognized before the generic
     # climate/temperature mutation classifier.
     if name in _EXPLICIT_READ_ONLY:
@@ -436,7 +440,41 @@ class ExecutionPolicy:
             challenge.normalized_args,
             challenge.args_sha256,
             challenge.expires_at,
+            confirmation_json=challenge.confirmation_json,
         )
+
+    def set_live_confirmation_details(
+        self, challenge_id: str, *, context: ExecutionContext, details: dict[str, Any]
+    ) -> bool:
+        """Attach bounded server-owned display facts without changing action authority."""
+        self._prune()
+        challenge = self._challenges.get(challenge_id)
+        if (
+            challenge is None
+            or challenge.context != context
+            or challenge.context.approval_mode != "live"
+        ):
+            return False
+        required = {"song", "artist", "output", "account_id", "volume_percent"}
+        if not isinstance(details, dict) or set(details) != required:
+            return False
+        limits = {"song": 256, "artist": 512, "output": 1024, "account_id": 1024}
+        if any(
+            not isinstance(details[key], str) or not 1 <= len(details[key]) <= maximum
+            for key, maximum in limits.items()
+        ):
+            return False
+        volume = details["volume_percent"]
+        if type(volume) is not int or not 0 <= volume <= 100:
+            return False
+        try:
+            encoded = json.dumps(details, ensure_ascii=False, sort_keys=True, allow_nan=False)
+        except (TypeError, ValueError):
+            return False
+        if len(encoded.encode()) > 4096:
+            return False
+        self._challenges[challenge_id] = replace(challenge, confirmation_json=encoded)
+        return True
 
     def discard_live_challenge(self, challenge_id: str, *, session_id: str) -> bool:
         if self.peek_live_challenge(challenge_id, session_id=session_id) is None:
@@ -514,16 +552,7 @@ class ExecutionPolicy:
                 updated[challenge_id] = challenge
                 continue
             if challenge.approval_turn_id is None:
-                updated[challenge_id] = _Challenge(
-                    challenge.challenge_id,
-                    challenge.context,
-                    challenge.action,
-                    challenge.target,
-                    challenge.normalized_args,
-                    challenge.args_sha256,
-                    challenge.expires_at,
-                    context.turn_id,
-                )
+                updated[challenge_id] = replace(challenge, approval_turn_id=context.turn_id)
             # A challenge already bound to an older next turn expires here.
         self._challenges = updated
 

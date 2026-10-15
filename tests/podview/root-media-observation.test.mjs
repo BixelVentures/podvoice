@@ -8,3 +8,11 @@ test('queue preserves duplicate URI occurrences and rejects duplicate snapshot I
 test('unnamed provider speakers retain playback and malformed timestamps fail closed',()=>{const v=playback();v.playback.target.name=null;assert.equal(playbackObservation(v,'account').target.name,null);v.observation.observed_at='not-a-date';assert.throws(()=>playbackObservation(v,'account'));});
 
 test('response delay cannot renew provider observation freshness',()=>{const v=playback();v.observation.observed_at=new Date(Date.now()-20000).toISOString();v.observation.age_ms=100;assert.throws(()=>playbackObservation(v,'account'),/expired/);v.observation.observed_at=new Date(Date.now()+6000).toISOString();assert.throws(()=>playbackObservation(v,'account'),/future/);});
+
+test('current and duplicate queue occurrences preserve only actual closed Spotify artwork',()=>{
+ const art={kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/ab67616d0000b273abc'},source={...item,uri:'spotify:track:0123456789ABCDEFGHIJKL',artwork:art,html:'<script>'};
+ const v=playback();v.playback.item=source;const p=playbackObservation(v,'account');assert.deepEqual(p.item.artwork,art);assert.equal(p.item.spotifyUrl,'https://open.spotify.com/track/0123456789ABCDEFGHIJKL');assert.equal(p.item.html,undefined);
+ const q=queueObservation({ok:true,schema:'podconnect.queue.v1',config_entry_id:'account',owner_epoch:'owner',snapshot_id:'owner:q:2',scope:'account',relation_to_playback:'not_atomic',observed_at:new Date().toISOString(),returned_count:2,items:[{...source,option_id:'owner:q:2:0'},{...source,option_id:'owner:q:2:1'}]},'account');
+ assert.notEqual(q.items[0].id,q.items[1].id);assert.deepEqual(q.items.map(i=>i.artwork),[art,art]);
+ v.playback.item.artwork={...art,url:'https://wrong.example/cover'};assert.equal(playbackObservation(v,'account').item.artwork,null);
+});

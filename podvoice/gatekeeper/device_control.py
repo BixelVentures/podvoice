@@ -7,6 +7,7 @@ Registry access is read-only and restricted to the explicitly configured entitie
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
 import json
@@ -21,6 +22,7 @@ import aiohttp
 import httpx
 
 from . import constants as C
+from . import podview_robot
 from .cleaning_journal import CleaningJournal, JournalError
 
 GET_CAPABILITIES = "ha_get_device_capabilities"
@@ -173,6 +175,7 @@ class DeviceControl:
         self._cleaning_journal = CleaningJournal(journal_path)
         self._enabled = False
         self._entities: tuple[str, ...] = ()
+        self._robot_reads: tuple[dict, ...] = ()
         self._generation = 0
         self._tickets: dict[str, Capability] = {}
         self._display_tickets: dict[str, Capability] = {}
@@ -196,6 +199,57 @@ class DeviceControl:
     @property
     def available(self) -> bool:
         return self._enabled and self._client is not None and bool(self._token)
+
+    def configure_robot_reads(self, policy: object) -> None:
+        allowed = podview_robot.parse_policy(policy)
+        if allowed != self._robot_reads:
+            self._robot_reads = allowed
+            self._generation += 1
+            self._tickets.clear()
+            self._display_tickets.clear()
+
+    async def _robot_observation(self, entity_id: str, generation: int) -> dict:
+        try:
+            return await asyncio.wait_for(
+                self._robot_observation_read(entity_id, generation), timeout=5
+            )
+        except TimeoutError:
+            return {"status": "unavailable", "items": []}
+
+    async def _robot_observation_read(self, entity_id: str, generation: int) -> dict:
+        unavailable = {"status": "unavailable", "items": []}
+        binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == entity_id), None)
+        if binding is None or entity_id not in self._entities:
+            return unavailable
+        ids = [entity_id, *(f["entityId"] for f in binding["fields"])]
+        try:
+            before = await self._ws_read(
+                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
+            )
+            self._check(generation)
+            identity = podview_robot.registry_identity(binding, before)
+            items = []
+            for field in binding["fields"]:
+                value = await self._json("GET", f"states/{field['entityId']}")
+                self._check(generation)
+                row = podview_robot.field_value(field["key"], field["entityId"], value, time.time())
+                if row is not None:
+                    items.append(row)
+            after = await self._ws_read(
+                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
+            )
+            self._check(generation)
+            if podview_robot.registry_identity(binding, after) != identity:
+                return unavailable
+            return {
+                "schema": "podview.robot.v1",
+                "status": "observed",
+                "vacuumEntityId": entity_id,
+                "source": "home_assistant_roborock",
+                "items": items,
+            }
+        except (CapabilityError, ValueError, httpx.HTTPError, aiohttp.ClientError):
+            return unavailable
 
     async def observe(self) -> dict:
         """Read allowlisted vacuum states without issuing or superseding tickets."""
@@ -238,6 +292,7 @@ class DeviceControl:
                     else None,
                     "observedAt": time.time(),
                     "source": "home_assistant_state",
+                    "telemetry": await self._robot_observation(entity_id, generation),
                 }
             )
         self._check(generation)
