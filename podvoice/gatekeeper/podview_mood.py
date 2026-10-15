@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -141,25 +142,27 @@ class MoodSelector(VisualSelector):
             self.budget.account_usage(self._key, MODEL, RESERVED_TOKENS, lease=lease)
             if not current():
                 return None
-            async with self.client.stream(
-                "POST",
-                "https://api.openai.com/v1/responses",
-                content=encoded,
-                headers={
-                    "Authorization": f"Bearer {self._key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=4,
-                follow_redirects=False,
-            ) as response:
-                if response.status_code == 429:
-                    self._disabled = True
-                response.raise_for_status()
-                raw = bytearray()
-                async for chunk in response.aiter_bytes():
-                    if len(raw) + len(chunk) > 16384:
-                        return None
-                    raw.extend(chunk)
+            # HTTP I/O timeouts alone do not bound a slowly arriving response body.
+            async with asyncio.timeout(4):
+                async with self.client.stream(
+                    "POST",
+                    "https://api.openai.com/v1/responses",
+                    content=encoded,
+                    headers={
+                        "Authorization": f"Bearer {self._key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=4,
+                    follow_redirects=False,
+                ) as response:
+                    if response.status_code == 429:
+                        self._disabled = True
+                    response.raise_for_status()
+                    raw = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        if len(raw) + len(chunk) > 16384:
+                            return None
+                        raw.extend(chunk)
             data = _closed_json(bytes(raw))
             if not current() or data.get("status") != "completed":
                 return None
@@ -185,6 +188,7 @@ class MoodSelector(VisualSelector):
             )
         except (
             httpx.HTTPError,
+            TimeoutError,
             ValueError,
             TypeError,
             KeyError,

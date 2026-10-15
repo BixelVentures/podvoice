@@ -2,17 +2,17 @@ import {requestWithin} from './request-deadline.js';
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, background retries or offline actions.
 export class PodVoiceTransport {
- constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onConnection = () => {}} = {}) {
+ constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}} = {}) {
   const page = new URL(url);
   if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
   this.base = new URL(`${prefix}api/`, page.origin);
   this.room = room; this.fetch = fetch; this.EventSource = EventSource;
-  this.onSnapshot = onSnapshot; this.onConnection = onConnection;
-  this.snapshot = null; this.connected = false; this.closed = true; this.generation = 0;
+  this.onSnapshot = onSnapshot; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
+  this.controllerRenewalOwner={}; this.snapshot = null; this.connected = false; this.closed = true; this.generation = 0;
  }
  endpoint(path, params = {}) {
-  if (!['snapshot','events','music','actions','pair','home','answers'].includes(path)) throw new Error('unsupported_endpoint');
+  if (!['snapshot','events','music','actions','pair','home','answers','controller/renew'].includes(path)) throw new Error('unsupported_endpoint');
   const url = new URL(path, this.base);
   if (this.room) url.searchParams.set('room', this.room);
   for (const [key,value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(key,value);
@@ -25,9 +25,13 @@ export class PodVoiceTransport {
   if(value.capabilities.controlSetup!==undefined&&(!Array.isArray(value.capabilities.controlSetup)||value.capabilities.controlSetup.some(x=>!['music','vacuum'].includes(x))))return false;
   if(value.capabilities.answerRead!==undefined&&typeof value.capabilities.answerRead!=='boolean')return false;
   if(value.capabilities.musicSelection!==undefined&&typeof value.capabilities.musicSelection!=='boolean')return false;
+  if(value.capabilities.queueSelection!==undefined&&typeof value.capabilities.queueSelection!=='boolean')return false;
   if(value.capabilities.answerRead===true){const a=value.answers;if(a?.readOnlyCompleted!==undefined&&(a.readOnlyCompleted!==true||value.voice.active!==false||value.voice.sessionId!==null||!a.sessionId))return false;if(!a||!Number.isInteger(a.revision)||a.revision<0||['sessionId','turnId','taskId'].some(k=>a[k]!==null&&(typeof a[k]!=='string'||!a[k]||a[k].length>160))||(a.inputRevision!==null&&(!Number.isInteger(a.inputRevision)||a.inputRevision<0)))return false;const empty=a.sessionId===null;if(empty?(a.turnId!==null||a.taskId!==null||a.inputRevision!==null):(a.turnId===null||a.taskId===null||a.inputRevision===null))return false;}
+  if(value.visualPending!==undefined){const p=value.visualPending;if(!p||Object.keys(p).sort().join(',')!=='inputRevision,revision,roomId,sessionId,taskId,turnId'||p.roomId!==value.roomId||value.voice.active!==true||value.voice.phase==='CLOSING'||p.sessionId!==value.voice.sessionId||['sessionId','turnId','taskId'].some(k=>typeof p[k]!=='string'||!p[k]||p[k].length>160)||!Number.isInteger(p.inputRevision)||p.inputRevision<0||!Number.isInteger(p.revision)||p.revision<0||p.revision!==value.answers?.revision||value.capabilities.answerRead!==true)return false;}
+  if(value.controllerContinuity!==undefined){const c=value.controllerContinuity;if(!c||Object.keys(c).sort().join(',')!=='available,enabled,maxDays'||typeof c.enabled!=='boolean'||typeof c.available!=='boolean'||!Number.isInteger(c.maxDays)||c.maxDays<0||c.maxDays>30)return false;}
   if (this.room && value.roomId !== this.room) return false;
   if (this.snapshot?.bootId === value.bootId && this.snapshot.revision > value.revision) return false;
+  if(value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,controlSetup:[]}};
   this.room = value.roomId; this.snapshot = value; this.connected = true;
   this.onConnection('connected'); this.onSnapshot(value);clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);return true;
  }
@@ -37,10 +41,21 @@ export class PodVoiceTransport {
   this.controller = new AbortController();
   this.onConnection('connecting');
   try {
-   const response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
-   const value = await response.json();
+   let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
+   let value = await response.json();
    if (generation !== this.generation) return;
+   let renewed=false;
+   if(response.ok&&value?.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){
+    try{const renewal=await this.request(this.endpoint('controller/renew'),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({roomId:value.roomId})});const result=await renewal.json();if(generation!==this.generation)return;if(renewal.ok&&result.ok===true&&result.expiresIn===300){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();renewed=true;}}catch{if(generation!==this.generation)return;}
+   }
+   if(generation!==this.generation)return;
+   this.controllerRenewed=renewed;
+   if(value?.controllerContinuity?.enabled===true&&!renewed)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,controlSetup:[]}};
    if (!response.ok || !this.accept(value)) throw new Error(value.error || 'invalid_snapshot');
+   if(generation!==this.generation||this.closed)return;
+   if(renewed)this.onControllerRenewed({owner:this.controllerRenewalOwner,generation});
+   if(generation!==this.generation||this.closed)return;
+   if(renewed)this.controllerRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.start().catch(()=>this.disconnected());},240000);
    this.stream = new this.EventSource(this.endpoint('events'), {withCredentials:false});
    this.stream.addEventListener('snapshot', event => {
     if (generation !== this.generation) return;
@@ -50,7 +65,7 @@ export class PodVoiceTransport {
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
  disconnected() { this.connected = false; this.onConnection('disconnected'); }
- async request(url,options){return requestWithin(async(target,init)=>{const response=await this.fetch(target,init);const body=await response.json();return {ok:response.ok,json:async()=>body};},url,options,this.controller?.signal);}
+ async request(url,options,ms){return requestWithin(async(target,init)=>{const response=await this.fetch(target,init);const body=await response.json();return {ok:response.ok,json:async()=>body};},url,options,this.controller?.signal,ms);}
  async home(){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   const response=await this.request(this.endpoint('home'),{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw new Error('home_unavailable');return response.json();
@@ -74,6 +89,8 @@ export class PodVoiceTransport {
   const body = await response.json(); if (!response.ok || !body.ok) throw new Error(body.error || 'music_unavailable');
   return body;
  }
+ async queueOffer(accountId,targetId){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||typeof targetId!=='string'||!targetId)throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId})},16000);const body=await response.json();if(!response.ok||body.ok!==true)throw Error('queue_offer_unavailable');return body;}
+ async queueAction(task,optionId){const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false},s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId||!task.items?.some(row=>row.id===optionId))return rejected;const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};try{const response=await this.request(new URL('music/queue/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId})});const body=await response.json();if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;return body;}catch{return unknown;}}
  async musicSelectionSetup(candidateSetId,target,candidateIds){
   const s=this.snapshot;
   if(!this.connected||s?.capabilities.musicSelection!==true||!/^[a-f0-9]{64}$/.test(candidateSetId)||target?.kind!=='spotify_device'||typeof target.accountId!=='string'||!target.accountId||typeof target.targetId!=='string'||!target.targetId)throw new Error('selection_unavailable');
@@ -112,6 +129,7 @@ export class PodVoiceTransport {
   } catch { return {ok:false,requestId,outcome:'unknown',retryAllowed:false}; }
  }
  close() {
+  clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;this.controllerRenewed=false;
   this.generation++; this.closed = true; this.connected = false;
   clearTimeout(this.freshnessTimer);this.controller?.abort(); this.stream?.close(); this.stream = null;
  }

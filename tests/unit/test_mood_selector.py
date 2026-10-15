@@ -188,3 +188,70 @@ async def test_daypart_guides_model_with_owned_six_theme_schema_only(hour, perio
         assert await selector.select(
             {"hour": hour, "roomKind": "kitchen"}, current=lambda: True
         ) == ["morning_acoustic", "evening_jazz", "calm"]
+
+
+@pytest.mark.parametrize("expire", [True, False], ids=["total-deadline", "caller-cancellation"])
+async def test_model_total_deadline_closes_partial_body_without_retry_or_refund(
+    monkeypatch, expire
+):
+    """Expire the real timeout at a body barrier, without a latency benchmark."""
+    import asyncio
+
+    from gatekeeper import podview_mood
+
+    entered, closed, sends, deadlines = asyncio.Event(), [], [], []
+    real_timeout = asyncio.timeout
+
+    def capture_timeout(delay):
+        manager = real_timeout(delay)
+        deadlines.append((delay, manager))
+        return manager
+
+    class PartialBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'{"status":'
+            entered.set()
+            await asyncio.Event().wait()
+
+        async def aclose(self):
+            closed.append(True)
+
+    def receive(request):
+        sends.append(request)
+        return httpx.Response(200, stream=PartialBody())
+
+    monkeypatch.setattr(podview_mood.asyncio, "timeout", capture_timeout)
+    allowance = RequestAllowance(1)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(receive)) as client:
+        selector = MoodSelector(
+            client,
+            "inert-key",
+            MODEL,
+            allowance=allowance,
+            budget=ProviderBudgetCoordinator(),
+        )
+        selector.room_kind = "kitchen"
+        task = asyncio.create_task(
+            selector.select({"hour": 18, "roomKind": "kitchen"}, current=lambda: True)
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 2)  # Deadlock guard only.
+            assert len(deadlines) == 1 and deadlines[0][0] == 4
+            if expire:
+                deadlines[0][1].reschedule(asyncio.get_running_loop().time())
+                assert await task is None
+            else:
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            assert closed == [True] and len(sends) == 1
+            assert allowance.remaining == 0
+            assert (
+                await selector.select({"hour": 18, "roomKind": "kitchen"}, current=lambda: True)
+                is None
+            )
+            assert len(sends) == 1
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)

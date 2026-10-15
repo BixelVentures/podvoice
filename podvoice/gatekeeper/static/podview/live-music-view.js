@@ -1,4 +1,4 @@
-import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection} from './music-selection-model.js';
+import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,moodPreview} from './music-selection-model.js';
 import {sourceMusicCards} from './music-results.js';
 import {spotifyArtwork,spotifyTrackUrl} from './spotify-artwork.js';
 export const MAX_MUSIC_SAMPLE=100;
@@ -21,6 +21,11 @@ export class LiveMusicCatalogueView{
  restore(entry){this.cards=entry?.cards||[];this.sample=entry?.sample||[];this.offset=entry?.offset||0;this.renderedKind=entry?.kind||null;this.status=entry?.status||'';this.busy=false;}
  interrupt(){const pending=this.pendingRead;if(pending){const entry=this.entries.get(pending.key);if(entry)entry.status=entry.cards.length?'Viser seneste musik.':'Ingen sange at vise endnu.';this.host.liveMusicGeneration=(this.host.liveMusicGeneration||0)+1;}this.pendingRead=null;this.busy=false;}
  open(){if(this.host.state?.focus!=='music')return;this.ensureContext();if(this.pendingRead||this.entries.has(this.key())||!this.account||!this.connected||!this.capabilities.includes(this.selected))return;this.select(this.selected);}
+ renewRetained(renewal){
+  if(!renewal?.owner||typeof renewal.owner!=='object'||!Number.isSafeInteger(renewal.generation)||renewal.generation<0)return;this.ensureContext();this.controllerRenewalSeen??=new WeakMap();const previous=this.controllerRenewalSeen.get(renewal.owner);if(previous!==undefined&&renewal.generation<=previous)return;this.controllerRenewalSeen.set(renewal.owner,renewal.generation);
+  const entry=this.entries.get(this.key());if(this.host.state?.focus!=='music'||this.pendingRead||this.busy||!this.connected||!this.account||!this.capabilities.includes(this.selected)||this.host.liveSnapshot?.capabilities?.musicSelection!==true||!entry?.cards?.length||this.host.liveSelection?.active||this.host.liveSelection?.pending)return;
+  this.beginRead(this.selected,'renew');
+ }
  select(kind){
   if(!['mood','top','recent','liked'].includes(kind))return;this.ensureContext();this.interrupt();this.selected=kind;
   const entry=this.entries.get(this.key());if(entry){this.restore(entry);this.armExpiry(entry);this.render();if(entry.cards.length&&this.connected&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&this.capabilities.includes(kind)&&(!collectionCurrent(entry.source,this.host.liveSnapshot,this.account)||entry.selectionSpent))this.beginRead(kind,'renew');return;}
@@ -40,16 +45,17 @@ export class LiveMusicCatalogueView{
  resetAccount(account=null){this.ensureContext();this.interrupt();if(this.account===account){this.render();return;}clearTimeout(this.expiryTimer);this.account=account;this.selected='mood';this.restore(null);this.render();}
  tracks(kind,body,account){
   const request=this.pendingRead;if(this.selected!==kind||!request||request.kind!==kind||request.key!==this.key(kind)||request.scope!==this.scope()||request.account!==this.account||account!==undefined&&account!==this.account)return;
-  const fullSource=collectionSample(body,this.account,kind,this.host.liveSnapshot,request.requestedAt),valid=kind==='mood'?(fullSource?.tracks||null):projectMusicTracks(body,this.account);if(valid===null){this.failure(kind);return;}
+  const preview=kind==='mood'?moodPreview(body,this.account,this.host.liveSnapshot,request.requestedAt):null,fullSource=preview?null:collectionSample(body,this.account,kind,this.host.liveSnapshot,request.requestedAt),valid=kind==='mood'?(preview?.tracks||fullSource?.tracks||null):projectMusicTracks(body,this.account);if(valid===null){this.failure(kind);return;}
   const before=this.entries.get(request.key);
+  if(request.reason==='renew'&&preview){if(JSON.stringify(valid)!==JSON.stringify(before.sample)){this.failure(kind);return;}before.preview=preview;before.source=null;before.status='3 stemninger';this.pendingRead=null;this.restore(before);this.armExpiry(before);this.render();return;}
   if(request.reason==='renew'){const renewed=renewCollectionSelection(fullSource,before.cards);before.source=renewed;before.selectionSpent=false;before.selectionUnavailable=false;before.status=renewed?'Vælg en sang.':'Afspilning kan ikke bekræftes for de viste sange.';this.pendingRead=null;this.restore(before);this.armExpiry(before);this.render();return;}
   const advance=request.reason==='refresh'&&before.sample.length>0;
   const unchanged=advance&&valid.length===before.sample.length&&valid.every((track,index)=>track.uri===before.sample[index].uri);
   const offset=advance&&valid.length>3?(before.offset+3<valid.length?before.offset+3:0):0,cards=sourceMusicCards(valid.slice(offset,offset+3));
   const status=kind==='mood'?'3 stemninger':!valid.length?'Ingen sange i dette udvalg.':unchanged&&valid.length<=3?'Ingen andre sange i dette udvalg.':`${cards.length} ${cards.length===1?'sang':'sange'}`;
   const indices=Array.from({length:cards.length},(_,index)=>offset+index),source=fullSource?collectionSelection(fullSource,indices):null;
-  const entry={kind,sample:valid,offset,cards,status,source,selectionSpent:false,selectionUnavailable:false};this.entries.set(request.key,entry);this.pendingRead=null;this.restore(entry);this.armExpiry(entry);this.render();
+  const entry={kind,sample:valid,offset,cards,status,source,preview,selectionSpent:false,selectionUnavailable:false};this.entries.set(request.key,entry);this.pendingRead=null;this.restore(entry);this.armExpiry(entry);this.render();
  }
- armExpiry(entry){clearTimeout(this.expiryTimer);const source=entry?.source;if(!source)return;this.expiryTimer=setTimeout(()=>{if(entry.source===source){this.host.liveSelection?.expireCollection?.(entry);this.render();}},Math.max(0,source.expiresAt-Date.now()));}
+ armExpiry(entry){clearTimeout(this.expiryTimer);const source=entry?.source||entry?.preview;if(!source)return;this.expiryTimer=setTimeout(()=>{if(entry.source===source||entry.preview===source){if(entry.preview===source){entry.status='Viser seneste forslag.';if(this.entries.get(this.key())===entry&&!this.pendingRead)this.status=entry.status;}else this.host.liveSelection?.expireCollection?.(entry);this.render();}},Math.max(0,source.expiresAt-Date.now()));}
  render(){if(this.host.liveSelection?.active)return;const mood=this.selected==='mood';this.host.musicResults.render({cards:this.cards,collection:this.selected,heading:HEADINGS[this.selected],status:this.status||(mood?'Stemningsforslag er ikke tilgængelige endnu.':''),empty:mood?'Stemningsforslag er ikke tilgængelige endnu.':'Ingen sange i dette udvalg.',connected:this.connected,busy:this.busy,canChoose:this.capabilities.includes('targets')&&!this.busy&&!this.host.liveSelection?.pending&&!this.entries.get(this.key())?.selectionSpent&&!this.entries.get(this.key())?.selectionUnavailable&&collectionCurrent(this.entries.get(this.key())?.source,this.host.liveSnapshot,this.account),canRefresh:!!this.account&&this.capabilities.includes(this.selected)});}
 }

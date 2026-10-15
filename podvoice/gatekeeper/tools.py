@@ -2103,7 +2103,7 @@ class ToolRouter:
         ]
         if (
             getattr(self, "podview_mood_selector", None) is not None
-            and {"search_playlists", "get_context_play_controls", "control_playback"} <= services
+            and {"search_playlists", "get_playback_snapshot"} <= services
         ):
             reads.append("mood")
         if any(d.get("name") == "podconnect_get_targets" for d in self.declarations()):

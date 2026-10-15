@@ -1,4 +1,63 @@
-# Exact31 independent source review
+# Active lead decision · final combined32 expansion · 15 October 2026
+
+Lead root. PR170 head6ffedeb0 is an immutable reviewed checkpoint, not install GO. The human asks to finish music binding, pairing and AI together and test later; Green installation is held for one final bundle. The checkpoint review/pins authorize only those bytes. Additional changes below invalidate admission until a fresh exact freeze and independent review.
+
+Integrate the independently reviewed narrow no-cost typed weather completion: one actually submitted successful validated native weather call, no enabled/inflight/prior-rejecting selector, no research/web/prose expansion or new lookup/model allowance. Preserve receipt source/session/turn/owner/revision/120-second/normal-close/privacy guards. Use whole-degree/Danish display copies only; canonical values and locked UI geometry remain unchanged.
+
+Prepare explicitly provisioned default-off controller continuity: one administrator one-use pairing code enrolls that particular profile/room for at most30 absolute days, hash-only durable registry and revocation/policy pins, fresh short300-second action grants from actual current owners. HA ingress viewing is never control authority. Re-enrollment replaces the previous room controller; keep scopes, exact native account/output, shared35 start policy and existing cap. Require independent security/restart/corruption/rollback/expiry review before integration/activation. No automatic physical action or replay.
+
+Queue selection requires real one-use native occurrence/list/session/connection tokens through current Control and server-owned PodVoice offers. URI starts and repeated Next are not substitutes. Native account diagnostics cannot mint playback authority. Preserve original finite visual20 with no reset; separate ongoing visual quota remains unapproved, mood20/day200/month unchanged. No claim of generic visualAI, approved visual widget, physical acceptance or overall readiness. Speakers21/Control14 are reserved with sole Green writer and require exact immutable prebuilds then one coupled install.
+
+---
+
+# Aktiv leadbeslutning · 2.0.32 · sidste konkrete PodView-mangler
+
+Lead: root. Status: **planlagt build; ikke udgivet eller testklar**. v2.X har reserveret32. Basen er faktisk publiceret31, commit `729668ffa45067bfb75fd6928ccac9f9beaf5576`, tree `93491e271a0eaaa7065acc1a72d1d957720c40db`; alle656 kildeblobs er sammenholdt med GitHubs træ og kopieret uændret til denne isolerede kandidat. Nedenstående31-admission er historisk og giver ingen32-GO.
+
+Direkte evidens: Green31 kører med korrekt startupgit/rootfs, HA/MCP og Voice PE-forbindelse. PodView-indgangen virker. Vejr viser faktiske timer/dage, afrunding og Met.no; bylabel er særskilt ændret til brugeroplyst Mårslet, ikke automatisk geokodet. Første musikåbning viser dog deaktiveret Stemning trods cold-setup ready: read-kapabiliteten er koblet til en skrivegrant, som mangler sammen med verificeret native Spotify-ID. Kildeaudit fandt desuden12s browserdeadline mod40s mooddeadline samt manglende særskilt første visual-selection-feedback. Der er ikke målt faktisk model-/rumlatens.
+
+Afgrænset årsagshypotese og plan:
+
+- Bevar normal tale/ThinSession, audio, lifecycle, firmware, provider-/værktøjsschema, autoplay, rum- og startvolumenejere. Kun PodView-læsning/visuel feedback berøres.
+- Samordn mood totaldeadline under browserens deadline og giv modelstreamen en faktisk totaldeadline. Bevar TaskGroup-cleanup, busy-fence, ingen retry/refund og eksisterende kort ved fejl. Kandidaten har separat scoped Sol-review; dette er ikke en fysisk hastighedsmåling.
+- Adskil autentificeret read-only mood-preview fra skriveautoritet. Preview må ikke indeholde task/options/candidateSet eller opgraderes til afspilning i browseren. Bevar præcis konto, boot/session/generation, observeret owner-epoch, kildeudløb og den allerede godkendte20/dag200/måned-kvote. Eksisterende play-/setup-/action-guards skal forblive uændrede. Navigation bevarer samme kort; kun første musikåbning eller Andre forslag kan vælge nye.
+- Vis kun faktisk aktuelt selector-arbejde som et bundet, endeligt pendingfelt. Genbrug eksisterende VoiceSurface-tekst uden ny geometri; lytter/taler er fortsat den faktiske samtalefase. Pending må ikke ændre svarrevision/indhold eller overleve fejl, cancel, owner-/inputskift eller lukning.
+
+Kæde og regressioner: autentificeret frame → eksakt musik-readkonto/owner eller completed visual tool-receipt → eksisterende formålsbudget/selector → kildebunden rendering; afvis stale/krydsede svar efter alle awaits. Ingen ny samtale- eller hjemmehandling. Test read-only uden cookie og nul playmyndighed, ejer-/kontoskift, kortbevaring, timeout med joinede børn, bounded partial-body-cleanup, visual pending→ready/failure/cancel/close samt gamle snapshots uden det nye felt. Adversarial review udføres af anden Sol; brugeren har fravalgt Ultra. Fokuserede checks køres fra usynkroniseret mirror; endelig sammensat admission/CI/publication/install og faktisk Green-prøve resterer.
+
+Separat løbende visual-kvote er stadig ubesvaret og må ikke integreres/aktiveres. Gamle finite20 må ikke nulstilles. Robot-only policy er forberedt med verificeret vacuum og uden musik; faktisk grant/betjening er særskilt. Live-køhop mangler native forekomst-/revisionskontrakt og må ikke erstattes med ny URI-afspilning. Låst UI, Humør-afklaringen og det eksplicit senere skærm-/lysspor bevares.
+
+Rollbackgrænse: hele32-deltaet til immutable31; ingen ændring af31-kilde eller Green under arbejdet. Kvotefiler/engangsreceipts må ikke rulles tilbage for at genvinde kald. De tre isolerede kandidatspor flettes kun som præcise diffs efter review; ny eksakt32-admission og metadata kræves før udgivelse. Ingen samlet færdigmelding eller faktisk AI-/fysisk accept følger af denne beslutning.
+
+---
+
+# Exact32 independent source review (unreviewed placeholder; rejects)
+
+<!-- podview32-admission
+{
+  "version": 7,
+  "kind": "podview32_preview_deadline_feedback",
+  "base_tip": "729668ffa45067bfb75fd6928ccac9f9beaf5576",
+  "merge_base": "729668ffa45067bfb75fd6928ccac9f9beaf5576",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "fe4b8476576e2b8bd1ca2966c25dff480721b40549e011152ced35147c7ee8bd",
+  "regression_fingerprint": "be16aa10d56b451ef280be645e4ed2edc1fc4e967f825af1085a40a59d1220a8",
+  "runtime_fingerprint": "8bad38fb13bacb92ae8b2c545a069cda3c81a890ad54fa56a9637da649647f12",
+  "config_fingerprint": "8a49c9bdc3101f557431e30e0f1d5b23525dda275551c3672ecbe185ff4a4013",
+  "policy_fingerprint": "8f2ec8bdb4aca2c21f19c4dd1711be441d0b2a9653f3b0b4e45a53d37c9e46fa",
+  "tooling_fingerprint": "8bab6fe0425d7294eb033fdb6281d21a9b745ec97e3f9dc82a3a7b671924ea7e",
+  "manifest_fingerprint": "91597306f95bf0e4a6ea54dcf5e680917ad1bed87dc1c80e09ca5e2c49707219",
+  "reviewer": "Independent GPT-6 Sol /root/timer_robot_acceptance_sol; exact32 final source review",
+  "rationale": "Prior expanded runtime source GO preserved; independent CI test-only repair GO b5f73160d0bb5a9d26049812d5012cd567abb5076eb91d941eba6c3403abbdf4. Full packaged385 and actual Ruff/format pass; no runtime edits; official CI and Green acceptance remain separate."
+}
+-->
+
+---
+
+# Exact31 independent source review (historisk baseline)
 
 <!-- podview31-admission
 {

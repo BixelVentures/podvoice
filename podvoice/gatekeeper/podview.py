@@ -24,6 +24,7 @@ from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
+_CONTROLLER_COOKIE = "podview_controller"
 _ALLOWED_PHASES = {"IDLE", "LISTENING", "THINKING", "AI_SPEAKING", "LOUNGE_WINDOW"}
 
 
@@ -190,6 +191,11 @@ class PodViewBridge:
         pairing_room: str = "",
         pairing_sha256: str = "",
         pairing_store: Path | None = None,
+        controller_enabled: bool = False,
+        controller_days: int = 30,
+        controller_pairing_seconds: int = 600,
+        controller_generation: str = "",
+        controller_store: Path | None = None,
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
         self.boot_id = secrets.token_hex(16)
@@ -201,6 +207,9 @@ class PodViewBridge:
         self._touch_music_contexts: dict[tuple, tuple[float, dict]] = {}
         self._revisions: dict[str, tuple[str, int]] = {}
         self._grants: dict[str, tuple] = {}
+        from .podview_queue import QueueBroker
+
+        self.queue = QueueBroker(self)
         self._receipts: dict[str, tuple[str, dict]] = {}
         self._action_lock = asyncio.Lock()
         self._streams = 0
@@ -213,14 +222,37 @@ class PodViewBridge:
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""
         self._pairing_store = pairing_store
-        self._pairing_deadline = time.monotonic() + 600
         self._pairing_attempts = 0
+        self._controller_enabled = controller_enabled is True
+        self._controller_days = controller_days
+        self._controller_registry = None
+        self._controller_grants: dict[str, str] = {}
+        self._controller_revocation_failed: set[str] = set()
+        if self._controller_enabled and controller_store is not None:
+            from .podview_continuity import ControllerRegistry
+
+            try:
+                self._controller_registry = ControllerRegistry(
+                    controller_store, controller_generation, controller_days
+                )
+            except ValueError:
+                pass  # Explicit invalid configuration never becomes viewer authority.
+        self._pairing_seconds = 600
+        if (
+            self._controller_registry is not None
+            and type(controller_pairing_seconds) is int
+            and 600 <= controller_pairing_seconds <= 86400
+        ):
+            self._pairing_seconds = controller_pairing_seconds
+        self._pairing_deadline = time.monotonic() + self._pairing_seconds
         attach = getattr(tools, "attach_podview_music_owner", None)
         if callable(attach):
             attach(self)
 
     def pair(self, room: object, code: object) -> str | None:
         """Consume administrator provisioned authority, never infer it from a viewer."""
+        if isinstance(room, str) and room in self._controller_revocation_failed:
+            return None
         if (
             not self._pairing_hash
             or self._pairing_store is None
@@ -240,7 +272,10 @@ class PodViewBridge:
         ):
             return None
         try:
-            token = self.grant_timer_control(room)
+            session = self.sessions.get(room)
+            owner = getattr(getattr(session, "tools", None), "timers", None)
+            if owner is None or not owner.available(room):
+                raise ValueError("timer owner unavailable")
             store = self._pairing_store
             store.mkdir(parents=True, exist_ok=True, mode=0o700)
             if store.is_symlink():
@@ -256,9 +291,9 @@ class PodViewBridge:
                 os.fsync(directory)
             finally:
                 os.close(directory)
+            token = self.grant_timer_control(room)
         except (OSError, ValueError):
-            self.revoke(room)
-            return None
+            return None  # A consumed/invalid code cannot revoke another controller.
         self._pairing_hash = ""
         return token
 
@@ -271,6 +306,7 @@ class PodViewBridge:
         owner = getattr(getattr(session, "tools", None), "timers", None)
         if not owner or not owner.available(room):
             raise ValueError("timer owner unavailable")
+        self._controller_grants.pop(room, None)
         self._grants[room] = (
             token,
             session,
@@ -282,10 +318,24 @@ class PodViewBridge:
         return token
 
     def _grant_current(self, room: str, token: str) -> bool:
+        if room in self._controller_revocation_failed:
+            return False
         grant = self._grants.get(room)
         if not grant:
             return False
         secret, session, owner, epoch, binding, deadline = grant
+        identity = self._controller_grants.get(room)
+        if identity is not None:
+            registry = self._controller_registry
+            try:
+                if (
+                    not self._controller_enabled
+                    or registry is None
+                    or not registry.current(identity, room, self.controller_pin(room))
+                ):
+                    return False
+            except (OSError, ValueError, TypeError, KeyError):
+                return False
         return bool(
             secrets.compare_digest(secret, token)
             and time.monotonic() < deadline
@@ -297,10 +347,57 @@ class PodViewBridge:
             and owner.bindings.get(room) == binding
         )
 
-    def revoke(self, room: str) -> None:
+    def controller_owner(self, room: str) -> tuple:
+        session = self.sessions.get(room)
+        owner = getattr(getattr(session, "tools", None), "timers", None)
+        if (
+            not owner
+            or not owner.available(room)
+            or room not in owner.bindings
+            or room not in owner.snapshots
+        ):
+            raise ValueError("controller owner unavailable")
+        return session, owner, owner.snapshots[room]["epoch"], owner.bindings[room]
+
+    def controller_owner_current(self, room: str, binding: tuple) -> bool:
+        current = self.controller_owner(room)
+        return current[0] is binding[0] and current[1] is binding[1] and current[2:] == binding[2:]
+
+    def controller_pin(self, room: str) -> str:
+        session = self.sessions.get(room)
+        owner = getattr(getattr(session, "tools", None), "timers", None)
+        if not owner or not owner.available(room) or room not in owner.bindings:
+            raise ValueError("controller owner unavailable")
+        # Policy includes exact native room/target IDs and volume/action limits.
+        encoded = json.dumps(
+            [room, self.controls.policy, owner.bindings[room]], sort_keys=True, allow_nan=False
+        )
+        return hashlib.sha256(encoded.encode()).hexdigest()
+
+    def revoke(self, room: str) -> bool:
+        """Return explicit persistence outcome; a failed commit poisons this room.
+
+        Failed disk persistence cannot promise revocation across a restart. The
+        administrator must durably revoke via this method/tool before recovery.
+        """
+        committed = not self._controller_enabled and room not in self._controller_revocation_failed
+        registry = self._controller_registry
+        if registry is None and self._controller_enabled:
+            self._controller_revocation_failed.add(room)
+        if registry is not None:
+            try:
+                registry.revoke(room=room)
+            except (OSError, ValueError, TypeError, KeyError):
+                committed = False
+                self._controller_revocation_failed.add(room)
+            else:
+                committed = True
+                self._controller_revocation_failed.discard(room)
+        self._controller_grants.pop(room, None)
         self._grants.pop(room, None)
         self.music_selection.sources.clear()
         self.music_selection.tasks.clear()
+        return committed
 
     def voice_music_available(self) -> bool:
         """Offer local voice tools only with a current controller and provider owner."""
@@ -516,14 +613,17 @@ class PodViewBridge:
             for row in timer_state.get(group, [])
         ]
         music_reads: list[str] = getattr(self.tools, "podview_music_reads", lambda: [])()
-        if not self.controls.selection_allowed(room, token, "play_context"):
-            music_reads = [kind for kind in music_reads if kind != "mood"]
         receipt_owner = getattr(self.tools, "podview_receipts", None)
         answers = (
             receipt_owner.snapshot(room, self.sessions[room]) if receipt_owner is not None else None
         )
         latest_answer = answers["items"][0] if answers and answers["items"] else {}
         result: dict = {
+            **(
+                {"visualPending": answers["pending"]}
+                if active and not closing and answers and answers.get("pending")
+                else {}
+            ),
             "answers": {
                 "revision": answers["revision"] if answers else 0,
                 **(
@@ -577,6 +677,13 @@ class PodViewBridge:
                 "researchVisual": bool(getattr(receipt_owner, "research_admitted", False)),
             },
         }
+        result["controllerContinuity"] = {
+            "enabled": self._controller_enabled,
+            "available": self._controller_registry is not None,
+            "maxDays": self._controller_days
+            if type(self._controller_days) is int and 1 <= self._controller_days <= 30
+            else 0,
+        }
         # No grant is disclosed to viewers. A paired controller supplies its own token.
         encoded = json.dumps(result, sort_keys=True, allow_nan=False)
         digest = hashlib.sha256(encoded.encode()).hexdigest()
@@ -588,6 +695,7 @@ class PodViewBridge:
             result["capabilities"]["timerActions"] = ["timer.start", "timer.cancel"]
         result["capabilities"]["controlSetup"] = self.controls.domains(room, token)
         result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
+        result["capabilities"]["queueSelection"] = bool(self.queue.rules(room, token))
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:
@@ -764,7 +872,8 @@ async def _events(request: web.Request) -> web.StreamResponse:
     try:
         await response.prepare(request)
         # Every tick is a fresh full projection; dropped events cannot corrupt a delta.
-        # This reads caches only: it never polls HA or holds an audio-owner lock.
+        # This reads caches and bounded local controller revocation state only;
+        # it never polls HA or holds an audio-owner lock.
         while True:
             snap = bridge.snapshot(room, request.cookies.get(_PAIR_COOKIE, ""))
             payload = f"event: snapshot\nid: {bridge.boot_id}:{snap['revision']}\ndata: {json.dumps(snap)}\n\n"
@@ -796,8 +905,113 @@ async def _pair(request: web.Request) -> web.Response:
     token = request.app[BRIDGE].pair(body["roomId"], body["code"])
     if token is None:
         return _error("pairing_denied", 403)
+    bridge = request.app[BRIDGE]
+    enrollment = None
+    if bridge._controller_enabled:
+        registry = bridge._controller_registry
+        try:
+            if registry is None:
+                raise ValueError("controller configuration unavailable")
+            pin = bridge.controller_pin(body["roomId"])
+            enrollment = await asyncio.to_thread(registry.enroll, body["roomId"], pin)
+            if (
+                bridge._controller_registry is not registry
+                or not bridge._grant_current(body["roomId"], token)
+                or bridge.controller_pin(body["roomId"]) != pin
+            ):
+                raise ValueError("controller owner changed")
+            bridge._controller_grants[body["roomId"]] = enrollment[1]
+        except (OSError, ValueError, TypeError, KeyError):
+            bridge.revoke(body["roomId"])
+            return _error("controller_enrollment_denied", 403)
     response = web.json_response(
-        {"ok": True, "paired": True, "expiresIn": 300}, headers={"Cache-Control": "no-store"}
+        {
+            "ok": True,
+            "paired": True,
+            "expiresIn": 300,
+            **(
+                {
+                    "controllerEnrolled": True,
+                    "controllerMaxDays": bridge._controller_days,
+                    "controllerExpiresAt": enrollment[2],
+                }
+                if enrollment
+                else {}
+            ),
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+    if enrollment:
+        response.set_cookie(
+            _CONTROLLER_COOKIE,
+            enrollment[0],
+            max_age=bridge._controller_days * 86400,
+            httponly=True,
+            samesite="Strict",
+            secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https",
+            path=prefix + "/view/",
+        )
+    response.set_cookie(
+        _PAIR_COOKIE,
+        token,
+        max_age=300,
+        httponly=True,
+        samesite="Strict",
+        secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https",
+        path=prefix + "/view/",
+    )
+    return response
+
+
+async def _controller_renew(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    if request.content_length is None or request.content_length > 256:
+        return _error("bounded_body_required", 413)
+    prefix = request.headers.get("X-Ingress-Path", "")
+    if prefix and not re.fullmatch(r"/api/hassio_ingress/[A-Za-z0-9_-]+", prefix):
+        return _error("invalid_ingress_path", 403)
+    bridge = request.app[BRIDGE]
+    registry = bridge._controller_registry
+    try:
+        body = await request.json()
+        if (
+            not isinstance(body, dict)
+            or set(body) != {"roomId"}
+            or not isinstance(body["roomId"], str)
+            or body["roomId"] not in bridge.sessions
+            or body["roomId"] in bridge._controller_revocation_failed
+            or not bridge._controller_enabled
+            or registry is None
+        ):
+            raise ValueError("controller unavailable")
+        room = body["roomId"]
+        pin = bridge.controller_pin(room)
+        owner_binding = bridge.controller_owner(room)
+        identity, expiry = await asyncio.to_thread(
+            registry.validate, request.cookies.get(_CONTROLLER_COOKIE, ""), room, pin, renew=True
+        )
+        if (
+            bridge._controller_registry is not registry
+            or room in bridge._controller_revocation_failed
+            or not bridge._controller_enabled
+            or not bridge.controller_owner_current(room, owner_binding)
+            or bridge.controller_pin(room) != pin
+            or not registry.current(identity, room, pin)
+        ):
+            raise ValueError("controller owner changed")
+        token = bridge.grant_timer_control(room)
+        bridge._controller_grants[room] = identity
+        if not bridge._grant_current(room, token):
+            bridge._grants.pop(room, None)
+            bridge._controller_grants.pop(room, None)
+            raise ValueError("controller revoked")
+    except (OSError, ValueError, TypeError, KeyError):
+        return _error("controller_renewal_denied", 403)
+    response = web.json_response(
+        {"ok": True, "expiresIn": 300, "controllerExpiresAt": expiry},
+        headers={"Cache-Control": "no-store"},
     )
     response.set_cookie(
         _PAIR_COOKIE,
@@ -1209,20 +1423,20 @@ async def _mood_music(request, bridge, room):
     ):
         return _error("invalid_mood_request", 400)
     selector = getattr(tools, "podview_mood_selector", None)
-    if (
-        selector is None
-        or "mood" not in tools.podview_music_reads()
-        or not bridge.controls.selection_allowed(room, token, "play_context")
-    ):
+    if selector is None or "mood" not in tools.podview_music_reads():
         return _error("mood_not_admitted", 403)
     if bridge._music_busy:
         return _error("music_busy", 429)
     binding = _music_binding(bridge, room)
     grant = bridge._grants.get(room)
+    writable = bridge.controls.selection_allowed(room, token, "play_context")
+    preview_voice = bridge.snapshot(room).get("voice", {})
     bridge._music_source_generation += 1
     generation = bridge._music_source_generation
-    context = _music_search_context(
-        bridge, room, account, "mood:collection", token, mint_touch=True
+    context = (
+        _music_search_context(bridge, room, account, "mood:collection", token, mint_touch=True)
+        if writable
+        else None
     )
 
     def current():
@@ -1230,16 +1444,26 @@ async def _mood_music(request, bridge, room):
             bridge.tools is tools
             and binding == _music_binding(bridge, room)
             and bridge._music_source_generation == generation
-            and bridge._grants.get(room) is grant
-            and bridge.controls.selection_allowed(room, token, "play_context")
-            and _music_search_context(bridge, room, account, "mood:collection", token) == context
+            and "mood" in tools.podview_music_reads()
+            and (writable or bridge.snapshot(room).get("voice", {}) == preview_voice)
+            and (
+                not writable
+                or (
+                    bridge._grants.get(room) is grant
+                    and bridge.controls.selection_allowed(room, token, "play_context")
+                    and _music_search_context(bridge, room, account, "mood:collection", token)
+                    == context
+                )
+            )
         )
 
     bridge._music_busy = True
-    bridge.music_selection.sources.clear()
-    bridge.music_selection.tasks.clear()
+    if writable:
+        bridge.music_selection.sources.clear()
+        bridge.music_selection.tasks.clear()
     try:
-        async with asyncio.timeout(40):
+        # Leave two seconds for ingress/response within the browser 12-second deadline.
+        async with asyncio.timeout(10):
             before = await tools.podview_read("playback", account)
             epoch = before.get("data", {}).get("owner_epoch") if before.get("ok") else None
             if not isinstance(epoch, str) or not epoch or not current():
@@ -1339,6 +1563,33 @@ async def _mood_music(request, bridge, room):
                 or after.get("data", {}).get("owner_epoch") != epoch
             ):
                 return _error("mood_owner_replaced")
+            if not writable:
+                bridge._mood_retained = {"key": key, "rows": copy.deepcopy(rows)}
+                return web.json_response(
+                    {
+                        "ok": True,
+                        "schema": "podview.mood-preview.v1",
+                        "preview": {
+                            "readOnly": True,
+                            "bootId": bridge.boot_id,
+                            "roomId": room,
+                            "configEntryId": account,
+                            "ownerEpoch": epoch,
+                            "source": "spotify_web_api",
+                            "expiresIn": 60,
+                            "voiceSessionId": preview_voice.get("sessionId"),
+                            "voiceTurnId": preview_voice.get("turnId"),
+                        },
+                        "data": {
+                            "config_entry_id": account,
+                            "owner_epoch": epoch,
+                            "source": "spotify_web_api",
+                            "tracks": rows,
+                        },
+                    },
+                    headers={"Cache-Control": "no-store"},
+                )
+            assert context is not None
             identifier = bridge.music_selection.register(
                 context, {"tracks": rows}, binding, epoch, epoch, kind="mood"
             )
@@ -1765,6 +2016,11 @@ def mount(
     pairing_room: str = "",
     pairing_sha256: str = "",
     pairing_store: Path | None = None,
+    controller_enabled: bool = False,
+    controller_days: int = 30,
+    controller_pairing_seconds: int = 600,
+    controller_generation: str = "",
+    controller_store: Path | None = None,
 ) -> PodViewBridge:
     bridge = PodViewBridge(
         sessions,
@@ -1774,8 +2030,14 @@ def mount(
         pairing_room=pairing_room,
         pairing_sha256=pairing_sha256,
         pairing_store=pairing_store,
+        controller_enabled=controller_enabled,
+        controller_days=controller_days,
+        controller_pairing_seconds=controller_pairing_seconds,
+        controller_generation=controller_generation,
+        controller_store=controller_store,
     )
     app[BRIDGE] = bridge
+    from .podview_queue import queue_http
 
     async def close_receipts(_app):
         sink = getattr(tools, "podview_receipts", None)
@@ -1791,7 +2053,10 @@ def mount(
             web.post("/view/api/control/setup", _control),
             web.post("/view/api/control/actions", _control),
             web.post("/view/api/pair", _pair),
+            web.post("/view/api/controller/renew", _controller_renew),
             web.get("/view/api/music", _music),
+            web.post("/view/api/music/queue/offer", queue_http),
+            web.post("/view/api/music/queue/actions", queue_http),
             web.post("/view/api/music/selection/setup", _music_selection),
             web.post("/view/api/music/selection/actions", _music_selection),
             web.get("/view/api/home", _home),
