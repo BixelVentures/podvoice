@@ -1,11 +1,9 @@
-// Explicit examples only. No invented statistics about real people or live calendars.
+// Explicit saved examples only. The fact example cites public NASA data; none is a live PodVoice response.
 const source = (scope) => [{id:'example',label:'Om eksemplet',url:'example-sources.html',scope}];
 export const visualExamples = {
- 'fact-card': {title:'Kampen i overblik',meta:'Fiktiv kamp · eksempeldata',content:{summary:'Tre tal gør det lettere at få overblik over kampen.',facts:[
-  {id:'score',label:'Resultat',value:'2–1',detail:'Hjemmeholdet · udeholdet',sourceId:'example'},
-  {id:'shots',label:'Afslutninger',value:'12 / 8',detail:'Hjemmeholdet / udeholdet',sourceId:'example'},
-  {id:'possession',label:'Boldbesiddelse',value:'58 / 42 %',detail:'Hjemmeholdet / udeholdet',sourceId:'example'}
- ],sources:source('Fiktive hold og tal til afprøvning af visningen. Ingen kampdata er hentet.')}},
+ 'fact-card': {title:'Hvor langt er der til Månen?',meta:'Kildebaseret eksempel · NASA',content:{summary:'Afstanden varierer, fordi Månens bane ikke er en perfekt cirkel.',facts:[
+  {id:'average-distance',label:'Gennemsnitlig afstand',value:'384.400 km',detail:'Mellem Jorden og Månen. Gennemsnit, ikke afstanden lige nu.',sourceId:'nasa-moon'}
+ ],sources:[{id:'nasa-moon',label:'NASA · How Far Away Is the Moon?',url:'https://spaceplace.nasa.gov/moon-distance/en/',scope:'Offentlig NASA-forklaring kontrolleret 15. oktober 2026. Gemt eksempel, ikke et liveopslag fra PodVoice.'}]}},
  'sourced-image': {title:'En pause ved vandet',meta:'Billede med forklaring og kilde',content:{summary:'Et billede kan give et svar noget, ordene alene ikke viser.',image:{url:'assets/lake.png',alt:'Illustration af en stille sø med bjerge og en rosa aftenhimmel.',caption:'Farverne i himlen spejler sig i den rolige sø.',credit:'PodView · AI-genereret eksempelbillede',kind:'illustration',sourceId:'example'},sources:source('Genereret illustration fra prototypen. Viser ikke et dokumenteret sted eller en aktuel hændelse.')}},
  'answer-timeline': {title:'En rolig morgen',meta:'Planlagt forløb · eksempeldata',content:{summary:'Det næste er nemmere at se, når rækkefølgen er tydelig.',events:[
   {id:'breakfast',time:'07.00',label:'Morgenmad sammen',detail:'Plads til en rolig start ved bordet.',status:'planned',sourceId:'example'},

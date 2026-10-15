@@ -1,8 +1,12 @@
 """Actual Thin submission and ingress receipt boundaries, with offline providers."""
 
 import asyncio
+import json
+import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_bridge import owner
@@ -13,13 +17,28 @@ from unit.test_podview_receipts import offer, selected_store
 
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE
+from gatekeeper.podview_enrichment import MODEL, RequestAllowance, VisualSelector
 from gatekeeper.podview_receipts import VisualReceiptOwner
+from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.voice import ToolCall, ToolRoundComplete, UserSpeechStopped
 from gatekeeper.web import create_app
 
 
 @pytest.mark.parametrize("surface", ["voicepe", "talk", "live"])
-@pytest.mark.parametrize("outcome", ["current", "failed", "session", "revision", "sink_failed"])
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "current",
+        "normal_close",
+        "privacy_close",
+        "error_close",
+        "next_input",
+        "failed",
+        "session",
+        "revision",
+        "sink_failed",
+    ],
+)
 async def test_receipts_follow_actual_successful_current_submission(surface, outcome):
     store = selected_store()
     entered, release, completed = asyncio.Event(), asyncio.Event(), asyncio.Event()
@@ -101,12 +120,37 @@ async def test_receipts_follow_actual_successful_current_submission(surface, out
         if store._selection is not None:
             await store._selection
         items = store.snapshot("kitchen")["items"]
-        assert bool(items) is (outcome == "current"), getattr(provider, "sent_tool_results", "live")
+        assert bool(items) is (
+            outcome in {"current", "normal_close", "privacy_close", "error_close", "next_input"}
+        ), getattr(provider, "sent_tool_results", "live")
         if items:
             assert items[0]["content"]["facts"][0]["value"] == "2004"
             assert items[0]["sessionId"] == session._history_session
-            await session.stop()
-            assert store.snapshot("kitchen")["items"] == []
+            if outcome == "next_input":
+                if surface == "live":
+                    session._live_input_revision += 1
+                else:
+                    session._closure_turn.superseded = True
+                assert store.snapshot("kitchen")["items"] == []
+            await session.stop(
+                reason={
+                    "normal_close": "model-close",
+                    "privacy_close": "privacy",
+                    "error_close": "error:connection",
+                }.get(outcome, "stop")
+            )
+            retained = store.snapshot("kitchen")
+            assert bool(retained["items"]) is (outcome == "normal_close")
+            if outcome == "normal_close":
+                assert retained["readOnlyCompleted"] is True
+                app = create_app(StatusHub(), {"kitchen": session}, tools=tools)
+                # Actual bridge shape after voice closes: no live session identity.
+                snapshot = app[BRIDGE].snapshot("kitchen")
+                assert snapshot["voice"]["sessionId"] is None
+                assert snapshot["answers"]["sessionId"] == items[0]["sessionId"]
+                assert snapshot["answers"]["readOnlyCompleted"] is True
+                await session.wake()
+                assert store.snapshot("kitchen")["items"] == []
         if outcome == "sink_failed":
             assert session._active  # Presentation failure cannot close the conversation.
     finally:
@@ -297,3 +341,186 @@ async def test_ingress_does_not_export_unselected_answers_or_sources(decision):
         assert (await client.get("/view/api/sources/" + receipt)).status == 404
         snapshot = await (await client.get("/view/api/snapshot")).json()
         assert snapshot["answers"]["sessionId"] is None
+
+
+async def test_actual_live_completed_query_selects_exact_whole_source_unit_and_renders(tmp_path):
+    session, sdk, _, tools, _ = build()
+    query = "Hvilken mulighed tager 35 minutter?"
+    first, relevant = "Første mulighed tager 12 minutter.", "Anden mulighed tager 35 minutter."
+    dispatched, model_requests = [], []
+    dispatched_event = asyncio.Event()
+    store = VisualReceiptOwner()
+
+    def respond(request):
+        body = json.loads(request.content)
+        supplied = json.loads(body["input"][1]["content"])
+        assert supplied["queryContext"] == {"tool": "google_web_sogning", "query": query}
+        assert supplied["summary"] == query
+        assert [fact["value"] for fact in supplied["facts"]] == [first, relevant]
+        model_requests.append(body)
+        return httpx.Response(
+            200,
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    {"show": True, "fact_ids": [supplied["facts"][1]["id"]]}
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        store.configure_selector(
+            VisualSelector(
+                client,
+                "synthetic-key",
+                MODEL,
+                allowance=RequestAllowance.prepare(tmp_path / "budget", 1),
+                budget=ProviderBudgetCoordinator(),
+            )
+        )
+        store.configure_research_mode("completed_receipts_v1")
+        tools.podview_receipts = store
+        tools.declarations = lambda: [
+            {
+                "name": "google_web_sogning",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                    "additionalProperties": False,
+                },
+            }
+        ]
+
+        async def dispatch(name, args, **kwargs):
+            dispatched.append((name, args))
+            dispatched_event.set()
+            return {
+                "ok": True,
+                "data": {"success": True, "result": {"output": first + " " + relevant}},
+            }
+
+        tools.dispatch = dispatch
+        await session.start()
+        try:
+            await session.wake()
+            await emit(
+                sdk,
+                created(),
+                call(name="google_web_sogning", arguments=json.dumps({"query": query})),
+                terminal(),
+            )
+            await asyncio.wait_for(dispatched_event.wait(), 2)
+            await until(lambda: not session._tool_tasks)
+            if store._selection is not None:
+                await store._selection
+            assert dispatched == [("google_web_sogning", {"query": query})]
+            assert len(model_requests) == 1
+            answers = store.snapshot("kitchen")
+            assert len(answers["items"]) == 1
+            assert [fact["value"] for fact in answers["items"][0]["content"]["facts"]] == [relevant]
+            await session.stop(reason="model-close")
+            answers = store.snapshot("kitchen")
+            app = create_app(StatusHub(), {"kitchen": session}, tools=tools)
+            snapshot = app[BRIDGE].snapshot("kitchen")
+            assert snapshot["voice"]["sessionId"] is None
+            assert snapshot["answers"]["readOnlyCompleted"] is True
+            helper = Path(__file__).parents[1] / "podview/helpers/render-owned-visual.mjs"
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["node", str(helper)],
+                input=json.dumps(
+                    {
+                        "answers": answers,
+                        "snapshot": snapshot,
+                        "now": __import__("time").time() * 1000,
+                        "expectedQuery": query,
+                        "expectedValue": relevant,
+                    }
+                ),
+                text=True,
+                capture_output=True,
+            )
+            assert result.returncode == 0, result.stderr
+            assert json.loads(result.stdout)["actions"] == []
+        finally:
+            await session.aclose()
+            await store.aclose()
+
+
+@pytest.mark.parametrize("surface", ["voicepe", "talk", "live"])
+@pytest.mark.parametrize("close_kind", ["normal", "stop", "privacy", "error:connection"])
+@pytest.mark.parametrize("seal_first", [False, True])
+async def test_visual_reads_follow_synchronous_close_barrier(
+    monkeypatch, surface, close_kind, seal_first
+):
+    """Read/source revocation must precede awaited device teardown and close-task reuse."""
+    import sys
+
+    hooks = sys.modules[__name__]
+    builder_name = {"voicepe": "_build", "talk": "_build_talk_session", "live": "build"}[surface]
+    original = getattr(hooks, builder_name)
+
+    def wrapped(*args, **kwargs):
+        result = original(*args, **kwargs)
+        session = result[0]
+        silence_entered, release_silence = asyncio.Event(), asyncio.Event()
+        actual_silence = session._silence_device
+
+        async def silence():
+            silence_entered.set()
+            await release_silence.wait()
+            await actual_silence()
+
+        session._silence_device = silence
+
+        async def stop(reason="stop"):
+            store = session.tools.podview_receipts
+            items = store.snapshot("kitchen")["items"]
+            assert items
+            receipt = items[0]["receiptId"]
+            first = "model-close" if seal_first or close_kind == "normal" else close_kind
+            task = session._request_close(
+                first, error_kind="connection" if first == "error:connection" else None
+            )
+            try:
+                await asyncio.wait_for(silence_entered.wait(), 2)
+                assert session._active and session._transport_closing
+                if seal_first:
+                    assert store.snapshot("kitchen")["items"]
+                    assert store.source("kitchen", receipt) is not None
+                    second = "model-close" if close_kind == "normal" else close_kind
+                    assert (
+                        session._request_close(
+                            second,
+                            error_kind="connection" if second == "error:connection" else None,
+                        )
+                        is task
+                    )
+                expected = close_kind == "normal"
+                assert bool(store.snapshot("kitchen")["items"]) is expected
+                assert (store.source("kitchen", receipt) is not None) is expected
+            finally:
+                release_silence.set()
+                if task is not None:
+                    await task
+            assert bool(store.snapshot("kitchen")["items"]) is expected
+            assert (store.source("kitchen", receipt) is not None) is expected
+            # The reused base hook expects explicit-stop cleanup on return.
+            store.revoke("kitchen", session, session._history_session, session._epoch)
+
+        session.stop = stop
+        return result
+
+    monkeypatch.setattr(hooks, builder_name, wrapped)
+    await test_receipts_follow_actual_successful_current_submission(surface, "current")

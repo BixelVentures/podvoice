@@ -291,14 +291,17 @@ async def test_cancellation_resistant_late_read_inert_and_deadline_charged(monke
 
 
 def test_web_actual_example_closed_shape_preserves_exact_excerpt_only():
-    data = "x" * 700
+    data = "Første kildeudsagn. Andet kildeudsagn. Tredje kildeudsagn. Fjerde kildeudsagn. Femte kildeudsagn. Sjette kildeudsagn. Syvende kildeudsagn."
     item = extract(
         "google_web_sogning",
         {"ok": True, "data": {"success": True, "result": {"output": data}}},
         now=100,
     )
     assert item["sourceText"] == data and item["provenance"]["textTruncated"] is True
-    assert "".join(f["value"] for f in item["facts"]) == data[:480]
+    assert [f["value"] for f in item["facts"]] == [part + "." for part in data.split(". ")[:6]]
+    assert (
+        extract("google_web_sogning", {"ok": True, "data": {"output": "x" * 700}}, now=100) is None
+    )
     for bad in (
         {"output": "x", "token": "secret"},
         {"output": "x", "url": "fake"},

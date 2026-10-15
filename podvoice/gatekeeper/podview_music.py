@@ -309,3 +309,41 @@ def project_owner(kind: str, value: Any, account: str | None, *, query: str | No
         return {"ok": True, "data": result}
     except (ValueError, TypeError, KeyError, OverflowError):
         return unavailable("malformed_response")
+
+
+def project_playlists(value, account, query):
+    """Closed exact owner playlist projection; never forward provider metadata to AI."""
+    try:
+        if (
+            not isinstance(value, dict)
+            or value.get("ok") is not True
+            or value.get("schema") != "podconnect.search_playlists.v1"
+            or value.get("config_entry_id") != account
+            or value.get("source") != "spotify_web_api"
+            or value.get("query") != normalize_search_query(query)
+            or value.get("limit") != 3
+        ):
+            return unavailable("malformed_response")
+        epoch = _text(value.get("owner_epoch"), 128)
+        rows = value.get("playlists")
+        if not isinstance(rows, list) or len(rows) > 3 or value.get("returned_count") != len(rows):
+            return unavailable("malformed_response")
+        projected = []
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {"uri", "name"}:
+                return unavailable("malformed_response")
+            uri = _text(row.get("uri"), 64)
+            if re.fullmatch(r"spotify:playlist:[A-Za-z0-9]{22}", uri) is None:
+                return unavailable("malformed_response")
+            projected.append({"uri": uri, "name": _text(row.get("name"), 256)})
+        return {
+            "ok": True,
+            "data": {
+                "config_entry_id": account,
+                "owner_epoch": epoch,
+                "source": "spotify_web_api",
+                "playlists": projected,
+            },
+        }
+    except (ValueError, TypeError):
+        return unavailable("malformed_response")

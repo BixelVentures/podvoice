@@ -20,3 +20,11 @@ test('timer drafts have exact boundaries and reject ambiguous or out-of-range in
  assert.equal(readTimerDuration('0','5','30'),330);assert.equal(readTimerDuration(24,0,0),86400);
  for(const fields of [[0,0,0],[24,0,1],[0,60,0],['',5,0],[0,1.5,0],[-1,0,0],[0,0,'NaN']])assert.equal(readTimerDuration(...fields),null);
 });
+
+test('saved factual example uses real published provenance and never claims a live observation',()=>{
+ const content=validate('fact-card',visualExamples['fact-card'].content);
+ assert.equal(content.facts[0].value,'384.400 km');
+ assert.equal(new URL(content.sources[0].url).hostname,'spaceplace.nasa.gov');
+ assert.match(content.sources[0].scope,/ikke et liveopslag/);
+ assert.match(content.facts[0].detail,/ikke afstanden lige nu/);
+});

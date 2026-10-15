@@ -36,6 +36,8 @@ class Config:
     podview_pairing_sha256: str = ""
     podview_control_policy: str = ""
     podview_visual_policy: str = ""
+    podview_mood_policy: str = ""
+    podview_mood_setup_policy: str = ""
     podview_robot_read_policy: str = ""
     podview_research_visual_policy: str = ""
     # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
@@ -146,6 +148,12 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),
         podview_research_visual_policy=str(opts.get("podview_research_visual_policy", ""))
+        if not settings_source_untrusted
+        else "",
+        podview_mood_policy=str(opts.get("podview_mood_policy", ""))
+        if not settings_source_untrusted
+        else "",
+        podview_mood_setup_policy=str(opts.get("podview_mood_setup_policy", ""))
         if not settings_source_untrusted
         else "",
         podview_visual_policy=str(opts.get("podview_visual_policy", ""))
@@ -268,6 +276,8 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["supervisor_token"] = opts.get("supervisor_token", "")
     # These owner-authority fields come ONLY from Supervisor options, never panel settings.
     merged["podview_visual_policy"] = opts.get("podview_visual_policy", "")
+    merged["podview_mood_policy"] = opts.get("podview_mood_policy", "")
+    merged["podview_mood_setup_policy"] = opts.get("podview_mood_setup_policy", "")
     merged["podview_robot_read_policy"] = opts.get("podview_robot_read_policy", "")
     merged["podview_research_visual_policy"] = opts.get("podview_research_visual_policy", "")
     merged["podview_control_policy"] = opts.get("podview_control_policy", "")

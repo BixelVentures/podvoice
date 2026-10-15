@@ -22,7 +22,9 @@ _TIMEOUT_S = 8
 _TRACK_TIMEOUT_S = 16  # Native Control owns a bounded 14-second prepare/commit/send.
 _MAX_BYTES = 65536
 _SERVICES = frozenset({"get_playback_controls", "control_playback"})
-_ACTIONS = frozenset({"pause", "resume", "next", "previous", "volume", "play_track"})
+_ACTIONS = frozenset(
+    {"pause", "resume", "next", "previous", "volume", "play_track", "play_context"}
+)
 _ERRORS = frozenset(
     {
         "unavailable",
@@ -121,7 +123,7 @@ def _controls(value: Any, account: str, target: str, *, offered: bool = False) -
     actions = value.get("actions")
     if (
         not isinstance(actions, list)
-        or len(actions) > 6
+        or len(actions) > 7
         or any(not isinstance(action, str) or action not in _ACTIONS for action in actions)
         or len(set(actions)) != len(actions)
         or {"pause", "resume"}.issubset(actions)
@@ -152,6 +154,7 @@ def _controls(value: Any, account: str, target: str, *, offered: bool = False) -
         "actions": list(actions),
         "volume_percent": volume,
         "track_play_supported": track_play_supported,
+        "context_play_supported": value.get("context_play_supported") is True,
         "status": status,
         "valid_until": deadline,
         "physical_result_verified": False,
@@ -286,6 +289,14 @@ class MusicControlFacade:
             in getattr(getattr(self.tools, "_discovery", None), "podconnect_services", frozenset())
         )
 
+    @property
+    def context_available(self) -> bool:
+        return bool(
+            self.available
+            and "get_context_play_controls"
+            in getattr(getattr(self.tools, "_discovery", None), "podconnect_services", frozenset())
+        )
+
     def binding(self) -> tuple:
         try:
             if self.available:
@@ -349,13 +360,20 @@ class MusicControlFacade:
             return _failure("unavailable")
 
     async def setup_track(
-        self, account: str, target: str, room: str, homepod: str, current: Callable[[], bool]
+        self,
+        account: str,
+        target: str,
+        room: str,
+        homepod: str,
+        current: Callable[[], bool],
+        *,
+        context: bool = False,
     ) -> dict:
         """Read exact account/device and configured native room/output readiness."""
         try:
             _text(account)
             _text(target)
-            if not self.track_available:
+            if not (self.context_available if context else self.track_available):
                 return _failure("unavailable")
             binding = self.binding()
             client, token = self.tools._client, self.tools._token
@@ -365,7 +383,7 @@ class MusicControlFacade:
                 result = await self._read(
                     client,
                     token,
-                    "get_track_play_controls",
+                    "get_context_play_controls" if context else "get_track_play_controls",
                     {
                         "config_entry_id": account,
                         "kind": "spotify_device",
@@ -376,12 +394,17 @@ class MusicControlFacade:
             if not self._current(binding, current):
                 return _failure("owner_replaced")
             data = _controls(result, account, target)
-            if not data["track_play_supported"] or data["actions"] != ["play_track"]:
+            if not data["context_play_supported" if context else "track_play_supported"] or data[
+                "actions"
+            ] != ["play_context" if context else "play_track"]:
                 return _failure("unsupported_action")
             data["native_start"] = native_start(result.get("native_start"), target, room, homepod)
             return {"ok": True, "data": data}
         except Exception:
             return _failure("unavailable")
+
+    async def setup_context(self, account, target, room, homepod, current):
+        return await self.setup_track(account, target, room, homepod, current, context=True)
 
     async def execute(
         self, offered: dict, action: str, args: dict, current: Callable[[], bool]
@@ -435,7 +458,13 @@ class MusicControlFacade:
             return _failure("unavailable", possible_send=possible_send, identity=identity)
 
     async def execute_track(
-        self, controls: dict, uri: str, max_volume: int, current: Callable[[], bool]
+        self,
+        controls: dict,
+        uri: str,
+        max_volume: int,
+        current: Callable[[], bool],
+        *,
+        context: bool = False,
     ) -> dict:
         """Send a broker-selected track once through the same exact device owner."""
         possible_send = False
@@ -448,13 +477,19 @@ class MusicControlFacade:
             proof = native_start(proof, target, proof.get("room_id"), proof.get("homepod_id"))
             if (
                 value["status"] != "ready"
-                or not value["track_play_supported"]
-                or value["actions"] != ["play_track"]
+                or not value["context_play_supported" if context else "track_play_supported"]
+                or value["actions"] != ["play_context" if context else "play_track"]
             ):
                 return _failure("unsupported_action")
             if (
                 not isinstance(uri, str)
-                or re.fullmatch(r"spotify:track:[A-Za-z0-9]{22}", uri) is None
+                or re.fullmatch(
+                    r"spotify:playlist:[A-Za-z0-9]{22}"
+                    if context
+                    else r"spotify:track:[A-Za-z0-9]{22}",
+                    uri,
+                )
+                is None
             ):
                 return _failure("invalid_arguments")
             if (
@@ -473,7 +508,7 @@ class MusicControlFacade:
                 "owner_epoch": epoch,
                 "request_id": f"{epoch}:{sequence}",
                 "command_sequence": sequence,
-                "action": "play_track",
+                "action": "play_context" if context else "play_track",
                 "target": {"kind": "spotify_device", "target_id": target},
             }
             request = {
@@ -484,9 +519,9 @@ class MusicControlFacade:
                 "expected_poll_sequence": value["poll_sequence"],
                 "request_id": identity["request_id"],
                 "command_sequence": sequence,
-                "action": "play_track",
+                "action": "play_context" if context else "play_track",
                 "args": {
-                    "track_uri": uri,
+                    "context_uri" if context else "track_uri": uri,
                     "max_volume": max_volume,
                     "room_id": proof["room_id"],
                     "homepod_id": proof["homepod_id"],
@@ -506,3 +541,6 @@ class MusicControlFacade:
             return _receipt(result, identity)
         except (Exception, asyncio.CancelledError):
             return _failure("unavailable", possible_send=possible_send, identity=identity)
+
+    async def execute_context(self, controls, uri, max_volume, current):
+        return await self.execute_track(controls, uri, max_volume, current, context=True)

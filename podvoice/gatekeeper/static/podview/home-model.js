@@ -16,13 +16,13 @@ export function validateHome(value,roomId){
  let weather=null;try{if(value.weather?.status==='observed')weather=weatherObservation(value.weather.data);}catch{}
  return {schema:value.schema,roomId,revision:value.revision,observedAt:value.observedAt,vacuum:{status:value.vacuum.status,items},weather};
 }
+export function orderHomeDevices(devices){const slot=d=>d.kind==='vacuum'?0:d.kind==='light'?1:2;return [...devices].sort((a,b)=>slot(a)-slot(b));}
 export function applyHome(scene,home,allowed=["vacuum","weather"]){
  const previous=scene.devices.filter(d=>d.source==='home_assistant_state');
  const rows=!allowed.includes('vacuum')?[]:home.vacuum.status==='observed'?home.vacuum.items.map(item=>({id:item.entityId,kind:'vacuum',name:item.name,source:item.source,history:item.history,telemetry:item.telemetry,observedAt:item.observedAt,battery:item.battery,revision:home.revision,live:true,status:({returning:'docking',idle:'stopped',error:'fault'})[item.state]||item.state,pending:null,hidden:false,timeline:[]})):previous.map(d=>({...d,stale:true}));
  // Stable family slots match the approved overview, regardless of which
  // observation arrives first. Activity or urgency never reorders them.
- const slot=d=>d.kind==='vacuum'?0:d.kind==='light'?1:2;
- const devices=[...scene.devices.filter(d=>d.source!=='home_assistant_state'),...rows].sort((a,b)=>slot(a)-slot(b)),removed=previous.some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
+ const devices=orderHomeDevices([...scene.devices.filter(d=>d.source!=='home_assistant_state'),...rows]),removed=previous.some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
  return {...scene,liveWeather:!allowed.includes('weather')?null:home.weather|| (scene.liveWeather?{...scene.liveWeather,stale:true}:null),devices,focus:removed?'now':scene.focus,homeRevision:home.revision};
 }
 

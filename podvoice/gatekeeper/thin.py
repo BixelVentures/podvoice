@@ -1920,12 +1920,33 @@ class ThinSession:
 
     def _request_close(self, reason: str, *, error_kind: str | None = None) -> asyncio.Task | None:
         """Compare-and-set the sole close transaction for this conversation epoch."""
+        normal_read_close = error_kind is None and reason in {
+            "model-close",
+            "model-close-silent",
+            "app-idle-timeout",
+            "idle",
+            "idle-fallback",
+        }
+        # Stop/privacy/error revocation precedes the close-task early return:
+        # a second close must revoke reads sealed by an earlier normal close.
+        if not normal_read_close:
+            with contextlib.suppress(Exception):
+                sink = getattr(self.tools, "podview_receipts", None)
+                if sink is not None:
+                    sink.revoke(self.room, self, self._history_session, self._epoch)
         if self._close_task is not None and not self._close_task.done():
             if reason in ("stop-word", "stop"):
                 self._stop_error_speech.set()
             return self._close_task
         if not self._active:
             return None
+        # A normal close seals only already admitted immutable visual reads.
+        # This notification neither waits nor grants any tool/action authority.
+        if normal_read_close:
+            with contextlib.suppress(Exception):
+                sink = getattr(self.tools, "podview_receipts", None)
+                if sink is not None:
+                    sink.complete(self.room, self, self._history_session, self._epoch)
         # Synchronous barrier: an ACK wait must not leave reader/tool publication
         # alive for another event-loop turn after the user pressed/spoke stop.
         self._transport_closing = True
@@ -3650,6 +3671,28 @@ class ThinSession:
                     current()
                     and self.brain is visual_provider
                     and revision == self._live_input_revision
+                ),
+                queries={
+                    wire.id: call.args["query"]
+                    for wire, call in zip(batch.calls, calls, strict=True)
+                    if wire.name == call.name == "google_web_sogning"
+                    and set(call.args) == {"query"}
+                    and isinstance(call.args["query"], str)
+                    and 0 < len(call.args["query"]) <= 240
+                },
+                read_current=lambda completed: (
+                    self._epoch == epoch
+                    and self._history_session == visual_session_id
+                    and self.brain is visual_provider
+                    and revision == self._live_input_revision
+                    and (
+                        (
+                            self._active
+                            and not self._transport_closing
+                            and self.brain._connection_generation == batch.generation
+                        )
+                        or completed
+                    )
                 ),
             )
         except asyncio.CancelledError:
@@ -6796,6 +6839,30 @@ class ThinSession:
                 and self._active
                 and not self._transport_closing
             ),
+            queries={
+                call.id: call.args["query"]
+                for call, _ in ordered
+                if call.name == "google_web_sogning"
+                and set(call.args) == {"query"}
+                and isinstance(call.args["query"], str)
+                and 0 < len(call.args["query"]) <= 240
+            },
+            read_current=lambda completed: (
+                self._epoch == submission_epoch
+                and self._history_session == visual_session_id
+                and self.brain is visual_provider
+                and (
+                    (
+                        self._active
+                        and not self._transport_closing
+                        and self._closure_turn is batch.turn
+                        and not batch.turn.superseded
+                        and getattr(visual_provider, "_connection_generation", None)
+                        == visual_generation
+                    )
+                    or (completed and not batch.turn.superseded)
+                )
+            ),
         )
         if silent_complete is True:
             for call, _result in ordered:
@@ -6814,6 +6881,8 @@ class ThinSession:
         input_revision: int | None,
         task_id: str,
         current,
+        queries: dict[str, str] | None = None,
+        read_current=None,
     ) -> None:
         """Optional bounded sink only after successful provider result submission."""
         from .data_result import bounded_tool_output
@@ -6823,6 +6892,7 @@ class ThinSession:
             return
         try:
             for result in results[:16]:
+                source_call_id = result.get("id")
                 sink.offer(
                     self,
                     room_id=self.room,
@@ -6836,6 +6906,12 @@ class ThinSession:
                     tool_name=result.get("name"),
                     result=json.loads(bounded_tool_output(result.get("response"))),
                     current=lambda: current() and self._history_session == session_id,
+                    tool_query=queries.get(source_call_id)
+                    if queries is not None
+                    and isinstance(source_call_id, str)
+                    and result.get("name") == "google_web_sogning"
+                    else None,
+                    read_current=read_current,
                 )
         except Exception:
             pass  # Optional presentation must not alter speech or tool lifecycle.

@@ -178,3 +178,71 @@ def test_unselected_projection_never_exports_answer_or_source():
     receipt = pending_items(store)[0]["receiptId"]
     assert store.snapshot("kitchen")["items"] == []
     assert store.source("kitchen", receipt) is None
+
+
+async def test_normal_completed_read_is_selected_only_bounded_and_revoked_by_source_or_owner_currency():
+    active, currency, now = [True], [True], [0.0]
+    owner = object()
+    store = selected_store(clock=lambda: now[0])
+    assert offer(
+        store,
+        owner=owner,
+        current=lambda: active[0] and currency[0],
+        read_current=lambda completed: currency[0] and (active[0] or completed),
+    )
+    await store._selection
+    row = store.snapshot("kitchen")["items"][0]
+    store.complete("kitchen", object(), "session", 1)
+    assert "readOnlyCompleted" not in store.snapshot("kitchen")
+    store.complete("kitchen", owner, "session", 1)
+    active[0] = False
+    assert store.snapshot("kitchen", owner)["readOnlyCompleted"] is True
+    assert store.source("kitchen", row["receiptId"], owner) is not None
+    currency[0] = False
+    assert store.snapshot("kitchen", owner)["items"] == []
+    assert store.source("kitchen", row["receiptId"], owner) is None
+    currency[0] = active[0] = True
+    assert offer(
+        store,
+        owner=owner,
+        call_id="new",
+        task_id="next-task",
+        current=lambda: active[0],
+        read_current=lambda completed: active[0] or completed,
+    )
+    await store._selection
+    assert len(store.snapshot("kitchen")["items"]) == 1
+    store.complete("kitchen", owner, "session", 1)
+    active[0] = False
+    now[0] = 121
+    assert store.snapshot("kitchen", owner)["items"] == []
+
+
+async def test_close_cannot_publish_an_unselected_pending_receipt():
+    import asyncio
+
+    gate = asyncio.Event()
+
+    class HeldSelector:
+        available = True
+
+        async def select(self, data, **kwargs):
+            await gate.wait()
+            return {"content": data}
+
+    active = [True]
+    owner = object()
+    store = VisualReceiptOwner()
+    store.configure_selector(HeldSelector())
+    assert offer(
+        store,
+        owner=owner,
+        current=lambda: active[0],
+        read_current=lambda completed: active[0] or completed,
+    )
+    await asyncio.sleep(0)
+    store.complete("kitchen", owner, "session", 1)
+    active[0] = False
+    gate.set()
+    await store._selection
+    assert store.snapshot("kitchen")["items"] == []

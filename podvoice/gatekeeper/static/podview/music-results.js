@@ -10,7 +10,7 @@ export function fixtureArtwork(value){
  try{const u=new URL(value);return u.protocol==='https:'&&['image-cdn-fa.spotifycdn.com','image-cdn-ak.spotifycdn.com'].includes(u.hostname)&&!u.port&&!u.username&&!u.password&&!u.search&&!u.hash&&/^\/image\/[A-Za-z0-9]+$/.test(u.pathname)?u.href:null;}catch{return null;}
 }
 export function localMusicCards(options,revision){return options.map(option=>({id:option.id,name:option.name,description:option.description,detail:option.detail,fixtureArt:fixtureArtwork(option.art.startsWith('https:')?option.art:`assets/${option.art}`),artLabel:`${option.collection?'Albumomslag':'Illustration'} til ${option.name}`,revision}));}
-export function sourceMusicCards(tracks){return tracks.slice(0,3).map((track,index)=>({id:`source:${index}:${track.uri}`,name:track.name||track.title,description:track.artist,detail:'',uri:track.uri,artwork:spotifyArtwork(track.artwork)}));}
+export function sourceMusicCards(tracks){return tracks.slice(0,3).map((track,index)=>({id:`source:${index}:${track.uri}`,name:track.themeTitle||track.name||track.title,description:track.themeTitle?(track.name||track.title):track.artist,detail:track.themeTitle?'Afspilningsliste fra Spotify':'',uri:track.uri,sourceName:track.name||track.title,sourceArtist:track.artist,artwork:spotifyArtwork(track.artwork),...(track.themeTitle?{fixtureArt:fixtureArtwork(track.themeArt),artLabel:`Illustration til ${track.themeTitle}`}:{})}));}
 
 // One retained card anatomy and the existing four tabs, shared by every adapter.
 // It renders text nodes only. Selection authority stays in the supplying adapter.

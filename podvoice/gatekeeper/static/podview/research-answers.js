@@ -1,4 +1,4 @@
-// INACTIVE proposal adapter. No production module imports it; no fetch or actions.
+// Closed completed-receipt admission. Independent research reads stay inactive; no fetch or actions.
 import {validateVisualContent} from './visual-content.js';
 const text=(v,n=160)=>typeof v==='string'&&v.trim().length>0&&v.length<=n;
 const integer=v=>Number.isSafeInteger(v)&&v>=0;

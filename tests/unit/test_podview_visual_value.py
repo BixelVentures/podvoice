@@ -411,3 +411,44 @@ async def test_snapshot_capability_revokes_on_exhaustion_rate_limit_and_close(st
         assert selector.allowance.remaining == (19 if status == 429 else 0)
         store.close()
         assert store.selection_enabled is False
+
+
+async def test_completed_query_is_bounded_untrusted_context_only_and_does_not_modify_facts(
+    tmp_path,
+):
+    sample = content()
+    sample["queryContext"] = {
+        "tool": "google_web_sogning",
+        "query": "Hvilket tal blev faktisk returneret?",
+    }
+    hits = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        supplied = json.loads(body["input"][1]["content"])
+        assert supplied["queryContext"] == sample["queryContext"]
+        assert supplied["facts"] == sample["facts"]
+        assert body["max_output_tokens"] == 256 and len(request.content) <= 4096
+        hits.append(request)
+        return result({"show": True, "fact_ids": ["f"]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        selector = VisualSelector(
+            client,
+            "test-key",
+            MODEL,
+            allowance=RequestAllowance.prepare(tmp_path / "context-budget", 1),
+            budget=ProviderBudgetCoordinator(),
+        )
+        for invalid in [
+            {"tool": "other", "query": "x"},
+            {"tool": "google_web_sogning", "query": "x" * 241},
+            {"tool": "google_web_sogning", "query": "x", "transcript": "unbound"},
+        ]:
+            assert (
+                await selector.select({**sample, "queryContext": invalid}, current=lambda: True)
+                is None
+            )
+        selected = await selector.select(sample, current=lambda: True)
+        assert selected["content"] == content()
+        assert len(hits) == 1

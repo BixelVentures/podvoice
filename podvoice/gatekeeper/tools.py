@@ -45,7 +45,7 @@ from .ha_timers import TOOLS as TIMER_TOOLS
 from .ha_timers import HomeAssistantTimers
 from .mcp_client import HomeAssistantMCP, McpError
 from .podview_receipts import VisualReceiptOwner
-from .podview_weather import weather_projection
+from .podview_weather import observation_is_current, weather_projection, with_hourly_projection
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
 from .weather_result import compact_weather_result
 
@@ -302,6 +302,7 @@ class ToolRouter:
         self._client = client
         self._hub = hub
         self.execution_policy = execution_policy or ExecutionPolicy()
+        self.podview_mood_selector: Any = None
         self._discovery = _DiscoverySnapshot(
             generation=0,
             mcp_tools=(),
@@ -1936,7 +1937,7 @@ class ToolRouter:
         return result if owner is self._device_control else {"status": "unavailable", "items": []}
 
     def _podview_weather_declaration(self) -> dict | None:
-        """Only the admitted current weather owner may accept the empty home read."""
+        """Only the admitted current weather owner grants a default-home read."""
         snapshot, owner = self._discovery, self._mcp
         if (
             owner is None
@@ -1980,7 +1981,11 @@ class ToolRouter:
         )
 
     async def podview_weather_read(self) -> dict:
-        """No rediscovery, voice schema mutation, default argument invention or retry."""
+        """One bounded home read through the exact admitted owner; never retry.
+
+        Older declarations retain the empty read. Daily/hourly is available only
+        through the owner's explicit selector and actual argument validation.
+        """
         unavailable = {"status": "unavailable", "data": None}
         declaration, owner = self._podview_weather_declaration(), self._mcp
         if declaration is None or owner is None:
@@ -1990,11 +1995,60 @@ class ToolRouter:
         def current() -> bool:
             return binding == self.podview_weather_binding() and self.podview_weather_available()
 
+        async def call(arguments: dict) -> dict:
+            # wait_for schedules a task: fence again inside that task before
+            # call_tool can initialize a disconnected/replaced MCP owner.
+            if not current():
+                raise McpError("stale_weather_owner")
+            return await owner.call_tool(declaration["name"], arguments, execution_guard=current)
+
+        schema = declaration["parameters"]
+        properties = schema.get("properties")
+        selector = properties.get("forecast_type") if isinstance(properties, dict) else None
+        dual = False
+        if isinstance(selector, dict) and isinstance(selector.get("enum"), list):
+            try:
+                dual = all(
+                    kind in selector["enum"]
+                    and Draft202012Validator(schema).is_valid({"forecast_type": kind})
+                    for kind in ("daily", "hourly")
+                )
+            except Exception:
+                pass  # An unresolved selector grants no additional arguments.
         try:
-            result = await owner.call_tool(declaration["name"], {}, execution_guard=current)
+            if not dual:
+                result = await call({})
+                return (
+                    weather_projection(_mcp_result_to_contract(result))
+                    if current()
+                    else unavailable
+                )
+            # The existing /home envelope is eight seconds. A single shared
+            # deadline leaves room to return a valid daily result after auxiliary
+            # timeout, without a second owner, retry or background operation.
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 7
+            result = await asyncio.wait_for(
+                call({"forecast_type": "daily"}),
+                timeout=max(0, deadline - loop.time()),
+            )
             if not current():
                 return unavailable
-            return weather_projection(_mcp_result_to_contract(result))
+            daily = weather_projection(_mcp_result_to_contract(result))
+            if daily["status"] != "observed" or daily["data"]["forecastType"] != "daily":
+                return unavailable
+            hourly = unavailable
+            try:
+                result = await asyncio.wait_for(
+                    call({"forecast_type": "hourly"}),
+                    timeout=max(0, deadline - loop.time()),
+                )
+                hourly = weather_projection(_mcp_result_to_contract(result))
+            except Exception:
+                pass  # Daily survives unavailable auxiliary data, never owner replacement.
+            if not current() or not observation_is_current(daily):
+                return unavailable
+            return with_hourly_projection(daily, hourly)
         except Exception:
             return unavailable  # no error detail or discovery mutation crosses this read facade
 
@@ -2015,6 +2069,24 @@ class ToolRouter:
             hashlib.sha256(self._token.encode()).digest(),
         )
 
+    async def podview_mood_context(self, current) -> dict | None:
+        """Coarse time from the existing HA GetDateTime owner, never a local clock."""
+        selector = getattr(self, "podview_mood_selector", None)
+        if selector is None or self._mcp is None or not current():
+            return None
+        if not any(row.get("name") == "GetDateTime" for row in self.declarations()):
+            return None
+        result = await self._mcp.call_tool("GetDateTime", {}, execution_guard=current)
+        body = _mcp_result_to_contract(result)
+        data = body.get("data")
+        value = data.get("time") if isinstance(data, dict) else None
+        if not body.get("ok") or not current() or not isinstance(value, str):
+            return None
+        import re
+
+        match = re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]+)?)?", value)
+        return {"hour": int(match[1]), "roomKind": selector.room_kind} if match else None
+
     def podview_music_reads(self) -> list[str]:
         if not self._token or self._client is None or self._client.is_closed:
             return []
@@ -2024,8 +2096,16 @@ class ToolRouter:
             "top": "top_tracks",
             "liked": "liked",
             **podview_music.SERVICES,
+            "playlist_search": "search_playlists",
         }
-        reads = [kind for kind, name in names.items() if name in services]
+        reads = [
+            kind for kind, name in names.items() if kind != "playlist_search" and name in services
+        ]
+        if (
+            getattr(self, "podview_mood_selector", None) is not None
+            and {"search_playlists", "get_context_play_controls", "control_playback"} <= services
+        ):
+            reads.append("mood")
         if any(d.get("name") == "podconnect_get_targets" for d in self.declarations()):
             reads.insert(0, "targets")
         return reads
@@ -2034,7 +2114,7 @@ class ToolRouter:
         self, kind: str, account: str | None = None, query: str | None = None
     ) -> dict:
         """Passive service transport: never refresh discovery or voice declarations."""
-        if kind == "search":
+        if kind in {"search", "playlist_search"}:
             try:
                 query = podview_music.normalize_search_query(query)
             except ValueError:
@@ -2042,14 +2122,24 @@ class ToolRouter:
         elif query is not None:
             return {"ok": False, "error_kind": "invalid_query"}
         if account is not None and (
-            kind not in {"targets", "playback", "queue", "recent", "top", "liked", "search"}
+            kind
+            not in {
+                "targets",
+                "playback",
+                "queue",
+                "recent",
+                "top",
+                "liked",
+                "search",
+                "playlist_search",
+            }
             or not isinstance(account, str)
             or not 1 <= len(account) <= 1024
         ):
             return {"ok": False, "error_kind": "invalid_account"}
-        if kind in podview_music.SERVICES and account is None:
+        if (kind in podview_music.SERVICES or kind == "playlist_search") and account is None:
             return {"ok": False, "error_kind": "invalid_account"}
-        if kind not in self.podview_music_reads():
+        if ("mood" if kind == "playlist_search" else kind) not in self.podview_music_reads():
             return {"ok": False, "error_kind": "unavailable"}
         binding = self.podview_music_binding()
         names = {
@@ -2057,6 +2147,7 @@ class ToolRouter:
             "top": "top_tracks",
             "liked": "liked",
             **podview_music.SERVICES,
+            "playlist_search": "search_playlists",
         }
         selected = (
             playback_targets.service("podconnect_get_targets", self._discovery.podconnect_services)
@@ -2066,7 +2157,7 @@ class ToolRouter:
         args: dict[str, Any] = {"config_entry_id": account} if account else {}
         if kind == "queue":
             args["limit"] = 20
-        elif kind == "search":
+        elif kind in {"search", "playlist_search"}:
             args.update(query=query, limit=3)
         client = self._client
         assert client is not None
@@ -2083,10 +2174,15 @@ class ToolRouter:
                     raw.extend(chunk)
                     if len(raw) > 262144:
                         return podview_music.unavailable()
-        if binding != self.podview_music_binding() or kind not in self.podview_music_reads():
+        if (
+            binding != self.podview_music_binding()
+            or ("mood" if kind == "playlist_search" else kind) not in self.podview_music_reads()
+        ):
             return podview_music.unavailable()
         payload = json.loads(raw)
         data = payload.get("service_response") if isinstance(payload, dict) else None
+        if kind == "playlist_search":
+            return podview_music.project_playlists(data, account, query)
         if kind in podview_music.SERVICES:
             return podview_music.project_owner(kind, data, account, query=query)
         if kind in {"recent", "top", "liked"}:

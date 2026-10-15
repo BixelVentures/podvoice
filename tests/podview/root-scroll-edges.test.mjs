@@ -41,6 +41,7 @@ test('ScrollEdges tracks visibility and content changes, and removes its own eff
   assert.equal(list.dataset.scrollEdge,undefined);assert.equal(replacement.dataset.scrollEdge,'end');
   const hours=new Node('weather-hours',true);host.nodes=[hours];edges.mutations.callback([]);flush();
   assert.equal(hours.dataset.scrollAxis,'x');assert.equal(hours.dataset.scrollEdge,'end');
+  hours.scrollLeft=150;hours.dispatchEvent(new Event('scroll'));assert.equal(hours.dataset.scrollEdge,'start end');
   hours.scrollLeft=300;hours.dispatchEvent(new Event('scroll'));assert.equal(hours.dataset.scrollEdge,'start');
   hours.scrollWidth=hours.clientWidth;hours.dispatchEvent(new Event('scroll'));assert.equal(hours.dataset.scrollEdge,'');
   edges.detach();assert.equal(hours.dataset.scrollEdge,undefined);assert.equal(hours.dataset.scrollAxis,undefined);

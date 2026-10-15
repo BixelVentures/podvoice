@@ -33,10 +33,10 @@ jobs:
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 scripts/ci_scope.py
-      - name: Exact candidate admission (legacy or strict PodView30)
+      - name: Exact candidate admission (historical or strict PodView31)
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python3 scripts/candidate_scope_admission.py --base "${CI_DIFF_BASE:-beed27b0528917e4872516a53d88bedb17d3d6ed}"
+        run: python3 scripts/candidate_scope_admission31.py --base "${CI_DIFF_BASE:-0e56c593c6ce9a3e1666b5fd535d3424cc691b9c}"
 
   lint-test:
     needs: [scope]

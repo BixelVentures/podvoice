@@ -13,7 +13,7 @@ from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
 from .podview_vacuum_control import VacuumTransport
 
-_MUSIC = {"pause", "resume", "next", "previous", "volume", "play_track"}
+_MUSIC = {"pause", "resume", "next", "previous", "volume", "play_track", "play_context"}
 _LABELS = {
     "pause": "Pause",
     "resume": "Afspil",
@@ -99,7 +99,10 @@ class TouchControls:
             return []
         result = []
         if (
-            any(set(row["actions"]) & (_MUSIC - {"play_track"}) for row in self.policy["music"])
+            any(
+                set(row["actions"]) & (_MUSIC - {"play_track", "play_context"})
+                for row in self.policy["music"]
+            )
             and self.music.tools is self.bridge.tools
             and self.music.available
         ):
@@ -109,14 +112,23 @@ class TouchControls:
             result.append("vacuum")
         return result
 
-    def selection_allowed(self, room: str, token: str) -> bool:
+    def selection_allowed(self, room: str, token: str, action: str | None = None) -> bool:
         return bool(
             self.policy.get("roomId") == room
             and self.bridge._grant_current(room, token)
             and self.music.tools is self.bridge.tools
-            and self.music.track_available
             and any(
-                "play_track" in row["actions"]
+                any(
+                    candidate in row["actions"]
+                    and (
+                        self.music.context_available
+                        if candidate == "play_context"
+                        else self.music.track_available
+                    )
+                    for candidate in (
+                        [action] if action is not None else ["play_track", "play_context"]
+                    )
+                )
                 and all(
                     isinstance(row.get(key), str) and row[key]
                     for key in ("nativeRoomId", "nativeHomepodId")
@@ -244,7 +256,7 @@ class TouchControls:
                     )
                     public_options = []
                     for action in offered["data"]["actions"]:
-                        if action == "play_track":
+                        if action in {"play_track", "play_context"}:
                             continue  # Selected tracks use the separate source-bound task.
                         if action not in rule["actions"]:
                             continue

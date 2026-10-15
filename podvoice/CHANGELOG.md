@@ -1,3 +1,19 @@
+## 2.0.31 - retained Spotify mood playlists and current PodView surfaces
+
+- Add explicitly approved optional ongoing mood allowance (20/day,200/calendar month, Copenhagen), durable reservation and explicit cold pre-selector Supervisor setup with one-shot receipt; retain finite-policy support without automatic migration or visual-budget expansion. Initial session/explicit refresh only; no background rotation or retries.
+- Read the three independent playlist searches concurrently with joined cancellation, stable theme order and unchanged ownership/source checks. This is a structural latency improvement, not a measured provider/device claim.
+
+- Bind completed web-receipt selection to the actual accepted bounded query and complete short source units; retain admitted read-only cards through normal voice close within their original expiry. Stop/privacy/error and replacement input/session/owner revoke reads synchronously. No additional search/model, citations or write authority are introduced.
+- Handle the pinned HA frontend route-tail shape for ingress root/view navigation while preserving same-origin public-panel fences, kiosk lifecycle and browser history restoration. Actual Green31 route acceptance remains pending.
+- Package current source-bound daily/hourly weather, rain/wind forecasts, local edge fades, stable robot/light order and neutral empty robot-history copy. Defer initial mood selection until the first actual Music opening.
+
+- Extend the existing exact-account source/selection/native playback owners with three retained real playlist choices for Stemning. Voice and touch use the same opaque options and existing one-use confirmation; new context playback requires an explicit matching grant.
+- Keep theme selection disabled by default behind a separate Supervisor-owned purpose-bound policy and finite or explicitly approved ongoing allowance. It receives only coarse HA time, configured room kind and owned theme identifiers; playlist lookup stays with PodConnect. Initial load or explicit refresh can choose themes; navigation and authority renewal preserve the cards and spend no additional model request.
+- Revalidate all three exact playlist URI/name rows before authority renewal, including an unchanged owner epoch. Missing or changed metadata leaves the retained cards inactive and asks for explicit refresh.
+- Package the current shared PodView answer, modal and offline surfaces without an empty initial answer panel on the locked overview. Visual-answer design, actual question relevance, Green/browser parity and physical voice/touch/audio acceptance remain separate gates.
+- Requires the separately reviewed PodConnect Control0.10.13 playlist-service candidate; Speakers0.26.19 ownership is unchanged.
+- Preserve GPT-Live/ThinSession, firmware, native start-volume policy and autoplay ownership. This candidate does not activate paid selection, grant playlist control or install anything.
+
 ## 2.0.30 - shared PodView UI and native music start contract
 
 - Share the music cards, player, queue and weather rendering between preview and Green; preserve retained cards, stable player geometry and source-owned empty/offline/error states.
