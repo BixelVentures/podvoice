@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import time
 from datetime import datetime
@@ -42,6 +44,133 @@ def _timestamp(value: object) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None else None
+
+
+def _forecast_advice(
+    rows: list[dict], units: dict, forecast_type: object, source: str, retrieved: str, now: float
+) -> dict | None:
+    """Practical suggestion for one supplied future hour; never a weather fact.
+
+    Daily temperature is a high, not an outfit temperature. Missing fields are
+    unknown. A listed future hour is not evidence of continuous/full-day coverage.
+    """
+    if forecast_type != "hourly":
+        return None
+    eligible = [
+        row
+        for row in rows
+        if (stamp := _timestamp(row.get("datetime"))) is not None
+        and 0 < stamp.timestamp() - now <= 3600
+    ]
+    if not eligible:
+        return None
+    row = eligible[0]
+    valid_until = min(
+        datetime.fromisoformat(retrieved).timestamp() + MAX_RETRIEVAL_AGE_S,
+        datetime.fromisoformat(row["datetime"]).timestamp(),
+    )
+    if valid_until <= now:
+        return None
+    inputs: dict[str, dict] = {}
+    conversions = {
+        "temperature": (
+            "temperature",
+            {"°C": (1, 0), "C": (1, 0), "°F": (5 / 9, -32), "F": (5 / 9, -32)},
+            "°C",
+        ),
+        "wind_speed": (
+            "windSpeed",
+            {
+                "m/s": (1, 0),
+                "km/h": (1 / 3.6, 0),
+                "mph": (0.44704, 0),
+                "kn": (0.5144444444444445, 0),
+            },
+            "m/s",
+        ),
+        "precipitation": ("precipitation", {"mm": (1, 0), "cm": (10, 0), "in": (25.4, 0)}, "mm"),
+    }
+    for field, (unit_key, table, normal_unit) in conversions.items():
+        value, unit = row.get(field), units[unit_key]
+        if value is None or not _number(value) or unit not in table:
+            continue
+        factor, offset = table[unit]
+        normalized = (value + offset) * factor
+        if not math.isfinite(normalized):
+            continue
+        inputs[field] = {
+            "field": field,
+            "value": value,
+            "unit": unit,
+            "normalizedValue": normalized,
+            "normalizedUnit": normal_unit,
+        }
+    chance = row.get("precipitation_probability")
+    if _number(chance):
+        inputs["precipitation_probability"] = {
+            "field": "precipitation_probability",
+            "value": chance,
+            "unit": "%",
+            "normalizedValue": chance,
+            "normalizedUnit": "%",
+        }
+    choice: tuple[str, str, str] | None = None
+    if (
+        "precipitation_probability" in inputs
+        and inputs["precipitation_probability"]["normalizedValue"] >= 50
+    ):
+        choice = (
+            "precipitation_probability",
+            "En regnjakke kan være praktisk.",
+            "Tag en regnjakke med.",
+        )
+    elif "precipitation" in inputs and inputs["precipitation"]["normalizedValue"] > 0:
+        choice = ("precipitation", "En regnjakke kan være praktisk.", "Tag en regnjakke med.")
+    elif "wind_speed" in inputs and inputs["wind_speed"]["normalizedValue"] >= 10:
+        choice = ("wind_speed", "Overvej en vindtæt jakke.", "Tag en vindtæt jakke med.")
+    elif "temperature" in inputs:
+        temperature = inputs["temperature"]["normalizedValue"]
+        if temperature < 7:
+            choice = ("temperature", "Overvej en varm jakke.", "Tag en varm jakke med.")
+        elif temperature < 14:
+            choice = ("temperature", "En jakke kan være rar at have med.", "Tag en jakke med.")
+        elif temperature < 20:
+            choice = (
+                "temperature",
+                "En ekstra trøje kan være rar at have med.",
+                "Tag en ekstra trøje med.",
+            )
+        else:
+            choice = (
+                "temperature",
+                "Let påklædning kan være behagelig.",
+                "Vælg let tøj til turen.",
+            )
+    if choice is None:
+        return None
+    field, summary, children = choice
+    evidence = [inputs[field]]
+    rule = "next-hour-clothing-v1"
+    binding = {
+        "ruleVersion": rule,
+        "source": source,
+        "retrievedAt": retrieved,
+        "periodTime": row["datetime"],
+        "evidence": evidence,
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(binding, sort_keys=True, allow_nan=False).encode()
+    ).hexdigest()
+    return {
+        "id": "advice:" + fingerprint[:32],
+        **binding,
+        "kind": "practical_guidance",
+        "scope": "next_hourly_period",
+        "summary": summary,
+        "children": children,
+        # Do not renew source age or keep a next-hour suggestion after its start.
+        "validUntil": valid_until,
+    }
 
 
 def weather_projection(response: object) -> dict:
@@ -157,6 +286,9 @@ def weather_projection(response: object) -> dict:
             else None,
             "forecastType": forecast_type,
             "forecast": rows,
+            "advice": _forecast_advice(
+                rows, units, forecast_type, result["source"], result["retrieved_at"], now
+            ),
             "coverage": {
                 "totalRows": len(forecast),
                 "returnedRows": len(rows),
@@ -183,4 +315,11 @@ def observation_is_current(value: object) -> bool:
         updated = _timestamp(data.get("stateUpdatedAt"))
         if updated is None or not 0 <= now - updated.timestamp() <= MAX_CURRENT_AGE_S:
             return False
+    advice = data.get("advice")
+    if advice is not None and (
+        not isinstance(advice, dict)
+        or not _number(advice.get("validUntil"))
+        or now >= advice["validUntil"]
+    ):
+        return False
     return True

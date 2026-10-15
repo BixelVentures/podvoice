@@ -1,6 +1,8 @@
 """Causal owner and replay checks for the proposed music selection boundary."""
 
 import asyncio
+import copy
+import time
 import unittest
 
 from podvoice.gatekeeper.podview_music_selection import MusicSelection
@@ -29,6 +31,25 @@ CONTROLS = {
     "track_play_supported": True,
     "target": {"kind": "spotify_device", "target_id": "device"},
     "volume_percent": 30,
+    "valid_until": 9999999999,
+    "native_start": {
+        "schema": "podconnect.start_volume.v1",
+        "ready": True,
+        "engine_device_id": "device",
+        "room_id": "native-room",
+        "homepod_id": "homepod-id",
+        "policy_revision": "b" * 64,
+        "start_volume_percent": 30,
+        "mode": "fresh_start",
+        "output_selected": False,
+        "output_volume_percent": 75,
+        "alias_binding": {
+            "ready": True,
+            "room_id": "other-room",
+            "incarnation": "alias-1",
+            "registry": "registry-1",
+        },
+    },
 }
 
 
@@ -177,6 +198,77 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
     def test_crossed_account_epoch_discards_source(self):
         self.assertIsNone(self.broker.register(self.context, DATA, self.binding, "old", "new"))
         self.assertIsNone(self.offer())
+
+    async def test_native_policy_volume_replaces_spotify_observation(self):
+        controls = copy.deepcopy(CONTROLS)
+        controls["volume_percent"] = 10
+        controls["native_start"]["start_volume_percent"] = 37
+        offer = self.offer(observed_controls=controls)
+        self.assertEqual(offer["observedVolumePercent"], 37)
+
+        async def fresh():
+            return copy.deepcopy(controls)
+
+        self.assertEqual((await self.execute(offer, fresh_controls=fresh))["outcome"], "accepted")
+
+    async def test_same_session_preserves_manual_output_volume(self):
+        controls = copy.deepcopy(CONTROLS)
+        proof = controls["native_start"]
+        proof.update(mode="same_session", output_selected=True, output_volume_percent=39)
+        proof["alias_binding"]["room_id"] = "native-room"
+        offer = self.offer(observed_controls=controls)
+        self.assertEqual(offer["observedVolumePercent"], 39)
+
+        async def fresh():
+            return copy.deepcopy(controls)
+
+        self.assertEqual((await self.execute(offer, fresh_controls=fresh))["outcome"], "accepted")
+
+    async def test_missing_or_changed_native_proof_fails_closed(self):
+        missing = {k: v for k, v in CONTROLS.items() if k != "native_start"}
+        self.assertIsNone(self.offer(observed_controls=missing))
+        for field, value in (
+            ("policy_revision", "c" * 64),
+            ("homepod_id", "replacement"),
+            ("room_id", "replacement"),
+            ("engine_device_id", "replacement"),
+            ("start_volume_percent", 31),
+            ("ready", False),
+        ):
+            offer = self.offer()
+            changed = copy.deepcopy(CONTROLS)
+            changed["native_start"][field] = value
+
+            async def fresh(value=changed):
+                return value
+
+            self.assertEqual(
+                (await self.execute(offer, fresh_controls=fresh))["outcome"], "rejected"
+            )
+        for field in ("incarnation", "registry"):
+            offer = self.offer()
+            changed = copy.deepcopy(CONTROLS)
+            changed["native_start"]["alias_binding"][field] += "-replacement"
+
+            async def fresh(value=changed):
+                return value
+
+            self.assertEqual(
+                (await self.execute(offer, fresh_controls=fresh))["outcome"], "rejected"
+            )
+        self.assertEqual(self.sent, [])
+
+    async def test_expired_task_never_refreshes_or_sends(self):
+        offer = self.offer()
+        self.broker.tasks[offer["taskId"]]["deadline"] = time.monotonic() - 1
+        self.assertEqual((await self.execute(offer))["outcome"], "rejected")
+        self.assertEqual(self.sent, [])
+
+    async def test_observation_expiry_cannot_be_renewed_by_fresh_read(self):
+        controls = copy.deepcopy(CONTROLS)
+        controls["valid_until"] = time.time() - 1
+        offer = self.offer(observed_controls=controls)
+        self.assertIsNone(offer)
 
 
 if __name__ == "__main__":

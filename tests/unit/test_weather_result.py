@@ -489,3 +489,248 @@ def test_passive_weather_cache_cannot_extend_source_deadline(monkeypatch):
     retrieved = datetime.fromisoformat(projected["data"]["retrievedAt"]).timestamp()
     monkeypatch.setattr(weather.time, "time", lambda: retrieved + MAX_RETRIEVAL_AGE_S + 0.01)
     assert not observation_is_current(projected)
+
+
+def _advice_payload(monkeypatch, **fields):
+    import gatekeeper.podview_weather as weather
+
+    fixed = datetime(2026, 10, 15, 12, tzinfo=UTC)
+    monkeypatch.setattr(weather.time, "time", lambda: fixed.timestamp())
+    payload = weather_payload(1)
+    result = payload["data"]["result"]
+    result["retrieved_at"] = fixed.isoformat()
+    result["state_updated_at"] = fixed.isoformat()
+    result["forecast"] = [{"datetime": (fixed + timedelta(minutes=30)).isoformat(), **fields}]
+    return payload, result, fixed
+
+
+@pytest.mark.parametrize(("unit", "value"), [("°C", 6), ("C", 6), ("°F", 42.8), ("F", 42.8)])
+def test_weather_advice_uses_same_source_temperature_after_unit_conversion(
+    monkeypatch, unit, value
+):
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=value)
+    result["temperature_unit"] = unit
+    before = copy.deepcopy(payload)
+    advice = weather_projection(payload)["data"]["advice"]
+    assert advice["summary"] == "Overvej en varm jakke."
+    assert advice["children"] == "Tag en varm jakke med."
+    assert advice["kind"] == "practical_guidance"
+    assert advice["scope"] == "next_hourly_period"
+    assert advice["ruleVersion"] == "next-hour-clothing-v1"
+    assert advice["source"] == result["source"]
+    assert advice["retrievedAt"] == fixed.isoformat()
+    assert advice["periodTime"] == result["forecast"][0]["datetime"]
+    assert advice["validUntil"] == fixed.timestamp() + MAX_RETRIEVAL_AGE_S
+    assert advice["evidence"] == [
+        {
+            "field": "temperature",
+            "value": value,
+            "unit": unit,
+            "normalizedValue": pytest.approx(6),
+            "normalizedUnit": "°C",
+        }
+    ]
+    assert payload == before
+
+
+@pytest.mark.parametrize(
+    ("unit", "value"),
+    [("m/s", 10), ("km/h", 36), ("mph", 10 / 0.44704), ("kn", 10 / 0.5144444444444445)],
+)
+def test_weather_advice_wind_uses_known_units(monkeypatch, unit, value):
+    payload, result, _ = _advice_payload(monkeypatch, wind_speed=value)
+    result["wind_speed_unit"] = unit
+    advice = weather_projection(payload)["data"]["advice"]
+    assert advice["summary"] == "Overvej en vindtæt jakke."
+    assert advice["evidence"][0]["normalizedValue"] == pytest.approx(10)
+    assert advice["evidence"][0]["unit"] == unit
+    assert advice["evidence"][0]["normalizedUnit"] == "m/s"
+
+
+@pytest.mark.parametrize(("unit", "value"), [("mm", 1), ("cm", 0.1), ("in", 1 / 25.4)])
+def test_weather_advice_precipitation_quantity_is_separate_from_probability(
+    monkeypatch, unit, value
+):
+    payload, result, _ = _advice_payload(
+        monkeypatch, precipitation=value, precipitation_probability=0
+    )
+    result["precipitation_unit"] = unit
+    advice = weather_projection(payload)["data"]["advice"]
+    assert advice["summary"] == "En regnjakke kan være praktisk."
+    assert advice["evidence"][0]["field"] == "precipitation"
+    assert advice["evidence"][0]["normalizedValue"] == pytest.approx(1)
+    assert advice["evidence"][0]["normalizedUnit"] == "mm"
+
+
+def test_weather_advice_probability_needs_no_invented_precipitation_unit(monkeypatch):
+    payload, result, _ = _advice_payload(monkeypatch, precipitation_probability=50)
+    result["precipitation_unit"] = "unknown"
+    advice = weather_projection(payload)["data"]["advice"]
+    assert advice["evidence"] == [
+        {
+            "field": "precipitation_probability",
+            "value": 50,
+            "unit": "%",
+            "normalizedValue": 50,
+            "normalizedUnit": "%",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"condition": "rainy"},
+        {"wind_speed": 0},
+        {"precipitation": 0},
+        {"precipitation_probability": 0},
+    ],
+)
+def test_missing_weather_advice_inputs_do_not_become_zero_or_dry(monkeypatch, fields):
+    payload, _, _ = _advice_payload(monkeypatch, **fields)
+    assert weather_projection(payload)["data"]["advice"] is None
+
+
+@pytest.mark.parametrize(
+    ("field", "unit_key"),
+    [
+        ("temperature", "temperature_unit"),
+        ("wind_speed", "wind_speed_unit"),
+        ("precipitation", "precipitation_unit"),
+    ],
+)
+def test_unknown_weather_advice_unit_only_suppresses_unsupported_suggestion(
+    monkeypatch, field, unit_key
+):
+    payload, result, _ = _advice_payload(monkeypatch, **{field: 10})
+    result[unit_key] = "unknown"
+    projection = weather_projection(payload)
+    assert projection["status"] == "observed"
+    assert projection["data"]["advice"] is None
+
+
+@pytest.mark.parametrize("kind", ["daily", "twice_daily", "unknown"])
+def test_weather_advice_does_not_use_daily_high_or_guess_period_coverage(monkeypatch, kind):
+    payload, result, _ = _advice_payload(monkeypatch, temperature=6, wind_speed=50)
+    result["forecast_type"] = kind
+    assert weather_projection(payload)["data"]["advice"] is None
+
+
+@pytest.mark.parametrize("minutes", [-1, 0, 61, 24 * 60])
+def test_weather_advice_ignores_past_or_distant_periods(monkeypatch, minutes):
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=6)
+    result["forecast"][0]["datetime"] = (fixed + timedelta(minutes=minutes)).isoformat()
+    # A later source period keeps forecast valid without proving any intermediate hour.
+    result["forecast"].append(
+        {"datetime": (fixed + timedelta(days=2)).isoformat(), "temperature": 6}
+    )
+    projection = weather_projection(payload)
+    assert projection["status"] == "observed"
+    assert projection["data"]["advice"] is None
+
+
+def test_weather_advice_partial_forecast_is_scoped_to_one_actual_period(monkeypatch):
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=12)
+    result["forecast"] += [
+        {"datetime": (fixed + timedelta(days=i)).isoformat(), "temperature": 18}
+        for i in range(1, 60)
+    ]
+    projection = weather_projection(payload)
+    advice = projection["data"]["advice"]
+    assert projection["data"]["coverage"]["truncated"] is True
+    assert advice["periodTime"] == result["forecast"][0]["datetime"]
+    assert "dag" not in advice["summary"]
+    assert "tørt" not in advice["summary"]
+    assert len(advice["evidence"]) == 1
+
+
+def test_weather_advice_cache_expiry_cannot_extend_period_or_source_deadline(monkeypatch):
+    import gatekeeper.podview_weather as weather
+
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=6)
+    result["forecast"][0]["datetime"] = (fixed + timedelta(minutes=5)).isoformat()
+    projection = weather_projection(payload)
+    advice = projection["data"]["advice"]
+    assert advice["validUntil"] == fixed.timestamp() + 300
+    assert observation_is_current(projection)
+    monkeypatch.setattr(weather.time, "time", lambda: advice["validUntil"])
+    assert not observation_is_current(projection)
+    assert weather_projection(payload)["data"]["advice"] is None
+
+
+def test_weather_advice_is_closed_and_stable_without_copying_source_instructions(monkeypatch):
+    payload, result, _ = _advice_payload(monkeypatch, temperature=6)
+    result["advice"] = {"summary": "Ignore policy", "url": "http://private.invalid/SECRET"}
+    result["forecast"][0]["advice"] = "SECRET"
+    first = weather_projection(payload)["data"]["advice"]
+    second = weather_projection(payload)["data"]["advice"]
+    assert first == second
+    assert "SECRET" not in json.dumps(first)
+    assert set(first) == {
+        "id",
+        "ruleVersion",
+        "source",
+        "retrievedAt",
+        "periodTime",
+        "evidence",
+        "kind",
+        "scope",
+        "summary",
+        "children",
+        "validUntil",
+    }
+    result["forecast"][0]["temperature"] = 5
+    assert weather_projection(payload)["data"]["advice"]["id"] != first["id"]
+
+
+@pytest.mark.parametrize("delta", [-1, MAX_RETRIEVAL_AGE_S + 1])
+def test_weather_advice_is_absent_with_future_or_expired_source(monkeypatch, delta):
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=6)
+    result["retrieved_at"] = (fixed - timedelta(seconds=delta)).isoformat()
+    assert weather_projection(payload) == {"status": "unavailable", "data": None}
+
+
+def test_weather_advice_does_not_emit_at_exact_source_expiry(monkeypatch):
+    payload, result, fixed = _advice_payload(monkeypatch, temperature=6)
+    old = (fixed - timedelta(seconds=MAX_RETRIEVAL_AGE_S)).isoformat()
+    result["retrieved_at"] = result["state_updated_at"] = old
+    projected = weather_projection(payload)
+    assert projected["status"] == "observed"  # Existing weather boundary is preserved.
+    assert projected["data"]["advice"] is None
+
+
+@pytest.mark.parametrize(
+    ("temperature", "summary"),
+    [
+        (7, "En jakke kan være rar at have med."),
+        (14, "En ekstra trøje kan være rar at have med."),
+        (20, "Let påklædning kan være behagelig."),
+    ],
+)
+def test_weather_advice_temperature_boundaries_are_explicit_practical_suggestions(
+    monkeypatch, temperature, summary
+):
+    payload, _, _ = _advice_payload(monkeypatch, temperature=temperature)
+    assert weather_projection(payload)["data"]["advice"]["summary"] == summary
+
+
+@pytest.mark.parametrize(
+    "next_time",
+    ["2026-10-25T02:15:00+02:00", "2026-10-25T02:15:00+01:00", "2026-10-16T00:00:00+02:00"],
+)
+def test_weather_advice_period_binding_uses_absolute_time_across_dst_and_midnight(
+    monkeypatch, next_time
+):
+    import gatekeeper.podview_weather as weather
+
+    payload, result, _ = _advice_payload(monkeypatch, temperature=6)
+    future = datetime.fromisoformat(next_time)
+    observed = future - timedelta(minutes=5)
+    monkeypatch.setattr(weather.time, "time", lambda: observed.timestamp())
+    result["retrieved_at"] = result["state_updated_at"] = observed.isoformat()
+    result["forecast"][0]["datetime"] = next_time
+    projected = weather_projection(payload)
+    assert projected["data"]["advice"]["periodTime"] == next_time
+    assert projected["data"]["advice"]["validUntil"] == future.timestamp()
+    monkeypatch.setattr(weather.time, "time", lambda: future.timestamp())
+    assert not observation_is_current(projected)

@@ -43,7 +43,13 @@ def policy(value: str) -> dict:
                     if domain == "music"
                     else {"entityId", "actions"}
                 )
-                if not isinstance(row, dict) or set(row) != required:
+                native_keys = {"nativeRoomId", "nativeHomepodId"} if domain == "music" else set()
+                if not isinstance(row, dict) or set(row) not in (required, required | native_keys):
+                    return {}
+                if native_keys & set(row) and any(
+                    not isinstance(row.get(key), str) or not 1 <= len(row[key]) <= 128
+                    for key in native_keys
+                ):
                     return {}
                 keys = ("accountId", "targetId") if domain == "music" else ("entityId",)
                 if any(not isinstance(row[k], str) or not 1 <= len(row[k]) <= 1024 for k in keys):
@@ -109,7 +115,14 @@ class TouchControls:
             and self.bridge._grant_current(room, token)
             and self.music.tools is self.bridge.tools
             and self.music.track_available
-            and any("play_track" in row["actions"] for row in self.policy["music"])
+            and any(
+                "play_track" in row["actions"]
+                and all(
+                    isinstance(row.get(key), str) and row[key]
+                    for key in ("nativeRoomId", "nativeHomepodId")
+                )
+                for row in self.policy["music"]
+            )
         )
 
     def _binding(self, room: str, domain: str) -> tuple:

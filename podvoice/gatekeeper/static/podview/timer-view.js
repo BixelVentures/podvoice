@@ -17,7 +17,7 @@ export class TimerView {
    <form class="timer-create" aria-label="Ny timer"><h2>Ny timer</h2>
     <div class="timer-stepper"><button type="button" class="timer-adjust" data-adjust="-60" aria-label="1 minut mindre"><img src="assets/icons/dash.svg" alt=""></button><div class="timer-selected"><output aria-live="polite" aria-label="Valgt tid">5:00</output><span>min : sek</span></div><button type="button" class="timer-adjust" data-adjust="60" aria-label="1 minut mere"><img src="assets/icons/plus.svg" alt=""></button></div>
     <div class="timer-presets" aria-label="Faste tider">${[1,5,10,15,30].map(n=>`<button type="button" data-minutes="${n}" aria-pressed="${n===5}">${n} min.</button>`).join('')}</div>
-    <div class="timer-create-footer"><button type="button" class="timer-customize" aria-expanded="false" aria-controls="timer-exact">Navn og præcis tid</button><button type="submit" class="timer-start"><img src="assets/icons/play-fill.svg" alt="">Start timer</button></div>
+    <div class="timer-create-footer"><button type="submit" class="timer-start"><img src="assets/icons/play-fill.svg" alt="">Start timer</button></div>
     <div id="timer-exact" hidden><label class="timer-name">Navn <span>(valgfrit)</span><input name="name" maxlength="120" placeholder="Fx pasta" autocomplete="off"></label><div class="timer-duration"><label>Timer<input name="hours" type="number" inputmode="numeric" min="0" max="24" value="0" required></label><label>Minutter<input name="minutes" type="number" inputmode="numeric" min="0" max="59" value="5" required></label><label>Sekunder<input name="seconds" type="number" inputmode="numeric" min="0" max="59" value="0" required></label></div><p class="timer-validation" role="status" hidden>Vælg mellem 1 sekund og 24 timer.</p></div>
    </form><p class="timer-blocked" role="status" hidden>Afslut eller aflys den viste timer, før du starter en ny.</p><section class="timer-running"><h2>Aktuel timer</h2><div class="timer-active-list"></div></section><section class="timer-recent" hidden><h2>Senest brugt</h2><div></div></section>`;
   this.form=detail.querySelector('form');this.inputs=this.form.elements;this.duration=300;
@@ -25,7 +25,6 @@ export class TimerView {
   this.form.addEventListener('submit',e=>{e.preventDefault();if(!this.connected||!this.canStart||this.duration===null)return;host.dispatch({type:'timer-start',seconds:this.duration,name:this.inputs.name.value,now:Date.now()});if(host.live)return;const node=this.nodes.get(`detail:${host.state.timer.id}`);node?.querySelector('.timer-finish').focus({preventScroll:true});node?.scrollIntoView({block:'nearest',behavior:'instant'});});
   for(const b of detail.querySelectorAll('[data-minutes]'))b.addEventListener('click',()=>this.fill({seconds:Number(b.dataset.minutes)*60}));
   for(const b of detail.querySelectorAll('[data-adjust]'))b.addEventListener('click',()=>this.fill({seconds:adjustTimerDuration(this.duration??300,Number(b.dataset.adjust))}));
-  this.customize=this.form.querySelector('.timer-customize');this.customize.addEventListener('click',()=>{const fields=this.form.querySelector('#timer-exact');fields.hidden=!fields.hidden;this.customize.setAttribute('aria-expanded',String(!fields.hidden));if(!fields.hidden)this.inputs.name.focus({preventScroll:true});});
   this.notice=new TimerNotice(host,document.getElementById('timer-alert'));
   this.updatePicker();
  }
@@ -61,10 +60,9 @@ export class TimerView {
  renderNotice(focus=this.host.state.focus,live=this.host.live,feedbackVisible=document.getElementById('playback-status')?.hidden===false){
   const timer=this.currentTimer,id=timer?String(timer.id):null,resourceRail=document.getElementById('resource-rail');
   const inRail=focus==='photo'&&!resourceRail.hidden&&[...resourceRail.children].some(node=>!node.hidden&&node.dataset.timerId===id);
-  const overview=this.overviewList.querySelector('.timer-panel');
-  const inOverview=focus==='now'&&!document.getElementById('now-view').hidden&&overview&&!overview.hidden&&overview.dataset.timerId===id;
-  const detail=this.detail.querySelector('.timer-active-list .timer-panel');
-  const inDetail=focus==='timers'&&!this.detail.hidden&&detail&&!detail.hidden&&detail.dataset.timerId===id;
+  const matches=node=>!node.hidden&&node.dataset.timerId===id;
+  const inOverview=focus==='now'&&!document.getElementById('now-view').hidden&&[...this.overviewList.querySelectorAll('.timer-panel')].some(matches);
+  const inDetail=focus==='timers'&&!this.detail.hidden&&[...this.detail.querySelectorAll('.timer-active-list .timer-panel')].some(matches);
   this.notice.render(timer,focus,live,feedbackVisible,inRail||inOverview||inDetail?id:null);
  }
  cleanup(){this.notice?.cleanup();}

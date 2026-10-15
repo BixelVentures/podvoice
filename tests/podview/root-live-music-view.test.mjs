@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {projectMusicTracks} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 
-test('music catalogue projects up to three real tracks with validated artwork and navigation only',()=>{
+test('music catalogue preserves the admitted source sample with validated artwork and navigation only',()=>{
  const tracks=projectMusicTracks({ok:true,data:{tracks:[
   {name:'Faktisk sang',artist:'Faktisk kunstner',uri:'spotify:track:0123456789ABCDEFGHIJKL',artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/ab67616d0000b2730123456789abcdef'},images:['https://example.invalid/fake.jpg']},
   {name:'En anden',artist:'Kunstner to',uri:'spotify:track:0123456789ABCDEFGHIJKM'},
@@ -10,7 +10,7 @@ test('music catalogue projects up to three real tracks with validated artwork an
   {name:'Fire',artist:'Kunstner fire',uri:'spotify:track:0123456789ABCDEFGHIJKO'},
   {name:'Ugyldig URI',artist:'Ingen',uri:'https://example.invalid/song'}
  ]}});
- assert.equal(tracks.length,3);
+ assert.equal(tracks.length,4);
  assert.deepEqual(tracks[0],{
   uri:'spotify:track:0123456789ABCDEFGHIJKL',title:'Faktisk sang',artist:'Faktisk kunstner',
   artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/ab67616d0000b2730123456789abcdef'},
@@ -39,4 +39,10 @@ test('music catalogue distinguishes a valid empty list from malformed or failed 
 test('account-bound catalogue rejects missing or different provider account echo',()=>{
  const body={ok:true,data:{config_entry_id:'selected',tracks:[{name:'A',artist:'B',uri:'spotify:track:0123456789ABCDEFGHIJKL'}]}};
  assert.equal(projectMusicTracks(body,'selected').length,1);assert.equal(projectMusicTracks(body,'other'),null);delete body.data.config_entry_id;assert.equal(projectMusicTracks(body,'selected'),null);
+});
+
+test('collection sample size is explicitly bounded instead of silently dropping the remaining songs',()=>{
+ const row={name:'Actual song',artist:'Actual artist',uri:'spotify:track:0123456789ABCDEFGHIJKL'};
+ assert.equal(projectMusicTracks({ok:true,data:{tracks:Array.from({length:100},()=>row)}}).length,100);
+ assert.equal(projectMusicTracks({ok:true,data:{tracks:Array.from({length:101},()=>row)}}),null);
 });

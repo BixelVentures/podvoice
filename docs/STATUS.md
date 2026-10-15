@@ -1,3 +1,37 @@
+<!-- candidate-scope-coupling
+{
+  "version": 5,
+  "kind": "podview_native_source_ui_parity",
+  "base_tip": "beed27b0528917e4872516a53d88bedb17d3d6ed",
+  "merge_base": "beed27b0528917e4872516a53d88bedb17d3d6ed",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "74ea9dfc454b2834912bd967baa1ba0a2d213a02778ad7a56b27da2dfcd956bb",
+  "regression_fingerprint": "1698407dd8a78227f457535afbe06d19874470bf82e06a2702a31bb510dff8c1",
+  "policy_fingerprint": "1ba69b0d815d54507a2dc5d766a53faffb00bdc478e6316da621dd268a212da2",
+  "config_fingerprint": "16115112cc71407eff6710402a473d0fc1bdae49cba124a4af1d21fbf5c58e17",
+  "manifest_fingerprint": "ac9b6a75ca687dc93aa7357f7d8291777516a71e09116929aa1e99c7b3fa4fd8",
+  "reviewer": "independent GPT-6.1 Sol Ultra / final_freeze_ultra / 2026-10-15",
+  "rationale": "Independent final source GO on exact PodVoice30 and coupled PodConnect native05be2aec. Exact closed runtime and regression inventory; historical policy guards retained. Actual domains include ha_tools from existing large-diff weather text. CI, image, installation and physical acceptance remain pending. CI fixture repair: observed empty permits start; existing owner ID blocks new start and remains cancellable. Independent scoped delta GO confirmed by final_freeze_ultra; runtime and config unchanged."
+}
+-->
+
+# Aktiv beslutning · samlet PodView UI/data-paritet · 15. oktober2026
+
+Lead root. Status: planlagt build; 2.0.30 reserveret og forberedt, ikke installeret/testklar. Bruger bestiller samlet Green-installation med låst demoUI og fortsat parallel udførelse. Ny base er public2.0.29 a1bdc2ba1cf9e80f62874e4764586ec10d6d8042 med docsopfølgning beed27b0528917e4872516a53d88bedb17d3d6ed; tidligere28-base er historisk. v2.X har bekræftet29 publiceret, Green sidst28;30 er efterfølgende reserveret; deres opfølgende docsændringer skal bevares.
+
+Observeret: Green bruger afvigende live widgets; lokale kort/playergeometri og tilstandsrettelser skal deles med native runtime. Reviewede isolatedinputs er native startpolicy0d1231e9, PodVoice native roomcontractb150a929, kiosk71673c69, hourly adviceb224b418 og fælles rootUI. Hypotese: fælles renderere + eksplicitte dataadaptere giver samme UI uden at tildele passive data ny autoritet. Native Speakers ejer startvolume/autoplay; PodVoice ejer serverissued valg og GPT-Live samtale; viewer er ingen grant. Ukendt effekt gensendes ikke.
+
+Kæde: autentificeret HA-frame → room/account/source/ownerepoch → sourcebundne candidateIDs → paired serverissued option/session/task/revision → native prepare/readback/oneusecommit → provider/nativeobservation → samme player. Udløb, tab/boot/accountskift, revocation mellem awaits, duplicateclick og pagehide er nabogrænser. Timer/robot retain autoritative IDs og ingen simulerede data i live. Ingen Thin/firmware/prompt/providerændring; public29 GPT-Live-only/full-duplex/CI bevares.
+
+Plan: compose exact reviewed narrow patches, ret faktiske mergekonflikter uden at genindføre28runtime; målrettede regressioner via durable scripts/dev fast; strict existing admission profiler skal udvides/reviewes til faktiske ændrede bytes, ingen gatebypass; uafhængigt adversarial review og exactmanifest; officiel PR/main/ARM64CI; faktisk Greenversion/assets/datareadback før testlink. Fysisk lyd/robot/iPadaccept rapporteres særskilt. Rollback: bevaret installeret28 og public29, nye grants/betalt AI er ikke aktiveret her.
+
+Nye produktkrav til Stemning (ikke foregivet færdige): rigtige playlister, egen AI ud fra lokalt tidspunkt/rum med matchende skiftende illustrationer, kun initialload/Andre forslag ændrer indhold; fanenavigation bevarer valg. Autoplay næste+lignende er eksisterende nativeadfærd som skal bevares og verificeres. Humør som mulig nyfane er under brugerafklaring; ingen lydløs ny fane eller playlistfallback. Original20visualfactselectorbudget giver ingen ny moodAIudgift.
+
+---
+
 # Aktuel status · 2.0.29 leveret / resterende produktarbejde · 15. oktober 2026
 
 **Lead:** root. V2.x er **kun GPT-Live med full duplex** for Voice PE og Talk.

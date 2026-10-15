@@ -73,7 +73,7 @@ class Rig:
             await self.hook()
         if self.raw is not None:
             return httpx.Response(self.code, content=self.raw)
-        if request.url.path.endswith("get_playback_controls"):
+        if request.url.path.endswith(("get_playback_controls", "get_track_play_controls")):
             value = self.value
         else:
             value = {
@@ -361,3 +361,125 @@ async def test_boolean_receipt_sequence_cannot_impersonate_command_one(rig):
     result = await rig.facade.execute(offered, "next", {}, lambda: True)
     assert result["outcome"] == "unknown"
     assert len(rig.calls) == 2
+
+
+def native_proof():
+    return {
+        "schema": "podconnect.start_volume.v1",
+        "ready": True,
+        "engine_device_id": "device",
+        "room_id": "native-room",
+        "homepod_id": "homepod-id",
+        "policy_revision": "b" * 64,
+        "start_volume_percent": 37,
+        "mode": "fresh_start",
+        "output_selected": False,
+        "output_volume_percent": 75,
+        "alias_binding": {
+            "ready": True,
+            "room_id": "old-room",
+            "incarnation": "alias-1",
+            "registry": "registry-1",
+            "token": "SECRET",
+        },
+        "token": "SECRET",
+    }
+
+
+def track_owner(rig):
+    rig.tools._discovery = replace(
+        rig.tools._discovery,
+        podconnect_services=rig.tools._discovery.podconnect_services | {"get_track_play_controls"},
+    )
+    rig.value.update(actions=["play_track"], track_play_supported=True, native_start=native_proof())
+
+
+async def test_native_read_proof_and_exact_start_arguments_reach_control_once(rig):
+    track_owner(rig)
+    offer = await rig.facade.setup_track(
+        "account", "device", "native-room", "homepod-id", lambda: True
+    )
+    assert offer["ok"]
+    assert "SECRET" not in json.dumps(offer)
+    assert rig.calls[0][3] == {
+        "config_entry_id": "account",
+        "kind": "spotify_device",
+        "target_id": "device",
+        "room_id": "native-room",
+    }
+    result = await rig.facade.execute_track(
+        offer["data"], "spotify:track:" + "A" * 22, 40, lambda: True
+    )
+    assert result["outcome"] == "accepted"
+    assert len(rig.calls) == 2
+    assert rig.calls[1][3]["args"] == {
+        "track_uri": "spotify:track:" + "A" * 22,
+        "max_volume": 40,
+        "room_id": "native-room",
+        "homepod_id": "homepod-id",
+        "start_policy_revision": "b" * 64,
+        "alias_incarnation": "alias-1",
+    }
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "missing",
+        "engine",
+        "room",
+        "homepod",
+        "revision",
+        "boolean_volume",
+        "selected",
+        "alias",
+        "same_room",
+    ],
+)
+async def test_native_read_rejects_missing_changed_and_invalid_proof(rig, change):
+    track_owner(rig)
+    proof = rig.value["native_start"]
+    if change == "missing":
+        del rig.value["native_start"]
+    elif change in {"engine", "room", "homepod", "revision"}:
+        proof[
+            {
+                "engine": "engine_device_id",
+                "room": "room_id",
+                "homepod": "homepod_id",
+                "revision": "policy_revision",
+            }[change]
+        ] = "wrong"
+    elif change == "boolean_volume":
+        proof["start_volume_percent"] = True
+    elif change == "selected":
+        proof["mode"] = "same_session"
+    elif change == "alias":
+        proof["alias_binding"]["ready"] = False
+    else:
+        proof.update(mode="same_session", output_selected=True)
+    result = await rig.facade.setup_track(
+        "account", "device", "native-room", "homepod-id", lambda: True
+    )
+    assert not result["ok"]
+    assert len(rig.calls) == 1
+    assert rig.calls[0][1].endswith("get_track_play_controls")
+
+
+@pytest.mark.parametrize("change", ["policy_above_cap", "missing", "expired"])
+async def test_native_execute_fails_before_command_without_valid_policy(rig, change):
+    track_owner(rig)
+    offer = await rig.facade.setup_track(
+        "account", "device", "native-room", "homepod-id", lambda: True
+    )
+    value = offer["data"]
+    if change == "missing":
+        del value["native_start"]
+    elif change == "expired":
+        value["valid_until"] = time.time() - 1
+    else:
+        value["native_start"]["start_volume_percent"] = 41
+    rig.calls.clear()
+    result = await rig.facade.execute_track(value, "spotify:track:" + "A" * 22, 40, lambda: True)
+    assert result["outcome"] == "rejected"
+    assert not rig.calls

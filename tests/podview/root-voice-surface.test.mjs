@@ -165,3 +165,16 @@ test('presentation keys change across boot sessions, turns, and phases', () => {
   assert.notEqual(one.key, nextBoot.key);
   assert.notEqual(one.key, nextPhase.key);
 });
+
+test('a live reduced-motion preference change cancels an in-flight exit and cleanup detaches the listener',()=>withBrowser(()=>{
+ const media=new EventTarget();media.matches=false;globalThis.matchMedia=()=>media;
+ const {surface}=fixture();surface.update(view('s1','t1','thinking'));surface.update(null);const exiting=surface.animation;
+ media.matches=true;media.dispatchEvent(new Event('change'));
+ assert.ok(exiting.cancelled>0);assert.equal(surface.node.hidden,true);assert.equal(surface.animation,null);
+ surface.cleanup();surface.node.hidden=false;media.dispatchEvent(new Event('change'));assert.equal(surface.node.hidden,false);
+}));
+
+test('a detached host cannot reopen or schedule a new voice surface',()=>withBrowser(({timers})=>{
+ const {surface,host}=fixture();host.isConnected=false;surface.update(view('s1','t1','thinking'));
+ assert.equal(surface.node.hidden,true);assert.equal(surface.node.inert,true);assert.equal(timers.size,0);
+}));

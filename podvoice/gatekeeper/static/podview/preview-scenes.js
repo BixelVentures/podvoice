@@ -1,9 +1,10 @@
 import {visualFamilies} from './visual-content.js';
 import {initialScene,sceneTransition as step} from './scene-model.js';
 // Deterministic, explicitly documented prototype states; no integrations or requests.
-export const previewStates=[...visualFamilies,'timers','quiet','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
+export const playerPreviewStates=['empty','loading','missing-art','offline','error'].flatMap(state=>['rest','active'].map(mode=>`player-${mode}-${state}`));
+export const previewStates=[...playerPreviewStates,...visualFamilies,'timers','quiet','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name){
- let s=initialScene();if(['rest','nothing','quiet'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});}
+ let s=initialScene();if(playerPreviewStates.includes(name)){const rest=name.startsWith('player-rest-'),status=name.replace(/^player-(rest|active)-/,'');return {...s,focus:rest?'photo':'music',navStack:[],playerPreview:status,connected:status!=='offline'};}if(['rest','nothing','quiet','music','top','weather','timers','paused'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});s={...s,focus:'music',navStack:[],detailOrigin:undefined};}
  if(!previewStates.includes(name))return s;
  if(visualFamilies.includes(name)){s=step(s,{type:'request',kind:name});return step(s,{type:'answer-result',...s.pendingAnswer,status:'ready'});}
  if(['stack','music-stack'].includes(name)){s=step(s,{type:'timer-start',now:Date.now()});for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'14:50'});return step(s,{type:'show',id:name==='stack'?'now':'music'});}

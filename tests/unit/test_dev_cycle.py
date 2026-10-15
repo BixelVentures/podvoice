@@ -441,7 +441,7 @@ def test_release_runs_candidate_scope_against_frozen_merge_base(monkeypatch, tmp
     scope = next(stage for stage in captured if stage.name == "candidate-scope")
     assert scope.command == (
         "python",
-        "scripts/candidate_scope.py",
+        "scripts/candidate_scope_admission.py",
         "--base",
         "frozen-base",
     )

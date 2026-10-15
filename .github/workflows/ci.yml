@@ -26,10 +26,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - id: scope
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 scripts/ci_scope.py
+      - name: Exact candidate admission (legacy or strict PodView30)
+        env:
+          CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 scripts/candidate_scope_admission.py --base "${CI_DIFF_BASE:-beed27b0528917e4872516a53d88bedb17d3d6ed}"
 
   lint-test:
     needs: [scope]

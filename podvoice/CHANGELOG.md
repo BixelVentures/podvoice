@@ -1,3 +1,10 @@
+## 2.0.30 - shared PodView UI and native music start contract
+
+- Share the music cards, player, queue and weather rendering between preview and Green; preserve retained cards, stable player geometry and source-owned empty/offline/error states.
+- Keep one timer completion state across rest and activity views, cancel stray touch actions and restore kiosk subscriptions after browser history restoration.
+- Bind room and new music starts to the reviewed native PodConnect owner contract; preserve its single start-volume policy and existing autoplay. Requires the coupled Control0.10.12/Speakers0.26.19 release; new policies remain disabled unless explicitly configured.
+- Retain exact source-owned collection choices and hourly weather advice. This release does not claim AI mood playlists, complete visual-answer design, physical audio acceptance or installed Green parity.
+
 ## 2.0.29 - shared GPT-Live runtime and clear v2.x contracts
 
 - Share native/Talk session settings and replay-evidence validation while preserving both adapters and both replay admission checks.

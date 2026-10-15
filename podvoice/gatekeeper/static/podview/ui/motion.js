@@ -5,7 +5,7 @@ export class SceneMotion {
  get reduced(){return this.host.dataset.motion==='reduced'||matchMedia('(prefers-reduced-motion: reduce)').matches;}
  cancel(){for(const animation of this.animations.values())animation.cancel();this.animations.clear();}
  animate(node,frames,duration=220){
-  this.animations.get(node)?.cancel();if(this.reduced||!node?.getClientRects().length)return;
+  this.animations.get(node)?.cancel();this.animations.delete(node);if(this.reduced||!node?.getClientRects().length)return;
   const animation=node.animate(frames,{duration,easing:'cubic-bezier(.22,1,.36,1)'});this.animations.set(node,animation);
   animation.finished.catch(()=>{}).finally(()=>{if(this.animations.get(node)===animation)this.animations.delete(node);});
  }

@@ -11,11 +11,14 @@ import asyncio
 import copy
 import hashlib
 import json
+import math
 import re
 import secrets
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+from .podview_music_control import native_start, start_volume
 
 _TRACK = re.compile(r"^spotify:track:[A-Za-z0-9]{22}$")
 _ID = re.compile(r"^[a-f0-9]{64}$")
@@ -62,6 +65,8 @@ class MusicSelection:
         owner_binding: tuple,
         before_epoch: str,
         after_epoch: str,
+        *,
+        kind: str = "search",
     ) -> str | None:
         """Call only after the existing PodConnect response and context validation."""
         self.sources.clear()
@@ -71,13 +76,19 @@ class MusicSelection:
         if not _closed_context(context) or not isinstance(data, dict):
             return None
         tracks = data.get("tracks")
-        if not isinstance(tracks, list) or not 1 <= len(tracks) <= 3:
+        if kind not in {"search", "recent", "top", "liked"}:
+            return None
+        maximum = 3 if kind == "search" else 50
+        if not isinstance(tracks, list) or not 1 <= len(tracks) <= maximum:
             return None
         if any(
             not isinstance(row, dict)
+            or not isinstance(row.get("uri"), str)
             or _TRACK.fullmatch(row.get("uri", "")) is None
             or not isinstance(row.get("name"), str)
+            or not 1 <= len(row["name"]) <= 256
             or not isinstance(row.get("artist"), str)
+            or not 1 <= len(row["artist"]) <= 512
             for row in tracks
         ):
             return None
@@ -88,12 +99,41 @@ class MusicSelection:
             identifier: {
                 "context": copy.deepcopy(context),
                 "tracks": copy.deepcopy(tracks),
+                "kind": kind,
+                "itemIds": {secrets.token_hex(12): index for index in range(len(tracks))}
+                if kind != "search"
+                else {},
                 "binding": owner_binding,
                 "ownerEpoch": before_epoch,
                 "deadline": time.monotonic() + 60,
             }
         }
         return identifier
+
+    def candidate_set(self, identifier: str) -> dict:
+        """Opaque occurrence IDs bind source order; they grant no playback authority."""
+        source = self.sources[identifier]
+        return {
+            **copy.deepcopy(source["context"]),
+            "candidateSetId": identifier,
+            "sourceKind": source["kind"],
+            "items": [{"id": key, "index": index} for key, index in source["itemIds"].items()],
+        }
+
+    @staticmethod
+    def selected_tracks(source: dict, candidate_ids: Any) -> list[dict] | None:
+        if source["kind"] == "search":
+            return source["tracks"] if candidate_ids is None else None
+        if (
+            not isinstance(candidate_ids, list)
+            or not 1 <= len(candidate_ids) <= 3
+            or any(
+                not isinstance(key, str) or key not in source["itemIds"] for key in candidate_ids
+            )
+            or len(set(candidate_ids)) != len(candidate_ids)
+        ):
+            return None
+        return [source["tracks"][source["itemIds"][key]] for key in candidate_ids]
 
     def offer(
         self,
@@ -107,6 +147,7 @@ class MusicSelection:
         approved_max_volume: int,
         authority: tuple,
         current: Callable[[], bool],
+        candidate_ids: Any = None,
     ) -> dict | None:
         """Issue one set of stable option IDs for both touch and voice selection."""
         source = (
@@ -119,6 +160,9 @@ class MusicSelection:
         if source["context"] != context or source["binding"] != owner_binding:
             return None
         if account != context["configEntryId"] or not isinstance(target, str) or not target:
+            return None
+        tracks = self.selected_tracks(source, candidate_ids)
+        if tracks is None:
             return None
         if type(approved_max_volume) is not int or not 0 <= approved_max_volume <= 100:
             return None
@@ -140,15 +184,33 @@ class MusicSelection:
             or controls.get("track_play_supported") is not True
         ):
             return None
-        volume = controls.get("volume_percent")
-        if type(volume) is not int or not 0 <= volume <= approved_max_volume:
+        try:
+            proof = controls.get("native_start", {})
+            proof = native_start(proof, target, proof.get("room_id"), proof.get("homepod_id"))
+            volume = start_volume(proof)
+        except (ValueError, AttributeError, TypeError):
             return None
-        if not isinstance(authority, tuple) or not authority:
+        observed = controls.get("volume_percent")
+        if (
+            type(observed) is not int
+            or not 0 <= observed <= approved_max_volume
+            or volume > approved_max_volume
+            or proof["start_volume_percent"] > approved_max_volume
+        ):
+            return None
+        deadline: Any = controls.get("valid_until")
+        if (
+            type(deadline) not in (int, float)
+            or not math.isfinite(deadline)
+            or deadline <= time.time()
+            or not isinstance(authority, tuple)
+            or not authority
+        ):
             return None
         task_id = "music-selection:" + secrets.token_hex(16)
         options = [
             {"id": secrets.token_hex(12), "label": row["name"], "artist": row["artist"]}
-            for row in source["tracks"]
+            for row in tracks
         ]
         task = {
             "id": task_id,
@@ -159,15 +221,20 @@ class MusicSelection:
             "account": account,
             "target": target,
             "volume": volume,
+            "nativeBinding": (proof["room_id"], proof["homepod_id"]),
+            "nativeStart": proof,
             "ownerEpoch": source["ownerEpoch"],
             "maxVolume": approved_max_volume,
             "controls": copy.deepcopy(controls),
             "choices": {
-                option["id"]: row["uri"]
-                for option, row in zip(options, source["tracks"], strict=True)
+                option["id"]: row["uri"] for option, row in zip(options, tracks, strict=True)
             },
             "publicOptions": copy.deepcopy(options),
-            "deadline": min(source["deadline"], time.monotonic() + 60),
+            "deadline": min(
+                source["deadline"],
+                time.monotonic() + 60,
+                time.monotonic() + max(0, deadline - time.time()),
+            ),
             "consumed": False,
         }
         # A newer target/confirmation replaces the older pending offer.
@@ -275,8 +342,20 @@ class MusicSelection:
             ):
                 self.receipts[key] = fingerprint, failure
                 return failure
+            try:
+                proof = native_start(
+                    controls.get("native_start"), task["target"], *task["nativeBinding"]
+                )
+            except (ValueError, TypeError):
+                self.receipts[key] = fingerprint, failure
+                return failure
             volume = controls.get("volume_percent")
-            if type(volume) is not int or volume != confirmed_volume or volume > task["maxVolume"]:
+            if (
+                proof != task["nativeStart"]
+                or start_volume(proof) != confirmed_volume
+                or type(volume) is not int
+                or not 0 <= volume <= task["maxVolume"]
+            ):
                 self.receipts[key] = fingerprint, failure
                 return failure
             # The URI exists only in this server task. The provider adapter receives

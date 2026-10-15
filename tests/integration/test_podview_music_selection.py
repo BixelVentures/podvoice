@@ -40,6 +40,8 @@ async def rig():
                 "targetId": "device-one",
                 "actions": ["play_track"],
                 "maxVolume": 40,
+                "nativeRoomId": "native-room",
+                "nativeHomepodId": "homepod-id",
             }
         ],
     }
@@ -57,6 +59,24 @@ async def rig():
                 "target": {"kind": "spotify_device", "target_id": "device-one", "name": "Kitchen"},
                 "actions": ["play_track"],
                 "volume_percent": 30,
+                "native_start": {
+                    "schema": "podconnect.start_volume.v1",
+                    "ready": True,
+                    "engine_device_id": "device-one",
+                    "room_id": "native-room",
+                    "homepod_id": "homepod-id",
+                    "policy_revision": "b" * 64,
+                    "start_volume_percent": 30,
+                    "mode": "fresh_start",
+                    "output_selected": False,
+                    "output_volume_percent": 75,
+                    "alias_binding": {
+                        "ready": True,
+                        "room_id": "other-room",
+                        "incarnation": "alias-1",
+                        "registry": "registry-1",
+                    },
+                },
                 "track_play_supported": True,
                 "status": "ready",
                 "valid_until": 9999999999,
@@ -211,7 +231,10 @@ async def test_raw_uri_and_unconfirmed_volume_never_reach_provider(rig):
         assert rig.app[BRIDGE].controls.music.execute_track.await_count == 0
 
 
-async def test_revoked_exact_rule_during_fresh_read_never_sends(rig):
+@pytest.mark.parametrize(
+    "change", ["actions", "nativeRoomId", "nativeHomepodId", "targetId", "maxVolume"]
+)
+async def test_revoked_exact_rule_during_fresh_read_never_sends(rig, change):
     async with TestClient(TestServer(rig.app)) as client:
         headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
         bridge = rig.app[BRIDGE]
@@ -240,7 +263,7 @@ async def test_revoked_exact_rule_during_fresh_read_never_sends(rig):
         controls = bridge.controls.music.setup_track.return_value
         entered, release = asyncio.Event(), asyncio.Event()
 
-        async def held_read(_account, _target, _current):
+        async def held_read(_account, _target, _room, _homepod, _current):
             entered.set()
             await release.wait()
             return controls
@@ -262,7 +285,9 @@ async def test_revoked_exact_rule_during_fresh_read_never_sends(rig):
             )
         )
         await asyncio.wait_for(entered.wait(), timeout=2)
-        bridge.controls.policy["music"][0]["actions"] = ["pause"]
+        bridge.controls.policy["music"][0][change] = (
+            ["pause"] if change == "actions" else 39 if change == "maxVolume" else "replacement"
+        )
         release.set()
         denied = await (await pending).json()
         assert denied["outcome"] == "rejected"
