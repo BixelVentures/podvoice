@@ -26,10 +26,10 @@ class VisualComponent extends HTMLElement {
  }
  render(){
   this.build();const d=this.data,state=d.state||'ready';this.dataset.state=state;this.setAttribute('aria-busy',String(state==='loading'||state==='pending'));
-  const labels={empty:'Der er ikke noget at vise endnu.',error:'Visningen kunne ikke hentes.',offline:'Offline · sidst kendte oplysninger',unsupported:'Denne visning er ikke tilgængelig.'};
+  const labels={loading:'Henter svaret…',pending:'Opdaterer svaret…',empty:'Der er ikke noget at vise endnu.',error:'Visningen kunne ikke hentes.',offline:'Offline · sidst kendte oplysninger',unsupported:'Denne visning er ikke tilgængelig.'};
   this.body.hidden=['empty','unsupported'].includes(state);this.sources.hidden=this.body.hidden;copy(this.note,labels[state]||'');this.note.hidden=!this.note.textContent;
   if(this.body.hidden)return;
-  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[]});}catch{this.body.hidden=!this.lastContent;this.sources.hidden=this.body.hidden;const waiting=['loading','pending'].includes(state);copy(this.note,waiting?'':'Visningen kunne ikke læses.');this.note.hidden=waiting;return;}
+  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[]});}catch{this.body.hidden=!this.lastContent;this.sources.hidden=this.body.hidden;copy(this.note,labels[state]||'Visningen kunne ikke læses.');this.note.hidden=false;return;}
   this.lastContent=content;copy(this.summary,content.summary);this.summary.hidden=d.hideSummary===true;
   this.dataset.count=String((content.facts||content.events||content.nodes||[]).length);
   if(this.family==='sourced-image'){

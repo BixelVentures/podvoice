@@ -438,6 +438,20 @@ async def run(cfg: Config) -> None:
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
     from .podview_enrichment import configured_selector
+    from .podview_mood import configured_mood_selector
+    from .podview_mood_setup import setup_mood_budget
+
+    mood_setup_ready = setup_mood_budget(
+        settings_path, cfg.podview_mood_policy, cfg.podview_mood_setup_policy
+    )
+    if cfg.podview_mood_setup_policy:
+        _LOG.info("PodView mood cold setup: %s", "ready" if mood_setup_ready else "rejected")
+    tools.podview_mood_selector = configured_mood_selector(
+        ha_client,
+        cfg.openai_api_key,
+        cfg.podview_mood_policy,
+        settings_path.parent / "podview-mood-budget.json",
+    ) if mood_setup_ready else None
 
     tools.podview_receipts.configure_selector(
         configured_selector(

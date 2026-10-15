@@ -1,3 +1,97 @@
+# Exact31 independent source review
+
+<!-- podview31-admission
+{
+  "version": 6,
+  "kind": "podview31_mood_playlist_ui",
+  "base_tip": "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c",
+  "merge_base": "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "fingerprint": "91c3dafaea54807f65c43c823ebccf82bcf80867ef3e6fe5f91cf7e1896b251a",
+  "regression_fingerprint": "00a9299fdd9adfc489db0fb2fd211153f7bf65e5069026bcf5ec053aae24e7a0",
+  "runtime_fingerprint": "49cf662c334e9f2b522183b509f52cacc0a66c3cfdbcf404677e5d8d2b24e557",
+  "config_fingerprint": "f90690b3174c5b96ca0c9931d85e6a55b3ac4a109358238bbc9dd9976efb277f",
+  "policy_fingerprint": "010a4cd0e95bfddcecd748eb5ef6ad930f1de1206ea85a6a61c68c7d212ed23d",
+  "tooling_fingerprint": "289c7253a02d35d501cc9fa9004aacde66d8d0adb9b7ff067fc3cbe8d35ba35b",
+  "manifest_fingerprint": "0b6ed43fc9bc1b7d09a4cbc7d156328b557da84f006662bd3681269cb6e29563",
+  "reviewer": "Independent GPT-6 Sol /root/ongoing_operator_review_sol; report SHA256 8907b25575de06388eb14bba50389861b7056ff234a30514f43e6655e6137e2c",
+  "rationale": "Exact source, all six pin maps, staged ha_tools/physical_output/realtime_semantics, default-off config, cold setup and immutable historical policies independently reviewed. Visual and mood setup have separate scoped Sol GO; source checks do not imply release, installation or physical acceptance."
+}
+-->
+
+# Cold setup implementeret · kildekandidat / ikke installeret
+
+Ny Supervisor-ejet podview_mood_setup_policy er optionalstr/defaulttom. Kun eksplicit cold pre-selector wrapper med canonical settingsparent og præcis20/200godkendelse kan klargøre ledger. Request binder godkendelse, quota-fingerprint, operatørnonce og eventuelt faktisk finitehash; receipt binder også fuld policy. Pending fsynces før reviewedprovisionkernel, complete genåbner kun eksisterende ledger; tab/korruption/ændring/optionclear kan ikke refille eller omgå consumedstate. Generisk ready/rejected-log uden raw config. Den faktiske gamle proces skal observeres stoppet af v2; wrapperen påstår ikke at verificere det. Ingen generisk API, exec eller automatisk ongoingbootstrap. Ny kilde afventer visual_chain_review_sol scoped review og finalepins/CI. Runbook opdateret til faktisk tilgængelig Supervisortransport; ingen CLI/private-dataadgang eller Green/providerhandling udført her.
+
+---
+
+# Aktiv leadbeslutning · kold engangsprovisionering ·15. oktober2026
+
+Faktisk operatørkontrol fandt ingen eksisterende transport til at køre CLI-scriptet i appens private /data. Dette er en konkret leveringsmangel; CLI-review er ikke aktivering. Lead autoriserer planlagt minimal, særskilt eksplicit og default-off pre-runtime-provisionering inde i den nye31-proces, før nogen mood-selector/ledger-ejer konstrueres. Supervisor-installationen skal først have stoppet den tidligere proces. Ingen generisk shell/exec/fil-API, ingen automatisk provisionering alene fordi ongoing-policy er udfyldt.
+
+Engangsanmodningen skal binde eksakt godkendelsesreference og policyfingerprint; kun canonical mood-ledger ved den faktiske settings-path, aldrig en browservalgt sti. Reviewet budgetkernes open-only-adfærd og visual20 forbliver uændrede. Frisk tom tilstand må kun oprettes ved særskilt operatørtilvalg; eksisterende finite-ledger kræver eksakt hash og fuld prepaid-carry. Et varigt engangsreceipt skal forhindre gentagen bootstrap ved genstart eller mistet ledger; ubestemt/partial state afvises uden sletning/nulstilling. Log kun ufølsomt udfald. Separat adversarial review, kausale tests og faktisk Green-readback kræves før aktiveringsclaim. Dette er planlagt build, ikke gennemført provisionering.
+
+---
+
+# Aktiv31-beslutning · løbende Stemning ·15. oktober2026
+
+Direkte menneskelig godkendelse `call_995d972f52084767a6f728e3706488da`: løbende20 modelkald pr. dag/200 pr. kalendermåned, Europe/Copenhagen, indtil deaktivering; ingen carry/refund/retry. Samme Luna,4KiB/128 outputtokens, eksisterende providerkoordinator og canonical mood-ledger. Separat reviewed ongoing-mode er integreret som eksplicit opt-in; finite-policy virker fortsat, ingen automatisk migration/provisionering, ingen ændring af visual-budget. Initial musiksession/eksplicit Andre forslag kan vælge3temaer; navigation/baggrund må ikke rotere kort.
+
+Planlagt build: crash-safe reservation før HTTP, off-loop diskvent, ownercheck efter await, persistent kalender/high-water og afvisning af policy-/ur-/filfejl. Budgetkernen genbruger reviewede bytes fra a2296540-patch; nyt offline operatørscript/runbook kræver særskilt review. Installationsansvarlig skal faktisk observere stoppet proces før bootstrap/migration; --owner-stopped er kun en operatørerklæring, aldrig teknisk bevis. Eksakt v1-hash og hele prepaid-tallet bæres med. Ingen faktisk ledger, provider, installation eller aktivering udført her. Se [operatørvejledning](MOOD-ONGOING-OPERATOR.md). Faktisk kontrol i unik SHA-verificeret /private/tmp-mirror:74 fokuserede syntetiske mood/ongoing/operatørtests PASS, ruff PASS og mypy på4 ændrede kildemoduler PASS. Første sandboxkørsel af loopbacktests afvistes på lokal socketbinding; samme tests bestod med godkendt lokal loopback. Slut-scope/review/officiel CI og installationsevidens resterer.
+
+---
+
+# Aktiv31-latensbeslutning · Stemning · 15. oktober2026
+
+Lead root har autoriseret tre parallelle, uafhængige playlist_search-læsninger inden for eksisterende fælles deadline. Bevar model-/readantal, fast temarækkefølge, ét samlet kandidatsæt, konto/epoch/grant/session-fences og native playback. TaskGroup skal afslutte alle børn ved fejl/annullering før busy-fence frigives; ingen retries, timeoutændring eller ongoing-budget. Planlagt build: barrieretest for alle tre samtidige reads, owner/session-skift og cleanup før publicering. Kildechecks er ikke faktisk latens- eller Green-bevis; uafhængigt review/freeze kræves.
+
+---
+
+# Active31 weather decision ·15 October2026
+
+Observed Green cause: actual deployed weather_forecast HA script defaults forecast_type=daily on {}; result.location is hardcoded hjemmet, source is Home Assistant / Met.no. Its explicitly declared optional forecast_type selector supports daily/hourly; actual HAentity supports both and attribution confirms only Met.no. Hypothesis: same admitted current MCP declaration, only if its actual JSON schema explicitly declares/validates forecast_type, can supply separate daily and hourly projections without a second weather owner or fabricated periods. Preserve legacy one{} read otherwise.
+
+Authorized implementation: same-owner bounded daily+optionalhourly read, atmostonecall each/noretries, existing source freshness/projection, independently timestamped auxiliaryhourly; exact source/location/units join, dailyretained onauxfailure, wholecall invalid afterownerreplacement. Retained renderer may show actual daily ranges+next12hourly and source-bound nextperiod guidance; noforecastinference/cityhardcode/geocode/newgrant/AIactivation. Root explicitweatherUI fixes: roundeddisplay rawprecisionretained, fixed actualprovider-only footer noHA/Omfoldout. live-home-view timeridentity may bindauxiliaryhourlyadviceexpiry tosamecurrentowner.
+
+Checks required: declared vs undeclared argument schema, malformed/foreign/stale auxiliary, changed owner during eitherawait, finite shareddeadline, dailyretention/no partialauthority/retry, rendererretention/adviceexpiry; syntax/npmtests plusfocusedruntime/type/lint inuniqueverifiedtmpmirror. Independent31review/finalinventory/officialCI/Greenactualhourlyproof required. Rollback: revertthis31candidateweatherdeltaonly; no30Greenruntime rewrite. Current31pins are provisional untilthisweather/routingfreeze.
+
+---
+
+# Aktiv beslutning · 2.0.31 · Stemning-playlister og aktuelle PodView-assets · 15. oktober 2026
+
+Lead: root. Status: **planlagt build / ikke testklar**. Denne særskilte kandidat starter ved faktisk merged30 `0e56c593c6ce9a3e1666b5fd535d3424cc691b9c`, tree `a6ef597698c86e963145c0832bfce75a746a43a8`; nedenstående 30-beslutning og dens coupling/review er historisk baseline, ikke admission eller GO for31. Ændrede runtime-, config-, regression- og UI-bytes ugyldiggør de tilsvarende gamle scopefingeraftryk. En ny præcis31-profil, uafhængigt review og officiel slut-CI kræves før merge/release. Ingen providerkald, grants, betalt aktivering, installation eller fysisk prøve følger af denne kildeintegration.
+
+
+Ny direkte Green30-evidens ugyldiggør routingfreeze: autentificeret browser åbner ydre `/23375871_podvoice/view`, men iframe bliver i PodVoice-home og sidebaren bliver synlig, også efter reload. Årsagsfund før patch: Core2026.8.2 pinner officiel frontend20260729.7, hvis `ha-panel-app` altid anvender `computeRouteTail`; dedikeret apppanel kan derfor sende hele `/view` i `route.prefix` og tom `route.path`. De gamle tests opfandt kun `route.path=/view`. Hypotese: binding af den samlede officielle `prefix+path` til præcis den aktuelle same-origin parentroute retter bootstrap/kiosk uden en privat ingresstoken-genvej. Plan: faktisk DOM/messageform fra den eksisterende autentificerede browser, regressionsfixture af den pinned frontendkontrakt, samme root-/viewhelper, strikt origin/source/parentpath, BFCache/pagehide og ingen navigation af fremmed panel.31-admission skal genpinnes efter denne afgrænsede routingrettelse; før30-kandidaten ændres ikke.
+
+
+Routingrettelse i31: samme eksisterende `ingress-kiosk.js` ejer nu rootbridge og PodView. RootHTML indlæser modulet relativt gennem samme autentificerede ingress, og begge retninger kræver trusted parent/origin, officiel `route.prefix+route.path` lig præcis nuværende parentpathname og den allerede bundne appbase. Ingen ingresstoken udledes til en offentlig eller permanent URL. Legacy direct iframe, modificerede klik, pagehide/BFCache og fremmed/stale route er dækket. Aktuel Green30-DOM fra v2: outer home→`/23375871_podvoice/view`, iframe beholder rootside og relativ `view/`-anchor; ingen navigationfejl. Faktisk postMessage-payload er **ukendt**. Bugårsagen er derfor en kildeunderbygget inference mod den direkte DOMfejl, ikke en observeret messagecapture. Core2026.8.2s officielle frontendpin er20260729.7; de to pinned TS-kilder og hash er bevaret i den ydre checkkvittering. Root308/308 og faktiske packagedrouting9/9 bestod efter rettelsen; syntaks/diff-check bestod. Routing/HTML/manifestfingeraftryk er nye og skal genpinnes efter rootens igangværende vejrsvarrettelser. Uafhængigt review og reel Green31-route/kiosk/reloadaccept mangler; ingen routing-releaseGO påstås.
+
+
+Ny afgrænset visualbeslutning fra root: brugerens GO omfatter faktisk AI-færdiggørelse; aktivering holdes separat. Ændring før kode: før kun faktisk completed call-ID/query ind i den eksisterende finite20-selector, aldrig seneste transcript eller en ny model/search. Det eksisterende weboutput må kun deles ved hele korte tekstgrænser; ingen genererede faktaværdier/citater/billeder. Lange tvetydige afsnit kræver konkret helperkontraktforslag og må ikke kaldes semantiske facts. Adskil allerede valgte immutable read-only-kort fra aktiv skrive-/samtaleautoritet: kun normale closekanter kan bevare dem, oprindelig120s/sourceexpiry gælder, og nyt input/session/owner samt fejl/stop/privacy tilbagekalder. Pending/stale selectorarbejde må aldrig blive admitted efter close. Regression: faktiske Thin query/call-bindinger, source-shaped helper→kendte factIDs→faktisk rendereradapter, normal close→inaktiv snapshot/session-null→kildelæsning, stop/error/newwake/newinput/expiry og nul sideeffekter/ekstra I/O. Det nye read-only flag er ingen pairing, controlgrant eller taskownership. Uafhængigt Sol-high-review kræves på sammensat diff før admission/CI/release; ingen policy aktiveres her.
+
+Faktisk implementering og scoped Sol-review: kun accepteret completed tool-query med exact call/task/input/session/provider/owner-binding føres til eksisterende finite20-selector. Hele korte source-sætninger/linjer erstatter vilkårlige80-tegnschunks; lange tvetydige output afvises. Allerede valgte read-only-kort overlever normal close uden ny deadline, pairing eller skriveautoritet. Stop/privacy/error tilbagekalder synkront, også hvis et normal-close-task allerede kører.24 blokeret-teardown-regressioner på VoicePE/Talk/Live består; independent reviewer reproducerede den oprindelige fejl og bekræftede rettelsen.126 fokuserede visual-Pythoncases:120 sandboxPASS plus6 HTTPcases alene socketblokerede, derefter6/6 autoriseret loopbackPASS. Ruff/format, syntaks og mypy78filer PASS. Ingen provider/HA/model blev kaldt.
+
+Forrige samlede staticpakning før den sidste3filsvejrrettelse:131 aktuelle rootassets byteidentiske,45 normaliserede root-testfiler, root324PASS, faktisk packaged350PASS. Manifest SHA-256 `bfc5fbe4ae5b6a0287eb52e49e201f95a44c5bf5d6e52e20cebb4e5e4c8889cd`; tidligere manifesttal nedenfor er historiske/ugyldige som aktuelle pins. Pakningen indeholder rootens rain/wind/fade, stabil home/SSE-rækkefølge og neutral robot-history tomtekst. Faktisk første musikåbning er nu initial modelgrænse; kontoindlæsning på Ro/Lige nu kalder ingen moodAI, senere navigation bevarer kort/fane. Scoped first-music-opening independent Sol-review gav GO;7 fokuserede tests bestod. Siste weather-fixturefreeze er med: fast lokal replay af de12 faktiske captured timer, uden at fremstille fixtureby/dato/currentværdier som livebevis. Final ny komplet SHA-synkroniseret mirror med cold-setupmodulet består også mypy --no-incremental på79 kildefiler. De tidligere rapporterede to visualtypefejl kom fra en byteafvigende gammel cold-mirror; aktuelle GO-hashes krævede ingen rettelse. Aktuel sourceinventory ligger uden for repo i `integration/podvoice31-checks/source-inventory.json`; nye kolde mood-setup-/admissionændringer kan kræve nye pins. Faktisk31route/Green, spørgsmålssvarsrelevans og visuel/fysisk accept er ikke givet; ingen installering, budgetprovisionering eller CI/releaseGO her.
+
+
+Observeret problem: Stemning har ingen reelle playlistvalg i30, mens nyere rootUI har separate svar-/modal-/offlinerettelser, som ikke er i den gamle pakke. Hypotese: den snævre isolated playlistpatch kan genbruge de eksisterende model-, source-, selection- og native command-ejere og samtidig pakke præcis nuværende rootUI uden at genindføre en ældre UI-kopi. Kæden er parret frame → særskilt default-off coarse time/room theme selection → exact-account playlistcatalogue → ét sourcebundet sæt → samme opaque voice/touch options → eksisterende native prepare/commit/context playback. Ukendt effekt gensendes ikke. Voice PE, GPT-Live/ThinSession, startvolume, autoplay, close/rearm og firmwareejere bevares.
+
+Plan før freeze: afvent tema-ejerens stabile minimalpatch/receipt; anvend kun dens PodVoice runtime-/testhunks; bevar hele baselineSTATUS; merge eventuelle aktuelle rootUI-hunks uden at overskrive nyere UI; pak alle aktuelle rootdist-assets og normaliser de tilhørende tests; bump de tre eksisterende versionsfelter til2.0.31 med sand CHANGELOG; kør kun berørte syntaks-/pytest-/JS-kontroller fra usynkroniseret prøvekopi. Strict31-admission ejes separat af lead/reviewer; denne implementering må ikke selv give GO. Scope: separat Supervisor-owned tom moodpolicy, separat formålsbundet finite allowance, exact session/task/revision/account/epoch, retained tre kort, explicit refresh og nul implicit modelkald ved navigation/authority renewal. Rollbackgrænse: denne31-kandidat, med merged30 uberørt. Fysisk lyd, spørgsmålssvar-relevans, browser-/Green-paritet og husstandens voice/touch-accept er fortsat ubevist på31.
+
+
+Første integration før routingrettelsen (manifestet nedenfor er nu ugyldigt som endeligt31-pin): den stabile isolated PodVoice-minimalpatch `27f669b14e2aa53b9982ca6f8c6869e56ccf056b569f1ec2ac0e1b9bd25351f5` er anvendt rent mod merged30, uden at kopiere dens gamle STATUS eller gamle UI. Den afgrænsede temaudvidelse har lead-kildereview; P2-fornyelsesrettelsen har sin separate uafhængige kildekvittering. De fem statiske moodhunks er flettet på aktuelle rootfiler, og alle131 nuværende rootassets er pakket byteidentisk med eksisterende packager. Assetmanifest SHA-256: `6853202369aa1a4f37312648b58995e10f4a8dc17bb8c10dce791e7241d43024`.43 root-testfiler er normaliseret til pakkens faktiske importstier; særskilte eksisterende ingressregressioner bevares. De tre versionsfelter er2.0.31. Coupled playlistservice kræver den særskilte Control0.10.13-kandidat; Speakers0.26.19-ejeren er uændret.
+
+Faktiske fokuserede kontroller på bytekopi i `/private/tmp`, med eksisterende Python3.12:144 pytestcases bestod først;48 lokale HTTP-cases blev blokeret alene ved sandboxens loopback-bind og bestod48/48 i den målrettede autoriserede genkørsel. Ingen provider/HA/Spotify blev kaldt. Den første forkerte teststi gav ingen testkørsel og er bevaret som toolingfejl; sandboxrun er også bevaret. Ruff/format på14 berørte filer og mypy på70 gatekeeperfiler bestod; ændret Python/JS-syntaks og diff-check bestod. Aktuelle rootJS:300/300 PASS; efter afsluttet pakning faktisk packagedJS:330/330 PASS. En tidligere316PASS blev kørt før pakningens afslutning på gammel prøvekopi og er udtrykkeligt ugyldig som31-evidens. Endelig31-admission/CI er ikke kørt eller godkendt af denne implementering; nye policyfingeraftryk og uafhængig freeze-review ejes separat.
+
+Policy forbliver tom/default off. En fremtidig særskilt reviewed policy kræver præcis `purpose=podview_mood_v1`, eksisterende `gpt-6-luna`,1–20 requests, grov roomkind og approvalreference; request≤4KiB, output≤128tokens,4s timeout, separat formålsmarkeret allowance og ingen retry/refill. Navigation og authority renewal genererer ingen nye temaer eller modelrequests. Der er ikke oprettet virkelig policy/allowance eller controlgrant. Ingen ny web-/visualproducer, samtalemotor, firmware-, mic-, latency-, startvolume- eller autoplaypolitik er indført. Visuel widget er fortsat ikke godkendt; browser/Green/assets-readback og egentlig fysisk lyd/voice/touch/relevansaccept mangler på denne kandidat.
+
+---
+
 <!-- candidate-scope-coupling
 {
   "version": 5,
@@ -304,3 +398,6 @@ Prioritet er næste handling, ikke en påstand om, at alle gamle symptomer stadi
 Alle uafsluttede produkt-/latency-/UI-epics forbliver åbne. Kilde, CI, publicering,
 installation og fysisk accept er separate påstande; ingen af de gamle lukkede-mic-
 krav genindføres som en gate for v2.x.
+
+
+Sidste afgrænsede staticfreeze ·15. oktober2026: kun weather-view.js, widget-view.js og weather-only compactCSS ændres efter ovenstående samlede350-testpakning; vejrtesten er normaliseret igen. Alle131 rootassets og45 normaliserede testfiler er byteverificeret. Nyt manifest SHA-256 `a783c741d7aaee5c3759b6116bb9c15cc7f5b23a446e5eb87fa4c8bbfc1f7ebf`. Authorens fulde aktuelle rootkørsel er325PASS; målrettet root og faktisk packaged26/26PASS for weather, first-music-opening og scroll-edges, ændret JS-syntaks og diff-check PASS. Uændrede øvrige staticchecks genbruges; ingen ny fuld packaged351PASS påstås. Root ejer endelige admissionpins/CI og faktisk Green/fysisk accept.

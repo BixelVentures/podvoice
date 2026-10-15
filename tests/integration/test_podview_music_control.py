@@ -73,7 +73,9 @@ class Rig:
             await self.hook()
         if self.raw is not None:
             return httpx.Response(self.code, content=self.raw)
-        if request.url.path.endswith(("get_playback_controls", "get_track_play_controls")):
+        if request.url.path.endswith(
+            ("get_playback_controls", "get_track_play_controls", "get_context_play_controls")
+        ):
             value = self.value
         else:
             value = {
@@ -483,3 +485,34 @@ async def test_native_execute_fails_before_command_without_valid_policy(rig, cha
     result = await rig.facade.execute_track(value, "spotify:track:" + "A" * 22, 40, lambda: True)
     assert result["outcome"] == "rejected"
     assert not rig.calls
+
+
+async def test_context_facade_reuses_native_owner_proof_and_exact_context_uri(rig):
+    track_owner(rig)
+    rig.tools._discovery = replace(
+        rig.tools._discovery,
+        podconnect_services=rig.tools._discovery.podconnect_services
+        | {"get_context_play_controls"},
+    )
+    rig.value.update(actions=["play_context"], context_play_supported=True)
+    offer = await rig.facade.setup_context(
+        "account", "device", "native-room", "homepod-id", lambda: True
+    )
+    assert offer["ok"], offer
+    uri = "spotify:playlist:" + "P" * 22
+    result = await rig.facade.execute_context(offer["data"], uri, 40, lambda: True)
+    assert result["outcome"] == "accepted"
+    assert rig.calls[0][1].endswith("get_context_play_controls")
+    request = rig.calls[1][3]
+    assert request["action"] == "play_context"
+    assert request["args"] == {
+        "context_uri": uri,
+        "max_volume": 40,
+        "room_id": "native-room",
+        "homepod_id": "homepod-id",
+        "start_policy_revision": "b" * 64,
+        "alias_incarnation": "alias-1",
+    }
+    assert "autoplay" not in request["args"]
+    assert "track_uri" not in request["args"]
+    assert len(rig.calls) == 2

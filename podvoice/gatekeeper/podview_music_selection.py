@@ -76,15 +76,21 @@ class MusicSelection:
         if not _closed_context(context) or not isinstance(data, dict):
             return None
         tracks = data.get("tracks")
-        if kind not in {"search", "recent", "top", "liked"}:
+        if kind not in {"search", "recent", "top", "liked", "mood"}:
             return None
-        maximum = 3 if kind == "search" else 50
+        maximum = 3 if kind in {"search", "mood"} else 50
         if not isinstance(tracks, list) or not 1 <= len(tracks) <= maximum:
             return None
         if any(
             not isinstance(row, dict)
             or not isinstance(row.get("uri"), str)
-            or _TRACK.fullmatch(row.get("uri", "")) is None
+            or re.fullmatch(
+                r"spotify:playlist:[A-Za-z0-9]{22}"
+                if kind == "mood"
+                else r"spotify:track:[A-Za-z0-9]{22}",
+                row.get("uri", ""),
+            )
+            is None
             or not isinstance(row.get("name"), str)
             or not 1 <= len(row["name"]) <= 256
             or not isinstance(row.get("artist"), str)
@@ -181,7 +187,10 @@ class MusicSelection:
             return None
         if (
             controls.get("owner_epoch") != source["ownerEpoch"]
-            or controls.get("track_play_supported") is not True
+            or controls.get(
+                "context_play_supported" if source["kind"] == "mood" else "track_play_supported"
+            )
+            is not True
         ):
             return None
         try:
@@ -214,6 +223,7 @@ class MusicSelection:
         ]
         task = {
             "id": task_id,
+            "action": "play_context" if source["kind"] == "mood" else "play_track",
             "candidateSetId": identifier,
             "context": copy.deepcopy(context),
             "ownerBinding": owner_binding,
@@ -337,7 +347,10 @@ class MusicSelection:
                 or controls.get("config_entry_id") != task["account"]
                 or controls.get("target", {}).get("target_id") != task["target"]
                 or controls.get("owner_epoch") != task["ownerEpoch"]
-                or controls.get("track_play_supported") is not True
+                or controls.get(
+                    "context_play_supported" if source["kind"] == "mood" else "track_play_supported"
+                )
+                is not True
                 or controls.get("status") != "ready"
             ):
                 self.receipts[key] = fingerprint, failure

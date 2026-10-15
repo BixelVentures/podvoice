@@ -239,10 +239,10 @@ def test_changed_native_dependency_rejected(candidate):
 
 def test_official_calls_and_old_policy_pins():
     assert (
-        '"scripts/candidate_scope_admission.py",' in (SOURCE / "scripts/dev_cycle.py").read_text()
+        '"scripts/candidate_scope_admission31.py",' in (SOURCE / "scripts/dev_cycle.py").read_text()
     )
     assert (
-        "python3 scripts/candidate_scope_admission.py --base"
+        "python3 scripts/candidate_scope_admission31.py --base"
         in (SOURCE / ".github/workflows/ci.yml").read_text()
     )
     old = (SOURCE / "scripts/candidate_scope.py").read_bytes()

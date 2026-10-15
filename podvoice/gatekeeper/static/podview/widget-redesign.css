@@ -212,7 +212,8 @@ button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120
 
 .timer-duration select{display:block;width:100%;min-height:64px;border-radius:16px;padding:12px;background:var(--pv-timer-control);color:#fff;font-size:28px;border:1px solid #526b70;font-variant-numeric:tabular-nums;margin-top:12px}.control-option input[type=range]{display:block;width:100%;height:56px;accent-color:var(--pv-screen-action-ink);margin:16px 0}.control-option output{display:block;font-size:28px;font-variant-numeric:tabular-nums;margin-bottom:20px}
 /* Connection/voice feedback never participates in the approved frame layout. */
-[data-mode=live] #connection-note{position:fixed;z-index:8;top:16px;bottom:auto;left:50%;right:auto;transform:translateX(-50%);margin:0;max-width:min(360px,calc(100vw - 48px));padding:10px 16px;border-radius:16px;background:var(--pv-screen-surface);color:var(--pv-screen-ink);text-align:center;line-height:1.4}
+/* Connection status occupies the shared header layer, never the content layout. */
+#connection-note{position:fixed;z-index:8;top:16px;bottom:auto;left:50%;right:auto;transform:translateX(-50%);margin:0;max-width:min(360px,calc(100vw - 48px));padding:10px 16px;border-radius:16px;background:var(--pv-screen-surface);color:var(--pv-screen-ink);text-align:center;line-height:1.4}
 
 /* Keep an honest missing-cover symbol centered within the retained artwork area. */
 .player .cover-button .cover.live-art-fallback,#detail-cover.live-art-fallback{object-fit:contain;object-position:center;padding:28%}
@@ -267,17 +268,19 @@ pv-widget-host{--overview-lift:72px}
 @media(min-width:760px) and (min-height:480px) and (max-height:650px){
  #music-detail[open]{height:calc(100dvh - 32px);padding-bottom:20px}
  #music-detail header{margin-bottom:0}
- #music-detail .now-playing-detail{grid-template-columns:192px minmax(0,1fr);gap:24px}
- #music-detail .detail-controls{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;align-items:center;min-width:0}
+ #music-detail .now-playing-detail{grid-template-columns:208px minmax(0,1fr);gap:24px;align-items:start}
+ #music-detail .detail-controls{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;align-items:center;min-width:0;min-height:218px}
  #music-detail .detail-controls h3,#music-detail .detail-controls>p{grid-column:1/-1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
- #music-detail .detail-controls h3{font-size:28px;line-height:1.1;margin:0 0 4px}
- #music-detail .detail-controls>p{font-size:16px;line-height:20px;margin:0}
- #music-detail .detail-controls .transport{grid-column:1/-1;margin:4px 0 26px;gap:24px}
+ #music-detail .detail-controls h3{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;font-size:22px;line-height:24px;letter-spacing:-.02em;margin:0 0 4px}
+ #music-detail .detail-controls>p{font-size:14px;line-height:18px;margin:0}
+ #music-detail .detail-controls .transport{grid-column:1/-1;margin:12px 0 24px;gap:24px}
  #music-detail .detail-output{grid-column:1;width:auto;margin:0;padding:8px 12px;min-height:48px}
- #music-detail .detail-controls .volume{grid-column:2;min-width:0;gap:8px}
- #music-detail .detail-queue{margin-top:8px;padding-top:8px}
+ #music-detail .detail-controls .volume{grid-column:2;min-width:0;gap:8px;height:48px;box-sizing:border-box}
+ #music-detail .detail-queue{margin-top:8px;padding-top:0}
  #music-detail .detail-queue>h3{padding-bottom:4px}
  #music-detail #queue{max-height:228px;padding-bottom:24px}
+ #music-detail .queue-track{min-height:56px;padding:4px 8px;grid-template-columns:20px 40px minmax(0,1fr) 24px}
+ #music-detail .queue-track>img:not(.queue-play){width:40px;height:40px}
 }
 @media(max-height:479px){#music-detail[open]{overflow-y:auto}#music-detail .detail-queue{flex:none}#music-detail #queue{max-height:160px}}
 #now-rest{display:block;font:inherit;letter-spacing:inherit;line-height:inherit;background:transparent;text-align:left;padding:0;min-height:48px}
@@ -296,6 +299,19 @@ pv-widget-host{--overview-lift:72px}
 [data-scroll-axis=x][data-scroll-edge=end]{mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 28px),transparent)}
 [data-scroll-axis=x][data-scroll-edge=start]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 100%)}
 [data-scroll-axis=x][data-scroll-edge="start end"]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+/* Weather keeps a visible next-hour peek; fade only where more hours remain. */
+.weather-hours[data-scroll-axis=x][data-scroll-edge=end]{mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 48px),transparent)}
+.weather-hours[data-scroll-axis=x][data-scroll-edge=start]{mask-image:linear-gradient(to right,transparent,#000 48px,#000 100%)}
+.weather-hours[data-scroll-axis=x][data-scroll-edge="start end"]{mask-image:linear-gradient(to right,transparent,#000 48px,#000 calc(100% - 48px),transparent)}
+.weather-next-hour{font-size:16px;line-height:1.5;color:#425e68;margin:16px 0 0;text-wrap:pretty}
+.weather-hours .weather-hour-rain{font-size:13px;line-height:1.3;color:#425e68;white-space:nowrap;margin-top:-8px}
+@media(min-width:760px) and (max-height:640px){
+ .weather-current strong{font-size:72px}
+ .weather-summary{font-size:18px;line-height:1.35;margin:12px 0}
+ .weather-summary small{font-size:14px}
+ .weather-hours{padding:12px 0}
+ .weather-hours>div{gap:8px}
+}
 [data-scroll-axis=y][data-scroll-edge=end]{mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 20px),transparent)}
 [data-scroll-axis=y][data-scroll-edge=start]{mask-image:linear-gradient(to bottom,transparent,#000 20px,#000 100%)}
 [data-scroll-axis=y][data-scroll-edge="start end"]{mask-image:linear-gradient(to bottom,transparent,#000 20px,#000 calc(100% - 20px),transparent)}

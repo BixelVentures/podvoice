@@ -1,6 +1,7 @@
-"""INACTIVE source proposal: bounded owner-requested HA reads for native visual data.
+"""Closed completed-receipt extraction; independent HA research reads stay inactive.
 
-No startup/Thin/route imports this module. Only the existing conversation model may
+The receipt owner lazily reuses extract() under its explicit existing opt-in.
+No startup/Thin/route constructs the independent ResearchOwner below. Only the existing conversation model may
 request research; this module never interprets a question, creates model calls,
 changes conversation state or gains write authority. Admission needs a separately
 reviewed startup policy and real HA helper/schema/cost receipts.
@@ -13,6 +14,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 import secrets
 import time
 from collections.abc import Callable
@@ -285,7 +287,12 @@ def extract(tool: str, response: object, *, now: float) -> dict | None:
             return None
         # Native fact-card anatomy supports bounded source excerpts, not invented facts.
         # Split exact consecutive source bytes; no synthetic summary or new claims.
-        excerpts = [data[i : i + 80] for i in range(0, len(data), 80)][:6]
+        # Whole exact source sentences/lines only. Never cut a word or turn
+        # an arbitrary 80-character slice into a purported semantic fact.
+        units = [part.strip() for part in re.split(r"(?<=[.!?])\s+|[\r\n]+", data) if part.strip()]
+        if not units or any(not _text(part, 80) for part in units):
+            return None
+        excerpts = units[:6]
         if any(not _text(part, 80) for part in excerpts):
             return None
         return {
@@ -306,7 +313,7 @@ def extract(tool: str, response: object, *, now: float) -> dict | None:
                 "kind": "tool_result",
                 "retrievedAt": now,
                 "externalSourcesProvided": False,
-                "textTruncated": len(data) > 480,
+                "textTruncated": len(units) > 6,
             },
         }
     except (ValueError, TypeError, KeyError, OverflowError):

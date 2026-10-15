@@ -343,6 +343,7 @@ class _PassiveWeatherMCP:
         self.entered, self.release = asyncio.Event(), asyncio.Event()
         self.block = False
         self.cancelled = False
+        self.forecast_payloads = {}
 
     async def respond(self, request):
         body = json.loads(request.content)
@@ -372,7 +373,10 @@ class _PassiveWeatherMCP:
                 except asyncio.CancelledError:
                     self.cancelled = True
                     raise
-            result = {"content": [{"type": "text", "text": json.dumps(self.payload["data"])}]}
+            payload = self.forecast_payloads.get(
+                body["params"]["arguments"].get("forecast_type"), self.payload
+            )
+            result = {"content": [{"type": "text", "text": json.dumps(payload["data"])}]}
         return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": result})
 
     async def router(self, client):
@@ -489,6 +493,227 @@ def test_passive_weather_cache_cannot_extend_source_deadline(monkeypatch):
     retrieved = datetime.fromisoformat(projected["data"]["retrievedAt"]).timestamp()
     monkeypatch.setattr(weather.time, "time", lambda: retrieved + MAX_RETRIEVAL_AGE_S + 0.01)
     assert not observation_is_current(projected)
+
+
+DUAL_WEATHER_SCHEMA = {
+    "type": "object",
+    "properties": {"forecast_type": {"type": "string", "enum": ["daily", "hourly"]}},
+    "additionalProperties": False,
+}
+
+
+def _dual_weather_fixture(schema=None):
+    fixture = _PassiveWeatherMCP(DUAL_WEATHER_SCHEMA if schema is None else schema)
+    daily = copy.deepcopy(fixture.payload)
+    result = daily["data"]["result"]
+    result["forecast_type"] = "daily"
+    result["forecast"] = result["forecast"][:6]
+    first = datetime.fromisoformat(result["forecast"][0]["datetime"])
+    for index, row in enumerate(result["forecast"]):
+        row["datetime"] = (first + timedelta(days=index)).isoformat()
+        row["templow"] = row["temperature"] - 5
+    fixture.forecast_payloads = {"daily": daily, "hourly": fixture.payload}
+    return fixture
+
+
+async def test_passive_weather_reads_declared_daily_and_hourly_once_from_same_owner():
+    fixture = _dual_weather_fixture()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        snapshot, declarations = router._discovery, router.declarations()
+        projected = await router.podview_weather_read()
+        assert projected["status"] == "observed"
+        daily, hourly = projected["data"], projected["data"]["hourly"]
+        assert daily["forecastType"] == "daily" and hourly["forecastType"] == "hourly"
+        assert hourly["retrievedAt"] == fixture.payload["data"]["result"]["retrieved_at"]
+        assert hourly["source"] == daily["source"]
+        assert hourly["forecast"][0]["temperature"] == 16.4
+        assert "highTemperature" not in hourly["forecast"][0]
+        assert daily["forecast"][0]["highTemperature"] == 16.4
+        assert daily["forecast"][0]["lowTemperature"] == 16.4 - 5
+        assert [call["params"] for call in fixture.calls] == [
+            {"name": "weather_forecast", "arguments": {"forecast_type": kind}}
+            for kind in ("daily", "hourly")
+        ]
+        assert router._discovery is snapshot and router.declarations() == declarations
+        assert not router._refresh.await_count and not router._dispatch.await_count
+
+
+@pytest.mark.parametrize("kind", ["source", "location", "units", "stale", "type", "error"])
+async def test_passive_weather_hourly_partial_failure_retains_daily_without_retry(kind):
+    fixture = _dual_weather_fixture()
+    hourly = fixture.payload["data"]["result"]
+    if kind in {"source", "location"}:
+        hourly[kind] = "different"
+    elif kind == "units":
+        hourly["temperature_unit"] = "°F"
+    elif kind == "stale":
+        hourly["retrieved_at"] = (datetime.now(UTC) - timedelta(minutes=16)).isoformat()
+    elif kind == "type":
+        hourly["forecast_type"] = "daily"
+    else:
+        fixture.payload["data"]["success"] = False
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        projected = await router.podview_weather_read()
+        assert projected["status"] == "observed"
+        assert projected["data"]["forecastType"] == "daily"
+        assert "hourly" not in projected["data"]
+        assert len(fixture.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object"},  # additional properties accepting a value is not a declaration
+        {"type": "object", "properties": {"type": {"enum": ["daily", "hourly"]}}},
+        {"type": "object", "properties": {"forecast_type": {"enum": ["daily"]}}},
+        {**DUAL_WEATHER_SCHEMA, "not": {"required": ["forecast_type"]}},
+    ],
+)
+async def test_passive_weather_undeclared_or_invalid_forecast_option_keeps_empty_read(schema):
+    fixture = _dual_weather_fixture(schema)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        assert (await router.podview_weather_read())["status"] == "observed"
+        assert [call["params"]["arguments"] for call in fixture.calls] == [{}]
+
+
+@pytest.mark.parametrize("boundary", ["snapshot", "owner", "epoch", "endpoint"])
+async def test_passive_dual_weather_replacement_during_hourly_discards_both(boundary):
+    fixture = _dual_weather_fixture()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        original = router._mcp.call_tool
+
+        async def replace_during_hourly(name, arguments, **kwargs):
+            result = await original(name, arguments, **kwargs)
+            if arguments == {"forecast_type": "hourly"}:
+                if boundary == "snapshot":
+                    router._discovery = replace(router._discovery)
+                elif boundary == "owner":
+                    router._mcp = HomeAssistantMCP(
+                        "http://fixture.invalid/api/mcp/assist", "new", client
+                    )
+                elif boundary == "epoch":
+                    router._mcp_epoch += 1
+                else:
+                    router._mcp.url = "http://replacement.invalid/api/mcp/assist"
+            return result
+
+        router._mcp.call_tool = replace_during_hourly
+        assert await router.podview_weather_read() == {"status": "unavailable", "data": None}
+        assert len(fixture.calls) == 2
+
+
+async def test_passive_dual_weather_hourly_transport_error_is_not_retried():
+    fixture = _dual_weather_fixture()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        original = router._mcp.call_tool
+        attempted = []
+
+        async def fail_hourly(name, arguments, **kwargs):
+            attempted.append(arguments)
+            if arguments == {"forecast_type": "hourly"}:
+                raise TimeoutError
+            return await original(name, arguments, **kwargs)
+
+        router._mcp.call_tool = fail_hourly
+        projected = await router.podview_weather_read()
+        assert projected["data"]["forecastType"] == "daily"
+        assert "hourly" not in projected["data"]
+        assert attempted == [{"forecast_type": "daily"}, {"forecast_type": "hourly"}]
+
+
+async def test_passive_dual_weather_daily_cannot_expire_during_hourly_await(monkeypatch):
+    import gatekeeper.podview_weather as weather
+
+    fixture = _dual_weather_fixture()
+    retrieved = datetime.fromisoformat(
+        fixture.forecast_payloads["daily"]["data"]["result"]["retrieved_at"]
+    ).timestamp()
+    clock = [retrieved + 1]
+    monkeypatch.setattr(weather.time, "time", lambda: clock[0])
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        original = router._mcp.call_tool
+
+        async def expire_during_hourly(name, arguments, **kwargs):
+            result = await original(name, arguments, **kwargs)
+            if arguments == {"forecast_type": "hourly"}:
+                clock[0] = retrieved + MAX_RETRIEVAL_AGE_S + 1
+            return result
+
+        router._mcp.call_tool = expire_during_hourly
+        assert await router.podview_weather_read() == {"status": "unavailable", "data": None}
+        assert len(fixture.calls) == 2
+
+
+async def test_passive_dual_weather_bad_daily_never_fetches_or_infers_hourly():
+    fixture = _dual_weather_fixture()
+    fixture.forecast_payloads["daily"]["data"]["result"]["forecast_type"] = "hourly"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        assert await router.podview_weather_read() == {"status": "unavailable", "data": None}
+        assert [call["params"]["arguments"] for call in fixture.calls] == [
+            {"forecast_type": "daily"}
+        ]
+
+
+async def test_passive_dual_weather_deadline_cancels_hourly_and_returns_daily(monkeypatch):
+    fixture = _dual_weather_fixture()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        wait_for = asyncio.wait_for
+        deadlines = []
+
+        async def short_hourly_deadline(awaitable, **kwargs):
+            timeout = kwargs["timeout"]
+            deadlines.append(timeout)
+            if len(deadlines) == 2:
+                fixture.block = True
+                timeout = 0.01
+            return await wait_for(awaitable, timeout=timeout)
+
+        monkeypatch.setattr(asyncio, "wait_for", short_hourly_deadline)
+        projected = await router.podview_weather_read()
+        assert projected["data"]["forecastType"] == "daily"
+        assert "hourly" not in projected["data"]
+        assert fixture.cancelled and len(fixture.calls) == 2
+        assert 0 < deadlines[1] < deadlines[0] <= 7
+
+
+async def test_passive_dual_weather_scheduled_call_cannot_reinitialize_owner(monkeypatch):
+    fixture = _dual_weather_fixture()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        wait_for = asyncio.wait_for
+        calls = 0
+
+        async def disconnect_before_scheduled_call(awaitable, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                router._mcp.reset_connection_state()
+            return await wait_for(awaitable, **kwargs)
+
+        monkeypatch.setattr(asyncio, "wait_for", disconnect_before_scheduled_call)
+        assert await router.podview_weather_read() == {"status": "unavailable", "data": None}
+        assert [row["method"] for row in fixture.calls] == ["tools/call"]
+
+
+def test_dual_weather_cache_does_not_extend_hourly_source_age(monkeypatch):
+    import gatekeeper.podview_weather as weather
+
+    daily = weather_projection(_current_weather_payload())
+    daily["data"]["forecastType"] = "daily"
+    hourly = weather_projection(_current_weather_payload())["data"]
+    hourly["retrievedAt"] = (datetime.now(UTC) - timedelta(seconds=899)).isoformat()
+    daily["data"]["hourly"] = hourly
+    stamp = datetime.fromisoformat(hourly["retrievedAt"]).timestamp()
+    monkeypatch.setattr(weather.time, "time", lambda: stamp + 901)
+    assert not observation_is_current(daily)
 
 
 def _advice_payload(monkeypatch, **fields):

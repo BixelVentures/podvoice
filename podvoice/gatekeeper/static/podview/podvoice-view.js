@@ -1,3 +1,4 @@
+import {orderHomeDevices} from './home-model.js';
 // PodVoice owns resources and authorizes controls. Unconfigured lights remain a visible placeholder.
 export const unconfiguredLight=()=>({id:"podvoice-light-unconfigured",kind:"light",revision:1,status:"unavailable",pending:null,hidden:false,timeline:[]});
 export function liveScene(base, snapshot) {
@@ -5,7 +6,7 @@ export function liveScene(base, snapshot) {
  const items=snapshot.timers.status==='observed'?snapshot.timers.items:[];
  const previousTimer=t=>{const previous=base.timer?.id===t.id?base.timer:base.extraTimers.find(x=>x.id===t.id);return previous?.ownerBootId===snapshot.bootId?previous:null;};
  const timers=items.filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string'&&Number.isFinite(t.secondsLeft)&&['running','paused','finished'].includes(t.status)).slice(0,32).map(t=>({id:t.id,name:t.name.slice(0,120),remaining:t.status==='finished'?0:Math.max(0,t.secondsLeft),duration:durationFor(t),status:t.status==='finished'?'done':t.status,deadline:null,hidden:false,ownerBootId:snapshot.bootId,noticeDismissed:previousTimer(t)?.noticeDismissed}));
- const homeAllowed=snapshot.capabilities?.homeRead?.includes('vacuum'),devices=[unconfiguredLight(),...(homeAllowed?base.devices.filter(d=>d.source==='home_assistant_state'):[])];
+ const homeAllowed=snapshot.capabilities?.homeRead?.includes('vacuum'),devices=orderHomeDevices([unconfiguredLight(),...(homeAllowed?base.devices.filter(d=>d.source==='home_assistant_state'):[])]);
  const revokedWeather=base.focus==='weather'&&!snapshot.capabilities?.homeRead?.includes('weather');
  const revokedAnswer=base.answers.some(a=>a.live&&a.id===base.focus)&&(snapshot.capabilities?.answerRead!==true||!base.answers.some(a=>a.id===base.focus&&a.sessionId===snapshot.answers?.sessionId&&a.turnId===snapshot.answers?.turnId&&a.taskId===snapshot.answers?.taskId&&a.inputRevision===snapshot.answers?.inputRevision&&a.revision===snapshot.answers?.revision));
  const revokedFocus=revokedWeather||revokedAnswer||base.devices.some(d=>d.id===base.focus&&d.source==='home_assistant_state')&&!devices.some(d=>d.id===base.focus);

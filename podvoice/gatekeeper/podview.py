@@ -354,6 +354,7 @@ class PodViewBridge:
                 task["maxVolume"],
                 grant,
                 task["nativeBinding"],
+                task.get("action", "play_track"),
             )
         ):
             return None
@@ -410,13 +411,16 @@ class PodViewBridge:
                     task["maxVolume"],
                     grant,
                     task["nativeBinding"],
+                    task.get("action", "play_track"),
                 )
             )
 
         async def fresh_controls():
-            result = await self.controls.music.setup_track(
-                task["account"], task["target"], *task["nativeBinding"], selected_current
-            )
+            result = await (
+                self.controls.music.setup_context
+                if task.get("action") == "play_context"
+                else self.controls.music.setup_track
+            )(task["account"], task["target"], *task["nativeBinding"], selected_current)
             return result.get("data", {}) if result.get("ok") is True else {}
 
         result = await self.music_selection.execute(
@@ -430,7 +434,9 @@ class PodViewBridge:
             authority=task["authority"],
             current=selected_current,
             fresh_controls=fresh_controls,
-            send_once=self.controls.music.execute_track,
+            send_once=self.controls.music.execute_context
+            if task.get("action") == "play_context"
+            else self.controls.music.execute_track,
         )
         return {"ok": result["ok"], "data": result}
 
@@ -510,6 +516,8 @@ class PodViewBridge:
             for row in timer_state.get(group, [])
         ]
         music_reads: list[str] = getattr(self.tools, "podview_music_reads", lambda: [])()
+        if not self.controls.selection_allowed(room, token, "play_context"):
+            music_reads = [kind for kind in music_reads if kind != "mood"]
         receipt_owner = getattr(self.tools, "podview_receipts", None)
         answers = (
             receipt_owner.snapshot(room, self.sessions[room]) if receipt_owner is not None else None
@@ -518,6 +526,11 @@ class PodViewBridge:
         result: dict = {
             "answers": {
                 "revision": answers["revision"] if answers else 0,
+                **(
+                    {"readOnlyCompleted": True}
+                    if answers and answers.get("readOnlyCompleted") is True and not active
+                    else {}
+                ),
                 **(
                     {
                         key: latest_answer.get(key)
@@ -896,7 +909,9 @@ def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, to
     context = source["context"]
     return bool(
         bridge._grant_current(room, token)
-        and bridge.controls.selection_allowed(room, token)
+        and bridge.controls.selection_allowed(
+            room, token, "play_context" if source.get("kind") == "mood" else "play_track"
+        )
         and context.get("roomId") == room
         and _music_binding(bridge, room) == source["binding"]
         and _music_search_context(bridge, room, context["configEntryId"], context["query"], token)
@@ -916,7 +931,9 @@ def _selection_voice_source_current(
     voice = snapshot.get("voice", {})
     return bool(
         bridge._grant_current(room, token)
-        and bridge.controls.selection_allowed(room, token)
+        and bridge.controls.selection_allowed(
+            room, token, "play_context" if source.get("kind") == "mood" else "play_track"
+        )
         and context.get("roomId") == room
         and _music_binding(bridge, room) == source["binding"]
         and voice.get("sessionId") == context.get("sessionId")
@@ -935,6 +952,7 @@ def _selection_rule_current(
     max_volume: int,
     grant: tuple,
     native_binding: tuple,
+    action: str = "play_track",
 ) -> bool:
     """An old offer cannot outlive its exact room grant or action rule."""
     rules = bridge.controls.policy.get("music")
@@ -949,7 +967,7 @@ def _selection_rule_current(
             and row.get("maxVolume") == max_volume
             and (row.get("nativeRoomId"), row.get("nativeHomepodId")) == native_binding
             and isinstance(row.get("actions"), list)
-            and "play_track" in row["actions"]
+            and action in row["actions"]
             for row in rules
         )
     )
@@ -1004,6 +1022,8 @@ async def _music(request: web.Request) -> web.Response:
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
     kind = request.query.get("kind", "targets")
+    if kind == "mood":
+        return await _mood_music(request, bridge, room)
     if kind not in {"targets", "recent", "top", "liked", "playback", "queue", "search"}:
         return _error("unsupported_read", 400)
     account = request.query.get("account")
@@ -1172,6 +1192,182 @@ async def _music(request: web.Request) -> web.Response:
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
+async def _mood_music(request, bridge, room):
+    """One aggregate source set, never three mutually replacing search tasks."""
+    from .podview_mood import THEMES
+
+    tools = bridge.tools
+    token = request.cookies.get(_PAIR_COOKIE, "")
+    account = request.query.get("account")
+    if (
+        set(request.query) - {"room", "kind", "account", "refresh", "renew"}
+        or request.query.get("refresh") not in (None, "1")
+        or request.query.get("renew") not in (None, "1")
+        or ("refresh" in request.query and "renew" in request.query)
+        or not isinstance(account, str)
+        or not 1 <= len(account) <= 1024
+    ):
+        return _error("invalid_mood_request", 400)
+    selector = getattr(tools, "podview_mood_selector", None)
+    if (
+        selector is None
+        or "mood" not in tools.podview_music_reads()
+        or not bridge.controls.selection_allowed(room, token, "play_context")
+    ):
+        return _error("mood_not_admitted", 403)
+    if bridge._music_busy:
+        return _error("music_busy", 429)
+    binding = _music_binding(bridge, room)
+    grant = bridge._grants.get(room)
+    bridge._music_source_generation += 1
+    generation = bridge._music_source_generation
+    context = _music_search_context(
+        bridge, room, account, "mood:collection", token, mint_touch=True
+    )
+
+    def current():
+        return bool(
+            bridge.tools is tools
+            and binding == _music_binding(bridge, room)
+            and bridge._music_source_generation == generation
+            and bridge._grants.get(room) is grant
+            and bridge.controls.selection_allowed(room, token, "play_context")
+            and _music_search_context(bridge, room, account, "mood:collection", token) == context
+        )
+
+    bridge._music_busy = True
+    bridge.music_selection.sources.clear()
+    bridge.music_selection.tasks.clear()
+    try:
+        async with asyncio.timeout(40):
+            before = await tools.podview_read("playback", account)
+            epoch = before.get("data", {}).get("owner_epoch") if before.get("ok") else None
+            if not isinstance(epoch, str) or not epoch or not current():
+                return _error("mood_owner_unavailable")
+            retained = getattr(bridge, "_mood_retained", None)
+            key = (binding, account, room, id(grant), epoch)
+            expected = None
+            ids: object = None
+            if (
+                retained
+                and retained["key"][1:3] == (account, room)
+                and request.query.get("refresh") != "1"
+            ):
+                # Every new authority set must revalidate the exact frozen playlist rows.
+                # No model call, theme change or extra allowance consumption.
+                expected = {row["themeId"]: row for row in retained["rows"]}
+                ids = list(expected)
+            elif request.query.get("renew") == "1":
+                return _error("mood_refresh_required")
+            else:
+                if not selector.available:
+                    return _error("mood_budget_unavailable")
+                coarse = await tools.podview_mood_context(current)
+                ids = await selector.select(coarse, current=current) if coarse is not None else None
+            if (
+                not current()
+                or not isinstance(ids, list)
+                or len(ids) != 3
+                or any(not isinstance(x, str) or x not in THEMES for x in ids)
+                or len(set(ids)) != 3
+            ):
+                return _error("mood_selection_unavailable")
+            async def read_theme(theme_id):
+                if not current():
+                    raise RuntimeError("mood owner replaced before lookup")
+                reply = await tools.podview_read("playlist_search", account, THEMES[theme_id]["query"])
+                if not current():
+                    raise RuntimeError("mood owner replaced during lookup")
+                return reply
+
+            # Exactly three independent reads; TaskGroup joins cancellation/failure cleanup
+            # before the request can release its busy fence or publish any authority.
+            async with asyncio.TaskGroup() as reads:
+                lookups = [reads.create_task(read_theme(theme_id)) for theme_id in ids]
+            rows, seen = [], set()
+            for theme_id, lookup in zip(ids, lookups, strict=True):
+                theme = THEMES[theme_id]
+                reply = lookup.result()
+                data = reply.get("data", {}) if reply.get("ok") is True else {}
+                if (
+                    not current()
+                    or data.get("config_entry_id") != account
+                    or data.get("owner_epoch") != epoch
+                    or data.get("source") != "spotify_web_api"
+                ):
+                    return _error(
+                        "mood_refresh_required"
+                        if expected is not None
+                        else "mood_catalogue_unavailable"
+                    )
+                playlist = next(
+                    (
+                        row
+                        for row in data.get("playlists", [])
+                        if row["uri"] not in seen
+                        and (
+                            expected is None
+                            or all(
+                                row.get(key) == expected[theme_id][key] for key in ("uri", "name")
+                            )
+                        )
+                    ),
+                    None,
+                )
+                if playlist is None:
+                    return _error(
+                        "mood_refresh_required" if expected is not None else "mood_catalogue_empty"
+                    )
+                seen.add(playlist["uri"])
+                rows.append(
+                    {
+                        "uri": playlist["uri"],
+                        "name": playlist["name"],
+                        "artist": theme["title"],
+                        "themeId": theme_id,
+                        "themeTitle": theme["title"],
+                        "themeArt": theme["image"],
+                    }
+                )
+            after = await tools.podview_read("playback", account)
+            if (
+                not current()
+                or not after.get("ok")
+                or after.get("data", {}).get("owner_epoch") != epoch
+            ):
+                return _error("mood_owner_replaced")
+            identifier = bridge.music_selection.register(
+                context, {"tracks": rows}, binding, epoch, epoch, kind="mood"
+            )
+            if identifier is None:
+                return _error("mood_source_rejected")
+            bridge._mood_retained = {"key": key, "rows": copy.deepcopy(rows)}
+            return web.json_response(
+                {
+                    "ok": True,
+                    "data": {
+                        "config_entry_id": account,
+                        "owner_epoch": epoch,
+                        "source": "spotify_web_api",
+                        "tracks": rows,
+                    },
+                    "selection": {
+                        "requested_limit": 3,
+                        "source_sample_count": 3,
+                        "returned_count": 3,
+                        "more_in_sample": False,
+                        "size_limited": False,
+                    },
+                    "candidateSet": bridge.music_selection.candidate_set(identifier),
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+    except Exception:
+        return _error("mood_unavailable")
+    finally:
+        bridge._music_busy = False
+
+
 async def _music_selection(request: web.Request) -> web.Response:
     """One short-lived server option set; the browser never supplies a Spotify URI."""
     denied = await _guard(request)
@@ -1201,10 +1397,15 @@ async def _music_selection(request: web.Request) -> web.Response:
         return _selection_source_current(bridge, source, room, token)
 
     def exact_rule_current(
-        account: str, target_id: str, max_volume: int, grant: tuple, native_binding: tuple
+        account: str,
+        target_id: str,
+        max_volume: int,
+        grant: tuple,
+        native_binding: tuple,
+        action: str = "play_track",
     ) -> bool:
         return _selection_rule_current(
-            bridge, room, account, target_id, max_volume, grant, native_binding
+            bridge, room, account, target_id, max_volume, grant, native_binding, action
         )
 
     if request.path.endswith("/setup"):
@@ -1226,13 +1427,14 @@ async def _music_selection(request: web.Request) -> web.Response:
             return _error("stale_music_selection")
         if bridge.music_selection.selected_tracks(source, body.get("candidateIds")) is None:
             return _error("invalid_candidate_ids", 400)
+        selection_action = "play_context" if source.get("kind") == "mood" else "play_track"
         rule = next(
             (
                 row
                 for row in bridge.controls.policy["music"]
                 if row["accountId"] == target["accountId"]
                 and row["targetId"] == target["targetId"]
-                and "play_track" in row["actions"]
+                and selection_action in row["actions"]
                 and row.get("nativeRoomId")
                 and row.get("nativeHomepodId")
             ),
@@ -1254,13 +1456,14 @@ async def _music_selection(request: web.Request) -> web.Response:
                     rule["maxVolume"],
                     grant,
                     native_binding,
+                    selection_action,
                 )
             )
 
         facade = bridge.controls.music
-        controls = await facade.setup_track(
-            target["accountId"], target["targetId"], *native_binding, selected_current
-        )
+        controls = await (
+            facade.setup_context if selection_action == "play_context" else facade.setup_track
+        )(target["accountId"], target["targetId"], *native_binding, selected_current)
         if controls.get("ok") is not True or not selected_current():
             return _error("music_selection_unavailable")
         context = source["context"]
@@ -1307,16 +1510,21 @@ async def _music_selection(request: web.Request) -> web.Response:
         return bool(
             source_current(source)
             and exact_rule_current(
-                task["account"], task["target"], task["maxVolume"], grant, task["nativeBinding"]
+                task["account"],
+                task["target"],
+                task["maxVolume"],
+                grant,
+                task["nativeBinding"],
+                task.get("action", "play_track"),
             )
         )
 
     facade = bridge.controls.music
 
     async def fresh_controls():
-        result = await facade.setup_track(
-            task["account"], task["target"], *task["nativeBinding"], action_current
-        )
+        result = await (
+            facade.setup_context if task.get("action") == "play_context" else facade.setup_track
+        )(task["account"], task["target"], *task["nativeBinding"], action_current)
         return result.get("data", {}) if result.get("ok") is True else {}
 
     result = await bridge.music_selection.execute(
@@ -1330,7 +1538,9 @@ async def _music_selection(request: web.Request) -> web.Response:
         authority=task["authority"],
         current=action_current,
         fresh_controls=fresh_controls,
-        send_once=facade.execute_track,
+        send_once=facade.execute_context
+        if task.get("action") == "play_context"
+        else facade.execute_track,
     )
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 

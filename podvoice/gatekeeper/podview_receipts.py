@@ -188,7 +188,16 @@ class VisualReceiptOwner:
 
             async with asyncio.timeout(5):
                 selected = await selector.select(
-                    copy.deepcopy(row.get("selection_content", row["item"]["content"])),
+                    copy.deepcopy(
+                        {
+                            **row.get("selection_content", row["item"]["content"]),
+                            **(
+                                {"queryContext": row["query_context"]}
+                                if row.get("query_context")
+                                else {}
+                            ),
+                        }
+                    ),
                     current=current_receipt,
                 )
 
@@ -251,6 +260,8 @@ class VisualReceiptOwner:
         tool_name: str,
         result: object,
         current: Callable[[], bool],
+        tool_query: str | None = None,
+        read_current: Callable[[bool], bool] | None = None,
     ) -> bool:
         """Offer after result submission; no coroutine, network request or retry."""
         if self._closed or not all(
@@ -277,6 +288,13 @@ class VisualReceiptOwner:
                 from .podview_research import extract
 
                 research = extract(tool_name, result, now=time.time())
+            query_context = (
+                {"tool": tool_name, "query": tool_query}
+                if tool_name == "google_web_sogning"
+                and isinstance(tool_query, str)
+                and _text(tool_query, 240)
+                else None
+            )
             projected = _facts(tool_name, result) if research is None else None
             if projected is None and research is None:
                 return False
@@ -300,6 +318,8 @@ class VisualReceiptOwner:
             else:
                 assert projected is not None
                 summary, facts, _suggested, provenance = projected
+            if query_context and len(query_context["query"]) <= 200:
+                summary = query_context["query"]
             if not all(_text(f["value"], 80) and _text(f["detail"], 200) for f in facts):
                 return False
             if not current():
@@ -322,6 +342,8 @@ class VisualReceiptOwner:
             state: dict = {
                 "key": key,
                 "current": current,
+                "read_current": read_current,
+                "completed": False,
                 "seen": set(),
                 "items": [],
                 "revision": (previous["revision"] if previous else 0) + 1,
@@ -362,7 +384,12 @@ class VisualReceiptOwner:
             "provenance": provenance,
             "content": content,
         }
-        row = {"item": item, "deadline": self._clock() + 120, "tool": tool_name}
+        row = {
+            "item": item,
+            "deadline": self._clock() + 120,
+            "tool": tool_name,
+            "query_context": query_context,
+        }
         if research is not None:
             item.update(
                 schema="podview.research.v1",
@@ -406,19 +433,56 @@ class VisualReceiptOwner:
                 self._selection = loop.create_task(self._select(room_id, state, row))
         return True
 
+    def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
+        """Revoke this exact owner's reads synchronously, including sealed normal-close reads."""
+        state = self._rooms.get(room_id)
+        if (
+            state is not None
+            and state["key"][0] is owner
+            and state["key"][1:3]
+            == (
+                session_id,
+                epoch,
+            )
+        ):
+            self._rooms.pop(room_id)
+
+    def complete(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
+        """Normal close may seal already admitted immutable reads, never pending work."""
+        state = self._rooms.get(room_id)
+        if (
+            self._closed
+            or state is None
+            or (state["key"][0] is not owner or state["key"][1:3] != (session_id, epoch))
+        ):
+            return
+        if state.get("read_current") is None:
+            return
+        state["items"] = [r for r in state["items"] if r["item"]["displaySuggested"] is True]
+        state["completed"] = True
+
     def _current(self, room_id: str, owner: object | None = None) -> dict | None:
         state = self._rooms.get(room_id)
         if self._closed or state is None:
             return None
+        owner_ok = owner is None or state["key"][0] is owner
         try:
-            valid = (owner is None or state["key"][0] is owner) and state["current"]()
+            valid = owner_ok and state["current"]()
         except Exception:
             valid = False
+        try:
+            read_valid = (
+                owner_ok
+                and state.get("read_current") is not None
+                and state["read_current"](state.get("completed") is True)
+            )
+        except Exception:
+            read_valid = False
         before = len(state["items"])
         state["items"] = [
             r
             for r in state["items"]
-            if valid
+            if (valid or (read_valid and r["item"]["displaySuggested"] is True))
             and self._clock() < r["deadline"]
             and time.time() < r["item"]["provenance"].get("validUntil", float("inf"))
         ]
@@ -444,6 +508,11 @@ class VisualReceiptOwner:
             "roomId": room_id,
             "revision": state["revision"] if state else 0,
             "items": items,
+            **(
+                {"readOnlyCompleted": True}
+                if state and state.get("completed") is True and items
+                else {}
+            ),
         }
 
     def source(self, room_id: str, receipt_id: str, owner: object | None = None) -> dict | None:

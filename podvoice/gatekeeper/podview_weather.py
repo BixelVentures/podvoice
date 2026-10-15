@@ -300,6 +300,28 @@ def weather_projection(response: object) -> dict:
     }
 
 
+def with_hourly_projection(daily: dict, hourly: dict) -> dict:
+    """Attach only independently fresh, compatible output from the same read owner.
+
+    The router owns exact MCP identity across both awaits. Each closed projection
+    retains its own retrieval/state timestamps, coverage and source-bound advice;
+    no daily high/low is derived from an incomplete set of hourly observations.
+    """
+    if (
+        daily.get("status") != "observed"
+        or hourly.get("status") != "observed"
+        or daily["data"]["forecastType"] != "daily"
+        or hourly["data"]["forecastType"] != "hourly"
+        or not observation_is_current(daily)
+        or not observation_is_current(hourly)
+    ):
+        return daily
+    primary, auxiliary = daily["data"], hourly["data"]
+    if any(primary[key] != auxiliary[key] for key in ("source", "location", "units")):
+        return daily
+    return {**daily, "data": {**primary, "hourly": auxiliary}}
+
+
 def observation_is_current(value: object) -> bool:
     """A short display cache cannot extend the source's freshness deadline."""
     if not isinstance(value, dict) or value.get("status") != "observed":
@@ -320,6 +342,10 @@ def observation_is_current(value: object) -> bool:
         not isinstance(advice, dict)
         or not _number(advice.get("validUntil"))
         or now >= advice["validUntil"]
+    ):
+        return False
+    if "hourly" in data and not observation_is_current(
+        {"status": "observed", "data": data["hourly"]}
     ):
         return False
     return True
