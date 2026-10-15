@@ -16,6 +16,14 @@ export function weatherObservation(v){
  if(!v||typeof v.source!=='string'||!v.source.length||typeof v.retrievedAt!=='string'||!Number.isFinite(Date.parse(v.retrievedAt))||!Number.isFinite(v.observedAt)||!v.units||!Array.isArray(v.forecast)||v.forecast.length>48)throw Error('invalid_weather');
  const unit=v.units.temperature;if(!['°C','°F','C','F'].includes(unit))throw Error('unknown_temperature_unit');
  const current=v.current===null?null:{temperature:Number.isFinite(v.current?.temperature)?v.current.temperature:null,condition:typeof v.current?.condition==='string'?v.current.condition.slice(0,80):''};
- const forecast=v.forecast.map(row=>{if(typeof row.datetime!=='string'||!Number.isFinite(Date.parse(row.datetime)))throw Error('invalid_weather_period');return {datetime:row.datetime,temperature:Number.isFinite(row.temperature)?row.temperature:null,condition:typeof row.condition==='string'?row.condition.slice(0,80):'',rain:Number.isFinite(row.precipitation_probability)?row.precipitation_probability:null};});
+ const forecast=v.forecast.map(row=>{if(v.forecastType==='daily'&&(('highTemperature' in row&&(!Number.isFinite(row.highTemperature)||row.highTemperature!==row.temperature))||('lowTemperature' in row&&(!Number.isFinite(row.lowTemperature)||!Number.isFinite(row.highTemperature)||row.lowTemperature>row.highTemperature))))throw Error('invalid_daily_range');if(typeof row.datetime!=='string'||!Number.isFinite(Date.parse(row.datetime)))throw Error('invalid_weather_period');return {datetime:row.datetime,temperature:Number.isFinite(row.temperature)?row.temperature:null,condition:typeof row.condition==='string'?row.condition.slice(0,80):'',rain:Number.isFinite(row.precipitation_probability)?row.precipitation_probability:null,...(v.forecastType==='daily'&&Number.isFinite(row.highTemperature)?{highTemperature:row.highTemperature}:{}),...(v.forecastType==='daily'&&Number.isFinite(row.lowTemperature)?{lowTemperature:row.lowTemperature}:{})};});
  return {source:v.source.slice(0,120),location:typeof v.location==='string'?v.location.slice(0,120):'',retrievedAt:v.retrievedAt,observedAt:v.observedAt,unit:unit.length===1?'°'+unit:unit,current,forecast,forecastType:typeof v.forecastType==='string'?v.forecastType:'',coverage:{truncated:v.coverage?.truncated===true,totalRows:v.coverage?.totalRows,returnedRows:forecast.length}};
+}
+
+export function forecastDayRows(weather){
+ if(weather.forecastType==='hourly')return completeHourlyDayRanges(weather.forecast).map(day=>({...day,condition:weather.forecast.find(x=>localDayKey(new Date(x.datetime))===day.key&&x.condition)?.condition||''}));
+ if(weather.forecastType!=='daily')return [];
+ const rows=weather.forecast.map(period=>({key:localDayKey(new Date(period.datetime)),start:new Date(period.datetime),temperature:period.temperature,condition:period.condition||'',...(Number.isFinite(period.highTemperature)&&Number.isFinite(period.lowTemperature)?{high:period.highTemperature,low:period.lowTemperature}:{})}));
+ const counts=new Map();for(const row of rows)counts.set(row.key,(counts.get(row.key)||0)+1);
+ return rows.filter(row=>counts.get(row.key)===1).sort((a,b)=>a.start-b.start);
 }

@@ -1,3 +1,12 @@
+## 2.0.28 - genuine PodView data and source-owned music choices
+
+- Preserve all2.0.27 runtime package and complete-CI changes and the reviewed browser-gate correction.
+- Carry exact-account Spotify library/search observations and optional allowlisted album artwork. Search reads alone grant no playback authority.
+- Prepare selected-track playback under explicit exact-account/direct-device/max-volume policy, current five-minute grant and fresh owner/source/volume checks. Short-lived server-only URI choices use the same opaque IDs for touch and later-turn trusted Live approval; replaced or unknown intents never resend. Requires the reviewed PodConnect selected-track service. New policies remain empty by default;24-hour frame enrollment is a proposal only.
+- Add disabled-default exact native Roborock field read grants with device/config-entry/role and freshness checks. No maps, camera or physical completion claim. Daily weather carries source high/low temperatures without hourly inference.
+- Add disabled-default richer completed weather/web receipt presentation through the same existing finite20-request selector. No duplicate helper fetch or second model/selector instance.
+- Combine the native screens with independently reviewed source and strict exact-fingerprint admission. Existing one-use five-minute pairing remains; installation, activation and physical acceptance are separate evidence.
+
 ## 2.0.27 - smaller runtime package and faster development checks
 
 - Preserve the complete merged PodView2.0.26 UI and its separately bounded, opt-in visual selection policy.

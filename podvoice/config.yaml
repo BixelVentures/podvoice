@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "2.0.27"
+version: "2.0.28"
 slug: podvoice
 description: OpenAI Realtime voice assistant bridge for custom-firmware Voice PE
 arch:
@@ -25,12 +25,16 @@ panel_title: PodVoice
 options:
   openai_api_key: ""
   podview_visual_policy: ""
+  podview_robot_read_policy: ""
+  podview_research_visual_policy: ""
   podview_control_policy: ""
   podview_pairing_room: ""
   podview_pairing_sha256: ""
 schema:
   openai_api_key: "password?"
   podview_visual_policy: "str?"
+  podview_robot_read_policy: "str?"
+  podview_research_visual_policy: "str?"
   podview_control_policy: "str?"
   podview_pairing_room: "str?"
   podview_pairing_sha256: "password?"

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import re
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -20,7 +21,7 @@ from . import constants as C
 _TIMEOUT_S = 8
 _MAX_BYTES = 65536
 _SERVICES = frozenset({"get_playback_controls", "control_playback"})
-_ACTIONS = frozenset({"pause", "resume", "next", "previous", "volume"})
+_ACTIONS = frozenset({"pause", "resume", "next", "previous", "volume", "play_track"})
 _ERRORS = frozenset(
     {
         "unavailable",
@@ -43,6 +44,7 @@ _ERRORS = frozenset(
         "stale_observation",
         "awaiting_observation",
         "unsupported_action",
+        "volume_above_approved_limit",
         "outcome_unknown",
     }
 )
@@ -115,7 +117,7 @@ def _controls(value: Any, account: str, target: str, *, offered: bool = False) -
     actions = value.get("actions")
     if (
         not isinstance(actions, list)
-        or len(actions) > 5
+        or len(actions) > 6
         or any(not isinstance(action, str) or action not in _ACTIONS for action in actions)
         or len(set(actions)) != len(actions)
         or {"pause", "resume"}.issubset(actions)
@@ -127,6 +129,7 @@ def _controls(value: Any, account: str, target: str, *, offered: bool = False) -
         volume = _integer(volume, 0, 100)
     if "volume" in actions and volume is None:
         raise ValueError("unobserved volume capability")
+    track_play_supported = value.get("track_play_supported") is True
     return {
         "ok": True,
         "schema": "podconnect.controls.v1",
@@ -144,6 +147,7 @@ def _controls(value: Any, account: str, target: str, *, offered: bool = False) -
         },
         "actions": list(actions),
         "volume_percent": volume,
+        "track_play_supported": track_play_supported,
         "status": status,
         "valid_until": deadline,
         "physical_result_verified": False,
@@ -219,6 +223,14 @@ class MusicControlFacade:
         except Exception:
             return False
 
+    @property
+    def track_available(self) -> bool:
+        return bool(
+            self.available
+            and "get_track_play_controls"
+            in getattr(getattr(self.tools, "_discovery", None), "podconnect_services", frozenset())
+        )
+
     def binding(self) -> tuple:
         try:
             if self.available:
@@ -281,6 +293,33 @@ class MusicControlFacade:
         except Exception:
             return _failure("unavailable")
 
+    async def setup_track(self, account: str, target: str, current: Callable[[], bool]) -> dict:
+        """Read an exact fresh device and known volume from the provider owner."""
+        try:
+            _text(account)
+            _text(target)
+            if not self.track_available:
+                return _failure("unavailable")
+            binding = self.binding()
+            client, token = self.tools._client, self.tools._token
+            if not self._current(binding, current):
+                return _failure("unavailable")
+            async with asyncio.timeout(_TIMEOUT_S):
+                result = await self._read(
+                    client,
+                    token,
+                    "get_track_play_controls",
+                    {"config_entry_id": account, "kind": "spotify_device", "target_id": target},
+                )
+            if not self._current(binding, current):
+                return _failure("owner_replaced")
+            data = _controls(result, account, target)
+            if not data["track_play_supported"] or data["actions"] != ["play_track"]:
+                return _failure("unsupported_action")
+            return {"ok": True, "data": data}
+        except Exception:
+            return _failure("unavailable")
+
     async def execute(
         self, offered: dict, action: str, args: dict, current: Callable[[], bool]
     ) -> dict:
@@ -325,6 +364,68 @@ class MusicControlFacade:
                 if not self._current(binding, current):
                     return _failure("owner_replaced", identity=identity)
                 possible_send = True  # No await between this guard and the sole POST.
+                result = await self._read(client, token, "control_playback", request)
+            if not self._current(binding, current):
+                return _failure("owner_replaced", possible_send=True, identity=identity)
+            return _receipt(result, identity)
+        except (Exception, asyncio.CancelledError):
+            return _failure("unavailable", possible_send=possible_send, identity=identity)
+
+    async def execute_track(
+        self, controls: dict, uri: str, max_volume: int, current: Callable[[], bool]
+    ) -> dict:
+        """Send a broker-selected track once through the same exact device owner."""
+        possible_send = False
+        identity: dict = {}
+        try:
+            account = _text(controls.get("config_entry_id"))
+            target = _text(controls.get("target", {}).get("target_id"))
+            value = _controls(controls, account, target, offered=True)
+            if (
+                value["status"] != "ready"
+                or not value["track_play_supported"]
+                or value["actions"] != ["play_track"]
+            ):
+                return _failure("unsupported_action")
+            if (
+                not isinstance(uri, str)
+                or re.fullmatch(r"spotify:track:[A-Za-z0-9]{22}", uri) is None
+            ):
+                return _failure("invalid_arguments")
+            if (
+                type(max_volume) is not int
+                or not 0 <= max_volume <= 100
+                or value["volume_percent"] is None
+                or value["volume_percent"] > max_volume
+            ):
+                return _failure("volume_above_approved_limit")
+            sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
+            identity = {
+                "schema": "podconnect.command.v1",
+                "config_entry_id": account,
+                "owner_epoch": epoch,
+                "request_id": f"{epoch}:{sequence}",
+                "command_sequence": sequence,
+                "action": "play_track",
+                "target": {"kind": "spotify_device", "target_id": target},
+            }
+            request = {
+                "config_entry_id": account,
+                "kind": "spotify_device",
+                "target_id": target,
+                "owner_epoch": epoch,
+                "expected_poll_sequence": value["poll_sequence"],
+                "request_id": identity["request_id"],
+                "command_sequence": sequence,
+                "action": "play_track",
+                "args": {"track_uri": uri, "max_volume": max_volume},
+            }
+            binding = self.binding()
+            client, token = self.tools._client, self.tools._token
+            async with asyncio.timeout(_TIMEOUT_S):
+                if not self._current(binding, current):
+                    return _failure("owner_replaced", identity=identity)
+                possible_send = True
                 result = await self._read(client, token, "control_playback", request)
             if not self._current(binding, current):
                 return _failure("owner_replaced", possible_send=True, identity=identity)

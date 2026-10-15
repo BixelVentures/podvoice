@@ -52,6 +52,9 @@ from .weather_result import compact_weather_result
 log = logging.getLogger("podvoice.tools")
 
 _TOOLS_TTL_S = 600.0
+_PODVIEW_MUSIC_OPTIONS = "podview_music_options"
+_PODVIEW_MUSIC_SELECT = "podview_music_select_option"
+_PODVIEW_MUSIC_TOOLS = frozenset({_PODVIEW_MUSIC_OPTIONS, _PODVIEW_MUSIC_SELECT})
 _RECOVERY_BACKOFF_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 # Realtime receives these declarations in every new session.  These caps leave bounded
 # room for Prompt V6, conversation audio/text and tool results while comfortably
@@ -326,6 +329,11 @@ class ToolRouter:
         self._entity_index_at = 0.0
         self._entity_lock = asyncio.Lock()
         self.timers = HomeAssistantTimers(client, supervisor_token)
+        self._podview_music_owner = None
+
+    def attach_podview_music_owner(self, owner: Any) -> None:
+        """Register the existing display bridge; no second source or speech owner."""
+        self._podview_music_owner = owner
 
     # ------------------------------------------------------------------ startup
     healthy: bool = True  # last REAL-probe outcome; wake speaks up when False
@@ -796,8 +804,11 @@ class ToolRouter:
             settings.get("device_control_entities", []),
         )
 
+    def configure_podview_robot_reads(self, policy: object) -> None:
+        self._device_control.configure_robot_reads(policy)
+
     def declarations(self) -> list[dict]:
-        return (
+        declarations = (
             self._compose_declarations(
                 self._discovery.mcp_tools,
                 self._discovery.podconnect_services,
@@ -805,6 +816,46 @@ class ToolRouter:
             )
             + self._device_control.declarations()
         )
+        owner = self._podview_music_owner
+        if owner is not None and owner.voice_music_available():
+            declarations.extend(
+                [
+                    {
+                        "name": _PODVIEW_MUSIC_OPTIONS,
+                        "description": "Læs de aktuelle, allerede viste musikvalg på PodView. Ingen URI eller afspilning.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": False,
+                        },
+                    },
+                    {
+                        "name": _PODVIEW_MUSIC_SELECT,
+                        "description": "Vælg ét aktuelt PodView-musikvalg ved dets server-id. Kræver særskilt bekræftelse.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "taskId": {"type": "string"},
+                                "revision": {"type": "integer"},
+                                "optionId": {"type": "string"},
+                                "confirmedVolumePercent": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100,
+                                },
+                            },
+                            "required": [
+                                "taskId",
+                                "revision",
+                                "optionId",
+                                "confirmedVolumePercent",
+                            ],
+                            "additionalProperties": False,
+                        },
+                    },
+                ]
+            )
+        return declarations
 
     def timer_declarations(self, endpoint: str) -> list[dict]:
         return self.timers.declarations(endpoint)
@@ -839,7 +890,9 @@ class ToolRouter:
                     }
                 )
         decls += playback_targets.declarations(mcp_tools, target_contracts)
-        local_names = {d["name"] for d in decls} | set(playback_targets.TOOLS)
+        local_names = (
+            {d["name"] for d in decls} | set(playback_targets.TOOLS) | _PODVIEW_MUSIC_TOOLS
+        )
         decls += [json.loads(json.dumps(t)) for t in mcp_tools if t["name"] not in local_names]
         return decls
 
@@ -1009,6 +1062,14 @@ class ToolRouter:
             result = {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
             self._log_tool(name, result, dispatch_args)
             return result
+        if name in _PODVIEW_MUSIC_TOOLS:
+            return await self._dispatch_podview_music(
+                name,
+                dispatch_args,
+                execution_context,
+                approval_token,
+                execution_guard,
+            )
         if name in DEVICE_TOOL_NAMES:
             return await self._dispatch_device(
                 name,
@@ -1105,6 +1166,82 @@ class ToolRouter:
             )
         self._log_tool(name, result, dispatch_args)
         return result
+
+    async def _dispatch_podview_music(
+        self,
+        name: str,
+        args: dict,
+        context: ExecutionContext | None,
+        approval_token: str | None,
+        execution_guard: Callable[[], bool] | None,
+    ) -> dict:
+        """Voice uses the displayed server options and the existing approval owner."""
+        owner = self._podview_music_owner
+        current = execution_guard or (lambda: True)
+        room = owner.voice_music_room(context) if owner is not None else None
+        if room is None or not current() or not owner.voice_music_available():
+            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        if name == _PODVIEW_MUSIC_OPTIONS:
+            if args:
+                return {"ok": False, "error_kind": "invalid_arguments"}
+            denied = self.execution_policy.authorize(
+                name, args, context=context, trusted_risk=Risk.READ_ONLY
+            )
+            return denied or owner.voice_music_options(room, context, current)
+        required = {"taskId", "revision", "optionId", "confirmedVolumePercent"}
+        if (
+            set(args) != required
+            or not isinstance(args["taskId"], str)
+            or not isinstance(args["optionId"], str)
+            or type(args["revision"]) is not int
+            or type(args["confirmedVolumePercent"]) is not int
+            or not 0 <= args["confirmedVolumePercent"] <= 100
+        ):
+            return {"ok": False, "error_kind": "invalid_arguments", "retry_allowed": False}
+        offered = owner.voice_music_options(room, context, current)
+        data = offered.get("data", {})
+        if (
+            offered.get("ok") is not True
+            or args["taskId"] != data.get("taskId")
+            or args["revision"] != data.get("revision")
+            or args["confirmedVolumePercent"] != data.get("observedVolumePercent")
+            or args["optionId"] not in {row["id"] for row in data.get("options", [])}
+        ):
+            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        denied = self.execution_policy.authorize(
+            name, args, context=context, approval_token=approval_token
+        )
+        if denied is not None:
+            if denied.get("needs_confirmation"):
+                challenge_id = denied.get("approval", {}).get("challenge_id")
+                choice = next(row for row in data["options"] if row["id"] == args["optionId"])
+                details = {
+                    "song": choice["label"],
+                    "artist": choice["artist"],
+                    "output": data["output"]["name"],
+                    "account_id": data["accountId"],
+                    "volume_percent": data["observedVolumePercent"],
+                }
+                if (
+                    context is None
+                    or not isinstance(challenge_id, str)
+                    or not self.execution_policy.set_live_confirmation_details(
+                        challenge_id, context=context, details=details
+                    )
+                ):
+                    if isinstance(challenge_id, str) and context is not None:
+                        self.execution_policy.discard_live_challenge(
+                            challenge_id, session_id=context.session_id
+                        )
+                    return {
+                        "ok": False,
+                        "error_kind": "live_confirmation_unavailable",
+                        "retry_allowed": False,
+                    }
+            return denied
+        if not isinstance(approval_token, str) or not approval_token:
+            return {"ok": False, "error_kind": "approval_denied", "retry_allowed": False}
+        return await owner.voice_music_select(room, context, args, approval_token, current)
 
     async def _dispatch_device(
         self,
@@ -1893,10 +2030,19 @@ class ToolRouter:
             reads.insert(0, "targets")
         return reads
 
-    async def podview_read(self, kind: str, account: str | None = None) -> dict:
+    async def podview_read(
+        self, kind: str, account: str | None = None, query: str | None = None
+    ) -> dict:
         """Passive service transport: never refresh discovery or voice declarations."""
+        if kind == "search":
+            try:
+                query = podview_music.normalize_search_query(query)
+            except ValueError:
+                return {"ok": False, "error_kind": "invalid_query"}
+        elif query is not None:
+            return {"ok": False, "error_kind": "invalid_query"}
         if account is not None and (
-            kind not in {"targets", "playback", "queue"}
+            kind not in {"targets", "playback", "queue", "recent", "top", "liked", "search"}
             or not isinstance(account, str)
             or not 1 <= len(account) <= 1024
         ):
@@ -1920,6 +2066,8 @@ class ToolRouter:
         args: dict[str, Any] = {"config_entry_id": account} if account else {}
         if kind == "queue":
             args["limit"] = 20
+        elif kind == "search":
+            args.update(query=query, limit=3)
         client = self._client
         assert client is not None
         async with asyncio.timeout(8):
@@ -1940,7 +2088,15 @@ class ToolRouter:
         payload = json.loads(raw)
         data = payload.get("service_response") if isinstance(payload, dict) else None
         if kind in podview_music.SERVICES:
-            return podview_music.project_owner(kind, data, account)
+            return podview_music.project_owner(kind, data, account, query=query)
+        if kind in {"recent", "top", "liked"}:
+            source_account = data.get("config_entry_id") if isinstance(data, dict) else None
+            if (
+                not isinstance(source_account, str)
+                or not 1 <= len(source_account) <= 1024
+                or (account is not None and source_account != account)
+            ):
+                return podview_music.unavailable("malformed_response")
         if kind == "targets":
             return playback_targets.result(
                 "podconnect_get_targets", args, data, selected_service=selected

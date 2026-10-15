@@ -1931,6 +1931,593 @@ def _reviewed_podview_visual_selection(
     )
 
 
+_PODVIEW_READ_DATA_REQUIRED = {
+    f"podvoice/gatekeeper/{name}.py"
+    for name in (
+        "__main__",
+        "config",
+        "device_control",
+        "tools",
+        "podview",
+        "podview_music",
+        "podview_weather",
+        "podview_receipts",
+        "podview_robot",
+        "podview_research",
+    )
+}
+_PODVIEW_READ_DATA_REGRESSIONS = {
+    "tests/unit/test_podview_robot.py",
+    "tests/unit/test_podview_research.py",
+    "tests/unit/test_config_token.py",
+    "tests/unit/test_weather_result.py",
+    "tests/integration/test_podview_music.py",
+    "tests/integration/test_podview_bridge.py",
+    "tests/integration/test_podview_research_receipts.py",
+    "tests/podview/research-answers.test.mjs",
+    "tests/unit/test_candidate_scope_read_data.py",
+}
+
+
+def _podview_read_data_ast(root: Path, base: str) -> bool:
+    """Keep shared startup, voice/action owners and old authority bytecode intact."""
+
+    def pair(path):
+        return _owner_ast(_git(root, "show", f"{base}:{path}").encode()), _owner_ast(
+            (root / path).read_bytes()
+        )
+
+    try:
+        prefix = "podvoice/gatekeeper/"
+        before, after = pair(prefix + "__main__.py")
+        run = _visual_direct_function(after, "run")
+        _visual_insert_before(
+            run,
+            ("tools.podview_receipts.configure_research_mode(cfg.podview_research_visual_policy)",),
+            "tools.configure_device_control(load_settings(settings_path))",
+        )
+        expected = ast.parse(
+            "tools.configure_podview_robot_reads(cfg.podview_robot_read_policy)"
+        ).body[0]
+        anchors = [i for i, n in enumerate(run.body) if _ast_equal(n, expected)]
+        control = ast.parse("tools.configure_device_control(load_settings(settings_path))").body[0]
+        if (
+            len(anchors) != 1
+            or anchors[0] == 0
+            or not _ast_equal(run.body[anchors[0] - 1], control)
+        ):
+            return False
+        run.body.pop(anchors[0])
+        if not _ast_equal(before, after):
+            return False
+
+        before, after = pair(prefix + "config.py")
+        for name in ("podview_robot_read_policy", "podview_research_visual_policy"):
+            _companion_statement(_direct_class(after, "Config"), f'{name}: str = ""')
+            _remove_call_keyword(
+                _visual_direct_function(after, "from_options"),
+                "Config",
+                name,
+                f'str(opts.get("{name}", "")) if not settings_source_untrusted else ""',
+            )
+            _companion_statement(
+                _visual_direct_function(after, "load_config"),
+                f'merged["{name}"] = opts.get("{name}", "")',
+            )
+        if not _ast_equal(before, after):
+            return False
+
+        before, after = pair(prefix + "tools.py")
+        owner = _direct_class(after, "ToolRouter")
+        methods = _methods(owner)
+        configure = methods["configure_podview_robot_reads"]
+        expected = ast.parse(
+            "def configure_podview_robot_reads(self, policy: object) -> None:\n    self._device_control.configure_robot_reads(policy)"
+        ).body[0]
+        if not _ast_equal(configure, expected):
+            return False
+        read = methods["podview_read"]
+        wanted = ast.parse("def f(query: str | None = None): pass").body[0]
+        if (
+            not read.args.args
+            or not _ast_equal(read.args.args[-1], wanted.args.args[0])
+            or not _ast_equal(read.args.defaults[-1], wanted.args.defaults[0])
+        ):
+            return False
+        read.args.args.pop()
+        read.args.defaults.pop()
+        _read_method_only(read)
+        _companion_methods(
+            before, after, "ToolRouter", {"podview_read", "configure_podview_robot_reads"}
+        )
+        if not _ast_equal(before, after):
+            return False
+
+        before, after = pair(prefix + "device_control.py")
+        _remove_exact_imports(after, ("import asyncio", "from . import podview_robot"))
+        _companion_statement(
+            _methods(_direct_class(after, "DeviceControl"))["__init__"],
+            "self._robot_reads: tuple[dict, ...] = ()",
+        )
+        device_methods = _methods(_direct_class(after, "DeviceControl"))
+        configure = ast.parse("""def configure_robot_reads(self, policy: object) -> None:
+    allowed = podview_robot.parse_policy(policy)
+    if allowed != self._robot_reads:
+        self._robot_reads = allowed
+        self._generation += 1
+        self._tickets.clear()
+        self._display_tickets.clear()""").body[0]
+        if not _ast_equal(device_methods["configure_robot_reads"], configure):
+            return False
+        for name in ("observe", "_robot_observation", "_robot_observation_read"):
+            _read_method_only(device_methods[name])
+            for node in ast.walk(device_methods[name]):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "_json"
+                ):
+                    if (
+                        not node.args
+                        or not isinstance(node.args[0], ast.Constant)
+                        or node.args[0].value != "GET"
+                    ):
+                        return False
+        _companion_methods(
+            before,
+            after,
+            "DeviceControl",
+            {
+                "observe",
+                "configure_robot_reads",
+                "_robot_observation",
+                "_robot_observation_read",
+            },
+        )
+        if not _ast_equal(before, after):
+            return False
+
+        before, after = pair(prefix + "podview.py")
+        imports = [
+            n
+            for n in after.body
+            if isinstance(n, ast.ImportFrom)
+            and n.level == 1
+            and n.module is None
+            and any(a.name == "podview_robot" for a in n.names)
+        ]
+        if len(imports) != 1:
+            return False
+        imports[0].names = [a for a in imports[0].names if a.name != "podview_robot"]
+        snapshot = _methods(_direct_class(after, "PodViewBridge"))["snapshot"]
+        extra = ast.parse(
+            """{**({key: latest_answer.get(key) for key in ("sessionEpoch", "providerGeneration", "answerRevision")} if latest_answer.get("schema") == "podview.research.v1" else {})}""",
+            mode="eval",
+        ).body.values[0]
+        removed_extra = removed_capability = 0
+        for node in ast.walk(snapshot):
+            if not isinstance(node, ast.Dict):
+                continue
+            for i in range(len(node.keys) - 1, -1, -1):
+                key, value = node.keys[i], node.values[i]
+                if key is None and _ast_equal(value, extra):
+                    node.keys.pop(i)
+                    node.values.pop(i)
+                    removed_extra += 1
+                elif isinstance(key, ast.Constant) and key.value == "researchVisual":
+                    expected_value = ast.parse(
+                        'bool(getattr(receipt_owner, "research_admitted", False))', mode="eval"
+                    ).body
+                    if not _ast_equal(value, expected_value):
+                        return False
+                    node.keys.pop(i)
+                    node.values.pop(i)
+                    removed_capability += 1
+        if (removed_extra, removed_capability) != (1, 1):
+            return False
+        functions = {
+            "_music_public",
+            "_music",
+            "_home_vacuum",
+            "_music_search_context",
+            "_music_search_candidate_set",
+        }
+        old = {
+            n.name: n for n in before.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        new = {
+            n.name: n for n in after.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        query = new["_music_public"]
+        if (
+            not query.args.args
+            or not _ast_equal(query.args.args[-1], wanted.args.args[0])
+            or not _ast_equal(query.args.defaults[-1], wanted.args.defaults[0])
+        ):
+            return False
+        query.args.args.pop()
+        query.args.defaults.pop()
+        if new.keys() - old.keys() != functions - old.keys():
+            return False
+        for name in functions:
+            if name in old:
+                if _method_header(old[name]) != _method_header(new[name]):
+                    return False
+                before.body.remove(old[name])
+            after.body.remove(new[name])
+        return _ast_equal(before, after)
+    except (SyntaxError, UnicodeError, ValueError, KeyError, RuntimeError, IndexError):
+        return False
+
+
+def _podview_read_data_policy_unchanged(root: Path, base: str) -> bool:
+    """The new exact profile cannot modify any previous profile or fallback."""
+    try:
+        before = _owner_ast(_git(root, "show", f"{base}:scripts/candidate_scope.py").encode())
+        after = _owner_ast((root / "scripts/candidate_scope.py").read_bytes())
+        names = {
+            "_podview_read_data_ast",
+            "_podview_read_data_policy_unchanged",
+            "_reviewed_podview_read_data_research",
+        }
+        after.body = [
+            n
+            for n in after.body
+            if not (
+                (isinstance(n, ast.FunctionDef) and n.name in names)
+                or (
+                    isinstance(n, ast.Assign)
+                    and len(n.targets) == 1
+                    and isinstance(n.targets[0], ast.Name)
+                    and n.targets[0].id
+                    in {"_PODVIEW_READ_DATA_REQUIRED", "_PODVIEW_READ_DATA_REGRESSIONS"}
+                )
+            )
+        ]
+        owner = _visual_direct_function(after, "reviewed_coupling")
+        expected = ast.parse("""if record["version"] == 2 and record.get("kind") == "podview_read_data_research":
+    if not _reviewed_podview_read_data_research(root, report, base_tip, record):
+        return failed
+    return replace(report, passed=True, reason="exact reviewed coupling: podview_read_data_research")""").body[
+            0
+        ]
+        matches = [n for n in owner.body if _ast_equal(n, expected)]
+        if len(matches) != 1:
+            return False
+        owner.body.remove(matches[0])
+        return _ast_equal(before, after)
+    except (SyntaxError, UnicodeError, ValueError, RuntimeError):
+        return False
+
+
+def _reviewed_podview_read_data_research(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    """One exact reviewed read-data/presentation chain, never new action authority."""
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "policy_fingerprint",
+        "config_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or type(record["version"]) is not int
+        or record["version"] != 2
+        or record["kind"] != "podview_read_data_research"
+        or record["domains"] != list(report.domains)
+        or report.domains != ("ha_tools", "physical_output")
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+        or any(
+            not isinstance(record[k], str) or not record[k].strip()
+            for k in fields - {"version", "domains"}
+        )
+    ):
+        return False
+    effective = _visual_repository_changes(root, report.base)
+    production = {p for p in effective if p.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    tests = {p for p in effective if p.startswith("tests/")} | set(report.test_files)
+    static = {p for p in production if p.startswith("podvoice/gatekeeper/static/podview/")}
+    metadata = "podvoice/gatekeeper/__init__.py"
+    if (
+        not _PODVIEW_READ_DATA_REQUIRED | _PODVIEW_READ_DATA_REGRESSIONS <= effective
+        or not production <= _PODVIEW_READ_DATA_REQUIRED | static | {metadata}
+    ):
+        return False
+    if any(
+        not (root / p).is_file() or (root / p).is_symlink()
+        for p in production
+        | tests
+        | {"scripts/candidate_scope.py", "podvoice/config.yaml", "pyproject.toml"}
+    ):
+        return False
+    if (
+        len(static) > 128
+        or any(
+            Path(p).suffix.lower()
+            not in {
+                ".js",
+                ".css",
+                ".html",
+                ".json",
+                ".svg",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".woff",
+                ".woff2",
+            }
+            or (root / p).stat().st_size > 4 * 1024 * 1024
+            or (root / p).stat().st_mode & 0o111
+            for p in static
+        )
+        or sum((root / p).stat().st_size for p in static) > 16 * 1024 * 1024
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    if any(
+        p
+        not in production
+        | tests
+        | {
+            "scripts/candidate_scope.py",
+            "podvoice/config.yaml",
+            "podvoice/CHANGELOG.md",
+            "pyproject.toml",
+        }
+        and not p.startswith("docs/")
+        for p in effective
+    ):
+        return False
+    before = _git(root, "show", f"{report.base}:podvoice/config.yaml")
+    after = (root / "podvoice/config.yaml").read_text()
+    for name in ("podview_robot_read_policy", "podview_research_visual_policy"):
+        for header, value in (("options:\n", '""'), ("schema:\n", '"str?"')):
+            statement = f"  {name}: {value}\n"
+            if after.count(statement) != 1 or after.count(header) != 1:
+                return False
+            block = re.split(r"\n(?=\S)", after.split(header, 1)[1], maxsplit=1)[0]
+            if statement.rstrip("\n") not in block.splitlines():
+                return False
+            after = after.replace(statement, "", 1)
+    version = r"^version: ([\'\"]?)\d+\.\d+\.\d+\1$"
+    if (
+        len(re.findall(version, before, re.M)) != 1
+        or len(re.findall(version, after, re.M)) != 1
+        or re.sub(version, "VERSION", before, flags=re.M)
+        != re.sub(version, "VERSION", after, flags=re.M)
+    ):
+        return False
+    before = _git(root, "show", f"{report.base}:pyproject.toml")
+    after = (root / "pyproject.toml").read_text()
+    version = r'^version = "\d+\.\d+\.\d+"$'
+    if (
+        len(re.findall(version, before, re.M)) != 1
+        or len(re.findall(version, after, re.M)) != 1
+        or re.sub(version, "VERSION", before, flags=re.M)
+        != re.sub(version, "VERSION", after, flags=re.M)
+    ):
+        return False
+    return (
+        _podview_read_data_ast(root, report.base)
+        and _podview_read_data_policy_unchanged(root, report.base)
+        and record["fingerprint"]
+        == production_fingerprint(root, base_tip, report.base, tuple(production))
+        and record["regression_fingerprint"]
+        == regression_fingerprint(root, base_tip, report.base, tuple(tests))
+        and record["policy_fingerprint"]
+        == hashlib.sha256((root / "scripts/candidate_scope.py").read_bytes()).hexdigest()
+        and record["config_fingerprint"]
+        == hashlib.sha256((root / "podvoice/config.yaml").read_bytes()).hexdigest()
+    )
+
+
+# One reviewed selected-track touch/voice chain; default-off exact policy only.
+_PODVIEW_MUSIC_SELECTION_REVIEWED = {
+    "podvoice/config.yaml": "e6ead81e6096008ae5b7be19c3453c461c8e5b9a305e46de0268582691c8926d",
+    "podvoice/gatekeeper/__main__.py": "d2f42a3c6c41e85c0ee3967ed142a93454722711f652d2f7445603cb283e8341",
+    "podvoice/gatekeeper/config.py": "28fda507eaae6ec5091afa195634ca19634f8b29f12ea2187627801487369df2",
+    "podvoice/gatekeeper/device_control.py": "f61017980d8d8474c86aaea2605a917e8eab3f051cb7ad265e04cca9d4626e47",
+    "podvoice/gatekeeper/execution_policy.py": "0e976e14710ea00aeefc31f56b44c1530d848704a88aea6e1c30a6295351f3cd",
+    "podvoice/gatekeeper/live_prompt.py": "1f10f64d44962dc905c5a0f77882d9c62c89ee84cda867664810d03bb5c1b050",
+    "podvoice/gatekeeper/podview.py": "9169b4a8d87ae3b4a1d6bd17d9ce1d82ae135e38264aa188c207d512f59c2a5a",
+    "podvoice/gatekeeper/podview_controls.py": "34413c817cd46ac294c0e0899ebc08f8a59aec5bc982f726f4f2e25b499ee461",
+    "podvoice/gatekeeper/podview_music.py": "69991b9e0dd2a9808ef7748bab54a5cbbb9828ca022ec69e7dce2a3196f50977",
+    "podvoice/gatekeeper/podview_music_control.py": "008803be02f9349a444ec9b91d7008ad3cb3c31e22ee79bc1f121ad9d0d8ecd1",
+    "podvoice/gatekeeper/podview_music_selection.py": "1c506b4734d2d43d90a4b6aa97142534e6845dcced4bc942cce8f3c5e63f89df",
+    "podvoice/gatekeeper/podview_receipts.py": "687f0b97e1a77687cc6575a92e89428cd83feac40a79a79bda7e5fee16514396",
+    "podvoice/gatekeeper/podview_research.py": "a70a238b613a2a1f3fde864b4751004f6a57bcfaec22015d104ecc835889d60f",
+    "podvoice/gatekeeper/podview_robot.py": "1245a2a9528c2a5b8564b18961cbd2d9b7ad357054898413c2aff69aac77408a",
+    "podvoice/gatekeeper/podview_weather.py": "5d12c8ac1c177f1ce7f01af1f455c9d4749cfd699503986721f609a1f73456ea",
+    "podvoice/gatekeeper/tools.py": "c3610d22c42ea0589861a143b001d532f1a0a3db2cdc47157636871b78ccd7ee",
+}
+_PODVIEW_MUSIC_SELECTION_REGRESSIONS = _PODVIEW_READ_DATA_REGRESSIONS | {
+    "tests/unit/test_music_selection_owner.py",
+    "tests/integration/test_podview_music_selection.py",
+    "tests/unit/test_candidate_scope_music_selection.py",
+}
+_PODVIEW_MUSIC_SELECTION_PRIOR_POLICY_AST = (
+    "924b63a372cf65670a70aad60ebf808cff9167a134f666cf392461d619903ac4"
+)
+
+
+def _podview_music_selection_prior_policy(root: Path) -> bool:
+    """Pin every prior profile, including the immutable c154 read-only profile."""
+    try:
+        after = _owner_ast((root / "scripts/candidate_scope.py").read_bytes())
+        helpers = {
+            "_podview_music_selection_prior_policy",
+            "_reviewed_podview_music_selection",
+        }
+        constants = {
+            "_PODVIEW_MUSIC_SELECTION_REVIEWED",
+            "_PODVIEW_MUSIC_SELECTION_REGRESSIONS",
+            "_PODVIEW_MUSIC_SELECTION_PRIOR_POLICY_AST",
+        }
+        after.body = [
+            node
+            for node in after.body
+            if not (
+                (isinstance(node, ast.FunctionDef) and node.name in helpers)
+                or (
+                    isinstance(node, ast.Assign)
+                    and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and node.targets[0].id in constants
+                )
+            )
+        ]
+        owner = _visual_direct_function(after, "reviewed_coupling")
+        expected = ast.parse("""if record["version"] == 2 and record.get("kind") == "podview_music_selection":
+    if not _reviewed_podview_music_selection(root, report, base_tip, record):
+        return failed
+    return replace(report, passed=True, reason="exact reviewed coupling: podview_music_selection")""").body[
+            0
+        ]
+        matches = [node for node in owner.body if ast.dump(node) == ast.dump(expected)]
+        if len(matches) != 1:
+            return False
+        owner.body.remove(matches[0])
+        return (
+            hashlib.sha256(ast.dump(after, include_attributes=False).encode()).hexdigest()
+            == _PODVIEW_MUSIC_SELECTION_PRIOR_POLICY_AST
+        )
+    except (OSError, ValueError, SyntaxError, AttributeError, StopIteration):
+        return False
+
+
+def _reviewed_podview_music_selection(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    """Exact reviewed music write chain; a refreshed receipt never admits new source."""
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "policy_fingerprint",
+        "config_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or type(record["version"]) is not int
+        or record["version"] != 2
+        or record["kind"] != "podview_music_selection"
+        or record["domains"] != list(report.domains)
+        or report.domains != ("ha_tools", "physical_output")
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+        or any(
+            not isinstance(record[key], str) or not record[key].strip()
+            for key in fields - {"version", "domains"}
+        )
+    ):
+        return False
+    effective = _visual_repository_changes(root, report.base)
+    production = {path for path in effective if path.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    tests = {path for path in effective if path.startswith("tests/")} | set(report.test_files)
+    static = {path for path in production if path.startswith("podvoice/gatekeeper/static/podview/")}
+    reviewed = set(_PODVIEW_MUSIC_SELECTION_REVIEWED)
+    required = reviewed - {"podvoice/config.yaml"}
+    metadata = "podvoice/gatekeeper/__init__.py"
+    if (
+        not required | _PODVIEW_MUSIC_SELECTION_REGRESSIONS <= effective
+        or not production <= required | static | {metadata}
+        or any(
+            not (root / path).is_file() or (root / path).is_symlink()
+            for path in production
+            | tests
+            | reviewed
+            | {"scripts/candidate_scope.py", "pyproject.toml"}
+        )
+        or any(
+            hashlib.sha256((root / path).read_bytes()).hexdigest() != expected
+            for path, expected in _PODVIEW_MUSIC_SELECTION_REVIEWED.items()
+        )
+    ):
+        return False
+    if (
+        len(static) > 128
+        or any(
+            Path(path).suffix.lower()
+            not in {
+                ".js",
+                ".css",
+                ".html",
+                ".json",
+                ".svg",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".woff",
+                ".woff2",
+            }
+            or (root / path).stat().st_size > 4 * 1024 * 1024
+            or (root / path).stat().st_mode & 0o111
+            for path in static
+        )
+        or sum((root / path).stat().st_size for path in static) > 16 * 1024 * 1024
+    ):
+        return False
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    if any(
+        path
+        not in production
+        | tests
+        | {
+            "scripts/candidate_scope.py",
+            "podvoice/config.yaml",
+            "podvoice/CHANGELOG.md",
+            "pyproject.toml",
+        }
+        and not path.startswith("docs/")
+        for path in effective
+    ):
+        return False
+    before = _git(root, "show", f"{report.base}:pyproject.toml")
+    after = (root / "pyproject.toml").read_text()
+    version = r'^version = "\d+\.\d+\.\d+"$'
+    if (
+        len(re.findall(version, before, re.M)) != 1
+        or len(re.findall(version, after, re.M)) != 1
+        or re.sub(version, "VERSION", before, flags=re.M)
+        != re.sub(version, "VERSION", after, flags=re.M)
+    ):
+        return False
+    return (
+        _podview_music_selection_prior_policy(root)
+        and record["fingerprint"]
+        == production_fingerprint(root, base_tip, report.base, tuple(production))
+        and record["regression_fingerprint"]
+        == regression_fingerprint(root, base_tip, report.base, tuple(tests))
+        and record["policy_fingerprint"]
+        == hashlib.sha256((root / "scripts/candidate_scope.py").read_bytes()).hexdigest()
+        and record["config_fingerprint"]
+        == _PODVIEW_MUSIC_SELECTION_REVIEWED["podvoice/config.yaml"]
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
@@ -1983,6 +2570,18 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
         return failed
+    if record["version"] == 2 and record.get("kind") == "podview_music_selection":
+        if not _reviewed_podview_music_selection(root, report, base_tip, record):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: podview_music_selection"
+        )
+    if record["version"] == 2 and record.get("kind") == "podview_read_data_research":
+        if not _reviewed_podview_read_data_research(root, report, base_tip, record):
+            return failed
+        return replace(
+            report, passed=True, reason="exact reviewed coupling: podview_read_data_research"
+        )
     if record["version"] == 2 and record.get("kind") == "podview_visual_selection":
         if not _reviewed_podview_visual_selection(root, report, base_tip, record):
             return failed

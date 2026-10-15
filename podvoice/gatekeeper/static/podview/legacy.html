@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#efeee8"><meta name="description" content="PodView: custom browserprototype til fælles stemme- og touchoplevelse."><title>PodView · POC</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10H15v-6H9v6H3Z"/></symbol>
+<symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M20 5c-2-2-6-1-8 2-2-3-6-4-8-2-4 4 0 8 8 15 8-7 12-11 8-15Z"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+</defs></svg>
+<header><a class="brand" href="#" id="brand">PodView<span class="brand-dot"></span></a><div class="header-right"><a href="components.html" class="workshop-link">Komponenter</a><span class="prototype-label">POC · eksempeldata</span><button class="icon-button" id="lab-toggle" aria-label="Åbn eller luk POC-kontroller" aria-expanded="false"><svg><use href="#i-settings"/></svg></button></div></header>
+<main id="stage" class="stage ambient" aria-label="PodView skærm"></main>
+<div id="notice" class="notice" role="status" aria-live="polite"></div>
+<footer id="dock" class="dock"></footer>
+<section id="lab" class="lab" hidden aria-label="POC-kontroller">
+<div class="lab-heading"><div><h2>Prøv oplevelsen</h2><p>Personvalg, stemme og forbindelse simuleres. Første POC bruger intet kamera.</p></div><button id="lab-close" class="text-button">Luk</button></div>
+<div class="lab-grid"><fieldset><legend>Afstand til skærmen</legend><div class="segmented"><button data-distance="far">På afstand</button><button data-distance="near">Tæt på</button></div></fieldset>
+<label>Person foran skærmen<select id="viewer"></select></label><label>Person, der taler<select id="speaker"></select></label>
+<fieldset><legend>Forbindelse til PodVoice</legend><button id="connection" class="connection-button"></button></fieldset></div>
+<div class="demo-requests"><button id="demo-dinner">“Hvad skal vi spise?”</button><button id="demo-next">“Næste trin”</button><button id="demo-finish">“Tak, vi er færdige”</button></div>
+<p class="lab-note">Skift person under en opgave: Den bliver hos den oprindelige ejer, indtil du vælger at overtage.</p>
+</section>
+<script type="module" src="app.js"></script>
+</body></html>

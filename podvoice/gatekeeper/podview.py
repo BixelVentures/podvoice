@@ -7,6 +7,7 @@ Mutations require an explicit server-installed room grant (not viewer identity).
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import ipaddress
 import json
@@ -18,7 +19,8 @@ from pathlib import Path
 
 from aiohttp import web
 
-from . import podview_music, podview_weather
+from . import podview_music, podview_robot, podview_weather
+from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
@@ -37,14 +39,77 @@ def _error(kind: str, status: int = 409) -> web.Response:
     return web.json_response({"ok": False, "error": kind, "retryAllowed": False}, status=status)
 
 
-def _music_public(kind: str, value: object, account: str | None = None) -> dict:
+def _music_public(
+    kind: str,
+    value: object,
+    account: str | None = None,
+    query: str | None = None,
+) -> dict:
     """Display contract is closed even when owner/provider contracts retain extra fields."""
     unavailable = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
     if kind in podview_music.SERVICES:
         if not isinstance(value, dict):
             return unavailable
         raw = value.get("data") if value.get("ok") is True else value
-        return podview_music.project_owner(kind, raw, account)
+        return podview_music.project_owner(kind, raw, account, query=query)
+    if kind in {"recent", "top", "liked"}:
+        if not isinstance(value, dict) or value.get("ok") is not True:
+            return unavailable
+        data = value.get("data")
+        tracks = data.get("tracks") if isinstance(data, dict) else None
+        source_account = data.get("config_entry_id") if isinstance(data, dict) else None
+        if (
+            not isinstance(source_account, str)
+            or not 1 <= len(source_account) <= 1024
+            or (account is not None and source_account != account)
+            or not isinstance(tracks, list)
+            or len(tracks) > 50
+        ):
+            return unavailable
+        projected_tracks = []
+        for row in tracks:
+            if (
+                not isinstance(row, dict)
+                or any(
+                    not isinstance(row.get(key), str) or not row[key].strip()
+                    for key in ("name", "artist", "uri")
+                )
+                or not row["uri"].startswith("spotify:track:")
+            ):
+                return unavailable
+            item = {key: row[key] for key in ("name", "artist", "uri")}
+            artwork = podview_music._artwork(row.get("artwork"))
+            if artwork is not None:
+                item["artwork"] = artwork
+            projected_tracks.append(item)
+        selection = value.get("selection")
+        if not isinstance(selection, dict):
+            return unavailable
+        selected: dict = {
+            "requested_limit": selection.get("requested_limit"),
+            "source_sample_count": selection.get("source_sample_count"),
+            "returned_count": selection.get("returned_count"),
+            "more_in_sample": selection.get("more_in_sample"),
+            "size_limited": selection.get("size_limited"),
+            "coverage": "Source sample only; not a complete library or timestamped play history.",
+        }
+        if (
+            any(
+                type(selected[key]) is not int or not 0 <= selected[key] <= 50
+                for key in ("requested_limit", "source_sample_count", "returned_count")
+            )
+            or any(type(selected[key]) is not bool for key in ("more_in_sample", "size_limited"))
+            or selected["returned_count"] != len(projected_tracks)
+        ):
+            return unavailable
+        result = {
+            "ok": True,
+            "data": {"config_entry_id": source_account, "tracks": projected_tracks},
+            "selection": selected,
+        }
+        if not projected_tracks:
+            result["empty"] = True
+        return result
     if not isinstance(value, dict) or value.get("ok") is not True:
         return unavailable
     data = value.get("data")
@@ -132,6 +197,8 @@ class PodViewBridge:
         from .podview_music_control import MusicControlFacade
 
         self.controls = TouchControls(self, control_policy, MusicControlFacade(tools))
+        self.music_selection = MusicSelection()
+        self._touch_music_contexts: dict[tuple, tuple[float, dict]] = {}
         self._revisions: dict[str, tuple[str, int]] = {}
         self._grants: dict[str, tuple] = {}
         self._receipts: dict[str, tuple[str, dict]] = {}
@@ -147,6 +214,9 @@ class PodViewBridge:
         self._pairing_store = pairing_store
         self._pairing_deadline = time.monotonic() + 600
         self._pairing_attempts = 0
+        attach = getattr(tools, "attach_podview_music_owner", None)
+        if callable(attach):
+            attach(self)
 
     def pair(self, room: object, code: object) -> str | None:
         """Consume administrator provisioned authority, never infer it from a viewer."""
@@ -228,6 +298,128 @@ class PodViewBridge:
 
     def revoke(self, room: str) -> None:
         self._grants.pop(room, None)
+        self.music_selection.sources.clear()
+        self.music_selection.tasks.clear()
+
+    def voice_music_available(self) -> bool:
+        """Offer local voice tools only with a current controller and provider owner."""
+        return any(
+            self.controls.selection_allowed(room, grant[0]) for room, grant in self._grants.items()
+        )
+
+    def voice_music_room(self, context: object) -> str | None:
+        if getattr(context, "approval_mode", None) != "live":
+            return None
+        matches = [
+            room
+            for room, session in self.sessions.items()
+            if getattr(session, "_active", False)
+            and getattr(context, "session_id", None) == getattr(session, "_history_session", None)
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def _voice_music_task(
+        self, room: str, context: object, current, *, allow_consumed: bool = False
+    ) -> tuple[dict, dict, tuple, str] | None:
+        session = self.sessions.get(room)
+        grant = self._grants.get(room)
+        if (
+            session is None
+            or grant is None
+            or not getattr(session, "_active", False)
+            or getattr(context, "approval_mode", None) != "live"
+            or getattr(context, "session_id", None) != getattr(session, "_history_session", None)
+            or not current()
+        ):
+            return None
+        token = grant[0]
+        task = next(iter(self.music_selection.tasks.values()), None)
+        if (
+            task is None
+            or task["context"]["roomId"] != room
+            or (task["consumed"] and not allow_consumed)
+        ):
+            return None
+        source = self.music_selection.sources.get(task["candidateSetId"])
+        if (
+            source is None
+            or time.monotonic() >= task["deadline"]
+            or not _selection_voice_source_current(self, source, room, token)
+            or not _selection_rule_current(
+                self, room, task["account"], task["target"], task["maxVolume"], grant
+            )
+        ):
+            return None
+        return task, source, grant, token
+
+    def voice_music_options(self, room: str, context: object, current) -> dict:
+        """The model sees only the same opaque options already offered to touch."""
+        matched = self._voice_music_task(room, context, current)
+        if matched is None:
+            return {"ok": False, "error_kind": "stale_music_selection"}
+        task = matched[0]
+        return {
+            "ok": True,
+            "data": {
+                "schema": "podview.music-selection.v1",
+                "taskId": task["id"],
+                "revision": task["context"]["revision"],
+                "options": copy.deepcopy(task["publicOptions"]),
+                "accountId": task["account"],
+                "output": {
+                    "kind": "spotify_device",
+                    "targetId": task["target"],
+                    "name": task["controls"]["target"]["name"],
+                },
+                "observedVolumePercent": task["volume"],
+                "maxVolumePercent": task["maxVolume"],
+            },
+        }
+
+    async def voice_music_select(
+        self, room: str, context: object, args: dict, request_id: str, current
+    ) -> dict:
+        """Consume a reviewed voice choice through the same one-use broker as touch."""
+        matched = self._voice_music_task(room, context, current)
+        if matched is None:
+            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        task, source, grant, token = matched
+        if args["taskId"] != task["id"]:
+            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+
+        def selected_current() -> bool:
+            return bool(
+                current()
+                and self.music_selection.tasks.get(task["id"]) is task
+                and self.music_selection.sources.get(task["candidateSetId"]) is source
+                and self._voice_music_task(room, context, lambda: True, allow_consumed=True)
+                is not None
+                and _selection_voice_source_current(self, source, room, token)
+                and _selection_rule_current(
+                    self, room, task["account"], task["target"], task["maxVolume"], grant
+                )
+            )
+
+        async def fresh_controls():
+            result = await self.controls.music.setup_track(
+                task["account"], task["target"], selected_current
+            )
+            return result.get("data", {}) if result.get("ok") is True else {}
+
+        result = await self.music_selection.execute(
+            task_id=task["id"],
+            revision=args["revision"],
+            option_id=args["optionId"],
+            request_id=request_id,
+            confirmed_volume=args["confirmedVolumePercent"],
+            context=source["context"],
+            owner_binding=source["binding"],
+            authority=task["authority"],
+            current=selected_current,
+            fresh_controls=fresh_controls,
+            send_once=self.controls.music.execute_track,
+        )
+        return {"ok": result["ok"], "data": result}
 
     @staticmethod
     def _timer_history(state: dict) -> dict:
@@ -313,6 +505,14 @@ class PodViewBridge:
         result: dict = {
             "answers": {
                 "revision": answers["revision"] if answers else 0,
+                **(
+                    {
+                        key: latest_answer.get(key)
+                        for key in ("sessionEpoch", "providerGeneration", "answerRevision")
+                    }
+                    if latest_answer.get("schema") == "podview.research.v1"
+                    else {}
+                ),
                 **{
                     key: latest_answer.get(key)
                     for key in ("sessionId", "turnId", "taskId", "inputRevision")
@@ -344,9 +544,11 @@ class PodViewBridge:
                 "timerActions": [],
                 "musicRead": music_reads,
                 "musicActions": [],
+                "musicSelection": False,
                 "answerRead": receipt_owner is not None,
                 "controlSetup": [],
                 "visualEnrichment": bool(getattr(receipt_owner, "selection_enabled", False)),
+                "researchVisual": bool(getattr(receipt_owner, "research_admitted", False)),
             },
         }
         # No grant is disclosed to viewers. A paired controller supplies its own token.
@@ -359,6 +561,7 @@ class PodViewBridge:
         if fresh and self._grant_current(room, token):
             result["capabilities"]["timerActions"] = ["timer.start", "timer.cancel"]
         result["capabilities"]["controlSetup"] = self.controls.domains(room, token)
+        result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:
@@ -616,6 +819,132 @@ def _music_binding(bridge: PodViewBridge, room: str) -> tuple:
     )
 
 
+def _music_search_context(
+    bridge: PodViewBridge,
+    room: str,
+    account: str,
+    query: str,
+    token: str = "",
+    *,
+    mint_touch: bool = False,
+) -> dict:
+    """Read the current owner context; mint touch ownership only at an admitted read."""
+    snapshot = bridge.snapshot(room)
+    voice = snapshot.get("voice")
+    answers = snapshot.get("answers")
+    if not isinstance(voice, dict):
+        voice = {}
+    if not isinstance(answers, dict):
+        answers = {}
+    voice_task = (
+        isinstance(voice.get("sessionId"), str)
+        and isinstance(voice.get("turnId"), str)
+        and answers.get("sessionId") == voice.get("sessionId")
+        and answers.get("turnId") == voice.get("turnId")
+        and isinstance(answers.get("taskId"), str)
+        and type(answers.get("inputRevision")) is int
+    )
+    if not voice_task and bridge._grant_current(room, token):
+        key = (room, account, query, hashlib.sha256(token.encode()).hexdigest())
+        saved = bridge._touch_music_contexts.get(key)
+        if (saved is None or saved[0] <= time.monotonic()) and mint_touch:
+            touch = {
+                "sessionId": "touch:" + secrets.token_hex(16),
+                "turnId": "touch:" + secrets.token_hex(16),
+                "taskId": "music:" + secrets.token_hex(16),
+                "inputRevision": 1,
+                "revision": 1,
+            }
+            bridge._touch_music_contexts = {key: (time.monotonic() + 60, touch)}
+        elif saved is not None and saved[0] > time.monotonic():
+            touch = saved[1]
+        else:
+            touch = None
+    else:
+        touch = None
+    context = {
+        "schema": "podview.music-search-context.v1",
+        "bootId": snapshot.get("bootId"),
+        "roomId": room,
+        "revision": touch["revision"] if touch else answers.get("revision"),
+        "revisionScope": "music_selection" if touch else "answer_task",
+        "sessionId": touch["sessionId"] if touch else voice.get("sessionId"),
+        "turnId": touch["turnId"] if touch else voice.get("turnId"),
+        "taskId": touch["taskId"] if touch else answers.get("taskId"),
+        "inputRevision": touch["inputRevision"] if touch else answers.get("inputRevision"),
+        "configEntryId": account,
+        "source": "spotify_web_api",
+        "query": query,
+    }
+    return context
+
+
+def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, token: str) -> bool:
+    context = source["context"]
+    return bool(
+        bridge._grant_current(room, token)
+        and bridge.controls.selection_allowed(room, token)
+        and context.get("roomId") == room
+        and _music_binding(bridge, room) == source["binding"]
+        and _music_search_context(bridge, room, context["configEntryId"], context["query"], token)
+        == context
+    )
+
+
+def _selection_voice_source_current(
+    bridge: PodViewBridge, source: dict, room: str, token: str
+) -> bool:
+    """A later trusted approval turn may retain the exact original answer task."""
+    context = source["context"]
+    if context.get("revisionScope") != "answer_task":
+        return _selection_source_current(bridge, source, room, token)
+    snapshot = bridge.snapshot(room, token)
+    answer = snapshot.get("answers", {})
+    voice = snapshot.get("voice", {})
+    return bool(
+        bridge._grant_current(room, token)
+        and bridge.controls.selection_allowed(room, token)
+        and context.get("roomId") == room
+        and _music_binding(bridge, room) == source["binding"]
+        and voice.get("sessionId") == context.get("sessionId")
+        and all(
+            answer.get(key) == context.get(key)
+            for key in ("sessionId", "turnId", "taskId", "inputRevision", "revision")
+        )
+    )
+
+
+def _selection_rule_current(
+    bridge: PodViewBridge, room: str, account: str, target_id: str, max_volume: int, grant: tuple
+) -> bool:
+    """An old offer cannot outlive its exact room grant or action rule."""
+    rules = bridge.controls.policy.get("music")
+    return bool(
+        bridge._grants.get(room) is grant
+        and bridge.controls.policy.get("roomId") == room
+        and isinstance(rules, list)
+        and any(
+            isinstance(row, dict)
+            and row.get("accountId") == account
+            and row.get("targetId") == target_id
+            and row.get("maxVolume") == max_volume
+            and isinstance(row.get("actions"), list)
+            and "play_track" in row["actions"]
+            for row in rules
+        )
+    )
+
+
+def _music_search_candidate_set(context: dict, data: object) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    source = {"context": context, "data": data}
+    candidate_set_id = hashlib.sha256(
+        json.dumps(source, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+    return {**context, "candidateSetId": candidate_set_id}
+
+
 async def _answers(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
@@ -655,19 +984,53 @@ async def _music(request: web.Request) -> web.Response:
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
     kind = request.query.get("kind", "targets")
-    if kind not in {"targets", "recent", "top", "liked", "playback", "queue"}:
+    if kind not in {"targets", "recent", "top", "liked", "playback", "queue", "search"}:
         return _error("unsupported_read", 400)
     account = request.query.get("account")
+    query = None
+    if kind == "search":
+        try:
+            values = request.query.getall("query", [])
+            if len(values) != 1:
+                raise ValueError("missing or repeated query")
+            query = podview_music.normalize_search_query(values[0])
+        except ValueError:
+            return _error("invalid_query", 400)
+    elif "query" in request.query:
+        return _error("invalid_query", 400)
+    library_kinds = {"recent", "top", "liked"}
     if (
         account is not None
-        and (kind not in {"targets", "playback", "queue"} or not 1 <= len(account) <= 1024)
+        and (
+            kind not in {"targets", "playback", "queue", "search", *library_kinds}
+            or not 1 <= len(account) <= 1024
+        )
     ) or (kind in podview_music.SERVICES and account is None):
         return _error("invalid_account", 400)
     if kind not in tools.podview_music_reads():
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
     binding = _music_binding(bridge, room)
-    cache_key = (room, kind, account)
+    token = request.cookies.get(_PAIR_COOKIE, "")
+    selection_requested = bool(
+        kind == "search"
+        and bridge._grant_current(room, token)
+        and bridge.controls.selection_allowed(room, token)
+    )
+    search_context = (
+        _music_search_context(bridge, room, account, query, token)
+        if kind == "search" and account is not None and query is not None
+        else None
+    )
+    cache_key = (
+        room,
+        kind,
+        account,
+        query,
+        json.dumps(search_context, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        if search_context is not None
+        else None,
+    )
     # Old owner values may neither be returned nor consume the bounded cache.
     bridge._music_cache = {
         key: value
@@ -677,20 +1040,39 @@ async def _music(request: web.Request) -> web.Response:
         and value[1] == _music_binding(bridge, key[0])
         and key[1] in tools.podview_music_reads()
     }
-    cached = bridge._music_cache.get(cache_key)
+    cached = bridge._music_cache.get(cache_key) if not selection_requested else None
     if cached:
         result = (
-            _music_public(kind, cached[2], account) if kind in podview_music.SERVICES else cached[2]
+            _music_public(kind, cached[2], account, query)
+            if kind in podview_music.SERVICES
+            else cached[2]
         )
+        if kind == "search" and result.get("ok") and search_context is not None:
+            candidate_set = _music_search_candidate_set(search_context, result.get("data"))
+            if candidate_set is not None:
+                result["candidateSet"] = candidate_set
         return web.json_response(result, headers={"Cache-Control": "no-store"})
     if kind != "playback" and len(bridge._music_cache) >= 16:
         return _error("music_capacity", 429)
     if bridge._music_busy:
         return _error("music_busy", 429)
     bridge._music_busy = True
+    before_epoch = None
     try:
-        raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=10)
-        result = _music_public(kind, raw, account)
+        if kind == "search" and selection_requested:
+            assert account is not None and query is not None
+            search_context = _music_search_context(
+                bridge, room, account, query, token, mint_touch=True
+            )
+        if kind == "search":
+            if selection_requested and "playback" in tools.podview_music_reads():
+                before = await asyncio.wait_for(tools.podview_read("playback", account), timeout=10)
+                if before.get("ok") is True:
+                    before_epoch = before.get("data", {}).get("owner_epoch")
+            raw = await asyncio.wait_for(tools.podview_read(kind, account, query), timeout=10)
+        else:
+            raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=10)
+        result = _music_public(kind, raw, account, query)
     except Exception:
         result = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
     finally:
@@ -702,14 +1084,192 @@ async def _music(request: web.Request) -> web.Response:
         or kind not in tools.podview_music_reads()
     ):
         return _error("music_unavailable", 503)
+    if kind == "search":
+        assert account is not None and query is not None
+        current_context = _music_search_context(
+            bridge, room, account, query, request.cookies.get(_PAIR_COOKIE, "")
+        )
+        if current_context != search_context:
+            return _error("music_unavailable", 503)
+        if result.get("ok") and search_context is not None:
+            candidate_set = _music_search_candidate_set(search_context, result.get("data"))
+            if candidate_set is not None:
+                if not selection_requested:
+                    result["candidateSet"] = candidate_set
+                else:
+                    after_epoch = None
+                    try:
+                        after = await asyncio.wait_for(
+                            tools.podview_read("playback", account), timeout=10
+                        )
+                        if after.get("ok") is True:
+                            after_epoch = after.get("data", {}).get("owner_epoch")
+                    except Exception:
+                        pass
+                    if (
+                        before_epoch is not None
+                        and after_epoch == before_epoch
+                        and binding == _music_binding(bridge, room)
+                        and current_context
+                        == _music_search_context(bridge, room, account, query, token)
+                    ):
+                        identifier = bridge.music_selection.register(
+                            search_context, result["data"], binding, before_epoch, after_epoch
+                        )
+                        if identifier is not None:
+                            result["candidateSet"] = {**candidate_set, "candidateSetId": identifier}
     # Playback must consult its owner again; it never gets a fresh bridge timestamp.
-    if kind != "playback":
+    if kind != "playback" and not selection_requested:
         bridge._music_cache[cache_key] = (
             time.monotonic(),
             binding,
             result,
             2 if kind == "queue" else 15,
         )
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
+
+
+async def _music_selection(request: web.Request) -> web.Response:
+    """One short-lived server option set; the browser never supplies a Spotify URI."""
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    if request.content_length is None or request.content_length > 4096:
+        return _error("bounded_body_required", 413)
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError
+    except (ValueError, json.JSONDecodeError):
+        return _error("invalid_music_selection", 400)
+    bridge = request.app[BRIDGE]
+    token = request.cookies.get(_PAIR_COOKIE, "")
+    room = body.get("roomId")
+    if (
+        not isinstance(room, str)
+        or room not in bridge.sessions
+        or body.get("bootId") != bridge.boot_id
+        or not bridge._grant_current(room, token)
+        or not bridge.controls.selection_allowed(room, token)
+    ):
+        return _error("music_selection_not_paired", 403)
+
+    def source_current(source: dict) -> bool:
+        return _selection_source_current(bridge, source, room, token)
+
+    def exact_rule_current(account: str, target_id: str, max_volume: int, grant: tuple) -> bool:
+        return _selection_rule_current(bridge, room, account, target_id, max_volume, grant)
+
+    if request.path.endswith("/setup"):
+        if set(body) != {"bootId", "roomId", "candidateSetId", "target"} or not isinstance(
+            body["candidateSetId"], str
+        ):
+            return _error("invalid_music_selection", 400)
+        source = bridge.music_selection.sources.get(body["candidateSetId"])
+        target = body["target"]
+        if (
+            source is None
+            or not isinstance(target, dict)
+            or set(target) != {"accountId", "kind", "targetId"}
+            or target["kind"] != "spotify_device"
+            or target["accountId"] != source["context"]["configEntryId"]
+            or not source_current(source)
+        ):
+            return _error("stale_music_selection")
+        rule = next(
+            (
+                row
+                for row in bridge.controls.policy["music"]
+                if row["accountId"] == target["accountId"]
+                and row["targetId"] == target["targetId"]
+                and "play_track" in row["actions"]
+            ),
+            None,
+        )
+        if rule is None:
+            return _error("target_not_granted", 403)
+        grant = bridge._grants.get(room)
+        if grant is None:
+            return _error("music_selection_not_paired", 403)
+
+        def selected_current() -> bool:
+            return bool(
+                source_current(source)
+                and exact_rule_current(
+                    target["accountId"], target["targetId"], rule["maxVolume"], grant
+                )
+            )
+
+        facade = bridge.controls.music
+        controls = await facade.setup_track(
+            target["accountId"], target["targetId"], selected_current
+        )
+        if controls.get("ok") is not True or not selected_current():
+            return _error("music_selection_unavailable")
+        context = source["context"]
+        session = bridge.sessions[room]
+        authority = (session, getattr(session, "_epoch", None), context["taskId"], grant)
+        offer = bridge.music_selection.offer(
+            identifier=body["candidateSetId"],
+            context=context,
+            owner_binding=source["binding"],
+            account=target["accountId"],
+            target=target["targetId"],
+            observed_controls=controls["data"],
+            approved_max_volume=rule["maxVolume"],
+            authority=authority,
+            current=selected_current,
+        )
+        return web.json_response(
+            offer
+            if offer is not None
+            else {"ok": False, "error": "stale_music_selection", "retryAllowed": False},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    if set(body) != {
+        "bootId",
+        "roomId",
+        "taskId",
+        "revision",
+        "requestId",
+        "optionId",
+        "confirmedVolumePercent",
+    } or not isinstance(body["taskId"], str):
+        return _error("invalid_music_selection", 400)
+    task = bridge.music_selection.tasks.get(body["taskId"])
+    if task is None or task["context"]["roomId"] != room:
+        return _error("stale_music_selection")
+    source = bridge.music_selection.sources.get(task["candidateSetId"])
+    if source is None or not source_current(source):
+        return _error("stale_music_selection")
+    grant = task["authority"][-1]
+
+    def action_current() -> bool:
+        return bool(
+            source_current(source)
+            and exact_rule_current(task["account"], task["target"], task["maxVolume"], grant)
+        )
+
+    facade = bridge.controls.music
+
+    async def fresh_controls():
+        result = await facade.setup_track(task["account"], task["target"], action_current)
+        return result.get("data", {}) if result.get("ok") is True else {}
+
+    result = await bridge.music_selection.execute(
+        task_id=body["taskId"],
+        revision=body["revision"],
+        option_id=body["optionId"],
+        request_id=body["requestId"],
+        confirmed_volume=body["confirmedVolumePercent"],
+        context=source["context"],
+        owner_binding=source["binding"],
+        authority=task["authority"],
+        current=action_current,
+        fresh_controls=fresh_controls,
+        send_once=facade.execute_track,
+    )
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
@@ -807,6 +1367,7 @@ def _home_vacuum(value: object) -> dict:
                 "source": "home_assistant_state",
                 "settings": {"status": "unavailable", "items": []},
                 "history": _home_history(row.get("history"), row["entityId"]),
+                "telemetry": podview_robot.project(row.get("telemetry"), row["entityId"]),
                 "actions": [],
             }
         )
@@ -956,6 +1517,8 @@ def mount(
             web.post("/view/api/control/actions", _control),
             web.post("/view/api/pair", _pair),
             web.get("/view/api/music", _music),
+            web.post("/view/api/music/selection/setup", _music_selection),
+            web.post("/view/api/music/selection/actions", _music_selection),
             web.get("/view/api/home", _home),
             web.get("/view/api/answers", _answers),
             web.get("/view/api/sources/{receipt_id}", _answers),

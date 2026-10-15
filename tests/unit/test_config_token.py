@@ -26,6 +26,7 @@ def test_podview_authority_only_comes_from_supervisor_options(monkeypatch, tmp_p
         lambda path=None: {
             "podview_control_policy": "owner-policy",
             "podview_visual_policy": "owner-visual-policy",
+            "podview_research_visual_policy": "completed_receipts_v1",
             "podview_pairing_room": "owner-room",
             "podview_pairing_sha256": "a" * 64,
         },
@@ -37,6 +38,7 @@ def test_podview_authority_only_comes_from_supervisor_options(monkeypatch, tmp_p
         lambda path: {
             "podview_control_policy": "attacker-policy",
             "podview_visual_policy": "attacker-visual-policy",
+            "podview_research_visual_policy": "attacker-research-policy",
             "podview_pairing_room": "attacker-room",
             "podview_pairing_sha256": "b" * 64,
         },
@@ -44,22 +46,26 @@ def test_podview_authority_only_comes_from_supervisor_options(monkeypatch, tmp_p
     loaded = config.load_config()
     assert loaded.podview_control_policy == "owner-policy"
     assert loaded.podview_visual_policy == "owner-visual-policy"
+    assert loaded.podview_research_visual_policy == "completed_receipts_v1"
     assert loaded.podview_pairing_room == "owner-room"
     assert loaded.podview_pairing_sha256 == "a" * 64
     monkeypatch.setattr(config, "load_options", lambda path=None: {})
     loaded = config.load_config()
     assert loaded.podview_control_policy == ""
     assert loaded.podview_visual_policy == ""
+    assert loaded.podview_research_visual_policy == ""
     assert loaded.podview_pairing_room == loaded.podview_pairing_sha256 == ""
     denied = config.from_options(
         {
             "settings_source_untrusted": True,
             "podview_control_policy": "owner-policy",
             "podview_visual_policy": "owner-visual-policy",
+            "podview_research_visual_policy": "completed_receipts_v1",
             "podview_pairing_room": "owner-room",
             "podview_pairing_sha256": "a" * 64,
         }
     )
     assert denied.podview_control_policy == ""
     assert denied.podview_visual_policy == ""
+    assert denied.podview_research_visual_policy == ""
     assert denied.podview_pairing_room == denied.podview_pairing_sha256 == ""

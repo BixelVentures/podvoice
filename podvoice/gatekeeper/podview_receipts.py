@@ -132,12 +132,35 @@ class VisualReceiptOwner:
         self._closed = False
         self._selector: VisualSelector | None = None
         self._selection: asyncio.Task | None = None
+        self._research_mode = False
+        self._research_admitted = False
 
     def configure_selector(self, selector: VisualSelector | None) -> None:
         """Startup-only optional provider. No browser request can enable it."""
         if self._rooms or self._closed:
             raise RuntimeError("visual selector configuration is startup-only")
         self._selector = selector
+
+    def configure_research_mode(self, policy: str = "") -> None:
+        """Supervisor-only startup opt-in; empty default preserves exact26 scope.
+
+        Reuses already-paid completed conversation tool data and the same selector
+        allowance. This expands selector purpose and needs separate authorization.
+        It never enables background Google calls or another conversation/model.
+        """
+        if self._rooms or self._closed:
+            raise RuntimeError("research presentation configuration is startup-only")
+        self._research_mode = policy == "completed_receipts_v1"
+        self._research_admitted = self._research_mode and self.selection_enabled
+
+    @property
+    def research_admitted(self) -> bool:
+        """Already-admitted receipt format survives finite selector exhaustion."""
+        return self._research_admitted and not self._closed
+
+    @property
+    def research_enabled(self) -> bool:
+        return self._research_mode and self.selection_enabled
 
     @property
     def selection_enabled(self) -> bool:
@@ -165,7 +188,8 @@ class VisualReceiptOwner:
 
             async with asyncio.timeout(5):
                 selected = await selector.select(
-                    copy.deepcopy(row["item"]["content"]), current=current_receipt
+                    copy.deepcopy(row.get("selection_content", row["item"]["content"])),
+                    current=current_receipt,
                 )
 
             current = self._current(room_id)
@@ -176,7 +200,7 @@ class VisualReceiptOwner:
                 or not current_receipt()
             ):
                 return
-            content = row["item"]["content"]
+            content = row.get("selection_content", row["item"]["content"])
             chosen = selected.get("content", {}).get("facts", [])
             # Independent owner closure: no provider fact can be added or edited.
             if not chosen or any(f not in content["facts"] for f in chosen):
@@ -185,11 +209,28 @@ class VisualReceiptOwner:
             if len(set(ids)) != len(ids):
                 return
             source_ids = {f["sourceId"] for f in chosen}
-            row["item"]["content"] = {
-                "summary": content["summary"],
-                "facts": copy.deepcopy(chosen),
-                "sources": [s for s in content["sources"] if s["id"] in source_ids],
-            }
+            selected_sources = [s for s in content["sources"] if s["id"] in source_ids]
+            if row["item"]["family"] == "answer-timeline":
+                # Model chooses only immutable candidate IDs; owner copies source
+                # periods in original chronology, never model prose or timestamps.
+                events = [e for e in row["item"]["content"]["events"] if e["id"] in ids]
+                row["item"]["content"] = {
+                    "summary": content["summary"],
+                    "events": events,
+                    "sources": selected_sources,
+                }
+                provenance = row["item"]["provenance"]
+                provenance.update(
+                    displayedPeriods=len(events),
+                    displayedStart=events[0]["time"],
+                    displayedEnd=events[-1]["time"],
+                )
+            else:
+                row["item"]["content"] = {
+                    "summary": content["summary"],
+                    "facts": copy.deepcopy(chosen),
+                    "sources": selected_sources,
+                }
             row["item"]["displaySuggested"] = True
             state["revision"] += 1
         except (Exception, asyncio.CancelledError):
@@ -231,10 +272,34 @@ class VisualReceiptOwner:
         try:
             if not current():
                 return False
-            projected = _facts(tool_name, result)
-            if projected is None:
+            research = None
+            if self.research_enabled and provider_generation is not None:
+                from .podview_research import extract
+
+                research = extract(tool_name, result, now=time.time())
+            projected = _facts(tool_name, result) if research is None else None
+            if projected is None and research is None:
                 return False
-            summary, facts, _suggested, provenance = projected
+            if research is not None:
+                summary, provenance = research["summary"], research["provenance"]
+                if research["family"] == "answer-timeline":
+                    # Same bounded selector fact anatomy; preserve mapping to source
+                    # periods. Six candidates fit existing model/request bounds.
+                    research["events"] = research["events"][:6]
+                    facts = [
+                        {
+                            "id": e["id"],
+                            "label": e["time"],
+                            "value": e["label"],
+                            "detail": e["detail"],
+                        }
+                        for e in research["events"]
+                    ]
+                else:
+                    facts = research["facts"]
+            else:
+                assert projected is not None
+                summary, facts, _suggested, provenance = projected
             if not all(_text(f["value"], 80) and _text(f["detail"], 200) for f in facts):
                 return False
             if not current():
@@ -298,6 +363,36 @@ class VisualReceiptOwner:
             "content": content,
         }
         row = {"item": item, "deadline": self._clock() + 120, "tool": tool_name}
+        if research is not None:
+            item.update(
+                schema="podview.research.v1",
+                roomId=room_id,
+                sessionEpoch=session_epoch,
+                providerGeneration=provider_generation,
+                answerRevision=state["revision"],
+                validUntil=research["validUntil"],
+                allowedActions=[],
+            )
+            provenance["validUntil"] = research["validUntil"]
+            if research["family"] == "fact-card":
+                # Timestamp shared with extractor; don't turn a later publish into
+                # a fresh source observation.
+                item["observedAt"] = provenance["retrievedAt"]
+                row["sourceText"] = research["sourceText"]
+            else:
+                item["family"] = "answer-timeline"
+                row["selection_content"] = copy.deepcopy(content)
+                events = [{**event, "sourceId": source_id} for event in research["events"]]
+                item["content"] = {
+                    "summary": summary,
+                    "events": events,
+                    "sources": content["sources"],
+                }
+                provenance.update(
+                    displayedPeriods=len(events),
+                    displayedStart=events[0]["time"],
+                    displayedEnd=events[-1]["time"],
+                )
         state["items"].insert(0, row)
         del state["items"][3:]
         state["revision"] += 1
@@ -333,15 +428,22 @@ class VisualReceiptOwner:
 
     def snapshot(self, room_id: str, owner: object | None = None) -> dict:
         state = self._current(room_id, owner)
+        items = (
+            copy.deepcopy(
+                [r["item"] for r in state["items"] if r["item"]["displaySuggested"] is True]
+            )
+            if state
+            else []
+        )
+        for item in items:
+            assert state is not None
+            if item.get("schema") == "podview.research.v1":
+                item["answerRevision"] = state["revision"]
         return {
             "schema": "podview.answers.v1",
             "roomId": room_id,
             "revision": state["revision"] if state else 0,
-            "items": copy.deepcopy(
-                [r["item"] for r in state["items"] if r["item"]["displaySuggested"] is True]
-            )
-            if state
-            else [],
+            "items": items,
         }
 
     def source(self, room_id: str, receipt_id: str, owner: object | None = None) -> dict | None:
@@ -351,9 +453,21 @@ class VisualReceiptOwner:
             if state
             else None
         )
-        if row is None or row["item"]["displaySuggested"] is not True:
+        if state is None or row is None or row["item"]["displaySuggested"] is not True:
             return None
         item = row["item"]
+        if item.get("schema") == "podview.research.v1":
+            result = copy.deepcopy(item)
+            result["answerRevision"] = state["revision"]
+            result.update(
+                schema="podview.research.source.v1",
+                kind="owner_receipt",
+                toolName=row["tool"],
+                externalSourcesProvided=False,
+            )
+            if "sourceText" in row:
+                result["sourceText"] = row["sourceText"]
+            return result
         return {
             "schema": "podview.source.v1",
             "kind": "owner_receipt",

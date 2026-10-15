@@ -338,6 +338,23 @@ def live_confirmation_instructions(
         or hashlib.sha256(proposal.normalized_args.encode()).hexdigest() != proposal.args_sha256
     ):
         raise ValueError("invalid Live confirmation arguments")
+    confirmation = None
+    if proposal.confirmation_json:
+        try:
+            confirmation = json.loads(proposal.confirmation_json)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid Live confirmation details") from exc
+        if (
+            not isinstance(confirmation, dict)
+            or set(confirmation) != {"song", "artist", "output", "account_id", "volume_percent"}
+            or any(
+                not isinstance(confirmation[key], str) or not confirmation[key]
+                for key in ("song", "artist", "output", "account_id")
+            )
+            or type(confirmation["volume_percent"]) is not int
+            or not 0 <= confirmation["volume_percent"] <= 100
+        ):
+            raise ValueError("invalid Live confirmation details")
     payload = json.dumps(
         {
             "challenge_id": proposal.challenge_id,
@@ -348,6 +365,7 @@ def live_confirmation_instructions(
             "arguments": arguments,
             "arguments_sha256": proposal.args_sha256,
             "expires_at_monotonic": proposal.expires_at,
+            **({"confirmation": confirmation} if confirmation is not None else {}),
         },
         ensure_ascii=False,
         allow_nan=False,

@@ -41,7 +41,7 @@ class VisualComponent extends HTMLElement {
     row.append(make(this.family==='fact-card'?'dt':'span','pv-visual-label'),make(this.family==='fact-card'?'dd':'h2','pv-visual-value'),make('p','pv-visual-detail'));return row;
    },(row,item,index)=>{
     const [label,value,detail]=row.children;
-    copy(label,this.family==='fact-card'?item.label:this.family==='answer-timeline'?`${item.time} · ${item.status==='planned'?'Planlagt':'Registreret'}`:String(index+1).padStart(2,'0'));
+    copy(label,this.family==='fact-card'?item.label:this.family==='answer-timeline'?`${item.time} · ${d.forecast===true?'Prognose':item.status==='planned'?'Planlagt':'Registreret'}`:String(index+1).padStart(2,'0'));
     copy(value,this.family==='fact-card'?item.value:item.label);copy(detail,item.detail);row.dataset.position=String(index+1);
    });
   }

@@ -8,3 +8,12 @@ test('timer details return to their origin without stopping timers',()=>{let s=s
 
 import {timerStateLabel} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
 test('all timer surfaces distinguish stale, paused and finished authoritative state',()=>{assert.equal(timerStateLabel({status:'running',stale:true}),'Sidst kendte tid');assert.equal(timerStateLabel({status:'paused'}),'På pause');assert.equal(timerStateLabel({status:'done'}),'Tiden er gået');});
+
+import {timerProgress} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
+test('progress never invents a total from native remaining time',()=>{
+ for(const duration of [null,undefined,0,-1,NaN,Infinity])assert.equal(timerProgress({duration,remaining:30}),null);
+ assert.equal(timerProgress({duration:60,remaining:30}),50);
+ assert.equal(timerProgress({duration:60,remaining:61}),null);
+ assert.equal(timerProgress({duration:60,remaining:0}),0);
+ assert.equal(timerProgress({duration:60,remaining:-1}),null);
+});

@@ -233,6 +233,40 @@ def test_passive_forecast_never_creates_current_weather_or_source_timestamp():
     assert data["forecast"][0]["temperature"] == 16.4
 
 
+def test_daily_forecast_exposes_only_provider_supplied_high_and_optional_low():
+    payload = _current_weather_payload(2)
+    result = payload["data"]["result"]
+    result["forecast_type"] = "daily"
+    result["forecast"][0]["templow"] = 8.25
+    result["forecast"][1].pop("templow", None)
+
+    forecast = weather_projection(payload)["data"]["forecast"]
+    assert forecast[0]["highTemperature"] == 16.4
+    assert forecast[0]["lowTemperature"] == 8.25
+    assert forecast[0]["temperature"] == 16.4  # Preserve source value and unit.
+    assert "lowTemperature" not in forecast[1]  # Missing low stays missing.
+    assert "highTemperature" in forecast[1]
+
+
+def test_hourly_temperature_is_not_relabelled_as_daily_high_or_low():
+    payload = _current_weather_payload(2)
+    payload["data"]["result"]["forecast"][0]["templow"] = 8.25
+    forecast = weather_projection(payload)["data"]["forecast"][0]
+    assert forecast["temperature"] == 16.4
+    assert "highTemperature" not in forecast
+    assert "lowTemperature" not in forecast
+    assert "templow" not in forecast
+
+
+@pytest.mark.parametrize("bad_low", [True, "8", float("nan"), float("inf")])
+def test_daily_malformed_low_temperature_fails_closed(bad_low):
+    payload = _current_weather_payload(1)
+    result = payload["data"]["result"]
+    result["forecast_type"] = "daily"
+    result["forecast"][0]["templow"] = bad_low
+    assert weather_projection(payload) == {"status": "unavailable", "data": None}
+
+
 @pytest.mark.parametrize(
     "kind",
     [

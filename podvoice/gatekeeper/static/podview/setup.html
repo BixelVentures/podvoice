@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="da">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>PodView · Skærmopsætning</title>
+ <link rel="stylesheet" href="ui/components.css">
+ <link rel="stylesheet" href="setup.css">
+ <script type="module" src="setup.js"></script>
+</head>
+<body>
+ <main>
+  <a href="./">← Til PodView</a>
+  <h1>Skærmopsætning</h1>
+  <p>Indtast engangskoden fra PodVoice for at bruge de godkendte handlinger på denne skærm i fem minutter.</p>
+  <form id="pair-form">
+   <label for="pair-code">Engangskode</label>
+   <input id="pair-code" name="code" type="password" autocomplete="off" minlength="16" maxlength="256" required>
+   <button id="pair-submit" type="submit" disabled>Forbind skærmen</button>
+  </form>
+  <p id="pair-status" role="status">Forbinder til hjemmet…</p>
+ </main>
+</body>
+</html>

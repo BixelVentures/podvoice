@@ -14,7 +14,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
  syncDisabled(){for(const el of this.shadowRoot.querySelectorAll('button,input,select'))el.disabled=this._disabled||el.dataset.unready==='true';}
  emit(name,detail){if(this._disabled)return;this.dispatchEvent(new CustomEvent(name,{detail,bubbles:true,composed:true}));}
  observed(device){this.value={...this.value,device};this.updateObservation();}
- updateObservation(){const d=this.value?.device;if(!this.observation)return;this.observation.strong.textContent=statusText(d);this.observation.meta.textContent=[Number.isFinite(d?.battery)?`Batteri ${d.battery} %`:null,d?.observedAt?`Observeret ${new Date(d.observedAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}`:null,this.value?.demo?'Eksempeldata':'Home Assistant'].filter(Boolean).join(' · ');}
+ updateObservation(){const d=this.value?.device;if(!this.observation)return;this.observation.strong.textContent=statusText(d);this.observation.meta.textContent=[Number.isFinite(d?.battery)?`Batteri ${d.battery} %`:null,d?.stale?'Sidst kendte status':null].filter(Boolean).join(' · ');this.observation.meta.hidden=!this.observation.meta.textContent;}
  action(option,args={}){this.emit('robot-control-action',{optionId:option.id,args});}
  build(){
   const {task,device,history}=this.value||{},groups=robotControlGroups(task);this.content.replaceChildren();
