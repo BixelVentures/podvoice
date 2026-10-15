@@ -26,8 +26,8 @@ MANIFEST = "scripts/podview30-admission-reviewed.json"
 STATIC = "podvoice/gatekeeper/static/podview/"
 LEGACY_SHA = "98280acb2f4b9736ba135ef83217f409c864bb190d359aee476fe7a991a37b75"
 LEGACY_AST = "ce01e442628ee644a176c1d97609b2dc02e9aa3bcf55e22366c2a8d1743ea788"
-MANIFEST_SHA = "607f50a785409ad16deb77fc7cbbe8446ceae7161fb0e58a3666cd328b31545c"
-PROFILE_AST = "8f10b13bd8da1bd14cc3f9f1cee4d0e2f320eaeb2d9552fc02a523cfc34e7c42"
+MANIFEST_SHA = "2978f6c2b392a04ff395b3954e98470f18e04b0b9bec88b253aec950c0a395b0"
+PROFILE_AST = "e63936ba9cac2c9516f103571bc7a0c7e019ec1473ce6af99b49071c2f1f4820"
 REQUIRED_PRODUCTION = frozenset(
     {
         "podvoice/gatekeeper/podview.py",

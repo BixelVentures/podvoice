@@ -9,12 +9,12 @@
     "physical_output"
   ],
   "fingerprint": "74ea9dfc454b2834912bd967baa1ba0a2d213a02778ad7a56b27da2dfcd956bb",
-  "regression_fingerprint": "1295c9eaf6e1341a7d9b8c64558df4a6948609da4372eb26c9c57c82096f0921",
-  "policy_fingerprint": "a17129d43ae1b098f5e2199fa1806f784204f2553dd6f758aba2103914c24a87",
+  "regression_fingerprint": "47321cc5a17216162bbb16852d1659f139f4ce3969612b8bc2583592eeef633c",
+  "policy_fingerprint": "4814d8fe0eb45188847a93ee82052e87c2f0a586bbaae2581439118ccd313470",
   "config_fingerprint": "16115112cc71407eff6710402a473d0fc1bdae49cba124a4af1d21fbf5c58e17",
-  "manifest_fingerprint": "607f50a785409ad16deb77fc7cbbe8446ceae7161fb0e58a3666cd328b31545c",
+  "manifest_fingerprint": "2978f6c2b392a04ff395b3954e98470f18e04b0b9bec88b253aec950c0a395b0",
   "reviewer": "independent GPT-6.1 Sol Ultra / final_freeze_ultra / 2026-10-15",
-  "rationale": "Independent final source GO on exact PodVoice30 and coupled PodConnect native05be2aec. Exact closed runtime and regression inventory; historical policy guards retained. Actual domains include ha_tools from existing large-diff weather text. CI, image, installation and physical acceptance remain pending."
+  "rationale": "Independent final source GO on exact PodVoice30 and coupled PodConnect native05be2aec. Exact closed runtime and regression inventory; historical policy guards retained. Actual domains include ha_tools from existing large-diff weather text. CI, image, installation and physical acceptance remain pending. CI fixture repair: observed empty permits start; existing owner ID blocks new start and remains cancellable. Independent scoped delta GO confirmed by final_freeze_ultra; runtime and config unchanged."
 }
 -->
 

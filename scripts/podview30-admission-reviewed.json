@@ -1,7 +1,10 @@
 {
-  "schema": "podview30.admission.v1",
-  "base": "beed27b0528917e4872516a53d88bedb17d3d6ed",
   "asset_count": 130,
+  "base": "beed27b0528917e4872516a53d88bedb17d3d6ed",
+  "policy": {
+    ".github/workflows/ci.yml": "6096dc769c9d4e6972f7920237615682e59161611c1290d537b5d3b5d8d30c77",
+    "scripts/dev_cycle.py": "a3f69f2dc2d95b0d9a5b7a86f579fa88a490498eed9170da49c1313d5e99bf9a"
+  },
   "production": {
     "podvoice/gatekeeper/podview.py": "5533500ebb01b34f4bea27c4da50dfa376a466d95be0aaaa270905652ff010a8",
     "podvoice/gatekeeper/podview_controls.py": "3bfcaf087134d820e1078a3a89f29339de18721386d67c1c792b985414e3c02d",
@@ -54,7 +57,7 @@
     "tests/podview/ingress-kiosk.test.mjs": "9554a2572736858d95587d6824f6cea4747d3336122c0178397e79b0240a9c15",
     "tests/podview/music-selection.test.mjs": "a99de7913cf296cb6cba2312d9b0c796b5a9bb13b82618bb35e1ce36c487edac",
     "tests/podview/podvoice-transport.test.mjs": "884e98d131fcc34fd5645accc8758b32be6d50444546f36830c00f65ccf51396",
-    "tests/podview/podvoice-view.test.mjs": "d74ca72d862a11c3e038924787514d539e339ad753b8c268aa16aef0d3959bf5",
+    "tests/podview/podvoice-view.test.mjs": "53751d243101bc3f21cf94e7df7a9f8eb1fabdc6198ed27df58cc5ace5fe0c5a",
     "tests/podview/research-answers.test.mjs": "44547055290ae09b31f47e1a35f616014c1d3922bb15b3464725eb374f4029a7",
     "tests/podview/root-collection-selection.test.mjs": "1360634f240f72a2f1f524db38ff77d866edbf2d3b708f0478bb62cf7a839cfe",
     "tests/podview/root-control-model.test.mjs": "008232f0dafe1c41bddc35027bf613175538ea0df597315433c23adae207ca56",
@@ -243,8 +246,5 @@
     "podvoice/gatekeeper/static/podview/workshop.css": "8c1c212d163bde9e97a53ef969e2e49b8a030ca3750e553413e647d3b6fb699e",
     "podvoice/gatekeeper/static/podview/workshop.js": "e98afd415b5fd1dbc78f1b3ef704257bda5072c96cd574fe53b8221a8230eaac"
   },
-  "policy": {
-    ".github/workflows/ci.yml": "6096dc769c9d4e6972f7920237615682e59161611c1290d537b5d3b5d8d30c77",
-    "scripts/dev_cycle.py": "a3f69f2dc2d95b0d9a5b7a86f579fa88a490498eed9170da49c1313d5e99bf9a"
-  }
+  "schema": "podview30.admission.v1"
 }
