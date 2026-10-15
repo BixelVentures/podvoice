@@ -119,7 +119,7 @@
     "tests/unit/test_mood_ongoing_selector.py": "d7f06143f5a3bc61e8ce5ef5efa3075737bfbd4bfc4cd67cf2640b401076cd2e",
     "tests/unit/test_mood_provision_operator.py": "84ef69a3067d8763f2e32e6c6a7060598a2c773522ad188f53b6c7235f4c165d",
     "tests/unit/test_mood_selector.py": "c2f9b7c94c9c00ccd8688645bd71e2782b58ad32a5e23b376240aa8a507a642c",
-    "tests/unit/test_mood_setup.py": "b792022efed1005def14768897dd3408563857a41e64e68635503603a377392e",
+    "tests/unit/test_mood_setup.py": "c4e848c5fc3c9883725a3d40c6d957287d11ddd5d2e55647db1e87ca81aa8ad9",
     "tests/unit/test_music_selection_owner.py": "b01876bfce5923a122bca8bdfb55bd70cbe8f3b5a903ba7bd0d35b449a8382ea",
     "tests/unit/test_podview_receipts.py": "07baf3573aa25aab6eb613913c076cf0ec9399c0fcaf08ce0d3e9be967ee45ed",
     "tests/unit/test_podview_research.py": "afed0f3314e7909239320be39f80aa458018671cef1d7b7268578acdab3d2696",

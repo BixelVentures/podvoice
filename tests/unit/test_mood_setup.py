@@ -184,15 +184,76 @@ def test_setup_authority_only_from_supervisor_never_panel_settings(inputs, monke
     )
 
 
-def test_setup_call_precedes_selector_and_failed_setup_disables_it():
+@pytest.mark.parametrize("ready", [False, True])
+def test_setup_call_precedes_selector_and_failed_setup_disables_it(ready, tmp_path):
+    import ast
     from pathlib import Path
+    from types import SimpleNamespace
 
     source = (Path(__file__).parents[2] / "podvoice/gatekeeper/__main__.py").read_text()
-    assert source.index("mood_setup_ready = setup_mood_budget(") < source.index(
-        "tools.podview_mood_selector ="
+    tree = ast.parse(source)
+    setup_call = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "setup_mood_budget"
     )
-    assert "settings_path, cfg.podview_mood_policy, cfg.podview_mood_setup_policy" in source
-    assert "if mood_setup_ready else None" in source
+    assignment = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Attribute)
+            and target.attr == "podview_mood_selector"
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "tools"
+            for target in node.targets
+        )
+    )
+    assert setup_call.lineno < assignment.lineno
+    assert [ast.unparse(arg) for arg in setup_call.args] == [
+        "settings_path",
+        "cfg.podview_mood_policy",
+        "cfg.podview_mood_setup_policy",
+    ]
+    calls = []
+    selected = object()
+
+    def factory(*args):
+        calls.append(args)
+        return selected
+
+    tools = SimpleNamespace()
+    client = object()
+    cfg = SimpleNamespace(openai_api_key="fixture-key", podview_mood_policy="fixture-policy")
+    settings_path = tmp_path / "settings.json"
+    namespace = dict(
+        tools=tools,
+        configured_mood_selector=factory,
+        mood_setup_ready=ready,
+        ha_client=client,
+        cfg=cfg,
+        settings_path=settings_path,
+    )
+    # Execute the actual shipped assignment, independent of its line wrapping.
+    exec(
+        compile(ast.Module(body=[assignment], type_ignores=[]), "shipped-startup", "exec"),
+        namespace,
+    )
+    if ready:
+        assert tools.podview_mood_selector is selected
+        assert calls == [
+            (
+                client,
+                cfg.openai_api_key,
+                cfg.podview_mood_policy,
+                settings_path.parent / "podview-mood-budget.json",
+            )
+        ]
+    else:
+        assert tools.podview_mood_selector is None
+        assert calls == []
 
 
 def test_receipt_symlink_rejected_without_touching_target(inputs, tmp_path):

@@ -12,14 +12,14 @@
     "realtime_semantics"
   ],
   "fingerprint": "a6f8158ed06811228c63ccec62953f6631726a6943b2c3e6f55a8bdb9ec1e88a",
-  "regression_fingerprint": "27ff15cc00c6323afdd8e461bf31c8dae6c9ec63f36ba95751afcea45f8fa680",
+  "regression_fingerprint": "bbed80f9e9ce1bd804a817927f0206a5742f6027fb28bcb4c5b870603367aa4d",
   "runtime_fingerprint": "3cae433dd5bdf13e63f1f94008d9a14115bc5812aff37396b8095b638d3b11d1",
   "config_fingerprint": "f90690b3174c5b96ca0c9931d85e6a55b3ac4a109358238bbc9dd9976efb277f",
-  "policy_fingerprint": "fb31fdde4e2ffd5366767ddec0c90e0ce48b9404b654ff542bf8d9fc1e61ae90",
+  "policy_fingerprint": "ff7c810ba97be9f01f849ea48b39d08576611a1df473898f4d46446cd03adda3",
   "tooling_fingerprint": "520034bd80f3986c44f3f630b9eb317b47223923cb952666b62f07662b830084",
-  "manifest_fingerprint": "561a4a0df22a04ca08b02bea18796be8f29eb2b53e71fdb7e2823680f9a5f1a7",
-  "reviewer": "Independent GPT-6 Sol /root/ongoing_operator_review_sol; format-only delta report SHA256 5bc6477a11f058eac0a3a3414cbf7818a8fa45f8b66c03de4be12b6ffdb7766c; original source review 8907b25575de06388eb14bba50389861b7056ff234a30514f43e6655e6137e2c",
-  "rationale": "Exact reviewed31 source plus seven AST-identical formatting repairs after official Ruff failure. All six pin maps and actual staged three-domain closure independently pass. Prior visual, mood and cold-setup semantic review remains valid on unchanged AST; source evidence is separate from publication, installation and physical acceptance."
+  "manifest_fingerprint": "881cfac0f8189a44bf62d4dd975dced09b120a1684452acb1535ce4c5c1fa665",
+  "reviewer": "Independent GPT-6 Sol /root/ongoing_operator_review_sol; test-only CI repair report SHA256 c8ec610a33c60bff5911f672f386831c0d1fd904a469ade58e68dabe0ee76c14; runtime source GO retained",
+  "rationale": "Only the formatting-sensitive startup test changes: execute the shipped assignment for failed/successful setup and assert zero/one exact factory calls. Independent negative mutations prove missing guard and wrong arguments fail. Runtime, config, tooling and assets unchanged; six pin maps and actual staged domains close exactly."
 }
 -->
 

@@ -30,8 +30,8 @@ DOMAINS = (
 PROFILE = "scripts/candidate_scope_admission31.py"
 MANIFEST = "scripts/podview31-admission-reviewed.json"
 RECORD_MARKER = "<!-- podview31-admission"
-MANIFEST_SHA = "561a4a0df22a04ca08b02bea18796be8f29eb2b53e71fdb7e2823680f9a5f1a7"
-PROFILE_AST = "6002e5175f17de4bcdca2540c46cb36d7c4a5b5e2ce4f11e403e49630d92d88b"
+MANIFEST_SHA = "881cfac0f8189a44bf62d4dd975dced09b120a1684452acb1535ce4c5c1fa665"
+PROFILE_AST = "cffe20c2ce8fab096be8c9f0784134e1b10bf6d4b08b52ec640ec1e00e303163"
 STATIC = previous.STATIC
 IMMUTABLE = {
     "scripts/candidate_scope.py": "98280acb2f4b9736ba135ef83217f409c864bb190d359aee476fe7a991a37b75",
