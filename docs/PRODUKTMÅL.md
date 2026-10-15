@@ -1,12 +1,10 @@
-# PodVoice-produktmål — pålidelig dansk Realtime-assistent
+# PodVoice-produktmål — pålidelig dansk GPT-Live-assistent
 
 > Produktbeslutning (13/10): brugeren har valgt **kun GPT-Live** til både Voice PE
-> og Talk. Dagligt Alpha-/ON/OFF-valg og settings, der kun styrer den tidligere motor,
-> fjernes i den aktive kandidat. Settingsmigration bevarer nødvendige værdier og
-> rollback-data; en aktiv session må ikke skifte motor ved settingssave.
-> Installeret v2.0.20 kører endnu den tidligere Live ON-opsætning. Strømliningens kode,
-> migration og relevante adaptere skal reviewes før samlet udgivelse. Den ændrede
-> produktretning er ingen fysisk accept eller bevis for løst semantisk close.
+> og Talk. GPT-Live er den valgte produktionsprovider med samme `ThinSession`,
+> `VoicePELink`, `ToolRouter` og fysiske close/rearm-ejer. Aktuel installeret version og
+> fysisk evidens står i `docs/STATUS.md`; produktbeslutningen er ikke fysisk accept
+> eller bevis for løst semantisk close.
 > GPT-Live bruger samme ThinSession, VoicePELink, ToolRouter og fysiske close/rearm-
 > ejer. Live-events skal navngives sandt; Realtime-tur-/audio-done-/ACK-events må ikke
 > fabrikeres. Nedenstående mekaniske ejerskab og fysiske sikkerhedskrav bevares.
@@ -14,6 +12,16 @@
 > STATUS.md er den ene aktuelle lead-post for installerede bits og direkte bevis.
 > Ingen følsom handling åbnes ved en opdigtet næste-brugertur, og strømlining arver
 > ingen fysisk readiness fra den tidligere motor eller en UI-ændring.
+
+> **Fortolkning af protokoldetaljer:** de konkrete OpenAI Realtime-wirekrav nedenfor
+> (`response.create`, `input_audio_buffer.*`, item-commit/delete-ACK og eventrækkefølge)
+> gælder kun den beholdte `OpenAIRealtimeSession`-diagnostik og dens regressioner.
+> De kan ikke tælle som GPT-Live-providerbevis. GPT-Live skal bevise samme ejerskab,
+> generation, aktuelt input, værktøjsbatch, playback, teardown og rearm med de events,
+> den faktisk udsender: `LiveSessionReady`, `LiveTransportReady`, `LiveAudioChunk`,
+> `LiveBackendStarted`, `LiveBackendComplete`, `LiveToolBatch` og `LiveSessionClosed`.
+> Der må ikke opfindes Realtime-ACKs. Samtlige mekaniske, fysiske, Talk- og
+> sikkerhedsgates, tærskler og antal nedenfor gælder fortsat uændret.
 
 
 
@@ -23,8 +31,8 @@
 ## Nordstjernen
 
 Et familiemedlem siger “Okay Nabu” og fortsætter naturligt med spørgsmålet. Voice PE
-åbner én PodVoice-kanal og PodVoice åbner én Realtime-session. Opfølgninger fortsætter
-i samme session. GPT Realtime fortolker semantisk brugerens hensigt — inklusive om
+åbner én PodVoice-kanal og PodVoice åbner én GPT-Live-session. Opfølgninger fortsætter
+i samme session. GPT-Live fortolker semantisk brugerens hensigt — inklusive om
 samtalen er slut — og vælger værktøjer ud fra prompt og kontekst. PodVoice udfører kun
 den deterministiske lifecycle: fysisk svarslut, én socket-/mikrofonlukning, musik-release
 og wake-rearm. Timeout og tekniske fejl kan stadig lukke uden en modelbeslutning.
@@ -38,14 +46,15 @@ på sin egen højttaler eller blive dødt efter få samtaler.
 ```text
 wake → LISTENING → THINKING → AI_SPEAKING → LOUNGE_WINDOW
      → opfølgning i samme session (gentag efter behov)
-     → Realtime end_conversation eller fire sekunders timeout
+     → GPT-Live end_conversation eller fire sekunders timeout
      → CLOSING → én teardown → én rearm → IDLE → nyt wake
 ```
 
 `CLOSING` er en transaktionsfase, ikke en ekstra runtime-`State`. De fem eksisterende
 stateværdier er fortsat den eneste mic-gate.
 
-Voice PE sender kun mic-lyd i `LISTENING` og `LOUNGE_WINDOW`. Realtime ejer sprog,
+Voice PE skal kun sende mic-lyd i `LISTENING` og `LOUNGE_WINDOW`; dette er et fysisk
+acceptkrav, som softwaretilstandsnavne alene ikke beviser. GPT-Live ejer sprog,
 matematik, kontekst, værktøjsvalg og semantisk close. PodVoice må kun eje mic-gate,
 dispatch, playback, timeout, teardown og rearm. Terminalresponsen er højst én kort
 sand opgavekvittering eller ét kort farvel; ingen lyd eller fejlet lyd lukker stille. Ingen lokal keywordliste må afgøre
@@ -53,31 +62,50 @@ betydning.
 
 ## Release-gate 1 — arkitektur
 
+De følgende produktionskrav gælder GPT-Live: aktuel session-/connection-generation og
+epoch, input-index bundet til den completed backend-delegation før tool-batch dispatch,
+aktuel playback-lease og fysisk playback-events. `LiveAudioChunk` har ikke Realtime
+response-/item-id; kræv derfor ikke et opdigtet wire-ACK. Den fysiske mic skal fortsat
+være lukket under svar og ekkohale, og dette skal bevises på device/firmware. Den
+aktuelle GPT-Live-input-pump er ikke gated af `State` under almindelig playback; derfor
+er målet ikke dokumenteret opfyldt. #164 sporer afklaringen separat; der hævdes ingen
+akustisk eller fysisk proof.
+
+De eksplicitte `response.create`, `input_audio_buffer.*`, committed-item og delete-ACK-
+krav nedenfor er fortsat en separat regression for den beholdte OpenAI Realtime-
+diagnostikadapter. De tæller ikke som GPT-Live-produktionsbevis.
+
 - Renderet firmware: 1 wake-trigger, 0 stock `voice_assistant.start`.
-- Ét lokalt wake-event åbner én mic-kanal og én Realtime-session.
-- Den fysiske wake-grænse kasserer al pre-wake-lyd lokalt. Realtime må aldrig modtage
-  selve wakefrasen; al lyd efter detektionen bevares under provider-opkoblingen.
+- Ét lokalt wake-event åbner én mic-kanal og én GPT-Live-session.
+- Den fysiske wake-grænse kasserer al pre-wake-lyd lokalt. GPT-Live må aldrig modtage selve wakefrasen; al lyd efter detektionen bevares under
+  provider-opkoblingen.
 - Dobbelt wake mens sessionen allerede er åben opretter ikke en ny session.
-- Voice PE beholder VAD, men bruger `interrupt_response: false` og
-  `create_response: false`. Kun et accepteret fysisk stop med matching committed
-  provider-item må udløse præcis ét korreleret `response.create`.
-- En crossed VAD-start under lukket mic-gate skal give nul response, nul tool-call og nul
-  playback. Dens eksakte item skal være slettet og ACK'et før opfølgningsgaten åbner;
-  ukendt cleanup lukker fail-closed.
-- Realtime har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
+- GPT-Live-boundary: kun aktiv session-/epoch-/generationsejet input må nå den aktuelle
+  backend; tool-dispatch kræver completed delegation/response, matching aktuelt input-index,
+  uændret inputrevision og godkendt `LiveToolBatch`. Stale, cancelled, incomplete, duplicate
+  eller ukorrelerede hændelser giver nul sideeffekt.
+- `State` er eneste software-mic-gate: kun `LISTENING` og `LOUNGE_WINDOW` er åbne.
+  Fra accepteret brugertur gennem `THINKING`, svarlyd og ekkohale er gaten lukket;
+  kun matching fysisk playback-finish plus hale åbner den igen. Trace-replay skal
+  afvise providerlyd under lukket gate og opfølgning før fysisk playback-finish plus hale;
+  dette fysiske krav kræver fortsat device-/firmwarebevis. Den aktuelle GPT-Live-input-
+  pump er ikke gated af `State` under almindelig playback, så den dokumenterer ikke, at
+  kravet er opfyldt; se separat #164, uden at dette ændrer acceptkravet.
+- GPT-Live har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
-- Realtime bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
+- GPT-Live bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
   én respons, og kun en handling eller et opslag bruger et nødvendigt værktøj. Et
   obligatorisk fortsættelsesværktøj eller en tvungen ekstra svarrespons er forbudt.
 - Der findes ingen frase-, keyword- eller ASR-aliasliste, som afgør samtalehensigten.
 - “Klar”, “Kig FCK seneste kamp”, uklart input og almindelig høflighed kan ikke lukke,
-  medmindre Realtime på den samme tur eksplicit beslutter, at brugeren afslutter.
+  medmindre GPT-Live på den samme tur eksplicit beslutter, at brugeren afslutter.
 - Talk og Voice PE bruger samme `ThinSession`; kun I/O-adapteren er forskellig.
 - Ingen adapter må kalde provideren direkte eller vise en tur som accepteret. Hver Talk-
-  tur skal have serverkvitteret command-, session-, turn- og provider-item-id, før den
-  vises som afleveret; stale socket-/playback-events er virkningsløse.
+  tur skal have serverkvitteret command-, session- og turn-id før den vises som submitted;
+  GPT-Live har ikke et user-input provider-item-ACK. Stale socket-/playback-events er virkningsløse.
 - Classic/direct kan ikke aktiveres via gamle eller nye settings.
-- Funktionskandidater må kun dispatches efter completed, response-id-bundet batchcommit;
+- Funktionskandidater må kun dispatches fra en completed, response-/delegation- og
+  current-input-bundet `LiveToolBatch`;
   cancelled, incomplete, malformed, duplicate og stale provider-events skal give nul
   sideeffekter.
 - Følsomme handlinger kræver en server-ejet, eksakt, næste-tur-bundet engangsgodkendelse.
@@ -91,6 +119,17 @@ betydning.
   fysisk klar imens. Sand parallel isolation kræver en separat providerprojekt-/
   rate-limit-pulje; den må ikke simuleres med ubeviseligt lokalt headroom.
 
+### Realtime-protokolprobe — kun diagnostik/regression
+
+Den beholdte `OpenAIRealtimeSession` har fortsat sin særskilte wire-regression:
+`interrupt_response: false`/`create_response: false`; ét korreleret `response.create` efter
+accepteret stop og matching committed item; samt crossed-VAD cleanup med nul-PCM,
+matching stop, commit/item/delete-ACK og fail-closed ved manglende ACK. Disse er konkrete
+Realtime-adapterkrav, ikke GPT-Live-produktionskrav eller bevis. GPT-Live-produktions-
+accepten ovenfor bruger aktuelle session-/epoch-/generation, input-index, completed
+backend/delegation, `LiveToolBatch`, audio-generation og playback-lease; den fysiske
+lukkede mic-gate kræver stadig device-/firmwarebevis.
+
 ### Maskinel adgangsgate før fysisk test
 
 På præcis kandidatens bits skal følgende være grønt, før brugeren bedes tale igen:
@@ -98,16 +137,18 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
 - hele unit-/integrationstesten, typecheck, formattering og add-on-build;
 - fælles `ThinSession`-regressioner for duplicate/busy/offline/closing, provider-tab,
   tool-ordering, semantisk close, én teardown og én rearm;
-- sammensat regression for accepteret tur → commit → matched response-request samt
-  crossed start → bounded nul-PCM med fysisk mic lukket → natural matching
-  `speech_stopped` → exact commit/item/delete-ACK → frisk opfølgning i samme session;
-  manuel commit som VAD-terminal og ethvert auto-/ukorreleret response- eller tool-event
-  skal fejle;
+- sammensat GPT-Live-regression for aktuelt input-index → completed delegation/response →
+  `LiveToolBatch` → guarded dispatch samt stale generation/input og duplicate/replay,
+  sammen med playback-lease, fysisk mic-lukning og frisk opfølgning i samme session;
+  ingen provider-ACK må fabrikeres. Den særskilte Realtime-protokolprobe bevarer de
+  historiske crossed-start → nul-PCM → stop/commit/item/delete-ACK-regressioner;
 - rigtig Talk-WebSocket med hello/lease/input-ACK, ordnede events og korreleret playback;
 - den bounded live-gate, som matcher kandidatens ændrede ejergrænse: en response-owner-
-  ændring kræver den sideeffektfrie commit/delete/ACK-protokolprobe; ændret prompt,
-  schema, værktøjer, model, reasoning eller audiosemantik kræver den fokuserede
-  semantiske preflight uden HA/MCP/PodConnect-sideeffekter;
+  ændring kræver den relevante ejerskabsregression. Realtime-adapterændringer kræver
+  dens sideeffektfrie commit/delete/ACK-protokolprobe; GPT-Live-ændringer kræver
+  regression for aktiv epoch/generation, aktuelt input-index og completed delegation-/
+  response-bundet `LiveToolBatch`. Ændret prompt, schema, værktøjer, model, reasoning
+  eller audiosemantik kræver fokuseret semantisk preflight uden sideeffekter;
 - trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
   close-, capture- og rearm-events samt faldende audio-generation, providerlyd under
   lukket mic-gate og opfølgning før fysisk playback-finish plus ekkohale;
@@ -126,7 +167,7 @@ besvares direkte. En ren response-owner-/ACK-ændring kører først den smallere
 protokolprobe og genkører kun den semantiske 5×-gate ved ændret semantikscope eller ny
 ren fysisk evidens for en semantikfejl. Samlet prisloft er $5, uden budgetprobe og uden
 hjem-, musik- eller timerhandlinger. En bred SafeEval køres ikke igen, medmindre prompt,
-schema, værktøjer eller Realtime-semantik faktisk er ændret.
+schema, værktøjer eller GPT-Live-semantik faktisk er ændret.
 
 ### Lifecycle-confidence 97/100
 
@@ -136,7 +177,7 @@ schema, værktøjer eller Realtime-semantik faktisk er ændret.
 |---|---:|---|
 | Én session og korrekt turkronologi | 20 | Alle maskinelle og fysiske kæder grønne |
 | Half-duplex og audio-isolation | 20 | Ingen providerlyd under lukket gate; race-regression grøn |
-| Realtime-semantik og værktøjsvalg | 15 | Fokuseret live-gate 5/5 |
+| GPT-Live-semantik og værktøjsvalg | 15 | Fokuseret live-gate 5/5 |
 | Playback, teardown og rearm | 20 | Præcis én af hver; næste wake virker |
 | Stale/duplicate/out-of-order-sikkerhed | 10 | Alle relevante permutationer fail-closed |
 | Artifact-, trace- og review-sandhed | 7 | Samme bits, komplet trace, P0/P1=0 |
@@ -154,7 +195,7 @@ Kør mindst 10 cyklusser:
 2. præcis én provider-connect;
 3. mic-forward aktiv;
 4. opfølgning i samme session;
-5. Realtime udsender semantisk afslutningsintention på varierede naturlige formuleringer,
+5. GPT-Live udsender semantisk afslutningsintention på varierede naturlige formuleringer,
    eller transportens timeout/fejl udløses;
 6. provider lukket, mic-forward slukket, ducking frigivet og state idle;
 7. næste wake accepteres.
@@ -234,7 +275,7 @@ eller død wake. Først når målene er fysisk målt, bliver baseline låst til 
 
 ## Udviklingsprioritet 2 — diskret modtaget-signal
 
-Efter den låste latency-baseline må PodVoice få ét kort signal, når Realtime har
+Efter den låste latency-baseline må PodVoice få ét kort signal, når GPT-Live har
 observeret `UserSpeechStopped`. Formålet er kun at bekræfte “din tur er modtaget” på
 ture, der stadig kræver behandling; det må aldrig få en langsom kæde til at fremstå som
 et hurtigt svar.
@@ -268,7 +309,7 @@ Ved én regression slås funktionen fra uden ændring af den låste latency-base
 
 Et fejlet eller timeoutet `tools/list` må aldrig kræve manuel genindlæsning eller
 add-on-genstart. PodVoice skal oprette MCP-forbindelsen på ny med hurtig backoff (ca. 1,
-2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), lade direkte Realtime-
+2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), lade direkte GPT-Live-
 dialog og matematik fortsætte og atomisk genaktivere HA-afhængige evner i den næste
 session, når HA svarer. Tid, vejr, web, musik, hjem og timere må ikke falde tilbage til
 en konkurrerende lokal sandhed.
@@ -278,7 +319,7 @@ data-services HA-/Supervisor-afhængige; de skal derfor vises ærligt som midler
 utilgængelige og må aldrig køres fra et stale deklarationssnapshot.
 
 Panelet skal vise “forbinder igen”, seneste konkrete fejl og automatisk skifte til
-verificeret uden at afbryde en aktiv Realtime-samtale. Tests skal dække opstartsfejl,
+verificeret uden at afbryde en aktiv GPT-Live-samtale. Tests skal dække opstartsfejl,
 tabt forbindelse midt i idle og midt i en samtale, gentagne fejl, frisk tool-discovery
 efter recovery og nul dobbelte MCP-sessioner.
 
@@ -306,7 +347,7 @@ Godkendelse kræver:
 
 - Første viewport svarer tydeligt på “kan Nabu bruges?”, “hvad fejler?” og “hvad skal
   jeg gøre?” uden at blande forbindelse, konfiguration og fysisk verification sammen.
-- Realtime, Voice PE/wake-readiness, HA/MCP, PodConnect og hver kapabilitet viser sand
+- GPT-Live, Voice PE/wake-readiness, HA/MCP, PodConnect og hver kapabilitet viser sand
   tilstand, konkret årsag, kilde og seneste verification. Fundet må ikke ligne bevist.
 - Hjem, Tal, Diagnose, Historik og Indstillinger har én klar primær opgave hver.
   Passiv diagnose- og latensvisning bruger de fysiske events og må aldrig kalde

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from aiohttp import WSMsgType
@@ -15,6 +19,54 @@ from gatekeeper.console import console_factory
 from gatekeeper.hub import StatusHub
 from gatekeeper.voice import AudioChunk, OutputTranscript, ToolCall, ToolRoundComplete, TurnComplete
 from gatekeeper.web import create_app
+
+
+def test_shipped_import_path_without_retired_modules(tmp_path):
+    """The add-on's import preflight works with the actual Docker exclusions."""
+    root = Path(__file__).resolve().parents[2]
+    ignored = {
+        line.strip()
+        for line in (root / "podvoice/.dockerignore").read_text().splitlines()
+        if line.startswith("gatekeeper/")
+    }
+    retired = {"console.py", "timers.py", "live_input_policy.py"}
+    assert {f"gatekeeper/{name}" for name in retired} <= ignored
+
+    shutil.copytree(
+        root / "podvoice/gatekeeper",
+        tmp_path / "gatekeeper",
+        ignore=shutil.ignore_patterns(*(Path(entry).name for entry in ignored)),
+    )
+    assert all(not (tmp_path / "gatekeeper" / name).exists() for name in retired)
+
+    preflight = """
+import sys
+from pathlib import Path
+
+import gatekeeper
+assert Path(gatekeeper.__file__).resolve().parent == Path.cwd() / "gatekeeper"
+import gatekeeper.__main__
+import gatekeeper.thin
+import gatekeeper.openai_live
+import gatekeeper.talk
+import gatekeeper.audio_trace
+import gatekeeper.audio_analysis
+import gatekeeper.eval_harness
+from gatekeeper.hub import StatusHub
+from gatekeeper.web import create_app
+
+create_app(StatusHub(), {})
+assert not ({"gatekeeper.console", "gatekeeper.timers", "gatekeeper.live_input_policy"} & sys.modules.keys())
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", preflight],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 class _FakeConsole:

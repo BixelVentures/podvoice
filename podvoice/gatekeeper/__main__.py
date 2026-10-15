@@ -186,6 +186,21 @@ def _make_live_brain(
     )
 
 
+def _make_thin_session(cfg: Config, brain: Any, **bindings: Any):
+    """Bind one Live provider and shared settings; callers own only their I/O wiring."""
+    from .thin import ThinSession
+
+    return ThinSession(
+        brain=brain,
+        live_brain=brain,
+        duck_level=cfg.duck_level,
+        idle_timeout_s=cfg.idle_timeout_s,
+        max_session_s=cfg.max_session_min * 60,
+        private_contract_source_prompt=cfg.system_prompt,
+        **bindings,
+    )
+
+
 def _build_session(
     cfg: Config,
     room: RoomMap,
@@ -219,7 +234,6 @@ def _build_session(
     voicepe.mic_channel = cfg.mic_channel
     voicepe.mic_gain = cfg.mic_gain
     voicepe.wake_word = cfg.wake_word
-    from .thin import ThinSession
 
     # The device-reachable URL it fetches to play the AI reply (announce path). .flac because
     # the on-device micro_decoder rejects WAV at file-type detection but decodes FLAC (the
@@ -237,12 +251,12 @@ def _build_session(
     guard_s, guard_ref = _saved_live_closing_guard(
         settings_path if settings_path is not None else cfg.settings_path
     )
-    return ThinSession(
+    return _make_thin_session(
+        cfg,
+        brain,
         room=room.room,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
-        brain=brain,
-        live_brain=brain,
         live_enabled=live_enabled,
         live_close_guard_s=guard_s,
         live_close_guard_ref=guard_ref,
@@ -255,15 +269,11 @@ def _build_session(
         speech=speech,
         reply_bus=reply_bus,
         reply_url=reply_url,
-        duck_level=cfg.duck_level,
         usage=usage,
         speaker_path=cfg.speaker_path,
         full_duplex=False,
-        idle_timeout_s=cfg.idle_timeout_s,
-        max_session_s=cfg.max_session_min * 60,
         audio_trace=audio_trace,
         private_contract_recorder=audio_trace,
-        private_contract_source_prompt=cfg.system_prompt,
     )
 
 
@@ -533,7 +543,6 @@ async def run(cfg: Config) -> None:
         button fires the same wake() as 'Okay Nabu'; the reply plays from the same
         reply-bus stream the puck fetches — every engine rule proven in the tab."""
         from .talk import TALK_ROOM, BrowserLink, TalkHub
-        from .thin import ThinSession
 
         if not cfg.openai_api_key:
             raise RuntimeError("OpenAI API-nøgle mangler")
@@ -549,13 +558,13 @@ async def run(cfg: Config) -> None:
         # through HA Ingress (direct :8098 stays closed); the token still gates it.
         url = f"reply/{TALK_ROOM}.flac" + (f"?t={reply_token}" if reply_token else "")
         no_room_music = _NoAttention()
-        session = ThinSession(
+        session = _make_thin_session(
+            cfg,
+            brain,
             room=TALK_ROOM,
             # Talk owns no PodConnect room or native attention request/lease.
             attention=no_room_music,
             heartbeat=no_room_music,
-            brain=brain,
-            live_brain=brain,
             live_enabled=read_live_alpha,
             live_audio=live_audio,
             live_reply_url="reply/live/{stream_id}.wav"
@@ -563,18 +572,14 @@ async def run(cfg: Config) -> None:
             voicepe=link,
             playback=Playback(sink=link.play_pcm),
             private_contract_recorder=audio_trace,
-            private_contract_source_prompt=cfg.system_prompt,
             tools=tools,
             hub=TalkHub(send_json, history=history),
             speech=speech,
             reply_bus=reply_bus,
             reply_url=url,
-            duck_level=cfg.duck_level,
             usage=usage,
             full_duplex=True,  # TALK tab = the duplex proving ground: the browser's own
             # AEC makes an open mic safe here (ARKITEKTUR §3). The puck stays gated.
-            idle_timeout_s=cfg.idle_timeout_s,
-            max_session_s=cfg.max_session_min * 60,
         )
         return session, link
 

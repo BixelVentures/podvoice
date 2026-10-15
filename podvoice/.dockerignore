@@ -11,3 +11,6 @@ gatekeeper/orchestrator.py
 gatekeeper/state.py
 gatekeeper/gatekeeper.py
 gatekeeper/watchdog.py
+gatekeeper/console.py
+gatekeeper/timers.py
+gatekeeper/live_input_policy.py

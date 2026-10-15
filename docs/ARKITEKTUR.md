@@ -1,19 +1,15 @@
 # ARKITEKTUR — én PodVoice-samtale
 
-> Produktbeslutning (13/10): brugeren har valgt **kun GPT-Live** til både Voice PE
-> og Talk. Dagligt Alpha-/ON/OFF-valg og settings, der kun styrer den tidligere motor,
-> fjernes i den aktive kandidat. Settingsmigration bevarer nødvendige værdier og
-> rollback-data; en aktiv session må ikke skifte motor ved settingssave.
-> Installeret v2.0.20 kører endnu den tidligere Live ON-opsætning. Strømliningens kode,
-> migration og relevante adaptere skal reviewes før samlet udgivelse. Den ændrede
-> produktretning er ingen fysisk accept eller bevis for løst semantisk close.
-> GPT-Live bruger samme ThinSession, VoicePELink, ToolRouter og fysiske close/rearm-
-> ejer. Live-events skal navngives sandt; Realtime-tur-/audio-done-/ACK-events må ikke
-> fabrikeres. Nedenstående mekaniske ejerskab og fysiske sikkerhedskrav bevares.
-> Funktionsparitet, Stop, Talk og dræn skal stadig bevises på kandidatens egne bits.
-> STATUS.md er den ene aktuelle lead-post for installerede bits og direkte bevis.
-> Ingen følsom handling åbnes ved en opdigtet næste-brugertur, og strømlining arver
-> ingen fysisk readiness fra den tidligere motor eller en UI-ændring.
+> Produktbeslutning (13/10): den valgte produktionsretning er **GPT-Live** for både
+> Voice PE og Talk. Den aktive runtime har én `ThinSession`-ejer og ingen
+> provider-vælger. `live_alpha` er fortsat et settings-/migrationsfelt i den aktuelle
+> kodebase; det er kompatibilitetsdata, ikke en tilladelse til at skifte motor.
+> Kandidatens præcise implementerings- og installationsstatus står i `docs/STATUS.md`.
+> Retningen er ikke fysisk accept eller bevis for løst semantisk close. GPT-Live bruger
+> samme `ThinSession`, `VoicePELink`, `ToolRouter` og fysiske close/rearm-ejer.
+> Provider-events skal afspejle observerede events; Realtime-protokolkvitteringer må
+> ikke fabrikeres. Funktionsparitet, Stop, Talk og dræn skal bevises på kandidatens
+> egne bits. Ingen følsom handling åbnes ved en opdigtet næste-brugertur.
 
 
 
@@ -27,16 +23,16 @@
 IDLE
   → Voice PE hører fysisk “Okay Nabu” og udsender ét wake-event
 LISTENING
-  → PodVoice åbner præcis én OpenAI Realtime-session og streamer brugertalen
-  → Realtime speech_stopped
+  → PodVoice åbner præcis én GPT-Live-session gennem `OpenAILiveSession`
+  → GPT-Live registrerer afslutningen på brugerens taletur
 THINKING
-  → Realtime svarer direkte eller bruger nødvendige værktøjer
+  → GPT-Live svarer direkte eller vælger nødvendige værktøjer
   → firmware melder fysisk playback_started
 AI_SPEAKING
   → firmware melder playback_finished; PodVoice venter kort ekkohale
 LOUNGE_WINDOW
   → opfølgning fortsætter i samme session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
-  → Realtime signalerer end_conversation, eller fire sekunders stilhed udløber
+  → GPT-Live signalerer `end_conversation`, eller den gældende idle-grænse udløber
 CLOSING
   → højst én kort sand kvittering, ét kort farvel eller stille lukning
   → præcis én teardown → exact korreleret firmware-rearm
@@ -53,11 +49,18 @@ der startes aldrig et HA Assist-run eller en HA pipeline.
 ## Én motor, to I/O-adaptere
 
 `ThinSession` er den eneste samtalemotor for både den fysiske Voice PE og Talk-fanen.
+Begge builders opretter en `OpenAILiveSession` som samtalens `brain` og `live_brain`;
+runtime-valget er fast. Den lille fælles builder samler konstruktion og den delte
+konfiguration, mens hver adapter stadig leverer sin egen I/O, playback og room-context.
+Det samler eksempelvis standardværdien for sessionlængde ét sted i stedet for i begge
+builders. Ændringen er en konstruktionsforenkling: den ændrer ikke eventrækkefølge,
+state eller ejerskab.
+
 De deler:
 
-- Realtime-session, model, prompt og værktøjer;
+- GPT-Live-session, model, prompt og værktøjer;
 - tur-/response-ejerskab og follow-up-kontekst;
-- Realtime-ejet hensigtsfortolkning samt transport-ejet udførelse, timeout og fejlteardown;
+- GPT-Live-ejet hensigtsfortolkning samt transport-ejet udførelse, timeout og fejlteardown;
 - de fem states `IDLE`, `LISTENING`, `THINKING`, `AI_SPEAKING` og `LOUNGE_WINDOW`.
 
 Den fysiske half-duplex-ekkoport gælder kun Voice PE. Talk er den eksplicitte
@@ -74,18 +77,33 @@ Kun adapteren er forskellig:
 Talk er derfor en softwareprøve af motoren, men kan ikke bevise Voice PE-mikrofon,
 wakeword, højttaler, LED eller akustik. De kræver fysisk test.
 
-Alle brugerinputs ejes først af `ThinSession`. Talk må aldrig kalde Realtime direkte
+### Runtime-, adapter- og kildegrænser
+
+| Del | Beslutning | Kaldested / bevisgrænse |
+|---|---|---|
+| Voice PE og Talk | Behold samme GPT-Live-brain som både `brain` og `live_brain` og én `ThinSession`-ejer. Saml fælles sessionkonstruktion og værdier for duck, idle, maks. session og prompt i én mapping; adapterne leverer fortsat hver sin link, playback og room-context. | De to call sites (`_build_session` og `_make_talk`) kalder `__main__._make_thin_session`. Før ændringen gentages de delte bindings i to konstruktører; efter ændringen kræver en ændret sessionstandard kun én mapping. Det ændrer ikke events eller state. |
+| Providergrænse | Behold `OpenAILiveSession` som den eneste produktionsprovider for begge adaptere. | `__main__._make_live_brain` bygger sessionen; `ThinSession` ejer lifecycle og oversætter providerhændelser. `live_alpha` er kompatibilitets-/migrationsdata, ikke runtime-vælger. |
+| Fælles stemmekontrakt | Behold typede `VoiceEvent`s: audio, input/output-transcript, tool-call og tool-round, response-start/completion, schema correction, silent completion, interruption, user-speech-start/stop, quarantine-resolved, idle og usage. | `voice.py` er kontraktfladen; `openai_live.py` har sine egne `Live*` wire-events, som `ThinSession` fortolker. Eventnavne og ACK-semantik må ikke lånes fra en anden protokol. |
+| OpenAI Realtime | Behold alene som eval-/diagnostikdriver og historisk regressionsadapter; fjern det som runtime-valg eller produktionsbrain. | `eval_harness.LiveEvalService` bruger den afgrænsede Realtime-protokol til eval. `__main__` importerer dens model-/ratekonstanter i eval-/Talk-konfigurationen; det er ikke en selectable session-builder. Bevar de protokolregressioner, der stadig beskytter denne diagnostik. |
+| Lyd- og evaldiagnostik | Behold aktivt `audio_trace`, `audio_analysis` og `eval_harness`. | `__main__` kobler trace og analyse til add-onen og indlæser eval-service betinget af betroet konfiguration/API-nøgle. `Dockerfile` import-smoke checker `__main__`, `thin`, `openai_live`, `talk` og disse tre diagnostikmoduler. Diagnostikstatus erstatter ikke fysisk bevis. |
+| Historisk runtimekilde | Behold regressioner/kildehistorik, men udeluk fra add-onens image: `orchestrator.py`, `state.py`, `gatekeeper.py`, `watchdog.py`, den direkte `console.py`, gamle lokale `timers.py` og `live_input_policy.py`. | Ingen af dem er produktions-entrypoint. `make_console=None`; Talk er den Thin-adapter, ikke den direkte Realtime-console. `ha_timers.py` og Home Assistant timer-adapteren er en særskilt HA-ejet funktion og følger ikke med den gamle lokale timerkode ud. |
+
+Denne grænse gør kildebevarelse og installerbar kode forskellige ting: gamle regressioner
+kan fortsat forklare tidligere fejl uden at gøre legacy-moduler til image-afhængigheder.
+Ændringen er kun afsluttet, når build-importen og kandidatens scope faktisk matcher
+denne tabel; `docs/STATUS.md` registrerer resultat og fysisk gate-status.
+
+Alle brugerinputs ejes først af `ThinSession`. Talk må aldrig kalde GPT-Live direkte
 eller vise et input som afleveret ved en rå WebSocket-forbindelse. En skrevet tur får et
 kommando-id; `ThinSession` opretter session-/tur-id, afviser busy/closing/offline og
-sender et klientgenereret item-id. Realtime skal kvittere det præcise item med
-`conversation.item.added` (med kompatibilitet for den ældre
-`conversation.item.created`), før `response.create` sendes og browseren må committe
-brugerboblen. Talk-events sendes i én ordnet kø og bærer connection-, session-, turn-
+sender et klientgenereret item-id. Serveren kvitterer Talk-kommando/session/turn som
+submitted; GPT-Live typed input returnerer `provider_ack=unavailable`, hvilket ikke er
+providerbevis for en komplet brugertur. Talk-events sendes i én ordnet kø og bærer connection-, session-, turn-
 og playback-id, så en sen event fra en gammel socket eller afspilning er virkningsløs.
 
 Hvert publiceret svar får én playback-lease i `ThinSession`, bundet til den konkrete
-samtale, tur, output-item og playback-generation. Providerens `response.done` afslutter
-kun genereringen. Tilstanden forbliver optaget gennem ventet afspilningsstart, fysisk
+samtale, tur, output-item og playback-generation. Providerens backend-complete-event
+afslutter kun genereringen. Tilstanden forbliver optaget gennem ventet afspilningsstart, fysisk
 playback og ekkohale; først den samme leases `playback_finished` åbner næste tur. Voice
 PE serialiserer det ene inflight-svar gennem firmwarefasen, mens Talk også bærer det
 eksplicitte playback-id. Et event fra et tidligere svar kan derfor ikke ændre den
@@ -97,7 +115,7 @@ aktuelle tur.
   playback-start/slut/fault og korreleret rearm-bevis.
 - PodVoice/`ThinSession` ejer samtalens transport, state-ejet mic-gate, LED-kommando,
   værktøjsdispatch, timeout, teardown og rearm-anmodning.
-- OpenAI Realtime ejer forståelse, svar og valg af eksponerede værktøjer.
+- GPT-Live ejer forståelse, svar og valg af eksponerede værktøjer.
 - Home Assistant ejer alle live-data og handlinger. Det eksplicitte MCP API-id
   `assist` leverer `GetDateTime` for tid/dato, `google_web_sogning` for web, én
   weather-vej, musik/hjem/støvsuger og senere HA-backed timere.
@@ -111,7 +129,7 @@ aktuelle tur.
   ekstra declarations eller HA-opslag. Kun eksplicit tilladte Roborock-entiteter,
   friske registeridentiteter, aktuelle lovlige indstillinger og det aktive kort kan
   danne en kortlivet engangscapability. Roborock valgt-kort læses, men kan ikke ændres.
-  Realtime vælger og rækkefølger handlinger; adapteren har ingen taleparser, HA-script
+  GPT-Live vælger og rækkefølger handlinger; adapteren har ingen taleparser, HA-script
   eller ny samtalemotor. HA's cachede metadata og service-ACK er ikke fysisk bevis.
 - PodConnect Speakers ejer fysisk HomePod-afspilning og attention/ducking.
 - Hjemmets søgeagent ejer aktuel webviden.
@@ -123,8 +141,8 @@ over `weather_forecast`, hvis begge findes. Et sessionsschema kopieres ved sessi
 og ændres ikke under opfølgninger; en genfundet HA-side gælder først næste session.
 PodVoice har ingen lokal `get_time` og ingen model-synlig in-memory timer.
 
-Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
-Realtime svarer direkte i én respons, når intet værktøj er nødvendigt, og bruger kun et
+Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke GPT-Live-sessionen.
+GPT-Live svarer direkte, når intet værktøj er nødvendigt, og bruger kun et
 reelt domæneværktøj til en handling eller et opslag. De eneste interne,
 provider-neutrale lifecycle-signaler er `wait_for_user` for ikke-henvendt tale eller et rent modtaget-signal uden ny
 anmodning/afslutningshensigt, og
@@ -139,33 +157,42 @@ Der findes intet obligatorisk fortsættelsessignal og ingen tvungen to-respons-v
 direkte svar. Den konstruktion blev afvist efter den fysiske 1.13.22-trace, hvor et
 korrekt observeret “Hvad er tolv gange syv?” først blev sendt gennem et kunstigt
 fortsættelseskald og derefter blev besvaret som “7 gange 7 er 49”. Automatiske
-værktøjsvalg bevarer Realtime-modellens naturlige én-respons-vej og samme åbne kontekst.
+værktøjsvalg bevarer GPT-Lives naturlige svarvej og samme åbne kontekst.
 
 ## Lukning
 
 Lukning har to adskilte ejere:
 
-- **GPT Realtime ejer betydningen.** Når brugerens aktuelle tur tydeligt betyder, at
+- **GPT-Live ejer betydningen.** Når brugerens aktuelle tur tydeligt betyder, at
   samtalen er slut, udsender modellen det interne `end_conversation`-signal. Det kan
   også følge efter en fuldt bekræftet, selvstændig handling uden udestående dialog;
   modellen skal først have set handlingsresultatet. En kort sand opgavekvittering
   kan være terminalresponsen. Det gælder
   naturlige formuleringer på tværs af ordvalg og sprog; PodVoice matcher ingen fraser,
   keywords eller dokumenterede ASR-fejl.
-- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur. Hvis Realtime har
-  leveret kort, korreleret svarlyd, afspilles den, og dens fysiske playback-finish
+- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur. Hvis GPT-Live har
+  leveret svarlyd, afspilles den, og dens fysiske playback-finish
   afventes; hvis der ikke er svarlyd, eller den fejler, lukkes stille. Begge veje ender i
-  præcis én atomisk teardown af Realtime, mikrofon, ducking og wake-lås.
-- Uklart input skal få Realtime til at spørge kort igen. Et løst “tak”, ord inde i en
+  præcis én atomisk teardown af GPT-Live-sessionen, mikrofon, ducking og wake-lås.
+- Uklart input skal få GPT-Live til at spørge kort igen. Et løst “tak”, ord inde i en
   opgave, deltransskriptioner og et signal fra en gammel tur må aldrig lukke.
 - Et eksplicit hardware-stop, timeout og tekniske fejl er transport-sikkerhed og kan
   lukke deterministisk uden semantisk modelbeslutning.
 
 ## Half-duplex først
 
-`State` er den eneste gate for Voice PE-lyd til Realtime:
+Half-duplex-ejerskabet nedenfor er fælles for GPT-Live, Voice PE og ThinSession.
+De efterfølgende konkrete OpenAI Realtime-wireeksempler beskriver den historiske
+diagnostik-/regressionsadapter. De er ikke krav til GPT-Live og må ikke bruges som
+bevis for, at produktionsprovideren udsendte en bestemt Realtime-ACK.
 
-| State | Mic til Realtime | LED |
+Den krævede fysiske mic-gate er lukket under GPT-Live-svarlyd og ekkohale. Den aktuelle
+GPT-Live-input-pump er ikke gated af `State` under almindelig playback og dokumenterer
+derfor ikke, at målet er opfyldt. #164 sporer denne særskilte implementerings-/
+acceptance-gap; det ændrer ikke målet eller hævder fysisk/acoustic proof. Tabellen er
+målkontrakten for den ene software-mic-gate, ikke installations- eller capturebevis:
+
+| State | Mic til GPT-Live | LED |
 |---|---|---|
 | `IDLE` | lukket | slukket efter bevist teardown |
 | `LISTENING` | åben | klar cyan |
@@ -182,12 +209,18 @@ Tidslinjen binder hele kæden som `session_id → provider_generation → turn_i
 audio_generation → response/tool → playback_id → close_id → rearm_token`, så et
 tilfældigt korrekt svar aldrig kan skjule forkert input eller forkert ejer.
 
-Half-duplex betyder ikke én kommando pr. wake: Realtime-socketten holdes åben og
+Half-duplex betyder ikke én kommando pr. wake: GPT-Live-forbindelsen holdes åben og
 konteksten bevares gennem opfølgninger. Fuld duplex er en separat senere gate; lokalt stop har sin egen gate.
 
 Dette er den bindende målkontrakt; `docs/STATUS.md` afgør, om de installerede bits har
-bevist den. Voice PE beholder providerens VAD, men ikke providerens automatiske
-response-ejerskab.
+bevist den. Voice PE beholder providerens VAD, mens `ThinSession` fortsat ejer den
+fysiske half-duplex-gate og lifecycle.
+
+### Historisk OpenAI Realtime-wirekontrakt (kun diagnostik/regression)
+
+De følgende eventnavne og ACK-regler gælder kun, når `OpenAIRealtimeSession` bruges af
+den afgrænsede eval-/regressionskode. De må ikke fortolkes som GPT-Live-wirekrav.
+
 Sessionen bruger `interrupt_response: false` og `create_response: false`. Et accepteret
 fysisk `speech_stopped` lukker mic-gaten; når samme generations user-item er committed,
 tillader `ThinSession` præcis én respons. Provideradapteren sender det korrelerede
@@ -195,12 +228,12 @@ tillader `ThinSession` præcis én respons. Provideradapteren sender det korrele
 `(root_item_id, turn_id, provider_generation)`; alle afledte tool-/schema-/close-
 responses arver samme lease. Turn og generation serialiseres som kanoniske decimale
 strenge i providerens metadata. Denne klientevent er kun en mekanisk tilladelse til
-inference. Realtime ejer stadig forståelse, værktøjsvalg, svar og `end_conversation`.
+inference. I denne historiske adapter ejer Realtime stadig forståelse, værktøjsvalg, svar og `end_conversation`.
 
 En provider-VAD-start, der ankommer efter mic-gaten er lukket, er en crossed span og må
 ikke blive næste tur. Den holdes i karantæne, må skabe nul response/tool/playback og skal
 afsluttes med bounded, adapter-ejet nul-PCM, mens den fysiske mic-gate forbliver lukket.
-Provideren skal derefter levere den naturlige, matching `speech_stopped`; først matching
+OpenAI Realtime-adapteren skal derefter levere den naturlige, matching `speech_stopped`; først matching
 commit, item-added og eksakt delete-ACK udgør hele cleanup-beviset og må åbne
 `LOUNGE_WINDOW`. Manuel commit og `input_audio_buffer.clear` er aldrig VAD-terminaler.
 Hvis stop-/commit-/delete-kontrakten ikke afsluttes bounded og eksakt, lukkes sessionen
@@ -237,9 +270,10 @@ ikke længere add-on-only og skal bygge, flashes og bestå firmwaregaten på ny.
 
 ## Maskinelle bevislag
 
-Den sikre Realtime-eval bruger samme produktionsprompt og model, men kun faste lokale
-værktøjsresultater uden HA/MCP/PodConnect-klienter. Den måler semantiske beslutninger,
-opfølgning og protokol uden sideeffekter. Trace-oraclet bedømmer mekanisk eventrækkefølge,
+Den pakkede `LiveEvalService` bruger OpenAI Realtime-evaldriveren med faste lokale
+værktøjsresultater uden HA/MCP/PodConnect-klienter. Den måler denne drivers semantik og
+protokol uden sideeffekter; den er ikke et GPT-Live-semantikresultat. Trace-oraclet
+bedømmer mekanisk eventrækkefølge,
 playback-par, lukning og rearm; acoustic HIL må kun afspille begrænsede, samtykkede
 PCM-fixtures gennem en ekstern højttaler og observere produktions-events.
 
@@ -262,14 +296,16 @@ transportmekanik kan fysisk lukke samtalen.
 
 ## Værktøjscommit og serverautorisation
 
-Et Realtime-funktionskald er først et forslag. PodVoice stager alle kald under den
-konkrete providerrespons og frigiver ingen af dem, før samme `response.done` er
-`completed`, hele batchen er valideret, og den eksakte tool-round-commit er modtaget.
-Cancelled, incomplete, failed, malformed, duplicate eller stale kald kan derfor ikke
-nå HA, PodConnect eller lifecycle. Tool-output item-kvitteres, før der oprettes én
-samlet resultatsrespons.
+Et GPT-Live-funktionskald er først et forslag. Provideradapteren udsender en
+`LiveToolBatch` først efter den tilhørende backend-delegation er meldt `completed` og
+værktøjskald er valideret. `ThinSession` kontrollerer fortsat batchens generation,
+aktuelle input og serverpolicy, før den stager resultaterne og sender ét
+`function_call_output` pr. eksakt call-id via `send_tool_results`; adapteren fortsætter
+derefter backend-samtalen. Denne GPT-Live-vej venter ikke på en særskilt
+Realtime-item-ACK. Cancelled, incomplete, failed, malformed, duplicate eller stale
+kald kan derfor ikke nå HA, PodConnect eller lifecycle.
 
-Realtime ejer stadig betydningen og den naturlige dialog. Serverens execution policy
+GPT-Live ejer stadig betydningen og den naturlige dialog. Serverens execution policy
 ejer derimod tilladelsen. Et følsomt forslag gemmes som en kortlivet challenge med
 kanoniske argumenter og mål; kun en completed approval-beslutning på den umiddelbart
 næste tur i samme session kan udføre præcis den gemte handling én gang. HA-mutationer
@@ -277,7 +313,7 @@ autoriseres mod frisk state og dispatches til det samme eksakte entity-id. Det e
 lokal intent-routing: serveren fortolker ingen brugerfraser, men håndhæver grænsen på
 den modelvalgte, strukturerede handling.
 
-Alle Realtime-sessioner deler et budget per nøgleidentitet og model. Produktion og
+Provider-sessioner deler et budget per nøgleidentitet og model. Produktion og
 live-eval er gensidigt eksklusive under den nøglebrede diagnostiklås; eval bruger en
 separat response-reservation, men simulerer ikke fysisk headroom. En completed
 tool-batch frigives ikke, hvis den samme generation mangler autoritativ usage eller

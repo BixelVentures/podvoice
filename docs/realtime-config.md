@@ -1,4 +1,10 @@
-# OpenAI Realtime — GA surface & turn-detection tunables (verified 2026-08-12)
+# Historical OpenAI Realtime reference — diagnostic protocol (verified 2026-08-12)
+
+> This file is a protocol-specific reference for the retained OpenAI Realtime
+> diagnostic/regression adapter. It does not describe the production provider, select
+> a runtime, or define GPT-Live acceptance. The production architecture is recorded in
+> [`ARKITEKTUR.md`](ARKITEKTUR.md); current installed and physical evidence is in
+> [`STATUS.md`](STATUS.md). The GPT-Live-1 migration seam below is superseded history.
 
 Verified against developers.openai.com (search retrieval) + the live generated
 OpenAI SDK/OpenAPI spec (which already carries gpt-realtime-2.1). The Realtime
@@ -112,7 +118,7 @@ the wrong tradeoff → PodVoice runs a **local MCP client** against HA's LAN MCP
 server and surfaces the tools as ordinary function calls. Nothing about the home
 is internet-reachable.
 
-## GPT-Live-1 seam
+## Superseded GPT-Live-1 migration note
 
 The provider module (openai_realtime.py) owns model id, session config, socket
 lifecycle and event decoding. Design assumption for GPT-Live-1: streaming

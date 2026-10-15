@@ -244,12 +244,32 @@ async def test_actual_main_talk_mic_and_typed_share_saved_selection_and_fence_re
     path, options = tmp_path / "settings.json", tmp_path / "options.json"
     options.write_text(json.dumps({"openai_api_key": "inert-settings-contract"}))
     monkeypatch.setenv("PODVOICE_SETTINGS", str(path))
-    original = _preferences(path, initial_live)
+    original = {
+        **_preferences(path, initial_live),
+        "duck_level": 23,
+        "idle_timeout_s": 9,
+        "max_session_min": 7,
+    }
     path.write_text(json.dumps({**original, "live_alpha": initial_live}))
     async with _actual_main_app(monkeypatch, tmp_path / "boot", options) as actual:
         wire, observers, sdks = BrowserWire(), [], []
         session, link = actual.app[TALK](wire.send_json, wire.send_bytes)
         assert session.live_enabled is actual.sessions["kitchen"].live_enabled
+        native = actual.sessions["kitchen"]
+        assert (actual.cfg.duck_level, actual.cfg.idle_timeout_s, actual.cfg.max_session_min) == (
+            23,
+            9,
+            7,
+        )
+        for built in (native, session):
+            assert built.brain is built.live_brain
+            assert built.duck_level == actual.cfg.duck_level
+            assert built.idle_timeout_s == actual.cfg.idle_timeout_s
+            assert built.max_session_s == actual.cfg.max_session_min * 60
+            assert built._private_contract_source_prompt == actual.cfg.system_prompt
+        assert native.full_duplex is False and session.full_duplex is True
+        assert native.brain.input_rate == main.C.INPUT_RATE
+        assert session.brain.input_rate == main.OPENAI_RATE
         assert session.heartbeat is session.attention and session.heartbeat.lease is None
         session.live_brain.provider_budget = ProviderBudgetCoordinator()
         session._realtime_brain.provider_budget = session.live_brain.provider_budget
