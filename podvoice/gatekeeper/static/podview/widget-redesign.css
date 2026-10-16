@@ -423,7 +423,7 @@ pv-widget-host{--overview-lift:72px}
 .weather-view .weather-hours .weather-hour-rain,.weather-view .weather-hours .weather-hour-wind{font-size:12px;line-height:1.3;white-space:nowrap;margin:0;color:#425e68}
 #weather-view .weather-hours small.weather-hour-wind{margin-top:0;display:flex;align-items:center;justify-content:center;gap:4px;max-width:100%;white-space:normal;text-align:center}
 .weather-hour-wind .weather-wind-label{min-width:0}
-.weather-hour-wind .weather-wind-direction{display:inline-block;flex:0 0 12px;width:12px;line-height:1;transform-origin:center}
+.weather-hour-wind .weather-wind-direction{display:inline-block;flex:0 0 12px;width:12px;line-height:1;margin-inline:4px;transform-origin:center}
 .weather-hour-wind .weather-wind-direction::before{content:"↑";display:block}
 .weather-hour-wind .weather-wind-direction[hidden]{display:none}
 .weather-view .weather-days{padding-top:20px}
