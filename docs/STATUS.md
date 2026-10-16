@@ -1,3 +1,17 @@
+# Aktuel levering · 16. oktober 2026 · 2.0.36 installeret på Green
+
+Lead v2.X. PodVoice PR #176 er merget som `aa49d94e588974683ad3b9ad4b6d34da81676b58`; officiel PR-CI #632 og main-CI/publicering #633 er grønne. GitHub-release 2.0.36 er publiceret. Den samlede installation på HA Green er verificeret i Supervisor og de indlæste integrationskort: **PodVoice 2.0.36, Speakers 0.26.24, Control 0.10.16 og PodVoice HA-integration 0.1.2**. Begge add-ons kører; backup var valgt ved begge opdateringer. Begge HACS-downloads er indlæst efter én fælles Core-genstart. De seks eksisterende politikfelters rå hashes er identiske før og efter opdateringen.
+
+PodConnect PR #43 er merget som `46d3166ccafbacfc7943df14c5809ac320af9daa`. Begge 0.26.24-arkitekturer bestod faktisk make check og de to queue-wire-forløb; main-publiceringen genbrugte de præcise immutable images. Version 0.26.23 blev bevaret, da AMD-imaget allerede var publiceret, før ARM-bygningen afslørede en race i START_LOCKED-testens databaseopsætning. Den uafhængigt reviewede fixture-rettelse venter på bibliotekets faktiske initialisering; produktionskode, tidsgrænser og Control-kontrakt er uændrede.
+
+**Faktisk drift og resterende accept:** Native brugerflade viser 2.0.36. Den registrerede timerstatus på den indlæste HA-integration svarer ok med Home Assistant som ejer og tomme timer-/alarm-lister efter Core-genstarten; det beviser læsning, ikke alarm/Stop. Den normale Configure-formular når den konkrete 30-dages skærmparringsbekræftelse. Den er ikke indsendt: ny controlleradgang og den forberedte robotindstillingsaktivering afventer den konkrete menneskelige adgangsgodkendelse. Ingen ny grant, kodeindtastning eller robotindstilling er aktiveret. Privat installationsreceipt og screenshots opbevares lokalt; ingen private enhedsidentiteter eller feltlogs publiceres her.
+
+GPT-Live-preflight, faktisk musik-/robot-/timerbetjening, hørbar alarm/Stop, full-duplex-afbrydelse, semantisk afslutning/næste wake, fysisk latencybaseline, platformaccept og syv døgns stabilitet er fortsat åbne. Installeret rootfs-identitet er endnu ikke aflæst; gamle traces arver ikke den nye versions bevis. Epics #94/#95/#96 og funktionsissues lukkes ikke på CI eller installation. #174 og #175 er leveret i kode, men deres samlede installerede accept er stadig åben. Mobil og udforskning af native GPT-Live-websøgning er fortsat udskudt.
+
+Følgende beslutningsposter bevarer kilde- og kandidathistorik. Deres tidligere “upubliceret”/“ikke installeret” beskriver tidspunktet for posten; den aktuelle leverancestatus står ovenfor.
+
+---
+
 # Leadbeslutning · bind uafhængigt review til samlet 36-kilde
 
 Root har accepteret det samlede, uafhængige kilde-review `/private/tmp/pv36-polish-combined-independent-review.json` (SHA-256 `1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9`). Bind kun de eksakte reviewer-, manifest- og profilpins samt én aktiv 36-admissionsrecord til den allerede frosne komposition. Kildens 64 ændringsstier, 27 produktionsfiler, 26 regressioner, 241 runtimefiler og 135 assets ændres ikke ved denne binding. Dette er kildeadmission; officiel CI, udgivelse, Green-installation, browser-/provideroplevelse og faktiske robot-/lydhandlinger kræver fortsat særskilt bevis og V2-operatørens kontrol.
