@@ -57,7 +57,7 @@ async def test_visible_existing_navigation_anchor_reaches_shipped_setup_same_ori
         assert 'src="setup.js"' in body
         assert not panel[BRIDGE]._grants
         assert panel[BRIDGE]._pairing_attempts == 0
-        assert "Skærmopsætning" in html
+        assert ">Par skærm</a>" in html
 
 
 @pytest.mark.parametrize("site", ["cross-site", "same-site"])

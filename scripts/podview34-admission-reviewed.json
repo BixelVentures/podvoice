@@ -11,10 +11,10 @@
     "scripts/dev_cycle.py": "2c5ec2ee4ed50b37dfae91499090b77c6ae21400d931d30cd86da1584e978bd0"
   },
   "production": {
-    "podvoice/gatekeeper/static/index.html": "49d90acb032981451fe85818dd70ac176d24f744c06d4dc24df10711db4b49b1"
+    "podvoice/gatekeeper/static/index.html": "7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51"
   },
   "regressions": {
-    "tests/integration/test_podview_pairing_navigation.py": "73394836b4e915fbe7eca28a4963b87592ac046d98d885a8af062359fcc1567d",
+    "tests/integration/test_podview_pairing_navigation.py": "2375be76eb6540f337c994c9d99b0bfd37816b43bf026f96ce10ed7d3639b993",
     "tests/unit/test_candidate_scope_admission34.py": "de285cc78842e3cb028e5ce885e15d35e4da69a98124f08820ef37e7c7bd3d05",
     "tests/unit/test_dev_cycle.py": "a78128c3102bc7cfd731ccb917d57af8504d54a1f1dc7ab3a870bbb0aff2ac60"
   },
@@ -90,7 +90,7 @@
     "podvoice/gatekeeper/settings.py": "0b26fd77ba8f92afa6df43c2248d21ddaee299f84c0a9fa87d6e9522c6d043d4",
     "podvoice/gatekeeper/speech.py": "189ac58b0d938fe235b232303298213970095a4157a2976d3706095667515594",
     "podvoice/gatekeeper/state.py": "09bff35bb1c856687f8455318c026bf5a3a39c68e26a62ae3590c9478cd736e1",
-    "podvoice/gatekeeper/static/index.html": "49d90acb032981451fe85818dd70ac176d24f744c06d4dc24df10711db4b49b1",
+    "podvoice/gatekeeper/static/index.html": "7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51",
     "podvoice/gatekeeper/static/podview/ambient.jpg": "c3368b8a98dd54b185400231d9c95bdfa4ee072891b1f89e696e9bf2abcd85a3",
     "podvoice/gatekeeper/static/podview/answer-widget.js": "f72c89cef9195f0584f1cded26bcb9fae4c6cb29c7687390914c93d2c600125e",
     "podvoice/gatekeeper/static/podview/app.js": "c6ad3cb0e7056313275b099eaadfa6923e72fd36418da94427107d293b3b7584",

@@ -6,6 +6,8 @@ Observeret fejl: den leverede `view/setup.html` har ingen synlig indgang fra Pod
 
 Berørt kæde: autentificeret HA-panel/iframe → eksisterende native headernavigation → relativ `view/setup.html` → uændret assetguard og setupformular → eksisterende ejer-/kode-/grantkontrol. Første `Åbn PodView`-link og dets kiosk/outer-routerbinding bevares. GPT-Live, fysisk input, værktøjsdispatch, lyd, lifecycle, teardown/rearm og næste wake er uændrede. Invarianter: ingressvisning er aldrig kontrolautoritet; navigation opretter ingen grant, kommando eller pairingattempt; alle eksisterende cross-site/same-site og POST-shape-afvisninger bevares.
 
+Officiel PR-CI fandt, at den lange linklabel gav 200%-overflow ved320px. Brugeren har udskudt mobilforbedringer. Kun den nye label forkortes derfor til `Par skærm`, så normal ombrydning fungerer med den eksisterende header/CSS; ingen layout-, CSS-, timeout- eller guardændring. Browserens eksisterende 320px/200%-overflowregression er målrettet genkørt PASS på den nye HTML SHA `7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51`, med fuldført worker-oprydning. Tidligere navpatch-GO gælder de uændrede route-/guardbits; nye label-/test-/metadatafingerprints kræver frisk pin-binding før næste push.
+
 Mindste ændring: ét ekstra eksisterende-style headerlink, fem kausale regressionscases, versionsmetadata34 og additiv exact34-admission med uændrede historiske gates. Ingen nye settings, routealiaser, originundtagelser, credentialgenerator, policy-/kvote-/nonce-/ledgerændringer eller automatisk hjemmehandling. Musikens separate room/native-transportrettelse og øvrigt PodView-design er ikke del af denne kandidat.
 
 Uafhængigt review af navpatch `e7653d69332c597dd4409014f212624d2e8fa993aec48ddb1ca0a1d0725515eb` er GO; reviewer kontrollerede faktisk33-base, uændret guard og første-link-binding. Fem fokuserede handler/prefixkontroller er tidligere PASS på samme nav/testbits; formatter/lint, endelig admissionreview og officiel CI skal bestå på det samlede frosne træ. Ingen provider- eller fysisk test kræves for linkændringen. Green-kontrol skal vise faktisk formular via klik; efterfølgende parring og faktiske musik-/robot-/timerhandlinger er særskilt, endnu ikke bevist.
@@ -21,15 +23,15 @@ Rollbackgrænse: behold immutable33 og eksisterende seks Green-policystrings; in
   "domains": [
     "unclassified_runtime"
   ],
-  "fingerprint": "fa23aa3b992d289bb4ba31fe8e9187d4017a6b2e5f8df084e71a16deb09271b6",
-  "regression_fingerprint": "83fc1e324f1373f1becbb62afbb56f7fdd9119fd693a4a8a55b3651f3c9e575e",
-  "runtime_fingerprint": "0f30fa4d50da2b1977df66edff0b318873ba1bbaf18ad43d39849556c2bc3301",
+  "fingerprint": "6c0b22a259de9bc03c10c5b73756f6d30bc2ce993d1966b93365ac9b683b929c",
+  "regression_fingerprint": "c0aa81dca87475b18dee12514f376b3dfe61397fa55b19d8f4e6c9444c3cd8f9",
+  "runtime_fingerprint": "0b710aa8101daea238f0b1bbfc14eb8ec98d3149506dc253b49ab602dfdc9629",
   "config_fingerprint": "b673504cf97029fe03aa3da4d6aa731475a6cfeff6dfb6d977d2293a10f28fa8",
-  "policy_fingerprint": "348cf27aaf8861bb208d86ee7769c3c6fdf067d9255300c83894d164747fc684",
+  "policy_fingerprint": "dc632f8ab0682dd75b310c4e1280f4c981e714c6670ac3f2dc2c2b1275076f3b",
   "tooling_fingerprint": "8bab6fe0425d7294eb033fdb6281d21a9b745ec97e3f9dc82a3a7b671924ea7e",
-  "manifest_fingerprint": "18249c439875764e64d70a4424e29245b7d460e0b49b935cb099402a05e2f673",
+  "manifest_fingerprint": "d7b7e5775446174735da6fc0fafd4d26121dc45909c6516db459fa32788261ee",
   "reviewer": "Independent Codex /root/review34; exact34 source, admission, and artifact review",
-  "rationale": "Independent nav-only source and admission review: one relative setup link, unchanged ingress/owner guards and first PodView link; strict33-base exact scope and historical dispatch verified. Focused tests and static checks passed; PROFILE_AST pin computed with required Python 3.12. Official CI, publication, Green click, pairing and physical acceptance remain separate."
+  "rationale": "Independent nav-only source and admission review: shorter Par skærm label keeps the same relative setup target, ingress/owner guards, and first PodView binding. The existing 320px/200% daily UI browser gate passed on HTML SHA 7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51 with cleanup complete. Prior focused handler and static checks cover unchanged behavior; PROFILE_AST pin computed with required Python 3.12. Official rerun, publication, Green click, pairing and physical acceptance remain separate."
 }
 -->
 
