@@ -1151,12 +1151,11 @@ def run_release(
                 "candidate-scope",
                 (
                     python,
-                    "scripts/candidate_scope_admission33.py"
-                    if snapshot.merge_base == "abe759678168ba6408e10ae0a8a3621249631d13"
-                    else (
-                        "scripts/candidate_scope_admission31.py",
-                        "scripts/candidate_scope_admission32.py",
-                    )[snapshot.merge_base != "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c"],
+                    {
+                        "8e7ff9bc9aaaf298a23c93e53bed90c672558b25": "scripts/candidate_scope_admission34.py",
+                        "abe759678168ba6408e10ae0a8a3621249631d13": "scripts/candidate_scope_admission33.py",
+                        "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c": "scripts/candidate_scope_admission31.py",
+                    }.get(snapshot.merge_base, "scripts/candidate_scope_admission32.py"),
                     "--base",
                     snapshot.merge_base,
                 ),
