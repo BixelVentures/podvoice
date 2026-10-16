@@ -591,7 +591,11 @@ def test_native_room_binding_is_additive_and_legacy_transport_survives():
 
 def test_legacy_track_rule_does_not_open_selection_without_native_binding():
     tools = object()
-    bridge = SimpleNamespace(tools=tools, _grant_current=lambda room, token: token == "grant")
+    bridge = SimpleNamespace(
+        tools=tools,
+        _grant_current=lambda room, token: token == "grant",
+        _music_move_fence=set(),
+    )
     music = SimpleNamespace(tools=tools, track_available=True, room_start_available=True)
     original = config()
     original["music"][0]["actions"] = ["pause", "play_track"]

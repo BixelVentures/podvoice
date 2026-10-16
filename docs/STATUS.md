@@ -101,6 +101,8 @@ Hypotese for sidste forbrugerændring: erstat kun den hidtil tomme reviewbinding
 
 **Officiel CI, afgrænset fixture-opfølgning:** Den første 35-unitkontrol ramte en forældet scaffold-assertion, der krævede blanke admission-pins også efter legitim finalreview. Testen dækker nu både helt tom/uautoriseret scaffold og fuldt pinnet manifest/profil/record samt tre delvist pinnede afvisninger. Dernæst viste de eksisterende JS-familier 13 fixtureforventninger til ældre PodView-visning; den uafhængigt reviewede test-only adoption i `combined-adoption-receipt.json` SHA256 `3c61b75e8816c52865f474bdca1cbaf1317c8ec549e6626ce13822a562518472` matcher alle 13 aktuelle filer og deres preimages. Kildeleverancens målrettede 108/108 JS-cases består på de nye fixturebytes; de 135 produktionsassets er uændrede. Strict35 får kun disse 13 faktisk ændrede teststier (49 krævede tests i alt), og manifest-/STATUS-fingeraftryk skal repinnes én gang efter dette pre-pin-checkpoint. Den officielle CI-rerun, publicering og installation resterer; fixture-PASS er ikke fysisk eller providerbevis.
 
+**Næste afgrænsede CI-fixturebatch:** Fem eksisterende integrationstestfiler ændres kun for at følge den allerede reviewede produktionskontrakt: passiv speaker-kataloglæsning modtager nu token-argumentet; collection START bekræfter den eksakte 35-procent offer-værdi og tester den aktuelle serialiserede læsegrænse; kontrolfixture har den eksisterende MOVE-fence; foreign-account Mood-svar afvises efter faktisk selection uden kildepublicering; Mood-diagnostik injicerer fejl i de faser, hvor de nu faktisk opstår. Forfatterchecks 43+19+51+12 består på de fem filbytes, i alt 125 fokuserede cases; musik-selection13 og forgænger148 er bevaret uden reproduceret hang. Kun collection- og Mood-preview-stierne er nye i strict35-listen, så 51 krævede tests og 131 effektive stier er den eksakte næste pre-pin-scope. Den gamle officielle CI-kandidat har kendte fixturefejl; en ny officiel run skal afgøre den repinnede kandidat. PodConnect 0.26.22 er installeret og Kører, Control 0.10.15 er hentet og indlæst efter HA Core-genstart ifølge lokal installreceipt SHA256 `87c57a3a2d81015dd678ff149d1940abd02be17ca7fccdf8b7d71605f84fe162`; PodVoice er stadig 2.0.34. Ingen ny grant eller credential; kontrol, providerlyd og fysisk accept på Green er ikke bevist af installationen.
+
 ---
 
 # Aktiv leadbeslutning · PodVoice2.0.34 ·16. oktober2026
@@ -653,13 +655,13 @@ Sidste afgrænsede staticfreeze ·15. oktober2026: kun weather-view.js, widget-v
     "physical_output"
   ],
   "fingerprint": "73cb4f96f85794ae7ae188468fc975285b02bf0f05a639f703828d1018efcc5e",
-  "regression_fingerprint": "8939e79de02a13d6b2274504173281a133aa7127d2f54ad6d209bc5e40dde379",
+  "regression_fingerprint": "98fb8fb872ffdfbf4de388ba35f20d2bebfca055371de4b654022f0043efb906",
   "runtime_fingerprint": "b68ac55547183a086126d77f053c7b288f048838d56bdc74ce1b410b6cd630f9",
   "config_fingerprint": "241b446750fa4840bb4bae2ab82e8e285d9dd5f8fd2a98be4159d695a7edba11",
-  "policy_fingerprint": "ad4ce25aa056f430901b13cdc38722f585cff51f6808a0483aaa6a0b0779e4ec",
+  "policy_fingerprint": "7e420a3e8bacb9b08f808a41c8bb0d18f91d5353684cf6952242ee78209fbef2",
   "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
-  "manifest_fingerprint": "67d2937dafaf6f757238cf06d369a181b34033684d71c2075d65b9c83eedb878",
+  "manifest_fingerprint": "cca83a87ec6898bb8818730094b3941be29c0955167eb934b05946c530f82119",
   "reviewer": "Independent GPT-6 Sol /root/review34; final pre-pin HEAD and coupled Native/C review",
-  "rationale": "Exact pre-pin PodVoice35 HEAD d386136f5e84f4d108617d8de2ad088076d65197 tree 03b38c8fb6e725fe08d81d6d89408472fd39b67a independently reviewed. Thirteen CI fixture files match adoption receipt 3c61b75e; 49 mapped regressions and 135 UI assets bound. Coupled Native/C source review remains bound to the prior reviewed runtime bytes. Official CI rerun, publication, installation, provider/audio, Green control and physical acceptance remain separate."
+  "rationale": "Exact PodVoice35 pre-pin HEAD 83adcb95672c9c4c284d814cb78fc09caa8e7e44 tree 003e7814fa8f2cecd6a33dd15ba5dc9842791039 independently reviewed. Five integration fixture files changed, two newly mapped; 51 exact regressions and 135 UI assets bound. PodConnect 0.26.22 and Control 0.10.15 installed and loaded under separate receipt, with PodVoice still 2.0.34. Official final CI, PodVoice publication and installation, provider/audio, Green control and physical acceptance remain separate."
 }
 -->

@@ -116,9 +116,11 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_mood_diagnostics_route.py",
         "tests/integration/test_podview_bridge.py",
         "tests/integration/test_podview_controls.py",
+        "tests/integration/test_podview_collection_selection.py",
         "tests/integration/test_podview_feeling_playlists.py",
         "tests/integration/test_podview_map_owner.py",
         "tests/integration/test_podview_mood_playlists.py",
+        "tests/integration/test_podview_mood_preview.py",
         "tests/integration/test_podview_music.py",
         "tests/integration/test_podview_music_control.py",
         "tests/integration/test_podview_music_selection.py",
@@ -165,8 +167,8 @@ REQUIRED_TESTS = frozenset(
     }
 )
 REVIEWER = "Independent GPT-6 Sol /root/review34; final pre-pin HEAD and coupled Native/C review"
-MANIFEST_SHA = "67d2937dafaf6f757238cf06d369a181b34033684d71c2075d65b9c83eedb878"
-PROFILE_AST = "893dcc8ef3b3da9ad8e346d2727849ed62fc4b923b59e2c621d8a843f29cd8ae"
+MANIFEST_SHA = "cca83a87ec6898bb8818730094b3941be29c0955167eb934b05946c530f82119"
+PROFILE_AST = "9ae8f21d10c7b98e5a3976789707f69a96065873f06c9c20293f5222c100d66c"
 DELETED_PRODUCTION = {
     "podvoice/gatekeeper/static/podview/flow.html": "ffe2df29e9db0b99f1777ab17fdbecbfcd2099fb377375c7d7b865dbabf0c9d4",
     "podvoice/gatekeeper/static/podview/flow.js": "b462c8de356eac701f8ca0ab99db73353b9d31df6ceea8b24595ef3cd9e62e08",

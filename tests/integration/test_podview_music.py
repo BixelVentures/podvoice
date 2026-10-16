@@ -302,8 +302,8 @@ async def test_passive_speakers_route_reuses_view_guard_and_exact_account_query(
 
     seen = []
 
-    async def read_catalogue(bridge, room, account, owner_binding):
-        seen.append((bridge, room, account, owner_binding()))
+    async def read_catalogue(bridge, room, account, owner_binding, *, token):
+        seen.append((bridge, room, account, owner_binding(), token))
         return {"ok": False, "schema": "podview.speaker-catalogue.v1", "status": "unavailable"}
 
     monkeypatch.setattr(podview.podview_speakers, "read_catalogue", read_catalogue)
@@ -336,6 +336,7 @@ async def test_passive_speakers_route_reuses_view_guard_and_exact_account_query(
             "kitchen",
             "account-alpha",
             (podview._music_binding(rig.app[BRIDGE], "kitchen"), True),
+            "",
         )
     ]
     assert rig.calls == []

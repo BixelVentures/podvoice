@@ -80,13 +80,15 @@
     "podvoice/gatekeeper/tools.py": "a9ec001d8c74bd2068d4e99219e34c831517c345458e2c1f107a027bb17809fc"
   },
   "regressions": {
-    "tests/integration/test_mood_diagnostics_route.py": "0bd01ffb802fd54a7f1275b366f1147c1f45ac4cb5bb5f054c51fcb0374a33aa",
+    "tests/integration/test_mood_diagnostics_route.py": "a4556eb5ace6848a60b35625746820afc4d2069c6de6f896e6d825631970543a",
     "tests/integration/test_podview_bridge.py": "d39af61aed9c33bb8e749b93ec2569d1e856bd5e9446dd401a409184d4965fbd",
-    "tests/integration/test_podview_controls.py": "e49f550c340cff26b8822364c2bbb9b7eb6428ac94c987aa55505d53de08e193",
+    "tests/integration/test_podview_collection_selection.py": "a79bde906570e5e3b73e041a4746a2197ef21533beba4178497736e04fb829e2",
+    "tests/integration/test_podview_controls.py": "3484315bce5ff0a28b45c30cf82526d03e43cc7a088b9c98da58f6e2d77e1060",
     "tests/integration/test_podview_feeling_playlists.py": "418ee097175ecfa4d80437a15d35c1ac5c3c69485c5f3f6632579ed1eedcd218",
     "tests/integration/test_podview_map_owner.py": "0b4ca400c0553e319fbb9affdfceb01ba36fc8a2aa8e47a6ecaf6d7f7f2b4a81",
     "tests/integration/test_podview_mood_playlists.py": "b2c0e4c8312df2dc3cdb48c7d7f2014221855320b9e5ef10a9147a6bbf51eb78",
-    "tests/integration/test_podview_music.py": "71cd3de61b5aa32daba4c837f0a1882d9350e8c42d6206d0a34c823359526ff5",
+    "tests/integration/test_podview_mood_preview.py": "6c4f948a9c3a561b820242349321ebc222e3f9bb385d0d3b7ad52a7e91f170bd",
+    "tests/integration/test_podview_music.py": "3df2e9f3c5b0303d1cdd7d73843da22c2e6634e6b269868e056fa2efde27f92c",
     "tests/integration/test_podview_music_control.py": "74a5f40a0f188e60c2e15c639d7e5e150c65c43fbf87962b3870b6bade73fb24",
     "tests/integration/test_podview_music_selection.py": "e7ec2adb4beaec44ae1a4b7305bec5fdcb45478608784e5cdb2634c4a7e98763",
     "tests/integration/test_podview_resume.py": "61dde3184029e627e13e1031610f74cfbda4ad832210f09f17571981b62defab",
