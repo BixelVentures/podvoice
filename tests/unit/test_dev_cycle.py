@@ -54,7 +54,7 @@ def test_ci_runs_for_prs_and_main_pushes_without_feature_branch_duplicates():
 
 def test_ci_test_cohorts_fail_fast_and_emit_hang_stacks_without_test_timeout():
     workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
-    required = "-vv --maxfail=1 -o faulthandler_timeout=60"
+    required = "-v --maxfail=1 -o faulthandler_timeout=60"
     unit = workflow.split("      - name: Unit tests\n", maxsplit=1)[1].split(
         "      - name: Remaining tests\n", maxsplit=1
     )[0]
@@ -63,8 +63,10 @@ def test_ci_test_cohorts_fail_fast_and_emit_hang_stacks_without_test_timeout():
     )[0]
 
     assert required in unit
+    assert "-vv" not in unit
     assert "tests/unit --durations=15 --durations-min=1" in unit
     assert required in rest
+    assert "-vv" not in rest
     assert "--ignore=tests/unit --durations=15 --durations-min=1" in rest
 
 

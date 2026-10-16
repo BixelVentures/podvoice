@@ -171,8 +171,8 @@ REQUIRED_TESTS = frozenset(
     }
 )
 REVIEWER = "Independent /root/review34; exact35 source review"
-MANIFEST_SHA = "a48cb625a8f130f34bf595ff944d8f82b2d47303343b06d7ac70079791c46d80"
-PROFILE_AST = "cb32b900246a82c089ee2a6cde5571995a202f58ab7e0192a5a49831703d21cf"
+MANIFEST_SHA = "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3"
+PROFILE_AST = "fb442fde61689b92b678a001bae8d4908d729cbe60cf00b4fff63d125cb0d5bd"
 DELETED_PRODUCTION = {
     "podvoice/gatekeeper/static/podview/flow.html": "ffe2df29e9db0b99f1777ab17fdbecbfcd2099fb377375c7d7b865dbabf0c9d4",
     "podvoice/gatekeeper/static/podview/flow.js": "b462c8de356eac701f8ca0ab99db73353b9d31df6ceea8b24595ef3cd9e62e08",

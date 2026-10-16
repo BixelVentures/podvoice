@@ -7,7 +7,7 @@
     "pyproject.toml": "b313e06594db04fa266b3e267ac21d6d57bd1885b797f0a164beeab21d42b246"
   },
   "policy": {
-    ".github/workflows/ci.yml": "71ad5c1912a24af055eb4df3457d5127245d18f109209786b2da5ae659581c82",
+    ".github/workflows/ci.yml": "b379ce37c33091b21ee79deadea49205a6aacee66419cc156c367347f907833e",
     "docs/COMPONENT-LIBRARY.md": "bb02c06f43f2b7e8e3b54d36a7d92c418a8e397ebd3bfed862ca7fa0b4d5bc63",
     "docs/component-library-registry.json": "04b24f6b041d8357d4a2d1c5a2fe792a9c78b8707c104a1abc4925a74c9749a9",
     "scripts/dev_cycle.py": "58419c354b895644b666128446e98b4cbb3f5ae2c06af2ad5ee078822e66f03a"
@@ -122,7 +122,7 @@
     "tests/podview/root-widget-model.test.mjs": "2059b08ebe9eee90fbe4f005dc93a28b3b4c1ad5b119958e3a3996be0ccb1eed",
     "tests/podview/visual-pending.test.mjs": "1de2903e1f1486a43fd5034dfe11e149f4c925cbd8f0ebb53811e4355d32eb59",
     "tests/unit/test_candidate_scope_admission35.py": "29a0d40f20255bfcbd0d02dbed22319c9436aa22d8818114b6dad975e7374943",
-    "tests/unit/test_dev_cycle.py": "a2c5e3b41e9518b5e1c4a8bf2bc6f77ac5e96ee8bf111cfb756247f26fa86fec",
+    "tests/unit/test_dev_cycle.py": "8d08b6564297c8ae4c573250a284695179d202df69e113ad4548184bd12b9e09",
     "tests/unit/test_live_semantic_completion_eval.py": "b5e3657cc80f403135b3bde357039be5e3acdcf71656a39198384a6db35ef2a7",
     "tests/unit/test_mood_diagnostics.py": "08a8f4aa3ae071c717dffef0cfb38eda3a7a78f4675c0a26a76a6b63e89c7fc7",
     "tests/unit/test_music_selection_owner.py": "bc517e4c762121b2a925f3edfa4b24c4186c53f9f2675756283273806aeaab94",

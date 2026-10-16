@@ -105,6 +105,8 @@ Hypotese for sidste forbrugerændring: erstat kun den hidtil tomme reviewbinding
 
 **Efterfølgende officiel CI, præcis diagnose:** Unitfejlen var en forældet semantisk eval-fixture, der sammenlignede backend-prompten uden den allerede leverede præsentationsinstruktion; kun fixtureforventningen blev rettet, og dens berørte 90 cases består. Køens gamle mekanismecases antog en åben native køkontrakt, som den aktuelle kandidat bevidst holder lukket: de injicerer nu kun den historiske mekanisme i fixture, mens en særskilt faktisk ingresscase beviser lukket kø uden native servicekald. Den tidligere ventende køcase når nu sin læsevent og annullerer deterministisk; køens faktiske produktfunktion er stadig uafklaret og ikke accepteret. Berørte kø-/receipt- og controllerkontroller bestod 78+4; den efterfølgende afgrænsede restdel før Thin-activity bestod 323 cases. ThinLive-fixturen forventer nu den faktisk leverede primary-/backend-præsentationsinstruktion og bevarer wire- og domæneafvisninger; dens 121 cases består uden produktionsændring. Den sidste restdel efter ThinLive bestod 362/362; tidligere button/closing19, Thin60 og diagnostik12/12 blev målrettet bevaret, sidstnævnte med inert localhost og syntetisk TTS503 uden eksternt kald. Disse er særskilte kausale slices, ikke én ny samlet lokal releasekørsel. CI giver nu første testfejl og stackdiagnostik ved venten efter 60 sekunder, uden at ændre testmængde eller runtime-timeouts. De fire faktisk ændrede teststier føjes eksakt til strict35 (55 krævede tests); CI's nye policybytes skal repinnes. Ny officiel CI, PodVoice35-publicering/installering, providerlyd og fysisk accept resterer.
 
+**CI-logregression rettet før næste kandidatrun:** Den forrige `-vv`-diagnostik skrev det fulde auto-genererede parameter-ID for en 2 MB unitfixture til CI-loggen lige før den observerede standsning. Samme syv cases udsendte lokalt 2.150.457 bytes med `-vv` (længste linje 2.000.125) mod 598 bytes med `-v` (længste linje 119). Kun begge CI-kohorters verbosity og deres kontraktassertions er ændret; `--maxfail=1`, `faulthandler_timeout=60`, alle selectors og durations bevares, og ingen runtime-timeout er ændret. Tre fokuserede CI-kontraktcases, Ruff/format og diff-check består; uafhængigt scoped toolingreview er GO på patch SHA256 `c2053234aa097180cc80e8e61b8845970f51e341022458cb4f05588abea04dd0`. Sandsynlig logbackpressure er en hypotese, ikke bevist kausal CI-årsag; næste officielle CI afgør kandidaten. Tidligere beståede checks på uændrede produktbytes genbruges; fysisk accept er fortsat åben.
+
 ---
 
 # Aktiv leadbeslutning · PodVoice2.0.34 ·16. oktober2026
@@ -657,13 +659,13 @@ Sidste afgrænsede staticfreeze ·15. oktober2026: kun weather-view.js, widget-v
     "physical_output"
   ],
   "fingerprint": "73cb4f96f85794ae7ae188468fc975285b02bf0f05a639f703828d1018efcc5e",
-  "regression_fingerprint": "714e1acb2d028d086cddf7b0d2d0d3eb298b45b6a223bca85f62b57d8064a488",
+  "regression_fingerprint": "be1b74e96b7022851805070dfdb51da0331eeda754cfe0b2e33a446cd8352f92",
   "runtime_fingerprint": "b68ac55547183a086126d77f053c7b288f048838d56bdc74ce1b410b6cd630f9",
   "config_fingerprint": "241b446750fa4840bb4bae2ab82e8e285d9dd5f8fd2a98be4159d695a7edba11",
-  "policy_fingerprint": "910cbba32ff6de9d6eb94b68c3a9a3e72cde0aa6470e3b46f4cbff22b1792bbe",
+  "policy_fingerprint": "2539c788848ae4a7fae23b43326c357561d0e649fb47310c8f216f7be64a891d",
   "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
-  "manifest_fingerprint": "a48cb625a8f130f34bf595ff944d8f82b2d47303343b06d7ac70079791c46d80",
+  "manifest_fingerprint": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",
   "reviewer": "Independent /root/review34; exact35 source review",
-  "rationale": "Exact PodVoice35 pre-pin HEAD 6dd69573feea05e924b59784e1b350dd15282652 tree d4f7ffa1e7bedb0abecb38d2afd206bb1b08a76e independently reviewed. Four newly mapped fixture paths make 55 exact regressions and 135 UI assets. Changed unit semantic-eval, closed queue mechanism/ingress, ThinLive presentation and CI diagnostic workflow received focused checks; remaining offline rest slices passed, not a new one-shot release gate. PodConnect 0.26.22 and Control 0.10.15 installed and loaded under separate receipt; PodVoice remains 2.0.34. Official final CI, PodVoice publication and installation, provider/audio, Green control and physical acceptance remain separate."
+  "rationale": "Exact PodVoice35 pre-pin HEAD 851b09bb6295bfcb37015bac7d0851fc48d11fac tree 586b14dc32bc9aaecdbe4b14b3aee52049204a9c independently reviewed. Only reviewed CI diagnostics verbosity and contract changed since prior 55-regression/135-asset pin; seven-case reproduction emits 598 bytes at -v versus 2,150,457 bytes at -vv. maxfail, faulthandler, selectors and durations retained, with no runtime/UI change. PodConnect 0.26.22 and Control 0.10.15 installed and loaded separately; PodVoice remains 2.0.34. Official final CI, PodVoice publication and installation, provider/audio, Green control and physical acceptance remain separate."
 }
 -->

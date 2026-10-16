@@ -86,10 +86,10 @@ jobs:
         if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
       - name: Unit tests
         if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
-        run: python -m pytest -vv --maxfail=1 -o faulthandler_timeout=60 tests/unit --durations=15 --durations-min=1
+        run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 tests/unit --durations=15 --durations-min=1
       - name: Remaining tests
         if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'rest'
-        run: python -m pytest -vv --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --durations=15 --durations-min=1
+        run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --durations=15 --durations-min=1
 
   ui-browser:
     needs: [scope]
