@@ -16,3 +16,21 @@ export const visualExamples = {
   {id:'view',label:'PodView viser',detail:'Samme svar får en relevant visning på skærmen.',sourceId:'example'}
  ],sources:source('Foreslået samspil. Den lokale prototype er endnu ikke forbundet til PodVoice.')}}
 };
+
+// Household-shaped saved QA history. No receipt IDs, live flags or owner authority.
+const householdSource=scope=>[{id:'example',label:'PodView · lokalt eksempel',url:'example-sources.html',scope}];
+export const visualHistoryExamples={
+ 'fact-card':{title:'Kaffe til morgenbordet',meta:'Faktakort · eksempel',content:{summary:'Til én kop filterkaffe.',facts:[{id:'water',label:'Vand',value:'250 ml',detail:'Bruges til at brygge kaffen.',sourceId:'example'},{id:'coffee',label:'Kaffe',value:'15 g',detail:'Justér mængden efter smag.',sourceId:'example'}],sources:householdSource('Lokalt opskriftseksempel til designprøve. Ingen køkkenvægt eller kaffemaskine er tilsluttet.')}},
+ 'sourced-image':{title:'Musik til en rolig morgen',meta:'Billede med kilde · eksempel',content:{summary:'En illustration til en rolig akustisk stemning.',image:{url:'assets/morning-acoustic.png',alt:'En kop kaffe og frugt ved et solfyldt vindue med udsigt over vandet.',caption:'Morgenstemning i PodView. Ikke nummerets albumomslag.',credit:'PodView · eksisterende AI-genereret eksempelillustration',kind:'illustration',sourceId:'example'},sources:householdSource('Eksisterende prototypeillustration. Intet nyt modelkald; ikke et live PodVoice-billedsvar.')}},
+ 'answer-timeline':{title:'En rolig morgen sammen',meta:'Tidslinje · eksempel',content:{summary:'Et eksempel på rækkefølgen før dagen begynder.',events:[{id:'breakfast',time:'07.00',label:'Morgenmad ved bordet',detail:'Plads til at spise i ro.',status:'planned',sourceId:'example'},{id:'ready',time:'07.25',label:'Tasker og overtøj',detail:'Find det, der skal med.',status:'planned',sourceId:'example'},{id:'leave',time:'07.45',label:'Ud ad døren',detail:'Et planlagt eksempel, ikke en kalenderaftale.',status:'planned',sourceId:'example'}],sources:householdSource('Lokal eksempelplan. Familiens kalender og aftaler er ikke tilsluttet.')}},
+ 'simple-diagram':{title:'Fra spørgsmål til visuelt svar',meta:'Enkelt diagram · eksempel',content:{summary:'Princippet bag PodVoice og PodView.',nodes:[{id:'voicepe',label:'Du spørger ved Voice PE',detail:'Din stemme starter den almindelige samtale.',sourceId:'example'},{id:'podvoice',label:'PodVoice behandler spørgsmålet',detail:'Eksisterende værktøjer kan levere kildebundne oplysninger.',sourceId:'example'},{id:'podview',label:'PodView viser svaret',detail:'Illustreret princip. Dette diagram er gemt eksempelindhold.',sourceId:'example'}],sources:householdSource('Lokal principskitse for produktets samspil. Ikke en aktuel systemstatus eller et live PodVoice-diagramsvar.')}}
+};
+
+// Selected visual-explanation design: saved educational example, not a live producer.
+const bicycleExplanation={title:'Gear ændrer, hvor let du træder.',meta:'Gemt forklaring · AI-illustration',content:{summary:'Et lavt gear gør det lettere at træde op ad bakke.',illustration:{url:'assets/bicycle-drivetrain-illustration.png',alt:'AI-illustration af cyklens baghjul, kæde og pedaler, set fra siden.',caption:'AI-genereret illustration · principskitse, ikke en teknisk tegning.',credit:'PodView · AI-genereret eksempel',kind:'illustration',sourceId:'bicycle-art'},nodes:[
+ {id:'pedals',label:'Pedaler',detail:'Du træder og drejer kranken.',sourceId:'rei-gears'},
+ {id:'chain',label:'Kæde',detail:'Kæden forbinder tandhjulene foran og bagpå.',sourceId:'rei-gears'},
+ {id:'wheel',label:'Baghjul',detail:'Gearvalget ændrer forholdet mellem pedaltråd og hjulets omdrejninger.',sourceId:'rei-gears'}
+],sources:[{id:'rei-gears',label:'REI · Bike gears and shifting',url:'https://www.rei.com/learn/expert-advice/bike-gears-and-shifting.html',scope:'Gemt dansk forklaring baseret på REI Expert Advice, kontrolleret 16. oktober 2026. Ikke et liveopslag.'},{id:'bicycle-art',label:'Om illustrationen',url:'example-sources.html',scope:'AI-genereret eksempelillustration til denne lokale designprøve. Mekaniske detaljer er forenklede; ikke dokumentation eller en teknisk tegning.'}]}};
+visualExamples['simple-diagram']=bicycleExplanation;
+visualHistoryExamples['simple-diagram']=structuredClone(bicycleExplanation);

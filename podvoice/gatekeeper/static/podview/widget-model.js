@@ -7,22 +7,31 @@ export const PLAYLISTS = [
  {id:'pop-kitchen',name:'Pop til køkkenet',description:'Velkendte sange · Syng med',detail:'',track:3,art:'indie.png'},
  {id:'quiet-evening',name:'Rolig aften',description:'Bløde toner · Lavt tempo',detail:'',track:5,art:'lake.png'},
 ];
+// Subjective choices in the local demonstration, never inferred emotional state.
+export const FEELING_PLAYLISTS=[
+ {id:'feeling:energy',name:'Mere energi',description:'Funk · Lyst og levende',detail:'',track:6,art:'indie.png'},
+ {id:'feeling:calm',name:'Helt ned i tempo',description:'Bløde toner · God tid',detail:'',track:7,art:'lake.png'},
+ {id:'feeling:familiar',name:'Noget velkendt',description:'Favoritter · Syng med',detail:'',track:8,art:'italian.png'},
+ {id:'feeling:sing',name:'Syng med',description:'Pop · Omkvæd du kender',detail:'',track:3,art:'indie.png'},
+ {id:'feeling:soft',name:'Bløde toner',description:'Roligt · Akustisk',detail:'',track:5,art:'lake.png'},
+ {id:'feeling:bright',name:'Et lyst øjeblik',description:'Let · God energi',detail:'',track:1,art:'kitchen.png'},
+];
 export const TRACKS=MUSIC_FIXTURE;
 export const musicArtwork=art=>art.startsWith('https://')?art:`assets/${art}`;
 // Account collection membership is an explicit local scenario, never a claim about the user's account.
-const COLLECTION_TRACKS={top:[0,1,2,3,4,5,6],recent:[1,3,5,0,2,4,6],liked:[6,2,4,1,3,5,0]};
+const COLLECTION_TRACKS={top:[0,1,2,3,4,5,6],recent:[1,3,5,0,2,4,6]};
 // Local fixtures follow the typed PodConnect target contract; these are not discovered devices.
 export const TARGETS=[
  {accountId:'household',kind:'configured_alias',targetId:'living-room',name:'Stuen',detail:'HomePod · Klar',available:true},
  {accountId:'household',kind:'configured_alias',targetId:'kitchen',name:'Køkkenet',detail:'HomePod · Klar',available:true},
  {accountId:'household',kind:'spotify_device',targetId:'office',name:'Kontoret',detail:'Ikke tilgængelig',available:false},
 ];
-export const COLLECTIONS={mood:{title:'Hvad er stemningen i køkkenet?',description:'Lidt jazz, italienske klassikere eller rolig indie?'},top:{title:'Dine topsange',description:'Musik, du vender tilbage til.'},recent:{title:'Senest spillet',description:'Find tilbage til noget, du har hørt.'},liked:{title:'Sange, du har liket',description:'Et udvalg af dine gemte sange.'}};
-export const MUSIC_OPTIONS=[...PLAYLISTS,...['top','recent','liked'].flatMap(collection=>[...TRACKS].map((t,i)=>({id:`${collection}:${t.id}`,name:t.title,description:t.artist,art:t.art,detail:'',collection,track:i})))];
+export const COLLECTIONS={mood:{title:'Hvad er stemningen i køkkenet?',description:'Lidt jazz, italienske klassikere eller rolig indie?'},feeling:{title:'Hvad har du lyst til at høre?',description:'Mere energi, noget roligt eller velkendte toner?'},top:{title:'Dine topsange',description:'Musik, du vender tilbage til.'},recent:{title:'Senest spillet',description:'Find tilbage til noget, du har hørt.'}};
+export const MUSIC_OPTIONS=[...PLAYLISTS,...FEELING_PLAYLISTS,...['top','recent'].flatMap(collection=>[...TRACKS].map((t,i)=>({id:`${collection}:${t.id}`,name:t.title,description:t.artist,art:t.art,detail:'',collection,track:i})))];
 export function initialWidgetState(){return {revision:1,filter:'all',collection:'mood',suggestionPage:0,collectionPages:{mood:0},refreshPending:null,refreshStatus:'',refreshSerial:0,collapsed:false,playback:{active:true,track:0,room:'Stuen',accountId:'household',kind:'configured_alias',targetId:'living-room',playing:true,volume:MOCK_PLAYBACK_POLICY.startVolumePercent},pending:null,operation:0,message:''};}
-export function musicRefreshFeedback(s){return s.refreshPending?'Henter nye forslag…':s.refreshStatus==='error'?'Kunne ikke opdatere · prøv igen':s.refreshStatus==='empty'?'Ingen nye forslag · viser seneste udvalg':'';}
+export function musicRefreshFeedback(s){return s.refreshPending?'':s.refreshStatus==='error'?'Kunne ikke opdatere · prøv igen':s.refreshStatus==='empty'?'Ingen nye forslag · viser seneste udvalg':'';}
 export function resultsFor(s){
- const pool=s.collection==='mood'||!s.collection?PLAYLISTS.filter(p=>s.filter==='all'||p[s.filter]):COLLECTION_TRACKS[s.collection].map(index=>MUSIC_OPTIONS.find(p=>p.collection===s.collection&&p.track===index));
+ const pool=s.collection==='mood'||!s.collection?PLAYLISTS.filter(p=>s.filter==='all'||p[s.filter]):s.collection==='feeling'?FEELING_PLAYLISTS:(COLLECTION_TRACKS[s.collection]||[]).map(index=>MUSIC_OPTIONS.find(p=>p.collection===s.collection&&p.track===index));
  const start=((s.suggestionPage||0)*3)%Math.max(1,pool.length);
  return Array.from({length:Math.min(3,pool.length)},(_,i)=>pool[(start+i)%pool.length]);
 }

@@ -1,4 +1,4 @@
-import {timersFor,timerTime,timerStateLabel,timerProgress,adjustTimerDuration,readTimerDuration} from './timer-model.js';
+import {timersFor,timerTime,timerStateLabel,timerFinishLabel,timerProgress,adjustTimerDuration,readTimerDuration} from './timer-model.js';
 import {TimerNotice} from './timer-notice.js';
 export function timerPresentation(timers){
  const priority=t=>t.status==='done'?0:t.status==='running'?1:t.status==='paused'?2:3;
@@ -46,7 +46,7 @@ export class TimerView {
   const progress=timerProgress(t);node.hidden=false;node.dataset.timerId=t.id;node.dataset.status=t.status;node.dataset.progressKnown=String(progress!==null);node.style.setProperty('--progress',progress??0);node.querySelector('.timer-count').textContent=timerTime(t.remaining);node.querySelector('.timer-instrument').dataset.long=String(t.remaining>=3600);
   node.querySelector('.timer-copy strong').textContent=t.name||'Timer ved bordet';const status=t.displayState||(t.stale||t.status!=='running'||t.deadline===null?timerStateLabel(t):`Slutter ${new Date(t.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace('.',':')}`);node.querySelector('.timer-state').textContent=status;
   node.querySelector('.timer-open').setAttribute('aria-label',`${t.name||'Timer'} · ${timerTime(t.remaining)} · ${status}${key.startsWith('overview:')?' · Åbn timerdetaljer':''}`);
-  const finish=node.querySelector('.timer-finish');finish.textContent=t.status==='done'?'Færdig':'Annuller';finish.setAttribute('aria-label',`${t.status==='done'?'Afslut':'Annuller'} ${t.name||'timer'}`);return node;
+  const finish=node.querySelector('.timer-finish');finish.textContent=timerFinishLabel(t);finish.setAttribute('aria-label',`${timerFinishLabel(t)} ${t.name||'timer'}`);return node;
  }
  render(s){
   const projection=timerPresentation(timersFor(s));for(const node of this.nodes.values())node.hidden=true;this.overviewList.hidden=!projection.current;this.shortcut.hidden=!!projection.current;

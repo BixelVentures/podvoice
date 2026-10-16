@@ -17,20 +17,60 @@ function rows(items, max, check) {
   ids.add(item.id);
  }
 }
-export function validateVisualContent(family, raw, {ownerReceiptIds=[]}={}) {
+function validateSources(raw,{ownerReceiptIds=[],allowConversation=false}={}){
+ rows(raw,4,s=>string(s.label,120)&&(s.kind==='owner_receipt'?/^[a-f0-9]{32}$/.test(s.receiptId)&&ownerReceiptIds.includes(s.receiptId)&&(s.scope==='tool_result'||allowConversation&&s.scope==='conversation_answer'):link(s.url)&&string(s.scope,240)));
+ return raw.map(s=>s.kind==='owner_receipt'?{id:s.id,label:s.label,kind:'owner_receipt',receiptId:s.receiptId,scope:s.scope}:{id:s.id,label:s.label,url:s.url,scope:s.scope});
+}
+export function validateVisualContent(family, raw, {ownerReceiptIds=[],allowConversation=false}={}) {
  if (!visualFamilies.includes(family) || !raw || !string(raw.summary, 600)) fail();
- rows(raw.sources, 4, s => string(s.label,120) && (s.kind==='owner_receipt'?/^[a-f0-9]{32}$/.test(s.receiptId)&&ownerReceiptIds.includes(s.receiptId)&&s.scope==='tool_result':link(s.url)&&string(s.scope,240)));
+ const sources=validateSources(raw.sources,{ownerReceiptIds,allowConversation});
  const sourceIds = new Set(raw.sources.map(s => s.id));
  const sourced = x => sourceIds.has(x.sourceId);
  if (family === 'fact-card') rows(raw.facts, 6, f => string(f.label, 80) && string(f.value, 80) && string(f.detail, 200) && sourced(f));
  if (family === 'sourced-image' && (!link(raw.image?.url, true) || !string(raw.image?.alt, 300) || !string(raw.image?.caption, 300) || !string(raw.image?.credit, 160) || !['photo','illustration'].includes(raw.image?.kind) || !sourced(raw.image))) fail();
  if (family === 'answer-timeline') rows(raw.events, 8, e => string(e.time, 80) && string(e.label, 120) && string(e.detail, 240) && ['planned','observed'].includes(e.status) && sourced(e));
- if (family === 'simple-diagram') rows(raw.nodes, 5, n => string(n.label, 80) && string(n.detail, 200) && sourced(n));
+ if (family === 'simple-diagram') {
+  rows(raw.nodes, 5, n => string(n.label, 80) && string(n.detail, 200) && sourced(n));
+  // Optional explanatory art uses the same bounded source contract as an image answer.
+  // It never accepts model HTML, labels positioned through CSS, or new actions.
+  const art=raw.illustration;
+  if(art && (!link(art.url,true)||!string(art.alt,300)||!string(art.caption,300)||!string(art.credit,160)||art.kind!=='illustration'||!sourced(art))) fail();
+ }
  // Return a closed shape: model-supplied HTML/styles/actions never enter the renderer.
- const result = {summary: raw.summary, sources: raw.sources.map(s=>s.kind==='owner_receipt'?{id:s.id,label:s.label,kind:'owner_receipt',receiptId:s.receiptId,scope:'tool_result'}:{id:s.id,label:s.label,url:s.url,scope:s.scope})};
+ const result = {summary: raw.summary, sources};
  if (family === 'fact-card') result.facts = raw.facts.map(({id,label,value,detail,sourceId}) => ({id,label,value,detail,sourceId}));
  if (family === 'sourced-image') { const {url,alt,caption,credit,kind,sourceId} = raw.image; result.image = {url,alt,caption,credit,kind,sourceId}; }
  if (family === 'answer-timeline') result.events = raw.events.map(({id,time,label,detail,status,sourceId}) => ({id,time,label,detail,status,sourceId}));
- if (family === 'simple-diagram') result.nodes = raw.nodes.map(({id,label,detail,sourceId}) => ({id,label,detail,sourceId}));
+ if (family === 'simple-diagram') {
+  result.nodes = raw.nodes.map(({id,label,detail,sourceId}) => ({id,label,detail,sourceId}));
+  if(raw.illustration){const {url,alt,caption,credit,kind,sourceId}=raw.illustration;result.illustration={url,alt,caption,credit,kind,sourceId};}
+ }
+ return result;
+}
+
+// Six existing canonical presentation forms. No raw model HTML, styles or effects.
+export const typedAnswerFamilies=['concise','choices','comparison','chart','steps','checklist'];
+export function validateTypedAnswerContent(family,raw,options={}){
+ if(!typedAnswerFamilies.includes(family)||!raw||!string(raw.summary,600))fail();
+ const sources=validateSources(raw.sources,options),sourceIds=new Set(sources.map(source=>source.id)),sourced=row=>sourceIds.has(row.sourceId);
+ const result={summary:raw.summary,sources};
+ const allowed={concise:[],choices:['items'],comparison:['columns','items'],chart:['unit','unitSingular','items'],steps:['steps'],checklist:['items']}[family];
+ if(Object.keys(raw).some(key=>!['summary','sources',...allowed].includes(key)))fail();
+ if(family==='concise')return result;
+ if(family==='comparison'){
+  rows(raw.columns,3,column=>string(column.label,80));
+  rows(raw.items,6,row=>string(row.label,80)&&Array.isArray(row.values)&&row.values.length===raw.columns.length&&row.values.every(value=>string(value,80))&&sourced(row));
+  result.columns=raw.columns.map(({id,label})=>({id,label}));result.items=raw.items.map(({id,label,values,sourceId})=>({id,label,values:[...values],sourceId}));
+ }else if(family==='chart'){
+  if(!string(raw.unit,24)||!string(raw.unitSingular,24))fail();
+  rows(raw.items,8,row=>string(row.label,80)&&Number.isFinite(row.value)&&row.value>=0&&row.value<=1e9&&sourced(row));
+  result.unit=raw.unit;result.unitSingular=raw.unitSingular;result.items=raw.items.map(({id,label,value,sourceId})=>({id,label,value,sourceId}));
+ }else if(family==='steps'){
+  rows(raw.steps,12,row=>string(row.text,300)&&sourced(row));result.steps=raw.steps.map(({id,text,sourceId})=>({id,text,sourceId}));
+ }else if(family==='checklist'){
+  rows(raw.items,12,row=>string(row.label,160)&&typeof row.checked==='boolean'&&sourced(row));result.items=raw.items.map(({id,label,checked,sourceId})=>({id,label,checked,sourceId}));
+ }else{
+  rows(raw.items,6,row=>string(row.label,80)&&string(row.detail,200)&&sourced(row));result.items=raw.items.map(({id,label,detail,sourceId})=>({id,label,detail,sourceId}));
+ }
  return result;
 }

@@ -68,3 +68,61 @@
 
 .pv-visual-sources:not([open])>.pv-visual-source-panel{display:none}
 .pv-visual-source-panel .pv-image-credit{display:block;padding-top:12px;line-height:1.5}
+
+/* Selected explanation direction. One canonical answer family; outer chrome stays untouched. */
+.answer-widget .pv-visual .pv-state-note{display:block;min-height:22px;line-height:22px;font-size:14px;margin:0 0 10px;max-width:65ch}
+.answer-widget .pv-visual>.pv-state-note[hidden]{display:block!important;visibility:hidden}
+.answer-widget .pv-visual .pv-visual-summary{font-size:22px;line-height:1.4;max-width:50ch;margin:0 0 20px}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 28px}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item,
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item:first-child{grid-column:auto;background:transparent;color:var(--pv-screen-ink);border:0;border-top:1px solid var(--pv-screen-line);border-radius:0;padding:18px 0 0}
+.answer-widget .pv-component[data-component=fact-card][data-count="1"] .pv-visual-list{grid-template-columns:1fr}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item .pv-visual-label,
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item .pv-visual-detail{color:var(--pv-screen-muted)}
+.answer-widget .pv-component[data-component=fact-card] .pv-visual-item .pv-visual-value{font-size:clamp(32px,6.8cqw,48px);line-height:1.12;font-weight:500;letter-spacing:-.03em;margin:10px 0 12px!important}
+.answer-widget .pv-visual-detail{max-width:48ch}
+.answer-widget .pv-answer-image>img{height:clamp(180px,43cqw,290px);object-fit:cover;border-radius:16px}
+.answer-widget .pv-answer-image figcaption{padding-top:12px}
+.answer-widget .pv-answer-image figcaption p{font-size:17px;line-height:1.4;max-width:58ch}
+.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-list{display:grid;gap:0}
+.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-item{display:grid;grid-template-columns:116px minmax(0,1fr);gap:4px 20px;padding:0 0 24px 24px}
+.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-label{grid-column:1;grid-row:1/3;font-variant-numeric:tabular-nums;white-space:pre-line;max-width:14ch}
+.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-value{grid-column:2;margin:0 0 6px!important;font-size:23px;line-height:1.25}
+.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-detail{grid-column:2}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-list{flex-direction:row;gap:28px}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-item{padding:14px 0 0;background:transparent;border-radius:0;border-top:1px solid var(--pv-screen-line)}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-label{display:none}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-value{font-size:21px;line-height:1.25;margin:0 0 8px!important}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-detail{font-size:15px;line-height:1.4}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-item:not(:last-child)::after{top:16px;right:-24px;left:auto;bottom:auto;transform:none}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-diagram-image>img{height:clamp(200px,48cqw,310px);object-fit:contain;border-radius:0;mix-blend-mode:multiply}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-diagram-image figcaption{padding:0 0 14px}
+.answer-widget .pv-component[data-component=simple-diagram] .pv-diagram-image figcaption p{font-size:12px;color:var(--pv-screen-muted);margin:0;line-height:1.4}
+@media(max-width:759px){
+ .answer-widget .pv-component[data-component=fact-card] .pv-visual-list{gap:20px}
+ .answer-widget .pv-component[data-component=answer-timeline] .pv-visual-item{grid-template-columns:88px minmax(0,1fr);gap:4px 14px}
+ .answer-widget .pv-component[data-component=simple-diagram] .pv-visual-list{flex-direction:column;gap:20px}
+ .answer-widget .pv-component[data-component=simple-diagram] .pv-visual-item:not(:last-child)::after{display:none}
+ .answer-widget .pv-component[data-component=simple-diagram] .pv-visual-value{font-size:22px}
+}
+
+/* Illustrations lead; caption doubles as a fixed status line without shifting the diagram. */
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-body{display:flex;flex-direction:column}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-diagram-image{order:0}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-lead{order:1}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-list{order:2}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-diagram-image>img{height:280px;width:100%;object-fit:contain;mix-blend-mode:normal}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-diagram-image figcaption{display:grid;grid-template-areas:'caption';min-height:22px;padding:0;margin:0 0 8px}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-diagram-image figcaption>p:not(.pv-state-note){display:none}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-image-credit,
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-state-note{grid-area:caption;font-size:12px;line-height:22px;margin:0;min-height:22px;color:var(--pv-screen-muted)}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true]:is([data-state=error],[data-state=offline]) .pv-image-credit{visibility:hidden}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-summary{font-size:20px;margin:0 0 16px;max-width:55ch}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-value{font-size:20px}
+.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-detail{font-size:14px;line-height:1.4}
+.answer-widget .pv-visual .pv-timeline-context{font-size:14px;color:var(--pv-screen-muted);margin:0 0 16px}
+@media(min-width:760px) and (max-height:640px){
+ .answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-diagram-image>img{height:220px}
+ .answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-summary{font-size:19px;margin:0 0 12px}
+ .answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-item{padding-top:10px}
+}

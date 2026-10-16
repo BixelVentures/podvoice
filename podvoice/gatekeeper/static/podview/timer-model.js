@@ -1,5 +1,8 @@
 // Local demo only. Live timing/expiry must come from the HA native timer owner.
 export const timersFor=s=>[s.timer,...(s.extraTimers||[])].filter(Boolean);
+// Native finished is not proof of silence. The existing cancel route requests
+// alert stop; local demos and already drained/stopped native alerts only finish.
+export const timerFinishLabel=t=>t?.status!=='done'?'Annuller':typeof t.ownerBootId==='string'&&!t.physicalStopped&&!t.physicalDrained?'Stop alarm':'Færdig';
 export const timerStateLabel=t=>t.stale?'Sidst kendte tid':t.status==='done'?'Tiden er gået':t.status==='paused'?'På pause':'Tæller ned';
 // A native countdown is not its original duration. Only show progress when
 // the owner supplied a consistent total; unknown totals stay visually neutral.

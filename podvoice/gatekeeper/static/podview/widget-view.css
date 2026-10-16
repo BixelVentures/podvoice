@@ -35,3 +35,57 @@ body{padding:18px 24px 12px}pv-widget-host{display:block}button{padding:0;min-he
 .answer-widget .answer-choices[data-count="1"] .pv-list{grid-template-columns:1fr}.answer-widget .answer-choices[data-count="1"] .pv-list button{min-height:80px;gap:6px}.answer-widget .answer-choices[data-count="1"] .pv-list span{font-size:16px}.responses::-webkit-scrollbar{width:5px}.responses::-webkit-scrollbar-thumb{background:#b8bcc4;border-radius:4px}
 /* Compact resource preview keeps the remaining time glanceable in the stack. */
 #now-view.stacked #timer-card .pv-content{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:16px}#now-view.stacked #timer-card h3{grid-column:1;grid-row:1;font-size:19px;line-height:1.25}#now-view.stacked #timer-card .pv-meta{grid-column:1;grid-row:2;font-size:13px;margin:6px 0 0}#now-view.stacked #timer-card .pv-resource-value{grid-column:2;grid-row:1/3;margin:0;align-self:center;font-size:36px}#now-view.stacked #timer-card .pv-actions{grid-column:1/-1;grid-row:3;margin-top:12px}
+
+/* Shared overview-card anatomy: weather/music define the existing 116px family.
+   Deliberately scoped to Lige nu; compact resources, details and player keep theirs. */
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview){
+ display:grid;grid-template-columns:48px minmax(0,1fr) 18px;align-items:center;
+ gap:16px;height:116px;min-height:116px;min-width:0;padding:24px;
+ border-radius:24px;text-align:left;touch-action:manipulation;
+ transition:filter var(--pv-screen-fast) var(--pv-screen-ease);
+}
+#now-view .home-shortcuts>button>img:first-child{width:32px;height:32px;justify-self:center}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview)>img:last-child{
+ display:block;width:18px;height:18px;margin:0;justify-self:center;opacity:.65;
+}
+#now-view #device-activities>.resource-preview>.resource-visual{width:48px;height:48px}
+#now-view #device-activities>.resource-preview>.resource-visual>img{width:40px;height:40px}
+#now-view #device-activities>.resource-preview[data-kind=light]>.resource-visual>img{width:36px!important;height:36px!important}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview)>span:last-of-type{
+ display:grid;align-content:center;gap:6px;min-width:0;
+}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview)>span>strong{
+ display:block;margin:0;font-size:20px;font-weight:500;line-height:1.2;letter-spacing:0;
+}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview)>span>small{
+ display:block;margin:0;font-size:15px;line-height:1.35;
+}
+/* Keep known category/state colours; one feedback rule never recolours offline light. */
+#now-view #home-weather{--overview-card-surface:#e5ebea;--overview-card-ink:var(--pv-screen-ink)}
+#now-view #home-music{--overview-card-surface:#e7e4e0;--overview-card-ink:var(--pv-screen-ink)}
+#now-view #device-activities>.resource-preview[data-kind=vacuum]{--overview-card-surface:var(--pv-vacuum-surface);--overview-card-ink:var(--pv-vacuum-ink)}
+#now-view #device-activities>.resource-preview[data-kind=light]{--overview-card-surface:var(--pv-resource-quiet);--overview-card-ink:var(--pv-screen-ink)}
+#now-view #device-activities>.resource-preview[data-kind=light][data-status=on]{--overview-card-surface:var(--pv-light-surface);--overview-card-ink:var(--pv-light-ink)}
+#now-view #device-activities>.resource-preview[data-kind=light]:is([data-status=unknown],[data-status=fault]){--overview-card-surface:var(--pv-screen-danger-surface);--overview-card-ink:var(--pv-screen-danger)}
+#now-view #device-activities>.resource-preview[data-kind=vacuum][data-status=fault]{--overview-card-ink:var(--pv-screen-danger)}
+@media(hover:hover){
+ #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview):hover:not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-status=pending]){
+  background:var(--overview-card-surface);color:var(--overview-card-ink);filter:brightness(.97);
+ }
+}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview):active:not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-status=pending]){transform:none;filter:brightness(.94)}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview):focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:3px}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview):is(:disabled,[aria-disabled=true]){opacity:.6;cursor:default;transform:none;filter:none}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview):is([aria-busy=true],[data-status=pending]){cursor:progress;transform:none;filter:none;background:var(--overview-card-surface);color:var(--overview-card-ink)}
+#now-view :is(.home-shortcuts>button,#device-activities>.resource-preview)[data-touch-cancelled=true]{transform:none;filter:none}
+@media(max-width:759px){
+ #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview){padding:20px;gap:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview){transition:none}
+}
+[data-motion=reduced] #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview){transition:none}
+
+/* Hourly wind is secondary source data in the existing forecast columns. */
+#weather-view .weather-hours small.weather-hour-wind{font-size:12px;line-height:1.3;color:#425e68;white-space:nowrap;margin-top:-10px}
+@media(min-width:760px) and (max-height:640px){#weather-view .weather-hours small.weather-hour-wind{margin-top:-6px}}

@@ -81,3 +81,62 @@
  pv-widget-host:has(>.connection-note:not([hidden])) .answer-widget .answer-choices .pv-list button{min-height:84px;padding:10px}
  pv-widget-host:has(>.connection-note:not([hidden])) .answer-widget .answer-choices .pv-list span{font-size:13px}
 }
+
+/* One stable header: current voice/history left, weather adjacent to far-right clock. */
+.view-nav{height:64px;min-height:64px;max-height:64px;flex-wrap:nowrap;align-items:center}
+.view-nav>.header-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1;margin-right:0}
+.header-navigation{display:flex;align-items:center;flex:none}
+.header-activity{position:relative;display:block;flex:0 1 240px;width:240px;min-width:0;height:48px}
+.header-context{flex:none;margin-left:auto;gap:16px;display:flex;align-items:center}
+.header-time{flex:none;text-align:right;min-width:76px;order:2}
+.header-weather{order:1}
+.view-nav #open-history{margin:0;padding:0 12px;min-height:48px;font-size:14px;white-space:nowrap;flex:none}
+.view-nav #open-history:disabled{cursor:default;opacity:.48}
+[data-view=active] .header-activity .voice-surface{position:absolute;inset:0;translate:none;width:100%;min-width:0;min-height:48px;height:48px;padding:4px 10px;gap:8px;border-radius:18px;box-shadow:none}
+[data-view=active] .header-activity .voice-mark{width:32px;height:32px}
+[data-view=active] .header-activity .voice-mark img{width:20px;height:20px}
+[data-view=active] .header-activity .voice-copy{height:40px;min-height:40px;overflow:hidden;gap:0}
+[data-view=active] .header-activity .voice-copy strong{font-size:16px;line-height:20px;white-space:nowrap}
+[data-view=active] .header-activity .voice-copy span{font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-view] .voice-surface[data-phase=listening] .voice-mark{animation:none}
+.history-example-note{margin:0 0 16px;color:var(--pv-screen-muted);font-size:14px;line-height:1.4}
+@media(max-width:759px){.view-nav>.header-left{gap:4px}.header-activity{flex-basis:120px;width:120px}.header-context{display:flex;gap:4px}.header-time{min-width:54px}#header-clock{font-size:20px}#header-date{font-size:11px}.header-weather{padding:0 4px}.header-weather img{width:20px;height:20px}.header-weather small{display:none}.header-weather strong{font-size:14px}.view-nav #open-history{width:48px;max-width:48px;overflow:hidden;font-size:0;padding:0}.view-nav #open-history span{display:none}[data-view=active] .header-activity .voice-mark{display:none}[data-view=active] .header-activity .voice-copy strong{font-size:14px}[data-view=active] .header-activity .voice-copy span{display:none}}
+
+.view-nav #open-history{display:inline-flex;align-items:center;justify-content:center;gap:8px}.view-nav #open-history img{width:22px;height:22px;flex:none}
+
+/* Human16Oct correction: existing history is the third compact item from the right. */
+.header-context{gap:24px}
+.view-nav .header-context #open-history{display:flex;order:0;align-items:center;gap:12px;padding:8px 12px;min-height:56px;height:56px;width:auto;max-width:none;margin:0;border-radius:16px;color:var(--pv-screen-ink);font-size:inherit;text-align:left;overflow:visible}
+.header-context #open-history>img{width:28px;height:28px}
+.header-context #open-history>span{display:grid;gap:3px}
+.header-context #open-history strong{font-size:22px;font-weight:500;line-height:1.15}
+.header-context #open-history small{font-size:13px;color:var(--muted);line-height:1.15;white-space:nowrap}
+.header-context .header-weather{order:1}.header-context .header-time{order:2}
+@media(max-width:759px){.header-context{gap:4px}.view-nav .header-context #open-history{gap:4px;padding:4px;min-height:48px;height:48px}.header-context #open-history>img{width:20px;height:20px}.header-context #open-history>span{display:grid}.header-context #open-history strong{font-size:14px}.header-context #open-history small{font-size:11px}.header-activity{flex-basis:100px;width:100px}}
+
+/* History uses canonical answers as inert visual previews, never a second action surface. */
+#history{width:min(940px,calc(100vw - 48px));max-width:none;max-height:calc(100dvh - 32px);padding:24px;overflow:auto}
+#history>header{position:sticky;top:-24px;background:var(--pv-screen-surface);z-index:2;padding:8px 0 16px;margin:0;align-items:center}
+#history>header h2{font-size:26px;margin:0}
+#history .history-example-note{margin:0 0 20px;font-size:14px}
+#history #retained{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:0}
+#history .retained-answer{position:relative;display:grid;min-width:0;min-height:0;max-width:none;border:1px solid var(--pv-screen-line);border-radius:24px;padding:0;overflow:hidden;background:var(--pv-screen-surface)}
+#history .retained-answer::before{content:none}
+#history .history-preview{position:relative;height:178px;overflow:hidden;pointer-events:none;user-select:none;background:var(--pv-screen-surface)}
+#history .history-preview pv-answer{display:block;position:absolute;left:0;top:0;width:200%;height:auto;min-height:0;max-height:none;margin:0;padding:24px;transform:scale(.5);transform-origin:top left;overflow:hidden;border-radius:0}
+#history .history-preview pv-answer .response-heading{display:none}
+#history .history-preview .dismiss,#history .history-preview .answer-actions,#history .history-preview .sources,#history .history-preview .retry-answer,#history .history-preview .answer-back,#history .history-preview .open-weather-answer{display:none}
+#history .history-preview pv-answer .answer-content,#history .history-preview pv-answer .answer-scroll{max-height:none;height:auto;overflow:hidden}
+#history .history-open{position:static;display:grid;gap:6px;min-height:92px;width:100%;padding:16px 20px;text-align:left;background:transparent;border-radius:0;border-top:1px solid var(--pv-screen-line)}
+#history .history-open::after{content:'';position:absolute;inset:0}
+#history .history-open small{font-size:12px;color:var(--pv-screen-muted);font-weight:500}
+#history .history-open strong{font-size:18px;font-weight:500;line-height:1.25}
+#history .history-open:focus-visible{outline-offset:-4px}
+@media(max-width:600px){#history{width:calc(100vw - 24px);padding:16px}#history #retained{grid-template-columns:1fr}#history>header{top:-16px}#history .history-preview{height:160px}}
+
+/* Equal optical group gaps: interactive padding no longer inflates only two items. */
+@media(min-width:760px){
+ .view-nav .header-context{gap:36px;align-items:center}
+ .view-nav .header-context #open-history,.view-nav .header-context .header-weather{padding:8px 0;height:56px;min-height:56px}
+ .header-context .header-time{min-height:56px;align-content:center}
+}
