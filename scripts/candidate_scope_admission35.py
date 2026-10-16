@@ -15,6 +15,7 @@ except ModuleNotFoundError:
     import candidate_scope_admission34 as previous
 
 legacy = previous.legacy
+strict = previous.previous.previous.previous  # PodView31 owns the inherited strict helpers.
 sha = previous.sha
 safe_file = previous.safe_file
 BASE = "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b"
@@ -25,15 +26,130 @@ MANIFEST = "scripts/podview35-admission-reviewed.json"
 RECORD_MARKER = "<!-- podview35-admission"
 STATIC = previous.STATIC
 CONFIG = previous.CONFIG
-POLICY = frozenset({PROFILE, MANIFEST, "scripts/dev_cycle.py", ".github/workflows/ci.yml"})
-TOOLING = previous.TOOLING
+POLICY = frozenset(
+    {
+        PROFILE,
+        MANIFEST,
+        "scripts/dev_cycle.py",
+        ".github/workflows/ci.yml",
+        "docs/COMPONENT-LIBRARY.md",
+        "docs/component-library-registry.json",
+    }
+)
+TOOLING = previous.TOOLING | frozenset({"scripts/check-component-library.mjs"})
 FIELDS = previous.FIELDS
 
 # Independent review fills these only after the final combined diff is frozen.
 # Blank pins always reject, including when an old approval record is present.
-DOMAINS = ()
-PRODUCTION = frozenset()
-REQUIRED_TESTS = frozenset({"tests/unit/test_candidate_scope_admission35.py"})
+DOMAINS = ("ha_tools", "physical_output")
+PRODUCTION = frozenset(
+    {
+        "podvoice/gatekeeper/__main__.py",
+        "podvoice/gatekeeper/config.py",
+        "podvoice/gatekeeper/device_control.py",
+        "podvoice/gatekeeper/execution_policy.py",
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/mood_diagnostics.py",
+        "podvoice/gatekeeper/openai_live.py",
+        "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_controls.py",
+        "podvoice/gatekeeper/podview_feeling.py",
+        "podvoice/gatekeeper/podview_music_control.py",
+        "podvoice/gatekeeper/podview_music_selection.py",
+        "podvoice/gatekeeper/podview_presentation.py",
+        "podvoice/gatekeeper/podview_queue.py",
+        "podvoice/gatekeeper/podview_receipts.py",
+        "podvoice/gatekeeper/podview_room_media.py",
+        "podvoice/gatekeeper/podview_room_move.py",
+        "podvoice/gatekeeper/podview_speakers.py",
+        "podvoice/gatekeeper/podview_vacuum_control.py",
+        "podvoice/gatekeeper/podview_weather.py",
+        "podvoice/gatekeeper/podview_weather_brief.py",
+        "podvoice/gatekeeper/static/podview/ambient.jpg.source.txt",
+        "podvoice/gatekeeper/static/podview/answer-widget.js",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/assets/bicycle-drivetrain-illustration.png",
+        "podvoice/gatekeeper/static/podview/assets/icons/LICENSE",
+        "podvoice/gatekeeper/static/podview/control-model.js",
+        "podvoice/gatekeeper/static/podview/frame-layout.css",
+        "podvoice/gatekeeper/static/podview/index.html",
+        "podvoice/gatekeeper/static/podview/live-answer-view.js",
+        "podvoice/gatekeeper/static/podview/live-control-view.js",
+        "podvoice/gatekeeper/static/podview/live-home-view.js",
+        "podvoice/gatekeeper/static/podview/live-media-view.js",
+        "podvoice/gatekeeper/static/podview/live-music-selection-view.js",
+        "podvoice/gatekeeper/static/podview/live-music-view.js",
+        "podvoice/gatekeeper/static/podview/live-queue-view.js",
+        "podvoice/gatekeeper/static/podview/media-observation.js",
+        "podvoice/gatekeeper/static/podview/music-results.js",
+        "podvoice/gatekeeper/static/podview/music-selection-model.js",
+        "podvoice/gatekeeper/static/podview/owner-answers.js",
+        "podvoice/gatekeeper/static/podview/patterns.html",
+        "podvoice/gatekeeper/static/podview/player-view.js",
+        "podvoice/gatekeeper/static/podview/podvoice-transport.js",
+        "podvoice/gatekeeper/static/podview/podvoice-view.js",
+        "podvoice/gatekeeper/static/podview/preview-scenes.js",
+        "podvoice/gatekeeper/static/podview/robot-control-panel.js",
+        "podvoice/gatekeeper/static/podview/speaker-output-view.js",
+        "podvoice/gatekeeper/static/podview/timer-model.js",
+        "podvoice/gatekeeper/static/podview/timer-view.js",
+        "podvoice/gatekeeper/static/podview/ui/library/components.js",
+        "podvoice/gatekeeper/static/podview/ui/library/library.css",
+        "podvoice/gatekeeper/static/podview/ui/library/types.d.ts",
+        "podvoice/gatekeeper/static/podview/ui/library/visual-components.js",
+        "podvoice/gatekeeper/static/podview/visual-content.js",
+        "podvoice/gatekeeper/static/podview/visual-examples.js",
+        "podvoice/gatekeeper/static/podview/voice-surface.js",
+        "podvoice/gatekeeper/static/podview/weather-fact-display.js",
+        "podvoice/gatekeeper/static/podview/weather-observation.js",
+        "podvoice/gatekeeper/static/podview/weather-view.js",
+        "podvoice/gatekeeper/static/podview/widget-model.js",
+        "podvoice/gatekeeper/static/podview/widget-redesign.css",
+        "podvoice/gatekeeper/static/podview/widget-view.css",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
+        "podvoice/gatekeeper/thin.py",
+        "podvoice/gatekeeper/tools.py",
+    }
+)
+REQUIRED_TESTS = frozenset(
+    {
+        "tests/integration/test_mood_diagnostics_route.py",
+        "tests/integration/test_podview_bridge.py",
+        "tests/integration/test_podview_controls.py",
+        "tests/integration/test_podview_feeling_playlists.py",
+        "tests/integration/test_podview_map_owner.py",
+        "tests/integration/test_podview_mood_playlists.py",
+        "tests/integration/test_podview_music.py",
+        "tests/integration/test_podview_music_control.py",
+        "tests/integration/test_podview_music_selection.py",
+        "tests/integration/test_podview_resume.py",
+        "tests/integration/test_podview_room_move_caller.py",
+        "tests/integration/test_podview_room_move_voice.py",
+        "tests/integration/test_presentation_live_pipeline.py",
+        "tests/integration/test_room_media_binding.py",
+        "tests/podview/root-control-model.test.mjs",
+        "tests/podview/root-native-music-controls.test.mjs",
+        "tests/podview/root-robot-control-panel.test.mjs",
+        "tests/podview/root-robot-history-view.test.mjs",
+        "tests/podview/root-room-fixture.mjs",
+        "tests/podview/root-speaker-output-idle.test.mjs",
+        "tests/podview/root-speaker-output-view.test.mjs",
+        "tests/podview/root-weather-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission35.py",
+        "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_mood_diagnostics.py",
+        "tests/unit/test_music_selection_owner.py",
+        "tests/unit/test_podview_presentation.py",
+        "tests/unit/test_podview_room_move.py",
+        "tests/unit/test_podview_speakers.py",
+        "tests/unit/test_podview_sse_wake.py",
+        "tests/unit/test_podview_weather_brief.py",
+        "tests/unit/test_tools_mcp.py",
+        "tests/unit/test_weather_ai_composition.py",
+        "tests/unit/test_weather_result.py",
+        "tests/unit/test_weather_wind_bearing.py",
+    }
+)
 REVIEWER = ""
 MANIFEST_SHA = ""
 PROFILE_AST = ""
@@ -93,7 +209,7 @@ def config_only(root: Path) -> bool:
     ):
         return False
     return all(
-        previous.previous.previous.version_only(
+        strict.version_only(
             legacy._git(root, "show", f"{BASE}:{name}"),
             safe_file(root, name).decode(),
             pattern,
@@ -183,9 +299,8 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
             not isinstance(record[k], str) or not record[k].strip()
             for k in FIELDS - {"version", "domains"}
         )
-        or not previous.previous.previous.pins_match(root, IMMUTABLE)
-        or previous.previous.previous.ast_sha(safe_file(root, PROFILE), "PROFILE_AST")
-        != PROFILE_AST
+        or not strict.pins_match(root, IMMUTABLE)
+        or strict.ast_sha(safe_file(root, PROFILE), "PROFILE_AST") != PROFILE_AST
     ):
         return False
     raw = safe_file(root, MANIFEST)
@@ -214,7 +329,7 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
     )
     if (
         not all(
-            previous.previous.previous.pins_match(root, pins)
+            strict.pins_match(root, pins)
             for pins in (prod, tests, runtime, config, policy, tooling)
         )
         or set(prod) != PRODUCTION
@@ -223,11 +338,11 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         or set(config) != CONFIG
         or set(policy) != POLICY - {PROFILE, MANIFEST}
         or set(tooling) != TOOLING
-        or set(runtime) != previous.previous.previous.runtime_inventory(root)
+        or set(runtime) != strict.runtime_inventory(root)
         or not set(prod) <= set(runtime)
         or any(not p.startswith("tests/") for p in tests)
         or not config_only(root)
-        or not previous.previous.previous.assets_match(root, runtime, manifest["asset_count"])
+        or not strict.assets_match(root, runtime, manifest["asset_count"])
     ):
         return False
     effective = legacy._visual_repository_changes(root, BASE)
@@ -258,10 +373,10 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         record["fingerprint"] == legacy.production_fingerprint(root, BASE, BASE, tuple(prod))
         and record["regression_fingerprint"]
         == legacy.regression_fingerprint(root, BASE, BASE, tuple(tests))
-        and record["runtime_fingerprint"] == previous.previous.previous.fingerprint(root, runtime)
-        and record["config_fingerprint"] == previous.previous.previous.fingerprint(root, CONFIG)
-        and record["policy_fingerprint"] == previous.previous.previous.fingerprint(root, POLICY)
-        and record["tooling_fingerprint"] == previous.previous.previous.fingerprint(root, TOOLING)
+        and record["runtime_fingerprint"] == strict.fingerprint(root, runtime)
+        and record["config_fingerprint"] == strict.fingerprint(root, CONFIG)
+        and record["policy_fingerprint"] == strict.fingerprint(root, POLICY)
+        and record["tooling_fingerprint"] == strict.fingerprint(root, TOOLING)
         and record["manifest_fingerprint"] == MANIFEST_SHA
     )
 

@@ -38,12 +38,15 @@ def test_city_config_rejects_missing_or_unreviewed_changes(candidate):
     assert not admission.config_yaml_only(CITY_BASE, candidate)
 
 
-def test_scaffold_is_unapproved_and_empty_scope():
+def test_exact_scope_declared_but_final_approval_pins_remain_blank():
     manifest = json.loads((SOURCE / admission.MANIFEST).read_text())
     assert admission.BASE == "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b"
     assert admission.VERSION == 10
-    assert not admission.DOMAINS
-    assert not admission.PRODUCTION
+    assert admission.DOMAINS == ("ha_tools", "physical_output")
+    assert admission.PRODUCTION
+    assert admission.REQUIRED_TESTS
+    assert "scripts/check-component-library.mjs" in admission.TOOLING
+    assert {"docs/COMPONENT-LIBRARY.md", "docs/component-library-registry.json"} <= admission.POLICY
     assert set(admission.DELETED_PRODUCTION) == {
         "podvoice/gatekeeper/static/podview/flow.html",
         "podvoice/gatekeeper/static/podview/flow.js",
@@ -120,6 +123,112 @@ def test_deletion_scope_requires_exact_paths_and_no_other_production_changes(mon
     assert not admission.change_scope_matches(
         exact | {"podvoice/gatekeeper/static/podview/another-flow.js"}, set()
     )
+
+
+def test_declared_production_tests_and_component_gate_are_exact():
+    expected = admission.PRODUCTION | set(admission.DELETED_PRODUCTION)
+    assert admission.production_scope_matches(expected | {"podvoice/gatekeeper/__init__.py"})
+    assert not admission.production_scope_matches(expected - {next(iter(admission.PRODUCTION))})
+    assert not admission.production_scope_matches(expected | {"podvoice/gatekeeper/unreviewed.py"})
+    allowed = expected | admission.REQUIRED_TESTS | admission.POLICY | admission.TOOLING
+    assert admission.change_scope_matches(allowed, set(admission.REQUIRED_TESTS))
+    assert not admission.change_scope_matches(
+        allowed | {"scripts/check-component-library-unreviewed.mjs"},
+        set(admission.REQUIRED_TESTS),
+    )
+
+
+def test_complete_synthetic_review_reaches_inherited_strict_helpers(monkeypatch, tmp_path):
+    """Blank real pins stay closed; a complete fixture exercises the final validation path."""
+    assert admission.strict is admission.previous.previous.previous.previous
+    effective = (
+        admission.PRODUCTION
+        | set(admission.DELETED_PRODUCTION)
+        | admission.REQUIRED_TESTS
+        | admission.CONFIG
+        | admission.POLICY
+        | admission.TOOLING
+        | {"podvoice/gatekeeper/__init__.py", "podvoice/CHANGELOG.md", "docs/STATUS.md"}
+    )
+    for name in effective - set(admission.DELETED_PRODUCTION) - {admission.MANIFEST}:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(
+            (SOURCE / admission.PROFILE).read_bytes() if name == admission.PROFILE else b"fixture\n"
+        )
+    historical = "scripts/candidate_scope_admission34.py"
+    historical_path = tmp_path / historical
+    historical_path.parent.mkdir(parents=True, exist_ok=True)
+    historical_path.write_bytes(b"historical\n")
+    monkeypatch.setattr(admission, "REVIEWER", "independent fixture reviewer")
+    monkeypatch.setattr(
+        admission,
+        "PROFILE_AST",
+        admission.strict.ast_sha((tmp_path / admission.PROFILE).read_bytes(), "PROFILE_AST"),
+    )
+    monkeypatch.setattr(admission, "IMMUTABLE", {historical: admission.sha(b"historical\n")})
+    monkeypatch.setattr(admission, "deleted_production_matches", lambda _root: True)
+    monkeypatch.setattr(admission, "config_only", lambda _root: True)
+    monkeypatch.setattr(admission.strict, "assets_match", lambda *_args: True)
+    monkeypatch.setattr(admission.legacy, "_visual_repository_changes", lambda *_args: effective)
+    monkeypatch.setattr(admission.legacy, "_git", lambda *_args: "")
+    monkeypatch.setattr(admission.legacy, "production_fingerprint", lambda *_args: "production")
+    monkeypatch.setattr(admission.legacy, "regression_fingerprint", lambda *_args: "regressions")
+
+    def pins(names):
+        return {name: admission.sha((tmp_path / name).read_bytes()) for name in sorted(names)}
+
+    runtime = admission.strict.runtime_inventory(tmp_path)
+    manifest = {
+        "schema": "podview35.admission.v1",
+        "base": admission.BASE,
+        "production": pins(admission.PRODUCTION),
+        "regressions": pins(admission.REQUIRED_TESTS),
+        "runtime": pins(runtime),
+        "config": pins(admission.CONFIG),
+        "policy": pins(admission.POLICY - {admission.PROFILE, admission.MANIFEST}),
+        "tooling": pins(admission.TOOLING),
+        "asset_count": 0,
+    }
+
+    def write_manifest():
+        raw = json.dumps(manifest, sort_keys=True).encode()
+        (tmp_path / admission.MANIFEST).write_bytes(raw)
+        monkeypatch.setattr(admission, "MANIFEST_SHA", admission.sha(raw))
+
+    write_manifest()
+    record = {name: "fixture" for name in admission.FIELDS}
+    record.update(
+        version=admission.VERSION,
+        kind=admission.KIND,
+        base_tip=admission.BASE,
+        merge_base=admission.BASE,
+        domains=list(admission.DOMAINS),
+        reviewer=admission.REVIEWER,
+        fingerprint="production",
+        regression_fingerprint="regressions",
+        runtime_fingerprint=admission.strict.fingerprint(tmp_path, runtime),
+        config_fingerprint=admission.strict.fingerprint(tmp_path, admission.CONFIG),
+        policy_fingerprint=admission.strict.fingerprint(tmp_path, admission.POLICY),
+        tooling_fingerprint=admission.strict.fingerprint(tmp_path, admission.TOOLING),
+        manifest_fingerprint=admission.MANIFEST_SHA,
+    )
+    report = admission.legacy.CandidateScope(
+        "head", admission.BASE, (), (), admission.DOMAINS, True, "fixture"
+    )
+    assert admission.validate(tmp_path, report, admission.BASE, record)
+
+    manifest["regressions"].pop(next(iter(admission.REQUIRED_TESTS)))
+    write_manifest()
+    record["manifest_fingerprint"] = admission.MANIFEST_SHA
+    assert not admission.validate(tmp_path, report, admission.BASE, record)
+    manifest["regressions"] = pins(admission.REQUIRED_TESTS)
+    write_manifest()
+    record["manifest_fingerprint"] = admission.MANIFEST_SHA
+    monkeypatch.setattr(
+        admission.legacy, "_visual_repository_changes", lambda *_args: effective | {"unknown.txt"}
+    )
+    assert not admission.validate(tmp_path, report, admission.BASE, record)
 
 
 def test_wrong_base_hash_rejects_deleted_asset_evidence(monkeypatch, tmp_path):
