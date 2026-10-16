@@ -796,7 +796,7 @@ Before the two-file copy correction, use the existing display-only exact role/va
 {
   "version": 13,
   "kind": "podview36_queue_admin_robot_and_presentation",
-  "reviewer": "Independent /root/final_scope_audit; exact combined36 source review SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9",
+  "reviewer": "Independent /root/final_scope_audit combined36 source SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9; /root/queue_gateway_review CI631 fixture SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b",
   "domains": [
     "ha_tools",
     "physical_output"
@@ -804,12 +804,12 @@ Before the two-file copy correction, use the existing display-only exact role/va
   "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
   "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
   "fingerprint": "99aef7f91551f371a4a0f0383541bf38b411234dd12888704bb5ebd32b50f680",
-  "regression_fingerprint": "bf7832871136250ed33ff9f868af509d1034a23b10ee6ca173a453719fb4f972",
+  "regression_fingerprint": "13a19a519d4d71e9929cc83c511236c6844cc868c06aee055de7ebf22cc7b4e9",
   "runtime_fingerprint": "5b564b61c7f5718983667af555b15a8e8292f7426f9eb7ddd4a3baf92450be73",
   "config_fingerprint": "358abe24a5da02240d8be97f4d5d325fd040ff46647d6f54cf765a0dbe77afb9",
-  "policy_fingerprint": "ba3fe563826d1d3d4b7d66c4909e723e1cfabbcc92eee3ca87bdf28a10bf9f72",
+  "policy_fingerprint": "92ced8de0a90faeb877b2a788f14a49597c348dcf3e6f936c67293fff5368c36",
   "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
-  "manifest_fingerprint": "37bb5ead87db3b9559e464d839d30e6a91b9ce804478716bf2cc5bec4ebf2a59",
-  "rationale": "Independent exact combined36 source review /private/tmp/pv36-polish-combined-independent-review.json SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9. Exact 64-path source and manifest scope, 27 production files, 26 regressions, 241 runtime files, 135 assets, historical35 immutability and root PodView asset parity checked. This record admits source only; official CI, release/publication, Green installation, browser/provider delivery and actual physical robot/audio behavior require separate operator evidence and acceptance."
+  "manifest_fingerprint": "a9c7b62a3961a4d3f9d03fe615f0cfb5fbc64ae9c7b287b86f825e0f0b9f9139",
+  "rationale": "Independent exact combined36 source review /private/tmp/pv36-polish-combined-independent-review.json SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9. Exact 64-path source and manifest scope, 27 production files, 26 regressions, 241 runtime files, 135 assets, historical35 immutability and root PodView asset parity checked. This record admits source only; official CI, release/publication, Green installation, browser/provider delivery and actual physical robot/audio behavior require separate operator evidence and acceptance. CI631 only-unit failure was a Git fixture pointing to local-only checkpoint 0375. Independent scoped review /private/tmp/pv36-ci631-registry-anchor-independent-review.json SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b admits the one-line test anchor 38bd92ca28d0206bfafef6b03a7ea4d883e6a211, the actual remote PR176 merge-base with identical b0d7f35b tree and registry blob; assertion semantics and all production/UI bytes are unchanged. Handover: Git fixtures must reference reachable actual remote ancestors, never local-only metadata commits. This rebind remains source/test admission only; a fresh official unit run is required."
 }
 -->

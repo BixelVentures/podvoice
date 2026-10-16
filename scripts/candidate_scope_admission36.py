@@ -116,9 +116,9 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_release_contract.py",
     }
 )
-REVIEWER = "Independent /root/final_scope_audit; exact combined36 source review SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9"
-MANIFEST_SHA = "37bb5ead87db3b9559e464d839d30e6a91b9ce804478716bf2cc5bec4ebf2a59"
-PROFILE_AST = "3b318f175713e544573b4bbc98046beeee20de4920e08c249a039387e03d5e04"
+REVIEWER = "Independent /root/final_scope_audit combined36 source SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9; /root/queue_gateway_review CI631 fixture SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b"
+MANIFEST_SHA = "a9c7b62a3961a4d3f9d03fe615f0cfb5fbc64ae9c7b287b86f825e0f0b9f9139"
+PROFILE_AST = "89577877a5bddd314310cf26532d736b00e20dee670b2ee714225bf304461a24"
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission35.py": "87e0973b4c460a1732f8f4b66767a73c03c4f473ede980359883f0206549e6c8",
     "scripts/podview35-admission-reviewed.json": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",

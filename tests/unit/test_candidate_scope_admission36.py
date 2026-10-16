@@ -391,7 +391,7 @@ def test_registry_adds_only_existing_spotify_artwork_dependency():
     name = "docs/component-library-registry.json"
     frozen = json.loads(
         subprocess.check_output(
-            ["git", "show", f"0375ed3f45dd9a8cb9f8078960ecd2c69a2d4f11:{name}"], cwd=ROOT
+            ["git", "show", f"38bd92ca28d0206bfafef6b03a7ea4d883e6a211:{name}"], cwd=ROOT
         )
     )
     current = json.loads(admission.safe_file(ROOT, name))
