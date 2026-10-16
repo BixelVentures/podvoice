@@ -17,7 +17,7 @@ from gatekeeper.podview_queue import ACTION
 
 
 @pytest.fixture
-async def composed(tmp_path):
+async def composed(tmp_path, monkeypatch):
     media = Rig()
     media.router._discovery = replace(
         media.router._discovery,
@@ -50,6 +50,15 @@ async def composed(tmp_path):
         controller_days=30,
         controller_generation="c" * 64,
         controller_store=tmp_path / "registry.json",
+    )
+    # Exercise the historical queue mechanism's controller fence only. The
+    # shipped queue-occurrence gate remains closed until native admission exists.
+    monkeypatch.setattr(
+        type(bridge.queue),
+        "available",
+        property(
+            lambda self: "get_queue_controls" in self.bridge.tools._discovery.podconnect_services
+        ),
     )
     credential, grant = await enroll(bridge, code)
     bridge.controls.music._read = AsyncMock(return_value=source())

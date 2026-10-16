@@ -103,6 +103,8 @@ Hypotese for sidste forbrugerændring: erstat kun den hidtil tomme reviewbinding
 
 **Næste afgrænsede CI-fixturebatch:** Fem eksisterende integrationstestfiler ændres kun for at følge den allerede reviewede produktionskontrakt: passiv speaker-kataloglæsning modtager nu token-argumentet; collection START bekræfter den eksakte 35-procent offer-værdi og tester den aktuelle serialiserede læsegrænse; kontrolfixture har den eksisterende MOVE-fence; foreign-account Mood-svar afvises efter faktisk selection uden kildepublicering; Mood-diagnostik injicerer fejl i de faser, hvor de nu faktisk opstår. Forfatterchecks 43+19+51+12 består på de fem filbytes, i alt 125 fokuserede cases; musik-selection13 og forgænger148 er bevaret uden reproduceret hang. Kun collection- og Mood-preview-stierne er nye i strict35-listen, så 51 krævede tests og 131 effektive stier er den eksakte næste pre-pin-scope. Den gamle officielle CI-kandidat har kendte fixturefejl; en ny officiel run skal afgøre den repinnede kandidat. PodConnect 0.26.22 er installeret og Kører, Control 0.10.15 er hentet og indlæst efter HA Core-genstart ifølge lokal installreceipt SHA256 `87c57a3a2d81015dd678ff149d1940abd02be17ca7fccdf8b7d71605f84fe162`; PodVoice er stadig 2.0.34. Ingen ny grant eller credential; kontrol, providerlyd og fysisk accept på Green er ikke bevist af installationen.
 
+**Efterfølgende officiel CI, præcis diagnose:** Unitfejlen var en forældet semantisk eval-fixture, der sammenlignede backend-prompten uden den allerede leverede præsentationsinstruktion; kun fixtureforventningen blev rettet, og dens berørte 90 cases består. Køens gamle mekanismecases antog en åben native køkontrakt, som den aktuelle kandidat bevidst holder lukket: de injicerer nu kun den historiske mekanisme i fixture, mens en særskilt faktisk ingresscase beviser lukket kø uden native servicekald. Den tidligere ventende køcase når nu sin læsevent og annullerer deterministisk; køens faktiske produktfunktion er stadig uafklaret og ikke accepteret. Berørte kø-/receipt- og controllerkontroller bestod 78+4; den efterfølgende afgrænsede restdel før Thin-activity bestod 323 cases. ThinLive-fixturen forventer nu den faktisk leverede primary-/backend-præsentationsinstruktion og bevarer wire- og domæneafvisninger; dens 121 cases består uden produktionsændring. Den sidste restdel efter ThinLive bestod 362/362; tidligere button/closing19, Thin60 og diagnostik12/12 blev målrettet bevaret, sidstnævnte med inert localhost og syntetisk TTS503 uden eksternt kald. Disse er særskilte kausale slices, ikke én ny samlet lokal releasekørsel. CI giver nu første testfejl og stackdiagnostik ved venten efter 60 sekunder, uden at ændre testmængde eller runtime-timeouts. De fire faktisk ændrede teststier føjes eksakt til strict35 (55 krævede tests); CI's nye policybytes skal repinnes. Ny officiel CI, PodVoice35-publicering/installering, providerlyd og fysisk accept resterer.
+
 ---
 
 # Aktiv leadbeslutning · PodVoice2.0.34 ·16. oktober2026
@@ -655,13 +657,13 @@ Sidste afgrænsede staticfreeze ·15. oktober2026: kun weather-view.js, widget-v
     "physical_output"
   ],
   "fingerprint": "73cb4f96f85794ae7ae188468fc975285b02bf0f05a639f703828d1018efcc5e",
-  "regression_fingerprint": "98fb8fb872ffdfbf4de388ba35f20d2bebfca055371de4b654022f0043efb906",
+  "regression_fingerprint": "714e1acb2d028d086cddf7b0d2d0d3eb298b45b6a223bca85f62b57d8064a488",
   "runtime_fingerprint": "b68ac55547183a086126d77f053c7b288f048838d56bdc74ce1b410b6cd630f9",
   "config_fingerprint": "241b446750fa4840bb4bae2ab82e8e285d9dd5f8fd2a98be4159d695a7edba11",
-  "policy_fingerprint": "7e420a3e8bacb9b08f808a41c8bb0d18f91d5353684cf6952242ee78209fbef2",
+  "policy_fingerprint": "910cbba32ff6de9d6eb94b68c3a9a3e72cde0aa6470e3b46f4cbff22b1792bbe",
   "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
-  "manifest_fingerprint": "cca83a87ec6898bb8818730094b3941be29c0955167eb934b05946c530f82119",
-  "reviewer": "Independent GPT-6 Sol /root/review34; final pre-pin HEAD and coupled Native/C review",
-  "rationale": "Exact PodVoice35 pre-pin HEAD 83adcb95672c9c4c284d814cb78fc09caa8e7e44 tree 003e7814fa8f2cecd6a33dd15ba5dc9842791039 independently reviewed. Five integration fixture files changed, two newly mapped; 51 exact regressions and 135 UI assets bound. PodConnect 0.26.22 and Control 0.10.15 installed and loaded under separate receipt, with PodVoice still 2.0.34. Official final CI, PodVoice publication and installation, provider/audio, Green control and physical acceptance remain separate."
+  "manifest_fingerprint": "a48cb625a8f130f34bf595ff944d8f82b2d47303343b06d7ac70079791c46d80",
+  "reviewer": "Independent /root/review34; exact35 source review",
+  "rationale": "Exact PodVoice35 pre-pin HEAD 6dd69573feea05e924b59784e1b350dd15282652 tree d4f7ffa1e7bedb0abecb38d2afd206bb1b08a76e independently reviewed. Four newly mapped fixture paths make 55 exact regressions and 135 UI assets. Changed unit semantic-eval, closed queue mechanism/ingress, ThinLive presentation and CI diagnostic workflow received focused checks; remaining offline rest slices passed, not a new one-shot release gate. PodConnect 0.26.22 and Control 0.10.15 installed and loaded under separate receipt; PodVoice remains 2.0.34. Official final CI, PodVoice publication and installation, provider/audio, Green control and physical acceptance remain separate."
 }
 -->

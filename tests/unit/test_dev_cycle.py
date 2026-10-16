@@ -52,6 +52,22 @@ def test_ci_runs_for_prs_and_main_pushes_without_feature_branch_duplicates():
     assert "cancel-in-progress: false" in trigger_block
 
 
+def test_ci_test_cohorts_fail_fast_and_emit_hang_stacks_without_test_timeout():
+    workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
+    required = "-vv --maxfail=1 -o faulthandler_timeout=60"
+    unit = workflow.split("      - name: Unit tests\n", maxsplit=1)[1].split(
+        "      - name: Remaining tests\n", maxsplit=1
+    )[0]
+    rest = workflow.split("      - name: Remaining tests\n", maxsplit=1)[1].split(
+        "\n\n  ui-browser:", maxsplit=1
+    )[0]
+
+    assert required in unit
+    assert "tests/unit --durations=15 --durations-min=1" in unit
+    assert required in rest
+    assert "--ignore=tests/unit --durations=15 --durations-min=1" in rest
+
+
 def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
     build = workflow.split("  build-addon:\n", maxsplit=1)[1].split(

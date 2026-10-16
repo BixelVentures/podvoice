@@ -124,11 +124,14 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_music.py",
         "tests/integration/test_podview_music_control.py",
         "tests/integration/test_podview_music_selection.py",
+        "tests/integration/test_podview_queue_occurrence.py",
         "tests/integration/test_podview_resume.py",
+        "tests/integration/test_queue_controller_boundary.py",
         "tests/integration/test_podview_room_move_caller.py",
         "tests/integration/test_podview_room_move_voice.py",
         "tests/integration/test_presentation_live_pipeline.py",
         "tests/integration/test_room_media_binding.py",
+        "tests/integration/test_thin_live.py",
         "tests/podview/mood-preview.test.mjs",
         "tests/podview/music-selection.test.mjs",
         "tests/podview/queue-occurrence.test.mjs",
@@ -153,6 +156,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/visual-pending.test.mjs",
         "tests/unit/test_candidate_scope_admission35.py",
         "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_live_semantic_completion_eval.py",
         "tests/unit/test_mood_diagnostics.py",
         "tests/unit/test_music_selection_owner.py",
         "tests/unit/test_podview_presentation.py",
@@ -166,9 +170,9 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_weather_wind_bearing.py",
     }
 )
-REVIEWER = "Independent GPT-6 Sol /root/review34; final pre-pin HEAD and coupled Native/C review"
-MANIFEST_SHA = "cca83a87ec6898bb8818730094b3941be29c0955167eb934b05946c530f82119"
-PROFILE_AST = "9ae8f21d10c7b98e5a3976789707f69a96065873f06c9c20293f5222c100d66c"
+REVIEWER = "Independent /root/review34; exact35 source review"
+MANIFEST_SHA = "a48cb625a8f130f34bf595ff944d8f82b2d47303343b06d7ac70079791c46d80"
+PROFILE_AST = "cb32b900246a82c089ee2a6cde5571995a202f58ab7e0192a5a49831703d21cf"
 DELETED_PRODUCTION = {
     "podvoice/gatekeeper/static/podview/flow.html": "ffe2df29e9db0b99f1777ab17fdbecbfcd2099fb377375c7d7b865dbabf0c9d4",
     "podvoice/gatekeeper/static/podview/flow.js": "b462c8de356eac701f8ca0ab99db73353b9d31df6ceea8b24595ef3cd9e62e08",

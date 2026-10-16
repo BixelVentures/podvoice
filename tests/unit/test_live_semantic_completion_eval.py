@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from unit.test_openai_live import SDK, call, created, terminal
 
+from gatekeeper.podview_presentation import BACKEND_PRESENTATION_INSTRUCTIONS
 from gatekeeper.thin import (
     APPROVE_ACTION_DECLARATION,
     LIVE_END_CONVERSATION_DECLARATION,
@@ -64,7 +65,10 @@ def test_baseline_exact_and_variant_aligns_all_startup_layers_without_mutating_r
         backend_instructions=backend,
     )._configuration()
     assert base == production
-    assert base["delegation"]["responses"]["instructions"] == backend
+    assert (
+        base["delegation"]["responses"]["instructions"]
+        == backend + BACKEND_PRESENTATION_INSTRUCTIONS
+    )
     assert base["delegation"]["responses"]["tools"][0]["description"] == original["description"]
     assert module.POLICY in variant["instructions"]
     assert module.POLICY in variant["delegation"]["responses"]["instructions"]

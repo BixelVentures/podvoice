@@ -7,7 +7,7 @@
     "pyproject.toml": "b313e06594db04fa266b3e267ac21d6d57bd1885b797f0a164beeab21d42b246"
   },
   "policy": {
-    ".github/workflows/ci.yml": "f695a1f895d5131de180b8f1ee0546f6b9856b96f475259ac06d96b9a3d59b9b",
+    ".github/workflows/ci.yml": "71ad5c1912a24af055eb4df3457d5127245d18f109209786b2da5ae659581c82",
     "docs/COMPONENT-LIBRARY.md": "bb02c06f43f2b7e8e3b54d36a7d92c418a8e397ebd3bfed862ca7fa0b4d5bc63",
     "docs/component-library-registry.json": "04b24f6b041d8357d4a2d1c5a2fe792a9c78b8707c104a1abc4925a74c9749a9",
     "scripts/dev_cycle.py": "58419c354b895644b666128446e98b4cbb3f5ae2c06af2ad5ee078822e66f03a"
@@ -91,11 +91,14 @@
     "tests/integration/test_podview_music.py": "3df2e9f3c5b0303d1cdd7d73843da22c2e6634e6b269868e056fa2efde27f92c",
     "tests/integration/test_podview_music_control.py": "74a5f40a0f188e60c2e15c639d7e5e150c65c43fbf87962b3870b6bade73fb24",
     "tests/integration/test_podview_music_selection.py": "e7ec2adb4beaec44ae1a4b7305bec5fdcb45478608784e5cdb2634c4a7e98763",
+    "tests/integration/test_podview_queue_occurrence.py": "f78aef40a5fa9ce0c5bf5755daf72d7c91999a55a875379de93266978d98edb8",
     "tests/integration/test_podview_resume.py": "61dde3184029e627e13e1031610f74cfbda4ad832210f09f17571981b62defab",
     "tests/integration/test_podview_room_move_caller.py": "2c0a30b515e1bf8692c62b48b7ca51261b60a04a06cef49a7128e3d405fba5ed",
     "tests/integration/test_podview_room_move_voice.py": "39b9c6b9d2d51d92beeb32e4aacbdf97aefd2be0082e8cedd6bc89008120ea28",
     "tests/integration/test_presentation_live_pipeline.py": "da91356c09f8a788181e0230922c58ea3dcad86ad58dfad3f7d61f2e99883c39",
+    "tests/integration/test_queue_controller_boundary.py": "18638f62dc461ebd280ece3efb0433927359488483b3c5ec4558cf3aa964d396",
     "tests/integration/test_room_media_binding.py": "72eb583c059f602b113494e4571a68c1ddfeed2c8ca01e9d2c8c509ff4ae55f7",
+    "tests/integration/test_thin_live.py": "b76a2c828649abec5937750148a56a5b0764b19a9504297e0821e1e3d6553ad1",
     "tests/podview/mood-preview.test.mjs": "308283c9bbd80afcebce528640d26130023accdd928928e103101abbfbf5103e",
     "tests/podview/music-selection.test.mjs": "73ce0913e44ed41d39d66f3c499aaf23fd73e641bd83ca293e43f327a780832b",
     "tests/podview/queue-occurrence.test.mjs": "0576dab066263dc53944a17762681bb841d3ec0874c2387813825b38f21ca17a",
@@ -119,7 +122,8 @@
     "tests/podview/root-widget-model.test.mjs": "2059b08ebe9eee90fbe4f005dc93a28b3b4c1ad5b119958e3a3996be0ccb1eed",
     "tests/podview/visual-pending.test.mjs": "1de2903e1f1486a43fd5034dfe11e149f4c925cbd8f0ebb53811e4355d32eb59",
     "tests/unit/test_candidate_scope_admission35.py": "29a0d40f20255bfcbd0d02dbed22319c9436aa22d8818114b6dad975e7374943",
-    "tests/unit/test_dev_cycle.py": "af38e147bc33a9d2035f4ad27cf5b529adc1b6fc609f9f6c21e973e500716cff",
+    "tests/unit/test_dev_cycle.py": "a2c5e3b41e9518b5e1c4a8bf2bc6f77ac5e96ee8bf111cfb756247f26fa86fec",
+    "tests/unit/test_live_semantic_completion_eval.py": "b5e3657cc80f403135b3bde357039be5e3acdcf71656a39198384a6db35ef2a7",
     "tests/unit/test_mood_diagnostics.py": "08a8f4aa3ae071c717dffef0cfb38eda3a7a78f4675c0a26a76a6b63e89c7fc7",
     "tests/unit/test_music_selection_owner.py": "bc517e4c762121b2a925f3edfa4b24c4186c53f9f2675756283273806aeaab94",
     "tests/unit/test_podview_presentation.py": "ffd75bedabd4fb275252473f9e644ba00edbc7acf815f0fdba8f35e5a9075c30",
