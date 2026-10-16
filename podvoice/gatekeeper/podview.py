@@ -31,6 +31,7 @@ from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
+_REVIEWED_MOVE_POLICY_REVISION: str | None = None
 _CONTROLLER_COOKIE = "podview_controller"
 _ALLOWED_PHASES = {"IDLE", "LISTENING", "THINKING", "AI_SPEAKING", "LOUNGE_WINDOW"}
 
@@ -209,11 +210,20 @@ class PodViewBridge:
         from .podview_controls import TouchControls
         from .podview_music_control import MusicControlFacade
 
-        self.controls = TouchControls(self, control_policy, MusicControlFacade(tools))
+        # Bind only a separately reviewed native/C MOVE policy here at final
+        # composition. None keeps the effect closed even if services appear.
+        self.controls = TouchControls(
+            self,
+            control_policy,
+            MusicControlFacade(tools),
+            move_policy_revision=_REVIEWED_MOVE_POLICY_REVISION,
+        )
         self.music_selection = MusicSelection()
         self._touch_music_contexts: dict[tuple, tuple[float, dict]] = {}
         self._revisions: dict[str, tuple[str, int]] = {}
         self._grants: dict[str, tuple] = {}
+        self._music_destinations: dict[tuple[str, str], dict] = {}
+        self._music_move_fence: set[tuple[str, str]] = set()
         from .podview_queue import QueueBroker
 
         self.queue = QueueBroker(self)
@@ -1185,6 +1195,7 @@ def _selection_rule_current(
     rules = bridge.controls.policy.get("music")
     return bool(
         bridge._grants.get(room) is grant
+        and not any(key[0] == room for key in bridge._music_move_fence)
         and bridge.controls.policy.get("roomId") == room
         and isinstance(rules, list)
         and any(
@@ -1772,18 +1783,18 @@ async def _music_selection(request: web.Request) -> web.Response:
         selection_action = (
             "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track"
         )
-        rule = next(
-            (
-                row
-                for row in bridge.controls.policy["music"]
-                if row["accountId"] == target["accountId"]
-                and row["targetId"] == target["targetId"]
-                and selection_action in row["actions"]
-                and row.get("nativeRoomId")
-                and row.get("nativeHomepodId")
-            ),
-            None,
-        )
+        scope = podview_room_media.binding(bridge, room, target["accountId"])
+        matches = [
+            row
+            for row in bridge.controls.policy["music"]
+            if scope is not None
+            and row["accountId"] == target["accountId"]
+            and row["targetId"] == target["targetId"]
+            and (row.get("nativeRoomId"), row.get("nativeHomepodId"))
+            == (scope["nativeRoomId"], scope["nativeHomepodId"])
+            and selection_action in row["actions"]
+        ]
+        rule = matches[0] if len(matches) == 1 else None
         if rule is None:
             return _error("target_not_granted", 403)
         native_binding = (rule["nativeRoomId"], rule["nativeHomepodId"])

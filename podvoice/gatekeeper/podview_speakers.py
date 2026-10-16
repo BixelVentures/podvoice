@@ -163,12 +163,20 @@ async def read_catalogue(bridge, room, account, owner_binding):
     )
     if not isinstance(rules, list) or len(rules) > 32:
         return unavailable()
-    matches = [r for r in rules if isinstance(r, dict) and r.get("accountId") == account]
+    from .podview_room_media import binding
+
+    scope = binding(bridge, room, account)
+    if scope is None:
+        # Preserve the older read-only fixture's single incomplete row. A
+        # parsed production policy always carries the full native pair.
+        singleton = [r for r in rules if isinstance(r, dict) and r.get("accountId") == account]
+        if len(singleton) == 1 and "targetId" not in singleton[0]:
+            scope = {"nativeRoomId": singleton[0].get("nativeRoomId")}
     if (
         not isinstance(account, str)
         or not 1 <= len(account) <= 1024
         or session is None
-        or len(matches) != 1
+        or scope is None
         or "targets" not in tools.podview_music_reads()
     ):
         return unavailable()
@@ -179,12 +187,18 @@ async def read_catalogue(bridge, room, account, owner_binding):
     )
 
     def current():
+        now_scope = binding(bridge, room, account)
+        if now_scope is None:
+            singleton = [r for r in rules if isinstance(r, dict) and r.get("accountId") == account]
+            if len(singleton) == 1 and "targetId" not in singleton[0]:
+                now_scope = {"nativeRoomId": singleton[0].get("nativeRoomId")}
         return (
             bridge.boot_id == boot
             and bridge.tools is tools
             and bridge.controls is controls
             and controls.policy is policy
             and _fingerprint(policy) == policy_id
+            and now_scope == scope
             and bridge.sessions.get(room) is session
             and owner_binding() == owner
             and tools.podview_music_binding() == tool_owner
@@ -201,7 +215,7 @@ async def read_catalogue(bridge, room, account, owner_binding):
             boot=boot,
             room=room,
             account=account,
-            default_room=matches[0].get("nativeRoomId"),
+            default_room=scope["nativeRoomId"],
         )
     except (HTTPError, OSError, TimeoutError, ValueError, TypeError, KeyError):
         return unavailable()
