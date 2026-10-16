@@ -297,6 +297,50 @@ async def test_ingress_contract_preserves_freshness_duplicates_and_has_no_contro
         assert not rig.session.tools.timers.command.await_count
 
 
+async def test_passive_speakers_route_reuses_view_guard_and_exact_account_query(rig, monkeypatch):
+    from gatekeeper import podview
+
+    seen = []
+
+    async def read_catalogue(bridge, room, account, owner_binding):
+        seen.append((bridge, room, account, owner_binding()))
+        return {"ok": False, "schema": "podview.speaker-catalogue.v1", "status": "unavailable"}
+
+    monkeypatch.setattr(podview.podview_speakers, "read_catalogue", read_catalogue)
+    async with TestClient(TestServer(rig.app)) as client:
+        for query in (
+            "kind=speakers",
+            "kind=speakers&account=",
+            "kind=speakers&account=account-alpha&account=account-alpha",
+            "kind=speakers&account=account-alpha&query=refresh",
+            "kind=speakers&account=account-alpha&room=kitchen&room=kitchen",
+            "kind=speakers&account=account-alpha&room=other&room=kitchen",
+            "kind=speakers&kind=speakers&account=account-alpha",
+        ):
+            assert (await client.get(f"/view/api/music?{query}")).status == 400
+        assert not seen
+        denied = await client.get(
+            "/view/api/music?kind=speakers&account=account-alpha",
+            headers={"Sec-Fetch-Site": "cross-site"},
+        )
+        assert denied.status == 403 and not seen
+        response = await client.get(
+            "/view/api/music?kind=speakers&account=account-alpha&room=kitchen"
+        )
+        assert response.status == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert (await response.json())["schema"] == "podview.speaker-catalogue.v1"
+    assert seen == [
+        (
+            rig.app[BRIDGE],
+            "kitchen",
+            "account-alpha",
+            (podview._music_binding(rig.app[BRIDGE], "kitchen"), True),
+        )
+    ]
+    assert rig.calls == []
+
+
 async def test_catalogue_ingress_rejects_different_source_account_without_echo_or_tracks(rig):
     rig.liked_account_override = "account-other"
     async with TestClient(TestServer(rig.app)) as client:

@@ -23,6 +23,7 @@ from . import (
     podview_music,
     podview_robot,
     podview_room_media,
+    podview_speakers,
     podview_weather,
     podview_weather_brief,
 )
@@ -1237,6 +1238,14 @@ async def _music(request: web.Request) -> web.Response:
     if denied is not None:
         return denied
     bridge = request.app[BRIDGE]
+    kind = request.query.get("kind", "targets")
+    if kind == "speakers" and (
+        set(request.query) - {"kind", "account", "room"}
+        or any(len(request.query.getall(key, [])) != 1 for key in request.query)
+        or len(request.query.getall("account", [])) != 1
+        or not 1 <= len(request.query["account"]) <= 1024
+    ):
+        return _error("invalid_account", 400)
     room = _room(request, bridge)
     if room is None:
         return _error("room_required")
@@ -1247,7 +1256,16 @@ async def _music(request: web.Request) -> web.Response:
     ):
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
-    kind = request.query.get("kind", "targets")
+    if kind == "speakers":
+        return web.json_response(
+            await podview_speakers.read_catalogue(
+                bridge,
+                room,
+                request.query["account"],
+                lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
     if kind in {"mood", "feeling"}:
         return await _mood_music(request, bridge, room, kind=kind)
     if kind not in {"targets", "recent", "top", "liked", "playback", "queue", "search"}:
