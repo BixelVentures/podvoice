@@ -1,3 +1,10 @@
+## 2.0.35 — kandidat, fysisk accept afventer
+
+- Samler musikbetjeningens MOVE og START med eksisterende native konto-, rum-, kilde- og grant-ejerskab. Ukendte/stale udfald genafspilles ikke via generiske aliaser eller fallback.
+- Tilføjer afgrænset genoptagelse af en pauseret Roborock-opgave gennem den eksisterende native transport; opgaveejerskab og stop-/fejlgrænser bevares.
+- Medtager source-bundet, skrivebeskyttet vejr-/vindvisning og HA/MCP-recovery. Standardkonfigurationen bevares.
+- Dette er en kandidatversion. Publicering, installation og faktisk Green-/fysisk accept er separate og afventer.
+
 ## 2.0.34
 
 - Tilføjer Par skærm i PodVoice-panelets eksisterende navigation, så parringsformularen åbnes via den normale HA-iframe.
