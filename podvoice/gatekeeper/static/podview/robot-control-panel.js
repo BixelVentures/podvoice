@@ -23,7 +23,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   if(groups.reuse){const section=make('section');section.append(make('h3','Gentag den valgte rengøring'),make('p','Den tidligere opsætning kontrolleres mod robotten og det aktuelle kort.','history-note'));const button=make('button','Start denne rengøring','primary start');button.type='button';button.addEventListener('click',()=>this.action(groups.reuse));section.append(button);this.content.append(section);}
   if(groups.cleaning)this.buildCleaning(groups.cleaning,task.mapName);
   if(groups.settings.length){const details=make('details',undefined,'settings');details.open=!groups.cleaning;details.append(make('summary','Indstillinger'),make('p','Anvend én indstilling ad gangen. Hent derefter den aktuelle betjening, før du ændrer mere eller starter rengøringen.','meta'));for(const option of groups.settings)this.buildSetting(details,option);this.content.append(details);}
-  if(!groups.cleaning&&!groups.reuse)this.content.append(make('p','Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.','empty'));
+  if(!groups.cleaning&&!groups.reuse&&!groups.settings.length)this.content.append(make('p','Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.','empty'));
   else if(!groups.settings.length&&!groups.reuse)this.content.append(make('p','Sugestyrke og moppeindstillinger er ikke tilbudt i den aktuelle betjening.','empty'));
   this.syncDisabled();
  }

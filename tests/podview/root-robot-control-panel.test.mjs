@@ -48,3 +48,10 @@ test('server-issued resume uses the existing canonical transport group and exact
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{domain:'vacuum',options:[{id:'resume-opaque',label:'Fortsæt rengøring',action:'resume',argsSchema:{kind:'none'}}]},device:{...device,status:'paused'}};
  const buttons=panel.shadowRoot.querySelectorAll('button');assert.deepEqual(buttons.map(b=>b.textContent),['Fortsæt rengøring']);emit(buttons[0],'click');assert.deepEqual(actions,[{optionId:'resume-opaque',args:{}}]);panel.disabled=true;emit(buttons[0],'click');assert.equal(actions.length,1);
 });
+
+test('a map-only admitted setting remains actionable without a contradictory empty-controls message',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{domain:'vacuum',options:[{id:'map-opaque',label:'Kort',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'upstairs-opaque',label:'1. Sal'}]}}]},device};
+ const root=panel.shadowRoot;assert.equal(root.querySelectorAll('p').some(n=>n.textContent==='Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.'),false);assert.equal(root.querySelector('details').open,true);
+ const select=root.querySelector('select');select.value='upstairs-opaque';emit(select,'change');emit(root.querySelector('form'),'submit');assert.deepEqual(actions,[{optionId:'map-opaque',args:{choiceId:'upstairs-opaque'}}]);
+ panel.data={task:{domain:'vacuum',options:[]},device};assert.equal(root.querySelectorAll('p').some(n=>n.textContent==='Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.'),true);
+});

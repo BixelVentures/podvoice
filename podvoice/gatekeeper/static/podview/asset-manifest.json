@@ -359,7 +359,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "5f31d4043dd21a3853f477286d4cf5db3fd533cc68da287893627f5707002660"
+      "sha256": "691dbdbb47a1835c0abb33855b76108798b5d35935d43781369e865d8406df3d"
     },
     {
       "path": "robot-observation.js",
