@@ -37,6 +37,11 @@ REQUIRED_TESTS = frozenset({"tests/unit/test_candidate_scope_admission35.py"})
 REVIEWER = ""
 MANIFEST_SHA = ""
 PROFILE_AST = ""
+DELETED_PRODUCTION = {
+    "podvoice/gatekeeper/static/podview/flow.html": "ffe2df29e9db0b99f1777ab17fdbecbfcd2099fb377375c7d7b865dbabf0c9d4",
+    "podvoice/gatekeeper/static/podview/flow.js": "b462c8de356eac701f8ca0ab99db73353b9d31df6ceea8b24595ef3cd9e62e08",
+    "podvoice/gatekeeper/static/podview/flow.css": "13058f93b1f5286da29761e88760424e869050549e9d0521457a5ecb70f04a6d",
+}
 
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission34.py": "f28d5cbec1bb9323f42f1e2f132044976e072f7849e3d4e9c8a66e0779dde305",
@@ -105,6 +110,56 @@ def config_only(root: Path) -> bool:
     )
 
 
+def deleted_production_matches(root: Path) -> bool:
+    """Bind only the three reviewed no-flow removals to exact base bytes and absence."""
+    if set(DELETED_PRODUCTION) != {
+        "podvoice/gatekeeper/static/podview/flow.html",
+        "podvoice/gatekeeper/static/podview/flow.js",
+        "podvoice/gatekeeper/static/podview/flow.css",
+    }:
+        return False
+    for name, expected in DELETED_PRODUCTION.items():
+        if not isinstance(expected, str) or len(expected) != 64:
+            return False
+        try:
+            base_bytes = legacy._git(root, "show", f"{BASE}:{name}").encode()
+        except RuntimeError:
+            return False
+        if sha(base_bytes) != expected:
+            return False
+        path = root
+        for part in name.split("/"):
+            path /= part
+            if path.is_symlink():
+                return False
+        if path.exists():
+            return False
+    return True
+
+
+def production_scope_matches(effective: set[str]) -> bool:
+    actual = {p for p in effective if p.startswith(legacy._PRODUCTION_PREFIXES)}
+    expected = PRODUCTION | set(DELETED_PRODUCTION)
+    return (
+        not (PRODUCTION & set(DELETED_PRODUCTION))
+        and actual - {"podvoice/gatekeeper/__init__.py"} == expected
+        and set(DELETED_PRODUCTION) <= actual
+    )
+
+
+def change_scope_matches(effective: set[str], tests: set[str]) -> bool:
+    allowed = (
+        PRODUCTION
+        | set(DELETED_PRODUCTION)
+        | tests
+        | POLICY
+        | CONFIG
+        | TOOLING
+        | {"podvoice/CHANGELOG.md", "docs/STATUS.md"}
+    )
+    return effective <= allowed
+
+
 def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: dict) -> bool:
     if (
         not DOMAINS
@@ -163,6 +218,7 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
             for pins in (prod, tests, runtime, config, policy, tooling)
         )
         or set(prod) != PRODUCTION
+        or not deleted_production_matches(root)
         or set(tests) != REQUIRED_TESTS
         or set(config) != CONFIG
         or set(policy) != POLICY - {PROFILE, MANIFEST}
@@ -176,16 +232,10 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         return False
     effective = legacy._visual_repository_changes(root, BASE)
     if (
-        {p for p in effective if p.startswith(legacy._PRODUCTION_PREFIXES)}
-        - {"podvoice/gatekeeper/__init__.py"}
-        != PRODUCTION
+        not production_scope_matches(effective)
         or {p for p in effective if p.startswith("tests/")} != set(tests)
         or not REQUIRED_TESTS <= effective
-        or any(
-            p not in PRODUCTION | set(tests) | POLICY | CONFIG | TOOLING | {"podvoice/CHANGELOG.md"}
-            and p != "docs/STATUS.md"
-            for p in effective
-        )
+        or not change_scope_matches(effective, set(tests))
     ):
         return False
     ignored = legacy._git(
@@ -202,7 +252,8 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
     if any(p and not ("/__pycache__/" in p and p.endswith(".pyc")) for p in ignored.split("\0")):
         return False
     for name in effective:
-        safe_file(root, name)
+        if name not in DELETED_PRODUCTION:
+            safe_file(root, name)
     return (
         record["fingerprint"] == legacy.production_fingerprint(root, BASE, BASE, tuple(prod))
         and record["regression_fingerprint"]

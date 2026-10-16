@@ -44,6 +44,11 @@ def test_scaffold_is_unapproved_and_empty_scope():
     assert admission.VERSION == 10
     assert not admission.DOMAINS
     assert not admission.PRODUCTION
+    assert set(admission.DELETED_PRODUCTION) == {
+        "podvoice/gatekeeper/static/podview/flow.html",
+        "podvoice/gatekeeper/static/podview/flow.js",
+        "podvoice/gatekeeper/static/podview/flow.css",
+    }
     assert not admission.REVIEWER
     assert not admission.MANIFEST_SHA
     assert not admission.PROFILE_AST
@@ -53,6 +58,96 @@ def test_scaffold_is_unapproved_and_empty_scope():
     assert not any(
         manifest[k] for k in ("production", "regressions", "runtime", "config", "policy", "tooling")
     )
+
+
+def test_exact_three_deleted_flow_assets_bind_base_bytes_and_candidate_absence(
+    monkeypatch, tmp_path
+):
+    files = {
+        "podvoice/gatekeeper/static/podview/flow.html": b"approved html\n",
+        "podvoice/gatekeeper/static/podview/flow.js": b"approved js\n",
+        "podvoice/gatekeeper/static/podview/flow.css": b"approved css\n",
+    }
+    for name, data in files.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "podvoice"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "base",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    monkeypatch.setattr(admission, "BASE", base)
+    monkeypatch.setattr(
+        admission,
+        "DELETED_PRODUCTION",
+        {name: admission.sha(data) for name, data in files.items()},
+    )
+    for name in files:
+        (tmp_path / name).unlink()
+    assert admission.deleted_production_matches(tmp_path)
+
+    restored = tmp_path / next(iter(files))
+    restored.write_bytes(files[next(iter(files))])
+    assert not admission.deleted_production_matches(tmp_path)
+    restored.unlink()
+
+    restored.symlink_to("missing-target")
+    assert not admission.deleted_production_matches(tmp_path)
+
+
+def test_deletion_scope_requires_exact_paths_and_no_other_production_changes(monkeypatch):
+    monkeypatch.setattr(admission, "PRODUCTION", frozenset())
+    exact = set(admission.DELETED_PRODUCTION)
+    assert admission.production_scope_matches(exact)
+    assert admission.change_scope_matches(exact, set())
+    assert not admission.production_scope_matches(exact - {next(iter(exact))})
+    assert not admission.production_scope_matches(
+        exact | {"podvoice/gatekeeper/static/unreviewed.js"}
+    )
+    assert not admission.change_scope_matches(
+        exact | {"podvoice/gatekeeper/static/podview/another-flow.js"}, set()
+    )
+
+
+def test_wrong_base_hash_rejects_deleted_asset_evidence(monkeypatch, tmp_path):
+    name = "podvoice/gatekeeper/static/podview/flow.html"
+    path = tmp_path / name
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"base bytes\n")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", name], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "base",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    path.unlink()
+    monkeypatch.setattr(admission, "BASE", base)
+    monkeypatch.setattr(admission, "DELETED_PRODUCTION", {name: "0" * 64})
+    assert not admission.deleted_production_matches(tmp_path)
 
 
 def test_historical_record_and_prior_admission_cannot_supply35_approval(monkeypatch, tmp_path):
