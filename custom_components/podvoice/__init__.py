@@ -17,6 +17,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
+from .controller_admin import ControllerAdmin
 from .timer_bridge import TimerBridge
 
 DOMAIN = "podvoice"
@@ -73,6 +74,17 @@ COMMAND_SCHEMA = vol.Schema(
         vol.Optional("sink_id", default=""): cv.string,
     }
 )
+ADMIN_SCHEMA = vol.Schema({vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160))})
+ADMIN_RECEIPT_SCHEMA = vol.Schema(
+    {
+        vol.Required("nonce"): vol.Match(r"[a-f0-9]{32}"),
+        vol.Required("action"): vol.In(("provision", "revoke")),
+        vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160)),
+        vol.Required("outcome"): vol.In(("committed", "unavailable")),
+        vol.Required("mac"): vol.Match(r"[a-f0-9]{64}"),
+    }
+)
+_ADMIN_KEY = "podvoice_controller_admin"
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -102,6 +114,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     hass.services.async_remove(DOMAIN, "timer_status")
     hass.services.async_remove(DOMAIN, "timer_command")
+    for service in ("controller_provision", "controller_revoke", "controller_receipt"):
+        hass.services.async_remove(DOMAIN, service)
+    hass.data.pop(_ADMIN_KEY, None)
     bridge.close()
     hass.data.pop(DOMAIN)
     return True
@@ -151,12 +166,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         },
     )
     hass.data[DOMAIN] = bridge
+    admin = ControllerAdmin(hass)
+    hass.data[_ADMIN_KEY] = admin
 
     async def read(call: ServiceCall) -> dict:
         return bridge.snapshot(call.data["endpoint"])
 
     async def command(call: ServiceCall) -> dict:
         return bridge.command(**call.data)
+
+    async def controller_provision(call: ServiceCall) -> dict:
+        return await admin.request(call, "provision")
+
+    async def controller_revoke(call: ServiceCall) -> dict:
+        return await admin.request(call, "revoke")
 
     hass.services.async_register(
         DOMAIN,
@@ -171,5 +194,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         command,
         schema=COMMAND_SCHEMA,
         supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_provision",
+        controller_provision,
+        schema=ADMIN_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_revoke",
+        controller_revoke,
+        schema=ADMIN_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_receipt",
+        admin.receipt,
+        schema=ADMIN_RECEIPT_SCHEMA,
     )
     return True

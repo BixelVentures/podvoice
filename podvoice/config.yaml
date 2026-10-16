@@ -12,6 +12,7 @@ startup: application
 init: false
 host_network: true
 homeassistant_api: true   # SUPERVISOR_TOKEN for the HA tool bridge
+stdin: true              # fixed HA-admin command channel to the add-on owner
 hassio_api: true          # lets the panel "Save & restart" the add-on itself
 # Sidebar panel served on :8098 (PodConnect owns :8099) behind HA Ingress.
 ingress: true

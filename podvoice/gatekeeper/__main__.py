@@ -16,6 +16,7 @@ import re
 import secrets
 import signal
 import socket
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -671,19 +672,65 @@ async def run(cfg: Config) -> None:
             )
 
     from .audio_analysis import AudioAnalysis
+    from .podview_controller_admin import ControllerAdminState
+
+    admin_state = ControllerAdminState(
+        settings_path.parent / "podview-controller-admin" / "state.json"
+    )
+    legacy_admin = (
+        cfg.podview_controller_enabled
+        or cfg.podview_controller_generation
+        or cfg.podview_pairing_room
+        or cfg.podview_pairing_sha256
+        or cfg.podview_controller_days != 30
+        or cfg.podview_controller_pairing_seconds != 600
+    )
+    private_row = None
+    admin_eligible = (
+        not legacy_admin and bool(cfg.supervisor_token) and not cfg.settings_source_untrusted
+    )
+    if admin_eligible:
+        try:
+            private_row = admin_state.load()
+            if private_row is not None:
+                from .podview_continuity import ControllerRegistry
+
+                ControllerRegistry(
+                    settings_path.parent / "podview-controllers" / "registry.json",
+                    private_row["generation"],
+                    30,
+                ).initialize()
+        except (OSError, ValueError):
+            admin_eligible = False
+            _LOG.error("PodView private controller state unavailable")
+    elif legacy_admin and admin_state.path.exists():
+        # Two authorities for one controller would create an ambiguous grant.
+        _LOG.error("PodView private and Supervisor controller options conflict")
+        legacy_admin = False
+
+    private_enabled = bool(admin_eligible and private_row and private_row["enabled"])
 
     audio_analysis = AudioAnalysis(audio_trace.path, cfg.openai_api_key)
     app = create_app(
         hub,
         sessions,
         podview_control_policy=cfg.podview_control_policy,
-        podview_controller_enabled=cfg.podview_controller_enabled,
-        podview_controller_days=cfg.podview_controller_days,
-        podview_controller_pairing_seconds=cfg.podview_controller_pairing_seconds,
-        podview_controller_generation=cfg.podview_controller_generation,
+        podview_controller_enabled=private_enabled
+        or (legacy_admin and cfg.podview_controller_enabled),
+        podview_controller_days=30 if private_enabled else cfg.podview_controller_days,
+        podview_controller_pairing_seconds=600
+        if private_enabled
+        else cfg.podview_controller_pairing_seconds,
+        podview_controller_generation=private_row["generation"]
+        if private_enabled and private_row is not None
+        else (cfg.podview_controller_generation if legacy_admin else ""),
         podview_controller_store=settings_path.parent / "podview-controllers" / "registry.json",
-        podview_pairing_room=cfg.podview_pairing_room,
-        podview_pairing_sha256=cfg.podview_pairing_sha256,
+        podview_pairing_room=private_row["room"]
+        if private_enabled and private_row is not None
+        else (cfg.podview_pairing_room if legacy_admin else ""),
+        podview_pairing_sha256=private_row["digest"]
+        if private_enabled and private_row is not None
+        else (cfg.podview_pairing_sha256 if legacy_admin else ""),
         podview_pairing_store=settings_path.parent / "podview-pairing-used",
         make_console=None,  # retired direct Realtime console is not a product entrypoint
         make_talk=None if cfg.settings_source_untrusted else _make_talk,
@@ -720,6 +767,20 @@ async def run(cfg: Config) -> None:
         # present) unless the owner explicitly re-opened LAN access in Settings.
         locked=bool(cfg.supervisor_token) and not cfg.panel_lan_open,
     )
+    from .podview import BRIDGE
+    from .podview_admin_transport import AdminStdinTransport
+
+    bridge = app[BRIDGE]
+    if private_enabled and private_row is not None:
+        bridge._controller_admin_state = admin_state
+        bridge._pairing_deadline = time.monotonic() + max(0, private_row["deadline"] - time.time())
+    admin_transport = AdminStdinTransport(
+        bridge,
+        admin_state if admin_eligible else None,
+        settings_path.parent / "podview-controllers" / "registry.json",
+        cfg.supervisor_token,
+    )
+    admin_transport.start()
     runner = await start_web(app)
 
     stop = asyncio.Event()
@@ -755,6 +816,7 @@ async def run(cfg: Config) -> None:
     try:
         await stop.wait()
     finally:
+        admin_transport.close()
         _LOG.info("PodVoice shutting down — restoring music")
         for task in (probe, prewarm, probe_task):
             if task is not None:

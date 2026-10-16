@@ -56,3 +56,43 @@ timer_command:
     sink_id:
       selector:
         text:
+controller_provision:
+  name: Provision PodView controller
+  description: Issue one room-bound ten-minute enrollment code to a current HA administrator.
+  fields:
+    room:
+      required: true
+      selector:
+        text:
+controller_revoke:
+  name: Revoke PodView controller
+  description: Durably revoke a room controller and its active grants.
+  fields:
+    room:
+      required: true
+      selector:
+        text:
+controller_receipt:
+  name: Internal PodVoice controller receipt
+  description: Private machine-authenticated completion from the fixed add-on.
+  fields:
+    nonce:
+      required: true
+      selector:
+        text:
+    action:
+      required: true
+      selector:
+        text:
+    room:
+      required: true
+      selector:
+        text:
+    outcome:
+      required: true
+      selector:
+        text:
+    mac:
+      required: true
+      selector:
+        text:

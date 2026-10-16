@@ -119,9 +119,9 @@
       ],
       "variants": [
         "Stemning",
+        "Humør",
         "Topsange",
-        "Senest",
-        "Likede"
+        "Senest"
       ],
       "states": [
         "first empty read",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rejecting PodView36 queue admission until exact composed source review."""
+"""Rejecting PodView36 queue and controller admission until exact review."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ strict = previous.strict  # PodView31 owns the inherited strict helpers.
 sha = previous.sha
 safe_file = previous.safe_file
 BASE = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd"
-KIND = "podview36_exact_queue_occurrence"
-VERSION = 11
+KIND = "podview36_queue_and_controller_admin"
+VERSION = 12
 PROFILE = "scripts/candidate_scope_admission36.py"
 MANIFEST = "scripts/podview36-admission-reviewed.json"
 RECORD_MARKER = "<!-- podview36-admission"
@@ -36,34 +36,66 @@ POLICY = frozenset(
         "docs/component-library-registry.json",
     }
 )
-TOOLING = previous.TOOLING
+TOOLING = previous.TOOLING | frozenset({"scripts/check_podview_admin_stdin.sh"})
 FIELDS = previous.FIELDS
 
 # Independent review fills these only after the final combined diff is frozen.
 # Blank pins always reject, including when an old approval record is present.
-DOMAINS = ("physical_output",)
+DOMAINS = ("ha_tools", "physical_output")
 PRODUCTION = frozenset(
     {
+        "custom_components/podvoice/__init__.py",
+        "custom_components/podvoice/config_flow.py",
+        "custom_components/podvoice/controller_admin.py",
+        "custom_components/podvoice/manifest.json",
+        "custom_components/podvoice/services.yaml",
+        "custom_components/podvoice/strings.json",
+        "custom_components/podvoice/translations/da.json",
+        "custom_components/podvoice/translations/en.json",
+        "podvoice/gatekeeper/__main__.py",
+        "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_admin_transport.py",
+        "podvoice/gatekeeper/podview_continuity.py",
+        "podvoice/gatekeeper/podview_controller_admin.py",
         "podvoice/gatekeeper/podview_queue.py",
         "podvoice/gatekeeper/podview_queue_scope.py",
         "podvoice/gatekeeper/podview_music_control.py",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/setup.html",
+    }
+)
+HA_RUNTIME = frozenset(
+    {
+        "custom_components/podvoice/__init__.py",
+        "custom_components/podvoice/config_flow.py",
+        "custom_components/podvoice/controller_admin.py",
+        "custom_components/podvoice/manifest.json",
+        "custom_components/podvoice/services.yaml",
+        "custom_components/podvoice/strings.json",
+        "custom_components/podvoice/timer_bridge.py",
+        "custom_components/podvoice/translations/da.json",
+        "custom_components/podvoice/translations/en.json",
     }
 )
 REQUIRED_TESTS = frozenset(
     {
+        "tests/ha_framework/test_controller_admin_services.py",
+        "tests/ha_framework/test_options_flow_http.py",
+        "tests/integration/test_podview_admin_provision.py",
         "tests/integration/test_podview_room_queue.py",
+        "tests/unit/test_ha_controller_admin.py",
+        "tests/unit/test_ha_controller_registration.py",
         "tests/unit/test_podview_queue_scope.py",
         "tests/integration/test_podview_queue_occurrence.py",
         "tests/integration/test_queue_controller_boundary.py",
         "tests/unit/test_candidate_scope_admission35.py",
         "tests/unit/test_candidate_scope_admission36.py",
+        "tests/unit/test_dev_cycle.py",
     }
 )
-REVIEWER = (
-    "Independent GPT-6 Sol /root/queue_native_review; exact36 composed source/admission review"
-)
-MANIFEST_SHA = "a1b9f0f0a0a65291458ae9c0bf5711affd096097c6b7d600948510730c6e233f"
-PROFILE_AST = "e0fc888062ff714ec2fe8b0a95b6bf5056a0dc9ee4d075a64040609b3b8c6528"
+REVIEWER = "Independent GPT-6 Sol /root/queue_gateway_review; exact36 combined queue/controller source and admission review"
+MANIFEST_SHA = "285b869e52c712e60fcb6044d7499f1a090c7b6078a604ca259675efd1284c7f"
+PROFILE_AST = "e6a38c0bbc3903fff52fb5ff0067009c3ffcee6e8e18a52916ad27fe75ac403d"
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission35.py": "87e0973b4c460a1732f8f4b66767a73c03c4f473ede980359883f0206549e6c8",
     "scripts/podview35-admission-reviewed.json": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",
@@ -87,7 +119,31 @@ def record_at(root: Path) -> dict | None:
 
 
 def config_only(root: Path) -> bool:
-    """Only the three version strings may change from the published35 base."""
+    """Only 36 versions, the fixed stdin channel, and HA manifest 0.1.2."""
+    before = legacy._git(root, "show", f"{BASE}:podvoice/config.yaml")
+    after = safe_file(root, "podvoice/config.yaml").decode()
+    stdin_line = "stdin: true              # fixed HA-admin command channel to the add-on owner\n"
+    anchor = (
+        "homeassistant_api: true   # SUPERVISOR_TOKEN for the HA tool bridge\n"
+        + stdin_line
+        + 'hassio_api: true          # lets the panel "Save & restart" the add-on itself\n'
+    )
+    if after.count(stdin_line) != 1 or after.count(anchor) != 1 or stdin_line in before:
+        return False
+    if not strict.version_only(
+        before,
+        after.replace(stdin_line, "", 1),
+        r'^version: "[^"\n]+"$',
+        'version: "2.0.36"',
+    ):
+        return False
+    if not strict.version_only(
+        legacy._git(root, "show", f"{BASE}:custom_components/podvoice/manifest.json"),
+        safe_file(root, "custom_components/podvoice/manifest.json").decode(),
+        r'^  "version": "[^"\n]+",$',
+        '  "version": "0.1.2",',
+    ):
+        return False
     return all(
         strict.version_only(
             legacy._git(root, "show", f"{BASE}:{name}"),
@@ -96,7 +152,6 @@ def config_only(root: Path) -> bool:
             expected,
         )
         for name, pattern, expected in (
-            ("podvoice/config.yaml", r'^version: "[^"\n]+"$', 'version: "2.0.36"'),
             (
                 "podvoice/gatekeeper/__init__.py",
                 r'^__version__ = "[^"\n]+"$',
@@ -105,6 +160,19 @@ def config_only(root: Path) -> bool:
             ("pyproject.toml", r'^version = "[^"\n]+"$', 'version = "2.0.36"'),
         )
     )
+
+
+def ha_runtime_inventory(root: Path) -> set[str]:
+    """Inventory the entire existing HA integration without changing old gates."""
+    directory = root / "custom_components/podvoice"
+    if directory.is_symlink():
+        raise ValueError("symlink HA runtime root")
+    return {
+        path.relative_to(root).as_posix()
+        for path in directory.rglob("*")
+        if (path.is_file() or path.is_symlink())
+        and not ("/__pycache__/" in path.as_posix() and path.suffix == ".pyc")
+    }
 
 
 def production_scope_matches(effective: set[str]) -> bool:
@@ -186,7 +254,8 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         or set(config) != CONFIG
         or set(policy) != POLICY - {PROFILE, MANIFEST}
         or set(tooling) != TOOLING
-        or set(runtime) != strict.runtime_inventory(root)
+        or ha_runtime_inventory(root) != HA_RUNTIME
+        or set(runtime) != strict.runtime_inventory(root) | HA_RUNTIME
         or not set(prod) <= set(runtime)
         or any(not p.startswith("tests/") for p in tests)
         or not config_only(root)

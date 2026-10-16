@@ -67,7 +67,14 @@ def test_ci_test_cohorts_fail_fast_and_emit_hang_stacks_without_test_timeout():
     assert "tests/unit --durations=15 --durations-min=1" in unit
     assert required in rest
     assert "-vv" not in rest
-    assert "--ignore=tests/unit --durations=15 --durations-min=1" in rest
+    assert (
+        "--ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1" in rest
+    )
+    ha = workflow.split("  ha-framework:\n", maxsplit=1)[1].split("  build-addon:\n", maxsplit=1)[0]
+    assert "needs: [scope]" in ha
+    assert "--network none --read-only" in ha
+    assert "ghcr.io/home-assistant/home-assistant@sha256:" in ha
+    assert "-B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v" in ha
 
 
 def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
@@ -78,7 +85,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     publish = workflow.split("  publish-addon:\n", maxsplit=1)[1]
     qemu = "      - uses: docker/setup-qemu-action@v3\n"
     buildx = "      - uses: docker/setup-buildx-action@v3\n"
-    build_push = "      - uses: docker/build-push-action@v6\n"
+    build_push = "      - id: candidate-image\n        uses: docker/build-push-action@v6\n"
 
     assert "needs: [scope]" in build
     assert "needs: [lint-test" not in build
@@ -94,7 +101,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
     assert "cache-to:" not in build
-    assert "needs: [scope, lint-test, ui-browser]" in publish
+    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
     assert "docker/build-push-action@v6" in publish
@@ -126,8 +133,8 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
         assert "docker/login-action@v3" in job
         assert "docker/build-push-action@v6" in job
     fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
-    assert build.count(fork_guard) == 2
-    assert "needs: [scope, lint-test, ui-browser]" in publish
+    assert build.count(fork_guard) == 3
+    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in publish
     assert "push: true" in publish
     assert "Inspect immutable release version" in publish
     assert "Record published digest" in publish
@@ -442,6 +449,7 @@ def test_scope_change_invalidates_focused_result():
 @pytest.mark.parametrize(
     "frozen_base,entry",
     [
+        ("ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd", "scripts/candidate_scope_admission36.py"),
         ("e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b", "scripts/candidate_scope_admission35.py"),
         ("frozen-base", "scripts/candidate_scope_admission32.py"),
         ("0e56c593c6ce9a3e1666b5fd535d3424cc691b9c", "scripts/candidate_scope_admission31.py"),
@@ -1660,7 +1668,7 @@ def test_ci_workflow_change_keeps_full_build_but_cannot_republish_existing_versi
     )
     assert "needs.scope.outputs.pr_addon_changed == 'true'" in build
     assert "ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}" in publish
-    assert "needs: [scope, lint-test, ui-browser]" in publish
+    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in publish
     assert publish.count("if: steps.release.outputs.required == 'true'") == 3
     assert 'echo "required=false" >> "$GITHUB_OUTPUT"' in publish
     assert 'echo "required=true" >> "$GITHUB_OUTPUT"' in publish
