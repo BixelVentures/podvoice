@@ -144,6 +144,29 @@ class VisualReceiptOwner:
         self._selection: asyncio.Task | None = None
         self._research_mode = False
         self._research_admitted = False
+        self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
+
+    def subscribe(self, room_id: str) -> asyncio.Event | None:
+        """One loop-owned wake per SSE reader; notification grants no read authority."""
+        if self._closed or len(self._subscribers) >= 8:
+            return None
+        event = asyncio.Event()
+        self._subscribers[event] = (room_id, asyncio.get_running_loop())
+        return event
+
+    def unsubscribe(self, event: asyncio.Event) -> None:
+        self._subscribers.pop(event, None)
+
+    def _notify(self, room_id: str) -> None:
+        # Thin's normal calls are on the serving loop. Keep a cross-thread caller
+        # observational too: asyncio.Event itself must only mutate on its own loop.
+        for event, (room, loop) in tuple(self._subscribers.items()):
+            if room == room_id:
+                try:
+                    loop.call_soon_threadsafe(event.set)
+                except Exception:
+                    # A closed observer must never change an accepted receipt.
+                    pass
 
     def configure_selector(self, selector: VisualSelector | None) -> None:
         """Startup-only optional provider. No browser request can enable it."""
@@ -494,6 +517,7 @@ class VisualReceiptOwner:
         state["items"].insert(0, row)
         del state["items"][3:]
         state["revision"] += 1
+        self._notify(room_id)
         if self.selection_enabled and not state.get("selection_offered"):
             state["selection_offered"] = True
             if self._selection is None or self._selection.done():
@@ -531,7 +555,10 @@ class VisualReceiptOwner:
     def offer_completed_answer(self, owner: object, **binding) -> bool:
         from .podview_presentation import offer_completed
 
-        return offer_completed(self, owner, **binding)
+        accepted = offer_completed(self, owner, **binding)
+        if accepted:
+            self._notify(binding["room_id"])
+        return accepted
 
     def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
         """Revoke this exact owner's reads synchronously, including sealed normal-close reads."""

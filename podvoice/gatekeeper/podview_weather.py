@@ -7,6 +7,7 @@ import json
 import math
 import time
 from datetime import datetime
+from typing import cast
 
 _MAX_FORECAST_ROWS = 48
 MAX_RETRIEVAL_AGE_S = 15 * 60
@@ -250,8 +251,10 @@ def weather_projection(response: object, *, display_city: str = "") -> dict:
         # HA wind_bearing is an optional azimuth in degrees. Keep actual
         # numeric north (0 or 360); cardinal strings/invalid values stay absent.
         bearing = row.get("wind_bearing")
-        if _number(bearing) and 0 <= bearing <= 360:
-            projected["wind_bearing"] = bearing
+        if _number(bearing):
+            bearing = cast(int | float, bearing)
+            if 0 <= bearing <= 360:
+                projected["wind_bearing"] = bearing
         for key in _NUMBERS.intersection(row):
             number = row[key]
             # Home Assistant documents native_temperature as the higher daily

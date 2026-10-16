@@ -1093,6 +1093,8 @@ async def _events(request: web.Request) -> web.StreamResponse:
     if bridge._streams >= 8:
         return _error("stream_capacity", 429)
     bridge._streams += 1
+    sink = getattr(bridge.tools, "podview_receipts", None)
+    wake = None
     response = web.StreamResponse(
         headers={
             "Content-Type": "text/event-stream",
@@ -1101,18 +1103,33 @@ async def _events(request: web.Request) -> web.StreamResponse:
         }
     )
     try:
+        # Subscribe before the first projection; each reader owns its wake.
+        if sink is not None:
+            wake = sink.subscribe(room)
         await response.prepare(request)
         # Every tick is a fresh full projection; dropped events cannot corrupt a delta.
         # This reads caches and bounded local controller revocation state only;
         # it never polls HA or holds an audio-owner lock.
         while True:
+            # Clear before the fresh synchronous projection: a publication during
+            # write/wait remains set and cannot be lost between projection and wait.
+            if wake is not None:
+                wake.clear()
             snap = bridge.snapshot(room, request.cookies.get(_PAIR_COOKIE, ""))
             payload = f"event: snapshot\nid: {bridge.boot_id}:{snap['revision']}\ndata: {json.dumps(snap)}\n\n"
             await asyncio.wait_for(response.write(payload.encode()), timeout=5)
-            await asyncio.sleep(1)
+            if wake is None:
+                await asyncio.sleep(1)
+            else:
+                try:
+                    await asyncio.wait_for(wake.wait(), timeout=1)
+                except TimeoutError:
+                    pass
     except (ConnectionResetError, TimeoutError, asyncio.CancelledError):
         pass
     finally:
+        if wake is not None and sink is not None:
+            sink.unsubscribe(wake)
         bridge._streams -= 1
     return response
 
