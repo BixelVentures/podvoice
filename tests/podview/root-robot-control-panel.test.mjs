@@ -34,8 +34,17 @@ test('setting choice uses its exact runtime ID and disabled controls cannot emit
  const select=panel.shadowRoot.querySelector('select'),form=panel.shadowRoot.querySelectorAll('form')[1];assert.equal(select.querySelectorAll('option')[0].value,'');assert.deepEqual(select.querySelectorAll('option').slice(1).map(n=>n.value),['fan-quiet','fan-max']);
  select.value='fan-max';emit(select,'change');emit(form,'submit');assert.deepEqual(actions,[{optionId:'fan-option',args:{choiceId:'fan-max'}}]);panel.disabled=true;assert.ok(panel.shadowRoot.querySelectorAll('button').every(n=>n.disabled));assert.ok(panel.shadowRoot.querySelectorAll('input').every(n=>n.disabled));assert.equal(select.disabled,true);emit(form,'submit');assert.equal(actions.length,1);
 });
-test('history reuse asks for a new setup and never sends a cleaning command from a receipt',()=>{
+test('supplied history does not create a parallel history or receipt actions inside robot controls',()=>{
  const panel=new RobotControlPanel(),actions=[],recipes=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.addEventListener('robot-control-recipe',event=>recipes.push(event.detail));
  const record={id:'recipe-accepted',recordedAt:1770000000,outcome:'accepted_by_ha',recipe:{mapName:'Stueetagen',areaIds:['kitchen'],repeat:2}};panel.data={task:{domain:'vacuum',options:[{id:'pause-opaque',label:'Pause rengøring',action:'pause',argsSchema:{kind:'none'}}]},device:{...device,status:'cleaning'},history:{status:'observed',items:[record,{...record,id:'recipe-unknown',outcome:'unknown'}]}};
- const buttons=panel.shadowRoot.querySelectorAll('button');assert.deepEqual(buttons.map(n=>n.textContent),['Pause rengøring','Brug igen']);assert.equal(actions.length,0);emit(buttons[1],'click');assert.deepEqual(recipes,[{recipeId:'recipe-accepted'}]);assert.equal(actions.length,0);emit(buttons[0],'click');assert.deepEqual(actions,[{optionId:'pause-opaque',args:{}}]);
+ const root=panel.shadowRoot,buttons=root.querySelectorAll('button');assert.deepEqual(buttons.map(n=>n.textContent),['Pause rengøring']);assert.equal(root.querySelectorAll('article').length,0);assert.equal(root.querySelectorAll('details').length,0);assert.equal(root.querySelectorAll('summary').some(n=>n.textContent==='Seneste rengøringer'),false);assert.deepEqual(recipes,[]);assert.deepEqual(actions,[]);emit(buttons[0],'click');assert.deepEqual(actions,[{optionId:'pause-opaque',args:{}}]);
+});
+test('server-issued recipe reuse retains its primary exact-option action without a history renderer',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{domain:'vacuum',options:[{id:'reuse-opaque',label:'Genbrug rengøring',action:'reuse',argsSchema:{kind:'none'}}]},device};
+ const buttons=panel.shadowRoot.querySelectorAll('button');assert.deepEqual(buttons.map(n=>n.textContent),['Start denne rengøring']);emit(buttons[0],'click');assert.deepEqual(actions,[{optionId:'reuse-opaque',args:{}}]);panel.disabled=true;emit(buttons[0],'click');assert.equal(actions.length,1);
+});
+
+test('server-issued resume uses the existing canonical transport group and exact opaque choice',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{domain:'vacuum',options:[{id:'resume-opaque',label:'Fortsæt rengøring',action:'resume',argsSchema:{kind:'none'}}]},device:{...device,status:'paused'}};
+ const buttons=panel.shadowRoot.querySelectorAll('button');assert.deepEqual(buttons.map(b=>b.textContent),['Fortsæt rengøring']);emit(buttons[0],'click');assert.deepEqual(actions,[{optionId:'resume-opaque',args:{}}]);panel.disabled=true;emit(buttons[0],'click');assert.equal(actions.length,1);
 });

@@ -1,0 +1,4 @@
+// Synthetic room authority for adapter tests only; production must receive server proof.
+export function bindRoom(snapshot,account='account',target='device'){const binding={roomId:snapshot.roomId,accountId:account,targetId:target,nativeRoomId:'r0',nativeHomepodId:'fixture-homepod',bindingId:'a'.repeat(64)};snapshot.mediaRoomBindings=[binding];return binding;}
+export function boundPlayback(snapshot,playback,account='account',target='device'){const binding=bindRoom(snapshot,account,target);return {...playback,config_entry_id:account,roomBound:true,bootId:snapshot.bootId,roomId:snapshot.roomId,roomBinding:{...binding},target:{...playback.target,id:target}};}
+export function targetEnvelope(snapshot,body,account='account',target='device'){return {...body,bootId:snapshot.bootId,roomId:snapshot.roomId,roomBinding:bindRoom(snapshot,account,target)};}

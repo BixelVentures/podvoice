@@ -1,0 +1,2195 @@
+{
+  "schema": 1,
+  "approval": {
+    "authority": "human-user",
+    "date": "2026-10-16",
+    "request": "Lock the existing approved component library as the only components agents may use; coherent widget family, shared event history, no visible loading prose. This records existing roles, not blanket approval of all shipped code."
+  },
+  "entrypoints": [
+    {
+      "path": "dist/index.html",
+      "scripts": [
+        "ingress-kiosk.js",
+        "widget-view.js"
+      ],
+      "styles": [
+        "ui/components.css",
+        "widget-view.css",
+        "ui/library/library.css",
+        "frame-layout.css",
+        "widget-redesign.css",
+        "timer-notice.css",
+        "live-music.css"
+      ],
+      "roots": [
+        "html:article:response-widget",
+        "html:aside:player",
+        "html:aside:player-empty",
+        "html:aside:timer-alert",
+        "html:button:activity-row",
+        "html:button:cover-button",
+        "html:button:detail-output",
+        "html:button:dialog-close",
+        "html:button:header-history",
+        "html:button:header-weather",
+        "html:button:output",
+        "html:button:photo-view",
+        "html:button:photo-weather",
+        "html:button:round",
+        "html:button:round main-control",
+        "html:button:screen-settings text-control",
+        "html:button:text-control",
+        "html:button:timer-notice-close",
+        "html:button:timer-notice-open",
+        "html:button:timer-shortcut",
+        "html:button:track",
+        "html:div:bottom-gesture-zone",
+        "html:div:demo-scenarios",
+        "html:div:detail-controls",
+        "html:div:expandable",
+        "html:div:header-left",
+        "html:div:header-navigation",
+        "html:div:home-shortcuts",
+        "html:div:music-subhead",
+        "html:div:notice-copy",
+        "html:div:now-activities",
+        "html:div:now-empty",
+        "html:div:now-playing-detail",
+        "html:div:refinements",
+        "html:div:resource-rail",
+        "html:div:result-inner",
+        "html:div:result-list",
+        "html:div:retained",
+        "html:div:timer-active-list",
+        "html:div:timer-overview",
+        "html:div:transport",
+        "html:div:volume",
+        "html:header:response-heading",
+        "html:main:frame",
+        "html:nav:view-nav",
+        "html:section:detail-queue",
+        "html:section:device-history",
+        "html:section:response-widget",
+        "html:section:response-widget timers-view",
+        "html:section:response-widget weather-view",
+        "html:section:responses"
+      ],
+      "customTags": [
+        "pv-activity-timeline",
+        "pv-volume-control",
+        "pv-widget-host"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "screen-composition",
+      "owner": [
+        "dist/index.html",
+        "dist/widget-view.js"
+      ],
+      "anatomy": [
+        "one pv-widget-host",
+        "responses + existing player aside",
+        "existing overview/photo/detail/dialog slots"
+      ],
+      "variants": [
+        "photo",
+        "now",
+        "music",
+        "answer",
+        "device",
+        "timers",
+        "weather"
+      ],
+      "states": [
+        "visible/hidden with retained focus and content"
+      ],
+      "authority": "WidgetHost selects view; source adapters cannot create an alternate live screen"
+    },
+    {
+      "id": "music-results",
+      "owner": [
+        "dist/music-results.js:MusicResults"
+      ],
+      "anatomy": [
+        "button.result",
+        "art + result-copy(title/description/detail) + feedback + play",
+        "existing four music tabs"
+      ],
+      "variants": [
+        "Stemning",
+        "Topsange",
+        "Senest",
+        "Likede"
+      ],
+      "states": [
+        "first empty read",
+        "retained refresh",
+        "ready",
+        "empty",
+        "error",
+        "offline",
+        "finite pending"
+      ],
+      "authority": "Adapters supply cards and selectable authority; no local grant or fabricated option ID"
+    },
+    {
+      "id": "player-and-queue",
+      "owner": [
+        "dist/player-view.js:PlayerView",
+        "dist/player-view.js:renderPlayerControls",
+        "dist/index.html",
+        "dist/player-view.js:placeOutputHeader",
+        "dist/speaker-output-view.js:SpeakerOutputView"
+      ],
+      "anatomy": [
+        "existing player aside + music-detail",
+        "queue-track order/art/copy/play",
+        "existing transport/volume/output controls",
+        "same output button in empty header; current native catalogue rows inside existing rooms dialog"
+      ],
+      "variants": [
+        "compact player",
+        "detail",
+        "queue"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "observed playing/paused",
+        "stale",
+        "unknown",
+        "pending"
+      ],
+      "authority": "Observed account/room/session queue identity; controls remain owner-admitted"
+    },
+    {
+      "id": "weather",
+      "owner": [
+        "dist/weather-view.js:renderWeather"
+      ],
+      "anatomy": [
+        "response heading",
+        "weather-current",
+        "existing hours/days rows",
+        "one advice slot",
+        "source footer"
+      ],
+      "variants": [
+        "overview/header/photo projections",
+        "detail"
+      ],
+      "states": [
+        "unknown fields omitted",
+        "retained",
+        "stale/offline",
+        "ready"
+      ],
+      "authority": "localWeatherModel/liveWeatherModel project into exact same renderer; no invented forecasts"
+    },
+    {
+      "id": "timer",
+      "owner": [
+        "dist/timer-view.js:TimerView"
+      ],
+      "anatomy": [
+        "timer-panel",
+        "timer-open instrument + copy",
+        "existing timer finish/actions/form/history"
+      ],
+      "variants": [
+        "overview",
+        "detail",
+        "resource preview"
+      ],
+      "states": [
+        "running",
+        "paused",
+        "completed",
+        "cancelled",
+        "hidden"
+      ],
+      "authority": "Hiding differs from cancelling; observed/local owner remains explicit"
+    },
+    {
+      "id": "resource-preview",
+      "owner": [
+        "dist/ui/resource-tile.js:createResourceTile",
+        "dist/ui/resource-tile.js:updateResourceTile",
+        "dist/index.html:.home-shortcuts"
+      ],
+      "anatomy": [
+        "visual slot",
+        "title + subtitle",
+        "chevron",
+        "shared spacing and typography"
+      ],
+      "variants": [
+        "timer",
+        "vacuum",
+        "light",
+        "weather shortcut",
+        "music shortcut"
+      ],
+      "states": [
+        "known",
+        "unknown",
+        "retained",
+        "pending"
+      ],
+      "authority": "16 October 24-reference cohesion applies to compact overview role; never force detail to compact height"
+    },
+    {
+      "id": "home-device-detail",
+      "owner": [
+        "dist/ui/library/components.js:LibraryComponent",
+        "dist/widget-view.js:renderDevices"
+      ],
+      "anatomy": [
+        "pv-vacuum-widget / pv-light-widget",
+        "instrument",
+        "title/meta/value",
+        "existing action row"
+      ],
+      "variants": [
+        "vacuum",
+        "light"
+      ],
+      "states": [
+        "ready",
+        "unknown",
+        "offline",
+        "pending",
+        "disabled"
+      ],
+      "authority": "Capability list and session/task/revision own actions; 36 requested robot fields do not authorize 36 actions or a new family"
+    },
+    {
+      "id": "answer-shell",
+      "owner": [
+        "dist/answer-widget.js:AnswerWidget"
+      ],
+      "anatomy": [
+        "existing response heading",
+        "answer-scroll",
+        "existing answer/actions/sources slots"
+      ],
+      "variants": [
+        "concise",
+        "choices",
+        "comparison",
+        "chart",
+        "guide",
+        "checklist",
+        "validated visual"
+      ],
+      "states": [
+        "partial",
+        "ready",
+        "empty",
+        "error",
+        "offline",
+        "pending"
+      ],
+      "authority": "Same renderer for owned live answer and explicit local fixture"
+    },
+    {
+      "id": "validated-visual",
+      "owner": [
+        "dist/ui/library/visual-components.js:VisualComponent",
+        "dist/visual-content.js:validateVisualContent"
+      ],
+      "anatomy": [
+        "pv-visual-body",
+        "lead/source disclosure",
+        "existing visual item or sourced-image figure"
+      ],
+      "variants": [
+        "fact-card",
+        "sourced-image",
+        "answer-timeline",
+        "simple-diagram"
+      ],
+      "states": [
+        "empty first read",
+        "retained pending",
+        "ready",
+        "stale",
+        "error"
+      ],
+      "authority": "Closed validated content only, source labels and owner receipts; no model HTML/style/action"
+    },
+    {
+      "id": "answer-primitives",
+      "owner": [
+        "dist/ui/library/components.js:LibraryComponent"
+      ],
+      "anatomy": [
+        "existing keyed list/table/guide/checklist/native choice anatomy"
+      ],
+      "variants": [
+        "approved catalog roles only"
+      ],
+      "states": [
+        "ready",
+        "disabled",
+        "pending",
+        "empty",
+        "error"
+      ],
+      "authority": "Stable option IDs; touch and voice dispatch identical action identity"
+    },
+    {
+      "id": "event-history",
+      "owner": [
+        "dist/ui/library/components.js:activity-timeline",
+        "dist/index.html:#device-timeline"
+      ],
+      "anatomy": [
+        "pv-activity-timeline",
+        "keyed ol/li",
+        "time + label"
+      ],
+      "variants": [
+        "observed events",
+        "separately labelled request journal"
+      ],
+      "states": [
+        "known facts",
+        "no facts",
+        "stale"
+      ],
+      "authority": "Request accepted is not observed completion; never replace with a live-only card family"
+    },
+    {
+      "id": "meaningful-notice",
+      "owner": [
+        "dist/index.html:#timer-alert",
+        "dist/widget-view.js:showFeedback",
+        "dist/timer-notice.js"
+      ],
+      "anatomy": [
+        "existing timer notice or action-feedback toast",
+        "existing close/open actions"
+      ],
+      "variants": [
+        "timer finished",
+        "meaningful action result/error/unknown"
+      ],
+      "states": [
+        "finite visible",
+        "dismissed"
+      ],
+      "authority": "No waiting/progress prose as toast; actual speech status is separate"
+    },
+    {
+      "id": "voice-state",
+      "owner": [
+        "dist/voice-surface.js:VoiceSurface"
+      ],
+      "anatomy": [
+        "existing voice-surface mark + label + detail"
+      ],
+      "variants": [
+        "listening",
+        "thinking",
+        "responding",
+        "ready"
+      ],
+      "states": [
+        "active intent only",
+        "finite transition",
+        "reduced motion",
+        "disconnected cleanup"
+      ],
+      "authority": "PodVoice is speech owner; no indefinite decorative activity or slow-loading explanation"
+    }
+  ],
+  "catalog": {
+    "widget-frame": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "widget-header": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "action-button": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "choice-chip": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "detail-sheet": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "inline-status": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "concise-answer": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "fact-card": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/visual-components.js"
+    },
+    "sourced-image": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/visual-components.js"
+    },
+    "answer-timeline": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/visual-components.js"
+    },
+    "simple-diagram": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/visual-components.js"
+    },
+    "source-list": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "choice-list": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "comparison-table": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "data-chart": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "step-guide": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "checklist": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "follow-up-choices": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "music-results": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "now-playing": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "transport-controls": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "volume-control": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "output-picker": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "queue-view": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "situation-summary": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "activity-card": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "timer-widget": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "activity-timeline": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "completion-notice": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "connection-notice": {
+      "status": "reference-only",
+      "owner": "dist/ui/library/components.js",
+      "reason": "Workshop implementation is not permission to use this role in the product; use canonical renderer below."
+    },
+    "vacuum-widget": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    },
+    "light-widget": {
+      "status": "approved-existing-role",
+      "owner": "dist/ui/library/components.js"
+    }
+  },
+  "modules": {
+    "dist/answer-widget.js": {
+      "status": "approved-renderer",
+      "domOwner": "AnswerWidget",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/weather-fact-display.js",
+        "dist/visual-content.js",
+        "dist/visual-examples.js",
+        "dist/scene-model.js",
+        "dist/ui/library/components.js"
+      ],
+      "surface": {
+        "customElementAccesses": 1,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:q": 4,
+          "class:AnswerWidget": 1,
+          "method:act": 1,
+          "method:connectedCallback": 1,
+          "method:emit": 1,
+          "method:renderVisualAnswer": 1,
+          "method:renderWeatherAnswer": 1,
+          "method:update": 1,
+          "function:typedAnswerPresentation": 1,
+          "method:renderTypedAnswer": 1
+        },
+        "roots": [
+          "html:button:answer-back text-control",
+          "html:button:retry-answer text-control",
+          "html:button:round dismiss",
+          "html:button:start-guide",
+          "html:details:sources",
+          "html:div:answer-actions",
+          "html:div:answer-content",
+          "html:div:answer-heading-target",
+          "html:div:answer-scroll",
+          "html:header:response-heading",
+          "native:button:open-weather-answer text-control"
+        ],
+        "registrations": {
+          "'pv-answer'": 1
+        },
+        "customTags": [
+          "pv-checklist",
+          "pv-choice-list",
+          "pv-comparison-table",
+          "pv-concise-answer",
+          "pv-data-chart",
+          "pv-follow-up-choices",
+          "pv-inline-status",
+          "pv-source-list",
+          "pv-step-guide"
+        ],
+        "dom": true
+      },
+      "reviewedPresentationExtension": {
+        "date": "2026-10-16",
+        "scope": "Six typed read-only branches inside existing AnswerWidget; existing ten formats only",
+        "evidence": "integration/live-answer-formats-frontend-20261016/independent-frontend-final-review.md; backend-crossfixture-receipt.json",
+        "newComponentFamilies": false
+      }
+    },
+    "dist/control-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:choices": 1,
+          "arrow:fail": 1,
+          "arrow:text": 1,
+          "function:controlArgs": 1,
+          "function:controlTask": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/flow-controller.js": {
+      "status": "approved-motion",
+      "domOwner": "MusicJourney artwork handoff only",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/visual-content.js",
+        "dist/music-flow.js",
+        "dist/widget-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:LocalMusicRefresh": 1,
+          "class:MusicJourney": 1,
+          "method:after": 1,
+          "method:cancel": 1,
+          "method:clear": 1,
+          "method:constructor": 1,
+          "method:current": 1,
+          "method:dispose": 2,
+          "method:flyArtwork": 1,
+          "method:receipt": 1,
+          "method:render": 1,
+          "method:start": 2,
+          "method:sync": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/home-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/weather-observation.js",
+        "dist/robot-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:slot": 1,
+          "arrow:text": 1,
+          "function:applyHome": 1,
+          "function:historyObservation": 1,
+          "function:orderHomeDevices": 1,
+          "function:validateHome": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ingress-kiosk.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:stop": 1,
+          "function:beginIngressKiosk": 1,
+          "function:beginIngressRoot": 1,
+          "function:inPanel": 1,
+          "function:isPodViewRoute": 1,
+          "function:messenger": 1,
+          "function:onClick": 1,
+          "function:onPageShow": 2,
+          "function:onProperties": 2,
+          "function:parentFrame": 1,
+          "function:parentRoute": 1,
+          "function:subscribe": 2,
+          "function:unsubscribe": 2
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/live-answer-view.js": {
+      "status": "unapproved-debt",
+      "domOwner": "LiveAnswerView source disclosure",
+      "debt": "D03: live-only owner source dialog; reuse existing disclosure anatomy, no new family",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/owner-answers.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:current": 1,
+          "arrow:make": 1,
+          "class:LiveAnswerView": 1,
+          "function:answerReadContext": 1,
+          "method:constructor": 1,
+          "method:currentAnswer": 1,
+          "method:invalidate": 1,
+          "method:refresh": 1,
+          "method:setReadStatus": 1,
+          "method:showSource": 1
+        },
+        "roots": [
+          "factory:button:'Luk'"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/live-control-view.js": {
+      "status": "unapproved-debt",
+      "domOwner": "LiveControlView admitted option forms",
+      "debt": "D02: bespoke live authority/options form; server-owned actions do not approve a new visual family",
+      "factoryClassArgument": 2,
+      "imports": [
+        "dist/player-view.js",
+        "dist/control-model.js",
+        "dist/media-observation.js",
+        "dist/robot-control-panel.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:has": 1,
+          "arrow:make": 1,
+          "class:LiveControlView": 1,
+          "method:allowed": 1,
+          "method:buildOptions": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:invalidate": 1,
+          "method:musicContext": 1,
+          "method:musicCurrent": 1,
+          "method:open": 1,
+          "method:openMusic": 1,
+          "method:openRobot": 1,
+          "method:prepareMusic": 1,
+          "method:pruneSpent": 1,
+          "method:receiptText": 1,
+          "method:remember": 1,
+          "method:render": 1,
+          "method:renderMusicControls": 1,
+          "method:renderReceipt": 1,
+          "method:robotDevice": 1,
+          "method:send": 1,
+          "method:moveSpeaker": 1
+        },
+        "roots": [
+          "factory:button:'dialog-close'",
+          "factory:button:'text-control'",
+          "factory:dialog:'live-control-dialog'",
+          "factory:div:'control-choice-grid'",
+          "factory:div:'control-options'",
+          "factory:section:'control-option'"
+        ],
+        "registrations": {},
+        "customTags": [
+          "pv-robot-control-panel"
+        ],
+        "dom": true
+      }
+    },
+    "dist/live-home-view.js": {
+      "status": "unapproved-debt",
+      "domOwner": "renderLiveWeather + renderRobotHistory",
+      "debt": "D01: shared pv-activity-timeline owns observed/requested events; remaining live care/settings detail and reuse controls are scoped existing debt, not a new robot family",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/weather-observation.js",
+        "dist/weather-view.js",
+        "dist/robot-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {
+          "renderWeather": 1
+        },
+        "definitions": {
+          "arrow:$": 1,
+          "function:renderLiveWeather": 1,
+          "function:renderRobotHistory": 1
+        },
+        "roots": [
+          "factory:article:'robot-recipe-row'",
+          "factory:button:'text-control'",
+          "factory:details:'device-history'",
+          "factory:details:'weather-source'",
+          "factory:div:'robot-history-empty'",
+          "factory:section:'device-history robot-recent'",
+          "factory:section:'robot-recent'"
+        ],
+        "registrations": {},
+        "customTags": [
+          "pv-activity-timeline"
+        ],
+        "dom": true
+      },
+      "requiredCalls": [
+        "renderWeather\\s*\\(view,\\s*model\\)"
+      ]
+    },
+    "dist/live-media-view.js": {
+      "status": "unapproved-debt",
+      "domOwner": "LiveMediaView account picker only",
+      "debt": "D04: live account picker; player/queue MUST delegate to PlayerView",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/live-queue-view.js",
+        "dist/media-observation.js",
+        "dist/player-view.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:$": 1,
+          "arrow:current": 1,
+          "class:LiveMediaView": 1,
+          "method:constructor": 1,
+          "method:invalidate": 1,
+          "method:loadQueue": 1,
+          "method:refresh": 1,
+          "method:render": 1,
+          "method:renderQueue": 1,
+          "method:selectAccount": 1,
+          "method:setAccount": 1,
+          "method:clearRoom": 1
+        },
+        "roots": [
+          "native:button:text-control",
+          "native:div:live-accounts"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "requiredCalls": [
+        "this\\.host\\.playerView\\.renderQueue\\s*\\(",
+        "this\\.host\\.playerView\\.renderPlayer\\s*\\(",
+        "this\\.host\\.playerView\\.renderControls\\s*\\("
+      ]
+    },
+    "dist/live-music-selection-view.js": {
+      "status": "unapproved-debt",
+      "domOwner": "LiveMusicSelectionView confirmation/target form",
+      "debt": "D05: live search/confirmation form; result cards MUST delegate to MusicResults",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/media-observation.js",
+        "dist/music-results.js",
+        "dist/music-selection-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:make": 1,
+          "class:LiveMusicSelectionView": 1,
+          "method:chooseCard": 1,
+          "method:chooseCollection": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:context": 1,
+          "method:current": 1,
+          "method:expireCollection": 1,
+          "method:invalidate": 1,
+          "method:leave": 1,
+          "method:onSnapshot": 1,
+          "method:openConfirm": 1,
+          "method:openSearch": 1,
+          "method:ownerChanged": 1,
+          "method:render": 1,
+          "method:search": 1,
+          "method:send": 1,
+          "method:setAccount": 1,
+          "method:setup": 1,
+          "method:showTargets": 1,
+          "method:showTracks": 1
+        },
+        "roots": [
+          "factory:button:'text-control'",
+          "factory:dialog:'live-music-confirm'",
+          "factory:form:'live-music-search'",
+          "factory:section:'live-music-selection'"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "requiredCalls": [
+        "musicResults\\.render\\s*\\("
+      ]
+    },
+    "dist/live-music-view.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/music-selection-model.js",
+        "dist/music-results.js",
+        "dist/spotify-artwork.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:artistOf": 1,
+          "class:LiveMusicCatalogueView": 1,
+          "function:projectMusicTracks": 1,
+          "method:armExpiry": 1,
+          "method:beginRead": 1,
+          "method:constructor": 1,
+          "method:ensureContext": 1,
+          "method:failure": 1,
+          "method:interrupt": 1,
+          "method:invalidateAuthority": 1,
+          "method:key": 1,
+          "method:loading": 1,
+          "method:offline": 1,
+          "method:open": 1,
+          "method:refresh": 1,
+          "method:render": 1,
+          "method:renewRetained": 1,
+          "method:resetAccount": 1,
+          "method:restore": 1,
+          "method:scope": 1,
+          "method:select": 1,
+          "method:setBusy": 1,
+          "method:slow": 1,
+          "method:tracks": 1,
+          "method:updateCapabilities": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "requiredCalls": [
+        "this\\.host\\.musicResults\\.render\\s*\\("
+      ]
+    },
+    "dist/live-queue-view.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/media-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:int": 1,
+          "arrow:scope": 1,
+          "arrow:text": 1,
+          "class:LiveQueueView": 1,
+          "function:queueOffer": 1,
+          "method:allowed": 1,
+          "method:choose": 1,
+          "method:constructor": 1,
+          "method:invalidate": 1,
+          "method:load": 1,
+          "method:model": 1,
+          "method:redraw": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/media-observation.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/spotify-artwork.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:item": 1,
+          "arrow:observationFresh": 1,
+          "arrow:timestamp": 1,
+          "arrow:txt": 1,
+          "function:playbackObservation": 1,
+          "function:queueObservation": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/music-fixture.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {},
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/music-flow.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:newMusicFlow": 1,
+          "function:musicFlow": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/music-results.js": {
+      "status": "approved-renderer",
+      "domOwner": "MusicResults.create/render",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/spotify-artwork.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:make": 1,
+          "arrow:text": 1,
+          "class:MusicResults": 1,
+          "function:fixtureArtwork": 1,
+          "function:localMusicCards": 1,
+          "function:sourceMusicCards": 1,
+          "method:create": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "requiredCalls": [
+        "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
+      ]
+    },
+    "dist/music-selection-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/media-observation.js",
+        "dist/spotify-artwork.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:identity": 1,
+          "arrow:integer": 1,
+          "arrow:text": 1,
+          "function:collectionCurrent": 1,
+          "function:collectionSample": 1,
+          "function:collectionSelection": 1,
+          "function:directTargets": 1,
+          "function:moodPreview": 1,
+          "function:renewCollectionSelection": 1,
+          "function:searchSample": 1,
+          "function:selectionCurrent": 1,
+          "function:selectionOffer": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/owner-answers.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/visual-content.js",
+        "dist/research-answers.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:receipt": 1,
+          "arrow:text": 1,
+          "function:answerSession": 1,
+          "function:ownedAnswers": 1,
+          "function:ownedSource": 1,
+          "function:provenance": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [
+          "now-120000"
+        ],
+        "dom": false
+      }
+    },
+    "dist/player-view.js": {
+      "status": "approved-renderer",
+      "domOwner": "PlayerView + renderPlayerControls",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/widget-model.js",
+        "dist/music-results.js",
+        "dist/spotify-artwork.js",
+        "dist/media-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:$": 1,
+          "arrow:fixtureArt": 1,
+          "arrow:txt": 1,
+          "class:PlayerView": 1,
+          "function:livePlayerModel": 1,
+          "function:liveQueueModel": 1,
+          "function:localControlModel": 1,
+          "function:localPlayerModel": 1,
+          "function:localQueueModel": 1,
+          "function:renderPlayerControls": 1,
+          "method:artwork": 1,
+          "method:createRow": 1,
+          "method:renderControls": 1,
+          "method:renderPlayer": 1,
+          "function:placeOutputHeader": 1
+        },
+        "roots": [
+          "native:button:queue-track"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "requiredCalls": [
+        "row\\.append\\(\\s*order\\s*,\\s*cover\\s*,\\s*copy\\s*,\\s*play\\s*\\)"
+      ]
+    },
+    "dist/podvoice-transport.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/request-deadline.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:unknown": 1,
+          "class:PodVoiceTransport": 1,
+          "method:accept": 1,
+          "method:answers": 1,
+          "method:close": 1,
+          "method:controlAction": 1,
+          "method:controlSetup": 1,
+          "method:disconnected": 1,
+          "method:home": 1,
+          "method:music": 1,
+          "method:musicSelectionAction": 1,
+          "method:musicSelectionSetup": 1,
+          "method:pair": 1,
+          "method:queueAction": 1,
+          "method:queueOffer": 1,
+          "method:request": 1,
+          "method:source": 1,
+          "method:start": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/podvoice-view.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/home-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:durationFor": 1,
+          "arrow:liveLocalEvent": 1,
+          "arrow:previousTimer": 1,
+          "arrow:unconfiguredLight": 1,
+          "arrow:voiceStatus": 1,
+          "function:liveScene": 1,
+          "function:liveTimerHistory": 1,
+          "function:liveTimerRequest": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/preview-scenes.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/visual-content.js",
+        "dist/scene-model.js",
+        "dist/visual-examples.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:previewScene": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/request-deadline.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:requestWithin": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/research-answers.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/visual-content.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:integer": 1,
+          "arrow:text": 1,
+          "function:researchAnswer": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [
+          "now-120000"
+        ],
+        "dom": false
+      }
+    },
+    "dist/robot-control-panel.js": {
+      "status": "unapproved-debt",
+      "domOwner": "RobotControlPanel",
+      "debt": "D06: bespoke shadow control form; no authority to invent a robot component family",
+      "factoryClassArgument": 2,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 3,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:make": 1,
+          "arrow:statusText": 1,
+          "arrow:update": 1,
+          "class:RobotControlPanel": 1,
+          "function:robotControlGroups": 1,
+          "method:build": 1,
+          "method:buildCleaning": 1,
+          "method:buildSetting": 1,
+          "method:constructor": 1,
+          "method:data": 1,
+          "method:disabled": 1,
+          "method:emit": 1,
+          "method:observed": 1,
+          "method:syncDisabled": 1,
+          "method:updateObservation": 1
+        },
+        "roots": [
+          "factory:button:'primary start'",
+          "factory:button:'secondary'",
+          "factory:button:option.action==='stop'?'stop':['pause'",
+          "factory:details:'settings'",
+          "factory:div:'choices'",
+          "factory:div:'heading'",
+          "factory:div:'observation'",
+          "factory:div:'repeat'",
+          "factory:div:'transport'",
+          "factory:form:'setting'"
+        ],
+        "registrations": {
+          "'pv-robot-control-panel'": 1
+        },
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/robot-observation.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:number": 1,
+          "arrow:unavailable": 1,
+          "function:robotFacts": 1,
+          "function:robotObservation": 1,
+          "function:robotRoom": 1,
+          "function:robotValue": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/scene-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/robot-observation.js",
+        "dist/visual-examples.js",
+        "dist/visual-content.js",
+        "dist/timer-model.js",
+        "dist/widget-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:binding": 1,
+          "arrow:deviceLabel": 1,
+          "arrow:focusedAnswer": 1,
+          "arrow:matches": 1,
+          "arrow:validFocus": 1,
+          "arrow:visibleActivities": 1,
+          "function:deviceActions": 1,
+          "function:initialScene": 1,
+          "function:navigationBack": 1,
+          "function:request": 1,
+          "function:sceneBaseTransition": 1,
+          "function:sceneTransition": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/spotify-artwork.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:fallback": 1,
+          "function:renderSpotifyArtwork": 1,
+          "function:spotifyArtwork": 1,
+          "function:spotifyItemUrl": 1,
+          "function:spotifyTrackUrl": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/timer-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:adjustTimerDuration": 1,
+          "arrow:mapTimers": 1,
+          "arrow:timerStateLabel": 1,
+          "arrow:timerTime": 1,
+          "arrow:timersFor": 1,
+          "arrow:visibleTimers": 1,
+          "function:readTimerDuration": 1,
+          "function:timerProgress": 1,
+          "function:timerTransition": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/timer-notice.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:TimerNotice": 1,
+          "method:attach": 1,
+          "method:cleanup": 1,
+          "method:clearExpiry": 1,
+          "method:dismiss": 1,
+          "method:render": 1,
+          "method:schedule": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/timer-view.js": {
+      "status": "approved-renderer",
+      "domOwner": "TimerView",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/timer-model.js",
+        "dist/timer-notice.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:end": 1,
+          "arrow:matches": 1,
+          "arrow:priority": 1,
+          "class:TimerView": 1,
+          "function:timerPresentation": 1,
+          "method:card": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:render": 1,
+          "method:renderNotice": 1,
+          "method:updatePicker": 1
+        },
+        "roots": [
+          "html:button:timer-adjust",
+          "html:button:timer-finish",
+          "html:button:timer-start",
+          "html:div:timer-active-list",
+          "html:div:timer-create-footer",
+          "html:div:timer-duration",
+          "html:div:timer-presets",
+          "html:div:timer-selected",
+          "html:div:timer-stepper",
+          "html:form:timer-create",
+          "html:header:response-heading",
+          "html:section:timer-recent",
+          "html:section:timer-running",
+          "native:article:timer-panel"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/ui/gestures.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:cancel": 1,
+          "arrow:clear": 1,
+          "arrow:down": 1,
+          "arrow:end": 1,
+          "arrow:move": 1,
+          "arrow:wheel": 1,
+          "function:attachGestures": 1,
+          "function:gestureIntent": 1,
+          "function:transitionContent": 1,
+          "function:wheelGesture": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/library/catalog.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {},
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/library/components.js": {
+      "status": "approved-renderer",
+      "domOwner": "LibraryComponent, existing active roles only",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/ui/library/visual-components.js",
+        "dist/visual-content.js",
+        "dist/ui/library/catalog.js"
+      ],
+      "surface": {
+        "customElementAccesses": 1,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:make": 1,
+          "arrow:safeLink": 1,
+          "arrow:text": 1,
+          "class:LibraryComponent": 1,
+          "class:extends": 1,
+          "function:visualAction": 1,
+          "method:build": 1,
+          "method:button": 1,
+          "method:connectedCallback": 1,
+          "method:data": 2,
+          "method:disconnectedCallback": 1,
+          "method:fire": 1,
+          "method:init": 1,
+          "method:keyed": 1,
+          "method:setOpen": 1,
+          "method:update": 1
+        },
+        "roots": [
+          "factory:article:'pv-music-row'",
+          "factory:button:'pv-button'",
+          "factory:dialog:'pv-sheet'",
+          "factory:div:'pv-actions'",
+          "factory:div:'pv-chart-row'",
+          "factory:div:'pv-content'",
+          "factory:div:'pv-frame-inner'",
+          "factory:div:'pv-instrument'",
+          "factory:div:'pv-list'",
+          "factory:ol:'pv-step-outline'",
+          "factory:table:'pv-table'"
+        ],
+        "registrations": {
+          "entry.tag": 1
+        },
+        "customTags": [],
+        "dom": true
+      },
+      "reviewedPresentationExtension": {
+        "date": "2026-10-16",
+        "scope": "Native ordered outline for existing pv-step-guide read-only projection; existing source-list owner-receipt GET control",
+        "evidence": "integration/live-answer-formats-frontend-20261016/independent-frontend-final-review.md",
+        "newComponentFamilies": false
+      }
+    },
+    "dist/ui/library/visual-components.js": {
+      "status": "approved-renderer",
+      "domOwner": "VisualComponent, four validated families only",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/visual-content.js"
+      ],
+      "surface": {
+        "customElementAccesses": 1,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:copy": 1,
+          "arrow:make": 1,
+          "class:VisualComponent": 1,
+          "class:extends": 1,
+          "method:build": 1,
+          "method:connectedCallback": 1,
+          "method:data": 2,
+          "method:reconcile": 1,
+          "method:render": 1
+        },
+        "roots": [
+          "factory:details:'pv-visual-sources'",
+          "factory:div:'pv-visual-body'",
+          "factory:div:'pv-visual-lead'",
+          "factory:div:'pv-visual-source-panel'",
+          "factory:figure:'pv-answer-image'",
+          "factory:ol:'pv-visual-list'"
+        ],
+        "registrations": {
+          "`pv-${family}`": 1
+        },
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/ui/motion.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:SceneMotion": 1,
+          "method:animate": 1,
+          "method:cancel": 1,
+          "method:capture": 1,
+          "method:constructor": 1,
+          "method:enter": 1,
+          "method:reduced": 1,
+          "method:resources": 1,
+          "method:settleResources": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/page-lifecycle.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:PageLifecycle": 1,
+          "method:attach": 1,
+          "method:constructor": 1,
+          "method:detach": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/resource-tile.js": {
+      "status": "approved-renderer",
+      "domOwner": "createResourceTile/updateResourceTile",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/timer-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {
+          "createResourceTile": 1,
+          "updateResourceTile": 1
+        },
+        "definitions": {
+          "function:createResourceTile": 1,
+          "function:updateResourceTile": 1
+        },
+        "roots": [
+          "native:button:resource-preview"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/ui/robot-motion.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:RobotMotion": 1,
+          "function:robotIsCleaning": 1,
+          "method:attach": 1,
+          "method:candidates": 1,
+          "method:cleanup": 1,
+          "method:clearExpiry": 1,
+          "method:sync": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/scroll-edges.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:listener": 1,
+          "class:ScrollEdges": 1,
+          "function:scrollEdgeState": 1,
+          "method:attach": 1,
+          "method:constructor": 1,
+          "method:detach": 1,
+          "method:measure": 1,
+          "method:refresh": 1,
+          "method:scan": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/touch-intent.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:aborted": 1,
+          "arrow:available": 1,
+          "arrow:blur": 1,
+          "arrow:cancel": 1,
+          "arrow:clear": 1,
+          "arrow:clearExpiry": 1,
+          "arrow:clearFeedback": 1,
+          "arrow:click": 1,
+          "arrow:controlFor": 1,
+          "arrow:down": 1,
+          "arrow:hit": 1,
+          "arrow:move": 1,
+          "arrow:path": 1,
+          "arrow:release": 1,
+          "arrow:scrolled": 1,
+          "arrow:up": 1,
+          "function:attachTouchIntent": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/visual-content.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:fail": 1,
+          "arrow:sourced": 1,
+          "arrow:string": 1,
+          "function:link": 1,
+          "function:rows": 1,
+          "function:validateVisualContent": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/visual-examples.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:source": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/voice-surface.js": {
+      "status": "approved-renderer",
+      "domOwner": "VoiceSurface",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:make": 1,
+          "class:VoiceSurface": 1,
+          "function:voicePresentation": 1,
+          "method:animate": 1,
+          "method:attach": 1,
+          "method:cancelAnimations": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:position": 1,
+          "method:reduced": 1,
+          "method:update": 1
+        },
+        "roots": [
+          "factory:aside:'voice-surface'",
+          "factory:div:'voice-copy'"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/weather-fact-display.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/weather-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:weatherFactDisplay": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/weather-observation.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:conditionLabel": 1,
+          "arrow:exact": 1,
+          "arrow:localDayKey": 1,
+          "function:completeHourlyDayRanges": 1,
+          "function:conditionIcon": 1,
+          "function:forecastDayRows": 1,
+          "function:hourlyWeather": 1,
+          "function:weatherAdvice": 1,
+          "function:weatherObservation": 1,
+          "function:weatherTemperature": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/weather-view.js": {
+      "status": "approved-renderer",
+      "domOwner": "build/renderWeather",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/weather-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {
+          "renderWeather": 2
+        },
+        "definitions": {
+          "arrow:assign": 1,
+          "arrow:format": 1,
+          "arrow:quantity": 1,
+          "function:artwork": 1,
+          "function:build": 1,
+          "function:clothingTip": 1,
+          "function:liveWeatherModel": 1,
+          "function:localWeatherModel": 1,
+          "function:renderLocalWeather": 1,
+          "function:renderWeather": 1,
+          "function:rows": 1,
+          "function:weatherMetrics": 1,
+          "function:weatherSourceLabel": 1
+        },
+        "roots": [
+          "factory:div:'weather-current'",
+          "factory:footer:'weather-source'",
+          "factory:header:'response-heading'",
+          "factory:section:'weather-days'",
+          "factory:section:'weather-hours'"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/widget-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/music-fixture.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:musicArtwork": 1,
+          "function:initialWidgetState": 1,
+          "function:musicRefreshFeedback": 1,
+          "function:resultsFor": 1,
+          "function:widgetTransition": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/widget-view.js": {
+      "status": "approved-composition",
+      "domOwner": "WidgetHost",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/speaker-output-view.js",
+        "dist/player-view.js",
+        "dist/ui/touch-intent.js",
+        "dist/ui/scroll-edges.js",
+        "dist/voice-surface.js",
+        "dist/live-control-view.js",
+        "dist/live-answer-view.js",
+        "dist/ui/page-lifecycle.js",
+        "dist/live-media-view.js",
+        "dist/live-music-view.js",
+        "dist/live-music-selection-view.js",
+        "dist/live-home-view.js",
+        "dist/home-model.js",
+        "dist/ui/motion.js",
+        "dist/ui/robot-motion.js",
+        "dist/podvoice-transport.js",
+        "dist/podvoice-view.js",
+        "dist/timer-view.js",
+        "dist/timer-model.js",
+        "dist/weather-view.js",
+        "dist/ui/resource-tile.js",
+        "dist/flow-controller.js",
+        "dist/preview-scenes.js",
+        "dist/ui/gestures.js",
+        "dist/music-results.js",
+        "dist/widget-model.js",
+        "dist/scene-model.js",
+        "dist/answer-widget.js"
+      ],
+      "surface": {
+        "customElementAccesses": 1,
+        "rendererCalls": {
+          "MusicResults": 1,
+          "PlayerView": 1,
+          "TimerView": 1,
+          "VoiceSurface": 1,
+          "createResourceTile": 2,
+          "renderWeather": 1,
+          "updateResourceTile": 2
+        },
+        "definitions": {
+          "arrow:$": 1,
+          "arrow:current": 1,
+          "arrow:outside": 1,
+          "arrow:px": 1,
+          "arrow:result": 1,
+          "class:WidgetHost": 1,
+          "method:alignClock": 1,
+          "method:alignOverview": 1,
+          "method:build": 1,
+          "method:cleanup": 1,
+          "method:connectGestures": 1,
+          "method:connectPodVoice": 1,
+          "method:connectedCallback": 1,
+          "method:customize": 1,
+          "method:disconnectedCallback": 1,
+          "method:dispatch": 1,
+          "method:focusHeading": 1,
+          "method:invalidateLiveMusic": 1,
+          "method:liveMusicAccountChanged": 1,
+          "method:loadLiveHome": 1,
+          "method:loadLiveMusic": 1,
+          "method:music": 1,
+          "method:open": 1,
+          "method:render": 1,
+          "method:renderLive": 1,
+          "method:renderResourceRail": 1,
+          "method:renderVoice": 1,
+          "method:schedule": 1,
+          "method:scheduleAnswer": 1,
+          "method:scheduleClock": 1,
+          "method:scheduleDevices": 1,
+          "method:scheduleReceipt": 1,
+          "method:scheduleTick": 1,
+          "method:sendLiveTimer": 1,
+          "method:showFeedback": 1
+        },
+        "roots": [
+          "native:article:retained-answer",
+          "native:button:history-open",
+          "native:button:retained-answer",
+          "native:div:history-preview"
+        ],
+        "registrations": {
+          "'pv-widget-host'": 1
+        },
+        "customTags": [
+          "pv-answer",
+          "pv-inline-status"
+        ],
+        "dom": true
+      },
+      "requiredCalls": [
+        "new\\s+MusicResults\\s*\\(",
+        "new\\s+PlayerView\\s*\\(",
+        "new\\s+TimerView\\s*\\(",
+        "this\\.musicResults\\.render\\s*\\(",
+        "this\\.playerView\\.renderPlayer\\s*\\(",
+        "createResourceTile\\s*\\("
+      ]
+    },
+    "dist/speaker-output-view.js": {
+      "status": "approved-renderer",
+      "domOwner": "Existing canonical output picker read-only row adapter; no separate component or move authority",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:current": 1,
+          "arrow:fields": 1,
+          "arrow:hex": 1,
+          "arrow:text": 1,
+          "class:SpeakerOutputView": 1,
+          "function:speakerCatalogue": 1,
+          "method:armExpiry": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:context": 1,
+          "method:invalidate": 1,
+          "method:open": 1,
+          "method:sync": 1,
+          "arrow:catalogueCurrent": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    }
+  },
+  "sharedContracts": [
+    {
+      "path": "dist/visual-content.js",
+      "patterns": [
+        "visualFamilies\\s*=\\s*\\['fact-card','sourced-image','answer-timeline','simple-diagram'\\]"
+      ]
+    },
+    {
+      "path": "dist/ui/resource-tile.js",
+      "patterns": [
+        "export\\s+function\\s+createResourceTile",
+        "export\\s+function\\s+updateResourceTile"
+      ]
+    },
+    {
+      "path": "dist/index.html",
+      "patterns": [
+        "<pv-widget-host[ >]",
+        "<pv-activity-timeline\\s+id=\"device-timeline\""
+      ]
+    },
+    {
+      "path": "dist/live-home-view.js",
+      "patterns": [
+        "make\\('pv-activity-timeline'\\)",
+        "timeline\\.data\\s*=\\s*\\{items:"
+      ]
+    }
+  ],
+  "referenceOnlyFiles": [
+    "dist/app.js",
+    "dist/components.html",
+    "dist/example-sources.html",
+    "dist/legacy.html",
+    "dist/library.css",
+    "dist/library.html",
+    "dist/library.js",
+    "dist/model.js",
+    "dist/ordbog.css",
+    "dist/ordbog.html",
+    "dist/ordbog.js",
+    "dist/patterns.css",
+    "dist/patterns.html",
+    "dist/patterns.js",
+    "dist/scenes.css",
+    "dist/scenes.html",
+    "dist/scenes.js",
+    "dist/setup.css",
+    "dist/setup.html",
+    "dist/setup.js",
+    "dist/style.css",
+    "dist/ui/catalog.js",
+    "dist/ui/components.js",
+    "dist/ui/legacy-components.css",
+    "dist/ui/reconcile.js",
+    "dist/visual-protocol.js",
+    "dist/workshop.css",
+    "dist/workshop.js"
+  ],
+  "variantDebt": [
+    {
+      "id": "D07",
+      "status": "unapproved-debt",
+      "paths": [
+        "dist/music-results.js",
+        "dist/player-view.js",
+        "dist/voice-surface.js",
+        "dist/ui/library/components.js",
+        "dist/ui/library/visual-components.js",
+        "dist/index.html"
+      ],
+      "reason": "Existing loading prose and progress labels are not approved variants. Adopt reviewed existing-anatomy empty/retained variants from widget-loading-20261016; finite aria-busy remains."
+    }
+  ],
+  "approvedCompositions": [
+    {
+      "date": "2026-10-16",
+      "authority": "human-user",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md",
+      "scope": "Extend existing canonical identities only; visual direction1 is selected for improvement, previous visual styling is not newly approved.",
+      "variants": [
+        "Header Svar → vejr → ur, grouped right: header-history/header-left/header-navigation.",
+        "Visual history gallery: retained-answer article, inert history-preview containing pv-answer and history-open same-answer button. Empty history uses existing pv-inline-status.",
+        "Robot observations and separately labelled requests reuse pv-activity-timeline; care/settings stay in existing details disclosure.",
+        "Ten local QA formats reuse existing answer renderers; preview-scenes imports existing visual-examples. Normal/live history is not seeded.",
+        "Music tabs Stemning · Humør · Topsange · Senest; no Likede promotion."
+      ]
+    }
+  ]
+}

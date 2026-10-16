@@ -1,6 +1,6 @@
 import {renderPlayerControls} from './player-view.js';
 import {controlTask,controlArgs} from './control-model.js';
-import {observationFresh,roomObservationCurrent} from './media-observation.js';
+import {observationFresh,roomObservationCurrent,mediaRoomBinding} from './media-observation.js';
 import './robot-control-panel.js';
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 // Presentation-only client. All tickets, scopes and effect owners stay server-side.
@@ -41,7 +41,8 @@ export class LiveControlView{
   const p=this.host.liveMedia?.playback,s=this.host.liveSnapshot;
   if(this.suspending||!this.host.isConnected||!this.allowed('music')||!roomObservationCurrent(p,s)||!p?.target?.id||!['playing','paused'].includes(p.state)||typeof p.config_entry_id!=='string'||!p.config_entry_id||typeof p.owner_epoch!=='string'||!p.owner_epoch)return null;
   const target={accountId:p.config_entry_id,kind:'spotify_device',targetId:p.target.id};
-  const key=JSON.stringify([s.bootId,s.roomId,p.config_entry_id,p.owner_epoch,p.target.id,p.item?.uri??null,p.state]);
+  const binding=mediaRoomBinding(s,p.config_entry_id);
+  const key=JSON.stringify([s.bootId,s.roomId,p.config_entry_id,p.owner_epoch,p.target.id,p.item?.uri??null,p.state,binding.bindingId,binding.nativeRoomId,binding.nativeHomepodId,binding.targetId]);
   return {key,target,pollSequence:p.poll_sequence,bootId:s.bootId,roomId:s.roomId};
  }
  musicCurrent(context){return !!context&&this.musicContext()?.key===context.key;}
@@ -71,6 +72,21 @@ export class LiveControlView{
   if(feedback){this.host.showFeedback?.(feedback,true);this.musicFeedback=feedback;}else if(this.musicFeedback&&this.host.feedbackMessage===this.musicFeedback){this.host.showFeedback?.('',false);this.musicFeedback='';}
   if(transport||canVolume)this.musicButton.hidden=true;
   this.host.setAttribute('data-native-music-controls',transport||canVolume?'true':'false');
+ }
+ async moveSpeaker(speaker,catalogueCurrent=()=>false){
+  this.pruneSpent();const context=this.musicContext(),snapshot=this.host.liveSnapshot,binding=context&&mediaRoomBinding(snapshot,context.target.accountId),transport=this.host.liveTransport;
+  if(!context||!binding||!catalogueCurrent()||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending||this.musicFence?.key===context.key&&['unknown','accepted'].includes(this.musicFence.outcome)||speaker?.kind!=='configured_alias'||speaker.accountId!==context.target.accountId||!/^[a-f0-9]{64}$/.test(speaker.speakerId)||speaker.selectable!==true||speaker.availability!=='available'||typeof speaker.nativeRoomId!=='string'||!speaker.nativeRoomId||typeof speaker.homepodId!=='string'||! /^[1-9][0-9]{0,19}$/.test(speaker.homepodId)||speaker.outputSelected===true||speaker.nativeRoomId===binding.nativeRoomId&&speaker.homepodId===binding.nativeHomepodId)return false;
+  const generation=this.generation,bindingKey=JSON.stringify(binding),optionId='move:'+speaker.speakerId,operationCurrent=()=>generation===this.generation&&this.host.liveTransport===transport&&this.musicCurrent(context)&&JSON.stringify(mediaRoomBinding(this.host.liveSnapshot,context.target.accountId))===bindingKey,current=()=>operationCurrent()&&catalogueCurrent();
+  this.musicIntentPending=true;this.setupPending=true;this.musicOffer=null;this.musicAttempt=context.key;clearTimeout(this.musicExpiryTimer);this.renderMusicControls();this.host.liveOutputs?.sync();let operation=null,sent=false;
+  try{
+   const value=await transport.controlSetup('music',{...context.target,speakerId:speaker.speakerId});if(!current())return false;
+   const task=controlTask(value,this.host.liveSnapshot,'music');if(task.options.length!==1||task.options[0].id!==optionId||task.options[0].action!=='move_existing_session'||task.options[0].argsSchema.kind!=='none'||this.spent.has(task.taskId))throw Error('invalid_move_offer');
+   const args=controlArgs(task,optionId,{});if(!current())return false;
+   this.spent.set(task.taskId,task.expiresAt);this.setupPending=false;this.pending=true;
+   operation={key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:'music',target:{...context.target,speakerId:speaker.speakerId},label:task.options[0].label};this.activeOperation=operation;this.musicFence={...context,outcome:'pending'};this.remember(operation,'pending');this.renderMusicControls();this.host.liveOutputs?.sync();sent=true;
+   const response=transport.controlAction(task,optionId,args);try{this.host.ownerDocument?.getElementById('rooms')?.close();}catch{}const result=await response;this.remember(operation,result.outcome,result.requestId);if(!operationCurrent())return true;this.musicFence={...context,outcome:result.outcome};return true;
+  }catch{if(sent&&operation){this.remember(operation,'unknown');if(operationCurrent())this.musicFence={...context,outcome:'unknown'};}else if(operationCurrent())this.musicFence={...context,outcome:'unavailable'};return sent;}
+  finally{this.setupPending=false;this.musicIntentPending=false;if(operation){this.pending=false;this.activeOperation=null;}if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}}
  }
  async musicIntent(action,input={}){
   this.pruneSpent();

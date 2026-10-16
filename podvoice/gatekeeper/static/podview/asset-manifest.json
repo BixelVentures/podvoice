@@ -203,7 +203,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "1ea8c0e36a02c7f2933dfcb89a3de2499c8449a2d5a90628c3af97ee2bd7e429"
+      "sha256": "24c88f65d55e997ad26196d865e187c72bc31466416363fb796781df7ddb95e3"
     },
     {
       "path": "example-sources.html",
@@ -251,7 +251,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "a5ae93fe73d9bc900e2df2a5088e0f057706e40c4ac1f171fc3380ca61f6cc7c"
+      "sha256": "5ab6804c260e3688f52e21b0e6432b1bdd7aa986940c29c6e2d4a499cae30391"
     },
     {
       "path": "live-home-view.js",
@@ -359,7 +359,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "c4338b239f43b93fd18736dc1b8d1c4210645ac9c7db0cbdf58fd2ac6ca79cf3"
+      "sha256": "5f31d4043dd21a3853f477286d4cf5db3fd533cc68da287893627f5707002660"
     },
     {
       "path": "robot-observation.js",
@@ -395,7 +395,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "89475e85bad33f9dae38cdcae118935904dfffcbce3594793f3b0543ce0debfc"
+      "sha256": "2e51784303c718d48ff24f791213140b5e8bbe3b2bf20f93a7dc4bbd1ed74ed1"
     },
     {
       "path": "spotify-artwork.js",
@@ -515,7 +515,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "f72f14f81647fa277dda5a25fb55f626a7944580cb3c43bad69eea60f8dc4d16"
+      "sha256": "decb4536e353a975517fb4a2d9c0de76245c6692b90e7b46ae283ec236991a53"
     },
     {
       "path": "widget-model.js",
@@ -523,7 +523,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "f3c8720564566a477d73dd3483732c0caf51a2dd893e3e1a7cd949438109f5f2"
+      "sha256": "56b64d856a745a1be31639253cc847d749c4bb7b7c00c0368b95ac6e0eec4593"
     },
     {
       "path": "widget-view.css",
