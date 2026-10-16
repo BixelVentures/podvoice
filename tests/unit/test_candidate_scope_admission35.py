@@ -38,8 +38,9 @@ def test_city_config_rejects_missing_or_unreviewed_changes(candidate):
     assert not admission.config_yaml_only(CITY_BASE, candidate)
 
 
-def test_exact_scope_declared_but_final_approval_pins_remain_blank():
-    manifest = json.loads((SOURCE / admission.MANIFEST).read_text())
+def test_exact_scope_declared_in_unapproved_or_fully_pinned_phase():
+    raw = (SOURCE / admission.MANIFEST).read_bytes()
+    manifest = json.loads(raw)
     assert admission.BASE == "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b"
     assert admission.VERSION == 10
     assert admission.DOMAINS == ("ha_tools", "physical_output")
@@ -52,15 +53,57 @@ def test_exact_scope_declared_but_final_approval_pins_remain_blank():
         "podvoice/gatekeeper/static/podview/flow.js",
         "podvoice/gatekeeper/static/podview/flow.css",
     }
-    assert not admission.REVIEWER
-    assert not admission.MANIFEST_SHA
-    assert not admission.PROFILE_AST
     assert admission.IMMUTABLE["scripts/candidate_scope_admission34.py"]
     assert manifest["schema"] == "podview35.admission.v1"
     assert manifest["base"] == admission.BASE
-    assert not any(
-        manifest[k] for k in ("production", "regressions", "runtime", "config", "policy", "tooling")
+    sections = {
+        "production": admission.PRODUCTION,
+        "regressions": admission.REQUIRED_TESTS,
+        "runtime": admission.strict.runtime_inventory(SOURCE),
+        "config": admission.CONFIG,
+        "policy": admission.POLICY - {admission.PROFILE, admission.MANIFEST},
+        "tooling": admission.TOOLING,
+    }
+    approval = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
+    if not any(approval):
+        assert all(not manifest[key] for key in sections)
+        assert manifest["asset_count"] == 0
+        return
+    assert all(approval)
+    assert admission.sha(raw) == admission.MANIFEST_SHA
+    assert (
+        admission.strict.ast_sha((SOURCE / admission.PROFILE).read_bytes(), "PROFILE_AST")
+        == admission.PROFILE_AST
     )
+    for key, expected in sections.items():
+        assert set(manifest[key]) == set(expected)
+        assert admission.strict.pins_match(SOURCE, manifest[key])
+    assert manifest["asset_count"] == 135
+    assert admission.strict.assets_match(SOURCE, manifest["runtime"], manifest["asset_count"])
+    record = admission.record_at(SOURCE)
+    assert record is not None
+    assert set(record) == admission.FIELDS
+    assert record["reviewer"] == admission.REVIEWER
+    assert record["manifest_fingerprint"] == admission.MANIFEST_SHA
+
+
+@pytest.mark.parametrize("missing", ["REVIEWER", "MANIFEST_SHA", "PROFILE_AST"])
+def test_partial_approval_pins_reject_before_manifest(monkeypatch, missing):
+    for field in ("REVIEWER", "MANIFEST_SHA", "PROFILE_AST"):
+        monkeypatch.setattr(admission, field, "" if field == missing else "a" * 64)
+    record = {field: "fixture" for field in admission.FIELDS}
+    record.update(
+        version=admission.VERSION,
+        kind=admission.KIND,
+        base_tip=admission.BASE,
+        merge_base=admission.BASE,
+        domains=list(admission.DOMAINS),
+        reviewer=admission.REVIEWER,
+    )
+    report = admission.legacy.CandidateScope(
+        "head", admission.BASE, (), (), admission.DOMAINS, True, "fixture"
+    )
+    assert not admission.validate(SOURCE, report, admission.BASE, record)
 
 
 def test_exact_three_deleted_flow_assets_bind_base_bytes_and_candidate_absence(

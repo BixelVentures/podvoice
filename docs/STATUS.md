@@ -99,6 +99,8 @@ Hypotese for sidste forbrugerændring: erstat kun den hidtil tomme reviewbinding
 
 **MOVE-bindingens faktiske kontrol før freeze:** den eneste sidste produktionsændring er nu den præcise a674-policykonstant i podview.py. Ruff check/format og mypy for ændret fil består; fem eksisterende caller- og 11 stemme-MOVE-cases består samlet16/16. Endelig risikogennemgang fordeles mellem de eksisterende Sol-reviewere med afgrænsede ejer-/artifactspor, efter brugerens besked gennem PodView-leaden om at undlade Ultra og foretrække parallel Sol. Uændrede scoped reviews genbruges. Der hævdes endnu ingen samlet source-/releasegodkendelse; runtime-/admissionspins og faktisk Green er uændret indtil de næste eksplicitte trin.
 
+**Officiel CI, afgrænset fixture-opfølgning:** Den første 35-unitkontrol ramte en forældet scaffold-assertion, der krævede blanke admission-pins også efter legitim finalreview. Testen dækker nu både helt tom/uautoriseret scaffold og fuldt pinnet manifest/profil/record samt tre delvist pinnede afvisninger. Dernæst viste de eksisterende JS-familier 13 fixtureforventninger til ældre PodView-visning; den uafhængigt reviewede test-only adoption i `combined-adoption-receipt.json` SHA256 `3c61b75e8816c52865f474bdca1cbaf1317c8ec549e6626ce13822a562518472` matcher alle 13 aktuelle filer og deres preimages. Kildeleverancens målrettede 108/108 JS-cases består på de nye fixturebytes; de 135 produktionsassets er uændrede. Strict35 får kun disse 13 faktisk ændrede teststier (49 krævede tests i alt), og manifest-/STATUS-fingeraftryk skal repinnes én gang efter dette pre-pin-checkpoint. Den officielle CI-rerun, publicering og installation resterer; fixture-PASS er ikke fysisk eller providerbevis.
+
 ---
 
 # Aktiv leadbeslutning · PodVoice2.0.34 ·16. oktober2026
@@ -650,14 +652,14 @@ Sidste afgrænsede staticfreeze ·15. oktober2026: kun weather-view.js, widget-v
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "cb0ed0e53cd1c8daa740d0140936797101d7fc2382ee7d6eab41aa6eaa334c09",
-  "regression_fingerprint": "320f3e1154e8aa1b2530794c044deeaaaf44f836e2494855b7d05a82d0ecf30c",
-  "runtime_fingerprint": "6e245a6af3f3797a98dfa535a1ae54e39d13f8d5d00b54b62b6268273c1b965e",
+  "fingerprint": "73cb4f96f85794ae7ae188468fc975285b02bf0f05a639f703828d1018efcc5e",
+  "regression_fingerprint": "8939e79de02a13d6b2274504173281a133aa7127d2f54ad6d209bc5e40dde379",
+  "runtime_fingerprint": "b68ac55547183a086126d77f053c7b288f048838d56bdc74ce1b410b6cd630f9",
   "config_fingerprint": "241b446750fa4840bb4bae2ab82e8e285d9dd5f8fd2a98be4159d695a7edba11",
-  "policy_fingerprint": "4c0c9258bea05c6d6267f1cc26edde288520c42a14946317a5ea716fc3f786f0",
+  "policy_fingerprint": "ad4ce25aa056f430901b13cdc38722f585cff51f6808a0483aaa6a0b0779e4ec",
   "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
-  "manifest_fingerprint": "a565d44ff7b96789136ec9b4e8b0983a7422408714abceaae35b9b0959a1b521",
-  "reviewer": "Independent GPT-6 Sol /root/admission34; coupled Native/C /root/review34",
-  "rationale": "Independent pre-pin source review GO for exact PodVoice d40ec10 tree6469c405 and coupled PodConnect 8c4cba7 tree68363288. All206 Native and27 C source pins match reviewed packaging receipts; exact135 UI assets and36 regressions are bound. Existing owner, grant, one-use, stale/unknown and deadline checks remain. Candidate source only: official CI, publication, installation, actual GPT-Live provider/audio, Green control, physical latency and stability acceptance remain separate and open."
+  "manifest_fingerprint": "67d2937dafaf6f757238cf06d369a181b34033684d71c2075d65b9c83eedb878",
+  "reviewer": "Independent GPT-6 Sol /root/review34; final pre-pin HEAD and coupled Native/C review",
+  "rationale": "Exact pre-pin PodVoice35 HEAD d386136f5e84f4d108617d8de2ad088076d65197 tree 03b38c8fb6e725fe08d81d6d89408472fd39b67a independently reviewed. Thirteen CI fixture files match adoption receipt 3c61b75e; 49 mapped regressions and 135 UI assets bound. Coupled Native/C source review remains bound to the prior reviewed runtime bytes. Official CI rerun, publication, installation, provider/audio, Green control and physical acceptance remain separate."
 }
 -->

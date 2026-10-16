@@ -138,14 +138,9 @@ def test_actual_split_facade_preserves_same_engine_other_alias_and_manual_27(
 ):
     async def run():
         facade, current, calls = build(monkeypatch)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         result = await facade.move(offer, lambda: current["value"])
-        assert (
-            result["accepted_room_move"] is True
-            and result["session_volume_percent"] == 27
-        )
+        assert result["accepted_room_move"] is True and result["session_volume_percent"] == 27
         assert [c[0] for c in calls] == [
             "get_room_move_controls",
             "prepare_room_move_playback",
@@ -204,9 +199,7 @@ def test_read_offer_cannot_invent_or_substitute_owner(change):
     if change == "fake_source":
         value["observation"]["source"] = "browser"
     with pytest.raises(ValueError):
-        move.controls(
-            value, "account", "same-engine", "r1", "43", POLICY, move.time.monotonic()
-        )
+        move.controls(value, "account", "same-engine", "r1", "43", POLICY, move.time.monotonic())
 
 
 @pytest.mark.parametrize(
@@ -227,9 +220,7 @@ def test_preparation_cannot_bypass_actual_final_pv_guard(monkeypatch, change):
 
     async def run():
         facade, current, calls = build(monkeypatch, handler)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         result = await facade.move(offer, lambda: current["value"])
         assert not result["ok"] and result["retryAllowed"] is False
         assert "move_room_playback" not in [c[0] for c in calls]
@@ -250,9 +241,7 @@ def test_preparation_cannot_bypass_actual_final_pv_guard(monkeypatch, change):
         "malformed",
     ],
 )
-def test_completion_never_credits_partial_foreign_or_unknown_as_success(
-    monkeypatch, change
-):
+def test_completion_never_credits_partial_foreign_or_unknown_as_success(monkeypatch, change):
     async def handler(service, body, _current, _facade):
         if service != "move_room_playback":
             return None
@@ -273,9 +262,7 @@ def test_completion_never_credits_partial_foreign_or_unknown_as_success(
 
     async def run():
         facade, current, calls = build(monkeypatch, handler)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         result = await facade.move(offer, lambda: current["value"])
         assert (
             not result["ok"]
@@ -299,9 +286,7 @@ def test_current_loss_while_waiting_cancels_exact_old_owner_once(monkeypatch, ph
 
         facade, current, calls = build(monkeypatch, handler)
         oldclient = facade.tools._client
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         task = asyncio.create_task(facade.move(offer, lambda: current["value"]))
         await entered.wait()
         current["value"] = False
@@ -328,9 +313,7 @@ def test_cancelled_caller_never_replays_and_joins_exact_cleanup(monkeypatch):
                 await asyncio.Event().wait()
 
         facade, current, calls = build(monkeypatch, handler)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         task = asyncio.create_task(facade.move(offer, lambda: current["value"]))
         await entered.wait()
         task.cancel()
@@ -346,9 +329,7 @@ def test_cancelled_caller_never_replays_and_joins_exact_cleanup(monkeypatch):
 def test_server_offer_preflight_denies_before_any_staging(monkeypatch, change):
     async def run():
         facade, current, calls = build(monkeypatch)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         if change == "expired":
             object.__setattr__(offer, "deadline", 0)
         if change == "grant":
@@ -366,7 +347,10 @@ def test_server_offer_preflight_denies_before_any_staging(monkeypatch, change):
 def test_same_canonical_sequence_cannot_be_replayed_through_new_setup(monkeypatch):
     async def run():
         facade, current, calls = build(monkeypatch)
-        guard = lambda: current["value"]
+
+        def guard():
+            return current["value"]
+
         first = await facade.setup("account", "same-engine", "r1", "43", guard)
         assert (await facade.move(first, guard))["accepted_room_move"]
         second = await facade.setup("account", "same-engine", "r0", "42", guard)
@@ -390,9 +374,7 @@ def test_source_may_advance_canonical_poll_and_sequence_without_changing_destina
 
     async def run():
         facade, current, calls = build(monkeypatch, handler)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         result = await facade.move(offer, lambda: current["value"])
         assert (
             result["ok"]
@@ -436,9 +418,7 @@ def test_actual_service_transport_is_closed_no_redirects_and_bounded(monkeypatch
     )
     assert value["schema"] == "podconnect.room_move_controls.v1"
     assert len(requests) == 1 and requests[0][0] == "POST"
-    assert requests[0][1].endswith(
-        "/services/podconnect/get_room_move_controls?return_response"
-    )
+    assert requests[0][1].endswith("/services/podconnect/get_room_move_controls?return_response")
     assert requests[0][2]["follow_redirects"] is False
     assert requests[0][2]["timeout"] == 8
 
@@ -456,9 +436,7 @@ def test_cancellation_during_cleanup_does_not_send_second_cancel(monkeypatch):
             return None
 
         facade, current, calls = build(monkeypatch, handler)
-        offer = await facade.setup(
-            "account", "same-engine", "r1", "43", lambda: current["value"]
-        )
+        offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
         task = asyncio.create_task(facade.move(offer, lambda: current["value"]))
         await entered.wait()
         task.cancel()

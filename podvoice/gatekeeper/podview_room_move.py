@@ -54,9 +54,7 @@ def _hex(value, length):
 
 
 def _digest(value):
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, allow_nan=False).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(value, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
 def controls(value, account, engine, room, homepod, policy, started):
@@ -184,8 +182,7 @@ def preparation(value, body, *, cancelled=False):
     if (
         value["state"] not in {"staged", "rejected", "cancelled", "unknown", "expired"}
         or type(value["ok"]) is not bool
-        or value["ok"]
-        is not (value["state"] == ("cancelled" if cancelled else "staged"))
+        or value["ok"] is not (value["state"] == ("cancelled" if cancelled else "staged"))
     ):
         raise ValueError("invalid preparation outcome")
     if "error_kind" in value:
@@ -252,9 +249,7 @@ def completion(value, body):
         _hex(operation, 32)
     if volume is not None:
         _integer(volume, 0, 100)
-    if accepted and (
-        operation is None or volume != body["move_offer"]["session_volume_percent"]
-    ):
+    if accepted and (operation is None or volume != body["move_offer"]["session_volume_percent"]):
         raise ValueError("move did not preserve observed session volume")
     if value["outcome"] == "rejected" and (operation is not None or volume is not None):
         raise ValueError("unproven early rejection")
@@ -306,7 +301,7 @@ class RoomMoveFacade:
     def current(self, binding, guard):
         try:
             return self.available and self.binding() == binding and bool(guard())
-        except Exception:  # noqa: BLE001 -- an external task-owner guard fails closed
+        except Exception:  # an external task-owner guard fails closed
             return False
 
     async def _read(self, client, token, service, args):
@@ -350,9 +345,7 @@ class RoomMoveFacade:
         )
         return payload.get("service_response") if isinstance(payload, dict) else None
 
-    async def _guarded_read(
-        self, client, token, service, body, binding, guard, seconds
-    ):
+    async def _guarded_read(self, client, token, service, body, binding, guard, seconds):
         async def admitted_read():
             if not self.current(binding, guard):
                 raise ValueError("move owner revoked before transport")
@@ -375,10 +368,7 @@ class RoomMoveFacade:
         try:
             for value in (account, engine, room, homepod):
                 _text(value)
-            if (
-                not re.fullmatch("[1-9][0-9]{0,19}", homepod)
-                or int(homepod) > 2**64 - 1
-            ):
+            if not re.fullmatch("[1-9][0-9]{0,19}", homepod) or int(homepod) > 2**64 - 1:
                 return None
             binding = self.binding()
             if not self.current(binding, current):
@@ -403,17 +393,13 @@ class RoomMoveFacade:
                 )
             if not self.current(binding, current) or self._reads[account] != serial:
                 return None
-            wire, deadline = controls(
-                result, account, engine, room, homepod, self.policy, started
-            )
+            wire, deadline = controls(result, account, engine, room, homepod, self.policy, started)
             epoch = wire["owner_epoch"]
             if self._owners.get(account) != epoch:
                 self._owners[account] = epoch
                 self._highwater[account] = 0
                 self._offers = {
-                    k: o
-                    for k, o in self._offers.items()
-                    if o.wire["config_entry_id"] != account
+                    k: o for k, o in self._offers.items() if o.wire["config_entry_id"] != account
                 }
             self._offers = {
                 k: o
@@ -422,12 +408,10 @@ class RoomMoveFacade:
             }
             if len(self._offers) >= 64:
                 return None
-            offer = MoveOffer(
-                secrets.token_hex(16), wire, _digest(wire), deadline, binding
-            )
+            offer = MoveOffer(secrets.token_hex(16), wire, _digest(wire), deadline, binding)
             self._offers[offer.handle] = offer
             return offer
-        except Exception:  # noqa: BLE001 -- source failures return no offer, never a target fallback
+        except Exception:  # source failures return no offer, never a target fallback
             return None
 
     async def _cancel(self, client, token, body):
@@ -447,14 +431,11 @@ class RoomMoveFacade:
         try:
             async with asyncio.timeout(1):
                 await self._read(client, token, "cancel_room_move_preparation", args)
-        except Exception:  # noqa: BLE001 -- best-effort exact cleanup never releases an unknown fence
+        except Exception:  # best-effort exact cleanup never releases an unknown fence
             return
 
     async def move(self, offer, current):
-        if (
-            not isinstance(offer, MoveOffer)
-            or self._offers.pop(offer.handle, None) is not offer
-        ):
+        if not isinstance(offer, MoveOffer) or self._offers.pop(offer.handle, None) is not offer:
             return _failure()
         try:
             wire = offer.wire
@@ -463,8 +444,7 @@ class RoomMoveFacade:
                 or time.monotonic() >= offer.deadline
                 or not self.current(offer.binding, current)
                 or self._owners.get(wire["config_entry_id"]) != wire["owner_epoch"]
-                or wire["next_command_sequence"]
-                <= self._highwater.get(wire["config_entry_id"], 0)
+                or wire["next_command_sequence"] <= self._highwater.get(wire["config_entry_id"], 0)
             ):
                 return _failure()
         except (ValueError, TypeError, KeyError):
@@ -536,6 +516,6 @@ class RoomMoveFacade:
         except asyncio.CancelledError:
             await cancel_once()
             raise
-        except Exception:  # noqa: BLE001 -- uncertain send is consumed; there is no retry/fallback
+        except Exception:  # uncertain send is consumed; there is no retry/fallback
             await cancel_once()
             return _failure("unknown" if dispatched else "rejected")

@@ -1,3 +1,4 @@
+import {targetEnvelope} from './root-room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {searchSample,directTargets,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
@@ -9,7 +10,7 @@ const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen'
 const context=()=>({schema:'podview.music-search-context.v1',bootId:'boot',roomId:'kitchen',configEntryId:'account',source:'spotify_web_api',query:'sang',candidateSetId:'a'.repeat(64),revisionScope:'music_selection',sessionId:'touch:one',turnId:'touch:two',taskId:'music:three',inputRevision:1,revision:1});
 const result=()=>({ok:true,data:{ok:true,schema:'podconnect.search_tracks.v1',config_entry_id:'account',source:'spotify_web_api',coverage:'spotify_search_sample',query:'sang',limit:3,source_sample_count:1,returned_count:1,tracks:[track]},candidateSet:context()});
 const target={accountId:'account',kind:'spotify_device',targetId:'direct-one',name:'Køkkenalrum HomePod'};
-const offer=()=>({ok:true,schema:'podview.music-selection.v1',candidateSetId:'a'.repeat(64),accountId:'account',target:{kind:'spotify_device',targetId:'direct-one'},taskId:'music-selection:'+'b'.repeat(32),revision:1,observedVolumePercent:30,expiresIn:50,options:[{id:'c'.repeat(24),label:track.name,artist:track.artist}]});
+const offer=()=>({ok:true,schema:'podview.music-selection.v1',candidateSetId:'a'.repeat(64),accountId:'account',target:{kind:'spotify_device',targetId:'direct-one'},taskId:'music-selection:'+'b'.repeat(32),revision:1,startVolumePercent:35,expiresIn:50,options:[{id:'c'.repeat(24),label:track.name,artist:track.artist}]});
 
 test('search and target projection require exact account, source and current room context',()=>{
  const s=snapshot(),body=result();assert.equal(searchSample(body,'account','sang',s).tracks[0].name,track.name);
@@ -17,8 +18,8 @@ test('search and target projection require exact account, source and current roo
  assert.equal(searchSample(body,'account','sang',{...s,bootId:'new'}).context,null);
  assert.equal(searchSample({...body,data:{...body.data,source:'invented'}},'account','sang',s),null);
  const targets={ok:true,coverage:'account_targets',data:{targets:[{...target,readOnly:false,restricted:false},{...target,kind:'configured_alias',targetId:'alias',readOnly:false,restricted:false},{...target,kind:'observed_output',targetId:'observed',readOnly:true,restricted:false}]}};
- assert.deepEqual(directTargets(targets,'account'),[target]);
- assert.equal(directTargets(targets,'other'),null);
+ assert.deepEqual(directTargets(targetEnvelope(s,targets,'account','direct-one'),'account',s),[target]);
+ assert.equal(directTargets(targets,'other',s),null);
 });
 
 test('offer accepts only opaque server options and expires against boot, account and capability',()=>{
@@ -36,7 +37,7 @@ test('transport sends exact query, opaque setup and one action without a browser
  const calls=[],t=new PodVoiceTransport({url:'https://home.example/view/',fetch:async(url,init={})=>{calls.push({url:String(url),init});if(String(url).includes('/actions')){const sent=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,outcome:'accepted',requestId:sent.requestId,retryAllowed:false,physicalResultVerified:false})};}if(String(url).includes('/setup'))return {ok:true,json:async()=>offer()};return {ok:true,json:async()=>result()};}});
  t.connected=true;t.snapshot=snapshot();t.controller=new AbortController();const sample=await t.music('search','account','sang');assert.equal(sample.ok,true);assert.match(calls[0].url,/kind=search/);assert.match(calls[0].url,/query=sang/);
  await t.musicSelectionSetup('a'.repeat(64),target);const setup=JSON.parse(calls[1].init.body);assert.equal(setup.candidateSetId,'a'.repeat(64));assert.deepEqual(setup.target,{accountId:'account',kind:'spotify_device',targetId:'direct-one'});
- const parsed=selectionOffer(offer(),searchSample(result(),'account','sang',snapshot()),target),action=await t.musicSelectionAction(parsed,'c'.repeat(24));assert.equal(action.outcome,'accepted');assert.equal(calls.length,3);const sent=JSON.parse(calls[2].init.body);assert.equal(sent.optionId,'c'.repeat(24));assert.equal(sent.confirmedVolumePercent,30);assert.equal('uri' in sent,false);t.close();
+ const parsed=selectionOffer(offer(),searchSample(result(),'account','sang',snapshot()),target),action=await t.musicSelectionAction(parsed,'c'.repeat(24));assert.equal(action.outcome,'accepted');assert.equal(calls.length,3);const sent=JSON.parse(calls[2].init.body);assert.equal(sent.optionId,'c'.repeat(24));assert.equal(sent.confirmedVolumePercent,35);assert.equal('uri' in sent,false);t.close();
 });
 
 test('malformed action reply is unknown and capability loss prevents a send',async()=>{

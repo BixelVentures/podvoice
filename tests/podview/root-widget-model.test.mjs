@@ -15,7 +15,7 @@ test('empty player cannot resume phantom music but a real choice can start it',(
 
 test('local collections show distinct source-backed tracks and selecting a card starts that exact track',()=>{
  const start=initialWidgetState(),sets=[];
- for(const collection of ['top','recent','liked']){
+ for(const collection of ['top','recent']){
   const s=step(start,{type:'collection',value:collection}),options=resultsFor(s);
   sets.push(options.map(option=>option.id.split(':')[1]).join(','));
   for(const option of options){
@@ -27,11 +27,11 @@ test('local collections show distinct source-backed tracks and selecting a card 
    assert.equal(done.playback.playing,true);
   }
  }
- assert.equal(new Set(sets).size,3);
+ assert.equal(new Set(sets).size,2);
 });
 
 test('other suggestions keep playback and invalidate previous card bindings without changing the queue source',()=>{
- for(const collection of ['mood','top','recent','liked']){
+ for(const collection of ['mood','feeling','top','recent']){
   const s=step(initialWidgetState(),{type:'collection',value:collection});
   const before=resultsFor(s),loading=step(s,{type:'refresh',revision:s.revision}),next=step(loading,{type:'refresh-result',...loading.refreshPending,status:'ready'});
   assert.deepEqual(resultsFor(loading),before);

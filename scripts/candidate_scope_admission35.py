@@ -127,15 +127,28 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_room_move_voice.py",
         "tests/integration/test_presentation_live_pipeline.py",
         "tests/integration/test_room_media_binding.py",
+        "tests/podview/mood-preview.test.mjs",
+        "tests/podview/music-selection.test.mjs",
+        "tests/podview/queue-occurrence.test.mjs",
         "tests/podview/root-component-library.test.mjs",
         "tests/podview/root-control-model.test.mjs",
+        "tests/podview/root-collection-selection.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/podview/root-mood-playlists.test.mjs",
+        "tests/podview/root-music-cache.test.mjs",
+        "tests/podview/root-music-refresh-feedback.test.mjs",
+        "tests/podview/root-music-selection.test.mjs",
         "tests/podview/root-native-music-controls.test.mjs",
+        "tests/podview/root-player-view.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
         "tests/podview/root-robot-history-view.test.mjs",
         "tests/podview/root-room-fixture.mjs",
         "tests/podview/root-speaker-output-idle.test.mjs",
         "tests/podview/root-speaker-output-view.test.mjs",
+        "tests/podview/root-shared-music-results.test.mjs",
         "tests/podview/root-weather-view.test.mjs",
+        "tests/podview/root-widget-model.test.mjs",
+        "tests/podview/visual-pending.test.mjs",
         "tests/unit/test_candidate_scope_admission35.py",
         "tests/unit/test_dev_cycle.py",
         "tests/unit/test_mood_diagnostics.py",
@@ -151,9 +164,9 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_weather_wind_bearing.py",
     }
 )
-REVIEWER = "Independent GPT-6 Sol /root/admission34; coupled Native/C /root/review34"
-MANIFEST_SHA = "a565d44ff7b96789136ec9b4e8b0983a7422408714abceaae35b9b0959a1b521"
-PROFILE_AST = "a2e8d12c648ba837f4e7a7db6f1c67c96c7256c49a0e5449ac6474f8d5d85080"
+REVIEWER = "Independent GPT-6 Sol /root/review34; final pre-pin HEAD and coupled Native/C review"
+MANIFEST_SHA = "67d2937dafaf6f757238cf06d369a181b34033684d71c2075d65b9c83eedb878"
+PROFILE_AST = "893dcc8ef3b3da9ad8e346d2727849ed62fc4b923b59e2c621d8a843f29cd8ae"
 DELETED_PRODUCTION = {
     "podvoice/gatekeeper/static/podview/flow.html": "ffe2df29e9db0b99f1777ab17fdbecbfcd2099fb377375c7d7b865dbabf0c9d4",
     "podvoice/gatekeeper/static/podview/flow.js": "b462c8de356eac701f8ca0ab99db73353b9d31df6ceea8b24595ef3cd9e62e08",

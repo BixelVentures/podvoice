@@ -4,6 +4,7 @@ import copy
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from gatekeeper import podview_weather as weather
 from gatekeeper.weather_result import compact_weather_result
 
