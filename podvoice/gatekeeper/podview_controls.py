@@ -70,7 +70,7 @@ def policy(value: str) -> dict:
                 allowed = (
                     _MUSIC
                     if domain == "music"
-                    else {"settings", "start", "reuse", "pause", "stop", "return"}
+                    else {"settings", "start", "reuse", "resume", "pause", "stop", "return"}
                 )
                 actions = row["actions"]
                 if (
@@ -331,7 +331,7 @@ class TouchControls:
                     task["owner"] = ("podview:" + self.bridge.boot_id, task_id)
                     active = None
                     if (
-                        set(rule["actions"]) & {"pause", "stop", "return"}
+                        set(rule["actions"]) & {"resume", "pause", "stop", "return"}
                         and "recipeId" not in body
                     ):
                         facade = VacuumTransport(device)
@@ -356,6 +356,7 @@ class TouchControls:
                                 {
                                     "id": oid,
                                     "label": {
+                                        "resume": "Fortsæt rengøring",
                                         "pause": "Pause rengøring",
                                         "stop": "Stop rengøring",
                                         "return": "Til basen",

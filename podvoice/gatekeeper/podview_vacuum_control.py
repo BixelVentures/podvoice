@@ -11,8 +11,14 @@ import time
 
 from . import constants as C
 
-_SERVICES = {"pause": (4, "pause"), "stop": (8, "stop"), "return": (16, "return_to_base")}
+_SERVICES = {
+    "resume": (8192, "start"),
+    "pause": (4, "pause"),
+    "stop": (8, "stop"),
+    "return": (16, "return_to_base"),
+}
 _STATES = {
+    "resume": {"paused"},
     "pause": {"cleaning"},
     "stop": {"cleaning", "paused", "returning"},
     "return": {"cleaning", "paused", "idle"},
