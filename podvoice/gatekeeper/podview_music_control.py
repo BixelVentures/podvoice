@@ -15,7 +15,7 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from . import constants as C
 
@@ -1259,12 +1259,10 @@ class MusicControlFacade:
                 homepod,
             )
             fixed = controls.get("valid_until")
-            if (
-                type(fixed) not in (int, float)
-                or not math.isfinite(fixed)
-                or fixed > value["valid_until"]
-                or fixed <= time.time()
-            ):
+            if type(fixed) not in (int, float):
+                return _failure("stale")
+            fixed = cast(int | float, fixed)
+            if not math.isfinite(fixed) or fixed > value["valid_until"] or fixed <= time.time():
                 return _failure("stale")
             action = "play_context" if context else "play_track"
             if value["status"] != "ready" or action not in value["actions"]:
