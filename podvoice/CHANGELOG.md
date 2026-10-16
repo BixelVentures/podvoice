@@ -1,3 +1,8 @@
+## 2.0.36 — præcist køvalg, kandidat til review
+
+- Tilføjer en afgrænset PodView-køhandling for den valgte, aktuelle køforekomst med særskilt read, prepare og engangs commit gennem den eksisterende Native/Control-kæde. Ukendt mulig effekt genafspilles ikke.
+- Bevarer de 135 pakkede PodView-aktiver og eksisterende start-, flytte- og volumenadgang. Native/C/Control-komposition, officiel CI, installation og fysisk lydaccept afventer særskilt bevis.
+
 ## 2.0.35 — kandidat, fysisk accept afventer
 
 - Samler musikbetjeningens MOVE og START med eksisterende native konto-, rum-, kilde- og grant-ejerskab. Ukendte/stale udfald genafspilles ikke via generiske aliaser eller fallback.

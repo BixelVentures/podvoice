@@ -1,3 +1,36 @@
+# Aktiv leadbeslutning · PodVoice 2.0.36 · præcist køvalg · 16. oktober 2026
+
+**Planlagt isoleret draft/CI-kandidat; ikke udgivet, installeret eller fysisk accepteret.** Denne PodView-chat ejer den nye kørettelse og de låste135 UI-assets. V2.X er fortsat eneste endelige udgivelses-/Green-operatør. Kildebasen er den faktiske35-mainmerge `ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd`; Green er nu faktisk installeret på35 med Speakers22/Control15; installation og fysisk accept er adskilt. Versionsnumrene36/23/16 er næste isolerede kandidat, ikke en bekræftet installation.
+
+Observeret fejl: den tidligere logiske køkommando mangler atomisk Native/C-rumkontrol, så35 holder køvalg lukket. Issue174 bevarer det fulde krav om præcis opaque køforekomst, dubletter, manuel rækkefølge, kontekst/session og manuel lydstyrke. Beslutning: genbrug de eksisterende ejere med særskilt bound queue-purpose og løsrevet klargøring; hverken Next, URI-start, outputskift eller startvolumen35 må erstatte køvalget. Læsning, effect-free prepare og effect commit er adskilt, så den oprindelige PodView-task/grant kontrolleres igen efter klargøring og før mulig effekt. Fælles Control-sekvens og Native high-water, præcis native9/route9/writer6, oprindeligt udløb, engangsforbrug og unknown-uden-retry skal følge til den faktiske kilde-/cursorpublicering efter alle fysiske låse.
+
+Kildegrænse: kun de gennemgåede gateway-/scope-/queue-JSON-filer og berørte tests adopteres her. Native/C/manager/Control samles separat i23/16. Alle135 UI-assets, AI-model/kvoter, GPT-Live/ThinSession, Voice PE/Talk-lifecycle, providerprompt, timer/robot/vejr og eksisterende34/35-admission forbliver uændrede. Ældre/ufuldstændige stacks må ikke få køeffekt. Fejl før commit giver ingen lydændring; ukendt mulig commit forbliver consumed uden automatisk gensendelse.
+
+Faktiske beviser før adoption: scoped gateway-review og104 fokuserede/eksisterende queue/controller-cases består; to reelle service-/receiptfejl blev først reproduceret og derefter rettet. Tracks-staging har fuld fokuseret PASS og tre kausale fejlmutationer. Native/C/Control er kildegennemgået, men deres Linux/HA-kørsel er åben. Docker-API svarer ikke lokalt; eksisterende officiel Linux-CI bruges til næste kontrol frem for stubs eller ændrede produktdeadlines. V2 har nu bekræftet main35-CI626 og publicering samt faktisk Green-installation med backup: image sha256:b132e3eefdb69dd5dc21454013e96ea8f0caad081f7917e8dc212f42f8aacfaf og rootfs-v1:58362ed64032938ee544dbf305e1fe6368addafc0977b3496cef77794549244b, samme git ed0fbc41, GPT-Live/MCP/Voice PE tilsluttet. Alle seks eksisterende policies er uændrede; Mårslet er gemt og bevaret efter genstart. Den almindelige native iframe viser35, og Par skærm åbner opsætningsformularen. Controller er fortsat disabled, og der er ikke oprettet nogen ny grant eller credential. De praktiske musik-/robot-/timer-/svarprøver er stadig åbne. Før merge/release kræves samlet exact-source-review, nødvendige virkelige tests/CI og kontrol af de faktiske artifactbytes. Fysisk/hørbar accept udledes aldrig af disse checks. Ingen ny credential, quota, grant eller hjemmehandling er foretaget af denne adoption.
+
+<!-- podview36-admission
+{
+  "version": 11,
+  "kind": "podview36_exact_queue_occurrence",
+  "reviewer": "Independent GPT-6 Sol /root/queue_native_review; exact36 composed source/admission review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "fingerprint": "bd2859b913d44327c613383b21f4b8060429fb6e0c81c136607ddfbdc4be91ad",
+  "regression_fingerprint": "b3e68401f6802fb32b4a5663fb5bde91f4a71796c505945ade29116913d7cde5",
+  "runtime_fingerprint": "df29dc08cecb61b55e8b76d52c65e7c803725f03ea3b27c1bfd036865734bb4a",
+  "config_fingerprint": "500ab762cd0ee93f309291cd4594b38c1376d14c8936382985ee9e5d6ccba6fc",
+  "policy_fingerprint": "f9ca0f189f171ca2739193a68c8f20a5109c68ce16614cb7b45dd9ed20409c77",
+  "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
+  "manifest_fingerprint": "3b38dc42d5390ab2b52f4d7aca36e39dfd818e02a468f79abfdfefda6b1fcfdf",
+  "rationale": "Exact composed source review 9681625684d9012f111929ff47a7775e0385b69631ed6f66a60292dc59b92695; 108 focused queue and nine admission cases pass. Remote official CI, Native/C/HA execution, artifact and physical acceptance remain separate pending gates. The locked135 UI assets and historical admission are unchanged."
+}
+-->
+
+---
+
 # Aktiv leadbeslutning · PodVoice 2.0.35 samlet PodView-runtime · 16. oktober 2026
 
 **Planlagt build; ikke frosset, udgivet, installeret eller fysisk godkendt.** Runtime-compose-ejer og lead: `/root` efter eksplicit overdragelse fra PodView-lead; afgrænsede forfattere og uafhængige reviewere arbejder parallelt. Root ejer endelig admission, release og installation. Base er faktisk publiceret 2.0.34 `e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b` (tree `82b9b89d2a0fd1a79fc599a628bdbda031b59667`). Den eksisterende 34-post nedenfor er historisk og giver ingen 35-godkendelse.

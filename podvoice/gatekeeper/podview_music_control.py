@@ -889,7 +889,12 @@ class MusicControlFacade:
                 raw.extend(chunk)
                 if len(raw) > _MAX_BYTES:
                     raise ValueError("response too large")
-        payload = json.loads(raw)
+        if service in {"get_room_queue_controls", "prepare_room_queue", "control_room_queue"}:
+            from .podview_queue_scope import unique_members
+
+            payload = json.loads(raw, object_pairs_hook=unique_members)
+        else:
+            payload = json.loads(raw)
         return payload.get("service_response") if isinstance(payload, dict) else None
 
     async def setup(self, account: str, target: str, current: Callable[[], bool]) -> dict:
