@@ -55,18 +55,18 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_podview_queue_scope.py",
         "tests/integration/test_podview_queue_occurrence.py",
         "tests/integration/test_queue_controller_boundary.py",
+        "tests/unit/test_candidate_scope_admission35.py",
         "tests/unit/test_candidate_scope_admission36.py",
     }
 )
 REVIEWER = (
     "Independent GPT-6 Sol /root/queue_native_review; exact36 composed source/admission review"
 )
-MANIFEST_SHA = "3b38dc42d5390ab2b52f4d7aca36e39dfd818e02a468f79abfdfefda6b1fcfdf"
-PROFILE_AST = "026511f27c32cc66d8a661f6dfbb8f89ce89b8e95c9406a1e9010b8c86b0f70e"
+MANIFEST_SHA = "a1b9f0f0a0a65291458ae9c0bf5711affd096097c6b7d600948510730c6e233f"
+PROFILE_AST = "e0fc888062ff714ec2fe8b0a95b6bf5056a0dc9ee4d075a64040609b3b8c6528"
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission35.py": "87e0973b4c460a1732f8f4b66767a73c03c4f473ede980359883f0206549e6c8",
     "scripts/podview35-admission-reviewed.json": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",
-    "tests/unit/test_candidate_scope_admission35.py": "29a0d40f20255bfcbd0d02dbed22319c9436aa22d8818114b6dad975e7374943",
 }
 DELETED_PRODUCTION: dict[str, str] = {}
 

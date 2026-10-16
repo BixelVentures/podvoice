@@ -8,6 +8,8 @@ Kildegrænse: kun de gennemgåede gateway-/scope-/queue-JSON-filer og berørte t
 
 Faktiske beviser før adoption: scoped gateway-review og104 fokuserede/eksisterende queue/controller-cases består; to reelle service-/receiptfejl blev først reproduceret og derefter rettet. Tracks-staging har fuld fokuseret PASS og tre kausale fejlmutationer. Native/C/Control er kildegennemgået, men deres Linux/HA-kørsel er åben. Docker-API svarer ikke lokalt; eksisterende officiel Linux-CI bruges til næste kontrol frem for stubs eller ændrede produktdeadlines. V2 har nu bekræftet main35-CI626 og publicering samt faktisk Green-installation med backup: image sha256:b132e3eefdb69dd5dc21454013e96ea8f0caad081f7917e8dc212f42f8aacfaf og rootfs-v1:58362ed64032938ee544dbf305e1fe6368addafc0977b3496cef77794549244b, samme git ed0fbc41, GPT-Live/MCP/Voice PE tilsluttet. Alle seks eksisterende policies er uændrede; Mårslet er gemt og bevaret efter genstart. Den almindelige native iframe viser35, og Par skærm åbner opsætningsformularen. Controller er fortsat disabled, og der er ikke oprettet nogen ny grant eller credential. De praktiske musik-/robot-/timer-/svarprøver er stadig åbne. Før merge/release kræves samlet exact-source-review, nødvendige virkelige tests/CI og kontrol af de faktiske artifactbytes. Fysisk/hørbar accept udledes aldrig af disse checks. Ingen ny credential, quota, grant eller hjemmehandling er foretaget af denne adoption.
 
+**Officiel køkontrol og afgrænset fixture-opfølgning:** PodConnect43 head `0b1a8e760539e6a29061da6ee55d8050fda5421e` har nu tre grønne officielle kørsler: manager38926162648, HA38926162620 og Native/OwnTone38926162505. Det omfatter faktisk Linux CGO/race/vet/build, C-ejertests og queue-modes samt pinned HA-framework; ikke fysisk lyd eller Green-installation. Første kørsel fejlede på en unkeyed Go-testliteral, en HA-testreference efter faktisk unload og manglende root-forudsætning i de eksisterende C-proc-tests; disse fejl er bevaret og de præcise test-/CI-rettelser er uafhængigt reviewet. PodVoice627 scope, UI-browser, lint/format/mypy, rest-tests og PR-build bestod, men unit stoppede ved den historiske35-fixtures antagelse om, at den aktuelle checkout stadig var35. Det tre-fils fixture-/admissionrepair `bed125211d9725042fb433348e0c19252e3a5c1907da10ad9ae7192969c1dc0f` har scoped review `c81405c54aa330965998c33e565788a2ef8d9328473aecf4aa777de908fb7f28`: faktiske35-Gitbytes bruges på efterfølgere, også ved endnu ucommitted36 på35-HEAD; den ændrede35-test er nu en eksakt ny36-regression. Historiske35-profil/manifest og produktions-/UI-bytes er uændrede. Næste officiel unitkontrol er åben. Daglig adminstyret controllerprovisionering #175 samles i samme upublicerede36-kandidat efter særskilt implementering og review; køens nuværende CI giver ikke den kommende ændring eller fysiske prøve godkendelse.
+
 <!-- podview36-admission
 {
   "version": 11,
@@ -19,13 +21,13 @@ Faktiske beviser før adoption: scoped gateway-review og104 fokuserede/eksistere
   "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
   "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
   "fingerprint": "bd2859b913d44327c613383b21f4b8060429fb6e0c81c136607ddfbdc4be91ad",
-  "regression_fingerprint": "b3e68401f6802fb32b4a5663fb5bde91f4a71796c505945ade29116913d7cde5",
+  "regression_fingerprint": "a0090a14ee498b1c970098aa1809d0822e0f45768bd1d8e0ea4c87a7d3be0333",
   "runtime_fingerprint": "df29dc08cecb61b55e8b76d52c65e7c803725f03ea3b27c1bfd036865734bb4a",
   "config_fingerprint": "500ab762cd0ee93f309291cd4594b38c1376d14c8936382985ee9e5d6ccba6fc",
-  "policy_fingerprint": "f9ca0f189f171ca2739193a68c8f20a5109c68ce16614cb7b45dd9ed20409c77",
+  "policy_fingerprint": "173f2667c8dfb750128a9224c5431a0a44170bb658fdec2a0874b3a3386ef6db",
   "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
-  "manifest_fingerprint": "3b38dc42d5390ab2b52f4d7aca36e39dfd818e02a468f79abfdfefda6b1fcfdf",
-  "rationale": "Exact composed source review 9681625684d9012f111929ff47a7775e0385b69631ed6f66a60292dc59b92695; 108 focused queue and nine admission cases pass. Remote official CI, Native/C/HA execution, artifact and physical acceptance remain separate pending gates. The locked135 UI assets and historical admission are unchanged."
+  "manifest_fingerprint": "a1b9f0f0a0a65291458ae9c0bf5711affd096097c6b7d600948510730c6e233f",
+  "rationale": "Original composed source/post-pin reviews remain bound to unchanged runtime/UI; CI627 historical fixture repair additionally reviewed c81405c54aa330965998c33e565788a2ef8d9328473aecf4aa777de908fb7f28. Six exact regression files include changed historical35 fixture; no historical35 profile/manifest rewrite. Official successor CI and daily controller provisioning175 remain pending, and physical acceptance remains open."
 }
 -->
 

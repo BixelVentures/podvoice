@@ -8,6 +8,47 @@ import pytest
 from scripts import candidate_scope_admission35 as admission
 
 SOURCE = Path(__file__).parents[2]
+PUBLISHED35 = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd"
+
+
+def published35_bytes(name: str) -> bytes:
+    return subprocess.check_output(["git", "show", f"{PUBLISHED35}:{name}"], cwd=SOURCE)
+
+
+def published35_paths(prefix: str) -> set[str]:
+    names = subprocess.check_output(
+        ["git", "ls-tree", "-r", "--name-only", PUBLISHED35, "--", prefix], cwd=SOURCE
+    ).decode()
+    return set(names.splitlines())
+
+
+def is_successor_checkout(root: Path, head: str) -> bool:
+    if head != PUBLISHED35:
+        return True
+    config = root / "podvoice/config.yaml"
+    return (
+        (root / "scripts/candidate_scope_admission36.py").is_file()
+        and (root / "podvoice/gatekeeper/podview_queue_scope.py").is_file()
+        and config.is_file()
+        and 'version: "2.0.36"' in config.read_text().splitlines()
+    )
+
+
+def test_uncommitted_36_tree_selects_historical_35_pins(tmp_path):
+    assert not is_successor_checkout(tmp_path, PUBLISHED35)
+    for name in (
+        "scripts/candidate_scope_admission36.py",
+        "podvoice/gatekeeper/podview_queue_scope.py",
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture\n")
+    config = tmp_path / "podvoice/config.yaml"
+    config.write_text('version: "2.0.35"\n')
+    assert not is_successor_checkout(tmp_path, PUBLISHED35)
+    config.write_text('version: "2.0.36"\n')
+    assert is_successor_checkout(tmp_path, PUBLISHED35)
+
 
 CITY_BASE = (
     'version: "2.0.34"\noptions:\n  podview_mood_setup_policy: ""\n'
@@ -41,6 +82,17 @@ def test_city_config_rejects_missing_or_unreviewed_changes(candidate):
 def test_exact_scope_declared_in_unapproved_or_fully_pinned_phase():
     raw = (SOURCE / admission.MANIFEST).read_bytes()
     manifest = json.loads(raw)
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=SOURCE).decode().strip()
+    successor = is_successor_checkout(SOURCE, head)
+    if successor:
+        merge_base = (
+            subprocess.check_output(["git", "merge-base", PUBLISHED35, head], cwd=SOURCE)
+            .decode()
+            .strip()
+        )
+        assert merge_base == PUBLISHED35
+        assert raw == published35_bytes(admission.MANIFEST)
+        assert (SOURCE / admission.PROFILE).read_bytes() == published35_bytes(admission.PROFILE)
     assert admission.BASE == "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b"
     assert admission.VERSION == 10
     assert admission.DOMAINS == ("ha_tools", "physical_output")
@@ -59,7 +111,11 @@ def test_exact_scope_declared_in_unapproved_or_fully_pinned_phase():
     sections = {
         "production": admission.PRODUCTION,
         "regressions": admission.REQUIRED_TESTS,
-        "runtime": admission.strict.runtime_inventory(SOURCE),
+        "runtime": (
+            published35_paths("podvoice/gatekeeper/")
+            if successor
+            else admission.strict.runtime_inventory(SOURCE)
+        ),
         "config": admission.CONFIG,
         "policy": admission.POLICY - {admission.PROFILE, admission.MANIFEST},
         "tooling": admission.TOOLING,
@@ -77,10 +133,26 @@ def test_exact_scope_declared_in_unapproved_or_fully_pinned_phase():
     )
     for key, expected in sections.items():
         assert set(manifest[key]) == set(expected)
-        assert admission.strict.pins_match(SOURCE, manifest[key])
+        if successor:
+            assert all(
+                admission.sha(published35_bytes(name)) == digest
+                for name, digest in manifest[key].items()
+            )
+        else:
+            assert admission.strict.pins_match(SOURCE, manifest[key])
     assert manifest["asset_count"] == 135
-    assert admission.strict.assets_match(SOURCE, manifest["runtime"], manifest["asset_count"])
-    record = admission.record_at(SOURCE)
+    if successor:
+        assets = {name for name in manifest["runtime"] if name.startswith(admission.STATIC)}
+        assert len(assets) == 136
+        asset_manifest = json.loads(published35_bytes(admission.STATIC + "asset-manifest.json"))
+        assert asset_manifest["schema"] == "podview.assets.v1"
+        assert len(asset_manifest["files"]) == manifest["asset_count"]
+        source = published35_bytes("docs/STATUS.md").decode()
+        assert source.count(admission.RECORD_MARKER) == 1
+        record = json.loads(source.split(admission.RECORD_MARKER, 1)[1].split("-->", 1)[0])
+    else:
+        assert admission.strict.assets_match(SOURCE, manifest["runtime"], manifest["asset_count"])
+        record = admission.record_at(SOURCE)
     assert record is not None
     assert set(record) == admission.FIELDS
     assert record["reviewer"] == admission.REVIEWER

@@ -18,6 +18,7 @@ EXPECTED_TESTS = {
     "tests/unit/test_podview_queue_scope.py",
     "tests/integration/test_podview_queue_occurrence.py",
     "tests/integration/test_queue_controller_boundary.py",
+    "tests/unit/test_candidate_scope_admission35.py",
     "tests/unit/test_candidate_scope_admission36.py",
 }
 
@@ -57,10 +58,11 @@ def test_historical_35_gate_and_pins_are_immutable():
     for name in (
         "scripts/candidate_scope_admission35.py",
         "scripts/podview35-admission-reviewed.json",
-        "tests/unit/test_candidate_scope_admission35.py",
     ):
         assert admission.sha(admission.safe_file(ROOT, name)) == admission.IMMUTABLE[name]
     assert admission.IMMUTABLE.items() >= admission.previous.IMMUTABLE.items()
+    assert "tests/unit/test_candidate_scope_admission35.py" in admission.REQUIRED_TESTS
+    assert "tests/unit/test_candidate_scope_admission35.py" not in admission.IMMUTABLE
 
 
 def test_ci_dispatch_adds_only_exact_36_base_before_historical_branches():
