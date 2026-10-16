@@ -36,7 +36,7 @@ class VisualComponent extends HTMLElement {
   this.dataset.count=String((content.facts||content.events||content.nodes||[]).length);
   if(this.figure){
    const img=content.image||content.illustration;this.figure.hidden=!img;this.dataset.illustrated=String(!!img);
-   if(img){if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
+   if(img){if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='album_cover'?'Omslag':img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
    }
   }
   if(this.family==='simple-diagram'){

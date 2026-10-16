@@ -246,6 +246,7 @@ class PodViewBridge:
         self._controller_enabled = controller_enabled is True
         self._controller_days = controller_days
         self._controller_registry = None
+        self._controller_admin_state = None
         self._controller_grants: dict[str, str] = {}
         self._controller_revocation_failed: set[str] = set()
         if self._controller_enabled and controller_store is not None:
@@ -280,6 +281,12 @@ class PodViewBridge:
             or self._pairing_attempts >= 5
         ):
             return None
+        if self._controller_admin_state is not None:
+            try:
+                if not self._controller_admin_state.attempt(room, code, self.controller_pin(room)):
+                    return None
+            except (OSError, ValueError):
+                return None
         self._pairing_attempts += 1
         if (
             room != self._pairing_room

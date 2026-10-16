@@ -9,7 +9,14 @@ from unittest.mock import AsyncMock
 import pytest
 from integration.test_podview_controller_continuity import enroll, renew
 from integration.test_podview_music import Rig
-from integration.test_podview_queue_occurrence import accepted, action, source
+from integration.test_podview_queue_occurrence import (
+    SERVICES,
+    accepted,
+    action,
+    bound_source,
+    queue_service_reply,
+    staged,
+)
 
 from gatekeeper.podview import BRIDGE, PodViewBridge
 from gatekeeper.podview_continuity import ContinuityDenied
@@ -17,12 +24,13 @@ from gatekeeper.podview_queue import ACTION
 
 
 @pytest.fixture
-async def composed(tmp_path, monkeypatch):
+async def composed(tmp_path):
     media = Rig()
     media.router._discovery = replace(
         media.router._discovery,
         podconnect_services=media.router._discovery.podconnect_services
-        | {"get_playback_controls", "control_playback", "get_queue_controls"},
+        | {"get_playback_controls", "control_playback"}
+        | SERVICES,
     )
     code = "q" * 43
     policy = {
@@ -34,7 +42,7 @@ async def composed(tmp_path, monkeypatch):
                 "actions": [ACTION],
                 "maxVolume": 35,
                 "nativeRoomId": "native-room",
-                "nativeHomepodId": "homepod-id",
+                "nativeHomepodId": "7",
             }
         ],
         "vacuum": [],
@@ -51,17 +59,8 @@ async def composed(tmp_path, monkeypatch):
         controller_generation="c" * 64,
         controller_store=tmp_path / "registry.json",
     )
-    # Exercise the historical queue mechanism's controller fence only. The
-    # shipped queue-occurrence gate remains closed until native admission exists.
-    monkeypatch.setattr(
-        type(bridge.queue),
-        "available",
-        property(
-            lambda self: "get_queue_controls" in self.bridge.tools._discovery.podconnect_services
-        ),
-    )
     credential, grant = await enroll(bridge, code)
-    bridge.controls.music._read = AsyncMock(return_value=source())
+    bridge.controls.music._read = AsyncMock(side_effect=queue_service_reply)
     body = {
         "bootId": bridge.boot_id,
         "roomId": "kitchen",
@@ -98,7 +97,7 @@ async def test_durable_controller_transition_during_queue_offer_cannot_publish_a
     async def delayed(*args):
         entered.set()
         await release.wait()
-        return source()
+        return bound_source()
 
     read.side_effect = delayed
     running = asyncio.create_task(bridge.queue.offer(body, grant))
@@ -130,6 +129,9 @@ async def test_controller_transition_after_queue_send_is_unknown_and_never_repla
     read = bridge.controls.music._read
 
     async def delayed(*args):
+        if args[2] == "prepare_room_queue":
+            return staged(args[-1])
+        assert args[2] == "control_room_queue"
         entered.set()
         await release.wait()
         return accepted(args[-1])
@@ -144,12 +146,12 @@ async def test_controller_transition_after_queue_send_is_unknown_and_never_repla
         result = await running
         assert result["outcome"] == "unknown"
         assert result["physicalResultVerified"] is False
-        assert read.await_count == 2  # one read + the already-sent command
+        assert read.await_count == 3  # Read, detached stage, already-sent commit.
         assert not bridge.controls.busy
         for token in [grant, fresh] if fresh else [grant]:
             for candidate in [command, command | {"requestId": "different"}]:
                 assert (await bridge.queue.action(candidate, token))["outcome"] == "rejected"
-        assert read.await_count == 2
+        assert read.await_count == 3
     finally:
         release.set()
         await asyncio.gather(running, return_exceptions=True)

@@ -33,12 +33,14 @@ jobs:
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 scripts/ci_scope.py
-      - name: Exact candidate admission (historical31/32, strict34, pending35)
+      - name: Exact candidate admission (historical31/32, strict34/35, pending36)
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           candidate_base="${CI_DIFF_BASE:-729668ffa45067bfb75fd6928ccac9f9beaf5576}"
-          if [ "$candidate_base" = "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b" ]; then
+          if [ "$candidate_base" = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd" ]; then
+            python3 scripts/candidate_scope_admission36.py --base "$candidate_base"
+          elif [ "$candidate_base" = "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b" ]; then
             python3 scripts/candidate_scope_admission35.py --base "$candidate_base"
           elif [ "$candidate_base" = "8e7ff9bc9aaaf298a23c93e53bed90c672558b25" ]; then
             python3 scripts/candidate_scope_admission34.py --base "$candidate_base"
@@ -59,6 +61,8 @@ jobs:
         cohort: ${{ fromJSON(needs.scope.outputs.tooling_only == 'true' && '["unit"]' || '["unit", "rest"]') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -89,7 +93,7 @@ jobs:
         run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 tests/unit --durations=15 --durations-min=1
       - name: Remaining tests
         if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'rest'
-        run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --durations=15 --durations-min=1
+        run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1
 
   ui-browser:
     needs: [scope]
@@ -125,6 +129,27 @@ jobs:
           path: /home/runner/.cache/podvoice-dev/browser-proof/ui-browser
           if-no-files-found: warn
 
+  ha-framework:
+    needs: [scope]
+    if: ${{ always() && !cancelled() && needs.scope.outputs.tooling_only != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test native admin options and services in pinned HA 2026.8.2
+        run: |
+          test -f tests/ha_framework/test_options_flow_http.py
+          docker run --rm --platform linux/amd64 --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 \
+            --pids-limit 256 --memory 2g --cpus 2 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=128m \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/repo,readonly" \
+            --workdir /repo --entrypoint python \
+            ghcr.io/home-assistant/home-assistant@sha256:56690a89c79a0de98035e1719f8324a92d5859c1192ff45adb0230ea81cb42a5 \
+            -B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v
+
   build-addon:
     needs: [scope]
     if: >-
@@ -153,7 +178,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - id: candidate-image
+        uses: docker/build-push-action@v6
         with:
           context: ./podvoice
           platforms: linux/arm64
@@ -163,13 +189,24 @@ jobs:
           build-args: PODVOICE_GIT_SHA=${{ github.event.pull_request.head.sha }}
           cache-from: type=gha,scope=podvoice-aarch64
           # Optional cache export must not hold a completed image push open.
+      - name: Verify shipped admin stdin through normal entrypoint
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          CANDIDATE_DIGEST: ${{ steps.candidate-image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          image="ghcr.io/bixelventures/aarch64-addon-podvoice@$CANDIDATE_DIGEST"
+          docker pull --platform linux/arm64 "$image"
+          bash scripts/check_podview_admin_stdin.sh "$image"
 
   publish-addon:
     if: >-
       needs.scope.outputs.tooling_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [scope, lint-test, ui-browser]
+    needs: [scope, lint-test, ui-browser, ha-framework]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

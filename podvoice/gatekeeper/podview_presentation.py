@@ -10,8 +10,10 @@ import json
 import math
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
-from .data_result import MAX_TOOL_RESULT_BYTES
+from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
+from .podview_music import _artwork
 
 FAMILIES = frozenset(
     {
@@ -129,6 +131,106 @@ def owned_image_sources() -> dict:
             "kind": "illustration",
         }
     }
+
+
+_ALBUM_COVER_TOOLS = frozenset(
+    {"podconnect_recently_played", "podconnect_top_tracks", "podconnect_liked"}
+)
+
+
+def _album_cover_source(tool_name: str, result: object, now: float) -> dict | None:
+    """Copy only actual accepted library rows; no lookup, generated URL or image claim."""
+    if tool_name not in _ALBUM_COVER_TOOLS or not isinstance(result, dict):
+        return None
+    try:
+        if result.get("ok") is not True or tool_result_size(result) > MAX_TOOL_RESULT_BYTES:
+            return None
+        if set(result) - {"ok", "data", "selection", "empty"} or result.get("empty"):
+            return None
+        data = _object(result.get("data"), {"config_entry_id", "tracks"})
+        account = _text(data["config_entry_id"], 1024)
+        tracks = _rows(data["tracks"], 50)
+        selection = _object(
+            result.get("selection"),
+            {
+                "requested_limit",
+                "source_sample_count",
+                "returned_count",
+                "more_in_sample",
+                "size_limited",
+                "coverage",
+            },
+        )
+        if (
+            type(selection["requested_limit"]) is not int
+            or not 1 <= selection["requested_limit"] <= 50
+            or type(selection["returned_count"]) is not int
+            or selection["returned_count"] != len(tracks)
+            or len(tracks) > selection["requested_limit"]
+            or type(selection["source_sample_count"]) is not int
+            or selection["source_sample_count"] < len(tracks)
+            or type(selection["more_in_sample"]) is not bool
+            or selection["more_in_sample"] != (selection["source_sample_count"] > len(tracks))
+            or type(selection["size_limited"]) is not bool
+            or selection["coverage"]
+            != "Source sample only; not a complete library or timestamped play history."
+        ):
+            return None
+        candidates = {}
+        for index, track in enumerate(tracks):
+            if not isinstance(track, dict) or set(track) - {"name", "artist", "uri", "artwork"}:
+                return None
+            name, artist = _text(track.get("name"), 256), _text(track.get("artist"), 512)
+            if any(
+                ord(char) < 32 or 127 <= ord(char) <= 159 or char in "\u2028\u2029"
+                for char in name + artist
+            ):
+                return None  # Identity text cannot forge another provenance line.
+            uri = track.get("uri")
+            if not isinstance(uri, str) or not re.fullmatch(r"spotify:track:[A-Za-z0-9]{22}", uri):
+                return None
+            if "artwork" not in track:
+                continue
+            artwork = _artwork(track["artwork"])
+            if (
+                artwork is None
+                or artwork["url"] != "https://i.scdn.co" + urlsplit(artwork["url"]).path
+            ):
+                return None  # Match the existing browser validator's canonical URL.
+
+            source_text = (
+                f"Kilde: Spotify via PodConnect\nNummer: {name}\nKunstner: {artist}"
+                f"\nSpotify-URI: {uri}\nBilledkilde: {artwork['url']}"
+            )
+            if len(source_text) > 1200:
+                continue  # Never truncate the identity or invent absent attribution.
+            candidates[f"track:{index}:artwork"] = {
+                "config_entry_id": account,
+                "uri": uri,
+                "sourceText": source_text,
+                "image": {
+                    "url": artwork["url"],
+                    "alt": f"Albumomslag til {name}",
+                    "caption": name,
+                    "credit": "Spotify",
+                    "kind": "album_cover",
+                },
+            }
+        if not candidates:
+            return None
+        return {
+            "family": "sourced-image",
+            "facts": [],
+            "validUntil": now + 120,
+            "album_covers": candidates,
+            "provenance": {
+                "kind": "podconnect_album_cover",
+                "toolName": tool_name,
+                "config_entry_id": account,
+            },
+        }
+    except (ValueError, TypeError, KeyError, OverflowError):
+        return None
 
 
 def explanation_content(
@@ -350,8 +452,12 @@ def offer_completed(
                 "sourceCalls": [],
             }
         if (
-            presentation["family"] == "sourced-image" or "ownedImage" in presentation["content"]
-        ) and not bicycle_context(question_context):
+            presentation["origin"] == "ai_explanation"
+            and (
+                presentation["family"] == "sourced-image" or "ownedImage" in presentation["content"]
+            )
+            and not bicycle_context(question_context)
+        ):
             if presentation["family"] == "simple-diagram":
                 presentation = {
                     **presentation,
@@ -432,7 +538,7 @@ def offer_completed(
                         or (chart_unit is not None and unit != chart_unit)
                     ):
                         return False
-                    if not 0 <= value <= 1_000_000_000:
+                    if not -1_000_000_000 <= value <= 1_000_000_000:
                         chart_fallback = True
                         break
                     chart_unit = unit
@@ -474,6 +580,38 @@ def offer_completed(
                     source_text = "\n".join(
                         f"{row['label']}: {row['value']} {chart_unit}" for row in items
                     )[:1200]
+            elif presentation["family"] == "sourced-image":
+                _object(presentation["content"], {"image"})
+                ref = _object(presentation["content"]["image"], {"callId", "field"})
+                if len(refs) != 1 or ref["callId"] != refs[0] or not isinstance(ref["field"], str):
+                    return False
+                record = source_rows[refs[0]]
+                candidate = record.get("album_covers", {}).get(ref["field"])
+                origin = record["item"]["provenance"]
+                if (
+                    not isinstance(candidate, dict)
+                    or origin.get("kind") != "podconnect_album_cover"
+                    or origin.get("toolName") not in _ALBUM_COVER_TOOLS
+                    or candidate["config_entry_id"] != origin.get("config_entry_id")
+                ):
+                    return False
+                source_text = candidate["sourceText"]
+                content = {
+                    "summary": presentation["summary"],
+                    "image": {
+                        **copy.deepcopy(candidate["image"]),
+                        "sourceId": "source:" + receipt_id,
+                    },
+                    "sources": [
+                        {
+                            "id": "source:" + receipt_id,
+                            "kind": "owner_receipt",
+                            "receiptId": receipt_id,
+                            "label": "Spotify via PodConnect",
+                            "scope": "tool_result",
+                        }
+                    ],
+                }
             elif presentation["family"] != "fact-card":
                 # Do not turn arbitrary web prose into charts/procedures or source claims.
                 presentation = {
@@ -655,22 +793,26 @@ def remember_source(
     current: Any,
     read_current: Any,
 ) -> bool:
-    """Private exact accepted helper excerpts; never enables research or a selector."""
+    """Private accepted excerpts/covers; never enables research, lookup or a selector."""
     import secrets
     import time
 
     from .podview_research import extract
 
     if (
-        tool_name != "google_web_sogning"
+        tool_name not in {"google_web_sogning", *_ALBUM_COVER_TOOLS}
         or not isinstance(delegation_id, str)
         or task_id != "answer:" + delegation_id
         or provider_generation is None
         or not current()
     ):
         return False
-    source = extract(tool_name, result, now=time.time())
-    if source is None or source["family"] != "fact-card":
+    source = (
+        _album_cover_source(tool_name, result, time.time())
+        if tool_name in _ALBUM_COVER_TOOLS
+        else extract(tool_name, result, now=time.time())
+    )
+    if source is None or source["family"] not in {"fact-card", "sourced-image"}:
         return False
     key = (owner, session_id, session_epoch, turn_id, provider_generation, task_id, input_revision)
     prior = sink._rooms.get(room_id)
@@ -721,7 +863,12 @@ def remember_source(
             "provenance": copy.deepcopy(source["provenance"]),
         },
     }
+    if source["family"] == "sourced-image":
+        registry[call_id]["album_covers"] = copy.deepcopy(source["album_covers"])
     state["source_registry"] = registry
     state["seen"].add(call_id)
     sink._rooms[room_id] = state
     return True
+
+
+BACKEND_PRESENTATION_INSTRUCTIONS += """\nEt faktisk accepteret podconnect_recently_played, podconnect_top_tracks eller podconnect_liked kan også give sourced-image med origin owner_sources, sourceCalls:[det faktiske call-ID] og content{image:{callId:det samme call-ID,field:"track:0:artwork"}}. Indekset er den nøjagtige række i det modtagne tracks-array; vælg kun en række med artwork.kind album_cover og provider spotify. Serveren kopierer selv konto, nummer, omslag og Spotify-kilde; opfind aldrig URL/credit/licens eller andre metadata. Et omslag beviser ikke aktuel afspilning, dato eller antal afspilninger. Brug dette kun, når omslaget er relevant for brugerens musikspørgsmål; andre emners billedkilder er ikke understøttet. Ingen ekstra kald eller modelrunde for billedet.\n"""

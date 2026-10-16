@@ -119,9 +119,9 @@
       ],
       "variants": [
         "Stemning",
+        "Humør",
         "Topsange",
-        "Senest",
-        "Likede"
+        "Senest"
       ],
       "states": [
         "first empty read",
@@ -1796,7 +1796,9 @@
     "dist/visual-content.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/spotify-artwork.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},

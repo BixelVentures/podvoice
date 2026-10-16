@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import json
 import math
@@ -13,12 +14,13 @@ from datetime import datetime
 
 from aiohttp import web
 
-from .podview_music_control import _integer, _receipt, _text
+from .podview_music_control import _integer, _room_receipt, _text
+from .podview_queue_scope import PURPOSE, owner_identity, owner_scope
 
 ACTION = "play_queue_occurrence"
 
 
-def project(value: object, account: str, target: str) -> dict:
+def project(value: object, account: str, target: str, *, room: str, homepod: str) -> dict:
     keys = {
         "ok",
         "schema",
@@ -29,6 +31,9 @@ def project(value: object, account: str, target: str) -> dict:
         "target",
         "observation",
         "native",
+        "route",
+        "queue",
+        "purpose",
         "items",
         "actions",
         "valid_until",
@@ -40,7 +45,8 @@ def project(value: object, account: str, target: str) -> dict:
         not isinstance(value, dict)
         or set(value) != keys
         or value.get("ok") is not True
-        or value.get("schema") != "podconnect.queue_controls.v1"
+        or value.get("schema") != "podconnect.room_queue_controls.v1"
+        or value.get("purpose") != PURPOSE
         or value.get("config_entry_id") != account
         or value.get("physical_result_verified") is not False
     ):
@@ -71,26 +77,24 @@ def project(value: object, account: str, target: str) -> dict:
     if stamp.tzinfo is None or not -5 <= now - stamp.timestamp() < maximum / 1000:
         raise ValueError("stale observation")
     native = value["native"]
+    owner_identity(native, value["route"], target=target, room=room, homepod=homepod)
+    queue = value["queue"]
     if (
-        not isinstance(native, dict)
-        or set(native)
+        not isinstance(queue, dict)
+        or set(queue)
         != {
             "observation_id",
             "session_id",
             "queue_revision",
-            "room_id",
-            "homepod_id",
-            "alias_incarnation",
             "expires_in_ms",
         }
-        or not isinstance(native["observation_id"], str)
-        or re.fullmatch(r"[a-f0-9]{32}", native["observation_id"]) is None
+        or not isinstance(queue["observation_id"], str)
+        or re.fullmatch(r"[a-f0-9]{32}", queue["observation_id"]) is None
+        or queue["session_id"] != native["session_id"]
     ):
         raise ValueError("unknown native occurrence scope")
-    for key in ("session_id", "room_id", "homepod_id", "alias_incarnation"):
-        _text(native[key], 160)
-    _integer(native["queue_revision"], 0)
-    expiry = _integer(native["expires_in_ms"], 1, 10000)
+    _integer(queue["queue_revision"], 0)
+    expiry = _integer(queue["expires_in_ms"], 1, 10000)
     until = value["valid_until"]
     if (
         type(until) not in (int, float)
@@ -133,7 +137,7 @@ def project(value: object, account: str, target: str) -> dict:
             raise ValueError("invalid artist metadata")
         if row["artwork"] is not None and not isinstance(row["artwork"], str):
             raise ValueError("invalid artwork metadata")
-    return {**value, "deadline_ms": max(0, min(expiry, int((until - now) * 1000)))}
+    return {**copy.deepcopy(value), "deadline_ms": max(0, min(expiry, int((until - now) * 1000)))}
 
 
 class QueueBroker:
@@ -145,8 +149,15 @@ class QueueBroker:
 
     @property
     def available(self):
-        # Native queue-occurrence admission has a separate unresolved contract.
-        return False
+        # Discovery only admits a read attempt; the actual read and prepared
+        # proof must still establish this distinct native+C queue purpose.
+        facade = self.bridge.controls.music
+        discovery = getattr(self.bridge.tools, "_discovery", None)
+        return bool(
+            facade._transport_available
+            and {"get_room_queue_controls", "prepare_room_queue", "control_room_queue"}
+            <= getattr(discovery, "podconnect_services", frozenset())
+        )
 
     def rules(self, room, token):
         policy = self.bridge.controls.policy
@@ -259,16 +270,20 @@ class QueueBroker:
                 value = await facade._read(
                     self.bridge.tools._client,
                     self.bridge.tools._token,
-                    "get_queue_controls",
+                    "get_room_queue_controls",
                     {
                         "config_entry_id": account,
+                        "kind": "spotify_device",
                         "target_id": target,
                         "room_id": rule["nativeRoomId"],
+                        "homepod_id": rule["nativeHomepodId"],
                     },
                 )
             if not self.current(task, token):
                 raise ValueError("owner replaced")
-            source = project(value, account, target)
+            source = project(
+                value, account, target, room=rule["nativeRoomId"], homepod=rule["nativeHomepodId"]
+            )
             if (
                 source["native"]["room_id"] != rule["nativeRoomId"]
                 or source["native"]["homepod_id"] != rule["nativeHomepodId"]
@@ -374,10 +389,9 @@ class QueueBroker:
             "target": {"kind": "spotify_device", "target_id": source["target"]["target_id"]},
         }
         args = {
-            "room_id": task["rule"]["nativeRoomId"],
-            "observation_id": source["native"]["observation_id"],
-            "session_id": source["native"]["session_id"],
-            "queue_revision": source["native"]["queue_revision"],
+            "observation_id": source["queue"]["observation_id"],
+            "session_id": source["queue"]["session_id"],
+            "queue_revision": source["queue"]["queue_revision"],
             "occurrence_id": body["optionId"],
         }
         request = {
@@ -390,6 +404,11 @@ class QueueBroker:
             "command_sequence": sequence,
             "action": ACTION,
             "args": args,
+            "purpose": PURPOSE,
+            "room_id": task["rule"]["nativeRoomId"],
+            "homepod_id": task["rule"]["nativeHomepodId"],
+            "native": copy.deepcopy(source["native"]),
+            "route": copy.deepcopy(source["route"]),
         }
         self.bridge.controls.busy.add(task["room"])
         sent = False
@@ -398,13 +417,78 @@ class QueueBroker:
                 if not self.current(task, token):
                     self.receipts[key] = fingerprint, rejected
                     return rejected
+                prepared_started = time.monotonic()
+                prepared = await self.bridge.controls.music._read(
+                    self.bridge.tools._client,
+                    self.bridge.tools._token,
+                    "prepare_room_queue",
+                    request,
+                )
+                if not self.current(task, token):
+                    self.receipts[key] = fingerprint, rejected
+                    return rejected
+                required = {
+                    "ok",
+                    "schema",
+                    "purpose",
+                    "config_entry_id",
+                    "owner_epoch",
+                    "request_id",
+                    "command_sequence",
+                    "prepare_id",
+                    "expires_after_ms",
+                    "native",
+                    "route",
+                    "queue",
+                    "writer_proof",
+                    "physical_result_verified",
+                }
+                if (
+                    not isinstance(prepared, dict)
+                    or set(prepared) != required
+                    or prepared["ok"] is not True
+                    or prepared["schema"] != "podconnect.room_queue_preparation.v1"
+                    or prepared["purpose"] != PURPOSE
+                    or prepared["physical_result_verified"] is not False
+                    or any(
+                        prepared[k] != request[k]
+                        for k in (
+                            "config_entry_id",
+                            "owner_epoch",
+                            "request_id",
+                            "command_sequence",
+                            "native",
+                            "route",
+                        )
+                    )
+                    or prepared["queue"] != args
+                    or not isinstance(prepared["prepare_id"], str)
+                    or re.fullmatch(r"[a-f0-9]{32}", prepared["prepare_id"]) is None
+                ):
+                    raise ValueError("unproven queue preparation")
+                owner_scope(
+                    prepared["native"],
+                    prepared["route"],
+                    prepared["writer_proof"],
+                    target=request["target_id"],
+                    room=request["room_id"],
+                    homepod=request["homepod_id"],
+                )
+                expires = _integer(prepared["expires_after_ms"], 1, 5000)
+                task["deadline"] = min(task["deadline"], prepared_started + expires / 1000)
+                if not self.current(task, token):
+                    self.receipts[key] = fingerprint, rejected
+                    return rejected
                 sent = True
                 value = await self.bridge.controls.music._read(
-                    self.bridge.tools._client, self.bridge.tools._token, "control_playback", request
+                    self.bridge.tools._client,
+                    self.bridge.tools._token,
+                    "control_room_queue",
+                    {**request, "prepare_id": prepared["prepare_id"]},
                 )
             if not self.current(task, token):
                 return unknown
-            result = _receipt(value, identity)
+            result = _room_receipt(value, identity)
             public = {**rejected, "ok": result["ok"], "outcome": result["outcome"]}
             self.receipts[key] = fingerprint, public
             return dict(public)

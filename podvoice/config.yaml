@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "2.0.35"
+version: "2.0.36"
 slug: podvoice
 description: GPT-Live full-duplex voice assistant for custom-firmware Voice PE
 arch:
@@ -12,6 +12,7 @@ startup: application
 init: false
 host_network: true
 homeassistant_api: true   # SUPERVISOR_TOKEN for the HA tool bridge
+stdin: true              # fixed HA-admin command channel to the add-on owner
 hassio_api: true          # lets the panel "Save & restart" the add-on itself
 # Sidebar panel served on :8098 (PodConnect owns :8099) behind HA Ingress.
 ingress: true

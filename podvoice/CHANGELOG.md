@@ -1,3 +1,10 @@
+## 2.0.36 — daglig skærmparring og præcist køvalg, kandidat til review
+
+- Genbrug Home Assistants almindelige Konfigurer-flow til administratorens eksplicitte rumvalg og engangskode eller tilbagekaldelse. Koden vises én gang; friske administrator-, rum-, policy- og Supervisor-kvitteringskrav bevares. Der foretages ingen hjemmehandling ved parring.
+- Tilføj en afgrænset PodView-køhandling for den valgte, aktuelle køforekomst med særskilt read, prepare og engangs commit gennem den eksisterende Native/Control-kæde. Ukendt mulig effekt genafspilles ikke.
+- Bevar alle134 øvrige PodView-aktiver og eksisterende start-, flytte- og volumenadgang. Den eksisterende setupformular accepterer den korrekte kodelængde og viser ikke en forkert fast gyldighed. Komponentregisteret følger den vedtagne Humør-fane.
+- Faktisk HA-framework, shippet stdin, officiel CI, samlet Green-installation og fysisk betjening er særskilte gates. Kandidaten er ikke udgivet eller fysisk accepteret.
+
 ## 2.0.35 — kandidat, fysisk accept afventer
 
 - Samler musikbetjeningens MOVE og START med eksisterende native konto-, rum-, kilde- og grant-ejerskab. Ukendte/stale udfald genafspilles ikke via generiske aliaser eller fallback.

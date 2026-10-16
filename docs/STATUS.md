@@ -1,3 +1,120 @@
+# Leadbeslutning · bind uafhængigt review til samlet 36-kilde
+
+Root har accepteret det samlede, uafhængige kilde-review `/private/tmp/pv36-polish-combined-independent-review.json` (SHA-256 `1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9`). Bind kun de eksakte reviewer-, manifest- og profilpins samt én aktiv 36-admissionsrecord til den allerede frosne komposition. Kildens 64 ændringsstier, 27 produktionsfiler, 26 regressioner, 241 runtimefiler og 135 assets ændres ikke ved denne binding. Dette er kildeadmission; officiel CI, udgivelse, Green-installation, browser-/provideroplevelse og faktiske robot-/lydhandlinger kræver fortsat særskilt bevis og V2-operatørens kontrol.
+
+# Leadbeslutning før endelig 36-admission · præcis præsentation og robotindstillinger
+
+V2 har valgt én samlet, fortsat upubliceret PodVoice 2.0.36-kandidat oven på publiceret35. Den frosne36-kilde `0375ed3f`/tree `b0d7f35b` bevares som checkpoint; denne isolerede komposition samler de uafhængigt gennemgåede signed chart, danske robotlabels, tal-/tidsformular, seks eksplicitte robotroller og normalt Spotify-albumcover. Kun de faktiske ændrede gatewaymoduler, fem eksisterende JS-assets, én eksisterende registerafhængighed og deres kausale tests må udvide den eksakte36-admission. Alle andre af de 135 assets, historisk35-admission, version/config, CI og udgivelsesmekanik bevares. Manifestet skal beregnes fra de endelige bytes; reviewer-, manifest- og profilpins holdes tomme indtil samlet uafhængigt delta-review. Det nye Python→faktisk JS→Python-effektkontrakttest afventes før finalt hash-freeze. Kildechecks er ikke browser-, Green-, provider-, robot- eller fysisk accept, og ingen push eller publicering sker fra denne komposition.
+
+# Root composition decision: independently reviewed robot effects
+
+Before code integration, adopt full source patch aad98179955930b224c97e9fe8d875507f62ec139ecb40fe46b9929c3993d760 into this isolated composition. Same DeviceControl/TouchControls owners and one-use task, six explicitly opted-in settings roles, independent of cleaning idle/map prerequisites. Keep old cleaning/map/start guards and recipe semantics, preserve reviewed Danish display labels. Source review repaired superseded busy/map, duplicate-ticket and unknown-sentinel defects; addendum64ea704a binds strict ASCII time parity. No source activation, configuration, grants, provider/device effects, root/frozen adoption, new version or release claim. Compose then run actual shared server/UI contract and relevant regressions.
+
+# Root lead decision: register one existing validator dependency
+
+The canonical gate correctly rejected the new visual-content -> spotify-artwork import. Register exactly that dependency in the isolated registry so sourced album-cover admission reuses the existing closed Spotify URL validator. This is a dependency between two already registered active-support modules, not a renderer, component, family, anatomy, factory, root or surface change. No rebaseline or gate relaxation. Independent review required for this exact one-field registry edit before adoption. Root/frozen36 registry remains unchanged.
+
+# Root composition decision: reviewed Spotify album-cover source
+
+Integrate independently reviewed patch3c67d891691351b854a810bd89ff47954646632c41abb4ec2ceabd460315043d into this isolated source composition. Same renderer, accepted existing-tool account/track/source metadata only, truthful Omslag/Spotify credit. Preserve signed-chart and reviewed robot-form changes. No new provider/model calls, image assets, UI family, frozen36/root adoption or release approval. Final source review101Python/20Node; actual provider/browser/Green not proven.
+
+# Root composition decision: reviewed robot setting form, source only
+
+Before integration, adopt the independently reviewed four-file robot setting UI patch into this isolated composition only. Same existing form and effect owner; additive finite number/time schemas. Preserve signed-chart and Danish-label candidates already composed here. No edits to root dist, frozen36, release admission, configuration or Green. Browser pixels and native effects remain unverified. Source review pins: patch45abb68e9f3fd92899f8a9d30d76c56a7ec1e9162642948ec7fcf0c333bd852e; independent review7875a7b72106d08f2afd7c458bcdd56d3e5152e30d797452cc52574f672718cb.
+
+# Aktiv leadbeslutning · isoleret datapræsentationsrettelse · ingen ny version aftalt
+
+Denne isolerede kandidat bygger på den frosne36-kilde0375ed3f/treeb0d7f35b. Den ændrer ikke den igangværende CI630 eller dens releaseadmission. Root er UI-/compose-lead; v2.X forbliver eneste udgivelses-/Green-operatør. Den gamle36-record nedenfor er arkiveret, så dens godkendelse ikke kan arves af nyt indhold.
+
+Observerede fejl: faktiske negative vejrtemperaturer degraderes til concise og clamped meter; Roborock-indstillinger viser rå engelske HA-enums. Kausal hypotese: de tre eksisterende chart-grænser skal acceptere samme endelige signed-domæne, og eksisterende robots public-label-projektion skal oversætte præcise kendte rolle/værdi-par uden at ændre private dispatchværdier. Begge isolerede patches har selvstændigt source-review og kausale RED/PASS-regressioner.
+
+Hele berørte kæder: accepteret actual weather tool → eksisterende kilde-/session-/revision-/expiry-ejer → afsluttet normalt AI-svar → samme kanoniske chart-admission → pv-answer/pv-data-chart; og faktisk tilladt samme-enheds HA-select/fanoption → private opaque options/aktuel owner → dansk public label → uændret rå _steps-handling ved eksisterende eksplicit brugerinput. Voice PE/Talk, provider, modelkald, native audio/playback/teardown/rearm/næste wake er uændrede. Relevante naboer er negative/zero/mixed/positive ranges, finite bounds, mismatched units/sourceexpiry og ukendte/foreign robotroller/mapnames. Ingen nye kontroller, domæner, retries, datakilder eller AI-kvoter.
+
+Invarianter: faktiske kildeværdier, rå dispatch, option-ID, orden, aktuelle policy/grants og effektguards bevares; UI bruger kun eksisterende anatomy, ingen CSS/billeder/familier. Plan: sammensæt de reviewede9paths, kør berørte kausale tests og canonical componentgate/npm; behold kilde/live-root-paritet som separat adoptionskrav. Rigtig browser/HTMLMeterElement-pixelkontrol er endnu blokeret af browseradgang og må ikke udledes af tinyDOM-tests. Før fremtidig udgivelse kræves separat exact-source-admission/CI og aftale med releaseoperator; rollback er den uændrede frosne36-kandidat. Denne post giver ingen versions-, release- eller fysisk accept.
+
+---
+
+# Aktiv leadbeslutning · samlet PodVoice 2.0.36 · daglig parring og præcist køvalg · 16. oktober 2026
+
+**Planlagt samlet build; ikke udgivet, installeret eller fysisk accepteret.** Denne PodView-chat ejer UI og sammensætning. V2.X er eneste endelige release- og Green-operatør. Faktisk base og installeret version er PodVoice2.0.35 `ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd`, Speakers0.26.22 og Control0.10.15. Den tidligere kø-only36-godkendelse nedenfor er arkiveret; den giver ingen godkendelse til den udvidede kandidat.
+
+Observeret mangel: den normale HA-opsætning kan endnu ikke udstede og tilbagekalde en daglig rumcontroller. Eksisterende viewer-/ingressadgang giver ingen kontrolautoritet. Kørettelsen er allerede kildegennemgået; PodConnect43 har faktisk grøn officiel Linux/Native/C/manager/HA-kørsel. Hypotesen er, at den eksisterende HA-config-entry kan genbruge en standard OptionsFlow til administratorens eksplicitte rumvalg og bekræftelse, mens samme registrerede adminservice over Supervisor-stdin får add-on-processen til at oprette en hash-only, kortlivet engangskode og returnere en nonce-/MAC-bundet kvittering. Ingen manuel hashredigering, genstart for udstedelse eller erstatning af Supervisor-options-map er nødvendig.
+
+Berørt kæde: faktisk autentificeret HA-HTTP-admin → normal OptionsFlow bundet til samme aktive admin/config-entry og fuld fysisk endpoint-identitet → én eksplicit bekræftelse → faktisk registreret response-only service med samme aktive human-admin-context → Supervisor stdin → bounded add-on stdin-ejer → privat fsync-konfiguration og kodehash/continuity-generation → autoritativ engangskvittering → kode vist én gang → eksisterende PodView-setup → eksisterende grants og samme præcise rum/native-betjening. Visning og opsætning starter ingen musik, timer eller robot. Voice PE-/Talk-input, GPT-Live, audio, teardown/rearm og næste wake bevares hos eksisterende ejere. Nabo-races omfatter admin-/entry-/MAC-skift før og under await, stale/replayed/malformed kvittering, timeout, unload, ændret policy, genstart, korruption og stdin-flood. Ingen ukendt mulig skriveeffekt gensendes automatisk.
+
+Invarianter: frisk aktiv human-admin revalideres; system-/viewer-/indirekte context afvises; kun den eksakte Supervisor-maskinidentitet kan kvittere for den bundne nonce/action/room; hemmeligheder må ikke gemmes i entry/options/logs. Parrede profiler er fortsat begrænset af eksakte eksisterende native ejere, timer-readiness, policy og absolut udløb; udstedelse eller rotation kan ikke genbruge gammel policy. Ingen ny AI-kvote, provider, credential eller automatisk hjemmehandling. Alle låste UI-bytes bevares undtagen den eksisterende setupformulars dokumenterede tokenlængde/gyldighedstekst; komponentregisterets gamle Likede-enum bringes i overensstemmelse med vedtaget Humør. Ingen ny komponentfamilie eller ændring af artwork/geometri.
+
+Plan: sammensæt de selvstændigt gennemgåede backend- og OptionsFlow-patches i samme upublicerede36; normalisér kun frameworktestens placering. Kør eksisterende kausale regressioner og rigtig HA2026.8.2 HTTP/ServiceRegistry-kæde i den eksisterende offline image-CI; ny HA-job er en nødvendig udgivelsesgate. Bevar CI628-reparationens fulde Git-historik for historiske35-fixtures. Opdatér alene36's eksplicitte kilde-/konfigurations-/assetadmission, få ét uafhængigt review af det samlede diff og bind derefter eksakte bytes. Rigtig shippet s6/stdin-probe, HACS-komponent0.1.2 fra den koordinerede2.0.36-kilde, Green-installation og den faktiske korte musik-/robot-/timer-/svarserie er særskilte endnu åbne trin. Rollback er publiceret35 og bevarede seks policies; ingen allowance/ledger/credential nulstilles. Kildetests er ikke fysisk/hørbar accept.
+
+
+**Faktisk sammensætning før officiel CI:** Backend b0e46ca, OptionsFlow416a med separat HA-test-owner, repoformat uden AST-ændring og fire logisk redundante private-row-typeguards er adopteret. 18 kausale admincases består. Den berørte continuity/pairing/dev-kohortes cases består efter præcis localhost-bind-tilladelse og rettelse af fire gamle CI-fixtureassertions; hele dev_cycle105 består. Mypy på fem berørte gatewaymoduler, Ruff/format og syntaks består. RootUI npm555/555 inklusive komponentgate50 består; kun setup.html8e82d9ca og manifest er ændret, øvrige134 assets identiske. Løbende historiske unit4691 blev kontrolleret i sammenhængende slices, før denne175-udvidelse; det er ikke en fuld ny samlet unitaccept. Kandidatens faktiske HA-framework16 cases og shippet s6/stdin kører næste gang i officiel CI. Ingen ny kode/grant/controlleraktivering eller fysisk handling er udført. HACS0.1.2 og samlet installation er stadig åbne.
+
+**CI629-opfølgning:** Officiel scope, Ruff/format/mypy og UI-browser er grønne på01935085. Rigtig HA2026.8.2 kørte16 cases:15 består inklusive faktisk HTTP → registreret adminservice → eksakt kvittering. Viewer-casen stoppede i testens JSON-parser på HA's korrekte401/text/plain-afvisning. Den kausale fixture-only-rettelse aec35a91 bevarer streng JSON for succes og direkte no-context-afvisning; viewer-testen kontrollerer nu det virkelige401/tekstformat, ikke-tomt svar og nul serviceeffekter. Uafhængigt review24aa6200 er source-GO. Kun denne test og nye eksakte36-pins ændres. Igangværende629-job stoppes ikke; deres faktiske resultater bevares. Ny officiel HA-test er stadig nødvendig, og Green er fortsat35 uden ny parring eller hjemmehandling.
+
+**Anden konkret CI629-fixture:** Unit nåede3878 beståede cases og stoppede derefter ved releasekontraktens gamle publisher-needs-literal. Den nu kontrollerede liste kræver også ha-framework; resten af immutable-version-/publish-guards er uændrede. Hele release-contract12 består; en samlet søgning fandt ingen yderligere levende gamle CI-assertions. Filen tilføjes som den13. eksakte36-regression. Rest og UI-browser629 er faktisk grønne; shippet stdin kører fortsat. Dette er en testrettelse, ikke en runtimeændring eller fysisk accept.
+
+**Afgrænset image-probe-rettelse:** CI629 observerede samme faktiske ARM-image og normal /init → /run.sh med OpenStdin, men endnu ingen fd0-reject-PASS. Testscriptets oprindelige TERM-only-timeout kan vente ubegrænset; den præcise hængende Dockerkommando er ikke bevist. V2's selvstændigt gennemgåede script63e9c696 giver hver Dockerkommando en kill-after-grænse, afgrænset30s-poll og fasemarkører. Det kræver stadig rigtig reject-marker, levende container og faktisk gatekeeperproces. Det er en toolingrettelse; alle runtime-, UI- og workflowbytes bevares. Automatisk review afviste at annullere den aktive629 uden specifik menneskelig godkendelse; V2 har bedt om denne, og ingen anden aktør eller alternativ kø anvendes til at omgå afvisningen. Efterfølgeren må stå i normal kø, indtil den tilladte afbrydelse eller naturlige afslutning frigiver den. Faktisk ny HA-/image-CI og Green-accept er fortsat åbne.
+
+<!-- historical-frozen36-admission
+{
+  "version": 12,
+  "kind": "podview36_queue_and_controller_admin",
+  "reviewer": "Independent GPT-6 Sol /root/queue_gateway_review; exact36 combined queue/controller source and admission review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "fingerprint": "4d983e623a428632160172ff208c0453c51ed9060a0b956c14b0dd7b62ecd1c0",
+  "regression_fingerprint": "fb4ac885244b4590330f97d4151e60cbbf11b01a0e5829a5b282fcbea76b79f7",
+  "runtime_fingerprint": "84a736eab1c3e13ca25e6ef36f895a164e6b9219955dd985486670074dcc8bd4",
+  "config_fingerprint": "358abe24a5da02240d8be97f4d5d325fd040ff46647d6f54cf765a0dbe77afb9",
+  "policy_fingerprint": "e1ebfe494e8e5cb092004ad5901adb4a59981cd3397a0685efaeae38a969a522",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "0076bc4a75ecf224c08e2a6615ddce6fa537dd33f961fd49e0ee28c0d6e53763",
+  "rationale": "Independent combined source/admission GO from queue_gateway_review; exact HA inventory, historical35 pins and setup-only asset delta verified. Four redundant private_row type guards separately reviewed1bc868be; repository-format AST parity retained. Full actualHA HTTP/service and shipped-image stdin CI are pending and mandatory before merge. No Green/controller/provider/physical acceptance is implied. CI629 executed16 actualHA cases:15 passed; viewer test stopped decoding expected plaintext401. Fixture-only repair aec35a91 has independent review24aa6200; only that test and its exact pins changed. Shared JSON helper and all production/workflow/UI bytes unchanged; actual correctedHA rerun pending. CI629 unit3878 PASS then old test_release_contract dependency assertion failed. One-line fixture correction requires HA gate exactly; full12 release-contract cases PASS. Added as13th exact regression; no runtime or workflow change. V2 scoped review admits bounded image-probe script63e9c696: hard-kill deadlines for Docker commands, phase markers and retained exact rejection/alive/process checks. It repairs the documented harness timeout gap; exact hanging Docker command and runtime stdin delivery remain unproved. No workflow or production change; cancellation requires separately requested humanapproval after automatic review rejection."
+}
+-->
+
+
+---
+
+# Aktiv leadbeslutning · PodVoice 2.0.36 · præcist køvalg · 16. oktober 2026
+
+**Planlagt isoleret draft/CI-kandidat; ikke udgivet, installeret eller fysisk accepteret.** Denne PodView-chat ejer den nye kørettelse og de låste135 UI-assets. V2.X er fortsat eneste endelige udgivelses-/Green-operatør. Kildebasen er den faktiske35-mainmerge `ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd`; Green er nu faktisk installeret på35 med Speakers22/Control15; installation og fysisk accept er adskilt. Versionsnumrene36/23/16 er næste isolerede kandidat, ikke en bekræftet installation.
+
+Observeret fejl: den tidligere logiske køkommando mangler atomisk Native/C-rumkontrol, så35 holder køvalg lukket. Issue174 bevarer det fulde krav om præcis opaque køforekomst, dubletter, manuel rækkefølge, kontekst/session og manuel lydstyrke. Beslutning: genbrug de eksisterende ejere med særskilt bound queue-purpose og løsrevet klargøring; hverken Next, URI-start, outputskift eller startvolumen35 må erstatte køvalget. Læsning, effect-free prepare og effect commit er adskilt, så den oprindelige PodView-task/grant kontrolleres igen efter klargøring og før mulig effekt. Fælles Control-sekvens og Native high-water, præcis native9/route9/writer6, oprindeligt udløb, engangsforbrug og unknown-uden-retry skal følge til den faktiske kilde-/cursorpublicering efter alle fysiske låse.
+
+Kildegrænse: kun de gennemgåede gateway-/scope-/queue-JSON-filer og berørte tests adopteres her. Native/C/manager/Control samles separat i23/16. Alle135 UI-assets, AI-model/kvoter, GPT-Live/ThinSession, Voice PE/Talk-lifecycle, providerprompt, timer/robot/vejr og eksisterende34/35-admission forbliver uændrede. Ældre/ufuldstændige stacks må ikke få køeffekt. Fejl før commit giver ingen lydændring; ukendt mulig commit forbliver consumed uden automatisk gensendelse.
+
+Faktiske beviser før adoption: scoped gateway-review og104 fokuserede/eksisterende queue/controller-cases består; to reelle service-/receiptfejl blev først reproduceret og derefter rettet. Tracks-staging har fuld fokuseret PASS og tre kausale fejlmutationer. Native/C/Control er kildegennemgået, men deres Linux/HA-kørsel er åben. Docker-API svarer ikke lokalt; eksisterende officiel Linux-CI bruges til næste kontrol frem for stubs eller ændrede produktdeadlines. V2 har nu bekræftet main35-CI626 og publicering samt faktisk Green-installation med backup: image sha256:b132e3eefdb69dd5dc21454013e96ea8f0caad081f7917e8dc212f42f8aacfaf og rootfs-v1:58362ed64032938ee544dbf305e1fe6368addafc0977b3496cef77794549244b, samme git ed0fbc41, GPT-Live/MCP/Voice PE tilsluttet. Alle seks eksisterende policies er uændrede; Mårslet er gemt og bevaret efter genstart. Den almindelige native iframe viser35, og Par skærm åbner opsætningsformularen. Controller er fortsat disabled, og der er ikke oprettet nogen ny grant eller credential. De praktiske musik-/robot-/timer-/svarprøver er stadig åbne. Før merge/release kræves samlet exact-source-review, nødvendige virkelige tests/CI og kontrol af de faktiske artifactbytes. Fysisk/hørbar accept udledes aldrig af disse checks. Ingen ny credential, quota, grant eller hjemmehandling er foretaget af denne adoption.
+
+**Officiel køkontrol og afgrænset fixture-opfølgning:** PodConnect43 head `0b1a8e760539e6a29061da6ee55d8050fda5421e` har nu tre grønne officielle kørsler: manager38926162648, HA38926162620 og Native/OwnTone38926162505. Det omfatter faktisk Linux CGO/race/vet/build, C-ejertests og queue-modes samt pinned HA-framework; ikke fysisk lyd eller Green-installation. Første kørsel fejlede på en unkeyed Go-testliteral, en HA-testreference efter faktisk unload og manglende root-forudsætning i de eksisterende C-proc-tests; disse fejl er bevaret og de præcise test-/CI-rettelser er uafhængigt reviewet. PodVoice627 scope, UI-browser, lint/format/mypy, rest-tests og PR-build bestod, men unit stoppede ved den historiske35-fixtures antagelse om, at den aktuelle checkout stadig var35. Det tre-fils fixture-/admissionrepair `bed125211d9725042fb433348e0c19252e3a5c1907da10ad9ae7192969c1dc0f` har scoped review `c81405c54aa330965998c33e565788a2ef8d9328473aecf4aa777de908fb7f28`: faktiske35-Gitbytes bruges på efterfølgere, også ved endnu ucommitted36 på35-HEAD; den ændrede35-test er nu en eksakt ny36-regression. Historiske35-profil/manifest og produktions-/UI-bytes er uændrede. Næste officiel unitkontrol er åben. Daglig adminstyret controllerprovisionering #175 samles i samme upublicerede36-kandidat efter særskilt implementering og review; køens nuværende CI giver ikke den kommende ændring eller fysiske prøve godkendelse.
+
+<!-- historical-queue-only36-admission
+{
+  "version": 11,
+  "kind": "podview36_exact_queue_occurrence",
+  "reviewer": "Independent GPT-6 Sol /root/queue_native_review; exact36 composed source/admission review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "fingerprint": "bd2859b913d44327c613383b21f4b8060429fb6e0c81c136607ddfbdc4be91ad",
+  "regression_fingerprint": "a0090a14ee498b1c970098aa1809d0822e0f45768bd1d8e0ea4c87a7d3be0333",
+  "runtime_fingerprint": "df29dc08cecb61b55e8b76d52c65e7c803725f03ea3b27c1bfd036865734bb4a",
+  "config_fingerprint": "500ab762cd0ee93f309291cd4594b38c1376d14c8936382985ee9e5d6ccba6fc",
+  "policy_fingerprint": "173f2667c8dfb750128a9224c5431a0a44170bb658fdec2a0874b3a3386ef6db",
+  "tooling_fingerprint": "8fac59b24487960fc84aa1294ba47a15d74f9931469b1792e18ca04954d94dbe",
+  "manifest_fingerprint": "a1b9f0f0a0a65291458ae9c0bf5711affd096097c6b7d600948510730c6e233f",
+  "rationale": "Original composed source/post-pin reviews remain bound to unchanged runtime/UI; CI627 historical fixture repair additionally reviewed c81405c54aa330965998c33e565788a2ef8d9328473aecf4aa777de908fb7f28. Six exact regression files include changed historical35 fixture; no historical35 profile/manifest rewrite. Official successor CI and daily controller provisioning175 remain pending, and physical acceptance remains open."
+}
+-->
+
+---
+
 # Aktiv leadbeslutning · PodVoice 2.0.35 samlet PodView-runtime · 16. oktober 2026
 
 **Planlagt build; ikke frosset, udgivet, installeret eller fysisk godkendt.** Runtime-compose-ejer og lead: `/root` efter eksplicit overdragelse fra PodView-lead; afgrænsede forfattere og uafhængige reviewere arbejder parallelt. Root ejer endelig admission, release og installation. Base er faktisk publiceret 2.0.34 `e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b` (tree `82b9b89d2a0fd1a79fc599a628bdbda031b59667`). Den eksisterende 34-post nedenfor er historisk og giver ingen 35-godkendelse.
@@ -667,5 +784,32 @@ Sidste afgrænsede staticfreeze ·15. oktober2026: kun weather-view.js, widget-v
   "manifest_fingerprint": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",
   "reviewer": "Independent /root/review34; exact35 source review",
   "rationale": "Exact PodVoice35 pre-pin HEAD 851b09bb6295bfcb37015bac7d0851fc48d11fac tree 586b14dc32bc9aaecdbe4b14b3aee52049204a9c independently reviewed. Only reviewed CI diagnostics verbosity and contract changed since prior 55-regression/135-asset pin; seven-case reproduction emits 598 bytes at -v versus 2,150,457 bytes at -vv. maxfail, faulthandler, selectors and durations retained, with no runtime/UI change. PodConnect 0.26.22 and Control 0.10.15 installed and loaded separately; PodVoice remains 2.0.34. Official final CI, PodVoice publication and installation, provider/audio, Green control and physical acceptance remain separate."
+}
+-->
+
+
+# Root lead decision: Danish dock setting values
+
+Before the two-file copy correction, use the existing display-only exact role/value label map for dust_collection_mode: smart=Smart, light=Let, balanced=Balanceret, max=Maksimal. Same extended choice form and opaque IDs; raw service arguments, option order, unknown-value fallback, role grants and effect owners stay unchanged. Correct only podview_controls.py and existing test_robot_setting_labels.py; focused tests must prove actual private dispatch retains original raw values. No UI asset/schema/provider/config change. Recompute unsigned admission pins after independent review.
+
+<!-- podview36-admission
+{
+  "version": 13,
+  "kind": "podview36_queue_admin_robot_and_presentation",
+  "reviewer": "Independent /root/final_scope_audit combined36 source SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9; /root/queue_gateway_review CI631 fixture SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
+  "fingerprint": "99aef7f91551f371a4a0f0383541bf38b411234dd12888704bb5ebd32b50f680",
+  "regression_fingerprint": "13a19a519d4d71e9929cc83c511236c6844cc868c06aee055de7ebf22cc7b4e9",
+  "runtime_fingerprint": "5b564b61c7f5718983667af555b15a8e8292f7426f9eb7ddd4a3baf92450be73",
+  "config_fingerprint": "358abe24a5da02240d8be97f4d5d325fd040ff46647d6f54cf765a0dbe77afb9",
+  "policy_fingerprint": "92ced8de0a90faeb877b2a788f14a49597c348dcf3e6f936c67293fff5368c36",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "a9c7b62a3961a4d3f9d03fe615f0cfb5fbc64ae9c7b287b86f825e0f0b9f9139",
+  "rationale": "Independent exact combined36 source review /private/tmp/pv36-polish-combined-independent-review.json SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9. Exact 64-path source and manifest scope, 27 production files, 26 regressions, 241 runtime files, 135 assets, historical35 immutability and root PodView asset parity checked. This record admits source only; official CI, release/publication, Green installation, browser/provider delivery and actual physical robot/audio behavior require separate operator evidence and acceptance. CI631 only-unit failure was a Git fixture pointing to local-only checkpoint 0375. Independent scoped review /private/tmp/pv36-ci631-registry-anchor-independent-review.json SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b admits the one-line test anchor 38bd92ca28d0206bfafef6b03a7ea4d883e6a211, the actual remote PR176 merge-base with identical b0d7f35b tree and registry blob; assertion semantics and all production/UI bytes are unchanged. Handover: Git fixtures must reference reachable actual remote ancestors, never local-only metadata commits. This rebind remains source/test admission only; a fresh official unit run is required."
 }
 -->

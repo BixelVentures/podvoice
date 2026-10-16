@@ -55,3 +55,30 @@ test('a map-only admitted setting remains actionable without a contradictory emp
  const select=root.querySelector('select');select.value='upstairs-opaque';emit(select,'change');emit(root.querySelector('form'),'submit');assert.deepEqual(actions,[{optionId:'map-opaque',args:{choiceId:'upstairs-opaque'}}]);
  panel.data={task:{domain:'vacuum',options:[]},device};assert.equal(root.querySelectorAll('p').some(n=>n.textContent==='Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.'),true);
 });
+
+const {controlTask,controlArgs}=await import('../../podvoice/gatekeeper/static/podview/control-model.js');
+const settingNow=Date.now(),settingSnapshot={roomId:'room',bootId:'boot'};
+function typedSettings(){return controlTask({ok:true,schema:'podview.control.v1',roomId:'room',bootId:'boot',taskId:'settings-task',revision:1,expiresAt:settingNow/1000+30,domain:'vacuum',options:[
+ {id:'volume-opaque',label:'Lydstyrke',action:'set_option',argsSchema:{kind:'number',min:0,max:100,step:1,unit:'%',current:90}},
+ {id:'dnd-start-opaque',label:'Forstyr ikke fra',action:'set_option',argsSchema:{kind:'time',current:'22:00:00'}},
+ {id:'dnd-end-opaque',label:'Forstyr ikke til',action:'set_option',argsSchema:{kind:'time',current:'08:00:00'}},
+ {id:'dnd-opaque',label:'Forstyr ikke',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'dnd-on',label:'Til'},{id:'dnd-off',label:'Fra'}]}},
+ {id:'child-opaque',label:'Børnesikring',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'child-on',label:'Til'},{id:'child-off',label:'Fra'}]}},
+ {id:'empty-opaque',label:'Tømning',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'empty-balanced',label:'Balanceret'},{id:'empty-max',label:'Maksimal'}]}},
+]},settingSnapshot,'vacuum',settingNow);}
+Object.defineProperty(Node.prototype,'valueAsNumber',{get(){return this.value.trim()?Number(this.value):NaN;}});
+test('actual existing settings forms render numeric/time current values without authorizing defaults or input effects',()=>{
+ const admitted=typedSettings(),panel=new RobotControlPanel(),intents=[];panel.addEventListener('robot-control-action',event=>intents.push({optionId:event.detail.optionId,args:controlArgs(admitted,event.detail.optionId,event.detail.args,settingNow)}));panel.data={task:admitted,device};
+ const forms=panel.shadowRoot.querySelectorAll('form');assert.equal(forms.length,6);assert.ok(forms.every(form=>form.className==='setting'));const [volume,start,end]=forms;const field=volume.querySelector('input'),submit=volume.querySelector('button');
+ assert.equal(field.type,'number');assert.equal(field.value,'90');assert.equal(field.min,'0');assert.equal(field.max,'100');assert.equal(field.step,'1');assert.equal(submit.disabled,true);assert.equal(start.querySelector('input').type,'time');assert.equal(start.querySelector('input').value,'22:00:00');assert.equal(end.querySelector('input').value,'08:00:00');
+ emit(volume,'submit');emit(start,'submit');assert.deepEqual(intents,[]);field.value='75';emit(field,'input');assert.equal(submit.disabled,false);assert.deepEqual(intents,[]);panel.observed({...device,battery:90});assert.equal(panel.shadowRoot.querySelectorAll('form')[0],volume);assert.equal(field.value,'75');emit(volume,'submit');assert.deepEqual(intents,[{optionId:'volume-opaque',args:{value:75}}]);
+ const clock=start.querySelector('input');clock.value='21:30';emit(clock,'change');assert.equal(start.querySelector('button').disabled,false);assert.equal(intents.length,1);emit(start,'submit');assert.deepEqual(intents.at(-1),{optionId:'dnd-start-opaque',args:{time:'21:30'}});assert.equal(end.querySelector('input').value,'08:00:00');
+ panel.disabled=true;clock.value='20:00';emit(clock,'input');emit(start,'submit');assert.equal(intents.length,2);assert.ok(panel.shadowRoot.querySelectorAll('button,input,select').every(node=>node.disabled));
+});
+test('malformed draft values and unknown setting schemas never become bounded control intents',()=>{
+ const admitted=typedSettings(),panel=new RobotControlPanel(),intents=[];panel.addEventListener('robot-control-action',event=>{try{intents.push(controlArgs(admitted,event.detail.optionId,event.detail.args,settingNow));}catch{}});panel.data={task:admitted,device};const [volume,start]=panel.shadowRoot.querySelectorAll('form'),number=volume.querySelector('input'),clock=start.querySelector('input');
+ for(const value of ['','NaN','Infinity','-1','101','75.5']){number.value=value;emit(number,'input');emit(volume,'submit');}
+ for(const time of ['24:00','21:60','21:30Z','2026-10-16T21:30','21:30\n','21:30:00\r\n']){clock.value=time;emit(clock,'change');emit(start,'submit');}assert.deepEqual(intents,[]);
+ number.value='90';emit(number,'change');assert.equal(volume.querySelector('button').disabled,true);emit(volume,'submit');assert.deepEqual(intents,[]);
+ panel.data={task:{domain:'vacuum',options:[{id:'unknown',label:'Ukendt',action:'set_option',argsSchema:{kind:'unknown'}}]},device};assert.equal(panel.shadowRoot.querySelectorAll('form').length,0);
+});

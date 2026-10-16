@@ -12,10 +12,10 @@
  <main>
   <a href="./">← Til PodView</a>
   <h1>Skærmopsætning</h1>
-  <p>Indtast engangskoden fra PodVoice for at bruge de godkendte handlinger på denne skærm i fem minutter.</p>
+  <p>Indtast engangskoden fra PodVoice for at forbinde denne skærm. Hvor længe den kan bruges, afhænger af den aktuelle opsætning.</p>
   <form id="pair-form">
    <label for="pair-code">Engangskode</label>
-   <input id="pair-code" name="code" type="password" autocomplete="off" minlength="16" maxlength="256" required>
+   <input id="pair-code" name="code" type="password" autocomplete="off" minlength="32" maxlength="128" pattern="[A-Za-z0-9_-]{32,128}" required>
    <button id="pair-submit" type="submit" disabled>Forbind skærmen</button>
   </form>
   <p id="pair-status" role="status">Forbinder til hjemmet…</p>

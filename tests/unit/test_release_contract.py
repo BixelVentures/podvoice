@@ -126,7 +126,7 @@ def test_release_inspection_executes_actual_shell_and_preserves_immutability(
 def test_missing_release_recovery_keeps_main_checks_and_guards_every_publish_step() -> None:
     publisher = (ROOT / ".github/workflows/ci.yml").read_text().split("  publish-addon:\n", 1)[1]
     header, *steps = publisher.split("\n      - ")
-    assert "needs: [scope, lint-test, ui-browser]" in header
+    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in header
     assert "github.ref == 'refs/heads/main'" in header
     assert "needs.scope.outputs.tooling_only != 'true'" in header
     assert "always()" not in header

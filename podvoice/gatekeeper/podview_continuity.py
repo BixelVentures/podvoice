@@ -135,6 +135,17 @@ class ControllerRegistry:
         finally:
             temporary.unlink(missing_ok=True)
 
+    def initialize(self):
+        """Create the exact empty generation before acknowledging admin provisioning."""
+        fd = self._open()
+        try:
+            if not self.path.exists():
+                self._write(self._load(create=True))
+            else:
+                self._load()  # Existing generation/corruption must fail closed.
+        finally:
+            os.close(fd)
+
     def enroll(self, room: str, pin: str):
         fd = self._open()
         try:
