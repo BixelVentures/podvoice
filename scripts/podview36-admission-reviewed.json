@@ -23,17 +23,18 @@
   },
   "regressions": {
     "tests/ha_framework/test_controller_admin_services.py": "47862ef12e03d94319cfb4095c98fc230395508f030141d2acc4ed776c30e277",
-    "tests/ha_framework/test_options_flow_http.py": "dfe26cfcd71341cdd84277400305a9c06b508ef2476933acda273b93f96ee312",
+    "tests/ha_framework/test_options_flow_http.py": "5246eb10bd299092790b2d06155ae3a5591a3750988098c6640c493fe4fa1e84",
     "tests/integration/test_podview_admin_provision.py": "d4c087bed059928a731a490c1ac7867d2655b44fe649dbbc2f7488cb979c735e",
     "tests/integration/test_podview_queue_occurrence.py": "b624d91d4cd79a31bd99848904117cd5528989e5f39b3dc35d753a7bfbd397ca",
     "tests/integration/test_podview_room_queue.py": "c740d3eed64ae59cb014b1d9dd2ad968d37819f476ec3d3bb55400ae2b25a49f",
     "tests/integration/test_queue_controller_boundary.py": "0e3da2656c88ec2692496daa09a47be3b6afb3dd19e33a7fad0579209ff2eb75",
     "tests/unit/test_candidate_scope_admission35.py": "19337b2de5b311c2d53f59d98e3f45d63d92998a3e7d5b63c5d21870921959d4",
-    "tests/unit/test_candidate_scope_admission36.py": "7cc25c06141aee3988e96ebc1dab4691d3bcb12e08f71a653af68303a34e17ea",
+    "tests/unit/test_candidate_scope_admission36.py": "ad79dcf3dda02958d7f7c0a0626aaac97956cbef562200e7bf260662bd8672e5",
     "tests/unit/test_dev_cycle.py": "ccd7ffcd7ab66ab32cc9e4b390ff655e1e540f6796a054c835096616e4be7607",
     "tests/unit/test_ha_controller_admin.py": "014e77d7352a6fd0d9d195bef5713c2a7352507412085c4606106bf18987746c",
     "tests/unit/test_ha_controller_registration.py": "e2b6364fa1544940e7f47c3acb03871d87c61bf180c56d53d62e27627c9b8e9a",
-    "tests/unit/test_podview_queue_scope.py": "6ba36969179e7aaa8463dee3985b516a517772eaf3d8b679094d0fac7bb98a62"
+    "tests/unit/test_podview_queue_scope.py": "6ba36969179e7aaa8463dee3985b516a517772eaf3d8b679094d0fac7bb98a62",
+    "tests/unit/test_release_contract.py": "3bae32d267a4c95a3a584294954c1284de476f1d8073ea398e663aced5db0b4a"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "fe5750bb79454b11f5e6175b40463d441acd0b14f807bd49fd563ef06d1fd9ae",
@@ -290,7 +291,7 @@
   },
   "tooling": {
     "scripts/check-component-library.mjs": "8487cdc0751b02eb83cf0c5d74948117d3fcecf781010dfd95c427f4469b2192",
-    "scripts/check_podview_admin_stdin.sh": "b95a8970d5e92923389d6c87312d598234cfd305c1fb22bcd5cc67271afc9eda",
+    "scripts/check_podview_admin_stdin.sh": "63e9c696589e7660b99035dcfca5d751814cde8e1f4b6593fa908bdcda576058",
     "scripts/provision_mood_budget.py": "70590ecc4ebc717fc0c2b00d824c561b607510380582fe2baef5cfdd84e54fda",
     "scripts/revoke-podview-controller.py": "1cae1f9f516e5fed803425ebbf17e0e255052b983794b3e5f9556deb85226201"
   },

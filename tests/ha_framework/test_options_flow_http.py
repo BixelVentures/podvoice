@@ -188,8 +188,17 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(CODE, repr(body))
 
     async def test_viewer_http_and_direct_no_request_context_cannot_start(self):
-        status, _ = await self.request(data={"handler": self.entry.entry_id}, user=self.viewer)
-        self.assertEqual(status, 403)
+        # Real HA require_admin returns a plaintext 401 before the flow runs.
+        # Keep the shared helper strict JSON for normal flow responses.
+        async with self.client.post(
+            URL,
+            json={"handler": self.entry.entry_id},
+            headers=self.headers[self.viewer.id],
+        ) as response:
+            self.assertEqual(response.status, 401)
+            self.assertEqual(response.content_type, "text/plain")
+            self.assertTrue((await response.text()).strip())
+        self.assertEqual(self.calls, [])
         result = await self.hass.config_entries.options.async_init(
             self.entry.entry_id, context={"user_id": self.admin.id}
         )

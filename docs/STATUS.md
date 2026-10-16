@@ -13,6 +13,12 @@ Plan: sammensæt de selvstændigt gennemgåede backend- og OptionsFlow-patches i
 
 **Faktisk sammensætning før officiel CI:** Backend b0e46ca, OptionsFlow416a med separat HA-test-owner, repoformat uden AST-ændring og fire logisk redundante private-row-typeguards er adopteret. 18 kausale admincases består. Den berørte continuity/pairing/dev-kohortes cases består efter præcis localhost-bind-tilladelse og rettelse af fire gamle CI-fixtureassertions; hele dev_cycle105 består. Mypy på fem berørte gatewaymoduler, Ruff/format og syntaks består. RootUI npm555/555 inklusive komponentgate50 består; kun setup.html8e82d9ca og manifest er ændret, øvrige134 assets identiske. Løbende historiske unit4691 blev kontrolleret i sammenhængende slices, før denne175-udvidelse; det er ikke en fuld ny samlet unitaccept. Kandidatens faktiske HA-framework16 cases og shippet s6/stdin kører næste gang i officiel CI. Ingen ny kode/grant/controlleraktivering eller fysisk handling er udført. HACS0.1.2 og samlet installation er stadig åbne.
 
+**CI629-opfølgning:** Officiel scope, Ruff/format/mypy og UI-browser er grønne på01935085. Rigtig HA2026.8.2 kørte16 cases:15 består inklusive faktisk HTTP → registreret adminservice → eksakt kvittering. Viewer-casen stoppede i testens JSON-parser på HA's korrekte401/text/plain-afvisning. Den kausale fixture-only-rettelse aec35a91 bevarer streng JSON for succes og direkte no-context-afvisning; viewer-testen kontrollerer nu det virkelige401/tekstformat, ikke-tomt svar og nul serviceeffekter. Uafhængigt review24aa6200 er source-GO. Kun denne test og nye eksakte36-pins ændres. Igangværende629-job stoppes ikke; deres faktiske resultater bevares. Ny officiel HA-test er stadig nødvendig, og Green er fortsat35 uden ny parring eller hjemmehandling.
+
+**Anden konkret CI629-fixture:** Unit nåede3878 beståede cases og stoppede derefter ved releasekontraktens gamle publisher-needs-literal. Den nu kontrollerede liste kræver også ha-framework; resten af immutable-version-/publish-guards er uændrede. Hele release-contract12 består; en samlet søgning fandt ingen yderligere levende gamle CI-assertions. Filen tilføjes som den13. eksakte36-regression. Rest og UI-browser629 er faktisk grønne; shippet stdin kører fortsat. Dette er en testrettelse, ikke en runtimeændring eller fysisk accept.
+
+**Afgrænset image-probe-rettelse:** CI629 observerede samme faktiske ARM-image og normal /init → /run.sh med OpenStdin, men endnu ingen fd0-reject-PASS. Testscriptets oprindelige TERM-only-timeout kan vente ubegrænset; den præcise hængende Dockerkommando er ikke bevist. V2's selvstændigt gennemgåede script63e9c696 giver hver Dockerkommando en kill-after-grænse, afgrænset30s-poll og fasemarkører. Det kræver stadig rigtig reject-marker, levende container og faktisk gatekeeperproces. Det er en toolingrettelse; alle runtime-, UI- og workflowbytes bevares. Automatisk review afviste at annullere den aktive629 uden specifik menneskelig godkendelse; V2 har bedt om denne, og ingen anden aktør eller alternativ kø anvendes til at omgå afvisningen. Efterfølgeren må stå i normal kø, indtil den tilladte afbrydelse eller naturlige afslutning frigiver den. Faktisk ny HA-/image-CI og Green-accept er fortsat åbne.
+
 <!-- podview36-admission
 {
   "version": 12,
@@ -25,13 +31,13 @@ Plan: sammensæt de selvstændigt gennemgåede backend- og OptionsFlow-patches i
   "base_tip": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
   "merge_base": "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd",
   "fingerprint": "4d983e623a428632160172ff208c0453c51ed9060a0b956c14b0dd7b62ecd1c0",
-  "regression_fingerprint": "0dac35491dd776a5adddf18b342be68ac8e0689adefe7804c6f629df23ba054a",
+  "regression_fingerprint": "fb4ac885244b4590330f97d4151e60cbbf11b01a0e5829a5b282fcbea76b79f7",
   "runtime_fingerprint": "84a736eab1c3e13ca25e6ef36f895a164e6b9219955dd985486670074dcc8bd4",
   "config_fingerprint": "358abe24a5da02240d8be97f4d5d325fd040ff46647d6f54cf765a0dbe77afb9",
-  "policy_fingerprint": "8d392e0a0cdd3f461d2e9a857ee5d748935d33ebbd8fa90b0df291264e58da91",
-  "tooling_fingerprint": "245c4d2e7423430d13980deca852f434348eeb15955329e78fb9b40cce7e9b93",
-  "manifest_fingerprint": "285b869e52c712e60fcb6044d7499f1a090c7b6078a604ca259675efd1284c7f",
-  "rationale": "Independent combined source/admission GO from queue_gateway_review; exact HA inventory, historical35 pins and setup-only asset delta verified. Four redundant private_row type guards separately reviewed1bc868be; repository-format AST parity retained. Full actualHA HTTP/service and shipped-image stdin CI are pending and mandatory before merge. No Green/controller/provider/physical acceptance is implied."
+  "policy_fingerprint": "e1ebfe494e8e5cb092004ad5901adb4a59981cd3397a0685efaeae38a969a522",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "0076bc4a75ecf224c08e2a6615ddce6fa537dd33f961fd49e0ee28c0d6e53763",
+  "rationale": "Independent combined source/admission GO from queue_gateway_review; exact HA inventory, historical35 pins and setup-only asset delta verified. Four redundant private_row type guards separately reviewed1bc868be; repository-format AST parity retained. Full actualHA HTTP/service and shipped-image stdin CI are pending and mandatory before merge. No Green/controller/provider/physical acceptance is implied. CI629 executed16 actualHA cases:15 passed; viewer test stopped decoding expected plaintext401. Fixture-only repair aec35a91 has independent review24aa6200; only that test and its exact pins changed. Shared JSON helper and all production/workflow/UI bytes unchanged; actual correctedHA rerun pending. CI629 unit3878 PASS then old test_release_contract dependency assertion failed. One-line fixture correction requires HA gate exactly; full12 release-contract cases PASS. Added as13th exact regression; no runtime or workflow change. V2 scoped review admits bounded image-probe script63e9c696: hard-kill deadlines for Docker commands, phase markers and retained exact rejection/alive/process checks. It repairs the documented harness timeout gap; exact hanging Docker command and runtime stdin delivery remain unproved. No workflow or production change; cancellation requires separately requested humanapproval after automatic review rejection."
 }
 -->
 

@@ -44,6 +44,7 @@ EXPECTED_TESTS = {
     "tests/unit/test_candidate_scope_admission35.py",
     "tests/unit/test_candidate_scope_admission36.py",
     "tests/unit/test_dev_cycle.py",
+    "tests/unit/test_release_contract.py",
 }
 
 
@@ -60,7 +61,7 @@ def test_36_is_exact_queue_and_admin_delta_from_published_35():
     }
     assert (
         admission.sha(admission.safe_file(ROOT, "scripts/check_podview_admin_stdin.sh"))
-        == "b95a8970d5e92923389d6c87312d598234cfd305c1fb22bcd5cc67271afc9eda"
+        == "63e9c696589e7660b99035dcfca5d751814cde8e1f4b6593fa908bdcda576058"
     )
     assert admission.DELETED_PRODUCTION == {}
     assert admission.production_scope_matches(

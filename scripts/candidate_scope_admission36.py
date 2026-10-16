@@ -91,11 +91,12 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_candidate_scope_admission35.py",
         "tests/unit/test_candidate_scope_admission36.py",
         "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_release_contract.py",
     }
 )
 REVIEWER = "Independent GPT-6 Sol /root/queue_gateway_review; exact36 combined queue/controller source and admission review"
-MANIFEST_SHA = "285b869e52c712e60fcb6044d7499f1a090c7b6078a604ca259675efd1284c7f"
-PROFILE_AST = "e6a38c0bbc3903fff52fb5ff0067009c3ffcee6e8e18a52916ad27fe75ac403d"
+MANIFEST_SHA = "0076bc4a75ecf224c08e2a6615ddce6fa537dd33f961fd49e0ee28c0d6e53763"
+PROFILE_AST = "748a807e7bfdeb1b8fc540aec369a912a6f2e9440dcdef6aa1ef861622324c18"
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission35.py": "87e0973b4c460a1732f8f4b66767a73c03c4f473ede980359883f0206549e6c8",
     "scripts/podview35-admission-reviewed.json": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",
