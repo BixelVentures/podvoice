@@ -224,7 +224,7 @@ _ACCESS_OPEN_COVER_CLASSES = {"door", "garage", "gate", "window"}
 _TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
 
 
-def _mcp_result_to_contract(result: dict) -> dict:
+def _mcp_result_to_contract(result: dict, *, tool_name: str | None = None) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
     ``{ok, summary?, data?}`` on success, ``{ok: False, error_kind, error}`` on
     ``isError`` or an explicit structured ``ok: False``. HA script responses may
@@ -273,6 +273,20 @@ def _mcp_result_to_contract(result: dict) -> dict:
                     ),
                     "the tool reported an error",
                 ),
+            )
+        elif (
+            tool_name == "GetLiveContext"
+            and "ok" not in payload
+            and payload.get("success") is False
+        ):
+            # HA Core's exact GetLiveContext domain failure is not an MCP transport error.
+            error = payload.get("error")
+            out.update(
+                ok=False,
+                error_kind="tool_error",
+                error=error
+                if isinstance(error, str) and error.strip()
+                else "the tool reported an error",
             )
     if "summary" not in out and "data" not in out:
         out["empty"] = True
@@ -1872,7 +1886,7 @@ class ToolRouter:
                 args or {},
                 **({"execution_guard": execution_guard} if execution_guard is not None else {}),
             )
-            return compact_weather_result(name, _mcp_result_to_contract(result))
+            return compact_weather_result(name, _mcp_result_to_contract(result, tool_name=name))
         except McpError as e:
             if e.connection_shaped:
                 self._record_discovery_failure(e)
