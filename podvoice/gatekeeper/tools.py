@@ -864,22 +864,26 @@ class ToolRouter:
                 [
                     {
                         "name": _PODVIEW_MUSIC_OPTIONS,
-                        "description": "Læs de aktuelle, allerede viste musikvalg på PodView. Ingen URI eller afspilning.",
+                        "description": "Læs aktuelle serverejede musikvalg. Uden argumenter: viste sangvalg. Med purpose=move_existing_session: præcise konfigurerede rum til at flytte den eksisterende afspilning.",
                         "parameters": {
                             "type": "object",
-                            "properties": {},
+                            "properties": {
+                                "purpose": {"type": "string", "enum": ["move_existing_session"]},
+                                "accountId": {"type": "string"},
+                            },
                             "additionalProperties": False,
                         },
                     },
                     {
                         "name": _PODVIEW_MUSIC_SELECT,
-                        "description": "Vælg ét aktuelt PodView-musikvalg ved dets server-id. Kræver særskilt bekræftelse.",
+                        "description": "Vælg ét aktuelt PodView-musikvalg ved dets server-id. MOVE bruger purpose=move_existing_session uden lydstyrke. Kræver særskilt bekræftelse.",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "taskId": {"type": "string"},
                                 "revision": {"type": "integer"},
                                 "optionId": {"type": "string"},
+                                "purpose": {"type": "string", "enum": ["move_existing_session"]},
                                 "confirmedVolumePercent": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -890,7 +894,6 @@ class ToolRouter:
                                 "taskId",
                                 "revision",
                                 "optionId",
-                                "confirmedVolumePercent",
                             ],
                             "additionalProperties": False,
                         },
@@ -1104,6 +1107,21 @@ class ToolRouter:
             result = {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
             self._log_tool(name, result, dispatch_args)
             return result
+        if (
+            name == "podconnect_move_playback"
+            and execution_context is not None
+            and execution_context.approval_mode == "live"
+            and dispatch_args.get("kind") == "configured_alias"
+        ):
+            # The historical HA alias service only acknowledges local selection.
+            # Voice room MOVE must use the reviewed paired prepare/commit owner.
+            result = {
+                "ok": False,
+                "error_kind": "room_move_requires_exact_owner",
+                "retry_allowed": False,
+            }
+            self._log_tool(name, result, dispatch_args)
+            return result
         if name in _PODVIEW_MUSIC_TOOLS:
             return await self._dispatch_podview_music(
                 name,
@@ -1224,46 +1242,87 @@ class ToolRouter:
         if room is None or not current() or not owner.voice_music_available():
             return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
         if name == _PODVIEW_MUSIC_OPTIONS:
-            if args:
+            if not (
+                args == {}
+                or (
+                    set(args) in ({"purpose"}, {"purpose", "accountId"})
+                    and args.get("purpose") == "move_existing_session"
+                    and (
+                        "accountId" not in args
+                        or (
+                            isinstance(args["accountId"], str)
+                            and 1 <= len(args["accountId"]) <= 1024
+                        )
+                    )
+                )
+            ):
                 return {"ok": False, "error_kind": "invalid_arguments"}
             denied = self.execution_policy.authorize(
                 name, args, context=context, trusted_risk=Risk.READ_ONLY
             )
-            return denied or owner.voice_music_options(room, context, current)
-        required = {"taskId", "revision", "optionId", "confirmedVolumePercent"}
+            if denied is not None:
+                return denied
+            if args:
+                return await owner.voice_move_options(room, context, current, args.get("accountId"))
+            return owner.voice_music_options(room, context, current)
+        moving = args.get("purpose") == "move_existing_session"
+        required = (
+            {"purpose", "taskId", "revision", "optionId"}
+            if moving
+            else {"taskId", "revision", "optionId", "confirmedVolumePercent"}
+        )
         if (
             set(args) != required
             or not isinstance(args["taskId"], str)
             or not isinstance(args["optionId"], str)
             or type(args["revision"]) is not int
-            or type(args["confirmedVolumePercent"]) is not int
-            or not 0 <= args["confirmedVolumePercent"] <= 100
+            or (
+                not moving
+                and (
+                    type(args["confirmedVolumePercent"]) is not int
+                    or not 0 <= args["confirmedVolumePercent"] <= 100
+                )
+            )
         ):
             return {"ok": False, "error_kind": "invalid_arguments", "retry_allowed": False}
-        offered = owner.voice_music_options(room, context, current)
-        data = offered.get("data", {})
-        if (
-            offered.get("ok") is not True
-            or args["taskId"] != data.get("taskId")
-            or args["revision"] != data.get("revision")
-            or args["confirmedVolumePercent"] != data.get("observedVolumePercent")
-            or args["optionId"] not in {row["id"] for row in data.get("options", [])}
-        ):
-            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        if moving:
+            choice = owner.voice_move_choice(
+                room, context, args, current, approved_turn=bool(approval_token)
+            )
+            if choice is None:
+                return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        else:
+            offered = owner.voice_music_options(room, context, current)
+            data = offered.get("data", {})
+            if (
+                offered.get("ok") is not True
+                or args["taskId"] != data.get("taskId")
+                or args["revision"] != data.get("revision")
+                or args["confirmedVolumePercent"] != data.get("startVolumePercent")
+                or args["optionId"] not in {row["id"] for row in data.get("options", [])}
+            ):
+                return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
         denied = self.execution_policy.authorize(
             name, args, context=context, approval_token=approval_token
         )
         if denied is not None:
             if denied.get("needs_confirmation"):
                 challenge_id = denied.get("approval", {}).get("challenge_id")
-                choice = next(row for row in data["options"] if row["id"] == args["optionId"])
-                details = {
-                    "song": choice["label"],
-                    "artist": choice["artist"],
-                    "output": data["output"]["name"],
-                    "account_id": data["accountId"],
-                    "volume_percent": data["observedVolumePercent"],
-                }
+                if moving:
+                    details = {
+                        "purpose": "move_existing_session",
+                        "destination": choice["name"],
+                        "account_id": owner._voice_move_tasks[room]["account"],
+                    }
+                else:
+                    choice = next(row for row in data["options"] if row["id"] == args["optionId"])
+                    details = {
+                        "song": choice["label"],
+                        "artist": choice["artist"],
+                        "output": data["output"]["targetId"],
+                        "account_id": data["accountId"],
+                        "volume_percent": data["startVolumePercent"],
+                    }
                 if (
                     context is None
                     or not isinstance(challenge_id, str)
@@ -1283,6 +1342,8 @@ class ToolRouter:
             return denied
         if not isinstance(approval_token, str) or not approval_token:
             return {"ok": False, "error_kind": "approval_denied", "retry_allowed": False}
+        if moving:
+            return await owner.voice_move_select(room, context, args, approval_token, current)
         return await owner.voice_music_select(room, context, args, approval_token, current)
 
     async def _dispatch_device(

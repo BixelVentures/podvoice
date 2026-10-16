@@ -344,16 +344,26 @@ def live_confirmation_instructions(
             confirmation = json.loads(proposal.confirmation_json)
         except (TypeError, ValueError) as exc:
             raise ValueError("invalid Live confirmation details") from exc
-        if (
-            not isinstance(confirmation, dict)
-            or set(confirmation) != {"song", "artist", "output", "account_id", "volume_percent"}
-            or any(
-                not isinstance(confirmation[key], str) or not confirmation[key]
+        move_details = (
+            isinstance(confirmation, dict)
+            and set(confirmation) == {"purpose", "destination", "account_id"}
+            and confirmation["purpose"] == "move_existing_session"
+            and all(
+                isinstance(confirmation[key], str) and 1 <= len(confirmation[key]) <= 1024
+                for key in ("destination", "account_id")
+            )
+        )
+        music_details = (
+            isinstance(confirmation, dict)
+            and set(confirmation) == {"song", "artist", "output", "account_id", "volume_percent"}
+            and all(
+                isinstance(confirmation[key], str) and bool(confirmation[key])
                 for key in ("song", "artist", "output", "account_id")
             )
-            or type(confirmation["volume_percent"]) is not int
-            or not 0 <= confirmation["volume_percent"] <= 100
-        ):
+            and type(confirmation["volume_percent"]) is int
+            and 0 <= confirmation["volume_percent"] <= 100
+        )
+        if not (move_details or music_details):
             raise ValueError("invalid Live confirmation details")
     payload = json.dumps(
         {

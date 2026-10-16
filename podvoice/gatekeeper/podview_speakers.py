@@ -140,7 +140,7 @@ def project(data, *, boot, room, account, default_room):
     }
 
 
-async def read_catalogue(bridge, room, account, owner_binding):
+async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
     """No cache: return only the just-completed captured-owner passive read."""
 
     def unavailable():
@@ -180,6 +180,13 @@ async def read_catalogue(bridge, room, account, owner_binding):
         or "targets" not in tools.podview_music_reads()
     ):
         return unavailable()
+    grant = getattr(bridge, "_grants", {}).get(room)
+    paired = bool(
+        grant is not None
+        and bridge._grant_current(room, token)
+        and controls.move.available
+        and "music" in controls.domains(room, token)
+    )
     policy_id, owner, tool_owner = (
         _fingerprint(policy),
         owner_binding(),
@@ -203,6 +210,15 @@ async def read_catalogue(bridge, room, account, owner_binding):
             and owner_binding() == owner
             and tools.podview_music_binding() == tool_owner
             and "targets" in tools.podview_music_reads()
+            and (
+                not paired
+                or (
+                    bridge._grants.get(room) is grant
+                    and bridge._grant_current(room, token)
+                    and controls.move.available
+                    and "music" in controls.domains(room, token)
+                )
+            )
         )
 
     try:
@@ -210,12 +226,32 @@ async def read_catalogue(bridge, room, account, owner_binding):
             data = await read_service(tools, account)
         if not current():
             return unavailable()
-        return project(
+        catalogue = project(
             data,
             boot=boot,
             room=room,
             account=account,
             default_room=scope["nativeRoomId"],
         )
+        if paired and isinstance(scope.get("targetId"), str):
+            any_available = False
+            for speaker in catalogue["speakers"]:
+                allowed = (
+                    speaker["availability"] == "available"
+                    and speaker["nativeRoomId"] != scope["nativeRoomId"]
+                    and sum(
+                        row.get("accountId") == account
+                        and row.get("targetId") == scope["targetId"]
+                        and row.get("nativeRoomId") == speaker["nativeRoomId"]
+                        and row.get("nativeHomepodId") == speaker["homepodId"]
+                        and "move_existing_session" in row.get("actions", [])
+                        for row in rules
+                    )
+                    == 1
+                )
+                speaker["selectable"] = allowed
+                any_available |= allowed
+            catalogue["moveAvailable"] = any_available
+        return catalogue
     except (HTTPError, OSError, TimeoutError, ValueError, TypeError, KeyError):
         return unavailable()

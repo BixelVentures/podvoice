@@ -2,6 +2,7 @@
 
 import asyncio
 from dataclasses import replace
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -24,8 +25,10 @@ async def rig():
     services = value.router._discovery.podconnect_services | {
         "search_tracks",
         "get_playback_controls",
-        "get_track_play_controls",
-        "control_playback",
+        "get_room_content_controls",
+        "prepare_room_selected_content",
+        "start_room_selected_content",
+        "cancel_room_content_preparation",
     }
     value.router._discovery = replace(value.router._discovery, podconnect_services=services)
     bridge = value.app[BRIDGE]
@@ -51,40 +54,33 @@ async def rig():
             "ok": True,
             "data": {
                 "ok": True,
-                "schema": "podconnect.controls.v1",
+                "schema": "podconnect.room_content_controls.v1",
                 "config_entry_id": "account-alpha",
                 "owner_epoch": "a" * 32,
                 "poll_sequence": 4,
                 "next_command_sequence": 1,
-                "target": {"kind": "spotify_device", "target_id": "device-one", "name": "Kitchen"},
+                "target": {"kind": "spotify_device", "target_id": "device-one"},
+                "room_id": "native-room",
+                "homepod_id": "homepod-id",
                 "actions": ["play_track"],
-                "volume_percent": 30,
-                "native_start": {
-                    "schema": "podconnect.start_volume.v1",
-                    "ready": True,
-                    "engine_device_id": "device-one",
-                    "room_id": "native-room",
-                    "homepod_id": "homepod-id",
-                    "policy_revision": "b" * 64,
-                    "start_volume_percent": 30,
-                    "mode": "fresh_start",
-                    "output_selected": False,
-                    "output_volume_percent": 75,
-                    "alias_binding": {
-                        "ready": True,
-                        "room_id": "other-room",
-                        "incarnation": "alias-1",
-                        "registry": "registry-1",
-                    },
+                "start_offer": {
+                    "schema": "podconnect.room_content_offer.v1",
+                    "offer_id": "a" * 32,
+                    "binding_id": "b" * 64,
+                    "native_incarnation": "c" * 32,
+                    "policy_revision": "d" * 64,
+                    "start_volume_percent": 35,
+                    "expires_after_ms": 5000,
                 },
-                "track_play_supported": True,
                 "status": "ready",
                 "valid_until": 9999999999,
                 "physical_result_verified": False,
             },
         }
     )
-    facade.execute_track = AsyncMock(return_value={"outcome": "accepted"})
+    facade.execute_track = AsyncMock(
+        return_value={"outcome": "accepted", "accepted_selected_content": True}
+    )
     yield value
     await value.client.aclose()
 
@@ -98,6 +94,7 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig):
         )
         body = await search.json()
         assert body["ok"] and body["candidateSet"]["revisionScope"] == "music_selection"
+        assert not any(call[1].endswith("get_playback_controls") for call in rig.calls)
         assert len(body["candidateSet"]["candidateSetId"]) == 64
         bridge = rig.app[BRIDGE]
         setup = await client.post(
@@ -124,7 +121,7 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig):
             "revision": offer["revision"],
             "optionId": offer["options"][1]["id"],
             "requestId": "one",
-            "confirmedVolumePercent": 30,
+            "confirmedVolumePercent": 35,
         }
         first = await (
             await client.post("/view/api/music/selection/actions", headers=headers, json=action)
@@ -137,6 +134,92 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig):
         sent = rig.app[BRIDGE].controls.music.execute_track.await_args.args
         assert sent[1] == "spotify:track:" + "0" * 21 + "1"
         assert sent[2] == 40
+        assert offer["startVolumePercent"] == 35
+        assert "observedVolumePercent" not in offer
+
+
+async def test_real_prepare_revokes_paired_grant_before_any_selected_commit(rig):
+    bridge, facade = rig.app[BRIDGE], rig.app[BRIDGE].controls.music
+    async with TestClient(TestServer(rig.app)) as client:
+        headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+        search = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=jazz",
+                headers={"Cookie": "podview_control=grant"},
+            )
+        ).json()
+        offer = await (
+            await client.post(
+                "/view/api/music/selection/setup",
+                headers=headers,
+                json={
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "candidateSetId": search["candidateSet"]["candidateSetId"],
+                    "target": {
+                        "accountId": "account-alpha",
+                        "kind": "spotify_device",
+                        "targetId": "device-one",
+                    },
+                },
+            )
+        ).json()
+        observed = dict(facade.setup_track.return_value["data"])
+        observed.pop("valid_until")
+        observed["observation"] = {
+            "status": "fresh",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "age_ms": 0,
+            "max_age_ms": 15000,
+            "source": "podconnect_coordinator",
+        }
+        calls = []
+
+        async def owner_service(_client, _token, service, request):
+            calls.append((service, request))
+            if service == "get_room_content_controls":
+                return observed
+            if service == "prepare_room_selected_content":
+                bridge._grants.clear()
+                return {
+                    "ok": True,
+                    "schema": "podconnect.room_content_preparation.v1",
+                    "config_entry_id": request["config_entry_id"],
+                    "owner_epoch": request["owner_epoch"],
+                    "request_id": request["request_id"],
+                    "command_sequence": request["command_sequence"],
+                    "action": request["action"],
+                    "target": {"kind": "spotify_device", "target_id": request["target_id"]},
+                    "room_id": request["room_id"],
+                    "homepod_id": request["homepod_id"],
+                    "state": "staged",
+                    "retry_allowed": False,
+                    "physical_result_verified": False,
+                }
+            assert service == "cancel_room_content_preparation"
+            return {"ok": True}
+
+        del facade.setup_track
+        del facade.execute_track
+        facade._read = owner_service
+        action = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "taskId": offer["taskId"],
+            "revision": offer["revision"],
+            "requestId": "revoke-during-stage",
+            "optionId": offer["options"][0]["id"],
+            "confirmedVolumePercent": 35,
+        }
+        result = await (
+            await client.post("/view/api/music/selection/actions", headers=headers, json=action)
+        ).json()
+        assert not result["ok"]
+        assert [service for service, _ in calls] == [
+            "get_room_content_controls",
+            "prepare_room_selected_content",
+            "cancel_room_content_preparation",
+        ]
 
 
 def test_old_search_guard_preserves_newer_touch_context(rig):
@@ -222,7 +305,7 @@ async def test_raw_uri_and_unconfirmed_volume_never_reach_provider(rig):
             await client.post("/view/api/music/selection/actions", headers=headers, json=action)
         ).json()
         assert denied["outcome"] == "rejected"
-        action["confirmedVolumePercent"] = 30
+        action["confirmedVolumePercent"] = 35
         action["track_uri"] = "spotify:track:" + "B" * 22
         invalid = await (
             await client.post("/view/api/music/selection/actions", headers=headers, json=action)
@@ -280,7 +363,7 @@ async def test_revoked_exact_rule_during_fresh_read_never_sends(rig, change):
                     "revision": offer["revision"],
                     "optionId": offer["options"][0]["id"],
                     "requestId": "held",
-                    "confirmedVolumePercent": 30,
+                    "confirmedVolumePercent": 35,
                 },
             )
         )
@@ -327,7 +410,7 @@ async def test_non_integer_numeric_payload_is_rejected_without_server_error(rig)
             "revision": offer["revision"],
             "optionId": offer["options"][0]["id"],
             "requestId": "bad-number",
-            "confirmedVolumePercent": 30,
+            "confirmedVolumePercent": 35,
         }
         for key, bad in (("revision", float("nan")), ("confirmedVolumePercent", float("inf"))):
             response = await client.post(
@@ -375,7 +458,7 @@ async def test_voice_reads_same_option_and_needs_later_turn_approval(rig):
             "taskId": offer["taskId"],
             "revision": offer["revision"],
             "optionId": offer["options"][1]["id"],
-            "confirmedVolumePercent": offer["observedVolumePercent"],
+            "confirmedVolumePercent": offer["startVolumePercent"],
         }
         pending = await router.dispatch(
             "podview_music_select_option", args, execution_context=proposal
@@ -388,9 +471,9 @@ async def test_voice_reads_same_option_and_needs_later_turn_approval(rig):
         assert held is not None
         _, confirmation_prompt = live_confirmation_instructions(*live_instructions(""), held)
         assert '"song": "Song 1"' in confirmation_prompt
-        assert '"output": "Kitchen"' in confirmation_prompt
+        assert '"output": "device-one"' in confirmation_prompt
         assert '"account_id": "account-alpha"' in confirmation_prompt
-        assert '"volume_percent": 30' in confirmation_prompt
+        assert '"volume_percent": 35' in confirmation_prompt
         confirmation = ExecutionContext("s1", "live:1:confirmation", "live")
         approved = router.execution_policy.confirm_live(
             pending["approval"]["challenge_id"],
@@ -432,8 +515,6 @@ async def test_voice_answer_task_survives_only_original_receipt_on_later_turn(ri
         context,
         {"tracks": [{"uri": "spotify:track:" + "0" * 22, "name": "Song 0", "artist": "Artist"}]},
         binding,
-        "a" * 32,
-        "a" * 32,
     )
     assert identifier is not None
     grant = bridge._grants["kitchen"]
@@ -443,6 +524,7 @@ async def test_voice_answer_task_survives_only_original_receipt_on_later_turn(ri
         owner_binding=binding,
         account="account-alpha",
         target="device-one",
+        native_binding=("native-room", "homepod-id"),
         observed_controls=bridge.controls.music.setup_track.return_value["data"],
         approved_max_volume=40,
         authority=(rig.session, None, "answer-1", grant),

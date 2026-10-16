@@ -45,7 +45,11 @@ async def feeling_rig(mood_rig):
                     "ok": True,
                     "schema": "podconnect.search_playlists.v1",
                     "config_entry_id": rig.playlist_account,
-                    "owner_epoch": rig.playlist_epoch,
+                    "owner_epoch": (
+                        "a" * 32
+                        if rig.playlist_epoch == "foreign" and index != 0
+                        else rig.playlist_epoch
+                    ),
                     "source": "spotify_web_api",
                     "query": args["query"],
                     "limit": 3,

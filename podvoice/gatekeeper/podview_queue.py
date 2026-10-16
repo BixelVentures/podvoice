@@ -145,13 +145,8 @@ class QueueBroker:
 
     @property
     def available(self):
-        facade = self.bridge.controls.music
-        return bool(
-            facade.tools is self.bridge.tools
-            and getattr(facade, "room_start_available", False)
-            and facade.available
-            and "get_queue_controls" in self.bridge.tools._discovery.podconnect_services
-        )
+        # Native queue-occurrence admission has a separate unresolved contract.
+        return False
 
     def rules(self, room, token):
         policy = self.bridge.controls.policy
