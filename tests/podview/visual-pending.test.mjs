@@ -7,8 +7,8 @@ const pending={roomId:'kitchen',sessionId:'session',turnId:'turn',taskId:'task',
 const voice={active:true,phase:'AI_SPEAKING',sessionId:'session',turnId:'voice-turn'};
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen',revision:7,voice:{...voice},answers:{revision:7,sessionId:null,turnId:null,taskId:null,inputRevision:null},timers:{status:'unavailable',items:[]},capabilities:{musicRead:[],timerActions:[],answerRead:true},visualPending:{...pending}});
 function accept(Class,value){const transport=new Class({url:'https://example.test/view/'});transport.closed=false;try{return transport.accept(value);}finally{clearTimeout(transport.freshnessTimer);}}
-test('pending uses only vacant status detail and keeps actual speaking/listening labels',()=>{
- const value=voicePresentation(voice,true,pending);assert.equal(value.label,'Svarer…');assert.equal(value.detail,'Forbereder visning…');assert.equal(value.phase,'responding');
+test('visual pending adds no loading prose and keeps actual speaking/listening labels',()=>{
+ const value=voicePresentation(voice,true,pending);assert.equal(value.label,'Svarer…');assert.equal(value.detail,'');assert.equal(value.phase,'responding');
  const listening=voicePresentation({...voice,phase:'LISTENING'},true,pending);assert.equal(listening.label,'Lytter…');assert.equal(listening.detail,'Tal bare');
  assert.equal(voicePresentation(voice,false,pending),null);assert.equal(voicePresentation({...voice,active:false},true,pending),null);
  assert.equal(voicePresentation(voice,true,{...pending,sessionId:'other'}).detail,'');

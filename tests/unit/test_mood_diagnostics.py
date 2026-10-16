@@ -18,7 +18,11 @@ SECRET = "NEVER_LOG_token_account_query_raw_ai"
 
 
 def terminal(caplog):
-    return [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    return [
+        r.getMessage().split(" total_ms=", 1)[0]
+        for r in caplog.records
+        if r.name == "podvoice.mood"
+    ]
 
 
 def test_closed_fields_and_context_reset_even_if_log_handler_raises(caplog, monkeypatch):
@@ -171,3 +175,35 @@ async def test_valid_time_with_owner_loss_is_not_misreported_as_payload_error(ca
     assert record.reason == "owner_changed"
     assert owner.call_tool.await_count == int(after_await)
     assert "time_result_invalid" not in caplog.text
+
+
+def test_monotonic_phase_timings_are_bounded_closed_and_do_not_log_content(caplog):
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    now = [10.0]
+    record, token = diag.begin(clock=lambda: now[0])
+    for instant, phase in [
+        (10.125, "time_context"),
+        (10.175, "model"),
+        (10.875, "playlist_search"),
+        (11.075, "playback_after"),
+        (11.100, "publish"),
+    ]:
+        now[0] = instant
+        record.step(phase)
+    now[0] = 11.105
+    record.outcome = "success"
+    diag.finish(record, token)
+    assert (
+        caplog.records[-1]
+        .getMessage()
+        .endswith(
+            "total_ms=1105 playback_before_ms=125 time_context_ms=50 model_ms=700 playlist_search_ms=200 playback_after_ms=25 publish_ms=5"
+        )
+    )
+    assert len(caplog.records) == 1 and diag._CURRENT.get() is None
+    record, token = diag.begin(clock=lambda: now[0])
+    now[0] += 100
+    record.step(SECRET)
+    diag.finish(record, token)
+    assert "total_ms=60000 playback_before_ms=60000" in caplog.records[-1].getMessage()
+    assert SECRET not in caplog.text

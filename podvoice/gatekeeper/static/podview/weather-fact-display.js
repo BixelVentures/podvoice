@@ -4,10 +4,10 @@ const knownConditions=new Set(['clear','sunny','partlycloudy','cloudy','rainy','
 
 // Display copies only. Owner/source values remain canonical for receipt inspection.
 export function weatherFactDisplay(answer){
- const content=answer?.content;
- if(answer?.live!==true||answer.kind!=='fact-card'||answer.provenance?.kind!=='ha_weather'||!answer.receiptId||!answer.ownerReceiptIds?.includes(answer.receiptId)||!Array.isArray(content?.facts)||!Array.isArray(content.sources)||!content.sources.length||content.sources.some(source=>source.kind!=='owner_receipt'||source.receiptId!==answer.receiptId))return content;
+ const content=answer?.content,originalWeather=answer?.provenance?.kind==='ha_weather',boundWeather=answer?.presentation===true&&answer.provenance?.kind==='owner_sources'&&Array.isArray(answer.weatherDisplayFactIds);
+ if(answer?.live!==true||answer.kind!=='fact-card'||(!originalWeather&&!boundWeather)||!answer.receiptId||!answer.ownerReceiptIds?.includes(answer.receiptId)||!Array.isArray(content?.facts)||!Array.isArray(content.sources)||!content.sources.length||content.sources.some(source=>source.kind!=='owner_receipt'||source.receiptId!==answer.receiptId))return content;
  return {...content,facts:content.facts.map(fact=>{
-  if(fact.detail!=='Aktuel måling')return fact;
+  if(fact.detail!=='Aktuel måling'||!originalWeather&&!answer.weatherDisplayFactIds.includes(fact.id))return fact;
   let value=fact.value;
   if(fact.label==='Temperatur'&&typeof value==='string'&&/^-?\d{1,3}(?:\.\d{1,8})? °C$/.test(value)){
    const number=Number(value.slice(0,-3));

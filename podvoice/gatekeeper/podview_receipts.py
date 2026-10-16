@@ -95,10 +95,16 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
             "source": data["source"],
             "retrievedAt": data["retrievedAt"],
             "stateUpdatedAt": data["stateUpdatedAt"],
-            "validUntil": min(
-                datetime.fromisoformat(data["retrievedAt"]).timestamp() + MAX_RETRIEVAL_AGE_S,
-                datetime.fromisoformat(data["stateUpdatedAt"]).timestamp() + MAX_CURRENT_AGE_S,
-            ),
+            # Wire clocks are parsed at millisecond precision by the shared client.
+            # Shorten expiry to that precision; never round a source lease upward.
+            "validUntil": math.floor(
+                min(
+                    datetime.fromisoformat(data["retrievedAt"]).timestamp() + MAX_RETRIEVAL_AGE_S,
+                    datetime.fromisoformat(data["stateUpdatedAt"]).timestamp() + MAX_CURRENT_AGE_S,
+                )
+                * 1000
+            )
+            / 1000,
         }
         return f"Vejret i {data['location']}", facts, False, provenance
     if tool_name == "google_web_sogning":
@@ -138,6 +144,29 @@ class VisualReceiptOwner:
         self._selection: asyncio.Task | None = None
         self._research_mode = False
         self._research_admitted = False
+        self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
+
+    def subscribe(self, room_id: str) -> asyncio.Event | None:
+        """One loop-owned wake per SSE reader; notification grants no read authority."""
+        if self._closed or len(self._subscribers) >= 8:
+            return None
+        event = asyncio.Event()
+        self._subscribers[event] = (room_id, asyncio.get_running_loop())
+        return event
+
+    def unsubscribe(self, event: asyncio.Event) -> None:
+        self._subscribers.pop(event, None)
+
+    def _notify(self, room_id: str) -> None:
+        # Thin's normal calls are on the serving loop. Keep a cross-thread caller
+        # observational too: asyncio.Event itself must only mutate on its own loop.
+        for event, (room, loop) in tuple(self._subscribers.items()):
+            if room == room_id:
+                try:
+                    loop.call_soon_threadsafe(event.set)
+                except Exception:
+                    # A closed observer must never change an accepted receipt.
+                    pass
 
     def configure_selector(self, selector: VisualSelector | None) -> None:
         """Startup-only optional provider. No browser request can enable it."""
@@ -271,6 +300,7 @@ class VisualReceiptOwner:
         tool_query: str | None = None,
         read_current: Callable[[bool], bool] | None = None,
         direct_weather: bool = False,
+        delegation_id: str | None = None,
     ) -> bool:
         """Offer after result submission; no coroutine, network request or retry."""
         if self._closed or not all(
@@ -306,7 +336,25 @@ class VisualReceiptOwner:
             )
             projected = _facts(tool_name, result) if research is None else None
             if projected is None and research is None:
-                return False
+                from .podview_presentation import remember_source
+
+                return remember_source(
+                    self,
+                    owner,
+                    room_id=room_id,
+                    session_id=session_id,
+                    session_epoch=session_epoch,
+                    turn_id=turn_id,
+                    provider_generation=provider_generation,
+                    task_id=task_id,
+                    input_revision=input_revision,
+                    delegation_id=delegation_id,
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    result=result,
+                    current=current,
+                    read_current=read_current,
+                )
             if research is not None:
                 summary, provenance = research["summary"], research["provenance"]
                 if research["family"] == "answer-timeline":
@@ -348,12 +396,33 @@ class VisualReceiptOwner:
         if previous is None and len(self._rooms) >= 12:
             return False
         if previous is None or previous["key"] != key:
+            from .podview_presentation import same_task
+
+            related = (
+                previous
+                if isinstance(delegation_id, str)
+                and task_id == "answer:" + delegation_id
+                and previous is not None
+                and previous.get("delegation_id") == delegation_id
+                and same_task(previous["key"], key)
+                else None
+            )
             state: dict = {
+                "delegation_id": delegation_id,
+                "source_registry": related.get("source_registry", {})
+                if related is not None
+                else {},
+                "selection_offered": related.get("selection_offered", False)
+                if related is not None
+                else False,
                 "key": key,
                 "current": current,
                 "read_current": read_current,
                 "completed": False,
-                "seen": set(),
+                "seen": set(related.get("seen", set())) if related is not None else set(),
+                "presentation_responses": set(related.get("presentation_responses", set()))
+                if related is not None
+                else set(),
                 "items": [],
                 "revision": (previous["revision"] if previous else 0) + 1,
             }
@@ -400,6 +469,8 @@ class VisualReceiptOwner:
             "tool": tool_name,
             "query_context": query_context,
         }
+        if tool_name in {"weather_forecast", "HassGetWeather"} and isinstance(result, dict):
+            row["weather"] = weather_projection(_weather_result(result))
         if research is not None:
             item.update(
                 schema="podview.research.v1",
@@ -446,6 +517,7 @@ class VisualReceiptOwner:
         state["items"].insert(0, row)
         del state["items"][3:]
         state["revision"] += 1
+        self._notify(room_id)
         if self.selection_enabled and not state.get("selection_offered"):
             state["selection_offered"] = True
             if self._selection is None or self._selection.done():
@@ -457,7 +529,36 @@ class VisualReceiptOwner:
                 state["pending_row"] = row
                 state["pending_task"] = self._selection
                 state["pending_deadline"] = self._clock() + 5
+        if (
+            isinstance(delegation_id, str)
+            and _text(delegation_id, 160)
+            and task_id == "answer:" + delegation_id
+        ):
+            registry = state.setdefault("source_registry", {})
+            registry = {
+                call: record
+                for call, record in registry.items()
+                if self._clock() < record["deadline"]
+            }
+            if len(registry) < 32:
+                registry[call_id] = {
+                    "key": key,
+                    "delegation_id": delegation_id,
+                    "deadline": row["deadline"],
+                    "item": item,
+                    "weather": row.get("weather"),
+                    "selection_offered": bool(state.get("selection_offered")),
+                }
+            state["source_registry"] = registry
         return True
+
+    def offer_completed_answer(self, owner: object, **binding) -> bool:
+        from .podview_presentation import offer_completed
+
+        accepted = offer_completed(self, owner, **binding)
+        if accepted:
+            self._notify(binding["room_id"])
+        return accepted
 
     def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
         """Revoke this exact owner's reads synchronously, including sealed normal-close reads."""
@@ -510,7 +611,11 @@ class VisualReceiptOwner:
             for r in state["items"]
             if (valid or (read_valid and r["item"]["displaySuggested"] is True))
             and self._clock() < r["deadline"]
-            and time.time() < r["item"]["provenance"].get("validUntil", float("inf"))
+            and time.time()
+            < min(
+                r["item"].get("validUntil", float("inf")),
+                r["item"]["provenance"].get("validUntil", float("inf")),
+            )
         ]
         if before != len(state["items"]):
             state["revision"] += 1
@@ -527,7 +632,7 @@ class VisualReceiptOwner:
         )
         for item in items:
             assert state is not None
-            if item.get("schema") == "podview.research.v1":
+            if item.get("schema") in {"podview.research.v1", "podview.presentation.v1"}:
                 item["answerRevision"] = state["revision"]
         pending = state.get("pending_row") if state else None
         task = state.get("pending_task") if state else None
@@ -570,6 +675,48 @@ class VisualReceiptOwner:
             ),
         }
 
+    def read_weather_brief(self, room_id: str, owner: object | None = None) -> dict | None:
+        """Same accepted weather projection and current owner, never another lookup."""
+        state = self._current(room_id, owner)
+        if state is None:
+            return None
+        for row in state["items"]:
+            item, brief = row["item"], row.get("weather_brief")
+            if (
+                item.get("schema") != "podview.presentation.v1"
+                or item.get("displaySuggested") is not True
+            ):
+                continue
+            if item.get("provenance", {}).get("kind") != "owner_sources" or not isinstance(
+                brief, dict
+            ):
+                return None
+            if (
+                not 0 < len(item["content"]["summary"]) <= 240
+                or brief.get("weather", {}).get("status") != "observed"
+            ):
+                return None
+            return {
+                "schema": "podview.weather-brief.v1",
+                **{
+                    key: item[key]
+                    for key in (
+                        "receiptId",
+                        "roomId",
+                        "sessionId",
+                        "turnId",
+                        "taskId",
+                        "inputRevision",
+                        "providerGeneration",
+                        "validUntil",
+                    )
+                },
+                "summary": item["content"]["summary"],
+                "summaryKind": "ai_advice",
+                **copy.deepcopy(brief),
+            }
+        return None
+
     def source(self, room_id: str, receipt_id: str, owner: object | None = None) -> dict | None:
         state = self._current(room_id, owner)
         row = (
@@ -583,6 +730,12 @@ class VisualReceiptOwner:
         if state is None or row is None or row["item"]["displaySuggested"] is not True:
             return None
         item = row["item"]
+        if item.get("schema") == "podview.presentation.v1":
+            result = copy.deepcopy(item)
+            result["answerRevision"] = state["revision"]
+            result["schema"] = "podview.presentation.source.v1"
+            result["sourceText"] = row["sourceText"]
+            return result
         if item.get("schema") == "podview.research.v1":
             result = copy.deepcopy(item)
             result["answerRevision"] = state["revision"]

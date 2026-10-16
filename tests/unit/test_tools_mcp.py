@@ -274,6 +274,72 @@ def test_contract_folding_shapes():
 
 
 @pytest.mark.parametrize("structured", [False, True])
+def test_exact_live_context_domain_failure_is_not_success(structured):
+    data = {"success": False, "error": "No entities are exposed"}
+    response = (
+        {"structuredContent": data}
+        if structured
+        else {"content": [{"type": "text", "text": json.dumps(data)}]}
+    )
+    assert _mcp_result_to_contract(response, tool_name="GetLiveContext") == {
+        "ok": False,
+        "error_kind": "tool_error",
+        "error": data["error"],
+        "data": data,
+    }
+    assert _mcp_result_to_contract(response, tool_name="HassGetState") == {
+        "ok": True,
+        "data": data,
+    }
+    assert _mcp_result_to_contract(
+        {"structuredContent": {"ok": True, **data}}, tool_name="GetLiveContext"
+    ) == {"ok": True, "data": {"ok": True, **data}}
+    for malformed in ({"success": False}, {"success": False, "error": " "}):
+        assert _mcp_result_to_contract(
+            {"structuredContent": malformed}, tool_name="GetLiveContext"
+        ) == {
+            "ok": False,
+            "error_kind": "tool_error",
+            "error": "the tool reported an error",
+            "data": malformed,
+        }
+    assert _mcp_result_to_contract(
+        {
+            "structuredContent": {"success": True, "result": "Live Context: fixture"},
+            "content": [{"type": "text", "text": json.dumps(data)}],
+        },
+        tool_name="GetLiveContext",
+    ) == {"ok": True, "data": {"success": True, "result": "Live Context: fixture"}}
+
+
+async def test_live_context_domain_failure_degrades_probe_then_recovers():
+    class ContextMCP:
+        url = MCP_URL
+        failed = True
+
+        async def list_tools(self):
+            return [{"name": "GetLiveContext", "description": "state", "inputSchema": {}}]
+
+        async def call_tool(self, name, args):
+            assert (name, args) == ("GetLiveContext", {})
+            data = (
+                {"success": False, "error": "No entities are exposed"}
+                if self.failed
+                else {"success": True, "result": "Live Context: fixture"}
+            )
+            return {"content": [{"type": "text", "text": json.dumps(data)}]}
+
+    mcp = ContextMCP()
+    router = ToolRouter(mcp)
+    await router.start()
+    assert router.healthy is False
+    assert "GetLiveContext" in {tool["name"] for tool in router.declarations()}
+    mcp.failed = False
+    assert await router.probe()
+    assert router.healthy is True
+
+
+@pytest.mark.parametrize("structured", [False, True])
 @pytest.mark.parametrize("wrapped", [False, True])
 def test_contract_folds_explicit_script_failure(structured, wrapped):
     failure = {

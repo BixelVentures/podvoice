@@ -26,30 +26,21 @@ DATA = {"tracks": [{"uri": URI, "name": "Song", "artist": "Artist"}]}
 CONTROLS = {
     "ok": True,
     "status": "ready",
+    "schema": "podconnect.room_content_controls.v1",
     "config_entry_id": "account",
     "owner_epoch": "epoch",
-    "track_play_supported": True,
+    "actions": ["play_track"],
     "target": {"kind": "spotify_device", "target_id": "device"},
-    "volume_percent": 30,
-    "valid_until": 9999999999,
-    "native_start": {
-        "schema": "podconnect.start_volume.v1",
-        "ready": True,
-        "engine_device_id": "device",
-        "room_id": "native-room",
-        "homepod_id": "homepod-id",
+    "room_id": "native-room",
+    "homepod_id": "homepod-id",
+    "physical_result_verified": False,
+    "start_offer": {
+        "start_volume_percent": 35,
+        "binding_id": "binding-1",
+        "native_incarnation": "incarnation-1",
         "policy_revision": "b" * 64,
-        "start_volume_percent": 30,
-        "mode": "fresh_start",
-        "output_selected": False,
-        "output_volume_percent": 75,
-        "alias_binding": {
-            "ready": True,
-            "room_id": "other-room",
-            "incarnation": "alias-1",
-            "registry": "registry-1",
-        },
     },
+    "valid_until": 9999999999,
 }
 
 
@@ -61,7 +52,7 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         self.authority = ("grant", 1)
         self.live = True
         self.sent = []
-        self.identifier = self.broker.register(self.context, DATA, self.binding, "epoch", "epoch")
+        self.identifier = self.broker.register(self.context, DATA, self.binding)
 
     def offer(self, **change):
         args = dict(
@@ -70,6 +61,7 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
             owner_binding=self.binding,
             account="account",
             target="device",
+            native_binding=("native-room", "homepod-id"),
             observed_controls=CONTROLS,
             approved_max_volume=40,
             authority=self.authority,
@@ -85,14 +77,14 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         async def send(controls, uri, _max_volume, current):
             self.assertTrue(current())
             self.sent.append((controls, uri))
-            return {"outcome": "accepted"}
+            return {"outcome": "accepted", "accepted_selected_content": True}
 
         args = dict(
             task_id=offer["taskId"],
             revision=offer["revision"],
             option_id=offer["options"][0]["id"],
             request_id="one",
-            confirmed_volume=offer["observedVolumePercent"],
+            confirmed_volume=offer["startVolumePercent"],
             context=self.context,
             owner_binding=self.binding,
             authority=self.authority,
@@ -126,12 +118,24 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.sent, [])
 
     async def test_unknown_volume_and_raised_volume_block_new_play(self):
-        self.assertIsNone(self.offer(observed_controls={**CONTROLS, "volume_percent": None}))
-        self.assertIsNone(self.offer(observed_controls={**CONTROLS, "volume_percent": 90}))
+        self.assertIsNone(
+            self.offer(observed_controls={k: v for k, v in CONTROLS.items() if k != "start_offer"})
+        )
+        self.assertIsNone(
+            self.offer(
+                observed_controls={
+                    **CONTROLS,
+                    "start_offer": {**CONTROLS["start_offer"], "start_volume_percent": 34},
+                }
+            )
+        )
         offer = self.offer()
 
         async def high():
-            return {**CONTROLS, "volume_percent": 90}
+            return {
+                **CONTROLS,
+                "start_offer": {**CONTROLS["start_offer"], "start_volume_percent": 36},
+            }
 
         self.assertEqual((await self.execute(offer, fresh_controls=high))["outcome"], "rejected")
         self.assertEqual(self.sent, [])
@@ -180,7 +184,7 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
 
         pending = asyncio.create_task(self.execute(offer, fresh_controls=held))
         await asyncio.wait_for(entered.wait(), timeout=2)
-        replacement = self.broker.register(self.context, DATA, self.binding, "epoch", "epoch")
+        replacement = self.broker.register(self.context, DATA, self.binding)
         self.assertNotEqual(replacement, self.identifier)
         release.set()
         self.assertEqual((await pending)["outcome"], "rejected")
@@ -188,36 +192,28 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_changed_source_set_and_missing_voice_owner_fail_closed(self):
         self.assertIsNone(self.offer(context={**CONTEXT, "query": "other"}))
-        self.assertIsNone(
-            self.broker.register(
-                {**CONTEXT, "sessionId": None}, DATA, self.binding, "epoch", "epoch"
-            )
-        )
+        self.assertIsNone(self.broker.register({**CONTEXT, "sessionId": None}, DATA, self.binding))
         self.assertIsNone(self.offer())
 
     def test_crossed_account_epoch_discards_source(self):
-        self.assertIsNone(self.broker.register(self.context, DATA, self.binding, "old", "new"))
-        self.assertIsNone(self.offer())
+        self.assertIsNone(self.offer(account="other-account"))
 
-    async def test_native_policy_volume_replaces_spotify_observation(self):
+    async def test_fixed_start_volume_ignores_generic_spotify_observation(self):
         controls = copy.deepcopy(CONTROLS)
-        controls["volume_percent"] = 10
-        controls["native_start"]["start_volume_percent"] = 37
+        controls["observedVolumePercent"] = 10
         offer = self.offer(observed_controls=controls)
-        self.assertEqual(offer["observedVolumePercent"], 37)
+        self.assertEqual(offer["startVolumePercent"], 35)
 
         async def fresh():
             return copy.deepcopy(controls)
 
         self.assertEqual((await self.execute(offer, fresh_controls=fresh))["outcome"], "accepted")
 
-    async def test_same_session_preserves_manual_output_volume(self):
+    async def test_generic_observed_volume_does_not_change_fixed_start_volume(self):
         controls = copy.deepcopy(CONTROLS)
-        proof = controls["native_start"]
-        proof.update(mode="same_session", output_selected=True, output_volume_percent=39)
-        proof["alias_binding"]["room_id"] = "native-room"
+        controls["observedVolumePercent"] = 39
         offer = self.offer(observed_controls=controls)
-        self.assertEqual(offer["observedVolumePercent"], 39)
+        self.assertEqual(offer["startVolumePercent"], 35)
 
         async def fresh():
             return copy.deepcopy(controls)
@@ -225,30 +221,16 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.execute(offer, fresh_controls=fresh))["outcome"], "accepted")
 
     async def test_missing_or_changed_native_proof_fails_closed(self):
-        missing = {k: v for k, v in CONTROLS.items() if k != "native_start"}
+        missing = {k: v for k, v in CONTROLS.items() if k != "start_offer"}
         self.assertIsNone(self.offer(observed_controls=missing))
         for field, value in (
+            ("binding_id", "replacement"),
+            ("native_incarnation", "replacement"),
             ("policy_revision", "c" * 64),
-            ("homepod_id", "replacement"),
-            ("room_id", "replacement"),
-            ("engine_device_id", "replacement"),
-            ("start_volume_percent", 31),
-            ("ready", False),
         ):
             offer = self.offer()
             changed = copy.deepcopy(CONTROLS)
-            changed["native_start"][field] = value
-
-            async def fresh(value=changed):
-                return value
-
-            self.assertEqual(
-                (await self.execute(offer, fresh_controls=fresh))["outcome"], "rejected"
-            )
-        for field in ("incarnation", "registry"):
-            offer = self.offer()
-            changed = copy.deepcopy(CONTROLS)
-            changed["native_start"]["alias_binding"][field] += "-replacement"
+            changed["start_offer"][field] = value
 
             async def fresh(value=changed):
                 return value

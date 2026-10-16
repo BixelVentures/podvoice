@@ -34,9 +34,11 @@ async def mood_rig(rig):  # noqa: F811 - imported pytest fixture
     router.podview_mood_context = AsyncMock(return_value={"hour": 18, "roomKind": "kitchen"})
     bridge.controls.policy["music"][0]["actions"].append("play_context")
     controls = copy.deepcopy(bridge.controls.music.setup_track.return_value)
-    controls["data"].update(context_play_supported=True, actions=["play_context"])
+    controls["data"].update(actions=["play_context"])
     bridge.controls.music.setup_context = AsyncMock(return_value=controls)
-    bridge.controls.music.execute_context = AsyncMock(return_value={"outcome": "accepted"})
+    bridge.controls.music.execute_context = AsyncMock(
+        return_value={"outcome": "accepted", "accepted_selected_content": True}
+    )
     rig.playlist_epoch = "a" * 32
     rig.playlist_account = "account-alpha"
     rig.playlist_same = False
@@ -63,7 +65,11 @@ async def mood_rig(rig):  # noqa: F811 - imported pytest fixture
                     "ok": True,
                     "schema": "podconnect.search_playlists.v1",
                     "config_entry_id": rig.playlist_account,
-                    "owner_epoch": rig.playlist_epoch,
+                    "owner_epoch": (
+                        "a" * 32
+                        if rig.playlist_epoch == "other" and suffix != "a"
+                        else rig.playlist_epoch
+                    ),
                     "source": "spotify_web_api",
                     "query": data["query"],
                     "limit": 3,
@@ -148,7 +154,7 @@ async def test_opaque_context_option_uses_existing_native_owner_once(mood_rig):
             "revision": offer["revision"],
             "requestId": "one",
             "optionId": offer["options"][1]["id"],
-            "confirmedVolumePercent": 30,
+            "confirmedVolumePercent": 35,
         }
         first = await (
             await client.post("/view/api/music/selection/actions", headers=HEADERS, json=action)
@@ -238,7 +244,7 @@ async def test_voice_uses_same_playlist_option_ids_and_existing_confirmation_own
             "taskId": offer["taskId"],
             "revision": offer["revision"],
             "optionId": offer["options"][1]["id"],
-            "confirmedVolumePercent": offer["observedVolumePercent"],
+            "confirmedVolumePercent": offer["startVolumePercent"],
         }
         pending = await router.dispatch(
             "podview_music_select_option", args, execution_context=proposal
@@ -314,10 +320,10 @@ async def test_same_epoch_expired_source_must_revalidate_frozen_playlist_metadat
                         row["name"] += " renamed"
                 elif mutation == "removed":
                     result["data"]["playlists"] = []
-                else:
-                    result["data"][
-                        "config_entry_id" if mutation == "account" else "owner_epoch"
-                    ] = "other"
+                elif mutation == "epoch" and query == "cooking":
+                    result["data"]["owner_epoch"] = "other"
+                elif mutation == "account":
+                    result["data"]["config_entry_id"] = "other"
             return result
 
         router.podview_read = changed
@@ -410,10 +416,10 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
             await release.wait()
             await gates[query].wait()
             result = await original(kind, account, query)
-            if mutation in ("account", "epoch"):
-                result["data"]["config_entry_id" if mutation == "account" else "owner_epoch"] = (
-                    "other"
-                )
+            if mutation == "account":
+                result["data"]["config_entry_id"] = "other"
+            elif mutation == "epoch" and query == "cooking":
+                result["data"]["owner_epoch"] = "other"
             return result
         finally:
             finished.append(query)

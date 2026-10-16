@@ -97,7 +97,7 @@ async def test_exact_collection_occurrences_offer_and_execute_opaque_ids_once(ri
             "revision": offer["revision"],
             "optionId": offer["options"][1]["id"],
             "requestId": "one",
-            "confirmedVolumePercent": 30,
+            "confirmedVolumePercent": 35,
         }
         bridge.controls.music.execute_track.return_value = {"outcome": "unknown"}
         first = await (
@@ -202,21 +202,21 @@ async def test_collection_read_rejects_crossed_source_owner_or_grant(rig, change
         assert not bridge.music_selection.sources
 
 
-async def test_old_postread_owner_check_cannot_replace_newer_same_collection_source(rig):
-    original = install_library(rig)
+async def test_inflight_collection_read_is_serialized_before_newer_source_replaces_it(rig):
+    install_library(rig)
     read = rig.router.podview_read
     entered, release = asyncio.Event(), asyncio.Event()
-    polls = 0
+    reads = 0
 
     async def held(kind, account=None, query=None):
-        nonlocal polls
-        if kind == "playback":
-            polls += 1
-            if polls == 2:
+        nonlocal reads
+        result = await read(kind, account, query)
+        if kind == "liked":
+            reads += 1
+            if reads == 1:
                 entered.set()
                 await release.wait()
-            return await original(kind, account, query)
-        return await read(kind, account, query)
+        return result
 
     rig.router.podview_read = held
     bridge = rig.app[BRIDGE]
@@ -224,9 +224,14 @@ async def test_old_postread_owner_check_cannot_replace_newer_same_collection_sou
         url = "/view/api/music?kind=liked&account=account-alpha"
         old = asyncio.create_task(client.get(url, headers=HEADERS))
         await asyncio.wait_for(entered.wait(), 2)
+        try:
+            busy = await client.get(url, headers=HEADERS)
+            assert busy.status == 429 and (await busy.json())["error"] == "music_busy"
+        finally:
+            release.set()
+        first = await (await old).json()
+        old_id = first["candidateSet"]["candidateSetId"]
         newer = await (await client.get(url, headers=HEADERS)).json()
-        identifier = newer["candidateSet"]["candidateSetId"]
-        release.set()
-        stale = await (await old).json()
-        assert "candidateSet" not in stale
-        assert list(bridge.music_selection.sources) == [identifier]
+        new_id = newer["candidateSet"]["candidateSetId"]
+        assert new_id != old_id and reads == 2
+        assert list(bridge.music_selection.sources) == [new_id]

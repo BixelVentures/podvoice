@@ -7,7 +7,7 @@ import {LocalMusicRefresh} from '../../podvoice/gatekeeper/static/podview/flow-c
 test('refresh preserves cards and playback until a matching completion and admits one request',()=>{
  const initial=initialWidgetState(),loading=step(initial,{type:'refresh',revision:initial.revision});
  assert.equal(loading.playback,initial.playback);assert.deepEqual(resultsFor(loading),resultsFor(initial));
- assert.equal(musicRefreshFeedback(loading),'Henter nye forslag…');
+ assert.equal(musicRefreshFeedback(loading),'');
  assert.equal(step(loading,{type:'refresh',revision:loading.revision}),loading);
  assert.equal(step(loading,{type:'select',id:resultsFor(loading)[0].id,revision:loading.revision}),loading);
  for(const invalid of [{requestId:999},{revision:0}])assert.equal(step(loading,{type:'refresh-result',...loading.refreshPending,...invalid,status:'ready'}),loading);

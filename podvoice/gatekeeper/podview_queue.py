@@ -145,12 +145,8 @@ class QueueBroker:
 
     @property
     def available(self):
-        facade = self.bridge.controls.music
-        return bool(
-            facade.tools is self.bridge.tools
-            and facade.available
-            and "get_queue_controls" in self.bridge.tools._discovery.podconnect_services
-        )
+        # Native queue-occurrence admission has a separate unresolved contract.
+        return False
 
     def rules(self, room, token):
         policy = self.bridge.controls.policy
@@ -158,6 +154,7 @@ class QueueBroker:
             not self.available
             or policy.get("roomId") != room
             or not self.bridge._grant_current(room, token)
+            or any(key[0] == room for key in self.bridge._music_move_fence)
         ):
             return []
         return [
@@ -229,14 +226,19 @@ class QueueBroker:
             or room not in self.bridge.sessions
         ):
             return {"ok": False, "error": "invalid_queue_target", "retryAllowed": False}
-        rule = next(
-            (
-                r
-                for r in self.rules(room, token)
-                if r["accountId"] == account and r["targetId"] == target
-            ),
-            None,
-        )
+        from .podview_room_media import binding
+
+        scope = binding(self.bridge, room, account)
+        matches = [
+            r
+            for r in self.rules(room, token)
+            if scope is not None
+            and r["accountId"] == account
+            and r["targetId"] == target
+            and (r["nativeRoomId"], r["nativeHomepodId"])
+            == (scope["nativeRoomId"], scope["nativeHomepodId"])
+        ]
+        rule = matches[0] if len(matches) == 1 else None
         if rule is None or room in self.bridge.controls.busy or len(self.receipts) >= 1024:
             return {"ok": False, "error": "queue_not_paired", "retryAllowed": False}
         self.generation[room] = self.generation.get(room, 0) + 1

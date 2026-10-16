@@ -853,3 +853,111 @@ async def test_actual_weather_advice_reaches_home_and_cache_cannot_extend_its_pe
             assert len(fixture.calls) == 2  # Only existing reads; no helper/model/dispatch.
         assert tools.declarations() == declarations
         assert tools._dispatch.await_count == 0 and tools._refresh.await_count == 0
+
+
+def _weather_brief_route_fixture():
+    import time
+    from datetime import UTC, datetime, timedelta
+
+    from gatekeeper.podview_weather import weather_projection
+
+    now = datetime.now(UTC)
+    stamp = now.isoformat()
+    weather = weather_projection(
+        {
+            "ok": True,
+            "data": {
+                "success": True,
+                "result": {
+                    "source": "Met.no",
+                    "location": "hjemmet",
+                    "temperature_unit": "°C",
+                    "precipitation_unit": "mm",
+                    "wind_speed_unit": "km/h",
+                    "retrieved_at": stamp,
+                    "state_updated_at": stamp,
+                    "temperature": 13.9,
+                    "condition": "cloudy",
+                    "forecast_type": "daily",
+                    "forecast": [
+                        {
+                            "datetime": (now + timedelta(days=1)).isoformat(),
+                            "temperature": 17.2,
+                            "templow": 9.1,
+                        }
+                    ],
+                },
+            },
+        }
+    )
+    current = [
+        {
+            "schema": "podview.weather-brief.v1",
+            "receiptId": "ai-receipt",
+            "roomId": "kitchen",
+            "sessionId": "s1",
+            "turnId": "s1:1",
+            "taskId": "weather-task",
+            "inputRevision": 1,
+            "providerGeneration": 2,
+            "validUntil": time.time() + 60,
+            "summary": "En jakke kan være rar i det kølige vejr.",
+            "summaryKind": "ai_advice",
+            "weatherReceiptId": "weather-receipt",
+            "evidenceFactIds": ["fact:0"],
+            "weather": weather,
+        }
+    ]
+    session, _ = owner()
+
+    def read(room, actual):
+        assert room == "kitchen" and actual is session
+        return current[0]
+
+    tools = SimpleNamespace(
+        podview_home_available=lambda: False,
+        podview_home_binding=lambda: None,
+        podview_home_read=AsyncMock(return_value={"status": "unavailable", "items": []}),
+        podview_weather_available=lambda: True,
+        podview_weather_binding=lambda: "actual-weather-owner",
+        podview_weather_read=AsyncMock(return_value=weather),
+        podview_receipts=SimpleNamespace(read_weather_brief=read, aclose=AsyncMock()),
+        podview_weather_city="Mårslet",
+    )
+    return session, tools, current
+
+
+async def test_real_home_route_ai_revocation_bypasses_five_second_cache():
+    session, tools, current = _weather_brief_route_fixture()
+    app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+    async with TestClient(TestServer(app)) as client:
+        first = await (await client.get("/view/api/home")).json()
+        assert first["weather"]["data"]["aiAdvice"]["receiptId"] == "ai-receipt"
+        assert first["weather"]["data"]["displayLocation"]["name"] == "Mårslet"
+        current[0] = None  # Exact owner withdrew on Stop/new input.
+        second = await (await client.get("/view/api/home")).json()
+        assert "aiAdvice" not in second["weather"]["data"]
+        assert tools.podview_weather_read.await_count == 2
+        assert second["revision"] > first["revision"]
+
+
+async def test_real_home_route_held_read_cannot_attach_revoked_ai_brief():
+    session, tools, current = _weather_brief_route_fixture()
+    entered, release = asyncio.Event(), asyncio.Event()
+    weather = current[0]["weather"]
+
+    async def held():
+        entered.set()
+        await release.wait()
+        return weather
+
+    tools.podview_weather_read = held
+    app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+    async with TestClient(TestServer(app)) as client:
+        pending = asyncio.create_task(client.get("/view/api/home"))
+        await entered.wait()
+        current[0] = None
+        release.set()
+        result = await (await pending).json()
+        assert result["weather"] == weather
+        assert "aiAdvice" not in result["weather"]["data"]

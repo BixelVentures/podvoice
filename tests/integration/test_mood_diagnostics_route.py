@@ -18,33 +18,52 @@ from gatekeeper import mood_diagnostics as diag
     [
         ("success", "publish", "success", "none"),
         ("owner", "playback_before", "mood_owner_unavailable", "none"),
-        ("exception", "playback_before", "mood_unavailable", "route_exception"),
-        ("owner_timeout", "playback_before", "mood_unavailable", "owner_timeout"),
+        ("exception", "playlist_search", "mood_unavailable", "route_exception"),
+        ("read_timeout", "playlist_search", "mood_unavailable", "route_exception"),
+        ("owner_timeout", "time_context", "mood_unavailable", "owner_timeout"),
         ("budget", "playback_before", "mood_budget_unavailable", "none"),
         ("selection", "model", "mood_selection_unavailable", "none"),
         ("catalogue", "playlist_search", "mood_catalogue_unavailable", "none"),
-        ("cancel", "playback_before", "cancelled", "cancelled"),
+        ("cancel", "playlist_search", "cancelled", "cancelled"),
     ],
 )
 async def test_actual_terminal_record_one_per_attempt_and_cleanup(
-    mood_rig, caplog, mode, phase, outcome, reason
+    mood_rig, caplog, monkeypatch, mode, phase, outcome, reason
 ):
     caplog.set_level(logging.INFO, logger="podvoice.mood")
     bridge = unpaired(mood_rig)
     original = mood_rig.router.podview_read
 
+    if mode == "owner":
+        original_snapshot = bridge.snapshot
+        snapshots = 0
+
+        def replaced_snapshot(room):
+            nonlocal snapshots
+            snapshots += 1
+            result = original_snapshot(room)
+            if snapshots == 2:
+                result["voice"]["phase"] = "CLOSING"
+            return result
+
+        monkeypatch.setattr(bridge, "snapshot", replaced_snapshot)
+
     async def replacement(*a, **k):
-        if mode == "owner":
-            return {"ok": False}
         if mode == "exception":
             raise ValueError("NEVER_LOG_PRIVATE_EXCEPTION")
-        if mode == "owner_timeout":
+        if mode == "read_timeout":
             raise TimeoutError("NEVER_LOG_PRIVATE_EXCEPTION")
         if mode == "cancel":
             raise asyncio.CancelledError()
         return await original(*a, **k)
 
     mood_rig.router.podview_read = replacement
+    if mode == "owner_timeout":
+
+        async def timed_out_context(*a, **k):
+            raise TimeoutError("NEVER_LOG_PRIVATE_EXCEPTION")
+
+        mood_rig.router.podview_mood_context = timed_out_context
     if mode == "budget":
         mood_rig.router.podview_mood_selector.available = False
     if mode == "selection":
@@ -57,14 +76,28 @@ async def test_actual_terminal_record_one_per_attempt_and_cleanup(
     else:
         body = await read(mood_rig)
         assert body.get("error", "success") == outcome
-    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
+    for line in raw_lines:
+        durations = dict(pair.split("=") for pair in line.split()[5:])
+        assert set(durations) == {
+            "total_ms",
+            "playback_before_ms",
+            "time_context_ms",
+            "model_ms",
+            "playlist_search_ms",
+            "playback_after_ms",
+            "publish_ms",
+        }
+        assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
         f"mood_result phase={phase} outcome={outcome} reason={reason} http_status=none"
     ]
     assert not bridge._music_busy and diag._CURRENT.get() is None
     assert "NEVER_LOG_PRIVATE_EXCEPTION" not in caplog.text
-    if mode in {"owner", "exception", "owner_timeout", "cancel", "budget"}:
-        assert mood_rig.router.podview_mood_selector.select.await_count == 0
+    assert mood_rig.router.podview_mood_selector.select.await_count == (
+        0 if mode in {"owner", "owner_timeout", "budget"} else 1
+    )
 
 
 async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, caplog, monkeypatch):
@@ -92,11 +125,24 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
     timers[0].reschedule(asyncio.get_running_loop().time())
     assert (await task)["error"] == "mood_unavailable"
     assert not bridge._music_busy
-    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
+    for line in raw_lines:
+        durations = dict(pair.split("=") for pair in line.split()[5:])
+        assert set(durations) == {
+            "total_ms",
+            "playback_before_ms",
+            "time_context_ms",
+            "model_ms",
+            "playlist_search_ms",
+            "playback_after_ms",
+            "publish_ms",
+        }
+        assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
-        "mood_result phase=playback_before outcome=mood_unavailable reason=route_deadline http_status=none"
+        "mood_result phase=playlist_search outcome=mood_unavailable reason=route_deadline http_status=none"
     ]
-    assert mood_rig.router.podview_mood_selector.select.await_count == 0
+    assert mood_rig.router.podview_mood_selector.select.await_count == 1
 
 
 @pytest.mark.parametrize("cancel", [False, True])

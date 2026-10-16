@@ -455,17 +455,25 @@ class ExecutionPolicy:
             or challenge.context.approval_mode != "live"
         ):
             return False
-        required = {"song", "artist", "output", "account_id", "volume_percent"}
-        if not isinstance(details, dict) or set(details) != required:
+        if not isinstance(details, dict):
             return False
-        limits = {"song": 256, "artist": 512, "output": 1024, "account_id": 1024}
-        if any(
-            not isinstance(details[key], str) or not 1 <= len(details[key]) <= maximum
-            for key, maximum in limits.items()
-        ):
-            return False
-        volume = details["volume_percent"]
-        if type(volume) is not int or not 0 <= volume <= 100:
+        if set(details) == {"purpose", "destination", "account_id"}:
+            if details["purpose"] != "move_existing_session" or any(
+                not isinstance(details[key], str) or not 1 <= len(details[key]) <= 1024
+                for key in ("destination", "account_id")
+            ):
+                return False
+        elif set(details) == {"song", "artist", "output", "account_id", "volume_percent"}:
+            limits = {"song": 256, "artist": 512, "output": 1024, "account_id": 1024}
+            if any(
+                not isinstance(details[key], str) or not 1 <= len(details[key]) <= maximum
+                for key, maximum in limits.items()
+            ):
+                return False
+            volume = details["volume_percent"]
+            if type(volume) is not int or not 0 <= volume <= 100:
+                return False
+        else:
             return False
         try:
             encoded = json.dumps(details, ensure_ascii=False, sort_keys=True, allow_nan=False)

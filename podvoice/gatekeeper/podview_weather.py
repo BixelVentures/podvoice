@@ -7,6 +7,7 @@ import json
 import math
 import time
 from datetime import datetime
+from typing import cast
 
 _MAX_FORECAST_ROWS = 48
 MAX_RETRIEVAL_AGE_S = 15 * 60
@@ -173,7 +174,7 @@ def _forecast_advice(
     }
 
 
-def weather_projection(response: object) -> dict:
+def weather_projection(response: object, *, display_city: str = "") -> dict:
     """Recognize only success/result/forecast from the deployed HA owner contract.
 
     Keep source retrieval/state timestamps distinct from this observation time.
@@ -196,8 +197,14 @@ def weather_projection(response: object) -> dict:
         "precipitation": result.get("precipitation_unit"),
         "windSpeed": result.get("wind_speed_unit"),
     }
-    if not all(_text(unit, 16) for unit in units.values()):
+    # Temperature supplies the primary numeric meaning. Optional rain/wind
+    # units can be absent without withdrawing independent temperature/condition
+    # observations. Never infer a unit for quantities whose unit is unknown.
+    if not _text(units["temperature"], 16):
         return unavailable
+    for key in ("precipitation", "windSpeed"):
+        if units[key] is not None and not _text(units[key], 16):
+            return unavailable
     now = time.time()
     retrieved = _timestamp(result.get("retrieved_at"))
     if retrieved is None or not 0 <= now - retrieved.timestamp() <= MAX_RETRIEVAL_AGE_S:
@@ -237,10 +244,17 @@ def weather_projection(response: object) -> dict:
             return unavailable
         previous = timestamp
         projected: dict = {"datetime": row["datetime"]}
-        if "condition" in row:
+        if row.get("condition") is not None:
             if not _text(row["condition"], 64):
                 return unavailable
             projected["condition"] = row["condition"]
+        # HA wind_bearing is an optional azimuth in degrees. Keep actual
+        # numeric north (0 or 360); cardinal strings/invalid values stay absent.
+        bearing = row.get("wind_bearing")
+        if _number(bearing):
+            bearing = cast(int | float, bearing)
+            if 0 <= bearing <= 360:
+                projected["wind_bearing"] = bearing
         for key in _NUMBERS.intersection(row):
             number = row[key]
             # Home Assistant documents native_temperature as the higher daily
@@ -248,7 +262,9 @@ def weather_projection(response: object) -> dict:
             # those meanings to hourly/twice-daily temperatures.
             if key == "templow" and forecast_type != "daily":
                 continue
-            if key == "templow" and number is None:
+            # HA's optional forecast quantities may be explicitly null. Null
+            # means unknown, whereas numeric zero remains an actual observation.
+            if number is None:
                 continue
             if not _number(number):
                 return unavailable
@@ -272,11 +288,15 @@ def weather_projection(response: object) -> dict:
             rows.append(projected)
     if previous is None or previous < retrieved:
         return unavailable  # an already-ended forecast is not a fresh home forecast
+    from .config import weather_display_city
+
+    city = weather_display_city(display_city)
     return {
         "status": "observed",
         "data": {
             "source": result["source"],
             "location": result["location"],
+            **({"displayLocation": {"name": city, "source": "configured_label"}} if city else {}),
             "retrievedAt": result["retrieved_at"],
             "stateUpdatedAt": updated,
             "observedAt": now,

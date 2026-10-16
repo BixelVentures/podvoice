@@ -1,4 +1,4 @@
-"""Inert bridge proof: repeated URIs select exact native occurrences once."""
+"""Historical queue mechanism tests plus the shipped closed native queue gate."""
 
 import asyncio
 import json
@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music_selection import rig as rig
 
 from gatekeeper.podview import _PAIR_COOKIE, BRIDGE
@@ -59,8 +60,19 @@ def source():
     }
 
 
-def prepare(rig):
+def prepare(rig, monkeypatch=None):
     bridge = rig.app[BRIDGE]
+    if monkeypatch is not None:
+        # Historical queue mechanism only; the shipped native queue contract is closed.
+        monkeypatch.setattr(
+            type(bridge.queue),
+            "available",
+            property(
+                lambda self: (
+                    "get_queue_controls" in self.bridge.tools._discovery.podconnect_services
+                )
+            ),
+        )
     rig.router._discovery = replace(
         rig.router._discovery,
         podconnect_services=rig.router._discovery.podconnect_services | {"get_queue_controls"},
@@ -101,8 +113,8 @@ def accepted(request):
     }
 
 
-async def test_repeated_uri_exact_occurrence_once(rig):
-    bridge, request = prepare(rig)
+async def test_repeated_uri_exact_occurrence_once(rig, monkeypatch):
+    bridge, request = prepare(rig, monkeypatch)
     offer = await bridge.queue.offer(request, "grant")
     assert offer["ok"] and offer["items"][0]["uri"] == offer["items"][1]["uri"]
     read = bridge.controls.music._read
@@ -146,8 +158,8 @@ async def test_repeated_uri_exact_occurrence_once(rig):
         "unknownshape",
     ],
 )
-async def test_missing_scope_is_readonly(rig, change):
-    bridge, request = prepare(rig)
+async def test_missing_scope_is_readonly(rig, monkeypatch, change):
+    bridge, request = prepare(rig, monkeypatch)
     value, token = source(), "grant"
     if change == "cookie":
         token = "foreign"
@@ -175,8 +187,8 @@ async def test_missing_scope_is_readonly(rig, change):
     assert not bridge.queue.tasks
 
 
-async def test_changed_owner_inflight_and_policy_after_read(rig):
-    bridge, request = prepare(rig)
+async def test_changed_owner_inflight_and_policy_after_read(rig, monkeypatch):
+    bridge, request = prepare(rig, monkeypatch)
 
     async def changed(*args):
         bridge._grants["kitchen"] = ("grant", time.monotonic() + 300)
@@ -193,8 +205,8 @@ async def test_changed_owner_inflight_and_policy_after_read(rig):
     assert bridge.controls.music._read.await_count == 2
 
 
-async def test_unknown_no_replay_and_source_expiry(rig):
-    bridge, request = prepare(rig)
+async def test_unknown_no_replay_and_source_expiry(rig, monkeypatch):
+    bridge, request = prepare(rig, monkeypatch)
     offer = await bridge.queue.offer(request, "grant")
     bridge.controls.music._read.side_effect = TimeoutError
     body = action(offer)
@@ -205,8 +217,8 @@ async def test_unknown_no_replay_and_source_expiry(rig):
     assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
 
 
-async def test_cancel_read_releases_busy_without_offer(rig):
-    bridge, request = prepare(rig)
+async def test_cancel_read_releases_busy_without_offer(rig, monkeypatch):
+    bridge, request = prepare(rig, monkeypatch)
     entered = asyncio.Event()
 
     async def wait(*args):
@@ -215,16 +227,17 @@ async def test_cancel_read_releases_busy_without_offer(rig):
 
     bridge.controls.music._read.side_effect = wait
     running = asyncio.create_task(bridge.queue.offer(request, "grant"))
-    await entered.wait()
+    await asyncio.wait_for(entered.wait(), 2)
+    assert not running.done() and bridge.controls.music._read.await_count == 1
     running.cancel()
     assert not (await running)["ok"]
     assert not bridge.queue.tasks and not bridge.controls.busy
 
 
-async def test_actual_ingress_csrf_and_pair_cookie(rig):
+async def test_actual_ingress_csrf_and_pair_cookie(rig, monkeypatch):
     from gatekeeper.podview_queue import queue_http
 
-    _bridge, body = prepare(rig)
+    _bridge, body = prepare(rig, monkeypatch)
     assert any(
         route.resource.canonical == "/view/api/music/queue/offer"
         for route in rig.app.router.routes()
@@ -263,8 +276,27 @@ def test_source_closed_duplicate_and_count_rejected():
         project(value, "account-alpha", "device-one")
 
 
-async def test_new_voice_turn_rejects_old_queue_task(rig):
+async def test_shipped_queue_stays_closed_without_native_contract(rig):
     bridge, request = prepare(rig)
+    assert bridge.queue.available is False
+    async with TestClient(TestServer(rig.app)) as client:
+        reply = await client.post(
+            "/view/api/music/queue/offer",
+            json=request,
+            headers={"X-PodView-Request": "1", "Cookie": "podview_control=grant"},
+        )
+        assert reply.status == 200
+        assert await reply.json() == {
+            "ok": False,
+            "error": "queue_not_paired",
+            "retryAllowed": False,
+        }
+    assert not bridge.queue.tasks and not bridge.controls.busy
+    assert bridge.controls.music._read.await_count == 0
+
+
+async def test_new_voice_turn_rejects_old_queue_task(rig, monkeypatch):
+    bridge, request = prepare(rig, monkeypatch)
     offer = await bridge.queue.offer(request, "grant")
     bridge.sessions["kitchen"]._external_turn_id = lambda: "s1:new-turn"
     assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "rejected"

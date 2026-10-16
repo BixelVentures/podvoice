@@ -83,9 +83,9 @@ export class PodVoiceTransport {
  async answers(){if(!this.connected||this.snapshot.capabilities.answerRead!==true)throw Error('answers_unavailable');const response=await this.request(this.endpoint('answers'),{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('answers_unavailable');return response.json();}
  async source(id){if(!this.connected||this.snapshot.capabilities.answerRead!==true||!/^[a-f0-9]{32}$/.test(id))throw Error('source_unavailable');const url=new URL('sources/'+id,this.base);url.searchParams.set('room',this.room);const response=await this.request(url,{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('source_unavailable');return response.json();}
  async music(kind, account, query) {
-  if (!this.connected || !this.snapshot.capabilities.musicRead?.includes(kind)) throw new Error('music_unavailable');
+  if (!this.connected || !this.snapshot.capabilities.musicRead?.includes(kind==='speakers'?'targets':kind)) throw new Error('music_unavailable');
   if(kind==='search'&&(typeof query!=='string'||query.trim()!==query||query.length<1||query.length>160))throw new Error('invalid_query');
-  const response = await this.request(this.endpoint('music', {kind,account,...(kind==='search'?{query}:kind==='mood'&&query==='refresh'?{refresh:'1'}:kind==='mood'&&query==='renew'?{renew:'1'}:{})}), {credentials:'same-origin',cache:'no-store',signal:this.controller.signal});
+  const response = await this.request(this.endpoint('music', {kind,account,...(kind==='search'?{query}:['mood','feeling'].includes(kind)&&query==='refresh'?{refresh:'1'}:['mood','feeling'].includes(kind)&&query==='renew'?{renew:'1'}:{})}), {credentials:'same-origin',cache:'no-store',signal:this.controller.signal});
   const body = await response.json(); if (!response.ok || !body.ok) throw new Error(body.error || 'music_unavailable');
   return body;
  }
@@ -103,7 +103,7 @@ export class PodVoiceTransport {
   const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};
   if(!this.connected||this.snapshot?.capabilities.musicSelection!==true||this.snapshot.bootId!==offer?.bootId||this.snapshot.roomId!==offer?.roomId||Date.now()>=offer?.expiresAt||!offer.options?.some(option=>option.id===optionId))return rejected;
   const requestId=crypto.randomUUID(),url=new URL('music/selection/actions',this.base);
-  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,revision:offer.revision,requestId,optionId,confirmedVolumePercent:offer.observedVolumePercent})});const body=await response.json();
+  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,revision:offer.revision,requestId,optionId,confirmedVolumePercent:offer.startVolumePercent})});const body=await response.json();
    if(!response.ok||body?.requestId!==requestId||!['accepted','rejected','unknown'].includes(body.outcome)||body.retryAllowed!==false||body.physicalResultVerified!==false||body.ok!==(body.outcome==='accepted'))return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};
    return body;
   }catch{return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};}

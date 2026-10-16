@@ -18,8 +18,6 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .podview_music_control import native_start, start_volume
-
 _TRACK = re.compile(r"^spotify:track:[A-Za-z0-9]{22}$")
 _ID = re.compile(r"^[a-f0-9]{64}$")
 _CONTEXT = (
@@ -63,22 +61,18 @@ class MusicSelection:
         context: dict,
         data: dict,
         owner_binding: tuple,
-        before_epoch: str,
-        after_epoch: str,
         *,
         kind: str = "search",
     ) -> str | None:
         """Call only after the existing PodConnect response and context validation."""
         self.sources.clear()
         self.tasks.clear()
-        if not isinstance(before_epoch, str) or not before_epoch or before_epoch != after_epoch:
-            return None
         if not _closed_context(context) or not isinstance(data, dict):
             return None
         tracks = data.get("tracks")
-        if kind not in {"search", "recent", "top", "liked", "mood"}:
+        if kind not in {"search", "recent", "top", "liked", "mood", "feeling"}:
             return None
-        maximum = 3 if kind in {"search", "mood"} else 50
+        maximum = 3 if kind in {"search", "mood", "feeling"} else 50
         if not isinstance(tracks, list) or not 1 <= len(tracks) <= maximum:
             return None
         if any(
@@ -86,7 +80,7 @@ class MusicSelection:
             or not isinstance(row.get("uri"), str)
             or re.fullmatch(
                 r"spotify:playlist:[A-Za-z0-9]{22}"
-                if kind == "mood"
+                if kind in {"mood", "feeling"}
                 else r"spotify:track:[A-Za-z0-9]{22}",
                 row.get("uri", ""),
             )
@@ -110,7 +104,6 @@ class MusicSelection:
                 if kind != "search"
                 else {},
                 "binding": owner_binding,
-                "ownerEpoch": before_epoch,
                 "deadline": time.monotonic() + 60,
             }
         }
@@ -149,6 +142,7 @@ class MusicSelection:
         owner_binding: tuple,
         account: str,
         target: str,
+        native_binding: tuple[str, str],
         observed_controls: dict,
         approved_max_volume: int,
         authority: tuple,
@@ -170,7 +164,7 @@ class MusicSelection:
         tracks = self.selected_tracks(source, candidate_ids)
         if tracks is None:
             return None
-        if type(approved_max_volume) is not int or not 0 <= approved_max_volume <= 100:
+        if type(approved_max_volume) is not int or not 35 <= approved_max_volume <= 100:
             return None
         controls = observed_controls
         if (
@@ -185,26 +179,20 @@ class MusicSelection:
             or controls.get("target", {}).get("target_id") != target
         ):
             return None
+        action = "play_context" if source["kind"] in {"mood", "feeling"} else "play_track"
+        start = controls.get("start_offer")
         if (
-            controls.get("owner_epoch") != source["ownerEpoch"]
-            or controls.get(
-                "context_play_supported" if source["kind"] == "mood" else "track_play_supported"
+            action not in controls.get("actions", [])
+            or not isinstance(start, dict)
+            or start.get("start_volume_percent") != 35
+            or type(start.get("start_volume_percent")) is not int
+            or not all(
+                isinstance(start.get(key), str) and start[key]
+                for key in ("binding_id", "native_incarnation", "policy_revision")
             )
-            is not True
-        ):
-            return None
-        try:
-            proof = controls.get("native_start", {})
-            proof = native_start(proof, target, proof.get("room_id"), proof.get("homepod_id"))
-            volume = start_volume(proof)
-        except (ValueError, AttributeError, TypeError):
-            return None
-        observed = controls.get("volume_percent")
-        if (
-            type(observed) is not int
-            or not 0 <= observed <= approved_max_volume
-            or volume > approved_max_volume
-            or proof["start_volume_percent"] > approved_max_volume
+            or not isinstance(controls.get("room_id"), str)
+            or not isinstance(controls.get("homepod_id"), str)
+            or (controls["room_id"], controls["homepod_id"]) != native_binding
         ):
             return None
         deadline: Any = controls.get("valid_until")
@@ -223,17 +211,19 @@ class MusicSelection:
         ]
         task = {
             "id": task_id,
-            "action": "play_context" if source["kind"] == "mood" else "play_track",
+            "action": action,
             "candidateSetId": identifier,
             "context": copy.deepcopy(context),
             "ownerBinding": owner_binding,
             "authority": authority,
             "account": account,
             "target": target,
-            "volume": volume,
-            "nativeBinding": (proof["room_id"], proof["homepod_id"]),
-            "nativeStart": proof,
-            "ownerEpoch": source["ownerEpoch"],
+            "volume": 35,
+            "nativeBinding": (controls["room_id"], controls["homepod_id"]),
+            "startBinding": tuple(
+                start[key] for key in ("binding_id", "native_incarnation", "policy_revision")
+            ),
+            "ownerEpoch": controls["owner_epoch"],
             "maxVolume": approved_max_volume,
             "controls": copy.deepcopy(controls),
             "choices": {
@@ -243,7 +233,6 @@ class MusicSelection:
             "deadline": min(
                 source["deadline"],
                 time.monotonic() + 60,
-                time.monotonic() + max(0, deadline - time.time()),
             ),
             "consumed": False,
         }
@@ -258,7 +247,7 @@ class MusicSelection:
             "candidateSetId": identifier,
             "accountId": account,
             "target": {"kind": "spotify_device", "targetId": target},
-            "observedVolumePercent": volume,
+            "startVolumePercent": 35,
             "options": options,
             "expiresIn": max(0, int(task["deadline"] - time.monotonic())),
         }
@@ -292,6 +281,10 @@ class MusicSelection:
         source = self.sources.get(task["candidateSetId"])
         if source is None:
             return failure
+        chosen_uri = task["choices"].get(option_id)
+        chosen_destination = task["nativeBinding"]
+        chosen_ceiling = task["maxVolume"]
+        chosen_start_binding = task["startBinding"]
         if type(revision) is not int or type(confirmed_volume) is not int:
             return failure
         key = (task_id, request_id)
@@ -311,6 +304,10 @@ class MusicSelection:
                 and context == task["context"]
                 and owner_binding == task["ownerBinding"]
                 and authority == task["authority"]
+                and task["choices"].get(option_id) == chosen_uri
+                and task["nativeBinding"] == chosen_destination
+                and task["maxVolume"] == chosen_ceiling
+                and task["startBinding"] == chosen_start_binding
             )
 
         if (
@@ -347,36 +344,36 @@ class MusicSelection:
                 or controls.get("config_entry_id") != task["account"]
                 or controls.get("target", {}).get("target_id") != task["target"]
                 or controls.get("owner_epoch") != task["ownerEpoch"]
-                or controls.get(
-                    "context_play_supported" if source["kind"] == "mood" else "track_play_supported"
-                )
-                is not True
+                or task["action"] not in controls.get("actions", [])
                 or controls.get("status") != "ready"
+                or (controls.get("room_id"), controls.get("homepod_id")) != task["nativeBinding"]
             ):
                 self.receipts[key] = fingerprint, failure
                 return failure
-            try:
-                proof = native_start(
-                    controls.get("native_start"), task["target"], *task["nativeBinding"]
-                )
-            except (ValueError, TypeError):
-                self.receipts[key] = fingerprint, failure
-                return failure
-            volume = controls.get("volume_percent")
+            start = controls.get("start_offer")
             if (
-                proof != task["nativeStart"]
-                or start_volume(proof) != confirmed_volume
-                or type(volume) is not int
-                or not 0 <= volume <= task["maxVolume"]
+                not isinstance(start, dict)
+                or tuple(
+                    start.get(key)
+                    for key in ("binding_id", "native_incarnation", "policy_revision")
+                )
+                != task["startBinding"]
+                or type(start.get("start_volume_percent")) is not int
+                or start["start_volume_percent"] != confirmed_volume
+                or type(controls.get("valid_until")) not in (int, float)
+                or controls["valid_until"] <= time.time()
             ):
                 self.receipts[key] = fingerprint, failure
                 return failure
             # The URI exists only in this server task. The provider adapter receives
             # the exact currently observed owner epoch/poll, and sends at most once.
-            result = await send_once(
-                controls, task["choices"][option_id], task["maxVolume"], active
-            )
+            result = await send_once(controls, chosen_uri, chosen_ceiling, active)
             if result.get("outcome") not in {"accepted", "unknown", "rejected"}:
+                result = unknown
+            if (
+                result.get("outcome") == "accepted"
+                and result.get("accepted_selected_content") is not True
+            ):
                 result = unknown
             receipt = {
                 "ok": result.get("outcome") == "accepted",

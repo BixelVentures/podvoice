@@ -18,3 +18,22 @@ export function queueObservation(v,account){
  return {account,epoch,snapshot,observedAt:timestamp(v.observed_at),items,truncated:v.truncated===true};
 }
 export const observationFresh=p=>!!p&&!p.stale&&Date.now()<=p.expiresAt;
+
+// A configuration descriptor is read scope, never a control/selection grant.
+export function mediaRoomBinding(snapshot,account){
+ const rows=snapshot?.mediaRoomBindings;if(!Array.isArray(rows)||rows.length>32)return null;
+ const matches=rows.filter(row=>row?.accountId===account);if(matches.length!==1)return null;
+ const row=matches[0];if(Object.keys(row).sort().join(',')!=='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'||row.roomId!==snapshot.roomId||!/^([a-f0-9]{64})$/.test(row.bindingId)||['accountId','targetId','nativeRoomId','nativeHomepodId','roomId'].some(key=>typeof row[key]!=='string'||!row[key]||row[key].length>1024))return null;
+ return row;
+}
+const sameRoomBinding=(a,b)=>!!a&&!!b&&Object.keys(a).sort().join(',')==='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'&&Object.keys(b).sort().join(',')==='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'&&['accountId','targetId','nativeRoomId','nativeHomepodId','roomId','bindingId'].every(key=>a[key]===b[key]);
+export function roomObservationCurrent(playback,snapshot){return !!(playback?.roomBound===true&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,playback.config_entry_id))&&playback.target?.id===playback.roomBinding.targetId&&observationFresh(playback));}
+export function roomPlaybackObservation(body,account,snapshot,previous){
+ if(body?.ok!==true||body.schema!=='podview.room-playback.v1'||Object.keys(body).sort().join(',')!=='binding,bootId,configEntryId,data,ok,roomId,schema,status'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.configEntryId!==account)throw Error('invalid_room_playback');
+ const bound=mediaRoomBinding(snapshot,account);
+ if(body.status==='unavailable'){if(body.data!==null)throw Error('unredacted_room_playback');return null;}
+ if(body.status!=='observed'||!sameRoomBinding(body.binding,bound))throw Error('room_binding_changed');
+ const observed=playbackObservation(body.data,account,previous),until=body.data?.room_proof_valid_until;
+ if(!['playing','paused'].includes(observed.state)||observed.target?.id!==bound.targetId||!Number.isFinite(until)||until*1000<=Date.now())throw Error('unbound_room_playback');
+ return {...observed,expiresAt:Math.min(observed.expiresAt,until*1000),roomBound:true,bootId:body.bootId,roomId:body.roomId,roomBinding:{...bound}};
+}

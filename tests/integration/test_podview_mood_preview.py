@@ -82,13 +82,20 @@ async def test_initial_and_renew_retain_exact_cards_only_refresh_selects_again(m
     [
         {"remote": "192.0.2.4"},
         {"headers": {"Sec-Fetch-Site": "cross-site"}},
-        {"account": "foreign"},
     ],
 )
-async def test_invalid_ingress_or_account_before_ai_spend(mood_rig, kwargs):
+async def test_invalid_ingress_before_ai_spend(mood_rig, kwargs):
     unpaired(mood_rig)
     assert not (await read(mood_rig, **kwargs))["ok"]
     assert mood_rig.router.podview_mood_selector.select.await_count == 0
+
+
+async def test_foreign_account_response_fails_closed_after_selection(mood_rig):
+    bridge = unpaired(mood_rig)
+    assert not (await read(mood_rig, account="foreign"))["ok"]
+    assert mood_rig.router.podview_mood_selector.select.await_count == 1
+    assert not bridge.music_selection.sources and not bridge.music_selection.tasks
+    assert bridge._touch_music_contexts == {}
 
 
 async def test_changed_owner_during_model_does_not_publish_or_mint(mood_rig):

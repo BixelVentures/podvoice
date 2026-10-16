@@ -224,7 +224,7 @@ _ACCESS_OPEN_COVER_CLASSES = {"door", "garage", "gate", "window"}
 _TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
 
 
-def _mcp_result_to_contract(result: dict) -> dict:
+def _mcp_result_to_contract(result: dict, *, tool_name: str | None = None) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
     ``{ok, summary?, data?}`` on success, ``{ok: False, error_kind, error}`` on
     ``isError`` or an explicit structured ``ok: False``. HA script responses may
@@ -274,6 +274,20 @@ def _mcp_result_to_contract(result: dict) -> dict:
                     "the tool reported an error",
                 ),
             )
+        elif (
+            tool_name == "GetLiveContext"
+            and "ok" not in payload
+            and payload.get("success") is False
+        ):
+            # HA Core's exact GetLiveContext domain failure is not an MCP transport error.
+            error = payload.get("error")
+            out.update(
+                ok=False,
+                error_kind="tool_error",
+                error=error
+                if isinstance(error, str) and error.strip()
+                else "the tool reported an error",
+            )
     if "summary" not in out and "data" not in out:
         out["empty"] = True
     return out
@@ -319,6 +333,7 @@ class ToolRouter:
         execution_policy: ExecutionPolicy | None = None,
         cleaning_journal_path: Path | None = None,
     ) -> None:
+        self.podview_weather_city: str = ""
         self._mcp = mcp
         self.podview_receipts = VisualReceiptOwner()
         self._device_control = DeviceControl(
@@ -849,22 +864,26 @@ class ToolRouter:
                 [
                     {
                         "name": _PODVIEW_MUSIC_OPTIONS,
-                        "description": "Læs de aktuelle, allerede viste musikvalg på PodView. Ingen URI eller afspilning.",
+                        "description": "Læs aktuelle serverejede musikvalg. Uden argumenter: viste sangvalg. Med purpose=move_existing_session: præcise konfigurerede rum til at flytte den eksisterende afspilning.",
                         "parameters": {
                             "type": "object",
-                            "properties": {},
+                            "properties": {
+                                "purpose": {"type": "string", "enum": ["move_existing_session"]},
+                                "accountId": {"type": "string"},
+                            },
                             "additionalProperties": False,
                         },
                     },
                     {
                         "name": _PODVIEW_MUSIC_SELECT,
-                        "description": "Vælg ét aktuelt PodView-musikvalg ved dets server-id. Kræver særskilt bekræftelse.",
+                        "description": "Vælg ét aktuelt PodView-musikvalg ved dets server-id. MOVE bruger purpose=move_existing_session uden lydstyrke. Kræver særskilt bekræftelse.",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "taskId": {"type": "string"},
                                 "revision": {"type": "integer"},
                                 "optionId": {"type": "string"},
+                                "purpose": {"type": "string", "enum": ["move_existing_session"]},
                                 "confirmedVolumePercent": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -875,7 +894,6 @@ class ToolRouter:
                                 "taskId",
                                 "revision",
                                 "optionId",
-                                "confirmedVolumePercent",
                             ],
                             "additionalProperties": False,
                         },
@@ -1089,6 +1107,21 @@ class ToolRouter:
             result = {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
             self._log_tool(name, result, dispatch_args)
             return result
+        if (
+            name == "podconnect_move_playback"
+            and execution_context is not None
+            and execution_context.approval_mode == "live"
+            and dispatch_args.get("kind") == "configured_alias"
+        ):
+            # The historical HA alias service only acknowledges local selection.
+            # Voice room MOVE must use the reviewed paired prepare/commit owner.
+            result = {
+                "ok": False,
+                "error_kind": "room_move_requires_exact_owner",
+                "retry_allowed": False,
+            }
+            self._log_tool(name, result, dispatch_args)
+            return result
         if name in _PODVIEW_MUSIC_TOOLS:
             return await self._dispatch_podview_music(
                 name,
@@ -1209,46 +1242,87 @@ class ToolRouter:
         if room is None or not current() or not owner.voice_music_available():
             return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
         if name == _PODVIEW_MUSIC_OPTIONS:
-            if args:
+            if not (
+                args == {}
+                or (
+                    set(args) in ({"purpose"}, {"purpose", "accountId"})
+                    and args.get("purpose") == "move_existing_session"
+                    and (
+                        "accountId" not in args
+                        or (
+                            isinstance(args["accountId"], str)
+                            and 1 <= len(args["accountId"]) <= 1024
+                        )
+                    )
+                )
+            ):
                 return {"ok": False, "error_kind": "invalid_arguments"}
             denied = self.execution_policy.authorize(
                 name, args, context=context, trusted_risk=Risk.READ_ONLY
             )
-            return denied or owner.voice_music_options(room, context, current)
-        required = {"taskId", "revision", "optionId", "confirmedVolumePercent"}
+            if denied is not None:
+                return denied
+            if args:
+                return await owner.voice_move_options(room, context, current, args.get("accountId"))
+            return owner.voice_music_options(room, context, current)
+        moving = args.get("purpose") == "move_existing_session"
+        required = (
+            {"purpose", "taskId", "revision", "optionId"}
+            if moving
+            else {"taskId", "revision", "optionId", "confirmedVolumePercent"}
+        )
         if (
             set(args) != required
             or not isinstance(args["taskId"], str)
             or not isinstance(args["optionId"], str)
             or type(args["revision"]) is not int
-            or type(args["confirmedVolumePercent"]) is not int
-            or not 0 <= args["confirmedVolumePercent"] <= 100
+            or (
+                not moving
+                and (
+                    type(args["confirmedVolumePercent"]) is not int
+                    or not 0 <= args["confirmedVolumePercent"] <= 100
+                )
+            )
         ):
             return {"ok": False, "error_kind": "invalid_arguments", "retry_allowed": False}
-        offered = owner.voice_music_options(room, context, current)
-        data = offered.get("data", {})
-        if (
-            offered.get("ok") is not True
-            or args["taskId"] != data.get("taskId")
-            or args["revision"] != data.get("revision")
-            or args["confirmedVolumePercent"] != data.get("observedVolumePercent")
-            or args["optionId"] not in {row["id"] for row in data.get("options", [])}
-        ):
-            return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        if moving:
+            choice = owner.voice_move_choice(
+                room, context, args, current, approved_turn=bool(approval_token)
+            )
+            if choice is None:
+                return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        else:
+            offered = owner.voice_music_options(room, context, current)
+            data = offered.get("data", {})
+            if (
+                offered.get("ok") is not True
+                or args["taskId"] != data.get("taskId")
+                or args["revision"] != data.get("revision")
+                or args["confirmedVolumePercent"] != data.get("startVolumePercent")
+                or args["optionId"] not in {row["id"] for row in data.get("options", [])}
+            ):
+                return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
         denied = self.execution_policy.authorize(
             name, args, context=context, approval_token=approval_token
         )
         if denied is not None:
             if denied.get("needs_confirmation"):
                 challenge_id = denied.get("approval", {}).get("challenge_id")
-                choice = next(row for row in data["options"] if row["id"] == args["optionId"])
-                details = {
-                    "song": choice["label"],
-                    "artist": choice["artist"],
-                    "output": data["output"]["name"],
-                    "account_id": data["accountId"],
-                    "volume_percent": data["observedVolumePercent"],
-                }
+                if moving:
+                    details = {
+                        "purpose": "move_existing_session",
+                        "destination": choice["name"],
+                        "account_id": owner._voice_move_tasks[room]["account"],
+                    }
+                else:
+                    choice = next(row for row in data["options"] if row["id"] == args["optionId"])
+                    details = {
+                        "song": choice["label"],
+                        "artist": choice["artist"],
+                        "output": data["output"]["targetId"],
+                        "account_id": data["accountId"],
+                        "volume_percent": data["startVolumePercent"],
+                    }
                 if (
                     context is None
                     or not isinstance(challenge_id, str)
@@ -1268,6 +1342,8 @@ class ToolRouter:
             return denied
         if not isinstance(approval_token, str) or not approval_token:
             return {"ok": False, "error_kind": "approval_denied", "retry_allowed": False}
+        if moving:
+            return await owner.voice_move_select(room, context, args, approval_token, current)
         return await owner.voice_music_select(room, context, args, approval_token, current)
 
     async def _dispatch_device(
@@ -1871,7 +1947,7 @@ class ToolRouter:
                 args or {},
                 **({"execution_guard": execution_guard} if execution_guard is not None else {}),
             )
-            return compact_weather_result(name, _mcp_result_to_contract(result))
+            return compact_weather_result(name, _mcp_result_to_contract(result, tool_name=name))
         except McpError as e:
             if e.connection_shaped:
                 self._record_discovery_failure(e)
@@ -2017,6 +2093,10 @@ class ToolRouter:
         if declaration is None or owner is None:
             return unavailable
         binding = self.podview_weather_binding()
+        display_city = getattr(self, "podview_weather_city", "")
+
+        def project(response: object) -> dict:
+            return weather_projection(response, display_city=display_city)
 
         def current() -> bool:
             return binding == self.podview_weather_binding() and self.podview_weather_available()
@@ -2044,11 +2124,7 @@ class ToolRouter:
         try:
             if not dual:
                 result = await call({})
-                return (
-                    weather_projection(_mcp_result_to_contract(result))
-                    if current()
-                    else unavailable
-                )
+                return project(_mcp_result_to_contract(result)) if current() else unavailable
             # The existing /home envelope is eight seconds. A single shared
             # deadline leaves room to return a valid daily result after auxiliary
             # timeout, without a second owner, retry or background operation.
@@ -2060,7 +2136,7 @@ class ToolRouter:
             )
             if not current():
                 return unavailable
-            daily = weather_projection(_mcp_result_to_contract(result))
+            daily = project(_mcp_result_to_contract(result))
             if daily["status"] != "observed" or daily["data"]["forecastType"] != "daily":
                 return unavailable
             hourly = unavailable
@@ -2069,7 +2145,7 @@ class ToolRouter:
                     call({"forecast_type": "hourly"}),
                     timeout=max(0, deadline - loop.time()),
                 )
-                hourly = weather_projection(_mcp_result_to_contract(result))
+                hourly = project(_mcp_result_to_contract(result))
             except Exception:
                 pass  # Daily survives unavailable auxiliary data, never owner replacement.
             if not current() or not observation_is_current(daily):
@@ -2148,6 +2224,8 @@ class ToolRouter:
             and {"search_playlists", "get_playback_snapshot"} <= services
         ):
             reads.append("mood")
+        if {"search_playlists", "get_playback_snapshot"} <= services:
+            reads.append("feeling")
         if any(d.get("name") == "podconnect_get_targets" for d in self.declarations()):
             reads.insert(0, "targets")
         return reads
@@ -2181,7 +2259,11 @@ class ToolRouter:
             return {"ok": False, "error_kind": "invalid_account"}
         if (kind in podview_music.SERVICES or kind == "playlist_search") and account is None:
             return {"ok": False, "error_kind": "invalid_account"}
-        if ("mood" if kind == "playlist_search" else kind) not in self.podview_music_reads():
+        if (
+            not ({"mood", "feeling"} & set(self.podview_music_reads()))
+            if kind == "playlist_search"
+            else kind not in self.podview_music_reads()
+        ):
             return {"ok": False, "error_kind": "unavailable"}
         binding = self.podview_music_binding()
         names = {
@@ -2216,9 +2298,10 @@ class ToolRouter:
                     raw.extend(chunk)
                     if len(raw) > 262144:
                         return podview_music.unavailable()
-        if (
-            binding != self.podview_music_binding()
-            or ("mood" if kind == "playlist_search" else kind) not in self.podview_music_reads()
+        if binding != self.podview_music_binding() or (
+            not ({"mood", "feeling"} & set(self.podview_music_reads()))
+            if kind == "playlist_search"
+            else kind not in self.podview_music_reads()
         ):
             return podview_music.unavailable()
         payload = json.loads(raw)

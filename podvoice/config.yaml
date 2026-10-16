@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "2.0.34"
+version: "2.0.35"
 slug: podvoice
 description: GPT-Live full-duplex voice assistant for custom-firmware Voice PE
 arch:
@@ -27,6 +27,7 @@ options:
   podview_visual_policy: ""
   podview_mood_policy: ""
   podview_mood_setup_policy: ""
+  podview_weather_city: ""
   podview_robot_read_policy: ""
   podview_research_visual_policy: ""
   podview_control_policy: ""
@@ -41,6 +42,7 @@ schema:
   podview_visual_policy: "str?"
   podview_mood_policy: "str?"
   podview_mood_setup_policy: "str?"
+  podview_weather_city: "str?"
   podview_robot_read_policy: "str?"
   podview_research_visual_policy: "str?"
   podview_control_policy: "str?"

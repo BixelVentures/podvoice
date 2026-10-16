@@ -959,3 +959,110 @@ def test_weather_advice_period_binding_uses_absolute_time_across_dst_and_midnigh
     assert projected["data"]["advice"]["validUntil"] == future.timestamp()
     monkeypatch.setattr(weather.time, "time", lambda: future.timestamp())
     assert not observation_is_current(projected)
+
+
+@pytest.mark.parametrize("unit_key", ["precipitation_unit", "wind_speed_unit"])
+def test_optional_missing_units_preserve_independent_weather_without_inference(unit_key):
+    payload = _current_weather_payload(12)
+    result = payload["data"]["result"]
+    result.pop(unit_key)
+    projected = weather_projection(payload)
+    assert projected["status"] == "observed"
+    data = projected["data"]
+    assert data["current"]["temperature"] == result["temperature"]
+    assert len(data["forecast"]) == 12
+    projected_unit = "precipitation" if unit_key == "precipitation_unit" else "windSpeed"
+    assert data["units"][projected_unit] is None
+    assert data["forecast"][0]["temperature"] == result["forecast"][0]["temperature"]
+
+
+def test_nullable_forecast_quantities_keep_actual_zero_and_other_periods():
+    payload = _current_weather_payload(12)
+    rows = payload["data"]["result"]["forecast"]
+    rows[0].update(
+        precipitation=None,
+        wind_speed=None,
+        humidity=None,
+        precipitation_probability=None,
+        condition=None,
+    )
+    rows[1].update(precipitation=0, wind_speed=0, precipitation_probability=0)
+    projected = weather_projection(payload)
+    assert projected["status"] == "observed"
+    actual = projected["data"]["forecast"]
+    assert len(actual) == 12
+    assert actual[0]["datetime"] == rows[0]["datetime"]
+    assert actual[0]["temperature"] == rows[0]["temperature"]
+    assert not {
+        "precipitation",
+        "wind_speed",
+        "humidity",
+        "precipitation_probability",
+        "condition",
+    }.intersection(actual[0])
+    assert actual[1]["precipitation"] == 0
+    assert actual[1]["wind_speed"] == 0
+    assert actual[1]["precipitation_probability"] == 0
+    assert rows[0]["precipitation"] is None  # Source untouched.
+
+
+def test_configured_city_is_display_only_with_explicit_provenance():
+    payload = _current_weather_payload(12)
+    raw_location = payload["data"]["result"]["location"]
+    projection = weather_projection(payload, display_city="Mårslet")
+    assert projection["data"]["location"] == raw_location
+    assert projection["data"]["displayLocation"] == {
+        "name": "Mårslet",
+        "source": "configured_label",
+    }
+    assert payload["data"]["result"]["location"] == raw_location
+
+
+@pytest.mark.parametrize(
+    "value", [None, False, "", "home", "Hjemmet", "http://private", "a" * 81, "Mår\nslet"]
+)
+def test_unconfigured_or_invalid_city_has_no_display_override(value):
+    assert (
+        "displayLocation"
+        not in weather_projection(_current_weather_payload(12), display_city=value)["data"]
+    )
+
+
+def test_display_city_is_supervisor_only_and_rejected_from_untrusted_settings(
+    monkeypatch, tmp_path
+):
+    from gatekeeper import config, settings
+
+    monkeypatch.setattr(
+        config, "load_options", lambda path=None: {"podview_weather_city": "Mårslet"}
+    )
+    monkeypatch.setattr(settings, "_resolve", lambda path: tmp_path / "settings.json")
+    monkeypatch.setattr(
+        settings, "load_settings", lambda path: {"podview_weather_city": "Attacker"}
+    )
+    assert config.load_config().podview_weather_city == "Mårslet"
+    monkeypatch.setattr(config, "load_options", lambda path=None: {})
+    assert config.load_config().podview_weather_city == ""
+    assert (
+        config.from_options(
+            {"podview_weather_city": "Mårslet", "settings_source_untrusted": True}
+        ).podview_weather_city
+        == ""
+    )
+
+
+async def test_actual_weather_owner_read_adds_only_configured_display_city():
+    fixture = _PassiveWeatherMCP()
+    original = copy.deepcopy(fixture.payload)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
+        router = await fixture.router(client)
+        router.podview_weather_city = "Mårslet"
+        observed = await router.podview_weather_read()
+        assert observed["data"]["displayLocation"] == {
+            "name": "Mårslet",
+            "source": "configured_label",
+        }
+        assert observed["data"]["location"] == original["data"]["result"]["location"]
+        assert fixture.payload == original
+        assert len(fixture.calls) == 1
+        assert fixture.calls[0]["params"]["arguments"] == {}
