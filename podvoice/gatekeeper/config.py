@@ -25,6 +25,21 @@ class RoomMap:
     voicepe_noise_psk: str = ""
 
 
+def weather_display_city(value: object) -> str:
+    """Local operator label, never inferred from a household name or coordinates."""
+    if not isinstance(value, str):
+        return ""
+    name = value.strip()
+    if (
+        not 1 <= len(name) <= 80
+        or not name.isprintable()
+        or any(character in name for character in ":/\\")
+        or name.casefold() in {"home", "hjem", "hjemmet", "house"}
+    ):
+        return ""
+    return name
+
+
 @dataclass(frozen=True)
 class Config:
     podconnect_base_url: str
@@ -42,6 +57,7 @@ class Config:
     podview_visual_policy: str = ""
     podview_mood_policy: str = ""
     podview_mood_setup_policy: str = ""
+    podview_weather_city: str = ""
     podview_robot_read_policy: str = ""
     podview_research_visual_policy: str = ""
     # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
@@ -161,6 +177,9 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         if not settings_source_untrusted
         else "",
         podview_visual_policy=str(opts.get("podview_visual_policy", ""))
+        if not settings_source_untrusted
+        else "",
+        podview_weather_city=weather_display_city(opts.get("podview_weather_city"))
         if not settings_source_untrusted
         else "",
         podview_robot_read_policy=str(opts.get("podview_robot_read_policy", ""))
@@ -294,6 +313,7 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["podview_visual_policy"] = opts.get("podview_visual_policy", "")
     merged["podview_mood_policy"] = opts.get("podview_mood_policy", "")
     merged["podview_mood_setup_policy"] = opts.get("podview_mood_setup_policy", "")
+    merged["podview_weather_city"] = opts.get("podview_weather_city", "")
     merged["podview_robot_read_policy"] = opts.get("podview_robot_read_policy", "")
     merged["podview_research_visual_policy"] = opts.get("podview_research_visual_policy", "")
     merged["podview_control_policy"] = opts.get("podview_control_policy", "")

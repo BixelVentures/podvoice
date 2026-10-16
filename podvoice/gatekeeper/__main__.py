@@ -437,6 +437,7 @@ async def run(cfg: Config) -> None:
         hub=hub,
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
+    tools.podview_weather_city = cfg.podview_weather_city
     from .podview_enrichment import configured_selector
     from .podview_mood import configured_mood_selector
     from .podview_mood_setup import setup_mood_budget

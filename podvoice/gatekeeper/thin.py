@@ -693,6 +693,7 @@ class ThinSession:
         )
         self._live_activity_latest: dict | None = None
         self._live_backend_revisions: dict[str, int] = {}
+        self._live_backend_delegations: dict[str, str] = {}
         self._live_backend_inputs: dict[str, int] = {}
         self._live_backend_orders: dict[str, int] = {}
         self._live_backend_control_revisions: dict[str, int] = {}
@@ -1344,6 +1345,7 @@ class ThinSession:
         self._live_confirmation = None
         self._live_confirmation_generation = None
         self._live_backend_revisions.clear()
+        self._live_backend_delegations.clear()
         self._reset_live_quiet()
         self._live_idle_input_owner = None
         self._live_activity_latest = None
@@ -3087,6 +3089,7 @@ class ThinSession:
                     generation=self.brain._connection_generation,
                 )
         elif isinstance(ev, LiveBackendStarted):
+            self._live_backend_delegations[ev.response_id] = ev.delegation_id
             if self._ending_conversation and ev.delegation_id != self._live_end_delegation_id:
                 self._cancel_live_end()
             self._cancel_live_idle_preclose("new-backend-work")
@@ -3121,6 +3124,7 @@ class ThinSession:
             )
             self._refresh_live_work_led()
         elif isinstance(ev, LiveBackendComplete):
+            self._offer_completed_presentation(ev)
             if (
                 self._live_review is not None
                 and ev.response_id == self._live_review.candidate_response
@@ -3692,6 +3696,7 @@ class ThinSession:
                     and isinstance(call.args["query"], str)
                     and 0 < len(call.args["query"]) <= 240
                 },
+                delegation_id=batch.delegation_id,
                 weather_calls={
                     wire.id
                     for wire, call in zip(batch.calls, calls, strict=True)
@@ -6909,6 +6914,7 @@ class ThinSession:
         queries: dict[str, str] | None = None,
         read_current=None,
         weather_calls: set[str] | None = None,
+        delegation_id: str | None = None,
     ) -> None:
         """Optional bounded sink only after successful provider result submission."""
         from .data_result import bounded_tool_output
@@ -6938,6 +6944,7 @@ class ThinSession:
                     and result.get("name") == "google_web_sogning"
                     else None,
                     read_current=read_current,
+                    delegation_id=delegation_id,
                     direct_weather=(
                         len(results) == 1
                         and isinstance(source_call_id, str)
@@ -6947,6 +6954,86 @@ class ThinSession:
                 )
         except Exception:
             pass  # Optional presentation must not alter speech or tool lifecycle.
+
+    def _offer_completed_presentation(self, event) -> None:
+        """Optional data-only observer; never sends a provider event or waits for audio."""
+        sink = getattr(self.tools, "podview_receipts", None)
+        message = getattr(event, "final_message", None)
+        if (
+            sink is None
+            or not isinstance(message, str)
+            or event.status != "completed"
+            or event.tool_call_count
+        ):
+            return
+        epoch, session, provider = self._epoch, self._history_session, self.brain
+        revision = self._live_backend_revisions.get(event.response_id)
+        input_index = self._live_backend_inputs.get(event.response_id)
+        order = self._live_backend_orders.get(event.response_id)
+
+        def current():
+            return (
+                self._active
+                and self.live_alpha
+                and not self._transport_closing
+                and not self._live_finalizing
+                and not self._live_rotating
+                and self._epoch == epoch
+                and self._history_session == session
+                and self.brain is provider
+                and provider._connection_generation == event.generation
+                and revision is not None
+                and revision == self._live_input_revision
+                and input_index is not None
+                and input_index == provider.input_sequence
+                and order is not None
+                and order == provider.backend_sequence
+                and self._live_backend_delegations.get(event.response_id) == event.delegation_id
+            )
+
+        try:
+            if not current():
+                return
+            evidence = (
+                self._live_input_evidence.get(input_index, {}) if input_index is not None else {}
+            )
+            question_context = (
+                evidence.get("text")
+                if evidence.get("input_index") == input_index
+                and evidence.get("source") in {"typed", "transcript"}
+                else None
+            )
+            sink.offer_completed_answer(
+                self,
+                room_id=self.room,
+                session_id=session,
+                session_epoch=epoch,
+                turn_id=f"live:{event.generation}:{event.response_id}",
+                provider_generation=event.generation,
+                task_id=f"answer:{event.delegation_id}",
+                input_revision=revision,
+                delegation_id=event.delegation_id,
+                response_id=event.response_id,
+                message=message,
+                question_context=question_context,
+                current=current,
+                read_current=lambda completed: (
+                    self._epoch == epoch
+                    and self._history_session == session
+                    and self.brain is provider
+                    and revision == self._live_input_revision
+                    and (
+                        (
+                            self._active
+                            and not self._transport_closing
+                            and provider._connection_generation == event.generation
+                        )
+                        or completed
+                    )
+                ),
+            )
+        except Exception:
+            pass  # Optional display cannot change speech, tool completion or close.
 
     @staticmethod
     def _valid_end_args(args: dict) -> bool:

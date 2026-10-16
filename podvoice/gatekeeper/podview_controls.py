@@ -109,12 +109,20 @@ class TouchControls:
         result = []
         if (
             any(
-                set(row["actions"])
-                & (_MUSIC - {"play_track", "play_context", "play_queue_occurrence"})
+                (
+                    (
+                        set(row["actions"]) & {"pause", "resume", "next", "previous"}
+                        and self.music.room_available
+                    )
+                    or (
+                        "volume" in row["actions"]
+                        and getattr(self.music, "volume_available", False)
+                    )
+                )
+                and all(row.get(key) for key in ("nativeRoomId", "nativeHomepodId"))
                 for row in self.policy["music"]
             )
             and self.music.tools is self.bridge.tools
-            and self.music.available
         ):
             result.append("music")
         owner = getattr(self.bridge.tools, "_device_control", None)
@@ -124,7 +132,8 @@ class TouchControls:
 
     def selection_allowed(self, room: str, token: str, action: str | None = None) -> bool:
         return bool(
-            self.policy.get("roomId") == room
+            getattr(self.music, "room_start_available", False)
+            and self.policy.get("roomId") == room
             and self.bridge._grant_current(room, token)
             and self.music.tools is self.bridge.tools
             and any(
@@ -230,6 +239,11 @@ class TouchControls:
                 rule = None
         if rule is None:
             return failure("target_not_granted")
+        if domain == "music" and not all(
+            isinstance(rule.get(key), str) and rule[key]
+            for key in ("nativeRoomId", "nativeHomepodId")
+        ):
+            return failure("target_not_granted")
         self._retire_receipts()
         self.tasks = {k: t for k, t in self.tasks.items() if self._current(t, t["token"])}
         if len(self.tasks) >= 64:
@@ -252,40 +266,66 @@ class TouchControls:
 
         self.busy.add(room)
         try:
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(20 if domain == "music" else 10):
                 if domain == "music":
-                    offered = await self.music.setup(
-                        target["accountId"], target["targetId"], current
-                    )
-                    if offered.get("ok") is not True or not current():
-                        return failure("setup_unavailable")
-                    task["offered"] = offered["data"]
-                    task["deadline"] = min(
-                        task["deadline"],
-                        time.monotonic() + max(0, offered["data"]["valid_until"] - time.time()),
-                    )
                     public_options = []
-                    for action in offered["data"]["actions"]:
-                        if action in {"play_track", "play_context", "play_queue_occurrence"}:
-                            continue  # Selected tracks use the separate source-bound task.
-                        if action not in rule["actions"]:
+                    setup = {"volume": None}
+                    for actions, available, read, slot in (
+                        (
+                            {"pause", "resume", "next", "previous"},
+                            self.music.room_available,
+                            self.music.setup_room,
+                            "offered",
+                        ),
+                        (
+                            {"volume"},
+                            getattr(self.music, "volume_available", False),
+                            getattr(self.music, "setup_volume", None),
+                            "volume_offered",
+                        ),
+                    ):
+                        if (
+                            not available
+                            or not actions.intersection(rule["actions"])
+                            or read is None
+                        ):
                             continue
-                        oid = secrets.token_hex(12)
-                        schema = (
-                            {"kind": "percent", "min": 0, "max": rule["maxVolume"]}
-                            if action == "volume"
-                            else {"kind": "none"}
+                        offered = await read(
+                            target["accountId"],
+                            target["targetId"],
+                            rule["nativeRoomId"],
+                            rule["nativeHomepodId"],
+                            current,
                         )
-                        task["options"][oid] = {"action": action, "schema": schema}
-                        public_options.append(
-                            {
-                                "id": oid,
-                                "label": _LABELS[action],
-                                "action": action,
-                                "argsSchema": schema,
-                            }
+                        if offered.get("ok") is not True or not current():
+                            continue
+                        task[slot] = offered["data"]
+                        task["deadline"] = min(
+                            task["deadline"],
+                            time.monotonic() + max(0, offered["data"]["valid_until"] - time.time()),
                         )
-                    setup = {"volume": offered["data"]["volume_percent"]}
+                        if slot == "volume_offered":
+                            setup["volume"] = offered["data"]["volume_state"]["base_percent"]
+                        for action in offered["data"]["actions"]:
+                            if action not in actions or action not in rule["actions"]:
+                                continue
+                            oid = secrets.token_hex(12)
+                            schema = (
+                                {"kind": "percent", "min": 0, "max": rule["maxVolume"]}
+                                if action == "volume"
+                                else {"kind": "none"}
+                            )
+                            task["options"][oid] = {"action": action, "schema": schema}
+                            public_options.append(
+                                {
+                                    "id": oid,
+                                    "label": _LABELS[action],
+                                    "action": action,
+                                    "argsSchema": schema,
+                                }
+                            )
+                    if not public_options:
+                        return failure("setup_unavailable")
                 else:
                     device = self.bridge.tools._device_control
                     task["owner"] = ("podview:" + self.bridge.boot_id, task_id)
@@ -477,8 +517,14 @@ class TouchControls:
         try:
             async with asyncio.timeout(30):
                 if task["domain"] == "music":
-                    result = await self.music.execute(
-                        task["offered"], option["action"], args, current
+                    result = (
+                        await self.music.execute_volume(
+                            task["volume_offered"], args["percent"], current
+                        )
+                        if option["action"] == "volume"
+                        else await self.music.execute_room(
+                            task["offered"], option["action"], current
+                        )
                     )
                     outcome = result.get("outcome", "unknown")
                 elif option.get("native") is True:

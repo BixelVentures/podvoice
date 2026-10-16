@@ -216,6 +216,7 @@ class LiveBackendComplete:
     usage: dict[str, Any] | None
     generation: int
     tool_call_count: int = 0
+    final_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -263,6 +264,8 @@ class _Response:
     id: str
     calls: list[dict[str, Any]]
     input_index: int
+    final_message: str | None = None
+    message_rejected: bool = False
 
 
 @dataclass
@@ -525,7 +528,13 @@ class OpenAILiveSession:
             validators[name] = Draft202012Validator(schema, format_checker=FormatChecker())
             wire.append({**realtime_function_tool(declaration), "strict": False})
         self._validators = validators
-        instructions, backend_instructions = self.instructions, self.backend_instructions
+        from .podview_presentation import (
+            BACKEND_PRESENTATION_INSTRUCTIONS,
+            PRIMARY_PRESENTATION_INSTRUCTIONS,
+        )
+
+        instructions = self.instructions + PRIMARY_PRESENTATION_INSTRUCTIONS
+        backend_instructions = self.backend_instructions + BACKEND_PRESENTATION_INSTRUCTIONS
         if confirmation is not None:
             instructions, backend_instructions = live_confirmation_instructions(
                 instructions, backend_instructions, confirmation, has_prior_text=bool(prior_text)
@@ -1236,6 +1245,23 @@ class OpenAILiveSession:
             raise LiveProtocolError("orphan_live_backend_event")
         if kind == "response.output_item.done":
             item = event["item"]
+            if item.get("type") == "message":
+                parts = item.get("content")
+                valid = (
+                    item.get("role") == "assistant"
+                    and item.get("status") == "completed"
+                    and isinstance(parts, list)
+                    and len(parts) == 1
+                    and isinstance(parts[0], dict)
+                    and parts[0].get("type") == "output_text"
+                    and isinstance(parts[0].get("text"), str)
+                    and len(parts[0]["text"].encode()) <= MAX_TOOL_RESULT_BYTES
+                    and not parts[0].get("annotations")
+                )
+                if not valid or state.final_message is not None:
+                    state.message_rejected = True
+                elif not state.message_rejected:
+                    state.final_message = parts[0]["text"]
             if item.get("type") == "function_call" and not self._close_requested:
                 if len(state.calls) >= 32:
                     raise LiveProtocolError("live_tool_batch_limit")
@@ -1260,7 +1286,17 @@ class OpenAILiveSession:
                 self.api_key, self.backend_model, usage["total_tokens"], lease=self._lease
             )
         self._emit(
-            LiveBackendComplete(delegation, state.id, status, usage, generation, len(state.calls))
+            LiveBackendComplete(
+                delegation,
+                state.id,
+                status,
+                usage,
+                generation,
+                len(state.calls),
+                state.final_message
+                if status == "completed" and not state.calls and not state.message_rejected
+                else None,
+            )
         )
         if status != "completed":
             details = response.get("status_details")

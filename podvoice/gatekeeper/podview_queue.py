@@ -148,6 +148,7 @@ class QueueBroker:
         facade = self.bridge.controls.music
         return bool(
             facade.tools is self.bridge.tools
+            and getattr(facade, "room_start_available", False)
             and facade.available
             and "get_queue_controls" in self.bridge.tools._discovery.podconnect_services
         )

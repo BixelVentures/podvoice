@@ -58,7 +58,9 @@ async def fixture(tmp_path):
     rig = Rig()
     bind(rig, tmp_path / "history.json")
     session, _ = owner()
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config()))
+    configured = config()
+    configured["music"][0].update(nativeRoomId="native-room", nativeHomepodId="homepod-id")
+    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(configured))
     token = bridge.grant_timer_control("kitchen")
     yield rig, bridge, token
     await rig.client.aclose()
@@ -144,36 +146,35 @@ async def test_music_single_send_ceiling_unknown_and_delayed_owner(fixture):
     _, bridge, token = fixture
 
     class Music:
-        available = True
+        room_available = True
 
         def binding(self):
             return (self,)
 
-        async def setup(self, account, target, current):
+        async def setup_room(self, account, target, room, homepod, current):
             return {
                 "ok": True,
                 "data": {
-                    "actions": ["pause", "next", "volume"],
-                    "volume_percent": 20,
+                    "actions": ["pause", "next"],
+                    "volume_percent": None,
                     "valid_until": time.time() + 15,
                 },
             }
 
-        execute = AsyncMock(return_value={"outcome": "unknown"})
+        execute_room = AsyncMock(return_value={"outcome": "unknown"})
 
     music = bridge.controls.music = Music()
     music.tools = bridge.tools
     offer = await bridge.controls.setup(setup_body(bridge, "music"), token)
-    assert {o["action"] for o in offer["options"]} == {"pause", "volume"}
-    volume = next(o for o in offer["options"] if o["action"] == "volume")
-    command = action_body(offer, volume, {"percent": 41})
+    assert {o["action"] for o in offer["options"]} == {"pause"}
+    command = action_body(offer, offer["options"][0], {"percent": 41})
     assert (await bridge.controls.action(command, token))["error"] == "invalid_arguments"
-    command["args"]["percent"] = 40
+    command["args"] = {}
     one, two = await asyncio.gather(
         bridge.controls.action(command, token), bridge.controls.action(command, token)
     )
     assert one == two and one["outcome"] == "unknown"
-    assert music.execute.await_count == 1
+    assert music.execute_room.await_count == 1
     assert (await bridge.controls.action({**command, "requestId": "fresh"}, token))[
         "error"
     ] == "stale_action"
@@ -182,7 +183,137 @@ async def test_music_single_send_ceiling_unknown_and_delayed_owner(fixture):
     assert (await bridge.controls.action(action_body(offer, offer["options"][0]), token))[
         "error"
     ] == "stale_action"
-    assert music.execute.await_count == 1
+    assert music.execute_room.await_count == 1
+
+
+async def test_room_volume_uses_same_task_ceiling_and_duplicate_receipt(fixture):
+    _, bridge, token = fixture
+    bridge.controls.policy["music"][0]["actions"] = ["volume"]
+
+    class Music:
+        room_available = False
+        volume_available = True
+
+        def binding(self):
+            return (self,)
+
+        async def setup_volume(self, account, target, room, homepod, current):
+            assert (account, target, room, homepod) == (
+                "account",
+                "speaker",
+                "native-room",
+                "homepod-id",
+            )
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["volume"],
+                    "volume_state": {"base_percent": 27},
+                    "valid_until": time.time() + 15,
+                },
+            }
+
+        setup_room = AsyncMock()
+        execute_volume = AsyncMock(return_value={"outcome": "unknown"})
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    offer = await bridge.controls.setup(setup_body(bridge, "music"), token)
+    assert offer["ok"] and offer["setup"]["volume"] == 27
+    option = offer["options"][0]
+    assert option["action"] == "volume" and option["argsSchema"]["max"] == 40
+    music.setup_room.assert_not_awaited()
+    invalid = action_body(offer, option, {"percent": 41})
+    assert (await bridge.controls.action(invalid, token))["error"] == "invalid_arguments"
+    for bad in (True, -1, 1.5):
+        assert (await bridge.controls.action(action_body(offer, option, {"percent": bad}), token))[
+            "error"
+        ] == "invalid_arguments"
+    command = action_body(offer, option, {"percent": 0})
+    first, duplicate = await asyncio.gather(
+        bridge.controls.action(command, token), bridge.controls.action(command, token)
+    )
+    assert first == duplicate and first["outcome"] == "unknown"
+    music.execute_volume.assert_awaited_once()
+    assert music.execute_volume.await_args.args[1] == 0
+    assert (await bridge.controls.action({**command, "requestId": "fresh"}, token))[
+        "error"
+    ] == "stale_action"
+
+
+async def test_audio_and_volume_options_share_one_consumed_touch_task(fixture):
+    _, bridge, token = fixture
+
+    class Music:
+        room_available = True
+        volume_available = True
+
+        def binding(self):
+            return (self,)
+
+        async def setup_room(self, account, target, room, homepod, current):
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["pause"],
+                    "valid_until": time.time() + 15,
+                },
+            }
+
+        async def setup_volume(self, account, target, room, homepod, current):
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["volume"],
+                    "volume_state": {"base_percent": 27},
+                    "valid_until": time.time() + 15,
+                },
+            }
+
+        execute_room = AsyncMock(return_value={"outcome": "accepted"})
+        execute_volume = AsyncMock(return_value={"outcome": "accepted"})
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    offer = await bridge.controls.setup(setup_body(bridge, "music"), token)
+    assert {row["action"] for row in offer["options"]} == {"pause", "volume"}
+    volume = next(row for row in offer["options"] if row["action"] == "volume")
+    pause = next(row for row in offer["options"] if row["action"] == "pause")
+    assert (await bridge.controls.action(action_body(offer, volume, {"percent": 30}), token))[
+        "outcome"
+    ] == "accepted"
+    music.execute_volume.assert_awaited_once()
+    music.execute_room.assert_not_awaited()
+    assert (await bridge.controls.action({**action_body(offer, pause), "requestId": "new"}, token))[
+        "error"
+    ] == "stale_action"
+
+
+async def test_volume_only_missing_exact_owner_cannot_publish_empty_setup(fixture):
+    _, bridge, token = fixture
+    bridge.controls.policy["music"][0]["actions"] = ["volume"]
+
+    class Music:
+        room_available = False
+        volume_available = True
+
+        def binding(self):
+            return (self,)
+
+        setup_room = AsyncMock()
+        setup_volume = AsyncMock(return_value={"ok": False, "outcome": "rejected"})
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    assert "music" in bridge.controls.domains("kitchen", token)
+    assert (await bridge.controls.setup(setup_body(bridge, "music"), token)) == {
+        "ok": False,
+        "error": "setup_unavailable",
+        "retryAllowed": False,
+    }
+    assert not bridge.controls.tasks
+    music.setup_room.assert_not_awaited()
+    music.setup_volume.assert_awaited_once()
 
 
 async def test_real_routes_require_existing_csrf_and_explicit_scope(fixture):
@@ -260,9 +391,9 @@ async def test_replaced_music_tools_cannot_admit_new_setup_on_old_facade(fixture
     _, bridge, token = fixture
 
     class Music:
-        available = True
+        room_available = True
         tools = bridge.tools
-        setup = AsyncMock()
+        setup_room = AsyncMock()
 
         def binding(self):
             return (self,)
@@ -274,7 +405,17 @@ async def test_replaced_music_tools_cannot_admit_new_setup_on_old_facade(fixture
     assert (await bridge.controls.setup(setup_body(bridge, "music"), token))[
         "error"
     ] == "scope_not_paired"
-    music.setup.assert_not_awaited()
+    music.setup_room.assert_not_awaited()
+
+
+def test_room_start_and_queue_ingress_stay_closed_until_native_contract(fixture):
+    _, bridge, token = fixture
+    bridge.controls.policy["music"][0]["actions"] += ["play_track", "play_queue_occurrence"]
+    assert bridge.controls.music.room_start_available is False
+    assert not bridge.controls.selection_allowed("kitchen", token)
+    assert not bridge.voice_music_available()
+    assert not bridge.queue.available
+    assert bridge.queue.rules("kitchen", token) == []
 
 
 async def test_only_permanently_dead_grants_retire_receipt_capacity(fixture):

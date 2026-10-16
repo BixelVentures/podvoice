@@ -319,6 +319,7 @@ class ToolRouter:
         execution_policy: ExecutionPolicy | None = None,
         cleaning_journal_path: Path | None = None,
     ) -> None:
+        self.podview_weather_city: str = ""
         self._mcp = mcp
         self.podview_receipts = VisualReceiptOwner()
         self._device_control = DeviceControl(
@@ -2017,6 +2018,10 @@ class ToolRouter:
         if declaration is None or owner is None:
             return unavailable
         binding = self.podview_weather_binding()
+        display_city = getattr(self, "podview_weather_city", "")
+
+        def project(response: object) -> dict:
+            return weather_projection(response, display_city=display_city)
 
         def current() -> bool:
             return binding == self.podview_weather_binding() and self.podview_weather_available()
@@ -2044,11 +2049,7 @@ class ToolRouter:
         try:
             if not dual:
                 result = await call({})
-                return (
-                    weather_projection(_mcp_result_to_contract(result))
-                    if current()
-                    else unavailable
-                )
+                return project(_mcp_result_to_contract(result)) if current() else unavailable
             # The existing /home envelope is eight seconds. A single shared
             # deadline leaves room to return a valid daily result after auxiliary
             # timeout, without a second owner, retry or background operation.
@@ -2060,7 +2061,7 @@ class ToolRouter:
             )
             if not current():
                 return unavailable
-            daily = weather_projection(_mcp_result_to_contract(result))
+            daily = project(_mcp_result_to_contract(result))
             if daily["status"] != "observed" or daily["data"]["forecastType"] != "daily":
                 return unavailable
             hourly = unavailable
@@ -2069,7 +2070,7 @@ class ToolRouter:
                     call({"forecast_type": "hourly"}),
                     timeout=max(0, deadline - loop.time()),
                 )
-                hourly = weather_projection(_mcp_result_to_contract(result))
+                hourly = project(_mcp_result_to_contract(result))
             except Exception:
                 pass  # Daily survives unavailable auxiliary data, never owner replacement.
             if not current() or not observation_is_current(daily):
@@ -2148,6 +2149,8 @@ class ToolRouter:
             and {"search_playlists", "get_playback_snapshot"} <= services
         ):
             reads.append("mood")
+        if {"search_playlists", "get_playback_snapshot"} <= services:
+            reads.append("feeling")
         if any(d.get("name") == "podconnect_get_targets" for d in self.declarations()):
             reads.insert(0, "targets")
         return reads
@@ -2181,7 +2184,11 @@ class ToolRouter:
             return {"ok": False, "error_kind": "invalid_account"}
         if (kind in podview_music.SERVICES or kind == "playlist_search") and account is None:
             return {"ok": False, "error_kind": "invalid_account"}
-        if ("mood" if kind == "playlist_search" else kind) not in self.podview_music_reads():
+        if (
+            not ({"mood", "feeling"} & set(self.podview_music_reads()))
+            if kind == "playlist_search"
+            else kind not in self.podview_music_reads()
+        ):
             return {"ok": False, "error_kind": "unavailable"}
         binding = self.podview_music_binding()
         names = {
@@ -2216,9 +2223,10 @@ class ToolRouter:
                     raw.extend(chunk)
                     if len(raw) > 262144:
                         return podview_music.unavailable()
-        if (
-            binding != self.podview_music_binding()
-            or ("mood" if kind == "playlist_search" else kind) not in self.podview_music_reads()
+        if binding != self.podview_music_binding() or (
+            not ({"mood", "feeling"} & set(self.podview_music_reads()))
+            if kind == "playlist_search"
+            else kind not in self.podview_music_reads()
         ):
             return podview_music.unavailable()
         payload = json.loads(raw)

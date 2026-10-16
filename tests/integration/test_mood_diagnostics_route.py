@@ -57,7 +57,20 @@ async def test_actual_terminal_record_one_per_attempt_and_cleanup(
     else:
         body = await read(mood_rig)
         assert body.get("error", "success") == outcome
-    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
+    for line in raw_lines:
+        durations = dict(pair.split("=") for pair in line.split()[5:])
+        assert set(durations) == {
+            "total_ms",
+            "playback_before_ms",
+            "time_context_ms",
+            "model_ms",
+            "playlist_search_ms",
+            "playback_after_ms",
+            "publish_ms",
+        }
+        assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
         f"mood_result phase={phase} outcome={outcome} reason={reason} http_status=none"
     ]
@@ -92,7 +105,20 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
     timers[0].reschedule(asyncio.get_running_loop().time())
     assert (await task)["error"] == "mood_unavailable"
     assert not bridge._music_busy
-    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
+    for line in raw_lines:
+        durations = dict(pair.split("=") for pair in line.split()[5:])
+        assert set(durations) == {
+            "total_ms",
+            "playback_before_ms",
+            "time_context_ms",
+            "model_ms",
+            "playlist_search_ms",
+            "playback_after_ms",
+            "publish_ms",
+        }
+        assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
         "mood_result phase=playback_before outcome=mood_unavailable reason=route_deadline http_status=none"
     ]

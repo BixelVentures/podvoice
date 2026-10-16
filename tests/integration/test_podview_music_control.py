@@ -74,10 +74,18 @@ class Rig:
         if self.raw is not None:
             return httpx.Response(self.code, content=self.raw)
         if request.url.path.endswith(
-            ("get_playback_controls", "get_track_play_controls", "get_context_play_controls")
+            (
+                "get_playback_controls",
+                "get_track_play_controls",
+                "get_context_play_controls",
+                "get_room_playback_controls",
+                "get_room_volume_controls",
+            )
         ):
             value = self.value
         else:
+            room = request.url.path.endswith("control_room_playback")
+            volume = request.url.path.endswith("control_room_volume")
             value = {
                 "ok": True,
                 "schema": "podconnect.command.v1",
@@ -88,11 +96,22 @@ class Rig:
                 "action": args["action"],
                 "target": {"kind": "spotify_device", "target_id": args["target_id"]},
                 "outcome": "accepted",
-                "provider_request_accepted": True,
+                "provider_request_accepted": not (room or volume),
+                **({"accepted_native": True} if room else {}),
+                **(
+                    {
+                        "protocol_accepted": True,
+                        "reservation_accepted": True,
+                        "possible_effect": True,
+                        "volume_operation_state": "protocol_accepted",
+                    }
+                    if volume
+                    else {}
+                ),
                 "retry_allowed": False,
                 "physical_result_verified": False,
                 "observe_after_poll_sequence": args["expected_poll_sequence"],
-                "token": "SECRET",
+                **({} if room or volume else {"token": "SECRET"}),
             }
             if self.mutate_receipt:
                 self.mutate_receipt(value)
@@ -516,3 +535,319 @@ async def test_context_facade_reuses_native_owner_proof_and_exact_context_uri(ri
     assert "autoplay" not in request["args"]
     assert "track_uri" not in request["args"]
     assert len(rig.calls) == 2
+
+
+def room_owner(rig):
+    rig.tools._discovery = replace(
+        rig.tools._discovery,
+        podconnect_services=rig.tools._discovery.podconnect_services
+        | {"get_room_playback_controls", "control_room_playback"},
+    )
+    rig.value.update(
+        schema="podconnect.room_controls.v1",
+        actions=["next"],
+        volume_percent=None,
+        volume_supported=False,
+        volume_unavailable_reason="room_volume_not_supported",
+        track_play_supported=False,
+        room_id="native-room",
+        homepod_id="42",
+        native={
+            "account_user_id": "native-account",
+            "target_id": "device",
+            "room_id": "native-room",
+            "homepod_id": "42",
+            "connection_id": "connection",
+            "session_id": "session",
+            "alias_incarnation": "incarnation",
+            "alias_registry": "b" * 64,
+            "alias_revision": 3,
+        },
+        route={
+            "process": "11111111-1111-4111-8111-111111111111",
+            "device_id": "42",
+            "device_incarnation": "1",
+            "session_epoch": "2",
+            "route_revision": "3",
+            "selection_revision": "4",
+            "input_generation": "5",
+            "input_item_id": "6",
+            "input_path_digest": "a" * 64,
+        },
+    )
+    rig.value.pop("token")
+    rig.value["target"].pop("token")
+    rig.value["observation"].pop("token")
+
+
+async def test_room_audio4_uses_only_exact_services_and_native_receipt(rig):
+    room_owner(rig)
+    offer = await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)
+    assert offer["ok"], offer
+    assert "SECRET" not in json.dumps(offer)
+    result = await rig.facade.execute_room(offer["data"], "next", lambda: True)
+    assert result["outcome"] == "accepted"
+    assert result["accepted_native"] is True
+    assert result["provider_request_accepted"] is False
+    assert result["physical_result_verified"] is False
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
+        "get_room_playback_controls",
+        "control_room_playback",
+    ]
+    assert rig.calls[0][3] == {
+        "config_entry_id": "account",
+        "kind": "spotify_device",
+        "target_id": "device",
+        "room_id": "native-room",
+        "homepod_id": "42",
+    }
+    request = rig.calls[1][3]
+    assert request["native"] == offer["data"]["native"]
+    assert request["route"] == offer["data"]["route"]
+    assert request["args"] == {}
+    assert request["action"] == "next"
+
+
+@pytest.mark.parametrize("change", ["route", "native", "volume", "service", "extra"])
+async def test_room_owner_mismatch_never_falls_back_to_webapi(rig, change):
+    room_owner(rig)
+    if change == "route":
+        rig.value["route"]["input_path_digest"] = "Z" * 64
+    elif change == "native":
+        rig.value["native"]["homepod_id"] = "foreign"
+    elif change == "volume":
+        rig.value["actions"].append("volume")
+    elif change == "extra":
+        rig.value["token"] = "SECRET"
+    else:
+        rig.tools._discovery = replace(
+            rig.tools._discovery,
+            podconnect_services=frozenset({"get_playback_controls", "control_playback"}),
+        )
+    result = await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)
+    assert result["ok"] is False
+    assert not any(call[1].endswith("control_playback") for call in rig.calls)
+
+
+async def test_room_read_cannot_publish_after_discovery_replacement(rig):
+    room_owner(rig)
+
+    async def replace_owner():
+        rig.tools._discovery = replace(rig.tools._discovery)
+
+    rig.hook = replace_owner
+    result = await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)
+    assert result["ok"] is False
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == ["get_room_playback_controls"]
+
+
+@pytest.mark.parametrize("change", ["boolean_sequence", "malformed", "owner_changed"])
+async def test_room_possible_send_is_unknown_without_replay(rig, change):
+    room_owner(rig)
+    offered = (await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True))[
+        "data"
+    ]
+    rig.calls.clear()
+    if change == "boolean_sequence":
+        rig.mutate_receipt = lambda value: value.update(command_sequence=True)
+        offered["next_command_sequence"] = 1
+    elif change == "malformed":
+        rig.raw = b"{malformed"
+    else:
+
+        async def mutate():
+            rig.tools._services_epoch += 1
+
+        rig.hook = mutate
+    result = await rig.facade.execute_room(offered, "next", lambda: True)
+    assert result["outcome"] == "unknown"
+    assert result["retry_allowed"] is False
+    assert len(rig.calls) == 1
+    assert rig.calls[0][1].endswith("control_room_playback")
+
+
+def volume_owner(rig):
+    room_owner(rig)
+    rig.tools._discovery = replace(
+        rig.tools._discovery,
+        podconnect_services=rig.tools._discovery.podconnect_services
+        | {"get_room_volume_controls", "control_room_volume"},
+    )
+    rig.value.update(
+        schema="podconnect.room_volume_controls.v1",
+        actions=["volume"],
+        volume_state={
+            "base_revision": "0",
+            "attention_revision": "12",
+            "base_percent": 27,
+            "effective_percent": 15,
+        },
+    )
+    del rig.value["volume_supported"]
+    del rig.value["volume_unavailable_reason"]
+
+
+async def test_room_volume_exact_services_percent_zero_and_distinct_receipt(rig):
+    volume_owner(rig)
+    offer = await rig.facade.setup_volume("account", "device", "native-room", "42", lambda: True)
+    assert offer["ok"], offer
+    assert len(rig.value) == 18 and "volume_supported" not in offer["data"]
+    assert offer["data"]["volume_percent"] is None
+    result = await rig.facade.execute_volume(offer["data"], 0, lambda: True)
+    assert result["outcome"] == "accepted"
+    assert (
+        result["protocol_accepted"]
+        is result["reservation_accepted"]
+        is result["possible_effect"]
+        is True
+    )
+    assert result["provider_request_accepted"] is result["physical_result_verified"] is False
+    assert "accepted_native" not in result and "volume_percent" not in result
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
+        "get_room_volume_controls",
+        "control_room_volume",
+    ]
+    request = rig.calls[1][3]
+    assert set(request) == {
+        "config_entry_id",
+        "kind",
+        "target_id",
+        "room_id",
+        "homepod_id",
+        "native",
+        "route",
+        "volume_state",
+        "owner_epoch",
+        "expected_poll_sequence",
+        "command_sequence",
+        "request_id",
+        "action",
+        "args",
+    }
+    assert request["volume_state"] == rig.value["volume_state"]
+    assert request["args"] == {"percent": 0}
+    assert request["request_id"] == "a" * 32 + ":3"
+    assert not any(call[1].endswith("control_playback") for call in rig.calls)
+
+
+@pytest.mark.parametrize(
+    "change", ["extra", "missing_state", "revision", "percent", "route", "service"]
+)
+async def test_room_volume_offer_fails_closed_without_generic_fallback(rig, change):
+    volume_owner(rig)
+    if change == "extra":
+        rig.value["volume_supported"] = True
+    elif change == "missing_state":
+        del rig.value["volume_state"]
+    elif change == "revision":
+        rig.value["volume_state"]["base_revision"] = "01"
+    elif change == "percent":
+        rig.value["volume_state"]["effective_percent"] = True
+    elif change == "route":
+        rig.value["route"]["input_path_digest"] = "Z" * 64
+    else:
+        rig.tools._discovery = replace(
+            rig.tools._discovery,
+            podconnect_services=rig.tools._discovery.podconnect_services
+            - {"get_room_volume_controls"},
+        )
+    result = await rig.facade.setup_volume("account", "device", "native-room", "42", lambda: True)
+    assert result["ok"] is False
+    assert not any(call[1].endswith("control_playback") for call in rig.calls)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "boolean_sequence",
+        "accepted_native",
+        "reservation_only",
+        "contradictory_rejection",
+        "contradictory_state",
+        "malformed",
+        "owner_changed",
+    ],
+)
+async def test_room_volume_possible_send_stays_consumed_unknown(rig, change):
+    volume_owner(rig)
+    offered = (
+        await rig.facade.setup_volume("account", "device", "native-room", "42", lambda: True)
+    )["data"]
+    rig.calls.clear()
+    if change == "boolean_sequence":
+        rig.mutate_receipt = lambda value: value.update(command_sequence=True)
+        offered["next_command_sequence"] = 1
+    elif change == "accepted_native":
+        rig.mutate_receipt = lambda value: value.update(accepted_native=True)
+    elif change == "reservation_only":
+        rig.mutate_receipt = lambda value: value.update(protocol_accepted=False)
+    elif change == "contradictory_rejection":
+        rig.mutate_receipt = lambda value: value.update(
+            ok=False,
+            outcome="rejected",
+            protocol_accepted=False,
+            volume_operation_state="rejected_before_admission",
+        )
+    elif change == "contradictory_state":
+        rig.mutate_receipt = lambda value: value.update(
+            volume_operation_state="rejected_before_admission"
+        )
+    elif change == "malformed":
+        rig.raw = b"{malformed"
+    else:
+
+        async def replace_owner():
+            rig.tools._services_epoch += 1
+
+        rig.hook = replace_owner
+    result = await rig.facade.execute_volume(offered, 100, lambda: True)
+    assert result["outcome"] == "unknown" and result["retry_allowed"] is False
+    assert len(rig.calls) == 1 and rig.calls[0][1].endswith("control_room_volume")
+
+
+async def test_room_volume_real_pre_admission_rejection_remains_rejected(rig):
+    volume_owner(rig)
+    offered = (
+        await rig.facade.setup_volume("account", "device", "native-room", "42", lambda: True)
+    )["data"]
+    rig.mutate_receipt = lambda value: value.update(
+        ok=False,
+        outcome="rejected",
+        protocol_accepted=False,
+        reservation_accepted=False,
+        possible_effect=False,
+        volume_operation_state="rejected_before_admission",
+    )
+    result = await rig.facade.execute_volume(offered, 30, lambda: True)
+    assert result["outcome"] == "rejected" and result["possible_effect"] is False
+    assert result["retry_allowed"] is False
+
+
+async def test_rapid_volume_then_audio4_uses_fresh_shared_sequence_without_fallback(rig):
+    volume_owner(rig)
+    first = (await rig.facade.setup_volume("account", "device", "native-room", "42", lambda: True))[
+        "data"
+    ]
+    assert (await rig.facade.execute_volume(first, 27, lambda: True))["outcome"] == "accepted"
+    rig.value.update(
+        schema="podconnect.room_controls.v1",
+        actions=["next"],
+        volume_supported=False,
+        volume_unavailable_reason="room_volume_not_supported",
+    )
+    rig.value.pop("volume_state")
+    rig.value["next_command_sequence"] = 4
+    second = (await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True))[
+        "data"
+    ]
+    assert (await rig.facade.execute_room(second, "next", lambda: True))["outcome"] == "accepted"
+    sends = [
+        call[3]
+        for call in rig.calls
+        if call[1].endswith(("control_room_volume", "control_room_playback"))
+    ]
+    assert [(send["request_id"], send["action"]) for send in sends] == [
+        ("a" * 32 + ":3", "volume"),
+        ("a" * 32 + ":4", "next"),
+    ]
+    assert all(not call[1].endswith("control_playback") for call in rig.calls)

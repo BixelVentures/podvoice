@@ -19,7 +19,13 @@ from pathlib import Path
 
 from aiohttp import web
 
-from . import podview_music, podview_robot, podview_weather
+from . import (
+    podview_music,
+    podview_robot,
+    podview_room_media,
+    podview_weather,
+    podview_weather_brief,
+)
 from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
@@ -636,7 +642,8 @@ class PodViewBridge:
                         key: latest_answer.get(key)
                         for key in ("sessionEpoch", "providerGeneration", "answerRevision")
                     }
-                    if latest_answer.get("schema") == "podview.research.v1"
+                    if latest_answer.get("schema")
+                    in {"podview.research.v1", "podview.presentation.v1"}
                     else {}
                 ),
                 **{
@@ -647,6 +654,7 @@ class PodViewBridge:
             "schema": "podview.snapshot.v1",
             "bootId": self.boot_id,
             "roomId": room,
+            "mediaRoomBindings": podview_room_media.room_bindings(self, room),
             "voice": voice,
             "timers": {
                 "status": "observed" if fresh else "unavailable",
@@ -1124,7 +1132,9 @@ def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, to
     return bool(
         bridge._grant_current(room, token)
         and bridge.controls.selection_allowed(
-            room, token, "play_context" if source.get("kind") == "mood" else "play_track"
+            room,
+            token,
+            "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track",
         )
         and context.get("roomId") == room
         and _music_binding(bridge, room) == source["binding"]
@@ -1146,7 +1156,9 @@ def _selection_voice_source_current(
     return bool(
         bridge._grant_current(room, token)
         and bridge.controls.selection_allowed(
-            room, token, "play_context" if source.get("kind") == "mood" else "play_track"
+            room,
+            token,
+            "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track",
         )
         and context.get("roomId") == room
         and _music_binding(bridge, room) == source["binding"]
@@ -1236,8 +1248,8 @@ async def _music(request: web.Request) -> web.Response:
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
     kind = request.query.get("kind", "targets")
-    if kind == "mood":
-        return await _mood_music(request, bridge, room)
+    if kind in {"mood", "feeling"}:
+        return await _mood_music(request, bridge, room, kind=kind)
     if kind not in {"targets", "recent", "top", "liked", "playback", "queue", "search"}:
         return _error("unsupported_read", 400)
     account = request.query.get("account")
@@ -1264,6 +1276,13 @@ async def _music(request: web.Request) -> web.Response:
     if kind not in tools.podview_music_reads():
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
+    if kind == "playback":
+        return await podview_room_media.read_playback(
+            bridge,
+            room,
+            account,
+            lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
+        )
     binding = _music_binding(bridge, room)
     token = request.cookies.get(_PAIR_COOKIE, "")
     selection_requested = bool(
@@ -1308,7 +1327,12 @@ async def _music(request: web.Request) -> web.Response:
             candidate_set = _music_search_candidate_set(search_context, result.get("data"))
             if candidate_set is not None:
                 result["candidateSet"] = candidate_set
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            podview_room_media.scope_targets(result, bridge, room, account)
+            if kind == "targets"
+            else result,
+            headers={"Cache-Control": "no-store"},
+        )
     if kind != "playback" and len(bridge._music_cache) >= 16:
         return _error("music_capacity", 429)
     if bridge._music_busy:
@@ -1403,13 +1427,25 @@ async def _music(request: web.Request) -> web.Response:
             result,
             2 if kind == "queue" else 15,
         )
-    return web.json_response(result, headers={"Cache-Control": "no-store"})
+    return web.json_response(
+        podview_room_media.scope_targets(result, bridge, room, account)
+        if kind == "targets"
+        else result,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
-async def _mood_music(request, bridge, room):
+async def _mood_music(request, bridge, room, *, kind="mood"):
     """One aggregate source set, never three mutually replacing search tasks."""
     from . import mood_diagnostics as diagnostic_log
-    from .podview_mood import THEMES
+    from .podview_feeling import THEMES as FEELING_THEMES
+    from .podview_feeling import choose
+    from .podview_mood import THEMES as MOOD_THEMES
+
+    if kind not in {"mood", "feeling"}:
+        return _error("invalid_playlist_kind", 400)
+    themes = FEELING_THEMES if kind == "feeling" else MOOD_THEMES
+    retained_attribute = "_feeling_retained" if kind == "feeling" else "_mood_retained"
 
     tools = bridge.tools
     token = request.cookies.get(_PAIR_COOKIE, "")
@@ -1424,8 +1460,8 @@ async def _mood_music(request, bridge, room):
     ):
         return _error("invalid_mood_request", 400)
     selector = getattr(tools, "podview_mood_selector", None)
-    if selector is None or "mood" not in tools.podview_music_reads():
-        return _error("mood_not_admitted", 403)
+    if kind not in tools.podview_music_reads() or (kind == "mood" and selector is None):
+        return _error(f"{kind}_not_admitted", 403)
     if bridge._music_busy:
         return _error("music_busy", 429)
     binding = _music_binding(bridge, room)
@@ -1435,7 +1471,7 @@ async def _mood_music(request, bridge, room):
     bridge._music_source_generation += 1
     generation = bridge._music_source_generation
     context = (
-        _music_search_context(bridge, room, account, "mood:collection", token, mint_touch=True)
+        _music_search_context(bridge, room, account, f"{kind}:collection", token, mint_touch=True)
         if writable
         else None
     )
@@ -1445,14 +1481,14 @@ async def _mood_music(request, bridge, room):
             bridge.tools is tools
             and binding == _music_binding(bridge, room)
             and bridge._music_source_generation == generation
-            and "mood" in tools.podview_music_reads()
+            and kind in tools.podview_music_reads()
             and (writable or bridge.snapshot(room).get("voice", {}) == preview_voice)
             and (
                 not writable
                 or (
                     bridge._grants.get(room) is grant
                     and bridge.controls.selection_allowed(room, token, "play_context")
-                    and _music_search_context(bridge, room, account, "mood:collection", token)
+                    and _music_search_context(bridge, room, account, f"{kind}:collection", token)
                     == context
                 )
             )
@@ -1475,8 +1511,8 @@ async def _mood_music(request, bridge, room):
             before = await tools.podview_read("playback", account)
             epoch = before.get("data", {}).get("owner_epoch") if before.get("ok") else None
             if not isinstance(epoch, str) or not epoch or not current():
-                return failed("mood_owner_unavailable")
-            retained = getattr(bridge, "_mood_retained", None)
+                return failed(f"{kind}_owner_unavailable")
+            retained = getattr(bridge, retained_attribute, None)
             key = (binding, account, room, id(grant), epoch)
             expected = None
             ids: object = None
@@ -1490,29 +1526,32 @@ async def _mood_music(request, bridge, room):
                 expected = {row["themeId"]: row for row in retained["rows"]}
                 ids = list(expected)
             elif request.query.get("renew") == "1":
-                return failed("mood_refresh_required")
+                return failed(f"{kind}_refresh_required")
+            elif kind == "feeling":
+                ids = choose(retained)
             else:
+                assert selector is not None
                 if not selector.available:
-                    return failed("mood_budget_unavailable")
-                diagnostic.phase = "time_context"
+                    return failed(f"{kind}_budget_unavailable")
+                diagnostic.step("time_context")
                 coarse = await tools.podview_mood_context(current)
                 if coarse is not None:
-                    diagnostic.phase = "model"
+                    diagnostic.step("model")
                 ids = await selector.select(coarse, current=current) if coarse is not None else None
             if (
                 not current()
                 or not isinstance(ids, list)
                 or len(ids) != 3
-                or any(not isinstance(x, str) or x not in THEMES for x in ids)
+                or any(not isinstance(x, str) or x not in themes for x in ids)
                 or len(set(ids)) != 3
             ):
-                return failed("mood_selection_unavailable")
+                return failed(f"{kind}_selection_unavailable")
 
             async def read_theme(theme_id):
                 if not current():
                     raise RuntimeError("mood owner replaced before lookup")
                 reply = await tools.podview_read(
-                    "playlist_search", account, THEMES[theme_id]["query"]
+                    "playlist_search", account, themes[theme_id]["query"]
                 )
                 if not current():
                     raise RuntimeError("mood owner replaced during lookup")
@@ -1520,12 +1559,12 @@ async def _mood_music(request, bridge, room):
 
             # Exactly three independent reads; TaskGroup joins cancellation/failure cleanup
             # before the request can release its busy fence or publish any authority.
-            diagnostic.phase = "playlist_search"
+            diagnostic.step("playlist_search")
             async with asyncio.TaskGroup() as reads:
                 lookups = [reads.create_task(read_theme(theme_id)) for theme_id in ids]
             rows, seen = [], set()
             for theme_id, lookup in zip(ids, lookups, strict=True):
-                theme = THEMES[theme_id]
+                theme = themes[theme_id]
                 reply = lookup.result()
                 data = reply.get("data", {}) if reply.get("ok") is True else {}
                 if (
@@ -1535,9 +1574,9 @@ async def _mood_music(request, bridge, room):
                     or data.get("source") != "spotify_web_api"
                 ):
                     return failed(
-                        "mood_refresh_required"
+                        f"{kind}_refresh_required"
                         if expected is not None
-                        else "mood_catalogue_unavailable"
+                        else f"{kind}_catalogue_unavailable"
                     )
                 playlist = next(
                     (
@@ -1555,7 +1594,9 @@ async def _mood_music(request, bridge, room):
                 )
                 if playlist is None:
                     return failed(
-                        "mood_refresh_required" if expected is not None else "mood_catalogue_empty"
+                        f"{kind}_refresh_required"
+                        if expected is not None
+                        else f"{kind}_catalogue_empty"
                     )
                 seen.add(playlist["uri"])
                 rows.append(
@@ -1568,22 +1609,22 @@ async def _mood_music(request, bridge, room):
                         "themeArt": theme["image"],
                     }
                 )
-            diagnostic.phase = "playback_after"
+            diagnostic.step("playback_after")
             after = await tools.podview_read("playback", account)
             if (
                 not current()
                 or not after.get("ok")
                 or after.get("data", {}).get("owner_epoch") != epoch
             ):
-                return failed("mood_owner_replaced")
-            diagnostic.phase = "publish"
+                return failed(f"{kind}_owner_replaced")
+            diagnostic.step("publish")
             if not writable:
-                bridge._mood_retained = {"key": key, "rows": copy.deepcopy(rows)}
+                setattr(bridge, retained_attribute, {"key": key, "rows": copy.deepcopy(rows)})
                 diagnostic.outcome = "success"
                 return web.json_response(
                     {
                         "ok": True,
-                        "schema": "podview.mood-preview.v1",
+                        "schema": f"podview.{kind}-preview.v1",
                         "preview": {
                             "readOnly": True,
                             "bootId": bridge.boot_id,
@@ -1606,11 +1647,11 @@ async def _mood_music(request, bridge, room):
                 )
             assert context is not None
             identifier = bridge.music_selection.register(
-                context, {"tracks": rows}, binding, epoch, epoch, kind="mood"
+                context, {"tracks": rows}, binding, epoch, epoch, kind=kind
             )
             if identifier is None:
-                return failed("mood_source_rejected")
-            bridge._mood_retained = {"key": key, "rows": copy.deepcopy(rows)}
+                return failed(f"{kind}_source_rejected")
+            setattr(bridge, retained_attribute, {"key": key, "rows": copy.deepcopy(rows)})
             diagnostic.outcome = "success"
             return web.json_response(
                 {
@@ -1642,10 +1683,10 @@ async def _mood_music(request, bridge, room):
             if total_deadline is not None and total_deadline.expired()
             else "owner_timeout"
         )
-        return failed("mood_unavailable")
+        return failed(f"{kind}_unavailable")
     except Exception:
         diagnostic_log.note("route_exception")
-        return failed("mood_unavailable")
+        return failed(f"{kind}_unavailable")
     finally:
         bridge._music_busy = False
         diagnostic_log.finish(diagnostic, diagnostic_token)
@@ -1710,7 +1751,9 @@ async def _music_selection(request: web.Request) -> web.Response:
             return _error("stale_music_selection")
         if bridge.music_selection.selected_tracks(source, body.get("candidateIds")) is None:
             return _error("invalid_candidate_ids", 400)
-        selection_action = "play_context" if source.get("kind") == "mood" else "play_track"
+        selection_action = (
+            "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track"
+        )
         rule = next(
             (
                 row
@@ -1953,6 +1996,9 @@ async def _home(request: web.Request) -> web.Response:
                 getattr(tools, "podview_weather_available", lambda: False)(),
             ),
             bridge.sessions.get(room),
+            podview_weather_brief.token(
+                podview_weather_brief.read_brief(tools, room, bridge.sessions.get(room))
+            ),
         )
 
     binding = binding_now()
@@ -1993,6 +2039,13 @@ async def _home(request: web.Request) -> web.Response:
             and getattr(tools, "podview_weather_available", lambda: False)()
         ):
             weather = {"status": "unavailable", "data": None}
+        # Read the same exact owner again after awaits. A Stop/new input/source
+        # revocation may not keep an earlier brief alive through the home cache.
+        brief = podview_weather_brief.read_brief(tools, room, bridge.sessions.get(room))
+        if same_owner and binding[4] == podview_weather_brief.token(brief):
+            weather = podview_weather_brief.project(
+                weather, brief, getattr(tools, "podview_weather_city", "")
+            )
     finally:
         bridge._home_busy = False
     bridge._home_revision += 1

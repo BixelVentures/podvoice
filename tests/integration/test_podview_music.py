@@ -272,13 +272,10 @@ async def test_ingress_contract_preserves_freshness_duplicates_and_has_no_contro
         ).status == 403
         for _ in range(2):
             response = await client.get("/view/api/music?kind=playback&account=account-alpha")
-            data = (await response.json())["data"]
-            assert (
-                data["observation"]["observed_at"]
-                == rig.values["playback"]["observation"]["observed_at"]
-            )
-            assert data["poll_sequence"] == 4 and data["physical_result_verified"] is False
-        assert len(rig.calls) == 2  # No bridge playback success cache.
+            public = await response.json()
+            assert public["schema"] == "podview.room-playback.v1"
+            assert public["status"] == "unavailable" and public["data"] is None
+        assert rig.calls == []  # No room binding: do not read account-wide playback.
         for _ in range(2):
             response = await client.get("/view/api/music?kind=queue&account=account-alpha")
             queue = (await response.json())["data"]
@@ -286,7 +283,7 @@ async def test_ingress_contract_preserves_freshness_duplicates_and_has_no_contro
             assert queue["items"][0]["uri"] == queue["items"][1]["uri"]
             assert queue["items"][0]["option_id"] != queue["items"][1]["option_id"]
             assert queue["scope"] == "account" and queue["relation_to_playback"] == "not_atomic"
-        assert len(rig.calls) == 3
+        assert len(rig.calls) == 1
         response = await client.get("/view/api/music?kind=liked&account=account-alpha")
         library = await response.json()
         assert library["data"]["config_entry_id"] == "account-alpha"
@@ -296,7 +293,7 @@ async def test_ingress_contract_preserves_freshness_duplicates_and_has_no_contro
             "/core/api/services/podconnect/liked",
             {"config_entry_id": "account-alpha"},
         )
-        assert len(rig.calls) == 4
+        assert len(rig.calls) == 2
         assert not rig.session.tools.timers.command.await_count
 
 

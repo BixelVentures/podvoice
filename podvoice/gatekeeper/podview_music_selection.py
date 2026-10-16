@@ -76,9 +76,9 @@ class MusicSelection:
         if not _closed_context(context) or not isinstance(data, dict):
             return None
         tracks = data.get("tracks")
-        if kind not in {"search", "recent", "top", "liked", "mood"}:
+        if kind not in {"search", "recent", "top", "liked", "mood", "feeling"}:
             return None
-        maximum = 3 if kind in {"search", "mood"} else 50
+        maximum = 3 if kind in {"search", "mood", "feeling"} else 50
         if not isinstance(tracks, list) or not 1 <= len(tracks) <= maximum:
             return None
         if any(
@@ -86,7 +86,7 @@ class MusicSelection:
             or not isinstance(row.get("uri"), str)
             or re.fullmatch(
                 r"spotify:playlist:[A-Za-z0-9]{22}"
-                if kind == "mood"
+                if kind in {"mood", "feeling"}
                 else r"spotify:track:[A-Za-z0-9]{22}",
                 row.get("uri", ""),
             )
@@ -188,7 +188,9 @@ class MusicSelection:
         if (
             controls.get("owner_epoch") != source["ownerEpoch"]
             or controls.get(
-                "context_play_supported" if source["kind"] == "mood" else "track_play_supported"
+                "context_play_supported"
+                if source["kind"] in {"mood", "feeling"}
+                else "track_play_supported"
             )
             is not True
         ):
@@ -223,7 +225,7 @@ class MusicSelection:
         ]
         task = {
             "id": task_id,
-            "action": "play_context" if source["kind"] == "mood" else "play_track",
+            "action": "play_context" if source["kind"] in {"mood", "feeling"} else "play_track",
             "candidateSetId": identifier,
             "context": copy.deepcopy(context),
             "ownerBinding": owner_binding,
@@ -348,7 +350,9 @@ class MusicSelection:
                 or controls.get("target", {}).get("target_id") != task["target"]
                 or controls.get("owner_epoch") != task["ownerEpoch"]
                 or controls.get(
-                    "context_play_supported" if source["kind"] == "mood" else "track_play_supported"
+                    "context_play_supported"
+                    if source["kind"] in {"mood", "feeling"}
+                    else "track_play_supported"
                 )
                 is not True
                 or controls.get("status") != "ready"

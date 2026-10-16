@@ -1,0 +1,11 @@
+{
+  "schema": "podview35.admission.v1",
+  "base": "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b",
+  "production": {},
+  "regressions": {},
+  "runtime": {},
+  "config": {},
+  "policy": {},
+  "tooling": {},
+  "asset_count": 0
+}
