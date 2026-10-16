@@ -31,7 +31,9 @@ from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
-_REVIEWED_MOVE_POLICY_REVISION: str | None = None
+_REVIEWED_MOVE_POLICY_REVISION: str | None = (
+    "a674d94e377e8ba2b51ca4ea5f541370bd9dd7f2ecc6fabb2cf3e2f50cbdb5b4"
+)
 _CONTROLLER_COOKIE = "podview_controller"
 _ALLOWED_PHASES = {"IDLE", "LISTENING", "THINKING", "AI_SPEAKING", "LOUNGE_WINDOW"}
 

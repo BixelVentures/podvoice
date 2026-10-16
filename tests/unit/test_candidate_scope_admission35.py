@@ -126,6 +126,7 @@ def test_deletion_scope_requires_exact_paths_and_no_other_production_changes(mon
 
 
 def test_declared_production_tests_and_component_gate_are_exact():
+    assert "tests/podview/root-component-library.test.mjs" in admission.REQUIRED_TESTS
     expected = admission.PRODUCTION | set(admission.DELETED_PRODUCTION)
     assert admission.production_scope_matches(expected | {"podvoice/gatekeeper/__init__.py"})
     assert not admission.production_scope_matches(expected - {next(iter(admission.PRODUCTION))})

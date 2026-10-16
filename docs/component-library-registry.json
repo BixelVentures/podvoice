@@ -834,9 +834,7 @@
           "factory:section:'robot-recent'"
         ],
         "registrations": {},
-        "customTags": [
-          "pv-activity-timeline"
-        ],
+        "customTags": [],
         "dom": true
       },
       "requiredCalls": [
@@ -2127,7 +2125,6 @@
     {
       "path": "dist/live-home-view.js",
       "patterns": [
-        "make\\('pv-activity-timeline'\\)",
         "timeline\\.data\\s*=\\s*\\{items:"
       ]
     }

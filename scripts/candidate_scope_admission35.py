@@ -127,6 +127,7 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_room_move_voice.py",
         "tests/integration/test_presentation_live_pipeline.py",
         "tests/integration/test_room_media_binding.py",
+        "tests/podview/root-component-library.test.mjs",
         "tests/podview/root-control-model.test.mjs",
         "tests/podview/root-native-music-controls.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
@@ -150,9 +151,9 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_weather_wind_bearing.py",
     }
 )
-REVIEWER = ""
-MANIFEST_SHA = ""
-PROFILE_AST = ""
+REVIEWER = "Independent GPT-6 Sol /root/admission34; coupled Native/C /root/review34"
+MANIFEST_SHA = "a565d44ff7b96789136ec9b4e8b0983a7422408714abceaae35b9b0959a1b521"
+PROFILE_AST = "a2e8d12c648ba837f4e7a7db6f1c67c96c7256c49a0e5449ac6474f8d5d85080"
 DELETED_PRODUCTION = {
     "podvoice/gatekeeper/static/podview/flow.html": "ffe2df29e9db0b99f1777ab17fdbecbfcd2099fb377375c7d7b865dbabf0c9d4",
     "podvoice/gatekeeper/static/podview/flow.js": "b462c8de356eac701f8ca0ab99db73353b9d31df6ceea8b24595ef3cd9e62e08",

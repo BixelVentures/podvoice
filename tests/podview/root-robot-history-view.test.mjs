@@ -28,7 +28,7 @@ test('missing live history keeps canonical section and neutral copy for cleaning
  for(const status of ['cleaning','fault','docked'])for(const stale of [false,true])for(const historyStatus of ['observed','unavailable']){
   const f=fixture(device({status,stale,history:{status:historyStatus,items:[]}}));renderRobotHistory(f.host);
   assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,true);
-  assert.equal(document.getElementById('robot-history-empty').textContent,'Tidligere rengøringer er endnu ikke tilgængelige.');
+  assert.equal(document.getElementById('robot-history-empty').textContent,'Ingen hændelser at vise endnu.');
   assert.deepEqual(f.timeline.data.items,[]);assert.equal(f.section().descendants().some(node=>node.className==='robot-recipe-row'),false);
  }
 }));
@@ -47,13 +47,26 @@ test('shared device renderer overwrite is repaired on every render even when his
  assert.deepEqual(f.timeline.data,before);assert.equal(f.timeline.hidden,false);
 }));
 
-test('request journal uses shared timeline separately; unknown never offers reuse or claims completion',()=>withDocument(()=>{
+test('request journal shares canonical history; unknown never offers reuse or claims completion',()=>withDocument(()=>{
  const f=fixture(device({history:{status:'observed',items:[request('accepted'),request('unknown','unknown')]}}),true);renderRobotHistory(f.host);
- const requests=f.section().querySelector('pv-activity-timeline');assert.ok(requests);
- assert.match(requests.data.items[0].label,/^Start anmodet/);assert.match(requests.data.items[1].label,/^Udfald ukendt/);
- assert.equal(requests.data.items.some(row=>/afsluttet|færdig/i.test(row.label)),false);
+ assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);
+ assert.equal(f.section().querySelector('pv-activity-timeline'),null);
+ assert.equal(f.section().descendants().some(node=>node.textContent==='Senest anmodet'),false);
+ assert.match(f.timeline.data.items[0].label,/^Start anmodet/);assert.match(f.timeline.data.items[1].label,/^Udfald ukendt/);
+ assert.equal(f.timeline.data.items.some(row=>/afsluttet|færdig/i.test(row.label)),false);
  const buttons=f.section().descendants().filter(node=>node.tagName==='button');assert.equal(buttons.length,1);buttons[0].listeners.click();assert.deepEqual(f.calls,['accepted']);
- assert.deepEqual(f.timeline.data.items,[]);
+ assert.equal(document.getElementById('robot-history-empty').hidden,true);
+ assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-request:accepted','robot-request:unknown']);
+}));
+
+test('observed facts and request journal interleave by source timestamps without implying completion',()=>withDocument(()=>{
+ const start=fact('last_clean_start',now()-120),end=fact('last_clean_end',now()-10);
+ const older=request('older');older.recordedAt=now()-180;
+ const middle=request('middle','unknown');middle.recordedAt=now()-60;
+ const f=fixture(device({telemetry:{status:'observed',items:[start,end]},history:{status:'observed',items:[older,middle]}}));renderRobotHistory(f.host);
+ assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-fact:last_clean_end','robot-request:middle','robot-fact:last_clean_start','robot-request:older']);
+ assert.match(f.timeline.data.items[1].label,/^Udfald ukendt/);
+ assert.equal(f.section().querySelector('pv-activity-timeline'),null);
 }));
 
 test('all existing rich facts and open disclosure survive; grant removal removes reuse only',()=>withDocument(()=>{
@@ -65,6 +78,6 @@ test('all existing rich facts and open disclosure survive; grant removal removes
 }));
 
 test('return to canonical local/light detail restores timeline visibility and hides live-only content',()=>withDocument(()=>{
- const f=fixture(device());renderRobotHistory(f.host);f.host.state.devices=[{id:'light',kind:'light',live:false}];f.host.state.focus='light';
+ const f=fixture(device({history:{status:'observed',items:[request('recent')]}}));renderRobotHistory(f.host);f.host.state.devices=[{id:'light',kind:'light',live:false}];f.host.state.focus='light';
  renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);assert.equal(f.section().hidden,true);assert.equal(document.getElementById('robot-history-empty').hidden,true);
 }));
