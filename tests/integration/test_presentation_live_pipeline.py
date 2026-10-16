@@ -1,6 +1,10 @@
 """Actual normal Live event→Thin owner→receipt wiring. Offline SDK, no audible claim."""
 
+import asyncio
 import json
+import subprocess
+import time
+from pathlib import Path
 
 import pytest
 from integration.test_thin_live import build, emit, until
@@ -165,7 +169,10 @@ async def test_actual_accepted_tool_then_different_response_same_delegation_pres
         await session.aclose()
 
 
-async def test_actual_accepted_weather_tool_projects_source_chart_without_model_numbers():
+@pytest.mark.parametrize("temperatures", [[15.1], [-5.2], [-5.2, 3.1], [-12.0, -5.2], [0.0]])
+async def test_actual_accepted_weather_tool_projects_source_chart_without_model_numbers(
+    temperatures,
+):
     from datetime import UTC, datetime, timedelta
 
     from unit.test_openai_live import call
@@ -179,21 +186,39 @@ async def test_actual_accepted_weather_tool_projects_source_chart_without_model_
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
         }
     ]
-    weather = weather_payload(1)
+    weather_results = []
     stamp = datetime.now(UTC)
-    weather["data"]["result"].update(
-        retrieved_at=stamp.isoformat(), state_updated_at=stamp.isoformat()
-    )
-    weather["data"]["result"]["forecast"][0]["datetime"] = (stamp + timedelta(hours=1)).isoformat()
+    for index, temperature in enumerate(temperatures):
+        weather = weather_payload(1)
+        weather["data"]["result"].update(
+            retrieved_at=stamp.isoformat(),
+            state_updated_at=stamp.isoformat(),
+            temperature=temperature,
+            location=f"Måling {index}",
+        )
+        weather["data"]["result"]["forecast"][0]["datetime"] = (
+            stamp + timedelta(hours=1)
+        ).isoformat()
+        weather_results.append(weather)
+    responses = iter(weather_results)
 
     async def dispatch(*args, **kwargs):
-        return weather
+        return next(responses)
 
     tools.dispatch = dispatch
     await session.start()
     try:
         await session.wake()
-        await emit(sdk, created(), call(name="weather_forecast", arguments="{}"), terminal())
+        call_ids = [f"c{index}" for index in range(len(temperatures))]
+        await emit(
+            sdk,
+            created(),
+            *(
+                call(call_id=call_id, name="weather_forecast", arguments="{}")
+                for call_id in call_ids
+            ),
+            terminal(),
+        )
         await until(
             lambda: (
                 sdk.response.create.await_count == 1
@@ -203,18 +228,58 @@ async def test_actual_accepted_weather_tool_projects_source_chart_without_model_
         data = message("chart")
         data["presentation"].update(
             origin="owner_sources",
-            sourceCalls=["c1"],
-            content={"items": [{"callId": "c1", "field": "temperature"}]},
+            sourceCalls=call_ids,
+            content={
+                "items": [{"callId": call_id, "field": "temperature"} for call_id in call_ids]
+            },
         )
         await emit(sdk, created("r2"), assistant_item(json.dumps(data)), terminal("r2"))
         await until(
             lambda: any(
-                row["family"] == "chart" for row in store.snapshot(session.room, session)["items"]
+                row.get("schema") == "podview.presentation.v1"
+                for row in store.snapshot(session.room, session)["items"]
             )
         )
         row = store.snapshot(session.room, session)["items"][0]
-        assert row["family"] == "chart" and row["content"]["items"][0]["value"] == 15.1
+        assert row["family"] == "chart"
+        assert [item["value"] for item in row["content"]["items"]] == temperatures
+        assert [item["label"] for item in row["content"]["items"]] == [
+            f"Måling {i}" for i in range(len(temperatures))
+        ]
         assert row["content"]["unit"] == "°C" and row["provenance"]["kind"] == "owner_sources"
+        records = store._rooms[session.room]["source_registry"]
+        assert row["provenance"]["receiptIds"] == [
+            records[call_id]["item"]["receiptId"] for call_id in call_ids
+        ]
+        assert [
+            records[call_id]["weather"]["data"]["current"]["temperature"] for call_id in call_ids
+        ] == temperatures
+        # Join actual accepted tools + normal final owner with shipped browser admission
+        # and the existing pv-answer → pv-data-chart path. No provider/browser pixels.
+        from gatekeeper.hub import StatusHub
+        from gatekeeper.podview import BRIDGE
+        from gatekeeper.web import create_app
+
+        app = create_app(StatusHub(), {session.room: session}, tools=tools)
+        snapshot = app[BRIDGE].snapshot(session.room)
+        rendered = await asyncio.to_thread(
+            subprocess.run,
+            ["node", str(Path(__file__).parents[1] / "podview/helpers/render-owned-chart.mjs")],
+            input=json.dumps(
+                {
+                    "answers": store.snapshot(session.room, session),
+                    "snapshot": snapshot,
+                    "now": time.time() * 1000,
+                    "expectedValues": temperatures,
+                }
+            ),
+            text=True,
+            capture_output=True,
+            timeout=10,
+        )
+        assert rendered.returncode == 0, rendered.stderr
+        assert json.loads(rendered.stdout)["values"] == temperatures
+        assert json.loads(rendered.stdout)["actions"] == []
         assert sdk.response.create.await_count == 1
     finally:
         await session.aclose()

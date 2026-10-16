@@ -18,15 +18,24 @@ EXPECTED_PRODUCTION = {
     "custom_components/podvoice/translations/da.json",
     "custom_components/podvoice/translations/en.json",
     "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/device_control.py",
     "podvoice/gatekeeper/podview.py",
     "podvoice/gatekeeper/podview_admin_transport.py",
     "podvoice/gatekeeper/podview_continuity.py",
     "podvoice/gatekeeper/podview_controller_admin.py",
+    "podvoice/gatekeeper/podview_controls.py",
+    "podvoice/gatekeeper/podview_presentation.py",
     "podvoice/gatekeeper/podview_queue.py",
     "podvoice/gatekeeper/podview_queue_scope.py",
     "podvoice/gatekeeper/podview_music_control.py",
+    "podvoice/gatekeeper/robot_settings.py",
     "podvoice/gatekeeper/static/podview/asset-manifest.json",
+    "podvoice/gatekeeper/static/podview/control-model.js",
+    "podvoice/gatekeeper/static/podview/robot-control-panel.js",
     "podvoice/gatekeeper/static/podview/setup.html",
+    "podvoice/gatekeeper/static/podview/ui/library/components.js",
+    "podvoice/gatekeeper/static/podview/ui/library/visual-components.js",
+    "podvoice/gatekeeper/static/podview/visual-content.js",
 }
 EXPECTED_HA_RUNTIME = {
     path for path in EXPECTED_PRODUCTION if path.startswith("custom_components/podvoice/")
@@ -40,18 +49,39 @@ EXPECTED_TESTS = {
     "tests/unit/test_ha_controller_registration.py",
     "tests/unit/test_podview_queue_scope.py",
     "tests/integration/test_podview_queue_occurrence.py",
+    "tests/integration/test_presentation_album_cover_pipeline.py",
+    "tests/integration/test_presentation_live_pipeline.py",
     "tests/integration/test_queue_controller_boundary.py",
+    "tests/integration/test_robot_settings_ui_contract.py",
+    "tests/podview/helpers/render-owned-album-cover.mjs",
+    "tests/podview/helpers/render-owned-chart.mjs",
+    "tests/podview/root-album-cover.test.mjs",
+    "tests/podview/root-control-model.test.mjs",
+    "tests/podview/root-robot-control-panel.test.mjs",
+    "tests/podview/root-signed-chart.test.mjs",
     "tests/unit/test_candidate_scope_admission35.py",
     "tests/unit/test_candidate_scope_admission36.py",
     "tests/unit/test_dev_cycle.py",
+    "tests/unit/test_podview_album_cover.py",
+    "tests/unit/test_podview_presentation.py",
+    "tests/unit/test_robot_extended_settings.py",
+    "tests/unit/test_robot_setting_labels.py",
     "tests/unit/test_release_contract.py",
+}
+CHANGED_ASSETS = {
+    "control-model.js",
+    "robot-control-panel.js",
+    "setup.html",
+    "ui/library/components.js",
+    "ui/library/visual-components.js",
+    "visual-content.js",
 }
 
 
 def test_36_is_exact_queue_and_admin_delta_from_published_35():
     assert admission.BASE == "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd"
-    assert admission.KIND == "podview36_queue_and_controller_admin"
-    assert admission.VERSION == 12
+    assert admission.KIND == "podview36_queue_admin_robot_and_presentation"
+    assert admission.VERSION == 13
     assert admission.DOMAINS == ("ha_tools", "physical_output")
     assert admission.PRODUCTION == EXPECTED_PRODUCTION
     assert admission.HA_RUNTIME == EXPECTED_HA_RUNTIME
@@ -313,12 +343,12 @@ def test_config_or_manifest_drift_rejects(monkeypatch, name, old, new):
     assert not admission.config_only(ROOT)
 
 
-def test_only_setup_html_changes_among_135_ui_assets():
+def test_only_six_reviewed_files_change_among_135_ui_assets():
     static = admission.STATIC
     assets = sorted(p for p in admission.strict.runtime_inventory(ROOT) if p.startswith(static))
     assert len(assets) == 136  # manifest plus the 135 approved assets
     for name in assets:
-        if name in {static + "setup.html", static + "asset-manifest.json"}:
+        if name in {static + path for path in CHANGED_ASSETS} | {static + "asset-manifest.json"}:
             continue
         assert admission.sha(admission.safe_file(ROOT, name)) == admission.sha(
             subprocess.check_output(["git", "show", f"{admission.BASE}:{name}"], cwd=ROOT)
@@ -346,9 +376,29 @@ def test_only_setup_html_changes_among_135_ui_assets():
         "path": "setup.html",
         "sha256": admission.sha(setup),
     }
-    assert {path: row for path, row in current_rows.items() if path != "setup.html"} == {
-        path: row for path, row in previous_rows.items() if path != "setup.html"
+    for path in CHANGED_ASSETS:
+        current_bytes = admission.safe_file(ROOT, static + path)
+        assert current_rows[path] == {"path": path, "sha256": admission.sha(current_bytes)}
+        assert current_bytes != subprocess.check_output(
+            ["git", "show", f"{admission.BASE}:{static}{path}"], cwd=ROOT
+        )
+    assert {path: row for path, row in current_rows.items() if path not in CHANGED_ASSETS} == {
+        path: row for path, row in previous_rows.items() if path not in CHANGED_ASSETS
     }
+
+
+def test_registry_adds_only_existing_spotify_artwork_dependency():
+    name = "docs/component-library-registry.json"
+    frozen = json.loads(
+        subprocess.check_output(
+            ["git", "show", f"0375ed3f45dd9a8cb9f8078960ecd2c69a2d4f11:{name}"], cwd=ROOT
+        )
+    )
+    current = json.loads(admission.safe_file(ROOT, name))
+    owner = frozen["modules"]["dist/visual-content.js"]
+    assert owner["imports"] == []
+    owner["imports"] = ["dist/spotify-artwork.js"]
+    assert current == frozen
 
 
 def test_unreviewed_manifest_and_approval_cannot_admit():

@@ -1,3 +1,4 @@
+import {spotifyArtwork} from './spotify-artwork.js';
 // Read-only visual payloads. This validates shape, not the truth of source data.
 export const visualFamilies = ['fact-card','sourced-image','answer-timeline','simple-diagram'];
 const string = (value, max = 300) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
@@ -27,7 +28,7 @@ export function validateVisualContent(family, raw, {ownerReceiptIds=[],allowConv
  const sourceIds = new Set(raw.sources.map(s => s.id));
  const sourced = x => sourceIds.has(x.sourceId);
  if (family === 'fact-card') rows(raw.facts, 6, f => string(f.label, 80) && string(f.value, 80) && string(f.detail, 200) && sourced(f));
- if (family === 'sourced-image' && (!link(raw.image?.url, true) || !string(raw.image?.alt, 300) || !string(raw.image?.caption, 300) || !string(raw.image?.credit, 160) || !['photo','illustration'].includes(raw.image?.kind) || !sourced(raw.image))) fail();
+ if (family === 'sourced-image' && (!link(raw.image?.url, true) || !string(raw.image?.alt, 300) || !string(raw.image?.caption, 300) || !string(raw.image?.credit, 160) || !['photo','illustration','album_cover'].includes(raw.image?.kind) || raw.image.kind==='album_cover'&&(raw.image.credit!=='Spotify'||!spotifyArtwork({kind:'album_cover',provider:'spotify',url:raw.image.url})) || !sourced(raw.image))) fail();
  if (family === 'answer-timeline') rows(raw.events, 8, e => string(e.time, 80) && string(e.label, 120) && string(e.detail, 240) && ['planned','observed'].includes(e.status) && sourced(e));
  if (family === 'simple-diagram') {
   rows(raw.nodes, 5, n => string(n.label, 80) && string(n.detail, 200) && sourced(n));
@@ -63,7 +64,7 @@ export function validateTypedAnswerContent(family,raw,options={}){
   result.columns=raw.columns.map(({id,label})=>({id,label}));result.items=raw.items.map(({id,label,values,sourceId})=>({id,label,values:[...values],sourceId}));
  }else if(family==='chart'){
   if(!string(raw.unit,24)||!string(raw.unitSingular,24))fail();
-  rows(raw.items,8,row=>string(row.label,80)&&Number.isFinite(row.value)&&row.value>=0&&row.value<=1e9&&sourced(row));
+  rows(raw.items,8,row=>string(row.label,80)&&Number.isFinite(row.value)&&row.value>=-1e9&&row.value<=1e9&&sourced(row));
   result.unit=raw.unit;result.unitSingular=raw.unitSingular;result.items=raw.items.map(({id,label,value,sourceId})=>({id,label,value,sourceId}));
  }else if(family==='steps'){
   rows(raw.steps,12,row=>string(row.text,300)&&sourced(row));result.steps=raw.steps.map(({id,text,sourceId})=>({id,text,sourceId}));

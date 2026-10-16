@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rejecting PodView36 queue and controller admission until exact review."""
+"""Rejecting PodView36 composed admission until exact review."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ strict = previous.strict  # PodView31 owns the inherited strict helpers.
 sha = previous.sha
 safe_file = previous.safe_file
 BASE = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd"
-KIND = "podview36_queue_and_controller_admin"
-VERSION = 12
+KIND = "podview36_queue_admin_robot_and_presentation"
+VERSION = 13
 PROFILE = "scripts/candidate_scope_admission36.py"
 MANIFEST = "scripts/podview36-admission-reviewed.json"
 RECORD_MARKER = "<!-- podview36-admission"
@@ -53,15 +53,24 @@ PRODUCTION = frozenset(
         "custom_components/podvoice/translations/da.json",
         "custom_components/podvoice/translations/en.json",
         "podvoice/gatekeeper/__main__.py",
+        "podvoice/gatekeeper/device_control.py",
         "podvoice/gatekeeper/podview.py",
         "podvoice/gatekeeper/podview_admin_transport.py",
         "podvoice/gatekeeper/podview_continuity.py",
         "podvoice/gatekeeper/podview_controller_admin.py",
+        "podvoice/gatekeeper/podview_controls.py",
+        "podvoice/gatekeeper/podview_presentation.py",
         "podvoice/gatekeeper/podview_queue.py",
         "podvoice/gatekeeper/podview_queue_scope.py",
         "podvoice/gatekeeper/podview_music_control.py",
+        "podvoice/gatekeeper/robot_settings.py",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/control-model.js",
+        "podvoice/gatekeeper/static/podview/robot-control-panel.js",
         "podvoice/gatekeeper/static/podview/setup.html",
+        "podvoice/gatekeeper/static/podview/ui/library/components.js",
+        "podvoice/gatekeeper/static/podview/ui/library/visual-components.js",
+        "podvoice/gatekeeper/static/podview/visual-content.js",
     }
 )
 HA_RUNTIME = frozenset(
@@ -87,16 +96,29 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_ha_controller_registration.py",
         "tests/unit/test_podview_queue_scope.py",
         "tests/integration/test_podview_queue_occurrence.py",
+        "tests/integration/test_presentation_album_cover_pipeline.py",
+        "tests/integration/test_presentation_live_pipeline.py",
         "tests/integration/test_queue_controller_boundary.py",
+        "tests/integration/test_robot_settings_ui_contract.py",
+        "tests/podview/helpers/render-owned-album-cover.mjs",
+        "tests/podview/helpers/render-owned-chart.mjs",
+        "tests/podview/root-album-cover.test.mjs",
+        "tests/podview/root-control-model.test.mjs",
+        "tests/podview/root-robot-control-panel.test.mjs",
+        "tests/podview/root-signed-chart.test.mjs",
         "tests/unit/test_candidate_scope_admission35.py",
         "tests/unit/test_candidate_scope_admission36.py",
         "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_podview_album_cover.py",
+        "tests/unit/test_podview_presentation.py",
+        "tests/unit/test_robot_extended_settings.py",
+        "tests/unit/test_robot_setting_labels.py",
         "tests/unit/test_release_contract.py",
     }
 )
-REVIEWER = "Independent GPT-6 Sol /root/queue_gateway_review; exact36 combined queue/controller source and admission review"
-MANIFEST_SHA = "0076bc4a75ecf224c08e2a6615ddce6fa537dd33f961fd49e0ee28c0d6e53763"
-PROFILE_AST = "748a807e7bfdeb1b8fc540aec369a912a6f2e9440dcdef6aa1ef861622324c18"
+REVIEWER = "Independent /root/final_scope_audit; exact combined36 source review SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9"
+MANIFEST_SHA = "37bb5ead87db3b9559e464d839d30e6a91b9ce804478716bf2cc5bec4ebf2a59"
+PROFILE_AST = "3b318f175713e544573b4bbc98046beeee20de4920e08c249a039387e03d5e04"
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission35.py": "87e0973b4c460a1732f8f4b66767a73c03c4f473ede980359883f0206549e6c8",
     "scripts/podview35-admission-reviewed.json": "2261f8e95cba54c93f87a5e56227488789690a1b4b5ae01d2bda403cfc5dd4a3",

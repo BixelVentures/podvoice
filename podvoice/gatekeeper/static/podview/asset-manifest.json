@@ -203,7 +203,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "24c88f65d55e997ad26196d865e187c72bc31466416363fb796781df7ddb95e3"
+      "sha256": "276f975cd9472b684d8640463964fc5c6fda0f27f424d8c6179169e085771aa6"
     },
     {
       "path": "example-sources.html",
@@ -359,7 +359,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "691dbdbb47a1835c0abb33855b76108798b5d35935d43781369e865d8406df3d"
+      "sha256": "d571ea04ea433b5e7d77e2899d15553e862eb813e5a63c19c87b47cedc77f90c"
     },
     {
       "path": "robot-observation.js",
@@ -447,7 +447,7 @@
     },
     {
       "path": "ui/library/components.js",
-      "sha256": "a849315e02b2035e1ca488cd0a0d01ea181bccb6b86818489a54fdeebec2aa7e"
+      "sha256": "debdb803e16d8aed10d4b867b78aeba4961736392550e49e255f4ec413af81de"
     },
     {
       "path": "ui/library/library.css",
@@ -459,7 +459,7 @@
     },
     {
       "path": "ui/library/visual-components.js",
-      "sha256": "4c798354c9e1f586960950c997872178be71d170f0004888d53f87c9c12f5681"
+      "sha256": "046dfcdcf495e1c9e1e61d198a50eee3686307e33d00073210bab4dbf78db920"
     },
     {
       "path": "ui/motion.js",
@@ -491,7 +491,7 @@
     },
     {
       "path": "visual-content.js",
-      "sha256": "babc1626f49c9e8b0f687876ceba69cb52d8e79fceae129958b0cb23852bc779"
+      "sha256": "dae566a6c5088cb90ee87e071bdd35df9267171a9a71f44d58ef2b06f21b2386"
     },
     {
       "path": "visual-examples.js",

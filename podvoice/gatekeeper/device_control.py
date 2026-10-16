@@ -22,13 +22,13 @@ import aiohttp
 import httpx
 
 from . import constants as C
-from . import podview_robot
+from . import podview_robot, robot_settings
 from .cleaning_journal import CleaningJournal, JournalError
 
 GET_CAPABILITIES = "ha_get_device_capabilities"
 EXECUTE_ACTION = "ha_execute_device_action"
 TOOL_NAMES = frozenset({GET_CAPABILITIES, EXECUTE_ACTION})
-_ENTITY = re.compile(r"(?:vacuum|select)\.[a-z0-9_]+\Z")
+_ENTITY = re.compile(r"(?:vacuum|select|switch|number|time)\.[a-z0-9_]+\Z")
 _CLEANING_SELECTS = frozenset({"cleaning_mode", "mop_mode", "mop_intensity"})
 _MAX_ENTITIES = 12
 _MAX_CAPABILITY_RESULT_BYTES = 1800  # Below the provider's 2048-byte result envelope.
@@ -56,7 +56,9 @@ _DECLARATIONS = [
             "requests. If names collide without distinguishing aliases, explain the naming "
             "conflict and ask for distinguishable HA names; never invent a distinction or "
             "offer internal IDs as room choices. Cleaning mode can reset other "
-            "settings: set it first, then intensity/route/fan speed."
+            "settings: set it first, then intensity/route/fan speed. For an explicitly "
+            "requested DND/robot-volume/child-lock/emptying setting, request only its exact "
+            "settings_roles; that token cannot start cleaning or alter any hidden role."
         ),
         "parameters": {
             "type": "object",
@@ -69,7 +71,14 @@ _DECLARATIONS = [
                         "target established by tool results. Omit only if unknown; never derive "
                         "an ID from a natural room or device name."
                     ),
-                }
+                },
+                "settings_roles": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": list(robot_settings.ROLES)},
+                    "minItems": 1,
+                    "maxItems": 6,
+                    "uniqueItems": True,
+                },
             },
             "additionalProperties": False,
         },
@@ -83,7 +92,10 @@ _DECLARATIONS = [
             "settings sequentially, then start ONCE with exact HA area_ids and repeat "
             "(1-3). Never also use an Assist vacuum start/area tool for that job. Stop the "
             "sequence on any error and report settings already changed. An unknown outcome "
-            "must not be retried. HA acceptance is not proof of physical completion or repeats."
+            "must not be retried. Extended DND, robot volume, child-lock and emptying-mode "
+            "settings are one explicit effect only: no continuation token; obtain a fresh "
+            "read/setup for a separately requested next action. Never enable DND or start "
+            "cleaning implicitly. HA acceptance is not proof of physical completion or repeats."
         ),
         "parameters": {
             "type": "object",
@@ -100,13 +112,23 @@ _DECLARATIONS = [
                 },
                 "action": {
                     "type": "string",
-                    "enum": ["vacuum.set_fan_speed", "select.select_option", "vacuum.send_command"],
+                    "enum": [
+                        "vacuum.set_fan_speed",
+                        "select.select_option",
+                        "vacuum.send_command",
+                        "switch.turn_on",
+                        "switch.turn_off",
+                        "number.set_value",
+                        "time.set_value",
+                    ],
                 },
                 "arguments": {
                     "type": "object",
                     "properties": {
                         "fan_speed": {"type": "string"},
                         "option": {"type": "string"},
+                        "value": {"type": "number"},
+                        "time": {"type": "string"},
                         "command": {"type": "string", "enum": ["app_segment_clean"]},
                         "area_ids": {
                             "type": "array",
@@ -134,7 +156,9 @@ def validate_entities(value: Any) -> tuple[str, ...]:
         or any(not isinstance(x, str) or len(x) > 128 or not _ENTITY.fullmatch(x) for x in value)
         or len(set(value)) != len(value)
     ):
-        raise ValueError("device_control_entities: angiv højst 12 unikke vacuum./select.-entiteter")
+        raise ValueError(
+            "device_control_entities: angiv højst 12 unikke vacuum/select/switch/number/time-entiteter"
+        )
     return tuple(value)
 
 
@@ -159,6 +183,9 @@ class Capability:
     map_options: tuple[str, ...] = ()
     allow_map_change: bool = False
     map_revision: int = 0
+    settings_roles: tuple[str, ...] = ()
+    settings_snapshot: str = ""
+    extended_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -644,19 +671,105 @@ class DeviceControl:
         self._tickets[token] = capability
         return token
 
+    async def _extended_snapshot(self, vacuum, requested):
+        requested = robot_settings.roles(requested)
+        bindings = [r for r in self._robot_reads if r["vacuumEntityId"] == vacuum]
+        if len(bindings) != 1:
+            raise CapabilityError("Robottens eksplicitte enheds-/dockbinding mangler")
+        binding = bindings[0]
+        fields = [f for f in binding["fields"] if f["key"] in requested]
+        if len(fields) != len(requested):
+            raise CapabilityError("Indstillingsrolle er ikke eksplicit bundet")
+        if any(f["entityId"] not in self._entities for f in fields):
+            raise CapabilityError("Indstillingsentitet er ikke eksplicit tilladt")
+        await self._state(vacuum)  # Normal cleaning is allowed; unknown/unavailable is not.
+        registry = await self._registry()
+        entries = {key: registry.get(key) for key in [vacuum, *(f["entityId"] for f in fields)]}
+        selected = {**binding, "fields": fields}
+        try:
+            identity = podview_robot.registry_identity(selected, entries)
+            domains = await self._json("GET", "services")
+            rows = []
+            for role in requested:
+                field = next(f for f in fields if f["key"] == role)
+                entity = field["entityId"]
+                domain, label = robot_settings.ROLES[role]
+                if not entity.startswith(domain + ".") or not robot_settings.services_present(
+                    domains, domain
+                ):
+                    raise ValueError("Indstillingens faktiske service mangler")
+                state = await self._state(entity)
+                rows.append(
+                    {
+                        "role": role,
+                        "entity_id": entity,
+                        "domain": domain,
+                        "label": label,
+                        "state": state["state"],
+                        "raw_options": state["attributes"].get("options")
+                        if domain == "select"
+                        else None,
+                        "schema": robot_settings.value_schema(role, state),
+                    }
+                )
+            fingerprint = self._hash(
+                {
+                    "identity": identity,
+                    "rows": rows,
+                    "services": [
+                        r for r in domains if r.get("domain") in {x["domain"] for x in rows}
+                    ],
+                }
+            )
+            return rows, fingerprint
+        except (ValueError, KeyError, TypeError) as exc:
+            raise CapabilityError(
+                "Indstillingens ejer, service eller værdier kan ikke bekræftes"
+            ) from exc
+
+    async def _extended_capability(self, vacuum, owner, requested):
+        generation = self._generation
+        self._check(generation)
+        if vacuum not in self._entities or not vacuum.startswith("vacuum."):
+            raise CapabilityError("Vælg én eksplicit tilladt robot")
+        requested = robot_settings.roles(requested)
+        rows, fingerprint = await self._extended_snapshot(vacuum, requested)
+        self._check(generation)
+        cap = Capability(
+            generation,
+            time.monotonic(),
+            owner,
+            vacuum,
+            "",
+            "",
+            "",
+            "",
+            settings_roles=requested,
+            settings_snapshot=fingerprint,
+            extended_only=True,
+        )
+        return cap, rows
+
     async def capabilities(self, args: dict, owner: tuple[str, str]) -> dict:
         self._check(self._generation)
-        if set(args) - {"entity_id"}:
+        if set(args) - {"entity_id", "settings_roles"}:
             raise CapabilityError("Ukendte argumenter")
-        if not args:
+        if "entity_id" not in args:
             vacuums = [x for x in self._entities if x.startswith("vacuum.")]
             if len(vacuums) != 1:
                 return {"ok": True, "data": {"entity_ids": vacuums}}
-            args = {"entity_id": vacuums[0]}
+            args = {**args, "entity_id": vacuums[0]}
         entity_id = args["entity_id"]
         if not isinstance(entity_id, str):
             raise CapabilityError("entity_id skal være tekst")
-        cap, data = await self._snapshot(entity_id, self._generation, owner)
+        if "settings_roles" in args:
+            requested = robot_settings.roles(args["settings_roles"])
+            if not requested:
+                raise CapabilityError("Vælg mindst én indstillingsrolle")
+            cap, rows = await self._extended_capability(entity_id, owner, requested)
+            data = {"entity_id": entity_id, "settings": rows}
+        else:
+            cap, data = await self._snapshot(entity_id, self._generation, owner)
         sized = {"ok": True, "data": data, "capability_token": "x" * 32}
         if (
             len(json.dumps(sized, ensure_ascii=False, separators=(",", ":")).encode())
@@ -674,6 +787,7 @@ class DeviceControl:
         recipe_id: str | None = None,
         *,
         map_selection: bool = False,
+        settings_roles: tuple[str, ...] = (),
     ) -> dict:
         """Server-only explicit setup; caller must establish a scoped paired owner.
 
@@ -682,11 +796,27 @@ class DeviceControl:
         """
         if not owner[0].startswith("podview:") or not owner[1]:
             raise CapabilityError("Skærmopsætning kræver en særskilt serverejer")
-        cap, data = await self._snapshot(vacuum, self._generation, owner)
-        if map_selection and recipe_id is None:
+        extended_cap = None
+        rows = []
+        if settings_roles and recipe_id is None:
+            extended_cap, rows = await self._extended_capability(vacuum, owner, settings_roles)
+        try:
+            cap, data = await self._snapshot(vacuum, self._generation, owner)
+        except Exception:
+            if extended_cap is None:
+                raise
+            cap, data = extended_cap, {"entity_id": vacuum, "controls": [], "fan_speed_options": []}
+        if map_selection and recipe_id is None and not cap.extended_only:
             cap = replace(cap, allow_map_change=True)
             data["map_options"] = [name for name in cap.map_options if name != cap.map_name]
             data["map_entity"] = cap.map_entity
+        if rows and extended_cap is not None:
+            data["extended_settings"] = rows
+            cap = replace(
+                cap,
+                settings_roles=extended_cap.settings_roles,
+                settings_snapshot=extended_cap.settings_snapshot,
+            )
         steps = []
         if recipe_id is not None:
             history = self.cleaning_history()
@@ -753,6 +883,34 @@ class DeviceControl:
         if cap is None or cap.owner != owner or time.monotonic() - cap.issued_at > _TOKEN_TTL_S:
             raise CapabilityError("Capability er brugt eller udløbet; gentag ikke en uvis handling")
         self._check(cap.generation)
+        extra_entities = {
+            f["entityId"]
+            for binding in self._robot_reads
+            if binding["vacuumEntityId"] == cap.vacuum
+            for f in binding["fields"]
+            if f["key"] in cap.settings_roles
+        }
+        if cap.extended_only or args.get("entity_id") in extra_entities:
+            rows, fingerprint = await self._extended_snapshot(cap.vacuum, cap.settings_roles)
+            if fingerprint != cap.settings_snapshot:
+                raise CapabilityError("Indstillingens ejer eller metadata ændredes")
+            row = next((r for r in rows if r["entity_id"] == args.get("entity_id")), None)
+            if row is None:
+                raise CapabilityError("Capability gælder kun de valgte indstillingsroller")
+            try:
+                action, values = robot_settings.command(row, args.get("arguments", {}))
+            except (ValueError, TypeError) as exc:
+                raise CapabilityError("Ugyldig indstillingsværdi") from exc
+            if action != args.get("action"):
+                raise CapabilityError("Forkert indstillingshandling")
+            prepared = PreparedAction(
+                replace(cap, extended_only=True),
+                row["entity_id"],
+                action,
+                {"entity_id": row["entity_id"], **values},
+            )
+            await self._validate_extended_current(prepared)
+            return prepared
         current, data = await self._snapshot(cap.vacuum, cap.generation, owner)
         if (
             current.identity != cap.identity
@@ -855,6 +1013,48 @@ class DeviceControl:
         prepared = PreparedAction(current, entity, action, service_data)
         await self._validate_current(prepared)
         return prepared
+
+    async def _validate_extended_current(self, prepared):
+        cap = prepared.capability
+        self._check(cap.generation)
+        rows, fingerprint = await self._extended_snapshot(cap.vacuum, cap.settings_roles)
+        if fingerprint != cap.settings_snapshot:
+            raise CapabilityError("Indstillingens ejer eller metadata ændredes")
+        ids = [cap.vacuum, *(r["entity_id"] for r in rows)]
+        fields = []
+        for entity in ids:
+            literal = json.dumps(entity)
+            attrs = ["options", "min", "max", "step", "unit_of_measurement"]
+            pieces = ['"state": states(' + literal + ")"]
+            pieces += [
+                json.dumps(key) + ": state_attr(" + literal + ", " + json.dumps(key) + ")"
+                for key in attrs
+            ]
+            fields.append(literal + ": {" + ", ".join(pieces) + "}")
+        # Last I/O samples robot availability and all exact setting bounds/states together.
+        sample = await self._json(
+            "POST", "template", {"template": "{{ {" + ", ".join(fields) + "} | tojson }}"}
+        )
+        if (
+            not isinstance(sample, dict)
+            or set(sample) != set(ids)
+            or any(not isinstance(v, dict) for v in sample.values())
+            or sample[cap.vacuum].get("state") in {None, "unknown", "unavailable"}
+        ):
+            raise CapabilityError("Indstillingernes sidste status mangler")
+        for row in rows:
+            state = sample[row["entity_id"]]
+            try:
+                schema = robot_settings.value_schema(
+                    row["role"], {"state": state.get("state"), "attributes": state}
+                )
+            except ValueError as exc:
+                raise CapabilityError("Indstillingsstatus ændredes før handlingen") from exc
+            if schema != row["schema"] or (
+                row["domain"] == "select" and state.get("options") != row["raw_options"]
+            ):
+                raise CapabilityError("Indstillingsstatus ændredes før handlingen")
+        self._check(cap.generation)
 
     async def _validate_current(self, prepared: PreparedAction) -> None:
         self._check(prepared.capability.generation)
@@ -969,7 +1169,7 @@ class DeviceControl:
                 raise CapabilityError(str(exc)) from exc
             self._starts[start_key] = True
         map_change = prepared.entity_id == cap.map_entity and cap.allow_map_change
-        if cap.map_revision != self._map_revisions.get(cap.vacuum, 0):
+        if not cap.extended_only and cap.map_revision != self._map_revisions.get(cap.vacuum, 0):
             raise CapabilityError("Kortautoriteten er ændret; ingen handling sendt")
         if map_change:
             self._map_revisions[cap.vacuum] = cap.map_revision + 1
@@ -996,9 +1196,40 @@ class DeviceControl:
         }
         if not history_recorded:
             result["data"]["history_recorded"] = False
+        extra_entities = {
+            f["entityId"]
+            for binding in self._robot_reads
+            if binding["vacuumEntityId"] == cap.vacuum
+            for f in binding["fields"]
+            if f["key"] in cap.settings_roles
+        }
+        if prepared.entity_id in extra_entities:
+            # The POST already succeeded. Observation trouble cannot claim no send.
+            result["data"]["setting_state_confirmed"] = False
+            try:
+                state = await self._state(prepared.entity_id)
+                observed = state["state"]
+                desired = prepared.data.get(
+                    "value", prepared.data.get("time", prepared.data.get("option"))
+                )
+                if domain == "switch":
+                    desired = "on" if service == "turn_on" else "off"
+                elif domain == "number":
+                    observed = float(observed)
+                elif domain == "time":
+                    if not isinstance(observed, str) or not isinstance(desired, str):
+                        raise ValueError("Tidsobservation mangler")
+                    observed = observed + ":00" if len(observed) == 5 else observed
+                    desired = desired + ":00" if len(desired) == 5 else desired
+                result["data"]["setting_state_confirmed"] = observed == desired
+            except Exception:
+                pass
+            return result  # No continuation token or extra in cleaning recipes.
+
         if (
             prepared.action != "vacuum.send_command"
             and not map_change
+            and not cap.extended_only
             and self.available
             and prepared.capability.generation == self._generation
         ):
@@ -1014,6 +1245,12 @@ class DeviceControl:
             expected = dict(prepared.capability.expected)
             expected[prepared.entity_id] = desired
             result["capability_token"] = self._issue(
-                replace(prepared.capability, expected=tuple(expected.items()))
+                replace(
+                    prepared.capability,
+                    expected=tuple(expected.items()),
+                    settings_roles=(),
+                    settings_snapshot="",
+                    extended_only=False,
+                )
             )
         return result

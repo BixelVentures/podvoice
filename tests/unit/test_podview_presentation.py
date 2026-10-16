@@ -279,39 +279,73 @@ def test_missing_or_tampered_pinned_asset_does_not_publish_an_image(monkeypatch)
     assert row["family"] == "concise" and "image" not in row["content"]
 
 
-def test_source_negative_temperature_does_not_rewrite_value_to_fit_chart(monkeypatch):
-    weather = weather_payload()
+@pytest.mark.parametrize(
+    ("temperatures", "unit"),
+    [
+        ([-5.2], "°C"),
+        ([-5.2, 3.1], "°C"),
+        ([-12.0, -5.2], "°C"),
+        ([0.0], "°C"),
+        ([-2.2, 32.0], "°F"),
+    ],
+)
+def test_source_negative_temperature_does_not_rewrite_value_to_fit_chart(
+    monkeypatch, temperatures, unit
+):
+    weather = weather_payload(2)
     stamp = datetime.fromisoformat(weather["data"]["result"]["retrieved_at"]).timestamp()
     monkeypatch.setattr(time, "time", lambda: stamp)
     owner, sink = object(), VisualReceiptOwner()
-    assert sink.offer(
-        owner,
-        room_id="kitchen",
-        session_id="session",
-        session_epoch=1,
-        turn_id="live:1:source",
-        provider_generation=1,
-        task_id="answer:delegation",
-        input_revision=1,
-        call_id="weather",
-        tool_name="weather_forecast",
-        result=weather,
-        current=lambda: True,
-        read_current=lambda completed: True,
-        delegation_id="delegation",
-    )
-    source = sink._rooms["kitchen"]["source_registry"]["weather"]
-    source["weather"]["data"]["current"]["temperature"] = -5.2
+    calls = []
+    source_values = []
+    for index, value in enumerate(temperatures):
+        current = weather_payload(2)
+        current["data"]["result"].update(
+            temperature=value, temperature_unit=unit, location=f"Måling {index}"
+        )
+        call_id = f"weather-{index}"
+        calls.append(call_id)
+        assert sink.offer(
+            owner,
+            room_id="kitchen",
+            session_id="session",
+            session_epoch=1,
+            turn_id="live:1:source",
+            provider_generation=1,
+            task_id="answer:delegation",
+            input_revision=1,
+            call_id=call_id,
+            tool_name="weather_forecast",
+            result=current,
+            current=lambda: True,
+            read_current=lambda completed: True,
+            delegation_id="delegation",
+        )
+        source_values.append(current["data"]["result"]["temperature"])
     final = message("chart")
     final["presentation"].update(
         origin="owner_sources",
-        sourceCalls=["weather"],
-        content={"items": [{"callId": "weather", "field": "temperature"}]},
+        sourceCalls=calls,
+        content={"items": [{"callId": call, "field": "temperature"} for call in calls]},
     )
     assert sink.offer_completed_answer(**context(owner, message=json.dumps(final)))
     row = sink.snapshot("kitchen", owner)["items"][0]
-    assert row["family"] == "concise" and row["provenance"] == {"kind": "ai_explanation"}
-    assert source["weather"]["data"]["current"]["temperature"] == -5.2
+    assert row["family"] == "chart"
+    assert [item["value"] for item in row["content"]["items"]] == temperatures == source_values
+    assert row["content"]["unit"] == row["content"]["unitSingular"] == unit
+    records = sink._rooms["kitchen"]["source_registry"]
+    assert row["provenance"] == {
+        "kind": "owner_sources",
+        "receiptIds": [records[call]["item"]["receiptId"] for call in calls],
+    }
+    assert [
+        records[call]["weather"]["data"]["current"]["temperature"] for call in calls
+    ] == temperatures
+    source = sink.source("kitchen", row["receiptId"], owner)
+    assert all(
+        f"Måling {index}: {value} {unit}" in source["sourceText"]
+        for index, value in enumerate(temperatures)
+    )
 
 
 def test_weather_wire_expiry_does_not_exceed_millisecond_source_clock(monkeypatch):

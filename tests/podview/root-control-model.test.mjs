@@ -14,3 +14,26 @@ test('admitted128character robot names remain usable with exact IDs',()=>{
 
 
 test('move control only admits the music none-args option; raw destinations are never action args',()=>{const raw={...task(),options:[{id:'move:'+'a'.repeat(64),label:'Flyt til Svend',action:'move_existing_session',argsSchema:{kind:'none'}}]};const admitted=controlTask(raw,snapshot,'music',now);assert.deepEqual(controlArgs(admitted,raw.options[0].id,{},now),{});assert.throws(()=>controlArgs(admitted,raw.options[0].id,{speakerId:'a'.repeat(64)},now));assert.throws(()=>controlTask({...raw,domain:'vacuum'},snapshot,'vacuum',now));});
+
+const settingsTask=(schema)=>({...task(),domain:'vacuum',options:[{id:'setting-owner',label:'Robotindstilling',action:'set_option',argsSchema:schema}]});
+const volumeSchema=()=>({kind:'number',min:0,max:100,step:1,unit:'%',current:90});
+test('robot numeric settings preserve current and admit only exact finite primitive grid values',()=>{
+ const admitted=controlTask(settingsTask(volumeSchema()),snapshot,'vacuum',now);assert.deepEqual(admitted.options[0].argsSchema,volumeSchema());
+ for(const value of [0,75,90,100])assert.deepEqual(controlArgs(admitted,'setting-owner',{value},now),{value});
+ for(const value of [true,false,'75','',null,NaN,Infinity,-Infinity,-1,101,75.5,75.00000000000001])assert.throws(()=>controlArgs(admitted,'setting-owner',{value},now));
+ for(const args of [{},{value:75,entity_id:'another'},{value:75,time:'22:00'}])assert.throws(()=>controlArgs(admitted,'setting-owner',args,now));
+ for(const mutate of [s=>s.min=false,s=>s.max=Infinity,s=>s.min=101,s=>s.step=0,s=>s.step='1',s=>s.unit=null,s=>s.current=90.5,s=>s.current=101,s=>s.current='90',s=>s.extra=true]){const s=volumeSchema();mutate(s);assert.throws(()=>controlTask(settingsTask(s),snapshot,'vacuum',now));}
+});
+test('numeric setting grids match decimal source values without floating rounding permission',()=>{
+ const schema={kind:'number',min:0.1,max:1,step:0.1,unit:'%',current:0.3};const admitted=controlTask(settingsTask(schema),snapshot,'vacuum',now);
+ for(const value of [0.1,0.3,0.7,1])assert.deepEqual(controlArgs(admitted,'setting-owner',{value},now),{value});
+ for(const value of [0.30000000000000004,0.25,0,1.1])assert.throws(()=>controlArgs(admitted,'setting-owner',{value},now));
+});
+test('DND time settings preserve exact HHMM or HHMMSS and never infer dates or timezone',()=>{
+ const admitted=controlTask(settingsTask({kind:'time',current:'22:00:00'}),snapshot,'vacuum',now);
+ for(const time of ['00:00','22:00','23:59:59','01:02:03'])assert.deepEqual(controlArgs(admitted,'setting-owner',{time},now),{time});
+ for(const time of ['24:00','23:60','22:00:60','2:00','22:00Z','2026-10-16T22:00:00','22:00:00.5',' 22:00','22:00 ','22:00\n','22:00:00\r\n','22:00\u2028',22,true,null]){assert.throws(()=>controlArgs(admitted,'setting-owner',{time},now));assert.throws(()=>controlTask(settingsTask({kind:'time',current:time}),snapshot,'vacuum',now));}
+ for(const args of [{},{time:'22:00',value:22},{time:'22:00',entity_id:'another'}])assert.throws(()=>controlArgs(admitted,'setting-owner',args,now));
+ assert.throws(()=>controlTask(settingsTask({kind:'time',current:'22:00',timezone:'UTC'}),snapshot,'vacuum',now));
+ for(const schema of [volumeSchema(),{kind:'time',current:'22:00'}, {kind:'unknown',current:'22:00'}])assert.throws(()=>controlTask({...settingsTask(schema),domain:'music'},snapshot,'music',now));
+});

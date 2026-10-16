@@ -9,7 +9,7 @@ import json
 import secrets
 import time
 
-from . import podview_speakers
+from . import podview_speakers, robot_settings
 from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
 from .podview_room_move import RoomMoveFacade
@@ -58,6 +58,8 @@ def policy(value: str) -> dict:
                 )
                 native_keys = {"nativeRoomId", "nativeHomepodId"} if domain == "music" else set()
                 shapes: tuple[set[str], ...] = (required, required | native_keys)
+                if domain == "vacuum":
+                    shapes += (required | {"settingsRoles"},)
                 if domain == "music":
                     shapes += (required | native_keys | {"default"},)
                 if not isinstance(row, dict) or set(row) not in shapes:
@@ -103,6 +105,10 @@ def policy(value: str) -> dict:
                     and not all(row.get(key) for key in ("nativeRoomId", "nativeHomepodId"))
                 ):
                     return {}
+                if domain == "vacuum" and "settingsRoles" in row:
+                    robot_settings.roles(row["settingsRoles"])
+                    if not isinstance(row["settingsRoles"], list) or "settings" not in actions:
+                        return {}
                 if domain == "vacuum" and not row["entityId"].startswith("vacuum."):
                     return {}
         accounts = {row["accountId"] for row in data["music"]}
@@ -122,6 +128,47 @@ def policy(value: str) -> dict:
 
 def failure(error: str) -> dict:
     return {"ok": False, "error": error, "retryAllowed": False}
+
+
+# Display-only exact role/value labels. Private choices retain the raw HA value.
+_ROBOT_SETTING_LABELS = {
+    "dust_collection_mode": {
+        "smart": "Smart",
+        "light": "Let",
+        "balanced": "Balanceret",
+        "max": "Maksimal",
+    },
+    "cleaning_mode": {
+        "vacuum": "Støvsugning",
+        "vac_and_mop": "Støvsugning og gulvvask",
+        "mop": "Gulvvask",
+        "custom": "Tilpasset",
+    },
+    "mop_intensity": {
+        "off": "Fra",
+        "low": "Lav",
+        "medium": "Mellem",
+        "high": "Høj",
+        "custom_water_flow": "Tilpasset vandmængde",
+        "custom": "Tilpasset",
+    },
+    "mop_mode": {
+        "standard": "Standard",
+        "deep": "Grundig",
+        "deep_plus": "Ekstra grundig",
+        "fast": "Hurtig",
+        "custom": "Tilpasset",
+    },
+    "Sugestyrke": {
+        "quiet": "Stille",
+        "balanced": "Balanceret",
+        "turbo": "Turbo",
+        "max": "Maksimal",
+        "max_plus": "Maksimal+",
+        "off": "Fra",
+        "custom": "Tilpasset",
+    },
+}
 
 
 class TouchControls:
@@ -572,7 +619,13 @@ class TouchControls:
                         and "recipeId" not in body
                     ):
                         facade = VacuumTransport(device)
-                        active = await facade.setup(target["entityId"], current)
+                        try:
+                            active = await facade.setup(target["entityId"], current)
+                        except Exception:
+                            if not rule.get("settingsRoles"):
+                                raise
+                            # Missing transport capability cannot hide independent settings.
+                            active = None
                     public_options = []
                     setup = {"mapName": None}
                     if active is not None:
@@ -602,7 +655,11 @@ class TouchControls:
                                     "argsSchema": schema,
                                 }
                             )
-                    if (active is None or active["state"] in {"idle", "docked"}) and (
+                    if (
+                        active is None
+                        or active["state"] in {"idle", "docked"}
+                        or rule.get("settingsRoles")
+                    ) and (
                         set(rule["actions"]) & {"settings", "map", "start"} or "recipeId" in body
                     ):
                         try:
@@ -611,6 +668,7 @@ class TouchControls:
                                 task["owner"],
                                 body.get("recipeId"),
                                 map_selection="map" in rule["actions"],
+                                settings_roles=tuple(rule.get("settingsRoles", ())),
                             )
                         except Exception:
                             if not public_options:
@@ -620,7 +678,11 @@ class TouchControls:
                                 return failure("stale_setup")
                             task["offered"] = offered
                             public_options += self._robot_options(task, "recipeId" in body)
-                            setup = {"mapName": offered["data"]["map"]["name"]}
+                            setup = (
+                                {"mapName": offered["data"]["map"]["name"]}
+                                if "map" in offered["data"]
+                                else {}
+                            )
             if not current():
                 return failure("stale_setup")
             self.tasks[task_id] = task
@@ -700,12 +762,48 @@ class TouchControls:
                     "set_option",
                     {
                         "kind": "choice",
-                        "choices": [{"id": key, "label": value} for key, value in choices.items()],
+                        "choices": [
+                            {
+                                "id": key,
+                                "label": _ROBOT_SETTING_LABELS.get(role, {}).get(value, value),
+                            }
+                            for key, value in choices.items()
+                        ],
                     },
                     {"entity": entity, "service": action, "choices": choices},
                 )
+        for setting in data.get("extended_settings", []):
+            if (
+                setting["role"] not in rule.get("settingsRoles", ())
+                or "settings" not in rule["actions"]
+            ):
+                continue
+            schema = setting["schema"]
+            if schema["kind"] == "choice":
+                choices = {secrets.token_hex(12): value for value in schema["values"]}
+                public = {
+                    "kind": "choice",
+                    "choices": [
+                        {
+                            "id": key,
+                            "label": {"off": "Fra", "on": "Til"}.get(value, value)
+                            if setting["domain"] == "switch"
+                            else _ROBOT_SETTING_LABELS.get(setting["role"], {}).get(value, value),
+                        }
+                        for key, value in choices.items()
+                    ],
+                }
+            else:
+                choices = {}
+                public = copy.deepcopy(schema)
+            add(
+                setting["label"],
+                "set_option",
+                public,
+                {"entity": setting["entity_id"], "extended": setting, "choices": choices},
+            )
         if "start" in rule["actions"]:
-            areas = {secrets.token_hex(12): row for row in data["map"]["areas"]}
+            areas = {secrets.token_hex(12): row for row in data.get("map", {}).get("areas", [])}
             if areas:
                 add(
                     "Start rengøring",
@@ -854,6 +952,22 @@ class TouchControls:
 
     def _steps(self, task: dict, option: dict, args: dict) -> list[dict]:
         kind = option["schema"]["kind"]
+        if "extended" in option:
+            row = option["extended"]
+            if kind == "choice":
+                if set(args) != {"choiceId"} or not isinstance(args["choiceId"], str):
+                    raise ValueError
+                raw = {"option": option["choices"][args["choiceId"]]}
+            else:
+                raw = args
+            service, validated = robot_settings.command(row, raw)
+            return [
+                {
+                    "entity_id": option["entity"],
+                    "action": service,
+                    "arguments": validated if row["domain"] != "switch" else raw,
+                }
+            ]
         if kind == "none":
             if args:
                 raise ValueError
