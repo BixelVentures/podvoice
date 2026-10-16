@@ -83,7 +83,7 @@ def policy(value: str) -> dict:
                 allowed = (
                     _MUSIC
                     if domain == "music"
-                    else {"settings", "start", "reuse", "resume", "pause", "stop", "return"}
+                    else {"settings", "map", "start", "reuse", "resume", "pause", "stop", "return"}
                 )
                 actions = row["actions"]
                 if (
@@ -603,11 +603,14 @@ class TouchControls:
                                 }
                             )
                     if (active is None or active["state"] in {"idle", "docked"}) and (
-                        set(rule["actions"]) & {"settings", "start"} or "recipeId" in body
+                        set(rule["actions"]) & {"settings", "map", "start"} or "recipeId" in body
                     ):
                         try:
                             offered = await device.display_setup(
-                                target["entityId"], task["owner"], body.get("recipeId")
+                                target["entityId"],
+                                task["owner"],
+                                body.get("recipeId"),
+                                map_selection="map" in rule["actions"],
                             )
                         except Exception:
                             if not public_options:
@@ -656,6 +659,21 @@ class TouchControls:
                 {"steps": task["offered"]["steps"]},
             )
             return rows
+        if "map" in rule["actions"] and data.get("map_options"):
+            choices = {secrets.token_hex(12): name for name in data["map_options"]}
+            add(
+                "Kort",
+                "set_option",
+                {
+                    "kind": "choice",
+                    "choices": [{"id": key, "label": name} for key, name in choices.items()],
+                },
+                {
+                    "entity": data["map_entity"],
+                    "service": "select.select_option",
+                    "choices": choices,
+                },
+            )
         if "settings" in rule["actions"]:
             settings = [
                 (r["entity_id"], "select.select_option", r["role"], r["options"])

@@ -156,6 +156,9 @@ class Capability:
     mapping_identity: str = ""
     area_segments: tuple[tuple[str, tuple[int, ...]], ...] = ()
     expected: tuple[tuple[str, str], ...] = ()
+    map_options: tuple[str, ...] = ()
+    allow_map_change: bool = False
+    map_revision: int = 0
 
 
 @dataclass(frozen=True)
@@ -179,6 +182,8 @@ class DeviceControl:
         self._generation = 0
         self._tickets: dict[str, Capability] = {}
         self._display_tickets: dict[str, Capability] = {}
+        self._map_revisions: dict[str, int] = {}
+        self._map_pending: dict[str, str] = {}
         # Terminal starts outlive capability refresh and feature toggles. An unknown
         # send must remain blocked even on a later conversational turn.
         self._starts: dict[tuple[str, tuple[str, str]], bool] = {}
@@ -531,6 +536,26 @@ class DeviceControl:
         ]
         if len(active) != 1 or type(active[0].get("flag")) is not int:
             raise CapabilityError("Det aktive Roborock-kort er ukendt eller tvetydigt")
+        pending_map = self._map_pending.get(vacuum)
+        if pending_map is not None:
+            if active_name != pending_map:
+                raise CapabilityError("Kortskift afventer observeret status; gentag ikke")
+            del self._map_pending[vacuum]
+        map_names = [m.get("name") for m in maps if isinstance(m, dict)]
+        try:
+            map_options = tuple(self._options(states[map_selects[0]]["attributes"].get("options")))
+        except CapabilityError:
+            map_options = ()
+        if (
+            len(map_names) != len(maps)
+            or any(not isinstance(name, str) for name in map_names)
+            or len(set(map_names)) != len(map_names)
+            or len(set(map_options)) != len(map_options)
+            or any(name not in map_names for name in map_options)
+            or len(map_options) < 2
+            or active_name not in map_options
+        ):
+            map_options = ()
         rooms = active[0].get("rooms")
         if (
             not isinstance(rooms, dict)
@@ -573,6 +598,8 @@ class DeviceControl:
             tuple(r["id"] for r in segments),
             self._mapping_identity(entry, area_registry),
             tuple((a["area_id"], tuple(a["segments"])) for a in areas),
+            map_options=map_options,
+            map_revision=self._map_revisions.get(vacuum, 0),
         )
         data = {
             "entity_id": vacuum,
@@ -641,7 +668,12 @@ class DeviceControl:
         return {"ok": True, "data": data, "capability_token": self._issue(cap)}
 
     async def display_setup(
-        self, vacuum: str, owner: tuple[str, str], recipe_id: str | None = None
+        self,
+        vacuum: str,
+        owner: tuple[str, str],
+        recipe_id: str | None = None,
+        *,
+        map_selection: bool = False,
     ) -> dict:
         """Server-only explicit setup; caller must establish a scoped paired owner.
 
@@ -651,6 +683,10 @@ class DeviceControl:
         if not owner[0].startswith("podview:") or not owner[1]:
             raise CapabilityError("Skærmopsætning kræver en særskilt serverejer")
         cap, data = await self._snapshot(vacuum, self._generation, owner)
+        if map_selection and recipe_id is None:
+            cap = replace(cap, allow_map_change=True)
+            data["map_options"] = [name for name in cap.map_options if name != cap.map_name]
+            data["map_entity"] = cap.map_entity
         steps = []
         if recipe_id is not None:
             history = self.cleaning_history()
@@ -718,7 +754,11 @@ class DeviceControl:
             raise CapabilityError("Capability er brugt eller udløbet; gentag ikke en uvis handling")
         self._check(cap.generation)
         current, data = await self._snapshot(cap.vacuum, cap.generation, owner)
-        if current.identity != cap.identity or current.map_fingerprint != cap.map_fingerprint:
+        if (
+            current.identity != cap.identity
+            or current.map_fingerprint != cap.map_fingerprint
+            or current.map_revision != cap.map_revision
+        ):
             raise CapabilityError("Enhed eller kort er ændret; start ikke fra det gamle opslag")
         observed = {
             cap.vacuum: data["fan_speed"],
@@ -728,7 +768,7 @@ class DeviceControl:
             raise CapabilityError(
                 "Tidligere indstillinger er ikke længere bekræftet; ingen start sendt"
             )
-        current = replace(current, expected=cap.expected)
+        current = replace(current, expected=cap.expected, allow_map_change=cap.allow_map_change)
         entity, action, arguments = args["entity_id"], args["action"], args["arguments"]
         if not isinstance(arguments, dict) or not isinstance(entity, str):
             raise CapabilityError("Ugyldige handlingsargumenter")
@@ -742,6 +782,10 @@ class DeviceControl:
             service_data.update(arguments)
         elif action == "select.select_option":
             control = next((c for c in data["controls"] if c["entity_id"] == entity), None)
+            if entity == cap.map_entity and cap.allow_map_change:
+                if current.map_options != cap.map_options:
+                    raise CapabilityError("Kortmuligheder ændredes; ingen handling sendt")
+                control = {"options": [name for name in cap.map_options if name != cap.map_name]}
             if (
                 control is None
                 or set(arguments) != {"option"}
@@ -816,6 +860,8 @@ class DeviceControl:
         self._check(prepared.capability.generation)
         domain = prepared.action.split(".")[0]
         cap = prepared.capability
+        if cap.map_revision != self._map_revisions.get(cap.vacuum, 0):
+            raise CapabilityError("Kortautoriteten er ændret; ingen handling sendt")
         # One fixed, read-only template samples all relevant states together AFTER
         # metadata I/O. No model text/template or broad target reaches this endpoint.
         ids = sorted(
@@ -869,6 +915,9 @@ class DeviceControl:
                 )
         if current[cap.vacuum].get("state") not in {"idle", "docked"}:
             raise CapabilityError("Robotten blev optaget under opslaget; ingen handling sendt")
+        if prepared.entity_id == cap.map_entity and cap.allow_map_change:
+            if tuple(self._options(current[cap.map_entity].get("options"))) != cap.map_options:
+                raise CapabilityError("Kortmuligheder ændredes under opslaget")
         if domain == "select":
             if prepared.data["option"] not in self._options(
                 current[prepared.entity_id].get("options")
@@ -919,6 +968,12 @@ class DeviceControl:
             except JournalError as exc:
                 raise CapabilityError(str(exc)) from exc
             self._starts[start_key] = True
+        map_change = prepared.entity_id == cap.map_entity and cap.allow_map_change
+        if cap.map_revision != self._map_revisions.get(cap.vacuum, 0):
+            raise CapabilityError("Kortautoriteten er ændret; ingen handling sendt")
+        if map_change:
+            self._map_revisions[cap.vacuum] = cap.map_revision + 1
+            self._map_pending[cap.vacuum] = prepared.data["option"]
         # No retries: a transport error after this boundary has an unknown outcome.
         await self._json("POST", f"services/{domain}/{service}", prepared.data)
         if prepared.action == "vacuum.send_command":
@@ -943,6 +998,7 @@ class DeviceControl:
             result["data"]["history_recorded"] = False
         if (
             prepared.action != "vacuum.send_command"
+            and not map_change
             and self.available
             and prepared.capability.generation == self._generation
         ):
