@@ -1,3 +1,8 @@
+## 2.0.34
+
+- Tilføjer Skærmopsætning i PodVoice-panelets eksisterende navigation, så parringsformularen åbnes via den normale HA-iframe.
+- Bevarer ingress-/originbeskyttelse og alle eksisterende parring-, ejer- og kontrolkrav. Genvejen giver ingen kontroladgang alene.
+
 ## 2.0.33
 
 - Stemning accepterer dokumenterede HA-klokkesvar med eksplicitte success-envelopes, mens modstridende og fejlbehæftede svar fortsat afvises.

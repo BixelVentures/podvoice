@@ -1,3 +1,40 @@
+# Aktiv leadbeslutning · PodVoice2.0.34 ·16. oktober2026
+
+**Planlagt build; endnu ikke udgivet eller installeret.** Lead v2.X/root har overtaget den afgrænsede nav-only udgivelse fra PodView-lead. Base er publiceret33, commit `8e7ff9bc9aaaf298a23c93e53bed90c672558b25`, tree `d80a00745f3f9b899fb506e13a54d7485182d5f2`. Green kører faktisk33; Speakers21 og Control14 bevares.
+
+Observeret fejl: den leverede `view/setup.html` har ingen synlig indgang fra PodVoice-panelet. Handoverens `/view/setup` er ikke en assetroute, og direkte top-level browsernavigation blev afvist med `cross_origin_denied`. Den afvisning skal bevares; den beviser ikke defekt adgangskontrol. Hypotese: én almindelig relativ genvej fra den eksisterende første-parts iframe kan åbne den faktiske opsætningsformular uden at ændre origin- eller ingressbeskyttelse.
+
+Berørt kæde: autentificeret HA-panel/iframe → eksisterende native headernavigation → relativ `view/setup.html` → uændret assetguard og setupformular → eksisterende ejer-/kode-/grantkontrol. Første `Åbn PodView`-link og dets kiosk/outer-routerbinding bevares. GPT-Live, fysisk input, værktøjsdispatch, lyd, lifecycle, teardown/rearm og næste wake er uændrede. Invarianter: ingressvisning er aldrig kontrolautoritet; navigation opretter ingen grant, kommando eller pairingattempt; alle eksisterende cross-site/same-site og POST-shape-afvisninger bevares.
+
+Mindste ændring: ét ekstra eksisterende-style headerlink, fem kausale regressionscases, versionsmetadata34 og additiv exact34-admission med uændrede historiske gates. Ingen nye settings, routealiaser, originundtagelser, credentialgenerator, policy-/kvote-/nonce-/ledgerændringer eller automatisk hjemmehandling. Musikens separate room/native-transportrettelse og øvrigt PodView-design er ikke del af denne kandidat.
+
+Uafhængigt review af navpatch `e7653d69332c597dd4409014f212624d2e8fa993aec48ddb1ca0a1d0725515eb` er GO; reviewer kontrollerede faktisk33-base, uændret guard og første-link-binding. Fem fokuserede handler/prefixkontroller er tidligere PASS på samme nav/testbits; formatter/lint, endelig admissionreview og officiel CI skal bestå på det samlede frosne træ. Ingen provider- eller fysisk test kræves for linkændringen. Green-kontrol skal vise faktisk formular via klik; efterfølgende parring og faktiske musik-/robot-/timerhandlinger er særskilt, endnu ikke bevist.
+
+Rollbackgrænse: behold immutable33 og eksisterende seks Green-policystrings; ingen allowance-, credential- eller ledgerrollback. Kun PodVoice opdateres ved faktisk grøn34-publicering. Installation, browserfunktion, parring og fysisk accept må ikke udledes af source-GO eller CI. Opdatér denne post med faktisk levering og resterende blocker.
+
+<!-- podview34-admission
+{
+  "version": 9,
+  "kind": "podview34_pairing_navigation_only",
+  "base_tip": "8e7ff9bc9aaaf298a23c93e53bed90c672558b25",
+  "merge_base": "8e7ff9bc9aaaf298a23c93e53bed90c672558b25",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "fingerprint": "fa23aa3b992d289bb4ba31fe8e9187d4017a6b2e5f8df084e71a16deb09271b6",
+  "regression_fingerprint": "83fc1e324f1373f1becbb62afbb56f7fdd9119fd693a4a8a55b3651f3c9e575e",
+  "runtime_fingerprint": "0f30fa4d50da2b1977df66edff0b318873ba1bbaf18ad43d39849556c2bc3301",
+  "config_fingerprint": "b673504cf97029fe03aa3da4d6aa731475a6cfeff6dfb6d977d2293a10f28fa8",
+  "policy_fingerprint": "348cf27aaf8861bb208d86ee7769c3c6fdf067d9255300c83894d164747fc684",
+  "tooling_fingerprint": "8bab6fe0425d7294eb033fdb6281d21a9b745ec97e3f9dc82a3a7b671924ea7e",
+  "manifest_fingerprint": "18249c439875764e64d70a4424e29245b7d460e0b49b935cb099402a05e2f673",
+  "reviewer": "Independent Codex /root/review34; exact34 source, admission, and artifact review",
+  "rationale": "Independent nav-only source and admission review: one relative setup link, unchanged ingress/owner guards and first PodView link; strict33-base exact scope and historical dispatch verified. Focused tests and static checks passed; PROFILE_AST pin computed with required Python 3.12. Official CI, publication, Green click, pairing and physical acceptance remain separate."
+}
+-->
+
+---
+
 # Aktiv leadbeslutning · PodView2.0.33 ·15. oktober2026
 
 Planlagt build, ikke udgivet eller installeret. Lead root; runtimeforfatter ai_latency_acceptance_sol; uafhængigt runtimereview autoplay_acceptance_sol; særskilt admissionreview weather_data_acceptance_sol. Base er faktisk udgivet32 abe759678168ba6408e10ae0a8a3621249631d13.

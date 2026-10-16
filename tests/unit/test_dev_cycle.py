@@ -426,6 +426,8 @@ def test_scope_change_invalidates_focused_result():
     [
         ("frozen-base", "scripts/candidate_scope_admission32.py"),
         ("0e56c593c6ce9a3e1666b5fd535d3424cc691b9c", "scripts/candidate_scope_admission31.py"),
+        ("abe759678168ba6408e10ae0a8a3621249631d13", "scripts/candidate_scope_admission33.py"),
+        ("8e7ff9bc9aaaf298a23c93e53bed90c672558b25", "scripts/candidate_scope_admission34.py"),
     ],
 )
 def test_release_runs_candidate_scope_against_frozen_merge_base(
