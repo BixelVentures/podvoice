@@ -421,7 +421,11 @@ pv-widget-host{--overview-lift:72px}
 .weather-view .weather-hours img{width:26px;height:26px}
 .weather-view .weather-hours strong{font-size:20px}
 .weather-view .weather-hours .weather-hour-rain,.weather-view .weather-hours .weather-hour-wind{font-size:12px;line-height:1.3;white-space:nowrap;margin:0;color:#425e68}
-#weather-view .weather-hours small.weather-hour-wind{margin-top:0}
+#weather-view .weather-hours small.weather-hour-wind{margin-top:0;display:flex;align-items:center;justify-content:center;gap:4px;max-width:100%;white-space:normal;text-align:center}
+.weather-hour-wind .weather-wind-label{min-width:0}
+.weather-hour-wind .weather-wind-direction{display:inline-block;flex:0 0 12px;width:12px;line-height:1;transform-origin:center}
+.weather-hour-wind .weather-wind-direction::before{content:"↑";display:block}
+.weather-hour-wind .weather-wind-direction[hidden]{display:none}
 .weather-view .weather-days{padding-top:20px}
 .weather-view .weather-days h2{font-size:20px;line-height:1.3;margin:0 0 8px}
 .weather-view .weather-days>div{grid-template-columns:minmax(84px,auto) 26px 36px minmax(40px,1fr) 36px;gap:12px;padding:12px 0;font-size:15px;font-variant-numeric:tabular-nums}

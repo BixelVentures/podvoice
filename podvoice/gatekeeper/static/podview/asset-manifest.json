@@ -203,7 +203,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "ed45c70ee180c0b2a2fea0049592b8c386f0829f6f74fe5bf5898f73fa677ba3"
+      "sha256": "1ea8c0e36a02c7f2933dfcb89a3de2499c8449a2d5a90628c3af97ee2bd7e429"
     },
     {
       "path": "example-sources.html",
@@ -331,11 +331,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "98161ff28b5185f78d4a25e98a328ae46e7f731c3b5673c6200845e8fb09fff7"
+      "sha256": "657853507ddfea4abced3a84e4d925af64d5943c778bb98c3cf8d085fa310c0f"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "716262e567d899f17c08b3da5c9090d935009e76796cc95698468eff2becd39e"
+      "sha256": "36a0a0b0f1251c3a5d6f0172709b5cd04a68073650d23d509ee167b9748d9bd6"
     },
     {
       "path": "podvoice-view.js",
@@ -359,7 +359,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "d61034bb68f96912fd7b3db050a4f3d59d945b7075661086c492302066b515b6"
+      "sha256": "c4338b239f43b93fd18736dc1b8d1c4210645ac9c7db0cbdf58fd2ac6ca79cf3"
     },
     {
       "path": "robot-observation.js",
@@ -392,6 +392,10 @@
     {
       "path": "setup.js",
       "sha256": "1cb964c48bda45c0164585e613b20d9388730527e8e65ff152b9525b64d5fc9f"
+    },
+    {
+      "path": "speaker-output-view.js",
+      "sha256": "89475e85bad33f9dae38cdcae118935904dfffcbce3594793f3b0543ce0debfc"
     },
     {
       "path": "spotify-artwork.js",
@@ -507,11 +511,11 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "85f78a56cedf8fe2af443e5c16552074605686e14594d2f76cf1ba2be8d4ae87"
+      "sha256": "158621374e5190bded3d9747bdfc3d0698f65ceb0bd845de4f8284d47b501bac"
     },
     {
       "path": "weather-view.js",
-      "sha256": "1bbf25698c2d8312473b33f9545fec403806474331f5f416a61e6f7fa7f9b803"
+      "sha256": "f72f14f81647fa277dda5a25fb55f626a7944580cb3c43bad69eea60f8dc4d16"
     },
     {
       "path": "widget-model.js",
@@ -519,7 +523,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "edfebc5db8ad1f861e8526ac00cc8532167b7668353dd6f7c591e7cf1696a7dc"
+      "sha256": "8f9afdd24112ff573848c421d75f9aaa31cf8ab687de69faa3c529f472da2953"
     },
     {
       "path": "widget-view.css",
@@ -527,7 +531,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "99173b60e585f7d44ccd51087f64d0c87a1381d36f4ba41e77c71c44ba0f8cf6"
+      "sha256": "28b181a16c6ae224cb430c3dcbf90f9090e161c54393cd76f145e078cd86255a"
     },
     {
       "path": "workshop.css",

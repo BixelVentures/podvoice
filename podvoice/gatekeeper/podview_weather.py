@@ -247,6 +247,11 @@ def weather_projection(response: object, *, display_city: str = "") -> dict:
             if not _text(row["condition"], 64):
                 return unavailable
             projected["condition"] = row["condition"]
+        # HA wind_bearing is an optional azimuth in degrees. Keep actual
+        # numeric north (0 or 360); cardinal strings/invalid values stay absent.
+        bearing = row.get("wind_bearing")
+        if _number(bearing) and 0 <= bearing <= 360:
+            projected["wind_bearing"] = bearing
         for key in _NUMBERS.intersection(row):
             number = row[key]
             # Home Assistant documents native_temperature as the higher daily
