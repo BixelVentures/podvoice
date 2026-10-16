@@ -1,6 +1,7 @@
 """PodView34 navigation admission fails closed until independent exact-tree review."""
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -26,13 +27,34 @@ def test_closed_navigation_inventory_and_historical_pins():
         assert admission.sha((SOURCE / name).read_bytes()) == digest
 
 
-def test_unreviewed_candidate_rejects_even_with_complete_old_approval(monkeypatch):
+def test_historical_record_cannot_supply_missing34_approval(monkeypatch, tmp_path):
+    status = tmp_path / "docs/STATUS.md"
+    status.parent.mkdir()
+    status.write_text('<!-- podview33-admission\n{"reviewer": "historical"}\n-->\n')
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "docs/STATUS.md"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Synthetic",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "synthetic old approval",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    monkeypatch.setattr(admission, "BASE", base)
     monkeypatch.setattr(admission, "REVIEWER", "")
     report = admission.legacy.CandidateScope(
-        "head", admission.BASE, (), (), admission.DOMAINS, True, "historical PASS"
+        "head", base, (), (), admission.DOMAINS, True, "historical PASS"
     )
     monkeypatch.setattr(admission.previous, "inspect_repository", lambda *_args: report)
-    inspected = admission.inspect_repository(SOURCE, admission.BASE)
+    inspected = admission.inspect_repository(tmp_path, base)
     assert not inspected.passed
     assert "PodView34" in inspected.reason
 

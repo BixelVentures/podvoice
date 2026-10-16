@@ -8,14 +8,14 @@
   },
   "policy": {
     ".github/workflows/ci.yml": "c43e1b3d34b76ab809aee8507f12ecc6b77dc631889cc73d3032e5cd31571d40",
-    "scripts/dev_cycle.py": "2c5ec2ee4ed50b37dfae91499090b77c6ae21400d931d30cd86da1584e978bd0"
+    "scripts/dev_cycle.py": "8d8a3d5aa366947e066ea9610bb90f60a83001db6956a66eb1a6628d2a4b9298"
   },
   "production": {
     "podvoice/gatekeeper/static/index.html": "7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51"
   },
   "regressions": {
     "tests/integration/test_podview_pairing_navigation.py": "2375be76eb6540f337c994c9d99b0bfd37816b43bf026f96ce10ed7d3639b993",
-    "tests/unit/test_candidate_scope_admission34.py": "de285cc78842e3cb028e5ce885e15d35e4da69a98124f08820ef37e7c7bd3d05",
+    "tests/unit/test_candidate_scope_admission34.py": "e20c983bba02f70848b302e66fcb0da6a9e3d8fd5f8b924ddd8b1e8c8038f05a",
     "tests/unit/test_dev_cycle.py": "a78128c3102bc7cfd731ccb917d57af8504d54a1f1dc7ab3a870bbb0aff2ac60"
   },
   "runtime": {

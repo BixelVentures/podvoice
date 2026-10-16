@@ -41,8 +41,8 @@ REQUIRED_TESTS = frozenset(
     }
 )
 REVIEWER = "Independent Codex /root/review34; exact34 source, admission, and artifact review"
-MANIFEST_SHA = "d7b7e5775446174735da6fc0fafd4d26121dc45909c6516db459fa32788261ee"
-PROFILE_AST = "f9987f9d64c48d16f5047b36fddc2e15f83c48f463aee5224430b6e2a51d0cb7"
+MANIFEST_SHA = "35b97bcbf4578504360a9be40210444a1fd4d0df27067283882e4b121d738d2f"
+PROFILE_AST = "d5d7916be7d198c3729e4fe39dc5d5110e318424d08cbed7b5d30c8af4243990"
 IMMUTABLE: dict[str, str] = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission33.py": "711fe322bbc49d77e86f16f6731db288b799d5d92a979dca76e39250587a9dde",
     "scripts/podview33-admission-reviewed.json": "3ac03a9cfc7d3befa074e732f76764005a463624f24551314282b54204c733a6",

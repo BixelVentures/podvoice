@@ -6,7 +6,7 @@ Observeret fejl: den leverede `view/setup.html` har ingen synlig indgang fra Pod
 
 Berørt kæde: autentificeret HA-panel/iframe → eksisterende native headernavigation → relativ `view/setup.html` → uændret assetguard og setupformular → eksisterende ejer-/kode-/grantkontrol. Første `Åbn PodView`-link og dets kiosk/outer-routerbinding bevares. GPT-Live, fysisk input, værktøjsdispatch, lyd, lifecycle, teardown/rearm og næste wake er uændrede. Invarianter: ingressvisning er aldrig kontrolautoritet; navigation opretter ingen grant, kommando eller pairingattempt; alle eksisterende cross-site/same-site og POST-shape-afvisninger bevares.
 
-Officiel PR-CI fandt, at den lange linklabel gav 200%-overflow ved320px. Brugeren har udskudt mobilforbedringer. Kun den nye label forkortes derfor til `Par skærm`, så normal ombrydning fungerer med den eksisterende header/CSS; ingen layout-, CSS-, timeout- eller guardændring. Browserens eksisterende 320px/200%-overflowregression er målrettet genkørt PASS på den nye HTML SHA `7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51`, med fuldført worker-oprydning. Tidligere navpatch-GO gælder de uændrede route-/guardbits; nye label-/test-/metadatafingerprints kræver frisk pin-binding før næste push.
+Officiel PR-CI fandt, at den lange linklabel gav 200%-overflow ved320px. Brugeren har udskudt mobilforbedringer. Kun den nye label forkortes derfor til `Par skærm`, så normal ombrydning fungerer med den eksisterende header/CSS; ingen layout-, CSS-, timeout- eller guardændring. Browserens eksisterende 320px/200%-overflowregression er målrettet genkørt PASS på den nye HTML SHA `7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51`, med fuldført worker-oprydning. Tidligere navpatch-GO gælder de uændrede route-/guardbits. PR #172-unit fandt tre fixture/toolingfejl: historisk31-dispatchens literalform og en ny34-test med skjult afhængighed af Git-ancestry i shallow CI. Kun dispatchform og en selvstændig syntetisk Git-test blev rettet; otte fokuserede checks og Ruff/format bestod. HTML SHA, browser-PASS, rest-PASS og ARM-build-PASS er uændrede; officiel CI på denne nye kildekandidat resterer.
 
 Mindste ændring: ét ekstra eksisterende-style headerlink, fem kausale regressionscases, versionsmetadata34 og additiv exact34-admission med uændrede historiske gates. Ingen nye settings, routealiaser, originundtagelser, credentialgenerator, policy-/kvote-/nonce-/ledgerændringer eller automatisk hjemmehandling. Musikens separate room/native-transportrettelse og øvrigt PodView-design er ikke del af denne kandidat.
 
@@ -24,14 +24,14 @@ Rollbackgrænse: behold immutable33 og eksisterende seks Green-policystrings; in
     "unclassified_runtime"
   ],
   "fingerprint": "6c0b22a259de9bc03c10c5b73756f6d30bc2ce993d1966b93365ac9b683b929c",
-  "regression_fingerprint": "c0aa81dca87475b18dee12514f376b3dfe61397fa55b19d8f4e6c9444c3cd8f9",
+  "regression_fingerprint": "a60095b160080e071925332539d5a9bb430dee091790e0bf6d44dc5c0a30560c",
   "runtime_fingerprint": "0b710aa8101daea238f0b1bbfc14eb8ec98d3149506dc253b49ab602dfdc9629",
   "config_fingerprint": "b673504cf97029fe03aa3da4d6aa731475a6cfeff6dfb6d977d2293a10f28fa8",
-  "policy_fingerprint": "dc632f8ab0682dd75b310c4e1280f4c981e714c6670ac3f2dc2c2b1275076f3b",
+  "policy_fingerprint": "739bcc5759f70cd97f1b85f5a90cb1d8bd06092d5f02de73a931567fe2cd71ce",
   "tooling_fingerprint": "8bab6fe0425d7294eb033fdb6281d21a9b745ec97e3f9dc82a3a7b671924ea7e",
-  "manifest_fingerprint": "d7b7e5775446174735da6fc0fafd4d26121dc45909c6516db459fa32788261ee",
+  "manifest_fingerprint": "35b97bcbf4578504360a9be40210444a1fd4d0df27067283882e4b121d738d2f",
   "reviewer": "Independent Codex /root/review34; exact34 source, admission, and artifact review",
-  "rationale": "Independent nav-only source and admission review: shorter Par skærm label keeps the same relative setup target, ingress/owner guards, and first PodView binding. The existing 320px/200% daily UI browser gate passed on HTML SHA 7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51 with cleanup complete. Prior focused handler and static checks cover unchanged behavior; PROFILE_AST pin computed with required Python 3.12. Official rerun, publication, Green click, pairing and physical acceptance remain separate."
+  "rationale": "Independent nav-only source and admission review: shorter Par skærm label keeps the same relative setup target, ingress/owner guards, and first PodView binding. The existing 320px/200% daily UI browser gate passed on HTML SHA 7494c47f88e4efc47f7a9b58857737c40ebff20e6e432666ac805f3a75c42c51 with cleanup complete. CI unit found historical dispatch-literal and shallow-Git fixture faults; tooling and test only repaired with 8 focused checks PASS. Prior focused handler and static checks cover unchanged behavior; PROFILE_AST pin computed with required Python 3.12. Official rerun, publication, Green click, pairing and physical acceptance remain separate."
 }
 -->
 
