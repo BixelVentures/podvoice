@@ -1,8 +1,12 @@
-# Aktiv leadbeslutning · PodView genopretning af aktuelle visninger 2.0.45 · 18. oktober 2026
+# Aktiv leadbeslutning · kontovisning og tværfane-fornyelse · PV46 · 18. oktober 2026
 
-**PV45 leadbeslutning — planlagt kandidat, ikke fysisk accepteret.** PV44 er publiceret og Kører på Green med alle seks gemte policies uændrede. Passiv readback bagefter viste otte robotområder deaktiveret efter åbning af kontrol-dialogen; efter lukning var kontrolknappen væk, og UI bad om at hente betjeningen igen. Ingen handling blev startet. Musikknapper blev tidligere aktive efter almindelig genindlæsning og deaktiveret igen minutter senere; Afspil blev ikke trykket. Dette beviser et tidsbegrænset/stale UI-forløb, men fastslår ikke, om årsagen ligger i browsertransport, serverobservation, grant eller provider.
+**Faktisk PV45-levering:** PR196 bestod CI664 run39077296213, blev merged som `e5e9ec495061e6b3f97f6555a28dafecdeceed3f` med verificeret tree `6c30d5a493255d9f00ac5ae6bcade3698dab80ae`, og main CI665 lykkedes via exact-tree reuse. Release 2.0.45 er publiceret med digest `sha256:ff8c7958d648cae2d5f0791b86a91698a93549106b41fa89ade7bef22ec47fa9`; Green rapporterede Kører, og alle seks policies var uændrede. Det er leveringsbevis, ikke fysisk accept.
 
-PV45 samler den afgrænsede UI-genopretning: genoptag transportens observation efter recovery, forny udløbne læsevisninger uden at afspille automatisk, behold eksplicit eksisterende bekræftelse, afvis stale/ukendt ejerskab og bevare fokus efter udløb; timevejret vises kronologisk inden for den nuværende grænse. Kæden er parret browser → eksisterende read/renewal → aktuelle room/session/source/expiry checks → visning og brugerens eksisterende eksplicitte handling. Invarianter: ingen autostart, ingen gentagelse af ukendt effekt, ingen genbrug af udløbet handlingsret uden frisk validering, én gældende kilde/owner, og GPT-Live/voice-handlinger forbliver uændrede. Hypotesen er, at disse afgrænsede UI-overgange fjerner observeret stale/expired visning uden at ændre kontrolmyndighed; provider-/Green-/fysisk effekt er fortsat uafklaret. Regressioner dækker transportgenopretning, svarfokus, chronologisk vejr, musikfornyelse og stale/provider-afvisning. Rollback er publiceret 2.0.44. Under nattens installation og kontrol må ingen lyd, alarm eller robotbevægelse startes; fysisk accept står åben.
+Passiv Green-readback fandt først otte robotområder aktive; cirka 48 sekunder senere viste kontrolpanelet scopeændring og nul aktive områder. Ingen refresh, retry eller handling blev udført, og robotbevægelse er ubevist. Musikvisningen viste tre klar-knapper og beholdt samme valg efter normal retur, men udløbne valg forblev synlige; ingen Play blev trykket, og faktisk lyd/URI/DOM-identitet er ubevist. Timerknappen var kun synlig og alarm blev ikke prøvet. `#197`-fejlens faktiske Green-årsag er stadig ukendt. Ingen husholdningseffekt blev startet.
+
+PV46 samler den afgrænsede musik-kontovisning og tværfane-genopretning i én kandidat. Den shippede kæde er browserens kontovalg → fælles transport/session → fornyelse af udløbet adgang → peer-meddelelse → tokenfri read-only observation → validering af aktuel konto/rum/kilde/udløb → UI og brugerens eksisterende eksplicitte handling. Den fokuserede delayed-notice-kontrol bekræfter højst én samtidig HTTP-fornyelse, tillader to sekventielle requests og viser, at revocation giver friske observationer uden capabilities eller action-POSTs. Peer-hints er aldrig adgangsbevis. Invarianter: ingen genbrug af udløbet handlingsret uden frisk validering, ingen gentagelse af ukendt handling, stale konto/rum/kilde afvises, ingen automatisk afspilning eller hjemmehandling, alle143 assets bevares, og GPT-Live samt eksisterende policy er uændret. Ikke-mål: at bevise provideradgang, faktisk musik/lyd, robot, timeralarm eller Green-funktion.
+
+Uafhængig PV46 kilde-/adoptionsreview er GO (receipt `/private/tmp/pv46-source-adoption-final-review-20261018.json`, SHA `94087a7f2ed9c5cc2266c08c710faa27a88331af4e6c3960c6d72bd82a965618`). Den gennemgik max-one-concurrent-renewal under forsinkede notices, endelig read-only konvergens efter revocation og nul action-POSTs. Admissionværktøj og 46-test er under exact-tree-kompositionsreview; fokuserede historisk45/46-admission- og routingtests samt formatter/lint passerer. Kandidaten er endnu ikke officielt testet, publiceret eller installeret. Rollback er den publicerede 2.0.45. Under nattens installation og kontrol må ingen lyd, alarm eller robotbevægelse startes; fysisk accept står åben.
 
 CI663 run39076856529 failed only `tests/unit/test_candidate_scope_admission44.py::test_44_draft_manifest_has_exact_inventories`: the PV44 asset-manifest pin was compared with the active PV45 checkout (`137e57d5…`) instead of PV44’s published manifest (`119d780a…`). This was a historical-fixture-root error, not a product regression. The fixture now checks its existing assertions in an actual published44 snapshot; no runtime or UI source change follows from the failure. The focused PV44/PV45 admission tests pass 8/8.
 
@@ -13,6 +17,27 @@ CI663 run39076856529 failed only `tests/unit/test_candidate_scope_admission44.py
 **PV44 beslutningsgrundlag (historisk):** Green-readback efter 43 markerede robotopfriskning inde i dialogen som åben. Den samlede godkendte UI-delta præciserer fire begrænsede interaktioner: eksplicit frisk `controlSetup`-læsning efter udløb; display-only speakerlabel bundet til eksisterende konto/rum/boot/catalogue; fjernelse af redundant kontovælger kun ved præcis én konto; oprydning af transient gestustilstand ved blur/cancel. Kausal kæde: parret browser → eksisterende læs/grant og aktuel owner/device/room-kontekst → DOM/gestures; robot-refresh revaliderer efter await og starter ingen handling. Invarianter: ingen automatisk robot- eller musikhandling, ingen label som afspilningssandhed, ingen genbrug efter stale ejer/boot/target, og flere konti kræver fortsat eksplicit valg. Hypotesen er, at de konkrete read-only state-/fokusændringer fjerner de identificerede panel- og pickerfriktioner uden at ændre kontrolrettigheder. Regressionerne er de fire nye canonical root-tests plus exact-tree/profile og routing; behold alle143 aktiver og de eksisterende UI-/komponentgates. Fysisk musik/robot/timerfunktion bevises ikke her. Rollback var den publicerede 2.0.43. Den efterfølgende 2.0.44-levering og dens fysiske acceptgrænse er registreret ovenfor.
 
 PV43s CI658-fejl bevares historisk: testfixture havde en intern fake-providerfrist på200ms, mens en inert createforsinkelse på250ms reproducerede den manglende handshake under produktets uændrede 8s loft. Kun testens lokale frist blev rettet, accepted wake og handshake blev krævet, og separat timeoutregression blev bevaret. Den opdaterede PR191-kandidat bestod CI659; efter merge lykkedes main CI660 med verificeret reuse fra samme PR-run. Ingen produktionshash eller produkt-timeout ændredes.
+
+<!-- podview46-admission
+{
+  "version": 23,
+  "kind": "podview46_visual_followup",
+  "reviewer": "Independent /root/release_readiness PV46 exact composition and admission review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "e5e9ec495061e6b3f97f6555a28dafecdeceed3f",
+  "merge_base": "e5e9ec495061e6b3f97f6555a28dafecdeceed3f",
+  "rationale": "Uafh\u00e6ngig PV46-kompositionsreview GO. Kandidaten begr\u00e6nser sig til to UI-moduler, genereret manifest, 10 regressionsstier, 249 runtimepins og 143 u\u00e6ndret inventar. Fokuseret delayed-notice-kontrol viser h\u00f8jst \u00e9n samtidig fornyelse, sekventielle fornyelser og frisk read-only konvergens efter revocation; ingen action-POST. Historiske41\u201345-profiler og manifests forbliver u\u00e6ndrede. Udgivelse, Green-installation, providerfunktion og fysisk accept er separate og endnu \u00e5bne gates.",
+  "fingerprint": "8c303ba8e8714afadcd137641cee85724d8612deae7b250177ec42f8cc10e665",
+  "regression_fingerprint": "9df07c58dc09e96f67b46335636686d78cf3e152cb861fe192b37aa6a27237c3",
+  "runtime_fingerprint": "209a93b949f4bf85e4b16239886d10f47a1ceae2b028a147f462e72e8ae4b478",
+  "config_fingerprint": "8899881607f53ddd6f9402f71e7d3aec96eb5028a1d9ba8bc6e1388470e27dce",
+  "policy_fingerprint": "9299b48a6a558ad114d76cdedd2b4bd465f822b45f7d2fee6ae6a312e3add3ea",
+  "tooling_fingerprint": "66b29d3e07434445559bd9165740f75d2090894d50f91f2191fa8bd8629e827b",
+  "manifest_fingerprint": "21d21579bae3371aa47ba7a33c8b3601bf7468dfb701a5e7f22f0e4c9ebd57bc"
+}
+-->
 
 <!-- podview45-admission
 {
