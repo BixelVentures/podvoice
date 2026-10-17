@@ -61,6 +61,7 @@ HA_RUNTIME = previous.HA_RUNTIME
 REQUIRED_TESTS = frozenset(
     {
         "tests/ha_framework/test_controller_admin_services.py",
+        "tests/ha_framework/test_options_flow_http.py",
         "tests/integration/test_podview_admin_provision.py",
         "tests/integration/test_podview_controller_continuity.py",
         "tests/integration/test_podview_device_approval.py",
@@ -76,8 +77,8 @@ REQUIRED_TESTS = frozenset(
 )
 # Lead fills approval only after an independent review of the final composition.
 REVIEWER = "Independent /root/profiles_owner_review source and /root/controller_registry_review admission39"
-MANIFEST_SHA = "6952f3a8dd3d19141a50c59900df78d5b6bc1e65de93bc7e03d904e1f3d8f434"
-PROFILE_AST = "db8e57b5e71de2da13af3789cf8ca76ec7e33ca7290a2182d7d086fec085aa54"
+MANIFEST_SHA = "19e66c9ca987b4ca6988d2307ced088a7d884d6cb3bee6bcf48b89e2bfb8b5b2"
+PROFILE_AST = "5ea4714bde1cce9229d8b44dc77feb2eafa12538b22c21049f51b3081a30eaaa"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission38.py": "7463aa9eefebc509d7b23b321e08d747b6b18e35e640e09f9a5091a72ee62c8d",
     "scripts/podview38-admission-reviewed.json": "6d302077ce3c3152c029073b0d318d151dd15990b62795a41fab266bc46a99f0",

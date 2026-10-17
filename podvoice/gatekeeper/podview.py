@@ -27,6 +27,7 @@ from . import (
     podview_weather,
     podview_weather_brief,
 )
+from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
@@ -258,7 +259,7 @@ class PodViewBridge:
         self._pairing_attempts = 0
         self._controller_enabled = controller_enabled is True
         self._controller_days = controller_days
-        self._controller_registry = None
+        self._controller_registry: ControllerRegistry | None = None
         self._controller_admin_state = None
         self._controller_grants: dict[str | tuple[str, str], str] = {}
         self._controller_requests: dict[str, dict] = {}
@@ -266,8 +267,6 @@ class PodViewBridge:
         self._controller_revocation_failed: set[str] = set()
         self._controller_revoking: set[tuple[str, str]] = set()
         if self._controller_enabled and controller_store is not None:
-            from .podview_continuity import ControllerRegistry
-
             try:
                 self._controller_registry = ControllerRegistry(
                     controller_store, controller_generation, controller_days
@@ -432,7 +431,7 @@ class PodViewBridge:
         if not grant:
             return False
         secret, session, owner, epoch, binding, deadline = grant
-        identity = self._controller_grants.get(slot)
+        identity = self._controller_grants.get(slot) if slot is not None else None
         if identity is not None:
             registry = self._controller_registry
             try:
@@ -483,7 +482,7 @@ class PodViewBridge:
         )
         return hashlib.sha256(encoded.encode()).hexdigest()
 
-    def _controller_request_scope(self, room: str) -> tuple[object, tuple, str]:
+    def _controller_request_scope(self, room: str) -> tuple[ControllerRegistry, tuple, str]:
         registry = self._controller_registry
         if (
             not self._controller_enabled
@@ -1674,19 +1673,25 @@ async def _controller_claim(request: web.Request) -> web.Response:
     response = web.json_response(result, headers={"Cache-Control": "no-store"})
     if cookies is not None:
         controller_token, action_token, expiry = cookies
-        cookie_options = {
-            "httponly": True,
-            "samesite": "Strict",
-            "secure": request.secure or request.headers.get("X-Forwarded-Proto") == "https",
-            "path": prefix + "/view/",
-        }
+        secure = request.secure or request.headers.get("X-Forwarded-Proto") == "https"
         response.set_cookie(
             _CONTROLLER_COOKIE,
             controller_token,
             max_age=max(0, int(expiry - time.time())) if expiry is not None else 400 * 86400,
-            **cookie_options,
+            httponly=True,
+            samesite="Strict",
+            secure=secure,
+            path=prefix + "/view/",
         )
-        response.set_cookie(_PAIR_COOKIE, action_token, max_age=300, **cookie_options)
+        response.set_cookie(
+            _PAIR_COOKIE,
+            action_token,
+            max_age=300,
+            httponly=True,
+            samesite="Strict",
+            secure=secure,
+            path=prefix + "/view/",
+        )
     return response
 
 

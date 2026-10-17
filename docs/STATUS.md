@@ -17,6 +17,9 @@ Faktisk udviklingsstatus (samme beslutning): registry-skemaet understøtter nu t
 
 PodView-rootens reviewede canonical setup.html, setup.js og podvoice-transport.js er adopteret byteidentisk; kun de tre tilsvarende manifestposter er ændret (manifest SHA256 844929105bce9ec72476c6d0560b4ef49d51487c6f3462c6a4ce736eb6d4408f). Root rapporterer 17 nye setup- og fem kontinuitetscases bestået samt samlet frontend-suite 580/580 og component gate 50. Dette er kilde-/testbevis, ikke Green-funktion. Normal HA-åbning går til integrationssiden i en separat fane; brugeren vælger fortsat Konfigurér og godkender den viste anmodning. Ingen påstand om automatisk adminsamtykke eller én direkte HA-knap. Installationsaudit viste, at add-on-image ikke indeholder custom_components: native HA-integrationen skal derfor udgives som 0.1.3, opdateres særskilt gennem HACS og indlæses ved HA Core-genstart sammen med add-on 2.0.39. Denne nødvendige manifestændring indgår i kandidatens scope/review. Ingen ny udgivelse, installation, browsertilmelding eller fysisk accept er udført.
 
+
+CI641 på den første publicerede PR-kandidat: exact admission, pakket UI/browser, add-on-build/shippet stdin og REST-suite bestod. HA-framework fandt en forældet engangskode-fixture og en fixture, der forsøgte at deaktivere HA-ejeren; unit-cohort stoppede på manglende typeangivelser. Disse er repareret uden produktadfærdsændring, uafhængigt delta-review gav GO (receipt SHA256 a5b09967e8a820b69885001b8f6bd563d5773667d643379718e42b23e7e96dfa), og faktisk mypy på alle 85 gatekeeper-filer samt Ruff bestod. Ny præcis kandidat afventer officiel CI; fejlede checks er ikke ommærket til bestået.
+
 <!-- podview39-admission
 {
   "version": 16,
@@ -27,14 +30,14 @@ PodView-rootens reviewede canonical setup.html, setup.js og podvoice-transport.j
   ],
   "base_tip": "f0e3d62a5677050d2373f691a61cd733b3dd5be6",
   "merge_base": "f0e3d62a5677050d2373f691a61cd733b3dd5be6",
-  "rationale": "Source owner/security GO receipt d4c1e692fbb54ad44be59e6f9b7fff814f9016570d5affdd3fb6691bfb602249; independent admission39 GO including corrected post-binding regression. CI, publishing, installation and physical acceptance remain separate.",
-  "fingerprint": "595f26d25d37ed4830ad4acc8cfb1911d58c4ef5a0cbcaa20598a0506e0f0361",
-  "regression_fingerprint": "8ac45c15192baac788d6ae577e3f3816d678cdb00aed15f91b0d966da38fd67a",
-  "runtime_fingerprint": "2d0e75d5333b6ea338f93c3a0abb2c604a9b309f23da147a7b75e983506fa9e5",
+  "rationale": "Independent source GO and CI641 narrow delta GO receipt a5b09967e8a820b69885001b8f6bd563d5773667d643379718e42b23e7e96dfa; final admission map independently verified. CI641 scope/UI/build/REST passed; HA fixture and type-only repairs await official CI. No installation or physical acceptance claimed.",
+  "fingerprint": "3f2e7472dc5522bbd838b8fc21945731cb712602d151891c58e7c4591f51512e",
+  "regression_fingerprint": "f423fe24071018daa3950a12d253c85c6aa36b5a69f0eee0986a71f4c6ec96db",
+  "runtime_fingerprint": "e69484c5788afbc6e9c31d67c320831344aa115a81798102f9d640dba21edfdb",
   "config_fingerprint": "0f34666275084303c80f55d8c5fc402e1b05ef3b654628e2dc9427108100add4",
-  "policy_fingerprint": "ef9a3c9a1502c9b0e08adea958744e99077dcff12a1dd7cd45778416505bf35d",
+  "policy_fingerprint": "72afbf0cd8823924e29fad5dbd09f1e0f0a5354ee826508ba0d8e864049c3ddb",
   "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
-  "manifest_fingerprint": "6952f3a8dd3d19141a50c59900df78d5b6bc1e65de93bc7e03d904e1f3d8f434"
+  "manifest_fingerprint": "19e66c9ca987b4ca6988d2307ced088a7d884d6cb3bee6bcf48b89e2bfb8b5b2"
 }
 -->
 

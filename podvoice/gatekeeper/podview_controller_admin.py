@@ -145,7 +145,7 @@ class ControllerAdminState:
 
             registry = ControllerRegistry(registry_path, generation, 30)
             if old is None:
-                row = {
+                row: dict[str, object] = {
                     "schema": 1,
                     "generation": generation,
                     "room": room,

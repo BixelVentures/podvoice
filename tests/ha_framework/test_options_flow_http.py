@@ -1,4 +1,4 @@
-"""Real HA2026.8.2 HTTP options requests; only the final admin service is inert.
+"""Real HA2026.8.2 HTTP options requests; admin services are inert.
 
 Run inside the pinned HA image with no network, mounted read-only at /candidate.
 No HA packages/classes/auth/request middleware are replaced or stubbed.
@@ -26,7 +26,8 @@ from homeassistant.exceptions import HomeAssistantError
 
 ROOT = Path(__file__).resolve().parents[2]
 URL = "/api/config/config_entries/options/flow"
-CODE = "inert_fixture_only_" + "A" * 32
+REQUEST_ID = "a" * 32
+MATCH_SIGNAL = "ABC234"
 
 
 class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
@@ -105,18 +106,40 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
 
         async def service(call):
             self.calls.append(call)
-            self.entered.set()
-            await self.release.wait()
+            if call.service != "controller_list":
+                self.entered.set()
+                await self.release.wait()
             if self.bad == "error":
                 raise HomeAssistantError("inert failure")
             if self.bad == "room":
-                return {"ok": True, "room": "foreign", "code": CODE}
-            result = {"ok": True, "room": call.data["room"]}
-            if call.service == "controller_provision":
-                result["code"] = CODE
-            return result
+                return {"ok": True, "room": "foreign"}
+            room = call.data["room"]
+            if call.service == "controller_list":
+                return {
+                    "ok": True,
+                    "room": room,
+                    "pending": [
+                        {
+                            "requestId": REQUEST_ID,
+                            "name": "iPad",
+                            "matchSignal": MATCH_SIGNAL,
+                            "expiresIn": 240,
+                            "status": "pending",
+                        }
+                    ],
+                    "enrolled": [],
+                }
+            if call.service == "controller_approve":
+                return {
+                    "ok": True,
+                    "room": room,
+                    "requestId": call.data["request_id"],
+                    "name": "iPad",
+                    "status": "approved",
+                }
+            return {"ok": True, "room": room}
 
-        for action in ("provision", "revoke"):
+        for action in ("list", "approve", "revoke"):
             self.hass.services.async_register(
                 "podvoice",
                 f"controller_{action}",
@@ -147,7 +170,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         ) as response:
             return response.status, await response.json()
 
-    async def begin(self, action="provision"):
+    async def begin(self, action=f"approve:{REQUEST_ID}"):
         status, body = await self.request(data={"handler": self.entry.entry_id})
         self.assertEqual(status, 200, body)
         self.assertEqual(body["step_id"], "init")
@@ -155,37 +178,41 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("configured-alpha", str(room_field))
         self.assertNotIn("talk", str(room_field))
         path = URL + "/" + body["flow_id"]
-        status, body = await self.request(path, {"room": "configured-alpha", "action": action})
+        status, body = await self.request(path, {"room": "configured-alpha"})
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["step_id"], "manage")
+        self.assertIn(MATCH_SIGNAL, str(body))
+        status, body = await self.request(path, {"action": action})
         self.assertEqual(status, 200, body)
         self.assertEqual(body["step_id"], "confirm")
         return path
 
-    async def test_actual_authenticated_http_provision_once_and_preserves_entry(self):
+    async def test_actual_authenticated_http_approval_once_and_preserves_entry(self):
         path = await self.begin()
         status, body = await self.request(path, {"confirm": True})
         self.assertEqual(status, 200, body)
-        self.assertEqual(body["step_id"], "paired")
+        self.assertEqual(body["step_id"], "done")
+        self.assertEqual(body["description_placeholders"], {"room": "Configured room label"})
+        self.assertNotIn("code", str(body).lower())
         self.assertEqual(
-            body["description_placeholders"],
-            {"room": "Configured room label", "code": CODE},
+            [call.service for call in self.calls], ["controller_list", "controller_approve"]
         )
-        self.assertEqual(len(self.calls), 1)
-        call = self.calls[0]
-        self.assertEqual(call.data, {"room": "configured-alpha"})
+        call = self.calls[-1]
+        self.assertEqual(call.data, {"room": "configured-alpha", "request_id": REQUEST_ID})
         self.assertEqual(call.context.user_id, self.admin.id)
         self.assertIsNone(call.context.parent_id)
         _, done = await self.request(path, {})
         self.assertEqual(done["type"], "create_entry")
         self.assertEqual(dict(self.entry.data), self.original)
         self.assertEqual(dict(self.entry.options), {"retained": "unchanged"})
-        self.assertNotIn(CODE, repr(self.entry.as_dict()))
+        self.assertNotIn(REQUEST_ID, repr(self.entry.as_dict()))
 
-    async def test_revoke_has_no_code(self):
-        path = await self.begin("revoke")
+    async def test_emergency_revoke_has_no_profile_identifier(self):
+        path = await self.begin("revoke:")
         _, body = await self.request(path, {"confirm": True})
-        self.assertEqual(body["step_id"], "revoked")
-        self.assertEqual(self.calls[0].service, "controller_revoke")
-        self.assertNotIn(CODE, repr(body))
+        self.assertEqual(body["step_id"], "done")
+        self.assertEqual(self.calls[-1].service, "controller_revoke")
+        self.assertNotIn(REQUEST_ID, repr(body))
 
     async def test_viewer_http_and_direct_no_request_context_cannot_start(self):
         # Real HA require_admin returns a plaintext 401 before the flow runs.
@@ -207,21 +234,23 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_other_admin_cannot_take_over_flow(self):
         path = await self.begin()
+        count = len(self.calls)
         _, body = await self.request(path, {"confirm": True}, user=self.other)
         self.assertEqual(body["reason"], "admin_required")
-        self.assertEqual(self.calls, [])
+        self.assertEqual(len(self.calls), count)
 
     async def test_foreign_room_and_unconfirmed_submission_have_no_effect(self):
         _, body = await self.request(data={"handler": self.entry.entry_id})
         path = URL + "/" + body["flow_id"]
-        status, _ = await self.request(path, {"room": "talk", "action": "provision"})
+        status, _ = await self.request(path, {"room": "talk"})
         self.assertEqual(status, 400)
         path = await self.begin()
+        count = len(self.calls)
         _, body = await self.request(path, {"confirm": False})
         self.assertEqual(body["errors"], {"base": "confirmation_required"})
-        self.assertEqual(self.calls, [])
+        self.assertEqual(len(self.calls), count)
 
-    async def test_owner_revoked_during_await_cannot_receive_code(self):
+    async def test_admin_revoked_during_await_cannot_complete_approval(self):
         path = await self.begin()
         self.release.clear()
         pending = asyncio.create_task(self.request(path, {"confirm": True}))
@@ -230,8 +259,10 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.release.set()
         _, body = await pending
         self.assertEqual(body["reason"], "admin_required")
-        self.assertNotIn(CODE, repr(body))
-        self.assertEqual(len(self.calls), 1)
+        self.assertNotIn(REQUEST_ID, repr(body))
+        self.assertEqual(
+            [call.service for call in self.calls], ["controller_list", "controller_approve"]
+        )
 
     def rebind_physical_endpoint(self):
         changed = copy.deepcopy(dict(self.entry.data))
@@ -241,12 +272,13 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_same_room_label_physical_rebind_before_confirm_denied(self):
         path = await self.begin()
+        count = len(self.calls)
         self.rebind_physical_endpoint()
         _, body = await self.request(path, {"confirm": True})
-        self.assertEqual(body["reason"], "no_rooms")
-        self.assertEqual(self.calls, [])
+        self.assertEqual(body["reason"], "admin_required")
+        self.assertEqual(len(self.calls), count)
 
-    async def test_same_room_label_physical_rebind_during_await_hides_code(self):
+    async def test_same_room_label_physical_rebind_during_await_hides_approval(self):
         path = await self.begin()
         self.release.clear()
         pending = asyncio.create_task(self.request(path, {"confirm": True}))
@@ -255,8 +287,10 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.release.set()
         _, body = await pending
         self.assertEqual(body["reason"], "admin_required")
-        self.assertNotIn(CODE, repr(body))
-        self.assertEqual(len(self.calls), 1)
+        self.assertNotIn(REQUEST_ID, repr(body))
+        self.assertEqual(
+            [call.service for call in self.calls], ["controller_list", "controller_approve"]
+        )
 
     async def test_parallel_confirmation_has_one_backend_request(self):
         path = await self.begin()
@@ -267,30 +301,36 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second["reason"], "request_finished")
         self.release.set()
         await pending
-        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(
+            [call.service for call in self.calls], ["controller_list", "controller_approve"]
+        )
 
-    async def test_code_is_not_replayed_by_options_get(self):
+    async def test_approval_is_not_replayed_by_options_get(self):
         path = await self.begin()
         _, first = await self.request(path, {"confirm": True})
-        self.assertEqual(first["description_placeholders"]["code"], CODE)
+        self.assertEqual(first["step_id"], "done")
         _, after = await self.request(path, method="GET")
-        self.assertNotIn(CODE, repr(after))
+        self.assertNotIn(REQUEST_ID, repr(after))
         self.assertEqual(after["type"], "create_entry")
-        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(
+            [call.service for call in self.calls], ["controller_list", "controller_approve"]
+        )
 
     async def test_get_confirmation_is_read_only(self):
         path = await self.begin()
+        count = len(self.calls)
         _, body = await self.request(path, method="GET")
         self.assertEqual(body["step_id"], "confirm")
-        self.assertEqual(self.calls, [])
+        self.assertEqual(len(self.calls), count)
 
-    async def test_malformed_or_failed_service_never_shows_code(self):
+    async def test_malformed_or_failed_service_never_completes_approval(self):
         for bad in ("room", "error"):
-            self.bad = bad
+            self.bad = None
             path = await self.begin()
+            self.bad = bad
             _, body = await self.request(path, {"confirm": True})
             self.assertEqual(body["reason"], "request_unconfirmed")
-            self.assertNotIn(CODE, repr(body))
+            self.assertNotIn(REQUEST_ID, repr(body))
 
 
 if __name__ == "__main__":

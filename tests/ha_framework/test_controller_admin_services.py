@@ -53,9 +53,14 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.hass.config_entries = ConfigEntries(self.hass, {})
         self.assertTrue(await bootstrap.async_load_base_functionality(self.hass))
         self.hass.auth = await auth.auth_manager_from_config(self.hass, [], [])
+        self.owner = await self.hass.auth.async_create_user(
+            "Owner fixture", group_ids=[GROUP_ID_ADMIN]
+        )
         self.admin = await self.hass.auth.async_create_user(
             "Admin fixture", group_ids=[GROUP_ID_ADMIN]
         )
+        self.assertTrue(self.owner.is_owner)
+        self.assertFalse(self.admin.is_owner)
         self.viewer = await self.hass.auth.async_create_user(
             "Viewer fixture", group_ids=[GROUP_ID_USER]
         )
