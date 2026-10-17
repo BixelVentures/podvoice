@@ -127,7 +127,7 @@ class WidgetHost extends HTMLElement {
   for(const b of this.querySelectorAll('.timer-finish')){b.hidden=!canCancel;b.disabled=this.liveActionPending||!connected;}
   let note=$('timers-live-note');if(!note){note=document.createElement('p');note.id='timers-live-note';$('timers-view').querySelector('.response-heading').after(note);}const waiting=this.liveActionPending||['Afventer opdateret timer','Venter på hjemmet…'].includes(this.liveActionFeedback),feedback=waiting?'':this.liveActionFeedback||(!canStart?'Timerstyring er ikke tilgængelig lige nu.':'');note.hidden=!feedback;note.textContent=feedback;note.setAttribute('aria-busy',String(waiting));
   $('results').hidden=false;$('collapse').hidden=true;$('results').inert=false;$('results').classList.remove('collapsed');
-  if(this.liveMedia?.accounts)this.liveMedia.accounts.hidden=this.liveMedia.accounts.children.length<=1;
+  // LiveMediaView owns account-picker visibility from validated choices.
   this.liveCatalogue??=new LiveMusicCatalogueView(this,kind=>this.loadLiveMusic(kind));this.liveCatalogue.updateCapabilities(connected,snapshot?.capabilities.musicRead||[]);this.liveCatalogue.open();this.liveSelection??=new LiveMusicSelectionView(this);this.liveSelection.setAccount(this.liveMedia?.account||null);this.liveSelection.onSnapshot();this.liveCatalogue.render();this.liveMedia?.render();this.liveControls?.render();renderLiveWeather(this);renderRobotHistory(this);
  }
  async sendLiveTimer(request){

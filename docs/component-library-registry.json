@@ -1248,14 +1248,20 @@
           "method:source": 1,
           "method:start": 1,
           "method:scheduleRecovery": 1,
-          "method:restart": 1
+          "method:restart": 1,
+          "arrow:perform": 1,
+          "method:coordinate": 1,
+          "method:receiveControllerNotice": 1,
+          "method:schedulePeerRead": 1,
+          "method:renewController": 1,
+          "method:restartRead": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
       },
-      "compositionScope": "Reviewed45 same-origin observation and existing-controller renewal recovery only; one bounded-cadence scheduler, close/generation fences, terminal denials fail closed, no action replay or new access."
+      "compositionScope": "Reviewed46 same-origin read recovery and existing-cookie renewal coordination only: native Web Locks serialize renewal completion; bounded token-free peer hints trigger fresh server-projected read/SSE and invalidate obsolete offers without replay. Missing locks remains explicitly read-hints-only. No grant lifetime, backend authority, component family or action retry is introduced."
     },
     "dist/podvoice-view.js": {
       "status": "active-support",

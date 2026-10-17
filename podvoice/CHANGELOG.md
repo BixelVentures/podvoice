@@ -1,3 +1,9 @@
+## 2.0.46 — kontovisning og genopretning mellem faner, kandidat
+
+- Vis kun validerede musik-kontovalg: skjul tomme/enkelte valg og behold eksplicit valg, når der er flere.
+- Koordinér fornyelse mellem samme browsers faner, og lad peer-faner hente en frisk skrivebeskyttet observation uden at genbruge udløbet adgang eller gentage ukendt handling.
+- Bevar alle143 aktiver, eksisterende eksplicit bekræftelse og GPT-Live. Faktisk Green-, musik-, robot- og fysisk accept kræver separate kontroller.
+
 ## 2.0.45 — samlet genopretning af PodView-visninger, kandidat
 
 - Gør transportgenopretning og fornyelse af udløbne PodView-observationer synlig uden automatisk afspilning eller andre hjemmehandlinger.
