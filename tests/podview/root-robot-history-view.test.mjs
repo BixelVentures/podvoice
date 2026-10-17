@@ -48,7 +48,8 @@ test('shared device renderer overwrite is repaired on every render even when his
 }));
 
 test('request journal shares canonical history; unknown never offers reuse or claims completion',()=>withDocument(()=>{
- const f=fixture(device({history:{status:'observed',items:[request('accepted'),request('unknown','unknown')]}}),true);renderRobotHistory(f.host);
+ const accepted=request('accepted'),unknown=request('unknown','unknown');accepted.recordedAt=unknown.recordedAt+1;
+ const f=fixture(device({history:{status:'observed',items:[accepted,unknown]}}),true);renderRobotHistory(f.host);
  assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);
  assert.equal(f.section().querySelector('pv-activity-timeline'),null);
  assert.equal(f.section().descendants().some(node=>node.textContent==='Senest anmodet'),false);

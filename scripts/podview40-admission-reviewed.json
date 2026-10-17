@@ -16,6 +16,7 @@
   },
   "regressions": {
     "tests/browser/setup_flow.cjs": "89339bbae5b0c704ec95ff6363936dd6159cd1a44c44c5557ca1fc31c1ca9a80",
+    "tests/podview/root-robot-history-view.test.mjs": "0e69447b237cce7af35314b3e864d9b4a48281489563dc65d29a696eff0b9be4",
     "tests/unit/test_browser_gate.py": "fd2fb26aa4dcedb4fab400b555bc13660244b8adb754d69284e5082bd99ce5ed",
     "tests/unit/test_candidate_scope_admission39.py": "ae6617d118df24377179db73f0a89312c55dbea9fcbec44cabe1d5efb062e9ed",
     "tests/unit/test_candidate_scope_admission40.py": "34ee2d6300dbded6b980eb025e3dca772b5713ac02dd1c26cf46ff5597e890e2",

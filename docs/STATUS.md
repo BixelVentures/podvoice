@@ -14,6 +14,8 @@ Canonical PodView-rettelse er adopteret byteidentisk: setup.js SHA256 a7dcf1dfa0
 
 CI645 på første PR186-head a490d8c fandt kun formattering af tre strengkonstanter i admission40 efter final binding. Lint, scope og HA-framework bestod. Kun formatteringen og den tilsvarende policy-binding er rettet; produktionsfiler og manifest er uændrede. Ruff format/check, lint, seks målrettede admissioncases, diff-kontrol og exact admission består på rettelsen. Ny automatisk officiel CI på samme PR afventer; fejlet CI645 beholdes som fejlet.
 
+CI646 fandt én eksisterende ustabil robot-historikfixture: to Date.now-baserede poster kunne få forskellig millisekundtid, så korrekt faldende kildesortering viste ukendt-post før accepteret-post. Kun fixturedata er gjort entydige: accepteret recordedAt sættes ét sekund nyere end ukendt. Alle syv målrettede historikcases består; uafhængigt fixture-review gav GO uden produktionsændring eller svækkede label-/reuse-/completionkrav. Præcis denne syvende regression er tilføjet til admission40, som igen består sammen med formatter/lint og seks målrettede admissioncases. CI646 bevares som fejlet; øvrige gennemførte kontroller på uændrede produktionsbits bevares som evidens, og ny automatisk CI afventer.
+
 <!-- podview40-admission
 
 {
@@ -24,11 +26,11 @@ CI645 på første PR186-head a490d8c fandt kun formattering af tre strengkonstan
   ],
   "fingerprint": "70ca15792e70e7d4777015b380872e94175f734979a9a9c8c233401a28e40da6",
   "kind": "podvoice40_browser_timer_callback_wrappers",
-  "manifest_fingerprint": "60d5896ccb630c45316d77f78008d49e4a4e1c249ede2ccd77e2bbf53d7a9085",
+  "manifest_fingerprint": "cbe7de00e2e9a4d2a9880a85779c857e092ba5fb9cc2a5839fa926ca17fc7a01",
   "merge_base": "97e4b44fd5299136e562d5eebf0076c8ebf83bb2",
-  "policy_fingerprint": "7284cd0a997d7aed86cd10958c806cbe88a7bef4527fd650f0c3304e5e7b142a",
+  "policy_fingerprint": "3cbabd508d8250d0582c6b57eb17ac5024230f491f457bfdc14f2f1ff806fa74",
   "rationale": "Independent production source GO and tooling structure GO. The real Chromium SetupFlow regression passes with the candidate and reproduces TypeError: Illegal invocation against unchanged39. Exact two-file production scope, six regressions, 241 runtime files and 135 assets are pinned; native HA integration and authority remain unchanged. Focused admission and historical39 checks pass. Official CI, publication, installation and Mac pairing acceptance remain separate.",
-  "regression_fingerprint": "d96d416ef346d10bc18ab6770a6742b6faffaaf68a93638e289dc0161edb400d",
+  "regression_fingerprint": "66e41b5d1bded5d73d3b6ec0817b1c143b676bab7e51d2b59f2f5f265be77652",
   "reviewer": "Independent /root/pairing_pending_audit production and /root/release_readiness tooling review40",
   "runtime_fingerprint": "f8fc5d38ddb5cd5d09168d66868ff2696eebcba6cd5c82accfd90239c4cc3a4b",
   "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
