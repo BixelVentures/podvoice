@@ -39,7 +39,7 @@
 .pv-visual .pv-image-fallback{min-height:clamp(180px,36cqw,320px);display:flex;align-items:center;margin:0}.pv-image-fallback[hidden]{display:none}
 .pv-component[data-component=vacuum-widget]{background:var(--pv-vacuum-surface);color:var(--pv-vacuum-ink)}
 .pv-component[data-component=vacuum-widget] .pv-meta{color:var(--pv-vacuum-muted)}
-.pv-component[data-component=vacuum-widget] .pv-instrument{background:#fafafabf;border:0}
+.pv-component[data-component=vacuum-widget] .pv-instrument{background:transparent;border:0}
 .pv-component[data-component=vacuum-widget] .pv-instrument>img{filter:none}
 
 /* Provenance remains available without competing with the useful answer. */

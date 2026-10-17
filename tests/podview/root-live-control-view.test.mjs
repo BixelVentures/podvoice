@@ -51,3 +51,22 @@ test('disconnect preserves pending unknown and late accepted receipt, without st
 test('receipts retain at most sixteen, hide on owner change and preserve known acceptance through disconnect',()=>{
  const f=fixture();try{f.view.domain='vacuum';f.view.target=target;for(let i=0;i<20;i++)f.view.remember({key:String(i),bootId:'boot',roomId:'room',domain:'vacuum',target,label:'Pause'},i%2?'accepted':'unknown');assert.equal(f.view.receipts.size,16);f.view.invalidate();assert.match(f.view.receiptNote.textContent,/modtaget/);f.host.liveSnapshot={...f.host.liveSnapshot,bootId:'new'};f.view.render();assert.equal(f.view.receiptNote.hidden,true);}finally{f.view.cleanup();}
 });
+
+test('cleaning map context belongs to the canonical area form, not a duplicate dialog note',async()=>{
+ const f=fixture();try{
+  const opening=f.view.open('vacuum',target,new Node('button'));
+  const offered=f.offer();offered.setup.mapName='Stueplan (2025)';offered.options=[{id:'clean-opaque',action:'start',label:'Start rengøring',argsSchema:{kind:'cleaning',areas:[{id:'kitchen-opaque',label:'Køkkenalrum'}],repeat:{min:1,max:3}}}];
+  f.setup.resolve(offered);await opening;
+  assert.equal(f.view.note.textContent,'');
+  assert.equal(f.view.robotPanel.data.task.mapName,'Stueplan (2025)');
+  assert.equal(f.view.robotPanel.data.task.options[0].id,'clean-opaque');
+  assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
+});
+test('robot tasks without an area form retain supplied map context in the dialog note',async()=>{
+ const f=fixture();try{
+  const opening=f.view.open('vacuum',target,new Node('button')),offered=f.offer();offered.setup.mapName='Stueplan (2025)';
+  f.setup.resolve(offered);await opening;
+  assert.equal(f.view.note.textContent,'Stueplan (2025)');assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
+});

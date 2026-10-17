@@ -723,6 +723,130 @@ def room_owner(rig):
     rig.value["observation"].pop("token")
 
 
+@pytest.mark.parametrize("status", ["awaiting_observation", "sequence_exhausted"])
+async def test_room_observation_keeps_exact_proof_without_command_readiness(rig, status):
+    room_owner(rig)
+    rig.value.update(status=status, actions=[])
+    if status == "sequence_exhausted":
+        rig.value["next_command_sequence"] = None
+    observed = await rig.facade.observe_room("account", "device", "native-room", "42", lambda: True)
+    assert observed["ok"], observed
+    proof = observed["data"]
+    assert set(proof) == {"owner_epoch", "poll_sequence", "valid_until", "native", "route"}
+    assert proof["native"] == rig.value["native"]
+    assert proof["route"] == rig.value["route"]
+    assert "SECRET" not in json.dumps(proof)
+    assert (await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True))[
+        "ok"
+    ] is False
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
+        "get_room_playback_controls",
+        "get_room_playback_controls",
+    ]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "account",
+        "engine",
+        "room",
+        "homepod",
+        "route",
+        "missing_owner",
+        "alias",
+        "stale",
+        "future",
+        "bad_actions",
+    ],
+)
+async def test_room_observation_rejects_foreign_or_stale_proof(rig, change):
+    room_owner(rig)
+    rig.value.update(status="awaiting_observation", actions=[])
+    if change == "account":
+        rig.value["config_entry_id"] = "foreign"
+    elif change == "engine":
+        rig.value["native"]["target_id"] = "foreign"
+    elif change == "room":
+        rig.value["native"]["room_id"] = "foreign"
+    elif change == "homepod":
+        rig.value["native"]["homepod_id"] = "43"
+    elif change == "route":
+        rig.value["route"]["device_id"] = "43"
+    elif change == "missing_owner":
+        rig.value["native"]["session_id"] = ""
+    elif change == "alias":
+        rig.value["native"]["alias_registry"] = "invalid"
+    elif change == "stale":
+        rig.value["observation"]["observed_at"] = "2000-01-01T00:00:00+00:00"
+    elif change == "future":
+        rig.value["observation"]["observed_at"] = (
+            datetime.now(UTC) + timedelta(minutes=5)
+        ).isoformat()
+    else:
+        rig.value["actions"] = ["next"]
+    result = await rig.facade.observe_room("account", "device", "native-room", "42", lambda: True)
+    assert result["ok"] is False
+    assert len(rig.calls) == 1
+
+
+async def test_room_observation_cannot_be_executed_as_audio4_offer(rig):
+    room_owner(rig)
+    observed = await rig.facade.observe_room("account", "device", "native-room", "42", lambda: True)
+    assert observed["ok"] and set(observed["data"]) == {
+        "owner_epoch",
+        "poll_sequence",
+        "valid_until",
+        "native",
+        "route",
+    }
+    rig.calls.clear()
+    result = await rig.facade.execute_room(observed["data"], "next", lambda: True)
+    assert result["ok"] is False
+    assert rig.calls == []
+
+
+async def test_room_observation_keeps_ready_execution_strict(rig):
+    room_owner(rig)
+    assert (await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True))[
+        "ok"
+    ]
+    rig.value["actions"] = []
+    assert (await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True))[
+        "ok"
+    ] is False
+    assert (await rig.facade.observe_room("account", "device", "native-room", "42", lambda: True))[
+        "ok"
+    ]
+
+
+async def test_room_observation_without_current_owner_does_not_read(rig):
+    room_owner(rig)
+    result = await rig.facade.observe_room("account", "device", "native-room", "42", lambda: False)
+    assert result["ok"] is False
+    assert rig.calls == []
+
+
+@pytest.mark.parametrize("change", ["binding", "current"])
+async def test_room_observation_discards_owner_change_across_read(rig, change):
+    room_owner(rig)
+    current = True
+
+    async def replace_owner():
+        nonlocal current
+        if change == "binding":
+            rig.tools._discovery = replace(rig.tools._discovery)
+        else:
+            current = False
+
+    rig.hook = replace_owner
+    result = await rig.facade.observe_room(
+        "account", "device", "native-room", "42", lambda: current
+    )
+    assert result["ok"] is False
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == ["get_room_playback_controls"]
+
+
 async def test_room_audio4_uses_only_exact_services_and_native_receipt(rig):
     room_owner(rig)
     offer = await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)

@@ -1,3 +1,36 @@
+# Aktiv leadbeslutning · PodView visuel efterfølger 2.0.43 · 17. oktober 2026
+
+Officiel CI658 bevares som fejlet: en uændret Talk-aktivitetsfixture brugte en intern fake-provider-frist på200ms, mens produktets connectloft er8s. En250ms inert createforsinkelse reproducerer samme afviste wake og manglende handshake med den gamle fixture. Kun aktivitetstestens lokale fake-frist følger nu det eksisterende produktloft, og accepted wake samt handshake kræves før de uændrede aktivitetsassertions. Den særskilte timeoutregression er bevaret. Syv Talk-adaptercases, formatter/lint og uafhængigt fixture-review består. Ingen runtime-/produkt-timeout eller produktionshash ændres; testfilen indgår nu eksplicit i regressionbindingen. De øvrige beståede kilde-/adapterreviews genbruges; næste officielle kandidat udløses ved den opdaterede PR.
+
+<!-- podview43-admission
+{
+  "version": 20,
+  "kind": "podview43_visual_followup",
+  "reviewer": "Independent /root/release_readiness PV43 composition and exact-tree admission review",
+  "domains": ["physical_output"],
+  "base_tip": "4f183f19689fcf87f90d26c6a14a8e6e153d93c1",
+  "merge_base": "4f183f19689fcf87f90d26c6a14a8e6e153d93c1",
+  "rationale": "Exact CI157 merge base and reviewed five-file production scope: one observation-only backend file plus three canonical UI assets and their generated manifest. The six changed regression files include the causal test-only Talk startup repair; all 143 UI assets and historical42 bindings remain intact. Official CI, installation, and passive visual acceptance are separate gates.",
+  "fingerprint": "135680237a8d21e5a0dd97aeb1715495dd0d3eeedf690b5051fba1be0fad9146",
+  "regression_fingerprint": "9143719e04a5a4246760ad284ee5143ecc3e90c384f69df15914890a8f354dee",
+  "runtime_fingerprint": "da86ebe4a4929dade1d4093873a8e4a656075a4384d1714d1183b4ce61140355",
+  "config_fingerprint": "2b84da097b21b77d3b3ea47a96784f417b3165fef8bf6bdb1bbb4c65d31633de",
+  "policy_fingerprint": "55cf17a59ad9b2ff71d5fd48f02b7f67695421107231c5dfad46d72d8fc730cf",
+  "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
+  "manifest_fingerprint": "cd55dc02e51116eed0bc19f5209174cad2d523495b28a0273aa916b91022cb54"
+}
+-->
+
+Resultat før publicering: uafhængigt kompositionsreview er GO uden findings. Kausale backend/room-media-kontroller148, canonical UI9 samt berørte admission-/routing-/statiske checks består; canonical143 sourceinventory matcher præcis. Formatteret runtime er semantisk identisk med upstreamreviewet candidate; setup og execute kræver fortsat executable ready/actions, og observationsdata kan ikke dispatches. CI157 er merged på den præcise ovenstående base. Kandidaten er endnu ikke udgivet eller installeret; fysisk accept står fortsat åben, og ingen natlige effekter er udført. Officiel CI og normal Green-installation følger på samme frosne bits.
+
+Eksplicit udvidelse før freeze: medtag også den uafhængigt reviewede room-observation-rettelse i samme43, så der kun kommer én installation. Kausal fejl er reproduceret på eksakt42: gyldigt og friskt native/route-bevis kasseres ved actions=[] og status awaiting_observation, sequence_exhausted eller ready. Den fælles projektion må bevare kun fem observationsfelter, mens den eksisterende executable-wrapper fortsat kræver ready og ikke-tomme tilladte actions. Berørt kæde: Control-read → PodVoice bind-before/after-await → eksakt proofprojektion → room-media epoch/poll/device-match → visning; command prepare/commit/dispatch skal fortsat afvise observationsdata. Invarianter er frisk/current ejer, lukket schema, ingen genbrug efter binding/boot/tools/policy-skift og ingen read→write myndighed. Ikke-mål er at tillade idle, target_not_current, fremmed route eller at ændre Spotify-/lydadfærd. Upstream immutable runtime1387d530ceaa4a943a0fad28efeba0be68dd7d422b35ace279317584da3e343f har seks grønne kausale tests, samme seks giver tre røde på42; 14 negative og 27 faktiske ingresscases er gemt i independent-review.md hos PodView. Shippede formatterede bits og permanent regression reviewes lokalt før manifestbinding, inklusive direkte execute_room(observation) med nul dispatch. Den stille Green42-idle forklares fortsat af provider no_active_playback; denne rettelse er ikke bevis for den årsag eller fysisk funktion.
+
+Direkte evidens på installeret Green 2.0.42: nattens vejrkort har mørk undertekst, ikon og chevron på mørk baggrund; den store robotmodal har stadig hvid ikoncirkel. Canonical PodView-ejeren leverer en afgrænset efterfølger med tre UI-filer: natkontrast, gennemsigtig robotikonbaggrund i begge størrelser og fjernet dubleret kortlabel. Den uafhængige canonical review er GO; kildeadoption og sammensætning reviewes særskilt. Ingen ændring i musik-/robot-/timerrettigheder, provider, samtale, lyd, timeout eller lifecycle. Den installerede 2.0.42 og dens policies bevares indtil en ny grøn kandidat er publiceret.
+
+Berørt kæde er eksisterende parret browser → passive data → DOM/CSS → visuel betjening. Hypotese: de konkrete styles og dobbelt maptekst forklarer de observerede visuelle fejl; ingen hypotese om fysisk funktion. Bevar alle 143 aktiver med præcis tre canonical kildeændringer, relevante kausale UI-assertions og manifestidentitet. Brug bestået canonical suite, kør kun berørte lokale kontroller og officiel CI på frossen kandidat. CI157 merges først og bliver præcis base for43. Uafhængigt review af ændrede UI-filer samt exact-tree-admission før merge/publicering, derefter normal Green-opdatering og passive dags-/nat-/robotmodalbilleder. Ingen musik, alarm eller robotbevægelse hele natten. Fysisk accept forbliver åben; rollback er publiceret42, ikke en bevist stabil baseline.
+
+---
+
 # Aktiv leadbeslutning · fjern gentagen produkt-CI efter identisk merge · 17. oktober 2026
 
 Officiel CI655 fandt en forældet fixture i test_dev_cycle: HA-jobbet forventede kun scope som afhængighed, selv om genbrug nu også kræver promotion. Kandidaten bevares som fejlet; ingen runtime-patch. Assertet er opdateret til begge faktiske afhængigheder, og fixturefilen er føjet til det lukkede CI-control-pathsæt. Hele dev-cycle-filen samt scope/promotion/release-kontrakter passerer samlet 198 cases; formatter/lint og diff-check består. ARM-build/entrypoint, UI og HA fra første gennemløb var grønne på uændrede produktbits. Ny officiel PR-kandidat kræves før merge.

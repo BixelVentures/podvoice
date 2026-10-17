@@ -267,7 +267,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "46c2f997ebabb0315152c18b70cf16fda25887aa7a835ef055b5f6bb3bb8230f"
+      "sha256": "abe56bac1cad0f4eda27615a1a7369a3abc5d0c7629b81fb0a5fcc544ca8429b"
     },
     {
       "path": "live-home-view.js",
@@ -475,7 +475,7 @@
     },
     {
       "path": "ui/library/library.css",
-      "sha256": "7e6d3ae712d18762b46f9d636f0ddc2b622da1081beae3468f403e4d179b0dc1"
+      "sha256": "0107c347a1c24662f39c2aa6b466b0fccfdff7e6a9a38f09c634eeb21236812e"
     },
     {
       "path": "ui/library/types.d.ts",
@@ -555,7 +555,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "d18f9840d6209643ba388699804f30425d9c48e458fc6bd0ffa797cb3e258a69"
+      "sha256": "4197c3d78aa62777ad3daf21ed2ea0d00dd6262374971f22afcad4f05bef2396"
     },
     {
       "path": "widget-view.css",

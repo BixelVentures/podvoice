@@ -248,7 +248,7 @@ def _controls(
     }
 
 
-def _room_controls(
+def _room_projection(
     value: Any, account: str, target: str, room: str, homepod: str, *, offered: bool = False
 ) -> dict:
     """Project only the exact Control/native room and OwnTone route offer."""
@@ -296,8 +296,6 @@ def _room_controls(
         or not isinstance(route.get("input_path_digest"), str)
         or re.fullmatch(r"[a-f0-9]{64}", route["input_path_digest"]) is None
         or any(action not in _ROOM_ACTIONS for action in projected["actions"])
-        or not projected["actions"]
-        or projected["status"] != "ready"
     ):
         raise ValueError("invalid room owner")
     return {
@@ -308,6 +306,23 @@ def _room_controls(
         "route": {key: route[key] for key in _ROUTE_KEYS},
         "volume_supported": False,
         "volume_unavailable_reason": "room_volume_not_supported",
+    }
+
+
+def _room_controls(value, account, target, room, homepod, *, offered=False) -> dict:
+    """Executable offers retain their original readiness requirement."""
+    projected = _room_projection(value, account, target, room, homepod, offered=offered)
+    if not projected["actions"] or projected["status"] != "ready":
+        raise ValueError("invalid room owner")
+    return projected
+
+
+def _room_observation(value, account, target, room, homepod) -> dict:
+    """Exact current route proof only; never return executable offer fields."""
+    projected = _room_projection(value, account, target, room, homepod)
+    return {
+        key: projected[key]
+        for key in ("owner_epoch", "poll_sequence", "valid_until", "native", "route")
     }
 
 
@@ -1136,9 +1151,42 @@ class MusicControlFacade:
         except Exception:
             return _failure("unavailable")
 
-    async def observe_room(self, account, target, room, homepod, current):
-        """Observe the current bound room, without asking for a new START offer."""
-        return await self.setup_room(account, target, room, homepod, current)
+    async def observe_room(
+        self,
+        account: str,
+        target: str,
+        room: str,
+        homepod: str,
+        current: Callable[[], bool],
+    ) -> dict:
+        """Read exact room proof independently of executable command readiness."""
+        try:
+            _text(account)
+            _text(target)
+            _text(room, 128)
+            _text(homepod, 128)
+            binding = self.binding()
+            if not self.room_available or not self._current(binding, current):
+                return _failure("unavailable")
+            client, token = self.tools._client, self.tools._token
+            async with asyncio.timeout(_TIMEOUT_S):
+                result = await self._read(
+                    client,
+                    token,
+                    "get_room_playback_controls",
+                    {
+                        "config_entry_id": account,
+                        "kind": "spotify_device",
+                        "target_id": target,
+                        "room_id": room,
+                        "homepod_id": homepod,
+                    },
+                )
+            if not self._current(binding, current):
+                return _failure("owner_replaced")
+            return {"ok": True, "data": _room_observation(result, account, target, room, homepod)}
+        except Exception:
+            return _failure("unavailable")
 
     async def setup_context(self, account, target, room, homepod, current):
         return await self.setup_track(account, target, room, homepod, current, context=True)
