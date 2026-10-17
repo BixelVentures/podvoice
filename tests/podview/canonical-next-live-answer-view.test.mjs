@@ -10,6 +10,7 @@ class Node extends EventTarget {
     this.textContent = ''; this.className = '';
   }
   append(...nodes) { this.children.push(...nodes); }
+  contains(node) { return node != null && (this === node || this.children.some(child => child === node || child?.contains?.(node) === true)); }
   replaceChildren(...nodes) { this.children = nodes; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   removeAttribute(name) { this.attributes.delete(name); }

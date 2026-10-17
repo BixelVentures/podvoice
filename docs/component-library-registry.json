@@ -936,7 +936,8 @@
           "method:setAccount": 1,
           "method:setup": 1,
           "method:showTargets": 1,
-          "method:showTracks": 1
+          "method:showTracks": 1,
+          "method:restoreRecoveryFocus": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -953,7 +954,7 @@
       "requiredCalls": [
         "musicResults\\.render\\s*\\("
       ],
-      "compositionScope": "D05 migrated: native search/target and confirmation forms compose shared pv-component/pv-content/pv-actions/pv-button/pv-meta recipes; result cards MUST delegate to MusicResults. No independent form style or new family.",
+      "compositionScope": "Reviewed45 explicit expired-card revalidation and same-row cancellation focus recovery inside the existing selection owner; stable card identity, captured context and durable dispatched fences, no new anatomy or automatic action.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-music-view.js": {
@@ -992,7 +993,13 @@
           "method:setBusy": 1,
           "method:slow": 1,
           "method:tracks": 1,
-          "method:updateCapabilities": 1
+          "method:updateCapabilities": 1,
+          "method:drainRenewal": 1,
+          "method:renewalScope": 1,
+          "method:canRenewEntry": 1,
+          "method:renewForCard": 1,
+          "method:finishCardRenewal": 1,
+          "arrow:ownerScope": 2
         },
         "roots": [],
         "registrations": {},
@@ -1001,7 +1008,8 @@
       },
       "requiredCalls": [
         "this\\.host\\.musicResults\\.render\\s*\\("
-      ]
+      ],
+      "compositionScope": "Reviewed45 retained-card renewal within the existing catalogue owner. Stable content affinity and captured per-read authority are distinct; existing rows are preserved, no new family, no automatic action send or AI selection."
     },
     "dist/live-queue-view.js": {
       "status": "active-support",
@@ -1238,13 +1246,16 @@
           "method:queueOffer": 1,
           "method:request": 1,
           "method:source": 1,
-          "method:start": 1
+          "method:start": 1,
+          "method:scheduleRecovery": 1,
+          "method:restart": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
-      }
+      },
+      "compositionScope": "Reviewed45 same-origin observation and existing-controller renewal recovery only; one bounded-cadence scheduler, close/generation fences, terminal denials fail closed, no action replay or new access."
     },
     "dist/podvoice-view.js": {
       "status": "active-support",

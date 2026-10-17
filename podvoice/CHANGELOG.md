@@ -1,3 +1,9 @@
+## 2.0.45 — samlet genopretning af PodView-visninger, kandidat
+
+- Gør transportgenopretning og fornyelse af udløbne PodView-observationer synlig uden automatisk afspilning eller andre hjemmehandlinger.
+- Bevar afventende/stale-afvisning og eksisterende eksplicitte bekræftelse; fornyelse giver ikke ny handlingsret. Gendan fokus efter udløb, og vis timevejret kronologisk inden for den eksisterende grænse.
+- Bevar alle143 aktiver og GPT-Live. Officiel CI, Green-paritet og faktisk musik-/fysisk accept er separate gates.
+
 ## 2.0.44 — robot refresh and current speaker context, candidate
 
 - Allow an explicit fresh robot-task read after an expired task, with the existing room, boot, target, permission and pending-effect checks. This adds no automatic robot action.
