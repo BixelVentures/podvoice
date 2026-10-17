@@ -1,25 +1,27 @@
 # Samlet UI41 · faktisk freeze og uafhængigt review
 
+CI649: scope, HA-framework, REST og ARM-build bestod; UI og unit fejlede på forældede fixtures. Ti testfiler er rettet og uafhængigt gennemgået, herunder historiske36/40 isoleret til egne publicerede snapshots. Alle143 produktassets er uændrede fra source-GO. Endelig automatisk CI på samme PR afventer; den fejlede kørsel bevares som fejlet.
+
 143 canonical runtimeassets matcher ejerens friske manifest79c6ac8de4e66f94579f268f18e0189187bc782fd8889fc3c4b36b366b1f7ec4. Musik-ejet invalidation bevarer nu en uafhængig robotopgave; sene musikcallbacks og ukendt write-outcome er fenced, global disconnect invaliderer fortsat. Independent Sol source delta GO og Astra source-adoption GO er modtaget; faktisk ændrede adaptercases105/105 og registry33/33 bestod. UI-ejerens658/658 og54modulgate er separat kildebevis. Astra exact41 tooling GO samt narrow delta GO er modtaget; reviewer er nu bundet med Python3.12 AST, alle historiske profiler bevares. Den faktiske exact41 CLI består efter reviewerbinding. De berørte route-/admissioncases er kontrolleret; én stale lokal Python-bytecodecache efter AST-binding blev fjernet, og kun den ugyldiggjorte bindingscase blev kørt igen med PASS. Formatter, lint og diff-kontrol består. Ingen runtimepatch blev lavet for cachefejlen. Ingen fysisk/homeeffect-accept arves. Installation med mulig lyd/genoptagelse holdes tilbage hele natten; offentlig build/publicering fortsætter. Native room-observation/recovery-fejlen i187 er særskilt planlagt efterfølgende42/PC25 og påstås ikke løst af denne UI-version.
 
 <!-- podview41-admission
 {
   "version": 18,
   "kind": "podvoice41_canonical_podview_ui_bundle",
-  "reviewer": "Independent /root/astra_robot_component_unification exact41 tooling review",
+  "reviewer": "Independent Astra exact41 tooling and /root/release_readiness final PV41 fixture/admission delta review",
   "domains": [
     "physical_output"
   ],
   "base_tip": "6799ee3d65cb67fb406346c565dc206e08cbf0da",
   "merge_base": "6799ee3d65cb67fb406346c565dc206e08cbf0da",
-  "rationale": "Independent Astra actual143 source/tooling GO and narrow tooling delta GO retained. Exact new UI music-only invalidation fix source GO; 105 changed adapter cases and 33 registry cases pass, prior unchanged canonical checks retained. Published40 remains immutable. Official CI and publication pending; no Green41 install, audible alarm, robot motion or physical claim. Whole-night human music prohibition holds.",
+  "rationale": "Independent canonical143 source GO and exact tooling GO retained. Official CI649 failed on stale historical36/40 and eight UI fixtures; ten test-only paths repaired and independently reviewed without production change or dropped queue/light assertions. 49 regressions pinned. Green40 remains installed; nighttime effects and risky installation held. Final automatic CI and publication pending; room native repair separate PC25/PV42.",
   "fingerprint": "de81d0506884da406a3f6673025051a9559b90c69d57ba0cba5547952b5a2dc3",
-  "regression_fingerprint": "7f76d91764f0761ed3bc41eccf6d8e56447f1d676e88cf8d52515efccdad73d7",
+  "regression_fingerprint": "455df5cc28bc826e18c005f0a6d3f1f250cd95ff5c191be1d268d28c7d812155",
   "runtime_fingerprint": "9cbbff1ad8236657e4806a0cdc25690704663812d1e0e538a32a5e41b16c83cb",
   "config_fingerprint": "8302a8373d1d2528036962cd729f8d6cd9de6ea80c86f5a0edc2b0b87ee81e01",
-  "policy_fingerprint": "255b514eeb83cffc08648464a51b7971cdc447ef13e5dcb21052c03609b2e2b3",
+  "policy_fingerprint": "13074d14d93a05fe5dcb14e92571f2a4a5ae95f7afa5ec07364a305952fb21ec",
   "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
-  "manifest_fingerprint": "6a4377b34127bba69602843509193880ba36ed863dcce5aeda6846a20ef7ad42"
+  "manifest_fingerprint": "0473a9f71ff35c9e94ef1ecbc41f5dc8c776981b502565b88ed753438a0521bf"
 }
 -->
 

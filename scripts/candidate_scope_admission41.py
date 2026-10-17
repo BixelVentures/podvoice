@@ -121,16 +121,26 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-next-widget-model.test.mjs",
         "tests/podview/canonical-room-fixture.mjs",
         "tests/podview/fixtures/feeling-route.json",
+        "tests/podview/podvoice-view.test.mjs",
         "tests/podview/root-component-library.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/podview/root-player-view.test.mjs",
+        "tests/podview/root-robot-control-panel.test.mjs",
+        "tests/podview/root-robot-history-view.test.mjs",
+        "tests/podview/root-robot-observation.test.mjs",
+        "tests/podview/root-voice-surface.test.mjs",
+        "tests/podview/root-weather-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission36.py",
+        "tests/unit/test_candidate_scope_admission40.py",
         "tests/unit/test_candidate_scope_admission41.py",
         "tests/unit/test_ci_scope.py",
         "tests/unit/test_dev_cycle.py",
     }
 )
 # Lead fills approval only after an independent review of the final composition.
-REVIEWER = "Independent /root/astra_robot_component_unification exact41 tooling review"
-MANIFEST_SHA = "6a4377b34127bba69602843509193880ba36ed863dcce5aeda6846a20ef7ad42"
-PROFILE_AST = "baba3cc9b65419acf3de60b52e3aac57c7de11f834c28fd64d5c27002b5a00d3"
+REVIEWER = "Independent Astra exact41 tooling and /root/release_readiness final PV41 fixture/admission delta review"
+MANIFEST_SHA = "0473a9f71ff35c9e94ef1ecbc41f5dc8c776981b502565b88ed753438a0521bf"
+PROFILE_AST = "31557ddc29f7e9f0fdf63ae212292ea46b493f6b010977ff25ce9dc1082bfb8d"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission40.py": "66732564afd110d8e815b82644938581382f69e48d1cf48b5ea25cb160fdfec9",
     "scripts/podview40-admission-reviewed.json": "cbe7de00e2e9a4d2a9880a85779c857e092ba5fb9cc2a5839fa926ca17fc7a01",

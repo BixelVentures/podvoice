@@ -439,16 +439,16 @@ def test_only_six_reviewed_files_change_among_135_ui_assets():
 
 def test_registry_adds_only_existing_spotify_artwork_dependency():
     name = "docs/component-library-registry.json"
-    frozen = json.loads(
+    before36 = json.loads(
         subprocess.check_output(
             ["git", "show", f"38bd92ca28d0206bfafef6b03a7ea4d883e6a211:{name}"], cwd=ROOT
         )
     )
-    current = json.loads(admission.safe_file(ROOT, name))
-    owner = frozen["modules"]["dist/visual-content.js"]
+    published36 = json.loads(published36_bytes(name))
+    owner = before36["modules"]["dist/visual-content.js"]
     assert owner["imports"] == []
     owner["imports"] = ["dist/spotify-artwork.js"]
-    assert current == frozen
+    assert published36 == before36
 
 
 def test_unreviewed_manifest_and_approval_cannot_admit():
@@ -468,9 +468,14 @@ def test_unreviewed_manifest_and_approval_cannot_admit():
     assert manifest["base"] == admission.BASE
     assert set(manifest["production"]) == EXPECTED_PRODUCTION
     assert set(manifest["regressions"]) == EXPECTED_TESTS
-    assert set(manifest["runtime"]) == (
-        admission.strict.runtime_inventory(ROOT) | EXPECTED_HA_RUNTIME
+    published_runtime = set(
+        subprocess.check_output(
+            ["git", "ls-tree", "-r", "--name-only", PUBLISHED36, "--", "podvoice/gatekeeper"],
+            cwd=ROOT,
+            text=True,
+        ).splitlines()
     )
+    assert set(manifest["runtime"]) == published_runtime | EXPECTED_HA_RUNTIME
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING

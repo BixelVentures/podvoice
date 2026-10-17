@@ -80,7 +80,7 @@ const view = (sessionId, turnId, phase = 'thinking') => voicePresentation({
   })[phase],
 });
 
-test('same session, turn, and phase ticks do not restart the acknowledgement or wait timer', () => withBrowser(({ timers }) => {
+test('same session, turn, and phase ticks do not restart acknowledgement or schedule prose', () => withBrowser(({ timers }) => {
   const { surface } = fixture();
   const first = view('s1', 't1', 'thinking');
   surface.update(first);
@@ -89,21 +89,20 @@ test('same session, turn, and phase ticks do not restart the acknowledgement or 
   surface.update({ ...first, label: 'Updated copy' });
   assert.equal(surface.node.animations.length + surface.mark.animations.length, animationCount);
   assert.equal(surface.slowTimer, timer);
-  assert.equal(timers.size, 1);
+  assert.equal(timers.size, 0);
 }));
 
-test('thinking wait copy is fenced by the current session, turn, and phase', () => withBrowser(({ fire, latestTimer }) => {
+test('thinking stays actual phase copy without any timed slow claim', () => withBrowser(({ timers }) => {
   const { surface } = fixture();
   surface.update(view('s1', 't1', 'thinking'));
-  const oldCallback = latestTimer()[1].callback;
+  assert.equal(timers.size, 0);
+  assert.equal(surface.detail.textContent, 'Et øjeblik');
   surface.update(view('s1', 't2', 'thinking'));
-  oldCallback(); // A callback already queued before clearTimeout must still be harmless.
-  assert.equal(surface.detail.textContent, 'Et øjeblik');
-  const currentTimer = latestTimer()[0];
-  fire(currentTimer);
-  assert.equal(surface.detail.textContent, 'Det tager lidt længere tid');
-  surface.update(view('s2', 't3', 'thinking'));
-  assert.equal(surface.detail.textContent, 'Et øjeblik');
+  assert.equal(timers.size, 0);
+  surface.update(view('s2', 't3', 'CLOSING'));
+  assert.equal(surface.node.dataset.phase, 'closing');
+  assert.equal(surface.label.textContent, 'Afslutter…');
+  assert.equal(timers.size, 0);
 }));
 
 test('a close that is still animating cannot hide a newly reopened conversation', async () => withBrowser(async () => {
@@ -126,7 +125,7 @@ test('cleanup cancels timers and every active animation and hides the detached s
   const { surface } = fixture();
   surface.update(view('s1', 't1', 'thinking'));
   const animations = [surface.animation, surface.copyAnimation, surface.markAnimation].filter(Boolean);
-  assert.ok(timers.size > 0);
+  assert.equal(timers.size, 0);
   surface.cleanup();
   assert.equal(timers.size, 0);
   assert.ok(animations.every(animation => animation.cancelled > 0));
@@ -152,6 +151,9 @@ test('inactive and disconnected voice has no presentation; unknown phase is a ne
   assert.equal(voicePresentation({ active: true, phase: 'THINKING' }, false), null);
   assert.equal(voicePresentation({ active: true, phase: 'THINKING' }).phase, 'thinking');
   assert.equal(voicePresentation({ active: true, phase: 'UNKNOWN' }).phase, 'waiting');
+  assert.equal(voicePresentation({ active: false, phase: 'CLOSING' }), null);
+  assert.equal(voicePresentation({ active: true, phase: 'CLOSING' }, false), null);
+  assert.deepEqual([voicePresentation({ active: true, phase: 'CLOSING' }).phase,voicePresentation({ active: true, phase: 'CLOSING' }).label],['closing','Afslutter…']);
 });
 
 test('presentation keys change across boot sessions, turns, and phases', () => {
@@ -177,4 +179,19 @@ test('a live reduced-motion preference change cancels an in-flight exit and clea
 test('a detached host cannot reopen or schedule a new voice surface',()=>withBrowser(({timers})=>{
  const {surface,host}=fixture();host.isConnected=false;surface.update(view('s1','t1','thinking'));
  assert.equal(surface.node.hidden,true);assert.equal(surface.node.inert,true);assert.equal(timers.size,0);
+}));
+
+test('every actual owner phase has one finite acknowledgement and identical ticks never loop',()=>withBrowser(()=>{
+ const {surface}=fixture();for(const phase of ['LISTENING','THINKING','AI_SPEAKING','LOUNGE_WINDOW','CLOSING','UNKNOWN']){const presentation=voicePresentation({active:true,sessionId:'s',turnId:'turn',phase});surface.update(presentation);const animation=surface.markAnimation;assert(animation,phase);assert.equal(animation.options.duration,220);assert.equal(animation.options.iterations,undefined);const count=surface.mark.animations.length;surface.update({...presentation});assert.equal(surface.mark.animations.length,count);}
+ surface.cleanup();assert.equal(surface.markAnimation,null);
+}));
+test('closing stays visible without animation under reduced motion, then hides on inactivity',()=>withBrowser(()=>{
+ const {surface,host}=fixture();host.dataset.motion='reduced';
+ surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase:'CLOSING'}));
+ assert.equal(surface.node.hidden,false);assert.equal(surface.node.dataset.phase,'closing');assert.equal(surface.label.textContent,'Afslutter…');assert.equal(surface.mark.animations.length,0);
+ surface.update(voicePresentation({active:false,sessionId:'s',turnId:'t',phase:'CLOSING'}));
+ assert.equal(surface.node.hidden,true);assert.equal(surface.value,null);
+}));
+test('voice surface reuses header activity slot without creating a second component',()=>withBrowser(()=>{
+ const host=new FakeElement('div'),slot=new FakeElement('span');host.dataset.motion='system';host.isConnected=true;host.querySelector=selector=>selector==='.header-activity'?slot:null;const surface=new VoiceSurface(host);assert.deepEqual(slot.children,[surface.node]);assert.equal(host.children.length,0);surface.update(view('s','t','responding'));surface.cleanup();assert.equal(slot.children.length,1);assert.equal(surface.node.hidden,true);
 }));
