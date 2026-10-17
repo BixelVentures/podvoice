@@ -34,7 +34,13 @@ def fixture_root(tmp_path: Path, source: str) -> tuple[Path, Path, str]:
 
 
 def test_inventory_and_serial_gate_binding(monkeypatch, tmp_path):
-    assert browser_gate.INVENTORY == ("live_status", "daily_ui", "wake_words", "settings_dirty")
+    assert browser_gate.INVENTORY == (
+        "live_status",
+        "daily_ui",
+        "wake_words",
+        "settings_dirty",
+        "setup_flow",
+    )
     assert all(
         (Path(__file__).resolve().parents[1] / "browser" / (name + ".cjs")).is_file()
         for name in browser_gate.INVENTORY

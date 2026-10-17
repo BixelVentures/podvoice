@@ -1,15 +1,25 @@
 """Exact39 admission remains closed until its final review bindings are supplied."""
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 from scripts import candidate_scope_admission39 as admission
 
 ROOT = Path(__file__).parents[2]
+PUBLISHED39 = "97e4b44fd5299136e562d5eebf0076c8ebf83bb2"
 
 
-def test_39_profile_is_additive_and_uses_only_the_existing_version_trio():
+@pytest.fixture(scope="module")
+def historical39_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published39") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED39], cwd=target, check=True)
+    return target
+
+
+def test_39_profile_is_additive_and_uses_only_the_existing_version_trio(historical39_root):
     assert admission.BASE == "f0e3d62a5677050d2373f691a61cd733b3dd5be6"
     assert admission.DOMAINS == ("ha_tools",)
     assert admission.PRODUCTION == {
@@ -34,16 +44,16 @@ def test_39_profile_is_additive_and_uses_only_the_existing_version_trio():
         "podvoice/gatekeeper/static/podview/setup.html",
         "podvoice/gatekeeper/static/podview/setup.js",
     }
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
+    assert admission.strict.pins_match(historical39_root, admission.IMMUTABLE)
     assert admission.IMMUTABLE.items() >= admission.previous.IMMUTABLE.items()
     assert admission.CONFIG == admission.previous.CONFIG | {
         "custom_components/podvoice/manifest.json"
     }
-    assert admission.config_only(ROOT)
+    assert admission.config_only(historical39_root)
 
 
-def test_39_draft_manifest_has_exact_changed_production_and_regression_paths():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_39_draft_manifest_has_exact_changed_production_and_regression_paths(historical39_root):
+    manifest = json.loads(admission.safe_file(historical39_root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice39.admission.v1"
     assert manifest["base"] == admission.BASE
     assert set(manifest["production"]) == admission.PRODUCTION
@@ -52,7 +62,7 @@ def test_39_draft_manifest_has_exact_changed_production_and_regression_paths():
     assert manifest["asset_count"] == 135
 
 
-def test_39_rejects_unreviewed_ha_manifest_fields(monkeypatch):
+def test_39_rejects_unreviewed_ha_manifest_fields(monkeypatch, historical39_root):
     original = admission.safe_file
 
     def changed(root, name):
@@ -62,22 +72,24 @@ def test_39_rejects_unreviewed_ha_manifest_fields(monkeypatch):
         return data
 
     monkeypatch.setattr(admission, "safe_file", changed)
-    assert not admission.config_only(ROOT)
+    assert not admission.config_only(historical39_root)
 
 
 @pytest.fixture
-def reviewed_draft(monkeypatch):
+def reviewed_draft(monkeypatch, historical39_root):
     """Synthetic complete approval proves exact39 validation without signing it."""
-    raw = admission.safe_file(ROOT, admission.MANIFEST)
+    raw = admission.safe_file(historical39_root, admission.MANIFEST)
     manifest = json.loads(raw)
     monkeypatch.setattr(admission, "REVIEWER", "synthetic-independent-review")
     monkeypatch.setattr(admission, "MANIFEST_SHA", admission.sha(raw))
     monkeypatch.setattr(
         admission,
         "PROFILE_AST",
-        admission.strict.ast_sha(admission.safe_file(ROOT, admission.PROFILE), "PROFILE_AST"),
+        admission.strict.ast_sha(
+            admission.safe_file(historical39_root, admission.PROFILE), "PROFILE_AST"
+        ),
     )
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
+    report = admission.legacy.inspect_repository(historical39_root, admission.BASE)
     record = {
         "version": admission.VERSION,
         "kind": admission.KIND,
@@ -87,27 +99,27 @@ def reviewed_draft(monkeypatch):
         "reviewer": admission.REVIEWER,
         "rationale": "Synthetic complete exact39 validation only.",
         "fingerprint": admission.legacy.production_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(manifest["production"])
+            historical39_root, admission.BASE, admission.BASE, tuple(manifest["production"])
         ),
         "regression_fingerprint": admission.legacy.regression_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(manifest["regressions"])
+            historical39_root, admission.BASE, admission.BASE, tuple(manifest["regressions"])
         ),
-        "runtime_fingerprint": admission.strict.fingerprint(ROOT, manifest["runtime"]),
-        "config_fingerprint": admission.strict.fingerprint(ROOT, admission.CONFIG),
-        "policy_fingerprint": admission.strict.fingerprint(ROOT, admission.POLICY),
-        "tooling_fingerprint": admission.strict.fingerprint(ROOT, admission.TOOLING),
+        "runtime_fingerprint": admission.strict.fingerprint(historical39_root, manifest["runtime"]),
+        "config_fingerprint": admission.strict.fingerprint(historical39_root, admission.CONFIG),
+        "policy_fingerprint": admission.strict.fingerprint(historical39_root, admission.POLICY),
+        "tooling_fingerprint": admission.strict.fingerprint(historical39_root, admission.TOOLING),
         "manifest_fingerprint": admission.MANIFEST_SHA,
     }
     return report, record
 
 
-def test_39_complete_synthetic_exact39_admission_accepts(reviewed_draft):
+def test_39_complete_synthetic_exact39_admission_accepts(reviewed_draft, historical39_root):
     report, record = reviewed_draft
-    assert admission.validate(ROOT, report, admission.BASE, record)
+    assert admission.validate(historical39_root, report, admission.BASE, record)
 
 
 @pytest.mark.parametrize("pin", ["REVIEWER", "MANIFEST_SHA", "PROFILE_AST"])
-def test_39_missing_approval_binding_rejects(reviewed_draft, monkeypatch, pin):
+def test_39_missing_approval_binding_rejects(reviewed_draft, historical39_root, monkeypatch, pin):
     report, record = reviewed_draft
     monkeypatch.setattr(admission, pin, "")
-    assert not admission.validate(ROOT, report, admission.BASE, record)
+    assert not admission.validate(historical39_root, report, admission.BASE, record)

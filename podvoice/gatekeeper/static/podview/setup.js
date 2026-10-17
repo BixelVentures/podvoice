@@ -3,7 +3,7 @@ import {PodVoiceTransport} from './podvoice-transport.js';
 // Only HA's administrator can approve access. Credentials stay in server-set
 // HttpOnly cookies, never in the setup renderer.
 export class SetupFlow {
- constructor({transport,render,navigate,now=()=>Date.now(),schedule=setTimeout,cancel=clearTimeout,load=()=>null,save=()=>{},forget=()=>{}}) {
+ constructor({transport,render,navigate,now=()=>Date.now(),schedule=(fn,ms)=>globalThis.setTimeout(fn,ms),cancel=id=>globalThis.clearTimeout(id),load=()=>null,save=()=>{},forget=()=>{}}) {
   Object.assign(this,{transport,render,navigate,now,schedule,cancel,load,save,forget});
   this.phase='connecting';this.closed=false;this.request=null;this.timer=null;this.sequence=0;
  }
