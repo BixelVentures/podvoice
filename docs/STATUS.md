@@ -1,14 +1,14 @@
-# Aktuel levering · 16. oktober 2026 · 2.0.36 installeret på Green
+# Aktuel levering · 17. oktober 2026 · 2.0.37 installeret på Green
 
-Lead v2.X. PodVoice PR #176 er merget som `aa49d94e588974683ad3b9ad4b6d34da81676b58`; officiel PR-CI #632 og main-CI/publicering #633 er grønne. GitHub-release 2.0.36 er publiceret. Den samlede installation på HA Green er verificeret i Supervisor og de indlæste integrationskort: **PodVoice 2.0.36, Speakers 0.26.24, Control 0.10.16 og PodVoice HA-integration 0.1.2**. Begge add-ons kører; backup var valgt ved begge opdateringer. Begge HACS-downloads er indlæst efter én fælles Core-genstart. De seks eksisterende politikfelters rå hashes er identiske før og efter opdateringen.
+Lead v2.X. PR #181 er merget som `3c95be311fe1622655ab8bf028d697523343e480`; det reviewede tree er `7249331a08d21edd2adef85ba8552fd0c92016ad`. Officiel PR-CI #635 og main-CI/publicering #636 er grønne. GitHub-release 2.0.37 er publiceret; ARM64-image har digest `sha256:64a51b6b59b3de1d149d56f1a154d4797cd14e593eadecf2db9c73c11fec103a` og samme merge-identitet i OCI-revision/PODVOICE_GIT_SHA.
 
-PodConnect PR #43 er merget som `46d3166ccafbacfc7943df14c5809ac320af9daa`. Begge 0.26.24-arkitekturer bestod faktisk make check og de to queue-wire-forløb; main-publiceringen genbrugte de præcise immutable images. Version 0.26.23 blev bevaret, da AMD-imaget allerede var publiceret, før ARM-bygningen afslørede en race i START_LOCKED-testens databaseopsætning. Den uafhængigt reviewede fixture-rettelse venter på bibliotekets faktiske initialisering; produktionskode, tidsgrænser og Control-kontrakt er uændrede.
+Supervisor viser **PodVoice 2.0.37 Kører**, og den faktiske native brugerflade viser **v2.0.37 · status live**. Backup var valgt ved opdateringen. Alle seks eksisterende Supervisor-politikfelters rå hashes er identiske før/efter; udvidet enhedsstyring og præcis de samme 11 tilladte Roborock-entiteter er bevaret. Speakers 0.26.24, Control 0.10.16 og PodVoice HA-integration 0.1.2 er ikke ændret i denne opdatering.
 
-**Faktisk drift og resterende accept:** Native brugerflade viser 2.0.36. Den registrerede timerstatus på den indlæste HA-integration svarer ok med Home Assistant som ejer og tomme timer-/alarm-lister efter Core-genstarten; det beviser læsning, ikke alarm/Stop. Den normale Configure-formular når den konkrete 30-dages skærmparringsbekræftelse. Den er ikke indsendt: ny controlleradgang og den forberedte robotindstillingsaktivering afventer den konkrete menneskelige adgangsgodkendelse. Ingen ny grant, kodeindtastning eller robotindstilling er aktiveret. Privat installationsreceipt og screenshots opbevares lokalt; ingen private enhedsidentiteter eller feltlogs publiceres her.
+**Faktisk Green-UI:** Den friske uparrede visning viser den tomme musikafspiller med knappen helt inde i kortet: viewport 1200×1038, kort 390×171,1875 px, knap 262×48 px og min-height 136 px. #179 er lukket på dette konkrete UI-bevis. Den skrivebeskyttede højttalerliste viser de tre konfigurerede HomePods; rumskift er deaktiveret uden controllerparring. Ingen afspilning, musikflytning eller robotkommando blev udført i denne kontrol.
 
-GPT-Live-preflight, faktisk musik-/robot-/timerbetjening, hørbar alarm/Stop, full-duplex-afbrydelse, semantisk afslutning/næste wake, fysisk latencybaseline, platformaccept og syv døgns stabilitet er fortsat åbne. Installeret rootfs-identitet er endnu ikke aflæst; gamle traces arver ikke den nye versions bevis. Epics #94/#95/#96 og funktionsissues lukkes ikke på CI eller installation. #174 og #175 er leveret i kode, men deres samlede installerede accept er stadig åben. Mobil og udforskning af native GPT-Live-websøgning er fortsat udskudt.
+**Åbent:** Brugeren har bekræftet, at Voice PE ikke er tilgængelig. Den godkendte robotaktivering er gemt, men den tidligere parringsanmodning blev afvist uden vist kode; dens private tilstandseffekt er ukendt, og den er ikke gentaget. Hele den gemte kontrolpolitik består validatoren; offline/fresh-owner er en hypotese, ikke en bevist afvisningsgren. #175 og den samlede musik-/robot-/timerbetjening står åbne. Full-duplex-afbrydelse, semantisk afslutning/næste wake, hørbar alarm/Stop, musik/duck/recovery, fysisk latency, platformaccept og stabilitetsobservation mangler fortsat samlet aktuel accept. Installeret rootfs-identitet er ikke aflæst. Epics #94/#95/#96 er ikke afsluttet. Mobil, native GPT-Live-webudforskning og Frameo-kontinuitet #180 er udskudt.
 
-Følgende beslutningsposter bevarer kilde- og kandidathistorik. Deres tidligere “upubliceret”/“ikke installeret” beskriver tidspunktet for posten; den aktuelle leverancestatus står ovenfor.
+Følgende beslutningsposter er bevaret som historik; deres planstatus gælder tidspunktet for posten. Ovenstående er den aktuelle leveringskvittering.
 
 ---
 
@@ -825,5 +825,35 @@ Before the two-file copy correction, use the existing display-only exact role/va
   "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
   "manifest_fingerprint": "a9c7b62a3961a4d3f9d03fe615f0cfb5fbc64ae9c7b287b86f825e0f0b9f9139",
   "rationale": "Independent exact combined36 source review /private/tmp/pv36-polish-combined-independent-review.json SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9. Exact 64-path source and manifest scope, 27 production files, 26 regressions, 241 runtime files, 135 assets, historical35 immutability and root PodView asset parity checked. This record admits source only; official CI, release/publication, Green installation, browser/provider delivery and actual physical robot/audio behavior require separate operator evidence and acceptance. CI631 only-unit failure was a Git fixture pointing to local-only checkpoint 0375. Independent scoped review /private/tmp/pv36-ci631-registry-anchor-independent-review.json SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b admits the one-line test anchor 38bd92ca28d0206bfafef6b03a7ea4d883e6a211, the actual remote PR176 merge-base with identical b0d7f35b tree and registry blob; assertion semantics and all production/UI bytes are unchanged. Handover: Git fixtures must reference reachable actual remote ancestors, never local-only metadata commits. This rebind remains source/test admission only; a fresh official unit run is required."
+}
+-->
+
+
+### 17/10 - active ordinary 2.0.37 composition: docs admission and empty player
+
+Lead root. Actual main aa49d94e588974683ad3b9ad4b6d34da81676b58 and reviewed backup0917198 contain the observed #178 failure: docs-only PR177 is incorrectly sent to historical32 admission. Reviewed #179 CSS changes only the empty-player height from136px to auto with its exact packaged asset hash. The retained four-file source/review/check evidence is reused; no new product cause is invented.
+
+Chain: source diff -> strict candidate admission -> official CI -> immutable artifact -> installation -> actual UI/Voice PE acceptance. Product semantics, provider, settings, grants, room/music/robot owners, audio, firmware and lifecycle are unchanged. Hypothesis: one tooling-only step condition fixes nonpayload docs dispatch, while intrinsic CSS height prevents the empty player clipping; neither establishes physical daily-use acceptance.
+
+Create one additive37 profile using the existing strict safe-file, inventory and fingerprint helpers. Bind actual aa49 base, exact changed production/config/policy/tests and the entire retained runtime; keep every historical30-36 profile/manifest/record byte-identical. Add only the two existing dispatcher routes, versiontrio37 and concise changelog. Blank approval pins must reject until independent exact-source review. Focused positive/negative admission and changed static checks precede one independent review and official CI once. No old36 broad replay, fallback/waiver, provider call, quota/settings change, pairing workaround or new validator framework. Rollback is installed immutable36, without inherited physical acceptance. Physical PE/pairing gates remain open; this candidate is not release-approved or physically accepted.
+
+<!-- podview37-admission
+{
+  "version": 14,
+  "kind": "podvoice37_docs_admission_and_empty_player",
+  "reviewer": "Independent /root/attention_ci_review exact37 source/composition review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "aa49d94e588974683ad3b9ad4b6d34da81676b58",
+  "merge_base": "aa49d94e588974683ad3b9ad4b6d34da81676b58",
+  "fingerprint": "2d7ef8b67a29ba15ce27c781f753bc3a7f90e4350ca1412bdd6ca8e069357ea5",
+  "regression_fingerprint": "2aea377a9ab645194d16e797715a9a98a6f2f0a98aa2c673a9271c69ab1a5ab1",
+  "runtime_fingerprint": "87edcf5a0625b00ab9c86c68eb316d46592147751698c0021887d403855a7a88",
+  "config_fingerprint": "23e3da9846aba20e7d5160aadffd885bb99bc1157a5d9620750f21a927d6440e",
+  "policy_fingerprint": "5fec72b726819f6e1864140333e41768fc67196f817acce926239610560e469b",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "d28bdd64379387b041c2fb5ff6038f60793099520f15d298dcd6793cdfd39a90",
+  "rationale": "Independent exact37 SOURCE GO f8316790c49e6c5acc0ebb2e7c0106ab28600057052fb5d6b24ed105c444d5c4. Exact14-path composition preserves reviewed backup4bits, all historical30-36 admission bytes and STATUS records, closed2-asset production scope,241 runtime files,135 UI assets,9 HA files and version-only37 metadata. Author focused28 new/current dispatch cases and16 historical36 fixture cases PASS, formatter/lint and diff checks PASS; unchanged checks retained. Existing strict helpers/inventory/fingerprints reused without generic fallback, waived owner checks, provider/settings/grant/runtime/audio changes. Official CI, publication, installation, pairing and physical Voice PE/UI acceptance remain separate and open."
 }
 -->

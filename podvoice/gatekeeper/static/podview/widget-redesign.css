@@ -236,7 +236,7 @@ pv-widget-host{--overview-lift:72px}
  #now-view,#now-view.stacked{padding:8px 0 0;margin:0}
  #now-view>.response-heading,#now-view.stacked>.response-heading{padding:8px 0 20px}
  #now-view>.response-heading h1,#now-view.stacked>.response-heading h1{font-size:clamp(30px,3.5vw,46px);line-height:1.08;margin:0}
- [data-view=rest] .player-empty{right:24px;bottom:24px;width:390px;height:136px;min-height:136px;grid-template-columns:72px minmax(0,1fr);grid-template-rows:1fr 48px;gap:0 16px;padding:16px 20px;border-radius:24px}
+ [data-view=rest] .player-empty{right:24px;bottom:24px;width:390px;height:auto;min-height:136px;grid-template-columns:72px minmax(0,1fr);grid-template-rows:1fr 48px;gap:0 16px;padding:16px 20px;border-radius:24px}
  [data-view=rest] .player-empty>img{grid-column:1;grid-row:1/3;align-self:center;justify-self:center;width:32px;height:32px}
  [data-view=rest] .player-empty>div{grid-column:2;grid-row:1;align-self:center}
  [data-view=rest] .player-empty>button{grid-column:2;grid-row:2;min-height:48px;padding:8px 12px;margin:0}

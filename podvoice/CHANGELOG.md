@@ -1,3 +1,8 @@
+## 2.0.37 — 17. oktober 2026
+
+- Den tomme musikafspiller tilpasser sin højde til indholdet, så knappen ikke klippes.
+- Rene dokumentationsændringer bruger den eksisterende korte CI-vej uden en forældet versionskontrol.
+
 ## 2.0.36 — daglig skærmparring og præcist køvalg, kandidat til review
 
 - Genbrug Home Assistants almindelige Konfigurer-flow til administratorens eksplicitte rumvalg og engangskode eller tilbagekaldelse. Koden vises én gang; friske administrator-, rum-, policy- og Supervisor-kvitteringskrav bevares. Der foretages ingen hjemmehandling ved parring.

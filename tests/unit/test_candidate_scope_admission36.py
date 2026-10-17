@@ -8,6 +8,31 @@ import pytest
 from scripts import candidate_scope_admission36 as admission
 
 ROOT = Path(__file__).parents[2]
+PUBLISHED36 = "aa49d94e588974683ad3b9ad4b6d34da81676b58"
+
+
+def published36_bytes(name: str) -> bytes:
+    return subprocess.check_output(["git", "show", f"{PUBLISHED36}:{name}"], cwd=ROOT)
+
+
+def is_successor_checkout(root: Path, head: str) -> bool:
+    if head == PUBLISHED36:
+        return False
+    try:
+        merge_base = subprocess.check_output(
+            ["git", "merge-base", PUBLISHED36, head], cwd=root, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except subprocess.CalledProcessError:
+        return False
+    return merge_base == PUBLISHED36
+
+
+def historical36_bytes(root: Path, head: str, name: str) -> bytes:
+    if is_successor_checkout(root, head):
+        return published36_bytes(name)
+    return admission.safe_file(root, name)
+
+
 EXPECTED_PRODUCTION = {
     "custom_components/podvoice/__init__.py",
     "custom_components/podvoice/config_flow.py",
@@ -268,10 +293,14 @@ def test_ci_keeps_historical_dispatch_and_adds_exact_ha_gate():
         publisher, "    needs: [scope, lint-test, ui-browser, ha-framework]\n", 1
     )
     assert expected != before
-    assert admission.safe_file(ROOT, name).decode() == expected
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    assert historical36_bytes(ROOT, head, name).decode() == expected
 
 
-def test_version_trio_stdin_and_ha_manifest_only_change_exact_35_values():
+def test_version_trio_stdin_and_ha_manifest_only_change_exact_35_values(monkeypatch):
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    if is_successor_checkout(ROOT, head):
+        monkeypatch.setattr(admission, "safe_file", lambda _root, name: published36_bytes(name))
     assert admission.config_only(ROOT)
     for name, pattern, expected in (
         ("podvoice/gatekeeper/__init__.py", r'^__version__ = "[^"\n]+"$', '__version__ = "2.0.36"'),
@@ -332,11 +361,19 @@ def test_version_trio_stdin_and_ha_manifest_only_change_exact_35_values():
     ],
 )
 def test_config_or_manifest_drift_rejects(monkeypatch, name, old, new):
-    actual = admission.safe_file
-    assert old in actual(ROOT, name)
+    original = admission.safe_file
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    successor = is_successor_checkout(ROOT, head)
+
+    def historical(root, path):
+        return published36_bytes(path) if successor else original(root, path)
+
+    monkeypatch.setattr(admission, "safe_file", historical)
+    assert admission.config_only(ROOT)
+    assert old in historical(ROOT, name)
 
     def changed(root, path):
-        data = actual(root, path)
+        data = historical(root, path)
         return data.replace(old, new, 1) if path == name else data
 
     monkeypatch.setattr(admission, "safe_file", changed)
@@ -344,16 +381,27 @@ def test_config_or_manifest_drift_rejects(monkeypatch, name, old, new):
 
 
 def test_only_six_reviewed_files_change_among_135_ui_assets():
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     static = admission.STATIC
-    assets = sorted(p for p in admission.strict.runtime_inventory(ROOT) if p.startswith(static))
+    if is_successor_checkout(ROOT, head):
+        assets = sorted(
+            name
+            for name in subprocess.check_output(
+                ["git", "ls-tree", "-r", "--name-only", PUBLISHED36, "--", static], cwd=ROOT
+            )
+            .decode()
+            .splitlines()
+        )
+    else:
+        assets = sorted(p for p in admission.strict.runtime_inventory(ROOT) if p.startswith(static))
     assert len(assets) == 136  # manifest plus the 135 approved assets
     for name in assets:
         if name in {static + path for path in CHANGED_ASSETS} | {static + "asset-manifest.json"}:
             continue
-        assert admission.sha(admission.safe_file(ROOT, name)) == admission.sha(
+        assert admission.sha(historical36_bytes(ROOT, head, name)) == admission.sha(
             subprocess.check_output(["git", "show", f"{admission.BASE}:{name}"], cwd=ROOT)
         )
-    setup = admission.safe_file(ROOT, static + "setup.html")
+    setup = historical36_bytes(ROOT, head, static + "setup.html")
     assert (
         admission.sha(setup) == "8e82d9cac1c9b360e6d11311c52a6ea77fda488aa11e725cb572f193245d32d8"
     )
@@ -361,6 +409,8 @@ def test_only_six_reviewed_files_change_among_135_ui_assets():
         ["git", "show", f"{admission.BASE}:{static}setup.html"], cwd=ROOT
     )
     current = json.loads(admission.safe_file(ROOT, static + "asset-manifest.json"))
+    if is_successor_checkout(ROOT, head):
+        current = json.loads(published36_bytes(static + "asset-manifest.json"))
     previous = json.loads(
         subprocess.check_output(
             ["git", "show", f"{admission.BASE}:{static}asset-manifest.json"], cwd=ROOT
@@ -377,7 +427,7 @@ def test_only_six_reviewed_files_change_among_135_ui_assets():
         "sha256": admission.sha(setup),
     }
     for path in CHANGED_ASSETS:
-        current_bytes = admission.safe_file(ROOT, static + path)
+        current_bytes = historical36_bytes(ROOT, head, static + path)
         assert current_rows[path] == {"path": path, "sha256": admission.sha(current_bytes)}
         assert current_bytes != subprocess.check_output(
             ["git", "show", f"{admission.BASE}:{static}{path}"], cwd=ROOT
