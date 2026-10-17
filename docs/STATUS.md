@@ -12,7 +12,10 @@ Canonical PodView-rettelse er adopteret byteidentisk: setup.js SHA256 a7dcf1dfa0
 
 
 
+CI645 på første PR186-head a490d8c fandt kun formattering af tre strengkonstanter i admission40 efter final binding. Lint, scope og HA-framework bestod. Kun formatteringen og den tilsvarende policy-binding er rettet; produktionsfiler og manifest er uændrede. Ruff format/check, lint, seks målrettede admissioncases, diff-kontrol og exact admission består på rettelsen. Ny automatisk officiel CI på samme PR afventer; fejlet CI645 beholdes som fejlet.
+
 <!-- podview40-admission
+
 {
   "base_tip": "97e4b44fd5299136e562d5eebf0076c8ebf83bb2",
   "config_fingerprint": "a324db3dd65153ecc184a8cefc97fbdd41ae335570b040609154d469abce25a8",
@@ -23,7 +26,7 @@ Canonical PodView-rettelse er adopteret byteidentisk: setup.js SHA256 a7dcf1dfa0
   "kind": "podvoice40_browser_timer_callback_wrappers",
   "manifest_fingerprint": "60d5896ccb630c45316d77f78008d49e4a4e1c249ede2ccd77e2bbf53d7a9085",
   "merge_base": "97e4b44fd5299136e562d5eebf0076c8ebf83bb2",
-  "policy_fingerprint": "9b4fab3445f54b16708af27fe25a6670824ee90632678306c01ae9728656455d",
+  "policy_fingerprint": "7284cd0a997d7aed86cd10958c806cbe88a7bef4527fd650f0c3304e5e7b142a",
   "rationale": "Independent production source GO and tooling structure GO. The real Chromium SetupFlow regression passes with the candidate and reproduces TypeError: Illegal invocation against unchanged39. Exact two-file production scope, six regressions, 241 runtime files and 135 assets are pinned; native HA integration and authority remain unchanged. Focused admission and historical39 checks pass. Official CI, publication, installation and Mac pairing acceptance remain separate.",
   "regression_fingerprint": "d96d416ef346d10bc18ab6770a6742b6faffaaf68a93638e289dc0161edb400d",
   "reviewer": "Independent /root/pairing_pending_audit production and /root/release_readiness tooling review40",

@@ -46,9 +46,9 @@ REQUIRED_TESTS = frozenset(
     }
 )
 # Lead fills approval only after an independent review of the final composition.
-REVIEWER = 'Independent /root/pairing_pending_audit production and /root/release_readiness tooling review40'
-MANIFEST_SHA = '60d5896ccb630c45316d77f78008d49e4a4e1c249ede2ccd77e2bbf53d7a9085'
-PROFILE_AST = 'a1a13a26e13f8c053bf448abbf40f1ca26bb5bb95e9ee546ca45e8240acff02f'
+REVIEWER = "Independent /root/pairing_pending_audit production and /root/release_readiness tooling review40"
+MANIFEST_SHA = "60d5896ccb630c45316d77f78008d49e4a4e1c249ede2ccd77e2bbf53d7a9085"
+PROFILE_AST = "a1a13a26e13f8c053bf448abbf40f1ca26bb5bb95e9ee546ca45e8240acff02f"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission39.py": "4b427d073e52855a1f20a0a6eb652184654b1ee404c5cc7e7a54ef8f0da89c81",
     "scripts/podview39-admission-reviewed.json": "749ee3579fe3bf396f9d0e2eda2e2f721dd1d79e2763b0e925705cbb017186db",
