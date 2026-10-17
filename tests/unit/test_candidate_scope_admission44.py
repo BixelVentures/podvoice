@@ -11,6 +11,8 @@ from scripts import candidate_scope_admission44 as admission
 ROOT = Path(__file__).parents[2]
 PUBLISHED43_MERGE = "3f3628a6a847a322a0aa49788b56dd65836d1986"
 PUBLISHED43_TREE = "4e9f3d07df8ce7ebc1ba592f8b6dfd32b75b4052"
+PUBLISHED44_MERGE = "383a72f1170ebf97ac8ef7f121c933cd731dd311"
+PUBLISHED44_TREE = "25ab9fc49a59cf2288bf317f6e13e9e40ae9edb2"
 
 
 @pytest.fixture(scope="module")
@@ -19,6 +21,15 @@ def historical43_root(tmp_path_factory):
     subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
     subprocess.run(["git", "checkout", "--quiet", PUBLISHED43_MERGE], cwd=target, check=True)
     subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED43_TREE], cwd=target, check=True)
+    return target
+
+
+@pytest.fixture(scope="module")
+def historical44_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published44") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED44_MERGE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED44_TREE], cwd=target, check=True)
     return target
 
 
@@ -52,26 +63,27 @@ def test_44_profile_preserves_history_and_limits_the_visual_delta():
     assert admission.IMMUTABLE["scripts/podview43-admission-reviewed.json"]
 
 
-def test_44_draft_manifest_has_exact_inventories():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_44_draft_manifest_has_exact_inventories(historical44_root):
+    root = historical44_root
+    manifest = json.loads(admission.safe_file(root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice44.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert (
-        set(manifest["runtime"]) == admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        set(manifest["runtime"]) == admission.strict.runtime_inventory(root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING
-    assert admission.strict.pins_match(ROOT, manifest["production"])
-    assert admission.strict.pins_match(ROOT, manifest["regressions"])
-    assert admission.strict.pins_match(ROOT, manifest["config"])
-    assert admission.strict.pins_match(ROOT, manifest["policy"])
-    assert admission.strict.pins_match(ROOT, manifest["tooling"])
-    assert admission.strict.pins_match(ROOT, manifest["runtime"])
-    assert admission.assets_match44(ROOT, manifest["runtime"], manifest["asset_count"])
+    assert admission.strict.pins_match(root, manifest["production"])
+    assert admission.strict.pins_match(root, manifest["regressions"])
+    assert admission.strict.pins_match(root, manifest["config"])
+    assert admission.strict.pins_match(root, manifest["policy"])
+    assert admission.strict.pins_match(root, manifest["tooling"])
+    assert admission.strict.pins_match(root, manifest["runtime"])
+    assert admission.assets_match44(root, manifest["runtime"], manifest["asset_count"])
 
 
 def test_published43_remains_accepted_and_44_rejects_its_snapshot(historical43_root):

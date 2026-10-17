@@ -1,6 +1,6 @@
 import {requestWithin} from './request-deadline.js';
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
-// No provider credentials, cross-origin bridge, background retries or offline actions.
+// No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
 export class PodVoiceTransport {
  constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}} = {}) {
   const page = new URL(url);
@@ -31,12 +31,26 @@ export class PodVoiceTransport {
   if(value.controllerContinuity!==undefined){const c=value.controllerContinuity;if(!c||!['available,enabled','available,enabled,maxDays'].includes(Object.keys(c).sort().join(','))||typeof c.enabled!=='boolean'||typeof c.available!=='boolean'||('maxDays'in c&&(!Number.isInteger(c.maxDays)||c.maxDays<0||c.maxDays>30)))return false;}
   if (this.room && value.roomId !== this.room) return false;
   if (this.snapshot?.bootId === value.bootId && this.snapshot.revision > value.revision) return false;
-  if(value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,controlSetup:[]}};
+  if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===false){
+   this.controllerRenewed=false;clearTimeout(this.recoveryTimer);this.recoveryTimer=null;clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;
+  }
+  if(value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
   this.room = value.roomId; this.snapshot = value; this.connected = true;
+  if(value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
+  if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed)this.scheduleRecovery();
   this.onConnection('connected'); this.onSnapshot(value);clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);return true;
  }
- async start() {
-  this.close(); this.closed = false;
+ async start() {return this.restart();}
+ scheduleRecovery(){
+  if(this.closed||this.recoveryBlocked||this.recoveryTimer)return;
+  const generation=this.generation,attempt=this.recoveryAttempt||0;
+  this.recoveryAttempt=Math.min(attempt+1,6);
+  const delay=Math.min(30000,1000*2**Math.min(attempt,5));
+  this.recoveryTimer=setTimeout(()=>{this.recoveryTimer=null;if(!this.closed&&!this.recoveryBlocked&&generation===this.generation)this.restart(true).catch(()=>{});},delay);
+ }
+ async restart(retrying=false) {
+  const attempt=retrying?this.recoveryAttempt||0:0;
+  this.close(); this.closed = false;this.recoveryAttempt=attempt;
   const generation = this.generation;
   this.controller = new AbortController();
   this.onConnection('connecting');
@@ -44,28 +58,31 @@ export class PodVoiceTransport {
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
    let value = await response.json();
    if (generation !== this.generation) return;
+   if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}
    let renewed=false;
    if(response.ok&&value?.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){
-    try{const renewal=await this.request(this.endpoint('controller/renew'),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({roomId:value.roomId})});const result=await renewal.json();if(generation!==this.generation)return;if(renewal.ok&&result.ok===true&&result.expiresIn===300){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();renewed=true;}}catch{if(generation!==this.generation)return;}
+    try{const renewal=await this.request(this.endpoint('controller/renew'),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({roomId:value.roomId})});const result=await renewal.json();if(generation!==this.generation)return;if([401,403].includes(renewal.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}if(renewal.ok&&result.ok===true&&result.expiresIn===300){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();if(generation!==this.generation)return;if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}renewed=response.ok;}}catch{if(generation!==this.generation)return;}
    }
    if(generation!==this.generation)return;
+   if(this.recoveryBlocked)throw Error('transport_access_denied');
    this.controllerRenewed=renewed;
-   if(value?.controllerContinuity?.enabled===true&&!renewed)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,controlSetup:[]}};
+   if(value?.controllerContinuity?.enabled===true&&!renewed)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
    if (!response.ok || !this.accept(value)) throw new Error(value.error || 'invalid_snapshot');
    if(generation!==this.generation||this.closed)return;
-   if(renewed)this.onControllerRenewed({owner:this.controllerRenewalOwner,generation});
+   if(this.controllerRenewed===true)this.onControllerRenewed({owner:this.controllerRenewalOwner,generation});
    if(generation!==this.generation||this.closed)return;
-   if(renewed)this.controllerRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.start().catch(()=>this.disconnected());},240000);
+   if(this.controllerRenewed===true)this.controllerRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.restart().catch(()=>{});},240000);
    this.stream = new this.EventSource(this.endpoint('events'), {withCredentials:false});
    this.stream.addEventListener('snapshot', event => {
     if (generation !== this.generation) return;
     try { if (!this.accept(JSON.parse(event.data))) this.disconnected(); } catch { this.disconnected(); }
    });
    this.stream.onerror = () => { if (generation === this.generation) this.disconnected(); };
+   if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed)this.scheduleRecovery();
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
- disconnected() { this.connected = false; this.onConnection('disconnected'); }
- async request(url,options,ms){return requestWithin(async(target,init)=>{const response=await this.fetch(target,init);const body=await response.json();return {ok:response.ok,json:async()=>body};},url,options,this.controller?.signal,ms);}
+ disconnected() { this.connected = false; this.onConnection('disconnected');this.scheduleRecovery(); }
+ async request(url,options,ms){return requestWithin(async(target,init)=>{const response=await this.fetch(target,init);let body;try{body=await response.json();}catch(error){if(![401,403].includes(response.status))throw error;body={error:"transport_access_denied"};}return {ok:response.ok,status:response.status,json:async()=>body};},url,options,this.controller?.signal,ms);}
  async home(){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   const response=await this.request(this.endpoint('home'),{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw new Error('home_unavailable');return response.json();
@@ -152,6 +169,7 @@ export class PodVoiceTransport {
   } catch { return {ok:false,requestId,outcome:'unknown',retryAllowed:false}; }
  }
  close() {
+  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;
   clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;this.controllerRenewed=false;
   this.generation++; this.closed = true; this.connected = false;
   clearTimeout(this.freshnessTimer);this.controller?.abort(); this.stream?.close(); this.stream = null;

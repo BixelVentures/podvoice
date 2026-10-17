@@ -19,7 +19,7 @@ export class LiveAnswerView{
  pruneExpired(){
   clearTimeout(this.expiryTimer);const host=this.host,old=host.state.answers;
   const items=old.filter(answer=>!answer.live||expiresAt(answer)>Date.now());
-  if(items.length!==old.length){const removed=old.some(answer=>answer.id===host.state.focus)&&!items.some(answer=>answer.id===host.state.focus);host.state={...host.state,answers:items,focus:removed?'now':host.state.focus};if(this.dialog.open&&!items.some(answer=>answer.receiptId===this.sourceId)){this.dialog.close();this.body.replaceChildren();}if(host.isConnected)host.render();}
+  if(items.length!==old.length){const previousFocus=document.activeElement,closingSource=this.dialog.open&&!items.some(answer=>answer.receiptId===this.sourceId),recoverFocus=old.some(answer=>!items.some(item=>item.id===answer.id)&&host.answerNodes?.get(answer.id)?.contains(previousFocus))||(closingSource&&this.dialog.contains(previousFocus));const removed=old.some(answer=>answer.id===host.state.focus)&&!items.some(answer=>answer.id===host.state.focus);host.state={...host.state,answers:items,focus:removed?'now':host.state.focus};if(this.dialog.open&&!items.some(answer=>answer.receiptId===this.sourceId)){this.dialog.close();this.body.replaceChildren();}if(host.isConnected){host.render();const active=document.activeElement;if(recoverFocus&&!document.querySelector('dialog[open]')&&(active===document.body||active===previousFocus||!active?.isConnected))host.focusHeading();}}
   const deadlines=items.filter(answer=>answer.live).map(expiresAt).filter(Number.isFinite);
   if(host.isConnected&&deadlines.length){this.expiryTimer=setTimeout(()=>this.pruneExpired(),Math.max(1,Math.min(...deadlines)-Date.now()));this.expiryTimer.unref?.();}
  }

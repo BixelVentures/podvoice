@@ -263,7 +263,7 @@
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "a01b64ad80f150ecc21afc529af31fc0dcfd5118b14a12addb38b92028a199fa"
+      "sha256": "920aa37a95219e2591a78a320386540caf4ed1e40f1ff7b761cb1cd50345753c"
     },
     {
       "path": "live-control-view.js",
@@ -279,11 +279,11 @@
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "ff835a954c78f88484b7eee95d078c422f87fce40ff228a8a863785d296d91b2"
+      "sha256": "41f67fe4a44e9db89c87d13497874a1a6b9182bbbcc97917e2ad5266e9f40002"
     },
     {
       "path": "live-music-view.js",
-      "sha256": "e7196c49bf24d9de85e043fbf99a47348c9012e8e40739301de26691c52062bf"
+      "sha256": "1c760ecdf6ec4edc51b7a8e6335e0b4b468e7ed4b4ba2b9c3154dbc6d7307105"
     },
     {
       "path": "live-music.css",
@@ -311,7 +311,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "c2b7a6d0094b85e6db2b61672b9786e0ed85bbfcb74cd311f22c2bae6318c137"
+      "sha256": "61041d648734512b176c010982583ab4f0231f186b7504fdc5f0c04194f328c3"
     },
     {
       "path": "music-selection-model.js",
@@ -351,7 +351,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "13356a8c1995c5a0dad551d62e9daf5be5382f6b1b990db132f47a8e68824d78"
+      "sha256": "882d1e7cd92eee8d9953cf8f8380e1cf0c2c6085a391cb9a7a471d0919134d52"
     },
     {
       "path": "podvoice-view.js",
@@ -547,7 +547,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "d8640b45931177745c9d18b61f7140a7635cda038e5a9bab5de5a2899087a296"
+      "sha256": "b0e1f88f8790f43f976ae9e5c911a6da95c40ee60e205426c863c9bd153703ef"
     },
     {
       "path": "widget-model.js",
