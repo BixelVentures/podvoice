@@ -3,7 +3,8 @@
   "approval": {
     "authority": "human-user",
     "date": "2026-10-16",
-    "request": "Lock the existing approved component library as the only components agents may use; coherent widget family, shared event history, no visible loading prose. This records existing roles, not blanket approval of all shipped code."
+    "request": "Lock the existing approved component library as the only components agents may use; coherent widget family, shared event history, no visible loading prose. This records existing roles, not blanket approval of all shipped code.",
+    "refinementAuthority": "17 October human: one component library is the UI kit; improve existing owners and remove parallel UI; bounded D01/D04/D05/D06 migrations reuse registered roles and preserve action authority."
   },
   "entrypoints": [
     {
@@ -50,6 +51,7 @@
         "html:div:header-left",
         "html:div:header-navigation",
         "html:div:home-shortcuts",
+        "html:div:home-shortcuts home-extensions",
         "html:div:music-subhead",
         "html:div:notice-copy",
         "html:div:now-activities",
@@ -86,12 +88,16 @@
       "id": "screen-composition",
       "owner": [
         "dist/index.html",
-        "dist/widget-view.js"
+        "dist/widget-view.js",
+        "dist/radio-view.js:RadioView",
+        "dist/vehicle-view.js:VehicleView"
       ],
       "anatomy": [
         "one pv-widget-host",
         "responses + existing player aside",
-        "existing overview/photo/detail/dialog slots"
+        "existing overview/photo/detail/dialog slots",
+        "radio detail reuses response heading and approved pv-choice-list; selected station is local source text only",
+        "vehicle detail reuses response heading, status/car/battery hero, native secondary disclosures and shared activity timeline"
       ],
       "variants": [
         "photo",
@@ -100,7 +106,9 @@
         "answer",
         "device",
         "timers",
-        "weather"
+        "weather",
+        "radio detail",
+        "vehicle detail"
       ],
       "states": [
         "visible/hidden with retained focus and content"
@@ -230,7 +238,9 @@
         "vacuum",
         "light",
         "weather shortcut",
-        "music shortcut"
+        "music shortcut",
+        "radio shortcut",
+        "vehicle shortcut"
       ],
       "states": [
         "known",
@@ -720,9 +730,8 @@
       }
     },
     "dist/live-answer-view.js": {
-      "status": "unapproved-debt",
+      "status": "approved-composition",
       "domOwner": "LiveAnswerView source disclosure",
-      "debt": "D03: live-only owner source dialog; reuse existing disclosure anatomy, no new family",
       "factoryClassArgument": 1,
       "imports": [
         "dist/owner-answers.js"
@@ -740,7 +749,11 @@
           "method:invalidate": 1,
           "method:refresh": 1,
           "method:setReadStatus": 1,
-          "method:showSource": 1
+          "method:showSource": 1,
+          "arrow:expiresAt": 1,
+          "function:answerOwnerContext": 1,
+          "method:onSnapshot": 1,
+          "method:pruneExpired": 1
         },
         "roots": [
           "factory:button:'Luk'"
@@ -748,12 +761,13 @@
         "registrations": {},
         "customTags": [],
         "dom": true
-      }
+      },
+      "compositionScope": "D03 migrated: actual owner source disclosure uses shared native dialog/header/pv-component/pv-content/pv-meta recipe; source facts/events and expiry guards remain ownedSource data, not a new answer family.",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-control-view.js": {
-      "status": "unapproved-debt",
+      "status": "approved-composition",
       "domOwner": "LiveControlView admitted option forms",
-      "debt": "D02: bespoke live authority/options form; server-owned actions do not approve a new visual family",
       "factoryClassArgument": 2,
       "imports": [
         "dist/player-view.js",
@@ -787,27 +801,31 @@
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
           "method:send": 1,
-          "method:moveSpeaker": 1
+          "method:moveSpeaker": 1,
+          "method:invalidateMusic": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
+          "factory:button:'pv-button pv-ghost'",
           "factory:button:'text-control'",
-          "factory:dialog:'live-control-dialog'",
-          "factory:div:'control-choice-grid'",
-          "factory:div:'control-options'",
-          "factory:section:'control-option'"
+          "factory:dialog:'pv-component'",
+          "factory:div:'pv-actions'",
+          "factory:div:'pv-content'",
+          "factory:form:'pv-content'",
+          "factory:section:'pv-content'"
         ],
         "registrations": {},
         "customTags": [
           "pv-robot-control-panel"
         ],
         "dom": true
-      }
+      },
+      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added.",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-home-view.js": {
-      "status": "unapproved-debt",
+      "status": "approved-composition",
       "domOwner": "renderLiveWeather + renderRobotHistory",
-      "debt": "D01: shared pv-activity-timeline owns observed/requested events; remaining live care/settings detail and reuse controls are scoped existing debt, not a new robot family",
       "factoryClassArgument": 1,
       "imports": [
         "dist/weather-observation.js",
@@ -825,13 +843,11 @@
           "function:renderRobotHistory": 1
         },
         "roots": [
-          "factory:article:'robot-recipe-row'",
-          "factory:button:'text-control'",
-          "factory:details:'device-history'",
-          "factory:details:'weather-source'",
-          "factory:div:'robot-history-empty'",
-          "factory:section:'device-history robot-recent'",
-          "factory:section:'robot-recent'"
+          "factory:button:'pv-button pv-ghost'",
+          "factory:details:'device-history robot-care'",
+          "factory:dl:'robot-care-values'",
+          "factory:section:'device-history robot-recent pv-component'",
+          "factory:section:'robot-care-group'"
         ],
         "registrations": {},
         "customTags": [],
@@ -839,12 +855,13 @@
       },
       "requiredCalls": [
         "renderWeather\\s*\\(view,\\s*model\\)"
-      ]
+      ],
+      "compositionScope": "D01 original presentation debt closed after source/test review: canonical renderWeather and the single existing pv-activity-timeline own weather/events; existing device-history disclosure contains semantic care dl groups and shared pv-button reuse controls. Domain data projection remains an adapter, not another visual family.",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-media-view.js": {
-      "status": "unapproved-debt",
-      "domOwner": "LiveMediaView account picker only",
-      "debt": "D04: live account picker; player/queue MUST delegate to PlayerView",
+      "status": "approved-composition",
+      "domOwner": "LiveMediaView data adapter; canonical pv-choice-list owns account choices, PlayerView owns player/control/queue",
       "factoryClassArgument": 1,
       "imports": [
         "dist/live-queue-view.js",
@@ -868,12 +885,11 @@
           "method:setAccount": 1,
           "method:clearRoom": 1
         },
-        "roots": [
-          "native:button:text-control",
-          "native:div:live-accounts"
-        ],
+        "roots": [],
         "registrations": {},
-        "customTags": [],
+        "customTags": [
+          "pv-choice-list"
+        ],
         "dom": true
       },
       "requiredCalls": [
@@ -883,9 +899,8 @@
       ]
     },
     "dist/live-music-selection-view.js": {
-      "status": "unapproved-debt",
+      "status": "approved-composition",
       "domOwner": "LiveMusicSelectionView confirmation/target form",
-      "debt": "D05: live search/confirmation form; result cards MUST delegate to MusicResults",
       "factoryClassArgument": 1,
       "imports": [
         "dist/media-observation.js",
@@ -920,10 +935,12 @@
           "method:showTracks": 1
         },
         "roots": [
-          "factory:button:'text-control'",
-          "factory:dialog:'live-music-confirm'",
-          "factory:form:'live-music-search'",
-          "factory:section:'live-music-selection'"
+          "factory:button:'pv-button pv-ghost'",
+          "factory:button:'pv-button pv-primary'",
+          "factory:dialog:'pv-component'",
+          "factory:div:'pv-actions'",
+          "factory:form:'pv-actions'",
+          "factory:section:'pv-content'"
         ],
         "registrations": {},
         "customTags": [],
@@ -931,7 +948,9 @@
       },
       "requiredCalls": [
         "musicResults\\.render\\s*\\("
-      ]
+      ],
+      "compositionScope": "D05 migrated: native search/target and confirmation forms compose shared pv-component/pv-content/pv-actions/pv-button/pv-meta recipes; result cards MUST delegate to MusicResults. No independent form style or new family.",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-music-view.js": {
       "status": "active-support",
@@ -1306,10 +1325,51 @@
         "dom": false
       }
     },
+    "dist/radio-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "registrations": {},
+        "customTags": [],
+        "definitions": {
+          "function:localRadioPlayerModel": 1,
+          "function:radioStation": 1
+        },
+        "roots": [],
+        "dom": false
+      }
+    },
+    "dist/radio-view.js": {
+      "status": "approved-composition",
+      "domOwner": "RadioView: existing response heading plus approved pv-choice-list; local station selection only",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/radio-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "registrations": {},
+        "customTags": [
+          "pv-choice-list"
+        ],
+        "definitions": {
+          "class:RadioView": 1,
+          "method:build": 1,
+          "method:destroy": 1
+        },
+        "roots": [
+          "native:header:response-heading"
+        ],
+        "dom": true
+      }
+    },
     "dist/robot-control-panel.js": {
-      "status": "unapproved-debt",
+      "status": "approved-composition",
       "domOwner": "RobotControlPanel",
-      "debt": "D06: bespoke shadow control form; no authority to invent a robot component family",
       "factoryClassArgument": 2,
       "imports": [],
       "surface": {
@@ -1333,23 +1393,26 @@
           "method:updateObservation": 1
         },
         "roots": [
-          "factory:button:'primary start'",
-          "factory:button:'secondary'",
-          "factory:button:option.action==='stop'?'stop':['pause'",
-          "factory:details:'settings'",
-          "factory:div:'choices'",
+          "factory:button:'pv-button pv-ghost'",
+          "factory:button:'pv-button pv-primary start'",
+          "factory:button:option.action==='stop'?'pv-button pv-ghost stop':['pause'",
+          "factory:details:'device-history settings'",
           "factory:div:'heading'",
-          "factory:div:'observation'",
-          "factory:div:'repeat'",
-          "factory:div:'transport'",
-          "factory:form:'setting'"
+          "factory:div:'pv-actions transport'",
+          "factory:div:'pv-component'",
+          "factory:form:'setting'",
+          "factory:section:'device-history'"
         ],
         "registrations": {
           "'pv-robot-control-panel'": 1
         },
-        "customTags": [],
+        "customTags": [
+          "pv-vacuum-widget"
+        ],
         "dom": true
-      }
+      },
+      "compositionScope": "D06 original presentation debt closed after source/test review: canonical pv-vacuum-widget owns observation; admitted native form/fieldset/legend controls use shared light-DOM pv-component/pv-button recipes and token stylesheet. No shadow root/style, duplicate robot instrument or additional authority.",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/robot-observation.js": {
       "status": "active-support",
@@ -1595,6 +1658,7 @@
           "factory:div:'pv-frame-inner'",
           "factory:div:'pv-instrument'",
           "factory:div:'pv-list'",
+          "factory:div:'pv-readonly-row'",
           "factory:ol:'pv-step-outline'",
           "factory:table:'pv-table'"
         ],
@@ -1793,6 +1857,64 @@
         "dom": false
       }
     },
+    "dist/vehicle-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "registrations": {},
+        "customTags": [],
+        "definitions": {
+          "function:unconnectedVehicleModel": 1,
+          "function:vehicleFixture": 1,
+          "function:vehicleModel": 1
+        },
+        "roots": [],
+        "dom": false
+      }
+    },
+    "dist/vehicle-view.js": {
+      "status": "approved-composition",
+      "domOwner": "VehicleView: existing detail shell with status/car/battery hero, native charge/climate disclosures and shared activity timeline; read-only",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/vehicle-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "registrations": {},
+        "customTags": [
+          "pv-activity-timeline"
+        ],
+        "definitions": {
+          "arrow:assign": 1,
+          "arrow:disclosure": 1,
+          "arrow:make": 1,
+          "class:VehicleView": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:render": 1
+        },
+        "roots": [
+          "factory:details:'device-history vehicle-disclosure'",
+          "factory:div:'vehicle-battery-rail'",
+          "factory:div:'vehicle-content'",
+          "factory:div:'vehicle-measurements'",
+          "factory:div:'vehicle-metric'",
+          "factory:dl:'vehicle-detail-values'",
+          "factory:dl:'vehicle-metrics'",
+          "factory:figure:'vehicle-artwork'",
+          "factory:header:'response-heading'",
+          "factory:section:'device-history vehicle-history'",
+          "factory:section:'vehicle-hero'",
+          "factory:section:'vehicle-secondary'"
+        ],
+        "dom": true
+      }
+    },
     "dist/visual-content.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
@@ -1971,6 +2093,10 @@
       "domOwner": "WidgetHost",
       "factoryClassArgument": 1,
       "imports": [
+        "dist/radio-model.js",
+        "dist/radio-view.js",
+        "dist/vehicle-view.js",
+        "dist/vehicle-model.js",
         "dist/speaker-output-view.js",
         "dist/player-view.js",
         "dist/ui/touch-intent.js",
@@ -2164,7 +2290,7 @@
   "variantDebt": [
     {
       "id": "D07",
-      "status": "unapproved-debt",
+      "status": "resolved-original-presentation-debt",
       "paths": [
         "dist/music-results.js",
         "dist/player-view.js",
@@ -2173,7 +2299,8 @@
         "dist/ui/library/visual-components.js",
         "dist/index.html"
       ],
-      "reason": "Existing loading prose and progress labels are not approved variants. Adopt reviewed existing-anatomy empty/retained variants from widget-loading-20261016; finite aria-busy remains."
+      "reason": "Original generic loading-prose variants removed or hidden in existing empty/retained anatomy. Music cards, player first-read, queue and answer families retain canonical nodes and aria-busy; finite motion remains. Internal timer observation sentinels are not shown. Actual conversation phases and meaningful accepted/error/unknown results remain. Closure is source/local-test scope, not final visual, Green or physical acceptance.",
+      "evidence": "integration/astra-design-review-20261017/debt-remaining-review/receipt.md"
     }
   ],
   "approvedCompositions": [
@@ -2188,6 +2315,16 @@
         "Robot observations and separately labelled requests reuse pv-activity-timeline; care/settings stay in existing details disclosure.",
         "Ten local QA formats reuse existing answer renderers; preview-scenes imports existing visual-examples. Normal/live history is not seeded.",
         "Music tabs Stemning · Humør · Topsange · Senest; no Likede promotion."
+      ]
+    },
+    {
+      "date": "2026-10-17",
+      "authority": "human-user",
+      "decisionSource": "integration/ui-complete-20261017/SCOPE.md",
+      "scope": "Fix alt with Product Design: radio and Tesla extend existing screen, resource-preview, choice-list and event-history anatomy; no new catalogue family, player or live device authority.",
+      "variants": [
+        "Radio overview shortcut and station detail use the common detail shell and approved choice-list; local station names never confer stream or playback authority.",
+        "Tesla overview shortcut and detail use the common detail shell with status/car/battery, secondary charging/climate disclosures and shared event history; only explicit local fixture or honest unconnected live state."
       ]
     }
   ]

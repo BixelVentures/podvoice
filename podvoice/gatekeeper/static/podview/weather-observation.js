@@ -1,8 +1,17 @@
 const conditions={clear:'Klart',sunny:'Solrigt',partlycloudy:'Let skyet',cloudy:'Skyet',rainy:'Regn',pouring:'Kraftig regn',snowy:'Sne',fog:'Tåge',windy:'Blæsende','clear-night':'Klar nat',lightning:'Torden','lightning-rainy':'Torden og regn','snowy-rainy':'Slud',exceptional:'Usædvanligt vejr'};
-export const conditionLabel=v=>conditions[v]||String(v||'').slice(0,80);
-export function conditionIcon(value){
+export const conditionLabel=v=>Object.hasOwn(conditions,v)?conditions[v]:String(v||'').slice(0,80);
+export function conditionIcon(value,isDaytime){
  const icons={clear:'sun',sunny:'sun','clear-night':'moon',partlycloudy:'cloud-sun',cloudy:'cloud',rainy:'cloud-rain',pouring:'cloud-rain'};
- return icons[value]||null;
+ if(isDaytime===false&&['clear','sunny','partlycloudy'].includes(value))return value==='partlycloudy'?'cloud':'moon';
+ return Object.hasOwn(icons,value)?icons[value]:null;
+}
+// Presentation uses admitted condition data. Neither the clock nor a household
+// label can prove day/night; an absent source day flag stays unknown.
+export function weatherAppearance(current,{fresh=true}={}){
+ const tones={clear:'clear',sunny:'clear','clear-night':'clear',partlycloudy:'partlycloudy',cloudy:'cloudy',rainy:'rain',pouring:'rain',snowy:'snow','snowy-rainy':'snow',fog:'fog',windy:'wind',lightning:'storm','lightning-rainy':'storm'};
+ if(!fresh||!current||!Object.hasOwn(tones,current.condition))return {tone:'neutral',phase:'unknown',photo:false};
+ const tone=tones[current.condition],phase=current.condition==='clear-night'?(current.isDaytime===true?'unknown':'night'):typeof current.isDaytime==='boolean'?(current.isDaytime?'day':'night'):'unknown';
+ return {tone,phase,photo:tone==='partlycloudy'&&phase==='day'};
 }
 export function weatherTemperature(value,unit='°C'){
  return Number.isFinite(value)?`${new Intl.NumberFormat('da-DK',{maximumFractionDigits:0}).format(Math.abs(value)<0.5?0:value)}${unit}`:'—';
@@ -15,7 +24,7 @@ export function completeHourlyDayRanges(periods){
 export function weatherObservation(v,includeHourly=true){
  if(!v||typeof v.source!=='string'||!v.source.length||typeof v.retrievedAt!=='string'||!Number.isFinite(Date.parse(v.retrievedAt))||!Number.isFinite(v.observedAt)||!v.units||!Array.isArray(v.forecast)||v.forecast.length>48)throw Error('invalid_weather');
  const unit=v.units.temperature;if(!['°C','°F','C','F'].includes(unit))throw Error('unknown_temperature_unit');
- const current=v.current===null?null:{temperature:Number.isFinite(v.current?.temperature)?v.current.temperature:null,condition:typeof v.current?.condition==='string'?v.current.condition.slice(0,80):''};
+ const current=v.current===null?null:{temperature:Number.isFinite(v.current?.temperature)?v.current.temperature:null,condition:typeof v.current?.condition==='string'?v.current.condition.slice(0,80):'',...(typeof v.current?.is_daytime==='boolean'?{isDaytime:v.current.is_daytime}:{})};
  const forecast=v.forecast.map(row=>{if(v.forecastType==='daily'&&(('highTemperature' in row&&(!Number.isFinite(row.highTemperature)||row.highTemperature!==row.temperature))||('lowTemperature' in row&&(!Number.isFinite(row.lowTemperature)||!Number.isFinite(row.highTemperature)||row.lowTemperature>row.highTemperature))))throw Error('invalid_daily_range');if(typeof row.datetime!=='string'||!Number.isFinite(Date.parse(row.datetime)))throw Error('invalid_weather_period');return {datetime:row.datetime,temperature:Number.isFinite(row.temperature)?row.temperature:null,condition:typeof row.condition==='string'?row.condition.slice(0,80):'',rain:Number.isFinite(row.precipitation_probability)&&row.precipitation_probability>=0&&row.precipitation_probability<=100?row.precipitation_probability:null,precipitation:Number.isFinite(row.precipitation)&&row.precipitation>=0?row.precipitation:null,wind_speed:Number.isFinite(row.wind_speed)&&row.wind_speed>=0?row.wind_speed:null,wind_bearing:Number.isFinite(row.wind_bearing)&&row.wind_bearing>=0&&row.wind_bearing<=360?row.wind_bearing:null,...(v.forecastType==='daily'&&Number.isFinite(row.highTemperature)?{highTemperature:row.highTemperature}:{}),...(v.forecastType==='daily'&&Number.isFinite(row.lowTemperature)?{lowTemperature:row.lowTemperature}:{})};});
  const label=v.displayLocation,displayLocation=label&&typeof label==='object'&&!Array.isArray(label)&&Object.keys(label).length===2&&label.source==='configured_label'&&typeof label.name==='string'&&label.name.length>0&&label.name.length<=80&&!/[\x00-\x1f\x7f]/.test(label.name)?{name:label.name,source:'configured_label'}:null;
  const projected={...(displayLocation?{displayLocation}:{}),source:v.source.slice(0,120),location:typeof v.location==='string'?v.location.slice(0,120):'',retrievedAt:v.retrievedAt,stateUpdatedAt:v.stateUpdatedAt,observedAt:v.observedAt,units:{temperature:unit,precipitation:v.units.precipitation,windSpeed:v.units.windSpeed},unit:unit.length===1?'°'+unit:unit,current,forecast,aiAdvice:weatherAiAdvice(v.aiAdvice,v),forecastType:typeof v.forecastType==='string'?v.forecastType:'',advice:weatherAdvice(v.advice,v),coverage:{truncated:v.coverage?.truncated===true,totalRows:v.coverage?.totalRows,returnedRows:forecast.length}};

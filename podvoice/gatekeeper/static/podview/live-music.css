@@ -24,38 +24,8 @@
 
 /* Real search keeps provider results visible while authority stays in the server offer. */
 #live-music[hidden]{display:none}
-.live-music-selection:not([hidden]){display:flex;flex-direction:column;gap:10px;min-height:0}
-.live-music-search{display:flex;gap:8px;flex:none}
-.live-music-search input{flex:1;min-width:0;min-height:48px;border:1px solid var(--pv-screen-muted);border-radius:12px;padding:10px 14px;background:var(--pv-screen-surface);color:var(--pv-screen-ink);font:inherit}
-.live-music-search button,.live-music-selection-results button,.live-music-confirm button{min-height:48px;border:0;border-radius:12px;padding:10px 16px;background:var(--pv-screen-control);color:var(--pv-screen-ink);font:inherit;cursor:pointer}
-.live-music-search button:disabled,.live-music-selection-results button:disabled,.live-music-confirm button:disabled{opacity:.5;cursor:default}
-.live-music-selection-note{margin:0;min-height:24px;color:var(--pv-screen-muted);font-size:15px;line-height:1.4}
-.live-music-target-label{display:flex;align-items:center;gap:12px;font-weight:600}
-.live-music-target-label[hidden]{display:none}
-.live-music-target-label select{min-height:48px;max-width:100%;padding:10px 12px;border-radius:12px;background:var(--pv-screen-surface);color:var(--pv-screen-ink);font:inherit}
-.live-music-selection-results:not([hidden]){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;min-height:0;overflow:auto;overscroll-behavior:contain}
-.live-music-selection-results .live-music-result{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:0;gap:10px;padding:0 0 4px;background:transparent;border:0;border-radius:0;color:var(--pv-screen-ink);box-shadow:none;text-align:left}
-.live-music-selection-results .live-music-result::after{content:none;display:none}
-.live-music-selection-results .live-music-result:hover{background:transparent}
-.live-music-selection-results .live-music-result:hover .result-art{transform:none}
-.live-music-selection-results .live-music-result .live-track-art{position:static;inset:auto;display:block;width:min(100%,190px);height:auto;aspect-ratio:1;flex:none;overflow:visible;background:var(--pv-screen-control);border-radius:0;z-index:auto;transition:none}
-.live-music-selection-results .live-track-cover{display:block;width:100%;height:100%;aspect-ratio:1;object-fit:contain;object-position:center;opacity:1;border-radius:0}
-.live-music-selection-results .live-track-cover.live-art-fallback{padding:28%;opacity:.6}
-.live-music-selection-results .result-copy{width:100%}
-.live-music-selection-results .result-copy h2{margin:0 0 5px;color:var(--pv-screen-ink);font-size:19px;line-height:1.2;overflow-wrap:anywhere}
-.live-music-selection-results .result-copy p{display:block;margin:0;color:var(--pv-screen-muted);font-size:15px;line-height:1.25;overflow-wrap:anywhere}
-.live-music-selection-results .spotify-source-link{align-self:flex-start}
-.live-music-selection-results button{align-self:flex-start;background:var(--pv-screen-selection)}
-.live-music-confirm{max-width:min(92vw,540px);border:0;border-radius:18px;padding:28px;background:var(--pv-screen-surface);color:var(--pv-screen-ink);box-shadow:0 24px 80px #0005}
-.live-music-confirm::backdrop{background:#0009}
-.live-music-confirm h2{margin:0 0 16px;font-size:28px}
-.live-music-confirm p{font-size:18px;line-height:1.4}
-.live-music-confirm button{margin:8px 8px 0 0}
-.live-music-confirm button:first-of-type{background:var(--pv-screen-action-ink);color:var(--pv-screen-surface)}
-@media(min-width:760px){[data-mode=live] #music-response .live-music-selection{flex:1}.live-music-selection-results{align-content:start}}
-/* The active demo's fixed 300px results and cards must not clip live search choices. */
-@media(min-width:760px){[data-mode=live][data-view=active] #music-response .live-music-selection-results:not([hidden]){height:auto;min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;grid-auto-rows:max-content}[data-mode=live][data-view=active] #music-response .live-music-selection-results .live-music-result{height:max-content;min-height:0;overflow:visible}}
-@media(max-width:759px){.live-music-selection-results:not([hidden]){display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory}.live-music-selection-results .live-music-result{flex:none;width:min(76vw,300px);scroll-snap-align:start}.live-music-target-label{align-items:flex-start;flex-direction:column}}
+/* Search, confirmation and targets use dialog.pv-component in library.css.
+   Provider results use the retained canonical MusicResults renderer. */
 
 .weather-live-advice p{margin:8px 0}.weather-live-advice .weather-advice-period,.weather-live-advice .weather-advice-children{font-size:16px;color:#4b626b}.weather-live-advice .weather-advice-period{font-size:14px}
 

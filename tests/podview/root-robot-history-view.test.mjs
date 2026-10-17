@@ -55,7 +55,7 @@ test('request journal shares canonical history; unknown never offers reuse or cl
  assert.equal(f.section().descendants().some(node=>node.textContent==='Senest anmodet'),false);
  assert.match(f.timeline.data.items[0].label,/^Start anmodet/);assert.match(f.timeline.data.items[1].label,/^Udfald ukendt/);
  assert.equal(f.timeline.data.items.some(row=>/afsluttet|færdig/i.test(row.label)),false);
- const buttons=f.section().descendants().filter(node=>node.tagName==='button');assert.equal(buttons.length,1);buttons[0].listeners.click();assert.deepEqual(f.calls,['accepted']);
+ const buttons=f.section().descendants().filter(node=>node.tagName==='button');assert.equal(buttons.length,1);assert.equal(buttons[0].className,'pv-button pv-ghost');buttons[0].listeners.click();assert.deepEqual(f.calls,['accepted']);
  assert.equal(document.getElementById('robot-history-empty').hidden,true);
  assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-request:accepted','robot-request:unknown']);
 }));
@@ -73,7 +73,7 @@ test('observed facts and request journal interleave by source timestamps without
 test('all existing rich facts and open disclosure survive; grant removal removes reuse only',()=>withDocument(()=>{
  const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-12,'h'),fact('battery',56,'%'),{...fact('child_lock',false),entityId:'switch.child_lock'}]},history:{status:'observed',items:[request('saved')]}}),true);
  renderRobotHistory(f.host);const details=f.section().querySelector('details');details.open=true;
- assert.ok(details.descendants().some(node=>node.textContent==='Filter: -12 timer'));assert.ok(details.descendants().some(node=>node.textContent==='Børnelås: Nej'));
+ assert.ok(details.descendants().some(node=>node.tagName==='dt'&&node.textContent==='Filter'));assert.ok(details.descendants().some(node=>node.tagName==='dd'&&node.textContent==='12 timer over interval'));assert.ok(details.descendants().some(node=>node.tagName==='dt'&&node.textContent==='Børnelås'));assert.ok(details.descendants().some(node=>node.tagName==='dd'&&node.textContent==='Nej'));
  f.host.liveControls.allowed=()=>false;renderRobotHistory(f.host);assert.equal(f.section().querySelector('details').open,true);
  assert.equal(f.section().descendants().some(node=>node.tagName==='button'),false);
 }));
@@ -82,3 +82,6 @@ test('return to canonical local/light detail restores timeline visibility and hi
  const f=fixture(device({history:{status:'observed',items:[request('recent')]}}));renderRobotHistory(f.host);f.host.state.devices=[{id:'light',kind:'light',live:false}];f.host.state.focus='light';
  renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);assert.equal(f.section().hidden,true);assert.equal(document.getElementById('robot-history-empty').hidden,true);
 }));
+
+test('existing care disclosure contains semantic groups and dl rows, not new history/cards',()=>withDocument(()=>{const stale=fact('dock_error','water_empty');stale.stale=true;stale.updatedAt=now()-600;const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-80.1,'h'),stale,{...fact('dnd_start_time','22:00:00'),entityId:'time.dnd_start_time'}]}}));renderRobotHistory(f.host);const details=f.section().querySelector('details');assert.equal(details.children[0].textContent,'Pleje og indstillinger');assert.deepEqual(details.descendants().filter(n=>n.tagName==='h3').map(n=>n.textContent),['Vedligeholdelse','Dock og vand','Indstillinger']);assert.equal(details.descendants().filter(n=>n.tagName==='dl').length,3);assert.equal(details.descendants().filter(n=>n.tagName==='dt').length,3);assert.equal(details.descendants().filter(n=>n.tagName==='dd').length,3);assert.ok(details.descendants().some(n=>n.textContent==='Mangler vand · sidst kendt'));assert.equal(details.descendants().some(n=>n.tagName==='button'||n.tagName==='pv-activity-timeline'),false);}));
+test('empty care groups are omitted and zero is retained',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h')]}}));renderRobotHistory(f.host);const details=f.section().querySelector('details');assert.deepEqual(details.descendants().filter(n=>n.tagName==='h3').map(n=>n.textContent),['Vedligeholdelse']);assert.ok(details.descendants().some(n=>n.textContent==='0 timer tilbage'));}));

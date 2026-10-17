@@ -1,3 +1,66 @@
+# Samlet UI41 · faktisk freeze og uafhængigt review
+
+CI649: scope, HA-framework, REST og ARM-build bestod; UI og unit fejlede på forældede fixtures. Ti testfiler er rettet og uafhængigt gennemgået, herunder historiske36/40 isoleret til egne publicerede snapshots. Alle143 produktassets er uændrede fra source-GO. Endelig automatisk CI på samme PR afventer; den fejlede kørsel bevares som fejlet.
+
+143 canonical runtimeassets matcher ejerens friske manifest79c6ac8de4e66f94579f268f18e0189187bc782fd8889fc3c4b36b366b1f7ec4. Musik-ejet invalidation bevarer nu en uafhængig robotopgave; sene musikcallbacks og ukendt write-outcome er fenced, global disconnect invaliderer fortsat. Independent Sol source delta GO og Astra source-adoption GO er modtaget; faktisk ændrede adaptercases105/105 og registry33/33 bestod. UI-ejerens658/658 og54modulgate er separat kildebevis. Astra exact41 tooling GO samt narrow delta GO er modtaget; reviewer er nu bundet med Python3.12 AST, alle historiske profiler bevares. Den faktiske exact41 CLI består efter reviewerbinding. De berørte route-/admissioncases er kontrolleret; én stale lokal Python-bytecodecache efter AST-binding blev fjernet, og kun den ugyldiggjorte bindingscase blev kørt igen med PASS. Formatter, lint og diff-kontrol består. Ingen runtimepatch blev lavet for cachefejlen. Ingen fysisk/homeeffect-accept arves. Installation med mulig lyd/genoptagelse holdes tilbage hele natten; offentlig build/publicering fortsætter. Native room-observation/recovery-fejlen i187 er særskilt planlagt efterfølgende42/PC25 og påstås ikke løst af denne UI-version.
+
+<!-- podview41-admission
+{
+  "version": 18,
+  "kind": "podvoice41_canonical_podview_ui_bundle",
+  "reviewer": "Independent Astra exact41 tooling and /root/release_readiness final PV41 fixture/admission delta review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "6799ee3d65cb67fb406346c565dc206e08cbf0da",
+  "merge_base": "6799ee3d65cb67fb406346c565dc206e08cbf0da",
+  "rationale": "Independent canonical143 source GO and exact tooling GO retained. Official CI649 failed on stale historical36/40 and eight UI fixtures; ten test-only paths repaired and independently reviewed without production change or dropped queue/light assertions. 49 regressions pinned. Green40 remains installed; nighttime effects and risky installation held. Final automatic CI and publication pending; room native repair separate PC25/PV42. Independent timer fixture delta GO restores three otherwise admissible guard negatives; 14/14 cases pass.",
+  "fingerprint": "de81d0506884da406a3f6673025051a9559b90c69d57ba0cba5547952b5a2dc3",
+  "regression_fingerprint": "94292c809ca41fea753a24649e978436b651c014134016cd0b09b132b27dc576",
+  "runtime_fingerprint": "9cbbff1ad8236657e4806a0cdc25690704663812d1e0e538a32a5e41b16c83cb",
+  "config_fingerprint": "8302a8373d1d2528036962cd729f8d6cd9de6ea80c86f5a0edc2b0b87ee81e01",
+  "policy_fingerprint": "5b1117d8fd06c41b0314036dc950113ebb9339a6834972bd56b5a931c42ef198",
+  "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
+  "manifest_fingerprint": "d496c074b3787057371b95d62eae8e85bd4a4071c807477f345db3fa77ae8b43"
+}
+-->
+
+---
+
+# Natbegrænsning · direkte menneskeinstruktion · 17. oktober 2026
+
+Ingen rigtig musik hele natten: fire børn sover. Ingen start, resume, flytning, autoplay, volumenprøve, hørbare timeralarmer eller robotkørsel. Kildearbejde, inert test, build/CI og publicering fortsætter; installation/genstart med mulig opstartshilsen eller pending audio-recovery holdes tilbage, indtil den kan bevises lydløs eller mennesket tillader den. Ingen automatisk nulstilling ved midnat. Den kendte prøveafspilning fik én normal native Stop; UI kunne ikke bekræfte udfaldet, men efterfølgende frisk Spotify-snapshot kl.21.36.49CEST bekræftede paused på præcis Køkkenalrum HomePod, age5086ms/max15000. Ingen anden stop-/play-/volumenhandling blev sendt. Den tidligere prøvetimer er afsluttet/fjernet; ingen robotkommando er sendt. Fysisk lyd- og robotaccept udsættes til dagtid. Alle aktive agenter og PodView-lead er orienteret.
+
+---
+
+# Aktiv leadbeslutning før native rettelse · room START og alias-recovery · 17. oktober 2026
+
+Observeret på faktisk Speakers0.26.24/PodVoice2.0.40: normal PodView-musikstart er modtaget; frisk Spotify-observation viser playing på korrekt Køkkenalrum-engine. Native UI viser samme HomePod valgt men ruten released, og managerloggen gentager hvert tredje sekund 'alias-route: alias 1 output selection failed; recovery remains pending'. get_targets errors={} og korrekt valgt output/ready binding; get_track_play_controls giver native_start_unavailable. Eksakt baseline er Speakers24 b053fe25135f5f92d4d4c14bc7386cc334abdddb, ikke ældre Documents-kode. Lyd er ikke fysisk bekræftet.
+
+Kildeaudit: alias1 svarer til r0. Alias-recovery bruger almindelig OwnTone output-selection; den shippede native START-latch afviser almindelig selection mens en native START ejer transporten. Hypotese: et aktuelt korrekt native START kan derfor spille, mens alias-recovery fejler og efterlader released-marker, som igen spærrer roomproof. Dette er en falsificerbar kildehypotese; live HTTP500/latch er ikke direkte observeret. Hele kæde: HA-grant → PodView prepare/commit → Control/native START-generation/claim → OwnTone outputejerskab og faktisk playback → alias-recovery → frisk roomproof → UIhandlinger. Ejertrin på begge sider og stale/cancel/restart/andenrum/eksternAirPlay skal gennemgås.
+
+Tilladt minimal retning: genkend kun præcis aktuel native START-ejer og route ved alias-recovery, så en irrelevant almindelig selection ikke konkurrerer med den. Bevar korrekt afvisning ved fremmed route/owner/generation, released/ukendt transport og almindelig fejl; selected:true eller tracknavn må aldrig alene skabe roomproof eller ophæve en anden apps AirPlay-ejerskab. Ingen ændret Spotify-kvote, timeout, opstart, volumen, brugerbinding, rettigheder, provider eller voice-lifecycle. Isoleret draft fra24, permanent kausal regression af korrekt native START + alias1/r0 + release/recovery samt stale/andet rum og reelt afvist output. Uafhængigt adversarial review og relevant kompileret CI kræves før én samlet Speakers25/PodVoice41-installation. Rollback er installeret24 med uændrede policies; det er ikke en fysisk accepteret baseline. Hvis årsagshypotesen ikke holder mod konkret ejerskab, stoppes denne rettelse før freeze frem for at fjerne sikkerhedsgrænsen.
+
+---
+
+# Faktisk Green-opfølgning · 17. oktober 2026 kl. 21.20
+
+Mennesket har udtrykkeligt godkendt Macbook uden automatisk udløb indtil tilbagekaldelse. Normal HA-dialog bekræftede den friske anmodning; samme opsætningsfane åbnede automatisk PodView. Parring på 2.0.40 er dermed observeret gennem det normale flow. En UI-oprettet timer på ét minut blev observeret tælle ned, nå 0:00/Tiden er gået og forsvinde efter én Færdig-handling. Alarmens faktiske lyd er ikke fysisk bekræftet. Musikstart af The Jazz 100 på Køkkenalrum HomePod ved35% blev sendt én gang og kvitteret som modtaget/afventer observeret afspilning; playback og lyd er ikke bekræftet, ingen blind gentagelse. Robotten læses ved basen med aktuelle mapvalg, men betjeningspanelet invalideres og alle knapper deaktiveres. Kildeaudit fandt to mulige veje til den præcise defaulttekst: forbindelsesskift eller musik-clearRoom, der ukorrekt invaliderer en vacuum-task. Samme tværdomænekobling findes i canonical næste UI og er sendt tilbage til UI-ejeren med kausal regressionsanmodning før freeze. Ingen robot-sideeffekt blev sendt. Yderligere normal HA-read: get_playback_snapshot viser frisk playing på den korrekte HomePod; get_track_play_controls for eksisterende konto/engine/rumr0 giver native_start_unavailable. get_targets viser errors={}, configured alias r0 med ready:true og korrekt HomePod, samt observed_output selected:true/query_up:true/needs_auth:false. Native klient og generelle room/output-reads virker altså; den resterende musikfejl er afgrænset til start-readiness-endpoint/proof, ikke bevist løst ved UI-opdateringen. Kandidaten er ikke accepteret som samlet hjemmebetjening.
+
+---
+
+# Aktiv leadbeslutning · samlet PodView UI-kandidat efter 2.0.40 · 17. oktober 2026
+
+Lead: denne PodVoice-chat. Installeret og faktisk kørende på Green: 2.0.40, merge 6799ee3d65cb67fb406346c565dc206e08cbf0da, exact tree d33d7e7f226f6579d72299bbb2594c924d703deb. PR186 CI647 og main648 er grønne; GitHub-release og OCI-index sha256:4bd019956c60d956026a236ecf9219f717c274d6ebab3008b1ddd0b0159816cf er publiceret. Alle seks gemte policy-hashes er kontrolleret uændrede efter installation. Normal Macbook-anmodning når HA's afsluttende godkendelse; browserkonsollen viser ingen ny Illegal invocation. Faktisk claim/renewal, musik-, robot- og timerbetjening er endnu ikke accepteret. Den viste varighed indtil tilbagekaldelse afviger fra det tidligere specifikke 30-dagessamtykke; menneskets præcisering afventer før aktivering.
+
+Næste samlede kandidat er forberedelse, ikke frosset eller udgivet. Direkte brugerkrav: koordinér med PodView, saml resten i én opdatering, bevar mobil som senere opgave. Canonical UI-owner har leveret et kildegodkendt 143-assets-bundt med manifest SHA256 87d219bfa151c14592a6680f985146ce2dcd255938b9e8fd773c0c7f922cb5b5. Ejerens receipt er GO_STATIC_PACKAGE_ONLY; 646/646 suite, 54-modulgate og 205 opløste referencer er rapporteret kildebevis, ikke Green- eller fysisk accept.
+
+Hypotese: byteidentisk adoption af det frosne UI-bundt med korrekte registreringer bevarer eksisterende serverejerskab og tilfører den samlede aftalte visning uden at ændre voice-lifecycle eller give ny adgang. Berørt kæde: normal HA-ingress → statiske moduler/registry → eksisterende controller-renewal → aktuelle room-/owner-bundne handlingsforslag → uændret backend-admission → faktisk enhedskvittering. Trin før og efter kortene, stale data, ukendte outcomes og retries skal gennemgås i diff-review. Invarianter: GPT-Live/full-duplex og fysisk voice-kæde er uændrede; HA ejer nye grants; UI må ikke selv opfinde playback, robot- eller timercompletion. Ingen provider-, firmware-, timeout-, politik- eller rettighedsændringer. Ingen visuelle bytejusteringer i releasearbejdet; kompatibilitetsfund returneres til UI-owner.
+
+Plan: isoleret draft fra actual40; adopter præcis 143 runtimefiler og deres manifest samt relevante eksisterende source-tests; bevar historiske admissionprofiler; kør ændrede statiske/fokuserede kontroller og uafhængigt ejergrænsereview før exact-tree-binding og én officiel kandidat-CI. Genbrug canonical kildechecks uden at kalde dem kandidatbevis. Rollback er installeret40 med bevarede policies, ikke en påstået fysisk godkendt baseline. Fysisk accept af Mac/homeeffects og samlet visuel accept står åbent; ingen udgivelse må omtales som fysisk funktion alene på grøn CI.
+
+---
+
 # Aktiv leadbeslutning · 2.0.40 Chrome-parring · 17. oktober 2026
 
 Lead: denne PodVoice-chat. Installeret 2.0.39 (merge97e4b44, tree3a5bc3ce111733fa984cd2a70d6c67d4ddcbbdbd) og native HA-integration0.1.3 er faktisk verificeret på Green. CI643 og main644/publicering bestod; OCI index sha256:babb39da6c4b7b957e9bcc946ef6f9d2fea4c9a65815de11ccb53a4354ccc0b4. Seks policy-hashes, udvidet enhedsstyring og de samme11 robotentiteter er bevaret. Mac-parring og musik-/robot-/timerbetjening er IKKE accepteret.

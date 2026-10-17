@@ -11,7 +11,7 @@
     },
     {
       "path": "answer-widget.js",
-      "sha256": "aa95f6f88067917f8ec0457b2a18d02907ad6c506f5ba96c222d56d8271a50d8"
+      "sha256": "5a3210cf5a3d8b3b112d35e4d519ac6b75950380e2f183bffe9b67d392ac0857"
     },
     {
       "path": "app.js",
@@ -36,6 +36,14 @@
     {
       "path": "assets/icons/arrow-refresh.svg",
       "sha256": "1fb78a0bd296a9105b8c0372c291359543cc62c81021cbd6b5b058e98797c2e3"
+    },
+    {
+      "path": "assets/icons/boombox.svg",
+      "sha256": "8f1ed30532936a30e2d041c9072b75139e908206492b28954e5c931f2d8f17f9"
+    },
+    {
+      "path": "assets/icons/car-front.svg",
+      "sha256": "fa199499adc63653afa31ba4a9d61ddfffcaa5ac4f4ac9f9b7bfa3eec8a06d77"
     },
     {
       "path": "assets/icons/card.svg",
@@ -198,6 +206,14 @@
       "sha256": "82dff886987ef9fb7b2c6b500205b762569802060e4f6cc9a758b7ee19631d92"
     },
     {
+      "path": "assets/vehicle-gray-model-y-2023.png",
+      "sha256": "880ac901b41f8edca4b96983575c31362342af2d0987538ebf1ae5a1b4c54375"
+    },
+    {
+      "path": "assets/weather-sky-soft.png",
+      "sha256": "61dddae898edf9da123f058a292bab2af80284a8881f13022a5d2a9ef212eac7"
+    },
+    {
       "path": "components.html",
       "sha256": "92e558b8e1b4777a49d38d5c746728898cf5c6f9f741fc9316416dab12b90a1a"
     },
@@ -211,11 +227,11 @@
     },
     {
       "path": "flow-controller.js",
-      "sha256": "78ca12a7abc0c709d02a203f97a081666fe465e884d0163508f4b771cca6ed3e"
+      "sha256": "c7690e08f3975b5ebaa6162cad9bfc41d71586f5f311883a2b7b7561b64ce3f8"
     },
     {
       "path": "frame-layout.css",
-      "sha256": "59d477fceb1e67053750482421aad773028774f74c651b99fac005acf453eee4"
+      "sha256": "0da0a7c0003ad0bb21288a98851919260314a79fbb8af268ff36caa76c444672"
     },
     {
       "path": "home-model.js",
@@ -223,7 +239,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "8e6c12391c94e7dd78e347413d737c0bec9367a927cfba95c17e7be4c43c599c"
+      "sha256": "41652a89e93763bef2ad22e6bde6e2f05af342e7a6846f5ceb3ee968be0cbfd0"
     },
     {
       "path": "ingress-kiosk.js",
@@ -247,23 +263,23 @@
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "8322da85bda3cc19e39213affc3ff75b182763076cda67619c4f65c941726093"
+      "sha256": "a01b64ad80f150ecc21afc529af31fc0dcfd5118b14a12addb38b92028a199fa"
     },
     {
       "path": "live-control-view.js",
-      "sha256": "5ab6804c260e3688f52e21b0e6432b1bdd7aa986940c29c6e2d4a499cae30391"
+      "sha256": "1fdc0f69cf4c99d634c70a10c218adc6e117a311c6cee8827f4c5cb44fc70c63"
     },
     {
       "path": "live-home-view.js",
-      "sha256": "7c26a5287a8d1244add7e77dd5534074f2a86525259de3f01dedd0f9a946ece7"
+      "sha256": "98366035d8af96f087923dcaa4c595000e68e7fffddc70a0d5685268cbbb0b69"
     },
     {
       "path": "live-media-view.js",
-      "sha256": "04bd3ccb5545ea15dc6c3910a950b57887d2fe6c9f57b033968ed0849d42bd67"
+      "sha256": "d5f8b76db7dfaf6c0514ebf3d59c3295845baf53b25e65b435818b7f75029b04"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "4ded4f7dd23e316050c444a84d65f020dd03342e5e2a274a1659d18338b9b5ba"
+      "sha256": "ff835a954c78f88484b7eee95d078c422f87fce40ff228a8a863785d296d91b2"
     },
     {
       "path": "live-music-view.js",
@@ -271,7 +287,7 @@
     },
     {
       "path": "live-music.css",
-      "sha256": "7a2f25e7eed179f9e996e1b02360117400e73d74b9d5a635af83b48bf169484a"
+      "sha256": "c397bdab0c35d56d4ddd8b0519f1bbd93b9eb44d62a8e2951f02d2ee7e5f7852"
     },
     {
       "path": "live-queue-view.js",
@@ -279,7 +295,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "7e9737607748a6174d0d05e76ddcbb45aea9d80d2c198601ffdec82ca355d355"
+      "sha256": "284ac113369355055a16e13e662293e0d1c9d8e91c325edaa22f582fbc5bc1ee"
     },
     {
       "path": "model.js",
@@ -331,7 +347,7 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "657853507ddfea4abced3a84e4d925af64d5943c778bb98c3cf8d085fa310c0f"
+      "sha256": "d8415362cf4988d43940a2b2e9c93fa654ee69dd5a52bfb6c79b0fece42caa9a"
     },
     {
       "path": "podvoice-transport.js",
@@ -343,7 +359,15 @@
     },
     {
       "path": "preview-scenes.js",
-      "sha256": "319a4fe4ee81f846a2a5cc7b07beb10a96ae66add35ee01485e5db644e2bbbdb"
+      "sha256": "b9d1908dcad27d07ffe0ec2d45b97bad0acb89a016590569a881bd79c6259931"
+    },
+    {
+      "path": "radio-model.js",
+      "sha256": "934eeeb46e8c9e196a86f755dcf7bbb2683a4b354e9c8c27c45f9385cb0ca57c"
+    },
+    {
+      "path": "radio-view.js",
+      "sha256": "8c76253a8c116225e1913ee725cb2fb9e259e48e5b916e4c32a60d8ea9aa439f"
     },
     {
       "path": "references.json",
@@ -359,15 +383,15 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "d571ea04ea433b5e7d77e2899d15553e862eb813e5a63c19c87b47cedc77f90c"
+      "sha256": "56d8d2447479e78f527d6726d1ac6ac802db62d74c383be146c87b44a278148b"
     },
     {
       "path": "robot-observation.js",
-      "sha256": "f29c50e570acdacdd357062f84c7ac084d354802529d107d182dcc957aedfbff"
+      "sha256": "746ed4d75393223650df16412758331cfde62fa976d108bba232558ad7649dc3"
     },
     {
       "path": "scene-model.js",
-      "sha256": "6923f122408a23d45d171f294d48e16de455752733adc0360b1c849a8e414266"
+      "sha256": "881d8ade12b71fa62dd754197f9efd8fe2fc4305f3510f7e8ed868465f03e55a"
     },
     {
       "path": "scenes.css",
@@ -419,7 +443,7 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "0ac32f66dbd80a066f9bbbd620d97dd9a47d296f2ebce14c2755ffd9851191e9"
+      "sha256": "2f1aa2dc6722a9222296481a18aaf16baaffcf17ec8fac404195aab201aa11f8"
     },
     {
       "path": "ui/catalog.js",
@@ -427,7 +451,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "8315dc49cfc0ba066a766d64eba373bbec68bf6afde35506201a327483dedb53"
+      "sha256": "d950034068f53a8736ffcfe4b12fd1aaa4c5324fa483f3fdf55c74e498ba479d"
     },
     {
       "path": "ui/components.js",
@@ -447,11 +471,11 @@
     },
     {
       "path": "ui/library/components.js",
-      "sha256": "debdb803e16d8aed10d4b867b78aeba4961736392550e49e255f4ec413af81de"
+      "sha256": "42021f182ef28737c90964947d750676d4ec27730aa2ba15f2a935b65037b0c9"
     },
     {
       "path": "ui/library/library.css",
-      "sha256": "6e0d649bd874a72fef4a75e0526815f5ba47c2ec35ad99520ec488156774ae1e"
+      "sha256": "7e6d3ae712d18762b46f9d636f0ddc2b622da1081beae3468f403e4d179b0dc1"
     },
     {
       "path": "ui/library/types.d.ts",
@@ -459,7 +483,7 @@
     },
     {
       "path": "ui/library/visual-components.js",
-      "sha256": "046dfcdcf495e1c9e1e61d198a50eee3686307e33d00073210bab4dbf78db920"
+      "sha256": "cd194fa48838878230b44a412ca6d35c28ab484110dcfbd47fe9a678d7e526b3"
     },
     {
       "path": "ui/motion.js",
@@ -483,11 +507,19 @@
     },
     {
       "path": "ui/scroll-edges.js",
-      "sha256": "0288fb3476d7712678d1459dc68071ebb6e4b1bce87e88e8e193e9c13ed498b8"
+      "sha256": "c9b0fae1f5dc656c4e74a1d25f5ea9040dde7713961475b18e21ca17beca6c27"
     },
     {
       "path": "ui/touch-intent.js",
       "sha256": "8812b134dc5cdf170a1783777418bb460e1707467679f2efe998c172c8b52bbb"
+    },
+    {
+      "path": "vehicle-model.js",
+      "sha256": "6025ce21173e205c06d84ccc2714a158755d7988592f067abdd2ee1f4f528581"
+    },
+    {
+      "path": "vehicle-view.js",
+      "sha256": "524baf05fcc73e6c44a87fff28cd77ca6bcdfb05a29e325d07dd39fa07fc6998"
     },
     {
       "path": "visual-content.js",
@@ -503,7 +535,7 @@
     },
     {
       "path": "voice-surface.js",
-      "sha256": "1d01c88130e32a49fd4e41357197da43ae9d3ccc286780f5a695dc08cbf3fb91"
+      "sha256": "42e2476f2162997f36a24d75ba5402adc948c086c00021934ba2d9ed06835154"
     },
     {
       "path": "weather-fact-display.js",
@@ -511,19 +543,19 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "158621374e5190bded3d9747bdfc3d0698f65ceb0bd845de4f8284d47b501bac"
+      "sha256": "7a4cdb4d8fbfdb9594c130fd6ac272d21bbe23910f68e062f85efb1a086be7cd"
     },
     {
       "path": "weather-view.js",
-      "sha256": "decb4536e353a975517fb4a2d9c0de76245c6692b90e7b46ae283ec236991a53"
+      "sha256": "d8640b45931177745c9d18b61f7140a7635cda038e5a9bab5de5a2899087a296"
     },
     {
       "path": "widget-model.js",
-      "sha256": "10bf32102fc7087512095325704c23ffd9a3ba54d1b86d0588bcb03eb6301390"
+      "sha256": "856496f4b879743b11e8498003064f7ca3fc4a7a5341de304af0aab36cb906e1"
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "b7c0c08f5d0d3ab5bd7fbdf768348040561e8413b94e06b89244a8616f45bd4f"
+      "sha256": "d18f9840d6209643ba388699804f30425d9c48e458fc6bd0ffa797cb3e258a69"
     },
     {
       "path": "widget-view.css",
@@ -531,7 +563,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "28b181a16c6ae224cb430c3dcbf90f9090e161c54393cd76f145e078cd86255a"
+      "sha256": "91ea2303b63d644e7aa3c438f34746fd0bcc9d4ebc274a74245955654849b37b"
     },
     {
       "path": "workshop.css",

@@ -1,3 +1,9 @@
+## 2.0.41 — samlet PodView, kandidat
+
+- Samler det frosne, kildegodkendte PodView-bundt i én opdatering med vejr, musik-, robot- og timerflader samt radio- og køretøjsvisning.
+- Bevarer skærmparringens rettede browsertimere, native HA-integration0.1.3, gemte policies og GPT-Live-kæden.
+- Kandidaten er under integration. Publicering, installation, visuel accept og faktisk betjening er endnu ikke bekræftet.
+
 ## 2.0.40 — Chrome-parring
 
 - Ret skærmopsætningens binding af browserens timere, så godkendelsesventen kan fortsætte til claim og åbne PodView. Ukendt adgang genafspilles fortsat ikke.

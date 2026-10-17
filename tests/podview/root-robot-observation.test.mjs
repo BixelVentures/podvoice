@@ -16,9 +16,9 @@ test('native history stays distinct from command acceptance; no duration or comp
  const observed=robotObservation(telemetry([row('last_clean_start',now()-1000),row('last_clean_end',now()-500)]),'vacuum.robot');const facts=robotFacts({status:'docked',telemetry:observed,history:{items:[{outcome:'accepted_by_ha'}]}});
  assert.equal(facts.history.length,2);assert.equal(facts.history[1].label,'Senest afsluttet');assert.deepEqual(facts.summary,[]);assert.equal(facts.duration,undefined);assert.equal(facts.physicalResultVerified,undefined);
 });
-test('negative maintenance remains source value and stale dock warning is quiet',()=>{
+test('negative maintenance retains signed source but displays interval meaning and stale dock warning is quiet',()=>{
  const observed=robotObservation(telemetry([row('filter_time_left',-12,'h'),row('clean_box_empty',true,null,0,'binary_sensor'),row('dirty_box_full',true,null,600,'binary_sensor')]),'vacuum.robot');
- const facts=robotFacts({status:'docked',telemetry:observed});assert.deepEqual(facts.attention,['Rent vand mangler']);assert.equal(facts.details.find(x=>x.label==='Filter').value,'-12 timer');assert.equal(facts.details.find(x=>x.label==='Snavset vandbeholder fuld').stale,true);
+ const facts=robotFacts({status:'docked',telemetry:observed});assert.deepEqual(facts.attention,['Rent vand mangler']);assert.equal(facts.details.find(x=>x.label==='Filter').value,'12 timer over interval');assert.equal(facts.details.find(x=>x.label==='Snavset vandbeholder fuld').stale,true);
 });
 test('freshness is recomputed; projections discard capabilities and commands',()=>{
  const source=row('cleaning_area',23,'m²',600);source.stale=false;source.commands=['start'];const observed=robotObservation(telemetry([source]),'vacuum.robot');assert.equal(observed.items[0].stale,true);assert.equal(observed.items[0].commands,undefined);

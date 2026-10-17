@@ -5,9 +5,9 @@ import {FORMATS,initialScene,sceneTransition as step} from './scene-model.js';
 // Deterministic, explicitly documented prototype states; no integrations or requests.
 export const playerPreviewStates=['empty','loading','missing-art','offline','error'].flatMap(state=>['rest','active'].map(mode=>`player-${mode}-${state}`));
 export const headerPreviewPhases={listening:'LISTENING',thinking:'THINKING',speaking:'AI_SPEAKING',ready:'LOUNGE_WINDOW',waiting:'UNKNOWN'};
-export const previewStates=[...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history',...visualFamilies,'timers','quiet','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
+export const previewStates=[...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name){
- let s=initialScene();if(name?.startsWith('header-')&&Object.hasOwn(headerPreviewPhases,name.slice(7)))return {...s,focus:'now',navStack:[],voicePreviewPhase:headerPreviewPhases[name.slice(7)]};if(name==='visual-history'){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});return localAnswerHistory({...s,focus:'now'});}if(playerPreviewStates.includes(name)){const rest=name.startsWith('player-rest-'),status=name.replace(/^player-(rest|active)-/,'');return {...s,focus:rest?'photo':'music',navStack:[],playerPreview:status,connected:status!=='offline'};}if(['rest','nothing','quiet','music','top','weather','timers','paused'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});s={...s,focus:'music',navStack:[],detailOrigin:undefined};}
+ let s=initialScene();if(name?.startsWith('header-')&&Object.hasOwn(headerPreviewPhases,name.slice(7)))return {...s,focus:'now',navStack:[],voicePreviewPhase:headerPreviewPhases[name.slice(7)]};if(name==='visual-history'){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});return localAnswerHistory({...s,focus:'now'});}if(playerPreviewStates.includes(name)){const rest=name.startsWith('player-rest-'),status=name.replace(/^player-(rest|active)-/,'');return {...s,focus:rest?'photo':'music',navStack:[],playerPreview:status,connected:status!=='offline'};}if(['rest','nothing','now','quiet','music','top','weather','timers','paused'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});s={...s,focus:'music',navStack:[],detailOrigin:undefined};}
  if(!previewStates.includes(name))return s;
  if(visualFamilies.includes(name)){s=step(s,{type:'request',kind:name});return step(s,{type:'answer-result',...s.pendingAnswer,status:'ready'});}
  if(['stack','music-stack'].includes(name)){s=step(s,{type:'timer-start',now:Date.now()});for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'14:50'});return step(s,{type:'show',id:name==='stack'?'now':'music'});}
@@ -16,6 +16,7 @@ export function previewScene(name){
  if(name==='weather')return step(s,{type:'show',id:'weather'});
  if(name==='top')return localAnswerHistory(step(s,{type:'music',event:{type:'collection',value:'top'}}));
  if(name==='listening')return {...step(s,{type:'show',id:'photo'}),notice:'Lytter…'};
+ if(name==='now')return localAnswerHistory(step(s,{type:'show',id:'now'}));
  if(name==='nothing')return step(s,{type:'show',id:'now'});
  if(name==='paused')return step(s,{type:'music',event:{type:'toggle'}});
  if(name==='rest')return step(s,{type:'show',id:'photo'});

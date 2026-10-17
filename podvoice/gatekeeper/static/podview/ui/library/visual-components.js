@@ -36,8 +36,9 @@ class VisualComponent extends HTMLElement {
   this.dataset.count=String((content.facts||content.events||content.nodes||[]).length);
   if(this.figure){
    const img=content.image||content.illustration;this.figure.hidden=!img;this.dataset.illustrated=String(!!img);
-   if(img){if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='album_cover'?'Omslag':img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
+   if(img){this.dataset.imageKind=img.kind;if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='album_cover'?'Omslag':img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
    }
+   else delete this.dataset.imageKind;
   }
   if(this.family==='simple-diagram'){
    if(content.illustration)this.caption.append(this.note);
