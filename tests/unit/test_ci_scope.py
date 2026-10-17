@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
         (["docs/STATUS.md", "docs/archive/STATUS-2026-10-14-pre-157.md"], True),
         (["scripts/dev_cycle.py", "tests/unit/test_dev_cycle.py", "docs/UDVIKLINGSFLOW.md"], True),
         (["scripts/ci_scope.py", "tests/unit/test_ci_scope.py"], True),
+        (["scripts/ci_promotion.py", "tests/unit/test_ci_promotion.py"], True),
         (["podvoice/DOCS.md", "podvoice/CHANGELOG.md"], True),
         (["scripts/LIVE_ALPHA_PROBE.md", "spikes/README.md"], True),
         ([], False),
@@ -49,6 +50,32 @@ def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
     assert ci_scope.tooling_only(paths) is expected
 
 
+def test_only_exact_ci_control_files_skip_product_admission_but_not_checks():
+    exact = sorted(ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"})
+    assert ci_scope.ci_control_only(exact)
+    assert not ci_scope.tooling_only(exact)
+    assert not ci_scope.ci_control_only([".github/workflows/ci.yml"])
+    assert not ci_scope.ci_control_only([*exact, "podvoice/gatekeeper/thin.py"])
+    assert not ci_scope.ci_control_only([*exact, "scripts/unknown.py"])
+
+
+def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path):
+    paths = sorted(ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"})
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("CI_DIFF_BASE", "a" * 40)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        subprocess,
+        "check_output",
+        lambda *_args, **_kwargs: ("\0".join(paths) + "\0").encode(),
+    )
+    ci_scope.main()
+    assert output.read_text() == (
+        "tooling_only=false\nci_control_only=true\naddon_changed=false\npr_addon_changed=true\n"
+    )
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -73,7 +100,9 @@ def test_dispatch_or_initial_push_keeps_full_ci(base, monkeypatch, tmp_path):
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.setattr(subprocess, "check_output", lambda *_args, **_kw: pytest.fail("git"))
     ci_scope.main()
-    assert output.read_text() == ("tooling_only=false\naddon_changed=true\npr_addon_changed=true\n")
+    assert output.read_text() == (
+        "tooling_only=false\nci_control_only=false\naddon_changed=true\npr_addon_changed=true\n"
+    )
 
 
 def _git(root, *args):
@@ -158,6 +187,7 @@ def test_actual_git_diff_keeps_renames_deletions_and_missing_ancestry_conservati
     pr_addon_changed = addon_changed or change == "workflow"
     assert output.read_text() == (
         f"tooling_only={str(scoped).lower()}\n"
+        "ci_control_only=false\n"
         f"addon_changed={str(addon_changed).lower()}\n"
         f"pr_addon_changed={str(pr_addon_changed).lower()}\n"
     )
@@ -188,13 +218,16 @@ def test_existing_nonancestor_base_cannot_narrow_a_docs_only_diff(tmp_path):
         timeout=15,
     )
     assert result.returncode == 0, result.stderr
-    assert output.read_text() == ("tooling_only=false\naddon_changed=true\npr_addon_changed=true\n")
+    assert output.read_text() == (
+        "tooling_only=false\nci_control_only=false\naddon_changed=true\npr_addon_changed=true\n"
+    )
 
 
 def test_workflow_uses_the_same_exact_path_classifier_for_build_and_release():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text()
     assert "addon_changed: ${{ steps.scope.outputs.addon_changed }}" in workflow
     assert "pr_addon_changed: ${{ steps.scope.outputs.pr_addon_changed }}" in workflow
+    assert "ci_control_only: ${{ steps.scope.outputs.ci_control_only }}" in workflow
     assert "needs.scope.outputs.pr_addon_changed == 'true'" in workflow
     assert "ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}" in workflow
     assert "dorny/paths-filter" not in workflow
@@ -206,7 +239,15 @@ def test_exact_admission_uses_existing_nonpayload_scope_before_historical_dispat
     classifier, admission = scope_job.split("      - name: Exact candidate admission ", 1)
     header = admission.split("        run: |\n", 1)[0]
     assert "run: python3 scripts/ci_scope.py" in classifier
-    assert "\n        if: steps.scope.outputs.tooling_only != 'true'\n" in header
+    assert "steps.scope.outputs.tooling_only != 'true'" in header
+    assert "needs.promotion.outputs.reuse != 'true'" in header
+    assert "steps.scope.outputs.ci_control_only != 'true'" in header
+    lint_test = workflow.split("  lint-test:\n", 1)[1].split("\n  ui-browser:", 1)[0]
+    browser = workflow.split("  ui-browser:\n", 1)[1].split("\n  ha-framework:", 1)[0]
+    ha = workflow.split("  ha-framework:\n", 1)[1].split("\n  build-addon:", 1)[0]
+    assert "needs.scope.outputs.tooling_only == 'true'" in lint_test
+    assert "if: needs.scope.outputs.tooling_only != 'true'" in browser
+    assert "needs.scope.outputs.tooling_only != 'true'" in ha
 
 
 @pytest.mark.parametrize(

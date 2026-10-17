@@ -71,7 +71,7 @@ def test_ci_test_cohorts_fail_fast_and_emit_hang_stacks_without_test_timeout():
         "--ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1" in rest
     )
     ha = workflow.split("  ha-framework:\n", maxsplit=1)[1].split("  build-addon:\n", maxsplit=1)[0]
-    assert "needs: [scope]" in ha
+    assert "needs: [scope, promotion]" in ha
     assert "--network none --read-only" in ha
     assert "ghcr.io/home-assistant/home-assistant@sha256:" in ha
     assert "-B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v" in ha
