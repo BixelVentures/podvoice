@@ -29,7 +29,8 @@
     "tests/podview/music-renewal-stale-source.test.mjs": "a1ee46bbe6d946695bc90c9b3d59beda55697376ad8c6225a2ce2574bdc001a8",
     "tests/podview/transport-recovery.test.mjs": "561c2677569b848df8f383cd57c88e657af97631ea79488f7189321be6e5b14a",
     "tests/podview/weather-hour-order.test.mjs": "a4ceffdab9ce9f980377b4a395a04aa63ef631eb2a959c889e8fbadece58a1d0",
-    "tests/unit/test_candidate_scope_admission45.py": "ae06f9f3ed3fed411fffdc6a381cfee561a51d5d33c8945f86a95029b828eca9",
+    "tests/unit/test_candidate_scope_admission44.py": "767b0a5430ab521e77b363fc2a102b6db503164a54ff5aa823b083f42dc423d9",
+    "tests/unit/test_candidate_scope_admission45.py": "021deb1282534e8c4605ea54b8aa6ecccb946ff0b6fe7ef4ab3665adc565074c",
     "tests/unit/test_dev_cycle.py": "bd539870f8f24953c838bfb3d0125164e0a69cb8819a3c6b5be9fa2bf019ed2b"
   },
   "runtime": {

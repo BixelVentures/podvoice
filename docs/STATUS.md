@@ -4,6 +4,8 @@
 
 PV45 samler den afgrænsede UI-genopretning: genoptag transportens observation efter recovery, forny udløbne læsevisninger uden at afspille automatisk, behold eksplicit eksisterende bekræftelse, afvis stale/ukendt ejerskab og bevare fokus efter udløb; timevejret vises kronologisk inden for den nuværende grænse. Kæden er parret browser → eksisterende read/renewal → aktuelle room/session/source/expiry checks → visning og brugerens eksisterende eksplicitte handling. Invarianter: ingen autostart, ingen gentagelse af ukendt effekt, ingen genbrug af udløbet handlingsret uden frisk validering, én gældende kilde/owner, og GPT-Live/voice-handlinger forbliver uændrede. Hypotesen er, at disse afgrænsede UI-overgange fjerner observeret stale/expired visning uden at ændre kontrolmyndighed; provider-/Green-/fysisk effekt er fortsat uafklaret. Regressioner dækker transportgenopretning, svarfokus, chronologisk vejr, musikfornyelse og stale/provider-afvisning. Rollback er publiceret 2.0.44. Under nattens installation og kontrol må ingen lyd, alarm eller robotbevægelse startes; fysisk accept står åben.
 
+CI663 run39076856529 failed only `tests/unit/test_candidate_scope_admission44.py::test_44_draft_manifest_has_exact_inventories`: the PV44 asset-manifest pin was compared with the active PV45 checkout (`137e57d5…`) instead of PV44’s published manifest (`119d780a…`). This was a historical-fixture-root error, not a product regression. The fixture now checks its existing assertions in an actual published44 snapshot; no runtime or UI source change follows from the failure. The focused PV44/PV45 admission tests pass 8/8.
+
 **PV44 faktisk levering:** PR192 head `fccbb5e7fadec165e9626cf16d30f8abebf11e5d` bestod officiel CI661 run39074456162 og blev merged som `383a72f1170ebf97ac8ef7f121c933cd731dd311`, tree `25ab9fc49a59cf2288bf317f6e13e9e40ae9edb2`. Main CI662 run39075005080 lykkedes via verificeret exact-tree reuse; 2.0.44 er publiceret med digest `sha256:5c510c7009f0cf679bd2ed8c3ee8824a858449601c9e1b3667254f12b1761208` og Green observeret Kører. Dette er leveringsbevis, ikke fysisk accept eller musik-/robotfunktion.
 
 **PV43 leveret, acceptgrænse bevaret:** 2.0.43 er publiceret fra PR191 og installeret Kører på Green. Den fælles policykontrol matcher alle seks værdier før/efter. Installeret UI-readback viste læsbart natvejr, gennemsigtigt robotikon og ét område-label; otte friske robotområder blev læst. Robotudløb blev kun observeret som senere deaktiveret panel, ikke målt TTL. Efter normal genindlæsning af den parrede Green-side viste musikvisningen alle tre Play-knapper aktive. Tidligere var transport-disconnected synlig; ingen afspilning, Andre forslag eller fane-retur blev prøvet. Faktisk lyd og musikadmission står derfor fortsat åbne. Ingen alarm eller robotbevægelse blev startet; fysisk accept står åben.
@@ -22,14 +24,14 @@ PV43s CI658-fejl bevares historisk: testfixture havde en intern fake-providerfri
   ],
   "base_tip": "383a72f1170ebf97ac8ef7f121c933cd731dd311",
   "merge_base": "383a72f1170ebf97ac8ef7f121c933cd731dd311",
-  "rationale": "PV45 bounds the browser-side recovery of current visual observations after PV44 readback showed expired robot controls and music access that became unavailable again. The observed state does not assign cause to the browser, server grant, transport, or provider. The exact UI delta preserves explicit user confirmation, current source/owner/room/expiry checks, and no-replay behavior; no automatic playback or home action is introduced. All143 assets and immutable41-44 admission history are retained. CI, publication, Green readback, and physical acceptance remain separate.",
+  "rationale": "PV45 bounds browser-side recovery of current visual observations after PV44 readback showed expired robot controls and music access that became unavailable again. The observed state does not assign cause to the browser, server grant, transport, or provider. The exact UI delta preserves explicit user confirmation, current source/owner/room/expiry checks, and no-replay behavior; no automatic playback or home action is introduced. All143 assets and immutable41-44 admission history are retained. The regression inventory includes the historical44 profile/manifest test against the actual published44 tree with all assertions retained. CI, publication, Green readback, and physical acceptance remain separate.",
   "fingerprint": "cd3df27af01a277f7db3b36180e54b58096965e61a13fc6c0463c51275332d01",
-  "regression_fingerprint": "6bff4335f60b8d523104c336a332932d034cd21454927612f7512854993f6d26",
+  "regression_fingerprint": "0aa41cb23f612400897d624519793261c6c7aa8c6849eca4baa903c51713f857",
   "runtime_fingerprint": "71577518f1009bb1a841134c3c351a784eb1dc0b2ce235bb8881e8e6fa43dfc4",
   "config_fingerprint": "0a0deec715e2e013979f9b79ac6ed729b87af1c34efe50f19b459c54bee6e2cb",
-  "policy_fingerprint": "f24eef145f6554f8fdfa2f8a1e11d05e2b5776280aa0c434f2559c45bcc98408",
+  "policy_fingerprint": "9493336f13e9b732cce8df64b31907946ace7057a79225d87bb17d6f67bc938e",
   "tooling_fingerprint": "0d96d12233deec08d24f042fec12c56d17522040f2e82019ac546cf87c61c697",
-  "manifest_fingerprint": "45c760a6db3a2964ec020bc7a6ff61aebf7664f53eec59d29ce6b30cf9cef4df"
+  "manifest_fingerprint": "dce344d42c30ad600942875f5bb0f5baf82c74e948cf4705a6b95c9cd0ba9fb9"
 }
 -->
 

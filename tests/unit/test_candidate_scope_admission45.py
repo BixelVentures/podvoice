@@ -47,6 +47,7 @@ def test_45_profile_preserves_history_and_limits_the_visual_delta():
         "tests/podview/transport-recovery.test.mjs",
         "tests/podview/weather-hour-order.test.mjs",
         "tests/podview/canonical-next-live-answer-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission44.py",
         "tests/unit/test_candidate_scope_admission45.py",
         "tests/unit/test_dev_cycle.py",
     }

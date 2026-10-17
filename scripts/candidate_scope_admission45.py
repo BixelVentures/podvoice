@@ -65,15 +65,16 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/transport-recovery.test.mjs",
         "tests/podview/weather-hour-order.test.mjs",
         "tests/podview/canonical-next-live-answer-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission44.py",
         "tests/unit/test_candidate_scope_admission45.py",
         "tests/unit/test_dev_cycle.py",
     }
 )
 HA_RUNTIME = previous.HA_RUNTIME
-# Review, manifest and AST bindings remain unset until the exact45 composition review.
+# Signature bindings are cleared while the added historical44 fixture path is reviewed.
 REVIEWER = "Independent /root/release_readiness PV45 exact composition and derived-scope review"
-MANIFEST_SHA = "45c760a6db3a2964ec020bc7a6ff61aebf7664f53eec59d29ce6b30cf9cef4df"
-PROFILE_AST = "e49d8f73988fb0106a8d76cba9ad90e5cff7661c111bdf9844c9f6c3ea7fbcce"
+MANIFEST_SHA = "dce344d42c30ad600942875f5bb0f5baf82c74e948cf4705a6b95c9cd0ba9fb9"
+PROFILE_AST = "9d0518c5dd3349b4c06dadefaf25e9c81b15fd45963d9269dfecb7a8ee79f897"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission44.py": "33c4acd2767e899014b12e923a3ed7423695d11f5433577252dd3ffb66e4999d",
     "scripts/podview44-admission-reviewed.json": "12defc84efc96dc6137a4b548f873f6cd748b2d3903209374d83215160e0002b",
