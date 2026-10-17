@@ -11,7 +11,6 @@ import time
 from aiohttp import web
 
 from . import podview_music, podview_speakers
-from .podview_music_control import native_start
 
 
 def room_bindings(bridge, room):
@@ -148,14 +147,19 @@ async def confirm_move_destination(bridge, task, result, current):
                 account, engine, native_room, homepod, current
             )
             proof_data = observed.get("data") if observed.get("ok") else None
-            proof = proof_data.get("native_start") if isinstance(proof_data, dict) else None
+            native = proof_data.get("native") if isinstance(proof_data, dict) else None
+            route = proof_data.get("route") if isinstance(proof_data, dict) else None
             if (
                 not current()
                 or not isinstance(proof_data, dict)
-                or not isinstance(proof, dict)
-                or proof.get("mode") != "same_session"
-                or proof.get("output_selected") is not True
-                or proof.get("alias_binding") != owner
+                or not isinstance(native, dict)
+                or not isinstance(route, dict)
+                or native.get("room_id") != native_room
+                or native.get("homepod_id") != homepod
+                or native.get("target_id") != engine
+                or native.get("alias_incarnation") != owner.get("incarnation")
+                or native.get("alias_registry") != owner.get("registry")
+                or route.get("device_id") != homepod
                 or owner.get("incarnation") != wire["move_offer"]["native_incarnation"]
                 or proof_data.get("owner_epoch") != source["owner_epoch"]
                 or proof_data.get("poll_sequence") != source["poll_sequence"]
@@ -256,24 +260,23 @@ async def read_playback(bridge, room, account, owner_binding):
             data = observed.get("data") if observed.get("ok") else None
             if not isinstance(data, dict):
                 return empty()
-            proof = native_start(
-                data.get("native_start"),
-                scope["targetId"],
-                scope["nativeRoomId"],
-                scope["nativeHomepodId"],
-            )
+            native = data.get("native")
+            route = data.get("route")
             if (
                 not current()
-                or not isinstance(proof, dict)
-                or proof.get("mode") != "same_session"
-                or proof.get("output_selected") is not True
+                or not isinstance(native, dict)
+                or not isinstance(route, dict)
+                or native.get("room_id") != scope["nativeRoomId"]
+                or native.get("homepod_id") != scope["nativeHomepodId"]
+                or native.get("target_id") != scope["targetId"]
+                or route.get("device_id") != scope["nativeHomepodId"]
                 or data.get("owner_epoch") != source["owner_epoch"]
                 or data.get("poll_sequence") != source["poll_sequence"]
                 or type(data.get("valid_until")) not in (int, float)
                 or data["valid_until"] <= time.time()
             ):
                 return empty()
-            # observe_room has already closed exact native engine/room/HomePod/alias proof.
+            # observe_room has already closed the current native room/route owner.
             # Re-project after the await so original account observation expiry cannot renew.
             checked = podview_music.project_owner("playback", source, account)
             if not current() or not checked.get("ok"):

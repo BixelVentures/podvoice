@@ -22,7 +22,12 @@ async def room_rig():
     rig.router._discovery = replace(
         rig.router._discovery,
         podconnect_services=rig.router._discovery.podconnect_services
-        | {"get_playback_controls", "get_track_play_controls", "control_playback"},
+        | {
+            "get_playback_controls",
+            "control_playback",
+            "get_room_playback_controls",
+            "control_room_playback",
+        },
     )
     rig.bridge = rig.app[BRIDGE]
     rig.bridge.controls.policy = {
@@ -33,29 +38,33 @@ async def room_rig():
                 "accountId": "account-alpha",
                 "targetId": "device-one",
                 "nativeRoomId": "r0",
-                "nativeHomepodId": "hp-kitchen",
+                "nativeHomepodId": "42",
                 "actions": ["play_track"],
                 "maxVolume": 40,
             }
         ],
     }
     rig.native = {
-        "schema": "podconnect.start_volume.v1",
-        "ready": True,
-        "engine_device_id": "device-one",
+        "account_user_id": "account-alpha",
+        "target_id": "device-one",
         "room_id": "r0",
-        "homepod_id": "hp-kitchen",
-        "policy_revision": "b" * 64,
-        "start_volume_percent": 35,
-        "mode": "same_session",
-        "output_selected": True,
-        "output_volume_percent": 27,
-        "alias_binding": {
-            "ready": True,
-            "room_id": "r0",
-            "incarnation": "alias-1",
-            "registry": "registry-1",
-        },
+        "homepod_id": "42",
+        "connection_id": "connection-1",
+        "session_id": "session-1",
+        "alias_incarnation": "alias-1",
+        "alias_registry": "b" * 64,
+        "alias_revision": 1,
+    }
+    rig.route = {
+        "process": "11111111-1111-4111-8111-111111111111",
+        "device_id": "42",
+        "device_incarnation": "1",
+        "session_epoch": "2",
+        "route_revision": "3",
+        "selection_revision": "4",
+        "input_generation": "5",
+        "input_item_id": "6",
+        "input_path_digest": "a" * 64,
     }
     rig.proof_hook = None
     rig.proof_stamp = None
@@ -64,7 +73,7 @@ async def room_rig():
     old = rig.client
 
     async def receive(req):
-        if "get_track_play_controls" not in req.url.path:
+        if "get_room_playback_controls" not in req.url.path:
             return await rig.request(req)
         rig.calls.append((req.method, req.url.path, json.loads(req.content)))
         if rig.proof_hook:
@@ -74,7 +83,7 @@ async def room_rig():
             json={
                 "service_response": {
                     "ok": True,
-                    "schema": "podconnect.controls.v1",
+                    "schema": "podconnect.room_controls.v1",
                     "config_entry_id": "account-alpha",
                     "owner_epoch": rig.proof_epoch,
                     "poll_sequence": rig.proof_poll,
@@ -91,12 +100,17 @@ async def room_rig():
                         "age_ms": 0,
                         "max_age_ms": 15000,
                     },
-                    "status": "awaiting_observation",
-                    "actions": [],
-                    "volume_percent": 27,
-                    "track_play_supported": True,
+                    "status": "ready",
+                    "actions": ["next"],
+                    "volume_percent": None,
+                    "track_play_supported": False,
                     "physical_result_verified": False,
-                    "native_start": rig.native,
+                    "room_id": "r0",
+                    "homepod_id": "42",
+                    "volume_supported": False,
+                    "volume_unavailable_reason": "room_volume_not_supported",
+                    "native": rig.native,
+                    "route": rig.route,
                 }
             },
         )
@@ -136,14 +150,14 @@ def redacted(body):
 
 
 @pytest.mark.parametrize("state", ["playing", "paused"])
-async def test_exact_bound_room_uses_real_native_join_without_grant_or_ready_actions(
+async def test_exact_bound_room_uses_current_native_join_without_grant_or_new_start(
     room_rig, state
 ):
     rig = room_rig
     rig.values["playback"]["playback"]["state"] = state
     rig.values["playback"]["playback"]["target"]["name"] = "Tesla Media Player"
     body = await read(rig)
-    assert body["status"] == "observed", body
+    assert body["status"] == "observed", (body, rig.calls)
     assert body["data"]["playback"]["target"] == {
         "kind": "spotify_device",
         "target_id": "device-one",
@@ -155,12 +169,12 @@ async def test_exact_bound_room_uses_real_native_join_without_grant_or_ready_act
     assert rig.bridge._grants == {} and rig.bridge.controls.tasks == {}
     assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
         "get_playback_snapshot",
-        "get_track_play_controls",
+        "get_room_playback_controls",
     ]
-    assert rig.native["start_volume_percent"] == 35 and rig.native["output_volume_percent"] == 27
+    assert rig.native["session_id"] == "session-1" and rig.route["device_id"] == "42"
     repeated = await read(rig)
     assert repeated["status"] == "observed"
-    assert len(rig.calls) == 4  # Neither room playback nor native proof is success-cached.
+    assert len(rig.calls) == 4  # Neither room playback nor current native proof is success-cached.
 
 
 @pytest.mark.parametrize(
@@ -196,8 +210,8 @@ async def test_account_move_anywhere_else_never_exposes_foreign_metadata_or_call
         "other_alias",
         "other_homepod",
         "other_engine",
-        "fresh_start",
-        "unselected",
+        "foreign_session",
+        "foreign_route",
         "not_ready",
         "stale",
         "poll",
@@ -207,17 +221,17 @@ async def test_account_move_anywhere_else_never_exposes_foreign_metadata_or_call
 async def test_unknown_stale_or_different_native_owner_is_unavailable(room_rig, change):
     rig = room_rig
     if change == "other_alias":
-        rig.native["alias_binding"]["room_id"] = "r1"
+        rig.native["room_id"] = "r1"
     elif change == "other_homepod":
-        rig.native["homepod_id"] = "hp-other"
+        rig.native["homepod_id"] = "43"
     elif change == "other_engine":
-        rig.native["engine_device_id"] = "other-engine"
-    elif change == "fresh_start":
-        rig.native["mode"] = "fresh_start"
-    elif change == "unselected":
-        rig.native["output_selected"] = False
+        rig.native["target_id"] = "other-engine"
+    elif change == "foreign_session":
+        rig.native["session_id"] = ""
+    elif change == "foreign_route":
+        rig.route["device_id"] = "43"
     elif change == "not_ready":
-        rig.native["alias_binding"]["ready"] = False
+        rig.native["alias_registry"] = "invalid"
     elif change == "stale":
         rig.proof_stamp = timestamp(-20)
     elif change == "poll":
@@ -251,7 +265,7 @@ async def test_bound_owner_replacement_during_native_read_cannot_publish(room_ri
     elif change == "boot":
         rig.bridge.boot_id = "restarted"
     else:
-        rig.bridge.controls.policy["music"][0]["nativeHomepodId"] = "hp-other"
+        rig.bridge.controls.policy["music"][0]["nativeHomepodId"] = "43"
     release.set()
     redacted(await task)
     assert not rig.bridge._music_busy

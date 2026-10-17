@@ -11,6 +11,8 @@ from scripts import candidate_scope_admission41 as admission
 
 ROOT = Path(__file__).parents[2]
 PUBLISHED40 = "6799ee3d65cb67fb406346c565dc206e08cbf0da"
+PUBLISHED41_BASE = "6799ee3d65cb67fb406346c565dc206e08cbf0da"
+PUBLISHED41_TREE = "5e6ccbf186bf5c4abc9a32845afed4ca94dda80d"
 
 
 @pytest.fixture(scope="module")
@@ -21,7 +23,16 @@ def historical40_root(tmp_path_factory):
     return target
 
 
-def test_41_scope_is_additive_and_preserves_published40_pins():
+@pytest.fixture(scope="module")
+def historical41_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published41") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED41_BASE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED41_TREE], cwd=target, check=True)
+    return target
+
+
+def test_41_scope_is_additive_and_preserves_published40_pins(historical41_root):
     assert admission.BASE == PUBLISHED40
     assert admission.VERSION == 18
     assert admission.DOMAINS == ("physical_output",)
@@ -32,10 +43,10 @@ def test_41_scope_is_additive_and_preserves_published40_pins():
         "podvoice/gatekeeper/__init__.py",
         "pyproject.toml",
     }
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
+    assert admission.strict.pins_match(historical41_root, admission.IMMUTABLE)
     assert admission.IMMUTABLE.items() >= published40.IMMUTABLE.items()
     assert "tests/podview/fixtures/podvoice31/podvoice-transport.js" not in admission.REQUIRED_TESTS
-    assert admission.config_only(ROOT)
+    assert admission.config_only(historical41_root)
 
 
 def test_historical40_is_accepted_only_by_its_published_profile(historical40_root):
@@ -44,8 +55,9 @@ def test_historical40_is_accepted_only_by_its_published_profile(historical40_roo
     assert not published40.inspect_repository(ROOT, published40.BASE).passed
 
 
-def test_41_manifest_and_profile_bindings_match_exact_inventory():
-    raw = admission.safe_file(ROOT, admission.MANIFEST)
+def test_41_manifest_and_profile_bindings_match_exact_inventory(historical41_root):
+    root = historical41_root
+    raw = admission.safe_file(root, admission.MANIFEST)
     manifest = json.loads(raw)
     assert manifest["asset_count"] == admission.ASSET_COUNT
     assert manifest["base"] == admission.BASE
@@ -53,7 +65,7 @@ def test_41_manifest_and_profile_bindings_match_exact_inventory():
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert set(manifest["runtime"]) == (
-        admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        admission.strict.runtime_inventory(root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {
@@ -63,22 +75,23 @@ def test_41_manifest_and_profile_bindings_match_exact_inventory():
     assert set(manifest["tooling"]) == admission.TOOLING
     assert admission.MANIFEST_SHA == admission.sha(raw)
     assert admission.PROFILE_AST == admission.strict.ast_sha(
-        admission.safe_file(ROOT, admission.PROFILE), "PROFILE_AST"
+        admission.safe_file(root, admission.PROFILE), "PROFILE_AST"
     )
 
 
 @pytest.fixture
-def synthetic_reviewed_candidate(monkeypatch):
+def synthetic_reviewed_candidate(monkeypatch, historical41_root):
+    root = historical41_root
     manifest = {
         "asset_count": admission.ASSET_COUNT,
         "base": admission.BASE,
-        "config": _pins(admission.CONFIG),
-        "policy": _pins(admission.POLICY - {admission.PROFILE, admission.MANIFEST}),
-        "production": _pins(admission.PRODUCTION),
-        "regressions": _pins(admission.REQUIRED_TESTS),
-        "runtime": _pins(admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME),
+        "config": _pins(root, admission.CONFIG),
+        "policy": _pins(root, admission.POLICY - {admission.PROFILE, admission.MANIFEST}),
+        "production": _pins(root, admission.PRODUCTION),
+        "regressions": _pins(root, admission.REQUIRED_TESTS),
+        "runtime": _pins(root, admission.strict.runtime_inventory(root) | admission.HA_RUNTIME),
         "schema": "podvoice41.admission.v1",
-        "tooling": _pins(admission.TOOLING),
+        "tooling": _pins(root, admission.TOOLING),
     }
     payload = json.dumps(manifest, separators=(",", ":")).encode()
     payload_box = {"bytes": payload}
@@ -95,9 +108,9 @@ def synthetic_reviewed_candidate(monkeypatch):
     monkeypatch.setattr(
         admission,
         "PROFILE_AST",
-        admission.strict.ast_sha(original_safe_file(ROOT, admission.PROFILE), "PROFILE_AST"),
+        admission.strict.ast_sha(original_safe_file(root, admission.PROFILE), "PROFILE_AST"),
     )
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
+    report = admission.legacy.inspect_repository(root, admission.BASE)
     record = {
         "version": admission.VERSION,
         "kind": admission.KIND,
@@ -107,46 +120,46 @@ def synthetic_reviewed_candidate(monkeypatch):
         "reviewer": admission.REVIEWER,
         "rationale": "Synthetic complete exact41 validation only.",
         "fingerprint": admission.legacy.production_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(manifest["production"])
+            root, admission.BASE, admission.BASE, tuple(manifest["production"])
         ),
         "regression_fingerprint": admission.legacy.regression_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(manifest["regressions"])
+            root, admission.BASE, admission.BASE, tuple(manifest["regressions"])
         ),
-        "runtime_fingerprint": admission.strict.fingerprint(ROOT, manifest["runtime"]),
-        "config_fingerprint": admission.strict.fingerprint(ROOT, admission.CONFIG),
-        "policy_fingerprint": admission.strict.fingerprint(ROOT, admission.POLICY),
-        "tooling_fingerprint": admission.strict.fingerprint(ROOT, admission.TOOLING),
+        "runtime_fingerprint": admission.strict.fingerprint(root, manifest["runtime"]),
+        "config_fingerprint": admission.strict.fingerprint(root, admission.CONFIG),
+        "policy_fingerprint": admission.strict.fingerprint(root, admission.POLICY),
+        "tooling_fingerprint": admission.strict.fingerprint(root, admission.TOOLING),
         "manifest_fingerprint": admission.MANIFEST_SHA,
     }
-    return manifest, payload_box, report, record
+    return root, manifest, payload_box, report, record
 
 
-def _pins(paths):
+def _pins(root, paths):
     return {
-        path: hashlib.sha256(admission.safe_file(ROOT, path)).hexdigest() for path in sorted(paths)
+        path: hashlib.sha256(admission.safe_file(root, path)).hexdigest() for path in sorted(paths)
     }
 
 
 def test_41_populated_synthetic_manifest_accepts_and_rejects_tampered_pin(
     monkeypatch, synthetic_reviewed_candidate
 ):
-    manifest, payload_box, report, record = synthetic_reviewed_candidate
-    assert admission.validate(ROOT, report, admission.BASE, record)
+    root, manifest, payload_box, report, record = synthetic_reviewed_candidate
+    assert admission.validate(root, report, admission.BASE, record)
 
     manifest["production"][next(iter(manifest["production"]))] = "0" * 64
     payload_box["bytes"] = json.dumps(manifest, separators=(",", ":")).encode()
     tampered_sha = admission.sha(payload_box["bytes"])
     monkeypatch.setattr(admission, "MANIFEST_SHA", tampered_sha)
     record["manifest_fingerprint"] = tampered_sha
-    assert not admission.validate(ROOT, report, admission.BASE, record)
+    assert not admission.validate(root, report, admission.BASE, record)
 
 
 def test_41_missing_reviewer_rejects_a_populated_synthetic_candidate(
     monkeypatch, synthetic_reviewed_candidate
 ):
-    _, _, report, record = synthetic_reviewed_candidate
+    root, _, _, report, record = synthetic_reviewed_candidate
     monkeypatch.setattr(admission, "REVIEWER", "")
-    assert not admission.validate(ROOT, report, admission.BASE, record)
+    assert not admission.validate(root, report, admission.BASE, record)
 
 
 def _asset_fixture(root: Path, total_bytes: int):
