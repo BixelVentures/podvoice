@@ -86,7 +86,7 @@
     "tests/podview/canonical-next-widget-model.test.mjs": "5da8a967b3df19e0c16cfa28813e187e5dee383ac0f362171f0a7aadf3b36a36",
     "tests/podview/canonical-room-fixture.mjs": "0d931a6a1dd7cfd7546ed0160472ec7fb46e5872e26ee7de98bd3e4ad979008d",
     "tests/podview/fixtures/feeling-route.json": "245d3ca1617eff0e4c5b995d9318551b2bba2ce6fbf01fca7f924242971639b6",
-    "tests/podview/podvoice-view.test.mjs": "4922144d1ff7d6ec4def5d7f28b08e8fa21db2b87f5a9d6d7b52b2cc12cb1fad",
+    "tests/podview/podvoice-view.test.mjs": "17d5489d7b54f99cec8632608d34ebae693d077912d30cf9adc351dbf2ca7e8f",
     "tests/podview/root-component-library.test.mjs": "1aa979ba9bbeec2a7c348e302a8d9897a67de3292ba9b5475abedd8b5b6bef07",
     "tests/podview/root-live-media-view.test.mjs": "ecc75cf5acdc0a473d226a9e1f2eae3cb615189feaa7cb40da66e4eaf3f07c87",
     "tests/podview/root-player-view.test.mjs": "bbfc0cfd5c88e9f78f6db5d6612b4b82fe2ce494a29b2f5c066d82015ff98332",

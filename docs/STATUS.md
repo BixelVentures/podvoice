@@ -14,14 +14,14 @@ CI649: scope, HA-framework, REST og ARM-build bestod; UI og unit fejlede på for
   ],
   "base_tip": "6799ee3d65cb67fb406346c565dc206e08cbf0da",
   "merge_base": "6799ee3d65cb67fb406346c565dc206e08cbf0da",
-  "rationale": "Independent canonical143 source GO and exact tooling GO retained. Official CI649 failed on stale historical36/40 and eight UI fixtures; ten test-only paths repaired and independently reviewed without production change or dropped queue/light assertions. 49 regressions pinned. Green40 remains installed; nighttime effects and risky installation held. Final automatic CI and publication pending; room native repair separate PC25/PV42.",
+  "rationale": "Independent canonical143 source GO and exact tooling GO retained. Official CI649 failed on stale historical36/40 and eight UI fixtures; ten test-only paths repaired and independently reviewed without production change or dropped queue/light assertions. 49 regressions pinned. Green40 remains installed; nighttime effects and risky installation held. Final automatic CI and publication pending; room native repair separate PC25/PV42. Independent timer fixture delta GO restores three otherwise admissible guard negatives; 14/14 cases pass.",
   "fingerprint": "de81d0506884da406a3f6673025051a9559b90c69d57ba0cba5547952b5a2dc3",
-  "regression_fingerprint": "455df5cc28bc826e18c005f0a6d3f1f250cd95ff5c191be1d268d28c7d812155",
+  "regression_fingerprint": "94292c809ca41fea753a24649e978436b651c014134016cd0b09b132b27dc576",
   "runtime_fingerprint": "9cbbff1ad8236657e4806a0cdc25690704663812d1e0e538a32a5e41b16c83cb",
   "config_fingerprint": "8302a8373d1d2528036962cd729f8d6cd9de6ea80c86f5a0edc2b0b87ee81e01",
-  "policy_fingerprint": "13074d14d93a05fe5dcb14e92571f2a4a5ae95f7afa5ec07364a305952fb21ec",
+  "policy_fingerprint": "5b1117d8fd06c41b0314036dc950113ebb9339a6834972bd56b5a931c42ef198",
   "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
-  "manifest_fingerprint": "0473a9f71ff35c9e94ef1ecbc41f5dc8c776981b502565b88ed753438a0521bf"
+  "manifest_fingerprint": "d496c074b3787057371b95d62eae8e85bd4a4071c807477f345db3fa77ae8b43"
 }
 -->
 

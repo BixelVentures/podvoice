@@ -139,8 +139,8 @@ REQUIRED_TESTS = frozenset(
 )
 # Lead fills approval only after an independent review of the final composition.
 REVIEWER = "Independent Astra exact41 tooling and /root/release_readiness final PV41 fixture/admission delta review"
-MANIFEST_SHA = "0473a9f71ff35c9e94ef1ecbc41f5dc8c776981b502565b88ed753438a0521bf"
-PROFILE_AST = "31557ddc29f7e9f0fdf63ae212292ea46b493f6b010977ff25ce9dc1082bfb8d"
+MANIFEST_SHA = "d496c074b3787057371b95d62eae8e85bd4a4071c807477f345db3fa77ae8b43"
+PROFILE_AST = "33a33f1f258fd211066b823de69c612bd7b2f2aaf46fe9c9e6d275a9f81a4135"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission40.py": "66732564afd110d8e815b82644938581382f69e48d1cf48b5ea25cb160fdfec9",
     "scripts/podview40-admission-reviewed.json": "cbe7de00e2e9a4d2a9880a85779c857e092ba5fb9cc2a5839fa926ca17fc7a01",
