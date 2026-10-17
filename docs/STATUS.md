@@ -813,3 +813,33 @@ Before the two-file copy correction, use the existing display-only exact role/va
   "rationale": "Independent exact combined36 source review /private/tmp/pv36-polish-combined-independent-review.json SHA-256 1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9. Exact 64-path source and manifest scope, 27 production files, 26 regressions, 241 runtime files, 135 assets, historical35 immutability and root PodView asset parity checked. This record admits source only; official CI, release/publication, Green installation, browser/provider delivery and actual physical robot/audio behavior require separate operator evidence and acceptance. CI631 only-unit failure was a Git fixture pointing to local-only checkpoint 0375. Independent scoped review /private/tmp/pv36-ci631-registry-anchor-independent-review.json SHA-256 4ecbae2b4b29c238a3a007af903ab4ff72e9658d752350624386ce277443642b admits the one-line test anchor 38bd92ca28d0206bfafef6b03a7ea4d883e6a211, the actual remote PR176 merge-base with identical b0d7f35b tree and registry blob; assertion semantics and all production/UI bytes are unchanged. Handover: Git fixtures must reference reachable actual remote ancestors, never local-only metadata commits. This rebind remains source/test admission only; a fresh official unit run is required."
 }
 -->
+
+
+### 17/10 - active ordinary 2.0.37 composition: docs admission and empty player
+
+Lead root. Actual main aa49d94e588974683ad3b9ad4b6d34da81676b58 and reviewed backup0917198 contain the observed #178 failure: docs-only PR177 is incorrectly sent to historical32 admission. Reviewed #179 CSS changes only the empty-player height from136px to auto with its exact packaged asset hash. The retained four-file source/review/check evidence is reused; no new product cause is invented.
+
+Chain: source diff -> strict candidate admission -> official CI -> immutable artifact -> installation -> actual UI/Voice PE acceptance. Product semantics, provider, settings, grants, room/music/robot owners, audio, firmware and lifecycle are unchanged. Hypothesis: one tooling-only step condition fixes nonpayload docs dispatch, while intrinsic CSS height prevents the empty player clipping; neither establishes physical daily-use acceptance.
+
+Create one additive37 profile using the existing strict safe-file, inventory and fingerprint helpers. Bind actual aa49 base, exact changed production/config/policy/tests and the entire retained runtime; keep every historical30-36 profile/manifest/record byte-identical. Add only the two existing dispatcher routes, versiontrio37 and concise changelog. Blank approval pins must reject until independent exact-source review. Focused positive/negative admission and changed static checks precede one independent review and official CI once. No old36 broad replay, fallback/waiver, provider call, quota/settings change, pairing workaround or new validator framework. Rollback is installed immutable36, without inherited physical acceptance. Physical PE/pairing gates remain open; this candidate is not release-approved or physically accepted.
+
+<!-- podview37-admission
+{
+  "version": 14,
+  "kind": "podvoice37_docs_admission_and_empty_player",
+  "reviewer": "Independent /root/attention_ci_review exact37 source/composition review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "aa49d94e588974683ad3b9ad4b6d34da81676b58",
+  "merge_base": "aa49d94e588974683ad3b9ad4b6d34da81676b58",
+  "fingerprint": "2d7ef8b67a29ba15ce27c781f753bc3a7f90e4350ca1412bdd6ca8e069357ea5",
+  "regression_fingerprint": "2aea377a9ab645194d16e797715a9a98a6f2f0a98aa2c673a9271c69ab1a5ab1",
+  "runtime_fingerprint": "87edcf5a0625b00ab9c86c68eb316d46592147751698c0021887d403855a7a88",
+  "config_fingerprint": "23e3da9846aba20e7d5160aadffd885bb99bc1157a5d9620750f21a927d6440e",
+  "policy_fingerprint": "5fec72b726819f6e1864140333e41768fc67196f817acce926239610560e469b",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "d28bdd64379387b041c2fb5ff6038f60793099520f15d298dcd6793cdfd39a90",
+  "rationale": "Independent exact37 SOURCE GO f8316790c49e6c5acc0ebb2e7c0106ab28600057052fb5d6b24ed105c444d5c4. Exact14-path composition preserves reviewed backup4bits, all historical30-36 admission bytes and STATUS records, closed2-asset production scope,241 runtime files,135 UI assets,9 HA files and version-only37 metadata. Author focused28 new/current dispatch cases and16 historical36 fixture cases PASS, formatter/lint and diff checks PASS; unchanged checks retained. Existing strict helpers/inventory/fingerprints reused without generic fallback, waived owner checks, provider/settings/grant/runtime/audio changes. Official CI, publication, installation, pairing and physical Voice PE/UI acceptance remain separate and open."
+}
+-->

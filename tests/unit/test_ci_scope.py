@@ -218,7 +218,8 @@ def test_exact_admission_uses_existing_nonpayload_scope_before_historical_dispat
         ("abe759678168ba6408e10ae0a8a3621249631d13", "33"),
         ("0e56c593c6ce9a3e1666b5fd535d3424cc691b9c", "31"),
         ("729668ffa45067bfb75fd6928ccac9f9beaf5576", "32"),
-        ("aa49d94e588974683ad3b9ad4b6d34da81676b58", "32"),
+        ("aa49d94e588974683ad3b9ad4b6d34da81676b58", "37"),
+        ("ffffffffffffffffffffffffffffffffffffffff", "32"),
     ],
 )
 def test_product_admission_still_dispatches_exact_base_and_propagates_failure(

@@ -39,7 +39,9 @@ jobs:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           candidate_base="${CI_DIFF_BASE:-729668ffa45067bfb75fd6928ccac9f9beaf5576}"
-          if [ "$candidate_base" = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd" ]; then
+          if [ "$candidate_base" = "aa49d94e588974683ad3b9ad4b6d34da81676b58" ]; then
+            python3 scripts/candidate_scope_admission37.py --base "$candidate_base"
+          elif [ "$candidate_base" = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd" ]; then
             python3 scripts/candidate_scope_admission36.py --base "$candidate_base"
           elif [ "$candidate_base" = "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b" ]; then
             python3 scripts/candidate_scope_admission35.py --base "$candidate_base"
