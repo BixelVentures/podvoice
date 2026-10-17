@@ -13,10 +13,12 @@ from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.live_prompt import live_confirmation_instructions, live_instructions
 from gatekeeper.podview import (
     BRIDGE,
+    PodViewBridge,
     _music_binding,
     _music_search_context,
     _selection_source_current,
 )
+from gatekeeper.podview_continuity import ControllerRegistry
 
 
 @pytest.fixture
@@ -136,6 +138,60 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig):
         assert sent[2] == 40
         assert offer["startVolumePercent"] == 35
         assert "observedVolumePercent" not in offer
+
+
+async def test_second_browser_search_keeps_first_browser_candidate_live(rig, tmp_path):
+    bridge = rig.app[BRIDGE]
+    bridge._controller_enabled = True
+    bridge._controller_registry = ControllerRegistry(
+        tmp_path / "controllers" / "registry.json", "c" * 64, 30
+    )
+    bridge._controller_registry.initialize()
+    bridge._grant_current = PodViewBridge._grant_current.__get__(bridge)
+    bridge._grants.pop("kitchen", None)  # Remove the fixture's abbreviated fake legacy grant.
+    pin = bridge.controller_pin("kitchen")
+    _, mac_id, _ = bridge._controller_registry.enroll("kitchen", pin, name="Mac", persistent=True)
+    _, display_id, _ = bridge._controller_registry.enroll(
+        "kitchen", pin, name="Display", persistent=True
+    )
+    mac_grant = bridge.grant_timer_control("kitchen", mac_id)
+    display_grant = bridge.grant_timer_control("kitchen", display_id)
+    async with TestClient(TestServer(rig.app)) as client:
+        first = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=jazz",
+                headers={"Cookie": f"podview_control={mac_grant}"},
+            )
+        ).json()
+        second = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=jazz",
+                headers={"Cookie": f"podview_control={display_grant}"},
+            )
+        ).json()
+        first_id = first["candidateSet"]["candidateSetId"]
+        second_id = second["candidateSet"]["candidateSetId"]
+        assert first_id != second_id
+        assert first_id in bridge.music_selection.sources
+        assert second_id in bridge.music_selection.sources
+        first_offer = await (
+            await client.post(
+                "/view/api/music/selection/setup",
+                headers={"Cookie": f"podview_control={mac_grant}", "X-PodView-Request": "1"},
+                json={
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "candidateSetId": first_id,
+                    "target": {
+                        "accountId": "account-alpha",
+                        "kind": "spotify_device",
+                        "targetId": "device-one",
+                    },
+                },
+            )
+        ).json()
+        assert first_offer["ok"]
+        assert second_id in bridge.music_selection.sources
 
 
 async def test_real_prepare_revokes_paired_grant_before_any_selected_commit(rig):

@@ -56,17 +56,41 @@ timer_command:
     sink_id:
       selector:
         text:
-controller_provision:
-  name: Provision PodView controller
-  description: Issue one room-bound ten-minute enrollment code to a current HA administrator.
+controller_list:
+  name: List PodView browser requests and profiles
+  description: Show bounded nonsecret pending requests and active browser profiles to a current HA administrator.
   fields:
     room:
       required: true
       selector:
         text:
+controller_approve:
+  name: Approve PodView browser request
+  description: Explicitly approve one pending browser profile until it is removed.
+  fields:
+    room:
+      required: true
+      selector:
+        text:
+    request_id:
+      required: true
+      selector:
+        text:
+controller_revoke_identity:
+  name: Revoke PodView browser profile
+  description: Revoke only the selected browser profile.
+  fields:
+    room:
+      required: true
+      selector:
+        text:
+    identity:
+      required: true
+      selector:
+        text:
 controller_revoke:
   name: Revoke PodView controller
-  description: Durably revoke a room controller and its active grants.
+  description: Emergency close all browser profiles in the room.
   fields:
     room:
       required: true
@@ -89,6 +113,10 @@ controller_receipt:
       selector:
         text:
     outcome:
+      required: true
+      selector:
+        text:
+    payload:
       required: true
       selector:
         text:

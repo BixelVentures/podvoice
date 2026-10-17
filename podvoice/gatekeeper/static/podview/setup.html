@@ -3,7 +3,7 @@
 <head>
  <meta charset="utf-8">
  <meta name="viewport" content="width=device-width,initial-scale=1">
- <title>PodView · Skærmopsætning</title>
+ <title>PodView · Forbind denne enhed</title>
  <link rel="stylesheet" href="ui/components.css">
  <link rel="stylesheet" href="setup.css">
  <script type="module" src="setup.js"></script>
@@ -11,14 +11,15 @@
 <body>
  <main>
   <a href="./">← Til PodView</a>
-  <h1>Skærmopsætning</h1>
-  <p>Indtast engangskoden fra PodVoice for at forbinde denne skærm. Hvor længe den kan bruges, afhænger af den aktuelle opsætning.</p>
+  <h1>Forbind PodView</h1>
+  <p>Godkend denne enhed én gang i Home Assistant. Så husker PodView den.</p>
   <form id="pair-form">
-   <label for="pair-code">Engangskode</label>
-   <input id="pair-code" name="code" type="password" autocomplete="off" minlength="32" maxlength="128" pattern="[A-Za-z0-9_-]{32,128}" required>
-   <button id="pair-submit" type="submit" disabled>Forbind skærmen</button>
+   <label for="device-name">Enhedens navn</label>
+   <input id="device-name" name="name" type="text" autocomplete="off" maxlength="48" required>
+   <button id="pair-submit" type="submit" disabled>Bed om adgang</button>
   </form>
-  <p id="pair-status" role="status">Forbinder til hjemmet…</p>
+  <p id="pair-status" role="status" aria-live="polite"></p>
+  <span id="approval-actions" hidden><a href="/config/integrations/integration/podvoice" target="_blank" rel="noopener">Åbn Home Assistant</a></span>
  </main>
 </body>
 </html>

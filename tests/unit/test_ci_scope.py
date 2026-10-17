@@ -219,6 +219,7 @@ def test_exact_admission_uses_existing_nonpayload_scope_before_historical_dispat
         ("0e56c593c6ce9a3e1666b5fd535d3424cc691b9c", "31"),
         ("729668ffa45067bfb75fd6928ccac9f9beaf5576", "32"),
         ("aa49d94e588974683ad3b9ad4b6d34da81676b58", "37"),
+        ("f0e3d62a5677050d2373f691a61cd733b3dd5be6", "39"),
         ("ffffffffffffffffffffffffffffffffffffffff", "32"),
     ],
 )

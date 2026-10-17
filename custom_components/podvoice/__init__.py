@@ -75,12 +75,19 @@ COMMAND_SCHEMA = vol.Schema(
     }
 )
 ADMIN_SCHEMA = vol.Schema({vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160))})
+ADMIN_APPROVE_SCHEMA = ADMIN_SCHEMA.extend({vol.Required("request_id"): vol.Match(r"[a-f0-9]{32}")})
+ADMIN_REVOKE_IDENTITY_SCHEMA = ADMIN_SCHEMA.extend(
+    {vol.Required("identity"): vol.Match(r"[a-f0-9]{32}")}
+)
 ADMIN_RECEIPT_SCHEMA = vol.Schema(
     {
         vol.Required("nonce"): vol.Match(r"[a-f0-9]{32}"),
-        vol.Required("action"): vol.In(("provision", "revoke")),
+        vol.Required("action"): vol.In(
+            ("provision", "revoke", "list", "prepare", "approve", "revoke_identity")
+        ),
         vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160)),
         vol.Required("outcome"): vol.In(("committed", "unavailable")),
+        vol.Required("payload"): vol.All(cv.string, vol.Length(max=8192)),
         vol.Required("mac"): vol.Match(r"[a-f0-9]{64}"),
     }
 )
@@ -114,7 +121,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     hass.services.async_remove(DOMAIN, "timer_status")
     hass.services.async_remove(DOMAIN, "timer_command")
-    for service in ("controller_provision", "controller_revoke", "controller_receipt"):
+    for service in (
+        "controller_list",
+        "controller_approve",
+        "controller_revoke_identity",
+        "controller_revoke",
+        "controller_receipt",
+    ):
         hass.services.async_remove(DOMAIN, service)
     hass.data.pop(_ADMIN_KEY, None)
     bridge.close()
@@ -166,7 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         },
     )
     hass.data[DOMAIN] = bridge
-    admin = ControllerAdmin(hass)
+    admin = ControllerAdmin(hass, entry)
     hass.data[_ADMIN_KEY] = admin
 
     async def read(call: ServiceCall) -> dict:
@@ -175,8 +188,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def command(call: ServiceCall) -> dict:
         return bridge.command(**call.data)
 
-    async def controller_provision(call: ServiceCall) -> dict:
-        return await admin.request(call, "provision")
+    async def controller_list(call: ServiceCall) -> dict:
+        return await admin.request(call, "list")
+
+    async def controller_approve(call: ServiceCall) -> dict:
+        return await admin.request(call, "approve")
+
+    async def controller_revoke_identity(call: ServiceCall) -> dict:
+        return await admin.request(call, "revoke_identity")
 
     async def controller_revoke(call: ServiceCall) -> dict:
         return await admin.request(call, "revoke")
@@ -197,9 +216,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.services.async_register(
         DOMAIN,
-        "controller_provision",
-        controller_provision,
+        "controller_list",
+        controller_list,
         schema=ADMIN_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_approve",
+        controller_approve,
+        schema=ADMIN_APPROVE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_revoke_identity",
+        controller_revoke_identity,
+        schema=ADMIN_REVOKE_IDENTITY_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

@@ -1,4 +1,4 @@
-"""Import endpoint configuration and administer browser pairing through HA."""
+"""Import endpoint configuration and administer browser profiles through HA."""
 
 from __future__ import annotations
 
@@ -39,8 +39,10 @@ class PodVoiceOptionsFlow(OptionsFlow):
         self._owner: str | None = None
         self._room: str | None = None
         self._action: str | None = None
+        self._target: str | None = None
         self._selected_endpoint: dict | None = None
         self._submitted = False
+        self._choices: dict[str, str] = {}
 
     def _rooms(self) -> dict[str, str]:
         return {
@@ -84,6 +86,27 @@ class PodVoiceOptionsFlow(OptionsFlow):
         self._owner = user.id
         return user.id
 
+    async def _service(self, action: str, data: dict) -> dict:
+        owner = await self._principal()
+        if owner is None or self._room is None:
+            raise HomeAssistantError("current administrator required")
+        result = await self.hass.services.async_call(
+            DOMAIN,
+            f"controller_{action}",
+            {"room": self._room, **data},
+            blocking=True,
+            return_response=True,
+            context=Context(user_id=owner),
+        )
+        if (
+            await self._principal() != owner
+            or self._physical_endpoint(self._room) != self._selected_endpoint
+        ):
+            raise HomeAssistantError("administrator changed")
+        if type(result) is not dict or result.get("room") != self._room:
+            raise HomeAssistantError("invalid administrator response")
+        return result
+
     async def async_step_init(self, user_input: dict | None = None) -> dict:
         if await self._principal() is None:
             return self.async_abort(reason="admin_required")
@@ -92,103 +115,113 @@ class PodVoiceOptionsFlow(OptionsFlow):
             return self.async_abort(reason="no_rooms")
         if user_input is not None:
             self._room = user_input["room"]
-            self._action = user_input["action"]
             self._selected_endpoint = self._physical_endpoint(self._room)
-            return await self.async_step_confirm()
+            return await self.async_step_manage()
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("room"): vol.In(rooms),
-                    vol.Required("action", default="provision"): vol.In(
-                        {
-                            "provision": "Par en skærm",
-                            "revoke": "Tilbagekald skærmens adgang",
-                        }
-                    ),
-                }
-            ),
+            data_schema=vol.Schema({vol.Required("room"): vol.In(rooms)}),
+        )
+
+    async def async_step_manage(self, user_input: dict | None = None) -> dict:
+        if (
+            await self._principal() is None
+            or self._room not in self._rooms()
+            or self._selected_endpoint is None
+            or self._physical_endpoint(self._room) != self._selected_endpoint
+        ):
+            return self.async_abort(reason="admin_required")
+        if user_input is not None:
+            choice = user_input["action"]
+            if choice not in self._choices:
+                return self.async_abort(reason="request_unconfirmed")
+            self._action, _, self._target = choice.partition(":")
+            return await self.async_step_confirm()
+        try:
+            result = await self._service("list", {})
+        except HomeAssistantError:
+            return self.async_abort(reason="request_unconfirmed")
+        if result.get("ok") is not True:
+            return self.async_abort(reason="request_unconfirmed")
+        choices: dict[str, str] = {}
+        pending = result.get("pending", [])
+        enrolled = result.get("enrolled", [])
+        if not isinstance(pending, list) or not isinstance(enrolled, list):
+            return self.async_abort(reason="request_unconfirmed")
+        for row in pending[:8]:
+            if (
+                isinstance(row, dict)
+                and re.fullmatch(r"[a-f0-9]{32}", str(row.get("requestId", "")))
+                and row.get("status") == "pending"
+                and isinstance(row.get("name"), str)
+                and isinstance(row.get("matchSignal"), str)
+                and re.fullmatch(r"[A-Z0-9]{6}", row["matchSignal"])
+            ):
+                choices[f"approve:{row['requestId']}"] = (
+                    f"Godkend {row['name'][:80]} · {row['matchSignal']}"
+                )
+        for row in enrolled[:2]:
+            if (
+                isinstance(row, dict)
+                and re.fullmatch(r"[a-f0-9]{32}", str(row.get("id", "")))
+                and isinstance(row.get("name"), str)
+            ):
+                choices[f"revoke_identity:{row['id']}"] = f"Fjern {row['name'][:80]}"
+        choices["revoke:"] = "Nødluk hele rummet"
+        self._choices = choices
+        return self.async_show_form(
+            step_id="manage",
+            data_schema=vol.Schema({vol.Required("action"): vol.In(choices)}),
+            description_placeholders={"room": self._rooms()[self._room]},
         )
 
     async def async_step_confirm(self, user_input: dict | None = None) -> dict:
         owner = await self._principal()
-        if owner is None:
-            return self.async_abort(reason="admin_required")
-        rooms = self._rooms()
         if (
-            self._room not in rooms
-            or self._action not in ("provision", "revoke")
+            owner is None
+            or self._room not in self._rooms()
             or self._selected_endpoint is None
             or self._physical_endpoint(self._room) != self._selected_endpoint
+            or self._action not in ("approve", "revoke_identity", "revoke")
         ):
-            return self.async_abort(reason="no_rooms")
+            return self.async_abort(reason="admin_required")
         if self._submitted:
             return self.async_abort(reason="request_finished")
         if user_input is not None and user_input["confirm"]:
             if current_request.get().method != "POST":
                 return self.async_abort(reason="admin_required")
-            # Consume locally before the await: parallel submissions cannot issue again.
             self._submitted = True
+            field = (
+                {"request_id": self._target}
+                if self._action == "approve"
+                else {"identity": self._target}
+                if self._action == "revoke_identity"
+                else {}
+            )
             try:
-                result = await self.hass.services.async_call(
-                    DOMAIN,
-                    f"controller_{self._action}",
-                    {"room": self._room},
-                    blocking=True,
-                    return_response=True,
-                    context=Context(user_id=owner),
-                )
+                result = await self._service(self._action, field)
             except HomeAssistantError:
                 return self.async_abort(reason="request_unconfirmed")
-            if (
-                await self._principal() != owner
-                or self._rooms() != rooms
-                or self._physical_endpoint(self._room) != self._selected_endpoint
-            ):
-                return self.async_abort(reason="admin_required")
-            keys = {"ok", "room", "code"} if self._action == "provision" else {"ok", "room"}
-            if (
-                type(result) is not dict
-                or set(result) != keys
-                or result["ok"] is not True
-                or result["room"] != self._room
-                or (
-                    self._action == "provision"
-                    and (
-                        not isinstance(result["code"], str)
-                        or re.fullmatch(r"[A-Za-z0-9_-]{32,128}", result["code"]) is None
-                    )
-                )
-            ):
+            if result.get("ok") is not True:
                 return self.async_abort(reason="request_unconfirmed")
-            # Only this response carries the code; no persistent entry/options or log writes.
             return self.async_show_form(
-                step_id="paired" if self._action == "provision" else "revoked",
+                step_id="done",
                 data_schema=vol.Schema({}),
-                description_placeholders={
-                    "room": rooms[self._room],
-                    "code": result.get("code", ""),
-                },
+                description_placeholders={"room": self._rooms()[self._room]},
             )
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema({vol.Required("confirm", default=False): bool}),
             description_placeholders={
-                "room": rooms[self._room],
-                "action": "Par en skærm"
-                if self._action == "provision"
-                else "Tilbagekald skærmens adgang",
+                "room": self._rooms()[self._room],
+                "action": self._choices.get(f"{self._action}:{self._target}", ""),
+                "retention": "Huskes, indtil du fjerner enheden."
+                if self._action == "approve"
+                else "",
             },
             errors={"base": "confirmation_required"} if user_input is not None else {},
         )
 
-    async def _finish(self) -> dict:
+    async def async_step_done(self, user_input: dict | None = None) -> dict:
         if await self._principal() is None:
             return self.async_abort(reason="admin_required")
         return self.async_create_entry(title="", data=dict(self._entry.options))
-
-    async def async_step_paired(self, user_input: dict | None = None) -> dict:
-        return await self._finish()
-
-    async def async_step_revoked(self, user_input: dict | None = None) -> dict:
-        return await self._finish()

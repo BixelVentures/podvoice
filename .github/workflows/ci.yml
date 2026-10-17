@@ -33,13 +33,15 @@ jobs:
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 scripts/ci_scope.py
-      - name: Exact candidate admission (historical31/32, strict34-37, pending38)
+      - name: Exact candidate admission (historical31/32, strict34-38, pending39)
         if: steps.scope.outputs.tooling_only != 'true'
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           candidate_base="${CI_DIFF_BASE:-729668ffa45067bfb75fd6928ccac9f9beaf5576}"
-          if [ "$candidate_base" = "e4c2966197ac28aa6e86a0df55e7f461203df269" ]; then
+          if [ "$candidate_base" = "f0e3d62a5677050d2373f691a61cd733b3dd5be6" ]; then
+            python3 scripts/candidate_scope_admission39.py --base "$candidate_base"
+          elif [ "$candidate_base" = "e4c2966197ac28aa6e86a0df55e7f461203df269" ]; then
             python3 scripts/candidate_scope_admission38.py --base "$candidate_base"
           elif [ "$candidate_base" = "aa49d94e588974683ad3b9ad4b6d34da81676b58" ]; then
             python3 scripts/candidate_scope_admission37.py --base "$candidate_base"

@@ -26,8 +26,9 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
     )
 
     class Admin:
-        def __init__(self, hass):
+        def __init__(self, hass, entry):
             self.hass = hass
+            self.entry = entry
 
         async def request(self, call, action):
             return {"ok": True, "action": action, "room": call.data["room"]}
@@ -53,6 +54,8 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         READ_SCHEMA=object(),
         COMMAND_SCHEMA=object(),
         ADMIN_SCHEMA=object(),
+        ADMIN_APPROVE_SCHEMA=object(),
+        ADMIN_REVOKE_IDENTITY_SCHEMA=object(),
         ADMIN_RECEIPT_SCHEMA=object(),
         _ADMIN_KEY="podvoice_controller_admin",
     )
@@ -74,7 +77,12 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         entry_id="fixture-entry",
     )
     assert await namespace["async_setup_entry"](hass, entry)
-    for service, action in (("controller_provision", "provision"), ("controller_revoke", "revoke")):
+    for service, action in (
+        ("controller_list", "list"),
+        ("controller_approve", "approve"),
+        ("controller_revoke_identity", "revoke_identity"),
+        ("controller_revoke", "revoke"),
+    ):
         handler = registrations[service]
         assert inspect.iscoroutinefunction(handler)  # Core's HassJob classification boundary.
         assert await handler(SimpleNamespace(data={"room": "kitchen"})) == {

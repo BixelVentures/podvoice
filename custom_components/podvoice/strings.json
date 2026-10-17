@@ -2,37 +2,39 @@
   "options": {
     "step": {
       "init": {
-        "title": "PodView screen access",
-        "description": "Pair one browser with a configured room, or revoke its access. Only a Home Assistant administrator can do this.",
+        "title": "PodView access",
+        "description": "Choose the configured Home Assistant room.",
         "data": {
-          "room": "Room",
+          "room": "Room"
+        }
+      },
+      "manage": {
+        "title": "Browser profiles",
+        "description": "Pending devices and active profiles for **{room}**. The match signal only helps identify the screen.",
+        "data": {
           "action": "Action"
         }
       },
       "confirm": {
-        "title": "Confirm screen access",
-        "description": "{action}: **{room}**. Pairing replaces previous screen access for this room. Access lasts up to 30 days; you can revoke it here at any time.",
+        "title": "Confirm change",
+        "description": "**{action}** in **{room}**. {retention}",
         "data": {
-          "confirm": "Confirm"
+          "confirm": "Approve"
         }
       },
-      "paired": {
-        "title": "Pair the screen",
-        "description": "Room: **{room}**. Open **Pair screen** in PodView on the browser you want to use, and enter this code once:\n\n`{code}`\n\nThe code expires after 10 minutes. This browser can remain paired for up to 30 days. To remove its access, choose **Revoke screen access** in these settings. Do not share the code."
-      },
-      "revoked": {
-        "title": "Screen access revoked",
-        "description": "Screen access for **{room}** has been revoked. Pair the browser again to give it access."
+      "done": {
+        "title": "Change confirmed",
+        "description": "Access in **{room}** has been updated."
       }
     },
     "error": {
-      "confirmation_required": "Confirm before continuing."
+      "confirmation_required": "Approve before continuing."
     },
     "abort": {
       "admin_required": "An active Home Assistant administrator must open and complete this flow.",
       "no_rooms": "No configured physical PodVoice room is available.",
-      "request_finished": "This request has already been submitted. Start again only if you want to replace the previous screen access.",
-      "request_unconfirmed": "The request could not be confirmed. No pairing code can be shown. Check the add-on status before starting a new request."
+      "request_finished": "This action has already been submitted.",
+      "request_unconfirmed": "The action could not be confirmed. Check the current list in Home Assistant; do not retry blindly."
     }
   }
 }

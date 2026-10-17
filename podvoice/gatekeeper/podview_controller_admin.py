@@ -129,6 +129,70 @@ class ControllerAdminState:
         finally:
             temporary.unlink(missing_ok=True)
 
+    def profiles(self, room: str, pin: str, registry_path: Path):
+        """Enable the profile owner without issuing or extending a pairing code."""
+        if not isinstance(room, str) or not 1 <= len(room) <= 160:
+            raise AdminStateDenied("invalid room")
+        if not isinstance(pin, str) or not re.fullmatch(r"[a-f0-9]{64}", pin):
+            raise AdminStateDenied("invalid owner pin")
+        fd = self._lock()
+        try:
+            old = self._read()
+            if old is not None and old["room"] != room:
+                raise AdminStateDenied("different admin room")
+            generation = old["generation"] if old is not None else secrets.token_hex(32)
+            from .podview_continuity import ControllerRegistry
+
+            registry = ControllerRegistry(registry_path, generation, 30)
+            if old is None:
+                row = {
+                    "schema": 1,
+                    "generation": generation,
+                    "room": room,
+                    "pin": pin,
+                    "digest": "",
+                    "deadline": 0,
+                    "attempts": 5,
+                    "enabled": True,
+                    "nonces": [],
+                }
+                self._write(row)
+            elif old["pin"] != pin or not old["enabled"]:
+                row = dict(old)
+                row.update(pin=pin, digest="", deadline=0, attempts=5, enabled=True)
+                self._write(row)
+            else:
+                row = old
+            registry.initialize()
+            return row, registry
+        finally:
+            os.close(fd)
+
+    def accept_profile_command(
+        self, room: str, pin: str, nonce: str, expires: float, *, allow_disabled=False
+    ):
+        """Consume a write nonce durably before the bridge mutation."""
+        if not re.fullmatch(r"[a-f0-9]{32}", nonce):
+            raise AdminStateDenied("invalid nonce")
+        fd = self._lock()
+        try:
+            if time.time() >= expires:
+                raise AdminStateDenied("expired admin command")
+            row = self._read()
+            if (
+                row is None
+                or (not row["enabled"] and not allow_disabled)
+                or row["room"] != room
+                or row["pin"] != pin
+                or nonce in row["nonces"]
+            ):
+                raise AdminStateDenied("profile owner unavailable")
+            row["nonces"] = (row["nonces"] + [nonce])[-64:]
+            self._write(row)
+            return row
+        finally:
+            os.close(fd)
+
     def provision(
         self, room: str, pin: str, code: str, registry_path: Path, nonce: str, expires: float
     ):

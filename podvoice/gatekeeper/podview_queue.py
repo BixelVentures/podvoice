@@ -175,7 +175,7 @@ class QueueBroker:
             and all(isinstance(r.get(k), str) and r[k] for k in ("nativeRoomId", "nativeHomepodId"))
         ]
 
-    def binding(self, room):
+    def binding(self, room, token):
         from .podview import _music_binding
 
         snapshot = self.bridge.snapshot(room)
@@ -192,14 +192,14 @@ class QueueBroker:
             self.bridge.boot_id,
             self.bridge.tools,
             _music_binding(self.bridge, room),
-            self.bridge._grants.get(room),
+            self.bridge._grant_for_token(room, token),
             id(self.bridge.controls),
             id(self.bridge.controls.music),
             self.bridge.controls.music.binding(),
             hashlib.sha256(
                 json.dumps(self.bridge.controls.policy, sort_keys=True).encode()
             ).digest(),
-            self.generation.get(room, 0),
+            self.generation.get((room, token), 0),
         )
 
     def current(self, task, token):
@@ -207,7 +207,7 @@ class QueueBroker:
             return bool(
                 time.monotonic() < task["deadline"]
                 and secrets.compare_digest(task["token"], token)
-                and task["binding"] == self.binding(task["room"])
+                and task["binding"] == self.binding(task["room"], token)
                 and task["rule"] in self.rules(task["room"], token)
             )
         except Exception:
@@ -218,7 +218,7 @@ class QueueBroker:
         self.receipts = {
             key: value
             for key, value in self.receipts.items()
-            if (grant := self.bridge._grants.get(key[0])) is not None
+            if (grant := self.bridge._grant_for_token(key[0], key[1])) is not None
             and secrets.compare_digest(grant[0], key[1])
             and now < grant[-1]
         }
@@ -252,13 +252,14 @@ class QueueBroker:
         rule = matches[0] if len(matches) == 1 else None
         if rule is None or room in self.bridge.controls.busy or len(self.receipts) >= 1024:
             return {"ok": False, "error": "queue_not_paired", "retryAllowed": False}
-        self.generation[room] = self.generation.get(room, 0) + 1
+        generation_key = (room, token)
+        self.generation[generation_key] = self.generation.get(generation_key, 0) + 1
         task = {
             "room": room,
             "token": token,
             "rule": dict(rule),
             "deadline": time.monotonic() + 16,
-            "binding": self.binding(room),
+            "binding": self.binding(room, token),
             "consumed": False,
         }
         facade = self.bridge.controls.music
@@ -299,7 +300,7 @@ class QueueBroker:
             self.tasks = {
                 k: t
                 for k, t in self.tasks.items()
-                if t["room"] != room and self.current(t, t["token"])
+                if (t["room"], t["token"]) != (room, token) and self.current(t, t["token"])
             }
             if len(self.tasks) >= 64:
                 raise ValueError("queue capacity")

@@ -42,9 +42,9 @@ klassifikationen findes i [dokumentationsindekset](docs/README.md).
 
 Brug hurtigste tilstrækkeligt kompetente model. Afgrænsede docs-, status-, GitHub- og
 fixtureopgaver kan bruge GPT-6-Luna low/medium. Brug GPT-6-Sol til krævende runtime- og
-ejeranalyse. Brug Ultra én gang ved freeze til high-risk ejerskab, stale events, side effects
-eller artifact-sandhed, ikke som standard i hver iteration. Et påkrævet uafhængigt high-risk
-review består.
+ejeranalyse. Brug kompetent Sol uden Ultra til uafhængigt high-risk review ved freeze;
+brugeren har fravalgt Ultra og foretrækker nyttigt parallelt arbejde. Review skal fortsat
+dække ejerskab, stale events, side effects og artifact-sandhed. Reviewkrav svækkes ikke.
 
 ## Vælg kontrol
 

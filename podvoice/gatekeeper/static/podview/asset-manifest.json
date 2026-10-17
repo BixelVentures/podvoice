@@ -335,7 +335,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "36a0a0b0f1251c3a5d6f0172709b5cd04a68073650d23d509ee167b9748d9bd6"
+      "sha256": "13356a8c1995c5a0dad551d62e9daf5be5382f6b1b990db132f47a8e68824d78"
     },
     {
       "path": "podvoice-view.js",
@@ -387,11 +387,11 @@
     },
     {
       "path": "setup.html",
-      "sha256": "8e82d9cac1c9b360e6d11311c52a6ea77fda488aa11e725cb572f193245d32d8"
+      "sha256": "f3a7a9104fa5df3d94d172b2341cd2ff759f736c1aab06a8108fe37f2332013c"
     },
     {
       "path": "setup.js",
-      "sha256": "1cb964c48bda45c0164585e613b20d9388730527e8e65ff152b9525b64d5fc9f"
+      "sha256": "dd85e76839662f61b23572c0a1c0ae1a7e467158147a4065f2c31caf7af197ce"
     },
     {
       "path": "speaker-output-view.js",
