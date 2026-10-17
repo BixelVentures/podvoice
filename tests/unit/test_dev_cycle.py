@@ -449,6 +449,7 @@ def test_scope_change_invalidates_focused_result():
 @pytest.mark.parametrize(
     "frozen_base,entry",
     [
+        ("e4c2966197ac28aa6e86a0df55e7f461203df269", "scripts/candidate_scope_admission38.py"),
         ("ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd", "scripts/candidate_scope_admission36.py"),
         ("e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b", "scripts/candidate_scope_admission35.py"),
         ("frozen-base", "scripts/candidate_scope_admission32.py"),
