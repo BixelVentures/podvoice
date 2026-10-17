@@ -258,7 +258,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         await self.hass.auth.async_deactivate_user(self.admin)
         self.release.set()
         _, body = await pending
-        self.assertEqual(body["reason"], "admin_required")
+        self.assertEqual(body["reason"], "request_unconfirmed")
         self.assertNotIn(REQUEST_ID, repr(body))
         self.assertEqual(
             [call.service for call in self.calls], ["controller_list", "controller_approve"]
@@ -286,7 +286,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.rebind_physical_endpoint()
         self.release.set()
         _, body = await pending
-        self.assertEqual(body["reason"], "admin_required")
+        self.assertEqual(body["reason"], "request_unconfirmed")
         self.assertNotIn(REQUEST_ID, repr(body))
         self.assertEqual(
             [call.service for call in self.calls], ["controller_list", "controller_approve"]

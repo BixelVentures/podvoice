@@ -20,6 +20,12 @@ PodView-rootens reviewede canonical setup.html, setup.js og podvoice-transport.j
 
 CI641 på den første publicerede PR-kandidat: exact admission, pakket UI/browser, add-on-build/shippet stdin og REST-suite bestod. HA-framework fandt en forældet engangskode-fixture og en fixture, der forsøgte at deaktivere HA-ejeren; unit-cohort stoppede på manglende typeangivelser. Disse er repareret uden produktadfærdsændring, uafhængigt delta-review gav GO (receipt SHA256 a5b09967e8a820b69885001b8f6bd563d5773667d643379718e42b23e7e96dfa), og faktisk mypy på alle 85 gatekeeper-filer samt Ruff bestod. Ny præcis kandidat afventer officiel CI; fejlede checks er ikke ommærket til bestået.
 
+
+CI642: add-on-build og pakket UI bestod igen; HA-framework bestod 14/16, mens to post-await-afvisninger korrekt gav request_unconfirmed i stedet for fixtureforventningen admin_required. Kun disse to forventninger er korrigeret; request-id må fortsat ikke eksponeres, backendkald og præ-await-afvisninger bevares. Produktkoden er uændret, og uafhængigt fixture-delta-review gav GO (receipt SHA256 ba9c94d38a861fe851339cb48b672b8a42f5e84bb86c4176a4a14339b594aedb). Den præcise rettede kandidat afventer officiel CI.
+
+
+CI642 unit-cohort bestod 3510 cases og stoppede ved en read-only SimpleNamespace-fixture uden den nye grant-opslagsmetode. Den eneste ufuldstændige unit-caller er opdateret, og alle 27 speaker-unitcases, herunder otte owner-/cancellation-forløb, består. Ingen produktionsændring; øvrige beståede kontroller bevares, og den præcise rettede kandidat sendes samlet til officiel CI.
+
 <!-- podview39-admission
 {
   "version": 16,
@@ -30,14 +36,14 @@ CI641 på den første publicerede PR-kandidat: exact admission, pakket UI/browse
   ],
   "base_tip": "f0e3d62a5677050d2373f691a61cd733b3dd5be6",
   "merge_base": "f0e3d62a5677050d2373f691a61cd733b3dd5be6",
-  "rationale": "Independent source GO and CI641 narrow delta GO receipt a5b09967e8a820b69885001b8f6bd563d5773667d643379718e42b23e7e96dfa; final admission map independently verified. CI641 scope/UI/build/REST passed; HA fixture and type-only repairs await official CI. No installation or physical acceptance claimed.",
+  "rationale": "Independent source and CI641/642 delta reviews retained. CI642 passed 3510 unit cases before one stale read-only speaker fixture; that fixture alone now supplies the real bridge protocol method, 27 targeted tests pass. Two HA post-await denial expectations match observed fail-closed response. No runtime changes since CI642; official exact CI required, no installation or physical claim.",
   "fingerprint": "3f2e7472dc5522bbd838b8fc21945731cb712602d151891c58e7c4591f51512e",
-  "regression_fingerprint": "f423fe24071018daa3950a12d253c85c6aa36b5a69f0eee0986a71f4c6ec96db",
+  "regression_fingerprint": "c2f16a3f72722cb094e9c139ee29ed294806320e174a2942c1ac511b7c574541",
   "runtime_fingerprint": "e69484c5788afbc6e9c31d67c320831344aa115a81798102f9d640dba21edfdb",
   "config_fingerprint": "0f34666275084303c80f55d8c5fc402e1b05ef3b654628e2dc9427108100add4",
-  "policy_fingerprint": "72afbf0cd8823924e29fad5dbd09f1e0f0a5354ee826508ba0d8e864049c3ddb",
+  "policy_fingerprint": "3c4cbeda56c80d1858e2239ec79ab791b8007cd16a11b6412ed6e6ce9be150f6",
   "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
-  "manifest_fingerprint": "19e66c9ca987b4ca6988d2307ced088a7d884d6cb3bee6bcf48b89e2bfb8b5b2"
+  "manifest_fingerprint": "749ee3579fe3bf396f9d0e2eda2e2f721dd1d79e2763b0e925705cbb017186db"
 }
 -->
 

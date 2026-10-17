@@ -164,6 +164,7 @@ def test_actual_async_owner_guards_and_cancellation(monkeypatch, change):
             boot_id="boot",
             tools=tools,
             sessions={"r0": object()},
+            _grant_for_token=lambda _room, _token: None,
             controls=SimpleNamespace(
                 policy={
                     "roomId": "r0",

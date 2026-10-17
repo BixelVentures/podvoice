@@ -36,7 +36,7 @@
   },
   "regressions": {
     "tests/ha_framework/test_controller_admin_services.py": "eac50003408728741a9f4df0dbc0f9bf1a5219319b0b9830b5d0a1b944fa0e90",
-    "tests/ha_framework/test_options_flow_http.py": "1741f83f02e202f04b3d1522cd4bfb0ee9edfb5ef003cc5f6af1de9337bc2142",
+    "tests/ha_framework/test_options_flow_http.py": "8027d0dd124dae428863ffc55d6c9469aaf3b2b3c6fecf4842db6de167ca15ab",
     "tests/integration/test_podview_admin_provision.py": "6367dc4f2de8a59f62d845819815c1564c174b8bb27f95c76e16076f0cf58e46",
     "tests/integration/test_podview_controller_continuity.py": "4c4ff8cfe61c0f16908431bfdaac4abc5e2f0462e61ad29bda99480f73e0d238",
     "tests/integration/test_podview_device_approval.py": "3c7725d1dd0d1fb56efcd50d336ceaf299cb64de5f136aada6a8bf6025b31388",
@@ -47,7 +47,8 @@
     "tests/unit/test_ci_scope.py": "e10a92e8867afa03db5fdf0223bab940df6387eca3fde0f1d661338bbc1ec2ef",
     "tests/unit/test_dev_cycle.py": "e29410f6d79d221be48c77fe218edeb8afba859ba6ea3fd6debc454791b8b400",
     "tests/unit/test_ha_controller_admin.py": "d1ba5ccc33104d236a9331f2bffcb4acda700bbb3e8ee701206cb4a6e93347fa",
-    "tests/unit/test_ha_controller_registration.py": "4f137461bfeb4066a5d54ae3c034045b8e98f914cf468af9d085904995c8ecc4"
+    "tests/unit/test_ha_controller_registration.py": "4f137461bfeb4066a5d54ae3c034045b8e98f914cf468af9d085904995c8ecc4",
+    "tests/unit/test_podview_speakers.py": "e944e7178ab5d66f37d994f05dbf65c79ce008bc3955d5e956cc601fe8f943f1"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "1659f289108f63af849711f6466ff499fcd2acecf15d18bb19a3f3d7692f6368",

@@ -73,12 +73,13 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_candidate_scope_admission39.py",
         "tests/unit/test_dev_cycle.py",
         "tests/unit/test_ci_scope.py",
+        "tests/unit/test_podview_speakers.py",
     }
 )
 # Lead fills approval only after an independent review of the final composition.
 REVIEWER = "Independent /root/profiles_owner_review source and /root/controller_registry_review admission39"
-MANIFEST_SHA = "19e66c9ca987b4ca6988d2307ced088a7d884d6cb3bee6bcf48b89e2bfb8b5b2"
-PROFILE_AST = "5ea4714bde1cce9229d8b44dc77feb2eafa12538b22c21049f51b3081a30eaaa"
+MANIFEST_SHA = "749ee3579fe3bf396f9d0e2eda2e2f721dd1d79e2763b0e925705cbb017186db"
+PROFILE_AST = "7bd52cf94b1f4abe54cf4c96da14a1a4a9b68a6ee1bf14982d682e3bc740c4eb"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission38.py": "7463aa9eefebc509d7b23b321e08d747b6b18e35e640e09f9a5091a72ee62c8d",
     "scripts/podview38-admission-reviewed.json": "6d302077ce3c3152c029073b0d318d151dd15990b62795a41fab266bc46a99f0",
