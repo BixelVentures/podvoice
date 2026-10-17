@@ -626,3 +626,9 @@ pv-widget-host #now-view #device-activities .resource-preview[data-kind=vacuum] 
 }
 /* Forecast rows keep their intrinsic heights inside the card's scroll viewport. */
 #weather-view>.response-heading,#weather-view>.weather-current,#weather-view>.weather-summary,#weather-view>.weather-hours,#weather-view>.weather-days,#weather-view>.weather-source{flex:none}
+
+/* Night overview owns every foreground, including the inherited hover state.
+   Detail remains pale and photo-free, with its existing inherited dark ink. */
+#now-view #home-weather[data-weather-phase=night]{--overview-card-surface:#344d60;--overview-card-ink:#f4f6f8;color:var(--weather-ink,#f4f6f8)}
+#now-view #home-weather[data-weather-phase=night] small{color:#d7e4ef}
+#now-view #home-weather[data-weather-phase=night]>img{filter:invert(1)}

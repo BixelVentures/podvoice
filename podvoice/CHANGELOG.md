@@ -1,3 +1,8 @@
+## 2.0.43 — samlet visuel efterfølger, kandidat
+
+- Ret natvejrets læsbarhed og gør robotikonets baggrund gennemsigtig i begge størrelser. Fjern den dobbelte label i kortets mapkontekst.
+- Bevar de 143 PodView-aktiver, eksisterende kontrolrettigheder, timere, policies og GPT-Live. Visuel accept på den installerede kandidat afventer.
+
 ## 2.0.42 — samlet aktuel musik- og robotbetjening, kandidat
 
 - Læs den aktuelle native musikforbindelse gennem dens eksisterende rumkontrol, så afspilning ikke afhænger af at kunne starte en ny sang.
