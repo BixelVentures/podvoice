@@ -1,3 +1,36 @@
+<!-- podview38-admission
+{
+  "version": 15,
+  "kind": "podvoice38_authenticated_timer_status_boot_binding",
+  "reviewer": "Independent /root/attention_ci_review exact38 source/composition review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "e4c2966197ac28aa6e86a0df55e7f461203df269",
+  "merge_base": "e4c2966197ac28aa6e86a0df55e7f461203df269",
+  "rationale": "Exact38 reviewed HA-native timer source independent of Voice PE link; physical output remains bound to actual matching sink. Source checks do not establish physical acceptance.",
+  "fingerprint": "a7f8bbf59645518559a6cae418c84dae3f4e0fd5629f3fadedc76cf6fc396e2a",
+  "regression_fingerprint": "3fd8a7d7cd596c26c62be9fa72411cfa0dbb3bfb8dbecf7d9db47386405ed024",
+  "runtime_fingerprint": "9e65cd21d5287f5faab43e3adcb2444cdc1b8b02c9e6fe337cb7b73c57db57c1",
+  "config_fingerprint": "0f73c4bb002bf1e1b04fc8c668c8cecb106d480553f54f9e515f77ddf944fce1",
+  "policy_fingerprint": "1c18c7a722c75a5f121e68c25070d41aa372f30bae92e464a880014381f3c7e4",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "6d302077ce3c3152c029073b0d318d151dd15990b62795a41fab266bc46a99f0"
+}
+-->
+
+# Root lead decision before code · direct PodView HA timers without PE ·17October2026
+
+Direct user requires real PodView music/robot/timer control without Voice PE hardware. Observed causal coupling: HomeAssistantTimers freshness is created/cleared only by Thin PE-link readiness even though authenticated HA TimerBridge owns native countdown/finished independently. Root authorizes minimal same-owner fix: existing Thin timer loop refreshes actual HA registered exact configured room independently of physical sink, strict voice_pe/MAC/device/Coreepoch binding, full validation before publish and boot-pinned3tuple binding. Existing controller/policy/grant/session/currentepoch checks remain unchanged. Talk stays lifetime-bound; no bootstrap. Physical alarm output still requires actual matching connected PE and output contract; neither source freshness nor browser timer view claims audio readiness. No local timer/voice engine/provider/budget/authority bypass.
+
+Plan: add strict server-only refresh_registered; don't downgrade3tuple via bind; link loss retains HA source but aclose/finally clear availability; actual known PE MAC mismatch fails closed, post-await physical guard retained. Native time/start/expiry/visual cancel+ack validated through existing MockHA/Thin/PodView, negatives malformed/foreign/stale/Coreepoch/revocation/identity replacements and Talk contracts. Independent Sol gateway review mandatory; frozen37 unchanged, no release/version/install/home actions authorized by this source proposal. Rollback: do not adopt isolated delta.
+
+
+**Release composition 2.0.38:** Adopt only independently reviewed combined patch c1a102a0a0d64ddefec30eff6ed962158ad5c3e1d40ca86aecfe45a39012e52d; review8974a89d7e59e8e46b7c3193093a1919ae7a647f08f32336f5620eb5df7dbecf. Actual Green HA read confirms existing r0 native timer registration while PE was offline. PE subsequently connected and firmware contract passed; no physical acceptance follows from that connection. Version38 is planned, not published or installed. Preserve all current policies, native integration and135 assets; rollback boundary remains installed37. Final composition requires exact admission, independent delta review and official CI before release.
+
+**Adopted source results, not physical proof:** exact4path hashes match the independent review; author75 timer cases and independent31 focused plus43 controller cases passed on those bytes. Causal baseline and guard-mutant checks failed as intended. Existing135 assets plus manifest (136 files) match installed37 byte for byte. No provider/prompt/UI/config-schema changes. A real HA timer_status read returned ok:true for configuredr0/voice_pe with registered identity/device/Core epoch while puck offline; subsequent real native connection and firmware handshake succeeded. Timer alarm/Stop, browser pairing, audible playback, robot effects, full-duplex close/wake and physical latency still need actual acceptance on the installed candidate.
+
+
 # Aktuel levering · 17. oktober 2026 · 2.0.37 installeret på Green
 
 Lead v2.X. PR #181 er merget som `3c95be311fe1622655ab8bf028d697523343e480`; det reviewede tree er `7249331a08d21edd2adef85ba8552fd0c92016ad`. Officiel PR-CI #635 og main-CI/publicering #636 er grønne. GitHub-release 2.0.37 er publiceret; ARM64-image har digest `sha256:64a51b6b59b3de1d149d56f1a154d4797cd14e593eadecf2db9c73c11fec103a` og samme merge-identitet i OCI-revision/PODVOICE_GIT_SHA.

@@ -898,9 +898,20 @@ class ThinSession:
         )
 
     def _timer_output_ready(self) -> bool:
-        return self._timer_endpoint_ready() and (
-            getattr(self.voicepe, "host", None) == "browser"
-            or getattr(self.voicepe, "wake_readiness", None) in ("proven", "recovered")
+        if not self._timer_endpoint_ready():
+            return False
+        if getattr(self.voicepe, "host", None) == "browser":
+            return True  # Existing Talk page/sink lifetime, never native bootstrap.
+        timers = getattr(self.tools, "timers", None)
+        binding = getattr(timers, "bindings", {}).get(self.room)
+        identity = getattr(self.voicepe, "device_identity", None)
+        return bool(
+            timers is not None
+            and binding
+            and binding[0] == "voice_pe"
+            and binding[1] == identity
+            and timers.available(self.room)
+            and getattr(self.voicepe, "wake_readiness", None) in ("proven", "recovered")
         )
 
     def _timer_idle(self, *, owns_lock: bool = False) -> bool:
@@ -925,10 +936,34 @@ class ThinSession:
                 identity = (
                     self.room if kind == "talk" else getattr(self.voicepe, "device_identity", None)
                 )
-                if identity and self._timer_endpoint_ready():
-                    timers.bind(self.room, kind, identity)
+                if kind == "voice_pe" or (identity and self._timer_endpoint_ready()):
+                    if kind == "talk":
+                        timers.bind(self.room, kind, identity)
                     try:
-                        state = await asyncio.wait_for(timers.refresh(self.room), C.TOOL_TIMEOUT_S)
+                        if kind == "voice_pe":
+                            state = await asyncio.wait_for(
+                                timers.refresh_registered(
+                                    self.room,
+                                    expected_kind="voice_pe",
+                                    live_identity=identity
+                                    if getattr(self.voicepe, "_link_up", False)
+                                    else None,
+                                ),
+                                C.TOOL_TIMEOUT_S,
+                            )
+                            # A reconnect/device replacement during the HA await cannot
+                            # publish readiness for another currently connected puck.
+                            if getattr(self.voicepe, "_link_up", False) and (
+                                getattr(self.voicepe, "device_identity", None)
+                                != state.get("binding", {}).get("identity")
+                            ):
+                                timers.unbind(self.room)
+                                timers.snapshots.pop(self.room, None)
+                                state = {}
+                        else:
+                            state = await asyncio.wait_for(
+                                timers.refresh(self.room), C.TOOL_TIMEOUT_S
+                            )
                     except (TimeoutError, Exception):
                         state = {}
                         timers.snapshots.pop(self.room, None)
@@ -996,9 +1031,19 @@ class ThinSession:
         phases: list[str],
         *,
         cancelled: bool,
+        source_binding: tuple | None = None,
     ) -> None:
         # Delivery reports have no physical effects and cannot alter a newer lease.
         for phase in phases:
+            if source_binding is not None:
+                timers = self.tools.timers
+                if (
+                    not timers.available(self.room)
+                    or timers.bindings.get(self.room) != source_binding
+                    or timers.snapshots.get(self.room, {}).get("epoch") != epoch
+                    or getattr(self.voicepe, "device_identity", None) != source_binding[1]
+                ):
+                    return  # No old physical report can be attributed to a new HA owner.
             result = await self._timer_command(
                 epoch,
                 f"{alert_id}-{phase}",
@@ -1029,6 +1074,36 @@ class ThinSession:
         timer_id = receipt["id"]
         recovering = bool(receipt["alert_id"])
         native = getattr(self.voicepe, "host", None) != "browser"
+        timers = self.tools.timers
+        source_binding = timers.bindings.get(self.room) if native else None
+
+        def source_current():
+            return (
+                not self._closing
+                and not self._timer_interrupt.is_set()
+                and (
+                    not native
+                    or bool(
+                        source_binding
+                        and timers.available(self.room)
+                        and timers.bindings.get(self.room) == source_binding
+                        and timers.snapshots.get(self.room, {}).get("epoch") == epoch
+                        and self._timer_output_ready()
+                    )
+                )
+            )
+
+        async def fresh_source_current():
+            if not source_current():
+                return False
+            if native:
+                state = await asyncio.wait_for(
+                    timers.refresh(self.room),
+                    C.TOOL_TIMEOUT_S,
+                )
+                return state.get("ok") is True and source_current()
+            return True
+
         alert_id = receipt["alert_id"] or (
             self.voicepe.timer_output_request() if native else secrets.token_hex(16)
         )
@@ -1048,7 +1123,7 @@ class ThinSession:
         native_requested = recovering
         output_requested = recovering
         async with self._teardown_lock:
-            if not self._timer_idle(owns_lock=True):
+            if not self._timer_idle(owns_lock=True) or not source_current():
                 return
             if not recovering:
                 claim = await self._timer_command(
@@ -1063,17 +1138,29 @@ class ThinSession:
                     return
             try:
                 if not recovering:
-                    if self._timer_interrupt.is_set() or self._closing:
+                    if (
+                        self._timer_interrupt.is_set()
+                        or self._closing
+                        or not await fresh_source_current()
+                    ):
                         cancelled = True
-                        raise RuntimeError("timer alert interrupted before admission")
+                        raise RuntimeError(
+                            "timer alert interrupted or source changed before admission"
+                        )
                     if getattr(self.voicepe, "host", None) != "browser":
                         native_requested = True
                         admit = self.voicepe.set_timer_context(alert_id)
                         if not await asyncio.wait_for(admit, TEARDOWN_STEP_TIMEOUT_S):
                             raise RuntimeError("timer native output admission failed")
-                    if self._timer_interrupt.is_set() or self._closing:
+                    if (
+                        self._timer_interrupt.is_set()
+                        or self._closing
+                        or not await fresh_source_current()
+                    ):
                         cancelled = True
-                        raise RuntimeError("timer alert interrupted before playback")
+                        raise RuntimeError(
+                            "timer alert interrupted or source changed before playback"
+                        )
                     lease = self._arm_playback_lease(item_id=None, kind="timer", turn=None)
                     if lease is None or self.reply_bus is None or not self.reply_url:
                         raise RuntimeError("timer output unavailable")
@@ -1111,6 +1198,13 @@ class ThinSession:
             finally:
                 try:
                     if native:
+                        if (
+                            source_binding is None
+                            or getattr(self.voicepe, "device_identity", None) != source_binding[1]
+                        ):
+                            raise RuntimeError(
+                                "Old timer cannot retire a replacement physical sink"
+                            )
                         outcome = (
                             await self._retire_timer_output(alert_id)
                             if native_requested
@@ -1162,7 +1256,15 @@ class ThinSession:
                     )
         # New wake need only wait for physical ownership, never HA network receipts.
         self._spawn(
-            self._timer_report(epoch, timer_id, alert_id, sink_id, phases, cancelled=cancelled),
+            self._timer_report(
+                epoch,
+                timer_id,
+                alert_id,
+                sink_id,
+                phases,
+                cancelled=cancelled,
+                source_binding=source_binding,
+            ),
             "thin-timer-receipts",
         )
 
@@ -8343,8 +8445,8 @@ class ThinSession:
         self._physical_link_lost = not up
         if not up:
             self._live_mic_submitted = None
-            if self.tools is not None and hasattr(self.tools, "timers"):
-                self.tools.timers.unbind(self.room)
+            # Native HA data remains available independently of physical output.
+            # Actual session close/finally still revokes the source binding.
         if not up and self._active:
             # The native mic/playback-event transport is physical evidence, not a UI
             # detail. A lost puck cannot transparently continue the Realtime session;

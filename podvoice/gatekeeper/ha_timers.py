@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 import time
 
 import httpx
@@ -30,7 +32,9 @@ class HomeAssistantTimers:
     def __init__(self, client: httpx.AsyncClient | None, token: str) -> None:
         self.client, self.token = client, token
         self.contract = ""
-        self.bindings: dict[str, tuple[str, str]] = {}
+        self.bindings: dict[str, tuple[str, str] | tuple[str, str, str]] = {}
+        self._registered_invalid: set[str] = set()
+        self._registered_reads: dict[str, int] = {}
         self.snapshots: dict[str, dict] = {}
         self.observed_at: dict[str, float] = {}
         self.ready: set[str] = set()
@@ -67,19 +71,30 @@ class HomeAssistantTimers:
 
     def bind(self, endpoint: str, kind: str, identity: str) -> None:
         binding = (kind, identity.lower())
-        if self.bindings.get(endpoint) != binding:
+        previous = self.bindings.get(endpoint)
+        if previous is not None and len(previous) == 3:
+            # Registered native source pins are immutable for this process lifetime.
+            # An adapter bind must neither discard HA device identity nor replace it.
+            if previous[:2] != binding:
+                self._registered_invalid.add(endpoint)
+                self.unbind(endpoint)
+                self.snapshots.pop(endpoint, None)
+            return
+        if previous != binding:
             self.snapshots.pop(endpoint, None)
             self.observed_at.pop(endpoint, None)
         self.bindings[endpoint] = binding
         self.ready.add(endpoint)
 
     def unbind(self, endpoint: str) -> None:
+        self._registered_reads[endpoint] = self._registered_reads.get(endpoint, 0) + 1
         self.ready.discard(endpoint)
 
     def available(self, endpoint: str) -> bool:
         # Freshness bounds service admission only; never used to count down a timer.
         return bool(
             self.contract
+            and endpoint not in self._registered_invalid
             and endpoint in self.ready
             and endpoint in self.snapshots
             and time.monotonic() - self.observed_at.get(endpoint, 0) <= 15
@@ -114,22 +129,103 @@ class HomeAssistantTimers:
             }
 
     async def refresh(self, endpoint: str) -> dict:
+        previous = self.bindings.get(endpoint)
+        if previous is not None and len(previous) == 3:
+            return await self.refresh_registered(endpoint, expected_kind="voice_pe")
         data = await self._service("timer_status", {"endpoint": endpoint})
+        return self._accept_snapshot(endpoint, data, self.bindings.get(endpoint))
+
+    async def refresh_registered(
+        self, endpoint: str, *, expected_kind: str, live_identity: str | None = None
+    ) -> dict:
+        """Read one configured native endpoint, independent of optional physical I/O.
+
+        Caller is the server-configured room owner, never a browser-selected identity.
+        The authenticated HA integration owns registration. This method publishes data,
+        never grants control or asserts physical output readiness. Talk cannot bootstrap.
+        """
+        if (
+            expected_kind != "voice_pe"
+            or not isinstance(endpoint, str)
+            or not 1 <= len(endpoint) <= 160
+            or endpoint in self._registered_invalid
+        ):
+            return self._unavailable(endpoint)
+        serial = self._registered_reads.get(endpoint, 0) + 1
+        self._registered_reads[endpoint] = serial
+        source = (self.contract, self.client, self.token)
+        data = await self._service("timer_status", {"endpoint": endpoint})
+        if self._registered_reads.get(endpoint) != serial:
+            return {"ok": False, "error_kind": "stale_timer_read"}
+        if source != (self.contract, self.client, self.token):
+            return self._unavailable(endpoint)
+        binding = data.get("binding")
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != {"kind", "identity", "device_id"}
+            or binding.get("kind") != expected_kind
+            or not isinstance(binding.get("identity"), str)
+            or re.fullmatch(r"(?:[0-9a-f]{2}:){5}[0-9a-f]{2}", binding["identity"]) is None
+            or not isinstance(binding.get("device_id"), str)
+            or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", binding["device_id"]) is None
+            or not isinstance(data.get("epoch"), str)
+            or re.fullmatch(r"[0-9a-f]{32}", data["epoch"]) is None
+            or (live_identity is not None and live_identity != binding["identity"])
+        ):
+            return self._unavailable(endpoint)
+        registered = (expected_kind, binding["identity"], binding["device_id"])
+        previous = self.bindings.get(endpoint)
+        if previous is not None and (
+            previous != registered if len(previous) == 3 else previous != registered[:2]
+        ):
+            # Identity replacement cannot inherit a controller or silently re-pin.
+            self._registered_invalid.add(endpoint)
+            return self._unavailable(endpoint)
+        # Validate every row before any binding, readiness or snapshot is published.
+        accepted = self._accept_snapshot(endpoint, data, registered, publish=False)
+        if accepted.get("ok") is not True:
+            return accepted
+        self.bindings[endpoint] = registered
+        self.ready.add(endpoint)
+        self.snapshots[endpoint] = data
+        self.observed_at[endpoint] = time.monotonic()
+        return data
+
+    def _unavailable(self, endpoint: str) -> dict:
+        self.ready.discard(endpoint)
+        self.snapshots.pop(endpoint, None)
+        return {"ok": False, "error_kind": "timer_endpoint_unavailable"}
+
+    def _accept_snapshot(
+        self, endpoint: str, data: dict, expected: tuple | None, *, publish=True
+    ) -> dict:
         binding = data.get("binding", {})
-        expected = self.bindings.get(endpoint)
         if (
             not isinstance(binding, dict)
             or not data.get("ok")
             or data.get("contract") != "podvoice_native_timers_v1"
             or data.get("endpoint") != endpoint
             or not expected
-            or (binding.get("kind"), binding.get("identity")) != expected
+            or (binding.get("kind"), binding.get("identity")) != expected[:2]
+            or (len(expected) == 3 and binding.get("device_id") != expected[2])
             or not isinstance(binding.get("device_id"), str)
             or not isinstance(data.get("timers"), list)
             or not isinstance(data.get("finished"), list)
         ):
             self.snapshots.pop(endpoint, None)
             return {"ok": False, "error_kind": "timer_endpoint_unavailable"}
+        if len(expected) == 3 and (
+            any(
+                not isinstance(row, dict) or row.get("state") not in {"active", "paused"}
+                for row in data["timers"]
+            )
+            or any(
+                not isinstance(row, dict) or row.get("state") != "finished"
+                for row in data["finished"]
+            )
+        ):
+            self.snapshots.pop(endpoint, None)
+            return {"ok": False, "error_kind": "malformed_timer_state"}
         rows = data["timers"] + data["finished"]
         bool_fields = (
             "stop_requested",
@@ -148,6 +244,7 @@ class HomeAssistantTimers:
                 or len(row["name"]) > 120
                 or type(row.get("seconds_left")) not in (int, float)
                 or row["seconds_left"] < 0
+                or (type(row["seconds_left"]) is float and not math.isfinite(row["seconds_left"]))
                 for row in rows
             )
             or any(
@@ -161,8 +258,9 @@ class HomeAssistantTimers:
         ):
             self.snapshots.pop(endpoint, None)
             return {"ok": False, "error_kind": "malformed_timer_state"}
-        self.snapshots[endpoint] = data
-        self.observed_at[endpoint] = time.monotonic()
+        if publish:
+            self.snapshots[endpoint] = data
+            self.observed_at[endpoint] = time.monotonic()
         return data
 
     def declarations(self, endpoint: str) -> list[dict]:

@@ -1,3 +1,8 @@
+## 2.0.38
+
+- Keep authenticated Home Assistant timer data and paired PodView music/robot/timer controls available independently of the Voice PE connection.
+- Preserve strict room, device identity and Core-epoch checks; physical timer audio still requires the matching connected Voice PE.
+
 ## 2.0.37 — 17. oktober 2026
 
 - Den tomme musikafspiller tilpasser sin højde til indholdet, så knappen ikke klippes.

@@ -1,17 +1,25 @@
 """Scoped paired HTTP tasks reuse actual robot effect owner; no live home calls."""
 
 import asyncio
+import hashlib
 import json
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_cleaning_journal import bind
+from integration.test_ha_timer_flow import build as build_ha_timers
 from integration.test_podview_bridge import owner
+from integration.test_podview_music import Rig as MusicReadRig
+from integration.test_podview_music_control import Rig as MusicRig
+from integration.test_podview_music_control import content_owner, room_owner
 from unit.test_device_control import ROBOT, Rig
 
+from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE, PodViewBridge
 from gatekeeper.podview_controls import TouchControls, policy
@@ -64,6 +72,67 @@ async def fixture(tmp_path):
     token = bridge.grant_timer_control("kitchen")
     yield rig, bridge, token
     await rig.client.aclose()
+
+
+@pytest.fixture
+async def offline_direct(tmp_path):
+    """Real bounded owners on inert HA/PodConnect transports; no Voice PE link."""
+    timer_manager, _, timer_client, timer_tools, timer_calls, _ = build_ha_timers()
+    timers = timer_tools.timers
+    timers.bindings.clear()
+    timers.ready.clear()
+    timers.snapshots.clear()
+    timers.observed_at.clear()
+    # The registered HA response, not a Voice PE handshake, must establish the
+    # native endpoint before any browser controller grant can be minted.
+    refreshed = await timers.refresh_registered(
+        "kitchen", expected_kind="voice_pe", live_identity=None
+    )
+    assert refreshed["ok"] and timers.available("kitchen")
+    assert timer_calls and all("action" not in call for call in timer_calls)
+
+    robot = Rig()
+    bind(robot, tmp_path / "cleaning-journal.json")
+    music = MusicRig()
+    room_owner(music)
+    music.tools._device_control = robot.router._device_control
+    session, _ = owner()
+    session._active = False
+    session.sm.state = State.IDLE
+    session.tools.timers = timers
+    configured = {
+        "roomId": "kitchen",
+        "music": [
+            {
+                "accountId": "account",
+                "targetId": "device",
+                "nativeRoomId": "native-room",
+                "nativeHomepodId": "42",
+                "actions": ["next", "play_track"],
+                "maxVolume": 40,
+            }
+        ],
+        "vacuum": [{"entityId": ROBOT, "actions": ["start"]}],
+    }
+    code = "a" * 43  # Explicit administrator-provisioned one-use pairing input.
+    app = create_app(
+        StatusHub(),
+        {"kitchen": session},
+        tools=music.tools,
+        podview_control_policy=json.dumps(configured),
+        podview_pairing_room="kitchen",
+        podview_pairing_sha256=hashlib.sha256(code.encode()).hexdigest(),
+        podview_pairing_store=tmp_path / "used",
+        podview_controller_enabled=True,
+        podview_controller_days=30,
+        podview_controller_generation="c" * 64,
+        podview_controller_store=tmp_path / "controllers" / "registry.json",
+    )
+    async with TestClient(TestServer(app)) as client:
+        yield client, app[BRIDGE], code, timer_manager, timer_client, timers, robot, music
+    await timer_client.aclose()
+    await robot.client.aclose()
+    await music.client.aclose()
 
 
 @pytest.mark.parametrize(
@@ -605,3 +674,255 @@ def test_legacy_track_rule_does_not_open_selection_without_native_binding():
     controls = TouchControls(bridge, json.dumps(original), music)
     assert controls.selection_allowed("kitchen", "grant")
     assert not controls.selection_allowed("kitchen", "revoked")
+
+
+async def _pair_offline_controller(client, code):
+    response = await client.post(
+        "/view/api/pair",
+        json={"roomId": "kitchen", "code": code},
+        headers={"X-PodView-Request": "1"},
+    )
+    assert response.status == 200, await response.text()
+    assert (await response.json())["controllerEnrolled"] is True
+    credential = response.cookies["podview_controller"].value
+    grant = response.cookies["podview_control"].value
+    return credential, grant
+
+
+async def test_offline_cold_registered_ha_owner_runs_same_music_robot_and_timer_routes(
+    offline_direct,
+):
+    client, bridge, code, manager, _timer_client, timers, robot, music = offline_direct
+    unpaired = await (await client.get("/view/api/snapshot")).json()
+    assert unpaired["voice"]["phase"] == "IDLE" and unpaired["voice"]["active"] is False
+    assert unpaired["timers"]["status"] == "observed"
+    assert unpaired["capabilities"]["timerActions"] == []
+    assert unpaired["capabilities"]["controlSetup"] == []
+    assert not robot.writes and not music.calls and manager.starts == 0
+
+    credential, grant = await _pair_offline_controller(client, code)
+    headers = {"X-PodView-Request": "1", "Cookie": f"podview_control={grant}"}
+    paired = await (await client.get("/view/api/snapshot", headers=headers)).json()
+    assert paired["voice"] == unpaired["voice"]
+    assert paired["capabilities"]["controlSetup"] == ["music", "vacuum"]
+    assert paired["capabilities"]["timerActions"] == ["timer.start", "timer.cancel"]
+    assert timers.bindings["kitchen"] == (
+        "voice_pe",
+        "02:00:00:00:00:01",
+        "genuine-fixture-device",
+    )
+
+    music_target = {"accountId": "account", "kind": "spotify_device", "targetId": "device"}
+    music_body = {
+        "bootId": bridge.boot_id,
+        "roomId": "kitchen",
+        "domain": "music",
+        "target": music_target,
+    }
+    wrong_target = {**music_body, "target": {**music_target, "targetId": "foreign"}}
+    denied = await (
+        await client.post("/view/api/control/setup", json=wrong_target, headers=headers)
+    ).json()
+    assert denied["error"] == "target_not_granted" and not music.calls
+    offer = await (
+        await client.post("/view/api/control/setup", json=music_body, headers=headers)
+    ).json()
+    assert offer["ok"] and [option["action"] for option in offer["options"]] == ["next"]
+    command = action_body(offer, offer["options"][0])
+    result = await (
+        await client.post("/view/api/control/actions", json=command, headers=headers)
+    ).json()
+    assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+    repeated = await (
+        await client.post("/view/api/control/actions", json=command, headers=headers)
+    ).json()
+    assert repeated == result
+    assert [call[1].rsplit("/", 1)[-1] for call in music.calls] == [
+        "get_room_playback_controls",
+        "control_room_playback",
+    ]
+    assert music.calls[-1][3]["room_id"] == "native-room"
+    assert music.calls[-1][3]["homepod_id"] == "42"
+
+    robot_body = setup_body(bridge)
+    wrong_robot = {**robot_body, "target": {"entityId": "vacuum.foreign"}}
+    denied = await (
+        await client.post("/view/api/control/setup", json=wrong_robot, headers=headers)
+    ).json()
+    assert denied["error"] == "target_not_granted" and not robot.writes
+    robot_offer = await (
+        await client.post("/view/api/control/setup", json=robot_body, headers=headers)
+    ).json()
+    assert robot_offer["ok"]
+    start = next(option for option in robot_offer["options"] if option["action"] == "start")
+    robot_command = action_body(
+        robot_offer,
+        start,
+        {"areaIds": [start["argsSchema"]["areas"][0]["id"]], "repeat": 2},
+    )
+    robot_command["requestId"] = "robot-start"
+    robot_result = await (
+        await client.post("/view/api/control/actions", json=robot_command, headers=headers)
+    ).json()
+    assert robot_result["outcome"] == "accepted"
+    assert robot_result["physicalResultVerified"] is False
+    assert (
+        await (
+            await client.post("/view/api/control/actions", json=robot_command, headers=headers)
+        ).json()
+        == robot_result
+    )
+    assert len(robot.writes) == 1
+
+    timer_snapshot = await (await client.get("/view/api/snapshot", headers=headers)).json()
+    timer_command = {
+        "bootId": bridge.boot_id,
+        "roomId": "kitchen",
+        "taskId": f"timers:{timer_snapshot['timers']['epoch']}",
+        "revision": timer_snapshot["revision"],
+        "requestId": "timer-start",
+        "action": "timer.start",
+        "args": {"seconds": 60, "name": "Prøvetimer"},
+    }
+    timer_result = await (
+        await client.post("/view/api/actions", json=timer_command, headers=headers)
+    ).json()
+    assert timer_result["outcome"] == "accepted"
+    assert timer_result["physicalResultVerified"] is False
+    assert (
+        await (await client.post("/view/api/actions", json=timer_command, headers=headers)).json()
+        == timer_result
+    )
+    assert manager.starts == 1
+    assert bridge.sessions["kitchen"]._active is False  # No physical Voice PE or alarm claim.
+    assert credential != grant
+
+
+async def test_offline_registered_owner_renew_stale_and_revoke_fence_all_actions(offline_direct):
+    client, bridge, code, _manager, _timer_client, timers, robot, music = offline_direct
+    credential, grant = await _pair_offline_controller(client, code)
+    grant_headers = {"X-PodView-Request": "1", "Cookie": f"podview_control={grant}"}
+    old_offer = await (
+        await client.post("/view/api/control/setup", json=setup_body(bridge), headers=grant_headers)
+    ).json()
+    assert old_offer["ok"]
+    old_command = action_body(old_offer, old_offer["options"][0])
+    timers.observed_at["kitchen"] -= 16
+    assert (await (await client.get("/view/api/snapshot", headers=grant_headers)).json())[
+        "capabilities"
+    ]["controlSetup"] == []
+    renewal = await client.post(
+        "/view/api/controller/renew",
+        json={"roomId": "kitchen"},
+        headers={"X-PodView-Request": "1", "Cookie": f"podview_controller={credential}"},
+    )
+    assert renewal.status == 403
+    assert (
+        await (
+            await client.post("/view/api/control/actions", json=old_command, headers=grant_headers)
+        ).json()
+    )["error"] == "stale_action"
+    assert not robot.writes and not music.calls
+
+    assert (
+        await timers.refresh_registered("kitchen", expected_kind="voice_pe", live_identity=None)
+    )["ok"]
+    renewal = await client.post(
+        "/view/api/controller/renew",
+        json={"roomId": "kitchen"},
+        headers={"X-PodView-Request": "1", "Cookie": f"podview_controller={credential}"},
+    )
+    assert renewal.status == 200
+    fresh = renewal.cookies["podview_control"].value
+    assert fresh != grant
+    assert bridge._grant_current("kitchen", fresh)
+    assert bridge.revoke("kitchen")
+    assert not bridge._grant_current("kitchen", fresh)
+    denied = await client.post(
+        "/view/api/controller/renew",
+        json={"roomId": "kitchen"},
+        headers={"X-PodView-Request": "1", "Cookie": f"podview_controller={credential}"},
+    )
+    assert denied.status == 403 and not robot.writes and not music.calls
+
+
+async def test_offline_registered_owner_starts_selected_music_once_without_voice_turn(
+    offline_direct,
+):
+    client, bridge, code, _manager, _timer_client, _timers, robot, music = offline_direct
+    content_owner(music)
+    music.tools._discovery = replace(
+        music.tools._discovery,
+        podconnect_services=music.tools._discovery.podconnect_services | {"search_tracks"},
+    )
+    reader = MusicReadRig()
+    original_client = music.client
+
+    async def selected_music_transport(request):
+        if request.url.path.endswith("/search_tracks"):
+            return await reader.request(request)
+        return await music.handle(request)
+
+    music.client = httpx.AsyncClient(transport=httpx.MockTransport(selected_music_transport))
+    music.tools._client = music.client
+    try:
+        _credential, grant = await _pair_offline_controller(client, code)
+        headers = {"X-PodView-Request": "1", "Cookie": f"podview_control={grant}"}
+        snap = await (await client.get("/view/api/snapshot", headers=headers)).json()
+        assert snap["voice"]["phase"] == "IDLE" and snap["voice"]["active"] is False
+        assert snap["capabilities"]["musicSelection"] is True
+
+        search = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account&query=jazz",
+                headers={"Cookie": f"podview_control={grant}"},
+            )
+        ).json()
+        assert search["ok"] and search["candidateSet"]["revisionScope"] == "music_selection"
+        assert search["candidateSet"]["sessionId"].startswith("touch:")
+        assert not music.calls and len(reader.calls) == 1
+        setup = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "candidateSetId": search["candidateSet"]["candidateSetId"],
+            "target": {"accountId": "account", "kind": "spotify_device", "targetId": "device"},
+        }
+        offer = await (
+            await client.post("/view/api/music/selection/setup", json=setup, headers=headers)
+        ).json()
+        assert offer["ok"] and len(offer["options"]) == 2
+        assert offer["startVolumePercent"] == 35
+        command = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "taskId": offer["taskId"],
+            "revision": offer["revision"],
+            "optionId": offer["options"][1]["id"],
+            "requestId": "selected-track",
+            "confirmedVolumePercent": 35,
+        }
+        result = await (
+            await client.post("/view/api/music/selection/actions", json=command, headers=headers)
+        ).json()
+        assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+        assert (
+            await (
+                await client.post(
+                    "/view/api/music/selection/actions", json=command, headers=headers
+                )
+            ).json()
+            == result
+        )
+        starts = [call for call in music.calls if call[1].endswith("start_room_selected_content")]
+        assert len(starts) == 1 and starts[0][3]["room_id"] == "native-room"
+        assert starts[0][3]["homepod_id"] == "42"
+        assert starts[0][3]["config_entry_id"] == "account"
+        assert starts[0][3]["target_id"] == "device"
+        assert starts[0][3]["args"] == {
+            "track_uri": "spotify:track:" + "0" * 21 + "1",
+            "max_volume": 40,
+        }
+        assert not robot.writes  # A music choice cannot dispatch a robot action.
+    finally:
+        await original_client.aclose()
+        await reader.client.aclose()
