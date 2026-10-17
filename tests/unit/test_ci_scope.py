@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 from scripts import ci_scope
@@ -17,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
     "paths,expected",
     [
         (["AGENTS.md", "CLAUDE.md", "README.md"], True),
+        (["docs/STATUS.md"], True),
         (["docs/STATUS.md", "docs/archive/STATUS-2026-10-14-pre-157.md"], True),
         (["scripts/dev_cycle.py", "tests/unit/test_dev_cycle.py", "docs/UDVIKLINGSFLOW.md"], True),
         (["scripts/ci_scope.py", "tests/unit/test_ci_scope.py"], True),
@@ -196,3 +198,51 @@ def test_workflow_uses_the_same_exact_path_classifier_for_build_and_release():
     assert "needs.scope.outputs.pr_addon_changed == 'true'" in workflow
     assert "ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}" in workflow
     assert "dorny/paths-filter" not in workflow
+
+
+def test_exact_admission_uses_existing_nonpayload_scope_before_historical_dispatch():
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    scope_job = workflow.split("  scope:\n", 1)[1].split("\n  lint-test:", 1)[0]
+    classifier, admission = scope_job.split("      - name: Exact candidate admission ", 1)
+    header = admission.split("        run: |\n", 1)[0]
+    assert "run: python3 scripts/ci_scope.py" in classifier
+    assert "\n        if: steps.scope.outputs.tooling_only != 'true'\n" in header
+
+
+@pytest.mark.parametrize(
+    "base,version",
+    [
+        ("ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd", "36"),
+        ("e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b", "35"),
+        ("8e7ff9bc9aaaf298a23c93e53bed90c672558b25", "34"),
+        ("abe759678168ba6408e10ae0a8a3621249631d13", "33"),
+        ("0e56c593c6ce9a3e1666b5fd535d3424cc691b9c", "31"),
+        ("729668ffa45067bfb75fd6928ccac9f9beaf5576", "32"),
+        ("aa49d94e588974683ad3b9ad4b6d34da81676b58", "37"),
+        ("ffffffffffffffffffffffffffffffffffffffff", "32"),
+    ],
+)
+def test_product_admission_still_dispatches_exact_base_and_propagates_failure(
+    tmp_path, base, version
+):
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+    step = workflow.split("      - name: Exact candidate admission ", 1)[1].split(
+        "\n  lint-test:", 1
+    )[0]
+    script = dedent(step.split("        run: |\n", 1)[1])
+    python = tmp_path / "python3"
+    python.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\"\nexit 23\n")
+    python.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+        env={
+            **os.environ,
+            "CI_DIFF_BASE": base,
+            "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+        },
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == 23, result.stderr
+    assert result.stdout == f"scripts/candidate_scope_admission{version}.py --base {base}\n"
