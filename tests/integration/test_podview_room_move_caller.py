@@ -230,17 +230,22 @@ async def test_effective_destination_requires_new_matching_account_alias_and_nat
         podview_read=AsyncMock(return_value={"ok": True, "data": raw}),
         podview_music_binding=lambda: binding_owner,
     )
-    proof = {
-        "mode": "same_session",
-        "output_selected": True,
-        "alias_binding": source["targets"][1]["binding"],
+    owner = source["targets"][1]["binding"]
+    native = {
+        "target_id": engine,
+        "room_id": "r1",
+        "homepod_id": "43",
+        "alias_incarnation": owner["incarnation"],
+        "alias_registry": owner["registry"],
     }
+    route = {"device_id": "43"}
     music = SimpleNamespace(
         observe_room=AsyncMock(
             return_value={
                 "ok": True,
                 "data": {
-                    "native_start": proof,
+                    "native": native,
+                    "route": route,
                     "owner_epoch": "a" * 32,
                     "poll_sequence": 4,
                     "valid_until": time.time() + 5,
@@ -289,7 +294,7 @@ async def test_effective_destination_requires_new_matching_account_alias_and_nat
     tools.podview_music_binding = lambda: binding_owner
     bridge._music_move_fence.clear()
     bridge._music_destinations.clear()
-    proof["output_selected"] = False
+    route["device_id"] = "42"
     assert not await podview_room_media.confirm_move_destination(
         bridge, task, {"outcome": "accepted"}, lambda: True
     )

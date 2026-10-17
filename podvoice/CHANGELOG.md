@@ -1,3 +1,9 @@
+## 2.0.42 — samlet aktuel musik- og robotbetjening, kandidat
+
+- Læs den aktuelle native musikforbindelse gennem dens eksisterende rumkontrol, så afspilning ikke afhænger af at kunne starte en ny sang.
+- Hold musikvalg og robotkommandoer adskilt, også mens musikforbindelsen klargøres; frigiv betjeningen straks efter afsluttet handling.
+- Samler de godkendte PodView-flader og bevarer Macbook-parring, alle policies, timere og GPT-Live. Sammenhængende musikrettelse bruger Speakers0.26.25; faktisk lyd og robotkørsel afventer samlet fysisk prøve.
+
 ## 2.0.41 — samlet PodView, kandidat
 
 - Samler det frosne, kildegodkendte PodView-bundt i én opdatering med vejr, musik-, robot- og timerflader samt radio- og køretøjsvisning.

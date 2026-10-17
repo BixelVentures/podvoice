@@ -212,6 +212,7 @@ def test_exact_admission_uses_existing_nonpayload_scope_before_historical_dispat
 @pytest.mark.parametrize(
     "base,version",
     [
+        ("fa7a3d1d5f09d31aa04e842dbce22f8654f2eca5", "42"),
         ("6799ee3d65cb67fb406346c565dc206e08cbf0da", "41"),
         ("97e4b44fd5299136e562d5eebf0076c8ebf83bb2", "40"),
         ("ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd", "36"),

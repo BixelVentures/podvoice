@@ -1,3 +1,41 @@
+<!-- podview42-admission
+{
+  "version": 19,
+  "kind": "podvoice42_current_native_room_observation",
+  "reviewer": "Independent /root/release_readiness PV42 exact-tree composition/tooling review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "fa7a3d1d5f09d31aa04e842dbce22f8654f2eca5",
+  "merge_base": "fa7a3d1d5f09d31aa04e842dbce22f8654f2eca5",
+  "rationale": "Independent source reviews of exact Python owner pair and canonical UI race fix retained; exact composition/tooling GO covers4 production and8 regression paths,143 retained assets, immutable41 lineage and version-only42 trio. 173 Python and67 adopted UI cases pass; historical41 migration and27 scope/routing checks pass. Native25 compiled54/policy17 and ARM/AMD106 published green; Green installation and physical acceptance remain open. No voice semantics or new protocol.",
+  "fingerprint": "253346537d6b270c22f058668f8896caaefb7bbcf0d9e9ebcd47f9a1fcd9579c",
+  "regression_fingerprint": "ef387e12f2899cae636341e25d7e0673767853d379f228808e2264278fb358ff",
+  "runtime_fingerprint": "99780cb5e7e860a9b8e3385df47c5487261aa87ee3d61ce3400576c1870b3c0a",
+  "config_fingerprint": "be06acb01b1ef91f0c81b847611c66a1463b7c4a89a4ada51e8a10249616f76e",
+  "policy_fingerprint": "57f7b4c90d23ee7cf3ef14aa7f7b848b495cf0f9425000bd1a77763dc028c4d8",
+  "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
+  "manifest_fingerprint": "7eb9c88dacf75c78509dc05ea58e5cdb77cfdedecbe1888f54458bfedc662150"
+}
+-->
+
+# Aktiv leadbeslutning før kode · aktuel room-observation42 og native25 · 17. oktober 2026
+
+Lead: denne PodVoice-chat. Faktisk Green: PodVoice40, Speakers24 b053 og Control0.10.16 verificeret i UI. Macbook-parring lykkes gennem normal HA-godkendelse/automatisk åbning. Timer1min→udløb→Færdig er observeret; faktisk lyd ubekræftet. Spotify viste frisk playing på korrekt Køkkenalrum, mens roomrail var utilgængelig. Normal get_track_play_controls returnerede native_start_unavailable; generelle targets/alias/output-read viste korrekt valgt HomePod/ready binding og errors={}. Speakers viste released; log gentog alias1/r0 output selection failed hvert3sekund. Hele nattens lydforbud gælder; kendt testmusik er frisk bekræftet PAUSED kl.21.36.49CEST. Ingen effektprøver, opstart/genstart med lydrisiko eller robotkørsel i nat.
+
+Kildehypotese: PodView bruger get_track_play_controls (NEW START-readiness) til at observere allerede eksisterende room-playback. Den korrekte eksisterende read-owner er get_room_playback_controls med receiver+C-bound-state. Samtidig kan native START-latch afvise almindelig alias-recovery selection; de direkte live HTTP/latch-status er ikke observeret. En engangs-clear af released er uafhængigt afvist, fordi den ville give vedvarende autoritet efter proof er stale og kunne prime35%. Ingen sådan genvej er tilladt.
+
+Scope: PodView observe_room og room_media projekterer eksisterende aktuelle room-transport-controls, aldrig et nyt START-offer; compare præcis konto/owner_epoch/poll/room/alias/incarnation/registry/HomePod/C-route/session/generation/expiry. Native25 tilføjer kun read-only current-owner tri-state på eksisterende C bound-state: owned, clean_absent eller unknown; false/mismatch/fault/quarantine/retirement er ikke implicit clean absence. Receiver/C-current-owner sammenholdes under aktuel room-/aliasintent før/efter await. Recovery med korrekt current native-owner bliver en nul-effektgren uden prime/PUT/volume; released-marker bevares, proof skal genlæses før næste relevante effekt. Ukendt proof holder fail-closed. Ingen generel currentStartClaim-undtagelse eller ny volume/queue/transportautoritet. NEW selected-content-offer står særskilt åbent, indtil det er korrekt understøttet; read-fix må ikke kaldes play-fix.
+
+Berørt kæde: autentificeret HA-controller → aktuel roomread → eksisterende native receiver-identitet → C-current-owner/route → proofprojektion → current offer/executevalidering → faktisk kvittering; alias/reclaim og manuelvolume er nabogrænser. GPT-Live, mic, audio/provider, semantisk close, firmware og Talk er uændrede. Permanent regression skal dække aktuel same-session, andenapp/rum/alias/generation, sene svar, ownerændring omkring await, unknown/out-of-order og normal clean-absent fallback uden effekter ved unknown. Test både aktuelle backendread/bridge og den shippede kompilerede Cpatch; uafhængigt adversarial review før freeze/release. Ingen virkning eller fysisk accept arves fra UI41. Rollback er40/24 med bevarede policies; ingen påstand om golden. Samlet planlagt42+PC25-installation først i dagtid eller ved bevist lydløs levering.
+
+
+Resultat før samlet freeze: de to Python-ejerrettelser er tidligere uafhængigt kildegodkendt og173 fokuserede cases består; ingen ny adapter/protokol. Canonical UI fandt efter41 en reproduceret musik-intent/vacuum-race med2writes mod forventet1. UI-ejeren ejer den mindst mulige mekaniske pending-intent/finally-renderrettelse; uafhængigt source-GO og661cases er modtaget, adoption og exact42-binding pågår. Hele kæden gennemgår setup-await → aktuelt musikintent → robotoperation → post-await-fence → én kommando → endelig genaktivering; passiv observation må ikke tage skriveejerskab. Ingen voice-, prompt-, firmware-, timeout- eller providerændring.
+
+Den direkte bruger har nu igen sagt Go til install og Det har du altid fra mig; stående installationsgodkendelse anvendes, ingen nye almindelige installationsspørgsmål. Musik, timeralarm og robotprøver er fortsat forbudt hele natten. Før installation læses konkret paused/released/attentiontilstand; ingen hypotetisk opstartstale er fundet. Ingen fysisk accept arves. Speakers25 første kompileredeC-prøve fejlede pga fixture som undlod session_update_read_start efter reelFIFOstart; kun fixture er rettet, source-GO, ny officiel54 kører. NativeGo/race/vet/build og manager er allerede bestået. ARM/AMDpublisher106 er startet på præcis ad7cd00 /48dec55e; endnu ikke udgivet eller installeret.
+
+---
+
 # Samlet UI41 · faktisk freeze og uafhængigt review
 
 CI649: scope, HA-framework, REST og ARM-build bestod; UI og unit fejlede på forældede fixtures. Ti testfiler er rettet og uafhængigt gennemgået, herunder historiske36/40 isoleret til egne publicerede snapshots. Alle143 produktassets er uændrede fra source-GO. Endelig automatisk CI på samme PR afventer; den fejlede kørsel bevares som fejlet.

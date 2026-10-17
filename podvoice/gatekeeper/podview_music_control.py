@@ -1137,46 +1137,8 @@ class MusicControlFacade:
             return _failure("unavailable")
 
     async def observe_room(self, account, target, room, homepod, current):
-        """Read existing exact native proof without granting/depending on action readiness."""
-        try:
-            _text(account)
-            _text(target)
-            if not (
-                self.available
-                and "get_track_play_controls"
-                in getattr(self.tools._discovery, "podconnect_services", frozenset())
-            ):
-                return _failure("unavailable")
-            binding = self.binding()
-            if not self._current(binding, current):
-                return _failure("unavailable")
-            async with asyncio.timeout(_TIMEOUT_S):
-                result = await self._read(
-                    self.tools._client,
-                    self.tools._token,
-                    "get_track_play_controls",
-                    {
-                        "config_entry_id": account,
-                        "kind": "spotify_device",
-                        "target_id": target,
-                        "room_id": _text(room, 128),
-                    },
-                )
-            if not self._current(binding, current):
-                return _failure("owner_replaced")
-            data = _controls(result, account, target)
-            proof = native_start(result.get("native_start"), target, room, homepod)
-            return {
-                "ok": True,
-                "data": {
-                    "owner_epoch": data["owner_epoch"],
-                    "poll_sequence": data["poll_sequence"],
-                    "valid_until": data["valid_until"],
-                    "native_start": proof,
-                },
-            }
-        except Exception:
-            return _failure("unavailable")
+        """Observe the current bound room, without asking for a new START offer."""
+        return await self.setup_room(account, target, room, homepod, current)
 
     async def setup_context(self, account, target, room, homepod, current):
         return await self.setup_track(account, target, room, homepod, current, context=True)
