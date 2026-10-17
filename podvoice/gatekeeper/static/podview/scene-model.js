@@ -15,11 +15,11 @@ export function initialScene(){return {sessionId:'demo-session-1',generation:1,c
 export const binding=(s,a)=>({sessionId:s.sessionId,taskId:a.id,revision:a.revision});
 const matches=(s,e,a)=>!!a&&e.sessionId===s.sessionId&&e.taskId===a.id&&e.revision===a.revision;
 export const focusedAnswer=s=>s.answers.find(a=>a.id===s.focus);
-function request(s,kind){const serial=s.serial+1;const id=`demo-answer-${serial}`;const answer={id,revision:1,kind,status:'waiting',selected:'paper-fold',filter:'all',step:0,checked:[],hidden:false,title:kind==='steps'?'Fold et papirfly':kind==='checklist'?'Klar til at lave et kort?':kind==='concise'?'Skal jeg tage en jakke med?':'En pause uden skærm',source:'Lokalt aktivitetseksempel',freshness:'Eksempeldata · planlagte tider',updatedAt:null};if(visualExamples[kind])Object.assign(answer,{title:visualExamples[kind].title,meta:visualExamples[kind].meta,content:validateVisualContent(kind,visualExamples[kind].content)});return {...s,serial,focus:id,answers:[...s.answers.map(a=>['waiting','partial'].includes(a.status)?{...a,status:'interrupted'}:a),answer],pendingAnswer:{id,generation:s.generation},conflict:null,notice:''};}
+function request(s,kind){const serial=s.serial+1;const id=`demo-answer-${serial}`;const answer={id,revision:1,kind,status:'waiting',selected:'paper-fold',filter:'all',step:0,checked:[],hidden:false,title:kind==='steps'?'Fold et papirfly':kind==='checklist'?'Klar til at lave et kort?':kind==='concise'?'Skal jeg tage en jakke med?':'En pause uden skærm',source:'Lokalt aktivitetseksempel',exampleOnly:true,freshness:'Eksempeldata · planlagte tider',updatedAt:null};if(visualExamples[kind])Object.assign(answer,{title:visualExamples[kind].title,meta:visualExamples[kind].meta,content:validateVisualContent(kind,visualExamples[kind].content)});return {...s,serial,focus:id,answers:[...s.answers.map(a=>['waiting','partial'].includes(a.status)?{...a,status:'interrupted'}:a),answer],pendingAnswer:{id,generation:s.generation},conflict:null,notice:''};}
 function sceneBaseTransition(s,e){
  if(['timer-start','timer','tick','timer-notice-dismiss'].includes(e.type))return timerTransition(s,e);
  switch(e.type){
- case 'show': {if(e.id==='timers'||e.id==='weather'||e.id==='now'||e.id==='music'||e.id==='photo'||s.devices.some(d=>d.id===e.id)||s.answers.some(a=>a.id===e.id&&!a.hidden))return {...s,focus:e.id,detailOrigin:(e.id==='timers'||e.id==='weather'||s.devices.some(d=>d.id===e.id))&&e.id!==s.focus&&s.focus!=='timers'&&s.focus!=='weather'&&!s.devices.some(d=>d.id===s.focus)?s.focus:s.detailOrigin,notice:''};return s;}
+ case 'show': {if(e.id==='timers'||e.id==='weather'||e.id==='radio'||e.id==='vehicle'||e.id==='now'||e.id==='music'||e.id==='photo'||s.devices.some(d=>d.id===e.id)||s.answers.some(a=>a.id===e.id&&!a.hidden))return {...s,focus:e.id,detailOrigin:(e.id==='timers'||e.id==='weather'||s.devices.some(d=>d.id===e.id))&&e.id!==s.focus&&s.focus!=='timers'&&s.focus!=='weather'&&!s.devices.some(d=>d.id===s.focus)?s.focus:s.detailOrigin,notice:''};return s;}
  case 'device-back':return navigationBack(s);
  case 'request': {if(!s.connected||!FORMATS.includes(e.kind))return s;const a=focusedAnswer(s);if(a&&['steps','checklist'].includes(a.kind)&&a.status!=='done'&&!e.resolved)return {...s,conflict:{kind:e.kind}};return request(s,e.kind);}
  case 'conflict':if(!s.conflict)return s;return e.choice==='replace'?request(s,s.conflict.kind):{...s,conflict:null};
@@ -48,7 +48,7 @@ function sceneBaseTransition(s,e){
  default:return s;
  }
 }
-const validFocus=(s,id)=>['photo','now','music','timers'].includes(id)||(id==='weather'&&(!s.live||!!s.liveWeather))||s.devices.some(d=>d.id===id&&!d.hidden)||s.answers.some(a=>a.id===id&&!a.hidden);
+const validFocus=(s,id)=>['photo','now','music','timers','radio','vehicle'].includes(id)||(id==='weather'&&(!s.live||!!s.liveWeather))||s.devices.some(d=>d.id===id&&!d.hidden)||s.answers.some(a=>a.id===id&&!a.hidden);
 function navigationBack(s){
  const answer=focusedAnswer(s);if(answer?.originKind)return sceneBaseTransition(s,{type:'answer-action',...binding(s,answer),action:'back',optionId:'back'});
  const stack=[...(s.navStack||[])];let id;while(stack.length){const candidate=stack.pop();if(candidate!==s.focus&&validFocus(s,candidate)){id=candidate;break;}}

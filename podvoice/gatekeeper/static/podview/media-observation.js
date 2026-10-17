@@ -27,7 +27,11 @@ export function mediaRoomBinding(snapshot,account){
  return row;
 }
 const sameRoomBinding=(a,b)=>!!a&&!!b&&Object.keys(a).sort().join(',')==='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'&&Object.keys(b).sort().join(',')==='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'&&['accountId','targetId','nativeRoomId','nativeHomepodId','roomId','bindingId'].every(key=>a[key]===b[key]);
-export function roomObservationCurrent(playback,snapshot){return !!(playback?.roomBound===true&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,playback.config_entry_id))&&playback.target?.id===playback.roomBinding.targetId&&observationFresh(playback));}
+// Display custody only. Never use this predicate to admit a read, offer or action.
+export function roomObservationBound(playback,snapshot,account=playback?.config_entry_id){return !!(playback?.roomBound===true&&playback.config_entry_id===account&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,account))&&playback.target?.id===playback.roomBinding.targetId);}
+const playbackReadable=snapshot=>!Array.isArray(snapshot?.capabilities?.musicRead)||snapshot.capabilities.musicRead.includes('playback');
+export function roomObservationCurrent(playback,snapshot){return roomObservationBound(playback,snapshot)&&observationFresh(playback);}
+export function roomObservationDisplay(playback,snapshot,account=playback?.config_entry_id){return playbackReadable(snapshot)&&roomObservationBound(playback,snapshot,account)&&(observationFresh(playback)||playback.displayRetained===true);}
 export function roomPlaybackObservation(body,account,snapshot,previous){
  if(body?.ok!==true||body.schema!=='podview.room-playback.v1'||Object.keys(body).sort().join(',')!=='binding,bootId,configEntryId,data,ok,roomId,schema,status'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.configEntryId!==account)throw Error('invalid_room_playback');
  const bound=mediaRoomBinding(snapshot,account);

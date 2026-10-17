@@ -33,7 +33,8 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 .detail-queue h3{font-size:16px;margin:0 0 8px;font-weight:500;color:var(--muted)}
 #music-detail #queue{display:flex;flex-direction:column;gap:4px;padding:0}
 .queue-track{display:flex;align-items:center;gap:14px;text-align:left;background:transparent;padding:8px;border-radius:12px;min-height:64px}
-.queue-track:hover{background:#eeeef0}.queue-track>img{width:48px;height:48px;border-radius:8px;object-fit:cover}.queue-track span{flex:1;display:grid;gap:5px}.queue-track strong{font-size:16px;font-weight:500}.queue-track small{color:var(--muted);font-size:14px}.queue-track .queue-play{width:20px;height:20px;margin-right:8px}
+.queue-track:disabled{opacity:1}.queue-track:disabled .queue-play{opacity:.6}
+.queue-track:hover:not(:disabled){background:#eeeef0}.queue-track>img{width:48px;height:48px;border-radius:8px;object-fit:cover}.queue-track span{flex:1;display:grid;gap:5px}.queue-track strong{font-size:16px;font-weight:500}.queue-track small{color:var(--muted);font-size:14px}.queue-track .queue-play{width:20px;height:20px;margin-right:8px}
 @media(max-width:500px){.now-playing-detail{grid-template-columns:100px 1fr;gap:18px;align-items:start}.detail-controls h3{font-size:24px}.detail-controls .transport{gap:10px}.detail-controls .main-control{width:54px;height:54px}#music-detail{padding:20px}.detail-controls .volume{gap:4px}}
 @media(min-width:760px) and (max-height:650px){#music-detail{padding:20px;width:720px}#music-detail header{margin-bottom:12px}.now-playing-detail{grid-template-columns:240px minmax(0,1fr)}.detail-controls .transport{margin:12px 0}.detail-queue{margin-top:12px;padding-top:12px}#music-detail #queue{flex-direction:row;gap:12px}.queue-track{flex:1;min-width:0}.queue-track strong{font-size:15px}}
 
@@ -47,7 +48,7 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 .resource-preview[data-kind=timer]{background:var(--pv-instrument);color:#fafafa}.resource-preview[data-kind=timer]>.resource-chevron{filter:invert(1)}
 .resource-preview[data-kind=light][data-status=on]{background:var(--pv-light-surface);color:var(--pv-light-ink)}
 .resource-preview[data-kind=light] .resource-visual{border-radius:50%;background:#ffffff6b}.resource-preview[data-kind=light][data-status=off] .resource-visual>img{opacity:.45}
-.resource-preview[data-kind=vacuum] .resource-visual{background:#fafafa;border-radius:50%}.resource-preview[data-status=unknown],.resource-preview[data-status=fault]{background:var(--pv-screen-danger-surface);color:var(--pv-screen-danger)}
+.resource-preview[data-kind=vacuum] .resource-visual{background:transparent;border-radius:0}.resource-preview[data-status=unknown],.resource-preview[data-status=fault]{background:var(--pv-screen-danger-surface);color:var(--pv-screen-danger)}
 #now-view{background:transparent;padding:8px 0 0}#now-view>.response-heading{padding:0 12px 20px}#now-view .now-activities{padding:0;display:flex;flex-direction:column;gap:12px}
 #now-view #timer-card{margin:0;padding:24px;border-radius:var(--pv-resource-radius);flex:none}#now-view #timer-card .pv-content{grid-template-columns:144px minmax(0,1fr);gap:4px 24px}#now-view #timer-card .pv-instrument{width:144px;height:144px}#now-view #timer-card .pv-actions{flex-wrap:wrap;gap:8px}#now-view #timer-card h3{font-size:24px}#now-view #timer-card .pv-actions .pv-button{min-height:48px;padding:8px 12px}
 #device-activities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-resource-gap)}#device-activities .resource-preview{min-height:144px;grid-template-columns:72px minmax(0,1fr) 16px;padding:20px;gap:14px}#device-activities .resource-visual{width:72px;height:72px}#device-activities .resource-visual>img{width:60px;height:60px}#device-activities .resource-label strong{font-size:20px}#device-activities .resource-label small{font-size:15px;margin-top:4px}
@@ -64,6 +65,7 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 #device-detail .pv-component[data-component=light-widget][data-power=true]{background:var(--pv-light-surface);color:var(--pv-light-ink)}
 #device-detail .pv-component .pv-content{grid-template-columns:156px minmax(0,1fr);gap:20px 28px;align-content:center;height:100%}
 #device-detail .pv-component .pv-instrument{width:156px;height:156px;grid-column:1;grid-row:1/3;background:#fafafabf;border:0;border-radius:50%;align-self:center}
+#device-detail .pv-component[data-component=vacuum-widget] .pv-instrument{background:transparent;border-radius:0}
 #device-detail .pv-component .pv-instrument>img{filter:none;width:136px;height:136px;transition:opacity 220ms ease,transform 220ms ease}
 #device-detail .pv-component[data-component=light-widget][data-power=false] .pv-instrument>img{opacity:.45;transform:scale(.92)}
 #device-detail .pv-component .pv-resource-value{grid-column:2;grid-row:1;font-size:34px;line-height:1.13;margin:0;align-self:end;max-width:16ch;letter-spacing:-.03em;font-weight:500}
@@ -207,11 +209,11 @@ button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120
 
 #music-detail .live-queue-track{grid-template-columns:20px minmax(0,1fr)}
 
-.owner-source-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto}.owner-source-dialog dl>div{padding:16px 0;border-top:1px solid var(--pv-screen-line)}.owner-source-dialog dd{margin:8px 0;font-size:28px}.owner-source-dialog p{line-height:1.5}.pv-visual-sources button{min-height:48px;text-align:left}
+.pv-visual-sources button{min-height:48px;text-align:left}
 
-.live-control-dialog{width:min(680px,calc(100vw - 32px));max-height:calc(100dvh - 48px);overflow:auto}.control-feedback{min-height:48px;line-height:1.5}.control-option{border-top:1px solid var(--pv-screen-line);padding:20px 0}.control-option h3{font-size:20px;margin:0 0 12px}.control-option button,.control-option select,.control-option input[type=number]{min-height:56px;border-radius:16px;padding:12px 20px}.control-choice-grid{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}.control-choice-grid label{display:flex;gap:12px;align-items:center;min-height:56px;padding:12px 20px;border-radius:16px;background:var(--pv-screen-selection);cursor:pointer}.control-choice-grid input{width:24px;height:24px;accent-color:var(--pv-screen-action-ink)}
 
-.timer-duration select{display:block;width:100%;min-height:64px;border-radius:16px;padding:12px;background:var(--pv-timer-control);color:#fff;font-size:28px;border:1px solid #526b70;font-variant-numeric:tabular-nums;margin-top:12px}.control-option input[type=range]{display:block;width:100%;height:56px;accent-color:var(--pv-screen-action-ink);margin:16px 0}.control-option output{display:block;font-size:28px;font-variant-numeric:tabular-nums;margin-bottom:20px}
+
+.timer-duration select{display:block;width:100%;min-height:64px;border-radius:16px;padding:12px;background:var(--pv-timer-control);color:#fff;font-size:28px;border:1px solid #526b70;font-variant-numeric:tabular-nums;margin-top:12px}
 /* Connection/voice feedback never participates in the approved frame layout. */
 /* Connection status occupies the shared header layer, never the content layout. */
 #connection-note{position:fixed;z-index:8;top:16px;bottom:auto;left:50%;right:auto;transform:translateX(-50%);margin:0;max-width:min(360px,calc(100vw - 48px));padding:10px 16px;border-radius:16px;background:var(--pv-screen-surface);color:var(--pv-screen-ink);text-align:center;line-height:1.4}
@@ -453,3 +455,174 @@ pv-widget-host{--overview-lift:72px}
 .answer-widget .pv-step-outline li{padding-left:8px}
 .answer-widget .pv-step-outline[hidden]{display:none}
 .answer-widget .sources .pv-list button{min-height:48px;background:transparent;color:var(--pv-screen-action-ink);text-align:left;font-size:16px}
+
+/* UI-complete17Oct: existing-anatomy refinements; persistent player unchanged. */
+/* Root-owned CSS proposal only: NOT imported or written into candidate CSS.
+   Apply to the existing overview weather shortcut and detail hero.
+   Existing .response-heading remains outside .weather-current.
+   Photo is decorative; true only for partlycloudy + proven day + fresh source. */
+#home-weather[data-weather-tone],.weather-current[data-weather-tone]{
+ --weather-from:#e4edf0;--weather-to:#dce6e9;--weather-ink:#203a43;
+ position:relative;isolation:isolate;overflow:hidden;
+ background:linear-gradient(110deg,var(--weather-from),var(--weather-to));
+ color:var(--weather-ink);
+}
+#home-weather[data-weather-tone=clear],.weather-current[data-weather-tone=clear]{--weather-from:#f3eddb;--weather-to:#e5e8df}
+#home-weather[data-weather-tone=partlycloudy],.weather-current[data-weather-tone=partlycloudy]{--weather-from:#dbe6ed;--weather-to:#c4d6e3}
+#home-weather[data-weather-tone=cloudy],.weather-current[data-weather-tone=cloudy]{--weather-from:#e4e8eb;--weather-to:#d6dfe4}
+#home-weather[data-weather-tone=rain],.weather-current[data-weather-tone=rain]{--weather-from:#dce5e9;--weather-to:#c5d4de}
+#home-weather[data-weather-tone=snow],.weather-current[data-weather-tone=snow]{--weather-from:#edf2f4;--weather-to:#dce7ec}
+#home-weather[data-weather-tone=fog],.weather-current[data-weather-tone=fog]{--weather-from:#e7ebec;--weather-to:#d8dfe1}
+#home-weather[data-weather-tone=wind],.weather-current[data-weather-tone=wind]{--weather-from:#e0e8e9;--weather-to:#cbdadd}
+#home-weather[data-weather-tone=storm],.weather-current[data-weather-tone=storm]{--weather-from:#dce1e8;--weather-to:#c7d1dd}
+#home-weather[data-weather-phase=night],.weather-current[data-weather-phase=night]{--weather-from:#273b4a;--weather-to:#344d60;--weather-ink:#f4f6f8}
+#home-weather[data-weather-photo=true]::before{
+ content:"";position:absolute;z-index:-1;inset:0 0 0 auto;width:33.333%;pointer-events:none;
+ background:url('assets/weather-sky-soft.png') center right/cover no-repeat;
+ mask-image:linear-gradient(to right,transparent,#000 35%);
+}
+/* Root may reconcile these sizes against the combined landscape screenshot.
+   Keep existing nodes: time -> icon -> whole-degree value -> rain -> wind.
+   Temperature and condition icon dominate; quantities remain readable. */
+.weather-view .weather-hours>div{gap:8px}
+.weather-view .weather-hours strong{font-size:24px;line-height:1.1}
+.weather-view .weather-hours img{width:28px;height:28px}
+.weather-view .weather-hours .weather-hour-rain,.weather-view .weather-hours .weather-hour-wind{font-size:14px;line-height:1.35;color:inherit;white-space:normal}
+.weather-view .weather-hours .weather-hour-wind{gap:4px;align-items:center}
+.weather-current p,.weather-current span{color:inherit}
+.weather-view .weather-summary{font-size:18px;line-height:1.4;margin:16px 0}
+/* PROPOSAL ONLY: root owns canonical CSS. Existing disclosure, no cards. */
+#device-view .robot-care-group{margin-top:24px}
+#device-view .robot-care-group>h3{font-size:16px;font-weight:500;margin:0 0 12px}
+#device-view .robot-care-values{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px 24px;margin:0}
+#device-view .robot-care-values dt{color:var(--pv-screen-muted);overflow-wrap:anywhere}
+#device-view .robot-care-values dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.vehicle-view > .response-heading { padding:0 0 16px; }
+.vehicle-hero { background:var(--pv-screen-control); border-radius:var(--pv-screen-radius); padding:24px; }
+.vehicle-status { margin:0 0 12px; font-size:16px; color:var(--pv-screen-muted); }
+.vehicle-content { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr); align-items:center; gap:20px; }
+.vehicle-metrics { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:0; }
+.vehicle-metric { min-width:0; }
+.vehicle-metric + .vehicle-metric { border-left:1px solid var(--pv-screen-outline); padding-left:16px; }
+.vehicle-metric dt { font-size:14px; color:var(--pv-screen-muted); margin-bottom:6px; }
+.vehicle-metric dd { margin:0; white-space:nowrap; letter-spacing:-.035em; line-height:1.1; }
+.vehicle-battery-value { font-size:40px; font-weight:500; }
+.vehicle-range-value { font-size:25px; padding-top:10px; }
+.vehicle-battery-rail { height:8px; margin-top:24px; border-radius:8px; background:var(--pv-screen-outline); overflow:hidden; }
+.vehicle-battery-meter { display:block; width:100%; height:8px; border:0; }
+.vehicle-battery-meter[hidden] { display:none; }
+.vehicle-battery-meter::-webkit-meter-bar { background:var(--pv-screen-outline); border:0; }
+.vehicle-battery-meter::-webkit-meter-optimum-value { background:var(--pv-instrument); }
+.vehicle-battery-meter::-moz-meter-bar { background:var(--pv-instrument); }
+.vehicle-artwork { margin:0; min-width:0; aspect-ratio:3/2; display:grid; align-items:center; }
+.vehicle-image { display:block; width:100%; height:auto; max-height:180px; object-fit:contain; }
+.vehicle-secondary { background:var(--pv-screen-surface); border-radius:var(--pv-screen-radius); padding:0 20px; }
+.vehicle-secondary .vehicle-disclosure { margin:0; padding:0; }
+.vehicle-disclosure + .vehicle-disclosure { border-top:1px solid var(--pv-screen-line); }
+.vehicle-disclosure > summary { min-height:64px; padding:12px 0; }
+.vehicle-disclosure summary small { display:block; font-size:14px; color:var(--pv-screen-muted); padding-top:4px; }
+.vehicle-detail-values { margin:0 0 16px; }
+.vehicle-detail-values > div { display:flex; justify-content:space-between; gap:16px; padding:6px 0; }
+.vehicle-detail-values dt { color:var(--pv-screen-muted); }
+.vehicle-detail-values dd { margin:0; }
+.vehicle-history { margin:0; padding:16px 20px; background:var(--pv-screen-surface); border-radius:var(--pv-screen-radius); }
+.vehicle-history h2 { margin:0 0 8px; font-size:18px; font-weight:500; }
+.vehicle-history > p { margin:0; color:var(--pv-screen-muted); font-size:15px; }
+@media(max-width:520px) {
+ .vehicle-content { grid-template-columns:1fr; gap:12px; }
+ .vehicle-artwork { grid-row:1; }
+ .vehicle-image { max-height:160px; }
+}
+
+.home-extensions{margin-top:24px!important;margin-bottom:0!important}#home-radio{background:var(--pv-overview-radio)!important}#home-vehicle{background:var(--pv-overview-vehicle)!important}#radio-view,#vehicle-view{background:transparent;padding:8px 0;display:flex;flex-direction:column;gap:16px;flex:none}#radio-view[hidden],#vehicle-view[hidden]{display:none}#radio-view>.response-heading,#vehicle-view>.response-heading{padding:0 16px 0;margin:0}#radio-view>.response-heading p,#vehicle-view>.response-heading p{margin-top:8px;color:var(--pv-screen-muted)}#radio-view pv-choice-list .pv-list{display:flex;flex-direction:column;background:var(--pv-screen-surface);border-radius:var(--pv-resource-radius);overflow:hidden;gap:0}#radio-view pv-choice-list .pv-list>button{display:flex;flex-direction:row;align-items:center;min-height:84px;border-radius:0;padding:20px 24px;background:transparent;border:0;border-bottom:1px solid var(--pv-screen-line)}#radio-view pv-choice-list .pv-list>button:last-child{border-bottom:0}#radio-view pv-choice-list .pv-list>button[aria-pressed=true]{background:#f5e6ee;color:var(--pv-screen-ink)}#radio-view pv-choice-list .pv-list>button strong{font-size:24px}#radio-view pv-choice-list .pv-list>button img{display:none}.vehicle-hero{background:#e7e8e8}.vehicle-view>.vehicle-history{margin-top:0}.vehicle-battery-rail[data-known=false]{visibility:hidden}.history-preview:has(pv-answer[data-kind=concise]){display:flex;align-items:center}.home-extensions button>img:first-child{background:transparent}.resource-preview[data-kind=light] .resource-visual{background:transparent;border-radius:0}#device-detail .pv-component[data-component=light-widget] .pv-instrument{background:transparent;border-radius:0}
+/* Keep vehicle's secondary rows visible within the landscape detail scroll. */
+.vehicle-artwork{aspect-ratio:auto;height:140px}.vehicle-image{max-height:140px}.vehicle-disclosure>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) 20px;align-items:center;cursor:pointer}.vehicle-disclosure>summary::-webkit-details-marker{display:none}.vehicle-disclosure>summary::after{content:"";grid-column:2;grid-row:1/3;width:20px;height:20px;background:url('assets/icons/chevron-right.svg') center/contain no-repeat;transition:transform 180ms ease}.vehicle-disclosure[open]>summary::after{transform:rotate(90deg)}.vehicle-disclosure summary small{grid-column:1}@media(prefers-reduced-motion:reduce){.vehicle-disclosure>summary::after{transition:none}}
+#radio-view pv-choice-list .pv-list>button{display:grid;grid-template-columns:minmax(0,1fr) 20px;gap:6px 16px;font-size:24px;text-align:left}#radio-view pv-choice-list .pv-list>button strong,#radio-view pv-choice-list .pv-list>button .pv-meta{grid-column:1}#radio-view pv-choice-list .pv-list>button .pv-meta{font-size:16px;font-weight:400;color:var(--pv-screen-muted)}#radio-view pv-choice-list .pv-list>button::after{content:"";grid-column:2;grid-row:1/3;width:20px;height:20px;background:url('assets/icons/chevron-right.svg') center/contain no-repeat}#radio-view pv-choice-list .pv-list>button[aria-pressed=true]::after{background-image:url('assets/icons/check-circle-fill.svg')}
+
+/* Shared A overview anatomy. Family identity comes from surface and subject,
+   never from a different text origin, icon slot or chevron inset. */
+#now-view{--widget-pad:24px;--widget-slot:64px;--widget-gap:16px;--widget-radius:24px;--widget-title:20px;--widget-meta:15px}
+#now-view .home-shortcuts>button,#now-view #device-activities>.resource-preview,#now-view .timer-shortcut{
+ display:grid;grid-template-columns:var(--widget-slot) minmax(0,1fr) 18px;
+ align-items:center;gap:var(--widget-gap);padding:var(--widget-pad);min-height:116px;
+ border-radius:var(--widget-radius);border:0;box-shadow:none;text-align:left;min-width:0;
+}
+#now-view .home-shortcuts>button>img:first-child,#now-view .timer-shortcut>img:first-child{
+ width:var(--widget-slot);height:var(--widget-slot);padding:14px;box-sizing:border-box;object-fit:contain;margin:0;
+}
+#now-view .home-shortcuts>button>img:last-child,#now-view .timer-shortcut>img:last-child,#now-view #device-activities>.resource-preview>.resource-chevron{
+ width:18px;height:18px;min-width:18px;margin:0;padding:0;opacity:.65;justify-self:end;
+}
+#now-view .home-shortcuts>button>span,#now-view .timer-shortcut>span,#now-view #device-activities .resource-label{display:grid;gap:6px;min-width:0}
+#now-view .home-shortcuts strong,#now-view .timer-shortcut strong,#now-view #device-activities .resource-label strong{font-size:var(--widget-title);line-height:1.2;font-weight:500;letter-spacing:-.015em}
+#now-view .home-shortcuts small,#now-view .timer-shortcut small,#now-view #device-activities .resource-label small{font-size:var(--widget-meta);line-height:1.35;margin:0;opacity:1}
+#now-view #device-activities .resource-visual{width:var(--widget-slot);height:var(--widget-slot);border-radius:0;background:transparent}
+#now-view #device-activities .resource-visual>img{width:36px!important;height:36px!important;object-fit:contain}
+#now-view .timer-shortcut{background:var(--pv-overview-timer);color:var(--pv-overview-timer-ink)}
+#now-view .timer-shortcut small{color:var(--pv-overview-timer-muted)}
+#now-view .timer-shortcut:hover:not(:disabled){background:var(--pv-overview-timer-hover);color:var(--pv-overview-timer-ink)}
+#now-view #home-radio>img:first-child{padding:15px}
+#now-view #home-vehicle{position:relative}
+#now-view #home-vehicle>img:first-child{visibility:hidden}
+#now-view #home-vehicle::before{content:"";position:absolute;left:var(--widget-pad);top:50%;transform:translateY(-50%);width:var(--widget-slot);height:var(--widget-slot);background:url('assets/vehicle-gray-model-y-2023.png') center/contain no-repeat;pointer-events:none}
+/* Detail keeps the weather symbol and calm semantic surface.
+   Photography belongs exclusively to the overview shortcut. */
+.weather-view .weather-current[data-weather-tone]{color:inherit;background:transparent;border-radius:0;padding:8px 0 12px;min-height:128px;overflow:visible;isolation:isolate}
+.weather-view .weather-current::before{content:none;background:none}
+
+.weather-view .weather-current>div{position:relative;z-index:1}
+.weather-view .weather-current>img{position:relative;z-index:1;width:64px;height:64px;opacity:.85;margin-right:24px}
+.weather-view .weather-current strong{font-size:80px;line-height:.98;letter-spacing:-.04em}
+.weather-view .weather-current p{font-size:22px;line-height:1.2;margin:10px 0 6px;font-weight:500}
+.weather-view .weather-current span{font-size:15px;line-height:1.35}
+.weather-view .weather-summary{margin:12px 0 20px;font-size:18px;line-height:1.45;max-width:48ch}
+@media(min-width:760px) and (max-width:1100px){#now-view{--widget-pad:20px;--widget-gap:12px;--widget-title:18px;--widget-meta:14px}}
+@media(min-width:760px) and (max-height:640px){.weather-view .weather-current[data-weather-tone]{min-height:112px;padding-block:4px 8px}.weather-view .weather-current strong{font-size:64px}.weather-view .weather-current p{font-size:20px;margin:8px 0 5px}.weather-view .weather-summary{margin:10px 0 16px;font-size:17px}}
+@media(max-width:759px){#now-view{--widget-pad:20px;--widget-gap:12px}.weather-view .weather-current strong{font-size:68px}}
+/* Compact landscape keeps every overview action available in the same rhythm. */
+@media(min-width:760px) and (max-height:640px){
+ #now-view{--widget-pad:20px;--widget-gap:12px}
+ #now-view .home-shortcuts>button,#now-view #device-activities>.resource-preview,#now-view .timer-shortcut{min-height:104px;padding-block:20px}
+ #now-view .home-shortcuts{gap:16px;margin-bottom:16px}
+ #now-view #device-activities{gap:16px}
+ #now-view #timer-card{margin-top:16px}
+ #now-view .home-extensions{margin-top:16px!important;margin-bottom:0!important}
+}
+/* One canonical token scale wins historic specificity without a second family. */
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut){grid-template-columns:var(--pv-overview-slot) minmax(0,1fr) 18px;gap:var(--pv-overview-inner-gap);padding:var(--pv-overview-pad);height:var(--pv-overview-height);min-height:var(--pv-overview-height)}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut)>span>strong{font-size:var(--pv-overview-title);line-height:1.2;font-weight:500;letter-spacing:-.015em}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut)>span>small{font-size:var(--pv-overview-meta);line-height:1.35}
+pv-widget-host #now-view #device-activities>.resource-preview>.resource-visual{width:var(--pv-overview-slot);height:var(--pv-overview-slot)}
+pv-widget-host #now-view .home-shortcuts>button>img:first-child{width:var(--pv-overview-slot);height:var(--pv-overview-slot);padding:14px}
+
+/* The existing overview title is the single visible return target; no extra Ro control. */
+#now-rest{padding-inline-start:44px;background:url('assets/icons/arrow-left-long.svg') left center/28px 20px no-repeat}
+/* Correct the robot asset's internal whitespace, rather than shrinking its optical weight. */
+pv-widget-host #now-view #device-activities .resource-preview[data-kind=vacuum] .resource-visual>img{width:46px!important;height:46px!important}
+
+/* Weather is one bounded surface: the content scrolls inside its actual corners.
+   Local background covers reveal an edge shadow only while more content exists. */
+@media(min-width:760px){
+ .responses:has(>#weather-view:not([hidden])){overflow:hidden;mask-image:none}
+ #weather-view:not([hidden]){flex:1 1 0;height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;border-radius:24px;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:#a7bdc5 transparent;scroll-padding:20px;padding:20px;
+  background:linear-gradient(#e4edf0 35%,#e4edf000) center top/100% 32px no-repeat local,linear-gradient(#e4edf000,#e4edf0 65%) center bottom/100% 32px no-repeat local,linear-gradient(#203a4310,#203a4300) center top/100% 12px no-repeat scroll,linear-gradient(#203a4300,#203a4310) center bottom/100% 12px no-repeat scroll,#e4edf0!important;
+ }
+ #weather-view .weather-source{padding-bottom:4px}
+}
+@media(min-width:760px) and (max-height:640px){
+ #weather-view>.response-heading{padding:0 0 12px}
+ #weather-view .weather-current[data-weather-tone]{min-height:92px;padding:8px 0 12px}
+ #weather-view .weather-current>div{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:20px;row-gap:5px;align-items:center}
+ #weather-view .weather-current strong{grid-column:1;grid-row:1/3;font-size:64px;line-height:1}
+ #weather-view .weather-current p{grid-column:2;align-self:end;margin:0;font-size:20px}
+ #weather-view .weather-current span{grid-column:2;align-self:start;font-size:14px}
+ #weather-view .weather-current>img{width:56px;height:56px;margin-right:8px}
+ #weather-view .weather-summary{margin:4px 0 16px}
+ #weather-view .weather-hours{padding:12px 0}
+ #weather-view .weather-hours>div{gap:6px}
+ #weather-view .weather-hours strong{font-size:22px}
+ #weather-view .weather-days{padding-top:16px}
+ #weather-view .weather-days>div{padding:10px 0}
+}
+/* Forecast rows keep their intrinsic heights inside the card's scroll viewport. */
+#weather-view>.response-heading,#weather-view>.weather-current,#weather-view>.weather-summary,#weather-view>.weather-hours,#weather-view>.weather-days,#weather-view>.weather-source{flex:none}

@@ -2,6 +2,9 @@
 const groups={duration:['cleaning_time','total_cleaning_time','main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left','mop_drying_remaining_time'],area:['cleaning_area','total_cleaning_area'],percent:['battery','clean_percent','volume'],timestamp:['last_clean_start','last_clean_end'],text:['current_room','status','vacuum_error','dock_error','mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'],bool:['battery_charging','in_cleaning','water_shortage','mop_attached','water_box_attached','dirty_box_full','clean_box_empty','mop_drying_status','child_lock','dnd_switch','mop_drying'],clock:['dnd_start_time','dnd_end_time'],count:['total_cleaning_count']};
 const kinds=new Map(Object.entries(groups).flatMap(([kind,keys])=>keys.map(key=>[key,kind]))),entities=/^(sensor|binary_sensor|select|switch|number|time)\.[a-z0-9_]+$/;
 const labels={main_brush_time_left:'Hovedbørste',side_brush_time_left:'Sidebørste',filter_time_left:'Filter',sensor_time_left:'Sensorer',cleaning_brush_time_left:'Dockbørste',strainer_time_left:'Dockfilter',mop_drying_remaining_time:'Tørring tilbage',total_cleaning_area:'Samlet areal',total_cleaning_time:'Samlet tid',total_cleaning_count:'Rengøringer i alt',clean_box_empty:'Rent vand mangler',dirty_box_full:'Snavset vandbeholder fuld',water_shortage:'Vandmangel',mop_drying_status:'Moppetørring',mop_drying:'Moppetørring',battery:'Batteri',mop_attached:'Moppe monteret',water_box_attached:'Vandbeholder monteret',battery_charging:'Oplader',child_lock:'Børnelås',dnd_switch:'Forstyr ikke',dnd_start_time:'Forstyr ikke fra',dnd_end_time:'Forstyr ikke til',volume:'Robotens lydstyrke',mop_intensity:'Moppeintensitet',mop_mode:'Moppetilstand',cleaning_mode:'Rengøringstilstand',selected_map:'Valgt kort',dust_collection_mode:'Tømningstilstand',vacuum_error:'Robotfejl',dock_error:'Dockfejl'};
+const careKeys=new Set(['main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left']);
+const detailGroups={maintenance:['main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left','total_cleaning_area','total_cleaning_time','total_cleaning_count','vacuum_error'],dock:['mop_drying_remaining_time','clean_box_empty','dirty_box_full','water_shortage','mop_drying_status','mop_drying','battery','mop_attached','water_box_attached','battery_charging','dock_error'],settings:['child_lock','dnd_switch','dnd_start_time','dnd_end_time','volume','mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode']};
+const detailGroup=new Map(Object.entries(detailGroups).flatMap(([group,keys])=>keys.map(key=>[key,group])));
 const unavailable=()=>({status:'unavailable',items:[]});
 export function robotRoom(device,now=Date.now()/1000){
  if(device.status!=='cleaning'||device.stale||device.telemetry?.status!=='observed')return null;
@@ -23,10 +26,20 @@ export function robotFacts(device,now=Date.now()/1000){
  const active=device.status==='cleaning'&&!device.stale,summary=[];if(active){const room=byKey.get('current_room');if(room&&fresh(room))summary.push(room.value);for(const key of ['clean_percent','cleaning_area','cleaning_time']){const row=byKey.get(key);if(row&&fresh(row))summary.push(robotValue(row));}}
  const history=['last_clean_start','last_clean_end'].map(key=>byKey.get(key)).filter(Boolean).map(row=>({label:row.key==='last_clean_start'?'Senest startet':'Senest afsluttet',value:new Date(row.value*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}),stale:!fresh(row)}));
  const attention=['clean_box_empty','dirty_box_full','water_shortage'].map(key=>byKey.get(key)).filter(row=>row?.value===true&&fresh(row)).map(row=>labels[row.key]);
- for(const key of ['vacuum_error','dock_error']){const row=byKey.get(key);if(row&&fresh(row)&&!['none','no_error','ok','0'].includes(row.value.toLowerCase()))attention.push(`${labels[key]}: ${row.value.replaceAll('_',' ')}`);}
- const details=items.filter(row=>labels[row.key]).map(row=>({label:labels[row.key],value:robotValue(row),stale:!fresh(row)}));return {summary,history,attention,details};
+ for(const key of ['vacuum_error','dock_error']){const row=byKey.get(key);if(row&&fresh(row)&&!['none','no_error','ok','0'].includes(row.value.toLowerCase()))attention.push(`${labels[key]}: ${robotValue(row)}`);}
+ const details=items.filter(row=>labels[row.key]).map(row=>({label:labels[row.key],value:robotValue(row),stale:!fresh(row),group:detailGroup.get(row.key)}));return {summary,history,attention,details};
 }
+// Display-only vocabulary matches the existing admitted setting choices.
+// Raw observations and action values remain owned by their source/transport.
+const settingLabels={
+ cleaning_mode:{vacuum:'Støvsugning',vac_and_mop:'Støvsugning og gulvvask',mop:'Gulvvask',custom:'Tilpasset'},
+ mop_intensity:{off:'Fra',low:'Lav',medium:'Mellem',high:'Høj',custom_water_flow:'Tilpasset vandmængde',custom:'Tilpasset'},
+ mop_mode:{standard:'Standard',deep:'Grundig',deep_plus:'Ekstra grundig',fast:'Hurtig',custom:'Tilpasset'},
+ dust_collection_mode:{smart:'Smart',light:'Let',balanced:'Balanceret',max:'Maksimal'},
+ vacuum_error:{none:'Ingen'},dock_error:{ok:'Ingen',water_empty:'Mangler vand'}
+};
 export function robotValue(row){
- if(typeof row.value==='boolean')return row.value?'Ja':'Nej';if(typeof row.value==='string')return row.value.replaceAll('_',' ');const number=n=>n.toLocaleString('da-DK',{maximumFractionDigits:1});
+ if(typeof row.value==='boolean')return row.value?'Ja':'Nej';if(typeof row.value==='string'){if(['dnd_start_time','dnd_end_time'].includes(row.key)&&row.value.length===8&&/^(?:[01]\d|2[0-3]):[0-5]\d:00$/.test(row.value))return row.value.slice(0,5);if(Object.hasOwn(settingLabels,row.key)){const vocabulary=settingLabels[row.key];return Object.hasOwn(vocabulary,row.value)?vocabulary[row.value]:row.value;}return row.value.replaceAll('_',' ');}const number=n=>n.toLocaleString('da-DK',{maximumFractionDigits:1});
+ if(careKeys.has(row.key)&&['s','min','h'].includes(row.unit)){const magnitude=Math.abs(row.value),amount=row.unit==='s'?magnitude/60:magnitude,unit=row.unit==='h'?(amount===1?'time':'timer'):'min';return `${number(amount)} ${unit} ${row.value<0?'over interval':'tilbage'}`;}
  if(row.unit==='s')return `${number(row.value/60)} min`;if(row.unit==='min'||row.unit==='h')return `${number(row.value)} ${row.unit==='h'?'timer':'min'}`;if(row.unit==='m²')return `${number(row.value)} m²`;if(row.unit==='%')return `${number(row.value)} %`;return number(row.value);
 }

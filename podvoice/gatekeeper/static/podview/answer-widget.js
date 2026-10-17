@@ -1,9 +1,8 @@
 import {weatherFactDisplay} from './weather-fact-display.js';
 import {visualFamilies,typedAnswerFamilies,validateTypedAnswerContent} from './visual-content.js';
-import {visualExamples} from './visual-examples.js';
 import {ACTIVITIES,visibleActivities} from './scene-model.js';
 import './ui/library/components.js';
-export const answerCatalog=Object.freeze({comparison:'Sammenligning',concise:'Kort svar',choices:'Valgmuligheder',chart:'Materialer',steps:'Trin for trin',checklist:'Tjekliste','fact-card':'Faktakort','sourced-image':'Billede med kilde','answer-timeline':'Tidslinje','simple-diagram':'Enkelt diagram'});
+export const answerCatalog=Object.freeze({comparison:'Sammenligning',concise:'Kort svar',choices:'Valgmuligheder',chart:'Datagraf',steps:'Trin for trin',checklist:'Tjekliste','fact-card':'Faktakort','sourced-image':'Billede med kilde','answer-timeline':'Tidslinje','simple-diagram':'Enkelt diagram'});
 export function typedAnswerPresentation(answer){
  if(answer?.live!==true||answer.presentation!==true||!typedAnswerFamilies.includes(answer.kind))throw Error('unadmitted_typed_answer');
  return validateTypedAnswerContent(answer.kind,answer.content,{ownerReceiptIds:answer.ownerReceiptIds||[],allowConversation:answer.provenance?.kind==='ai_explanation'});
@@ -17,13 +16,12 @@ class AnswerWidget extends HTMLElement {
  }
  renderWeatherAnswer(scene,answer){const q=s=>this.querySelector(s),useful=['partial','ready','done'].includes(answer.status);q('h1').textContent=answer.title;q('.answer-meta').textContent='Vejret i Mårslet';for(const sel of ['.answer-choices','.comparison','.chart','.guide','.checklist','.answer-back','.answer-actions','.sources'])q(sel).hidden=true;const labels={error:'Vejrudsigten kom ikke frem.',empty:'Der er ingen vejrudsigt lige nu.',interrupted:'Svaret blev afbrudt.'};q('.answer-status').data={text:labels[answer.status]||''};q('.answer-status').hidden=!labels[answer.status];q('.intro').hidden=!useful;q('.intro').data={text:'En let jakke er en god idé. Det er 16° nu og bliver køligere i aften.'};q('.retry-answer').hidden=!['error','empty','interrupted'].includes(answer.status);q('.retry-answer').disabled=!scene.connected;let b=q('.open-weather-answer');if(!b){b=document.createElement('button');b.className='open-weather-answer text-control';b.textContent='Se vejrudsigten';b.addEventListener('click',()=>this.emit({type:'show',id:'weather'}));q('.answer-scroll').append(b);}b.hidden=!useful;}
  renderVisualAnswer(scene,answer){
- const q=s=>this.querySelector(s),summary=answer.content?.summary,summaryHeading=answer.live&&summary?.length<=160,connected=answer.live?answer.readConnected===true:scene.connected;
- q('h1').textContent=summaryHeading?summary:answer.live?answer.content?.facts?.[0]?.label||answer.title:answer.title;this.dataset.answerFamily=answer.kind;
+ const q=s=>this.querySelector(s),summary=answer.content?.summary,connected=answer.live?answer.readConnected===true:scene.connected;
+ q('h1').textContent=answer.title;this.dataset.answerFamily=answer.kind;
  for(const selector of ['.answer-choices','.comparison','.chart','.guide','.checklist','.answer-back','.answer-actions','.sources','.intro','.answer-status','.open-weather-answer']){const node=q(selector);if(node)node.hidden=true;}
  if(this.visualNode&&this.visualNode.localName!==`pv-${answer.kind}`){this.visualNode.sources.remove();this.visualNode.remove();this.visualNode=null;}
  if(!this.visualNode){this.visualNode=document.createElement(`pv-${answer.kind}`);this.visualNode.classList.add('answer-visual');q('.answer-scroll').prepend(this.visualNode);this.visualNode.sources.classList.add('answer-source-menu');q('.response-heading').insertBefore(this.visualNode.sources,q('.dismiss'));}
- const exampleExplanation=!answer.live&&['fact-card','sourced-image','answer-timeline'].includes(answer.kind)&&summary===visualExamples[answer.kind].content.summary;
- this.visualNode.data={forecast:answer.kind==='answer-timeline'&&answer.provenance?.kind==='ha_weather',state:!connected?'offline':answer.readStatus||(answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':answer.status),ownerReceiptIds:answer.ownerReceiptIds||[],allowConversation:answer.provenance?.kind==='ai_explanation',hideSummary:summaryHeading||exampleExplanation,content:answer.status==='waiting'?undefined:weatherFactDisplay(answer)};
+ this.visualNode.data={forecast:answer.kind==='answer-timeline'&&answer.provenance?.kind==='ha_weather',state:!connected?'offline':answer.readStatus||(answer.status==='waiting'?'loading':answer.status==='partial'?'pending':answer.status==='interrupted'?'error':answer.status),ownerReceiptIds:answer.ownerReceiptIds||[],allowConversation:answer.provenance?.kind==='ai_explanation',content:answer.status==='waiting'?undefined:weatherFactDisplay(answer)};
  q('.retry-answer').hidden=!['error','empty','interrupted'].includes(answer.readStatus||answer.status);q('.retry-answer').disabled=!connected;
  }
  renderTypedAnswer(scene,answer){

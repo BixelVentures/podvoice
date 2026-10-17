@@ -1,5 +1,5 @@
 // Fades indicate actual remaining scroll, never a permanent decorative overlay.
-const SELECTORS='.weather-hours, .answer-scroll, #queue, #music-response .expandable, #device-view, #now-view .now-activities, .live-music-list, .live-music-selection-results';
+const SELECTORS='.responses, .weather-hours, .answer-scroll, #queue, #music-response .expandable, #device-view, #now-view .now-activities, .live-music-list';
 export function scrollEdgeState({position,viewport,content}){
  if(!Number.isFinite(position)||!Number.isFinite(viewport)||!Number.isFinite(content)||viewport<=0)return '';
  const maxPosition=Math.max(0,content-viewport),current=Math.min(maxPosition,Math.max(0,position));

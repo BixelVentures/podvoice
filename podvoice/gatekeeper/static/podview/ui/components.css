@@ -26,3 +26,7 @@ dialog[open]::backdrop{opacity:1}
 @starting-style{dialog[open]{opacity:0;transform:translateY(10px)}dialog[open]::backdrop{opacity:0}}
 body:has(pv-widget-host[data-motion=reduced]) dialog,body:has(pv-widget-host[data-motion=reduced]) dialog::backdrop{transition:none;transform:none}
 @media(prefers-reduced-motion:reduce){dialog,dialog::backdrop{transition:none;transform:none}}
+
+/* Canonical overview family: all domains and states consume this one scale. */
+:root{--pv-overview-slot:64px;--pv-overview-icon:36px;--pv-overview-height:116px;--pv-overview-pad:24px;--pv-overview-inner-gap:16px;--pv-overview-row-gap:24px;--pv-overview-title:20px;--pv-overview-meta:15px;--pv-overview-timer:#394749;--pv-overview-timer-hover:#435457;--pv-overview-timer-ink:#f8faf9;--pv-overview-timer-muted:#d5dede;--pv-overview-radio:#f4e8ed;--pv-overview-vehicle:#e7e8e8}
+@media(min-width:760px) and (max-height:640px){:root{--pv-overview-height:104px;--pv-overview-pad:20px;--pv-overview-inner-gap:12px;--pv-overview-row-gap:16px;--pv-overview-title:18px;--pv-overview-meta:14px}}
