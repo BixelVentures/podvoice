@@ -1,3 +1,9 @@
+## 2.0.44 — robot refresh and current speaker context, candidate
+
+- Allow an explicit fresh robot-task read after an expired task, with the existing room, boot, target, permission and pending-effect checks. This adds no automatic robot action.
+- Show the configured speaker label from the existing current catalogue and omit the redundant picker only when one account is available. The label is display-only; playback keeps its existing path.
+- Clear transient gesture state on blur and cancellation, and tighten the robot card spacing. All143 assets remain in the canonical bundle; Green, physical robot/music behavior and physical acceptance require separate checks.
+
 ## 2.0.43 — samlet visuel efterfølger, kandidat
 
 - Ret natvejrets læsbarhed og gør robotikonets baggrund gennemsigtig i begge størrelser. Fjern den dobbelte label i kortets mapkontekst.
