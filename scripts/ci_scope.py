@@ -29,6 +29,7 @@ CI_CONTROL_REQUIRED = frozenset(
         "scripts/ci_promotion.py",
         "tests/unit/test_ci_scope.py",
         "tests/unit/test_ci_promotion.py",
+        "tests/unit/test_dev_cycle.py",
     }
 )
 CI_CONTROL_OPTIONAL = frozenset({"docs/STATUS.md"})
