@@ -37,6 +37,7 @@ def test_43_profile_preserves_history_and_limits_the_visual_delta():
     }
     assert admission.REQUIRED_TESTS == {
         "tests/integration/test_podview_music_control.py",
+        "tests/integration/test_talk_webrtc.py",
         "tests/podview/root-live-control-view.test.mjs",
         "tests/unit/test_candidate_scope_admission43.py",
         "tests/unit/test_ci_scope.py",

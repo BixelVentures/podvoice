@@ -288,14 +288,28 @@ async def test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispa
 
 
 async def test_live_activity_route_is_observation_only_identity_fenced_and_allowlisted():
+    import gatekeeper.thin as thin_module
+
     wire, link, session, _, _ = setup()
+    # Activity admission is under test, not the shared fake's 200 ms startup budget.
+    # Keep the fake within Thin's existing product connect ceiling on loaded CI.
+    session.live_brain.timeout_s = thin_module.C.CONNECT_TIMEOUT_S
+
+    async def delayed_create(**kwargs):
+        # Exercise the deadline boundary without provider or browser I/O.
+        await asyncio.sleep(0.25)
+        return await wire.sdk.create(**kwargs)
+
+    wire.sdk.client.live.create.side_effect = delayed_create
     rows = []
     link.on_activity = rows.append
     task = asyncio.create_task(run_talk(wire, session, link))
     try:
         wire.send("wake", command_id="wake")
         await until(lambda: wire.result("wake") is not None)
+        assert wire.result("wake")["status"] == "accepted"
         handshake = link._live_handshake
+        assert handshake is not None
         identity = {
             "attempt_id": handshake.attempt_id,
             "provider_session_id": handshake.provider_session_id,

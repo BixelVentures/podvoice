@@ -19,8 +19,9 @@
   },
   "regressions": {
     "tests/integration/test_podview_music_control.py": "50548792eae66774989ec6cbed1cc7cf03c06bdb863ed14d59bcc9506b1991d1",
+    "tests/integration/test_talk_webrtc.py": "9774bedd8df0e4ca7fe17464e23a3ececa63f9ea8a9bffbc17d4bc9535aed4a5",
     "tests/podview/root-live-control-view.test.mjs": "a2f3e7e7d8967ec1482d9dd9abc07ac0f4656ddfc99acb9b7e27e879708ca00f",
-    "tests/unit/test_candidate_scope_admission43.py": "8399671f47c4605e5bcc3ef8916804dd4193b3adecabf66ef496dc869b1e5994",
+    "tests/unit/test_candidate_scope_admission43.py": "7d879e6bf07d6f95acb60c61e4483654986125604bc1c6f156155fee53c3ba80",
     "tests/unit/test_ci_scope.py": "317a757ecca9b002edcf4553909e2289cbedfa133a79513c5c0de43b8c52b59a",
     "tests/unit/test_dev_cycle.py": "998077f18a14606e6dcce900123af3200e69e641798ee2e71cc1a9e52296e5cd"
   },

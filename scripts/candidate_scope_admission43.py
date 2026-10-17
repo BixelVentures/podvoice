@@ -53,6 +53,7 @@ PRODUCTION = frozenset(
 REQUIRED_TESTS = frozenset(
     {
         "tests/integration/test_podview_music_control.py",
+        "tests/integration/test_talk_webrtc.py",
         "tests/podview/root-live-control-view.test.mjs",
         "tests/unit/test_candidate_scope_admission43.py",
         "tests/unit/test_ci_scope.py",
@@ -62,8 +63,8 @@ REQUIRED_TESTS = frozenset(
 HA_RUNTIME = previous.HA_RUNTIME
 # Base, review, manifest and AST bindings remain unset until actual CI157 merge and review.
 REVIEWER = "Independent /root/release_readiness PV43 composition and exact-tree admission review"
-MANIFEST_SHA = "2b6717271a3ac90d3a6687a12784a07715dcc8d1ee6072569c7877aca61a9b52"
-PROFILE_AST = "8e9485c3ac1b513b3d2f988c59ce9579899aeaba0b12b32320d98c51ca313f08"
+MANIFEST_SHA = "cd55dc02e51116eed0bc19f5209174cad2d523495b28a0273aa916b91022cb54"
+PROFILE_AST = "ece7d7b2db31a916b13fdc253839faec562e8da2eb06160634ec49183d848638"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission41.py": "4fb7e3fa5b8bc876cc286b804cd1e7a6cd3b2059d2980e2a8cdf6834d6d06395",
     "scripts/podview41-admission-reviewed.json": "d496c074b3787057371b95d62eae8e85bd4a4071c807477f345db3fa77ae8b43",

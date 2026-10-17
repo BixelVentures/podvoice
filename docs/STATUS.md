@@ -1,5 +1,7 @@
 # Aktiv leadbeslutning · PodView visuel efterfølger 2.0.43 · 17. oktober 2026
 
+Officiel CI658 bevares som fejlet: en uændret Talk-aktivitetsfixture brugte en intern fake-provider-frist på200ms, mens produktets connectloft er8s. En250ms inert createforsinkelse reproducerer samme afviste wake og manglende handshake med den gamle fixture. Kun aktivitetstestens lokale fake-frist følger nu det eksisterende produktloft, og accepted wake samt handshake kræves før de uændrede aktivitetsassertions. Den særskilte timeoutregression er bevaret. Syv Talk-adaptercases, formatter/lint og uafhængigt fixture-review består. Ingen runtime-/produkt-timeout eller produktionshash ændres; testfilen indgår nu eksplicit i regressionbindingen. De øvrige beståede kilde-/adapterreviews genbruges; næste officielle kandidat udløses ved den opdaterede PR.
+
 <!-- podview43-admission
 {
   "version": 20,
@@ -8,14 +10,14 @@
   "domains": ["physical_output"],
   "base_tip": "4f183f19689fcf87f90d26c6a14a8e6e153d93c1",
   "merge_base": "4f183f19689fcf87f90d26c6a14a8e6e153d93c1",
-  "rationale": "Exact CI157 merge base and reviewed five-file production scope: one observation-only backend file plus three canonical UI assets and their generated manifest. The five changed regression files are pinned; all 143 UI assets and historical42 bindings remain intact. Official CI, installation, and passive visual acceptance are separate gates.",
+  "rationale": "Exact CI157 merge base and reviewed five-file production scope: one observation-only backend file plus three canonical UI assets and their generated manifest. The six changed regression files include the causal test-only Talk startup repair; all 143 UI assets and historical42 bindings remain intact. Official CI, installation, and passive visual acceptance are separate gates.",
   "fingerprint": "135680237a8d21e5a0dd97aeb1715495dd0d3eeedf690b5051fba1be0fad9146",
-  "regression_fingerprint": "0831947cb5085df3d15923b49b287f5810bd1fb387af148d0157b4446b29675c",
+  "regression_fingerprint": "9143719e04a5a4246760ad284ee5143ecc3e90c384f69df15914890a8f354dee",
   "runtime_fingerprint": "da86ebe4a4929dade1d4093873a8e4a656075a4384d1714d1183b4ce61140355",
   "config_fingerprint": "2b84da097b21b77d3b3ea47a96784f417b3165fef8bf6bdb1bbb4c65d31633de",
-  "policy_fingerprint": "10c5861182a7e10f67ece738b286dbe3189a1b124bcaf985a3b9855d97031925",
+  "policy_fingerprint": "55cf17a59ad9b2ff71d5fd48f02b7f67695421107231c5dfad46d72d8fc730cf",
   "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
-  "manifest_fingerprint": "2b6717271a3ac90d3a6687a12784a07715dcc8d1ee6072569c7877aca61a9b52"
+  "manifest_fingerprint": "cd55dc02e51116eed0bc19f5209174cad2d523495b28a0273aa916b91022cb54"
 }
 -->
 
