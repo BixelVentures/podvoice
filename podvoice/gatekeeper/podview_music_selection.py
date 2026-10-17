@@ -63,10 +63,15 @@ class MusicSelection:
         owner_binding: tuple,
         *,
         kind: str = "search",
+        scope: str = "",
     ) -> str | None:
         """Call only after the existing PodConnect response and context validation."""
-        self.sources.clear()
-        self.tasks.clear()
+        # A new source retires only this browser's earlier choices.
+        retired = {key for key, row in self.sources.items() if row.get("scope", "") == scope}
+        self.sources = {key: row for key, row in self.sources.items() if key not in retired}
+        self.tasks = {
+            key: row for key, row in self.tasks.items() if row.get("candidateSetId") not in retired
+        }
         if not _closed_context(context) or not isinstance(data, dict):
             return None
         tracks = data.get("tracks")
@@ -95,17 +100,16 @@ class MusicSelection:
         # Random identity prevents an old browser result with identical text from
         # being promoted after the account runtime is replaced.
         identifier = secrets.token_hex(32)
-        self.sources = {
-            identifier: {
-                "context": copy.deepcopy(context),
-                "tracks": copy.deepcopy(tracks),
-                "kind": kind,
-                "itemIds": {secrets.token_hex(12): index for index in range(len(tracks))}
-                if kind != "search"
-                else {},
-                "binding": owner_binding,
-                "deadline": time.monotonic() + 60,
-            }
+        self.sources[identifier] = {
+            "context": copy.deepcopy(context),
+            "tracks": copy.deepcopy(tracks),
+            "kind": kind,
+            "scope": scope,
+            "itemIds": {secrets.token_hex(12): index for index in range(len(tracks))}
+            if kind != "search"
+            else {},
+            "binding": owner_binding,
+            "deadline": time.monotonic() + 60,
         }
         return identifier
 
@@ -237,7 +241,12 @@ class MusicSelection:
             "consumed": False,
         }
         # A newer target/confirmation replaces the older pending offer.
-        self.tasks.clear()
+        self.tasks = {
+            key: row
+            for key, row in self.tasks.items()
+            if self.sources.get(row["candidateSetId"], {}).get("scope", "")
+            != source.get("scope", "")
+        }
         self.tasks[task_id] = task
         return {
             "ok": True,

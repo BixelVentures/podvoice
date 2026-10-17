@@ -286,7 +286,7 @@ class TouchControls:
             and (
                 "move_grant" not in task
                 or (
-                    self.bridge._grants.get(task["room"]) is task["move_grant"]
+                    self.bridge._grant_for_token(task["room"], token) is task["move_grant"]
                     and self.policy is task["move_policy"]
                     and (
                         not task["rule"] or any(row is task["rule"] for row in self.policy["music"])
@@ -372,7 +372,7 @@ class TouchControls:
         self.receipts = {
             key: value
             for key, value in self.receipts.items()
-            if (grant := self.bridge._grants.get(key[0])) is not None
+            if (grant := self.bridge._grant_for_token(key[0], key[1])) is not None
             and secrets.compare_digest(grant[0], key[1])
             and now < grant[-1]
         }
@@ -474,7 +474,7 @@ class TouchControls:
         }
         if domain == "music" and moving:
             task.update(
-                move_grant=self.bridge._grants.get(room),
+                move_grant=self.bridge._grant_for_token(room, token),
                 move_policy=self.policy,
                 move_binding=self.move.binding(),
                 move_revision=self._move_revision(room),

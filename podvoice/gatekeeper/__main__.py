@@ -771,6 +771,34 @@ async def run(cfg: Config) -> None:
     from .podview_admin_transport import AdminStdinTransport
 
     bridge = app[BRIDGE]
+    if admin_eligible and private_row is None:
+        try:
+            profile_room = bridge.controls.policy.get("roomId")
+            if not isinstance(profile_room, str) or not profile_room:
+                raise ValueError("room policy unavailable")
+            bridge.controller_owner(profile_room)
+            profile_pin = bridge.controller_pin(profile_room)
+            private_row, profile_registry = admin_state.profiles(
+                profile_room,
+                profile_pin,
+                settings_path.parent / "podview-controllers" / "registry.json",
+            )
+            bridge._controller_enabled = True
+            bridge._controller_registry = profile_registry
+            bridge._controller_admin_state = admin_state
+        except (OSError, ValueError, TypeError, KeyError):
+            _LOG.error("PodView profile owner unavailable")
+    elif admin_eligible and private_row is not None and not private_enabled:
+        from .podview_continuity import ControllerRegistry
+
+        try:
+            bridge._controller_registry = ControllerRegistry(
+                settings_path.parent / "podview-controllers" / "registry.json",
+                private_row["generation"],
+                30,
+            )
+        except ValueError:
+            _LOG.error("PodView closed profile registry unavailable")
     if private_enabled and private_row is not None:
         bridge._controller_admin_state = admin_state
         bridge._pairing_deadline = time.monotonic() + max(0, private_row["deadline"] - time.time())

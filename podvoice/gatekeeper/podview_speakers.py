@@ -180,7 +180,7 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
         or "targets" not in tools.podview_music_reads()
     ):
         return unavailable()
-    grant = getattr(bridge, "_grants", {}).get(room)
+    grant = bridge._grant_for_token(room, token)
     paired = bool(
         grant is not None
         and bridge._grant_current(room, token)
@@ -213,7 +213,7 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
             and (
                 not paired
                 or (
-                    bridge._grants.get(room) is grant
+                    bridge._grant_for_token(room, token) is grant
                     and bridge._grant_current(room, token)
                     and controls.move.available
                     and "music" in controls.domains(room, token)

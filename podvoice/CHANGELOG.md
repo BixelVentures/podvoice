@@ -1,3 +1,9 @@
+## 2.0.39 — enkel skærmgodkendelse
+
+- Bed om adgang fra PodView og godkend den navngivne skærm i Home Assistant. Manuel kopiering af en parringskode bortfalder; PodView åbner efter bekræftet adgang.
+- Tilknyt op til to browserprofiler pr. rum, eksempelvis Mac og iPad/Frameo. Nye profiler huskes indtil tilbagekaldelse; tidligere tidsbegrænsede tilmeldinger beholder deres udløb.
+- Fjern adgang for én skærm eller luk hele rummet. Musik, robot, timere og køvalg bevarer de eksisterende rum-, policy- og ejerkrav.
+
 ## 2.0.38
 
 - Keep authenticated Home Assistant timer data and paired PodView music/robot/timer controls available independently of the Voice PE connection.

@@ -12,7 +12,7 @@ export class PodVoiceTransport {
   this.controllerRenewalOwner={}; this.snapshot = null; this.connected = false; this.closed = true; this.generation = 0;
  }
  endpoint(path, params = {}) {
-  if (!['snapshot','events','music','actions','pair','home','answers','controller/renew'].includes(path)) throw new Error('unsupported_endpoint');
+  if (!['snapshot','events','music','actions','pair','home','answers','controller/renew','controller/request','controller/claim'].includes(path)) throw new Error('unsupported_endpoint');
   const url = new URL(path, this.base);
   if (this.room) url.searchParams.set('room', this.room);
   for (const [key,value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(key,value);
@@ -28,7 +28,7 @@ export class PodVoiceTransport {
   if(value.capabilities.queueSelection!==undefined&&typeof value.capabilities.queueSelection!=='boolean')return false;
   if(value.capabilities.answerRead===true){const a=value.answers;if(a?.readOnlyCompleted!==undefined&&(a.readOnlyCompleted!==true||value.voice.active!==false||value.voice.sessionId!==null||!a.sessionId))return false;if(!a||!Number.isInteger(a.revision)||a.revision<0||['sessionId','turnId','taskId'].some(k=>a[k]!==null&&(typeof a[k]!=='string'||!a[k]||a[k].length>160))||(a.inputRevision!==null&&(!Number.isInteger(a.inputRevision)||a.inputRevision<0)))return false;const empty=a.sessionId===null;if(empty?(a.turnId!==null||a.taskId!==null||a.inputRevision!==null):(a.turnId===null||a.taskId===null||a.inputRevision===null))return false;}
   if(value.visualPending!==undefined){const p=value.visualPending;if(!p||Object.keys(p).sort().join(',')!=='inputRevision,revision,roomId,sessionId,taskId,turnId'||p.roomId!==value.roomId||value.voice.active!==true||value.voice.phase==='CLOSING'||p.sessionId!==value.voice.sessionId||['sessionId','turnId','taskId'].some(k=>typeof p[k]!=='string'||!p[k]||p[k].length>160)||!Number.isInteger(p.inputRevision)||p.inputRevision<0||!Number.isInteger(p.revision)||p.revision<0||p.revision!==value.answers?.revision||value.capabilities.answerRead!==true)return false;}
-  if(value.controllerContinuity!==undefined){const c=value.controllerContinuity;if(!c||Object.keys(c).sort().join(',')!=='available,enabled,maxDays'||typeof c.enabled!=='boolean'||typeof c.available!=='boolean'||!Number.isInteger(c.maxDays)||c.maxDays<0||c.maxDays>30)return false;}
+  if(value.controllerContinuity!==undefined){const c=value.controllerContinuity;if(!c||!['available,enabled','available,enabled,maxDays'].includes(Object.keys(c).sort().join(','))||typeof c.enabled!=='boolean'||typeof c.available!=='boolean'||('maxDays'in c&&(!Number.isInteger(c.maxDays)||c.maxDays<0||c.maxDays>30)))return false;}
   if (this.room && value.roomId !== this.room) return false;
   if (this.snapshot?.bootId === value.bootId && this.snapshot.revision > value.revision) return false;
   if(value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,controlSetup:[]}};
@@ -107,6 +107,29 @@ export class PodVoiceTransport {
    if(!response.ok||body?.requestId!==requestId||!['accepted','rejected','unknown'].includes(body.outcome)||body.retryAllowed!==false||body.physicalResultVerified!==false||body.ok!==(body.outcome==='accepted'))return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};
    return body;
   }catch{return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};}
+ }
+ async accessRequest(name) {
+  if(!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof name!=='string'||name!==name.trim()||!name||name.length>48||/[\u0000-\u001f\u007f]/u.test(name))throw Error('access_unavailable');
+  return this.accessExchange('controller/request',{name});
+ }
+ async accessClaim(requestId) {
+  if(!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof requestId!=='string'||!/^[a-f0-9]{32}$/.test(requestId))throw Error('access_unavailable');
+  return this.accessExchange('controller/claim',{requestId});
+ }
+ async accessExchange(path,args) {
+  const {bootId,roomId}=this.snapshot,generation=this.generation;
+  const response=await this.request(this.endpoint(path),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId,roomId,...args})});
+  const body=await response.json();
+  if(this.closed||!this.connected||this.generation!==generation||this.snapshot?.bootId!==bootId||this.snapshot?.roomId!==roomId)throw Error('access_changed');
+  if(!response.ok||body?.ok!==true){const error=Error('access_denied');if(['controller_limit','request_expired','request_denied'].includes(body?.error))error.code=body.error;throw error;}
+  const keys=Object.keys(body).sort().join(',');
+  if(path==='controller/request'){
+   if(keys!=='expiresIn,matchSignal,ok,requestId'||typeof body.requestId!=='string'||!/^[a-f0-9]{32}$/.test(body.requestId)||typeof body.matchSignal!=='string'||!/^[A-Z0-9]{6}$/.test(body.matchSignal)||body.expiresIn!==300)throw Error('invalid_access_request');
+   return {requestId:body.requestId,matchSignal:body.matchSignal,expiresIn:body.expiresIn};
+  }
+  if(keys==='ok,status'&&body.status==='connected')return {status:'connected'};
+  if(keys==='expiresIn,ok,status'&&body.status==='pending'&&Number.isInteger(body.expiresIn)&&body.expiresIn>=0&&body.expiresIn<=300)return {status:'pending',expiresIn:body.expiresIn};
+  throw Error('invalid_access_status');
  }
  async pair(code) {
   if (!this.connected || !this.room) throw new Error('disconnected');

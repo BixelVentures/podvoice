@@ -1,3 +1,54 @@
+# Aktiv leadbeslutning før kode · enkel HA-godkendelse af to browserprofiler · 17. oktober 2026
+
+Lead: denne PodVoice-chat. Status: planlagt samlet kandidat 2.0.39 efter brugerens “Go go”; ikke udgivet eller installeret. Green kører fortsat faktisk publiceret 2.0.38 (merge f0e3d62; PR182, CI639/640 grønne); seks policies og elleve robot-entiteter er bevaret. Ingen ny adgang eller hjemmehandling aktiveres under udvikling. Fysisk betjening, alarm/Stop, samtale og latency står fortsat åbne.
+
+Direkte brugerkrav via den koordinerede PodView-chat: erstat langsom manuel engangskodekopiering med Åbn PodView → bed om adgang → én eksplicit normal HA-admin-godkendelse → automatisk åbning. Mac til udvikling/test og iPad/Frameo-skærmen skal kunne være tilknyttet samtidigt og tilbagekaldes hver for sig. Ny vedvarende tilmelding kræver eksplicit adminsamtykke indtil tilbagekaldelse; gamle 30-dages credentials må ikke tavst opgraderes.
+
+Stærkeste direkte kodebevis: ControllerRegistry.enroll tilbagekalder alle poster for samme rum, og PodViewBridge._grants/_controller_grants indekseres alene efter rum gennem timer-, musik-, flytte-, robot- og køkald. Nuværende HA OptionsFlow producerer en lang kode; setup kræver manuel indtastning og et ekstra tilbageklik. Hypotese: et add-on-ejet, kortlivet browserbundet pending request med særskilt HA-admin-approval og atomisk claim kan erstatte koden; controller-identitet skal samtidig være en del af grant/receipt/task-ejerskabet, så de to tilmeldinger ikke afkobler hinanden.
+
+Hele berørte kæde: eksisterende HA-ingress → samme setup-anatomi → browserbundet HttpOnly proof → afgrænset pending request bundet til rum/policy/HA-timerejer → faktisk autentificeret HA OptionsFlow → eksisterende Supervisor stdin/MAC-kvittering → eksplicit approval → samme browsers single-use claim → hash-only durable enrollment → kortlivet revalideret handlingsgrant → eksisterende timer/PodConnect/robot/queue-adapter → faktisk kvittering. Stemmens mic/provider/playback/close/rearm/næste wake og Talk forbliver hos eksisterende ejere; ingen authority fra navn, request-id, viewer eller opdigtet event.
+
+Invarianter: menneskelig HA-admin er eneste nye adgangsmyndighed; browsernavn og matchsignal er ikke autoritet eller fysisk identitet. Hver browserprofil har separat tilbagekaldelse, korte grants, præcist rum/policy/enhed/Core-epoch og fail-closed revocation. Bevar nødluk for hele rummet. Ingen hemmeligheder i frontend, logs, URLs, QR eller HA entry/options; ingen ny provider/kvote, HA-loginfri gateway, ingressomgåelse, produkt-UI redesign eller billeder. Root/PodView ejer canonical setup/transport-bytes og deres registrering før adoption.
+
+Planlagte kausale regressioner: faktisk HTTP/HA-admin-kæde; to browsercookies og samtidige renewals; forkert browser/rum/policy/owner; CSRF, replay, dobbelt approval/claim; tilbagekaldelse og adminændring omkring await; ukendt outcome og manglende kvittering uden blind gentagelse; restart, legacy-migration uden udvidet rettighed, korrupt state, kø/TTL/rate/body-bounds; alle eksisterende timer/music/robot/queue-callers og pending tasks/receipts. Genbrug eksisterende harness, berørte kontroller og uafhængigt adversarial review; officiel CI først på konkret frosset kandidat. Rollback er uændret installeret38 og uændrede policies. Frontendkontrakten fryses før parallel kildeforfatning; planlagte checks er ikke resultater eller fysisk accept.
+
+
+Faktisk udviklingsstatus (samme beslutning): registry-skemaet understøtter nu to samtidige profiler per rum på tværs af policy-pins, særskilt tilbagekaldelse og genbrug af udløbne/tilbagekaldte pladser uden at fortrænge aktive profiler. De 49 fokuserede registry-regressioner samt Ruff bestod; uafhængigt review fandt og fik rettet cap-på-tværs-af-pins og udtømning ved gamle tombstones. Bridge-agentens 250 fokuserede cases bestod, herunder to browseres HTTP-adgang og Voice PE-musikflytning: profil B afkobler ikke A, mens tilbagekaldelse af A afviser dens indfangede handling uden at afkoble B. HA-agentens 25 fokuserede unit-/stdin-kontroller bestod; efter fjernelse af en redundant initialize-kald bestod de berørte 16 integrationcases igen. Ruff og diff-whitespace-kontrol bestod. Den reelle HA-framework-regression om deaktiveret admin under prepare-await er kildekompileret, men ikke lokalt eksekveret, fordi det faste miljø ikke indeholder Home Assistant; den eksisterende officielle HA-CI skal køre den endelige kandidat. Det samlede uafhængige Sol-review har fundet konkrete tilbagekaldelsesfejl: en snæver profiltilbagekaldelse må ikke genåbne et nødlukket rum; ukendt identitet skal skelnes fra korrupt/fejlende registry uden at omgå fail-closed; en offline rumprofil skal kunne tilbagekaldes. De berørte forløb er rettet: en identitetsspecifik fence blokerer A før første disk-await, herunder renewal/claim og indfangede handlinger, mens B fortsat er aktiv. Faktisk storage-/clockfejl lukker hele rummet; offline tilbagekaldelse kræver alene præcis registry-identitet og rum. Afbrydelse ved de to diskgrænser er kontrolleret: live-adgang lukkes straks, den igangværende diskoperation færdiggøres før kompenserende durable disable, og fejlen genkastes. De to afbrydelsesregressioner og tre berørte kontinuitets-/nødlukregressioner bestod; HA-agentens samlede fokuserede non-framework-sæt bestod 30/30. Ruff bestod. Abrupt procesdød eller gentagen afbrydelse kan ikke love, at kompensation bliver fuldført; der hævdes ingen sådan garanti. Uafhængigt source-review gav GO på de præcise 30 produktions-/kausale testfiler (receipt SHA256 d4c1e692fbb54ad44be59e6f9b7fff814f9016570d5affdd3fb6691bfb602249). Bounded tooling-/admission-review gav GO efter rettelse af den forældede blank-binding-fixture. Officiel CI, publicering, installation og fysisk accept afventer. Agentindgangen er rettet efter brugerens dokumenterede Ultra-fravalg; kompetent Sol-review og alle ejer-/racekrav bevares.
+
+PodView-rootens reviewede canonical setup.html, setup.js og podvoice-transport.js er adopteret byteidentisk; kun de tre tilsvarende manifestposter er ændret (manifest SHA256 844929105bce9ec72476c6d0560b4ef49d51487c6f3462c6a4ce736eb6d4408f). Root rapporterer 17 nye setup- og fem kontinuitetscases bestået samt samlet frontend-suite 580/580 og component gate 50. Dette er kilde-/testbevis, ikke Green-funktion. Normal HA-åbning går til integrationssiden i en separat fane; brugeren vælger fortsat Konfigurér og godkender den viste anmodning. Ingen påstand om automatisk adminsamtykke eller én direkte HA-knap. Installationsaudit viste, at add-on-image ikke indeholder custom_components: native HA-integrationen skal derfor udgives som 0.1.3, opdateres særskilt gennem HACS og indlæses ved HA Core-genstart sammen med add-on 2.0.39. Denne nødvendige manifestændring indgår i kandidatens scope/review. Ingen ny udgivelse, installation, browsertilmelding eller fysisk accept er udført.
+
+
+CI641 på den første publicerede PR-kandidat: exact admission, pakket UI/browser, add-on-build/shippet stdin og REST-suite bestod. HA-framework fandt en forældet engangskode-fixture og en fixture, der forsøgte at deaktivere HA-ejeren; unit-cohort stoppede på manglende typeangivelser. Disse er repareret uden produktadfærdsændring, uafhængigt delta-review gav GO (receipt SHA256 a5b09967e8a820b69885001b8f6bd563d5773667d643379718e42b23e7e96dfa), og faktisk mypy på alle 85 gatekeeper-filer samt Ruff bestod. Ny præcis kandidat afventer officiel CI; fejlede checks er ikke ommærket til bestået.
+
+
+CI642: add-on-build og pakket UI bestod igen; HA-framework bestod 14/16, mens to post-await-afvisninger korrekt gav request_unconfirmed i stedet for fixtureforventningen admin_required. Kun disse to forventninger er korrigeret; request-id må fortsat ikke eksponeres, backendkald og præ-await-afvisninger bevares. Produktkoden er uændret, og uafhængigt fixture-delta-review gav GO (receipt SHA256 ba9c94d38a861fe851339cb48b672b8a42f5e84bb86c4176a4a14339b594aedb). Den præcise rettede kandidat afventer officiel CI.
+
+
+CI642 unit-cohort bestod 3510 cases og stoppede ved en read-only SimpleNamespace-fixture uden den nye grant-opslagsmetode. Den eneste ufuldstændige unit-caller er opdateret, og alle 27 speaker-unitcases, herunder otte owner-/cancellation-forløb, består. Ingen produktionsændring; øvrige beståede kontroller bevares, og den præcise rettede kandidat sendes samlet til officiel CI.
+
+<!-- podview39-admission
+{
+  "version": 16,
+  "kind": "podvoice39_ha_approved_persistent_browser_profiles",
+  "reviewer": "Independent /root/profiles_owner_review source and /root/controller_registry_review admission39",
+  "domains": [
+    "ha_tools"
+  ],
+  "base_tip": "f0e3d62a5677050d2373f691a61cd733b3dd5be6",
+  "merge_base": "f0e3d62a5677050d2373f691a61cd733b3dd5be6",
+  "rationale": "Independent source and CI641/642 delta reviews retained. CI642 passed 3510 unit cases before one stale read-only speaker fixture; that fixture alone now supplies the real bridge protocol method, 27 targeted tests pass. Two HA post-await denial expectations match observed fail-closed response. No runtime changes since CI642; official exact CI required, no installation or physical claim.",
+  "fingerprint": "3f2e7472dc5522bbd838b8fc21945731cb712602d151891c58e7c4591f51512e",
+  "regression_fingerprint": "c2f16a3f72722cb094e9c139ee29ed294806320e174a2942c1ac511b7c574541",
+  "runtime_fingerprint": "e69484c5788afbc6e9c31d67c320831344aa115a81798102f9d640dba21edfdb",
+  "config_fingerprint": "0f34666275084303c80f55d8c5fc402e1b05ef3b654628e2dc9427108100add4",
+  "policy_fingerprint": "3c4cbeda56c80d1858e2239ec79ab791b8007cd16a11b6412ed6e6ce9be150f6",
+  "tooling_fingerprint": "29e10d37b10d77004fe73558e298960f7ab44f9ebecb60c4eb927fb7da45fc65",
+  "manifest_fingerprint": "749ee3579fe3bf396f9d0e2eda2e2f721dd1d79e2763b0e925705cbb017186db"
+}
+-->
+
+---
+
 <!-- podview38-admission
 {
   "version": 15,

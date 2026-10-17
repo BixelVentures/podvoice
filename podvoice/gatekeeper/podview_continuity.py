@@ -28,7 +28,7 @@ def _object(pairs):
 
 
 class ControllerRegistry:
-    """One active enrolled profile per room, with durable fail-closed revocation.
+    """At most two active browser profiles per room, with durable revocation.
 
     Only explicit one-use administrator pairing may create a missing registry.
     All subsequent reads require it; corruption never becomes empty authority.
@@ -75,7 +75,7 @@ class ControllerRegistry:
             fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW)
         except FileNotFoundError:
             if create:
-                return {"schema": 1, "generation": self.generation, "highWater": now, "records": {}}
+                return {"schema": 2, "generation": self.generation, "highWater": now, "records": {}}
             raise ContinuityDenied("missing registry") from None
         with os.fdopen(fd, "r") as stream:
             info = os.fstat(stream.fileno())
@@ -86,7 +86,7 @@ class ControllerRegistry:
             not isinstance(data, dict)
             or set(data) != {"schema", "generation", "highWater", "records"}
             or type(data["schema"]) is not int
-            or data["schema"] != 1
+            or data["schema"] not in (1, 2)
             or data["generation"] != self.generation
             or type(data["highWater"]) not in (float, int)
             or not math.isfinite(data["highWater"])
@@ -95,11 +95,26 @@ class ControllerRegistry:
             or len(data["records"]) > 256
         ):
             raise ContinuityDenied("invalid registry or clock")
+        legacy = data["schema"] == 1
         for key, row in data["records"].items():
             if (
                 not re.fullmatch(r"[a-f0-9]{32}", key)
                 or not isinstance(row, dict)
-                or set(row) != {"digest", "room", "pin", "issuedAt", "expiresAt", "revoked"}
+                or set(row)
+                != (
+                    {"digest", "room", "pin", "issuedAt", "expiresAt", "revoked"}
+                    if legacy
+                    else {
+                        "digest",
+                        "room",
+                        "pin",
+                        "issuedAt",
+                        "expiresAt",
+                        "revoked",
+                        "name",
+                        "persistent",
+                    }
+                )
                 or not isinstance(row["room"], str)
                 or not 1 <= len(row["room"]) <= 160
                 or not isinstance(row["digest"], str)
@@ -107,14 +122,37 @@ class ControllerRegistry:
                 or not isinstance(row["pin"], str)
                 or not re.fullmatch(r"[a-f0-9]{64}", row["pin"])
                 or type(row["revoked"]) is not bool
-                or any(
-                    type(row[k]) not in (float, int) or not math.isfinite(row[k])
-                    for k in ("issuedAt", "expiresAt")
-                )
-                or not 0 < row["expiresAt"] - row["issuedAt"] <= 30 * 86400
+                or type(row["issuedAt"]) not in (float, int)
+                or not math.isfinite(row["issuedAt"])
                 or row["issuedAt"] > now
             ):
                 raise ContinuityDenied("invalid registry record")
+            if legacy:
+                if (
+                    type(row["expiresAt"]) not in (float, int)
+                    or not math.isfinite(row["expiresAt"])
+                    or not 0 < row["expiresAt"] - row["issuedAt"] <= 30 * 86400
+                ):
+                    raise ContinuityDenied("invalid legacy registry record")
+                row.update(name="", persistent=False)
+            elif (
+                type(row["persistent"]) is not bool
+                or not isinstance(row["name"], str)
+                or len(row["name"]) > 80
+                or any(ord(char) < 32 or ord(char) == 127 for char in row["name"])
+                or (row["persistent"] and row["expiresAt"] is not None)
+                or (
+                    not row["persistent"]
+                    and (
+                        type(row["expiresAt"]) not in (float, int)
+                        or not math.isfinite(row["expiresAt"])
+                        or not 0 < row["expiresAt"] - row["issuedAt"] <= 30 * 86400
+                    )
+                )
+            ):
+                raise ContinuityDenied("invalid registry record")
+        if legacy:
+            data["schema"] = 2  # A later mutation persists the exact legacy authority.
         return data
 
     def _write(self, data):
@@ -146,25 +184,48 @@ class ControllerRegistry:
         finally:
             os.close(fd)
 
-    def enroll(self, room: str, pin: str):
+    def enroll(self, room: str, pin: str, *, name: str = "", persistent: bool = False):
+        if (
+            not isinstance(room, str)
+            or not 1 <= len(room) <= 160
+            or not isinstance(pin, str)
+            or re.fullmatch(r"[a-f0-9]{64}", pin) is None
+            or not isinstance(name, str)
+            or len(name) > 80
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
+            or type(persistent) is not bool
+        ):
+            raise ContinuityDenied("invalid enrollment")
         fd = self._open()
         try:
             data = self._load(create=True)
+            now = self._now()
+            # Reclaim only authorities already dead before this successful commit.
+            # A changed pin is not revocation and cannot silently evict a profile.
+            data["records"] = {
+                identity: row
+                for identity, row in data["records"].items()
+                if not row["revoked"]
+                and (
+                    row["persistent"]
+                    or now < min(row["expiresAt"], row["issuedAt"] + self.days * 86400)
+                )
+            }
             if len(data["records"]) >= 256:
                 raise ContinuityDenied("registry full")
-            for row in data["records"].values():
-                if row["room"] == room:
-                    row["revoked"] = True
+            if sum(row["room"] == room for row in data["records"].values()) >= 2:
+                raise ContinuityDenied("room enrollment full")
             identity, secret = secrets.token_hex(16), secrets.token_urlsafe(32)
             token = identity + "." + secret
-            now = self._now()
             data["records"][identity] = {
                 "digest": hashlib.sha256(token.encode()).hexdigest(),
                 "room": room,
                 "pin": pin,
                 "issuedAt": now,
-                "expiresAt": now + self.days * 86400,
+                "expiresAt": None if persistent else now + self.days * 86400,
                 "revoked": False,
+                "name": name,
+                "persistent": persistent,
             }
             self._write(data)
             return token, identity, data["records"][identity]["expiresAt"]
@@ -199,9 +260,11 @@ class ControllerRegistry:
             or row["revoked"]
             or row["room"] != room
             or row["pin"] != pin
-            or not row["issuedAt"]
-            <= now
-            < min(row["expiresAt"], row["issuedAt"] + self.days * 86400)
+            or now < row["issuedAt"]
+            or (
+                not row["persistent"]
+                and now >= min(row["expiresAt"], row["issuedAt"] + self.days * 86400)
+            )
         ):
             raise ContinuityDenied("controller unavailable")
         return row
@@ -216,12 +279,58 @@ class ControllerRegistry:
 
     def revoke(self, identity: str | None = None, *, room: str | None = None):
         """Administrator file tool only; not mounted as a viewer HTTP endpoint."""
+        if identity is not None and (
+            not isinstance(identity, str) or re.fullmatch(r"[a-f0-9]{32}", identity) is None
+        ):
+            raise ContinuityDenied("invalid controller identity")
+        if room is not None and (not isinstance(room, str) or not 1 <= len(room) <= 160):
+            raise ContinuityDenied("invalid room")
         fd = self._open()
         try:
             data = self._load()
+            if identity is not None and (
+                identity not in data["records"]
+                or (room is not None and data["records"][identity]["room"] != room)
+            ):
+                raise ContinuityDenied("controller unavailable")
             for key, row in data["records"].items():
                 if (identity is None or identity == key) and (room is None or room == row["room"]):
                     row["revoked"] = True
             self._write(data)
+        finally:
+            os.close(fd)
+
+    def list_enrollments(self, room: str, pin: str) -> list[dict]:
+        """Trusted administrator listing; browser secrets and owner pins stay private."""
+        if (
+            not isinstance(room, str)
+            or not 1 <= len(room) <= 160
+            or not isinstance(pin, str)
+            or re.fullmatch(r"[a-f0-9]{64}", pin) is None
+        ):
+            raise ContinuityDenied("invalid listing scope")
+        fd = self._open()
+        try:
+            data = self._load()
+            now = self._now()
+            return [
+                {
+                    "id": identity,
+                    "name": row["name"],
+                    "room": room,
+                    "persistent": row["persistent"],
+                    "expiresAt": row["expiresAt"],
+                    "status": "revoked"
+                    if row["revoked"]
+                    else "stale"
+                    if row["pin"] != pin
+                    else "expired"
+                    if not row["persistent"]
+                    and now >= min(row["expiresAt"], row["issuedAt"] + self.days * 86400)
+                    else "active",
+                }
+                for identity, row in data["records"].items()
+                if row["room"] == room
+            ]
         finally:
             os.close(fd)

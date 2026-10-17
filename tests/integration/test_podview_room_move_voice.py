@@ -20,9 +20,22 @@ from gatekeeper.podview import PodViewBridge
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "change", ["none", "answer", "grant", "alias", "policy", "session", "unknown"]
+    "change",
+    [
+        "none",
+        "answer",
+        "grant",
+        "alias",
+        "policy",
+        "session",
+        "unknown",
+        "second_profile",
+        "profile_revoked",
+    ],
 )
-async def test_voice_move_exact_option_later_confirmation_and_causal_fences(monkeypatch, change):
+async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
+    monkeypatch, tmp_path, change
+):
     rig = Rig()
     session, _ = owner()
     session._history_session = "s1"
@@ -35,8 +48,24 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(monk
                 "nativeHomepodId": "44",
             }
         )
-    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
-    bridge.grant_timer_control("kitchen")
+    profiled = change in {"second_profile", "profile_revoked"}
+    bridge = PodViewBridge(
+        {"kitchen": session},
+        rig.router,
+        control_policy=json.dumps(config),
+        controller_enabled=profiled,
+        controller_generation="c" * 64,
+        controller_store=tmp_path / "controllers" / "registry.json" if profiled else None,
+    )
+    if profiled:
+        registry = bridge._controller_registry
+        registry.initialize()
+        _, first_identity, _ = registry.enroll(
+            "kitchen", bridge.controller_pin("kitchen"), name="Mac", persistent=True
+        )
+        first_token = bridge.grant_timer_control("kitchen", first_identity)
+    else:
+        first_token = bridge.grant_timer_control("kitchen")
     source = payload()
     source["targets"][-1]["target_id"] = "speaker"
     if change == "none":
@@ -97,7 +126,7 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(monk
 
     passive = await podview_speakers.read_catalogue(bridge, "kitchen", "account", owner_binding)
     paired = await podview_speakers.read_catalogue(
-        bridge, "kitchen", "account", owner_binding, token=bridge._grants["kitchen"][0]
+        bridge, "kitchen", "account", owner_binding, token=first_token
     )
     assert not passive["moveAvailable"]
     assert all(not row["selectable"] for row in passive["speakers"])
@@ -142,6 +171,17 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(monk
         answer["revision"] += 1
     elif change == "grant":
         bridge.revoke("kitchen")
+    elif change in {"second_profile", "profile_revoked"}:
+        _, second_identity, _ = registry.enroll(
+            "kitchen", bridge.controller_pin("kitchen"), name="iPad", persistent=True
+        )
+        second_token = bridge.grant_timer_control("kitchen", second_identity)
+        assert bridge._grant_current("kitchen", first_token)
+        assert bridge._grant_current("kitchen", second_token)
+        if change == "profile_revoked":
+            assert bridge.revoke_controller("kitchen", first_identity)
+            assert not bridge._grant_current("kitchen", first_token)
+            assert bridge._grant_current("kitchen", second_token)
     elif change == "alias":
         monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=None))
     elif change == "policy":
@@ -163,7 +203,7 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(monk
         execution_context=approval.context,
         approval_token=approval.token,
     )
-    if change in {"answer", "grant", "alias", "policy", "session"}:
+    if change in {"answer", "grant", "alias", "policy", "session", "profile_revoked"}:
         assert result["ok"] is False
         bridge.controls.move.move.assert_not_awaited()
     elif change == "unknown":

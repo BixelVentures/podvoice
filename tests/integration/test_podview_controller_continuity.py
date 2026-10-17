@@ -83,7 +83,8 @@ async def test_profile_cookie_is_hash_only_absolute_and_only_renews_short_grants
     assert not bridge._grant_current("kitchen", credential)
     assert bridge._grant_current("kitchen", grant)
     # Expire only the short action grant; enrollment may renew it, never extend itself.
-    bridge._grants["kitchen"] = (*bridge._grants["kitchen"][:-1], 0)
+    slot = next(iter(bridge._grants))
+    bridge._grants[slot] = (*bridge._grants[slot][:-1], 0)
     assert not bridge._grant_current("kitchen", grant)
     response = await renew(bridge, credential)
     assert response.status == 200
@@ -151,16 +152,168 @@ async def test_admin_room_revoke_persists_and_new_explicit_profile_replaces_old(
     assert (await renew(second, new_credential)).status == 200
 
 
-async def test_new_admin_pair_alone_revokes_previous_active_profile(tmp_path):
+async def test_new_admin_pair_keeps_previous_active_profile(tmp_path):
     first, _, code = rig(tmp_path)
     old_credential, old_grant = await enroll(first, code)
     assert first._grant_current("kitchen", old_grant)
     second, _, new_code = rig(tmp_path, code="b" * 43)
     credential, grant = await enroll(second, new_code)
-    assert not first._grant_current("kitchen", old_grant)
-    assert (await renew(first, old_credential)).status == 403
+    assert first._grant_current("kitchen", old_grant)
+    assert (await renew(first, old_credential)).status == 200
     assert second._grant_current("kitchen", grant)
     assert (await renew(second, credential)).status == 200
+
+
+def test_two_profiles_reject_third_without_eviction_and_revoke_individually(tmp_path):
+    registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
+    pin = "e" * 64
+    mac, mac_id, mac_expiry = registry.enroll("kitchen", pin, name="Mac")
+    display, display_id, display_expiry = registry.enroll(
+        "kitchen", pin, name="Display", persistent=True
+    )
+    assert mac_expiry is not None and display_expiry is None
+    before = registry.path.read_bytes()
+    with pytest.raises(ContinuityDenied, match="room enrollment full"):
+        registry.enroll("kitchen", pin, name="Third")
+    assert registry.path.read_bytes() == before
+    assert registry.validate(mac, "kitchen", pin) == (mac_id, mac_expiry)
+    assert registry.validate(display, "kitchen", pin, renew=True) == (display_id, None)
+    assert registry.list_enrollments("kitchen", pin) == [
+        {
+            "id": mac_id,
+            "name": "Mac",
+            "room": "kitchen",
+            "persistent": False,
+            "expiresAt": mac_expiry,
+            "status": "active",
+        },
+        {
+            "id": display_id,
+            "name": "Display",
+            "room": "kitchen",
+            "persistent": True,
+            "expiresAt": None,
+            "status": "active",
+        },
+    ]
+    assert mac not in registry.path.read_text() and display not in registry.path.read_text()
+    registry.revoke(mac_id, room="kitchen")
+    with pytest.raises(ContinuityDenied):
+        registry.validate(mac, "kitchen", pin)
+    assert registry.validate(display, "kitchen", pin) == (display_id, None)
+    assert registry.list_enrollments("kitchen", "f" * 64)[1]["status"] == "stale"
+    with pytest.raises(ContinuityDenied):
+        registry.revoke(display_id, room="other")
+    assert registry.validate(display, "kitchen", pin) == (display_id, None)
+    replacement, _, _ = registry.enroll("kitchen", pin, name="Replacement")
+    assert registry.validate(replacement, "kitchen", pin)
+    registry.revoke(room="kitchen")
+    for credential in (display, replacement):
+        with pytest.raises(ContinuityDenied):
+            registry.validate(credential, "kitchen", pin)
+
+
+def test_room_cap_includes_other_pins_without_eviction(tmp_path):
+    registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
+    old_pin, new_pin = "e" * 64, "f" * 64
+    first, first_id, _ = registry.enroll("kitchen", old_pin, persistent=True)
+    second, second_id, _ = registry.enroll("kitchen", old_pin, persistent=True)
+    before = registry.path.read_bytes()
+    with pytest.raises(ContinuityDenied, match="room enrollment full"):
+        registry.enroll("kitchen", new_pin, persistent=True)
+    assert registry.path.read_bytes() == before
+    assert [row["id"] for row in registry.list_enrollments("kitchen", new_pin)] == [
+        first_id,
+        second_id,
+    ]
+    assert all(row["status"] == "stale" for row in registry.list_enrollments("kitchen", new_pin))
+    assert registry.validate(first, "kitchen", old_pin)
+    assert registry.validate(second, "kitchen", old_pin)
+    registry.revoke(first_id, room="kitchen")
+    third, _, _ = registry.enroll("kitchen", new_pin, persistent=True)
+    assert registry.validate(second, "kitchen", old_pin)
+    assert registry.validate(third, "kitchen", new_pin)
+
+
+def test_full_registry_reclaims_only_revoked_rows_on_successful_enrollment(tmp_path):
+    registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
+    pin = "e" * 64
+    old, old_id, _ = registry.enroll("kitchen", pin)
+    registry.revoke(old_id, room="kitchen")
+    stored = json.loads(registry.path.read_text())
+    row = stored["records"][old_id]
+    for value in range(255):
+        stored["records"][f"{value:032x}"] = dict(row)
+    assert len(stored["records"]) == 256
+    registry.path.write_text(json.dumps(stored))
+    replacement, _, _ = registry.enroll("kitchen", pin)
+    assert len(json.loads(registry.path.read_text())["records"]) == 1
+    with pytest.raises(ContinuityDenied):
+        registry.validate(old, "kitchen", pin)
+    assert registry.validate(replacement, "kitchen", pin)
+
+
+def test_legacy_schema_migrates_without_extending_expiry_or_inferring_persistence(
+    tmp_path, monkeypatch
+):
+    from gatekeeper import podview_continuity
+
+    now = 1_000_000.0
+    monkeypatch.setattr(podview_continuity.time, "time", lambda: now)
+    registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
+    registry.initialize()
+    legacy, identity, expiry = registry.enroll("kitchen", "e" * 64)
+    stored = json.loads(registry.path.read_text())
+    stored["schema"] = 1
+    stored["records"][identity].pop("name")
+    stored["records"][identity].pop("persistent")
+    registry.path.write_text(json.dumps(stored))
+    assert registry.validate(legacy, "kitchen", "e" * 64) == (identity, expiry)
+    assert json.loads(registry.path.read_text())["schema"] == 1
+    registry.validate(legacy, "kitchen", "e" * 64, renew=True)
+    migrated = json.loads(registry.path.read_text())
+    assert migrated["schema"] == 2
+    assert migrated["records"][identity] == {
+        **stored["records"][identity],
+        "name": "",
+        "persistent": False,
+    }
+    assert registry.validate(legacy, "kitchen", "e" * 64) == (identity, expiry)
+
+
+def test_expired_finite_profile_frees_only_its_slot(tmp_path, monkeypatch):
+    from gatekeeper import podview_continuity
+
+    now = [1_000_000.0]
+    monkeypatch.setattr(podview_continuity.time, "time", lambda: now[0])
+    registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 1)
+    pin = "e" * 64
+    expired, expired_id, expiry = registry.enroll("kitchen", pin)
+    persistent, persistent_id, _ = registry.enroll("kitchen", pin, persistent=True)
+    now[0] = expiry
+    replacement, _, _ = registry.enroll("kitchen", pin)
+    with pytest.raises(ContinuityDenied):
+        registry.validate(expired, "kitchen", pin)
+    assert registry.validate(persistent, "kitchen", pin)[0] == persistent_id
+    assert registry.validate(replacement, "kitchen", pin)
+    assert expired_id not in {row["id"] for row in registry.list_enrollments("kitchen", pin)}
+
+
+@pytest.mark.parametrize("change", ["ambiguous_expiry", "unbounded_finite", "extra_field"])
+def test_malformed_schema_two_fails_closed(tmp_path, change):
+    registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
+    credential, identity, _ = registry.enroll("kitchen", "e" * 64)
+    stored = json.loads(registry.path.read_text())
+    row = stored["records"][identity]
+    if change == "ambiguous_expiry":
+        row["persistent"] = True
+    elif change == "unbounded_finite":
+        row["expiresAt"] += 1
+    else:
+        row["browserIdentity"] = "invented"
+    registry.path.write_text(json.dumps(stored))
+    with pytest.raises(ContinuityDenied):
+        registry.validate(credential, "kitchen", "e" * 64)
 
 
 async def test_failed_durable_room_revoke_reports_failure_and_poisons_renewal(tmp_path):

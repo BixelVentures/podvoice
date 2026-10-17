@@ -1,10 +1,4 @@
-"""Real Core 2026.8.2 service dispatch with an inert Supervisor writer.
-
-Run in the pinned Home Assistant image with no network and an empty config.
-The actual PodVoice setup, ServiceRegistry, Context and auth store stay in use.
-"""
-
-from __future__ import annotations
+"""Actual HA HTTP options flow and registered admin response services."""
 
 import asyncio
 import hashlib
@@ -36,6 +30,7 @@ from homeassistant.setup import async_setup_component
 ROOT = Path(__file__).resolve().parents[2]
 ROOM = "configured-alpha"
 ADDON = "23375871_podvoice"
+REQUEST_ID = "a" * 32
 
 
 class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
@@ -58,9 +53,14 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.hass.config_entries = ConfigEntries(self.hass, {})
         self.assertTrue(await bootstrap.async_load_base_functionality(self.hass))
         self.hass.auth = await auth.auth_manager_from_config(self.hass, [], [])
+        self.owner = await self.hass.auth.async_create_user(
+            "Owner fixture", group_ids=[GROUP_ID_ADMIN]
+        )
         self.admin = await self.hass.auth.async_create_user(
             "Admin fixture", group_ids=[GROUP_ID_ADMIN]
         )
+        self.assertTrue(self.owner.is_owner)
+        self.assertFalse(self.admin.is_owner)
         self.viewer = await self.hass.auth.async_create_user(
             "Viewer fixture", group_ids=[GROUP_ID_USER]
         )
@@ -109,21 +109,39 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.hass.async_block_till_done()
         self.assertIn("podvoice", self.hass.data)
-        for service in ("controller_provision", "controller_revoke", "controller_receipt"):
+        for service in (
+            "controller_list",
+            "controller_approve",
+            "controller_revoke_identity",
+            "controller_revoke",
+            "controller_receipt",
+        ):
             self.assertTrue(self.hass.services.has_service("podvoice", service))
+        self.assertFalse(self.hass.services.has_service("podvoice", "controller_provision"))
 
-    async def invoke(self, service, context):
+    async def invoke(self, service, context, **data):
         return await self.hass.services.async_call(
             "podvoice",
             service,
-            {"room": ROOM},
+            {"room": ROOM, **data},
             blocking=True,
             return_response=True,
             context=context,
         )
 
-    async def receipt(self, command, context, *, mac=None):
-        message = f"{command['nonce']}:{command['action']}:{command['room']}:committed".encode()
+    async def next_write(self, size):
+        async with asyncio.timeout(3):
+            while len(self.writes) < size:
+                await self.written.wait()
+                self.written.clear()
+        return self.writes[size - 1]
+
+    async def receipt(self, command, context, result, *, mac=None):
+        payload = json.dumps(result, separators=(",", ":"))
+        message = json.dumps(
+            [command["nonce"], command["action"], command["room"], "committed", payload],
+            separators=(",", ":"),
+        ).encode()
         valid_mac = hmac.new(bytes.fromhex(command["key"]), message, hashlib.sha256).hexdigest()
         await self.hass.services.async_call(
             "podvoice",
@@ -133,57 +151,71 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
                 "action": command["action"],
                 "room": command["room"],
                 "outcome": "committed",
+                "payload": payload,
                 "mac": valid_mac if mac is None else mac,
             },
             blocking=True,
             context=context,
         )
 
-    async def test_core_rejects_missing_nonadmin_indirect_and_system_admin_before_stdin(self):
+    async def test_core_rejects_nonadmin_indirect_and_system_before_stdin(self):
         for context in (
             Context(),
             Context(user_id=self.viewer.id),
             Context(user_id=self.admin.id, parent_id="automation-parent"),
             Context(user_id=self.supervisor.id),
         ):
-            for service in ("controller_provision", "controller_revoke"):
+            for service, data in (
+                ("controller_list", {}),
+                ("controller_approve", {"request_id": REQUEST_ID}),
+                ("controller_revoke_identity", {"identity": REQUEST_ID}),
+                ("controller_revoke", {}),
+            ):
                 with self.subTest(context=context.user_id, service=service):
                     with self.assertRaises(HomeAssistantError):
-                        await self.invoke(service, context)
+                        await self.invoke(service, context, **data)
         self.assertEqual(self.writes, [])
 
-    async def test_core_awaits_exact_supervisor_receipt_before_returning_code(self):
+    async def test_read_response_requires_machine_principal_and_payload_mac(self):
+        task = asyncio.create_task(self.invoke("controller_list", Context(user_id=self.admin.id)))
+        self.addAsyncCleanup(self.cancel_task, task)
+        command = await self.next_write(1)
+        payload = {"ok": True, "room": ROOM, "pending": [], "enrolled": []}
+        await self.receipt(command, Context(user_id=self.admin.id), payload)
+        await self.receipt(command, Context(user_id=self.supervisor.id), payload, mac="0" * 64)
+        self.assertFalse(task.done())
+        await self.receipt(command, Context(user_id=self.supervisor.id), payload)
+        self.assertEqual(await asyncio.wait_for(task, 3), payload)
+
+    async def test_admin_revoked_during_prepare_never_writes_claimable_approve(self):
         task = asyncio.create_task(
-            self.invoke("controller_provision", Context(user_id=self.admin.id))
+            self.invoke(
+                "controller_approve",
+                Context(user_id=self.admin.id),
+                request_id=REQUEST_ID,
+            )
         )
         self.addAsyncCleanup(self.cancel_task, task)
-        await asyncio.wait_for(self.written.wait(), 3)
-        self.assertFalse(task.done())
-        self.assertEqual(len(self.writes), 1)
-        command = self.writes[0]
-        self.assertEqual((command["action"], command["room"]), ("provision", ROOM))
-        await self.receipt(command, Context(user_id=self.admin.id))
-        await self.receipt(command, Context(user_id=self.supervisor.id), mac="0" * 64)
-        self.assertFalse(task.done())
-        await self.receipt(command, Context(user_id=self.supervisor.id))
-        result = await asyncio.wait_for(task, 3)
-        self.assertEqual(result, {"ok": True, "room": ROOM, "code": command["code"]})
-        await self.receipt(command, Context(user_id=self.supervisor.id))
-        self.assertEqual(len(self.writes), 1)
+        prepared = await self.next_write(1)
+        self.assertEqual(prepared["action"], "prepare")
+        await self.hass.auth.async_deactivate_user(self.admin)
+        await self.receipt(
+            prepared,
+            Context(user_id=self.supervisor.id),
+            {
+                "room": ROOM,
+                "requestId": REQUEST_ID,
+                "name": "iPad",
+                "matchSignal": "ABC234",
+                "expiresIn": 240,
+                "status": "pending",
+            },
+        )
+        with self.assertRaises(HomeAssistantError):
+            await asyncio.wait_for(task, 3)
+        self.assertEqual([item["action"] for item in self.writes], ["prepare"])
 
-    async def test_core_awaits_revoke_without_returning_a_code(self):
-        task = asyncio.create_task(self.invoke("controller_revoke", Context(user_id=self.admin.id)))
-        self.addAsyncCleanup(self.cancel_task, task)
-        await asyncio.wait_for(self.written.wait(), 3)
-        command = self.writes[0]
-        self.assertEqual(command["action"], "revoke")
-        self.assertNotIn("code", command)
-        self.assertFalse(task.done())
-        await self.receipt(command, Context(user_id=self.supervisor.id))
-        self.assertEqual(await asyncio.wait_for(task, 3), {"ok": True, "room": ROOM})
-
-    async def test_authenticated_http_options_flow_reaches_registered_service_and_receipt(self):
-        """The real HTTP principal reaches the real service before showing a code."""
+    async def test_http_flow_lists_and_approves_without_pairing_code(self):
         entry = self.hass.config_entries.async_entries("podvoice")[0]
         self.hass.http = HomeAssistantHTTP(
             self.hass, None, None, None, ["127.0.0.1"], 0, [], "modern"
@@ -213,30 +245,57 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
                 return response.status, await response.json()
 
         status, begin = await post(base, {"handler": entry.entry_id})
-        self.assertEqual(status, 200, begin)
-        self.assertEqual(begin["step_id"], "init")
+        self.assertEqual((status, begin["step_id"]), (200, "init"))
         path = f"{base}/{begin['flow_id']}"
-        status, selected = await post(path, {"room": ROOM, "action": "provision"})
-        self.assertEqual(status, 200, selected)
-        self.assertEqual(selected["step_id"], "confirm")
-        self.assertEqual(self.writes, [])
+        listing = asyncio.create_task(post(path, {"room": ROOM}))
+        self.addAsyncCleanup(self.cancel_task, listing)
+        command = await self.next_write(1)
+        self.assertEqual(command["action"], "list")
+        rows = {
+            "ok": True,
+            "room": ROOM,
+            "pending": [
+                {
+                    "requestId": REQUEST_ID,
+                    "name": "iPad",
+                    "matchSignal": "ABC234",
+                    "expiresIn": 240,
+                    "status": "pending",
+                }
+            ],
+            "enrolled": [],
+        }
+        await self.receipt(command, Context(user_id=self.supervisor.id), rows)
+        status, selected = await asyncio.wait_for(listing, 3)
+        self.assertEqual((status, selected["step_id"]), (200, "manage"))
+        self.assertNotIn("code", str(selected).lower())
 
-        pending = asyncio.create_task(post(path, {"confirm": True}))
-        self.addAsyncCleanup(self.cancel_task, pending)
-        await asyncio.wait_for(self.written.wait(), 3)
-        self.assertFalse(pending.done())
-        self.assertEqual(len(self.writes), 1)
-        command = self.writes[0]
-        self.assertEqual((command["action"], command["room"]), ("provision", ROOM))
-        await self.receipt(command, Context(user_id=self.supervisor.id))
-        status, body = await asyncio.wait_for(pending, 3)
-        self.assertEqual(status, 200, body)
-        self.assertEqual(body["step_id"], "paired")
-        self.assertEqual(
-            body["description_placeholders"],
-            {"room": "Configured fixture room", "code": command["code"]},
+        status, confirm = await post(path, {"action": f"approve:{REQUEST_ID}"})
+        self.assertEqual((status, confirm["step_id"]), (200, "confirm"))
+        approval = asyncio.create_task(post(path, {"confirm": True}))
+        self.addAsyncCleanup(self.cancel_task, approval)
+        prepared = await self.next_write(2)
+        self.assertEqual(prepared["action"], "prepare")
+        await self.receipt(
+            prepared, Context(user_id=self.supervisor.id), {"room": ROOM, **rows["pending"][0]}
         )
-        self.assertNotIn(command["code"], repr(entry.as_dict()))
+        final = await self.next_write(3)
+        self.assertEqual(final["action"], "approve")
+        await self.receipt(
+            final,
+            Context(user_id=self.supervisor.id),
+            {
+                "ok": True,
+                "room": ROOM,
+                "requestId": REQUEST_ID,
+                "name": "iPad",
+                "status": "approved",
+            },
+        )
+        status, body = await asyncio.wait_for(approval, 3)
+        self.assertEqual((status, body["step_id"]), (200, "done"))
+        self.assertNotIn("code", str(body).lower())
+        self.assertNotIn(REQUEST_ID, repr(entry.as_dict()))
 
 
 if __name__ == "__main__":

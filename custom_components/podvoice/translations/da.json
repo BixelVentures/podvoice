@@ -2,37 +2,39 @@
   "options": {
     "step": {
       "init": {
-        "title": "Adgang til PodView-skærmen",
-        "description": "Par én browser med et konfigureret rum, eller tilbagekald dens adgang. Det kræver en administrator i Home Assistant.",
+        "title": "Adgang til PodView",
+        "description": "Vælg det faktiske rum i Home Assistant.",
         "data": {
-          "room": "Rum",
+          "room": "Rum"
+        }
+      },
+      "manage": {
+        "title": "Browserprofiler",
+        "description": "Afventende enheder og aktive profiler for **{room}**. Matchsignal er kun hjælp til at genkende skærmen.",
+        "data": {
           "action": "Handling"
         }
       },
       "confirm": {
-        "title": "Bekræft skærmadgang",
-        "description": "{action}: **{room}**. En ny parring erstatter rummets tidligere skærmadgang. Adgangen varer højst 30 dage og kan tilbagekaldes her når som helst.",
+        "title": "Godkend ændring",
+        "description": "**{action}** i **{room}**. {retention}",
         "data": {
-          "confirm": "Bekræft"
+          "confirm": "Godkend"
         }
       },
-      "paired": {
-        "title": "Par skærmen",
-        "description": "Rum: **{room}**. Åbn **Par skærm** i PodView i den browser, du vil bruge, og indtast denne kode én gang:\n\n`{code}`\n\nKoden udløber efter 10 minutter. Browseren kan forblive parret i højst 30 dage. Fjern adgangen ved at vælge **Tilbagekald skærmens adgang** i disse indstillinger. Del ikke koden."
-      },
-      "revoked": {
-        "title": "Skærmadgangen er tilbagekaldt",
-        "description": "Skærmadgangen til **{room}** er tilbagekaldt. Par browseren igen, hvis den skal have adgang."
+      "done": {
+        "title": "Ændringen er bekræftet",
+        "description": "Adgangen i **{room}** er opdateret."
       }
     },
     "error": {
-      "confirmation_required": "Bekræft, før du fortsætter."
+      "confirmation_required": "Godkend, før du fortsætter."
     },
     "abort": {
       "admin_required": "En aktiv Home Assistant-administrator skal åbne og gennemføre denne opsætning.",
       "no_rooms": "Der er ingen konfigurerede fysiske PodVoice-rum.",
-      "request_finished": "Anmodningen er allerede sendt. Start kun igen, hvis du vil erstatte den tidligere skærmadgang.",
-      "request_unconfirmed": "Anmodningen kunne ikke bekræftes. Der kan ikke vises en parringskode. Kontrollér tilføjelsens status, før du starter en ny anmodning."
+      "request_finished": "Denne handling er allerede sendt.",
+      "request_unconfirmed": "Handlingen kunne ikke bekræftes. Kontrollér den aktuelle liste i Home Assistant; send ikke blindt igen."
     }
   }
 }

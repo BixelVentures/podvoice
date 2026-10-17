@@ -27,6 +27,7 @@ from . import (
     podview_weather,
     podview_weather_brief,
 )
+from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection
 
 BRIDGE: web.AppKey = web.AppKey("podview")
@@ -35,6 +36,7 @@ _REVIEWED_MOVE_POLICY_REVISION: str | None = (
     "a674d94e377e8ba2b51ca4ea5f541370bd9dd7f2ecc6fabb2cf3e2f50cbdb5b4"
 )
 _CONTROLLER_COOKIE = "podview_controller"
+_REQUEST_COOKIE = "podview_controller_request"
 _ALLOWED_PHASES = {"IDLE", "LISTENING", "THINKING", "AI_SPEAKING", "LOUNGE_WINDOW"}
 
 
@@ -48,6 +50,15 @@ def _trusted(remote: str | None) -> bool:
 
 def _error(kind: str, status: int = 409) -> web.Response:
     return web.json_response({"ok": False, "error": kind, "retryAllowed": False}, status=status)
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate field")
+        result[key] = value
+    return result
 
 
 def _music_public(
@@ -223,19 +234,22 @@ class PodViewBridge:
         self.music_selection = MusicSelection()
         self._touch_music_contexts: dict[tuple, tuple[float, dict]] = {}
         self._revisions: dict[str, tuple[str, int]] = {}
-        self._grants: dict[str, tuple] = {}
+        # Legacy one-use code retains its room slot. Durable profiles have
+        # independent slots, so renewing one cannot replace another's grant.
+        self._grants: dict[str | tuple[str, str], tuple] = {}
         self._music_destinations: dict[tuple[str, str], dict] = {}
         self._voice_move_tasks: dict[str, dict] = {}
         self._music_move_fence: set[tuple[str, str]] = set()
         from .podview_queue import QueueBroker
 
         self.queue = QueueBroker(self)
-        self._receipts: dict[str, tuple[str, dict]] = {}
+        self._receipts: dict[tuple, tuple[str, dict]] = {}
         self._action_lock = asyncio.Lock()
         self._streams = 0
         self._music_cache: dict[tuple, tuple] = {}
         self._music_busy = False
         self._music_source_generation = 0
+        self._music_profile_generation: dict[str, int] = {}
         self._home_busy = False
         self._home_cache: dict[str, tuple] = {}
         self._home_revision = 0
@@ -245,13 +259,14 @@ class PodViewBridge:
         self._pairing_attempts = 0
         self._controller_enabled = controller_enabled is True
         self._controller_days = controller_days
-        self._controller_registry = None
+        self._controller_registry: ControllerRegistry | None = None
         self._controller_admin_state = None
-        self._controller_grants: dict[str, str] = {}
+        self._controller_grants: dict[str | tuple[str, str], str] = {}
+        self._controller_requests: dict[str, dict] = {}
+        self._controller_request_times: dict[str, list[float]] = {}
         self._controller_revocation_failed: set[str] = set()
+        self._controller_revoking: set[tuple[str, str]] = set()
         if self._controller_enabled and controller_store is not None:
-            from .podview_continuity import ControllerRegistry
-
             try:
                 self._controller_registry = ControllerRegistry(
                     controller_store, controller_generation, controller_days
@@ -324,17 +339,23 @@ class PodViewBridge:
         self._pairing_hash = ""
         return token
 
-    def grant_timer_control(self, room: str) -> str:
+    def grant_timer_control(self, room: str, identity: str | None = None) -> str:
         """Server owner only; HTTP pairing first proves administrator provisioned authority."""
         if room not in self.sessions:
             raise ValueError("unknown room")
+        if identity is not None and (room, identity) in self._controller_revoking:
+            raise ValueError("controller revocation pending")
         token = secrets.token_urlsafe(32)
         session = self.sessions[room]
         owner = getattr(getattr(session, "tools", None), "timers", None)
         if not owner or not owner.available(room):
             raise ValueError("timer owner unavailable")
-        self._controller_grants.pop(room, None)
-        self._grants[room] = (
+        slot: str | tuple[str, str] = (room, identity) if identity is not None else room
+        if identity is None:
+            self._controller_grants.pop(room, None)
+        else:
+            self._controller_grants[slot] = identity
+        self._grants[slot] = (
             token,
             session,
             owner,
@@ -344,19 +365,79 @@ class PodViewBridge:
         )
         return token
 
+    def _grant_slot(self, room: str, token: str) -> str | tuple[str, str] | None:
+        if not isinstance(token, str) or not token:
+            return None
+        for slot, grant in self._grants.items():
+            if (
+                slot == room or (isinstance(slot, tuple) and slot[0] == room)
+            ) and secrets.compare_digest(grant[0], token):
+                return slot
+        return None
+
+    def _grant_for_token(self, room: str, token: str) -> tuple | None:
+        slot = self._grant_slot(room, token)
+        return self._grants.get(slot) if slot is not None else None
+
+    def _room_grants(self, room: str):
+        return (
+            grant
+            for slot, grant in self._grants.items()
+            if slot == room or (isinstance(slot, tuple) and slot[0] == room)
+        )
+
+    def _music_scope(self, token: str) -> str:
+        return hashlib.sha256(token.encode()).hexdigest() if token else ""
+
+    def _advance_music_source(self, token: str) -> int:
+        if not token:
+            self._music_source_generation += 1
+            return self._music_source_generation
+        scope = self._music_scope(token)
+        generation = self._music_profile_generation.get(scope, 0) + 1
+        self._music_profile_generation[scope] = generation
+        return generation
+
+    def _music_source_current(self, token: str, generation: int) -> bool:
+        return (
+            self._music_profile_generation.get(self._music_scope(token), 0) == generation
+            if token
+            else self._music_source_generation == generation
+        )
+
+    def _retire_music_source(self, token: str) -> None:
+        scope = self._music_scope(token)
+        retired = {
+            key
+            for key, source in self.music_selection.sources.items()
+            if source.get("scope", "") == scope
+        }
+        self.music_selection.sources = {
+            key: source
+            for key, source in self.music_selection.sources.items()
+            if key not in retired
+        }
+        self.music_selection.tasks = {
+            key: task
+            for key, task in self.music_selection.tasks.items()
+            if task.get("candidateSetId") not in retired
+        }
+
     def _grant_current(self, room: str, token: str) -> bool:
         if room in self._controller_revocation_failed:
             return False
-        grant = self._grants.get(room)
+        slot = self._grant_slot(room, token)
+        grant = self._grants.get(slot) if slot is not None else None
         if not grant:
             return False
         secret, session, owner, epoch, binding, deadline = grant
-        identity = self._controller_grants.get(room)
+        identity = self._controller_grants.get(slot) if slot is not None else None
         if identity is not None:
             registry = self._controller_registry
             try:
                 if (
-                    not self._controller_enabled
+                    (room, identity) in self._controller_revoking
+                    or not self._controller_enabled
                     or registry is None
                     or not registry.current(identity, room, self.controller_pin(room))
                 ):
@@ -401,6 +482,207 @@ class PodViewBridge:
         )
         return hashlib.sha256(encoded.encode()).hexdigest()
 
+    def _controller_request_scope(self, room: str) -> tuple[ControllerRegistry, tuple, str]:
+        registry = self._controller_registry
+        if (
+            not self._controller_enabled
+            or registry is None
+            or room in self._controller_revocation_failed
+            or self.controls.policy.get("roomId") != room
+        ):
+            raise ValueError("controller unavailable")
+        return registry, self.controller_owner(room), self.controller_pin(room)
+
+    def _request_current(self, row: dict) -> bool:
+        try:
+            registry, owner, pin = self._controller_request_scope(row["room"])
+            return bool(
+                registry is row["registry"]
+                and self.boot_id == row["boot"]
+                and time.monotonic() < row["deadline"]
+                and owner[0] is row["owner"][0]
+                and owner[1] is row["owner"][1]
+                and owner[2:] == row["owner"][2:]
+                and pin == row["pin"]
+            )
+        except (OSError, ValueError, TypeError, KeyError):
+            return False
+
+    def request_controller(self, room: str, name: str) -> tuple[dict, str]:
+        registry, owner, pin = self._controller_request_scope(room)
+        registry.list_enrollments(room, pin)  # Missing/corrupt durable owner fails closed.
+        if not isinstance(name, str):
+            raise ValueError("invalid controller name")
+        name = name.strip()
+        if not 1 <= len(name) <= 48 or any(ord(char) < 32 or ord(char) == 127 for char in name):
+            raise ValueError("invalid controller name")
+        now = time.monotonic()
+        self._controller_requests = {
+            key: row
+            for key, row in self._controller_requests.items()
+            if row["deadline"] > now and self._request_current(row)
+        }
+        times = [t for t in self._controller_request_times.get(room, []) if now - t < 60]
+        if (
+            len(self._controller_requests) >= 16
+            or sum(row["room"] == room for row in self._controller_requests.values()) >= 4
+            or len(times) >= 5
+        ):
+            raise ValueError("controller request capacity")
+        self._controller_request_times[room] = [*times, now]
+        request_id = secrets.token_hex(16)
+        proof = secrets.token_urlsafe(32)
+        active_signals = {
+            row["matchSignal"] for row in self._controller_requests.values() if row["room"] == room
+        }
+        for _ in range(3):
+            match_signal = "".join(
+                secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(6)
+            )
+            if match_signal not in active_signals:
+                break
+        else:
+            raise ValueError("controller signal unavailable")
+        self._controller_requests[request_id] = {
+            "room": room,
+            "name": name,
+            "matchSignal": match_signal,
+            "proof": hashlib.sha256(proof.encode()).digest(),
+            "deadline": now + 300,
+            "status": "pending",
+            "registry": registry,
+            "owner": owner,
+            "pin": pin,
+            "boot": self.boot_id,
+        }
+        return {
+            "ok": True,
+            "requestId": request_id,
+            "matchSignal": match_signal,
+            "expiresIn": 300,
+        }, proof
+
+    def list_controller_requests(self, room: str) -> dict:
+        registry, _, pin = self._controller_request_scope(room)
+        pending = [
+            {
+                "requestId": request_id,
+                "name": row["name"],
+                "matchSignal": row["matchSignal"],
+                "expiresIn": max(0, min(300, int(row["deadline"] - time.monotonic()))),
+                "status": row["status"],
+            }
+            for request_id, row in self._controller_requests.items()
+            if row["room"] == room
+            and row["status"] in {"pending", "approved"}
+            and self._request_current(row)
+        ]
+        return {"pending": pending, "enrolled": registry.list_enrollments(room, pin)}
+
+    def approve_controller_request(self, room: str, request_id: str, registry) -> dict:
+        row = self._controller_requests.get(request_id)
+        if (
+            not isinstance(request_id, str)
+            or re.fullmatch(r"[a-f0-9]{32}", request_id) is None
+            or row is None
+            or row["room"] != room
+            or row["registry"] is not registry
+            or row["status"] != "pending"
+            or not self._request_current(row)
+        ):
+            raise ValueError("controller request unavailable")
+        row["status"] = "approved"
+        return {"ok": True, "status": "approved", "requestId": request_id, "name": row["name"]}
+
+    def claim_controller_request(
+        self, room: str, request_id: str, proof: str
+    ) -> tuple[dict, tuple | None]:
+        row = self._controller_requests.get(request_id)
+        if (
+            not isinstance(request_id, str)
+            or re.fullmatch(r"[a-f0-9]{32}", request_id) is None
+            or row is None
+            or row["room"] != room
+            or not isinstance(proof, str)
+            or re.fullmatch(r"[A-Za-z0-9_-]{43}", proof) is None
+            or not secrets.compare_digest(row["proof"], hashlib.sha256(proof.encode()).digest())
+            or not self._request_current(row)
+        ):
+            raise ValueError("controller claim unavailable")
+        if row["status"] == "pending":
+            return {
+                "ok": True,
+                "status": "pending",
+                "expiresIn": max(0, min(300, int(row["deadline"] - time.monotonic()))),
+            }, None
+        if row["status"] == "approved":
+            # No await between durable enrollment and the browser-bound replay record.
+            token, identity, expiry = row["registry"].enroll(
+                room, row["pin"], name=row["name"], persistent=True
+            )
+            try:
+                if not self._request_current(row):
+                    raise ValueError("controller owner changed")
+                action = self.grant_timer_control(room, identity)
+                if not self._grant_current(room, action):
+                    raise ValueError("controller grant unavailable")
+            except (OSError, ValueError, TypeError, KeyError):
+                row["registry"].revoke(identity, room=room)
+                self._grants.pop((room, identity), None)
+                self._controller_grants.pop((room, identity), None)
+                raise
+            row.update(
+                status="connected", token=token, identity=identity, action=action, expiry=expiry
+            )
+        if row["status"] != "connected" or not row["registry"].current(
+            row["identity"], room, row["pin"]
+        ):
+            raise ValueError("controller claim unavailable")
+        if (room, row["identity"]) in self._controller_revoking:
+            raise ValueError("controller revocation pending")
+        if not self._grant_current(room, row["action"]):
+            row["action"] = self.grant_timer_control(room, row["identity"])
+        return {"ok": True, "status": "connected"}, (row["token"], row["action"], row["expiry"])
+
+    def fence_controller(self, room: str, identity: str) -> None:
+        if (
+            not isinstance(room, str)
+            or not 1 <= len(room) <= 160
+            or not isinstance(identity, str)
+            or re.fullmatch(r"[a-f0-9]{32}", identity) is None
+        ):
+            raise ValueError("invalid controller identity")
+        self._controller_revoking.add((room, identity))
+
+    def unfence_controller(self, room: str, identity: str) -> None:
+        self._controller_revoking.discard((room, identity))
+
+    def revoke_controller(self, room: str, identity: str) -> bool:
+        registry = self._controller_registry
+        if (
+            registry is None
+            or not isinstance(room, str)
+            or not 1 <= len(room) <= 160
+            or not isinstance(identity, str)
+            or re.fullmatch(r"[a-f0-9]{32}", identity) is None
+        ):
+            return False
+        slot = (room, identity)
+        # Distinguish an unknown identity using the registry's validated read.
+        # A corrupt/missing store or clock failure is a failed revocation and
+        # must poison room authority until a durable admin repair succeeds.
+        try:
+            known = any(row["id"] == identity for row in registry.list_enrollments(room, "0" * 64))
+            if not known:
+                return False
+            registry.revoke(identity, room=room)
+        except (OSError, ValueError, TypeError, KeyError):
+            self._controller_revocation_failed.add(room)
+            return False
+        self._grants.pop(slot, None)
+        self._controller_grants.pop(slot, None)
+        return True
+
     def revoke(self, room: str) -> bool:
         """Return explicit persistence outcome; a failed commit poisons this room.
 
@@ -420,8 +702,13 @@ class PodViewBridge:
             else:
                 committed = True
                 self._controller_revocation_failed.discard(room)
-        self._controller_grants.pop(room, None)
-        self._grants.pop(room, None)
+        for slot in list(self._grants):
+            if slot == room or (isinstance(slot, tuple) and slot[0] == room):
+                self._grants.pop(slot, None)
+                self._controller_grants.pop(slot, None)
+        self._controller_requests = {
+            key: row for key, row in self._controller_requests.items() if row["room"] != room
+        }
         self.music_selection.sources.clear()
         self.music_selection.tasks.clear()
         return committed
@@ -438,14 +725,15 @@ class PodViewBridge:
                     for row in self.controls.policy.get("music", [])
                 )
             )
-            for room, grant in self._grants.items()
+            for slot, grant in self._grants.items()
+            for room in [slot[0] if isinstance(slot, tuple) else slot]
         )
 
     def _voice_move_current(
         self, room: str, context: object, task: dict, current, *, approved_turn: bool = False
     ) -> bool:
         """Keep the original answer or fresh proposal under one Live approval owner."""
-        grant = self._grants.get(room)
+        grant = self._grant_for_token(room, task["token"])
         session = self.sessions.get(room)
         if (
             not current()
@@ -482,7 +770,9 @@ class PodViewBridge:
         """Project one server-owned option per exact configured destination."""
         from . import podview_speakers
 
-        grant = self._grants.get(room)
+        grant = next(
+            (item for item in self._room_grants(room) if self._grant_current(room, item[0])), None
+        )
         if grant is None or not self.controls.move.available or not current():
             return {"ok": False, "error_kind": "move_unavailable"}
         sources = podview_room_media.room_bindings(self, room)
@@ -659,7 +949,27 @@ class PodViewBridge:
         self, room: str, context: object, current, *, allow_consumed: bool = False
     ) -> tuple[dict, dict, tuple, str] | None:
         session = self.sessions.get(room)
-        grant = self._grants.get(room)
+        candidates = [
+            task
+            for task in self.music_selection.tasks.values()
+            if task["context"]["roomId"] == room
+            and isinstance(task.get("authority"), tuple)
+            and task["authority"]
+            and any(item is task["authority"][-1] for item in self._room_grants(room))
+        ]
+        matching = [
+            task
+            for task in candidates
+            if task["context"].get("revisionScope") == "answer_task"
+            and task["context"]["sessionId"] == getattr(context, "session_id", None)
+        ]
+        if not matching:
+            matching = candidates
+        task = matching[0] if len(matching) == 1 else None
+        authority = task.get("authority") if isinstance(task, dict) else None
+        grant = authority[-1] if isinstance(authority, tuple) and authority else None
+        if grant is not None and not any(item is grant for item in self._room_grants(room)):
+            grant = None
         if (
             session is None
             or grant is None
@@ -670,7 +980,6 @@ class PodViewBridge:
         ):
             return None
         token = grant[0]
-        task = next(iter(self.music_selection.tasks.values()), None)
         if (
             task is None
             or task["context"]["roomId"] != room
@@ -920,9 +1229,6 @@ class PodViewBridge:
         result["controllerContinuity"] = {
             "enabled": self._controller_enabled,
             "available": self._controller_registry is not None,
-            "maxDays": self._controller_days
-            if type(self._controller_days) is int and 1 <= self._controller_days <= 30
-            else 0,
         }
         # No grant is disclosed to viewers. A paired controller supplies its own token.
         encoded = json.dumps(result, sort_keys=True, allow_nan=False)
@@ -943,14 +1249,16 @@ class PodViewBridge:
         if set(body) != required or not isinstance(body.get("roomId"), str):
             return {"ok": False, "error": "invalid_action", "retryAllowed": False}
         room = body["roomId"]
-        grant = self._grants.get(room)
+        grant = self._grant_for_token(room, token)
         if not self._grant_current(room, token):
             return {"ok": False, "error": "control_not_paired", "retryAllowed": False}
         request_id = body["requestId"]
         if not isinstance(request_id, str) or not 1 <= len(request_id) <= 120:
             return {"ok": False, "error": "invalid_request", "retryAllowed": False}
         fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
-        key = room + ":" + request_id
+        # A renewed action cookie must not reopen an unknown timer command.
+        # The durable profile identity is the replay owner across renewals.
+        key = (room, self._grant_slot(room, token), request_id)
         async with self._action_lock:
             if key in self._receipts:
                 before, receipt = self._receipts[key]
@@ -1004,7 +1312,7 @@ class PodViewBridge:
 
             def current():
                 return (
-                    self._grants.get(room) == grant
+                    self._grant_for_token(room, token) is grant
                     and self._grant_current(room, token)
                     and owner.available(room)
                     and owner.snapshots[room].get("epoch") == epoch
@@ -1177,9 +1485,19 @@ async def _pair(request: web.Request) -> web.Response:
                 or bridge.controller_pin(body["roomId"]) != pin
             ):
                 raise ValueError("controller owner changed")
-            bridge._controller_grants[body["roomId"]] = enrollment[1]
+            # The one-use legacy grant is only a staging fence. The cookie
+            # returned below belongs to this enrolled identity's own slot.
+            token = bridge.grant_timer_control(body["roomId"], enrollment[1])
+            bridge._grants.pop(body["roomId"], None)
+            bridge._controller_grants.pop(body["roomId"], None)
         except (OSError, ValueError, TypeError, KeyError):
-            bridge.revoke(body["roomId"])
+            bridge._grants.pop(body["roomId"], None)
+            bridge._controller_grants.pop(body["roomId"], None)
+            if enrollment is not None:
+                try:
+                    registry.revoke(enrollment[1], room=body["roomId"])
+                except (OSError, ValueError, TypeError, KeyError):
+                    bridge._controller_revocation_failed.add(body["roomId"])
             return _error("controller_enrollment_denied", 403)
     response = web.json_response(
         {
@@ -1252,17 +1570,17 @@ async def _controller_renew(request: web.Request) -> web.Response:
         if (
             bridge._controller_registry is not registry
             or room in bridge._controller_revocation_failed
+            or (room, identity) in bridge._controller_revoking
             or not bridge._controller_enabled
             or not bridge.controller_owner_current(room, owner_binding)
             or bridge.controller_pin(room) != pin
             or not registry.current(identity, room, pin)
         ):
             raise ValueError("controller owner changed")
-        token = bridge.grant_timer_control(room)
-        bridge._controller_grants[room] = identity
+        token = bridge.grant_timer_control(room, identity)
         if not bridge._grant_current(room, token):
-            bridge._grants.pop(room, None)
-            bridge._controller_grants.pop(room, None)
+            bridge._grants.pop((room, identity), None)
+            bridge._controller_grants.pop((room, identity), None)
             raise ValueError("controller revoked")
     except (OSError, ValueError, TypeError, KeyError):
         return _error("controller_renewal_denied", 403)
@@ -1279,6 +1597,101 @@ async def _controller_renew(request: web.Request) -> web.Response:
         secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https",
         path=prefix + "/view/",
     )
+    if expiry is None:
+        response.set_cookie(
+            _CONTROLLER_COOKIE,
+            request.cookies.get(_CONTROLLER_COOKIE, ""),
+            max_age=400 * 86400,
+            httponly=True,
+            samesite="Strict",
+            secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https",
+            path=prefix + "/view/",
+        )
+    return response
+
+
+async def _controller_request(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    if request.content_length is None or request.content_length > 256:
+        return _error("bounded_body_required", 413)
+    prefix = request.headers.get("X-Ingress-Path", "")
+    if prefix and re.fullmatch(r"/api/hassio_ingress/[A-Za-z0-9_-]+", prefix) is None:
+        return _error("invalid_ingress_path", 403)
+    try:
+        body = json.loads(await request.text(), object_pairs_hook=_unique_json_object)
+        if (
+            not isinstance(body, dict)
+            or set(body) != {"bootId", "roomId", "name"}
+            or body["bootId"] != request.app[BRIDGE].boot_id
+            or not isinstance(body["roomId"], str)
+            or not isinstance(body["name"], str)
+        ):
+            raise ValueError
+        result, proof = request.app[BRIDGE].request_controller(body["roomId"], body["name"])
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError):
+        return _error("controller_request_denied", 403)
+    response = web.json_response(result, headers={"Cache-Control": "no-store"})
+    response.set_cookie(
+        _REQUEST_COOKIE,
+        proof,
+        max_age=300,
+        httponly=True,
+        samesite="Strict",
+        secure=request.secure or request.headers.get("X-Forwarded-Proto") == "https",
+        path=prefix + "/view/",
+    )
+    return response
+
+
+async def _controller_claim(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    if request.content_length is None or request.content_length > 256:
+        return _error("bounded_body_required", 413)
+    prefix = request.headers.get("X-Ingress-Path", "")
+    if prefix and re.fullmatch(r"/api/hassio_ingress/[A-Za-z0-9_-]+", prefix) is None:
+        return _error("invalid_ingress_path", 403)
+    bridge = request.app[BRIDGE]
+    try:
+        body = json.loads(await request.text(), object_pairs_hook=_unique_json_object)
+        if (
+            not isinstance(body, dict)
+            or set(body) != {"bootId", "roomId", "requestId"}
+            or body["bootId"] != bridge.boot_id
+            or not isinstance(body["roomId"], str)
+            or not isinstance(body["requestId"], str)
+        ):
+            raise ValueError
+        result, cookies = bridge.claim_controller_request(
+            body["roomId"], body["requestId"], request.cookies.get(_REQUEST_COOKIE, "")
+        )
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError):
+        return _error("controller_claim_denied", 403)
+    response = web.json_response(result, headers={"Cache-Control": "no-store"})
+    if cookies is not None:
+        controller_token, action_token, expiry = cookies
+        secure = request.secure or request.headers.get("X-Forwarded-Proto") == "https"
+        response.set_cookie(
+            _CONTROLLER_COOKIE,
+            controller_token,
+            max_age=max(0, int(expiry - time.time())) if expiry is not None else 400 * 86400,
+            httponly=True,
+            samesite="Strict",
+            secure=secure,
+            path=prefix + "/view/",
+        )
+        response.set_cookie(
+            _PAIR_COOKIE,
+            action_token,
+            max_age=300,
+            httponly=True,
+            samesite="Strict",
+            secure=secure,
+            path=prefix + "/view/",
+        )
     return response
 
 
@@ -1352,7 +1765,12 @@ def _music_search_context(
                 "inputRevision": 1,
                 "revision": 1,
             }
-            bridge._touch_music_contexts = {key: (time.monotonic() + 60, touch)}
+            bridge._touch_music_contexts = {
+                existing: value
+                for existing, value in bridge._touch_music_contexts.items()
+                if existing[-1] != key[-1]
+            }
+            bridge._touch_music_contexts[key] = (time.monotonic() + 60, touch)
         elif saved is not None and saved[0] > time.monotonic():
             touch = saved[1]
         else:
@@ -1432,7 +1850,7 @@ def _selection_rule_current(
     """An old offer cannot outlive its exact room grant or action rule."""
     rules = bridge.controls.policy.get("music")
     return bool(
-        bridge._grants.get(room) is grant
+        any(item is grant for item in bridge._room_grants(room))
         and not any(key[0] == room for key in bridge._music_move_fence)
         and bridge.controls.policy.get("roomId") == room
         and isinstance(rules, list)
@@ -1559,7 +1977,7 @@ async def _music(request: web.Request) -> web.Response:
         and bridge._grant_current(room, token)
         and bridge.controls.selection_allowed(room, token)
     )
-    selection_grant = bridge._grants.get(room) if selection_requested else None
+    selection_grant = bridge._grant_for_token(room, token) if selection_requested else None
     context_query = (query or "") if kind == "search" else f"{kind}:{query or 'collection'}"
     search_context = (
         _music_search_context(bridge, room, account, context_query, token)
@@ -1608,11 +2026,9 @@ async def _music(request: web.Request) -> web.Response:
     bridge._music_busy = True
     source_generation = None
     if selection_requested:
-        bridge._music_source_generation += 1
-        source_generation = bridge._music_source_generation
+        source_generation = bridge._advance_music_source(token)
         # An admitted refresh replaces pending intent before its first await.
-        bridge.music_selection.sources.clear()
-        bridge.music_selection.tasks.clear()
+        bridge._retire_music_source(token)
     try:
         if selection_requested:
             assert account is not None
@@ -1649,8 +2065,8 @@ async def _music(request: web.Request) -> web.Response:
                     result["candidateSet"] = candidate_set
                 else:
                     if (
-                        source_generation == bridge._music_source_generation
-                        and bridge._grants.get(room) is selection_grant
+                        bridge._music_source_current(token, source_generation)
+                        and bridge._grant_for_token(room, token) is selection_grant
                         and bridge._grant_current(room, token)
                         and bridge.controls.selection_allowed(room, token)
                         and binding == _music_binding(bridge, room)
@@ -1662,6 +2078,7 @@ async def _music(request: web.Request) -> web.Response:
                             result["data"],
                             binding,
                             kind=kind,
+                            scope=bridge._music_scope(token),
                         )
                         if identifier is not None:
                             result["candidateSet"] = (
@@ -1715,11 +2132,10 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     if bridge._music_busy:
         return _error("music_busy", 429)
     binding = _music_binding(bridge, room)
-    grant = bridge._grants.get(room)
+    grant = bridge._grant_for_token(room, token)
     writable = bridge.controls.selection_allowed(room, token, "play_context")
     preview_voice = bridge.snapshot(room).get("voice", {})
-    bridge._music_source_generation += 1
-    generation = bridge._music_source_generation
+    generation = bridge._advance_music_source(token)
     context = (
         _music_search_context(bridge, room, account, f"{kind}:collection", token, mint_touch=True)
         if writable
@@ -1730,13 +2146,13 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         return bool(
             bridge.tools is tools
             and binding == _music_binding(bridge, room)
-            and bridge._music_source_generation == generation
+            and bridge._music_source_current(token, generation)
             and kind in tools.podview_music_reads()
             and (writable or bridge.snapshot(room).get("voice", {}) == preview_voice)
             and (
                 not writable
                 or (
-                    bridge._grants.get(room) is grant
+                    bridge._grant_for_token(room, token) is grant
                     and bridge.controls.selection_allowed(room, token, "play_context")
                     and _music_search_context(bridge, room, account, f"{kind}:collection", token)
                     == context
@@ -1746,8 +2162,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
 
     bridge._music_busy = True
     if writable:
-        bridge.music_selection.sources.clear()
-        bridge.music_selection.tasks.clear()
+        bridge._retire_music_source(token)
     diagnostic, diagnostic_token = diagnostic_log.begin()
     total_deadline = None
 
@@ -1895,7 +2310,11 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 )
             assert context is not None
             identifier = bridge.music_selection.register(
-                context, {"tracks": rows}, binding, kind=kind
+                context,
+                {"tracks": rows},
+                binding,
+                kind=kind,
+                scope=bridge._music_scope(token),
             )
             if identifier is None:
                 return failed(f"{kind}_source_rejected")
@@ -2017,7 +2436,7 @@ async def _music_selection(request: web.Request) -> web.Response:
         if rule is None:
             return _error("target_not_granted", 403)
         native_binding = (rule["nativeRoomId"], rule["nativeHomepodId"])
-        grant = bridge._grants.get(room)
+        grant = bridge._grant_for_token(room, token)
         if grant is None:
             return _error("music_selection_not_paired", 403)
 
@@ -2384,6 +2803,8 @@ def mount(
             web.post("/view/api/control/setup", _control),
             web.post("/view/api/control/actions", _control),
             web.post("/view/api/pair", _pair),
+            web.post("/view/api/controller/request", _controller_request),
+            web.post("/view/api/controller/claim", _controller_claim),
             web.post("/view/api/controller/renew", _controller_renew),
             web.get("/view/api/music", _music),
             web.post("/view/api/music/queue/offer", queue_http),
