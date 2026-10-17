@@ -1,3 +1,17 @@
+# Aktuel levering · 17. oktober 2026 · 2.0.37 installeret på Green
+
+Lead v2.X. PR #181 er merget som `3c95be311fe1622655ab8bf028d697523343e480`; det reviewede tree er `7249331a08d21edd2adef85ba8552fd0c92016ad`. Officiel PR-CI #635 og main-CI/publicering #636 er grønne. GitHub-release 2.0.37 er publiceret; ARM64-image har digest `sha256:64a51b6b59b3de1d149d56f1a154d4797cd14e593eadecf2db9c73c11fec103a` og samme merge-identitet i OCI-revision/PODVOICE_GIT_SHA.
+
+Supervisor viser **PodVoice 2.0.37 Kører**, og den faktiske native brugerflade viser **v2.0.37 · status live**. Backup var valgt ved opdateringen. Alle seks eksisterende Supervisor-politikfelters rå hashes er identiske før/efter; udvidet enhedsstyring og præcis de samme 11 tilladte Roborock-entiteter er bevaret. Speakers 0.26.24, Control 0.10.16 og PodVoice HA-integration 0.1.2 er ikke ændret i denne opdatering.
+
+**Faktisk Green-UI:** Den friske uparrede visning viser den tomme musikafspiller med knappen helt inde i kortet: viewport 1200×1038, kort 390×171,1875 px, knap 262×48 px og min-height 136 px. #179 er lukket på dette konkrete UI-bevis. Den skrivebeskyttede højttalerliste viser de tre konfigurerede HomePods; rumskift er deaktiveret uden controllerparring. Ingen afspilning, musikflytning eller robotkommando blev udført i denne kontrol.
+
+**Åbent:** Brugeren har bekræftet, at Voice PE ikke er tilgængelig. Den godkendte robotaktivering er gemt, men den tidligere parringsanmodning blev afvist uden vist kode; dens private tilstandseffekt er ukendt, og den er ikke gentaget. Hele den gemte kontrolpolitik består validatoren; offline/fresh-owner er en hypotese, ikke en bevist afvisningsgren. #175 og den samlede musik-/robot-/timerbetjening står åbne. Full-duplex-afbrydelse, semantisk afslutning/næste wake, hørbar alarm/Stop, musik/duck/recovery, fysisk latency, platformaccept og stabilitetsobservation mangler fortsat samlet aktuel accept. Installeret rootfs-identitet er ikke aflæst. Epics #94/#95/#96 er ikke afsluttet. Mobil, native GPT-Live-webudforskning og Frameo-kontinuitet #180 er udskudt.
+
+Følgende beslutningsposter er bevaret som historik; deres planstatus gælder tidspunktet for posten. Ovenstående er den aktuelle leveringskvittering.
+
+---
+
 # Leadbeslutning · bind uafhængigt review til samlet 36-kilde
 
 Root har accepteret det samlede, uafhængige kilde-review `/private/tmp/pv36-polish-combined-independent-review.json` (SHA-256 `1db64d9b81645c43d0aea5cc398debed7a0b43ef6154043b91d84abfe9c2cdc9`). Bind kun de eksakte reviewer-, manifest- og profilpins samt én aktiv 36-admissionsrecord til den allerede frosne komposition. Kildens 64 ændringsstier, 27 produktionsfiler, 26 regressioner, 241 runtimefiler og 135 assets ændres ikke ved denne binding. Dette er kildeadmission; officiel CI, udgivelse, Green-installation, browser-/provideroplevelse og faktiske robot-/lydhandlinger kræver fortsat særskilt bevis og V2-operatørens kontrol.
