@@ -26,7 +26,7 @@ from scripts.dev_cycle import (
     validate_cache_storage,
 )
 
-INVENTORY = ("live_status", "daily_ui", "wake_words", "settings_dirty")
+INVENTORY = ("live_status", "daily_ui", "wake_words", "settings_dirty", "setup_flow")
 NODE_VERSION = "v24.19.0"
 PLAYWRIGHT_VERSION = "1.62.1"
 CHROMIUM_REVISION = "1234"
@@ -483,6 +483,9 @@ def run_browser_gate(root: Path, env: dict[str, str], timeout: int) -> None:
         raise BrowserGateError("browser candidate Git identity could not be verified") from exc
     source_paths = [
         "podvoice/gatekeeper/static/index.html",
+        "podvoice/gatekeeper/static/podview/setup.js",
+        "podvoice/gatekeeper/static/podview/podvoice-transport.js",
+        "podvoice/gatekeeper/static/podview/request-deadline.js",
         "scripts/browser_gate.py",
         "scripts/dev_cycle.py",
         "tests/browser/ownership_registry.cjs",

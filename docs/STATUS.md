@@ -1,3 +1,39 @@
+# Aktiv leadbeslutning · 2.0.40 Chrome-parring · 17. oktober 2026
+
+Lead: denne PodVoice-chat. Installeret 2.0.39 (merge97e4b44, tree3a5bc3ce111733fa984cd2a70d6c67d4ddcbbdbd) og native HA-integration0.1.3 er faktisk verificeret på Green. CI643 og main644/publicering bestod; OCI index sha256:babb39da6c4b7b957e9bcc946ef6f9d2fea4c9a65815de11ccb53a4354ccc0b4. Seks policy-hashes, udvidet enhedsstyring og de samme11 robotentiteter er bevaret. Mac-parring og musik-/robot-/timerbetjening er IKKE accepteret.
+
+Observeret fejl: normal Chrome-skærmopsætning opretter anmodningen og viser Afventer godkendelse, men går aldrig videre. Direkte browserkonsol viser TypeError: Illegal invocation i SetupFlow.fail setup.js81, kaldt fra submit54. Source viser bare Window-timerfunktioner gemt på flowet og kaldt med flowet som receiver. Falsificerbar årsag: schedule kaster efter pending-render; catch kalder cancel, som også kaster. Derfor starter hverken claim-poll eller deadline-UI. Uafhængig Sol-kildeanalyse bekræfter kæden. Lukket HA-dialog beviser ikke godkendelse: approved-unclaimed vises ikke i HA-menuen; efter udløb er status ukendt. Ingen blind approval/claim-gentagelse.
+
+Berørt kæde: normal ingress → navngiven browseranmodning → samme-browser proof → faktisk HA-admin-godkendelse → timerdrevet claim → autoritativ renewal → automatisk PodView-navigation. Ét trin før/efter fejlen samt failure/close/pagehide/expiry undersøges. Invarianter: HA-admin ejer samtykke, HttpOnly-proof og eksisterende rum/policy/owner/Core-binding bevares; ukendt claim må ikke genafspilles. Voice PE GPT-Live/full-duplex, lyd, mic, værktøjer, close/rearm og Talk er uændrede. Ingen providerkald, kvote-, timeout- eller rettighedsudvidelse.
+
+Planlagt mindst mulige rettelse: canonical PodView-ejer binder browserens schedule/cancel gennem wrappers. Regression skal køre actual SetupFlow med rigtige browser-timere, demonstrere baselinefejlen og efter rettelse pending-poll, udløb og close uden TypeError; eksisterende claim/renewal/ukendt-outcome-regressioner genbruges. Uafhængigt delta-review, formatter/lint, exact40-admission og officiel kandidat-CI før én samlet udgivelse/installation. Rollback: installeret39, som ærligt har fejlet parring; rollback er ikke fysisk accept. Native0.1.3 og alle policies bevares. Ingen ekstra featurebundt i den akutte rettelse. Faktiske resultater tilføjes her før freeze.
+
+Canonical PodView-rettelse er adopteret byteidentisk: setup.js SHA256 a7dcf1dfa0daf77c9547cb98c8ddc7ba1e61e91683b7754c8349b163db362059; kun defaults for schedule/cancel bruger wrappers omkring globalThis.setTimeout/clearTimeout. Asset-manifest SHA256 f1ee458b46d67f67d3a644d1bbfd12228fe7f92cc1093ff009365e168f794a72 ændrer kun setup-posten; de øvrige134 assets er uændrede. PodView-rootens uafhængige kilde-GO,18 fokuserede tests og inert faktisk Chrome-årsagsprøve er modtaget: baseline giver Illegal invocation, rettelsen viser kendt afvisning og tillader nyt eksplicit forsøg uden undtagelsen. Det er browser-/kildebevis og ikke Green-parring eller hjemmebetjening. Den permanente tests/browser/setup_flow.cjs er registreret i den eksisterende officielle UI-gate og består med rigtige Chromium-timere på kandidatens faktiske ES-modul. Samme test mod uændret39 fejler med den observerede Illegal invocation. Den målrettede inventory-unit, Ruff lint/format, JavaScript-syntaks og diff-whitespace består. Source-GO er re-pinnet til canonical setup og manifest. Uafhængig final tooling-/binding-GO er modtaget; exact40-admission og seks fokuserede admissioncases består på Python3.12. Officiel CI, publicering, installation og live parring/betjening afventer. Brugeren har udtrykkeligt sagt, at den givne Macbook-godkendelse skal bruges videre; samme identitet/rettigheder bevares, ingen tavs udvidelse.
+
+
+
+<!-- podview40-admission
+{
+  "base_tip": "97e4b44fd5299136e562d5eebf0076c8ebf83bb2",
+  "config_fingerprint": "a324db3dd65153ecc184a8cefc97fbdd41ae335570b040609154d469abce25a8",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "fingerprint": "70ca15792e70e7d4777015b380872e94175f734979a9a9c8c233401a28e40da6",
+  "kind": "podvoice40_browser_timer_callback_wrappers",
+  "manifest_fingerprint": "60d5896ccb630c45316d77f78008d49e4a4e1c249ede2ccd77e2bbf53d7a9085",
+  "merge_base": "97e4b44fd5299136e562d5eebf0076c8ebf83bb2",
+  "policy_fingerprint": "9b4fab3445f54b16708af27fe25a6670824ee90632678306c01ae9728656455d",
+  "rationale": "Independent production source GO and tooling structure GO. The real Chromium SetupFlow regression passes with the candidate and reproduces TypeError: Illegal invocation against unchanged39. Exact two-file production scope, six regressions, 241 runtime files and 135 assets are pinned; native HA integration and authority remain unchanged. Focused admission and historical39 checks pass. Official CI, publication, installation and Mac pairing acceptance remain separate.",
+  "regression_fingerprint": "d96d416ef346d10bc18ab6770a6742b6faffaaf68a93638e289dc0161edb400d",
+  "reviewer": "Independent /root/pairing_pending_audit production and /root/release_readiness tooling review40",
+  "runtime_fingerprint": "f8fc5d38ddb5cd5d09168d66868ff2696eebcba6cd5c82accfd90239c4cc3a4b",
+  "tooling_fingerprint": "48b9c05654ab23840201b4a0eb0b9ac7cb54ca17b0a056487237281367ed5805",
+  "version": 17
+}
+-->
+---
+
 # Aktiv leadbeslutning før kode · enkel HA-godkendelse af to browserprofiler · 17. oktober 2026
 
 Lead: denne PodVoice-chat. Status: planlagt samlet kandidat 2.0.39 efter brugerens “Go go”; ikke udgivet eller installeret. Green kører fortsat faktisk publiceret 2.0.38 (merge f0e3d62; PR182, CI639/640 grønne); seks policies og elleve robot-entiteter er bevaret. Ingen ny adgang eller hjemmehandling aktiveres under udvikling. Fysisk betjening, alarm/Stop, samtale og latency står fortsat åbne.

@@ -1,3 +1,8 @@
+## 2.0.40 — Chrome-parring
+
+- Ret skærmopsætningens binding af browserens timere, så godkendelsesventen kan fortsætte til claim og åbne PodView. Ukendt adgang genafspilles fortsat ikke.
+- Bevar HA-integration0.1.3, alle gemte policies, profilgrænser og stemmens GPT-Live-adfærd. Faktisk Green-parring og betjening kræver kontrol på denne version.
+
 ## 2.0.39 — enkel skærmgodkendelse
 
 - Bed om adgang fra PodView og godkend den navngivne skærm i Home Assistant. Manuel kopiering af en parringskode bortfalder; PodView åbner efter bekræftet adgang.
