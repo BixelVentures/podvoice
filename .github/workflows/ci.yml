@@ -16,10 +16,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  promotion:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      reuse: ${{ steps.evaluate.outputs.reuse }}
+    steps:
+      - id: checkout
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - id: evaluate
+        continue-on-error: true
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.checkout.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 -m scripts.ci_promotion
+
   scope:
+    needs: [promotion]
     runs-on: ubuntu-latest
     outputs:
       tooling_only: ${{ steps.scope.outputs.tooling_only }}
+      ci_control_only: ${{ steps.scope.outputs.ci_control_only }}
       addon_changed: ${{ steps.scope.outputs.addon_changed }}
       pr_addon_changed: ${{ steps.scope.outputs.pr_addon_changed }}
     steps:
@@ -34,7 +61,10 @@ jobs:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 scripts/ci_scope.py
       - name: Exact candidate admission (historical31/32, strict34-42)
-        if: steps.scope.outputs.tooling_only != 'true'
+        if: >-
+          steps.scope.outputs.tooling_only != 'true' &&
+          steps.scope.outputs.ci_control_only != 'true' &&
+          needs.promotion.outputs.reuse != 'true'
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
@@ -66,17 +96,22 @@ jobs:
           fi
 
   lint-test:
-    needs: [scope]
+    needs: [scope, promotion]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         cohort: ${{ fromJSON(needs.scope.outputs.tooling_only == 'true' && '["unit"]' || '["unit", "rest"]') }}
     steps:
+      - name: Reuse previously passed exact-tree PR checks
+        if: needs.promotion.outputs.reuse == 'true'
+        run: echo "Required PR checks already passed for this exact tree."
       - uses: actions/checkout@v4
+        if: needs.promotion.outputs.reuse != 'true'
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
+        if: needs.promotion.outputs.reuse != 'true'
         with:
           python-version: "3.12"
           cache: pip
@@ -84,32 +119,32 @@ jobs:
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
       - name: Install development-check dependencies
-        if: needs.scope.outputs.tooling_only == 'true'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only == 'true'
         run: pip install -r podvoice/requirements-dev.txt
       - name: Install product dependencies
-        if: needs.scope.outputs.tooling_only != 'true'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
         run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
       - name: Check development tools and documentation
-        if: needs.scope.outputs.tooling_only == 'true'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only == 'true'
         run: |
-          ruff check scripts/dev_cycle.py scripts/ci_scope.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
-          ruff format --check scripts/dev_cycle.py scripts/ci_scope.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
-          python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_release_contract.py
+          ruff check scripts/dev_cycle.py scripts/ci_scope.py scripts/ci_promotion.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
+          ruff format --check scripts/dev_cycle.py scripts/ci_scope.py scripts/ci_promotion.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
+          python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
       - run: ruff check .
-        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
       - run: ruff format --check .
-        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
       - run: mypy podvoice/gatekeeper
-        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
       - name: Unit tests
-        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
         run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 tests/unit --durations=15 --durations-min=1
       - name: Remaining tests
-        if: needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'rest'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'rest'
         run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1
 
   ui-browser:
-    needs: [scope]
+    needs: [scope, promotion]
     if: needs.scope.outputs.tooling_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 22
@@ -117,23 +152,32 @@ jobs:
       PODVOICE_DEV_CACHE: /home/runner/.cache/podvoice-dev
       PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/podvoice-dev/browser/ui-browser
     steps:
+      - name: Reuse previously passed exact-tree PR checks
+        if: needs.promotion.outputs.reuse == 'true'
+        run: echo "Browser checks already passed for this exact tree."
       - uses: actions/checkout@v4
+        if: needs.promotion.outputs.reuse != 'true'
       - uses: actions/setup-python@v5
+        if: needs.promotion.outputs.reuse != 'true'
         with:
           python-version: "3.12"
       - uses: actions/setup-node@v4
+        if: needs.promotion.outputs.reuse != 'true'
         with:
           node-version: "24.19.0"
           cache: npm
           cache-dependency-path: tests/browser/package-lock.json
       - name: Verify packaged PodView transport and owner contracts
+        if: needs.promotion.outputs.reuse != 'true'
         run: node --test tests/podview/*.test.mjs
       - name: Install pinned development browser dependencies
+        if: needs.promotion.outputs.reuse != 'true'
         working-directory: tests/browser
         run: |
           npm ci --ignore-scripts
           node node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify shipped UI in bounded serial browser workers
+        if: needs.promotion.outputs.reuse != 'true'
         run: python -m scripts.browser_gate --worker-timeout 240
       - uses: actions/upload-artifact@v4
         if: always()
@@ -143,15 +187,20 @@ jobs:
           if-no-files-found: warn
 
   ha-framework:
-    needs: [scope]
+    needs: [scope, promotion]
     if: ${{ always() && !cancelled() && needs.scope.outputs.tooling_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
       contents: read
     steps:
+      - name: Reuse previously passed exact-tree PR checks
+        if: needs.promotion.outputs.reuse == 'true'
+        run: echo "HA framework checks already passed for this exact tree."
       - uses: actions/checkout@v4
+        if: needs.promotion.outputs.reuse != 'true'
       - name: Test native admin options and services in pinned HA 2026.8.2
+        if: needs.promotion.outputs.reuse != 'true'
         run: |
           test -f tests/ha_framework/test_options_flow_http.py
           docker run --rm --platform linux/amd64 --network none --read-only \

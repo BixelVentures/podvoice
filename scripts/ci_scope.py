@@ -12,14 +12,26 @@ TOOLING_FILES = frozenset(
     {
         "scripts/dev_cycle.py",
         "scripts/ci_scope.py",
+        "scripts/ci_promotion.py",
         "tests/unit/test_dev_cycle.py",
         "tests/unit/test_ci_scope.py",
+        "tests/unit/test_ci_promotion.py",
         "tests/unit/test_release_contract.py",
     }
 )
 NONPAYLOAD_DOCS = frozenset({"podvoice/DOCS.md", "podvoice/CHANGELOG.md"})
 OTHER_DOCS = frozenset({"scripts/LIVE_ALPHA_PROBE.md", "spikes/README.md"})
 WORKFLOW = ".github/workflows/ci.yml"
+CI_CONTROL_REQUIRED = frozenset(
+    {
+        WORKFLOW,
+        "scripts/ci_scope.py",
+        "scripts/ci_promotion.py",
+        "tests/unit/test_ci_scope.py",
+        "tests/unit/test_ci_promotion.py",
+    }
+)
+CI_CONTROL_OPTIONAL = frozenset({"docs/STATUS.md"})
 
 
 def documentation(path: str) -> bool:
@@ -59,10 +71,17 @@ def tooling_only(paths: Sequence[str]) -> bool:
     return bool(paths) and all(path in TOOLING_FILES or documentation(path) for path in paths)
 
 
+def ci_control_only(paths: Sequence[str]) -> bool:
+    """Recognize the bounded CI trust-tool change; keep all product checks enabled."""
+    changed = set(paths)
+    return CI_CONTROL_REQUIRED <= changed and changed <= (CI_CONTROL_REQUIRED | CI_CONTROL_OPTIONAL)
+
+
 def main() -> None:
     base = os.environ.get("CI_DIFF_BASE", "")
     # Dispatch, initial pushes and missing ancestry never narrow required checks.
     scoped = False
+    ci_control = False
     addon_changed = True
     pr_addon_changed = True
     if base and set(base) != {"0"}:
@@ -79,12 +98,16 @@ def main() -> None:
             )
             paths = raw.decode("utf-8").rstrip("\0").split("\0")
             scoped = tooling_only(paths) and all(regular_checkout_file(path) for path in paths)
+            ci_control = ci_control_only(paths) and all(
+                regular_checkout_file(path) for path in paths
+            )
             addon_changed = addon_payload_changed(paths)
             pr_addon_changed = addon_changed or WORKFLOW in paths
         except (subprocess.SubprocessError, UnicodeDecodeError):
             pass
     with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
         output.write(f"tooling_only={str(scoped).lower()}\n")
+        output.write(f"ci_control_only={str(ci_control).lower()}\n")
         output.write(f"addon_changed={str(addon_changed).lower()}\n")
         output.write(f"pr_addon_changed={str(pr_addon_changed).lower()}\n")
 
