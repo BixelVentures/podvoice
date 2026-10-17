@@ -802,7 +802,11 @@
           "method:robotDevice": 1,
           "method:send": 1,
           "method:moveSpeaker": 1,
-          "method:invalidateMusic": 1
+          "method:invalidateMusic": 1,
+          "method:canRefreshRobot": 1,
+          "method:clearRobotRefresh": 1,
+          "method:expireTask": 1,
+          "method:refreshRobot": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -820,7 +824,7 @@
         ],
         "dom": true
       },
-      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added.",
+      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added. Reviewed44 renewal helpers only: explicit refresh reuses the registered pv-button pv-ghost anatomy; fresh task still requires server admission, no automatic effects or new family.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-home-view.js": {
@@ -2202,12 +2206,14 @@
       "status": "approved-renderer",
       "domOwner": "Existing canonical output picker read-only row adapter; no separate component or move authority",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/media-observation.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "arrow:current": 1,
+          "arrow:current": 2,
           "arrow:fields": 1,
           "arrow:hex": 1,
           "arrow:text": 1,
@@ -2220,13 +2226,18 @@
           "method:invalidate": 1,
           "method:open": 1,
           "method:sync": 1,
-          "arrow:catalogueCurrent": 1
+          "arrow:catalogueCurrent": 1,
+          "method:clearLabel": 1,
+          "method:configuredLabel": 1,
+          "method:refreshConfiguredLabel": 1,
+          "function:configuredSpeakerLabel": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": true
-      }
+      },
+      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family."
     }
   },
   "sharedContracts": [

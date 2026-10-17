@@ -236,3 +236,10 @@ dialog.pv-component dt{font-size:14px;line-height:1.4;color:var(--pv-screen-mute
 dialog.pv-component dd{margin:8px 0;font-size:24px;line-height:1.3;font-variant-numeric:tabular-nums}
 dialog.pv-component dl>div>p{font-size:15px;line-height:1.45;color:var(--pv-screen-muted);margin:0}
 @media(max-width:520px){dialog.pv-component{padding:20px;max-height:calc(100dvh - 24px)}dialog.pv-component h2{font-size:24px}dialog.pv-component form.pv-actions>input[type=search]{flex-basis:100%;width:100%}dialog.pv-component form.pv-actions>.pv-button{flex:1}dialog.pv-component .pv-actions>label{flex:1 1 100%}}
+
+/* Robot adapter: keep the existing map and select-all in one header row. */
+pv-robot-control-panel .device-history{padding-top:0!important}
+pv-robot-control-panel form:has(>.heading){display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px}
+pv-robot-control-panel form:has(>.heading)>*{grid-column:1/-1}
+pv-robot-control-panel form:has(>.heading)>.heading{grid-column:2;grid-row:1;margin:0 0 12px}
+pv-robot-control-panel form:has(>.heading)>.pv-meta{grid-column:1;grid-row:1;align-self:center;margin:0 0 12px}
