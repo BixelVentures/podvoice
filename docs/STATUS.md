@@ -1,3 +1,32 @@
+<!-- podview58-admission
+{
+  "version": 35,
+  "kind": "talk58_pending_receipt_lifecycle",
+  "reviewer": "Independent /root/astra_robot_component_unification NEXT58 Talk metadata and strict admission review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "8dd2f725ff43e1d1bcb0d2ea35d3ae64b055b0c5",
+  "merge_base": "8dd2f725ff43e1d1bcb0d2ea35d3ae64b055b0c5",
+  "rationale": "NEXT58 bounded existing Talk text receipt recovery only, based on published57. Exact sourceHTMLa266eae0 was independently reviewed: transport loss/send exceptions produce UNKNOWN once, raw/newer/cleared drafts survive, retired socket callbacks cannot revive controls, legitimate submitted receipts after End remain truthful and no automatic action replay occurs. One existing whole-HTML runner registers the focused regression. No prompt/provider/ThinSession/audio/native/auth/HA changes. All143PodViewassets and manifest remain exact57. Historical57 profile/manifest immutable;7original test bodies equivalent after only historical ROOT fixture substitution. Exact CI58 route/label and existing trust regression are included without loosening helper logic. Source12/9/2/77 focused results and metadata79 checks are overlapping source evidence, not officialCI, installed or physical acceptance. Independent exact unsigned-tree review received for21c71ca9d8cf8e9ef1f6fddb301b9734030d707f. Review bindings are applied only after that GO; final bound verification and officialCI remain separate. No external action is authorized by this record.",
+  "fingerprint": "df3ca014a5caf8fc186ed0dec41458a5c75b0347c512e97336ad7bf871d003b5",
+  "regression_fingerprint": "6c6049113a0004f065007361a5276b94e724d593929669b54dc5cd2c568d7c79",
+  "runtime_fingerprint": "7fb150538bb1f8bf72cb6fc55b9ec4d1d0c77d8d7d3659900629ea8e1d65769d",
+  "config_fingerprint": "6e53c115829ab304b065b585229e5af0f50dec71cc3b767cb7e4034d464b9539",
+  "policy_fingerprint": "099a71c278b42ebbd91feebfb7a536e243075d92bb66ac437b18ab93b9ba0fc0",
+  "tooling_fingerprint": "0ff6d57c9a132b714a857fda407d7d3e300423f47a57a037c2831a1969b12b7a",
+  "manifest_fingerprint": "c48d45ff8dc1f8fc5f977495c5020eaaae17c0b006efd7760209fe88e8c4537b"
+}
+-->
+
+## Active lead decision — bounded Talk text receipt recovery, not released
+
+Root authorizes implementation in this isolated successor candidate only, based on exact published57 tree08264d653b84261af1c65af428d93319e78e8f74/archive dd72a622b645d057fbfa8827b28dfb949dc7a02cd033e22291d93dbfc24ab198. Actual normal57 Talk input -> GetDateTime -> matching clock answer -> explicit End was observed; its extra technical submission bubble is visible. Source inspection additionally proves pendingText survives socket retirement without per-command uncertainty, and raw ws.send can throw after pending admission. Causal whole-HTML inert regression must fail57 before patch; no field disconnect outcome is claimed.
+
+Scope: existing Talk closure in static/index.html and focused shipped-HTML browser regressions only. Bind pending input to socket generation; terminalize transport loss/send exceptions as UNKNOWN once; preserve current/newer draft verbatim; release bounded pending metadata and never replay. Current hello/diagnostic transitions cannot reopen Send while current input remains pending. Matching accepted/submitted still requires server receipt; submitted never means provider ACK. Remove only redundant technical systembubble. Preserve actual errors, late/stale/duplicate fences and actual result truth. Explicit End alone is neither cancellation nor proof of no side effect: keep real pending result until terminal receipt/transport loss; a legitimate matching submitted receipt before Stop settlement must remain truthful. A rejected/stopped receipt settles once; later duplicate success cannot resurrect it.
+
+Non-goals: no new timeout, grant/reapproval/enrollment, HA integration, prompt/provider/schema/audio/firmware/ThinSession/Stop execution changes, global health model or transcript filtering. PodView143assets/manifest and six policies remain frozen57. No household/provider action in implementation. Review actual neighboring socket/diagnostic/Stop/media owners and run existing Talk exit/media and server correlation regressions. Root will obtain independent adversarial review before any release; official CI/publication/installation/actual browser acceptance are separate and unproven. Successor2.0.58 is now the selected source candidate; it is not published or installed. Rollback is the existing exact57 HTML; no persisted data or protocol migration. Actual implementation is frozen as HTMLa266eae0b22331080e4a114fa319b17c061f4ab5f39a959cdfc8f2738f9d6a83. Causal57 whole-HTML regression failed11cases and passed the legitimate End/submitted control; final12/12, unchanged exit/media9/9, independent2boundary cases and77focused neighbors pass (overlapping scopes, not additive totals). Independent source review is complete. Release metadata adds the exact58 CI/dev-cycle route and highest-label regression; focused metadata79tests pass. Exact unsigned/bound-tree admission review and officialCI remain required. Actual57 Talk clock response/history and explicit End are observed; no audible or physical VoicePE acceptance, model/audio latency or PodView history completion is inferred. Mac reapproval and HA-integration/Core installation remain specific human-approval HOLD; robot movement remains HOLD. All143PodViewassets/manifest and sixpolicies remain exact57.
+
 <!-- podview57-admission
 {
   "version": 34,

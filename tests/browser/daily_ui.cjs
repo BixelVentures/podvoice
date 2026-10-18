@@ -744,6 +744,8 @@ async function settingsTouchTargets(browser) {
     }
     const touchTargets=await settingsTouchTargets(browser);
     reports.push(touchTargets);
+    const talkText=await require("./talk_text_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS,proof});
+    reports.push({issue:95,talkText});
     const talkExit=await require("./talk_exit_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS,proof});
     reports.push({issue:115,talkExit});
     const settingsRepair=await require("./settings_repair_contract.cjs")(browser,{source,sourceSha,status,settings,bounded,FIXTURE_WAIT_MS});

@@ -116,7 +116,8 @@ def test_talk_alpha_uses_browser_rate_and_ingress_relative_route():
 def test_talk_submitted_is_not_rejected_or_presented_as_acknowledged():
     html = Path("podvoice/gatekeeper/static/index.html").read_text()
     branch = html.split('else if (ev.status === "submitted")', 1)[1].split("} else {", 1)[0]
-    assert "Sendt til Live; ingen separat modtagelseskvittering" in branch
+    assert 'logLine("in", "you", pending.text)' in branch
+    assert "ingen separat modtagelseskvittering" not in branch
     assert 'input.value = ""' in branch
     assert "input.value = pending.text" not in branch
     assert 'id="s_live_alpha" type="checkbox"' not in html

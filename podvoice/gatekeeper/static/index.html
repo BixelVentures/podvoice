@@ -1314,6 +1314,18 @@ setInterval(function () {
   var diagnosticActive = !!(lastStatus && lastStatus.diagnostic_active);
   var socketGeneration = 0, reconnectTimer = null, leaseTimer = null, lastPong = 0;
   var pendingText = Object.create(null);
+  function syncSendButton() {
+    sendBtn.disabled = !wsReady || diagnosticActive || Object.keys(pendingText).length > 0;
+  }
+  function unknownText(generation) {
+    Object.keys(pendingText).forEach(function (id) {
+      if (pendingText[id].generation !== generation) return;
+      delete pendingText[id];
+      endTurn();
+      logLine("out", "system", "Beskedens status er ukendt. Den bliver ikke sendt igen automatisk.");
+    });
+    syncSendButton();
+  }
   function providerName() { return "assistenten"; }
   var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
   var capCtx = null, capStream = null, capNode = null, micOn = false, micRequestSerial = 0;
@@ -1339,7 +1351,7 @@ setInterval(function () {
       closeLivePeer(); micStop(); micBtn.disabled = true; sendBtn.disabled = true;
       setState("systemtest", "pill-degraded");
     } else if (wsReady) {
-      micBtn.disabled = !captureAvailable(); sendBtn.disabled = false; setState("online", "pill-up");
+      micBtn.disabled = !captureAvailable(); syncSendButton(); setState("online", "pill-up");
     }
   });
 
@@ -1716,7 +1728,21 @@ setInterval(function () {
   }
   var STATE_DA = { IDLE: ["klar", "pill-degraded"], LISTENING: ["lytter…", "pill-up"], THINKING: ["tænker", "pill-degraded"], AI_SPEAKING: ["taler", "pill-up"], LOUNGE_WINDOW: ["klar", "pill-degraded"] };
 
+  function retireTalkSocket(sock, generation) {
+    if (sock._retired || generation !== socketGeneration || sock !== ws) return;
+    // Retire before close(): even a throwing close or a queued hello cannot revive it.
+    sock._retired = true;
+    wsReady = false; unknownText(generation); micBtn.disabled = true;
+    closeLivePeer(); micStop(); stopReply(false); setState("offline", "pill-down");
+    if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
+    if (sock._intentional) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(function () { if (generation === socketGeneration && sock === ws) connect(); }, 2500);
+  }
+
   function connect() {
+    // A replacement socket cannot inherit or replay an unresolved old command.
+    unknownText(socketGeneration);
     var generation = ++socketGeneration;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
@@ -1728,47 +1754,46 @@ setInterval(function () {
     var sock;
     try { sock = new WebSocket(url.href); ws = sock; } catch (e) { setState("offline", "pill-down"); return; }
     sock.binaryType = "arraybuffer";
-    sock.onopen = function () { if (generation !== socketGeneration) return; setState("forbinder…", "pill-degraded"); };
-    sock.onclose = function () {
-      if (generation !== socketGeneration) return;
-      wsReady = false; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); setState("offline", "pill-down");
-      sendBtn.disabled = true;
-      if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
-      if (sock._intentional) return;
-      reconnectTimer = setTimeout(function () { if (generation === socketGeneration) connect(); }, 2500);
-    };
-    sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); setState("offline", "pill-down"); };
-    sock.onmessage = function (m) {
+    sock.onopen = function () { if (sock._retired || generation !== socketGeneration || sock !== ws) return; setState("forbinder…", "pill-degraded"); };
+    sock.onclose = function () { retireTalkSocket(sock, generation); };
+    sock.onerror = function () {
       if (generation !== socketGeneration || sock !== ws) return;
+      retireTalkSocket(sock, generation);
+      try { sock.close(); } catch (_) {}
+    };
+    sock.onmessage = function (m) {
+      if (sock._retired || generation !== socketGeneration || sock !== ws) return;
       if (typeof m.data !== "string") { if (!halted && !livePeer && talkVisible()) playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (handleLiveMessage(ev)) return;
       if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
         outRate = ev.rate; wsReady = true; lastPong = Date.now();
         sendJson({type:"browser_hello", peer_id:replyPeerId});
-        micBtn.disabled = diagnosticActive || !captureAvailable(); sendBtn.disabled = diagnosticActive;
+        micBtn.disabled = diagnosticActive || !captureAvailable(); syncSendButton();
         setState(diagnosticActive ? "systemtest" : "online", diagnosticActive ? "pill-degraded" : "pill-up");
+        if (leaseTimer) clearInterval(leaseTimer);
         leaseTimer = setInterval(function () {
           if (generation !== socketGeneration || sock !== ws) return;
-          if (Date.now() - lastPong > 15000) { wsReady = false; setState("offline", "pill-down"); try { sock.close(); } catch (_) {} return; }
+          if (Date.now() - lastPong > 15000) { retireTalkSocket(sock, generation); try { sock.close(); } catch (_) {} return; }
           try { sock.send(JSON.stringify({ type: "ping", ping_id: Date.now() })); } catch (_) {}
         }, 5000);
       }
       else if (ev.type === "pong") { lastPong = Date.now(); }
       else if (ev.type === "command_result") {
         var pending = pendingText[ev.command_id];
-        if (pending) {
-          delete pendingText[ev.command_id]; sendBtn.disabled = !wsReady;
+        if (pending && pending.generation === generation && pending.socket === sock) {
+          delete pendingText[ev.command_id]; syncSendButton();
           if (ev.status === "accepted") {
             endTurn(); logLine("in", "you", pending.text);
-            if (input.value.trim() === pending.text) input.value = "";
+            if (input.value === pending.draft) input.value = "";
           } else if (ev.status === "submitted") {
             endTurn(); logLine("in", "you", pending.text);
-            logLine("out", "system", "Sendt til Live; ingen separat modtagelseskvittering");
-            if (input.value.trim() === pending.text) input.value = "";
+            if (input.value === pending.draft) input.value = "";
           } else {
-            input.value = pending.text;
-            logLine("out", "system", ev.message || "Beskeden blev ikke sendt. Prøv igen.");
+            endTurn();
+            logLine("out", "system", ev.status === "unknown"
+              ? "Beskedens status er ukendt. Den bliver ikke sendt igen automatisk."
+              : ev.message || (ev.code === "stopped" ? "Beskeden blev afbrudt." : "Beskeden blev ikke sendt. Prøv igen."));
           }
         }
       }
@@ -1809,9 +1834,14 @@ setInterval(function () {
     if (!wsReady) { logLine("out", "system", "Ikke forbundet endnu."); return; }
     halted = false; ensurePlay();
     var commandId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + Math.random());
-    pendingText[commandId] = { text: t };
-    sendBtn.disabled = true;
-    ws.send(JSON.stringify({ type: "text", command_id: commandId, text: t }));
+    var owner = ws, generation = socketGeneration;
+    pendingText[commandId] = { text: t, draft: input.value, generation: generation, socket: owner };
+    syncSendButton();
+    try { owner.send(JSON.stringify({ type: "text", command_id: commandId, text: t })); }
+    catch (_) {
+      retireTalkSocket(owner, generation);
+      try { owner.close(); } catch (_) {}
+    }
   }
   sendBtn.onclick = sendText;
   input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.isComposing) sendText(); });
@@ -1949,8 +1979,7 @@ setInterval(function () {
     // Mobile browsers throttle background timers. Never trust the old green state on
     // return; demand a fresh application-level pong before accepting another command.
     if (Date.now() - lastPong > 15000) {
-      wsReady = false; micBtn.disabled = true; sendBtn.disabled = true;
-      setState("forbinder…", "pill-degraded");
+      retireTalkSocket(ws, socketGeneration);
       try { ws.close(); } catch (_) {}
     } else {
       try { ws.send(JSON.stringify({ type: "ping", ping_id: Date.now() })); } catch (_) {}
