@@ -811,8 +811,26 @@ class PodViewBridge:
         return committed
 
     def voice_music_available(self) -> bool:
-        """Offer local voice tools only with a current controller and provider owner."""
-        return any(
+        """Selected cards are data; voice keeps its own live approval authority."""
+        music = self.controls.music
+        selection_ready = bool(
+            music.room_start_available
+            and music.tools is self.tools
+            and any(
+                self.controls.policy.get("roomId") == room
+                and not any(key[0] == room for key in self._music_move_fence)
+                and any(
+                    all(row.get(key) for key in ("nativeRoomId", "nativeHomepodId"))
+                    and (
+                        ("play_track" in row["actions"] and music.track_available)
+                        or ("play_context" in row["actions"] and music.context_available)
+                    )
+                    for row in self.controls.policy.get("music", [])
+                )
+                for room in self.sessions
+            )
+        )
+        return selection_ready or any(
             self.controls.selection_allowed(room, grant[0])
             or (
                 self.controls.move.available
@@ -1051,15 +1069,32 @@ class PodViewBridge:
 
     def _voice_music_task(
         self, room: str, context: object, current, *, allow_consumed: bool = False
-    ) -> tuple[dict, dict, tuple, str] | None:
+    ) -> tuple[dict, dict] | None:
+        """Read exact card data under the current voice session, never its display grant."""
         session = self.sessions.get(room)
+        if (
+            session is None
+            or not getattr(session, "_active", False)
+            or getattr(session, "_muted", False)
+            or getattr(session, "_transport_closing", False)
+            or getattr(session, "_closing", False)
+            or getattr(context, "approval_mode", None) != "live"
+            or getattr(context, "session_id", None) != getattr(session, "_history_session", None)
+            or not current()
+        ):
+            return None
         candidates = [
             task
             for task in self.music_selection.tasks.values()
             if task["context"]["roomId"] == room
             and isinstance(task.get("authority"), tuple)
-            and task["authority"]
-            and any(item is task["authority"][-1] for item in self._room_grants(room))
+            and len(task["authority"]) == 4
+            and task["authority"][0] is session
+            and task["authority"][2] == task["context"]["taskId"]
+            and (
+                task["context"].get("revisionScope") == "music_selection"
+                or task["authority"][1] == getattr(session, "_epoch", None)
+            )
         ]
         matching = [
             task
@@ -1070,44 +1105,33 @@ class PodViewBridge:
         if not matching:
             matching = candidates
         task = matching[0] if len(matching) == 1 else None
-        authority = task.get("authority") if isinstance(task, dict) else None
-        grant = authority[-1] if isinstance(authority, tuple) and authority else None
-        if grant is not None and not any(item is grant for item in self._room_grants(room)):
-            grant = None
-        if (
-            session is None
-            or grant is None
-            or not getattr(session, "_active", False)
-            or getattr(context, "approval_mode", None) != "live"
-            or getattr(context, "session_id", None) != getattr(session, "_history_session", None)
-            or not current()
-        ):
-            return None
-        token = grant["token"] if isinstance(grant, dict) else grant[0]
-        if (
-            task is None
-            or task["context"]["roomId"] != room
-            or (task["consumed"] and not allow_consumed)
-        ):
+        if task is None or (task["consumed"] and not allow_consumed):
             return None
         source = self.music_selection.sources.get(task["candidateSetId"])
+        music = self.controls.music
+        action = task.get("action", "play_track")
         if (
             source is None
             or time.monotonic() >= task["deadline"]
-            or not _selection_voice_source_current(self, source, room, token)
-            or not _selection_rule_current(
+            or time.monotonic() >= source["deadline"]
+            or task["context"] != source["context"]
+            or task["ownerBinding"] != source["binding"]
+            or not _selection_voice_source_current(self, source, room)
+            or not music.room_start_available
+            or music.tools is not self.tools
+            or not (music.context_available if action == "play_context" else music.track_available)
+            or not _selection_policy_current(
                 self,
                 room,
                 task["account"],
                 task["target"],
                 task["maxVolume"],
-                grant,
                 task["nativeBinding"],
-                task.get("action", "play_track"),
+                action,
             )
         ):
             return None
-        return task, source, grant, token
+        return task, source
 
     def voice_music_options(self, room: str, context: object, current) -> dict:
         """The model sees only the same opaque options already offered to touch."""
@@ -1139,28 +1163,21 @@ class PodViewBridge:
         matched = self._voice_music_task(room, context, current)
         if matched is None:
             return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
-        task, source, grant, token = matched
+        task, source = matched
         if args["taskId"] != task["id"]:
             return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
+        session = self.sessions[room]
+        voice_epoch = getattr(session, "_epoch", None)
 
         def selected_current() -> bool:
+            matched_now = self._voice_music_task(room, context, current, allow_consumed=True)
             return bool(
-                current()
+                matched_now is not None
+                and self.sessions.get(room) is session
+                and getattr(session, "_epoch", None) == voice_epoch
+                and matched_now[0] is task
                 and self.music_selection.tasks.get(task["id"]) is task
                 and self.music_selection.sources.get(task["candidateSetId"]) is source
-                and self._voice_music_task(room, context, lambda: True, allow_consumed=True)
-                is not None
-                and _selection_voice_source_current(self, source, room, token)
-                and _selection_rule_current(
-                    self,
-                    room,
-                    task["account"],
-                    task["target"],
-                    task["maxVolume"],
-                    grant,
-                    task["nativeBinding"],
-                    task.get("action", "play_track"),
-                )
             )
 
         async def fresh_controls():
@@ -1930,42 +1947,71 @@ def _music_search_context(
     return context
 
 
+def _selection_binding_current(bridge: PodViewBridge, source: dict, room: str) -> bool:
+    """Display discovery pins resources; answer tasks also pin their conversation."""
+    observed = _music_binding(bridge, room)
+    expected = source["binding"]
+    if source["context"].get("revisionScope") == "music_selection":
+        # The last two fields are historical voice-session/epoch data. Native
+        # provider ownership, the room session object and its tools stay exact.
+        return len(expected) == len(observed) and observed[:-2] == expected[:-2]
+    return observed == expected
+
+
 def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, token: str) -> bool:
     context = source["context"]
-    return bool(
-        bridge._grant_current(room, token)
-        and bridge.controls.selection_allowed(
+    if (
+        not bridge._grant_current(room, token)
+        or not bridge.controls.selection_allowed(
             room,
             token,
             "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track",
         )
-        and context.get("roomId") == room
-        and _music_binding(bridge, room) == source["binding"]
-        and _music_search_context(bridge, room, context["configEntryId"], context["query"], token)
+        or context.get("roomId") != room
+        or context.get("bootId") != bridge.boot_id
+        or not _selection_binding_current(bridge, source, room)
+    ):
+        return False
+    if context.get("revisionScope") == "music_selection":
+        key = (
+            room,
+            context["configEntryId"],
+            context["query"],
+            hashlib.sha256(token.encode()).hexdigest(),
+        )
+        saved = bridge._touch_music_contexts.get(key)
+        return bool(
+            saved is not None
+            and time.monotonic() < min(source["deadline"], saved[0])
+            and all(
+                saved[1].get(key) == context.get(key)
+                for key in ("sessionId", "turnId", "taskId", "inputRevision", "revision")
+            )
+        )
+    return (
+        _music_search_context(bridge, room, context["configEntryId"], context["query"], token)
         == context
     )
 
 
-def _selection_voice_source_current(
-    bridge: PodViewBridge, source: dict, room: str, token: str
-) -> bool:
-    """A later trusted approval turn may retain the exact original answer task."""
+def _selection_voice_source_current(bridge: PodViewBridge, source: dict, room: str) -> bool:
+    """Retain source provenance without promoting the display's admission to voice."""
     context = source["context"]
+    if (
+        context.get("bootId") != bridge.boot_id
+        or context.get("roomId") != room
+        or not _selection_binding_current(bridge, source, room)
+    ):
+        return False
+    if context.get("revisionScope") == "music_selection":
+        return True
     if context.get("revisionScope") != "answer_task":
-        return _selection_source_current(bridge, source, room, token)
-    snapshot = bridge.snapshot(room, token)
+        return False
+    snapshot = bridge.snapshot(room)
     answer = snapshot.get("answers", {})
     voice = snapshot.get("voice", {})
     return bool(
-        bridge._grant_current(room, token)
-        and bridge.controls.selection_allowed(
-            room,
-            token,
-            "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track",
-        )
-        and context.get("roomId") == room
-        and _music_binding(bridge, room) == source["binding"]
-        and voice.get("sessionId") == context.get("sessionId")
+        voice.get("sessionId") == context.get("sessionId")
         and all(
             answer.get(key) == context.get(key)
             for key in ("sessionId", "turnId", "taskId", "inputRevision", "revision")
@@ -1984,10 +2030,27 @@ def _selection_rule_current(
     action: str = "play_track",
 ) -> bool:
     """An old offer cannot outlive its exact room grant or action rule."""
-    rules = bridge.controls.policy.get("music")
     return bool(
         any(item is grant for item in bridge._room_grants(room))
-        and not any(key[0] == room for key in bridge._music_move_fence)
+        and _selection_policy_current(
+            bridge, room, account, target_id, max_volume, native_binding, action
+        )
+    )
+
+
+def _selection_policy_current(
+    bridge: PodViewBridge,
+    room: str,
+    account: str,
+    target_id: str,
+    max_volume: int,
+    native_binding: tuple,
+    action: str,
+) -> bool:
+    """Exact configured destination/action; admission stays with each caller."""
+    rules = bridge.controls.policy.get("music")
+    return bool(
+        not any(key[0] == room for key in bridge._music_move_fence)
         and bridge.controls.policy.get("roomId") == room
         and isinstance(rules, list)
         and any(

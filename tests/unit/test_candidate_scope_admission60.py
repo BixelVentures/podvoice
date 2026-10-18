@@ -41,6 +41,7 @@ def test_60_exact_scope_and_history():
     assert admission.REQUIRED_TESTS == {
         "tests/unit/test_candidate_scope_admission59.py",
         "tests/integration/test_room_media_binding.py",
+        "tests/integration/test_podview_voice_continuation.py",
         "tests/integration/test_podview_mood_playlists.py",
         "tests/integration/test_podview_pairing_navigation.py",
         "tests/unit/test_candidate_scope_admission60.py",

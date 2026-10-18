@@ -52,6 +52,7 @@ PRODUCTION = frozenset(
 REQUIRED_TESTS = frozenset(
     {
         "tests/integration/test_room_media_binding.py",
+        "tests/integration/test_podview_voice_continuation.py",
         "tests/integration/test_podview_mood_playlists.py",
         "tests/integration/test_podview_pairing_navigation.py",
         "tests/podview/transport-recovery.test.mjs",
@@ -67,9 +68,9 @@ ASSET_CHANGES = frozenset({"podvoice-transport.js"})
 
 HA_RUNTIME = previous.HA_RUNTIME
 # Bindings intentionally remain blank until independent exact-tree review.
-REVIEWER = "Independent /root/astra_reference_benchmark NEXT60 exact normal HA access and passive playback metadata and strict admission review"
-MANIFEST_SHA = "182ae15040cf201c91d246efe749b5f71fe758c0b01fc8b1e039a6e7269a0f74"
-PROFILE_AST = "e0afa8db1606d09ec00aaec19e0a91f2f6b812cd91c8c962c92edbe8a038480d"
+REVIEWER = "Independent /root/astra_reference_benchmark NEXT60 exact revised 28-path HA voice and touch continuity metadata and strict admission review"
+MANIFEST_SHA = "6425b48edb7da219caf07a9aa809607026444d0356baae2417904841aaa4d5c5"
+PROFILE_AST = "2c6048e7dc7d0334e0506fb9fdb87a61976eb441859d93f04a617e9543336fe3"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission59.py": "3577a84130098c42dc596a29a0424e82a8592ca99c6b7f4957af501ab1b2bf66",
     "scripts/podview59-admission-reviewed.json": "d6e9a63008efe3145aef6cbbeb359e076ee1b98d9932b855e17108cef2d8544d",
