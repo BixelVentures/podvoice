@@ -2,20 +2,20 @@
 {
   "version": 31,
   "kind": "podview54_direct_room_start",
-  "reviewer": "Independent /root/ui41_source_review NEXT54 source adoption, scoped legacy migration, and exact unsigned admission reviewer",
+  "reviewer": "Independent /root/ui41_source_review NEXT54 registry/document successor and exact unsigned admission reviewer",
   "domains": [
     "physical_output"
   ],
   "base_tip": "c89d429937dbbbc1195b363f9dc531fa185e3d22",
   "merge_base": "c89d429937dbbbc1195b363f9dc531fa185e3d22",
-  "rationale": "NEXT54 adopts exactly five frozen canonical PodView owners for direct bound-room Play, retained player feedback and read-only bootstrap recovery after optional renewal denial. All143 assets match canonical pins; seven source regressions are import-only adapters, four legacy fixture expectations migrate only superseded picker/confirmation/denial behavior, and historical53 keeps its own immutable positive validation plus successor rejection. Root867 canonical tests/component gate and bounded inert browser QA are separate from official CI, installation, live Mac access, native transport and physical acceptance. No backend credential mechanism, household policy or native-version change is included.",
+  "rationale": "NEXT54 adopts exactly five frozen canonical PodView owners for direct bound-room Play, retained player feedback and read-only bootstrap recovery after optional renewal denial. All143 assets match canonical pins; seven source regressions are import-only adapters, four legacy fixture expectations migrate only superseded picker/confirmation/denial behavior, and historical53 keeps its own immutable positive validation plus successor rejection. Root867 canonical tests/component gate and bounded inert browser QA are separate from official CI, installation, live Mac access, native transport and physical acceptance. Exact canonical component registry and library contract accompany the same approved existing composition without new families. No backend credential mechanism, household policy or native-version change is included.",
   "fingerprint": "255a385a9917fe79c126c8b648529e3bbf6ca3b1172688e9f095c8d403307b33",
-  "regression_fingerprint": "38eb375a6f03e61ba77932beb478c81d25a06a7e92c073a992e8253bc43cce7f",
+  "regression_fingerprint": "a4b8b8ee0881153673c4cdac969cc358c66b71af54d21016ed98aa68e98a9994",
   "runtime_fingerprint": "b20a2757c9460a20c47d98eb0f75d4721d30127e03cdc356ecede29ee18a47b2",
   "config_fingerprint": "c724e03e1e9cd0a09024531582f44d3c2b6433bebba5f6392b13d7633fa7df7f",
-  "policy_fingerprint": "0a50c174b0672e7ab0182944725f11db45a94497d938a4bcf755c67441473784",
-  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
-  "manifest_fingerprint": "fa83e1d98e664613db7db6568a2ee8bfabaf996b61dc8b4906eb755881af78e0"
+  "policy_fingerprint": "dd77ed2dc6a9997256e8eaac8b277686061cdb22f886bbf2328cba28bd315544",
+  "tooling_fingerprint": "ba17d629a5a9050f0b2f7943a2917935333a68f953eb86e2df3b8a9f7d37c021",
+  "manifest_fingerprint": "2fa24070a9db06c252d210f7b5a489b2778696755edcc731fd45421ad060544c"
 }
 -->
 

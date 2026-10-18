@@ -904,7 +904,7 @@
     },
     "dist/live-music-selection-view.js": {
       "status": "approved-composition",
-      "domOwner": "LiveMusicSelectionView confirmation/target form",
+      "domOwner": "LiveMusicSelectionView room-bound selection and explicit search form",
       "factoryClassArgument": 1,
       "imports": [
         "dist/media-observation.js",
@@ -937,7 +937,8 @@
           "method:setup": 1,
           "method:showTargets": 1,
           "method:showTracks": 1,
-          "method:restoreRecoveryFocus": 1
+          "method:restoreRecoveryFocus": 1,
+          "method:observePlayback": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -954,8 +955,8 @@
       "requiredCalls": [
         "musicResults\\.render\\s*\\("
       ],
-      "compositionScope": "Reviewed45 explicit expired-card revalidation and same-row cancellation focus recovery inside the existing selection owner; stable card identity, captured context and durable dispatched fences, no new anatomy or automatic action.",
-      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
+      "compositionScope": "Reviewed54 direct human decision18Oct: one explicit Play uses exact server-bound room target, no destination chooser or confirmation. Existing search form and MusicResults anatomy retained. observePlayback is a non-DOM lifecycle method settling accepted feedback only from fresh matching observed playback; feedback uses existing PlayerView status, never optimistic playing or automatic replay. Existing authority, expiry, focus and navigation fences retained. No roots, imports, family or broader authority added.",
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; direct18Oct human instruction: no confirmation; visual feedback only in existing right music widget"
     },
     "dist/live-music-view.js": {
       "status": "active-support",

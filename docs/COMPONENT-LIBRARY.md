@@ -1,6 +1,6 @@
 # PodView · det eneste komponentbibliotek
 
-Gældende beslutning: 16. oktober 2026. Brugeren har bedt om at låse de eksisterende godkendte elementer som det eneste bibliotek, PodView og agenter må bruge. A · anbefalet fælles ramme er valgt for overblikket. Denne kontrakt gælder produktets faktiske skærm, både localhost og live. Den godkender ikke automatisk alt, der tidligere er blevet skrevet eller lagt i workshoppen.
+Gældende beslutninger: 16.–17. oktober 2026. Brugeren har bedt om at låse de eksisterende godkendte elementer som det eneste bibliotek, PodView og agenter må bruge. A · anbefalet fælles ramme er valgt for overblikket. Denne kontrakt gælder produktets faktiske skærm, både localhost og live. Den godkender ikke automatisk alt, der tidligere er blevet skrevet eller lagt i workshoppen.
 
 Den maskinlæsbare ejer- og variantliste er [component-library-registry.json](component-library-registry.json). En registreret renderer ejer sin anatomi. En adapter leverer data, tilstand og faktisk tilladte handlinger til den renderer. Den må ikke lave en særskilt live-udgave af samme kort, player, historik eller svar.
 
@@ -28,29 +28,29 @@ Eksempel: live-musik leverer kort til `host.musicResults.render(...)`; den bygge
 
 ## Tilstande er også en del af biblioteket
 
-- Første indlæsning bruger den eksisterende widgets reelle, tomme anatomi uden opdigtede billeder, værdier eller option-ID'er. Opdatering bevarer de samme noder og det senest kendte indhold.
-- `aria-busy` og den eksisterende endelige tilstandsbevægelse må kommunikere igangværende arbejde. Synlig prosa som “Henter…”, “Starter…” eller “Det tager lidt længere tid” er ikke en godkendt loading-variant. Faktiske samtalefaser og meningsfulde fejl/resultater vurderes efter deres egen rolle.
-- Ukendt, tomt, offline og fejl er ærlige tilstande. Behold nyttigt indhold og angiv gammel status, hvor det er nødvendigt. Ingen optimistisk “færdig”, loopet retry eller lokal opgradering af handleadgang.
-- Voice og touch sender de samme stabile option-ID'er. Viewer-identitet giver ikke ejerskab. Session, task og revision bindes af serveren; kontroller vises kun med den faktisk indrømmede adgang.
-- `visual-history` og headerens eksplicitte QA-stages er lokale prøvedata. De må ikke fylde almindelig/live-historik. Ti lokale QA-formater er data til eksisterende kanoniske renderere, ikke ti nye komponenter. De fire strukturerede visual-familier er fortsat en særskilt indholdskontrakt; lokal formatdækning beviser ikke ti liveproducenter.
+Den fælles tilstandskontrakt nedenfor gælder alle ejede komponenter, både lokalt og live. Voice og touch bruger de samme stabile option-ID'er; session, task og revision bindes af serveren. Viewer-identitet giver aldrig ejerskab.
 
-## Workshop og kendt gæld
+`visual-history` og headerens eksplicitte QA-stages er lokale prøvedata og må ikke fylde almindelig/live-historik. Ti lokale QA-formater er data til eksisterende renderere, ikke ti nye komponenter eller bevis for ti liveproducenter.
+
+## Workshop og historisk præsentationsgæld
 
 `dist/library.html`, `dist/patterns.html`, `dist/components.html`, `dist/scenes.html`, `dist/legacy.html` og deres historiske moduler er reference. De er ikke alternative godkendte produktindgange. Det samme gælder katalogets ubrugte roller: eksempelvis workshop-versionerne `pv-music-results`, `pv-now-playing`, `pv-transport-controls`, `pv-queue-view`, `pv-timer-widget` og `pv-activity-card`. Produktet har allerede ejede renderere for disse behov. At en rolle findes i kataloget eller registreres af det fælles modul giver ikke tilladelse til at tage den i brug.
 
-Registeret indeholder afgrænsede `unapproved-debt`-undtagelser, så eksisterende kode kan migreres uden at blive nygodkendt:
+De oprindelige præsentationsafvigelser D01–D07 bevares her som historik. De er nu kilde-/kontraktmæssigt løst inden for eksisterende familier; de er ikke aktive undtagelser eller en godkendelse af nye familier. **Aktiv oprindelig præsentationsgæld: 0.** Det betyder ikke nul resterende produkt- eller acceptopgaver.
 
-| Gæld | Faktisk kilde og afgrænsning |
+| Historisk ID | Løst præsentationsafvigelse og gældende ejerskab |
 |---|---|
-| D01 | `dist/live-home-view.js`: observerede hændelser og tydeligt adskilte anmodninger genbruger nu `pv-activity-timeline`. Resterende live kilde-/plejedetaljer og genbrugsknapper er afgrænset gæld, ikke en ny historie- eller widgetfamilie. |
-| D02 | `dist/live-control-view.js`: eksisterende live-betjenings-/setupformular. Den indrømmer serverejede optioner, men udgør ikke en ny generel designfamilie. |
-| D03 | `dist/live-answer-view.js`: eksisterende særskilt ejer-kildedialog. Ingen ny svar-/faktakortfamilie her. |
-| D04 | `dist/live-media-view.js`: eksisterende konto-vælger. Player og kø skal fortsat gå gennem `PlayerView`. |
-| D05 | `dist/live-music-selection-view.js`: eksisterende søgning/bekræftelse/målformular. Musikresultater skal fortsat gå gennem `MusicResults`. |
-| D06 | `dist/robot-control-panel.js`: eksisterende bespoke shadow-formular og historik. 36 ønskede robotfelter er ikke en automatisk godkendelse af denne som ny widgetfamilie. |
-| D07 | Eksisterende loading-prosa på tværs af ejede renderere. Den er ikke en godkendt tilstandsvariant; den isolerede loading-rettelse skal bruge tomt/bevaret indhold i samme anatomi. |
+| D01 | `dist/live-home-view.js`: observerede hændelser og anmodninger går til én `pv-activity-timeline`; care-data bruger eksisterende semantisk disclosure, og genbrug bruger fælles knapper. Ingen ekstra historik-/robotkortfamilie. Domænedataprojektion er adapterarbejde. |
+| D02 | `dist/live-control-view.js`: native tilladte formularer bruger fælles `dialog.pv-component`, content/actions/button-opskrifter og canonical CSS. Robotvisning delegeres fortsat til dens ejer. Ingen selvstændig formularstil. |
+| D03 | `dist/live-answer-view.js`: ejer-kilder bruger samme native dialog/header/content/meta-opskrift. Faktiske kilder, expiry og eventbinding bevares; ingen ny svarfamilie. |
+| D04 | `dist/live-media-view.js`: `pv-choice-list` ejer kontovalg, og `PlayerView` ejer player, transport og kø. Adapteren ejer ikke en alternativ player eller valgliste. |
+| D05 | `dist/live-music-selection-view.js`: eksplicit søgning bruger samme native dialog/form/button-opskrifter; `MusicResults` ejer resultater. Seneste direkte beslutning18okt: ét Play bruger præcis serverbundet rum uden målvalg eller ekstra bekræftelse. Opaque option-ID'er og serverens ejerskabs-/udløbskontrol bevares. Feedback vises kun i den eksisterende højre `PlayerView`; accepteret anmodning er ikke observeret afspilning. |
+| D06 | `dist/robot-control-panel.js`: den tidligere særskilte shadow-formular er fjernet. `pv-vacuum-widget` ejer observation; native navngivne forms/fieldset/input/select bruger fælles light-DOM-styling og eksisterende tilladte optioner. Ingen shadow CSS eller duplikeret robotinstrument. |
+| D07 | Generisk venteprosa er fjernet fra de gennemgåede synlige forløb. Egne tomme/bevarede widgetnoder og `aria-busy` bruges; faktiske voice-faser samt resultat/fejl/ukendt udfald beholder deres særskilte rolle. Interne pending-sentinels, der beskytter authority, er ikke synlig UI-prosa. Historisk variantpost bevares som `resolved-original-presentation-debt`. |
 
-En gældsundtagelse må indsnævres eller fjernes efter review. Den må ikke udvides ved blot at kopiere den nye implementation ind i registeret. Hvis et nyt produktbehov kræver mere end det eksisterende bibliotek, skal det først beskrives konkret og godkendes af brugeren.
+[Lukningsreview af D01/D06/D07](../integration/astra-design-review-20261017/debt-remaining-review/receipt.md) dokumenterer kausale tests og præcis metadataændring uden ny runtimeændring, bredere roots/imports eller ændret gate-logik. [D02/D03/D05-migration](../integration/astra-design-review-20261017/debt-native-dialogs/receipt.md) og [fælles CSS/browserkvittering](../integration/astra-design-review-20261017/debt-native-dialogs/css-receipt.md) dokumenterer native kontrolmål, lukkede dialoger og fjernede forældede stilregler. Gate: 54 aktive moduler, 0 aktive unapproved-adapter-noter; negative mutationstests er bevaret. Dette er kilde-/lokaltestbevis, ikke fuld live-state-, Green-, bruger- eller fysisk accept.
+
+Historisk `UI-KIT-SPEC` er ikke canonical. Dette bibliotek og det præcise register er fortsat de eneste gældende ejerskilder. Forældede scrollreferencer og et ubrugt hvidt bilasset er ryddet/arkiveret efter consumer-kontrol; det opretter ingen ny familie. Ny gæld må ikke skjules ved at udvide registeret eller kopiere en implementation ind som godkendt. Nye produktbehov uden eksisterende rolle kræver fortsat konkret specifikation og brugerens godkendelse.
 
 ## Kontrol og ændringer
 
@@ -63,3 +63,97 @@ Native HTML er byggesten inde i en komponent. En ekstra `span`, label, tilgænge
 En ny komponent kræver før brug: konkret behov, hvorfor eksisterende rolle ikke dækker det, én navngiven ejer og fælles live/lokal renderer, anatomi/varianter/tilstande, handlingers ejerskab samt en visuel eksempelvisning. Brugeren godkender denne specifikation. Derefter tilføjes den præcise beslutning, scope og ejerskab til registeret og kontrollerne. En agent må ikke selv erklære en ny komponent godkendt, svække kontrollen eller omdøbe en kopi til “adapter”.
 
 Kontrollen er en strukturel review-port, ikke en sikkerhedsparser eller et bevis for visuel kvalitet. Den kan ikke afgøre hensigten med vilkårlig kode inde i en eksisterende metode eller bevise, at en tekst i et approval-felt kom fra et menneske. Almindelig kilde-/visuel review og den faktiske menneskelige beslutning er fortsat nødvendige. PASS er kildeoverensstemmelse, ikke browser-, live- eller fysisk accept.
+
+
+## Samlet UI-kit · direkte beslutning 17. oktober 2026
+
+**Dette komponentbibliotek er UI-kittet og den eneste visuelle source of truth.** Research, audits og isolerede kandidater er arbejdsbeviser, ikke alternative biblioteker. Et adapterlag må levere data og tilladte handlinger; det må ikke definere sin egen player, widget, formularstil, tilstand, animation eller komposition. Samme renderer ejer både lokal og faktisk visning. AI-output vælger kun registrerede formater og deres data; ingen modelgenereret HTML/CSS eller improviserede elementer.
+
+Brugerens seneste beskeder tillader at rette, justere og løfte de eksisterende komponenter. Det omfatter farver, ikoner, typografi, layout, komposition, skygger, billeder, states, motion, flow og tilgængelighed. Det giver ikke automatisk tilladelse til en ny komponentfamilie. Agenter skal løse almindelige rettelser i den eksisterende ejer og bruge ændringen overalt; ingen parallel lokal/live-variant eller separat UI-kit. De historiske D01–D06-afvigelser er migreret til eksisterende kompositioner; adaptere må ikke genindføre de særskilte visuelle familier.
+
+### Fælles mål og optisk rytme
+
+- Fælles værdier ejes af `dist/ui/components.css`. Overbliksfamilien bruger `--pv-overview-*` for slot, højde, padding, indre/ydre afstand, typografi og domænefarver. Skærmkomposition og komponentstyles forbruger disse tokens; de er ikke selvstændige designkilder.
+- Landskab:64px motivslot, fælles tekststart, samme chevron-inset og radius. Ved kompakt600px højde bruges104px kort,20px padding og16px ens rækkeafstand; større landskab116px kort,24px padding og24px rækkeafstand. Optisk motivstørrelse vurderes ud fra tegningen; robotasset med intern luft må kræve en anden billedbredde end en fyldt node.
+- Titler og metadata har én fælles skala. Timer beholder sin mørke instrumentidentitet, men følger de samme plads-, vægt- og tekstregler som øvrige oversigtswidgets. Hvid cirkel under robot/lys er fjernet. Timerens store udfyldte mørke flade er ikke en grund til at gøre dens ikon eller tekst mindre.
+- Vejrfoto er kun tilladt i overblikkets vejrwidget som et lille, blødt afgrænset højreområde ved kendt passende vejr/dagtid. Vejrdetaljen bruger ikke foto. Ingen hård rektangulær billedstribe eller større hero. Data, råværdier og faktisk kilde ændres ikke af farve/billede.
+
+### Sammenhængende tilstandsserie og handlinger
+
+**Samme renderer ejer alle tilstande.** Der findes ingen ad hoc-undtagelse for loading, fejl, tomt indhold, demo, live, overlay eller historik. Dataadapteren vælger model og faktisk adgang; den ejer ikke DOM, styling eller animation. En mangel rettes i den eksisterende ejer og gælder alle kaldesteder. De løste historiske D01–D07-afvigelser giver ingen undtagelse eller genvej til en ekstra variant.
+
+| Tilstand | Fælles kontrakt |
+|---|---|
+| Tom / første læsning | Ægte tom anatomi med reserveret plads. Ingen opdigtede værdier, billeder, cover, volumen eller option-ID'er. Tom player bruger den eksisterende kompakte ikon/status/musikhandling, ikke en høj tom hvid kasse. |
+| Udfyldt | Domæneinstrument, hierarki og handlinger følger samme anatomi. Opdatering flytter ikke knapper eller tekst til andre positioner. |
+| Igangværende / opdatering | Bevar nyttigt indhold og samme noder; brug `aria-busy` og endelig tilstandsbevægelse. Ingen generiske “Henter…”, “Starter…” eller tidsstyret venteprosa. Et nyt resultat erstatter først gammelt, når det er brugbart. |
+| Gammel / offline | Bevar senest kendte data, kvalificér aktualiteten hvor nødvendig, og vis kun faktisk mulige handlinger. Forbindelse genbekræftes før klar-status. Ingen opdigtet genoprettelse. |
+| Afvist / fejl | Bevar opgave og brugerens valg. Forklar den konkrete fejl og tilbyd en faktisk mulig genopretning. Ingen automatisk gentagelse med ukendte sideeffekter. |
+| Accepteret / ukendt udfald / færdig | Adskil anmodning accepteret, observeret effekt og fysisk bekræftelse. Ukendt udfald forbliver ukendt; en timer eller afspilning får ikke dobbelt færdigmelding. |
+| Bevægelse / fokus | Endelig, afbrydelig bevægelse med reduced-motion-variant. Ingen dekorativ evighedsaktivitet. Ryd timere/listeners ved disconnect; bevar fokus og læseposition ved opdatering. Scrollindikator følger faktisk overflow. |
+| Tilbage / genåbning | Gendan samme opgave, valgte fane, indhold, output og relevant scrollposition. Skjul er ikke stop. Genåbning genstarter ikke afspilning. Historik bruger samme svaridentitet og renderer. |
+
+Primære handlinger står i den eksisterende handlingsrække. Scope, indstillinger og udførsel har forskellige roller: vælg først område/rum/option, vis det valgte, og udfør derefter den navngivne handling. Sekundære indstillinger og kilder åbnes gennem eksisterende disclosure, aldrig en ny specialformular. Dialoger har samme luk-/tilbageprincip og returnerer fokus til udløseren. Touch og voice afklarer konkurrerende intentioner og bruger samme stabile mål; et sent svar må ikke udføre en forældet handling.
+
+Historik genbruger `pv-answer` i direkte læsbar tæthed, ikke generel 50%-miniaturisering. Preview er inert og skjult for hjælpeteknologier; faktisk online/offline-status bevares og må ikke forfalskes for at deaktivere preview.
+
+### Tesla og radio · nuværende visuelle scope
+
+Brugeren har bestilt Tesla- og radiowidget med detaljevisning **uden ægte knapfunktion**, og derefter frabedt synlige eksempelmarkeringer. Derfor vises rene lokale visuelle data; interne fixtureflag og manglende betjeningsautoritet bevares. På live findes endnu ingen Tesla-/radioejer, så der må ikke opfindes aktuel bildata eller sendes kommandoer. Det er ikke en funktionel integration.
+
+`RadioView` bruger den eksisterende valgkomponent til P3/P1/P4Østjylland/P6Beat/P8Jazz. Et lokalt stationsvalg ændrer kun indhold i den samme `PlayerView`; intet nyt player-layout eller Musik/Radio-fanesæt. `VehicleView` viser brugerens **grå Tesla Model Y 2023** og bruger eksisterende overskrift, instrument/data, native disclosure og `pv-activity-timeline`. Navngivne ejere og konkret anatomi er registreret; ingen generel ret til nye familier følger af disse to.
+
+### Fælles art direction og opgaveforløb
+
+A er én rolig komposition med stabil geografi: hovedopgaven har fokus, vedvarende afspilning ligger til højre, og robot/lys beholder deres rækkefølge. Hierarki kommer fra størrelse, placering og luft før ekstra flader og skygger. Domæneinstrumenter bevarer deres identitet; ens roller deler typografi, afstand, ikonrytme, hjørner og semantiske farver. Foto-Ro er et bevidst roligt sted. Musikcovers og stemningsbilleder skal passe til indholdet og have dokumenteret proveniens; referencernes fotos og illustrationer er ikke produktassets.
+
+Alle flows vurderes gennem **se → find → vælg → udfør → vent → bekræft → genopret → vend tilbage**. Musik bevarer valg og output; robot adskiller områdevalg fra Start; timer kan findes og stoppes fra Ro og Lige nu; vejr adskiller overblik fra kildebelagt detalje; spørgsmål vælger et passende visuelt format, og historik genåbner det samme svar. Voice kan fortsætte den synlige opgave og touch kan overtage uden et parallelt opgave-ID. En flot enkeltskærm lukker ikke flowet.
+
+### Ejerskab for tokens og adfærd
+
+`dist/ui/components.css` ejer fælles farver (`--pv-ink`, `--pv-muted`, `--pv-accent`, `--pv-selection`, `--pv-danger`), overblik (`--pv-overview-*`), typografi (`--pv-type-*`), afstand (`--pv-space-*`), hjørner (`--pv-radius*`), touch (`--pv-hit-*`, `--pv-focus-ring`) og motion (`--pv-motion*`, `--pv-ease`). De eksisterende renderer-ejere i tabellen ovenfor forbruger dem; lokale literals må ikke etablere konkurrerende skalaer. Et eksisterende token er ikke i sig selv bevis for tilgængelighed eller godkendt styling.
+
+`SceneMotion` i `dist/ui/motion.js` ejer fælles sceneovergange; `dist/ui/touch-intent.js` og `dist/ui/gestures.js` ejer touchfortolkning. `SpeakerOutputView` i `dist/speaker-output-view.js` ejer eksisterende rumdialog. Tilstand, eventbinding og oprydning forbliver hos den relevante registrerede komponent. Et supportmodul får ikke renderer-adgang ved at kalde sig helper.
+
+### Kvalitetskontrakt · 12 dimensioner, 120 konkrete kriterier
+
+Dette er krav til den eksisterende implementation, **ikke 120 beståede tests**. Hver dimension nedenfor har ti kontroller i rækkefølge; Q-numre giver sporbarhed til researcharbejdet. Krav-ID'er henviser til [den samlede 31-punktsstatus](PODVIEW-STATUS-2026-10-17.md) og ændrer ikke dens acceptstatus. En dimension skal kontrolleres i alle relevante tilstande og forløb, ikke blot i et tomt eksempel.
+
+| Dimension / eksisterende ejer | Ti konkrete kriterier | Krav-ID'er |
+|---|---|---|
+| **1. Komposition Q001–010** · skærm/WidgetHost | Samme A lokalt/live; stabil widgetrækkefølge; header Svar→vejr→ur; Ro holder vigtige ressourcer tilgængelige; Back gendanner kontekst; én hovedopgave dominerer; alle familier har registerejer; højre player står fast under opgaveskift; pairing er findbar uden falsk klar-status; ingen /flow-navigation. | 1–6, 8, 31 |
+| **2. Farver Q011–020** · fælles tokens | Normal tekst mindst 4,5:1; stor tekst mindst 3:1; essentielle kontrolkanter/fokus mindst 3:1; status også gennem tekst/form; pause er ikke fejlfarve; samme handlingsrolle har samme accent; Ro-tekst testes på lyse/mørke crops; timerhast kan forstås uden farve; vejrfarver opfinder ikke fare; disabled ligner ikke valgt. | 2, 3, 6, 8, 11, 26–28, 31 |
+| **3. Typografi Q021–030** · domænerenderere/type-tokens | Titel/værdi/metadata har faste roller; værdi dominerer enhed; lang musiktitel klipper ikke modalstyring; langt kunstnernavn bevarer identitet og adgang til fuld tekst; danske enheder/afrundinger følger kilden; Start/Pause/Stop/Til base er præcise; fejl forklarer næste handling; ingen for tidlig færdigcopy; 200% tekst mister ingen vigtig handling; lignende rumnavne kan skelnes. | 2, 8, 9, 15, 20, 26–28, 30 |
+| **4. Ikoner Q031–040** · eksisterende ikonroller/resource-tile | Play/Pause matcher faktisk status og navn; Stop/Base skelnes; outputikon er ens i alle playersammenhænge; vejrikon følger periode/dag/nat; ikonknapper har tilgængelige navne; ens roller har optisk ens vægt; stemningskunst ligner ikke et falsk cover; robotillustration ligner ikke et opdigtet livekort; ukendte svarsymboler forklares; alle assets har proveniens. | 2, 4, 11, 18, 20, 22, 25, 26, 28, 29 |
+| **5. Flader Q041–050** · surface/line/radius-tokens | Peer-widgets deler radius; indre hjørner passer i ydre; modalens dybde bevarer kontrast; skygge angiver lag uden at alle kort konkurrerer; køseparation har ingen dobbeltkant; valgt/hover/fokus skelnes; cover/fallback deler geometri; fokus klippes ikke; peer-flader deler tokens; Ro har ingen utilsigtet søm eller stræk. | 2, 6, 9–12, 18 |
+| **6. Geometri Q051–060** · spacing/hit-tokens/touch-intent | Mål lige mellemrum; primære trykflader mindst 48×48px; trykflader overlapper ikke; modal har sikker indre afstand; tre hele kølinjer uden klippet fjerde; kø scroller selvstændigt; vigtig landskabsfunktion kræver ikke sidescroll; drag annullerer tap; rumtekst og valgmarkør bevarer touchareal; hovedopgave/akut timer identificeres på tre sekunder ved 2m. | 2, 3, 9–11, 20, 27 |
+| **7. Musikvalg Q061–070** · MusicResults/assetmapping | Fire aftalte faner; Stemning har tre faktiske playlists; Humør har egen playlisttype; Topsange/Senest har tre tracks; tilbage bevarer kort/fane; reload starter Stemning; mål AI-valgenes tid og relevans; stemningskunst matcher og har proveniens; trackcover er faktisk eller ærligt fallback; voice/touch vælger samme option trods forsinkede svar. | 12–18 |
+| **8. Player Q071–080** · PlayerView/SpeakerOutputView | Tom Ro har musik-CTA; alle fem playerstates bevarer anatomi; faktiske PodConnect-mål uden Tesla; outputændring er eksplicit; første Play starter én gang; hurtige tryk kan ikke udføre forældet intent; aftalt startvolumen 35% matcher provider; naturlig slutning fortsætter én gang og manuel stop gør ikke; kø matcher afspilning; luk detalje bevarer track/output. | 7–10, 19–24 |
+| **9. Feedback Q081–090** · domænestates/beskedroller | Loading bevarer widget; nyt svar bevarer nyttigt gammelt indhold indtil klar; accepteret/startet/bekræftet skelnes; gammel robot/vejrstatus kvalificeres; vejrets kilde/tid er tilgængelig; pending-handling er identificerbar og uden dubletter; svarretry bevarer spørgsmål; online-status genbekræftes; timer har én færdigmelding; hændelser viser udfald og faktisk tid. | 8, 11, 17, 22, 25–28, 30 |
+| **10. Motion/input Q091–100** · SceneMotion/VoiceSurface/gestures | Overgang bevarer objektidentitet; reduced motion bevarer feedback; disconnect rydder aktiviteter; ingen uønsket evighedsbevægelse; fokusorden og dialogretur fungerer; fokus skelnes fra valg; voice bevarer option/opgave; touch/voice afklarer konkurrerende intent; trykfeedback er hurtig men success afventer udfald; tokenstyret overgang kan afbrydes uden strandet lag. | 11, 13, 22, 26, 29 |
+| **11. Svar/historik Q101–110** · pv-answer/VisualComponent/LibraryComponent | Ti formater bruger ejede renderere; format vælges efter opgaven; grafer har enhed/skala/kilde; tabeller skelner manglende fra negativ; trin har tydelig rækkefølge; diagramtekst overlapper ikke; historik har genkendeligt visuelt preview; genåbning bevarer svaridentitet; loading/fejl bevarer kontekst; follow-up bindes til synlig revision. | 29, 30 |
+| **12. Enheder/accept Q111–120** · robot/timer/vejr/lys + kontrolgate | Faktiske områder/gentagelser vises før Start; to faktiske maps har stabile ID'er; robotkommandoer rammer rigtigt og bekræftes; Seneste hændelser skjuler ikke nutid; timerstop rydder alle visninger; vejrrunding/perioder/vind kontrolleres mod kilden; lys holder aftalt scope; lokal/Green/fysisk dokumenteres særskilt; gate bestås uden at rebaseline ny familie; sammenligningsscore bruger samme opgave og forhold. | 1, 4, 17, 24–31 |
+
+Visuelle kriterier kræver aktuelle renderede billeder og relevante målinger. Tilstande og navigation kræver faktiske handlingssekvenser. Målbinding, aktualitet og udfald kræver providerbevis. Hørbar afspilning, fysisk robotrespons og afstandslæsbarhed kræver fysisk prøve. Kildekontrol alene opfylder ingen af de sidste tre kategorier.
+
+### Referenceappendiks · hvad vi faktisk har set
+
+[Det fulde kildegrundlag](../integration/astra-design-review-20261017/references/references.md) dækker **24 forskellige firmaer**: Apple, Google, Sonos, Spotify, Bang & Olufsen, Signify/Hue, IKEA, ecobee, Tesla, Rivian, Roborock, Dyson, Withings, Garmin, Oura, Linear, Notion, Figma, Stripe, Airbnb, Nintendo, Microsoft, Samsung og OpenAI. Der er 23 vellykkede direkte officielle sideåbninger; Linear har officiel søgeudtrækning og fejlede direkte åbninger. Dette er relevante produktkilder, ikke en dokumenteret rangliste over verdens bedste design.
+
+[Otte visuelle inspektioner](../integration/astra-design-review-20261017/references/visual-reference-inspection.md) er faktisk set og udsendt som Chrome-billeder: Hue (scenegitter kontra justering), Apple (stor instrumenthierarki og luft), Tesla (fast kontrolgeografi), Roborock (scope, valg og udførsel), ecobee (primær værdi kontra sekundært mål), Figma (gruppering og diskret overlaydybde), Oura (overblik kontra aktuelt fokus) og Dyson (gentagen ikon/label-rytme). Det er officielle guide-/promobilleder eller produktrenders, **ikke betjente apps eller målte sammenligningstests**. Oura-artiklen er historisk. Mobbin krævede betalt adgang; Linear 404, Rivian-redirect og Notion-visning uden kvalificerende UI-billede tæller ikke med i de otte.
+
+Øvrige kilder begrunder dokumenterede mønstre: Google kontinuitet; Sonos/Spotify kø og output; B&O meningsfulde valg; IKEA/Samsung mål og rum; Rivian vedvarende ressourcer; Withings/Garmin læselige målinger; Notion/Linear genkendeligt preview; Stripe adskilte udfald; Microsoft ærlig fremdrift; Airbnb valgkontekst; Nintendo entydige kontroller; OpenAI struktureret forklaring. Den præcise observation, dato, URL og begrænsning står ved hver kilde. Ingen kilde autoriserer kopiering af assets, nye PodView-funktioner eller automatisk kvalitetsgodkendelse.
+
+Researchfiler, herunder den oprindelige 120-punktsproposal, er sporbar baggrund. **Denne fil er den gældende samlede kvalitetskontrakt**; research er ikke et parallelt UI-kit eller en selvstændig implementation.
+
+### Måling, score og åbne beviskrav
+
+97/100 er ambition, ikke et konstateret resultat. Den senest rapporterede A-audit før rettelser er **81/100 og 24/40**; disse to auditmål konverteres ikke til hinanden eller til nedenstående rubric. Ingen automatisk efter-score udledes af kodeændringer, referencetal eller 120 kriterier. De 31 krav beholder deres individuelle status i statusdokumentet; dette bibliotek lukker dem ikke.
+
+Den fælles 100-point benchmark vægter opgavesucces/effektivitet 20, blik/læsbarhed/visuelt hierarki 15, touch/tilgængelighed 15, kontinuitet/stabil geografi 15, ærlig tilstand/genopretning 15, svarforståelse/proveniens 10, respons/motion 5 og systemkonsistens/finish 5. [Benchmarkmatricen](../integration/astra-design-review-20261017/references/benchmarkmatrix.md) beskriver samme-opgave-prøver og accept pr. rejse. Hver score skal have dato, build, viewport, dataforhold, testsekvens og observation; manglende evidens er et åbent hul, ikke gratis point. En kategori får vægt × beståede relevante kontroller / alle relevante kontroller; ukendte får nul point og rapporteres samtidig som umålte. Rapportér både score og dækning.
+
+Hårde gates går før totalscore: samme canonical renderer lokalt/live; ingen opfundet authority/data/success; ingen farlig eller forældet dobbelt handling; gennemførlige kerneflows; ægte recovery; ingen essentiel kontrol tabt ved reduced motion, fokus eller tekstforstørrelse. Kildegate, Chrome-visning, integration og fysisk prøve dokumenteres særskilt. Ingen “bedre end 24 produkter” eller 97/100 på tværs af dem uden direkte sammenlignelige opgavetests. Det åbne arbejde er aktuel gennemgang efter rettelser, dækkende tilstands-/flowprøver, Green-paritet og fysisk accept, hvor kravet kræver det.
+
+### Direkte musikstart ·18. oktober2026
+
+Ét eksplicit Play på et musikresultat bruger skærmens præcise serverbundne rum/højttaler. Ingen ekstra destinationvælger, OK eller bekræftelsesdialog i dette forløb. Det særskilte eksplicitte rumskift forbliver hos `SpeakerOutputView`. `LiveMusicSelectionView.observePlayback` er en ikke-visuel lifecycle-metode; den afklarer accepteret feedback ud fra frisk matchende faktisk observation. Den samme eksisterende højre playerstatus ejer pending, afvisning og ukendt udfald, mens kendt cover, titel og faktisk Play/Pause bevares. Ingen optimistisk afspilning, gentagelse af ukendt handling eller ekstra statusflade i musikkort/venstre side.

@@ -50,6 +50,7 @@ def test_54_exact_scope_and_history():
         "tests/unit/test_candidate_scope_admission54.py",
         "tests/unit/test_dev_cycle.py",
     }
+    assert "docs/COMPONENT-LIBRARY.md" in admission.TOOLING
     assert admission.ASSET_COUNT == 143
     assert admission.IMMUTABLE.items() >= published53.IMMUTABLE.items()
     assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)

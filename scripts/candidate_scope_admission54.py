@@ -29,7 +29,7 @@ RECORD_MARKER = "<!-- podview54-admission"
 STATIC = previous.STATIC
 CONFIG = frozenset({"podvoice/config.yaml", "podvoice/gatekeeper/__init__.py", "pyproject.toml"})
 POLICY = previous.POLICY | frozenset({PROFILE, MANIFEST})
-TOOLING = previous.TOOLING
+TOOLING = previous.TOOLING | frozenset({"docs/COMPONENT-LIBRARY.md"})
 FIELDS = previous.FIELDS
 
 DOMAINS = ("physical_output",)  # Derived from the exact published53-to54 delta.
@@ -64,9 +64,9 @@ REQUIRED_TESTS = frozenset(
 )
 HA_RUNTIME = previous.HA_RUNTIME
 # Signature bindings remain closed until independent PV53 review.
-REVIEWER = "Independent /root/ui41_source_review NEXT54 source adoption, scoped legacy migration, and exact unsigned admission reviewer"
-MANIFEST_SHA = "fa83e1d98e664613db7db6568a2ee8bfabaf996b61dc8b4906eb755881af78e0"
-PROFILE_AST = "137b1dbae7588dff30106b53323b6bb50903f00dc05f1faf71778bcdf35c507a"
+REVIEWER = "Independent /root/ui41_source_review NEXT54 registry/document successor and exact unsigned admission reviewer"
+MANIFEST_SHA = "2fa24070a9db06c252d210f7b5a489b2778696755edcc731fd45421ad060544c"
+PROFILE_AST = "30b5f13ef8a39f5b3fd205b12da5dc2eb473f4f1d02fdb22785a445028380348"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
     "scripts/podview53-admission-reviewed.json": "66413614f432689ef34cc8d5e03c803fb3590b8b608e15559a5209965acab877",

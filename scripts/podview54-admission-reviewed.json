@@ -33,7 +33,7 @@
     "tests/podview/root-collection-selection.test.mjs": "25fbfaf004b642eae9a5e0da6a3ec7027256a2bdb8f7b61b09316fe271935359",
     "tests/podview/transport-recovery.test.mjs": "142d615a64aef50a25f3825ecafdca00654ba7e4437c6b94f7715e05c97bcda0",
     "tests/unit/test_candidate_scope_admission53.py": "82c6f59ee2518191fe9f11f4ac0bf660d04dc233cf46668f4e65b4239fccda0b",
-    "tests/unit/test_candidate_scope_admission54.py": "9dc68d4649850f1e76c9bde597aa8d0b944c00897542f72005420737c8861e76",
+    "tests/unit/test_candidate_scope_admission54.py": "aeb2aff757398f22052f214fd37d196b17822d7ef7ce6e86227ffcd145e50598",
     "tests/unit/test_dev_cycle.py": "4a04f86b2f044e4caab2b1d2003ca378b4e7d558cce67c58519f1526c85b9206"
   },
   "runtime": {
@@ -295,7 +295,8 @@
   },
   "schema": "podvoice54.admission.v1",
   "tooling": {
-    "docs/component-library-registry.json": "bad977d2ae3b398a632c4da52ed51a8e4ebad6cef11b58452210e3760cfdc79e",
+    "docs/COMPONENT-LIBRARY.md": "937d3f1a3d12e32e071fe88d47d8f05b8262d8e91c88c4fbedbd662a9dbf3c8c",
+    "docs/component-library-registry.json": "0bcfece1e7b648a36cc715e60db0edd209fcae5e4fc53edcc19f7a52bfeb500e",
     "scripts/browser_gate.py": "ccd53011fc93c5846fafcbbf3c5682cd76d54b30a1f3f83c035a89facb86fc78",
     "scripts/check-component-library.mjs": "8487cdc0751b02eb83cf0c5d74948117d3fcecf781010dfd95c427f4469b2192",
     "scripts/check_podview_admin_stdin.sh": "63e9c696589e7660b99035dcfca5d751814cde8e1f4b6593fa908bdcda576058",
