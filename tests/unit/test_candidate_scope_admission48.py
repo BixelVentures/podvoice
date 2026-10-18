@@ -22,7 +22,20 @@ def historical47_root(tmp_path_factory):
     return target
 
 
-def test_48_exact_scope_and_history():
+PUBLISHED48_MERGE = "d6c1cfe7c761a80056771af5f9ccccbc1fdd2437"
+PUBLISHED48_TREE = "1f31630a93c549230d796ec4790e6815fd2c3172"
+
+
+@pytest.fixture(scope="module")
+def historical48_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published48") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED48_MERGE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED48_TREE], cwd=target, check=True)
+    return target
+
+
+def test_48_exact_scope_and_history(historical48_root):
     assert admission.BASE == PUBLISHED47_MERGE
     assert admission.VERSION == 25
     assert admission.KIND == "podview48_delegated_presentation"
@@ -36,38 +49,39 @@ def test_48_exact_scope_and_history():
         "tests/unit/test_dev_cycle.py",
     }
     assert admission.IMMUTABLE.items() >= published47.IMMUTABLE.items()
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
-    assert admission.config_only(ROOT)
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
+    assert admission.strict.pins_match(historical48_root, admission.IMMUTABLE)
+    assert admission.config_only(historical48_root)
+    report = admission.legacy.inspect_repository(historical48_root, admission.BASE)
     assert report.domains == admission.DOMAINS
-    effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
+    effective = admission.legacy._visual_repository_changes(historical48_root, admission.BASE)
     assert admission.production_scope_matches(effective)
     assert {p for p in effective if p.startswith("tests/")} == admission.REQUIRED_TESTS
     assert admission.change_scope_matches(effective, set(admission.REQUIRED_TESTS))
     bindings = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
     assert len({bool(value) for value in bindings}) == 1
     if all(bindings):
-        assert admission.inspect_repository(ROOT, admission.BASE).passed
+        assert admission.inspect_repository(historical48_root, admission.BASE).passed
     else:
-        assert not admission.inspect_repository(ROOT, admission.BASE).passed
+        assert not admission.inspect_repository(historical48_root, admission.BASE).passed
 
 
-def test_48_manifest_exact_inventory():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_48_manifest_exact_inventory(historical48_root):
+    manifest = json.loads(admission.safe_file(historical48_root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice48.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT == 143
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert (
-        set(manifest["runtime"]) == admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        set(manifest["runtime"])
+        == admission.strict.runtime_inventory(historical48_root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING
     for group in ("production", "regressions", "runtime", "config", "policy", "tooling"):
-        assert admission.strict.pins_match(ROOT, manifest[group])
-    assert admission.assets_match48(ROOT, manifest["runtime"], manifest["asset_count"])
+        assert admission.strict.pins_match(historical48_root, manifest[group])
+    assert admission.assets_match48(historical48_root, manifest["runtime"], manifest["asset_count"])
 
 
 def test_published47_accepted_and_cannot_authorize48(historical47_root):

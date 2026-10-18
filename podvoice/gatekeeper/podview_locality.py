@@ -4,8 +4,9 @@ import asyncio
 import math
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from . import constants as C
 from .offline_locality import Resolver
@@ -45,7 +46,7 @@ def valid_label(value, now=None):
         and isinstance(value["datasetVersion"], str)
         and re.fullmatch("[a-f0-9]{64}", value["datasetVersion"]) is not None
         and all(finite(value[k]) for k in ("observedAt", "validUntil"))
-        and value["observedAt"] <= now < value["validUntil"] <= value["observedAt"] + 30
+        and value["observedAt"] <= now < value["validUntil"] <= value["observedAt"] + 60
     )
 
 
@@ -91,8 +92,79 @@ async def read(client, token, current):
                 scope="ha_home",
                 datasetVersion=estimate["datasetSha256"],
                 observedAt=observed,
-                validUntil=observed + 30,
+                validUntil=observed + 60,
             )
             return label if valid_label(label) else None
     except Exception:
         return None
+
+
+class LocalityOwner:
+    """One server-owned request, renewed only by admitted weather reads.
+
+    A request may outlive its HTTP response, never the app or its HA binding.
+    Returned observations retain their original timestamps; no stale grace period.
+    """
+
+    def __init__(self):
+        self._binding: object = None
+        self._task: asyncio.Task | None = None
+        self._label: dict | None = None
+        self._generation = 0
+        self._closed = False
+
+    def _invalidate(self):
+        self._generation += 1
+        self._label = None
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+
+    def ensure(self, binding: object, client: Any, token: str, current: Callable[[], bool]):
+        if self._closed:
+            return
+        if binding != self._binding or not current():
+            self._invalidate()
+            self._binding = binding
+        if not current() or client is None or not token:
+            return
+        # Do not create a replacement until the cancelled request has terminated.
+        # This keeps one owned task even across repeated discovery/client changes.
+        if self._task is not None and not self._task.done():
+            return
+        now = time.time()
+        if (
+            self._label is not None
+            and valid_label(self._label, now)
+            and now - self._label["observedAt"] < 15
+        ):
+            return
+        generation = self._generation
+
+        def admitted():
+            return not self._closed and generation == self._generation and current()
+
+        async def fetch():
+            label = await read(client, token, admitted)
+            if generation == self._generation and not self._closed:
+                self._label = label if admitted() and valid_label(label) else None
+
+        self._task = asyncio.create_task(fetch(), name="podview-home-locality")
+
+    def value(self, binding: object, current: Callable[[], bool]):
+        if binding != self._binding:
+            return None
+        if self._closed or not current():
+            self._invalidate()
+            return None
+        if self._label is None or not valid_label(self._label):
+            self._label = None
+            return None
+        return dict(self._label)
+
+    async def aclose(self):
+        self._closed = True
+        self._invalidate()
+        if self._task is not None:
+            await asyncio.gather(self._task, return_exceptions=True)
+        self._task = None
+        self._binding = None

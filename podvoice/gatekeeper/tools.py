@@ -44,6 +44,7 @@ from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .ha_timers import TOOLS as TIMER_TOOLS
 from .ha_timers import HomeAssistantTimers
 from .mcp_client import HomeAssistantMCP, McpError
+from .podview_locality import LocalityOwner
 from .podview_receipts import VisualReceiptOwner
 from .podview_weather import observation_is_current, weather_projection, with_hourly_projection
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
@@ -336,6 +337,7 @@ class ToolRouter:
         self.podview_weather_city: str = ""
         self._mcp = mcp
         self.podview_receipts = VisualReceiptOwner()
+        self.podview_locality = LocalityOwner()
         self._device_control = DeviceControl(
             client, supervisor_token, journal_path=cleaning_journal_path
         )
@@ -2086,7 +2088,6 @@ class ToolRouter:
         )
 
     async def podview_weather_read(self) -> dict:
-        from .podview_locality import read
         from .podview_weather import with_home_locality
 
         binding, client, token = self.podview_weather_binding(), self._client, self._token
@@ -2099,16 +2100,10 @@ class ToolRouter:
                 and self.podview_weather_available()
             )
 
-        locality_task = asyncio.create_task(read(client, token, current))
-        locality = None
-        try:
-            weather = await self._podview_weather_read()
-            if locality_task.done() and not locality_task.cancelled():
-                locality = locality_task.result()
-        finally:
-            if not locality_task.done():
-                locality_task.cancel()
-            await asyncio.gather(locality_task, return_exceptions=True)
+        locality_binding = (binding, id(client), token)
+        self.podview_locality.ensure(locality_binding, client, token, current)
+        weather = await self._podview_weather_read()
+        locality = self.podview_locality.value(locality_binding, current)
         if not current():
             return {"status": "unavailable", "data": None}
         return with_home_locality(weather, locality)

@@ -64,7 +64,7 @@ async def test_fixed_private_read_closed_projection():
         "validUntil",
     }
     assert before <= label["observedAt"] <= time.time()
-    assert label["validUntil"] == label["observedAt"] + 30
+    assert label["validUntil"] == label["observedAt"] + 60
     text = json.dumps(label)
     assert all(x not in text for x in ["secret", "latitude", "longitude", "distanceMetres"])
 
@@ -199,7 +199,7 @@ def test_expired_label_not_projected():
 
 
 @pytest.mark.asyncio
-async def test_fast_weather_cancels_held_config_without_waiting():
+async def test_fast_weather_keeps_owned_config_until_server_cleanup():
     router = ToolRouter(None, client=client(), supervisor_token="s")
     router.podview_weather_binding = lambda: ("owner",)
     router.podview_weather_available = lambda: True
@@ -222,9 +222,11 @@ async def test_fast_weather_cancels_held_config_without_waiting():
     before = time.monotonic()
     result = await router.podview_weather_read()
     assert time.monotonic() - before < 0.2
-    assert cancelled.is_set()
+    assert not cancelled.is_set()
     assert "displayLocation" not in result["data"]
     assert router._client.get.call_count == 1
+    await router.podview_locality.aclose()
+    assert cancelled.is_set()
 
 
 def test_brief_preserves_valid_auto_and_removes_expired_auto():

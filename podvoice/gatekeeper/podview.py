@@ -2790,6 +2790,9 @@ def mount(
     from .podview_queue import queue_http
 
     async def close_receipts(_app):
+        locality = getattr(tools, "podview_locality", None)
+        if locality is not None:
+            await locality.aclose()
         sink = getattr(tools, "podview_receipts", None)
         if sink is not None:
             await sink.aclose()

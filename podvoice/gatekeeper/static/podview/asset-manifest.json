@@ -543,7 +543,7 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "dc9cbc26d70924c6c537e416174904cfdd6a0717f905888029e96f9bf5b5fba2"
+      "sha256": "39569f1bfa7e9b73070a969fc81483eb95e5e8920eec46bc2aabe38c7d61ecc1"
     },
     {
       "path": "weather-view.js",
