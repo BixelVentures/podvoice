@@ -47,6 +47,55 @@ assert.equal(ctx.rooms.fixture.live_status.transcript,null);
 assert.equal(ctx.liveStatusView({live_status:{...sample,phase:'CLOSING',timer_kind:'deadline',remaining_s:0}},100000).title,'Afslutter');
 assert.ok(ctx.liveStatusView({live_status:{...sample,phase:'CLOSING',timer_kind:'deadline',remaining_s:0}},100000).lines.some(x=>x.includes('afventer afslutning')));
 console.log('PASS: shipped projection identity, stale/unknown, measured coverage, zero deadline, idle transcript cleanup, snapshot/SSE hooks');
+// The actual service renderer distinguishes provider connection evidence from Talk.
+{
+  function node(tag='div',cls='',text='') { return {tagName:tag,className:cls,dataset:{},children:[],_text:text,
+    set innerHTML(v){this.children=[];this._text=v;},get textContent(){return this._text+this.children.map(n=>n.textContent).join('');},
+    set textContent(v){this._text=v;this.children=[];},appendChild(n){this.children.push(n);return n;}}; }
+  const elements={svc:node(),'service-details':node(),svc_announce:node()};
+  const context=vm.createContext({document:{getElementById:id=>elements[id],createTextNode:text=>node('text','',text)},
+    el:node,safe:(o,k,d)=>o&&o[k]!=null?o[k]:d,SVC_LABEL:{openai:'ChatGPT',voicepe:'Voice PE',podconnect:'PodConnect',mcp:'MCP'}});
+  vm.runInContext(source.slice(source.indexOf('function renderServices('),source.indexOf('function renderCapabilities(')),context);
+  const cases=[['up','aktiv Realtime-session','accepted','forbindelse bekræftet'],
+    ['up','Realtime-forbindelse','legacy','forbindelse bekræftet'],['up','future','unknown owner','forbindelse bekræftet'],
+    ['degraded','konfiguration','API-nøgle fundet','konfigureret'],['degraded','future','unverified','ikke verificeret'],
+    ['down','konfiguration','OpenAI API-nøgle mangler','fejl'],['down','settings','untrusted','fejl'],
+    ['down','aktiv Realtime-session','kredit mangler','mangler kredit'],['down','aktiv Realtime-session','ratebegrænset','ratebegrænset'],
+    ['unknown','future','unknown','ukendt']];
+  for(const [state,owner,reason,label] of cases){
+    context.renderServices({openai:state,voicepe:'up',podconnect:'up',mcp:'degraded'},{openai:{source:owner,reason}},false);
+    assert.equal(elements.svc.children[0].textContent,'ChatGPT: '+label);
+    assert.ok(elements.svc.children[0].title.includes(reason));
+    if(owner==='aktiv Realtime-session') {
+      assert.ok(elements.svc.children[0].title.includes('Providerforbindelse ved seneste samtalestart via Voice PE'));
+      assert.ok(!elements.svc.children[0].title.includes(owner),'Daily tooltip uses semantic provenance, not the raw technical source');
+    } else assert.ok(elements.svc.children[0].title.includes(owner));
+    assert.ok(elements['service-details'].textContent.includes(reason),'Diagnostic reason remains exact');
+    assert.ok(elements['service-details'].textContent.includes(owner),'Diagnostic source remains exact');
+    assert.ok(elements.svc.children[0].title.includes('Talk'));
+    if(owner==='Realtime-forbindelse'||owner==='future') assert.ok(!elements.svc.children[0].title.includes('via Voice PE'),'Non-native source must retain neutral provenance');
+    assert.equal(elements.svc.children[1].textContent,'Voice PE: wake-klar');
+    assert.ok(elements.svc_announce.textContent.includes('ChatGPT '+label));
+    assert.equal(elements.svc.children.length,4);
+    assert.ok(!elements.svc.children[0].textContent.includes('samtale'));
+  }
+  for(const [reason,visible] of [['aktiv Realtime-session','Registreret providerstatus'],
+    ['Realtime-session aktiv','Registreret providerstatus'],['Realtime-session accepteret','Providerforbindelse accepteret']]) {
+    context.renderServices({openai:'up'},{openai:{source:'fixture probe',reason}},false);
+    assert.ok(elements.svc.children[0].title.includes(visible));
+    assert.ok(!elements.svc.children[0].title.includes(reason));
+    assert.ok(!elements.svc.children[0].title.includes('via Voice PE'),'A legacy reason does not establish native ownership');
+    assert.ok(elements['service-details'].textContent.includes(reason));
+    assert.ok(elements['service-details'].textContent.includes('fixture probe'));
+  }
+  context.renderServices({openai:'up',voicepe:'up'},{openai:{source:'aktiv Realtime-session',reason:'accepted'}},true);
+  assert.equal(elements.svc.children[0].textContent,'ChatGPT: systemtest kører - midlertidigt låst');
+  assert.equal(elements.svc.children[0].title,'Sikker systemtest kører. Prøv igen, når testen er færdig.');
+  const connectionsMarkup=source.slice(source.lastIndexOf('<div class="section">',source.indexOf('<h2>Forbindelser</h2>')),source.indexOf('<div id="cap_warning"'));
+  assert.ok(connectionsMarkup.includes('Konfiguration og seneste providerforbindelse. Talk har egen status i Talk-fanen.'));
+  assert.ok(!connectionsMarkup.includes('Voice PE-forbindelse'),'Visible qualification must not invent native provenance for legacy/unknown sources');
+  console.log('PASS: actual service renderer native/legacy/unknown/config/errors/diagnostic and retained details');
+}
 if (process.env.PODVOICE_BROWSER_PROOF === '1') {
   const {chromium} = require('playwright');
   (async()=>{
@@ -75,6 +124,29 @@ if (process.env.PODVOICE_BROWSER_PROOF === '1') {
         await page.locator('details.live-explanation summary').focus();
         await page.evaluate(()=>{var v=rooms['Køkken'].live_status;applyEvent({type:'live_status',room:'Køkken',live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Næste måling'}});});
         assert.equal(await page.evaluate(()=>document.activeElement.tagName),'SUMMARY');
+        const serviceMarkup=source.slice(source.lastIndexOf('<div class="section">',source.indexOf('<h2>Forbindelser</h2>')),source.indexOf('<div id="cap_warning"'))+'</div><div id="service-details"></div>';
+        const serviceRenderer=source.slice(source.indexOf('function renderServices('),source.indexOf('function renderCapabilities('));
+        await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width"><style>${css}</style>${serviceMarkup}<script>function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}function safe(o,k,d){return o&&o[k]!=null?o[k]:d;}var SVC_LABEL={openai:'ChatGPT',voicepe:'Voice PE',podconnect:'PodConnect',mcp:'MCP'};${serviceRenderer}</script>`);
+        for(const state of ['up','degraded','down','unknown']){
+          await page.evaluate(state=>renderServices({openai:state,voicepe:'up',podconnect:'up',mcp:'degraded'},{openai:{source:state==='degraded'?'konfiguration':'aktiv Realtime-session',reason:'synthetic connection evidence'}},false),state);
+          assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'service horizontal overflow '+width+' '+state);
+          assert.ok(await page.locator('#svc').innerText());
+          const qualification=await page.locator('.section .sub').first().innerText();
+          assert.ok(qualification.includes('Talk har egen status'));
+          assert.ok(!qualification.includes('Voice PE-forbindelse'));
+        }
+        const identityFunction=source.slice(source.indexOf('function renderRuntimeIdentity('),source.indexOf('function renderSub('));
+        await page.addScriptTag({content:identityFunction});
+        for(const state of ['complete','missing','stale','fallback']) {
+          const value=state==='missing'?{}:{runtime_identity:{version:'2.0.58',git_sha:'a'.repeat(40),artifact_kind:state==='fallback'?'source-fallback-v1':'rootfs-v1',artifact_sha256:'b'.repeat(64)}};
+          await page.evaluate(({value,state})=>renderRuntimeIdentity(value,state!=='stale'),{value,state});
+          const text=await page.locator('#runtime_identity').innerText();
+          assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'identity overflow '+width+' '+state);
+          if(state==='missing') assert.ok(!text.includes('a'.repeat(40)));
+          else assert.ok(text.includes('a'.repeat(40))&&text.includes('b'.repeat(64)));
+          if(state==='stale') assert.match(text,/Sidst kendte/);
+          if(state==='fallback') assert.match(text,/Lokal kildeidentitet/);
+        }
         await page.close();
       }
       console.log('PASS: real Chromium room card at 320/390/430/768/1440, escaped transcript, keyboard focus, no horizontal overflow');

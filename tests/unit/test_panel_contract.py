@@ -45,8 +45,10 @@ def test_service_status_is_live_and_names_runtime_truths():
     assert "lastStatus.service_details[ev.name] = ev.detail" in html
     assert '"wake-klar"' in html
     assert '"ikke verificeret"' in html
-    assert '"standby - ikke prøvet"' in html
-    assert '"klar ved seneste samtale"' in html
+    assert '"konfigureret"' in html
+    assert '"forbindelse bekræftet"' in html
+    assert "klar ved seneste samtale" not in html
+    assert "Talk har egen status i Talk-fanen." in html
     assert '"ratebegrænset"' in html
 
 

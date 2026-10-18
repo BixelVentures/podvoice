@@ -8,7 +8,10 @@ const markup = source.replace(/<script>[\s\S]*?<\/script>/g, '');
 const settings = source.match(/\/\/ ---- Settings page[\s\S]*?<\/script>/)[0].replace('</script>', '');
 const renderer = source.split('var savedWakeWord = null;')[1].split('function renderRooms()')[0];
 const poll = source.split('async function poll() {')[1].split('function openStream()')[0];
+const statusReadState = source.match(/^var statusReadGeneration = [^\n]*;$/m);
+assert.ok(statusReadState, 'the actual poll owner state must be included in this partial fixture');
 const script = `var rooms = {}, connected = true, lastObservedMs = Date.now(), lastStatus = {};
+${statusReadState[0]}
 function toast() {} function renderSub() {} function applyStatus() {}
 var savedWakeWord = null; ${renderer}
 async function poll() { ${poll}
@@ -70,8 +73,12 @@ ${settings}`;
       await page.evaluate(() => { rooms.Stue = {connected:false}; renderWakeWordStatus(); });
       assert.match(await page.locator('#s_wake_word_status').innerText(), /Kan ikke bekræfte vækkeord/);
       await page.evaluate(() => { rooms.Stue = {connected:true, wake_word_supported:true, wake_word_confirmed:'hey_chat_hey_jarvis'}; renderWakeWordStatus(); });
+      assert.deepEqual(await page.evaluate(() => ({generation:statusReadGeneration,fresh:runtimeIdentityFresh})),
+        {generation:0,fresh:false}, 'the shipped read owner starts closed');
       offline = true;
       await page.evaluate(() => poll());
+      assert.deepEqual(await page.evaluate(() => ({generation:statusReadGeneration,fresh:runtimeIdentityFresh})),
+        {generation:1,fresh:false}, 'the actual failed poll retires the read and preserves closed freshness');
       assert.doesNotMatch(await page.locator('#s_wake_word_status').innerText(), /Ordvalg bekræftet af enheden/);
       assert.equal(await select.evaluate(e => e.getBoundingClientRect().right <= innerWidth), true);
       assert.deepEqual(errors, []);
