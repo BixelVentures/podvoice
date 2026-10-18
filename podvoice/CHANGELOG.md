@@ -1,3 +1,8 @@
+## 2.0.48 — delegeret præsentation, kandidat
+
+- Afvent den accepterede delegerede opgaves endelige præsentation uden et konkurrerende selector-kald. Direkte svar og eksisterende ejer-, kilde- og replay-kontroller bevares.
+- Isoleret kandidat; reviewbinding og releaseaccept afventer.
+
 ## 2.0.47 — robotadgang og kvalificeret vejrsted
 
 - Robotopsætning ugyldiggøres ikke længere af ændret musikadgang; reelle forbindelses-, rum- og robotændringer er stadig afskærmet.

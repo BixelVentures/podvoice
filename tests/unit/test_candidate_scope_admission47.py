@@ -22,19 +22,35 @@ def historical46_root(tmp_path_factory):
     return target
 
 
-def test_47_profile_preserves_history_and_limits_the_visual_delta():
+PUBLISHED47_MERGE = "8604704df3175b9b34acca654a92bfe0305437c0"
+PUBLISHED47_TREE = "fe17a88a4b26405a56eadc36476f15e1c5b4d4a3"
+
+
+@pytest.fixture(scope="module")
+def historical47_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published47") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED47_MERGE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED47_TREE], cwd=target, check=True)
+    return target
+
+
+def test_47_profile_preserves_history_and_limits_the_visual_delta(historical47_root):
     assert admission.BASE == PUBLISHED46_MERGE
     bindings = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
     assert len({bool(value) for value in bindings}) == 1
     if all(bindings):
         assert (
-            admission.sha(admission.safe_file(ROOT, admission.MANIFEST)) == admission.MANIFEST_SHA
+            admission.sha(admission.safe_file(historical47_root, admission.MANIFEST))
+            == admission.MANIFEST_SHA
         )
         assert (
-            admission.strict.ast_sha(admission.safe_file(ROOT, admission.PROFILE), "PROFILE_AST")
+            admission.strict.ast_sha(
+                admission.safe_file(historical47_root, admission.PROFILE), "PROFILE_AST"
+            )
             == admission.PROFILE_AST
         )
-        assert admission.inspect_repository(ROOT, admission.BASE).passed
+        assert admission.inspect_repository(historical47_root, admission.BASE).passed
     assert admission.VERSION == 24
     assert admission.KIND == "podview47_robot_and_locality"
     assert admission.PRODUCTION == {
@@ -68,28 +84,29 @@ def test_47_profile_preserves_history_and_limits_the_visual_delta():
         "tests/unit/test_offline_locality.py",
     }
     assert admission.ASSET_COUNT == 143
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
+    assert admission.strict.pins_match(historical47_root, admission.IMMUTABLE)
     assert admission.IMMUTABLE.items() >= admission.previous.IMMUTABLE.items()
     assert admission.IMMUTABLE["scripts/candidate_scope_admission46.py"]
     assert admission.IMMUTABLE["scripts/podview46-admission-reviewed.json"]
 
 
-def test_47_manifest_has_exact_inventories():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_47_manifest_has_exact_inventories(historical47_root):
+    manifest = json.loads(admission.safe_file(historical47_root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice47.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert (
-        set(manifest["runtime"]) == admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        set(manifest["runtime"])
+        == admission.strict.runtime_inventory(historical47_root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING
     for group in ("production", "regressions", "runtime", "config", "policy", "tooling"):
-        assert admission.strict.pins_match(ROOT, manifest[group])
-    assert admission.assets_match47(ROOT, manifest["runtime"], manifest["asset_count"])
+        assert admission.strict.pins_match(historical47_root, manifest[group])
+    assert admission.assets_match47(historical47_root, manifest["runtime"], manifest["asset_count"])
 
 
 def test_published46_remains_accepted_and_47_rejects_its_snapshot(historical46_root):

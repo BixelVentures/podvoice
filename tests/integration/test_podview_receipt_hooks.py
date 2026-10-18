@@ -10,9 +10,11 @@ import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_bridge import owner
+from integration.test_presentation_live_pipeline import assistant_item
 from integration.test_thin import LiveFake, _build, _build_talk_session, _wait_until
 from integration.test_thin_live import build, emit, until
 from unit.test_openai_live import call, created, terminal
+from unit.test_podview_presentation import message
 from unit.test_podview_receipts import offer, selected_store
 
 from gatekeeper.hub import StatusHub
@@ -117,6 +119,33 @@ async def test_receipts_follow_actual_successful_current_submission(surface, out
             await until(lambda: not session._tool_tasks)
         else:
             await _wait_until(lambda: not session._tool_tasks)
+        if surface == "live" and outcome in {
+            "current",
+            "normal_close",
+            "privacy_close",
+            "error_close",
+            "next_input",
+        }:
+            # Accepted delegated tools retain sources; only their normal final owns
+            # presentation. Keep every original source/close assertion below.
+            assert store._selection is None
+            data = message("fact-card")
+            data["presentation"].update(
+                origin="owner_sources",
+                sourceCalls=["c1"],
+                content={
+                    "facts": [
+                        {
+                            "callId": "c1",
+                            "field": "excerpt:0" if store.research_enabled else "answer",
+                        }
+                    ]
+                },
+            )
+            await emit(sdk, created("r2"), assistant_item(json.dumps(data)), terminal("r2"))
+            await until(
+                lambda: session.brain.backend_sequence >= 2 and not session.brain._responses
+            )
         if store._selection is not None:
             await store._selection
         items = store.snapshot("kitchen")["items"]
@@ -343,8 +372,17 @@ async def test_ingress_does_not_export_unselected_answers_or_sources(decision):
         assert snapshot["answers"]["sessionId"] is None
 
 
-async def test_actual_live_completed_query_selects_exact_whole_source_unit_and_renders(tmp_path):
-    session, sdk, _, tools, _ = build()
+@pytest.mark.parametrize("surface", ["direct", "delegated"])
+async def test_actual_completed_query_selects_exact_whole_source_unit_and_renders(
+    tmp_path, surface
+):
+    if surface == "delegated":
+        session, sdk, _, tools, _ = build()
+    else:
+        provider = LiveFake()
+        session = _build_talk_session(provider)[0]
+        tools = session.tools
+        provider.take_submitted_tool_results = lambda: provider.sent_tool_results[-1]
     query = "Hvilken mulighed tager 35 minutter?"
     first, relevant = "Første mulighed tager 12 minutter.", "Anden mulighed tager 35 minutter."
     dispatched, model_requests = [], []
@@ -414,18 +452,47 @@ async def test_actual_live_completed_query_selects_exact_whole_source_unit_and_r
         await session.start()
         try:
             await session.wake()
-            await emit(
-                sdk,
-                created(),
-                call(name="google_web_sogning", arguments=json.dumps({"query": query})),
-                terminal(),
-            )
+            if surface == "delegated":
+                await emit(
+                    sdk,
+                    created(),
+                    call(name="google_web_sogning", arguments=json.dumps({"query": query})),
+                    terminal(),
+                )
+            else:
+                provider.emit(
+                    UserSpeechStopped(),
+                    ToolCall(
+                        "call",
+                        "google_web_sogning",
+                        {"query": query},
+                        response_id="r1",
+                        batch_id="r1",
+                        batch_index=0,
+                        batch_size=1,
+                        generation=1,
+                    ),
+                    ToolRoundComplete("r1", generation=1),
+                )
             await asyncio.wait_for(dispatched_event.wait(), 2)
             await until(lambda: not session._tool_tasks)
+            if surface == "delegated":
+                assert store._selection is None
+                data = message("fact-card")
+                data["presentation"].update(
+                    origin="owner_sources",
+                    sourceCalls=["c1"],
+                    summary=query,
+                    content={"facts": [{"callId": "c1", "field": "excerpt:1"}]},
+                )
+                await emit(sdk, created("r2"), assistant_item(json.dumps(data)), terminal("r2"))
+                await until(
+                    lambda: session.brain.backend_sequence >= 2 and not session.brain._responses
+                )
             if store._selection is not None:
                 await store._selection
             assert dispatched == [("google_web_sogning", {"query": query})]
-            assert len(model_requests) == 1
+            assert len(model_requests) == (0 if surface == "delegated" else 1)
             answers = store.snapshot("kitchen")
             assert len(answers["items"]) == 1
             assert [fact["value"] for fact in answers["items"][0]["content"]["facts"]] == [relevant]

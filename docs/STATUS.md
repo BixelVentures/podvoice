@@ -1,3 +1,58 @@
+<!-- podview48-admission
+{
+  "version": 25,
+  "kind": "podview48_delegated_presentation",
+  "reviewer": "Independent /root/ui41_source_review NEXT48 CI672 fixture and binding review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "8604704df3175b9b34acca654a92bfe0305437c0",
+  "merge_base": "8604704df3175b9b34acca654a92bfe0305437c0",
+  "rationale": "NEXT48 applies only the independently reviewed delegated-presentation selector scheduling guard. Direct selector and provider-final owner/source/replay/close fences remain unchanged; no UI assets, household actions or authority expansion. Exact source/admission review and offline checks are separate from CI, publication, installation and physical acceptance.",
+  "fingerprint": "ce79a975588a558aabcdd7daac1fc25ea708b6b4de1fd1f72bb447583bc97545",
+  "regression_fingerprint": "d2c1465f36281f5b359f66d8f2db85b800c40344b8ea862fb706d28f9393bf8c",
+  "runtime_fingerprint": "561cb807113e7a96e97914182919093c054d9ee27a5b18f0419252502b95a4f4",
+  "config_fingerprint": "67157388f54d9fc3696a48eef1b6333d23a88926843bc77f37a1dbed3230dbc8",
+  "policy_fingerprint": "89f1fd79b22f4578578167f473df3a9415ff66d6b059eff653b08099a7bf6d60",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "30200037226c4161dc40d57b5b685266f4a15d7a64a0eed84ffd63f4cd89fd5c"
+}
+-->
+
+## NEXT48 — aktiv lead-beslutning, isoleret kandidat 18/10
+
+Inert resultat: 40/40 nye regressioner fejlede på uændret 47 og passerer med kun
+scheduling-predikatet (10 formater × held/accept/deny/budget-None). Samlet fokuseret
+suite: 239 PASS, exit0. Live-hook-fixtures sender nu normal final før deres uændrede
+kilde-/close-assertions. Direkte mocked-HTTP selector-kæde beholder ét request;
+delegeret final-kæde kræver nul og renderer samme eksakte kildeuddrag. Ruff passerer.
+Første udvidede kørsel havde sandbox localhost-bind-fejl; godkendt inert loopback-kørsel
+passerede. Uafhængigt review GO på de tre eksakte runtime-/testfiler; reviewerens egne 126
+pipeline/unit- og 27 migrerede close/source-tests passerer. Ingen adoption eller
+fysisk accept påstås.
+Begrænsning: manglende/ugyldig delegeret final udløser ikke en ekstra selector-fallback;
+normal final er eneste visuelle format-ejer, og kilden forbliver bundet og kortlivet.
+
+Root lead autoriserer en afgrænset rettelse: den valgfrie fact-selector reserverer
+selection_offered ved et accepteret værktøjsresultat og kan dermed afvise den normale
+færdige delegerede præsentation, også ved None/afslag. Dette er en kildehypotese og
+inert reproduktion, ikke en påstand om installeret Green-årsag.
+
+Ændringen må kun springe selector-scheduling over for ikke-tom bounded delegation_id
+og eksakt task_id=answer:<id> fra Thin's accepterede tool-batch. Den normale final-owner
+bevarer alle kilde-, input-, session-, provider-, delegation-, replay- og completed-guards.
+Direkte ikke-delegerede receipts beholder selector, og alle ti kanoniske formater og
+musikvalg bevares. Ingen nye providerkald, kvoter, lyd eller hjemmehandlinger.
+
+Kæde: eksisterende input → Live completed tool-batch → Thin accepted tool-results →
+receipt/source-registry → samme delegations normale final → eksisterende præsentation.
+Kausal RED/GREEN med selector enabled (held/accept/deny/budget-None), direkte selector
+og stale/stop/owner-regressioner kræves, derefter uafhængigt adversarial review.
+Rollback er dette isolerede receipt-scheduling-diff; final47, root, release og Green
+ændres ikke. Ingen fysisk accept eller ny live-provider-evidens påstås.
+
+CI672 run39083369981 fejlede alene i en eksisterende transport-fixture, før browsertrinnet kørte: “late response after close cannot revive transport” kaldte sin forsinkede resolver, før mock-fetch var startet. Én 0ms-timer var ikke en kausal garanti for færdig WebCrypto-koordinering. En tvungen forsinkelse reproducerede TypeError; en request-entry-barriere i selve den inerte deferred-fetch gør forløbet deterministisk. Testen kræver derefter præcis ét snapshotkald, lukker forbindelsen og frigiver det sene svar med alle oprindelige closed/disconnected/no-stream/no-timer-assertions bevaret. Den berørte fil består14/14, uafhængigt fixture-review er GO (SHA ec385390393c688b042e65d37b67fbf075797b978c5a7bf852d639137bbaa35c). Ingen transport-/runtimekode eller timeout ændres; øvrige48kildebeviser genbruges. Samme PR200 korrigeres, fejllog bevares, og CI/publicering/installation/fysisk accept er separate.
+
 # Aktiv leadbeslutning · robotadgang og kvalificeret vejrsted · PV47 · 18. oktober 2026
 
 Lead root. Faktisk 2.0.46 er publiceret fra PR198, merge `26438cdefac88c8bac071e8089636cd823c7a891`, tree `294425524e8d8f5718ae688482a05cfff15d445a`; officiel CI666 og main667 bestod. Green viste 2.0.46/Kører efter kontrolleret installation med backup, og alle seks policies var uændrede. Den tomme enkeltkonto-boks var skjult; tre musikvalg var aktive og bevaret ved normal retur. Timer Start var aktiv, men ingen timer blev startet. Robotpanelet viste allerede efter 3,848 sekunder og stadig efter 69,476 sekunder “Adgangen eller forbindelsen er ændret” med nul områder. To eksisterende PodView-faner var åbne i samme ingress; den anden fanes indlæste kildeversion er ukendt. Ingen hjemmeeffekt blev startet. Dette er stærkeste aktuelle Green-evidens og må ikke omskrives til løst robotproblem.
