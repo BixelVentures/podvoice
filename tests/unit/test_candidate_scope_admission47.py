@@ -59,6 +59,8 @@ def test_47_profile_preserves_history_and_limits_the_visual_delta():
         "tests/podview/controller-peer-recovery.test.mjs",
         "tests/podview/robot-domain-authority.test.mjs",
         "tests/podview/transport-recovery.test.mjs",
+        "tests/unit/test_candidate_scope_admission42.py",
+        "tests/unit/test_candidate_scope_admission43.py",
         "tests/unit/test_candidate_scope_admission46.py",
         "tests/unit/test_candidate_scope_admission47.py",
         "tests/unit/test_dev_cycle.py",

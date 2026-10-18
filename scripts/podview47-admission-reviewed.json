@@ -32,8 +32,10 @@
     "tests/podview/controller-peer-recovery.test.mjs": "c9e124fbcec231b4981820e50eac7518928a87b8a6d3a39a3f7ad4a5f29a7392",
     "tests/podview/robot-domain-authority.test.mjs": "d00b3dc7734c8ad95546d14be420d87278d8bc28b548e692fc9dbff93f0ec1cf",
     "tests/podview/transport-recovery.test.mjs": "794c3498bb0bf249c94495315f6cea7a07f3d50174d56eb5a4a06b9059cc2691",
+    "tests/unit/test_candidate_scope_admission42.py": "f1ff3073f1ac769a8ef1a80425675697d9da7932afd5b0f3ecd01a2e0993afe8",
+    "tests/unit/test_candidate_scope_admission43.py": "86a4000041c288e462bb38a7c702d56603f63f6091805b28d3a2a419de841cd1",
     "tests/unit/test_candidate_scope_admission46.py": "7b6a37c780202c805262127cc0b42f032d28542cd0b2118fdcd0be806f648536",
-    "tests/unit/test_candidate_scope_admission47.py": "f62588c0fe0ce6a17ec6c098df7905f162030b55d0fa9cf3f7d16b130cac1839",
+    "tests/unit/test_candidate_scope_admission47.py": "d6443aa1b889adc763eedf0b5b929c76c6b14b63ff060f0e613b7eebf417e425",
     "tests/unit/test_dev_cycle.py": "1ffff77cbdb5f6189e3bc2e09c08c9c6959c308127c7cdd1b69581a8a53ae1af",
     "tests/unit/test_locality_backend.py": "aa44b5b4a2adc1aabf7a75607da8bb20381002cafdc6d39f22737b30f8a2dd27",
     "tests/unit/test_offline_locality.py": "98e608e61940d3cc92d6f0cf200ecfd57af80de5deca55574a0846db5d6c43bc"

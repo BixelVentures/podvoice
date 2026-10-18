@@ -11,6 +11,8 @@ from scripts import candidate_scope_admission42 as admission
 ROOT = Path(__file__).parents[2]
 PUBLISHED41_BASE = "6799ee3d65cb67fb406346c565dc206e08cbf0da"
 PUBLISHED41_TREE = "5e6ccbf186bf5c4abc9a32845afed4ca94dda80d"
+PUBLISHED42_MERGE = "405e0a657cc54e3cb56283bcd9f3bfd9a72837eb"
+PUBLISHED42_TREE = "ba60e44fab625061aede741d9ddf687691259cfd"
 
 
 @pytest.fixture(scope="module")
@@ -22,7 +24,16 @@ def historical41_root(tmp_path_factory):
     return target
 
 
-def test_42_profile_preserves_exact41_and_contains_only_room_observation_delta():
+@pytest.fixture(scope="module")
+def historical42_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published42") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED42_MERGE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED42_TREE], cwd=target, check=True)
+    return target
+
+
+def test_42_profile_preserves_exact41_and_contains_only_room_observation_delta(historical42_root):
     assert admission.BASE == "fa7a3d1d5f09d31aa04e842dbce22f8654f2eca5"
     approval_bindings = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
     assert len({bool(value) for value in approval_bindings}) == 1
@@ -45,19 +56,20 @@ def test_42_profile_preserves_exact41_and_contains_only_room_observation_delta()
         "tests/unit/test_dev_cycle.py",
     }
     assert admission.ASSET_COUNT == 143
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
+    assert admission.strict.pins_match(historical42_root, admission.IMMUTABLE)
     assert admission.IMMUTABLE.items() >= published41.IMMUTABLE.items()
 
 
-def test_42_draft_manifest_has_exact_changed_inventories():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_42_draft_manifest_has_exact_changed_inventories(historical42_root):
+    root = historical42_root
+    manifest = json.loads(admission.safe_file(root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice42.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert set(manifest["runtime"]) == (
-        admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        admission.strict.runtime_inventory(root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {
@@ -67,10 +79,10 @@ def test_42_draft_manifest_has_exact_changed_inventories():
     assert set(manifest["tooling"]) == admission.TOOLING
     if admission.MANIFEST_SHA:
         assert admission.MANIFEST_SHA == admission.sha(
-            admission.safe_file(ROOT, admission.MANIFEST)
+            admission.safe_file(root, admission.MANIFEST)
         )
         assert admission.PROFILE_AST == admission.strict.ast_sha(
-            admission.safe_file(ROOT, admission.PROFILE), "PROFILE_AST"
+            admission.safe_file(root, admission.PROFILE), "PROFILE_AST"
         )
 
 

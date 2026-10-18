@@ -10,6 +10,8 @@ Plan: adoptér de reviewede præcise 4 UI-moduler og 5 backendfiler med 4 dataki
 
 CI668 run39081477024 fejlede før udgivelse. UI-kontrakten havde 1078 beståede og én fejlet eksisterende timer-fixture: setTimeout var falsk, mens Date.now var virkelig, så en legitim 1 ms klokketik gav 239999 ms mod fixturekravet 240000. En tvungen tik reproducerede fejlen; fixture-only frysning af Date.now under start med finally-restaurering bevarer præcis absolut frist, 240000-ms-trigger og alle recovery-assertions. Den berørte fil består 14/14. Transportens bytes er uændrede. Unit-jobbet stoppede i mypy ved tre Optional/Any-indsnævringer i nye backendfiler; eksplicitte typer efter eksisterende runtimevalidering ændrer ingen adgang, output, frist eller ejersemantik. Mypy på87filer, formatter/lint og41backendtests består. Fejllogs og source-delta-review SHA `364e5e7054a3b65c8abf527938ed7cd81777319786601cb5661796ef7c9d17a4` er bevaret. Samme PR199 får én korrigeret kandidat; ingen produkt-timeout ændres, og uændrede source-reviews genbruges. Officiel CI, publicering, installation og fysisk accept er stadig åbne.
 
+CI669 run39081813074 bekræftede, at mypy og UI-/browserrettelsen bestod. Unit-jobbet fandt derefter en historisk42-fixture, som sammenlignede den gamle runtimefilinventarliste med47s seks nye helper-/datafiler (249→255). Audit af alle historiske admissiontests fandt præcis samme forældede lighed i42 og43;40/41/44/45/46 brugte allerede historiske rødder, og36s monotone produktionssubset er fortsat gyldig. Kun42/43-fixtures er flyttet til deres præcise publicerede commits/trees; alle assertions, profiler og manifester er bevaret. Den samlede40–45-testgruppe samt formatter/lint består. Fixture-only review SHA `22e8a5b4d09fa560e0306d9e9224eb5fb92cd185bb281e1243f2dea6a1f783a9` og fejllog er bevaret; to regressionspins tilføjes før ny binding. Ingen produktkode eller runtime-tuning følger af denne fejl.
+
 <!-- podview47-admission
 {
   "version": 24,
@@ -22,12 +24,12 @@ CI668 run39081477024 fejlede før udgivelse. UI-kontrakten havde 1078 beståede 
   "merge_base": "26438cdefac88c8bac071e8089636cd823c7a891",
   "rationale": "PV47 composes the exact reviewed four-UI-module robot/domain and short-lived qualified locality projection with five backend files and four pinned offline data files. No transport, queue, GPT-Live, audio, grants, policies or automatic household actions change. Historical46 assertions run against published46; public GeoNames ZIP is test-only. Source/adoption and exact composition reviews, CI, publication, installation and physical acceptance are separate. Actual46 robot failure is retained and its Green cause remains unproven.",
   "fingerprint": "74a5269c8b9ac4133de277a8805a4cc0f34a07f10361cb3beb5535e07e837822",
-  "regression_fingerprint": "f5515d10dc1215df39fa066d8547fa9058059c0dbb4dda69ef8a2f1cc14c7878",
+  "regression_fingerprint": "7a99d47e8629df46daa97a417ace98c44c35d044d37686f1cc54d47bdd93412c",
   "runtime_fingerprint": "fcc48ccd8874b0d348bccc0a50f5dc6109e7febec8978010251b1610ce1669d6",
   "config_fingerprint": "1addbdb1d8a26fba35466477e553d3fafb99ed4173e727c56f665ec6d9c40535",
-  "policy_fingerprint": "68c768ef8ecdc010ce8f407e78dea779249c0dc9f31e2cc66966ed1c5d2f8079",
+  "policy_fingerprint": "917936c30fb5eedd04101d510619bd8e5b54878aac7297cd2fd40646417c47f3",
   "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
-  "manifest_fingerprint": "bd080d0126dcace24663e85d5da7c17bfe989357c4b8beb9450cdebad60ce76c"
+  "manifest_fingerprint": "72c3b19ecfad538ae947334b9139be00eb83ba73d632b384a68e101bb68a8189"
 }
 -->
 
