@@ -39,6 +39,7 @@ def test_59_exact_scope_and_history():
     }
     assert admission.REQUIRED_TESTS == {
         "tests/browser/live_status.cjs",
+        "tests/browser/wake_words.cjs",
         "tests/podview/runtime-identity.test.mjs",
         "tests/unit/test_candidate_scope_admission59.py",
         "tests/podview/root-timer-overview.test.mjs",

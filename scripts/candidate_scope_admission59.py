@@ -51,6 +51,7 @@ PRODUCTION = frozenset(
 REQUIRED_TESTS = frozenset(
     {
         "tests/browser/live_status.cjs",
+        "tests/browser/wake_words.cjs",
         "tests/podview/runtime-identity.test.mjs",
         "tests/unit/test_candidate_scope_admission59.py",
         "tests/podview/root-timer-overview.test.mjs",
@@ -73,9 +74,9 @@ ASSET_CHANGES = frozenset(
 
 HA_RUNTIME = previous.HA_RUNTIME
 # Bindings intentionally remain blank until independent exact-tree review.
-REVIEWER = "Independent /root/astra_robot_component_unification NEXT59 expanded provider identity and retained widget state metadata and strict admission review"
-MANIFEST_SHA = "675f3e6739a91512303a68634d24eba7e3ec45b89572db7c15b9a970f3dc89db"
-PROFILE_AST = "d29a575d2681462347a7b7f0eb392553fac18ad25bc64c556e870b071e5775d0"
+REVIEWER = "Independent /root/astra_robot_component_unification NEXT59 exact 32-path browser-fixture metadata and strict admission review"
+MANIFEST_SHA = "d6e9a63008efe3145aef6cbbeb359e076ee1b98d9932b855e17108cef2d8544d"
+PROFILE_AST = "15f9de07f4388ed284b6695f91c2dea4b536b8f6da8b6472e6ae040d4a824ebe"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission58.py": "2ac5efaa740665be3fdb252f758a534913ee3bc7a4a7de16a462079cbd153983",
     "scripts/podview58-admission-reviewed.json": "c48d45ff8dc1f8fc5f977495c5020eaaae17c0b006efd7760209fe88e8c4537b",

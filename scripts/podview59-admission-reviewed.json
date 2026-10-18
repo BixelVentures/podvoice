@@ -12,6 +12,7 @@
   },
   "regressions": {
     "tests/browser/live_status.cjs": "2d9d74b39964be19dcd5b7671a8a629cafd309bb7fec7740bfee9f7c63b7f1a3",
+    "tests/browser/wake_words.cjs": "0d784759540e9796b52772a6c7e2c336e73b1c9bc7b6350c7fe9d5e080d986c1",
     "tests/podview/account-visibility.test.mjs": "8404bcc812885a940a37942c0a106fd43650393a157e2ded2d67c95737036c2f",
     "tests/podview/canonical-next-robot-history-view.test.mjs": "5a99e8b306aff8140ed73588d73a8a420db3ea9fcf796e20083142a1cc5e9325",
     "tests/podview/canonical-next-timer-overview.test.mjs": "065494fd4f484ea08fc62afc9999906525aabe4272e96e7acc665c06bc714df0",
@@ -22,7 +23,7 @@
     "tests/podview/root-weather-view.test.mjs": "a34e5eae8bffb088a8fbcd4119429e7590e1741d071e02b56d81517619fff2aa",
     "tests/podview/runtime-identity.test.mjs": "63cf6d1c1eb78b9c1b5056f9b139df59cdb99dba441fb4f1d99d4dc02e1aa874",
     "tests/unit/test_candidate_scope_admission58.py": "47a1ed2e3443c1694c6e1ef6236174ecd6b7000e89aa64ccab92c739d40dd5f6",
-    "tests/unit/test_candidate_scope_admission59.py": "a1bbfdf1aa832587ed70055a9f9ce085fba8eea19e62c78c818373013311845b",
+    "tests/unit/test_candidate_scope_admission59.py": "cce6f8529fb51bf41aaca0ca272e2cd0a925b1aa2b78e951bcecf5620a15efd6",
     "tests/unit/test_dev_cycle.py": "c110f7607c985bd879b6ee89047823d41c8ae87d882b413f569746def1b2e94e",
     "tests/unit/test_panel_contract.py": "981d856943b6daea27c26d693f899134993c60b8939f13a13ce15567922be992",
     "tests/unit/test_runtime_identity_status.py": "587ee2e742a5c6ede5f240c220f649b698602cac51b6f1bcc2cd3ccded1c0aee"
