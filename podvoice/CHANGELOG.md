@@ -1,3 +1,9 @@
+## 2.0.57 — HA-enhedsvisning af tilmeldte PodView-profiler, ubundet forslag
+
+- Integration0.1.4 kan vise eksisterende tilmeldte browserprofiler som HA-enheder efter en vellykket, eksplicit administratorliste. Visningen giver ingen ny adgang eller online-status.
+- Fjernelse af en HA-enhed tilbagekalder ikke profilens adgang. Adgang, levetid, kapacitet, timere og alle143 PodView-aktiver er uændrede.
+- Add-on-opdatering installerer ikke custom integration; separat HA-installation/genstart og officiel Linux-framework-CI er fortsat nødvendige.
+
 ## 2.0.56 — svarhistorik med genindlæsning og Humør-diagnostik, kandidat
 
 - Gendan op til20 tidligere display-admitted svar fra samme rum/serverboot ved genindlæsning; højst64KiB per svar. Ingen diskpersistens eller recovery efter serverrestart.

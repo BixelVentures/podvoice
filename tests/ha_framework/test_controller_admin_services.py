@@ -215,6 +215,54 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(task, 3)
         self.assertEqual([item["action"] for item in self.writes], ["prepare"])
 
+    async def test_enrolled_display_registry_uses_real_entry_and_exact_revoke(self):
+        from homeassistant.helpers import device_registry as dr
+
+        entry = self.hass.config_entries.async_entries("podvoice")[0]
+        registry = dr.async_get(self.hass)
+        original = set(self.hass.data["podvoice"].devices.values())
+        task = asyncio.create_task(self.invoke("controller_list", Context(user_id=self.admin.id)))
+        self.addAsyncCleanup(self.cancel_task, task)
+        command = await self.next_write(1)
+        row = {
+            "id": REQUEST_ID,
+            "name": "Mac",
+            "room": ROOM,
+            "persistent": True,
+            "expiresAt": None,
+            "status": "active",
+        }
+        await self.receipt(
+            command,
+            Context(user_id=self.supervisor.id),
+            {"ok": True, "room": ROOM, "pending": [], "enrolled": [row]},
+        )
+        await task
+        devices = [
+            device
+            for device in registry.devices.values()
+            if entry.entry_id in device.config_entries and device.id not in original
+        ]
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0].model, "PodView browser profile")
+        self.assertFalse(devices[0].connections)
+        task = asyncio.create_task(
+            self.invoke(
+                "controller_revoke_identity", Context(user_id=self.admin.id), identity=REQUEST_ID
+            )
+        )
+        self.addAsyncCleanup(self.cancel_task, task)
+        command = await self.next_write(2)
+        await self.receipt(
+            command,
+            Context(user_id=self.supervisor.id),
+            {"ok": True, "room": ROOM, "identity": REQUEST_ID},
+        )
+        await task
+        after = registry.async_get(devices[0].id)
+        self.assertTrue(after is None or entry.entry_id not in after.config_entries)
+        self.assertEqual(set(self.hass.data["podvoice"].devices.values()), original)
+
     async def test_http_flow_lists_and_approves_without_pairing_code(self):
         entry = self.hass.config_entries.async_entries("podvoice")[0]
         self.hass.http = HomeAssistantHTTP(

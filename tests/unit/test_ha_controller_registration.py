@@ -49,6 +49,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         HomeAssistantError=ValueError,
         TimerBridge=lambda *_: SimpleNamespace(snapshot=lambda _: {}, command=lambda **_: {}),
         ControllerAdmin=Admin,
+        DisplayDevices=lambda *_: SimpleNamespace(apply=lambda *_: None),
         dr=SimpleNamespace(async_get=lambda _: Registry()),
         SupportsResponse=SimpleNamespace(ONLY="only"),
         READ_SCHEMA=object(),
@@ -76,6 +77,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         },
         entry_id="fixture-entry",
     )
+    hass.config_entries = SimpleNamespace(async_get_entry=lambda _: entry)
     assert await namespace["async_setup_entry"](hass, entry)
     for service, action in (
         ("controller_list", "list"),
