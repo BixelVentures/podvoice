@@ -283,7 +283,7 @@
     },
     {
       "path": "live-music-view.js",
-      "sha256": "1c760ecdf6ec4edc51b7a8e6335e0b4b468e7ed4b4ba2b9c3154dbc6d7307105"
+      "sha256": "291f2916f6c47b600533fa6385d1c26b05c6508eba7e6674da853869f2c94692"
     },
     {
       "path": "live-music.css",
@@ -555,7 +555,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "aea67e2bbdb97291d1438a76d0b2283c4e35d4f83a484218f59aa96e7a8a5c30"
+      "sha256": "e44ab1cd3651e99e3740760399c21f85acfde1d0dd8364e4abcb0d4dfa704ecb"
     },
     {
       "path": "widget-view.css",

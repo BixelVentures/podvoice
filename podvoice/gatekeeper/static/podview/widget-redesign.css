@@ -632,3 +632,16 @@ pv-widget-host #now-view #device-activities .resource-preview[data-kind=vacuum] 
 #now-view #home-weather[data-weather-phase=night]{--overview-card-surface:#344d60;--overview-card-ink:#f4f6f8;color:var(--weather-ink,#f4f6f8)}
 #now-view #home-weather[data-weather-phase=night] small{color:#d7e4ef}
 #now-view #home-weather[data-weather-phase=night]>img{filter:invert(1)}
+
+/* Music keeps its existing tabs outside the focused body at every landscape height.
+   Settled empty results use the existing message, without an invisible card-height spacer. */
+@media(min-width:760px){
+ [data-view=active] .responses:has(>#music-response:not([hidden])){overflow:hidden}
+ [data-view=active] .responses>#music-response:not([hidden]){flex:1;min-height:0;overflow:hidden}
+ [data-view=active] #music-response .expandable{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+ [data-view=active] #music-response .result-inner{height:auto}
+}
+#music-response #result-list:empty{display:none}
+#music-response #empty{margin:0}
+
+#music-refinements button:focus-visible{outline-offset:-4px}
