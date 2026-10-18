@@ -16,8 +16,9 @@
   "regressions": {
     "tests/integration/test_delegated_presentation_selector48.py": "e4ab53b0d1f0c2c087efdce42841b74498ba92d99aa3eadf6bcf4f5fb1dd494a",
     "tests/integration/test_podview_receipt_hooks.py": "8c51bed9d1db5b0a1486653ddddc4ab6f349fbad15fcd4e767f541c1e844351f",
+    "tests/podview/transport-recovery.test.mjs": "e2b36814d4b4e642a3d68b3a783a4fa93fdf102b56cd0928035e0d7df9860a99",
     "tests/unit/test_candidate_scope_admission47.py": "e3b60b921b9946faa1824b735e43c582e06ef28838f3f2f8e35c8ae2a54eca4f",
-    "tests/unit/test_candidate_scope_admission48.py": "0e841f892563b4b463dc3ab0a3bdd392b83c69cc27f85c023210a30e89df7899",
+    "tests/unit/test_candidate_scope_admission48.py": "92424e73fccf660c8f8e0a96a96a43cc50af3f39d370d1f4c90b9f10cd4744f3",
     "tests/unit/test_dev_cycle.py": "4b1d8ff094781f38fc917ffa26d68be65cd6f4f5263809926277dd8de6ed3734"
   },
   "runtime": {

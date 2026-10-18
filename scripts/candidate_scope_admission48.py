@@ -46,6 +46,7 @@ DOMAINS = ("unclassified_runtime",)  # Derived from the exact published47-to48 d
 PRODUCTION = frozenset({"podvoice/gatekeeper/podview_receipts.py"})
 REQUIRED_TESTS = frozenset(
     {
+        "tests/podview/transport-recovery.test.mjs",
         "tests/unit/test_dev_cycle.py",
         "tests/integration/test_podview_receipt_hooks.py",
         "tests/integration/test_delegated_presentation_selector48.py",
@@ -55,11 +56,9 @@ REQUIRED_TESTS = frozenset(
 )
 HA_RUNTIME = previous.HA_RUNTIME
 # Signature bindings remain closed until independent PV48 review.
-REVIEWER = (
-    "Independent /root/astra_robot_component_unification NEXT48 source and admission draft review"
-)
-MANIFEST_SHA = "ad71303a894f91e208bf9f55de309e2e08db7defd57b05003970b2b3c8896570"
-PROFILE_AST = "7df0c0f344cc320978a8efb5b3b74237e17732e73c3bc673d179146cc9c9f5de"
+REVIEWER = "Independent /root/ui41_source_review NEXT48 CI672 fixture and binding review"
+MANIFEST_SHA = "30200037226c4161dc40d57b5b685266f4a15d7a64a0eed84ffd63f4cd89fd5c"
+PROFILE_AST = "0f9dcfcc7cf6bae140cd84c869a05024782b84d91d1dc539f57f0d38992cd1a3"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission47.py": "217dccb6d6ed3c021ab5bdcf4ea8ae0967660d6823f027f14e7ce54e8ea65240",
     "scripts/podview47-admission-reviewed.json": "72c3b19ecfad538ae947334b9139be00eb83ba73d632b384a68e101bb68a8189",

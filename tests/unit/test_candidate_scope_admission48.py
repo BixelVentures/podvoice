@@ -32,6 +32,7 @@ def test_48_exact_scope_and_history():
         "tests/integration/test_delegated_presentation_selector48.py",
         "tests/unit/test_candidate_scope_admission47.py",
         "tests/unit/test_candidate_scope_admission48.py",
+        "tests/podview/transport-recovery.test.mjs",
         "tests/unit/test_dev_cycle.py",
     }
     assert admission.IMMUTABLE.items() >= published47.IMMUTABLE.items()

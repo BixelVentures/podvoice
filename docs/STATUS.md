@@ -2,7 +2,7 @@
 {
   "version": 25,
   "kind": "podview48_delegated_presentation",
-  "reviewer": "Independent /root/astra_robot_component_unification NEXT48 source and admission draft review",
+  "reviewer": "Independent /root/ui41_source_review NEXT48 CI672 fixture and binding review",
   "domains": [
     "unclassified_runtime"
   ],
@@ -10,12 +10,12 @@
   "merge_base": "8604704df3175b9b34acca654a92bfe0305437c0",
   "rationale": "NEXT48 applies only the independently reviewed delegated-presentation selector scheduling guard. Direct selector and provider-final owner/source/replay/close fences remain unchanged; no UI assets, household actions or authority expansion. Exact source/admission review and offline checks are separate from CI, publication, installation and physical acceptance.",
   "fingerprint": "ce79a975588a558aabcdd7daac1fc25ea708b6b4de1fd1f72bb447583bc97545",
-  "regression_fingerprint": "9feca9c03c4670916ef1a5051eff7c3990b90a7741227a5e0dec25c1f7d0a6c8",
+  "regression_fingerprint": "d2c1465f36281f5b359f66d8f2db85b800c40344b8ea862fb706d28f9393bf8c",
   "runtime_fingerprint": "561cb807113e7a96e97914182919093c054d9ee27a5b18f0419252502b95a4f4",
   "config_fingerprint": "67157388f54d9fc3696a48eef1b6333d23a88926843bc77f37a1dbed3230dbc8",
-  "policy_fingerprint": "121f59977f441ef8d454e1f3e246d749cb62bb597525fd4f05f8d5b9c08fa303",
+  "policy_fingerprint": "89f1fd79b22f4578578167f473df3a9415ff66d6b059eff653b08099a7bf6d60",
   "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
-  "manifest_fingerprint": "ad71303a894f91e208bf9f55de309e2e08db7defd57b05003970b2b3c8896570"
+  "manifest_fingerprint": "30200037226c4161dc40d57b5b685266f4a15d7a64a0eed84ffd63f4cd89fd5c"
 }
 -->
 
@@ -50,6 +50,8 @@ Kausal RED/GREEN med selector enabled (held/accept/deny/budget-None), direkte se
 og stale/stop/owner-regressioner kræves, derefter uafhængigt adversarial review.
 Rollback er dette isolerede receipt-scheduling-diff; final47, root, release og Green
 ændres ikke. Ingen fysisk accept eller ny live-provider-evidens påstås.
+
+CI672 run39083369981 fejlede alene i en eksisterende transport-fixture, før browsertrinnet kørte: “late response after close cannot revive transport” kaldte sin forsinkede resolver, før mock-fetch var startet. Én 0ms-timer var ikke en kausal garanti for færdig WebCrypto-koordinering. En tvungen forsinkelse reproducerede TypeError; en request-entry-barriere i selve den inerte deferred-fetch gør forløbet deterministisk. Testen kræver derefter præcis ét snapshotkald, lukker forbindelsen og frigiver det sene svar med alle oprindelige closed/disconnected/no-stream/no-timer-assertions bevaret. Den berørte fil består14/14, uafhængigt fixture-review er GO (SHA ec385390393c688b042e65d37b67fbf075797b978c5a7bf852d639137bbaa35c). Ingen transport-/runtimekode eller timeout ændres; øvrige48kildebeviser genbruges. Samme PR200 korrigeres, fejllog bevares, og CI/publicering/installation/fysisk accept er separate.
 
 # Aktiv leadbeslutning · robotadgang og kvalificeret vejrsted · PV47 · 18. oktober 2026
 
