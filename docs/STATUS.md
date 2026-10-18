@@ -1,3 +1,40 @@
+<!-- podview59-admission
+{
+  "version": 36,
+  "kind": "provider59_status_identity",
+  "reviewer": "Independent /root/astra_robot_component_unification NEXT59 combined provider-status and runtime-identity metadata and strict admission review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "78d9dc7528b964d2986e50eee31ecdd0d942571b",
+  "merge_base": "78d9dc7528b964d2986e50eee31ecdd0d942571b",
+  "rationale": "Combined NEXT59 adopts only the independently reviewed final six-path source scope: existing StatusHub.snapshot and existing Connections renderer, two existing tests and two CI-discovered new tests. SourceHTML5a781b62 and Hub08d55084 retain the prior truthful source-neutral provider wording. Canonical normal GET status adds closed read-only declared version, validated environment commit and cached stored-marker/source-fallback metadata; this is not a fresh rootfs measurement or running-filesystem attestation. SSE remains metrics-only, adds no identity authority and cannot refresh stale GET provenance; only a current successful normal GET can do so. No new route, poll cadence, boot identity, authorization, provider/audio/effect path or lifecycle owner. Root separately observed58 installed and running with six policies preserved; actual startup SHA/rootfs remain unknown and are not inferred from expected image pins. All143canonical assets plus manifest and other runtime outside Hub/HTML/version remain exact58. Historical58profile/manifest immutable;10original function bodies equivalent after ROOT historical58fixture substitution. Old15path unsigned21f79909 and its GO are historical HOLD and cannot admit this combined tree. Existing26/31requirements and specific approval/effect HOLDs remain unchanged. Combined source-only GO and bounded Python/Node/registered-worker evidence do not establish metadata GO, officialCI, full-panel visual, provider/audio, installation or physical acceptance. Independent exact revised unsigned-tree review received for c928aa8df864c2fe090e56db737d6744ddc6eba7. Review bindings are applied only after that GO; final bound verification, officialCI, publication and installation remain separate. No external action is authorized by this record.",
+  "fingerprint": "031896531f11f12efd12537ab9992c6b0ff1e2966f535e646a2bfa27cb72ba14",
+  "regression_fingerprint": "146b71cdc9b9e92ece00349e2a7274d294b42af3e2fe188c20ca8095adaecb8e",
+  "runtime_fingerprint": "7ba055010368b0836480d5d72d7484acf3367a2ec02d139206fbf32c853ed4f8",
+  "config_fingerprint": "7cdd4edb039805e2a608fcc381897076a92ff3c3de5226cc46877f9a7700288b",
+  "policy_fingerprint": "d7904b4ed62f329ccab7b761d631755263748494c1457d6a168b724ea7edad0f",
+  "tooling_fingerprint": "6e9fac169b2fdb9200072f4da6e13db01dd633d40c5ad9b691fc033ce51f4fd5",
+  "manifest_fingerprint": "a024e0034b4338f61673711230f88ec285a70f1247e7686b0fcfeb5c7f064a08"
+}
+-->
+
+# Current root lead — NEXT59 combined provider wording and read-only runtime identity
+
+Root authorizes isolated assembly of the independently reviewed combined59 source against actual published58 merge78d9dc7528b964d2986e50eee31ecdd0d942571b/treeb1bb80eed2ee54a2dd6e5b15b7e0a4044b6f19d5. This lead supersedes conflicting older “active”, “not released” and installation wording below; those entries and historical admission records remain dated evidence, not current status. The prior copy-only59 unsigned tree21f79909a370406f418e2bfb0b73f7d16b069b41 and its GO do not authorize this expanded package.
+
+Scope: existing Connections wording distinguishes configuration and latest provider connection from Talk's separate status. No successful connection is described as a completed or audible answer. Canonical StatusHub.snapshot adds a closed read-only runtime_identity projection: version, validated full git_sha, allowlisted artifact_kind and validated artifact_sha256. Existing normal GET api/status carries the projection; initial SSE remains metrics-only. Existing Connections detail displays complete escaped hashes, distinguishes the stored build marker from source fallback, and preserves last-known qualification until a genuinely current normal GET succeeds. Read-generation fencing discards responses issued before connection loss; metrics-only SSE reopen cannot make old identity fresh. Strict string/length validation rejects array-shaped hashes. Missing/invalid fields replace prior data honestly. Declared build identity is not a newly measured running-filesystem integrity attestation.
+
+Independent combined source GO pins HTML5a781b62edd51b5a0356930b5807cb929b2cb6f6c49a5fe0dcc476629fae7a34, Hub08d550840a68cefc2fc8135c06f0e94b1ac4ea96f5a7beae7f56a185da4faba6 and patchccbf0b107c84bfeba132992443fb930094169603747b1f45bab5f1d61145bcff. Against908 baseline files,904 are unchanged,4 changed and2 discovered tests are new:910 scoped source payloads before release metadata. Reviewer4 boundary cases, author5 actual-function cases,46 focused Python cases and existing registered live_status browser worker including20 extracted identity-layout fixtures pass. These scopes overlap, use isolated fixtures and do not establish whole-panel, human visual, official CI or physical acceptance. New Python/Node checks enter existing discovery; browser assertions enter the unchanged registered worker inventory. No standalone manual-only worker is shipped.
+
+All143 canonical PodView assets and their manifest remain exact58. No new route, polling cadence, server boot identity, permission, grant lifetime/capacity, native/provider/audio/Talk execution behavior or physical effect is introduced. Historical58 profile/manifest and original historical test assertions remain immutable except narrow fixture-root routing needed for historical evaluation. Derive release domains and manifests from the actual combined diff; do not reuse the copy-only scope. Review bindings remain blank until independent exact revised unsigned-tree GO, followed by final bound validation and official CI. No external action is authorized by this source record.
+
+Actual Green is PodVoice2.0.58/Kører after one normal backup-enabled update, with Speakers0.26.30, Control0.10.17 and loaded HA integration0.1.3 unchanged; six policy hashes match before/after. Supervisor running/version was observed, but actual58 startup commit and rootfs marker were not captured. Published58 image pins are separate expected-artifact evidence and cannot fill those unknowns. One ordinary reload of the original paired Mac tab retained its room, ended without the outer HA connection banner or weather last-known label, and still showed unconfirmed playback. This is bounded manual recovery evidence, not automatic-recovery causality, write authority or music acceptance. The59 projection cannot retrospectively prove58 runtime identity.
+
+This59 source candidate is not published or installed. Exact revised unsigned/bound metadata review, official CI, publication, image readback, normal installation and actual runtime UI readback remain required. Mac same-principal reapproval and separate HA integration/Core adoption remain specific human-approval HOLD; robot movement remains HOLD. Music, timer, visual-answer, Voice PE, restore, device and soak acceptance remain open under the full goal. Rollback is exact58; no persistent migration is added.
+
+---
+
 <!-- podview58-admission
 {
   "version": 35,

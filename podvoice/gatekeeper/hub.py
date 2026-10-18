@@ -11,11 +11,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import re
 import secrets
 import time
 from collections import deque
 
-from . import __version__
+from . import __version__, runtime_artifact_identity
 from .history import History, TranscriptSegments
 
 _LOG = logging.getLogger("podvoice.hub")
@@ -146,7 +148,27 @@ class StatusHub:
         )
 
     def snapshot(self) -> dict:
+        # Declared build identity, not a fresh measurement of the running filesystem.
+        git_sha = os.environ.get("PODVOICE_GIT_SHA", "")
+        identity = {
+            "version": __version__,
+            "git_sha": git_sha if re.fullmatch(r"[0-9a-f]{40}", git_sha) else None,
+            "artifact_kind": None,
+            "artifact_sha256": None,
+        }
+        try:
+            kind, digest = runtime_artifact_identity()
+            if (
+                kind in {"rootfs-v1", "source-fallback-v1"}
+                and isinstance(digest, str)
+                and re.fullmatch(r"[0-9a-f]{64}", digest)
+            ):
+                identity["artifact_kind"] = kind
+                identity["artifact_sha256"] = digest
+        except Exception:
+            pass  # Unknown identity must not break status or expose paths/errors.
         return {
+            "runtime_identity": identity,
             "version": __version__,
             "observed_at": time.time(),
             "services": dict(self._services),

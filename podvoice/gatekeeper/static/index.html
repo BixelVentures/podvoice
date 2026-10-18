@@ -352,6 +352,8 @@
     <div class="section">
       <h2>Forbindelser</h2>
       <div class="svc" id="svc"><span class="pill pill-degraded">Henter faktisk status…</span></div>
+      <p class="sub">Konfiguration og seneste providerforbindelse. Talk har egen status i Talk-fanen.</p>
+      <p id="runtime_identity" class="sub" style="overflow-wrap:anywhere;white-space:pre-line"></p>
       <span id="svc_announce" class="screenreader" role="status" aria-live="polite"></span>
       <div id="cap_warning" class="notice" role="alert" hidden></div>
       <div id="status_connection" class="notice" role="status" hidden>Status forbinder… Kontrollér add-on-status, hvis forbindelsen ikke kommer tilbage.</div>
@@ -591,6 +593,7 @@ var rooms = {};
 var connected = false;
 var lastStatus = null;
 var lastObservedMs = 0;
+var statusReadGeneration = 0, runtimeIdentityFresh = false;
 
 function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 function safe(o, k, d) { return (o && o[k] != null) ? o[k] : d; }
@@ -601,7 +604,23 @@ function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("show"); }, 1600);
 }
 
+function renderRuntimeIdentity(data, fresh) {
+  var node = document.getElementById("runtime_identity");
+  if (!node) return;
+  var value = data && data.runtime_identity;
+  var valid = value && typeof value === "object" && Object.keys(value).sort().join(",") === "artifact_kind,artifact_sha256,git_sha,version";
+  var lines = [fresh ? "Runtimeoplysninger" : "Sidst kendte runtimeoplysninger · forbindelsen er ikke bekræftet"];
+  if (!valid) { node.textContent = lines[0] + "\nBuild-identitet ukendt"; return; }
+  lines.push("Version: " + (typeof value.version === "string" ? value.version : "Ukendt"));
+  lines.push("Commit: " + (typeof value.git_sha === "string" && value.git_sha.length === 40 && /^[a-f0-9]{40}$/.test(value.git_sha) ? value.git_sha : "Ukendt"));
+  var known = ["rootfs-v1", "source-fallback-v1"].includes(value.artifact_kind) && typeof value.artifact_sha256 === "string" && value.artifact_sha256.length === 64 && /^[a-f0-9]{64}$/.test(value.artifact_sha256);
+  lines.push(known ? (value.artifact_kind === "rootfs-v1" ? "Gemt build-identitet: " : "Lokal kildeidentitet: ") + value.artifact_sha256 : "Build-identitet: Ukendt");
+  lines.push("Ikke en ny måling af hele det kørende filsystem.");
+  node.textContent = lines.join("\n");
+}
+
 function renderSub(data) {
+  renderRuntimeIdentity(data, connected && typeof runtimeIdentityFresh !== "undefined" && runtimeIdentityFresh && !!lastObservedMs && Date.now() - lastObservedMs <= 10000);
   var sub = document.getElementById("sub");
   var bits = ["Dansk taleassistent"];
   if (data && data.version) bits.push("v" + data.version);
@@ -640,20 +659,27 @@ function renderServices(services, details, diagnosticActive) {
     if (name === "voicepe") {
       label = st === "up" ? "wake-klar" : st === "degraded" ? "ikke verificeret" : "offline";
     } else if (name === "openai") {
-      label = st === "up" ? "klar ved seneste samtale" :
+      label = st === "up" ? "forbindelse bekræftet" :
         reason.indexOf("saldo") >= 0 || reason.indexOf("kredit") >= 0 ? "mangler kredit" :
         reason.indexOf("ratebegrænset") >= 0 ? "ratebegrænset" :
-        st === "degraded" ? "standby - ikke prøvet" : "fejl";
+        st === "degraded" ? (detail.source === "konfiguration" ? "konfigureret" : "ikke verificeret") :
+        st === "down" ? "fejl" : "ukendt";
     } else {
       label = st === "up" ? "verificeret" : st === "degraded" ? "ikke verificeret" : "utilgængelig";
     }
     p.appendChild(document.createTextNode(SVC_LABEL[name] + ": " + label));
-    var explanation = detail.reason;
-    if (name === "openai" && st === "up")
-      explanation = "Kontrolleret ved seneste samtale. Aktuel samtale vises under Rum.";
+    var explanation = [detail.reason, detail.source].filter(Boolean).join(" · ");
+    if (name === "openai") {
+      var scope = detail.source === "aktiv Realtime-session"
+        ? "Seneste providerforbindelse via Voice PE; ikke bevis for aktuel samtale eller hørbar tale."
+        : detail.source === "konfiguration"
+          ? "Konfiguration er ikke en afprøvet providerforbindelse."
+          : "Providerstatus fra den viste kilde; ikke bevis for aktuel samtale eller hørbar tale.";
+      explanation = [explanation, scope, "Talk har egen status i Talk-fanen."].filter(Boolean).join(" · ");
+    }
     p.title = diagnosticActive && (name === "openai" || name === "voicepe")
       ? "Sikker systemtest kører. Prøv igen, når testen er færdig."
-      : (name === "openai" && st === "up" ? explanation : [explanation, detail.source].filter(Boolean).join(" · "));
+      : explanation;
     wrap.appendChild(p);
     announcements.push(SVC_LABEL[name] + " " + label);
   });
@@ -1121,11 +1147,18 @@ async function control(room, action, btn) {
 }
 
 async function poll() {
+  var generation = statusReadGeneration;
   try {
     var r = await fetch("api/status", { cache: "no-store" });
-    if (r.ok) applyStatus(await r.json());
-    else throw new Error("Status unavailable");
+    if (!r.ok) throw new Error("Status unavailable");
+    var data = await r.json();
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Status unavailable");
+    if (generation !== statusReadGeneration) return;
+    runtimeIdentityFresh = true;
+    applyStatus(data);
   } catch (e) {
+    if (generation !== statusReadGeneration) return;
+    statusReadGeneration++; runtimeIdentityFresh = false;
     connected = false;
     wakeStatusAvailable = false;
     renderWakeWordStatus();
@@ -1139,7 +1172,7 @@ function openStream() {
   var es;
   try { es = new EventSource("api/events"); } catch (e) { return; }
   es.onopen = function () { connected = true; renderSub(lastStatus); };
-  es.onerror = function () { connected = false; wakeStatusAvailable = false; renderSub(lastStatus); renderWakeWordStatus(); };
+  es.onerror = function () { statusReadGeneration++; runtimeIdentityFresh = false; connected = false; wakeStatusAvailable = false; renderSub(lastStatus); renderWakeWordStatus(); };
   es.onmessage = function (m) { try { applyEvent(JSON.parse(m.data)); } catch (e) {} };
 }
 
@@ -1154,6 +1187,7 @@ setInterval(function () {
 }, 1000);
 setInterval(function () {
   if (lastObservedMs && Date.now() - lastObservedMs > 10000) {
+    if (runtimeIdentityFresh) { statusReadGeneration++; runtimeIdentityFresh = false; }
     connected = false; renderSub(lastStatus);
     renderWakeWordStatus();
     var svc = document.getElementById("svc");

@@ -1,3 +1,10 @@
+## 2.0.59 — sand providerstatus og læsbar runtimeidentitet, ubundet kandidat
+
+- Beskriv konfiguration og seneste providerforbindelse uden at påstå vellykket samtale, svarlyd eller aktuel Talk-status. Bevar fejlårsager og kildeoplysninger; kun kendt native kilde tilskrives Voice PE.
+- Vis deklareret version, valideret commit og gemt build-identitet eller lokal kildeidentitet gennem den eksisterende statuslæsning. Det er ikke en ny måling af hele det kørende filsystem.
+- Bevar senest kendte oplysninger som historiske efter forbindelsestab. Metrics-only SSE gør ikke en gammel GET frisk; kun en aktuel vellykket normal statuslæsning kan genskabe frisk visning.
+- Ingen ny route, polling, bootidentitet, adgang, provider-, lyd-, HA- eller nativeændring. Alle143PodViewaktiver og manifest bevares. Uafhængigt metadatareview, officiel CI, udgivelse, installation og fysisk accept er særskilte.
+
 ## 2.0.58 — sand status for Talk-beskeder, ubundet kandidat
 
 - Afslut uafklarede Talk-beskeder som ukendt ved tab af deres forbindelse; bevar kladden og gentag aldrig beskeden automatisk.
