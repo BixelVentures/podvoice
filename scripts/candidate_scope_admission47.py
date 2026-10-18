@@ -67,6 +67,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-next-weather-view.test.mjs",
         "tests/podview/controller-peer-recovery.test.mjs",
         "tests/podview/robot-domain-authority.test.mjs",
+        "tests/podview/transport-recovery.test.mjs",
         "tests/unit/test_candidate_scope_admission46.py",
         "tests/unit/test_candidate_scope_admission47.py",
         "tests/unit/test_dev_cycle.py",
@@ -77,8 +78,8 @@ REQUIRED_TESTS = frozenset(
 HA_RUNTIME = previous.HA_RUNTIME
 # Signature bindings remain closed until independent PV47 review.
 REVIEWER = "Independent /root/ui41_source_review PV47 source/adoption and exact composition review"
-MANIFEST_SHA = "09e28146e3ebb2de3d9e25b2cb656e6629cb031aa9333981bfdffce261dc34ce"
-PROFILE_AST = "50be9a1abf35894c8a7229b0ec79ec260cec1a1c1f1a0263c32077b4e6fb43d5"
+MANIFEST_SHA = "bd080d0126dcace24663e85d5da7c17bfe989357c4b8beb9450cdebad60ce76c"
+PROFILE_AST = "319c71eca2aa4c0f81b57a93f74e857e0c77d47c99ca9090e5714bd27ad077a6"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission46.py": "1e8178e8ec0aed2ff929d20a6299eec9988cba1eefda3908a2aed8d9f5c4c4d6",
     "scripts/podview46-admission-reviewed.json": "21d21579bae3371aa47ba7a33c8b3601bf7468dfb701a5e7f22f0e4c9ebd57bc",

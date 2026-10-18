@@ -5,6 +5,7 @@ import math
 import re
 import time
 from pathlib import Path
+from typing import cast
 
 from . import constants as C
 from .offline_locality import Resolver
@@ -66,12 +67,16 @@ async def read(client, token, current):
             body = response.json()
             if not isinstance(body, dict):
                 return None
-            coordinates = [body.get("latitude"), body.get("longitude")]
-            if any(
-                type(x) not in (int, float) or not math.isfinite(x) or abs(x) > limit
-                for x, limit in zip(coordinates, (90, 180), strict=True)
+            coordinates: list[int | float] = []
+            for raw, limit in zip(
+                (body.get("latitude"), body.get("longitude")), (90, 180), strict=True
             ):
-                return None
+                if type(raw) not in (int, float):
+                    return None
+                coordinate = cast(int | float, raw)
+                if not math.isfinite(coordinate) or abs(coordinate) > limit:
+                    return None
+                coordinates.append(coordinate)
             estimate = resolver().resolve(*coordinates)
             if (
                 estimate.get("status") != "estimated"
