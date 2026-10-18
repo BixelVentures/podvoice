@@ -1,3 +1,48 @@
+<!-- podview50-admission
+{
+  "version": 27,
+  "kind": "podview50_locality_diagnostics",
+  "reviewer": "Independent /root/astra_technical_assessment NEXT50 corrected source and admission metadata review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "9d8d72326569061f16c3af5724d6c9e54a9e661a",
+  "merge_base": "9d8d72326569061f16c3af5724d6c9e54a9e661a",
+  "rationale": "NEXT50 adds only independently reviewed fixed-enum privacy-safe diagnostics to existing locality reads and attachment. Current-owner, cancellation, cleanup and exception fences preserve product results; no UI, geography, TTL, deadline, model, provider, polling, network destination or action authority changes. Corrected exact50 schema admission is causally tested after signature preconditions. Source/admission checks do not prove the installed locality symptom resolved or authorize native PR45. CI, publication, installation and device evidence remain separate.",
+  "fingerprint": "1875d18bc482440742130871ff3d6889d8cbe5079ca7d818d4aea4d724824381",
+  "regression_fingerprint": "750557c668b0345b16b097ee207b3759ee81849443119f51d363c2f1c1ec0282",
+  "runtime_fingerprint": "f6eaafbd4c30cace71824a32bb59ef88539f27abbb53f32ff659eeaf4b4dde47",
+  "config_fingerprint": "c158b90f0ce14448c9be6206fbee5421c692b293c974840ddb392e47bc33ab81",
+  "policy_fingerprint": "6684c05e1b6d456f4ac4bb80356cd72f61480a9bb41e1f0687f4ba8090128be1",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "3bb7043a62d71f8f5c96fecf6f31590fb4deb8d12d64de867007cb2781f7808a"
+}
+-->
+
+## NEXT50 — aktiv lead-beslutning: kun privatlivssikker udfaldsdiagnostik
+
+18/10:49 er ifølge lead installeret/Kører. Tre eksisterende normale config-GETs
+returnerede HTTP200, men den normale visning beviste ikke automatisk Ved-label.
+Lokale49-data validerer og offentligt Mårslet-center giver Ved Mårslet; ingen
+konkret ny adfærdsårsag er bevist. Derfor godkender lead kun fixed-enum serverlogs
+ved eksisterende managed read og attachment, deduplikeret per ejer/udfald.
+Ingen private værdier, exceptiontekst, nye routes/felter, UI, data-/geografiske gates,
+TTL/deadlineændring, retry/poll, provider eller ekstra HA-kald. Cancellation og
+stale-owner-fences samt logfejl skal være virkningsløse for produktadfærden.
+Plan: syntetiske gren-/privacy-/dedup-/cleanup-tests, eksisterende localityregression,
+Ruff/mypy og uafhængigt adversarial review. Rollback er bortkastning af isoleret
+logdelta mod00f6e607-arkivet. Ingen ny version, CI, release eller installation her.
+
+Faktisk isoleret resultat:212 fokuserede Python-tests PASS (inklusive uændret49
+home/frontend-livscyklus), Ruff/format PASS og mypy87 filer PASS. Runtime ændrer kun
+podview_locality.py og tools.py. Loggerfejl, callbackfejl, cancellation og stale
+owner tested uden ændret produktresultat. Ukendt resolverformat får resolver_failed,
+ikke en opdigtet geografisk årsag. Dedup er per ejer/kanal, ryddes ved close.
+Uafhængigt review fandt stale-attribution uden ny ensure: gammel403/transportfejl
+kunne logges efter tokenskift. Rettet med admitted()-kontrol ved terminal logging;
+8 kausale cases dækker token/client/discovery/availability mod denied/transport.
+Reviewerens4-case harness passerer også lokalt. Ny uafhængig konklusion afventer; dette er ikke logdata fra Green.
+
 <!-- podview49-admission
 {
   "version": 26,

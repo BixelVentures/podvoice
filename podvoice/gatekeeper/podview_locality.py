@@ -1,6 +1,7 @@
 """Private authenticated HA home location; public output contains no coordinates."""
 
 import asyncio
+import logging
 import math
 import re
 import time
@@ -13,6 +14,25 @@ from .offline_locality import Resolver
 
 DATASET_SHA = "5a00e7740328397d7d6ce49ec52d45dbba06c2539c3af5bd41cab496da35a37b"
 _resolver = None
+log = logging.getLogger("podvoice.locality")
+_READ_OUTCOMES = frozenset(
+    {
+        "ready",
+        "config_denied",
+        "config_invalid",
+        "config_transport_failed",
+        "dataset_unavailable",
+        "resolver_failed",
+        "geography_unknown",
+        "owner_changed",
+        "deadline",
+        "label_invalid",
+        "cancelled",
+    }
+)
+_DELIVERY_OUTCOMES = frozenset(
+    {"attached", "absent", "expired", "owner_changed", "weather_unavailable"}
+)
 
 
 def resolver():
@@ -50,9 +70,19 @@ def valid_label(value, now=None):
     )
 
 
-async def read(client, token, current):
+async def read(client, token, current, outcome=None):
+    def finish(reason, label=None):
+        # Diagnostic callbacks must never affect the existing read contract.
+        if outcome is not None:
+            try:
+                outcome(reason)
+            except Exception:
+                pass
+        return label
+
     if client is None or not token or not current():
-        return None
+        return finish("owner_changed")
+    failure = "config_transport_failed"
     try:
         deadline = time.monotonic() + 2
         async with asyncio.timeout(2):
@@ -62,29 +92,41 @@ async def read(client, token, current):
                 follow_redirects=False,
                 timeout=2,
             )
-            if response.status_code != 200 or not current():
-                return None
+            if response.status_code != 200:
+                return finish("config_denied")
+            if not current():
+                return finish("owner_changed")
             observed = time.time()
+            failure = "config_invalid"
             body = response.json()
             if not isinstance(body, dict):
-                return None
+                return finish(failure)
             coordinates: list[int | float] = []
             for raw, limit in zip(
                 (body.get("latitude"), body.get("longitude")), (90, 180), strict=True
             ):
                 if type(raw) not in (int, float):
-                    return None
+                    return finish(failure)
                 coordinate = cast(int | float, raw)
                 if not math.isfinite(coordinate) or abs(coordinate) > limit:
-                    return None
+                    return finish(failure)
                 coordinates.append(coordinate)
-            estimate = resolver().resolve(*coordinates)
-            if (
-                estimate.get("status") != "estimated"
-                or not current()
-                or time.monotonic() >= deadline
-            ):
-                return None
+            failure = "dataset_unavailable"
+            source = resolver()
+            failure = "resolver_failed"
+            estimate = source.resolve(*coordinates)
+            if estimate.get("status") != "estimated":
+                return finish(
+                    "geography_unknown"
+                    if estimate.get("status") == "unknown"
+                    and estimate.get("reason") == "distant_or_ambiguous"
+                    else "resolver_failed"
+                )
+            if not current():
+                return finish("owner_changed")
+            if time.monotonic() >= deadline:
+                return finish("deadline")
+            failure = "label_invalid"
             label = dict(
                 name=estimate["displayLabel"],
                 source="ha_home_geonames",
@@ -94,9 +136,14 @@ async def read(client, token, current):
                 observedAt=observed,
                 validUntil=observed + 60,
             )
-            return label if valid_label(label) else None
+            return finish("ready", label) if valid_label(label) else finish(failure)
+    except asyncio.CancelledError:
+        finish("cancelled")
+        raise
+    except TimeoutError:
+        return finish("deadline" if time.monotonic() >= deadline else failure)
     except Exception:
-        return None
+        return finish(failure)
 
 
 class LocalityOwner:
@@ -112,6 +159,37 @@ class LocalityOwner:
         self._label: dict | None = None
         self._generation = 0
         self._closed = False
+        self._read_outcome: str | None = None
+        self._delivery_outcome: str | None = None
+        self._value_reason = "absent"
+
+    def _note_read(self, reason):
+        if reason not in _READ_OUTCOMES or reason == self._read_outcome:
+            return
+        self._read_outcome = reason
+        try:
+            log.info("podview_locality outcome=%s", reason)
+        except Exception:
+            pass
+
+    def record_delivery(self, binding, current, weather, locality):
+        if self._closed or binding != self._binding:
+            return
+        if not current():
+            reason = "owner_changed"
+        elif weather.get("status") != "observed" or not isinstance(weather.get("data"), dict):
+            reason = "weather_unavailable"
+        elif locality is not None and weather["data"].get("displayLocation") == locality:
+            reason = "attached"
+        else:
+            reason = self._value_reason
+        if reason not in _DELIVERY_OUTCOMES or reason == self._delivery_outcome:
+            return
+        self._delivery_outcome = reason
+        try:
+            log.info("podview_locality_delivery outcome=%s", reason)
+        except Exception:
+            pass
 
     def _invalidate(self):
         self._generation += 1
@@ -124,6 +202,9 @@ class LocalityOwner:
             return
         if binding != self._binding or not current():
             self._invalidate()
+            if binding != self._binding:
+                self._read_outcome = None
+                self._delivery_outcome = None
             self._binding = binding
         if not current() or client is None or not token:
             return
@@ -143,8 +224,15 @@ class LocalityOwner:
         def admitted():
             return not self._closed and generation == self._generation and current()
 
+        def note(reason):
+            # A source may change without a subsequent ensure()/generation bump.
+            # Never attribute that old request's terminal result to the new owner.
+            # read.finish isolates predicate/logging exceptions from product output.
+            if admitted():
+                self._note_read(reason)
+
         async def fetch():
-            label = await read(client, token, admitted)
+            label = await read(client, token, admitted, note)
             if generation == self._generation and not self._closed:
                 self._label = label if admitted() and valid_label(label) else None
 
@@ -154,11 +242,14 @@ class LocalityOwner:
         if binding != self._binding:
             return None
         if self._closed or not current():
+            self._value_reason = "owner_changed"
             self._invalidate()
             return None
         if self._label is None or not valid_label(self._label):
+            self._value_reason = "expired" if self._label is not None else "absent"
             self._label = None
             return None
+        self._value_reason = "absent"
         return dict(self._label)
 
     async def aclose(self):
@@ -168,3 +259,6 @@ class LocalityOwner:
             await asyncio.gather(self._task, return_exceptions=True)
         self._task = None
         self._binding = None
+        self._read_outcome = None
+        self._delivery_outcome = None
+        self._value_reason = "absent"

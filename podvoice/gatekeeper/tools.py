@@ -2105,8 +2105,12 @@ class ToolRouter:
         weather = await self._podview_weather_read()
         locality = self.podview_locality.value(locality_binding, current)
         if not current():
-            return {"status": "unavailable", "data": None}
-        return with_home_locality(weather, locality)
+            unavailable = {"status": "unavailable", "data": None}
+            self.podview_locality.record_delivery(locality_binding, current, unavailable, None)
+            return unavailable
+        result = with_home_locality(weather, locality)
+        self.podview_locality.record_delivery(locality_binding, current, result, locality)
+        return result
 
     async def _podview_weather_read(self) -> dict:
         """One bounded home read through the exact admitted owner; never retry.
