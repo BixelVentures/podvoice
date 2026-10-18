@@ -1,3 +1,45 @@
+<!-- podview52-admission
+{
+  "version": 29,
+  "kind": "podview52_music_state_layout",
+  "reviewer": "Independent /root/astra_technical_assessment NEXT52 admission metadata review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "2a93c1673fdf0d8051b877ced32fe51628e534e6",
+  "merge_base": "2a93c1673fdf0d8051b877ced32fe51628e534e6",
+  "rationale": "NEXT52 adopts only the independently reviewed canonical music state geometry and three retained-content status clarifications, with the existing asset-manifest hashes updated. All other141 assets, backend, data sources, fetch/cache/selection/action authority, six policies and native versions remain unchanged. Bounded browser geometry/focus evidence and136 author focused checks remain distinct from CI, publication, installation and physical acceptance. Historical51 validator assertions are preserved;52 accepts its own schema and rejects rebound51 schema. Humor data failure remains unresolved. Independent admission16PASS; combined135PASS plus one unchanged sandbox killpg PermissionError is recorded separately.",
+  "fingerprint": "229ceedaace7856835e957b444daeb217a5cc77023eaa06358970207a79f7c68",
+  "regression_fingerprint": "9f24fe52f81cec24d441aaac2a84d9748a6ec7fcc5e9bd4d0669ad0f1d15020f",
+  "runtime_fingerprint": "7421594b6fdd0a9cc39ee413be42e75d615da58f35485b97a9f1539d9ad206d8",
+  "config_fingerprint": "4a86e2e45bf7848094cee7f07e2fe137c27ffc72763ede4f0bbd8a01d1634c00",
+  "policy_fingerprint": "9e69afa2b49ab058b21b8afa21f66990de4b083e7ab2ea93b7f9d799156c0aa4",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "6d888b9c5317c66b60897b7f0198bc4faa6ef0b3ffb465ecd9873c281de067f0"
+}
+-->
+
+## NEXT52 — aktiv lead-beslutning: musiktilstandenes geometri og tydelig beholdt status
+
+18/10: Lead autoriserer en isoleret52-kandidat mod faktisk51-merge
+2a93c1673fdf0d8051b877ced32fe51628e534e6. Kun kanonisk widget-redesign.css
+og tre beholdt-udvalgtekster i live-music-view.js ændres sammen med eksisterende
+assetmanifestpins. Ingen ny komponentfamilie, datahentning, cache-, selection-,
+adgangs- eller handlingslogik ændres. Backend, seks policyer, geografi og native
+versioner bevares. Humørs faktiske datafejl er ikke løst af denne visuelle ændring.
+
+Root har godkendt endelig browsergeometri ved600/480, alle fire musiktilstande,
+faner, body/tastatur og fulde valgte/ikke-valgte fokusrammer;844 npm/component-gate
+bestået. Kilder: integration/next52-music-state-layout-20261018/full-tests-final.log,
+/private/tmp/pv52-music-browser-qa/receipt.md og final-focus-receipt.md.
+Det er afgrænset browser- og kildebevis, ikke installeret52 eller fysisk accept.
+
+Planlagt build: streng52-admission med ny aktuel schema-regression, historisk51
+fuld validator bevaret, mekanisk scope/inventar og uafhængigt review før binding.
+Reviewfelter og52-record forbliver tomme i dette usignerede udkast. CI, publicering,
+installation og fysisk accept er separate trin ejet af root/operator. Ingen native
+publicering eller installation følger heraf; natte-HOLD består.
+
 <!-- podview51-admission
 {
   "version": 28,

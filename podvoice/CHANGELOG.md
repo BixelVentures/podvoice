@@ -1,3 +1,9 @@
+## 2.0.52 — musiktilstandenes visning, kandidat
+
+- Tilpas den eksisterende musikvisnings tomme, fejl-, indlæsnings- og fyldte tilstande, så faner og fokus bevares i den afprøvede geometri.
+- Skriv “Viser dit tidligere udvalg.”, når tidligere musikresultater beholdes; teksten hævder ikke en ny kilde eller frisk data.
+- Ingen ændring af musikkilder, adgang eller afspilning. Humørs datafejl er fortsat uafklaret; browserbevis er ikke installeret eller fysisk accept.
+
 ## 2.0.51 — musikkøens visning, kandidat
 
 - Ret køens højde og fokusmarkering i den eksisterende kanoniske visning, så den bekræftede rækkegeometri og scroll bevares på de afprøvede skærmstørrelser.
