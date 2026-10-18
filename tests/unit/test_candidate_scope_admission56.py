@@ -23,7 +23,20 @@ def historical55_root(tmp_path_factory):
     return target
 
 
-def test_56_exact_scope_and_history():
+PUBLISHED56_MERGE = "b39498a0c6b965395d8b20ea8387e7c546f7c663"
+PUBLISHED56_TREE = "5948ba996edadd09700b1a99c37b0b6a429d0dc6"
+
+
+@pytest.fixture(scope="module")
+def historical56_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published56") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED56_MERGE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED56_TREE], cwd=target, check=True)
+    return target
+
+
+def test_56_exact_scope_and_history(historical56_root):
     assert admission.BASE == PUBLISHED55_MERGE
     assert admission.VERSION == 33
     assert admission.KIND == "podview56_history_mood_diagnostics"
@@ -58,38 +71,39 @@ def test_56_exact_scope_and_history():
     assert ".github/workflows/ci.yml" in admission.TOOLING
     assert admission.ASSET_COUNT == 143
     assert admission.IMMUTABLE.items() >= published55.IMMUTABLE.items()
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
-    assert admission.config_only(ROOT)
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
+    assert admission.strict.pins_match(historical56_root, admission.IMMUTABLE)
+    assert admission.config_only(historical56_root)
+    report = admission.legacy.inspect_repository(historical56_root, admission.BASE)
     assert report.domains == admission.DOMAINS
-    effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
+    effective = admission.legacy._visual_repository_changes(historical56_root, admission.BASE)
     assert admission.production_scope_matches(effective)
     assert {p for p in effective if p.startswith("tests/")} == admission.REQUIRED_TESTS
     assert admission.change_scope_matches(effective, set(admission.REQUIRED_TESTS))
     bindings = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
     assert len({bool(value) for value in bindings}) == 1
     if all(bindings):
-        assert admission.inspect_repository(ROOT, admission.BASE).passed
+        assert admission.inspect_repository(historical56_root, admission.BASE).passed
     else:
-        assert not admission.inspect_repository(ROOT, admission.BASE).passed
+        assert not admission.inspect_repository(historical56_root, admission.BASE).passed
 
 
-def test_56_manifest_exact_inventory():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_56_manifest_exact_inventory(historical56_root):
+    manifest = json.loads(admission.safe_file(historical56_root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice56.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT == 143
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert (
-        set(manifest["runtime"]) == admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        set(manifest["runtime"])
+        == admission.strict.runtime_inventory(historical56_root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING
     for group in ("production", "regressions", "runtime", "config", "policy", "tooling"):
-        assert admission.strict.pins_match(ROOT, manifest[group])
-    assert admission.assets_match56(ROOT, manifest["runtime"], manifest["asset_count"])
+        assert admission.strict.pins_match(historical56_root, manifest[group])
+    assert admission.assets_match56(historical56_root, manifest["runtime"], manifest["asset_count"])
 
 
 def test_published55_accepted_and_cannot_authorize56(historical55_root):
@@ -107,17 +121,19 @@ def test_56_cli_closed_with_missing_binding(monkeypatch, capsys, binding):
     assert "review bindings are not complete" in capsys.readouterr().err
 
 
-def test_56_full_validator_accepts_56_schema_and_rejects_55(monkeypatch):
+def test_56_full_validator_accepts_56_schema_and_rejects_55(monkeypatch, historical56_root):
     """Exercise schema admission after all signature preconditions, without signing files."""
     reviewer = "Synthetic test-only reviewer"
-    raw_manifest = admission.safe_file(ROOT, admission.MANIFEST)
+    raw_manifest = admission.safe_file(historical56_root, admission.MANIFEST)
     manifest_sha = admission.sha(raw_manifest)
     monkeypatch.setattr(admission, "REVIEWER", reviewer)
     monkeypatch.setattr(admission, "MANIFEST_SHA", manifest_sha)
     monkeypatch.setattr(
         admission,
         "PROFILE_AST",
-        admission.strict.ast_sha(admission.safe_file(ROOT, admission.PROFILE), "PROFILE_AST"),
+        admission.strict.ast_sha(
+            admission.safe_file(historical56_root, admission.PROFILE), "PROFILE_AST"
+        ),
     )
     record = {
         "version": admission.VERSION,
@@ -128,21 +144,22 @@ def test_56_full_validator_accepts_56_schema_and_rejects_55(monkeypatch):
         "merge_base": admission.BASE,
         "rationale": "Synthetic validator regression; never persisted as admission authority.",
         "fingerprint": admission.legacy.production_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(admission.PRODUCTION)
+            historical56_root, admission.BASE, admission.BASE, tuple(admission.PRODUCTION)
         ),
         "regression_fingerprint": admission.legacy.regression_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(admission.REQUIRED_TESTS)
+            historical56_root, admission.BASE, admission.BASE, tuple(admission.REQUIRED_TESTS)
         ),
         "runtime_fingerprint": admission.strict.fingerprint(
-            ROOT, admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+            historical56_root,
+            admission.strict.runtime_inventory(historical56_root) | admission.HA_RUNTIME,
         ),
-        "config_fingerprint": admission.strict.fingerprint(ROOT, admission.CONFIG),
-        "policy_fingerprint": admission.strict.fingerprint(ROOT, admission.POLICY),
-        "tooling_fingerprint": admission.strict.fingerprint(ROOT, admission.TOOLING),
+        "config_fingerprint": admission.strict.fingerprint(historical56_root, admission.CONFIG),
+        "policy_fingerprint": admission.strict.fingerprint(historical56_root, admission.POLICY),
+        "tooling_fingerprint": admission.strict.fingerprint(historical56_root, admission.TOOLING),
         "manifest_fingerprint": manifest_sha,
     }
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
-    assert admission.validate(ROOT, report, admission.BASE, record)
+    report = admission.legacy.inspect_repository(historical56_root, admission.BASE)
+    assert admission.validate(historical56_root, report, admission.BASE, record)
 
     # Rebind the altered payload's digest so rejection specifically tests its schema.
     wrong = json.loads(raw_manifest)
@@ -156,7 +173,7 @@ def test_56_full_validator_accepts_56_schema_and_rejects_55(monkeypatch):
     )
     monkeypatch.setattr(admission, "MANIFEST_SHA", admission.sha(wrong_raw))
     record["manifest_fingerprint"] = admission.sha(wrong_raw)
-    assert not admission.validate(ROOT, report, admission.BASE, record)
+    assert not admission.validate(historical56_root, report, admission.BASE, record)
 
 
 @pytest.mark.parametrize(
@@ -167,8 +184,8 @@ def test_56_full_validator_accepts_56_schema_and_rejects_55(monkeypatch):
         ("c89d429937dbbbc1195b363f9dc531fa185e3d22", "candidate_scope_admission54.py"),
     ],
 )
-def test_actual_ci_shell_routes_exact_published_base(tmp_path, base, profile):
-    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+def test_actual_ci_shell_routes_exact_published_base(tmp_path, base, profile, historical56_root):
+    workflow = (historical56_root / ".github/workflows/ci.yml").read_text()
     block = workflow.split('          candidate_base="', 1)[1].split("\n\n  lint-test:", 1)[0]
     script = 'candidate_base="' + block
     shim = tmp_path / "python3"

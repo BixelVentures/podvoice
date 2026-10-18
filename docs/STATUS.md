@@ -1,3 +1,28 @@
+<!-- podview57-admission
+{
+  "version": 34,
+  "kind": "podview57_ha_display_projection",
+  "reviewer": "Independent /root/astra_robot_component_unification NEXT57 HA display source and strict admission review",
+  "domains": [
+    "ha_tools"
+  ],
+  "base_tip": "b39498a0c6b965395d8b20ea8387e7c546f7c663",
+  "merge_base": "b39498a0c6b965395d8b20ea8387e7c546f7c663",
+  "rationale": "NEXT57 projects existing enrolled browser profiles into HA devices only after successful authenticated manual administrator listing. Five independently reviewed source/test files retain exact pins. Integration0.1.4/add-on2.0.57 are distinct deployment artifacts; add-on update does not install custom integration. No access, grant lifetime, capacity, timer, polling or UI changes. All143 UI assets and manifest remain exact56. HA registry deletion does not revoke enrollment or establish online hardware status. Historical36 and56 validators/manifests remain immutable; historical36 and56 test bodies/assertions are preserved by AST comparison. Historical36 inventory now reads actual published36 source, with causal RED then GREEN. Corrected unsigned tree412fbae76e4f64a659fb4b465e0265e22ac8717e received independent source review; full556 admission/devcycle/release/HA checks and independent27 historical36/57 admission checks pass. Previous CI39129955196 passed HA17 and UI1263 but failed the historical36 fixture; that is not whole-CI success. Final official CI remains required. Official pinned Linux HA framework CI and separately authorized Core deployment/restart remain required. No external action is authorized by this record.",
+  "fingerprint": "cd67fcfd0f6a6e1c70148c0cb5f3ff498c778c4bb1e2b4361e7555581d60216d",
+  "regression_fingerprint": "cce83ebfd61b3955674fe61475dc5d8a157c80c772b74c70066bbfaf849dfee2",
+  "runtime_fingerprint": "b64013abc958d27b395f7f22bffa376e87581d81b3506097fb49719ab884ffc8",
+  "config_fingerprint": "29128937aba5ae9cf94fb2f0203d844677b6451781a7ce90868ad14e96b9b69e",
+  "policy_fingerprint": "2c89fb0842f4dae4115f03c7188d9957159b0cb1765bce1a6f0e51c2461264ca",
+  "tooling_fingerprint": "f08797398c924ac5f075d764b2845f051792bc5ce0b10336a773f23c6c5ba079",
+  "manifest_fingerprint": "786a2ec0b49380369357bdb8250fefdfd7b3e13afb420f023e4e6015cda6cee3"
+}
+-->
+
+## NEXT57 — active lead decision: existing enrolled display profiles in HA devices
+
+Root authorizes isolated release preparation against actual56 merge b39498a0c6b965395d8b20ea8387e7c546f7c663/tree5948ba996edadd09700b1a99c37b0b6a429d0dc6. Adopt only the five independently reviewed projection files plus integration version0.1.4/add-on2.0.57 metadata and strict successor admission. Successful authenticated manual administrator list projects existing enrolled browser identities; no credentials, grant lifetime, profile capacity, timer ownership, polling or access change. Deleting an HA device does not revoke underlying enrollment. All143 UI assets and their manifest remain exact56. Historical56 admission and assertions are preserved. Review bindings remain blank until independent exact-tree GO. Actual57 CI39129955196 passed HA framework17 and packagedUI1263 but failed unit historical36 inventory after475 passes; the historical fixture now targets actual published36 without changing its inventory or negative assertions. The correction requires full admission-cohort validation and renewed independent review; prior failed-head evidence is preserved. Existing actual HA Linux framework regression must pass official CI before installation; add-on update does not install custom integration. HA Core deployment/restart requires separate timer/lifecycle/operator authorization. Mac reapproval and household effects remain HOLD. No push, CI dispatch, install or browser action in this source task.
+
 <!-- podview56-admission
 {
   "version": 33,

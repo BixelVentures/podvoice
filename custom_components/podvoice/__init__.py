@@ -7,6 +7,7 @@ endpoints use their verified MAC identity; Talk uses a separate virtual endpoint
 
 from __future__ import annotations
 
+import logging
 import re
 
 import voluptuous as vol
@@ -18,9 +19,11 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
 from .controller_admin import ControllerAdmin
+from .display_devices import DisplayDevices
 from .timer_bridge import TimerBridge
 
 DOMAIN = "podvoice"
+_LOGGER = logging.getLogger(__name__)
 
 
 def duration(value: object) -> int:
@@ -181,6 +184,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN] = bridge
     admin = ControllerAdmin(hass, entry)
     hass.data[_ADMIN_KEY] = admin
+    displays = DisplayDevices(registry, entry.entry_id)
 
     async def read(call: ServiceCall) -> dict:
         return bridge.snapshot(call.data["endpoint"])
@@ -188,17 +192,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def command(call: ServiceCall) -> dict:
         return bridge.command(**call.data)
 
+    async def controller_projection(call: ServiceCall, action: str) -> dict:
+        result = await admin.request(call, action)
+        # No await between the current-owner check and registry reconciliation.
+        # The request has already checked the current human admin and room.
+        if (
+            hass.data.get(_ADMIN_KEY) is admin
+            and hass.config_entries.async_get_entry(entry.entry_id) is entry
+        ):
+            try:
+                displays.apply(action, call.data["room"], result)
+            except Exception:
+                # A registry display failure must not relabel an acknowledged revoke
+                # as unknown and invite a second authorization action.
+                _LOGGER.warning("PodView browser profile display update unavailable")
+        return result
+
     async def controller_list(call: ServiceCall) -> dict:
-        return await admin.request(call, "list")
+        return await controller_projection(call, "list")
 
     async def controller_approve(call: ServiceCall) -> dict:
         return await admin.request(call, "approve")
 
     async def controller_revoke_identity(call: ServiceCall) -> dict:
-        return await admin.request(call, "revoke_identity")
+        return await controller_projection(call, "revoke_identity")
 
     async def controller_revoke(call: ServiceCall) -> dict:
-        return await admin.request(call, "revoke")
+        return await controller_projection(call, "revoke")
 
     hass.services.async_register(
         DOMAIN,

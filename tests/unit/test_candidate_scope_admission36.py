@@ -11,6 +11,14 @@ ROOT = Path(__file__).parents[2]
 PUBLISHED36 = "aa49d94e588974683ad3b9ad4b6d34da81676b58"
 
 
+@pytest.fixture(scope="module")
+def historical36_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published36") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED36], cwd=target, check=True)
+    return target
+
+
 def published36_bytes(name: str) -> bytes:
     return subprocess.check_output(["git", "show", f"{PUBLISHED36}:{name}"], cwd=ROOT)
 
@@ -148,10 +156,10 @@ def test_36_is_exact_queue_and_admin_delta_from_published_35():
     )
 
 
-def test_entire_ha_integration_inventory_is_explicit(tmp_path):
-    assert admission.ha_runtime_inventory(ROOT) == EXPECTED_HA_RUNTIME
+def test_entire_ha_integration_inventory_is_explicit(tmp_path, historical36_root):
+    assert admission.ha_runtime_inventory(historical36_root) == EXPECTED_HA_RUNTIME
     assert set(EXPECTED_PRODUCTION) <= (
-        admission.strict.runtime_inventory(ROOT) | EXPECTED_HA_RUNTIME
+        admission.strict.runtime_inventory(historical36_root) | EXPECTED_HA_RUNTIME
     )
     directory = tmp_path / "custom_components" / "podvoice"
     directory.mkdir(parents=True)
