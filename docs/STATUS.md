@@ -1,4 +1,35 @@
-# Aktiv leadbeslutning · kontovisning og tværfane-fornyelse · PV46 · 18. oktober 2026
+# Aktiv leadbeslutning · robotadgang og kvalificeret vejrsted · PV47 · 18. oktober 2026
+
+Lead root. Faktisk 2.0.46 er publiceret fra PR198, merge `26438cdefac88c8bac071e8089636cd823c7a891`, tree `294425524e8d8f5718ae688482a05cfff15d445a`; officiel CI666 og main667 bestod. Green viste 2.0.46/Kører efter kontrolleret installation med backup, og alle seks policies var uændrede. Den tomme enkeltkonto-boks var skjult; tre musikvalg var aktive og bevaret ved normal retur. Timer Start var aktiv, men ingen timer blev startet. Robotpanelet viste allerede efter 3,848 sekunder og stadig efter 69,476 sekunder “Adgangen eller forbindelsen er ændret” med nul områder. To eksisterende PodView-faner var åbne i samme ingress; den anden fanes indlæste kildeversion er ukendt. Ingen hjemmeeffekt blev startet. Dette er stærkeste aktuelle Green-evidens og må ikke omskrives til løst robotproblem.
+
+PV47 samler en afgrænset robotrettelse med den reviewede kvalificerede vejrsted-visning. Observeret kildefejl: robotpanelets globale authority-signatur indeholder musikadgang; en uafhængig inert reproduktion viser, at en musikændring alene kan kassere et gyldigt robot-setup og give præcis fejlteksten. Hypotesen er falsificerbar: robot-setup skal overleve kun musik-scopeændringer, mens reel disconnect, boot-/rum-/vacuum-skift fortsat ugyldiggør det. Årsagen til det konkrete Green-forløb er endnu ikke bevist. Kæden er frisk snapshot/forbindelse → domænebundet robotadgang → read-only setup → render/gyldighed → eksplicit brugerhandling. Ingen automatisk retry eller hjemmehandling tilføjes.
+
+Vejrsted-kæden er eksisterende intern autentificeret HA config-GET parallelt med eksisterende vejrread → fast lokalt DK GeoNames-datasæt → højst 30 sekunders kvalificeret “Ved X”-label → valideret detail-/overbliksvisning og udløb. Hjemmekoordinater må ikke sendes til ekstern geokodning eller model. Label er et skøn nær HA-hjemmet, ikke præcis by-/prognosegrid-autoritet; langsom/uklar konfiguration giver ingen automatisk label. Eksisterende vejrdata og eksplicit visningssted bevares. Private cacheejer-/tokenbindinger må ikke udsendes. Berørte invarianter er frisk ejer/rum/boot/domæne, ingen stale handling eller replay, bevaret deadline/afslutning, ingen ekstra vejrventetid, lukket datasæt/proveniens, og uændret GPT-Live/lyd/lifecycle/policy. Ikke-mål er ny parring, udvidede grants, faktisk lyd/robot/alarm eller lukning af epics.
+
+Plan: adoptér de reviewede præcise 4 UI-moduler og 5 backendfiler med 4 datakilder, behold alle143 UI-stier, tilpas kun berørte regressioners imports og historisk46-fixture, kør relevante adapter-/formatterkontroller og uafhængigt exact-tree-review. Kør én officiel CI på frossen kandidat, genbrug identiske PR-beviser på main, publicér og installér med backup og seks uændrede policies. Bevar den fejlede peer-testhistorik; den deterministiske testordensrettelse er fixture-only og ændrer ikke transport. Rollback er publiceret46, ikke en bevist stabil robotbaseline. Nattens kontrol er kun passiv; ingen musik, robotbevægelse, tale eller alarm. Kandidaten er under adoption, ikke officielt godkendt, udgivet eller installeret. Fysisk accept og faktisk hjemmelabel står åbne.
+
+<!-- podview47-admission
+{
+  "version": 24,
+  "kind": "podview47_robot_and_locality",
+  "reviewer": "Independent /root/ui41_source_review PV47 source/adoption and exact composition review",
+  "domains": [
+    "ha_tools"
+  ],
+  "base_tip": "26438cdefac88c8bac071e8089636cd823c7a891",
+  "merge_base": "26438cdefac88c8bac071e8089636cd823c7a891",
+  "rationale": "PV47 composes the exact reviewed four-UI-module robot/domain and short-lived qualified locality projection with five backend files and four pinned offline data files. No transport, queue, GPT-Live, audio, grants, policies or automatic household actions change. Historical46 assertions run against published46; public GeoNames ZIP is test-only. Source/adoption and exact composition reviews, CI, publication, installation and physical acceptance are separate. Actual46 robot failure is retained and its Green cause remains unproven.",
+  "fingerprint": "2e424bfef89c8f4819c49e0ff47342151cb6d2c151ddddfb66d293808764e4fb",
+  "regression_fingerprint": "abadc2ba5a96b388ceef24d4f14ffb73549bedfda329100982e23cbea9db81a9",
+  "runtime_fingerprint": "2bbb74a9dcaf3c8828c540e6c9c40037804638adce6707ab9cbedd1d3a33618a",
+  "config_fingerprint": "1addbdb1d8a26fba35466477e553d3fafb99ed4173e727c56f665ec6d9c40535",
+  "policy_fingerprint": "f6d639c359be4abf532d147c9b34f4e11f05a80b36ea08966c8e6c49a2265d60",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "09e28146e3ebb2de3d9e25b2cb656e6629cb031aa9333981bfdffce261dc34ce"
+}
+-->
+
+# Tidligere leadbeslutning · kontovisning og tværfane-fornyelse · PV46 · 18. oktober 2026
 
 **Faktisk PV45-levering:** PR196 bestod CI664 run39077296213, blev merged som `e5e9ec495061e6b3f97f6555a28dafecdeceed3f` med verificeret tree `6c30d5a493255d9f00ac5ae6bcade3698dab80ae`, og main CI665 lykkedes via exact-tree reuse. Release 2.0.45 er publiceret med digest `sha256:ff8c7958d648cae2d5f0791b86a91698a93549106b41fa89ade7bef22ec47fa9`; Green rapporterede Kører, og alle seks policies var uændrede. Det er leveringsbevis, ikke fysisk accept.
 

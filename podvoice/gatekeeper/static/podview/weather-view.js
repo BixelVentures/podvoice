@@ -1,4 +1,4 @@
-import {conditionLabel,conditionIcon,weatherTemperature,forecastDayRows,localDayKey,hourlyWeather,weatherAiAdvice,weatherAppearance,windStrength,windFrom} from './weather-observation.js';
+import {conditionLabel,conditionIcon,weatherTemperature,forecastDayRows,localDayKey,hourlyWeather,weatherAiAdvice,weatherAppearance,windStrength,windFrom,weatherDisplayLocation} from './weather-observation.js';
 export function weatherSourceLabel(source){
  const provider=typeof source==='string'?source.replace(/^Home Assistant(?:\s*\/\s*|\s*$)/i,'').trim():'';
  const names=[...new Set(provider.split(',').map(name=>name.trim()).filter(Boolean))];
@@ -44,6 +44,7 @@ export function localWeatherModel(w=WEATHER){
 // or present these bounded source rules as generated AI advice.
 export function liveWeatherModel(w,{connected=true,now=Date.now(),aiContext=null}={}){
  const empty={title:'Vejr',subtitle:'Vejret i dag',appearance:weatherAppearance(null),current:null,summary:'',hours:[],days:[],source:''};if(!w)return empty;
+ const displayLocation=weatherDisplayLocation(w.displayLocation,now),automaticLocation=displayLocation?.source==='ha_home_geonames';
  const format=value=>weatherTemperature(value,w.unit),days=forecastDayRows(w),ranges=days.filter(d=>Number.isFinite(d.low)&&Number.isFinite(d.high)),today=ranges.find(d=>d.key===localDayKey(new Date(now))),allLow=Math.min(...ranges.map(d=>d.low)),allHigh=Math.max(...ranges.map(d=>d.high)),span=Math.max(1,allHigh-allLow);
  const retrieved=Date.parse(w.retrievedAt),appearanceFresh=!w.stale&&connected&&Number.isFinite(now)&&retrieved<=now&&now<retrieved+900000,appearance=weatherAppearance(w.current,{fresh:appearanceFresh});
  const hourly=hourlyWeather(w,now),suggestion=hourly?.advice,period=Date.parse(suggestion?.periodTime),advice=!!suggestion&&!w.stale&&connected&&suggestion.source===hourly.source&&suggestion.retrievedAt===hourly.retrievedAt&&suggestion.validUntil*1000>now&&period>now&&hourly.forecast.filter(p=>p.datetime===suggestion.periodTime).length===1;
@@ -51,12 +52,12 @@ export function liveWeatherModel(w,{connected=true,now=Date.now(),aiContext=null
  const adviceTime=advice?new Date(period).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
  const counts=new Map();for(const p of hourly?.forecast||[])counts.set(p.datetime,(counts.get(p.datetime)||0)+1);
  const periods=hourly?hourly.forecast.filter(p=>counts.get(p.datetime)===1&&Date.parse(p.datetime)>now).sort((a,b)=>Date.parse(a.datetime)-Date.parse(b.datetime)).slice(0,12):[],next=periods[0];
- const refreshTimes=[...(aiCurrent?[ai.validUntil*1000]:[]),...(advice?[suggestion.validUntil*1000]:[]),...(hourly?[Date.parse(hourly.retrievedAt)+900000]:[]),...(next?[Date.parse(next.datetime)]:[]),...(appearanceFresh?[retrieved+900000]:[])];
- return {title:w.displayLocation?.name||w.location||'Vejr',subtitle:w.stale||!connected?'Sidst kendte vejr':'Vejret i dag',appearance,current:w.current?{temperature:format(w.current.temperature),condition:conditionLabel(w.current.condition)||'Aktuel beskrivelse ikke oplyst',icon:conditionIcon(w.current.condition,w.current.isDaytime),range:today?`Højst ${format(today.high)} · Lavest ${format(today.low)}`:''}:null,
+ const refreshTimes=[...(automaticLocation?[displayLocation.validUntil*1000]:[]),...(aiCurrent?[ai.validUntil*1000]:[]),...(advice?[suggestion.validUntil*1000]:[]),...(hourly?[Date.parse(hourly.retrievedAt)+900000]:[]),...(next?[Date.parse(next.datetime)]:[]),...(appearanceFresh?[retrieved+900000]:[])];
+ return {title:displayLocation?.name||w.location||'Vejr',subtitle:w.stale||!connected?'Sidst kendte vejr':'Vejret i dag',appearance,current:w.current?{temperature:format(w.current.temperature),condition:conditionLabel(w.current.condition)||'Aktuel beskrivelse ikke oplyst',icon:conditionIcon(w.current.condition,w.current.isDaytime),range:today?`Højst ${format(today.high)} · Lavest ${format(today.low)}`:''}:null,
   summary:aiCurrent?ai.summary:advice?(suggestion.children||suggestion.summary):'',summaryLabel:aiCurrent?'AI-råd baseret på vejrudsigten':advice?`Praktisk råd for ${adviceTime}`:'',adviceUntil:aiCurrent?ai.validUntil*1000:advice?suggestion.validUntil*1000:null,refreshAt:refreshTimes.length?Math.min(...refreshTimes):null,
   hoursLabel:'Vejret de næste timer. Scroll vandret for flere timer',hours:periods.map(p=>{const metrics=weatherMetrics(p,hourly.units);return {id:p.datetime,time:new Date(p.datetime).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),temperature:format(p.temperature),condition:conditionLabel(p.condition),icon:conditionIcon(p.condition),...metrics,wind:windStrength(p.wind_speed,hourly.units?.windSpeed),windSpeed:metrics.wind,windBearing:windFrom(p.wind_bearing)?.degrees??null};}),
   days:days.map(d=>{const range=Number.isFinite(d.low)&&Number.isFinite(d.high);return {id:d.key,day:d.start.toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'}),condition:conditionLabel(d.condition),icon:conditionIcon(d.condition),low:format(range?d.low:d.temperature),high:range?format(d.high):'',start:range?(d.low-allLow)/span*100:null,length:range?(d.high-d.low)/span*100:null};}),
-  source:weatherSourceLabel(w.source)};
+  source:[weatherSourceLabel(w.source),automaticLocation?'Stednavn: GeoNames · CC BY 4.0':''].filter(Boolean).join('\n')};
 }
 const retained=new WeakMap(),text=(node,value)=>{const next=typeof value==='string'?value:'';if(node.textContent!==next)node.textContent=next;};
 // The local header, overview, photo and detail share one fixture projection.

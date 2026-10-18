@@ -13,7 +13,7 @@ export class LiveControlView{
  }
  allowed(domain){return this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities.controlSetup?.includes(domain);}
  render(){
-  const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.allowed('music'),!!this.allowed('vacuum')]);
+  const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
   if(this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
   this.authority=authority;const musicAuthority=this.musicContext()?.key??null;if(this.musicAuthority!==undefined&&this.musicAuthority!==musicAuthority)this.invalidateMusic('Musikken er ændret · hent betjeningen igen.',false);this.musicAuthority=musicAuthority;
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();

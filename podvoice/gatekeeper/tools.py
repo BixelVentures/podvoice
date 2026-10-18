@@ -2080,9 +2080,40 @@ class ToolRouter:
             getattr(self._mcp, "url", None),
             id(self._discovery),
             self._discovery,
+            self._client,
+            id(self._client),
+            hashlib.sha256(self._token.encode()).digest(),
         )
 
     async def podview_weather_read(self) -> dict:
+        from .podview_locality import read
+        from .podview_weather import with_home_locality
+
+        binding, client, token = self.podview_weather_binding(), self._client, self._token
+
+        def current():
+            return (
+                client is self._client
+                and token == self._token
+                and binding == self.podview_weather_binding()
+                and self.podview_weather_available()
+            )
+
+        locality_task = asyncio.create_task(read(client, token, current))
+        locality = None
+        try:
+            weather = await self._podview_weather_read()
+            if locality_task.done() and not locality_task.cancelled():
+                locality = locality_task.result()
+        finally:
+            if not locality_task.done():
+                locality_task.cancel()
+            await asyncio.gather(locality_task, return_exceptions=True)
+        if not current():
+            return {"status": "unavailable", "data": None}
+        return with_home_locality(weather, locality)
+
+    async def _podview_weather_read(self) -> dict:
         """One bounded home read through the exact admitted owner; never retry.
 
         Older declarations retain the empty read. Daily/hourly is available only

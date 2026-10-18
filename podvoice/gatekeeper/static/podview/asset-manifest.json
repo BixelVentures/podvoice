@@ -267,11 +267,11 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "d02b6daf7e61f09dc419db6c9df4761b10f1cc4e272af4b2edea8af8d8b8b7fc"
+      "sha256": "63242427d2f3bc8bff6a93f975af84969622d604d9b1cdc383afc90a3f782bce"
     },
     {
       "path": "live-home-view.js",
-      "sha256": "98366035d8af96f087923dcaa4c595000e68e7fffddc70a0d5685268cbbb0b69"
+      "sha256": "4fad9ca063541fbf992693b0065712f701c7dcf55c5290217909510e3faa155a"
     },
     {
       "path": "live-media-view.js",
@@ -543,11 +543,11 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "7a4cdb4d8fbfdb9594c130fd6ac272d21bbe23910f68e062f85efb1a086be7cd"
+      "sha256": "dc9cbc26d70924c6c537e416174904cfdd6a0717f905888029e96f9bf5b5fba2"
     },
     {
       "path": "weather-view.js",
-      "sha256": "b0e1f88f8790f43f976ae9e5c911a6da95c40ee60e205426c863c9bd153703ef"
+      "sha256": "ae0fe4d9b12347716c6bbbf44bb45d64b79c21e062ff58804570ba09bb8be807"
     },
     {
       "path": "widget-model.js",
