@@ -1,4 +1,5 @@
 import {requestWithin} from './request-deadline.js';
+const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admission.authenticated===true&&Object.keys(value.admission).sort().join(',')==='authenticated,kind';
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
 export class PodVoiceTransport {
@@ -19,11 +20,11 @@ export class PodVoiceTransport {
   return this.coordinatorPromise;
  }
  receiveControllerNotice(value){
-  if(this.closed||this.recoveryBlocked||!value||Object.keys(value).sort().join(',')!=='sender,sequence,type,version'||value.version!==1||value.type!=='controller-cookie-changed'||typeof value.sender!=='string'||!value.sender||value.sender.length>64||value.sender===this.peerId||!Number.isSafeInteger(value.sequence)||value.sequence<1)return;
+  if(this.closed||haIngress(this.snapshot)||this.recoveryBlocked||!value||Object.keys(value).sort().join(',')!=='sender,sequence,type,version'||value.version!==1||value.type!=='controller-cookie-changed'||typeof value.sender!=='string'||!value.sender||value.sender.length>64||value.sender===this.peerId||!Number.isSafeInteger(value.sequence)||value.sequence<1)return;
   const seen=this.peerSeen.get(value.sender)||0;if(value.sequence<=seen||!this.peerSeen.has(value.sender)&&this.peerSeen.size>=32)return;this.peerSeen.set(value.sender,value.sequence);this.peerRevision=(this.peerRevision||0)+1;this.peerReadPending=true;this.schedulePeerRead();
  }
  schedulePeerRead(){
-  if(this.closed||this.recoveryBlocked||!this.peerReadPending||this.restartCount||this.peerReadTimer)return;
+  if(this.closed||haIngress(this.snapshot)||this.recoveryBlocked||!this.peerReadPending||this.restartCount||this.peerReadTimer)return;
   this.peerReadTimer=setTimeout(()=>{this.peerReadTimer=null;if(this.closed||this.recoveryBlocked||this.restartCount)return;this.peerReadPending=false;this.peerReadAt=Date.now();this.restart(false,false).catch(()=>{});},Math.max(50,1000-(Date.now()-(this.peerReadAt||0))));
  }
  async renewController(room,generation,coalesce=false,peerRevision=0){
@@ -52,20 +53,27 @@ export class PodVoiceTransport {
   if(value.capabilities.queueSelection!==undefined&&typeof value.capabilities.queueSelection!=='boolean')return false;
   if(value.capabilities.answerRead===true){const a=value.answers;if(a?.readOnlyCompleted!==undefined&&(a.readOnlyCompleted!==true||value.voice.active!==false||value.voice.sessionId!==null||!a.sessionId))return false;if(!a||!Number.isInteger(a.revision)||a.revision<0||['sessionId','turnId','taskId'].some(k=>a[k]!==null&&(typeof a[k]!=='string'||!a[k]||a[k].length>160))||(a.inputRevision!==null&&(!Number.isInteger(a.inputRevision)||a.inputRevision<0)))return false;const empty=a.sessionId===null;if(empty?(a.turnId!==null||a.taskId!==null||a.inputRevision!==null):(a.turnId===null||a.taskId===null||a.inputRevision===null))return false;}
   if(value.visualPending!==undefined){const p=value.visualPending;if(!p||Object.keys(p).sort().join(',')!=='inputRevision,revision,roomId,sessionId,taskId,turnId'||p.roomId!==value.roomId||value.voice.active!==true||value.voice.phase==='CLOSING'||p.sessionId!==value.voice.sessionId||['sessionId','turnId','taskId'].some(k=>typeof p[k]!=='string'||!p[k]||p[k].length>160)||!Number.isInteger(p.inputRevision)||p.inputRevision<0||!Number.isInteger(p.revision)||p.revision<0||p.revision!==value.answers?.revision||value.capabilities.answerRead!==true)return false;}
+  if((value.admission!==undefined||this.normalHAMode)&&!haIngress(value))return false;
+  const normalHA=haIngress(value);
   if(value.controllerContinuity!==undefined){const c=value.controllerContinuity;if(!c||!['available,enabled','available,enabled,maxDays'].includes(Object.keys(c).sort().join(','))||typeof c.enabled!=='boolean'||typeof c.available!=='boolean'||('maxDays'in c&&(!Number.isInteger(c.maxDays)||c.maxDays<0||c.maxDays>30)))return false;}
   if (this.room && value.roomId !== this.room) return false;
   if (this.snapshot?.bootId === value.bootId && this.snapshot.revision > value.revision) return false;
   if(this.snapshot?.bootId===value.bootId&&this.snapshot.roomId===value.roomId&&value.answerHistoryRevision!==undefined&&(this.snapshot.answerHistoryRevision>value.answerHistoryRevision||this.snapshot.answerHistoryRemovalRevision>value.answerHistoryRemovalRevision))return false;
   const writable=!!(value.capabilities.timerActions.length||value.capabilities.musicActions?.length||value.capabilities.controlSetup?.length||value.capabilities.musicSelection===true||value.capabilities.queueSelection===true);
-  if(this.lastWritableProjection===true&&!writable&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){this.controllerRenewed=false;this.cookieReadAuthority=false;this.recoveryReadOnly=false;}
+  if(!normalHA&&this.lastWritableProjection===true&&!writable&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){this.controllerRenewed=false;this.cookieReadAuthority=false;this.recoveryReadOnly=false;}
   this.lastWritableProjection=writable;
-  if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===false){
+  if(normalHA||value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===false){
    this.controllerRenewed=false;this.cookieReadAuthority=false;this.controllerRenewAt=null;clearTimeout(this.recoveryTimer);this.recoveryTimer=null;clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;
   }
-  if(this.controllerRenewalDenied||value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true&&!this.cookieReadAuthority)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
+  if(!normalHA&&(this.controllerRenewalDenied||value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
+  if(normalHA){
+   this.normalHAMode=true;
+   this.controllerRenewRetryAt=null;this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;this.coordinatorName=null;
+   if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
+  }
   this.room = value.roomId; this.snapshot = value; this.connected = true;
-  if(value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
-  if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
+  if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
+  if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   this.onConnection('connected'); this.onSnapshot(value);clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);return true;
  }
  async start() {this.controllerRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
@@ -86,13 +94,15 @@ export class PodVoiceTransport {
   this.controller = new AbortController();
   this.onConnection('connecting');
   try {
-   await this.coordinate();if(generation!==this.generation||this.closed)return;
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
    let value = await response.json();
    if (generation !== this.generation) return;
    if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}
+   if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
+   const normalHA=haIngress(value);
+   if(!normalHA){await this.coordinate();if(generation!==this.generation||this.closed)return;}
    let renewed=false;
-   if(renew&&response.ok&&value?.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){
+   if(!normalHA&&renew&&response.ok&&value?.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){
     try{
      const renewal=await this.renewController(value.roomId,generation,coalesce,peerRevision);if(!renewal)return;
      if(renewal.coalesced){renew=false;this.recoveryReadOnly=true;this.controllerRenewAt=renewAt;this.controllerRenewRetryAt=Date.now()+30000;this.peerReadPending=false;}
@@ -103,21 +113,21 @@ export class PodVoiceTransport {
    }
    if(generation!==this.generation)return;
    if(this.recoveryBlocked)throw Error('transport_access_denied');
-   this.controllerRenewed=renewed;this.cookieReadAuthority=!this.controllerRenewalDenied&&!renew&&response.ok;
-   if(this.controllerRenewalDenied||value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
+   this.controllerRenewed=renewed;this.cookieReadAuthority=!normalHA&&!this.controllerRenewalDenied&&!renew&&response.ok;
+   if(!haIngress(value)&&(this.controllerRenewalDenied||value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
    if (!response.ok || !this.accept(value)) throw new Error(value.error || 'invalid_snapshot');
    if(generation!==this.generation||this.closed)return;
    if(this.controllerRenewed===true)this.onControllerRenewed({owner:this.controllerRenewalOwner,generation});
    if(generation!==this.generation||this.closed)return;
    if(this.controllerRenewed===true){this.controllerRenewAt=Date.now()+240000;this.controllerRenewRetryAt=null;}
-   if((this.controllerRenewAt||this.controllerRenewRetryAt)&&value.controllerContinuity?.available!==false)this.controllerRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},Math.max(0,Math.max(this.controllerRenewAt||0,this.controllerRenewRetryAt||0)-Date.now()));
+   if(!normalHA&&(this.controllerRenewAt||this.controllerRenewRetryAt)&&value.controllerContinuity?.available!==false)this.controllerRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},Math.max(0,Math.max(this.controllerRenewAt||0,this.controllerRenewRetryAt||0)-Date.now()));
    this.stream = new this.EventSource(this.endpoint('events'), {withCredentials:false});
    this.stream.addEventListener('snapshot', event => {
     if (generation !== this.generation) return;
     try { if (!this.accept(JSON.parse(event.data))) this.disconnected(); } catch { this.disconnected(); }
    });
    this.stream.onerror = () => { if (generation === this.generation) this.disconnected(); };
-   if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed&&!this.cookieReadAuthority)this.scheduleRecovery();
+   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
  disconnected() { this.connected = false; this.onConnection('disconnected');this.scheduleRecovery(); }
@@ -165,14 +175,15 @@ export class PodVoiceTransport {
   }catch{return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};}
  }
  async accessRequest(name) {
-  if(!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof name!=='string'||name!==name.trim()||!name||name.length>48||/[\u0000-\u001f\u007f]/u.test(name))throw Error('access_unavailable');
+  if(haIngress(this.snapshot)||!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof name!=='string'||name!==name.trim()||!name||name.length>48||/[\u0000-\u001f\u007f]/u.test(name))throw Error('access_unavailable');
   return this.accessExchange('controller/request',{name});
  }
  async accessClaim(requestId) {
-  if(!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof requestId!=='string'||!/^[a-f0-9]{32}$/.test(requestId))throw Error('access_unavailable');
+  if(haIngress(this.snapshot)||!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof requestId!=='string'||!/^[a-f0-9]{32}$/.test(requestId))throw Error('access_unavailable');
   return this.accessExchange('controller/claim',{requestId});
  }
  async accessExchange(path,args) {
+  if(haIngress(this.snapshot))throw Error('access_unavailable');
   const {bootId,roomId}=this.snapshot,generation=this.generation;
   const response=await this.request(this.endpoint(path),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId,roomId,...args})});
   const body=await response.json();
@@ -188,7 +199,7 @@ export class PodVoiceTransport {
   throw Error('invalid_access_status');
  }
  async pair(code) {
-  if (!this.connected || !this.room) throw new Error('disconnected');
+  if (haIngress(this.snapshot)||!this.connected || !this.room) throw new Error('disconnected');
   const response = await this.request(this.endpoint('pair'), {method:'POST',credentials:'same-origin',cache:'no-store',signal:this.controller.signal,headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({roomId:this.room,code})});
   const result = await response.json();
   if (!response.ok || !result.ok) throw new Error(result.error || 'pairing_denied');

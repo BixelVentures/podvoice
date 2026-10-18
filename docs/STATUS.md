@@ -1,3 +1,30 @@
+<!-- podview60-admission
+{
+  "version": 37,
+  "kind": "normal60_ha_access_passive_playback",
+  "reviewer": "Independent /root/astra_reference_benchmark NEXT60 exact normal HA access and passive playback metadata and strict admission review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "fcfdbbd775d7d04640254545cf21ffc302a0b9d8",
+  "merge_base": "fcfdbbd775d7d04640254545cf21ffc302a0b9d8",
+  "rationale": "Root-authorized60 candidate reuses normal authenticated Home Assistant administrator Ingress instead of separate normal PodView enrollment and renewal. Exact supported panel_admin:true addition and version trio are configuration scope; legacy enrollment remains in its existing path. Existing backend/control/queue and transport owners retain current policy target/action, actor/native-task, deadline/cleanup and unknown no-replay guards under independent source review. Passive playback observations are decoupled from unrelated mutation and music-suggestion busy state using the existing native owner and bounded read serialization. Main panel only removes Par sk\u00e6rm navigation. Source security/frontend/playback and three narrow fixture migrations have independent GO. Original backend cohort946PASS/10fixtureFAIL is retained; final affected two Python fixture modules31PASS overlap previous passes and are not a new summed full-run count. Canonical root928PASS and packaged Node1288PASS include unchanged component54/negative gates and overlap. All five actual registered browser workers PASS with complete joined cleanup; their160static/test/gate files remain exact, inventory240second worker/15second cleanup and ownership trust unchanged. These are local inert/synthetic checks, not officialCI or installed/provider/physical proof.143canonical asset paths match package; only reviewed transportac2d bytes change versus59,142assets stay exact and manifest9a26991d is regenerated. Exact8production/10regression/256runtime/3config/16policy/9tooling inventories, schema/hash/AST/fingerprint checks, full runtime pins and strict asset limits reject unreviewed drift. Actual unchanged-classifier domain is physical_output. Published59profile/manifest and inherited immutable guards remain byte exact;13original59function bodies/assertions are equivalent after narrow historical59_root fixture substitution. Root lead and historical records remain exact outside this record. No new framework, feature flag, renderer, CSS, component family or gate trust weakening. Selected-card voice continuation for HA-originated tasks remains separately open; ordinary Voice is unchanged. Candidate is not installed or physically accepted and preserves original goal/approval/effect HOLD boundaries. Independent exact unsigned-tree metadata review received for 1320421c81f1b64d4981f27be5feb01ca5e7727a. Review bindings are applied only after that GO; final bound verification, officialCI, publication and installation remain separate. No external action is authorized by this record.",
+  "fingerprint": "e411c33ad31d1064a11066c5c10346e8851656de77a357a037f5419b6a2246bd",
+  "regression_fingerprint": "2841cac800f7922890342ef4041e759e10283223af6697ac7685f61f34d9f8b3",
+  "runtime_fingerprint": "a344f9cdc2244b3726899a60b928a2b755ee641eff1c472b681a34c55c94e665",
+  "config_fingerprint": "b1407e675424db2eb0309391eab456499426d32915287c7461255ddc7e27ecf8",
+  "policy_fingerprint": "bf2d12f80066991071ca1e31ca89b8c535eb40cc0e9b50e16cbb55eaf860c021",
+  "tooling_fingerprint": "f89abd0c986f55f43651f69a35c6e03e44d23b7fb2f5f3e938d0d4b4ecc78101",
+  "manifest_fingerprint": "182ae15040cf201c91d246efe749b5f71fe758c0b01fc8b1e039a6e7269a0f74"
+}
+-->
+
+# Current root lead — PodVoice2.0.60 candidate
+
+PodVoice2.0.60-kandidat: normal HA-login erstatter særskilt PodView-parring/fornyelse; eksisterende ejere og handlinger genbruges. Passive playerlæsninger er afkoblet fra mutationstjenester og musikforslag. Ikke installeret eller fysisk accepteret; selected-card voice continuation for HA-originatedtasks remains separately open, ordinaryVoice unchanged.
+
+---
+
 <!-- podview59-admission
 {
   "version": 36,

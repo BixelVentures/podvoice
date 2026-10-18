@@ -242,6 +242,9 @@ class TouchControls:
         return (
             self.bridge.sessions.get(room),
             tools,
+            hashlib.sha256(
+                json.dumps(self.policy, sort_keys=True, allow_nan=False).encode()
+            ).digest(),
             self.music.binding()
             if domain == "music"
             else (
@@ -368,13 +371,11 @@ class TouchControls:
 
     def _retire_receipts(self) -> None:
         # Temporary owner unavailability is not terminal: retain those replay fences.
-        now = time.monotonic()
         self.receipts = {
             key: value
             for key, value in self.receipts.items()
-            if (grant := self.bridge._grant_for_token(key[0], key[1])) is not None
-            and secrets.compare_digest(grant[0], key[1])
-            and now < grant[-1]
+            if self.bridge._authority_retained(key[0], key[1])
+            and (not key[1].startswith("ha:") or (len(value) == 3 and time.monotonic() < value[2]))
         }
 
     async def setup(self, body: dict, token: str) -> dict:
@@ -455,7 +456,11 @@ class TouchControls:
         ):
             return failure("target_not_granted")
         self._retire_receipts()
-        self.tasks = {k: t for k, t in self.tasks.items() if self._current(t, t["token"])}
+        self.tasks = {
+            k: t
+            for k, t in self.tasks.items()
+            if self.bridge._ha_task_retained(t) or self._current(t, t["token"])
+        }
         if len(self.tasks) >= 64:
             return failure("setup_capacity")
         task_id = "control:" + secrets.token_hex(16)
@@ -834,7 +839,7 @@ class TouchControls:
         self._retire_receipts()
         key = (task["room"], token, body["requestId"])
         if key in self.receipts:
-            previous, receipt = self.receipts[key]
+            previous, receipt = self.receipts[key][:2]
             return copy.deepcopy(receipt) if previous == fingerprint else failure("request_reused")
         if (
             body["bootId"] != self.bridge.boot_id
@@ -863,7 +868,7 @@ class TouchControls:
             "physicalResultVerified": False,
         }
         task["consumed"] = True
-        self.receipts[key] = fingerprint, receipt
+        self.receipts[key] = fingerprint, receipt, task["deadline"]
         self.busy.add(task["room"])
 
         def current():
@@ -939,12 +944,12 @@ class TouchControls:
                     if outcome in {"accepted", "rejected", "unknown"}
                     else "unknown",
                 }
-                self.receipts[key] = fingerprint, receipt
+                self.receipts[key] = fingerprint, receipt, task["deadline"]
         except (Exception, asyncio.CancelledError):
             if moving and not move_dispatched:
                 self.bridge._music_move_fence.discard((task["room"], task["target"]["accountId"]))
                 receipt = {**receipt, "outcome": "rejected"}
-                self.receipts[key] = fingerprint, receipt
+                self.receipts[key] = fingerprint, receipt, task["deadline"]
             # A possible physical send remains terminal unknown with its fence.
         finally:
             self.busy.discard(task["room"])

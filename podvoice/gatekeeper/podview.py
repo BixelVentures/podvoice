@@ -1,7 +1,7 @@
 """Ingress-only display projection. Thin and HA retain all resource ownership.
 
 No browser credentials, free-form tools, new conversation or LAN exception.
-Mutations require an explicit server-installed room grant (not viewer identity).
+Normal HA mutations use Supervisor admin ingress admission; legacy viewers retain grants.
 """
 
 from __future__ import annotations
@@ -15,7 +15,9 @@ import os
 import re
 import secrets
 import time
+from contextvars import ContextVar
 from pathlib import Path
+from urllib.parse import urlencode
 
 from aiohttp import web
 
@@ -46,6 +48,40 @@ def _trusted(remote: str | None) -> bool:
         return address.is_loopback or str(address) == "172.30.32.2"
     except ValueError:
         return False
+
+
+# Supervisor 2026.10.2 enforces panel_admin before proxying and injects this ID.
+# A duplicate (including differently cased) identity header is never admitted.
+_HA_REQUEST: ContextVar[dict | None] = ContextVar("podview_ha_request", default=None)
+
+
+@web.middleware
+async def _ha_request_scope(request, handler):
+    values = [
+        value for name, value in request.headers.items() if name.lower() == "x-remote-user-id"
+    ]
+    identity = (
+        values[0]
+        if request.remote == "172.30.32.2"
+        and len(values) == 1
+        and re.fullmatch(r"[a-f0-9]{32}", values[0])
+        else None
+    )
+    scope = {"user": identity, "active": True}
+    reset = _HA_REQUEST.set(scope)
+    try:
+        return await handler(request)
+    finally:
+        scope["active"] = False
+        _HA_REQUEST.reset(reset)
+
+
+def _request_token(request, room):
+    bridge = request.app[BRIDGE]
+    scope = _HA_REQUEST.get()
+    if scope and scope["active"] and scope["user"]:
+        return bridge._ha_actor(room, scope["user"])
+    return request.cookies.get(_PAIR_COOKIE, "")
 
 
 def _error(kind: str, status: int = 409) -> web.Response:
@@ -240,6 +276,7 @@ class PodViewBridge:
         # Legacy one-use code retains its room slot. Durable profiles have
         # independent slots, so renewing one cannot replace another's grant.
         self._grants: dict[str | tuple[str, str], tuple] = {}
+        self._ha_actors: dict[str, dict] = {}
         self._music_destinations: dict[tuple[str, str], dict] = {}
         self._voice_move_tasks: dict[str, dict] = {}
         self._music_move_fence: set[tuple[str, str]] = set()
@@ -368,7 +405,49 @@ class PodViewBridge:
         )
         return token
 
+    def _ha_actor(self, room: str, user: str) -> str:
+        if not isinstance(room, str) or room not in self.sessions:
+            return ""
+        token = "ha:" + hashlib.sha256(f"{self.boot_id}:{room}:{user}".encode()).hexdigest()
+        actor = self._ha_actors.get(token)
+        if actor is None or actor["session"] is not self.sessions[room]:
+            # Bounded boot-local task identity, not an issued browser credential.
+            if actor is None and len(self._ha_actors) >= 128:
+                return ""
+            self._ha_actors[token] = {
+                "token": token,
+                "user": user,
+                "room": room,
+                "session": self.sessions[room],
+                "boot": self.boot_id,
+            }
+        return token
+
+    def _authority_retained(self, room: str, token: str) -> bool:
+        actor = self._ha_actors.get(token)
+        if actor is not None:
+            return (
+                actor["room"] == room
+                and actor["boot"] == self.boot_id
+                and self.sessions.get(room) is actor["session"]
+            )
+        grant = self._grant_for_token(room, token)
+        return bool(
+            grant and secrets.compare_digest(grant[0], token) and time.monotonic() < grant[-1]
+        )
+
+    def _ha_task_retained(self, task: dict) -> bool:
+        # Cleanup is not authorization: another user's request must not erase a
+        # live task or its terminal receipt. Dispatch still uses _grant_current.
+        return bool(
+            task["token"] in self._ha_actors
+            and self._authority_retained(task["room"], task["token"])
+            and time.monotonic() < task["deadline"]
+        )
+
     def _grant_slot(self, room: str, token: str) -> str | tuple[str, str] | None:
+        if token in self._ha_actors and self._authority_retained(room, token):
+            return (room, token)
         if not isinstance(token, str) or not token:
             return None
         for slot, grant in self._grants.items():
@@ -378,15 +457,21 @@ class PodViewBridge:
                 return slot
         return None
 
-    def _grant_for_token(self, room: str, token: str) -> tuple | None:
+    def _grant_for_token(self, room: str, token: str) -> tuple | dict | None:
+        if token in self._ha_actors:
+            return self._ha_actors[token] if self._authority_retained(room, token) else None
         slot = self._grant_slot(room, token)
         return self._grants.get(slot) if slot is not None else None
 
     def _room_grants(self, room: str):
-        return (
+        yield from (
             grant
             for slot, grant in self._grants.items()
             if slot == room or (isinstance(slot, tuple) and slot[0] == room)
+        )
+        # HA authority never becomes an ambient grant for another task/voice owner.
+        yield from (
+            actor for token, actor in self._ha_actors.items() if self._grant_current(room, token)
         )
 
     def _music_scope(self, token: str) -> str:
@@ -427,6 +512,15 @@ class PodViewBridge:
         }
 
     def _grant_current(self, room: str, token: str) -> bool:
+        actor = self._ha_actors.get(token)
+        if actor is not None:
+            scope = _HA_REQUEST.get()
+            return bool(
+                scope
+                and scope["active"]
+                and scope["user"] == actor["user"]
+                and self._authority_retained(room, token)
+            )
         if room in self._controller_revocation_failed:
             return False
         slot = self._grant_slot(room, token)
@@ -774,14 +868,21 @@ class PodViewBridge:
         from . import podview_speakers
 
         grant = next(
-            (item for item in self._room_grants(room) if self._grant_current(room, item[0])), None
+            (
+                item
+                for item in self._room_grants(room)
+                if self._grant_current(room, (item["token"] if isinstance(item, dict) else item[0]))
+            ),
+            None,
         )
         if grant is None or not self.controls.move.available or not current():
             return {"ok": False, "error_kind": "move_unavailable"}
         sources = podview_room_media.room_bindings(self, room)
         if account_id is not None:
             sources = [source for source in sources if source["accountId"] == account_id]
-        if len(sources) != 1 or "music" not in self.controls.domains(room, grant[0]):
+        if len(sources) != 1 or "music" not in self.controls.domains(
+            room, grant["token"] if isinstance(grant, dict) else grant[0]
+        ):
             return {"ok": False, "error_kind": "move_unavailable"}
         source = sources[0]
         snapshot = self.snapshot(room)
@@ -794,7 +895,7 @@ class PodViewBridge:
             "id": "move-control:" + secrets.token_hex(16),
             "deadline": time.monotonic() + 120,
             "grant": grant,
-            "token": grant[0],
+            "token": grant["token"] if isinstance(grant, dict) else grant[0],
             "session": self.sessions[room],
             "policy": self.controls.policy,
             "move_binding": self.controls.move.binding(),
@@ -982,7 +1083,7 @@ class PodViewBridge:
             or not current()
         ):
             return None
-        token = grant[0]
+        token = grant["token"] if isinstance(grant, dict) else grant[0]
         if (
             task is None
             or task["context"]["roomId"] != room
@@ -1259,6 +1360,8 @@ class PodViewBridge:
         result["capabilities"]["controlSetup"] = self.controls.domains(room, token)
         result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
         result["capabilities"]["queueSelection"] = bool(self.queue.rules(room, token))
+        if token in self._ha_actors and self._grant_current(room, token):
+            result["admission"] = {"kind": "ha_ingress", "authenticated": True}
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:
@@ -1326,13 +1429,18 @@ class PodViewBridge:
             }
             self._receipts[key] = fingerprint, receipt  # fence before the first await
             epoch = snap["timers"]["epoch"]
+            timer_binding = owner.bindings.get(room)
 
             def current():
                 return (
                     self._grant_for_token(room, token) is grant
                     and self._grant_current(room, token)
+                    and owner is not None
                     and owner.available(room)
+                    and owner.bindings.get(room) == timer_binding
                     and owner.snapshots[room].get("epoch") == epoch
+                    and getattr(getattr(self.sessions.get(room), "tools", None), "timers", None)
+                    is owner
                 )
 
             try:
@@ -1376,11 +1484,22 @@ async def _control(request: web.Request) -> web.Response:
         return _error("invalid_control", 400)
     owner = request.app[BRIDGE].controls
     handler = owner.setup if request.path.endswith("/setup") else owner.action
-    result = await handler(body, request.cookies.get(_PAIR_COOKIE, ""))
+    result = await handler(body, _request_token(request, body.get("roomId")))
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
 async def _guard(request: web.Request) -> web.Response | None:
+    identities = [
+        value for name, value in request.headers.items() if name.lower() == "x-remote-user-id"
+    ]
+    if request.remote == "172.30.32.2" and not identities:
+        return _error("invalid_ingress_identity", 403)
+    if identities and (
+        request.remote != "172.30.32.2"
+        or len(identities) != 1
+        or re.fullmatch(r"[a-f0-9]{32}", identities[0]) is None
+    ):
+        return _error("invalid_ingress_identity", 403)
     if not _trusted(request.remote):
         return _error("ingress_required", 403)
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin", "none"):
@@ -1411,7 +1530,7 @@ async def _snapshot(request: web.Request) -> web.Response:
             {"ok": False, "error": "room_required", "rooms": list(bridge.sessions)}, status=409
         )
     return web.json_response(
-        bridge.snapshot(room, request.cookies.get(_PAIR_COOKIE, "")),
+        bridge.snapshot(room, _request_token(request, room)),
         headers={"Cache-Control": "no-store"},
     )
 
@@ -1449,7 +1568,7 @@ async def _events(request: web.Request) -> web.StreamResponse:
             # write/wait remains set and cannot be lost between projection and wait.
             if wake is not None:
                 wake.clear()
-            snap = bridge.snapshot(room, request.cookies.get(_PAIR_COOKIE, ""))
+            snap = bridge.snapshot(room, _request_token(request, room))
             payload = f"event: snapshot\nid: {bridge.boot_id}:{snap['revision']}\ndata: {json.dumps(snap)}\n\n"
             await asyncio.wait_for(response.write(payload.encode()), timeout=5)
             if wake is None:
@@ -1724,7 +1843,7 @@ async def _actions(request: web.Request) -> web.Response:
             raise ValueError
     except (ValueError, json.JSONDecodeError):
         return _error("invalid_json", 400)
-    result = await request.app[BRIDGE].action(body, request.cookies.get(_PAIR_COOKIE, ""))
+    result = await request.app[BRIDGE].action(body, _request_token(request, body.get("roomId")))
     return web.json_response(
         result, status=200 if result.get("ok") else 409, headers={"Cache-Control": "no-store"}
     )
@@ -1963,7 +2082,7 @@ async def _music(request: web.Request) -> web.Response:
                 room,
                 request.query["account"],
                 lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
-                token=request.cookies.get(_PAIR_COOKIE, ""),
+                token=_request_token(request, room),
             ),
             headers={"Cache-Control": "no-store"},
         )
@@ -2003,7 +2122,7 @@ async def _music(request: web.Request) -> web.Response:
             lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
         )
     binding = _music_binding(bridge, room)
-    token = request.cookies.get(_PAIR_COOKIE, "")
+    token = _request_token(request, room)
     selection_requested = bool(
         kind in {"search", *library_kinds}
         and account is not None
@@ -2087,7 +2206,7 @@ async def _music(request: web.Request) -> web.Response:
     if kind == "search" or selection_requested:
         assert account is not None
         current_context = _music_search_context(
-            bridge, room, account, context_query, request.cookies.get(_PAIR_COOKIE, "")
+            bridge, room, account, context_query, _request_token(request, room)
         )
         if current_context != search_context:
             return _error("music_unavailable", 503)
@@ -2148,7 +2267,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     retained_attribute = "_feeling_retained" if kind == "feeling" else "_mood_retained"
 
     tools = bridge.tools
-    token = request.cookies.get(_PAIR_COOKIE, "")
+    token = _request_token(request, room)
     account = request.query.get("account")
     if (
         set(request.query) - {"room", "kind", "account", "refresh", "renew"}
@@ -2406,8 +2525,8 @@ async def _music_selection(request: web.Request) -> web.Response:
     except (ValueError, json.JSONDecodeError):
         return _error("invalid_music_selection", 400)
     bridge = request.app[BRIDGE]
-    token = request.cookies.get(_PAIR_COOKIE, "")
     room = body.get("roomId")
+    token = _request_token(request, room)
     if (
         not isinstance(room, str)
         or room not in bridge.sessions
@@ -2769,6 +2888,11 @@ async def _assets(request: web.Request) -> web.StreamResponse:
         return denied
     root = request.app[BRIDGE].assets
     name = request.match_info.get("asset", "") or "index.html"
+    scope = _HA_REQUEST.get()
+    if name == "setup.html" and scope and scope["active"] and scope["user"]:
+        room = request.query.get("room")
+        query = "?" + urlencode({"room": room}) if room in request.app[BRIDGE].sessions else ""
+        raise web.HTTPFound("./" + query, headers={"Cache-Control": "no-store"})
     if not root or not root.is_dir():
         return _error("view_assets_not_packaged", 503)
     target = (root / name).resolve()
@@ -2820,6 +2944,7 @@ def mount(
         controller_store=controller_store,
     )
     app[BRIDGE] = bridge
+    app.middlewares.append(_ha_request_scope)
     from .podview_queue import queue_http
 
     async def close_receipts(_app):

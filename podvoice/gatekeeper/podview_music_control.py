@@ -1166,7 +1166,12 @@ class MusicControlFacade:
             _text(room, 128)
             _text(homepod, 128)
             binding = self.binding()
-            if not self.room_available or not self._current(binding, current):
+            if (
+                not self._transport_available
+                or "get_room_playback_controls"
+                not in getattr(getattr(self.tools, "_discovery", None), "podconnect_services", ())
+                or not self._current(binding, current)
+            ):
                 return _failure("unavailable")
             client, token = self.tools._client, self.tools._token
             async with asyncio.timeout(_TIMEOUT_S):

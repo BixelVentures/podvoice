@@ -351,7 +351,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "edb0b725235dc09fa5762fefaa636d986f00500f16187e4514fa08c84384e3c4"
+      "sha256": "ac2d67293263edb27a5c8b80e08e272e35362f516b5801d69d8bf10ac81e8943"
     },
     {
       "path": "podvoice-view.js",
