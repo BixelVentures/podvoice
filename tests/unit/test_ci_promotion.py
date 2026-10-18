@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from copy import deepcopy
 
-from scripts.ci_promotion import evaluate_from_environment, reuse_decision
+from scripts.ci_promotion import (
+    ADMISSION_NAME,
+    ROUTE,
+    admission_step_name,
+    evaluate_from_environment,
+    reuse_decision,
+)
 
 BASE = "a" * 40
 HEAD = "b" * 40
@@ -285,3 +292,25 @@ def test_workflow_evaluation_failure_falls_back_to_normal_ci() -> None:
     assert "        continue-on-error: true" in evaluate
     assert "run: python3 -m scripts.ci_promotion" in evaluate
     assert "needs.promotion.outputs.reuse != 'true'" in workflow
+
+
+def test_actual_workflow_label_matches_highest_admission_dispatch() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    name = admission_step_name(workflow)
+    assert name is not None, "Admission label must retain the recognized exact format"
+    label = ADMISSION_NAME.fullmatch(name)
+    assert label is not None and label.group(2) is None
+    routes = list(ROUTE.finditer(workflow))
+    assert routes, "Expected exact-base admission dispatches"
+    commands = re.findall(r"(?m)^.*python3 scripts/candidate_scope_admission.*$", workflow)
+    fallback = 'python3 scripts/candidate_scope_admission32.py --base "$candidate_base"'
+    assert [line.strip() for line in commands] == [
+        route.group(0).splitlines()[-1].strip() for route in routes
+    ] + [fallback], "Every admission command must use a recognized route or historic fallback"
+    conditions = re.findall(r'(?m)^.*(?:if|elif) \[ "\$candidate_base".*$', workflow)
+    assert len(conditions) == len(routes), "Malformed exact-base route"
+    assert routes[0].group("kind") == "if"
+    assert all(route.group("kind") == "elif" for route in routes[1:])
+    profiles = [int(route.group("profile")) for route in routes]
+    assert len(profiles) == len(set(profiles))
+    assert int(label.group(1)) == max(profiles), "Admission label must cover the highest dispatch"

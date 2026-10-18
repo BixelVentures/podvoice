@@ -131,9 +131,10 @@ def test_talk_wakes_only_after_successful_capture_and_releases_tracks():
         'window.addEventListener("beforeunload", function () { closeLivePeer(); micStop(); });'
         in html
     )
+    retirement = html.split("function retireTalkSocket(", 1)[1].split("function connect()", 1)[0]
     assert (
-        "wsReady = false; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); "
-        'setState("offline"' in html
+        "wsReady = false; unknownText(generation); micBtn.disabled = true;" in retirement
+        and 'closeLivePeer(); micStop(); stopReply(false); setState("offline"' in retirement
     )
     assert 'if (ev.state === "IDLE") { endTurn(); micStop(); }' in html
     assert 'micBtn.setAttribute("aria-pressed", "true")' in html
@@ -147,7 +148,10 @@ def test_talk_v2_commits_only_acknowledged_text_and_detects_stale_sockets():
 
     assert 'ev.type === "hello" && ev.protocol === 2' in html
     assert 'ev.type === "command_result"' in html
-    assert "pendingText[commandId] = { text: t }" in html
+    assert (
+        "pendingText[commandId] = { text: t, draft: input.value, "
+        "generation: generation, socket: owner }" in html
+    )
     assert "if (sendBtn.disabled || diagnosticActive || !talkVisible()) return;" in html
     assert 'logLine("in", "you", pending.text)' in html
     assert 'logLine("in", "you", t)' not in html

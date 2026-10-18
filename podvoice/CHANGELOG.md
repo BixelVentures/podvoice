@@ -1,3 +1,9 @@
+## 2.0.58 — sand status for Talk-beskeder, ubundet kandidat
+
+- Afslut uafklarede Talk-beskeder som ukendt ved tab af deres forbindelse; bevar kladden og gentag aldrig beskeden automatisk.
+- Brug kun den aktuelle forbindelses korrelerede kvittering til at vise indsendt tekst. Gamle eller dobbelte kvitteringer må ikke rydde en nyere kladde.
+- Fjern den tekniske indsendelsesbesked fra Talk uden at påstå provideraccept. PodView, HA-integration, rettigheder, prompt og firmware bevares. Review, officiel CI, publicering, installation og fysisk accept er særskilte.
+
 ## 2.0.57 — HA-enhedsvisning af tilmeldte PodView-profiler, ubundet forslag
 
 - Integration0.1.4 kan vise eksisterende tilmeldte browserprofiler som HA-enheder efter en vellykket, eksplicit administratorliste. Visningen giver ingen ny adgang eller online-status.
