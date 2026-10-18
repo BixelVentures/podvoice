@@ -518,7 +518,14 @@ class VisualReceiptOwner:
         del state["items"][3:]
         state["revision"] += 1
         self._notify(room_id)
-        if self.selection_enabled and not state.get("selection_offered"):
+        # Thin's accepted delegated tool results feed the normal final-answer
+        # presentation owner. An optional fact selector must not reserve that answer.
+        delegated_answer = (
+            isinstance(delegation_id, str)
+            and _text(delegation_id, 160)
+            and task_id == "answer:" + delegation_id
+        )
+        if self.selection_enabled and not delegated_answer and not state.get("selection_offered"):
             state["selection_offered"] = True
             if self._selection is None or self._selection.done():
                 try:

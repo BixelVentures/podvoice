@@ -1,3 +1,56 @@
+<!-- podview48-admission
+{
+  "version": 25,
+  "kind": "podview48_delegated_presentation",
+  "reviewer": "Independent /root/astra_robot_component_unification NEXT48 source and admission draft review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "8604704df3175b9b34acca654a92bfe0305437c0",
+  "merge_base": "8604704df3175b9b34acca654a92bfe0305437c0",
+  "rationale": "NEXT48 applies only the independently reviewed delegated-presentation selector scheduling guard. Direct selector and provider-final owner/source/replay/close fences remain unchanged; no UI assets, household actions or authority expansion. Exact source/admission review and offline checks are separate from CI, publication, installation and physical acceptance.",
+  "fingerprint": "ce79a975588a558aabcdd7daac1fc25ea708b6b4de1fd1f72bb447583bc97545",
+  "regression_fingerprint": "9feca9c03c4670916ef1a5051eff7c3990b90a7741227a5e0dec25c1f7d0a6c8",
+  "runtime_fingerprint": "561cb807113e7a96e97914182919093c054d9ee27a5b18f0419252502b95a4f4",
+  "config_fingerprint": "67157388f54d9fc3696a48eef1b6333d23a88926843bc77f37a1dbed3230dbc8",
+  "policy_fingerprint": "121f59977f441ef8d454e1f3e246d749cb62bb597525fd4f05f8d5b9c08fa303",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "ad71303a894f91e208bf9f55de309e2e08db7defd57b05003970b2b3c8896570"
+}
+-->
+
+## NEXT48 — aktiv lead-beslutning, isoleret kandidat 18/10
+
+Inert resultat: 40/40 nye regressioner fejlede på uændret 47 og passerer med kun
+scheduling-predikatet (10 formater × held/accept/deny/budget-None). Samlet fokuseret
+suite: 239 PASS, exit0. Live-hook-fixtures sender nu normal final før deres uændrede
+kilde-/close-assertions. Direkte mocked-HTTP selector-kæde beholder ét request;
+delegeret final-kæde kræver nul og renderer samme eksakte kildeuddrag. Ruff passerer.
+Første udvidede kørsel havde sandbox localhost-bind-fejl; godkendt inert loopback-kørsel
+passerede. Uafhængigt review GO på de tre eksakte runtime-/testfiler; reviewerens egne 126
+pipeline/unit- og 27 migrerede close/source-tests passerer. Ingen adoption eller
+fysisk accept påstås.
+Begrænsning: manglende/ugyldig delegeret final udløser ikke en ekstra selector-fallback;
+normal final er eneste visuelle format-ejer, og kilden forbliver bundet og kortlivet.
+
+Root lead autoriserer en afgrænset rettelse: den valgfrie fact-selector reserverer
+selection_offered ved et accepteret værktøjsresultat og kan dermed afvise den normale
+færdige delegerede præsentation, også ved None/afslag. Dette er en kildehypotese og
+inert reproduktion, ikke en påstand om installeret Green-årsag.
+
+Ændringen må kun springe selector-scheduling over for ikke-tom bounded delegation_id
+og eksakt task_id=answer:<id> fra Thin's accepterede tool-batch. Den normale final-owner
+bevarer alle kilde-, input-, session-, provider-, delegation-, replay- og completed-guards.
+Direkte ikke-delegerede receipts beholder selector, og alle ti kanoniske formater og
+musikvalg bevares. Ingen nye providerkald, kvoter, lyd eller hjemmehandlinger.
+
+Kæde: eksisterende input → Live completed tool-batch → Thin accepted tool-results →
+receipt/source-registry → samme delegations normale final → eksisterende præsentation.
+Kausal RED/GREEN med selector enabled (held/accept/deny/budget-None), direkte selector
+og stale/stop/owner-regressioner kræves, derefter uafhængigt adversarial review.
+Rollback er dette isolerede receipt-scheduling-diff; final47, root, release og Green
+ændres ikke. Ingen fysisk accept eller ny live-provider-evidens påstås.
+
 # Aktiv leadbeslutning · robotadgang og kvalificeret vejrsted · PV47 · 18. oktober 2026
 
 Lead root. Faktisk 2.0.46 er publiceret fra PR198, merge `26438cdefac88c8bac071e8089636cd823c7a891`, tree `294425524e8d8f5718ae688482a05cfff15d445a`; officiel CI666 og main667 bestod. Green viste 2.0.46/Kører efter kontrolleret installation med backup, og alle seks policies var uændrede. Den tomme enkeltkonto-boks var skjult; tre musikvalg var aktive og bevaret ved normal retur. Timer Start var aktiv, men ingen timer blev startet. Robotpanelet viste allerede efter 3,848 sekunder og stadig efter 69,476 sekunder “Adgangen eller forbindelsen er ændret” med nul områder. To eksisterende PodView-faner var åbne i samme ingress; den anden fanes indlæste kildeversion er ukendt. Ingen hjemmeeffekt blev startet. Dette er stærkeste aktuelle Green-evidens og må ikke omskrives til løst robotproblem.
