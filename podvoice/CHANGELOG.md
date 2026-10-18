@@ -1,3 +1,9 @@
+## 2.0.53 — tydelig tom musikstatus, kandidat
+
+- Vis kun forbindelsesfejlen, når der ikke findes tidligere musikresultater; beholdte kort får fortsat katalogets eksisterende status.
+- Skjul en tomtekst, der præcist gentager den ikke-tomme overskriftsstatus. Bevar særskilte fejl og indhold ved tom overskrift samt eksisterende indlæsnings- og kortvisning.
+- Ingen ændring af datakilder, adgang eller afspilning. Humørs datafejl er ikke løst; fysisk accept er separat.
+
 ## 2.0.52 — musiktilstandenes visning, kandidat
 
 - Tilpas den eksisterende musikvisnings tomme, fejl-, indlæsnings- og fyldte tilstande, så faner og fokus bevares i den afprøvede geometri.
