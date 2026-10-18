@@ -335,3 +335,145 @@ async def test_binding_identity_changes_when_same_destination_policy_changes(roo
     changed = binding(rig.bridge, "kitchen", "account-alpha")
     assert changed["targetId"] == original["targetId"]
     assert changed["bindingId"] != original["bindingId"]
+
+
+async def test_passive_room_observation_needs_only_existing_read_services(room_rig):
+    rig = room_rig
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=frozenset({"get_playback_snapshot", "get_room_playback_controls"}),
+    )
+    assert not rig.bridge.controls.music.available
+    assert not rig.bridge.controls.music.room_available
+    assert not rig.bridge.controls.music.room_start_available
+    assert (await read(rig))["status"] == "observed"
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
+        "get_playback_snapshot",
+        "get_room_playback_controls",
+    ]
+    # Read admission does not widen executable readiness.
+    blocked = await rig.bridge.controls.music.setup_room(
+        "account-alpha", "device-one", "r0", "42", lambda: True
+    )
+    assert blocked["ok"] is False
+    assert len(rig.calls) == 2
+
+
+async def test_passive_read_without_native_read_service_stays_unavailable(room_rig):
+    rig = room_rig
+    rig.router._discovery = replace(
+        rig.router._discovery, podconnect_services=frozenset({"get_playback_snapshot"})
+    )
+    redacted(await read(rig))
+    assert len(rig.calls) == 1
+
+
+async def test_real_pending_mood_read_cannot_hide_current_room_playback(room_rig):
+    rig = room_rig
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=rig.router._discovery.podconnect_services | {"search_playlists"},
+    )
+    rig.router.podview_mood_selector = SimpleNamespace(available=True)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def coarse_context(current):
+        entered.set()
+        await release.wait()
+        return None
+
+    rig.router.podview_mood_context = coarse_context
+    request = SimpleNamespace(
+        app=rig.app,
+        query=MultiDict(kind="mood", account="account-alpha"),
+        cookies={},
+        remote="127.0.0.1",
+        headers={},
+        method="GET",
+    )
+    pending = asyncio.create_task(_music(request))
+    try:
+        await entered.wait()
+        assert rig.bridge._music_busy
+        assert (await read(rig))["status"] == "observed"
+        assert rig.bridge._music_busy  # Playback cannot release another owner's fence.
+    finally:
+        release.set()
+        await pending
+    assert not rig.bridge._music_busy
+
+
+async def test_overlapping_room_reads_are_independently_serialized(room_rig):
+    rig = room_rig
+    entered, release = asyncio.Event(), asyncio.Event()
+    active = maximum = 0
+
+    async def hold():
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        entered.set()
+        try:
+            await release.wait()
+        finally:
+            active -= 1
+
+    rig.proof_hook = hold
+    first = asyncio.create_task(read(rig))
+    await entered.wait()
+    second = asyncio.create_task(read(rig))
+    await asyncio.sleep(0)
+    assert len(rig.calls) == 2
+    release.set()
+    assert [result["status"] for result in await asyncio.gather(first, second)] == [
+        "observed",
+        "observed",
+    ]
+    assert maximum == 1
+    assert not rig.bridge._room_playback_lock.locked()
+    assert not rig.bridge._music_busy
+
+
+@pytest.mark.parametrize("cancel", ["active", "waiting"])
+async def test_room_read_lock_releases_after_active_or_waiting_cancellation(room_rig, cancel):
+    rig = room_rig
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def hold():
+        entered.set()
+        await release.wait()
+
+    rig.proof_hook = hold
+    first = asyncio.create_task(read(rig))
+    await entered.wait()
+    second = asyncio.create_task(read(rig))
+    await asyncio.sleep(0)
+    cancelled, survivor = (first, second) if cancel == "active" else (second, first)
+    cancelled.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled
+    release.set()
+    assert (await survivor)["status"] == "observed"
+    assert not rig.bridge._room_playback_lock.locked()
+    assert (await read(rig))["status"] == "observed"
+
+
+async def test_queued_room_read_rechecks_owner_before_any_transport(room_rig):
+    rig = room_rig
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def hold():
+        entered.set()
+        await release.wait()
+
+    rig.proof_hook = hold
+    first = asyncio.create_task(read(rig))
+    await entered.wait()
+    second = asyncio.create_task(read(rig))
+    await asyncio.sleep(0)
+    rig.bridge.controls.policy = copy.deepcopy(rig.bridge.controls.policy)
+    release.set()
+    redacted(await first)
+    redacted(await second)
+    assert len(rig.calls) == 2
+    assert not rig.bridge._room_playback_lock.locked()

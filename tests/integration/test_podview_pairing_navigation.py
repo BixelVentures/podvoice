@@ -1,4 +1,4 @@
-"""First-party visible setup navigation with the actual unchanged ingress guard."""
+"""Normal PodView navigation and preserved legacy setup through the ingress guard."""
 
 from html.parser import HTMLParser
 from pathlib import Path
@@ -24,7 +24,7 @@ class Anchors(HTMLParser):
 
 @pytest.fixture
 def panel(monkeypatch):
-    # Only the panel HTML differs. Guard/assets/handlers run from actual33.
+    # Only the panel HTML differs. Guard/assets/handlers use the actual owners.
     actual_assets = web._STATIC / "podview"
     candidate = Path(__file__).parents[2] / "podvoice/gatekeeper/static"
     monkeypatch.setattr(web, "_STATIC", candidate)
@@ -33,7 +33,7 @@ def panel(monkeypatch):
     return app
 
 
-async def test_visible_existing_navigation_anchor_reaches_shipped_setup_same_origin(panel):
+async def test_visible_navigation_opens_podview_and_legacy_setup_stays_directly_available(panel):
     async with TestClient(TestServer(panel)) as client:
         response = await client.get("/")
         assert response.status == 200
@@ -41,23 +41,27 @@ async def test_visible_existing_navigation_anchor_reaches_shipped_setup_same_ori
         anchors = Anchors()
         anchors.feed(html)
         navigation = [a for a in anchors.items if a.get("class") == "podview-link"]
-        assert [a["href"] for a in navigation] == ["view/", "view/setup.html"]
+        assert [a["href"] for a in navigation] == ["view/"]
         assert all(not a.get("target") and "onclick" not in a for a in navigation)
         # Actual browser native-anchor navigation supplies same-origin; no code
         # injects these headers. This HTTP harness explicitly exercises the guard.
-        target = urlsplit(urljoin(str(response.url), navigation[1]["href"]))
+        target = urlsplit(urljoin(str(response.url), navigation[0]["href"]))
         assert (target.scheme, target.netloc) == (
             response.url.scheme,
             response.url.host + ":" + str(response.url.port),
         )
-        setup = await client.get(target.path, headers={"Sec-Fetch-Site": "same-origin"})
+        view = await client.get(target.path, headers={"Sec-Fetch-Site": "same-origin"})
+        assert view.status == 200
+        assert 'src="widget-view.js"' in await view.text()
+        setup = await client.get("/view/setup.html", headers={"Sec-Fetch-Site": "same-origin"})
         assert setup.status == 200
         body = await setup.text()
         assert '<form id="pair-form">' in body
         assert 'src="setup.js"' in body
         assert not panel[BRIDGE]._grants
         assert panel[BRIDGE]._pairing_attempts == 0
-        assert ">Par skærm</a>" in html
+        assert ">Åbn PodView</a>" in html
+        assert ">Par skærm</a>" not in html
 
 
 @pytest.mark.parametrize("site", ["cross-site", "same-site"])
@@ -92,11 +96,11 @@ async def test_readonly_setup_does_not_weaken_post_guard_or_invent_alias(panel):
         assert not panel[BRIDGE]._grants
 
 
-def test_relative_setup_anchor_preserves_opaque_ingress_prefix():
+def test_relative_podview_anchor_preserves_opaque_ingress_prefix():
     candidate = Path(__file__).parents[2] / "podvoice/gatekeeper/static/index.html"
     anchors = Anchors()
     anchors.feed(candidate.read_text())
-    setup = next(a for a in anchors.items if a.get("href") == "view/setup.html")
+    view = next(a for a in anchors.items if a.get("class") == "podview-link")
     base = "https://ha.example.invalid/api/hassio_ingress/synthetic-prefix/"
-    assert urljoin(base, setup["href"]) == base + "view/setup.html"
-    assert not setup["href"].startswith(("/", "http:", "https:"))
+    assert urljoin(base, view["href"]) == base + "view/"
+    assert not view["href"].startswith(("/", "http:", "https:"))

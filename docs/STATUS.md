@@ -1,3 +1,30 @@
+<!-- podview60-admission
+{
+  "version": 37,
+  "kind": "normal60_ha_access_passive_playback",
+  "reviewer": "Independent /root/astra_reference_benchmark NEXT60 exact revised 28-path HA voice and touch continuity metadata and strict admission review",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "fcfdbbd775d7d04640254545cf21ffc302a0b9d8",
+  "merge_base": "fcfdbbd775d7d04640254545cf21ffc302a0b9d8",
+  "rationale": "Same root-authorized60 candidate retains reviewed normal HA administrator-Ingress access and bounded passive playback read separation, adding only the independently reviewed existing podview.py continuity correction and its new integration regression. Idle discovery cards now survive fresh voice wake for owned touch and approved voice continuation; answer-task cards retain original conversation pins. Actual ThinSession wake fixtures fence fresh voice epoch/current input, and external approval remains at the unchanged ToolRouter boundary. Other HA actor, absent HA identity and lost original owned touch context remain denied. ThinSession, tools, execution policy, music selection and playback source owners remain exact to the preceding8f7 bound source. New source proof is23 actualThin cases,94neighbor cases, two causal failures on prior60 and three independent denial cases; scopes overlap and are not summed. Earlier broad backend evidence and CI703 describe the predecessor, not a newly repeated full run. UI/static/test/gate bytes are unchanged:143assets,160browser-cohort files, canonical928 and packaged1288 evidence plus allfive registered browser PASS/complete cleanup are reused only on exact same bytes. Worker240second/cleanup15second bounds, inventory, registry and trust remain unchanged. Exact8production/11regression/256runtime/3config/16policy/9tooling pins and physical_output classification admit this revised tree only. Supported exact panel_admin:true declaration/version60trio, one canonical transport change versus59 and strict143asset membership/caps remain. Published59profile/manifest and inherited immutable guards stay byte-exact;13original59test bodies/assertions remain equivalent after the historical59_root fixture substitution. Root revised lead and full published59history remain exact outside this record. Prior bound8f7 metadata GO is historical and cannot authorize the new source/regression bytes. No framework, feature flag, provider/native/audio/firmware or gate trust change. No installation or physical acceptance is established. Independent exact revised 28-path unsigned-tree metadata review received for 6f19a93678b38c3b86dcdb67157f34cde0c284f3. Review bindings are applied only after that GO; final bound verification, officialCI, publication and installation remain separate. No external action is authorized by this record.",
+  "fingerprint": "7b3a26bcdeaa723583401dc9ca253540e6590c8081ff3a6929e618e1a9941c58",
+  "regression_fingerprint": "ddf398194e2eb216c02bb40ca526dccd7fd740b60de76e76962d0cc2570f080d",
+  "runtime_fingerprint": "1f851c62381349edc050a56ad31150a71f12d6c73a0511f0980896af35a26771",
+  "config_fingerprint": "b1407e675424db2eb0309391eab456499426d32915287c7461255ddc7e27ecf8",
+  "policy_fingerprint": "48deedcbb48689a8f459154d505770f29c0f05c42df996e4d58a00f21ac13ec2",
+  "tooling_fingerprint": "f89abd0c986f55f43651f69a35c6e03e44d23b7fb2f5f3e938d0d4b4ecc78101",
+  "manifest_fingerprint": "6425b48edb7da219caf07a9aa809607026444d0356baae2417904841aaa4d5c5"
+}
+-->
+
+# Current root lead — PodVoice2.0.60 candidate
+
+PodVoice2.0.60-kandidat: normal HA-login erstatter særskilt PodView-parring/fornyelse; eksisterende ejere og handlinger genbruges. Passive playerlæsninger er afkoblet fra mutationstjenester og musikforslag. Ikke installeret eller fysisk accepteret; Idle discovery cards now survive freshvoice wake for touch and approved voice continuation; answer-task cards keep original conversation pins. No physical acceptance.
+
+---
+
 <!-- podview59-admission
 {
   "version": 36,

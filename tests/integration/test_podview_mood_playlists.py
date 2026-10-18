@@ -427,7 +427,7 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
 
     router.podview_read = blocked
     request = SimpleNamespace(
-        query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -495,7 +495,7 @@ async def test_playlist_batch_joins_child_cleanup_before_busy_fence_release(mood
 
     router.podview_read = blocked
     request = SimpleNamespace(
-        query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -525,7 +525,7 @@ async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
 
     bridge, router = mood_rig.app[BRIDGE], mood_rig.router
     request = SimpleNamespace(
-        query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
     )
     assert json.loads((await podview._mood_music(request, bridge, "kitchen")).body)["ok"]
     retained = bridge._mood_retained

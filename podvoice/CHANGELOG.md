@@ -1,3 +1,9 @@
+## 2.0.60 — normal adgang gennem Home Assistant og afgrænset statuslæsning, ubundet kandidat
+
+- Normal PodView bruger Home Assistants eksisterende administrator-Ingress med serverleverede rettigheder. Den særskilte skærmtilmelding beholdes kun i den eksisterende legacyvej; Par skærm fjernes fra den normale menunavigation.
+- Læsende afspilningsstatus bruger den eksisterende native ejer og et afgrænset fælles læselåsforløb. En separat musikhandling må ikke alene blokere passiv status; aktuel ejer, tidsbudget, annullering og rettigheder bevares.
+- Eksisterende transport og komponenter bevares. Den endelige kilde gennemgås uafhængigt; officiel CI, udgivelse, installation og fysisk accept er særskilte.
+
 ## 2.0.59 — sand status og bevarede widgettilstande, ubundet kandidat
 
 - Beskriv konfiguration og seneste providerforbindelse uden at påstå vellykket samtale, svarlyd eller aktuel Talk-status. Daglig tooltip bruger almindeligt sprog; tekniske kilder og fejlårsager bevares i detaljer.

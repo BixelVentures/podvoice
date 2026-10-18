@@ -214,13 +214,11 @@ class QueueBroker:
             return False
 
     def retire(self):
-        now = time.monotonic()
         self.receipts = {
             key: value
             for key, value in self.receipts.items()
-            if (grant := self.bridge._grant_for_token(key[0], key[1])) is not None
-            and secrets.compare_digest(grant[0], key[1])
-            and now < grant[-1]
+            if self.bridge._authority_retained(key[0], key[1])
+            and (not key[1].startswith("ha:") or (len(value) == 3 and time.monotonic() < value[2]))
         }
 
     async def offer(self, body, token):
@@ -300,7 +298,8 @@ class QueueBroker:
             self.tasks = {
                 k: t
                 for k, t in self.tasks.items()
-                if (t["room"], t["token"]) != (room, token) and self.current(t, t["token"])
+                if (t["room"], t["token"]) != (room, token)
+                and (self.bridge._ha_task_retained(t) or self.current(t, t["token"]))
             }
             if len(self.tasks) >= 64:
                 raise ValueError("queue capacity")
@@ -365,7 +364,7 @@ class QueueBroker:
         key = (task["room"], token, body["requestId"])
         fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).digest()
         if key in self.receipts:
-            old_fp, result = self.receipts[key]
+            old_fp, result = self.receipts[key][:2]
             return dict(result) if old_fp == fingerprint else rejected
         if (
             task["consumed"]
@@ -377,7 +376,7 @@ class QueueBroker:
         if len(self.receipts) >= 1024:
             return rejected
         task["consumed"] = True
-        self.receipts[key] = fingerprint, unknown
+        self.receipts[key] = fingerprint, unknown, task["deadline"]
         source = task["source"]
         sequence, epoch = source["next_command_sequence"], source["owner_epoch"]
         identity = {
@@ -416,7 +415,7 @@ class QueueBroker:
         try:
             async with asyncio.timeout(8):
                 if not self.current(task, token):
-                    self.receipts[key] = fingerprint, rejected
+                    self.receipts[key] = fingerprint, rejected, task["deadline"]
                     return rejected
                 prepared_started = time.monotonic()
                 prepared = await self.bridge.controls.music._read(
@@ -426,7 +425,7 @@ class QueueBroker:
                     request,
                 )
                 if not self.current(task, token):
-                    self.receipts[key] = fingerprint, rejected
+                    self.receipts[key] = fingerprint, rejected, task["deadline"]
                     return rejected
                 required = {
                     "ok",
@@ -478,7 +477,7 @@ class QueueBroker:
                 expires = _integer(prepared["expires_after_ms"], 1, 5000)
                 task["deadline"] = min(task["deadline"], prepared_started + expires / 1000)
                 if not self.current(task, token):
-                    self.receipts[key] = fingerprint, rejected
+                    self.receipts[key] = fingerprint, rejected, task["deadline"]
                     return rejected
                 sent = True
                 value = await self.bridge.controls.music._read(
@@ -491,18 +490,18 @@ class QueueBroker:
                 return unknown
             result = _room_receipt(value, identity)
             public = {**rejected, "ok": result["ok"], "outcome": result["outcome"]}
-            self.receipts[key] = fingerprint, public
+            self.receipts[key] = fingerprint, public, task["deadline"]
             return dict(public)
         except (Exception, asyncio.CancelledError):
             if not sent:
-                self.receipts[key] = fingerprint, rejected
+                self.receipts[key] = fingerprint, rejected, task["deadline"]
             return unknown if sent else rejected
         finally:
             self.bridge.controls.busy.discard(task["room"])
 
 
 async def queue_http(request):
-    from .podview import _PAIR_COOKIE, BRIDGE, _error, _guard
+    from .podview import BRIDGE, _error, _guard, _request_token
 
     denied = await _guard(request)
     if denied is not None:
@@ -515,8 +514,12 @@ async def queue_http(request):
         return _error("invalid_queue_request", 400)
     owner = request.app[BRIDGE].queue
     result = await (
-        owner.offer(body, request.cookies.get(_PAIR_COOKIE, ""))
+        owner.offer(
+            body, _request_token(request, body.get("roomId") if isinstance(body, dict) else None)
+        )
         if request.path.endswith("/offer")
-        else owner.action(body, request.cookies.get(_PAIR_COOKIE, ""))
+        else owner.action(
+            body, _request_token(request, body.get("roomId") if isinstance(body, dict) else None)
+        )
     )
     return web.json_response(result, headers={"Cache-Control": "no-store"})
