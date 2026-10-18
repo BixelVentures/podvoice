@@ -1,3 +1,9 @@
+## 2.0.47 — robotadgang og kvalificeret vejrsted
+
+- Robotopsætning ugyldiggøres ikke længere af ændret musikadgang; reelle forbindelses-, rum- og robotændringer er stadig afskærmet.
+- Vejrvisningen kan vise et kortlivet, kvalificeret sted nær HA-hjemmet fra et lokalt datasæt; uklar eller langsom konfiguration giver ingen automatisk label.
+- Deterministisk testorden; ingen ændring i transport, GPT-Live, lyd eller grants. Fysisk accept står åben.
+
 ## 2.0.46 — kontovisning og genopretning mellem faner, kandidat
 
 - Vis kun validerede musik-kontovalg: skjul tomme/enkelte valg og behold eksplicit valg, når der er flere.

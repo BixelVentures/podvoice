@@ -369,3 +369,28 @@ def observation_is_current(value: object) -> bool:
     ):
         return False
     return True
+
+
+def with_home_locality(weather: dict, locality: dict | None) -> dict:
+    from .podview_locality import valid_label
+
+    if weather.get("status") != "observed":
+        return weather
+    raw_data = weather.get("data")
+    if not isinstance(raw_data, dict):
+        return weather
+    data = dict(raw_data)
+    label = data.get("displayLocation")
+    if (
+        isinstance(label, dict)
+        and label.get("source") == "ha_home_geonames"
+        and not valid_label(label)
+    ):
+        data.pop("displayLocation", None)
+    if valid_label(locality):
+        data["displayLocation"] = dict(cast(dict[str, object], locality))
+    if isinstance(data.get("hourly"), dict):
+        data["hourly"] = with_home_locality(
+            {"status": "observed", "data": data["hourly"]}, locality
+        )["data"]
+    return weather if data == weather["data"] else {**weather, "data": data}

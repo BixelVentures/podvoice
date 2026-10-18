@@ -92,6 +92,9 @@ def token(value: dict | None) -> str | None:
 
 def project(weather: dict, brief: dict | None, display_city: object = "") -> dict:
     """Keep today's actual full daily/hourly body; never replace it with old AI data."""
+    from .podview_weather import with_home_locality
+
+    weather = with_home_locality(weather, None)
     if brief is None or weather.get("status") != "observed" or not observation_is_current(weather):
         return weather
     source = brief["weather"]["data"]
@@ -125,6 +128,8 @@ def project(weather: dict, brief: dict | None, display_city: object = "") -> dic
     }
     data = {**copy.deepcopy(current), "aiAdvice": advice}
     city = weather_display_city(display_city)
-    if city:
+    from .podview_locality import valid_label
+
+    if city and not valid_label(data.get("displayLocation")):
         data["displayLocation"] = {"name": city, "source": "configured_label"}
     return {**weather, "data": data}

@@ -2032,7 +2032,7 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:conditionLabel": 1,
-          "arrow:exact": 1,
+          "arrow:exact": 2,
           "arrow:localDayKey": 1,
           "function:completeHourlyDayRanges": 1,
           "function:conditionIcon": 1,
@@ -2040,13 +2040,15 @@
           "function:hourlyWeather": 1,
           "function:weatherAdvice": 1,
           "function:weatherObservation": 1,
-          "function:weatherTemperature": 1
+          "function:weatherTemperature": 1,
+          "function:weatherDisplayLocation": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
-      }
+      },
+      "compositionScope": "Reviewed47 bounded display-locality data projection only. Existing configured label or fresh closed-shape HA-home locality feeds the same weather title/footer; no DOM, renderer, family, authority, forecast-location replacement or provider request."
     },
     "dist/weather-view.js": {
       "status": "approved-renderer",
