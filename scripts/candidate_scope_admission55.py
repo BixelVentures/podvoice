@@ -52,6 +52,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/root-weather-observation.test.mjs",
         "tests/podview/root-weather-view.test.mjs",
         "tests/unit/test_home_weather_provenance.py",
+        "tests/unit/test_candidate_scope_admission54.py",
         "tests/unit/test_candidate_scope_admission55.py",
         "tests/unit/test_dev_cycle.py",
     }
@@ -61,8 +62,8 @@ HA_RUNTIME = previous.HA_RUNTIME
 REVIEWER = (
     "Independent /root/ui41_source_review PV55 admission metadata and exact unsigned scope reviewer"
 )
-MANIFEST_SHA = "3993c0ab1373e7ca39065f344bc8c347879738a1c743a926cc2bea64fb71ba9b"
-PROFILE_AST = "6de1c2ecba7c5cef67107874f2d62bc9acbe59c98fdc5951c8d463c2e4b53f26"
+MANIFEST_SHA = "5a88739591d0be3ddeac52e3a68928f61e64261a047af432a769247f54dda493"
+PROFILE_AST = "f246e7ed2ccd1abad05d577f8fd26c7e021f1a986a0b2309e29be5d7a13624b2"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
     "scripts/podview54-admission-reviewed.json": "2fa24070a9db06c252d210f7b5a489b2778696755edcc731fd45421ad060544c",

@@ -14,12 +14,12 @@ Root authorizes isolated release-candidate assembly from exact54 staged tree52e7
   "merge_base": "98006350907c329869ed60c2ea256f9eb1725393",
   "rationale": "NEXT55 adds passive home/weather retention and source provenance from exact PV54 base 98006350907c329869ed60c2ea256f9eb1725393/tree 52e72213565ab3d15bfb2705bde8ae332d0e7bf7. Scope is four canonical JS owners, two Python runtime owners, the retained 143-asset manifest, and bounded focused regressions. 139 assets remain byte-identical; CSS, component anatomy, registry, tokens, auth, policy, HA integration and native code are unchanged. Root reports canonical 875 and packaged 1223 checks including the component gate; backend 141 and independent UI 53 results are retained on exact pins. The authorized producer Save/reopen returned entity_id after 5ad53a6a16489308bc5aaa9d713d879263a79f88a58ff396b444caed1e909738 with no Run. Retention is limited to the same weather entity/read owner/source/location/units/room/boot; malformed successful auxiliary data, expiry and identity changes cannot authorize reuse; genuinely unavailable vacuum telemetry retains prior observed values as stale only within the same vacuum context, and stale hours do not generate fresh AI advice. Green54/28/17, six policies and PodView automation OFF are preserved. PV55 is not installed and has no live/browser/physical acceptance. Mac reapproval and robot movement remain HOLD.",
   "fingerprint": "137add321fd0e34dc037aec9fcae4da84ea0d87a29fbfdcf54e308b78e33b1ff",
-  "regression_fingerprint": "7cb8320f71f816a4d0a14ab2230cbc1e5b4fd2f430502b3363bfa634c80ec3c1",
+  "regression_fingerprint": "0861f15423c388426b75e2e49d5834f9ad52a9e2e87400bef44cb93538356726",
   "runtime_fingerprint": "702f820f5884d761efa35aab995f46d59d5ff685b4709cc84aa7bee0e8921092",
   "config_fingerprint": "dd06df2fea515e053fe54c9668a30d2cc3b4a2ba1b5583b0222b16446bd10b5a",
-  "policy_fingerprint": "7d304fffd34880e70b074946ba22e01c39de2cdfb028c236fe4161d70703b59d",
+  "policy_fingerprint": "dec4dde02dc8241a4edb637c9adcb9a03fd005db2d984dd9f5ae36c5da2cee3a",
   "tooling_fingerprint": "ba17d629a5a9050f0b2f7943a2917935333a68f953eb86e2df3b8a9f7d37c021",
-  "manifest_fingerprint": "3993c0ab1373e7ca39065f344bc8c347879738a1c743a926cc2bea64fb71ba9b"
+  "manifest_fingerprint": "5a88739591d0be3ddeac52e3a68928f61e64261a047af432a769247f54dda493"
 }
 -->
 

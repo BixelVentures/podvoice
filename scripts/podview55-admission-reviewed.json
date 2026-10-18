@@ -28,7 +28,8 @@
     "tests/podview/root-home-model.test.mjs": "f313636b675aa79e7b889f825322447ae5cb068411dc91f702fc7dd27aca7fb0",
     "tests/podview/root-weather-observation.test.mjs": "1b9a48f7924aa60f6e9f6242fa39d9c819160968fac8b18c8b71cf09645a84c8",
     "tests/podview/root-weather-view.test.mjs": "36be5362ae8cb7c32b571bfbe8ec301404551d0824d8062f9a35c90972a65d4a",
-    "tests/unit/test_candidate_scope_admission55.py": "13f3ad7b555f3460c229dc9f28ccc42f4acd62a149d0d6637902a7dfed948660",
+    "tests/unit/test_candidate_scope_admission54.py": "89b00b096ba37883f9a11ccdd6e66d71f173f8644fb545a418899b8d57f84e1e",
+    "tests/unit/test_candidate_scope_admission55.py": "a888a1f2258e04f0e48696812f48d45102969d8cae3153b74a18e9c750204df6",
     "tests/unit/test_dev_cycle.py": "7bed22aba2529f197efad662b371ed71013eb4e17cb3deb6a3cf8ed02a56e6dd",
     "tests/unit/test_home_weather_provenance.py": "1546c40decda633a604e01b36ef5cc70a9a5b1163a0307e66587f15f69cbb23a"
   },

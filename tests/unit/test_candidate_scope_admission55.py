@@ -41,6 +41,7 @@ def test_55_exact_scope_and_history():
         "tests/podview/root-weather-observation.test.mjs",
         "tests/podview/root-weather-view.test.mjs",
         "tests/unit/test_home_weather_provenance.py",
+        "tests/unit/test_candidate_scope_admission54.py",
         "tests/unit/test_candidate_scope_admission55.py",
         "tests/unit/test_dev_cycle.py",
     }
