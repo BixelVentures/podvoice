@@ -1,36 +1,28 @@
 {
-  "asset_count": 143,
+  "schema": "podvoice59.admission.v1",
   "base": "78d9dc7528b964d2986e50eee31ecdd0d942571b",
-  "config": {
-    "podvoice/config.yaml": "c1a307c63e4b8daeaa7158b29785640be55036d4b2869463015fd88b0833a3db",
-    "podvoice/gatekeeper/__init__.py": "31438ba166aaa67d2cc23d7f910cf48eb6ba2e299b89efddf44a67d550352c8b",
-    "pyproject.toml": "00e0bb6ebd035511ac192af3c2900e688337e21cbd37839084f60aee3f41ee9a"
-  },
-  "policy": {
-    ".github/workflows/ci.yml": "065920403e4f7381bb82f55eabeaa54293d2f78e0563bc596c4ce298679637a7",
-    "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
-    "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
-    "scripts/candidate_scope_admission55.py": "27bcff315821d51484026279cbe78574e5ff04a2601cb1ba7417621dd34d2869",
-    "scripts/candidate_scope_admission56.py": "a3266c8683b2f175faeef8a7dc40d2b8bd979ba62a0da501193e5115b7ca76fb",
-    "scripts/candidate_scope_admission57.py": "2ca1cc482d5b222bbb623f738d9f91661674dee89d0988153bfbb44367ac1bc9",
-    "scripts/candidate_scope_admission58.py": "2ac5efaa740665be3fdb252f758a534913ee3bc7a4a7de16a462079cbd153983",
-    "scripts/dev_cycle.py": "56e2b684b5b6e9bea898e0d6e59d23a32b7cc539f2e26290044cd88443f2cc12",
-    "scripts/podview53-admission-reviewed.json": "66413614f432689ef34cc8d5e03c803fb3590b8b608e15559a5209965acab877",
-    "scripts/podview54-admission-reviewed.json": "2fa24070a9db06c252d210f7b5a489b2778696755edcc731fd45421ad060544c",
-    "scripts/podview55-admission-reviewed.json": "5a88739591d0be3ddeac52e3a68928f61e64261a047af432a769247f54dda493",
-    "scripts/podview56-admission-reviewed.json": "c25f16ca2482dacd06b0ef52cd032e0384056baf2e1c145263ddf732db520754",
-    "scripts/podview57-admission-reviewed.json": "786a2ec0b49380369357bdb8250fefdfd7b3e13afb420f023e4e6015cda6cee3",
-    "scripts/podview58-admission-reviewed.json": "c48d45ff8dc1f8fc5f977495c5020eaaae17c0b006efd7760209fe88e8c4537b"
-  },
   "production": {
     "podvoice/gatekeeper/hub.py": "08d550840a68cefc2fc8135c06f0e94b1ac4ea96f5a7beae7f56a185da4faba6",
-    "podvoice/gatekeeper/static/index.html": "5a781b62edd51b5a0356930b5807cb929b2cb6f6c49a5fe0dcc476629fae7a34"
+    "podvoice/gatekeeper/static/index.html": "7e33a2828b13bc96250c595a26b3f029f52aee9dd0f58b71044c81602ae6d769",
+    "podvoice/gatekeeper/static/podview/asset-manifest.json": "f04596d8215c0b1c80878da72e3e56cddfa6ddffdc3ecbfcecb73dd551a03023",
+    "podvoice/gatekeeper/static/podview/live-home-view.js": "b8933704e58383b02a5010b1a4f1462f19b67e8ab45ba6e23d0f46e63553a664",
+    "podvoice/gatekeeper/static/podview/timer-view.js": "5fbcdb0674bc6f5de043952070ef3724182dd0f81bc71b73c4e1761fdc7e6302",
+    "podvoice/gatekeeper/static/podview/weather-view.js": "e547052f7754e20242d323e697063e0462e12c62aa38b08e1de5101bd33dfce7",
+    "podvoice/gatekeeper/static/podview/widget-view.js": "9519116469ba6f15c2c8c71a231473e37e3709f880eb167400235e6f39625ea6"
   },
   "regressions": {
-    "tests/browser/live_status.cjs": "458e6f4def0b7d3dd661d1a129e7122d990afd47b68c71e4b9e257f6458d8bd4",
+    "tests/browser/live_status.cjs": "2d9d74b39964be19dcd5b7671a8a629cafd309bb7fec7740bfee9f7c63b7f1a3",
+    "tests/podview/account-visibility.test.mjs": "8404bcc812885a940a37942c0a106fd43650393a157e2ded2d67c95737036c2f",
+    "tests/podview/canonical-next-robot-history-view.test.mjs": "5a99e8b306aff8140ed73588d73a8a420db3ea9fcf796e20083142a1cc5e9325",
+    "tests/podview/canonical-next-timer-overview.test.mjs": "065494fd4f484ea08fc62afc9999906525aabe4272e96e7acc665c06bc714df0",
+    "tests/podview/canonical-next-weather-view.test.mjs": "0d8eac46e77a0528e3e499e8037df03518d7ecc9956d8521364bb462dd8152ee",
+    "tests/podview/root-robot-history-view.test.mjs": "6dd0bf98761ae244d0621f737ae3ff6b0d1b49d073f2f57d6a1963cc0b58fbde",
+    "tests/podview/root-timer-access.test.mjs": "7df27e377a8c81825c434369a5c1485e343c51ef518817f972a7953060b6a489",
+    "tests/podview/root-timer-overview.test.mjs": "0b7748dffa078b287accf3564cbb091bea64a32fb0c4845fd8f9147053b7b1a0",
+    "tests/podview/root-weather-view.test.mjs": "a34e5eae8bffb088a8fbcd4119429e7590e1741d071e02b56d81517619fff2aa",
     "tests/podview/runtime-identity.test.mjs": "63cf6d1c1eb78b9c1b5056f9b139df59cdb99dba441fb4f1d99d4dc02e1aa874",
     "tests/unit/test_candidate_scope_admission58.py": "47a1ed2e3443c1694c6e1ef6236174ecd6b7000e89aa64ccab92c739d40dd5f6",
-    "tests/unit/test_candidate_scope_admission59.py": "0bdf386c87df842c83802808b6757de2dcbc96277ba2fdce87679e50a5083113",
+    "tests/unit/test_candidate_scope_admission59.py": "a1bbfdf1aa832587ed70055a9f9ce085fba8eea19e62c78c818373013311845b",
     "tests/unit/test_dev_cycle.py": "c110f7607c985bd879b6ee89047823d41c8ae87d882b413f569746def1b2e94e",
     "tests/unit/test_panel_contract.py": "981d856943b6daea27c26d693f899134993c60b8939f13a13ce15567922be992",
     "tests/unit/test_runtime_identity_status.py": "587ee2e742a5c6ede5f240c220f649b698602cac51b6f1bcc2cd3ccded1c0aee"
@@ -133,12 +125,12 @@
     "podvoice/gatekeeper/settings.py": "0b26fd77ba8f92afa6df43c2248d21ddaee299f84c0a9fa87d6e9522c6d043d4",
     "podvoice/gatekeeper/speech.py": "189ac58b0d938fe235b232303298213970095a4157a2976d3706095667515594",
     "podvoice/gatekeeper/state.py": "09bff35bb1c856687f8455318c026bf5a3a39c68e26a62ae3590c9478cd736e1",
-    "podvoice/gatekeeper/static/index.html": "5a781b62edd51b5a0356930b5807cb929b2cb6f6c49a5fe0dcc476629fae7a34",
+    "podvoice/gatekeeper/static/index.html": "7e33a2828b13bc96250c595a26b3f029f52aee9dd0f58b71044c81602ae6d769",
     "podvoice/gatekeeper/static/podview/ambient.jpg": "c3368b8a98dd54b185400231d9c95bdfa4ee072891b1f89e696e9bf2abcd85a3",
     "podvoice/gatekeeper/static/podview/ambient.jpg.source.txt": "97156f69ef832617848b8fd1f11c8f14051dfe6beffee501b82c6bb5aaa59cc7",
     "podvoice/gatekeeper/static/podview/answer-widget.js": "1a057a6083a7cf298201962aebdd693cb0e55ae334166bc7950a59735fb0f96f",
     "podvoice/gatekeeper/static/podview/app.js": "c6ad3cb0e7056313275b099eaadfa6923e72fd36418da94427107d293b3b7584",
-    "podvoice/gatekeeper/static/podview/asset-manifest.json": "e9ae7039192be3972bd695fafeab6e04bb7fdef2bc0f116b74fd9e9cfbb98878",
+    "podvoice/gatekeeper/static/podview/asset-manifest.json": "f04596d8215c0b1c80878da72e3e56cddfa6ddffdc3ecbfcecb73dd551a03023",
     "podvoice/gatekeeper/static/podview/assets/bicycle-drivetrain-illustration.png": "d8930a5091a111bab48a4eebd731988350f2dd985c36aa8c5b93724b78a8d55c",
     "podvoice/gatekeeper/static/podview/assets/icons/LICENSE": "0fb3e11bd57e896c5a512afd64864d28a37de45d19835016c87ca1ad19ead969",
     "podvoice/gatekeeper/static/podview/assets/icons/arrow-left-long.svg": "faab3e2d6a63d9247884c441ca878ce871364a66aa9fb71a1d65271e1d782850",
@@ -202,7 +194,7 @@
     "podvoice/gatekeeper/static/podview/library.js": "186a8af38e0301a909b1138c2aafd2da0047dea7ed6c8da5c3e02f1a2690aea4",
     "podvoice/gatekeeper/static/podview/live-answer-view.js": "33a78d33d3b1dd2376a3c68689213b9049214ea95a11bcd525004c472f965d3e",
     "podvoice/gatekeeper/static/podview/live-control-view.js": "63242427d2f3bc8bff6a93f975af84969622d604d9b1cdc383afc90a3f782bce",
-    "podvoice/gatekeeper/static/podview/live-home-view.js": "4fad9ca063541fbf992693b0065712f701c7dcf55c5290217909510e3faa155a",
+    "podvoice/gatekeeper/static/podview/live-home-view.js": "b8933704e58383b02a5010b1a4f1462f19b67e8ab45ba6e23d0f46e63553a664",
     "podvoice/gatekeeper/static/podview/live-media-view.js": "de9180d2125ce60abcc2efca73ba019d3b36dfa0a6d826f068d50a96bbdc9da0",
     "podvoice/gatekeeper/static/podview/live-music-selection-view.js": "dced46cf0b189b92c9666072ee2467fbf594206992dc66521615dffc318202fe",
     "podvoice/gatekeeper/static/podview/live-music-view.js": "291f2916f6c47b600533fa6385d1c26b05c6508eba7e6674da853869f2c94692",
@@ -245,7 +237,7 @@
     "podvoice/gatekeeper/static/podview/timer-model.js": "5a591eef320ad0705e9dc6cf6e836a28d090c2746836f0a62427b9a035c2a2cf",
     "podvoice/gatekeeper/static/podview/timer-notice.css": "4459d569cd2e6e12bb6b8306d1983d0eb3cb8d0bf9131e7d48e721f3a5948fb9",
     "podvoice/gatekeeper/static/podview/timer-notice.js": "9eb8aa190debb28fe9ae6bf7f903e69a1d04510419a140cb9ae5329ad680b9d4",
-    "podvoice/gatekeeper/static/podview/timer-view.js": "2f1aa2dc6722a9222296481a18aaf16baaffcf17ec8fac404195aab201aa11f8",
+    "podvoice/gatekeeper/static/podview/timer-view.js": "5fbcdb0674bc6f5de043952070ef3724182dd0f81bc71b73c4e1761fdc7e6302",
     "podvoice/gatekeeper/static/podview/ui/catalog.js": "22b77e3bee90947feb7597cbf783af169102caa4fc8c095363e1cabf18dc7e8c",
     "podvoice/gatekeeper/static/podview/ui/components.css": "d950034068f53a8736ffcfe4b12fd1aaa4c5324fa483f3fdf55c74e498ba479d",
     "podvoice/gatekeeper/static/podview/ui/components.js": "6352a666507dd46aafc18011ab83a80801a423e91b27c3e5508b56efdeb37ec1",
@@ -271,11 +263,11 @@
     "podvoice/gatekeeper/static/podview/voice-surface.js": "42e2476f2162997f36a24d75ba5402adc948c086c00021934ba2d9ed06835154",
     "podvoice/gatekeeper/static/podview/weather-fact-display.js": "32c4eb3f913b9ca7331f5ac81a93727b3da2d1c8a6fdc6b29dee6ebf4fb5ae8a",
     "podvoice/gatekeeper/static/podview/weather-observation.js": "14bf10d9bde7748d7cab79bef4d154efb48e8f31ad4467a4e3dbd6a04f45ffaa",
-    "podvoice/gatekeeper/static/podview/weather-view.js": "118281db427d6293641559b024a268043114e4d687f9d5aa09ea949d0635ed91",
+    "podvoice/gatekeeper/static/podview/weather-view.js": "e547052f7754e20242d323e697063e0462e12c62aa38b08e1de5101bd33dfce7",
     "podvoice/gatekeeper/static/podview/widget-model.js": "856496f4b879743b11e8498003064f7ca3fc4a7a5341de304af0aab36cb906e1",
     "podvoice/gatekeeper/static/podview/widget-redesign.css": "6f0141b370e6e28a1278e38d68262a093dd0b0400b9b3f09f8b17c9bc57624cf",
     "podvoice/gatekeeper/static/podview/widget-view.css": "93d9ceda63353d3945b8145977b8d5d56701bf5a56534e0635fd93e7c1190b28",
-    "podvoice/gatekeeper/static/podview/widget-view.js": "0c1556e3000c249556ff1da5396dda8188dec1852f028188fc43156cbf4bf6c0",
+    "podvoice/gatekeeper/static/podview/widget-view.js": "9519116469ba6f15c2c8c71a231473e37e3709f880eb167400235e6f39625ea6",
     "podvoice/gatekeeper/static/podview/workshop.css": "8c1c212d163bde9e97a53ef969e2e49b8a030ca3750e553413e647d3b6fb699e",
     "podvoice/gatekeeper/static/podview/workshop.js": "e98afd415b5fd1dbc78f1b3ef704257bda5072c96cd574fe53b8221a8230eaac",
     "podvoice/gatekeeper/talk.py": "7ae68daddd642324ef55752283154f768e6d21263e6e27f7b6e383e238574374",
@@ -293,7 +285,27 @@
     "podvoice/gatekeeper/weather_result.py": "a421b2c3dbf67fdf323eecbcfba7a4162af362e88cc69021806b462867e21793",
     "podvoice/gatekeeper/web.py": "8bf9469f4e1479381a31c148ae0eae53a1e7148a04236ceaca58fb9ae35a4e6f"
   },
-  "schema": "podvoice59.admission.v1",
+  "config": {
+    "podvoice/config.yaml": "c1a307c63e4b8daeaa7158b29785640be55036d4b2869463015fd88b0833a3db",
+    "podvoice/gatekeeper/__init__.py": "31438ba166aaa67d2cc23d7f910cf48eb6ba2e299b89efddf44a67d550352c8b",
+    "pyproject.toml": "00e0bb6ebd035511ac192af3c2900e688337e21cbd37839084f60aee3f41ee9a"
+  },
+  "policy": {
+    ".github/workflows/ci.yml": "065920403e4f7381bb82f55eabeaa54293d2f78e0563bc596c4ce298679637a7",
+    "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
+    "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
+    "scripts/candidate_scope_admission55.py": "27bcff315821d51484026279cbe78574e5ff04a2601cb1ba7417621dd34d2869",
+    "scripts/candidate_scope_admission56.py": "a3266c8683b2f175faeef8a7dc40d2b8bd979ba62a0da501193e5115b7ca76fb",
+    "scripts/candidate_scope_admission57.py": "2ca1cc482d5b222bbb623f738d9f91661674dee89d0988153bfbb44367ac1bc9",
+    "scripts/candidate_scope_admission58.py": "2ac5efaa740665be3fdb252f758a534913ee3bc7a4a7de16a462079cbd153983",
+    "scripts/dev_cycle.py": "56e2b684b5b6e9bea898e0d6e59d23a32b7cc539f2e26290044cd88443f2cc12",
+    "scripts/podview53-admission-reviewed.json": "66413614f432689ef34cc8d5e03c803fb3590b8b608e15559a5209965acab877",
+    "scripts/podview54-admission-reviewed.json": "2fa24070a9db06c252d210f7b5a489b2778696755edcc731fd45421ad060544c",
+    "scripts/podview55-admission-reviewed.json": "5a88739591d0be3ddeac52e3a68928f61e64261a047af432a769247f54dda493",
+    "scripts/podview56-admission-reviewed.json": "c25f16ca2482dacd06b0ef52cd032e0384056baf2e1c145263ddf732db520754",
+    "scripts/podview57-admission-reviewed.json": "786a2ec0b49380369357bdb8250fefdfd7b3e13afb420f023e4e6015cda6cee3",
+    "scripts/podview58-admission-reviewed.json": "c48d45ff8dc1f8fc5f977495c5020eaaae17c0b006efd7760209fe88e8c4537b"
+  },
   "tooling": {
     ".github/workflows/ci.yml": "065920403e4f7381bb82f55eabeaa54293d2f78e0563bc596c4ce298679637a7",
     "docs/COMPONENT-LIBRARY.md": "c19150b0ab7e15b19b12cb4d70ffd79c07c6bc60ded8cdf2af4756fd76ccfa55",
@@ -304,5 +316,6 @@
     "scripts/check_podview_admin_stdin.sh": "63e9c696589e7660b99035dcfca5d751814cde8e1f4b6593fa908bdcda576058",
     "scripts/provision_mood_budget.py": "70590ecc4ebc717fc0c2b00d824c561b607510380582fe2baef5cfdd84e54fda",
     "scripts/revoke-podview-controller.py": "1cae1f9f516e5fed803425ebbf17e0e255052b983794b3e5f9556deb85226201"
-  }
+  },
+  "asset_count": 143
 }

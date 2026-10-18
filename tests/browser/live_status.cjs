@@ -65,13 +65,28 @@ console.log('PASS: shipped projection identity, stale/unknown, measured coverage
   for(const [state,owner,reason,label] of cases){
     context.renderServices({openai:state,voicepe:'up',podconnect:'up',mcp:'degraded'},{openai:{source:owner,reason}},false);
     assert.equal(elements.svc.children[0].textContent,'ChatGPT: '+label);
-    assert.ok(elements.svc.children[0].title.includes(reason));assert.ok(elements.svc.children[0].title.includes(owner));
+    assert.ok(elements.svc.children[0].title.includes(reason));
+    if(owner==='aktiv Realtime-session') {
+      assert.ok(elements.svc.children[0].title.includes('Providerforbindelse ved seneste samtalestart via Voice PE'));
+      assert.ok(!elements.svc.children[0].title.includes(owner),'Daily tooltip uses semantic provenance, not the raw technical source');
+    } else assert.ok(elements.svc.children[0].title.includes(owner));
+    assert.ok(elements['service-details'].textContent.includes(reason),'Diagnostic reason remains exact');
+    assert.ok(elements['service-details'].textContent.includes(owner),'Diagnostic source remains exact');
     assert.ok(elements.svc.children[0].title.includes('Talk'));
     if(owner==='Realtime-forbindelse'||owner==='future') assert.ok(!elements.svc.children[0].title.includes('via Voice PE'),'Non-native source must retain neutral provenance');
     assert.equal(elements.svc.children[1].textContent,'Voice PE: wake-klar');
     assert.ok(elements.svc_announce.textContent.includes('ChatGPT '+label));
     assert.equal(elements.svc.children.length,4);
     assert.ok(!elements.svc.children[0].textContent.includes('samtale'));
+  }
+  for(const [reason,visible] of [['aktiv Realtime-session','Registreret providerstatus'],
+    ['Realtime-session aktiv','Registreret providerstatus'],['Realtime-session accepteret','Providerforbindelse accepteret']]) {
+    context.renderServices({openai:'up'},{openai:{source:'fixture probe',reason}},false);
+    assert.ok(elements.svc.children[0].title.includes(visible));
+    assert.ok(!elements.svc.children[0].title.includes(reason));
+    assert.ok(!elements.svc.children[0].title.includes('via Voice PE'),'A legacy reason does not establish native ownership');
+    assert.ok(elements['service-details'].textContent.includes(reason));
+    assert.ok(elements['service-details'].textContent.includes('fixture probe'));
   }
   context.renderServices({openai:'up',voicepe:'up'},{openai:{source:'aktiv Realtime-session',reason:'accepted'}},true);
   assert.equal(elements.svc.children[0].textContent,'ChatGPT: systemtest kører - midlertidigt låst');

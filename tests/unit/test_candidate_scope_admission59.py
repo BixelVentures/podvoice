@@ -26,20 +26,33 @@ def historical58_root(tmp_path_factory):
 def test_59_exact_scope_and_history():
     assert admission.BASE == PUBLISHED58_MERGE
     assert admission.VERSION == 36
-    assert admission.KIND == "provider59_status_identity"
+    assert admission.KIND == "provider59_status_identity_state_retention"
     assert admission.DOMAINS == ("unclassified_runtime",)
     assert admission.PRODUCTION == {
+        "podvoice/gatekeeper/static/podview/timer-view.js",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/index.html",
+        "podvoice/gatekeeper/static/podview/weather-view.js",
         "podvoice/gatekeeper/hub.py",
+        "podvoice/gatekeeper/static/podview/live-home-view.js",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
     }
     assert admission.REQUIRED_TESTS == {
         "tests/browser/live_status.cjs",
-        "tests/unit/test_panel_contract.py",
-        "tests/unit/test_candidate_scope_admission59.py",
         "tests/podview/runtime-identity.test.mjs",
+        "tests/unit/test_candidate_scope_admission59.py",
+        "tests/podview/root-timer-overview.test.mjs",
+        "tests/podview/account-visibility.test.mjs",
+        "tests/podview/canonical-next-timer-overview.test.mjs",
         "tests/unit/test_dev_cycle.py",
-        "tests/unit/test_candidate_scope_admission58.py",
         "tests/unit/test_runtime_identity_status.py",
+        "tests/podview/root-weather-view.test.mjs",
+        "tests/podview/root-robot-history-view.test.mjs",
+        "tests/podview/root-timer-access.test.mjs",
+        "tests/podview/canonical-next-robot-history-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission58.py",
+        "tests/podview/canonical-next-weather-view.test.mjs",
+        "tests/unit/test_panel_contract.py",
     }
     assert admission.HA_RUNTIME == published58.HA_RUNTIME
     assert admission.CONFIG == {
@@ -152,7 +165,7 @@ def test_59_full_validator_accepts_59_and_rejects_58_schema(monkeypatch, synthet
     "name",
     [
         "custom_components/podvoice/display_devices.py",
-        "podvoice/gatekeeper/static/podview/weather-view.js",
+        "podvoice/gatekeeper/static/podview/music-results.js",
         "podvoice/gatekeeper/talk.py",
     ],
 )
@@ -212,9 +225,7 @@ def test_59_cannot_rebaseline_immutable_published58(synthetic_record, name):
         path.write_bytes(before)
 
 
-@pytest.mark.parametrize(
-    "name", ["podvoice/gatekeeper/hub.py", "podvoice/gatekeeper/static/index.html"]
-)
+@pytest.mark.parametrize("name", sorted(admission.PRODUCTION))
 def test_59_rejects_unreviewed_bytes_inside_the_allowed_owner(synthetic_record, name):
     report = admission.legacy.inspect_repository(ROOT, admission.BASE)
     assert admission.validate(ROOT, report, admission.BASE, synthetic_record)
@@ -227,3 +238,36 @@ def test_59_rejects_unreviewed_bytes_inside_the_allowed_owner(synthetic_record, 
         assert not admission.validate(ROOT, report, admission.BASE, synthetic_record)
     finally:
         path.write_bytes(before)
+
+
+def test_59_asset_membership_and_reviewed_changes():
+    assert admission.ASSET_CHANGES == {
+        "timer-view.js",
+        "widget-view.js",
+        "live-home-view.js",
+        "weather-view.js",
+    }
+    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+    assert admission.assets_match59(ROOT, manifest["runtime"], 143)
+    for invalid_count in (True, 142, 144):
+        assert not admission.assets_match59(ROOT, manifest["runtime"], invalid_count)
+
+
+def test_59_unreviewed_asset_cannot_be_rebaselined_by_manifest():
+    name = admission.STATIC + "music-results.js"
+    manifest_name = admission.STATIC + "asset-manifest.json"
+    original = {p: admission.safe_file(ROOT, p) for p in (name, manifest_name)}
+    runtime = json.loads(admission.safe_file(ROOT, admission.MANIFEST))["runtime"]
+    try:
+        (ROOT / name).write_bytes(original[name] + b"\n")
+        assets = json.loads(original[manifest_name])
+        for row in assets["files"]:
+            if row["path"] == "music-results.js":
+                row["sha256"] = admission.sha(admission.safe_file(ROOT, name))
+        (ROOT / manifest_name).write_text(json.dumps(assets, indent=2) + "\n")
+        runtime.update({p: admission.sha(admission.safe_file(ROOT, p)) for p in original})
+        assert admission.asset_contract.assets_match56(ROOT, runtime, 143)
+        assert not admission.assets_match59(ROOT, runtime, 143)
+    finally:
+        for p, data in original.items():
+            (ROOT / p).write_bytes(data)

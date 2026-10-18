@@ -271,7 +271,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "4fad9ca063541fbf992693b0065712f701c7dcf55c5290217909510e3faa155a"
+      "sha256": "b8933704e58383b02a5010b1a4f1462f19b67e8ab45ba6e23d0f46e63553a664"
     },
     {
       "path": "live-media-view.js",
@@ -443,7 +443,7 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "2f1aa2dc6722a9222296481a18aaf16baaffcf17ec8fac404195aab201aa11f8"
+      "sha256": "5fbcdb0674bc6f5de043952070ef3724182dd0f81bc71b73c4e1761fdc7e6302"
     },
     {
       "path": "ui/catalog.js",
@@ -547,7 +547,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "118281db427d6293641559b024a268043114e4d687f9d5aa09ea949d0635ed91"
+      "sha256": "e547052f7754e20242d323e697063e0462e12c62aa38b08e1de5101bd33dfce7"
     },
     {
       "path": "widget-model.js",
@@ -563,7 +563,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "0c1556e3000c249556ff1da5396dda8188dec1852f028188fc43156cbf4bf6c0"
+      "sha256": "9519116469ba6f15c2c8c71a231473e37e3709f880eb167400235e6f39625ea6"
     },
     {
       "path": "workshop.css",

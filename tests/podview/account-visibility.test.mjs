@@ -8,6 +8,6 @@ const elements=new Map();
 const render=new Function('$','LiveMusicCatalogueView','LiveMusicSelectionView','renderLiveWeather','renderRobotHistory',`return ({${method}}).renderLive`)(id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);},null,null,()=>{},()=>{});
 for(const [name,hidden,count] of [['empty',true,0],['single',true,1],['multiple',false,2],['pending',true,0]])test(`host render preserves owner-controlled ${name} account visibility`,()=>{
  const accounts={hidden,children:[{},{}],data:{items:Array.from({length:count},(_,i)=>({id:`a${i}`}))}};
- const host={liveStatus:'connected',liveSnapshot:{capabilities:{musicRead:[],timerActions:[]},timers:{status:'unavailable'}},renderVoice(){},querySelectorAll(){return []},timerView:{form:{elements:[]},updatePicker(){}},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}},liveMedia:{accounts,render(){}}};
+ const host={liveStatus:'connected',liveSnapshot:{capabilities:{musicRead:[],timerActions:[]},timers:{status:'unavailable'}},renderVoice(){},querySelectorAll(){return []},timerView:{renderAccess(){}},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}},liveMedia:{accounts,render(){}}};
  render.call(host);render.call(host);assert.equal(accounts.hidden,hidden);
 });

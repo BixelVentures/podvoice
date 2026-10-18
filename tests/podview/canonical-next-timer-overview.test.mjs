@@ -56,8 +56,8 @@ test('retained hidden timer nodes cannot cause duplicate toast on overview or de
 test('successful timer start renders its countdown without a spurious start validation warning',async()=>{
  const {timerTransition}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
  const blocked={hidden:true},running={},list={children:[]},recent={hidden:true,querySelector:()=>({replaceChildren(){}})};
- const detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'.timer-recent':recent})[selector]};
- const form={elements:[]},view={nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};
+ const note={hidden:true,textContent:'',setAttribute(){}},detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'.timer-recent':recent,'#timers-live-note':note})[selector]};
+ const form={elements:[],setAttribute(){}},view={host:{live:false},renderAccess:TimerView.prototype.renderAccess,nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};
  const previous=globalThis.document;globalThis.document={getElementById:()=>null};
  try{
   let state={connected:true,focus:'timers',timer:null,extraTimers:[],timerHistory:[],timerSerial:0};

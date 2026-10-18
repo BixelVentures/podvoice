@@ -671,11 +671,16 @@ function renderServices(services, details, diagnosticActive) {
     var explanation = [detail.reason, detail.source].filter(Boolean).join(" · ");
     if (name === "openai") {
       var scope = detail.source === "aktiv Realtime-session"
-        ? "Seneste providerforbindelse via Voice PE; ikke bevis for aktuel samtale eller hørbar tale."
+        ? "Providerforbindelse ved seneste samtalestart via Voice PE; ikke bevis for aktuel samtale eller hørbar tale."
         : detail.source === "konfiguration"
           ? "Konfiguration er ikke en afprøvet providerforbindelse."
           : "Providerstatus fra den viste kilde; ikke bevis for aktuel samtale eller hørbar tale.";
-      explanation = [explanation, scope, "Talk har egen status i Talk-fanen."].filter(Boolean).join(" · ");
+      // Translate only the known technical marker; raw reason/source stay in details.
+      var providerReason = detail.reason === "Realtime-session accepteret" ? "Providerforbindelse accepteret" :
+        detail.reason === "aktiv Realtime-session" || detail.reason === "Realtime-session aktiv"
+          ? "Registreret providerstatus" : detail.reason;
+      explanation = [providerReason, detail.source === "aktiv Realtime-session" ? null : detail.source,
+        scope, "Talk har egen status i Talk-fanen."].filter(Boolean).join(" · ");
     }
     p.title = diagnosticActive && (name === "openai" || name === "voicepe")
       ? "Sikker systemtest kører. Prøv igen, når testen er færdig."

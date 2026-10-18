@@ -1,9 +1,10 @@
-## 2.0.59 — sand providerstatus og læsbar runtimeidentitet, ubundet kandidat
+## 2.0.59 — sand status og bevarede widgettilstande, ubundet kandidat
 
-- Beskriv konfiguration og seneste providerforbindelse uden at påstå vellykket samtale, svarlyd eller aktuel Talk-status. Bevar fejlårsager og kildeoplysninger; kun kendt native kilde tilskrives Voice PE.
-- Vis deklareret version, valideret commit og gemt build-identitet eller lokal kildeidentitet gennem den eksisterende statuslæsning. Det er ikke en ny måling af hele det kørende filsystem.
-- Bevar senest kendte oplysninger som historiske efter forbindelsestab. Metrics-only SSE gør ikke en gammel GET frisk; kun en aktuel vellykket normal statuslæsning kan genskabe frisk visning.
-- Ingen ny route, polling, bootidentitet, adgang, provider-, lyd-, HA- eller nativeændring. Alle143PodViewaktiver og manifest bevares. Uafhængigt metadatareview, officiel CI, udgivelse, installation og fysisk accept er særskilte.
+- Beskriv konfiguration og seneste providerforbindelse uden at påstå vellykket samtale, svarlyd eller aktuel Talk-status. Daglig tooltip bruger almindeligt sprog; tekniske kilder og fejlårsager bevares i detaljer.
+- Vis deklareret version, valideret commit og gemt build-identitet eller lokal kildeidentitet gennem eksisterende statuslæsning. Det er ikke en ny måling af hele det kørende filsystem. Kun en aktuel normal GET gør tidligere oplysninger friske; metrics-only SSE giver ingen identitetsautoritet.
+- Bevar den eksisterende timerformular eller faktiske timer ved manglende forbindelse eller rettighed. Et nyt timerudkast er mærket som udkast; afventende og ukendt udfald giver ingen gentagelse eller ny handlingsadgang.
+- Bevar den fælles vejrflade uden opdigtede værdier ved første tomme læsning. Robotters tomme og utilgængelige historik bruger den eksisterende tidslinje med sand tilstand.
+- Fire eksisterende PodView-ejere ændres inden for de samme komponentfamilier;143aktivernes medlemskab bevares og manifestet gendannes fra de faktiske bytes. Ingen ny route, polling, bootidentitet, adgang, provider-, lyd-, HA- eller nativeejer. Uafhængigt metadatareview, officiel CI, udgivelse, installation og fysisk accept er særskilte.
 
 ## 2.0.58 — sand status for Talk-beskeder, ubundet kandidat
 

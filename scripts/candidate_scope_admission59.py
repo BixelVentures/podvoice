@@ -10,8 +10,10 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 try:
+    from scripts import candidate_scope_admission56 as asset_contract
     from scripts import candidate_scope_admission58 as previous
 except ModuleNotFoundError:
+    import candidate_scope_admission56 as asset_contract
     import candidate_scope_admission58 as previous
 
 legacy = previous.legacy
@@ -19,7 +21,7 @@ strict = previous.strict
 sha = previous.sha
 safe_file = previous.safe_file
 BASE = "78d9dc7528b964d2986e50eee31ecdd0d942571b"
-KIND = "provider59_status_identity"
+KIND = "provider59_status_identity_state_retention"
 VERSION = 36
 ASSET_COUNT = 143
 MAX_ASSET_TOTAL_BYTES = 18 * 1024 * 1024
@@ -35,24 +37,45 @@ TOOLING = previous.TOOLING | frozenset(
 FIELDS = previous.FIELDS
 
 DOMAINS = ("unclassified_runtime",)  # Derived from the actual author delta against58.
-PRODUCTION = frozenset({"podvoice/gatekeeper/static/index.html", "podvoice/gatekeeper/hub.py"})
+PRODUCTION = frozenset(
+    {
+        "podvoice/gatekeeper/static/podview/timer-view.js",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/index.html",
+        "podvoice/gatekeeper/static/podview/weather-view.js",
+        "podvoice/gatekeeper/hub.py",
+        "podvoice/gatekeeper/static/podview/live-home-view.js",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
+    }
+)
 REQUIRED_TESTS = frozenset(
     {
         "tests/browser/live_status.cjs",
-        "tests/unit/test_panel_contract.py",
-        "tests/unit/test_candidate_scope_admission59.py",
         "tests/podview/runtime-identity.test.mjs",
+        "tests/unit/test_candidate_scope_admission59.py",
+        "tests/podview/root-timer-overview.test.mjs",
+        "tests/podview/account-visibility.test.mjs",
+        "tests/podview/canonical-next-timer-overview.test.mjs",
         "tests/unit/test_dev_cycle.py",
-        "tests/unit/test_candidate_scope_admission58.py",
         "tests/unit/test_runtime_identity_status.py",
+        "tests/podview/root-weather-view.test.mjs",
+        "tests/podview/root-robot-history-view.test.mjs",
+        "tests/podview/root-timer-access.test.mjs",
+        "tests/podview/canonical-next-robot-history-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission58.py",
+        "tests/podview/canonical-next-weather-view.test.mjs",
+        "tests/unit/test_panel_contract.py",
     }
+)
+ASSET_CHANGES = frozenset(
+    {"timer-view.js", "widget-view.js", "live-home-view.js", "weather-view.js"}
 )
 
 HA_RUNTIME = previous.HA_RUNTIME
 # Bindings intentionally remain blank until independent exact-tree review.
-REVIEWER = "Independent /root/astra_robot_component_unification NEXT59 combined provider-status and runtime-identity metadata and strict admission review"
-MANIFEST_SHA = "a024e0034b4338f61673711230f88ec285a70f1247e7686b0fcfeb5c7f064a08"
-PROFILE_AST = "9f52cd063f81477379a9f3db421ca9c2d3b841c60fe21b56626a1d7a4e17ba1f"
+REVIEWER = "Independent /root/astra_robot_component_unification NEXT59 expanded provider identity and retained widget state metadata and strict admission review"
+MANIFEST_SHA = "675f3e6739a91512303a68634d24eba7e3ec45b89572db7c15b9a970f3dc89db"
+PROFILE_AST = "d29a575d2681462347a7b7f0eb392553fac18ad25bc64c556e870b071e5775d0"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission58.py": "2ac5efaa740665be3fdb252f758a534913ee3bc7a4a7de16a462079cbd153983",
     "scripts/podview58-admission-reviewed.json": "c48d45ff8dc1f8fc5f977495c5020eaaae17c0b006efd7760209fe88e8c4537b",
@@ -99,12 +122,18 @@ ha_runtime_inventory = previous.ha_runtime_inventory
 
 
 def assets_match59(root: Path, runtime: dict, count: object) -> bool:
-    """Retain the reviewed 143-file inventory and strict 18 MiB asset cap."""
-    return previous.assets_match58(root, runtime, count) and all(
-        legacy._git(root, "hash-object", "--", name).strip()
-        == legacy._git(root, "rev-parse", f"{BASE}:{name}").strip()
-        for name in runtime
-        if name.startswith(STATIC)
+    """Keep strict 143-file/18 MiB checks; only four reviewed owners may differ58."""
+    if not asset_contract.assets_match56(root, runtime, count):
+        return False
+    baseline = json.loads(legacy._git(root, "show", f"{BASE}:{STATIC}asset-manifest.json"))
+    original = {STATIC + row["path"]: row["sha256"] for row in baseline["files"]}
+    assets = {name for name in runtime if name.startswith(STATIC)}
+    if assets != set(original) | {STATIC + "asset-manifest.json"}:
+        return False
+    return all(
+        runtime[name] == digest
+        for name, digest in original.items()
+        if name.removeprefix(STATIC) not in ASSET_CHANGES
     )
 
 

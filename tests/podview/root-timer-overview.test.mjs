@@ -52,3 +52,28 @@ test('retained hidden timer nodes cannot cause duplicate toast on overview or de
   current.dataset.timerId='other';TimerView.prototype.renderNotice.call(view,'photo',true,false);assert.equal(represented,null);
  }finally{globalThis.document=previous;}
 });
+
+test('successful timer start renders its countdown without a spurious start validation warning',async()=>{
+ const {timerTransition}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
+ const blocked={hidden:true,setAttribute(){}},running={},list={children:[]},recent={hidden:true,querySelector:()=>({replaceChildren(){}})};
+ const detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'#timers-live-note':blocked,'.timer-recent':recent})[selector]};
+ const form={elements:[],setAttribute(){}},view={host:{live:false},renderAccess:TimerView.prototype.renderAccess,nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};
+ const previous=globalThis.document;globalThis.document={getElementById:()=>null};
+ try{
+  let state={connected:true,focus:'timers',timer:null,extraTimers:[],timerHistory:[],timerSerial:0};
+  TimerView.prototype.render.call(view,state);assert.equal(form.hidden,false);
+  state=timerTransition(state,{type:'timer-start',seconds:60,now:1000});
+  // History rendering is covered separately; retain its signature here to
+  // isolate the actual current-timer render path that generated the warning.
+  view.history=JSON.stringify(state.timerHistory);
+  TimerView.prototype.render.call(view,state);
+  assert.equal(view.currentTimer.remaining,60);
+  assert.equal(form.hidden,true);
+  assert.equal(blocked.hidden,true,'a valid start must not display a conflict warning');
+  assert.equal(timerTransition(state,{type:'timer-start',seconds:120,now:1000}),state,'the single-timer guard must remain intact');
+  state=timerTransition(state,{type:'tick',now:61000});
+  TimerView.prototype.render.call(view,state);assert.equal(view.currentTimer.status,'done');assert.equal(blocked.hidden,true);
+  state=timerTransition(state,{type:'timer',id:state.timer.id,action:'cancel'});
+  TimerView.prototype.render.call(view,state);assert.equal(form.hidden,false);assert.equal(view.currentTimer,null);
+ }finally{globalThis.document=previous;}
+});

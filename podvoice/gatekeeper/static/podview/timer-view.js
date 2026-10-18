@@ -13,7 +13,7 @@ export class TimerView {
  constructor(host,detail,overview){
   this.host=host;this.detail=detail;this.overview=overview;this.nodes=new Map();this.connected=true;
   this.overviewList=overview.querySelector('.timer-active-list');this.shortcut=overview.querySelector('#open-timers');
-  detail.innerHTML=`<header class="response-heading"><div><h1 id="timers-title" tabindex="-1">Timere</h1><p>Hold styr på tiden</p></div></header>
+  detail.innerHTML=`<header class="response-heading"><div><h1 id="timers-title" tabindex="-1">Timere</h1><p>Hold styr på tiden</p></div></header><p id="timers-live-note" role="status" hidden></p>
    <form class="timer-create" aria-label="Ny timer"><h2>Ny timer</h2>
     <div class="timer-stepper"><button type="button" class="timer-adjust" data-adjust="-60" aria-label="1 minut mindre"><img src="assets/icons/dash.svg" alt=""></button><div class="timer-selected"><output aria-live="polite" aria-label="Valgt tid">5:00</output><span>min : sek</span></div><button type="button" class="timer-adjust" data-adjust="60" aria-label="1 minut mere"><img src="assets/icons/plus.svg" alt=""></button></div>
     <div class="timer-presets" aria-label="Faste tider">${[1,5,10,15,30].map(n=>`<button type="button" data-minutes="${n}" aria-pressed="${n===5}">${n} min.</button>`).join('')}</div>
@@ -41,19 +41,27 @@ export class TimerView {
    node.innerHTML=`<${tag} class="timer-open"><span class="timer-instrument" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="timer-track" cx="60" cy="60" r="54"/><circle class="timer-progress" cx="60" cy="60" r="54" pathLength="100"/></svg><span class="timer-count"></span></span><span class="timer-copy"><strong></strong><span class="timer-state"></span></span></${tag}><button class="timer-finish"></button>`;
    container.append(node);this.nodes.set(key,node);
    if(overview)node.querySelector('.timer-open').addEventListener('click',()=>{this.host.dispatch({type:'show',id:'timers'});this.host.focusHeading();});
-   node.querySelector('.timer-finish').addEventListener('click',()=>{this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'cancel'});this.host.focusHeading();});
+   node.querySelector('.timer-finish').addEventListener('click',()=>{if(!this.canCancel)return;this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'cancel'});this.host.focusHeading();});
   }
   const progress=timerProgress(t);node.hidden=false;node.dataset.timerId=t.id;node.dataset.status=t.status;node.dataset.progressKnown=String(progress!==null);node.style.setProperty('--progress',progress??0);node.querySelector('.timer-count').textContent=timerTime(t.remaining);node.querySelector('.timer-instrument').dataset.long=String(t.remaining>=3600);
   node.querySelector('.timer-copy strong').textContent=t.name||'Timer ved bordet';const status=t.displayState||(t.stale||t.status!=='running'||t.deadline===null?timerStateLabel(t):`Slutter ${new Date(t.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace('.',':')}`);node.querySelector('.timer-state').textContent=status;
   node.querySelector('.timer-open').setAttribute('aria-label',`${t.name||'Timer'} · ${timerTime(t.remaining)} · ${status}${key.startsWith('overview:')?' · Åbn timerdetaljer':''}`);
   const finish=node.querySelector('.timer-finish');finish.textContent=timerFinishLabel(t);finish.setAttribute('aria-label',`${timerFinishLabel(t)} ${t.name||'timer'}`);return node;
  }
+ renderAccess({connected,canStart=connected,canCancel=connected,pending=false,waiting=pending,awaitingObservation=false,feedback=''}={}){
+  const blocked=pending||awaitingObservation;this.connected=connected===true;this.canStart=this.connected&&canStart===true&&!this.currentTimer&&!blocked;this.canCancel=this.connected&&canCancel===true&&!blocked;
+  // Visibility belongs to timer content, never to controller authority. A
+  // disabled draft is still the same draft; it is not an observed timer.
+  this.form.hidden=!!this.currentTimer;this.form.setAttribute('aria-busy',String(waiting));
+  for(const input of this.form.elements)input.disabled=!this.canStart;this.updatePicker();
+  for(const node of this.nodes.values()){const finish=node.querySelector('.timer-finish');finish.hidden=false;finish.disabled=!this.canCancel;}
+  const note=this.detail.querySelector('#timers-live-note');note.hidden=!feedback;note.textContent=feedback;note.setAttribute('aria-busy',String(waiting));
+ }
  render(s){
   const projection=timerPresentation(timersFor(s));for(const node of this.nodes.values())node.hidden=true;this.overviewList.hidden=!projection.current;this.shortcut.hidden=!!projection.current;
   const current=projection.current;this.currentTimer=current;if(current){const node=this.card(current,this.overviewList,`overview:${current.id}`);if(this.overviewList.children[0]!==node)this.overviewList.insertBefore(node,this.overviewList.children[0]||null);}
   const list=this.detail.querySelector('.timer-active-list');if(current){const node=this.card(current,list,`detail:${current.id}`);if(list.children[0]!==node)list.insertBefore(node,list.children[0]||null);}
-  this.detail.querySelector('.timer-running').hidden=!current;this.detail.hidden=s.focus!=='timers';this.connected=s.connected;this.canStart=projection.canStart;this.form.hidden=!this.canStart;
-  for(const input of this.form.elements)input.disabled=!s.connected||!this.canStart;this.updatePicker();
+  this.detail.querySelector('.timer-running').hidden=!current;this.detail.hidden=s.focus!=='timers';this.renderAccess(this.host.live?{connected:false,canStart:false,canCancel:false}:{connected:s.connected});
   const demoStart=document.getElementById('start-timer');if(demoStart)demoStart.disabled=!this.canStart;
   const history=s.timerHistory||[],signature=JSON.stringify(history);if(signature!==this.history){this.history=signature;const section=this.detail.querySelector('.timer-recent'),recent=section.querySelector('div');recent.replaceChildren();section.hidden=!history.length;for(const item of history){const b=document.createElement('button');b.type='button';const title=document.createElement('strong'),duration=document.createElement('span');title.textContent=item.name;duration.textContent=timerTime(item.seconds);b.append(duration,title);b.setAttribute('aria-label',`Brug ${timerTime(item.seconds)} til ${item.name}`);b.addEventListener('click',()=>{this.fill(item);this.form.scrollIntoView({block:'nearest',behavior:'instant'});this.form.querySelector('.timer-start').focus({preventScroll:true});});recent.append(b);}}this.detail.querySelector('.timer-recent').hidden=!history.length||!this.canStart;
  }
