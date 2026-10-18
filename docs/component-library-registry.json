@@ -740,7 +740,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "arrow:current": 1,
+          "arrow:current": 2,
           "arrow:make": 1,
           "class:LiveAnswerView": 1,
           "function:answerReadContext": 1,
@@ -753,7 +753,11 @@
           "arrow:expiresAt": 1,
           "function:answerOwnerContext": 1,
           "method:onSnapshot": 1,
-          "method:pruneExpired": 1
+          "method:pruneExpired": 1,
+          "method:remember": 1,
+          "method:retained": 1,
+          "arrow:scoped": 1,
+          "method:refreshHistory": 1
         },
         "roots": [
           "factory:button:'Luk'"

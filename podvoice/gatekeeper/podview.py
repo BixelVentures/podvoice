@@ -220,6 +220,9 @@ class PodViewBridge:
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
         self.boot_id = secrets.token_hex(16)
+        receipt_owner = getattr(tools, "podview_receipts", None)
+        if receipt_owner is not None and hasattr(receipt_owner, "bind_history_boot"):
+            receipt_owner.bind_history_boot(self.boot_id)
         from .podview_controls import TouchControls
         from .podview_music_control import MusicControlFacade
 
@@ -1164,11 +1167,25 @@ class PodViewBridge:
         answers = (
             receipt_owner.snapshot(room, self.sessions[room]) if receipt_owner is not None else None
         )
+        history = (
+            receipt_owner.history(room, self.sessions[room], include_items=False)
+            if receipt_owner is not None and hasattr(receipt_owner, "history")
+            else None
+        )
         latest_answer = answers["items"][0] if answers and answers["items"] else {}
         result: dict = {
             **(
                 {"visualPending": answers["pending"]}
                 if active and not closing and answers and answers.get("pending")
+                else {}
+            ),
+            **(
+                {
+                    "answerHistoryRevision": history["revision"],
+                    "answerHistoryRemovalRevision": history["removalRevision"],
+                    "answerHistoryReceiptIds": history["receiptIds"],
+                }
+                if history is not None
                 else {}
             ),
             "answers": {
@@ -1883,12 +1900,28 @@ async def _answers(request: web.Request) -> web.Response:
         return denied
     bridge = request.app[BRIDGE]
     room = _room(request, bridge)
-    if room is None or set(request.query) - {"room"}:
+    if (
+        room is None
+        or set(request.query) - {"room", "history"}
+        or any(len(request.query.getall(key)) != 1 for key in request.query)
+    ):
         return _error("unknown_room", 404)
     sink = getattr(bridge.tools, "podview_receipts", None)
     if sink is None:
         return _error("answers_unavailable", 404)
     receipt_id = request.match_info.get("receipt_id")
+    if "history" in request.query:
+        if request.query["history"] != "1" or receipt_id is not None:
+            return _error("invalid_history_read", 400)
+        return web.json_response(
+            {
+                "schema": "podview.answer-history.v1",
+                "roomId": room,
+                "bootId": bridge.boot_id,
+                **sink.history(room, bridge.sessions[room]),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
     if receipt_id is not None:
         if re.fullmatch(r"[a-f0-9]{32}", receipt_id) is None:
             return _error("unknown_source", 404)
@@ -2163,7 +2196,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     bridge._music_busy = True
     if writable:
         bridge._retire_music_source(token)
-    diagnostic, diagnostic_token = diagnostic_log.begin()
+    diagnostic, diagnostic_token = diagnostic_log.begin(kind=kind)
     total_deadline = None
 
     def failed(error):

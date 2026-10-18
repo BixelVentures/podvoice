@@ -32,7 +32,7 @@ def test_closed_fields_and_context_reset_even_if_log_handler_raises(caplog, monk
     diag.note(SECRET, SECRET)
     diag.finish(record, token)
     assert terminal(caplog) == [
-        "mood_result phase=other outcome=other reason=other http_status=none"
+        "mood_result phase=other outcome=other reason=other http_status=none kind=mood"
     ]
     assert diag._CURRENT.get() is None
     record, token = diag.begin()
@@ -65,8 +65,8 @@ async def test_concurrent_contexts_never_mix_and_nested_task_inherits_only_own_a
     release.set()
     await task
     assert terminal(caplog) == [
-        "mood_result phase=publish outcome=success reason=none http_status=none",
-        "mood_result phase=model outcome=mood_unavailable reason=model_timeout http_status=none",
+        "mood_result phase=publish outcome=success reason=none http_status=none kind=mood",
+        "mood_result phase=model outcome=mood_unavailable reason=model_timeout http_status=none kind=mood",
     ]
     assert diag._CURRENT.get() is None
 
@@ -117,7 +117,7 @@ async def test_actual_model_failure_is_classified_without_raw_error_or_extra_cal
     diag.finish(record, token)
     assert len(sends) == 1 and allowance.remaining == 0
     assert terminal(caplog) == [
-        f"mood_result phase=model outcome=mood_unavailable reason={reason} http_status={status}"
+        f"mood_result phase=model outcome=mood_unavailable reason={reason} http_status={status} kind=mood"
     ]
     assert SECRET not in caplog.text and diag._CURRENT.get() is None
 
@@ -148,7 +148,7 @@ async def test_actual_coarse_context_reports_only_failure_category(caplog, mode,
     assert await router.podview_mood_context(lambda: True) is None
     diag.finish(record, token)
     assert terminal(caplog) == [
-        f"mood_result phase=time_context outcome=mood_unavailable reason={reason} http_status=none"
+        f"mood_result phase=time_context outcome=mood_unavailable reason={reason} http_status=none kind=mood"
     ]
     assert SECRET not in caplog.text
     assert owner.call_tool.await_count == (0 if mode in {"mcp_missing", "tool_missing"} else 1)
@@ -207,3 +207,36 @@ def test_monotonic_phase_timings_are_bounded_closed_and_do_not_log_content(caplo
     diag.finish(record, token)
     assert "total_ms=60000 playback_before_ms=60000" in caplog.records[-1].getMessage()
     assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("kind", ["mood", "feeling"])
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "owner_unavailable",
+        "refresh_required",
+        "budget_unavailable",
+        "selection_unavailable",
+        "catalogue_unavailable",
+        "catalogue_empty",
+        "owner_replaced",
+        "source_rejected",
+        "unavailable",
+    ],
+)
+def test_tab_failure_outcomes_remain_distinct(caplog, kind, suffix):
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    record, token = diag.begin(kind=kind)
+    record.outcome = f"{kind}_{suffix}"
+    diag.finish(record, token)
+    assert f"outcome={kind}_{suffix}" in caplog.text
+    assert f"kind={kind}" in caplog.text
+    assert diag._CURRENT.get() is None
+
+
+def test_tab_kind_is_closed_even_after_mutation(caplog):
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    record, token = diag.begin(kind=SECRET)
+    record.kind = [SECRET]
+    diag.finish(record, token)
+    assert "kind=other" in caplog.text and SECRET not in caplog.text

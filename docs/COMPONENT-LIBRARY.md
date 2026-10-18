@@ -32,6 +32,8 @@ Den fælles tilstandskontrakt nedenfor gælder alle ejede komponenter, både lok
 
 `visual-history` og headerens eksplicitte QA-stages er lokale prøvedata og må ikke fylde almindelig/live-historik. Ti lokale QA-formater er data til eksisterende renderere, ikke ti nye komponenter eller bevis for ti liveproducenter.
 
+Historiske, tidligere kildeadmitterede svar bruger samme `pv-answer` og preview-anatomi med original dato og en eksplicit intern historisk tilstand. Tilstanden giver ingen kilde-, retry- eller betjeningsadgang og indlæser ikke udløbne fjernbilleder. Hydrering bevarer uændrede kort; autoritativ fjernelse påvirker kun de pågældende svar. Den afgrænsede reload-/rum-/bootkontrakt står i PODVIEW-CONTRACT.md. Kandidatkode er ikke installeret Green-accept.
+
 ## Workshop og historisk præsentationsgæld
 
 `dist/library.html`, `dist/patterns.html`, `dist/components.html`, `dist/scenes.html`, `dist/legacy.html` og deres historiske moduler er reference. De er ikke alternative godkendte produktindgange. Det samme gælder katalogets ubrugte roller: eksempelvis workshop-versionerne `pv-music-results`, `pv-now-playing`, `pv-transport-controls`, `pv-queue-view`, `pv-timer-widget` og `pv-activity-card`. Produktet har allerede ejede renderere for disse behov. At en rolle findes i kataloget eller registreres af det fælles modul giver ikke tilladelse til at tage den i brug.

@@ -315,34 +315,34 @@ test('same-task source disclosure keeps shell but removes stale body and revalid
  }finally{f.restore();}
 });
 
-test('real owner changes revoke retained receipts and open disclosures immediately',async()=>{
+test('owner changes revoke live reads; only boot and room replacement clear history',async()=>{
  for(const mutate of [s=>({...s,bootId:'boot-b'}),s=>({...s,roomId:'room-b'}),s=>({...s,answers:{...s.answers,taskId:'task-b'}}),s=>({...s,answers:{...s.answers,inputRevision:2}}),s=>({...s,answers:{...s.answers,sessionEpoch:9}}),s=>({...s,answers:{...s.answers,providerGeneration:9}}),s=>({...s,capabilities:{answerRead:false}})]){
   const f=fixture();try{
    await f.read();f.host.liveTransport.source=async()=>sourceResponse();await f.view.showSource(receiptId,f.active);
-   acceptSnapshot(f,mutate(f.host.liveSnapshot));
-   assert.equal(f.host.state.answers.length,0);assert.equal(f.view.dialog.open,false);
+   const before=f.host.liveSnapshot,next=mutate(before);acceptSnapshot(f,next);
+   const reset=before.bootId!==next.bootId||before.roomId!==next.roomId;assert.equal(f.host.state.answers.length,reset?0:1);if(!reset)assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.view.dialog.open,false);
    assert.ok(!f.view.currentAnswer(receiptId));
   }finally{f.restore();}
  }
 });
 
-test('authoritative same-task empty response removes retained answer and disclosure',async()=>{
+test('authoritative empty response removes live authority and preserves historical display',async()=>{
  const f=fixture();try{
   await f.read();f.host.liveTransport.source=async()=>sourceResponse();await f.view.showSource(receiptId,f.active);
   acceptSnapshot(f,nextRevision(f));const fresh=f.answer();fresh.revision=3;fresh.items=[];
   f.host.liveTransport.answers=async()=>fresh;await f.view.refresh();
-  assert.equal(f.host.state.answers.length,0);assert.equal(f.view.dialog.open,false);
+  assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.view.dialog.open,false);
  }finally{f.restore();}
 });
 
-test('expired retained receipt loses source access and disappears at its original expiry callback',async()=>{
+test('expired receipt loses source access and becomes historical at original deadline',async()=>{
  const f=fixture();const previousNow=Date.now,previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout;
  try{
   let now=Date.now();Date.now=()=>now;let expiry;
   globalThis.setTimeout=callback=>{expiry=callback;return {unref(){}};};globalThis.clearTimeout=()=>{};
   await f.read();f.host.liveTransport.source=async()=>sourceResponse();await f.view.showSource(receiptId,f.active);
   assert.equal(typeof expiry,'function');now+=120001;assert.equal(f.view.currentAnswer(receiptId),undefined);expiry();
-  assert.equal(f.host.state.answers.length,0);assert.equal(f.view.dialog.open,false);
+  assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.view.dialog.open,false);
  }finally{Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;f.restore();}
 });
 
@@ -351,7 +351,7 @@ test('superseded same-task reads and source completions cannot republish after r
   await f.read();const sourceRead=deferred();f.host.liveTransport.source=()=>sourceRead.promise;
   const pendingSource=f.view.showSource(receiptId,f.active);
   acceptSnapshot(f,nextRevision(f));const answersRead=deferred();f.host.liveTransport.answers=()=>answersRead.promise;
-  const pending=f.view.refresh();acceptSnapshot(f,{...f.host.liveSnapshot,capabilities:{answerRead:false}});
+  const pending=f.view.refresh();f.view.invalidate(true,true);
   const fresh=f.answer();fresh.revision=3;answersRead.resolve(fresh);sourceRead.resolve(sourceResponse());
   await pending;await pendingSource;assert.equal(f.host.state.answers.length,0);
   assert.equal(f.view.dialog.open,false);assert.equal(f.view.body.children.length,0);
