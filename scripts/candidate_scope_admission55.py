@@ -61,8 +61,8 @@ HA_RUNTIME = previous.HA_RUNTIME
 REVIEWER = (
     "Independent /root/ui41_source_review PV55 admission metadata and exact unsigned scope reviewer"
 )
-MANIFEST_SHA = "983445628b0838ddb38c42a210484da008d65893bb00776808abb00c24986139"
-PROFILE_AST = "9558d1c765d1bcaa16b83b1fd41e542f72955fb051ce973963642c0c9594543a"
+MANIFEST_SHA = "3993c0ab1373e7ca39065f344bc8c347879738a1c743a926cc2bea64fb71ba9b"
+PROFILE_AST = "6de1c2ecba7c5cef67107874f2d62bc9acbe59c98fdc5951c8d463c2e4b53f26"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
     "scripts/podview54-admission-reviewed.json": "2fa24070a9db06c252d210f7b5a489b2778696755edcc731fd45421ad060544c",

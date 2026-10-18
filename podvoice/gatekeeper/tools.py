@@ -2179,7 +2179,7 @@ class ToolRouter:
             daily = project(_mcp_result_to_contract(result))
             if daily["status"] != "observed" or daily["data"]["forecastType"] != "daily":
                 return unavailable
-            hourly = unavailable
+            hourly: dict = unavailable
             try:
                 result = await asyncio.wait_for(
                     call({"forecast_type": "hourly"}),
