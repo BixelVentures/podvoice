@@ -1,3 +1,9 @@
+## 2.0.54 — bundet musikstart og afgrænset bootstrap-recovery, kandidat
+
+- Start et eksplicit musikvalg direkte på det validerede, bundne rum med én handling; bevar ukendt udfald uden automatisk gentagelse.
+- Ved afvist controller-fornyelse bevares læsevisning uden ny tilmeldingshandling eller straks-gentagne forsøg; en ny eksplicit start skal stadig bestå frisk validering.
+- Bevar alle143 aktiver og den eksisterende musik-, player- og transportejer. Kanoniske browser- og testresultater er ikke installeret eller fysisk Green-accept.
+
 ## 2.0.53 — tydelig tom musikstatus, kandidat
 
 - Vis kun forbindelsesfejlen, når der ikke findes tidligere musikresultater; beholdte kort får fortsat katalogets eksisterende status.

@@ -1,3 +1,32 @@
+<!-- podview54-admission
+{
+  "version": 31,
+  "kind": "podview54_direct_room_start",
+  "reviewer": "Independent /root/ui41_source_review NEXT54 source adoption, scoped legacy migration, and exact unsigned admission reviewer",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "c89d429937dbbbc1195b363f9dc531fa185e3d22",
+  "merge_base": "c89d429937dbbbc1195b363f9dc531fa185e3d22",
+  "rationale": "NEXT54 adopts exactly five frozen canonical PodView owners for direct bound-room Play, retained player feedback and read-only bootstrap recovery after optional renewal denial. All143 assets match canonical pins; seven source regressions are import-only adapters, four legacy fixture expectations migrate only superseded picker/confirmation/denial behavior, and historical53 keeps its own immutable positive validation plus successor rejection. Root867 canonical tests/component gate and bounded inert browser QA are separate from official CI, installation, live Mac access, native transport and physical acceptance. No backend credential mechanism, household policy or native-version change is included.",
+  "fingerprint": "255a385a9917fe79c126c8b648529e3bbf6ca3b1172688e9f095c8d403307b33",
+  "regression_fingerprint": "38eb375a6f03e61ba77932beb478c81d25a06a7e92c073a992e8253bc43cce7f",
+  "runtime_fingerprint": "b20a2757c9460a20c47d98eb0f75d4721d30127e03cdc356ecede29ee18a47b2",
+  "config_fingerprint": "c724e03e1e9cd0a09024531582f44d3c2b6433bebba5f6392b13d7633fa7df7f",
+  "policy_fingerprint": "0a50c174b0672e7ab0182944725f11db45a94497d938a4bcf755c67441473784",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "fa83e1d98e664613db7db6568a2ee8bfabaf996b61dc8b4906eb755881af78e0"
+}
+-->
+
+## NEXT54 — aktiv lead-beslutning: direkte bundet musikstart og afgrænset bootstrap-recovery
+
+18/10: 54 bygges mod den faktiske53-merge `c89d429937dbbbc1195b363f9dc531fa185e3d22` og dens tree `eeeb07c3abf00e83ffe0c5020496e9c761f4fc3b`. Ændringen er begrænset til fem eksisterende musik-, player-, transport- og CSS-ejere samt manifestpins for de samme143 aktiver. Syv kanoniske regressionsforløb mappes til add-onens statiske kilde. Fire direkte berørte legacy-fixtures opdaterer kun forældede dialog-/pickerforventninger og optional-renew-denial-semantik; ejer-, expiry-, nonce-, no-replay- og fokusværn bevares. Den aktive Green-baseline er fortsat53; kandidat54 er endnu ikke installeret og fysisk musik-, lyd- og Green-accept står åben.
+
+Kanonisk root-pakke har kildeadoption,867/867 npm-tests og komponentgate54 bestået. Afgrænset IAB-browser-QA er bestået ved1024×600,1024×480 og390×844 med inert testdata og blokerede eksterne forbindelser. Det beviser ikke fuld HA-bootstrap, fysisk afspilning, provideradgang eller installeret accept. Controller-fornyelsesfejlen har deterministiske regressionsbeviser; faktisk installeret årsag forbliver ikke fysisk efterprøvet.
+
+Planlagt build: streng54-admission mod faktisk53 med immutable52/53-profiler og manifests; schema-positive/negative tests bevares. Første målrettede prøve fandt22 forældede forventninger i fire eksisterende testfiler; efter minimale test-only-migreringer består de fire filer68/68. De syv adapterede kanoniske tests består129/129 på uændrede testbytes. Reviewer, manifest- og AST-bindinger er bevidst tomme indtil uafhængigt exact-tree-review. Officiel CI, publicering, installation og samlet fysisk accept er separate efterfølgende trin. Ingen providerkald eller fysisk effekt indgår i denne lokale integration.
+
 <!-- podview53-admission
 {
   "version": 30,

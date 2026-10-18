@@ -96,7 +96,7 @@ test('search-capability revoke then restore cannot revive a held search',async()
  assert.equal(view.source,null);assert.equal(view.offer,null);
 });
 
-test('new start policy stays separate from manual observed volume and does not require a name in the closed offer target',()=>{
+test('start policy stays separate from observed volume and direct action uses only validated start volume',()=>{
  const source=searchSample(result(),'account','sang',snapshot());
  const body={...offer(),observedVolumePercent:27};
  const parsed=selectionOffer(body,source,target);
@@ -105,14 +105,7 @@ test('new start policy stays separate from manual observed volume and does not r
  const legacy={...offer(),observedVolumePercent:35};delete legacy.startVolumePercent;
  assert.equal(selectionOffer(legacy,source,target),null);
  for(const bad of [-1,101,35.5,'35',null])assert.equal(selectionOffer({...offer(),startVolumePercent:bad},source,target),null);
- const nodes=()=>({textContent:'',disabled:true,open:false,showModal(){this.open=true;}});
- const view=Object.create(LiveMusicSelectionView.prototype);
- Object.assign(view,{host:{liveSnapshot:snapshot()},source,offer:parsed,account:'account',pending:false,used:false,detail:nodes(),volume:nodes(),confirmButton:nodes(),dialog:nodes()});
- view.openConfirm(0);
- assert.match(view.volume.textContent,/Startlydstyrke: 35 %/);assert.doesNotMatch(view.volume.textContent,/27|observeret/i);
- assert.match(view.detail.textContent,/Køkkenalrum HomePod/);assert.equal(view.dialog.open,true);
 });
-
 test('manual 27 percent never replaces explicit 35 percent start confirmation on the wire',async()=>{
  let sent;const t=new PodVoiceTransport({url:'https://home.example/view/',fetch:async(_url,init)=>{sent=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,outcome:'accepted',requestId:sent.requestId,retryAllowed:false,physicalResultVerified:false})};}});
  t.connected=true;t.snapshot=snapshot();
@@ -122,21 +115,19 @@ test('manual 27 percent never replaces explicit 35 percent start confirmation on
  assert.equal('target' in sent,false);assert.equal('uri' in sent,false);t.close();
 });
 
-test('shared confirmation dialog keeps an accessible name and sends only its exact admitted option',async()=>{
+test('search controls retain accessible names while admitted music action sends without a confirmation dialog',async()=>{
  const previous=globalThis.document;
  class Element extends EventTarget{constructor(tag){super();this.tagName=tag;this.children=[];this.attributes={};}append(...nodes){this.children.push(...nodes);}setAttribute(k,v){this.attributes[k]=v;}showModal(){this.open=true;}close(){this.open=false;}replaceChildren(){this.children=[];}}
- globalThis.document={createElement:tag=>new Element(tag)};
+ globalThis.document={createElement:tag=>new Element(tag),activeElement:null};
  try{
-  const calls=[],host={isConnected:true,liveSnapshot:snapshot(),liveMedia:{account:'account'},querySelector:()=>new Element('div'),append(){},liveTransport:{connected:true,musicSelectionAction:async(task,id)=>{calls.push(id);return {outcome:'accepted'};}}};
+  const calls=[],host={isConnected:true,state:{focus:'music'},liveSnapshot:snapshot(),liveMedia:{account:'account',render(){}},querySelector:()=>new Element('div'),append(){},liveTransport:{connected:true,musicSelectionAction:async(_offer,id)=>{calls.push(id);return {outcome:'accepted'};}}};
   const view=new LiveMusicSelectionView(host);
   let searches=0,setups=0;view.search=()=>searches++;view.setup=()=>setups++;
   const submitEvent=new Event('submit',{cancelable:true});view.form.dispatchEvent(submitEvent);view.targetSelect.dispatchEvent(new Event('change'));
   assert.equal(submitEvent.defaultPrevented,true);assert.equal(searches,1);assert.equal(setups,1);assert.equal(calls.length,0);
   assert.equal(view.input.type,'search');assert.equal(view.input.maxLength,160);assert.equal(view.input.required,true);assert.equal(view.input.attributes['aria-label'],'Søg efter en sang');assert.equal(view.targetSelect.attributes['aria-label'],'Vælg højttaler');
-  view.account='account';view.source=searchSample(result(),'account','sang',snapshot());view.offer=selectionOffer(offer(),view.source,target);view.render=()=>{};
-  view.openConfirm(0);assert.equal(view.dialog.open,true);assert.equal(view.dialog.attributes['aria-labelledby'],view.title.id);assert.equal(view.title.textContent,'Bekræft musik');
-  assert.equal(view.confirmButton.className,'pv-button pv-primary');assert.equal(view.confirmButton.type,'button');
-  view.confirmButton.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls,['c'.repeat(24)]);assert.equal(view.used,true);assert.equal(view.dialog.open,false);
-  view.confirmButton.dispatchEvent(new Event('click'));await Promise.resolve();assert.equal(calls.length,1);assert.match(view.note.textContent,/modtaget/);
+  view.account='account';view.source=searchSample(result(),'account','sang',snapshot());view.offer=selectionOffer(offer(),view.source,target);view.searchScope=view.context();view.intent={focus:globalThis.document.activeElement,binding:JSON.stringify(host.liveSnapshot.mediaRoomBindings),owner:JSON.stringify([host.liveSnapshot.providerGeneration,host.liveSnapshot.voice,host.liveSnapshot.sessionId,host.liveSnapshot.taskId,host.liveSnapshot.inputRevision])};view.render=()=>{};
+  await view.openConfirm(0);assert.equal(view.dialog.open,false);assert.deepEqual(calls,['c'.repeat(24)]);assert.equal(view.used,true);
+  await view.openConfirm(0);assert.equal(calls.length,1);assert.equal(view.dialog.open,false);assert.equal(view.feedback.pending,false);assert.match(view.feedback.message,/modtaget/);
  }finally{globalThis.document=previous;}
 });

@@ -645,3 +645,23 @@ pv-widget-host #now-view #device-activities .resource-preview[data-kind=vacuum] 
 #music-response #empty{margin:0}
 
 #music-refinements button:focus-visible{outline-offset:-4px}
+/* A direct play request keeps its existing status slot visible when returning to Ro. */
+[data-view=rest][data-selection-feedback=true] .player .output #player-state{display:block}
+
+/* Keep the existing empty-player feedback slot stable across one/two-line receipts. */
+pv-widget-host[data-view=active][data-selection-feedback=true] #player-empty p{min-height:2.9em}
+
+/* Feedback is information even while the output action is unavailable. */
+[data-selection-feedback=true] #output:disabled{opacity:1}
+[data-selection-feedback=true] #output:disabled .output-room img,[data-selection-feedback=true] #output:disabled>img{opacity:.6}
+[data-view=rest][data-selection-feedback=true] .player .output h2{white-space:normal;overflow:visible;text-overflow:clip}
+@media(min-width:760px){
+ [data-view=rest][data-selection-feedback=true] .player{height:auto;min-height:136px;grid-template-rows:minmax(44px,auto) auto}
+}
+
+/* Missing artwork is an icon on the existing card surface, never a stretched cover. */
+.result:has(>.result-art.live-art-fallback){background:#243f3e}
+.result .result-art.live-art-fallback{position:static;inset:auto;align-self:flex-start;flex:none;width:40px;height:40px;padding:0;margin-bottom:auto;background:transparent;object-fit:contain;filter:invert(1);z-index:0;transform:none;transition:none}
+@media(max-width:759px){
+ .result .result-copy h2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere}
+}
