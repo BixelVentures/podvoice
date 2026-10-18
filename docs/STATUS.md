@@ -1,3 +1,70 @@
+<!-- podview49-admission
+{
+  "version": 26,
+  "kind": "podview49_locality_lifecycle",
+  "reviewer": "Independent /root/astra_robot_component_unification NEXT49 source and admission draft review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "d6c1cfe7c761a80056771af5f9ccccbc1fdd2437",
+  "merge_base": "d6c1cfe7c761a80056771af5f9ccccbc1fdd2437",
+  "rationale": "NEXT49 applies the independently reviewed bounded shared locality lookup lifecycle and optional sixty-second display validity. Exact source timestamps, owner and access fences, two-second config deadline, weather latency, seven-key private-safe metadata and offline geography remain preserved. No new action lease, household effect, polling or external destination. Source/admission checks are separate from CI, publication, installation and physical locality acceptance.",
+  "fingerprint": "ff88ce7a85b277a087a68d7b0f3359a5321ca787b37ba23ba704abcbf3909ceb",
+  "regression_fingerprint": "b58257ff05aafac4947576249b19c1f46eb1546fa77d534bed08db39556209ae",
+  "runtime_fingerprint": "63199b1295b8b3a2fc5f73b0d3142f9779294dc09f676fe058d43c4f4846fc5f",
+  "config_fingerprint": "0fda8cbb79a5fc6fd30967245443560557c9231eb05231cbdfef6d5ce0c45beb",
+  "policy_fingerprint": "4aa7e494fdd34f6fb003c24dd33beb22f413abd083b08067d93ae2130794b02b",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "c087ffe4b87fa92b6bc20c7dbf6780572ffd3f51bea1cf1186277371e0f8ce04"
+}
+-->
+
+## NEXT49 — aktiv lead-beslutning, isoleret arbejde 18/10
+
+Lead /root har godkendt den afgrænsede lokalitetslivscyklusrettelse på archive
+914c74eb (NEXT48). Faktisk installeret baseline er 47; kilde-RED fra faktisk
+_home/ToolRouter viser systematisk cancellation af gyldig 50ms config ved hurtigere
+vejr. Det er ikke bevist som årsagen på Green. Hjem-cachen er fem sekunder; normal
+snapshotdreven hjemmelæsning sker efter mere end 15 sekunder.
+
+Hypotese: ét ToolRouter-ejet bounded single-flight opslag, hvis gyldige resultat kan
+bruges ved næste hjemmelæsning, fjerner starvation uden at forsinke vejret. Bevar
+syvnøglemetadata, 60s display-TTL, 2s configdeadline, offline dataset/geografigates, fast
+intern HA-modtager og eksisterende adgangs-/bindingkontrol. Ingen retimestamping,
+provider/AI, ny UI, poll/timer/retry eller ændring af ThinSession/samtaleclose.
+App-cleanup skal afbryde/dræne og rydde ejeren. Eksisterende label må bevares under
+fornyelse, men faktisk invalid/ambiguous/authloss skal fjerne den.
+
+Planlagte tests: real _home 0/4/16…96, første hurtige vejr mod 50ms/1,9s config,
+single-flight ved samtidighed, cache/expiry og uændrede tidsstempler, unknown/timeout,
+ejer/token/client/discovery-skift, cancellation/sene svar, global cleanup og ens
+daily/hourly metadata. Lead har før kode godkendt ændring af agentvalgt 30s display-TTL til 60s i backend
+og den samme kanoniske pure frontendvalidator. Grænse: normal hjemmecyklus højst
+24s (15s throttle + cirka1s SSE +8s read), to cykler48s +2s config <60s.
+Lange udfald skjules ikke; udløb giver ærlig fallback. Gamle <=30s labels er stadig
+gyldige. Gamle klienter kan ignorere >30s optional label indtil reload. Ingen
+DOM/CSS/komponentændring. Kontinuitet gennem120s og udløb mellem cykler testes.
+Implementeret isoleret: ToolRouter ejer ét managed config-task og gyldigt resultat;
+fornyelse udløses kun af admitted weather-read efter15s observationsalder. Samme
+observation bevares uændret under pending; invalid/ambiguous/denied rydder resultatet.
+Binding-/client-/tokenændring invaliderer generation og afbryder gammel opgave;
+erstatning starter først når den gamle er terminal. Forsinket gammel HTTP-retur må
+ikke afbryde ny ejer. App-cleanup dræner; ThinSession ændres ikke.
+
+Faktisk lokal kontrol:188 fokuserede Python-tests,40 pakkede JS-tests, mypy87 filer,
+Ruff/format og JS-syntax PASS. Impeccable detector gav ingen findings på den ene
+pure helper. Real _home→weatherObservation→liveWeatherModel kontrolleret hvert sekund
+0–120 ved16/24s hjemmecyklus og0,05/1,9s kontrolleret configcompletion: intet gap.
+Første hurtige vejr med reelle0,05/1,9s configforsinkelser ventede ikke på config.
+Langt udfald giver fallback; dette er ikke faktisk Green- eller geografiaccept.
+Den tidligere cancellation-test er ændret til server-ejet completion/cleanup;
+den gamle30s klientpayload/expiry-regression er bevaret, >60s er afvist.
+Uafhængigt teknisk review afventer endnu; ingen CI/push/release/installation.
+
+Rollback: forkast dette isolerede delta tilbage til eksakt 48-arkiv; ingen installeret
+ændring. Fokuseret test/Ruff/mypy og uafhængigt adversarial review kræves før adoption.
+Kildechecks er adskilt fra CI, publication, installation og faktisk stednavnsbevis.
+
 <!-- podview48-admission
 {
   "version": 25,

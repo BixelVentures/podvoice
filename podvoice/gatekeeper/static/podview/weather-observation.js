@@ -27,7 +27,7 @@ export function weatherDisplayLocation(label,now=Date.now()){
  const exact=keys=>Object.keys(label).length===keys.length&&keys.every(key=>Object.hasOwn(label,key));
  if(label.source==='configured_label'&&exact(['name','source']))return {name:label.name,source:label.source};
  const keys=['name','source','method','scope','datasetVersion','observedAt','validUntil'];
- if(!exact(keys)||label.source!=='ha_home_geonames'||label.method!=='nearest_populated_place'||label.scope!=='ha_home'||!/^Ved \S/.test(label.name)||/[\p{C}\p{Z}]/u.test(label.name.replaceAll(' ',''))||typeof label.datasetVersion!=='string'||!/^[a-f0-9]{64}$/.test(label.datasetVersion)||!Number.isFinite(now)||!Number.isFinite(label.observedAt)||!Number.isFinite(label.validUntil)||label.observedAt*1000>now||now>=label.validUntil*1000||label.validUntil-label.observedAt>30)return null;
+ if(!exact(keys)||label.source!=='ha_home_geonames'||label.method!=='nearest_populated_place'||label.scope!=='ha_home'||!/^Ved \S/.test(label.name)||/[\p{C}\p{Z}]/u.test(label.name.replaceAll(' ',''))||typeof label.datasetVersion!=='string'||!/^[a-f0-9]{64}$/.test(label.datasetVersion)||!Number.isFinite(now)||!Number.isFinite(label.observedAt)||!Number.isFinite(label.validUntil)||label.observedAt*1000>now||now>=label.validUntil*1000||label.validUntil-label.observedAt>60)return null;
  return Object.fromEntries(keys.map(key=>[key,label[key]]));
 }
 export function weatherObservation(v,includeHourly=true){

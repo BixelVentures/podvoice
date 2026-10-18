@@ -1,3 +1,8 @@
+## 2.0.49 — vejrets stednavn og levetid, kandidat
+
+- Lad et afgrænset, server-ejet opslag fuldføre uden at forsinke vejret. Bevar et gyldigt stednavn under fornyelse og udløb ærligt efter højst60 sekunder.
+- Bevar ejer-, kilde- og adgangskontrol, offline geografi og eksisterende vejrfrist. Ingen nye hjemmehandlinger eller polling. Fysisk accept står åben.
+
 ## 2.0.48 — delegeret præsentation, kandidat
 
 - Afvent den accepterede delegerede opgaves endelige præsentation uden et konkurrerende selector-kald. Direkte svar og eksisterende ejer-, kilde- og replay-kontroller bevares.
