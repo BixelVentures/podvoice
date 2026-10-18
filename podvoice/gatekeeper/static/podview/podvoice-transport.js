@@ -46,6 +46,7 @@ export class PodVoiceTransport {
   if (!['observed','unavailable'].includes(value.timers.status)||!Array.isArray(value.timers.items)||!Array.isArray(value.capabilities.musicRead)||!Array.isArray(value.capabilities.timerActions)) return false;
   if(value.capabilities.homeRead!==undefined&&(!Array.isArray(value.capabilities.homeRead)||value.capabilities.homeRead.some(x=>!['vacuum','weather'].includes(x))))return false;
   if(value.capabilities.controlSetup!==undefined&&(!Array.isArray(value.capabilities.controlSetup)||value.capabilities.controlSetup.some(x=>!['music','vacuum'].includes(x))))return false;
+  if((value.answerHistoryRevision!==undefined||value.answerHistoryRemovalRevision!==undefined||value.answerHistoryReceiptIds!==undefined)&&(!Number.isSafeInteger(value.answerHistoryRevision)||value.answerHistoryRevision<0||!Number.isSafeInteger(value.answerHistoryRemovalRevision)||value.answerHistoryRemovalRevision<0||value.answerHistoryRemovalRevision>value.answerHistoryRevision||!Array.isArray(value.answerHistoryReceiptIds)||value.answerHistoryReceiptIds.length>20||value.answerHistoryReceiptIds.some(id=>typeof id!=='string'||!/^[a-f0-9]{32}$/.test(id))||new Set(value.answerHistoryReceiptIds).size!==value.answerHistoryReceiptIds.length))return false;
   if(value.capabilities.answerRead!==undefined&&typeof value.capabilities.answerRead!=='boolean')return false;
   if(value.capabilities.musicSelection!==undefined&&typeof value.capabilities.musicSelection!=='boolean')return false;
   if(value.capabilities.queueSelection!==undefined&&typeof value.capabilities.queueSelection!=='boolean')return false;
@@ -54,6 +55,7 @@ export class PodVoiceTransport {
   if(value.controllerContinuity!==undefined){const c=value.controllerContinuity;if(!c||!['available,enabled','available,enabled,maxDays'].includes(Object.keys(c).sort().join(','))||typeof c.enabled!=='boolean'||typeof c.available!=='boolean'||('maxDays'in c&&(!Number.isInteger(c.maxDays)||c.maxDays<0||c.maxDays>30)))return false;}
   if (this.room && value.roomId !== this.room) return false;
   if (this.snapshot?.bootId === value.bootId && this.snapshot.revision > value.revision) return false;
+  if(this.snapshot?.bootId===value.bootId&&this.snapshot.roomId===value.roomId&&value.answerHistoryRevision!==undefined&&(this.snapshot.answerHistoryRevision>value.answerHistoryRevision||this.snapshot.answerHistoryRemovalRevision>value.answerHistoryRemovalRevision))return false;
   const writable=!!(value.capabilities.timerActions.length||value.capabilities.musicActions?.length||value.capabilities.controlSetup?.length||value.capabilities.musicSelection===true||value.capabilities.queueSelection===true);
   if(this.lastWritableProjection===true&&!writable&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){this.controllerRenewed=false;this.cookieReadAuthority=false;this.recoveryReadOnly=false;}
   this.lastWritableProjection=writable;
@@ -134,8 +136,8 @@ export class PodVoiceTransport {
    return {ok:body.ok,requestId,outcome:body.outcome,retryAllowed:false,physicalResultVerified:false};
   }catch{return unknown(requestId);}
  }
- async answers(){if(!this.connected||this.snapshot.capabilities.answerRead!==true)throw Error('answers_unavailable');const response=await this.request(this.endpoint('answers'),{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('answers_unavailable');return response.json();}
- async source(id){if(!this.connected||this.snapshot.capabilities.answerRead!==true||!/^[a-f0-9]{32}$/.test(id))throw Error('source_unavailable');const url=new URL('sources/'+id,this.base);url.searchParams.set('room',this.room);const response=await this.request(url,{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error('source_unavailable');return response.json();}
+ async answers(history=false){if(!this.connected||this.snapshot.capabilities.answerRead!==true)throw Error('answers_unavailable');const response=await this.request(this.endpoint('answers',history===true?{history:'1'}:{}),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('answers_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}
+ async source(id){if(!this.connected||this.snapshot.capabilities.answerRead!==true||!/^[a-f0-9]{32}$/.test(id))throw Error('source_unavailable');const url=new URL('sources/'+id,this.base);url.searchParams.set('room',this.room);const response=await this.request(url,{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('source_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}
  async music(kind, account, query) {
   if (!this.connected || !this.snapshot.capabilities.musicRead?.includes(kind==='speakers'?'targets':kind)) throw new Error('music_unavailable');
   if(kind==='search'&&(typeof query!=='string'||query.trim()!==query||query.length<1||query.length>160))throw new Error('invalid_query');

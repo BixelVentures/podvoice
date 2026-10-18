@@ -1,3 +1,9 @@
+## 2.0.56 — svarhistorik med genindlæsning og Humør-diagnostik, kandidat
+
+- Gendan op til20 tidligere display-admitted svar fra samme rum/serverboot ved genindlæsning; højst64KiB per svar. Ingen diskpersistens eller recovery efter serverrestart.
+- Bevar eksisterende renderere, oprindelige datoer og kildeangivelse uden at forlænge kilde- eller handlingstilladelser. Fjern kun evicted/revoked poster; gamle svar må ikke genindføre dem.
+- Skeln Humørs diagnostiske udfald/type uden rå indhold eller identiteter. Den bagvedliggende providerfejl er ikke hævdet løst.
+
 ## 2.0.55 — kildebundet beholdt hjemme- og vejrvisning, kandidat
 
 - Bevar kun kompatible, fortsat friske observationer under midlertidige læsefejl; skift af rum, boot eller datakilde må ikke genbruge gamle værdier.

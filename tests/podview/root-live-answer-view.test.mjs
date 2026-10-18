@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LiveAnswerView,answerReadContext } from '../../podvoice/gatekeeper/static/podview/live-answer-view.js';
+import { liveScene } from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 
 class Node extends EventTarget {
   constructor(tag) {
@@ -9,6 +10,7 @@ class Node extends EventTarget {
     this.textContent = ''; this.className = '';
   }
   append(...nodes) { this.children.push(...nodes); }
+  contains(node) { return node != null && (this === node || this.children.some(child => child === node || child?.contains?.(node) === true)); }
   replaceChildren(...nodes) { this.children = nodes; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   removeAttribute(name) { this.attributes.delete(name); }
@@ -265,4 +267,93 @@ test('current owner source stays readable and a late foreign-context failure can
  }finally{f.restore();}
 });
 
-test('normal completed read survives actual inactive-session-null shape without reopening or granting ownership',async()=>{const f=fixture();try{await f.read();const key=answerReadContext(f.host.liveSnapshot);f.host.liveSnapshot={...f.host.liveSnapshot,voice:{active:false,sessionId:null},answers:{...f.host.liveSnapshot.answers,readOnlyCompleted:true}};assert.equal(answerReadContext(f.host.liveSnapshot),key);assert.equal(f.view.currentAnswer(receiptId).receiptId,receiptId);f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();assert.equal(f.host.events.length,1);assert.equal(f.host.state.answers[0].readConnected,true);assert.equal(f.host.state.connected,false);delete f.host.liveSnapshot.answers.readOnlyCompleted;assert.equal(f.view.currentAnswer(receiptId),null);}finally{f.restore();}});
+test('normal completed read survives actual inactive-session-null shape without reopening or granting ownership',async()=>{const f=fixture();try{await f.read();const key=answerReadContext(f.host.liveSnapshot);f.host.liveSnapshot={...f.host.liveSnapshot,voice:{active:false,sessionId:null},answers:{...f.host.liveSnapshot.answers,readOnlyCompleted:true}};assert.equal(answerReadContext(f.host.liveSnapshot),key);assert.equal(f.view.currentAnswer(receiptId).receiptId,receiptId);f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();assert.equal(f.host.events.length,1);assert.equal(f.host.state.answers[0].readConnected,true);assert.equal(f.host.state.connected,false);delete f.host.liveSnapshot.answers.readOnlyCompleted;assert.ok(!f.view.currentAnswer(receiptId));}finally{f.restore();}});
+
+
+function acceptSnapshot(f,next){
+ const previous=f.host.liveSnapshot;
+ if(typeof f.view.onSnapshot==='function')f.view.onSnapshot(previous,next);
+ else if(JSON.stringify(previous.answers)!==JSON.stringify(next.answers))f.view.invalidate(true);
+ f.host.liveSnapshot=next;
+}
+const nextRevision=f=>({...f.host.liveSnapshot,answers:{...f.host.liveSnapshot.answers,revision:3}});
+const sourceResponse=()=>({schema:'podview.source.v1',kind:'owner_receipt',receiptId,externalSourcesProvided:false,toolName:'weather',summary:'Observeret svar',observedAt:Date.now()/1000,provenance:{kind:'tool_result'},facts:[{id:'fact',label:'Temperatur',value:'12 °C',detail:'Aktuel måling'}]});
+
+test('same-task receipt revision retains focused identity and scroll while fencing old source until fresh read',async()=>{
+ const f=fixture();
+ try{
+  await f.read();const original=f.host.state.answers[0];
+  f.answerContainer.scrollTop=73;f.host.state={...f.host.state,focus:original.id};
+  const pendingResult=deferred();f.host.liveTransport.answers=()=>pendingResult.promise;
+  acceptSnapshot(f,nextRevision(f));
+  assert.equal(f.host.state.focus,original.id);assert.equal(f.host.state.answers.length,1);
+  assert.equal(f.answerContainer.scrollTop,73);assert.equal(f.view.currentAnswer(receiptId),undefined);
+  const scene=liveScene({...f.host.state,devices:[],extraTimers:[],music:{playback:{}}},{...f.host.liveSnapshot,timers:{status:'unavailable',items:[]}});
+  assert.equal(scene.focus,original.id);assert.equal(scene.answers.length,1);assert.equal(scene.answers[0].readStatus,'pending');
+  assert.notEqual(scene.answers[0].readContext,answerReadContext(f.host.liveSnapshot));
+  const read=f.view.refresh();const fresh=f.answer();fresh.revision=3;
+  pendingResult.resolve(fresh);await read;
+  assert.equal(f.host.state.focus,original.id);assert.equal(f.answerContainer.scrollTop,73);
+  assert.ok(f.view.currentAnswer(receiptId));assert.equal(f.host.events.length,1);
+  assert.equal(f.host.state.answers.length,1);
+ }finally{f.restore();}
+});
+
+test('same-task source disclosure keeps shell but removes stale body and revalidates actual source',async()=>{
+ const f=fixture();
+ try{
+  await f.read();f.host.liveTransport.source=async()=>sourceResponse();
+  await f.view.showSource(receiptId,f.active);f.view.body.scrollTop=41;
+  const sourceRead=deferred();f.host.liveTransport.source=()=>sourceRead.promise;
+  const answersRead=deferred();f.host.liveTransport.answers=()=>answersRead.promise;
+  acceptSnapshot(f,nextRevision(f));
+  assert.equal(f.view.dialog.open,true);assert.equal(f.view.body.children.length,0);
+  const fresh=f.answer();fresh.revision=3;const pending=f.view.refresh();answersRead.resolve(fresh);await pending;
+  assert.equal(f.view.dialog.open,true);assert.equal(f.view.body.children.length,0);
+  sourceRead.resolve(sourceResponse());await Promise.resolve();await Promise.resolve();
+  assert.ok(f.view.body.children.length);assert.equal(f.view.body.scrollTop,41);
+ }finally{f.restore();}
+});
+
+test('owner changes revoke live reads; only boot and room replacement clear history',async()=>{
+ for(const mutate of [s=>({...s,bootId:'boot-b'}),s=>({...s,roomId:'room-b'}),s=>({...s,answers:{...s.answers,taskId:'task-b'}}),s=>({...s,answers:{...s.answers,inputRevision:2}}),s=>({...s,answers:{...s.answers,sessionEpoch:9}}),s=>({...s,answers:{...s.answers,providerGeneration:9}}),s=>({...s,capabilities:{answerRead:false}})]){
+  const f=fixture();try{
+   await f.read();f.host.liveTransport.source=async()=>sourceResponse();await f.view.showSource(receiptId,f.active);
+   const before=f.host.liveSnapshot,next=mutate(before);acceptSnapshot(f,next);
+   const reset=before.bootId!==next.bootId||before.roomId!==next.roomId;assert.equal(f.host.state.answers.length,reset?0:1);if(!reset)assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.view.dialog.open,false);
+   assert.ok(!f.view.currentAnswer(receiptId));
+  }finally{f.restore();}
+ }
+});
+
+test('authoritative empty response removes live authority and preserves historical display',async()=>{
+ const f=fixture();try{
+  await f.read();f.host.liveTransport.source=async()=>sourceResponse();await f.view.showSource(receiptId,f.active);
+  acceptSnapshot(f,nextRevision(f));const fresh=f.answer();fresh.revision=3;fresh.items=[];
+  f.host.liveTransport.answers=async()=>fresh;await f.view.refresh();
+  assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.view.dialog.open,false);
+ }finally{f.restore();}
+});
+
+test('expired receipt loses source access and becomes historical at original deadline',async()=>{
+ const f=fixture();const previousNow=Date.now,previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout;
+ try{
+  let now=Date.now();Date.now=()=>now;let expiry;
+  globalThis.setTimeout=callback=>{expiry=callback;return {unref(){}};};globalThis.clearTimeout=()=>{};
+  await f.read();f.host.liveTransport.source=async()=>sourceResponse();await f.view.showSource(receiptId,f.active);
+  assert.equal(typeof expiry,'function');now+=120001;assert.equal(f.view.currentAnswer(receiptId),undefined);expiry();
+  assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.view.dialog.open,false);
+ }finally{Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;f.restore();}
+});
+
+test('superseded same-task reads and source completions cannot republish after revoke',async()=>{
+ const f=fixture();try{
+  await f.read();const sourceRead=deferred();f.host.liveTransport.source=()=>sourceRead.promise;
+  const pendingSource=f.view.showSource(receiptId,f.active);
+  acceptSnapshot(f,nextRevision(f));const answersRead=deferred();f.host.liveTransport.answers=()=>answersRead.promise;
+  const pending=f.view.refresh();f.view.invalidate(true,true);
+  const fresh=f.answer();fresh.revision=3;answersRead.resolve(fresh);sourceRead.resolve(sourceResponse());
+  await pending;await pendingSource;assert.equal(f.host.state.answers.length,0);
+  assert.equal(f.view.dialog.open,false);assert.equal(f.view.body.children.length,0);
+ }finally{f.restore();}
+});

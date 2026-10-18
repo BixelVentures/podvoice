@@ -39,6 +39,7 @@ _REASONS = frozenset(
         "cancelled",
     }
 )
+_KINDS = frozenset({"mood", "feeling"})
 _OUTCOMES = frozenset(
     {
         "success",
@@ -52,12 +53,22 @@ _OUTCOMES = frozenset(
         "mood_owner_replaced",
         "mood_source_rejected",
         "mood_unavailable",
+        "feeling_owner_unavailable",
+        "feeling_refresh_required",
+        "feeling_budget_unavailable",
+        "feeling_selection_unavailable",
+        "feeling_catalogue_unavailable",
+        "feeling_catalogue_empty",
+        "feeling_owner_replaced",
+        "feeling_source_rejected",
+        "feeling_unavailable",
     }
 )
 
 
 @dataclass
 class MoodDiagnostic:
+    kind: str = "mood"
     phase: str = "playback_before"
     outcome: str = "mood_unavailable"
     reason: str = "none"
@@ -106,8 +117,8 @@ _CURRENT: contextvars.ContextVar[MoodDiagnostic | None] = contextvars.ContextVar
 )
 
 
-def begin(*, clock=time.monotonic):
-    diagnostic = MoodDiagnostic(_clock=clock)
+def begin(*, clock=time.monotonic, kind="mood"):
+    diagnostic = MoodDiagnostic(_clock=clock, kind=_closed(kind, _KINDS))
     return diagnostic, _CURRENT.set(diagnostic)
 
 
@@ -128,7 +139,7 @@ def finish(diagnostic, token):
     _CURRENT.reset(token)
     try:
         _LOG.info(
-            "mood_result phase=%s outcome=%s reason=%s http_status=%s "
+            "mood_result phase=%s outcome=%s reason=%s http_status=%s kind=%s "
             "total_ms=%s playback_before_ms=%s time_context_ms=%s model_ms=%s "
             "playlist_search_ms=%s playback_after_ms=%s publish_ms=%s",
             _closed(diagnostic.phase, _PHASES),
@@ -137,6 +148,7 @@ def finish(diagnostic, token):
             diagnostic.http_status
             if type(diagnostic.http_status) is int and 100 <= diagnostic.http_status <= 599
             else "none",
+            _closed(diagnostic.kind, _KINDS),
             *diagnostic.timings(),
         )
     except Exception:

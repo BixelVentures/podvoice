@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import math
 import secrets
 import time
@@ -140,11 +141,91 @@ class VisualReceiptOwner:
         self._clock = clock
         self._rooms: dict[str, dict] = {}
         self._closed = False
+        self._history: dict[str, dict] = {}
+        self._history_boot: str | None = None
         self._selector: VisualSelector | None = None
         self._selection: asyncio.Task | None = None
         self._research_mode = False
         self._research_admitted = False
         self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
+
+    def bind_history_boot(self, boot: str) -> None:
+        """Display memory belongs to this bridge lifetime, never durable storage."""
+        if self._history_boot != boot:
+            self._history.clear()
+            self._history_boot = boot
+
+    def _archive_display(self, room_id: str, state: dict, item: dict) -> None:
+        # Called only after final owner/source admission, never pending selection.
+        if (
+            self._closed
+            or self._rooms.get(room_id) is not state
+            or item.get("displaySuggested") is not True
+        ):
+            return
+        key = state["key"]
+        prior = self._history.get(room_id)
+        if prior is None and len(self._history) >= 12:
+            return
+        if prior is None or prior["owner"] is not key[0]:
+            prior = {
+                "owner": key[0],
+                "revision": (prior["revision"] if prior else 0) + 1,
+                "removalRevision": (
+                    prior["removalRevision"] + bool(prior["items"]) if prior else 0
+                ),
+                "items": [],
+            }
+            self._history[room_id] = prior
+        if any(row["display"]["receiptId"] == item["receiptId"] for row in prior["items"]):
+            return
+        kind = item["provenance"].get("kind")
+        if kind not in {"tool_result", "ha_weather", "owner_sources", "ai_explanation"}:
+            return
+        display = copy.deepcopy(
+            {
+                "receiptId": item["receiptId"],
+                "family": item["family"],
+                "title": item.get("title", "Svar fra PodVoice"),
+                "observedAt": item["observedAt"],
+                "content": item["content"],
+                "provenance": {"kind": kind},
+            }
+        )
+        try:
+            if (
+                len(json.dumps(display, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+                > 65536
+            ):
+                return
+        except (ValueError, TypeError, OverflowError):
+            return
+        prior["items"].insert(0, {"binding": key[:3], "display": display})
+        if len(prior["items"]) > 20:
+            prior["removalRevision"] += 1
+        del prior["items"][20:]
+        prior["revision"] += 1
+        self._notify(room_id)
+
+    def history(self, room_id: str, owner: object, *, include_items: bool = True) -> dict:
+        """Inert display only. The HTTP caller must enforce ingress/configured room."""
+        state = self._history.get(room_id)
+        if state is not None and state["owner"] is not owner:
+            if state["items"]:
+                state["removalRevision"] += 1
+            state["items"] = []
+            state["owner"] = owner
+            state["revision"] += 1
+        return {
+            "revision": state["revision"] if state else 0,
+            "removalRevision": state["removalRevision"] if state else 0,
+            "receiptIds": [r["display"]["receiptId"] for r in state["items"]]
+            if state and not self._closed
+            else [],
+            "items": copy.deepcopy([r["display"] for r in state["items"]])
+            if state and not self._closed and include_items
+            else [],
+        }
 
     def subscribe(self, room_id: str) -> asyncio.Event | None:
         """One loop-owned wake per SSE reader; notification grants no read authority."""
@@ -275,6 +356,7 @@ class VisualReceiptOwner:
                 }
             row["item"]["displaySuggested"] = True
             state["revision"] += 1
+            self._archive_display(room_id, state, row["item"])
         except (Exception, asyncio.CancelledError):
             return  # Optional display cannot change ACK, playback, close or rearm.
         finally:
@@ -515,6 +597,7 @@ class VisualReceiptOwner:
         ):
             item["displaySuggested"] = True
         state["items"].insert(0, row)
+        self._archive_display(room_id, state, item)
         del state["items"][3:]
         state["revision"] += 1
         self._notify(room_id)
@@ -564,11 +647,25 @@ class VisualReceiptOwner:
 
         accepted = offer_completed(self, owner, **binding)
         if accepted:
+            state = self._rooms[binding["room_id"]]
+            self._archive_display(binding["room_id"], state, state["items"][0]["item"])
             self._notify(binding["room_id"])
         return accepted
 
     def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
         """Revoke this exact owner's reads synchronously, including sealed normal-close reads."""
+        history = self._history.get(room_id)
+        if history is not None:
+            before = len(history["items"])
+            history["items"] = [
+                r
+                for r in history["items"]
+                if not (r["binding"][0] is owner and r["binding"][1:] == (session_id, epoch))
+            ]
+            if len(history["items"]) != before:
+                history["revision"] += 1
+                history["removalRevision"] += 1
+                self._notify(room_id)
         state = self._rooms.get(room_id)
         if (
             state is not None
@@ -772,6 +869,7 @@ class VisualReceiptOwner:
         if self._selection is not None:
             self._selection.cancel()
         self._rooms.clear()
+        self._history.clear()
 
     async def aclose(self) -> None:
         self.close()

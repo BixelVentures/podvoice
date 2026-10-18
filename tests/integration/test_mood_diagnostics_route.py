@@ -79,7 +79,7 @@ async def test_actual_terminal_record_one_per_attempt_and_cleanup(
     raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
     lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
     for line in raw_lines:
-        durations = dict(pair.split("=") for pair in line.split()[5:])
+        durations = dict(pair.split("=") for pair in line.split()[6:])
         assert set(durations) == {
             "total_ms",
             "playback_before_ms",
@@ -91,7 +91,7 @@ async def test_actual_terminal_record_one_per_attempt_and_cleanup(
         }
         assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
-        f"mood_result phase={phase} outcome={outcome} reason={reason} http_status=none"
+        f"mood_result phase={phase} outcome={outcome} reason={reason} http_status=none kind=mood"
     ]
     assert not bridge._music_busy and diag._CURRENT.get() is None
     assert "NEVER_LOG_PRIVATE_EXCEPTION" not in caplog.text
@@ -128,7 +128,7 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
     raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
     lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
     for line in raw_lines:
-        durations = dict(pair.split("=") for pair in line.split()[5:])
+        durations = dict(pair.split("=") for pair in line.split()[6:])
         assert set(durations) == {
             "total_ms",
             "playback_before_ms",
@@ -140,7 +140,7 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
         }
         assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
-        "mood_result phase=playlist_search outcome=mood_unavailable reason=route_deadline http_status=none"
+        "mood_result phase=playlist_search outcome=mood_unavailable reason=route_deadline http_status=none kind=mood"
     ]
     assert mood_rig.router.podview_mood_selector.select.await_count == 1
 
@@ -161,4 +161,54 @@ async def test_raising_log_handler_cannot_replace_actual_success_or_cancellation
             await read(mood_rig)
     else:
         assert (await read(mood_rig))["ok"] is True
+    assert not bridge._music_busy and diag._CURRENT.get() is None
+
+
+@pytest.mark.parametrize("kind", ["mood", "feeling"])
+@pytest.mark.parametrize("empty", [False, True])
+async def test_actual_tab_caller_preserves_kind_and_catalogue_failure(
+    mood_rig, caplog, kind, empty
+):
+    import json
+
+    from integration.test_podview_mood_preview import request
+
+    from gatekeeper.podview import _music
+
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    bridge = unpaired(mood_rig)
+    reads = []
+
+    async def catalogue(read_kind, account, query):
+        reads.append(read_kind)
+        return {
+            "ok": True,
+            "data": {
+                "config_entry_id": account,
+                "owner_epoch": "a" * 32,
+                "source": "spotify_web_api",
+                "playlists": []
+                if empty
+                else [
+                    {
+                        "uri": "spotify:playlist:" + chr(96 + len(reads)) * 22,
+                        "name": "Synthetic playlist",
+                    }
+                ],
+            },
+        }
+
+    mood_rig.router.podview_read = catalogue
+    req = request(mood_rig)
+    req.query["kind"] = kind
+    response = await _music(req)
+    body = json.loads(response.body)
+    outcome = f"{kind}_catalogue_empty" if empty else "success"
+    assert body.get("error", "success") == outcome
+    lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    assert len(lines) == 1 and f"outcome={outcome}" in lines[0] and f"kind={kind}" in lines[0]
+    assert reads == ["playlist_search"] * 3
+    assert mood_rig.router.podview_mood_selector.select.await_count == int(kind == "mood")
+    assert bridge.controls.music.setup_context.await_count == 0
+    assert bridge.controls.music.execute_context.await_count == 0
     assert not bridge._music_busy and diag._CURRENT.get() is None
