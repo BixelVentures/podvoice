@@ -22,7 +22,20 @@ def historical48_root(tmp_path_factory):
     return target
 
 
-def test_49_exact_scope_and_history():
+PUBLISHED49_MERGE = "9d8d72326569061f16c3af5724d6c9e54a9e661a"
+PUBLISHED49_TREE = "9849c8bab44a4c2229a4660fa08b32fd60019f01"
+
+
+@pytest.fixture(scope="module")
+def historical49_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published49") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED49_MERGE], cwd=target, check=True)
+    subprocess.run(["git", "read-tree", "--reset", "-u", PUBLISHED49_TREE], cwd=target, check=True)
+    return target
+
+
+def test_49_exact_scope_and_history(historical49_root):
     assert admission.BASE == PUBLISHED48_MERGE
     assert admission.VERSION == 26
     assert admission.KIND == "podview49_locality_lifecycle"
@@ -42,38 +55,39 @@ def test_49_exact_scope_and_history():
         "tests/podview/canonical-next-weather-view.test.mjs",
     }
     assert admission.IMMUTABLE.items() >= published48.IMMUTABLE.items()
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
-    assert admission.config_only(ROOT)
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
+    assert admission.strict.pins_match(historical49_root, admission.IMMUTABLE)
+    assert admission.config_only(historical49_root)
+    report = admission.legacy.inspect_repository(historical49_root, admission.BASE)
     assert report.domains == admission.DOMAINS
-    effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
+    effective = admission.legacy._visual_repository_changes(historical49_root, admission.BASE)
     assert admission.production_scope_matches(effective)
     assert {p for p in effective if p.startswith("tests/")} == admission.REQUIRED_TESTS
     assert admission.change_scope_matches(effective, set(admission.REQUIRED_TESTS))
     bindings = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
     assert len({bool(value) for value in bindings}) == 1
     if all(bindings):
-        assert admission.inspect_repository(ROOT, admission.BASE).passed
+        assert admission.inspect_repository(historical49_root, admission.BASE).passed
     else:
-        assert not admission.inspect_repository(ROOT, admission.BASE).passed
+        assert not admission.inspect_repository(historical49_root, admission.BASE).passed
 
 
-def test_49_manifest_exact_inventory():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_49_manifest_exact_inventory(historical49_root):
+    manifest = json.loads(admission.safe_file(historical49_root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice49.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT == 143
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert (
-        set(manifest["runtime"]) == admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        set(manifest["runtime"])
+        == admission.strict.runtime_inventory(historical49_root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING
     for group in ("production", "regressions", "runtime", "config", "policy", "tooling"):
-        assert admission.strict.pins_match(ROOT, manifest[group])
-    assert admission.assets_match49(ROOT, manifest["runtime"], manifest["asset_count"])
+        assert admission.strict.pins_match(historical49_root, manifest[group])
+    assert admission.assets_match49(historical49_root, manifest["runtime"], manifest["asset_count"])
 
 
 def test_published48_accepted_and_cannot_authorize49(historical48_root):

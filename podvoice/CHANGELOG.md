@@ -1,3 +1,8 @@
+## 2.0.50 — privatlivssikker stednavnsdiagnostik, kandidat
+
+- Registrér faste udfaldskategorier fra eksisterende stednavnsopslag uden private værdier. Gentagne ens udfald dæmpes per ejer; gamle ejere og logfejl ændrer ikke produktresultatet.
+- Ingen ændring af UI, data, frister, polling eller hjemmehandlinger. Diagnostik er ikke bevis for løst stednavnsproblem eller fysisk accept.
+
 ## 2.0.49 — vejrets stednavn og levetid, kandidat
 
 - Lad et afgrænset, server-ejet opslag fuldføre uden at forsinke vejret. Bevar et gyldigt stednavn under fornyelse og udløb ærligt efter højst60 sekunder.
