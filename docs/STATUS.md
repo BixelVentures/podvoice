@@ -1,3 +1,28 @@
+## NEXT55 — aktiv lead-beslutning: passive home/weather retention and source provenance
+
+Root authorizes isolated release-candidate assembly from exact54 staged tree52e72213565ab3d15bfb2705bde8ae332d0e7bf7. Adopt only four pinned Python provenance/test files, four canonical JS owners, three import-only canonical regressions and143asset manifest updates. Preserve139other assets, registries, policies, native versions and controller mechanisms. Reapproval remains on HOLD. Backend141focused PASS is reusable only on exact pins; packaged Node24.19.0 tests1223/1223 including component gate PASS; release-version contract1PASS. Source producer identity availability and physical/browser acceptance remain distinct and unclaimed. No external actions.
+
+<!-- podview55-admission
+{
+  "version": 32,
+  "kind": "podview55_weather_provenance",
+  "reviewer": "Independent /root/ui41_source_review PV55 admission metadata and exact unsigned scope reviewer",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "98006350907c329869ed60c2ea256f9eb1725393",
+  "merge_base": "98006350907c329869ed60c2ea256f9eb1725393",
+  "rationale": "NEXT55 adds passive home/weather retention and source provenance from exact PV54 base 98006350907c329869ed60c2ea256f9eb1725393/tree 52e72213565ab3d15bfb2705bde8ae332d0e7bf7. Scope is four canonical JS owners, two Python runtime owners, the retained 143-asset manifest, and bounded focused regressions. 139 assets remain byte-identical; CSS, component anatomy, registry, tokens, auth, policy, HA integration and native code are unchanged. Root reports canonical 875 and packaged 1223 checks including the component gate; backend 141 and independent UI 53 results are retained on exact pins. The authorized producer Save/reopen returned entity_id after 5ad53a6a16489308bc5aaa9d713d879263a79f88a58ff396b444caed1e909738 with no Run. Retention is limited to the same weather entity/read owner/source/location/units/room/boot; malformed successful auxiliary data, expiry and identity changes cannot authorize reuse; genuinely unavailable vacuum telemetry retains prior observed values as stale only within the same vacuum context, and stale hours do not generate fresh AI advice. Green54/28/17, six policies and PodView automation OFF are preserved. PV55 is not installed and has no live/browser/physical acceptance. Mac reapproval and robot movement remain HOLD.",
+  "fingerprint": "137add321fd0e34dc037aec9fcae4da84ea0d87a29fbfdcf54e308b78e33b1ff",
+  "regression_fingerprint": "0861f15423c388426b75e2e49d5834f9ad52a9e2e87400bef44cb93538356726",
+  "runtime_fingerprint": "702f820f5884d761efa35aab995f46d59d5ff685b4709cc84aa7bee0e8921092",
+  "config_fingerprint": "dd06df2fea515e053fe54c9668a30d2cc3b4a2ba1b5583b0222b16446bd10b5a",
+  "policy_fingerprint": "dec4dde02dc8241a4edb637c9adcb9a03fd005db2d984dd9f5ae36c5da2cee3a",
+  "tooling_fingerprint": "ba17d629a5a9050f0b2f7943a2917935333a68f953eb86e2df3b8a9f7d37c021",
+  "manifest_fingerprint": "5a88739591d0be3ddeac52e3a68928f61e64261a047af432a769247f54dda493"
+}
+-->
+
 <!-- podview54-admission
 {
   "version": 31,

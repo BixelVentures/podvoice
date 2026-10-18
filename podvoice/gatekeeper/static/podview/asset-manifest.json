@@ -235,7 +235,7 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "ee3b630224639cfe841b5db19c946aff9004f67a11197dac9d226b2ba2b4e90a"
+      "sha256": "aae9e38a8678372d7252ea2ac58aa54b9400b8061b25d8adaaa55cadaf73ed5c"
     },
     {
       "path": "index.html",
@@ -543,11 +543,11 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "39569f1bfa7e9b73070a969fc81483eb95e5e8920eec46bc2aabe38c7d61ecc1"
+      "sha256": "14bf10d9bde7748d7cab79bef4d154efb48e8f31ad4467a4e3dbd6a04f45ffaa"
     },
     {
       "path": "weather-view.js",
-      "sha256": "ae0fe4d9b12347716c6bbbf44bb45d64b79c21e062ff58804570ba09bb8be807"
+      "sha256": "118281db427d6293641559b024a268043114e4d687f9d5aa09ea949d0635ed91"
     },
     {
       "path": "widget-model.js",
@@ -563,7 +563,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "b2c40d897eae92ef041581e74876c12e9d375b175c7d21f91e796dc0f69fa739"
+      "sha256": "0c70eb0e6bd86aba03fd11121c853fe0a7721764734124afee7721e011c5967f"
     },
     {
       "path": "workshop.css",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import time
 from datetime import datetime
 from typing import cast
@@ -174,7 +175,7 @@ def _forecast_advice(
     }
 
 
-def weather_projection(response: object, *, display_city: str = "") -> dict:
+def weather_projection(response: object, *, display_city: str = "", owner_epoch: str = "") -> dict:
     """Recognize only success/result/forecast from the deployed HA owner contract.
 
     Keep source retrieval/state timestamps distinct from this observation time.
@@ -294,6 +295,13 @@ def weather_projection(response: object, *, display_city: str = "") -> dict:
     return {
         "status": "observed",
         "data": {
+            **(
+                {"observationScope": {"entityId": result["entity_id"], "ownerEpoch": owner_epoch}}
+                if isinstance(result.get("entity_id"), str)
+                and re.fullmatch(r"weather\.[a-z0-9_]{1,120}", result["entity_id"])
+                and re.fullmatch(r"[0-9a-f]{64}", owner_epoch)
+                else {}
+            ),
             "source": result["source"],
             "location": result["location"],
             **({"displayLocation": {"name": city, "source": "configured_label"}} if city else {}),
@@ -337,8 +345,14 @@ def with_hourly_projection(daily: dict, hourly: dict) -> dict:
     ):
         return daily
     primary, auxiliary = daily["data"], hourly["data"]
-    if any(primary[key] != auxiliary[key] for key in ("source", "location", "units")):
-        return daily
+    if any(primary[key] != auxiliary[key] for key in ("source", "location", "units")) or (
+        primary.get("observationScope") != auxiliary.get("observationScope")
+    ):
+        # A successful but differently owned auxiliary observation must not
+        # authorize retention of an earlier hour series under the primary scope.
+        data = dict(primary)
+        data.pop("observationScope", None)
+        return {**daily, "data": data}
     return {**daily, "data": {**primary, "hourly": auxiliary}}
 
 
