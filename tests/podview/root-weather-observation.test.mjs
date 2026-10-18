@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {weatherObservation,conditionIcon,weatherTemperature,completeHourlyDayRanges} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {weatherObservation,conditionIcon,conditionLabel,weatherAppearance,weatherTemperature,completeHourlyDayRanges} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
 test('daily ranges require complete hourly coverage and reject duplicate conflicting observations',()=>{const start=new Date(2026,9,14),end=new Date(2026,9,15),rows=[];for(let t=+start;t<+end;t+=3600000)rows.push({datetime:new Date(t).toISOString(),temperature:rows.length});assert.equal(completeHourlyDayRanges(rows).length,1);assert.equal(completeHourlyDayRanges(rows.slice(1)).length,0);assert.equal(completeHourlyDayRanges([...rows,{...rows[0],temperature:999}]).length,0);assert.equal(completeHourlyDayRanges([{datetime:start.toISOString(),temperature:15}]).length,0);});
 test('live weather preserves unknown conditions and missing temperatures without invented icons',()=>{assert.equal(conditionIcon('partlycloudy'),'cloud-sun');assert.equal(conditionIcon('clear-night'),'moon');assert.equal(conditionIcon('unmapped'),null);assert.equal(conditionIcon('snowy'),null);assert.equal(weatherTemperature(null),'—');assert.equal(weatherTemperature(9.4,'°C'),'9°C');assert.equal(weatherTemperature(0,'°C'),'0°C');});
 const weather=()=>({source:'Home Assistant',location:'Home',retrievedAt:'2026-10-14T17:00:00Z',observedAt:1791997200,units:{temperature:'°C'},current:null,forecastType:'hourly',forecast:[{datetime:'2026-10-14T18:00:00Z',temperature:10,condition:'cloudy'}],coverage:{truncated:true}});
@@ -18,3 +18,25 @@ test('daily high and low remain source-bound; missing or duplicate periods never
 });
 
 test('weather rounding is symmetric for frost and removes negative zero without changing units',()=>{for(const [value,expected] of [[13.9,'14°C'],[-0.4,'0°C'],[-0.5,'-1°C'],[-2.5,'-3°C'],[0.5,'1°C']])assert.equal(weatherTemperature(value,'°C'),expected);assert.equal(weatherTemperature(48.6,'°F'),'49°F');});
+
+
+test('condition appearance uses actual condition and boolean daylight only, without inherited icons or clock guesses',()=>{
+ assert.deepEqual(weatherAppearance({condition:'partlycloudy',isDaytime:true}),{tone:'partlycloudy',phase:'day',photo:true});
+ for(const isDaytime of [undefined,null,'true',1])assert.deepEqual(weatherAppearance({condition:'partlycloudy',isDaytime}),{tone:'partlycloudy',phase:'unknown',photo:false});
+ assert.deepEqual(weatherAppearance({condition:'partlycloudy',isDaytime:false}),{tone:'partlycloudy',phase:'night',photo:false});assert.equal(conditionIcon('partlycloudy',false),'cloud');assert.equal(conditionIcon('clear',false),'moon');assert.equal(conditionIcon('partlycloudy'),'cloud-sun');
+ assert.deepEqual(weatherAppearance({condition:'clear-night'}),{tone:'clear',phase:'night',photo:false});
+ assert.deepEqual(weatherAppearance({condition:'clear-night',isDaytime:true}),{tone:'clear',phase:'unknown',photo:false});
+ for(const [condition,tone]of [['rainy','rain'],['pouring','rain'],['snowy','snow'],['fog','fog'],['lightning-rainy','storm'],['cloudy','cloudy'],['sunny','clear'],['windy','wind']])assert.deepEqual(weatherAppearance({condition,isDaytime:true}),{tone,phase:'day',photo:false});
+ for(const condition of ['new-provider-condition','__proto__','constructor','toString']){assert.deepEqual(weatherAppearance({condition,isDaytime:true}),{tone:'neutral',phase:'unknown',photo:false});assert.equal(conditionIcon(condition),null);assert.equal(conditionLabel(condition),condition);}
+ assert.deepEqual(weatherAppearance({condition:'partlycloudy',isDaytime:true},{fresh:false}),{tone:'neutral',phase:'unknown',photo:false});
+});
+test('current daylight stays an optional literal source boolean and never comes from forecast/date/location',()=>{
+ const input=weather();input.current={temperature:15,condition:'partlycloudy',is_daytime:true};const before=structuredClone(input),projected=weatherObservation(input);assert.equal(projected.current.isDaytime,true);assert.deepEqual(input,before);
+ input.current.is_daytime=false;assert.equal(weatherObservation(input).current.isDaytime,false);
+ for(const value of [undefined,null,0,1,'true']){input.current.is_daytime=value;const current=weatherObservation(input).current;assert.equal(Object.hasOwn(current,'isDaytime'),false);assert.equal(weatherAppearance(current).photo,false);}
+ delete input.current.is_daytime;input.forecast[0].is_daytime=true;input.location='Daylight';assert.equal(weatherAppearance(weatherObservation(input).current).phase,'unknown');
+});
+
+test('retention scope accepts only exact entity and opaque epoch fields',()=>{const now=new Date().toISOString(),raw={source:'Met.no',location:'same',retrievedAt:now,observedAt:Date.now()/1000,units:{temperature:'°C'},current:null,forecastType:'daily',forecast:[],observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}};assert.deepEqual(weatherObservation(raw).observationScope,raw.observationScope);for(const scope of [{...raw.observationScope,extra:true},{...raw.observationScope,entityId:'sensor.other'},{...raw.observationScope,ownerEpoch:''},{entityId:'weather.actual'}])assert.equal(weatherObservation({...raw,observationScope:scope}).observationScope,undefined);});
+
+test('auxiliary weather cannot cross a declared entity or epoch even within one response',()=>{const identity={entityId:'weather.actual',ownerEpoch:'a'.repeat(64)},raw={source:'Met.no',location:'same',retrievedAt:new Date().toISOString(),observedAt:Date.now()/1000,units:{temperature:'°C'},current:null,forecastType:'daily',forecast:[],observationScope:identity};for(const scope of [identity,{...identity,entityId:'weather.other'},{...identity,ownerEpoch:'b'.repeat(64)},undefined]){const projected=weatherObservation({...raw,hourly:{...raw,forecastType:'hourly',observationScope:scope}});assert.equal(!!projected.hourly,scope===identity);assert.equal(projected.forecastType,'daily');}});

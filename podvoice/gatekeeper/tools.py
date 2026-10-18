@@ -17,6 +17,7 @@ import hashlib
 import json
 import logging
 import math
+import secrets
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -2125,8 +2126,17 @@ class ToolRouter:
         binding = self.podview_weather_binding()
         display_city = getattr(self, "podview_weather_city", "")
 
+        # An opaque read-owner epoch changes with the existing exact binding.
+        # It contains no credential or endpoint and grants no action authority.
+        if getattr(self, "_weather_observation_binding", None) != binding:
+            self._weather_observation_binding = binding
+            self._weather_observation_epoch = secrets.token_hex(32)
+        observation_epoch = self._weather_observation_epoch
+
         def project(response: object) -> dict:
-            return weather_projection(response, display_city=display_city)
+            return weather_projection(
+                response, display_city=display_city, owner_epoch=observation_epoch if dual else ""
+            )
 
         def current() -> bool:
             return binding == self.podview_weather_binding() and self.podview_weather_available()
@@ -2175,7 +2185,26 @@ class ToolRouter:
                     call({"forecast_type": "hourly"}),
                     timeout=max(0, deadline - loop.time()),
                 )
-                hourly = project(_mcp_result_to_contract(result))
+                contract = _mcp_result_to_contract(result)
+                hourly = project(contract)
+                raw = contract.get("data") if isinstance(contract, dict) else None
+                raw_result = raw.get("result") if isinstance(raw, dict) else None
+                scope = daily["data"].get("observationScope")
+                if (
+                    scope
+                    and isinstance(raw, dict)
+                    and raw.get("success") is True
+                    and (
+                        hourly.get("status") != "observed"
+                        or hourly["data"]["forecastType"] != "hourly"
+                        or not observation_is_current(hourly)
+                        or not isinstance(raw_result, dict)
+                        or raw_result.get("entity_id") != scope["entityId"]
+                    )
+                ):
+                    # A successful but rejected observation is not a transient
+                    # missing read and cannot retain the earlier hour series.
+                    daily["data"].pop("observationScope", None)
             except Exception:
                 pass  # Daily survives unavailable auxiliary data, never owner replacement.
             if not current() or not observation_is_current(daily):

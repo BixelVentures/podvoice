@@ -1,3 +1,9 @@
+## 2.0.55 — kildebundet beholdt hjemme- og vejrvisning, kandidat
+
+- Bevar kun kompatible, fortsat friske observationer under midlertidige læsefejl; skift af rum, boot eller datakilde må ikke genbruge gamle værdier.
+- Før valideret vejrkildens entity- og ejeridentitet gennem eksisterende passive læsninger. Manglende kildeidentitet åbner ikke retention.
+- Ingen ændring af adgang, handlingsautoritet, policyer, native versioner eller komponentfamilier. Producentmetadata og fysisk accept verificeres separat.
+
 ## 2.0.54 — bundet musikstart og afgrænset bootstrap-recovery, kandidat
 
 - Start et eksplicit musikvalg direkte på det validerede, bundne rum med én handling; bevar ukendt udfald uden automatisk gentagelse.

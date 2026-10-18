@@ -113,3 +113,31 @@ test('live weather never borrows fixture daylight or photos and preserves raw ra
  assert.equal(model.appearance.tone,'partlycloudy');assert.equal(model.appearance.phase,'unknown');assert.equal(n.card.getAttribute('data-weather-photo'),'false');assert.equal(Object.hasOwn(weather.current,'isDaytime'),false);assert.equal(model.hours[0].windBearing,null);
  source.current.is_daytime=true;source.current.condition='rainy';const rainy=liveWeatherModel(projected(source),{now});renderWeather(node,rainy);assert.equal(n.card.getAttribute('data-weather-tone'),'rain');assert.equal(n.card.getAttribute('data-weather-photo'),'false');assert.equal(n.card.children.length,2);assert.equal(n.sourceCopy.textContent,'Kilde: Met.no');
 });
+
+const autoLocation=()=>({name:'Ved Mårslet',source:'ha_home_geonames',method:'nearest_populated_place',scope:'ha_home',datasetVersion:'a'.repeat(64),observedAt:now/1000,validUntil:now/1000+30});
+test('automatic location expires in retained detail and overview using existing timer while forecasts survive',()=>{
+ const f=fixture(),previous={doc:globalThis.document,now:Date.now,set:globalThis.setTimeout,clear:globalThis.clearTimeout};let clock=now,queued;
+ globalThis.document=f.doc;Date.now=()=>clock;globalThis.setTimeout=(fn,ms)=>{queued={fn,ms};return queued;};globalThis.clearTimeout=()=>{};
+ try{const source=dualWeather();source.location='hjemmet';source.hourly.location='hjemmet';source.displayLocation=autoLocation();const w=weatherObservation(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:w}};renderLiveWeather(host);
+ const n=host.weatherNodes,day=n.days.children[1];assert.equal(n.title.textContent,'Ved Mårslet');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Ved Mårslet · Vejret i dag');assert.match(n.sourceCopy.textContent,/Kilde: Met.no/);assert.match(n.sourceCopy.textContent,/Stednavn: GeoNames · CC BY 4.0/);assert.equal(queued.ms,30001);assert.equal(w.location,'hjemmet');
+ clock+=30001;queued.fn();assert.equal(host.weatherNodes,n);assert.equal(n.days.children[1],day);assert.equal(n.title.textContent,'hjemmet');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'hjemmet · Vejret i dag');assert.equal(n.sourceCopy.textContent,'Kilde: Met.no');assert.equal(n.hours.hidden,false);assert.equal(w.displayLocation.name,'Ved Mårslet');
+ }finally{globalThis.document=previous.doc;Date.now=previous.now;globalThis.setTimeout=previous.set;globalThis.clearTimeout=previous.clear;}
+});
+test('auto display location rejects malformed, unqualified, future and expired values without discarding weather',()=>{
+ const valid=autoLocation();const variants=[null,{}, {...valid,extra:1},{...valid,name:'Mårslet'},{...valid,name:'Ved '},{...valid,name:'Ved X\u200b'},{...valid,name:'Ved X\u0085'},{...valid,source:'other'},{...valid,method:'guess'},{...valid,scope:'room'},{...valid,datasetVersion:'x'.repeat(64)},{...valid,observedAt:NaN},{...valid,validUntil:Infinity},{...valid,observedAt:now/1000+1},{...valid,validUntil:now/1000},{...valid,validUntil:now/1000+61},...Object.keys(valid).map(key=>{const v={...valid};delete v[key];return v;})];
+ for(const displayLocation of variants){const w=projected({...raw(),location:'hjemmet',displayLocation});const model=liveWeatherModel(w,{now});assert.equal(model.title,'hjemmet');assert.equal(model.source,'Kilde: Met.no');assert.equal(model.hours.length,1);}
+ const w=projected({...raw(),location:'',displayLocation:valid});assert.equal(liveWeatherModel(w,{now}).title,'Ved Mårslet');assert.equal(liveWeatherModel(w,{now:now+30000}).title,'Vejr');
+ const configured=projected({...raw(),displayLocation:{name:'Mit sted',source:'configured_label'}});assert.equal(liveWeatherModel(configured,{now:now+60000}).title,'Mit sted');assert.equal(liveWeatherModel(configured,{now}).source,'Kilde: Met.no');
+});
+
+test('qualified locality accepts legacy30 and bounded60 seconds, rejects longer and expires exactly',async()=>{
+ const {weatherDisplayLocation}=await import('../../podvoice/gatekeeper/static/podview/weather-observation.js');
+ const legacy=autoLocation(),current={...legacy,validUntil:legacy.observedAt+60};
+ assert.ok(weatherDisplayLocation(legacy,now));
+ assert.ok(weatherDisplayLocation(current,now+59999));
+ assert.equal(weatherDisplayLocation(current,now+60000),null);
+ assert.equal(weatherDisplayLocation({...current,validUntil:current.validUntil+.001},now),null);
+ assert.equal(weatherDisplayLocation({...current,latitude:55},now),null);
+});
+
+test('transient stale weather retains future hourly facts with honest label but no fresh advice',()=>{const source=dualWeather(),w=projected(source),model=liveWeatherModel({...w,stale:true},{now});assert.equal(model.hours.length,1);assert.equal(model.days.length,1);assert.match(model.hoursLabel,/Sidst kendte/);assert.equal(model.summary,'');const expired=liveWeatherModel({...w,stale:true},{now:Date.parse(source.hourly.retrievedAt)+900000});assert.equal(expired.hours.length,0);});

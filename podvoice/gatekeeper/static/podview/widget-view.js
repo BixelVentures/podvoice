@@ -136,7 +136,7 @@ class WidgetHost extends HTMLElement {
  }
  async loadLiveHome(){
   if(this.liveHomePending)return;this.liveHomePending=true;this.liveHomeAt=Date.now();const generation=this.liveHomeGeneration||0,room=this.liveSnapshot.roomId,boot=this.liveSnapshot.bootId;
-  try{const body=await this.liveTransport.home();if(generation!==this.liveHomeGeneration||!this.liveTransport.connected||!this.isConnected||this.liveSnapshot.bootId!==boot||this.liveSnapshot.roomId!==room||!this.liveSnapshot.capabilities.homeRead?.length)return;this.state=applyHome(this.state,validateHome(body,room),this.liveSnapshot.capabilities.homeRead);this.render();}
+  try{const body=await this.liveTransport.home();if(generation!==this.liveHomeGeneration||!this.liveTransport.connected||!this.isConnected||this.liveSnapshot.bootId!==boot||this.liveSnapshot.roomId!==room||!this.liveSnapshot.capabilities.homeRead?.length)return;this.state=applyHome(this.state,validateHome(body,room,boot),this.liveSnapshot.capabilities.homeRead);this.render();}
   catch{if(generation===this.liveHomeGeneration&&this.isConnected){this.state={...this.state,liveWeather:this.state.liveWeather?{...this.state.liveWeather,stale:true}:null,devices:this.state.devices.map(d=>d.live?{...d,stale:true}:d)};this.render();}}
   finally{this.liveHomePending=false;}
  }
