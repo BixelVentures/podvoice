@@ -60,13 +60,13 @@ export class PodVoiceTransport {
   if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===false){
    this.controllerRenewed=false;this.cookieReadAuthority=false;this.controllerRenewAt=null;clearTimeout(this.recoveryTimer);this.recoveryTimer=null;clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;
   }
-  if(value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true&&!this.cookieReadAuthority)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
+  if(this.controllerRenewalDenied||value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true&&!this.cookieReadAuthority)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
   this.room = value.roomId; this.snapshot = value; this.connected = true;
   if(value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   this.onConnection('connected'); this.onSnapshot(value);clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);return true;
  }
- async start() {return this.restart(false,true,!this.requireLocalRenewal);}
+ async start() {this.controllerRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
  scheduleRecovery(){
   if(this.closed||this.recoveryBlocked||this.recoveryTimer)return;
   const generation=this.generation,attempt=this.recoveryAttempt||0;
@@ -76,6 +76,8 @@ export class PodVoiceTransport {
  }
  async restart(retrying=false,renew=true,coalesce=false){this.restartCount=(this.restartCount||0)+1;try{return await this.restartRead(retrying,renew,coalesce);}finally{this.restartCount--;this.schedulePeerRead();}}
  async restartRead(retrying=false,renew=true,coalesce=false) {
+  // Enrollment denial does not revoke verified reads; automatic recovery stays read-only.
+  renew=renew&&!this.controllerRenewalDenied;
   const attempt=retrying?this.recoveryAttempt||0:0;
   const peerRevision=this.peerRevision||0,renewAt=this.controllerRenewAt;this.close(false); this.closed = false;this.recoveryAttempt=attempt;this.recoveryReadOnly=!renew;this.controllerRenewAt=renew?null:renewAt;
   const generation = this.generation;
@@ -92,15 +94,15 @@ export class PodVoiceTransport {
     try{
      const renewal=await this.renewController(value.roomId,generation,coalesce,peerRevision);if(!renewal)return;
      if(renewal.coalesced){renew=false;this.recoveryReadOnly=true;this.controllerRenewAt=renewAt;this.controllerRenewRetryAt=Date.now()+30000;this.peerReadPending=false;}
-     else{const result=await renewal.json();if(generation!==this.generation)return;if([401,403].includes(renewal.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}renewed=renewal.ok&&result.ok===true&&result.expiresIn===300;}
+     else{const result=await renewal.json();if(generation!==this.generation)return;if([401,403].includes(renewal.status)){this.controllerRenewalDenied=true;this.recoveryReadOnly=true;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;throw Error('controller_renewal_denied');}renewed=renewal.ok&&result.ok===true&&result.expiresIn===300;}
      if(renewed||renewal.coalesced){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();if(generation!==this.generation)return;if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}if(renewed)renewed=response.ok;}
     }catch{if(generation!==this.generation)return;}
 
    }
    if(generation!==this.generation)return;
    if(this.recoveryBlocked)throw Error('transport_access_denied');
-   this.controllerRenewed=renewed;this.cookieReadAuthority=!renew&&response.ok;
-   if(value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
+   this.controllerRenewed=renewed;this.cookieReadAuthority=!this.controllerRenewalDenied&&!renew&&response.ok;
+   if(this.controllerRenewalDenied||value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority)value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
    if (!response.ok || !this.accept(value)) throw new Error(value.error || 'invalid_snapshot');
    if(generation!==this.generation||this.closed)return;
    if(this.controllerRenewed===true)this.onControllerRenewed({owner:this.controllerRenewalOwner,generation});
