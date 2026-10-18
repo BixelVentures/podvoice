@@ -1,3 +1,47 @@
+<!-- podview51-admission
+{
+  "version": 28,
+  "kind": "podview51_queue_viewport",
+  "reviewer": "Independent /root/astra_technical_assessment NEXT51 admission metadata review",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "e2e9552459f920385f4228b80ce9a35750b072a5",
+  "merge_base": "e2e9552459f920385f4228b80ce9a35750b072a5",
+  "rationale": "NEXT51 adopts the exact reviewed canonical queue viewport and inset-focus CSS with only its existing asset-manifest hash updated. All other142 assets, renderer, JavaScript, backend, geography and action authority remain unchanged. Bounded browser geometry/focus evidence and135 focused admission/history checks are separate from CI, publication, installation and physical acceptance. Full historical50 schema-validator assertions are preserved;51 accepts only its own schema after complete bindings. Native PR45 remains held.",
+  "fingerprint": "245ce5bc25273a0bcb3572baa8c910e30ff853036d6e6b9646ec12d5448958b6",
+  "regression_fingerprint": "064af50135f5afa6a74b720f49fa83cf6e8e0c4fd634b4b93d413c26d74f11bb",
+  "runtime_fingerprint": "21638e5a76370b4295c96b455ab44e17faea7c812c58884cd639cdc16e4b2044",
+  "config_fingerprint": "a4906b1aefad26c51da3498bcdeb2eefc583bcdf1da1f4c5d73e5083fc83b055",
+  "policy_fingerprint": "8ff73885d33a785bf857fab7bab60ecbe930947b7a941ad23a1ad8b743b0d0b7",
+  "tooling_fingerprint": "042c048d1be0d3e50d582668f53630647a01e728b6256b6e21924655e3ff6add",
+  "manifest_fingerprint": "fc574eb3df96930dd2474cc28bfb3688341b4f26b8764c8f0f5804eab0b428ae"
+}
+-->
+
+## NEXT51 — aktiv lead-beslutning: kanonisk køgeometri og fokus
+
+18/10: Lead har verificeret50 som leveret/Kører. Faktisk Chrome Q055 viste en
+klippet fjerde kunstner ved1024×600. Den endelige kanoniske CSS er godkendt med
+SHA aea67e2bbdb97291d1438a76d0b2283c4e35d4f83a484218f59aa96e7a8a5c30;
+den tidligere smalle c226-kandidat er erstattet. Kun denne eksisterende CSS og dens
+assetmanifestpin adopteres; ingen renderer, JavaScript, familie, backend, adgang,
+afspilning, geografi eller provider ændres. Rollback er eksakt leveret50 CSS.
+
+Root rapporterer844 npm/component-gate PASS og faktisk Chrome-geometri ved600,
+768 og480 samt endelig fokuskontrol. Sidste række ved1024×480 viste2px fokusstreg
+med-4px inset uden klipning, normal scroll og ingen vandret overflow; Escape
+returnerede til#track. Root har set det endelige capture. Dette er afgrænset
+browserbevis, ikke installeret51, fysisk accept eller garanti for alle skærme.
+Kildebeviser er final-inset-receipt.md og final-inset-focus.json i det isolerede
+browserreview. Ingen ekstra sourcepolish eller deviceeffekter er godkendt her.
+
+Plan: præcis14-stiers admission, historisk50-fixture inklusive hele schema-
+validatorregressionen, ny51-positive/forkert50-schema regression, fokuserede checks
+og uafhængigt metadatareview før binding. Alle143 aktiver og gamle admissionprofiler
+bevares; kun den reviewede CSS-hash ændres i listen. Native PR45 forbliver HOLD.
+CI, publicering, installation og fysisk bevis er separate efterfølgende trin.
+
 <!-- podview50-admission
 {
   "version": 27,

@@ -1,3 +1,8 @@
+## 2.0.51 — musikkøens visning, kandidat
+
+- Ret køens højde og fokusmarkering i den eksisterende kanoniske visning, så den bekræftede rækkegeometri og scroll bevares på de afprøvede skærmstørrelser.
+- Ingen ændring af renderer, JavaScript, adgang eller afspilningshandlinger. Browserbevis er adskilt fra installeret accept.
+
 ## 2.0.50 — privatlivssikker stednavnsdiagnostik, kandidat
 
 - Registrér faste udfaldskategorier fra eksisterende stednavnsopslag uden private værdier. Gentagne ens udfald dæmpes per ejer; gamle ejere og logfejl ændrer ikke produktresultatet.
