@@ -22,6 +22,7 @@ from unit.test_openai_live import call, created, terminal
 
 from gatekeeper.openai_live import LiveAudioChunk
 from gatekeeper.talk import BrowserLink, run_talk
+from gatekeeper.thin import LIVE_IDLE_PRECLOSE_S
 
 PCM = b"\x01\x00" * 1920
 WAIT_S = 3.0  # Test observation bound; never a production timeout assignment.
@@ -41,9 +42,13 @@ class CycleWireSDK(OwnedWireSDK):
         self.exit_entered = asyncio.Event()
         self.allow_exit = asyncio.Event()
         self.tail_event = None
+        self.close_requested_at = None
 
     async def send(self, data):
-        if json.loads(data)["type"] == "session.close" and self.tail_event is not None:
+        closing = json.loads(data)["type"] == "session.close"
+        if closing:
+            self.close_requested_at = asyncio.get_running_loop().time()
+        if closing and self.tail_event is not None:
             # Actual parser sees terminal audio BEFORE session.closed, even when
             # the first close-owner request has already been sent.
             await self.incoming.put(self.tail_event)
@@ -547,23 +552,39 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                 timeout_cycle = native and cycle > 5
                 if timeout_cycle:
                     preclose_events = []
+                    interrupted_preclose = []
+                    recovered_quiet = []
                     original_trace = session._trace_event
 
                     def trace_preclose(
-                        name, *, events=preclose_events, trace=original_trace, **fields
+                        name,
+                        *,
+                        events=preclose_events,
+                        interrupted=interrupted_preclose,
+                        recovery=recovered_quiet,
+                        trace=original_trace,
+                        **fields,
                     ):
                         if name.startswith("live_idle_preclose"):
                             if len(events) == 16:
                                 events.pop(0)
                             events.append(
                                 (
-                                    round(time.monotonic(), 3),
+                                    asyncio.get_running_loop().time(),
                                     name,
                                     {
                                         key: fields[key]
                                         for key in ("reason", "cause", "token")
                                         if key in fields
                                     },
+                                )
+                            )
+                        if name == "live_idle_preclose_started" and interrupted:
+                            recovery.append(
+                                session._live_idle_window.diagnostics(
+                                    owner=session._live_idle_quiet_owner(),
+                                    now=clock[0],
+                                    idle_s=session.idle_timeout_s,
                                 )
                             )
                         trace(name, **fields)
@@ -579,6 +600,12 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                     last_gaps = [None, None]
                     max_host_gap = [0.0]
                     reset_transitions = []
+                    # A real reporting gap retires quiet permission. The test
+                    # observer must span one full new idle window and preclose;
+                    # this cap changes no runtime freshness, grace or deadline.
+                    native_close_observation_s = session.idle_timeout_s + 2 * (
+                        WAIT_S + LIVE_IDLE_PRECLOSE_S
+                    )
 
                     async def fresh_native_until_closed(
                         last_index=last_index,
@@ -587,15 +614,30 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                         last_gaps=last_gaps,
                         max_host_gap=max_host_gap,
                         reset_transitions=reset_transitions,
+                        interrupt=cycle == 6,
+                        interrupted=interrupted_preclose,
+                        observation_bound=native_close_observation_s,
                     ):
                         index = last_index
                         loop = asyncio.get_running_loop()
                         next_report_at = loop.time() + 0.1
-                        async with asyncio.timeout(WAIT_S + 2.0):
+                        async with asyncio.timeout(observation_bound):
                             while not session._live_provider_closed.is_set():
                                 await asyncio.sleep(max(0.0, next_report_at - loop.time()))
                                 if session._live_provider_closed.is_set():
                                     break
+                                if (
+                                    interrupt
+                                    and not interrupted
+                                    and session._live_idle_preclose_deadline is not None
+                                ):
+                                    interrupted.append(session._live_idle_preclose_token)
+                                    # Lose a real report during the visible
+                                    # phase. Do not forge a timestamp or backfill.
+                                    await asyncio.sleep(
+                                        session._live_idle_window.freshness_s + 0.05
+                                    )
+                                    assert not session._live_provider_closed.is_set()
                                 index += 1
                                 prior = link.latest
                                 reset_before = session._live_idle_window.reset_count
@@ -646,8 +688,29 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                     producer = asyncio.create_task(fresh_native_until_closed())
                     try:
                         await observed(lambda: session._live_idle_preclose_deadline is not None)
-                        await asyncio.wait_for(producer, WAIT_S + 2.0)
+                        await asyncio.wait_for(producer, native_close_observation_s)
                         assert session._live_provider_closed.is_set()
+                        if cycle == 6:
+                            assert len(interrupted_preclose) == 1
+                            assert any(row[1] == "arrival_gap" for row in reset_transitions)
+                            assert any(
+                                name == "live_idle_preclose_cancelled"
+                                and fields.get("reason") == "native-quiet-invalidated"
+                                for _, name, fields in preclose_events
+                            )
+                            assert recovered_quiet and all(
+                                row["blocker"] == "ready"
+                                and row["quiet_s"] >= session.idle_timeout_s
+                                for row in recovered_quiet
+                            )
+                            visible = [
+                                at
+                                for at, name, fields in preclose_events
+                                if name == "live_idle_preclose_visible"
+                                and fields["token"] != interrupted_preclose[0]
+                            ]
+                            assert visible and sdk.close_requested_at is not None
+                            assert sdk.close_requested_at - visible[-1] >= LIVE_IDLE_PRECLOSE_S
                     except TimeoutError as exc:
                         window = session._live_idle_window
                         preclose = session._live_idle_preclose_task

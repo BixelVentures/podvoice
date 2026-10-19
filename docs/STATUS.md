@@ -1,3 +1,24 @@
+<!-- podview68-admission
+{
+  "version": 45,
+  "kind": "podvoice68_natural_primary_prompt",
+  "reviewer": "/root/playlist_cover_projection",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "f99be699315de44375bea46f1c667712dca21229",
+  "merge_base": "f99be699315de44375bea46f1c667712dca21229",
+  "rationale": "Exact68 scope is published67 plus the independently reviewed natural primary prompt and existing prompt regression. No UI, tool, lifecycle, timer, LED, native or firmware behavior changes. Natural sounds are permitted only within meaningful answers; silent delegation and semantic close remain unchanged. Source review receipt fee3 patch is reused; composition review, official CI and actual GPT-Live prompt preflight must be tracked separately. No provider, audible or physical acceptance is inherited.",
+  "fingerprint": "cf48b2b26972d294d8c874629a9726eaa06fe254f7c1dab44baae43a46b1130e",
+  "regression_fingerprint": "da8469e321dc95c087050e5709d1a68688c98671aec88295834170cfd91f7636",
+  "runtime_fingerprint": "8dfc2465c04e7bb4c95e1600bf7d638df67d9698134914da49e61d3c00bec70b",
+  "config_fingerprint": "872652a721f18dae06bfeb6ee70eecc73dfe18edbbc8d9ce31f7e71fe11142ca",
+  "policy_fingerprint": "30cd83c4eafbd5e2a415c6b23a9f0676f90e074bb3c727ac7a3d9373cfd0c707",
+  "tooling_fingerprint": "2851c31c1b85b0efb31f2f618db8e2f363f1524a952706a8710011457e3eafae",
+  "manifest_fingerprint": "e120effec5dec0050620d8086ff389a30b280f67dc230e2003430cabe162af1f"
+}
+-->
+
 <!-- podview67-admission
 {
   "version": 44,
@@ -2630,3 +2651,45 @@ Create one additive37 profile using the existing strict safe-file, inventory and
   "rationale": "Independent exact37 SOURCE GO f8316790c49e6c5acc0ebb2e7c0106ab28600057052fb5d6b24ed105c444d5c4. Exact14-path composition preserves reviewed backup4bits, all historical30-36 admission bytes and STATUS records, closed2-asset production scope,241 runtime files,135 UI assets,9 HA files and version-only37 metadata. Author focused28 new/current dispatch cases and16 historical36 fixture cases PASS, formatter/lint and diff checks PASS; unchanged checks retained. Existing strict helpers/inventory/fingerprints reused without generic fallback, waived owner checks, provider/settings/grant/runtime/audio changes. Official CI, publication, installation, pairing and physical Voice PE/UI acceptance remain separate and open."
 }
 -->
+
+### Aktiv promptbeslutning — naturlig stemme, uden skabelonkvittering
+
+Lead: /root. På installeret 2.0.67 viste én normal Talk-tur `[hum] København.`;
+brugeren har udtrykkeligt præciseret, at naturlige smålyde, tøven og udtryksfuld
+stemme er ønskede, ikke en fejl eller en releasegate. Det er synlig transcripttekst,
+ikke bevis for hørbar lyd. Den shippede primærprompt forbyder imidlertid ordret
+`Never backchannel`, tøvelyde, nynnen og `hmm` også i direkte svar. Den
+falsificerbare årsag er derfor en for bred stilregel, som modsiger brugerens mål;
+denne observation beviser ikke, at provider faktisk adlyder eller at de tidligere
+gentagne standardreplikker er løst.
+
+Berørt kæde: brugerhensigt → primær Live-instruktion → eventuel stille delegation →
+backendresultat → naturligt direkte svar/afsked → transcript og playback → lukning
+og næste wake. Bevar én Live-ejer af lyd og semantik, tavs delegation før
+handlingsresultat, sand resultat-/afslutningskvittering, og backendens faktuelle
+svarstil. Ret kun primærpromptens overbrede forbud til et snævert forbud mod
+skabelonagtige modtagelses- og fremskridtsreplikker; ingen tekst-/PCM-
+filtrering, prompt-/timeouttuning, providerkald eller ændret værktøjskontrakt.
+Kør eksisterende fokuseret promptkontrakt, lint/format og uafhængigt kilde-/ejerreview
+før én koordineret PodVoice/PodView-kandidat. Rollback er dette isolerede prompt-
+ordvalg. CI, installation, faktisk providerlyd og fysisk Voice PE-accept er åbne.
+
+Faktisk draftresultat: den primære stilregel fraråder nu skabelonagtige
+modtagelses- og fremskridtsreplikker uden at forbyde naturlige smålyde, tøven
+eller prosodi i meningsfulde svar. Ingen backend-, værktøjs-, timeout- eller
+lydimplementation er ændret. De eksisterende 19 prompttests, Ruff check/format
+og diffkontrol består på det isolerede draft. Uafhængig ejer-/kildereviewer
+/root/playlist_cover_projection fandt og lukkede en tælle-ambiguitet i den første
+ordlyd; final to-filspatch `fee3e885ff1ecbb015f03b44e837b333eb4e7baa4afca63a85d84cad687f8e86`
+fik snævert GO. Ingen ny providerprøve, SafeEval, officiel CI, installation,
+hørbar eller fysisk accept er udført for denne promptrettelse.
+
+### Aktiv samlet68-kandidat — kun naturlig primærstemme
+
+Lead: /root. Scope er præcis publiceret67 main f99be699315de44375bea46f1c667712dca21229 plus den uafhængigt reviewede primærprompt og dens eksisterende regression. Ingen UI-, timer-, musik-, LED-, lifecycle- eller firmwareændring tilføjes. PC35 udvikles separat. Versionsmetadata og eksisterende exact-tree-admission opdateres til68; uændrede aktiver og runtimeejere forbliver bundet. De19 fokuserede prompttests og kilde-GO genbruges, mens sammensætning, formatter/lint og admission kontrolleres på de faktiske68-bytes. Fokuseret semantisk prøve skal bruge den normale GPT-Live-vej, uden nøgleeksport eller eksperimentel startpolicy. Providerprøve, officiel CI, udgivelse, installation og fysisk accept er endnu åbne. Rollback er den reviewede promptdelta og versionsmetadata som én samlet kandidat.
+
+Faktisk68-kildekontrol: formatter/lint består; de19 eksisterende promptcases og to metadata-/scope-regressioner består på samme isolerede kandidat (21 i alt). Aktuel exact-tree-admission består med143 uændrede UI-aktiver og256 runtime-/HA-filer i manifestet. Uafhængigt sammensætningsreview afventer. Root har præciseret, at normal installation efter kilde-/CI-GO må ske som feltkandidat, mens den fokuserede semantiske accept fortsat er åben: én normal Talk-session på de installerede68-bytes, direkte spørgsmål → opfølgning → eksplicit afslutning → ny session. Den historiske Realtime-preflight eller den aktuelle67-session tæller ikke som68-bevis. Ingen ny providerprøve er kørt.
+
+Afgrænset officiel CI-afvigelse i samme68-forløb: run39317933689/head730138b6 bestod scope, build, UI, HA, otte unitgrupper og anden integrationsshard; første integrationsshard fejlede i den uændrede native ti-cyklus-fixture på cyklus9. Den nye diagnostik viste en faktisk værtsrapporteringspause på0,309213s over uændret0,2s freshness. Runtime nulstillede korrekt stillevinduet og annullerede preclose; fixtureproducentens faste5s observationsloft gav kun2,499s ny stilhed og kunne ikke rumme et nyt25s stillevindue plus den eksisterende2s preclose. Fejlen bevares som fejl, ikke som prompt- eller produktfejl. Lead /root udvider kun fixturescope: afled et fast ydre observationsloft fra den eksisterende idle-/preclose-kontrakt; injicér én deterministisk rapportpause over freshness under synlig preclose, og bevis korrekt annullering efterfulgt af reel frisk stilhed og fuld ny preclose. Ingen ændring af produkttimeouts, freshness, syntetisk tilbagefyldning, retries eller runtime. Bevar alle10 cyklusser, stale-events og drain-assertions. Kun kausal native-regression, statisk kontrol og uafhængigt ændringsreview før sammePR-successor; tidligere beståede bits/resultater genbruges.
+
+Faktisk afgrænset fixture-resultat: patch e82c32a61ea3ab5e353487dbd524c95061a89295e3fb600f75e9c925373f4b47 ændrer kun den eksisterende native ti-cyklus-fixtures passive slutobservation til35s udledt af25s idle +2×(3s observer+2s preclose). Cyklus6 injicerer præcis én reel forsinket rapport under synlig preclose og kræver arrival-gap-reset, korrekt annullering, ny fuld frisk stilleperiode og mindst eksisterende2s synlig preclose før SDK-close. Alle10 cyklusser og tidligere stale-/drain-/teardownkrav bevares. Det ene berørte offline native node bestod på40,389s, med Ruff/format/applykontrol. Uafhængigt fixture-GO /root/native_pause_receipt er bundet i receipt independent-review.json; ingen runtime-, provider- eller fysisk prøve er udført. Det tidligere CI-nederlag bevares; sammePR-successor og ny officiel CI står åbne. Natlige lydprøver er forbudt af brugeren; almindelig installeret68 Talk-semantik og alle hørbare/native/alarmprøver afventer i morgen.
