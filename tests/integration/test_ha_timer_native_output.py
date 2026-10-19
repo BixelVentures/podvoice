@@ -562,8 +562,10 @@ async def test_legacy_receipt_does_not_steal_poll_or_mutate_later_native_alarm(c
     original = session._timer_report
 
     async def report(*args, **kwargs):
-        session._closing = True
-        await original(*args, **kwargs)
+        result = await original(*args, **kwargs)
+        if result and "drained" in args[4]:
+            session._closing = True  # End the fixture poll after the actual terminal receipt.
+        return result
 
     session._timer_report = report
     async with client:
@@ -724,7 +726,7 @@ async def test_scoped_retry_pending_ha_report_does_not_hold_real_fresh_wake(cont
         if kwargs["cancelled"]:
             report_entered.set()
             await release_report.wait()
-        await original(*args, **kwargs)
+        return await original(*args, **kwargs)
 
     session._timer_report = held_report
     made = bridge.command(

@@ -20,6 +20,7 @@
     "podvoice/gatekeeper/thin.py": "af41ee15755321c1e9385f916b49e2df1772f9df6c175eb8074fc42788052444"
   },
   "regressions": {
+    "tests/integration/test_ha_timer_native_output.py": "9991fb1a284ff1e1e182f20a24b2e6516ff9b6aedc3a7f3b65f1aba12adec038",
     "tests/integration/test_podview_controls.py": "e383a01109ab0530361bec49256b543ffc2fc92b83efb55b533e4e5c1e413878",
     "tests/integration/test_podview_idle_destination.py": "217db5eaa5d93474bcd166845e6ab06aa969c436fd0afc5820fc466e465c4ea1",
     "tests/integration/test_thin_automatic_diagnostics.py": "ba4e0e372cc1e42ffff3bb47655adb5ac9dbe0ed0833d59ebe4e827d2cccf690",
@@ -35,7 +36,7 @@
     "tests/podview/root-robot-control-panel.test.mjs": "d6fbc2e78baacf3e0c66a636808cb85f0352fcd18d42e4457600547ead47e0df",
     "tests/podview/root-shared-music-results.test.mjs": "b0d1d16f29fa5d4ebaeafaa61e93d88d660a9b5f4b6099fddb020f0aaad65ebd",
     "tests/podview/root-speaker-output-view.test.mjs": "6a5048ab58c25101c0be055a9922996f65b4120a0352619caf8c70c29947ea33",
-    "tests/unit/test_candidate_scope_admission66.py": "a5bec5a2524b51afe07c0f6bde5c74863c1b85195e169aefdb68d6f68845b1fc",
+    "tests/unit/test_candidate_scope_admission66.py": "9b1f8ad66d931788fcec95e2eeac3b51859dcdbfb93751efc70615d7b4683393",
     "tests/unit/test_dev_cycle.py": "00dd33e5219177e7abc0af4ce3a4889622ce84d9c767394b468f70a46cbc4dc4",
     "tests/unit/test_diagnostic_retention.py": "2fe9bb90a7b662e5f8e1476d56ffced4160c0e6e2b501bf1f325897d741cc5e4",
     "tests/unit/test_music_selection_owner.py": "addfd44b1615071256c55ab2cbd50f7dc77a64e6928c636ca98264e5150ada54"

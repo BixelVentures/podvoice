@@ -8,14 +8,14 @@
   ],
   "base_tip": "2c585fabdaaf52895a103db698988477eed098a4",
   "merge_base": "2c585fabdaaf52895a103db698988477eed098a4",
-  "rationale": "Exact unsigned66 source and admission independently reviewed by /root/astra_actual_ui_acceptance_audit; receipt SHA256 8c140910f38c2e703506c04c84a31a5c06a7782efd4b5e16e3a9214c0564eefb. Seven composed source increments retain exact143 UI members and existing native authority; bounded successor freezes the existing continuity-test clock without changing assertions or runtime bytes. Canonical ROOT adoption/parity, officialCI/publication/install and actual provider/physical acceptance remain separate; count changes no answer semantics and may include presentation JSON.",
+  "rationale": "Exact unsigned66 source and admission independently reviewed by /root/astra_actual_ui_acceptance_audit; receipt SHA256 4fb0b61280d0d11b3fe108dd4608c995a8fd9588f81d66f43c4019bea3977d8d. Seven composed source increments retain exact143 UI members and existing native authority; bounded officialCI successor repairs two stored-method timer test wrappers to preserve boolean reports and stop fixture polling after successful drained, without changing assertions or runtime bytes. Canonical ROOT adoption/parity, officialCI/publication/install and actual provider/physical acceptance remain separate; count changes no answer semantics and may include presentation JSON.",
   "fingerprint": "9a9a432a498cd52da4c0cc4390f1acdd9ea32de06b04719334d3dfdb818e9496",
-  "regression_fingerprint": "bf238d99fab0446b136f3d71d19904529ad2dedc9c04b1c5e47440848c376042",
+  "regression_fingerprint": "8562395132d5607557d020451fe2e5301d800f9dc59c63fd7a91a4689efd42e2",
   "runtime_fingerprint": "53a086a65a44f463c2c0235c7bf75058fed7bc348b4ab7d2b11215559ceda016",
   "config_fingerprint": "75dd665c377956e1975624e83bd8bc63e8ae0541c8724e9258f6e894ad6f98bf",
-  "policy_fingerprint": "a02e74676a54a92dab2dab3d9cd46711e1edc8e7630cecee45a42da2ff5cda3c",
+  "policy_fingerprint": "aadc140a5d7d597b99620ba44f8811097f00fe623f7e7a7721b10d787d71d853",
   "tooling_fingerprint": "c64398576ea12f93ae7792124ace130b1e1ebc7829a086ba469b1433bc7a8708",
-  "manifest_fingerprint": "d715b61fb7ff0213edb7ee20bf21a103f2d251d8933cbff9800bb1bf9b070d3a"
+  "manifest_fingerprint": "20deac962931fdd747dc1abbcae7e54d2abf069e7da7c8bcf6745d1936607e2b"
 }
 -->
 
@@ -34,6 +34,23 @@ Affected chain: HA timer expiry/claim → native timer context → exact playbac
 Planned correction: smallest existing-owner phase-report ordering fix, preserving bounded failure handling and final acknowledgement guards. Regressions must cover delayed/failed HA report concurrent with physical stop, stale/duplicate starts, no-start cancelled path, and final retirement ordering. Existing focused alarm/native adapter harness only; independent adversarial review before adoption; exact-tree binding and official CI on combined candidate. Rollback boundary: this reporting-only correction. Candidate result: observed started is now reported promptly through the existing metadata task; final phases await that exact successful report without holding physical retirement/rearm. The existing exact retirement retry serializes its metadata after the preceding report. Final cancel/ack is attempted only once the sink is proven quiet; unknown retirement remains held until the existing retry provides that proof. No new queue, timeout, sound or LED tuning.
 
 Causal validation: the existing joined timer/VoicePELink regression first failed because HA never observed started during ringing; after the fix it passed. Delayed and rejected HA-start reports cannot delay exact physical Stop/rearm (two variants passed); a combined delayed report/lost retirement ACK case also passed with final ordering intact. Pre-play cancellation passed with only unknown/stopped, no fabricated start. The focused timer file plus three native adapter checks ran 23 cases: 22 passed; one old epoch-change assertion incorrectly forbade an already sent old-epoch start receipt. The corrected assertion forbids replacement-epoch/terminal reporting, and only that invalidated case was rerun and passed. The composed retry and existing native lost-ACK case passed together. Ruff/format and mypy pass on changed files. Independent review, integration, official CI, installation and actual audible/visible acceptance remain open. Cleanup is not claimed as start/drain proof.
+
+Official CI follow-up (PR222, exact bound66): the first rest/integration failure occurred in
+`test_legacy_receipt_does_not_steal_poll_or_mutate_later_native_alarm` after 201
+passed cases. An unchanged local replay reproduced started=true/drained=false.
+The fixture's `_timer_report` wrapper dropped the new boolean result and set the
+private `_closing` flag on the newly early start receipt, rather than after a
+terminal result. This bypassed production close's interrupt/join ordering and
+prevented the chained drained report. Both production callers and every test
+wrapper were traced once; only two wrappers override `_timer_report`, both in
+`test_ha_timer_native_output.py`. They now return the original boolean. The poll
+sentinel moves after a successful actual drained report; the held-report wrapper
+keeps its existing cancel wait and fresh-wake assertions. No production code,
+timeout, legacy/drain assertion or physical acceptance claim changed. The exact
+original failing case and its affected held-report neighbor passed together
+(2 passed, 7.29 s); changed-fixture Ruff and format pass. Independent review and
+fresh combined exact-tree binding/official CI remain required; previous evidence
+is retained, and no installed/alarm outcome is inferred from this fixture repair.
 
 ## Active lead decision — real65 quiet-answer failure, 19 October 2026
 

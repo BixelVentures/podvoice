@@ -57,25 +57,26 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     {
-        "tests/podview/canonical-next-music-selection.test.mjs",
-        "tests/podview/root-speaker-output-view.test.mjs",
-        "tests/unit/test_dev_cycle.py",
-        "tests/podview/canonical-next-robot-control-panel.test.mjs",
-        "tests/podview/root-collection-selection.test.mjs",
         "tests/unit/test_diagnostic_retention.py",
-        "tests/podview/root-music-selection.test.mjs",
-        "tests/podview/canonical-next-collection-selection.test.mjs",
-        "tests/podview/root-robot-control-panel.test.mjs",
-        "tests/podview/root-live-media-view.test.mjs",
-        "tests/unit/test_candidate_scope_admission66.py",
-        "tests/unit/test_music_selection_owner.py",
-        "tests/podview/root-shared-music-results.test.mjs",
         "tests/podview/controller-continuity.test.mjs",
+        "tests/podview/root-speaker-output-view.test.mjs",
+        "tests/podview/canonical-next-music-selection.test.mjs",
         "tests/integration/test_podview_idle_destination.py",
-        "tests/integration/test_thin_automatic_diagnostics.py",
         "tests/integration/test_thin_timer_end_to_end.py",
-        "tests/integration/test_podview_controls.py",
+        "tests/integration/test_ha_timer_native_output.py",
+        "tests/podview/root-collection-selection.test.mjs",
+        "tests/podview/canonical-next-collection-selection.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/podview/root-shared-music-results.test.mjs",
         "tests/podview/root-live-control-view.test.mjs",
+        "tests/podview/canonical-next-robot-control-panel.test.mjs",
+        "tests/podview/root-robot-control-panel.test.mjs",
+        "tests/integration/test_thin_automatic_diagnostics.py",
+        "tests/unit/test_music_selection_owner.py",
+        "tests/integration/test_podview_controls.py",
+        "tests/podview/root-music-selection.test.mjs",
+        "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_candidate_scope_admission66.py",
     }
 )
 ASSET_CHANGES = frozenset(
@@ -94,8 +95,8 @@ ASSET_CHANGES = frozenset(
 HA_RUNTIME = previous.HA_RUNTIME
 # CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
 REVIEWER = "/root/astra_actual_ui_acceptance_audit"
-MANIFEST_SHA = "d715b61fb7ff0213edb7ee20bf21a103f2d251d8933cbff9800bb1bf9b070d3a"
-PROFILE_AST = "b024cd80342c15c6667b175feeb4774cafd444e37bd1ba1bdc8fd70323f2adae"
+MANIFEST_SHA = "20deac962931fdd747dc1abbcae7e54d2abf069e7da7c8bcf6745d1936607e2b"
+PROFILE_AST = "1175e673e6642d38a979c6d6b72912e700e5da28aa9e9ca595a3f2b5bd214688"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission65.py": "03e84501ab219d2246c157a07185ffbaa4521b0a321f0ad165c793262000ad0f",
     "scripts/podview65-admission-reviewed.json": "ed264ce19f593c1d04f36cc87b2025f21a61eaf3d2f2c49a51b81d21e52dd36f",
