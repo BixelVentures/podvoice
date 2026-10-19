@@ -142,13 +142,28 @@ jobs:
           fi
 
   lint-test:
-    needs: [scope, promotion]
+    name: lint-test (unit)
+    needs: [scope, promotion, unit-shards]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        cohort: ${{ fromJSON(needs.scope.outputs.tooling_only == 'true' && '["unit"]' || '["unit", "rest"]') }}
     steps:
+      - name: Require complete unit evidence
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          PROMOTION_RESULT: ${{ needs.promotion.result }}
+          TOOLING_ONLY: ${{ needs.scope.outputs.tooling_only }}
+          REUSE: ${{ needs.promotion.outputs.reuse }}
+          UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}
+          WORKFLOW_CANCELLED: ${{ cancelled() }}
+        run: |
+          test "$WORKFLOW_CANCELLED" != true
+          test "$SCOPE_RESULT" = success
+          test "$PROMOTION_RESULT" = success
+          if [ "$TOOLING_ONLY" = true ] || [ "$REUSE" = true ]; then
+            test "$UNIT_SHARDS_RESULT" = skipped
+          else
+            test "$UNIT_SHARDS_RESULT" = success
+          fi
       - name: Reuse previously passed exact-tree PR checks
         if: needs.promotion.outputs.reuse == 'true'
         run: echo "Required PR checks already passed for this exact tree."
@@ -177,16 +192,67 @@ jobs:
           ruff format --check scripts/dev_cycle.py scripts/ci_scope.py scripts/ci_promotion.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
           python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
       - run: ruff check .
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
       - run: ruff format --check .
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
       - run: mypy podvoice/gatekeeper
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
       - name: Unit tests
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'unit'
-        run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 tests/unit --durations=15 --durations-min=1
+        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
+        env:
+          UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}
+        run: test "$UNIT_SHARDS_RESULT" = success
+
+  unit-shards:
+    needs: [scope, promotion]
+    if: needs.scope.outputs.tooling_only != 'true' && needs.promotion.outputs.reuse != 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            podvoice/requirements.txt
+            podvoice/requirements-dev.txt
+      - name: Install product dependencies
+        run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+      - name: Unit partition
+        run: python scripts/dev_cycle.py unit-shard --shard ${{ matrix.shard }}
+
+  remaining-tests:
+    name: lint-test (rest)
+    needs: [scope, promotion]
+    if: needs.scope.outputs.tooling_only != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reuse previously passed exact-tree PR checks
+        if: needs.promotion.outputs.reuse == 'true'
+        run: echo "Required PR checks already passed for this exact tree."
+      - uses: actions/checkout@v4
+        if: needs.promotion.outputs.reuse != 'true'
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        if: needs.promotion.outputs.reuse != 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            podvoice/requirements.txt
+            podvoice/requirements-dev.txt
+      - name: Install product dependencies
+        if: needs.promotion.outputs.reuse != 'true'
+        run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
       - name: Remaining tests
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true' && matrix.cohort == 'rest'
+        if: needs.promotion.outputs.reuse != 'true'
         run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1
 
   ui-browser:
@@ -314,7 +380,7 @@ jobs:
       needs.scope.outputs.tooling_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [scope, lint-test, ui-browser, ha-framework]
+    needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

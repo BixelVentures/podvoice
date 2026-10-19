@@ -33,6 +33,15 @@ CI_CONTROL_REQUIRED = frozenset(
     }
 )
 CI_CONTROL_OPTIONAL = frozenset({"docs/STATUS.md"})
+CI_SHARD_REQUIRED = frozenset(
+    {
+        WORKFLOW,
+        "scripts/dev_cycle.py",
+        "scripts/ci_scope.py",
+        "tests/unit/test_ci_scope.py",
+        "tests/unit/test_dev_cycle.py",
+    }
+)
 
 
 def documentation(path: str) -> bool:
@@ -75,7 +84,10 @@ def tooling_only(paths: Sequence[str]) -> bool:
 def ci_control_only(paths: Sequence[str]) -> bool:
     """Recognize the bounded CI trust-tool change; keep all product checks enabled."""
     changed = set(paths)
-    return CI_CONTROL_REQUIRED <= changed and changed <= (CI_CONTROL_REQUIRED | CI_CONTROL_OPTIONAL)
+    return any(
+        required <= changed and changed <= (required | CI_CONTROL_OPTIONAL)
+        for required in (CI_CONTROL_REQUIRED, CI_SHARD_REQUIRED)
+    )
 
 
 def main() -> None:

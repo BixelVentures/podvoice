@@ -108,6 +108,31 @@ def unit_batches(root: Path) -> tuple[tuple[str, ...], ...]:
     )
 
 
+def run_ci_unit_shard(root: Path, env: dict[str, str], python: str, shard: int) -> int:
+    """Run one existing deterministic partition on its own CI runner."""
+    batches = unit_batches(root)
+    if not 1 <= shard <= len(batches):
+        raise DevCycleError(f"unit shard {shard} has no partition")
+    batch = batches[shard - 1]
+    print(f"CI unit shard {shard}/{len(batches)}: {len(batch)} modules", flush=True)
+    return subprocess.call(
+        (
+            python,
+            "-m",
+            "pytest",
+            "-v",
+            "--maxfail=1",
+            "-o",
+            "faulthandler_timeout=60",
+            *batch,
+            "--durations=15",
+            "--durations-min=1",
+        ),
+        cwd=root,
+        env=env,
+    )
+
+
 def unit_stage(python: str, timeout: int) -> Stage:
     """One outer owner; each sequential pytest child retains its existing bound."""
     return Stage(
@@ -1210,7 +1235,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "mode",
-        choices=("preflight", "fast", "lifecycle", "release", "unit-worker", "integration-worker"),
+        choices=(
+            "preflight",
+            "fast",
+            "lifecycle",
+            "release",
+            "unit-worker",
+            "integration-worker",
+            "unit-shard",
+        ),
         nargs="?",
         default="fast",
     )
@@ -1227,7 +1260,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--integration-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
     )
+    parser.add_argument("--shard", type=int, choices=range(1, UNIT_BATCH_COUNT + 1))
     args = parser.parse_args(argv)
+    if (args.mode == "unit-shard") != (args.shard is not None):
+        parser.error("--shard is required only for unit-shard")
     if args.test and args.mode != "fast":
         parser.error("--test is only available for fast development feedback")
     return args
@@ -1237,6 +1273,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     started = time.monotonic()
     try:
+        if args.mode == "unit-shard":
+            return run_ci_unit_shard(
+                Path.cwd().resolve(), os.environ.copy(), sys.executable, args.shard
+            )
         if args.mode == "unit-worker":
             run_unit_batches(
                 Path.cwd().resolve(), os.environ.copy(), sys.executable, args.unit_timeout
