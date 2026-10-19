@@ -17,7 +17,7 @@ from integration.test_podview_bridge import owner
 from integration.test_podview_music import Rig as MusicReadRig
 from integration.test_podview_music_control import Rig as MusicRig
 from integration.test_podview_music_control import content_owner, room_owner
-from unit.test_device_control import ROBOT, Rig
+from unit.test_device_control import MAP, MODE, ROBOT, Rig
 
 from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
@@ -188,11 +188,135 @@ async def test_real_robot_setup_choice_start_and_unknown_replay(fixture):
     assert len(rig.writes) == 2
     recipe = rig.router._device_control.cleaning_history()["items"][0]
     reuse = await bridge.controls.setup(setup_body(bridge, recipeId=recipe["id"]), token)
-    assert reuse["ok"] and len(reuse["options"]) == 1
-    reused = action_body(reuse, reuse["options"][0])
+    assert reuse["ok"] and {row["action"] for row in reuse["options"]} == {"reuse", "start"}
+    reused = action_body(reuse, next(row for row in reuse["options"] if row["action"] == "reuse"))
     reused["requestId"] = "reuse"
     assert (await bridge.controls.action(reused, token))["outcome"] == "accepted"
     assert len(rig.writes) == 6
+
+
+async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_moves(fixture):
+    rig, bridge, token = fixture
+    device = rig.router._device_control
+    offered = await device.display_setup(ROBOT, ("podview:seed", "history-source"))
+    cap = device._display_tickets[offered["capability_token"]]
+    recipe = {
+        "vacuum_entity_id": ROBOT,
+        "device_identity": cap.identity,
+        "map_entity_id": cap.map_entity,
+        "map_name": cap.map_name,
+        "map_fingerprint": cap.map_fingerprint,
+        "mapping_identity": cap.mapping_identity,
+        "area_ids": ["kitchen"],
+        "segments": [16],
+        "repeat": 2,
+        "verified_settings": [
+            {"entity_id": ROBOT, "value": "balanced"},
+            {"entity_id": MODE, "value": "vacuum_and_mop"},
+        ],
+    }
+    record = device._cleaning_journal.begin(recipe)
+    device._cleaning_journal.accepted(record)
+
+    offer = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    assert offer["ok"], offer
+    assert not rig.writes
+    start = next(row for row in offer["options"] if row["action"] == "start")
+    draft = offer["setup"]["historyDraft"]
+    assert draft == {
+        "source": "accepted_start_history",
+        "optionId": start["id"],
+        "areaIds": [
+            next(row["id"] for row in start["argsSchema"]["areas"] if row["label"] == "Køkkenalrum")
+        ],
+        "repeat": 2,
+    }
+    public = json.dumps(offer)
+    assert '"area_ids"' not in public and '"verified_settings"' not in public
+    dining = next(row["id"] for row in start["argsSchema"]["areas"] if row["label"] == "Spisestue")
+    action = action_body(offer, start, {"areaIds": [dining], "repeat": 3})
+    result = await bridge.controls.action(action, token)
+    assert result["outcome"] == "accepted", result
+    assert rig.writes == [
+        (
+            "services/vacuum/send_command",
+            {
+                "entity_id": ROBOT,
+                "command": "app_segment_clean",
+                "params": [{"segments": [17], "repeat": 3}],
+            },
+        )
+    ]
+
+
+async def test_history_reuse_only_remains_locked_and_old_area_ids_are_invalid(fixture):
+    rig, bridge, token = fixture
+    device = rig.router._device_control
+    offered = await device.display_setup(ROBOT, ("podview:seed", "history-source"))
+    cap = device._display_tickets[offered["capability_token"]]
+    recipe = {
+        "vacuum_entity_id": ROBOT,
+        "device_identity": cap.identity,
+        "map_entity_id": cap.map_entity,
+        "map_name": cap.map_name,
+        "map_fingerprint": cap.map_fingerprint,
+        "mapping_identity": cap.mapping_identity,
+        "area_ids": ["kitchen"],
+        "segments": [16],
+        "repeat": 1,
+        "verified_settings": [],
+    }
+    record = device._cleaning_journal.begin(recipe)
+    device._cleaning_journal.accepted(record)
+    first = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    old_area = first["setup"]["historyDraft"]["areaIds"][0]
+    second = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    second_start = next(row for row in second["options"] if row["action"] == "start")
+    assert old_area != second["setup"]["historyDraft"]["areaIds"][0]
+    stale = action_body(second, second_start, {"areaIds": [old_area], "repeat": 1})
+    assert (await bridge.controls.action(stale, token))["error"] == "invalid_arguments"
+    assert not rig.writes
+
+    bridge.controls.policy["vacuum"][0]["actions"] = ["reuse"]
+    locked = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    assert locked["ok"] and len(locked["options"]) == 1
+    assert locked["options"][0]["action"] == "reuse"
+    assert locked["options"][0]["argsSchema"] == {"kind": "none"}
+    assert "historyDraft" not in locked["setup"]
+    assert not rig.writes
+
+
+@pytest.mark.parametrize("invalid", ["unknown", "foreign", "changed_map", "unsupported_setting"])
+async def test_history_draft_requires_current_accepted_recipe(fixture, invalid):
+    rig, bridge, token = fixture
+    device = rig.router._device_control
+    offered = await device.display_setup(ROBOT, ("podview:seed", "history-source"))
+    cap = device._display_tickets[offered["capability_token"]]
+    recipe = {
+        "vacuum_entity_id": ROBOT,
+        "device_identity": cap.identity,
+        "map_entity_id": cap.map_entity,
+        "map_name": cap.map_name,
+        "map_fingerprint": cap.map_fingerprint,
+        "mapping_identity": cap.mapping_identity,
+        "area_ids": ["kitchen"],
+        "segments": [16],
+        "repeat": 1,
+        "verified_settings": [],
+    }
+    if invalid == "foreign":
+        recipe["vacuum_entity_id"] = "vacuum.other"
+    if invalid == "unsupported_setting":
+        recipe["verified_settings"] = [{"entity_id": MODE, "value": "obsolete_mode"}]
+    record = device._cleaning_journal.begin(recipe)
+    if invalid != "unknown":
+        device._cleaning_journal.accepted(record)
+    if invalid == "changed_map":
+        rig.states[MAP]["state"] = "Upstairs"
+    result = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    assert result["ok"] is False and result["error"] == "setup_unavailable"
+    assert result["retryAllowed"] is False
+    assert not rig.writes
 
 
 async def test_pairing_scope_target_and_stale_setup_fail_closed(fixture):

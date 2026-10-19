@@ -167,3 +167,8 @@ Hårde gates går før totalscore: samme canonical renderer lokalt/live; ingen o
 ### Direkte musikstart ·18. oktober2026
 
 Ét eksplicit Play på et musikresultat bruger skærmens præcise serverbundne rum/højttaler. Ingen ekstra destinationvælger, OK eller bekræftelsesdialog i dette forløb. Det særskilte eksplicitte rumskift forbliver hos `SpeakerOutputView`. `LiveMusicSelectionView.observePlayback` er en ikke-visuel lifecycle-metode; den afklarer accepteret feedback ud fra frisk matchende faktisk observation. Den samme eksisterende højre playerstatus ejer pending, afvisning og ukendt udfald, mens kendt cover, titel og faktisk Play/Pause bevares. Ingen optimistisk afspilning, gentagelse af ukendt handling eller ekstra statusflade i musikkort/venstre side.
+
+
+### 19. oktober · historikvalg i den eksisterende robotformular
+
+RobotControlPanel validerer den valgfrie, task-bundne historyDraft med den eksisterende control-model.controlArgs. Ingen ny komponentfamilie eller formular: det historiske valg udfylder de aktuelle områdevalg og gentagelser, kan justeres og kræver eksplicit Start. Sen AI må ikke overskrive brugerens valgte udkast. Kun en aktuel task med både reuse og start kan levere redigerbar historik; reuse alene forbliver den eksisterende låste gentagelse. Den redigerbare Start bruger aktuelle indstillinger; den separate sekundære uændrede gentagelse bruger den gemte opsætning. Registreringen omfatter kun valideringsmetoden og import til eksisterende model, ikke nye DOM-rødder eller ny handlingsautoritet.

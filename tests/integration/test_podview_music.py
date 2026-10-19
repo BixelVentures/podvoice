@@ -255,6 +255,84 @@ async def test_search_transport_requires_advertised_service_and_exact_account_qu
     assert "search" not in rig.router.podview_music_reads()
 
 
+async def test_playlist_artwork_flag_is_sent_only_for_advertised_live_capability(rig):
+    advertised = False
+    requests = []
+
+    async def handler(request):
+        requests.append(
+            (
+                request.method,
+                request.url.path,
+                json.loads(request.content) if request.content else {},
+            )
+        )
+        if request.url.path.endswith("/services"):
+            fields = {"config_entry_id": {}, "query": {}, "limit": {}}
+            if advertised:
+                fields["include_artwork"] = {"required": False}
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "domain": "podconnect",
+                        "services": {
+                            "search_playlists": {"fields": fields},
+                            "get_playback_snapshot": {},
+                        },
+                    }
+                ],
+            )
+        return httpx.Response(
+            200,
+            json={
+                "service_response": {
+                    "ok": True,
+                    "schema": "podconnect.search_playlists.v1",
+                    "config_entry_id": "account-alpha",
+                    "owner_epoch": "a" * 32,
+                    "source": "spotify_web_api",
+                    "query": "jazz",
+                    "limit": 3,
+                    "returned_count": 0,
+                    "playlists": [],
+                }
+            },
+        )
+
+    old_client = rig.router._client
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    rig.router._client = client
+    try:
+        # Control 0.10.17 exposes no field. Discovery retains legacy arguments.
+        await type(rig.router)._refresh_podconnect_services(rig.router)
+        assert not rig.router._discovery.playlist_search_artwork
+        await rig.router.podview_read("playlist_search", "account-alpha", "jazz")
+        assert requests[-1][2] == {"config_entry_id": "account-alpha", "query": "jazz", "limit": 3}
+
+        # Control 0.10.18 advertises the flag through HA /services.
+        advertised = True
+        await type(rig.router)._refresh_podconnect_services(rig.router)
+        assert rig.router._discovery.playlist_search_artwork
+        await rig.router.podview_read("playlist_search", "account-alpha", "jazz")
+        assert requests[-1][2] == {
+            "config_entry_id": "account-alpha",
+            "query": "jazz",
+            "limit": 3,
+            "include_artwork": True,
+        }
+
+        # A subsequent discovery without the field withdraws it atomically.
+        advertised = False
+        await type(rig.router)._refresh_podconnect_services(rig.router)
+        assert not rig.router._discovery.playlist_search_artwork
+        await rig.router.podview_read("playlist_search", "account-alpha", "jazz")
+        assert "include_artwork" not in requests[-1][2]
+    finally:
+        rig.router._client = old_client
+        await client.aclose()
+
+
 async def test_ingress_contract_preserves_freshness_duplicates_and_has_no_controls(rig):
     async with TestClient(TestServer(rig.app)) as client:
         capabilities = (await (await client.get("/view/api/snapshot")).json())["capabilities"]

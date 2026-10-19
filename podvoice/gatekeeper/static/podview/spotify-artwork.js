@@ -1,8 +1,9 @@
 // Closed provider artwork projection. Never accepts model images or playback actions.
+const PLAYLIST_URI=/^spotify:playlist:[A-Za-z0-9]{22}$/;
 const IMAGE_PATH=/^\/image\/[A-Za-z0-9_-]{1,128}$/;
-export function spotifyArtwork(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).sort().join(',')!=='kind,provider,url'||value.kind!=='album_cover'||value.provider!=='spotify'||typeof value.url!=='string'||value.url.length>512)return null;
- try{const url=new URL(value.url);if(url.protocol!=='https:'||url.hostname!=='i.scdn.co'||url.port||url.username||url.password||url.search||url.hash||!IMAGE_PATH.test(url.pathname)||value.url!==`https://i.scdn.co${url.pathname}`)return null;return {kind:'album_cover',provider:'spotify',url:value.url};}catch{return null;}
+export function spotifyArtwork(value,uri){
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).sort().join(',')!=='kind,provider,url'||(value.kind!=='album_cover'&&!(value.kind==='playlist_cover'&&PLAYLIST_URI.test(uri)))||value.kind==='album_cover'&&PLAYLIST_URI.test(uri)||value.provider!=='spotify'||typeof value.url!=='string'||value.url.length>512)return null;
+ try{const url=new URL(value.url);if(url.protocol!=='https:'||url.hostname!=='i.scdn.co'||url.port||url.username||url.password||url.search||url.hash||!IMAGE_PATH.test(url.pathname)||value.url!==`https://i.scdn.co${url.pathname}`)return null;return {kind:value.kind,provider:'spotify',url:value.url};}catch{return null;}
 }
 export function spotifyItemUrl(uri){const match=/^spotify:(track|episode):([A-Za-z0-9]{22})$/.exec(typeof uri==='string'?uri:'');return match?`https://open.spotify.com/${match[1]}/${match[2]}`:null;}
 export function spotifyTrackUrl(uri){return typeof uri==='string'&&uri.startsWith('spotify:track:')?spotifyItemUrl(uri):null;}
@@ -42,6 +43,6 @@ export function renderRetainedArtwork(image,{url,identity,contentIdentity=identi
  probe.src=url;return true;
 }
 export function renderSpotifyArtwork(image,item,contentIdentity=item?.uri){
- const art=spotifyItemUrl(item?.uri)?spotifyArtwork(item?.artwork):null;
- return renderRetainedArtwork(image,{url:art?.url,identity:art?`${item.uri}|${art.url}`:'',contentIdentity,label:`Albumomslag til ${item?.name||item?.title||'sangen'}`,provider:true});
+ const playlist=PLAYLIST_URI.test(item?.uri),art=spotifyItemUrl(item?.uri)||playlist?spotifyArtwork(item?.artwork,item?.uri):null;
+ return renderRetainedArtwork(image,{url:art?.url,identity:art?`${item.uri}|${art.url}`:'',contentIdentity,label:playlist?`Playlisteomslag til ${item?.name||item?.title||'afspilningslisten'}`:`Albumomslag til ${item?.name||item?.title||'sangen'}`,provider:true});
 }

@@ -1,3 +1,6 @@
+// Layout offsets exclude our active FLIP transform. Animation progress is not a new layout.
+const resourceLayout=node=>{if(typeof node.offsetLeft!=='number')return null;const values=[];for(let n=node,depth=0;n&&depth<64;n=n.offsetParent,depth++)values.push(n,n.offsetLeft,n.offsetTop,n.offsetWidth,n.offsetHeight);return values;};
+const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>value===b[index]);
 // One animation owner per element. Read its visible position before cancelling;
 // retarget from there, never combine old transforms with a new layout measurement.
 export class SceneMotion {
@@ -11,13 +14,15 @@ export class SceneMotion {
  }
  resources(){
   const nodes=[...this.host.querySelectorAll('.resource-preview,.timer-panel')].filter(n=>n.getClientRects().length),boxes=new Map(nodes.map(n=>[n,n.getBoundingClientRect()]));
-  for(const n of nodes){this.animations.get(n)?.cancel();this.animations.delete(n);}return boxes;
+  boxes.layouts=new Map(nodes.map(node=>[node,resourceLayout(node)]));return boxes;
  }
  settleResources(before,viewChanged=false){
-  if(viewChanged||this.reduced)return;
+  if(viewChanged||this.reduced){for(const node of before.keys()){this.animations.get(node)?.cancel();this.animations.delete(node);}return;}
   for(const node of this.host.querySelectorAll('.resource-preview,.timer-panel')){
-   if(!node.getClientRects().length)continue;const a=before.get(node),b=node.getBoundingClientRect();
-   if(!a){this.animate(node,[{opacity:.45},{opacity:1}],160);continue;}
+   if(!node.getClientRects().length)continue;const a=before.get(node),active=this.animations.get(node);
+   if(sameLayout(before.layouts?.get(node),resourceLayout(node)))continue;
+   let b=node.getBoundingClientRect();if(!a){this.animate(node,[{opacity:.45},{opacity:1}],160);continue;}
+   if(active){active.cancel();this.animations.delete(node);b=node.getBoundingClientRect();}
    const dx=a.x-b.x,dy=a.y-b.y;
    if(Math.abs(dx)+Math.abs(dy)>.5)this.animate(node,[{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],240);
   }

@@ -66,6 +66,24 @@ async def test_unpaired_preview_no_cookie_no_write_discovery_and_no_minted_autho
     assert bridge.controls.music.setup_context.await_count == 0
 
 
+async def test_preview_retains_validated_playlist_cover(mood_rig):
+    unpaired(mood_rig)
+    mood_rig.playlist_artwork = True
+
+    body = await read(mood_rig)
+
+    assert body["ok"] is True
+    assert all(
+        row["artwork"]
+        == {
+            "kind": "playlist_cover",
+            "provider": "spotify",
+            "url": "https://i.scdn.co/image/cover",
+        }
+        for row in body["data"]["tracks"]
+    )
+
+
 async def test_initial_and_renew_retain_exact_cards_only_refresh_selects_again(mood_rig):
     unpaired(mood_rig)
     first = await read(mood_rig)

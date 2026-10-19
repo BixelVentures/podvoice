@@ -543,3 +543,118 @@ async def test_cancelled_individual_revoke_keeps_room_and_disk_fenced(
         if not task.done():
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_explicit_recovery_rebinds_current_pin_and_revokes_old_profiles(tmp_path):
+    bridge, state, transport, timers, receipts = rig(tmp_path)
+    await transport.process(command("provision", code="c" * 43))
+    credential, grant = await enroll(bridge, "c" * 43)
+    old_pin = state.load()["pin"]
+    current_pin = "f" * 64
+    bridge.controller_pin = lambda room: current_pin
+    await transport.process(command("recover", nonce="d" * 32))
+    assert receipts == ["committed", "committed"]
+    assert state.load()["pin"] == current_pin != old_pin
+    assert state.load()["enabled"] and state.load()["digest"] == ""
+    assert not bridge._grant_current("kitchen", grant)
+    assert (await renew(bridge, credential)).status == 403
+    assert all(
+        row["status"] == "revoked"
+        for row in bridge._controller_registry.list_enrollments("kitchen", old_pin)
+    )
+    pending, proof = bridge.request_controller("kitchen", "New Mac")
+    await transport.process(command("approve", request_id=pending["requestId"], nonce="e" * 32))
+    assert receipts[-1] == "committed"
+    assert (
+        bridge.claim_controller_request("kitchen", pending["requestId"], proof)[0]["status"]
+        == "connected"
+    )
+    assert timers.command.await_count == 0
+
+
+@pytest.mark.parametrize(
+    "failure", ["disable_before_write", "registry", "owner_before_rebind", "owner_after_rebind"]
+)
+async def test_recovery_failure_never_reopens_old_profile(tmp_path, monkeypatch, failure):
+    bridge, state, transport, timers, receipts = rig(tmp_path)
+    await transport.process(command("provision", code="c" * 43))
+    credential, grant = await enroll(bridge, "c" * 43)
+    old_pin = state.load()["pin"]
+    bridge.controller_pin = lambda room: "f" * 64
+    if failure == "disable_before_write":
+
+        def fail(*args, **kwargs):
+            raise OSError("synthetic prewrite failure")
+
+        monkeypatch.setattr(state, "disable", fail)
+    elif failure == "registry":
+
+        def fail(*args, **kwargs):
+            raise OSError("synthetic disk failure")
+
+        monkeypatch.setattr(bridge._controller_registry, "revoke", fail)
+    elif failure == "owner_before_rebind":
+        original = state.disable
+
+        def changed(*args):
+            result = original(*args)
+            timers.bindings["kitchen"] = ("voice_pe", "replacement")
+            return result
+
+        monkeypatch.setattr(state, "disable", changed)
+    else:
+        original = state.profiles
+
+        def changed(*args):
+            result = original(*args)
+            timers.bindings["kitchen"] = ("voice_pe", "replacement")
+            return result
+
+        monkeypatch.setattr(state, "profiles", changed)
+    await transport.process(command("recover", nonce="d" * 32))
+    assert receipts[-1] == "unavailable"
+    assert not bridge._controller_enabled
+    assert not bridge._grant_current("kitchen", grant)
+    assert (await renew(bridge, credential)).status == 403
+    if failure == "disable_before_write":
+        # Persistence failed before any durable fence; do not claim old enrollment
+        # was revoked. A fresh state/registry still sees it under its OLD pin only.
+        from gatekeeper.podview_continuity import ControllerRegistry
+
+        restored = ControllerAdminState(state.path).load()
+        assert restored["enabled"] and restored["pin"] == old_pin
+        registry = ControllerRegistry(transport.registry_path, restored["generation"], 30)
+        assert any(
+            row["status"] == "active" for row in registry.list_enrollments("kitchen", old_pin)
+        )
+        assert all(
+            row["status"] == "stale" for row in registry.list_enrollments("kitchen", "f" * 64)
+        )
+    elif failure != "owner_after_rebind":
+        assert not state.load()["enabled"] and state.load()["pin"] == old_pin
+    assert timers.command.await_count == 0
+
+
+async def test_recovery_fences_authority_before_first_disk_await(tmp_path, monkeypatch):
+    bridge, state, transport, _, receipts = rig(tmp_path)
+    await transport.process(command("provision", code="c" * 43))
+    _, grant = await enroll(bridge, "c" * 43)
+    entered, release = threading.Event(), threading.Event()
+    original = state.load
+
+    def held():
+        entered.set()
+        assert release.wait(2)
+        return original()
+
+    monkeypatch.setattr(state, "load", held)
+    task = asyncio.create_task(transport.process(command("recover", nonce="d" * 32)))
+    try:
+        assert await asyncio.to_thread(entered.wait, 1)
+        assert not bridge._controller_enabled
+        assert not bridge._grant_current("kitchen", grant)
+        assert not bridge._grants and not bridge._controller_grants
+    finally:
+        release.set()
+        await asyncio.wait_for(task, 2)
+    assert receipts[-1] == "committed"

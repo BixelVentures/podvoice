@@ -18,7 +18,13 @@ export function controlTask(raw,snapshot,domain,now=Date.now()){
   else if(domain==='vacuum'&&row.action==='set_option'&&s?.kind==='time'&&Object.keys(s).sort().join(',')==='current,kind'&&clock(s.current))argsSchema={kind:'time',current:s.current};
   else if(domain==='vacuum'&&row.action==='start'&&s?.kind==='cleaning'&&s.repeat?.min===1&&s.repeat?.max===3)argsSchema={kind:'cleaning',areas:choices(s.areas),repeat:{min:1,max:3}};
   else fail();if(domain==='music'&&((row.action==='volume')!==(argsSchema.kind==='percent')))fail();if(domain==='music'&&!['pause','resume','next','previous','volume','move_existing_session'].includes(row.action))fail();if(domain==='vacuum'&&(row.action==='set_option'?!['choice','number','time'].includes(argsSchema.kind):({start:'cleaning',reuse:'none',resume:'none',pause:'none',stop:'none',return:'none'}[row.action]!==argsSchema.kind)))fail();return {id:row.id,label:row.label,action:row.action,argsSchema};
- });return {roomId:raw.roomId,bootId:raw.bootId,taskId:raw.taskId,revision:raw.revision,expiresAt:raw.expiresAt,domain,options,mapName:text(raw.setup?.mapName,128)?raw.setup.mapName:null,volume:Number.isInteger(raw.setup?.volume)&&raw.setup.volume>=0&&raw.setup.volume<=100?raw.setup.volume:null};
+ });const task={roomId:raw.roomId,bootId:raw.bootId,taskId:raw.taskId,revision:raw.revision,expiresAt:raw.expiresAt,domain,options,mapName:text(raw.setup?.mapName,128)?raw.setup.mapName:null,volume:Number.isInteger(raw.setup?.volume)&&raw.setup.volume>=0&&raw.setup.volume<=100?raw.setup.volume:null};
+ if(Object.hasOwn(raw.setup??{},'historyDraft')){
+  const draft=raw.setup.historyDraft,starts=options.filter(o=>o.action==='start'&&o.argsSchema.kind==='cleaning');
+  if(domain!=='vacuum'||!draft||typeof draft!=='object'||Array.isArray(draft)||Object.keys(draft).sort().join(',')!=='areaIds,optionId,repeat,source'||draft.source!=='accepted_start_history'||starts.length!==1||draft.optionId!==starts[0].id||options.filter(o=>o.action==='reuse'&&o.argsSchema.kind==='none').length!==1||!Array.isArray(draft.areaIds)||draft.areaIds.length>32)fail();
+  const args=controlArgs(task,draft.optionId,{areaIds:draft.areaIds,repeat:draft.repeat},now);task.historyDraft={source:draft.source,optionId:draft.optionId,...args};
+ }
+ return task;
 }
 export function controlArgs(task,optionId,input={},now=Date.now()){
  if(task.expiresAt*1000<=now)throw Error('expired_control_task');const option=task.options.find(x=>x.id===optionId);if(!option)throw Error('unknown_control_option');const s=option.argsSchema;

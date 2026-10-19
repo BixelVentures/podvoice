@@ -114,6 +114,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             "controller_approve",
             "controller_revoke_identity",
             "controller_revoke",
+            "controller_recover",
             "controller_receipt",
         ):
             self.assertTrue(self.hass.services.has_service("podvoice", service))
@@ -170,6 +171,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
                 ("controller_approve", {"request_id": REQUEST_ID}),
                 ("controller_revoke_identity", {"identity": REQUEST_ID}),
                 ("controller_revoke", {}),
+                ("controller_recover", {}),
             ):
                 with self.subTest(context=context.user_id, service=service):
                     with self.assertRaises(HomeAssistantError):
@@ -186,6 +188,21 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(task.done())
         await self.receipt(command, Context(user_id=self.supervisor.id), payload)
         self.assertEqual(await asyncio.wait_for(task, 3), payload)
+
+    async def test_recovery_service_accepts_only_matching_supervisor_receipt(self):
+        task = asyncio.create_task(
+            self.invoke("controller_recover", Context(user_id=self.admin.id))
+        )
+        self.addAsyncCleanup(self.cancel_task, task)
+        command = await self.next_write(1)
+        self.assertEqual(command["action"], "recover")
+        self.assertNotIn("code", command)
+        payload = {"ok": True, "room": ROOM}
+        await self.receipt(command, Context(user_id=self.admin.id), payload)
+        self.assertFalse(task.done())
+        await self.receipt(command, Context(user_id=self.supervisor.id), payload)
+        self.assertEqual(await asyncio.wait_for(task, 3), payload)
+        self.assertEqual(len(self.writes), 1)
 
     async def test_admin_revoked_during_prepare_never_writes_claimable_approve(self):
         task = asyncio.create_task(

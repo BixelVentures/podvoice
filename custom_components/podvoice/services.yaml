@@ -124,3 +124,12 @@ controller_receipt:
       required: true
       selector:
         text:
+
+controller_recover:
+  name: Gendan PodView-skærmadgang
+  description: En aktuel HA-administrator fjerner alle tidligere skærme og binder frisk godkendelse til rummets aktuelle opsætning. Godkender ingen skærm automatisk.
+  fields:
+    room:
+      required: true
+      selector:
+        text:

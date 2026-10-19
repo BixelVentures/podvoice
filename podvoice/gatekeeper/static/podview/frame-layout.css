@@ -319,3 +319,6 @@ pv-widget-host .view-nav .header-context .header-weather small,
  pv-widget-host .view-nav .header-context #header-date{font-size:11px}
  pv-widget-host .view-nav .header-context .header-time{min-width:64px}
 }
+
+/* The shared player image is always cover art, including local fixture covers. */
+.player .cover-button .cover{object-fit:contain;object-position:center}

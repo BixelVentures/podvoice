@@ -77,6 +77,21 @@ class OwnedWireSDK(DiagnosticWireSDK):
                     "client_event_id": self.wire[-1]["event_id"],
                 }
             )
+        if self.webrtc and self.wire[-1]["type"] in {
+            "session.input_audio.mute",
+            "session.input_audio.unmute",
+        }:
+            # Match the actual SDK request's event_id. The inert provider ACK
+            # is required before Talk can claim input-mode readiness.
+            event = self.wire[-1]
+            await self.incoming.put(
+                {
+                    "type": "session.input_audio.muted"
+                    if event["type"] == "session.input_audio.mute"
+                    else "session.input_audio.unmuted",
+                    "client_event_id": event["event_id"],
+                }
+            )
 
 
 async def fixture(adapter, monkeypatch, *, held=True, attention=None, fault_deadlines=True):

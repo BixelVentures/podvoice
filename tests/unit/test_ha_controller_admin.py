@@ -251,12 +251,24 @@ async def test_revoked_during_supervisor_info_never_writes(monkeypatch):
 @pytest.mark.parametrize(
     "identity,parent", [(None, None), ("human", "automation"), ("viewer", None)]
 )
+@pytest.mark.parametrize("action", ["list", "recover"])
 async def test_missing_indirect_and_nonadmin_context_never_contacts_supervisor(
-    monkeypatch, identity, parent
+    monkeypatch, identity, parent, action
 ):
     api, owner, admin, _, writes, _ = rig(monkeypatch)
     if identity == "viewer":
         admin.is_admin = False
     with pytest.raises(api.HomeAssistantError):
-        await owner.request(call(identity, parent_id=parent), "list")
+        await owner.request(call(identity, parent_id=parent), action)
     assert writes == []
+
+
+async def test_explicit_recovery_sends_once_and_requires_machine_receipt(monkeypatch):
+    _, owner, _, _, writes, _ = rig(monkeypatch)
+    task = asyncio.create_task(owner.request(call("human"), "recover"))
+    raw = await next_write(writes, 1)
+    assert raw["action"] == "recover" and "code" not in raw
+    reply = receipt(raw, {"ok": True, "room": "kitchen"})
+    await owner.receipt(call("supervisor", **reply))
+    assert await asyncio.wait_for(task, 1) == {"ok": True, "room": "kitchen"}
+    assert len(writes) == 1

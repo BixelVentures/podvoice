@@ -1616,6 +1616,7 @@ setInterval(function () {
     micRequestSerial += 1;
     var p = livePeer; if (!p) return;
     livePeer = null; // Fence every callback before touching asynchronous resources.
+    if (p.inputRequest) { p.inputRequest.reject(new Error("live peer retired")); p.inputRequest = null; }
     stopLiveActivity(p);
     retiredLiveAttempts.push(p.attempt_id);
     if (retiredLiveAttempts.length > 128) retiredLiveAttempts.shift();
@@ -1630,6 +1631,15 @@ setInterval(function () {
   function liveStopped(ev) {
     sendJson({type:"live_stopped", attempt_id:ev.attempt_id, provider_session_id:ev.provider_session_id || null,
       generation:ev.generation == null ? null : ev.generation, rotation_token:ev.rotation_token || null, tracks_stopped:true, peer_closed:true});
+  }
+  function requestLiveInput(p, enabled) {
+    if (!liveCurrent(p) || !p.ready || p.held || p.providerFinalized) return Promise.reject(new Error("live input unavailable"));
+    if (p.inputRequest) { p.inputRequest.reject(new Error("live input superseded")); p.inputRequest = null; }
+    var id = "audio-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+    return new Promise(function (resolve, reject) {
+      p.inputRequest = {id:id, resolve:resolve, reject:reject};
+      sendJson(Object.assign({type:"live_input_mode", command_id:id, microphone:enabled}, liveIdentity(p)));
+    });
   }
   async function openLivePeer(ev) {
     if (typeof ev.attempt_id !== "string" || typeof ev.connection_id !== "string") return;
@@ -1661,7 +1671,7 @@ setInterval(function () {
         p.source.loop = true; p.source.connect(destination); p.source.start();
         p.input = destination.stream; p.microphone = false;
       }
-      p.input.getAudioTracks().forEach(function (track) { track.enabled = !p.microphone; p.sender = p.pc.addTrack(track, p.input); });
+      p.input.getAudioTracks().forEach(function (track) { track.enabled = false; p.sender = p.pc.addTrack(track, p.input); });
       p.pc.ontrack = function (event) {
         if (!liveCurrent(p)) return;
         if (p.audio) { liveFault(p); return; }
@@ -1687,7 +1697,7 @@ setInterval(function () {
         // session.closed is provider finalization, never browser media-drain proof.
       };
       if (restoreMic) {
-        if (!await micStart() || !liveCurrent(p)) { liveFault(p); return; }
+        if (!await micStart(true) || !liveCurrent(p)) { liveFault(p); return; }
       }
       var offer = await p.pc.createOffer(); if (!liveCurrent(p)) return;
       await p.pc.setLocalDescription(offer); if (!liveCurrent(p)) return;
@@ -1697,7 +1707,8 @@ setInterval(function () {
         p.pc.onicegatheringstatechange = function () { if (p.pc.iceGatheringState === "complete") { clearTimeout(timer); resolve(); } };
       });
       if (!liveCurrent(p)) return;
-      sendJson({type:"live_offer", attempt_id:p.attempt_id, sdp:p.pc.localDescription.sdp});
+      p.offeredMicrophone = !!p.microphone;
+      sendJson({type:"live_offer", attempt_id:p.attempt_id, sdp:p.pc.localDescription.sdp, microphone:p.offeredMicrophone});
     } catch (_) { liveFault(p); }
   }
   async function answerLivePeer(ev) {
@@ -1738,12 +1749,14 @@ setInterval(function () {
     if (ev.type === "live_ready") {
       var p = livePeer;
       if (liveCurrent(p) && !p.held && liveMatches(p, ev)) {
+        if (p.ready) return true; // Repeated readiness cannot replay capture or override a later input mode.
+        if (p.offeredMicrophone !== !!p.microphone) { liveFault(p); return true; }
         p.ready = true;
         startLiveActivity(p);
-        p.input.getAudioTracks().forEach(function (t) { t.enabled = true; });
+        p.input.getAudioTracks().forEach(function (t) { t.enabled = !!p.microphone; });
         micHint.textContent = p.microphone ? "Live-samtalen lytter." : "Live er klar til tekst. Mikrofonen er ikke åbnet.";
         if (p.rotation_token) sendJson(Object.assign({type:"live_resumed", rotation_token:p.rotation_token,
-          capture_ready:p.input.getAudioTracks().every(function (t) { return t.readyState === "live" && t.enabled; })}, liveIdentity(p)));
+          capture_ready:p.input.getAudioTracks().every(function (t) { return t.readyState === "live" && (p.microphone ? t.enabled : !t.enabled); })}, liveIdentity(p)));
       }
       return true;
     }
@@ -1818,6 +1831,12 @@ setInterval(function () {
       }
       else if (ev.type === "pong") { lastPong = Date.now(); }
       else if (ev.type === "command_result") {
+        var audioPeer = livePeer;
+        if (liveCurrent(audioPeer) && audioPeer.inputRequest && audioPeer.inputRequest.id === ev.command_id) {
+          var audioRequest = audioPeer.inputRequest; audioPeer.inputRequest = null;
+          if (ev.status === "accepted") audioRequest.resolve();
+          else audioRequest.reject(new Error("live input mode rejected"));
+        }
         var pending = pendingText[ev.command_id];
         if (pending && pending.generation === generation && pending.socket === sock) {
           delete pendingText[ev.command_id]; syncSendButton();
@@ -1901,9 +1920,13 @@ setInterval(function () {
     }
     return out;
   }
-  async function micStart() {
+  async function micStart(forOffer) {
     if (!talkVisible()) return false;
     if (pendingLiveRotation || (livePeer && livePeer.held)) return false;
+    if (liveCurrent(livePeer) && !livePeer.ready && !forOffer) {
+      micHint.textContent = "Vent til Live-forbindelsen er klar, før mikrofonen tændes.";
+      return false;
+    }
     var micSocket = socketGeneration, micRequest = ++micRequestSerial, obtained;
     halted = false;
     micHint.textContent = "Beder om adgang til mikrofonen…";
@@ -1941,7 +1964,10 @@ setInterval(function () {
         if (!liveCurrent(p) || micRequest !== micRequestSerial) { obtained.getTracks().forEach(function (t) { t.stop(); }); return false; }
         if (p.source) { p.source.stop(); p.source.disconnect(); p.source = null; }
         oldInput.getTracks().forEach(function (t) { t.stop(); });
-        p.input = obtained; p.pendingInput = null; p.microphone = true; track.enabled = !!p.ready;
+        p.input = obtained; p.pendingInput = null; p.microphone = true;
+        if (p.ready) await requestLiveInput(p, true);
+        if (!liveCurrent(p) || micRequest !== micRequestSerial || !p.microphone) { track.enabled = false; track.stop(); return false; }
+        track.enabled = !!p.ready;
         micOn = true; micBtn.classList.add("live"); micBtn.textContent = "■";
         micBtn.setAttribute("aria-pressed", "true"); micBtn.setAttribute("aria-label", "Mikrofon aktiv; væk Nabu igen");
         micHint.textContent = "Live-samtalen lytter.";
@@ -1989,6 +2015,15 @@ setInterval(function () {
   function micStop() {
     pendingLiveRotation = null;
     micRequestSerial += 1;
+    var p = livePeer;
+    if (liveCurrent(p) && p.microphone) {
+      p.microphone = false;
+      if (p.input) p.input.getTracks().forEach(function (t) { t.enabled = false; });
+      if (p.pendingInput) p.pendingInput.getTracks().forEach(function (t) { t.enabled = false; });
+      if (p.inputRequest) { p.inputRequest.reject(new Error("microphone stopped")); p.inputRequest = null; }
+      if (!p.ready && !p.held) liveFault(p);
+      else if (p.ready && !p.held && !p.providerFinalized && !halted) requestLiveInput(p, false).catch(function () { if (liveCurrent(p)) liveFault(p); });
+    }
     micOn = false; micBtn.classList.remove("live"); micBtn.textContent = "🎤";
     micBtn.setAttribute("aria-pressed", "false"); micBtn.setAttribute("aria-label", "Start mikrofon");
     if (capNode) { try { capNode.disconnect(); } catch (e) {} capNode = null; }

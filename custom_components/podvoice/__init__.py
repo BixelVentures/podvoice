@@ -86,7 +86,7 @@ ADMIN_RECEIPT_SCHEMA = vol.Schema(
     {
         vol.Required("nonce"): vol.Match(r"[a-f0-9]{32}"),
         vol.Required("action"): vol.In(
-            ("provision", "revoke", "list", "prepare", "approve", "revoke_identity")
+            ("provision", "revoke", "recover", "list", "prepare", "approve", "revoke_identity")
         ),
         vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160)),
         vol.Required("outcome"): vol.In(("committed", "unavailable")),
@@ -129,6 +129,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "controller_approve",
         "controller_revoke_identity",
         "controller_revoke",
+        "controller_recover",
         "controller_receipt",
     ):
         hass.services.async_remove(DOMAIN, service)
@@ -220,6 +221,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def controller_revoke(call: ServiceCall) -> dict:
         return await controller_projection(call, "revoke")
 
+    async def controller_recover(call: ServiceCall) -> dict:
+        return await admin.request(call, "recover")
+
     hass.services.async_register(
         DOMAIN,
         "timer_status",
@@ -259,6 +263,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN,
         "controller_revoke",
         controller_revoke,
+        schema=ADMIN_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_recover",
+        controller_recover,
         schema=ADMIN_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )

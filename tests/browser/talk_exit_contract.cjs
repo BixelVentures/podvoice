@@ -61,6 +61,36 @@ function deliver(event) {
   sock.onmessage({data:JSON.stringify(event)});
 }
 async function read(page){return bounded(page.evaluate(snapshot),'actual owner snapshot');}
+async function admitMicrophone(page,attempt) {
+  const after=await bounded(page.evaluate(()=>window.__tabMedia.sent.length),'input command watermark');
+  await page.locator('#cmic').click({timeout:FIXTURE_WAIT_MS});
+  await page.waitForFunction(({after,attempt})=>window.__tabMedia.sent.slice(after).some(v=>
+    v.type==='live_input_mode' && v.attempt_id===attempt && v.microphone===true),{after,attempt},{timeout:FIXTURE_WAIT_MS});
+  const request=await bounded(page.evaluate(({after,attempt})=>window.__tabMedia.sent.slice(after).find(v=>
+    v.type==='live_input_mode' && v.attempt_id===attempt && v.microphone===true),{after,attempt}),'actual input-mode command');
+  assert.equal(typeof request.command_id,'string','input mode has its own command identity');
+  assert.ok(request.command_id.length>0,'input mode command identity is nonempty');
+  assert.equal(typeof request.socket_id,'number','receipt returns on the actual sending socket');
+  const pending=()=>bounded(page.evaluate(()=>({pressed:document.getElementById('cmic').getAttribute('aria-pressed'),
+    tracks:window.__tabMedia.streams.at(-1).getAudioTracks().map(t=>({state:t.readyState,enabled:t.enabled}))})),'pre-ACK input observation');
+  function assertPending(observed,label) {
+    assert.equal(observed.pressed,'false',label+' does not claim microphone admission');
+    assert.ok(observed.tracks.length>0,label+' observes the real generated input tracks');
+    assert.ok(observed.tracks.every(t=>t.state==='live'&&!t.enabled),label+' keeps generated input disabled');
+  }
+  assertPending(await pending(),'missing ACK');
+  // Negative controls: another command's acceptance/rejection cannot grant this input.
+  for(const status of ['accepted','rejected']) {
+    await bounded(page.evaluate(({request,status})=>window.__tabMedia.sockets[request.socket_id].onmessage({data:JSON.stringify({
+      type:'command_result',command_id:request.command_id+'-other',status})}),{request,status}),'unmatched input-mode receipt');
+    assertPending(await pending(),'unmatched '+status+' ACK');
+  }
+  await bounded(page.evaluate(request=>window.__tabMedia.sockets[request.socket_id].onmessage({data:JSON.stringify({
+    type:'command_result',command_id:request.command_id,status:'accepted'})}),request),'same-socket exact input-mode acceptance');
+  await page.waitForFunction(()=>document.getElementById('cmic').getAttribute('aria-pressed')==='true',null,{timeout:FIXTURE_WAIT_MS});
+  const admitted=await pending();
+  assert.ok(admitted.tracks.every(t=>t.state==='live'&&t.enabled),'only exact acceptance enables current generated input');
+}
 async function edge(page,boundary) {
   if(boundary==='home')await page.locator('#tab-home').click({timeout:FIXTURE_WAIT_MS});
   else if(boundary.startsWith('key-'))await page.locator('#tab-talk').press({'key-home':'Home','key-arrow':'ArrowRight','key-end':'End'}[boundary],{timeout:FIXTURE_WAIT_MS});
@@ -152,8 +182,7 @@ async function one(browser,mode,boundary) {
         await page.waitForFunction(n=>window.__tabMedia.sent.some(v=>v.type==='live_offer' && v.attempt_id===n),name,{timeout:FIXTURE_WAIT_MS});
         await bounded(page.evaluate(deliver,{type:'live_answer',attempt_id:name,connection_id:'fixture-connection',provider_session_id:'fixture-provider',generation:1,sdp:'v=0\r\ninert'}),'actual answer');
         await bounded(page.evaluate(deliver,{type:'live_ready',attempt_id:name,connection_id:'fixture-connection',provider_session_id:'fixture-provider',generation:1}),'actual ready');
-        await page.locator('#cmic').click({timeout:FIXTURE_WAIT_MS});
-        await page.waitForFunction(()=>document.getElementById('cmic').getAttribute('aria-pressed')==='true',null,{timeout:FIXTURE_WAIT_MS});
+        await admitMicrophone(page,name);
       }
     }
     const before=await read(page);trace.push({edge:'before',state:before});
@@ -194,6 +223,8 @@ async function one(browser,mode,boundary) {
         for(const attempt of [name,'late-return-new'])s.onmessage({data:JSON.stringify({type:'live_offer_request',attempt_id:attempt,connection_id:'fixture-connection'})});
         s.onmessage({data:JSON.stringify({type:'live_answer',attempt_id:name,connection_id:'fixture-connection',provider_session_id:'fixture-provider',generation:1,sdp:'v=0\r\ninert'})});
         s.onmessage({data:JSON.stringify({type:'live_ready',attempt_id:name,connection_id:'fixture-connection',provider_session_id:'fixture-provider',generation:1})});
+        for(const request of f.sent.filter(v=>v.type==='live_input_mode'))s.onmessage({data:JSON.stringify({
+          type:'command_result',command_id:request.command_id,status:'accepted'})});
         if(p){p.ontrack?.({track:p.sender.track,streams:[]});p.channel?.onmessage?.({data:JSON.stringify({type:'error'})});p.onconnectionstatechange?.();}
       },{name}),'late messages after return without user action');
       const late=await read(page);trace.push({edge:'late-after-return',state:late});
@@ -237,8 +268,7 @@ async function one(browser,mode,boundary) {
       assert.equal((await read(page)).peers.length,freshOwner.peers.length,'retired attempt cannot replace fresh owner');
       await bounded(page.evaluate(deliver,{type:'live_answer',attempt_id:fresh,connection_id:'fixture-connection',provider_session_id:'fresh-provider',generation:2,sdp:'v=0\r\ninert'}),'fresh answer');
       await bounded(page.evaluate(deliver,{type:'live_ready',attempt_id:fresh,connection_id:'fixture-connection',provider_session_id:'fresh-provider',generation:2}),'fresh ready');
-      await page.locator('#cmic').click({timeout:FIXTURE_WAIT_MS});
-      await page.waitForFunction(()=>document.getElementById('cmic').getAttribute('aria-pressed')==='true',null,{timeout:FIXTURE_WAIT_MS});
+      await admitMicrophone(page,fresh);
       const resumed=await read(page);trace.push({edge:'explicit-visible-text-and-mic',state:resumed});
       assert.equal(resumed.permissionCalls,late.permissionCalls+1,'only explicit mic requests new fixture stream');
       assert.equal(resumed.sent.filter(v=>v.type==='wake').length,late.sent.filter(v=>v.type==='wake').length+1,'explicit mic uses existing wake');

@@ -97,7 +97,7 @@ def _valid_result(action, room, value):
             and type(value["identity"]) is str
             and re.fullmatch(r"[a-f0-9]{32}", value["identity"]) is not None
         )
-    return action == "revoke" and set(value) == {"ok", "room"} and value["ok"] is True
+    return action in ("revoke", "recover") and set(value) == {"ok", "room"} and value["ok"] is True
 
 
 class ControllerAdmin:
@@ -213,7 +213,7 @@ class ControllerAdmin:
                     if not any(row.get("id") == identity for row in rows.get("enrolled", [])):
                         return {"ok": True, "room": room, "identity": identity}
                     raise
-            if action in ("list", "revoke"):
+            if action in ("list", "revoke", "recover"):
                 return await self._exchange(call, action)
             raise HomeAssistantError("unsupported administrator action")
 
