@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""Strict67 admission remains closed until independent review bindings are present."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from dataclasses import asdict, replace
+from pathlib import Path
+
+try:
+    from scripts import candidate_scope_admission56 as asset_contract
+    from scripts import candidate_scope_admission66 as previous
+except ModuleNotFoundError:
+    import candidate_scope_admission56 as asset_contract
+    import candidate_scope_admission66 as previous
+
+legacy = previous.legacy
+strict = previous.strict
+sha = previous.sha
+safe_file = previous.safe_file
+BASE = "f12537026e6ceb199932c5aa05d977e43a47920e"
+KIND = "podview67_timer_identity_account_refusal_ui"
+VERSION = 44
+ASSET_COUNT = 143
+MAX_ASSET_TOTAL_BYTES = 18 * 1024 * 1024
+PROFILE = "scripts/candidate_scope_admission67.py"
+MANIFEST = "scripts/podview67-admission-reviewed.json"
+RECORD_MARKER = "<!-- podview67-admission"
+STATIC = previous.STATIC
+CONFIG = previous.CONFIG | frozenset({"custom_components/podvoice/manifest.json"})
+POLICY = previous.POLICY | frozenset({PROFILE, MANIFEST})
+TOOLING = previous.TOOLING | frozenset({"docs/MOTION.md"})
+FIELDS = previous.FIELDS
+
+DOMAINS = ("physical_output",)
+PRODUCTION = frozenset(
+    {
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_music_control.py",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/frame-layout.css",
+        "podvoice/gatekeeper/static/podview/music-results.js",
+        "podvoice/gatekeeper/static/podview/player-view.js",
+        "podvoice/gatekeeper/static/podview/podvoice-transport.js",
+        "podvoice/gatekeeper/static/podview/robot-control-panel.js",
+        "podvoice/gatekeeper/static/podview/timer-view.js",
+        "podvoice/gatekeeper/static/podview/ui/components.css",
+        "podvoice/gatekeeper/static/podview/ui/motion.js",
+        "podvoice/gatekeeper/static/podview/widget-redesign.css",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
+        "podvoice/gatekeeper/thin.py",
+        "podvoice/gatekeeper/voicepe.py",
+    }
+)
+REQUIRED_TESTS = frozenset(
+    {
+        "tests/integration/test_ha_timer_native_output.py",
+        "tests/integration/test_podview_bridge.py",
+        "tests/integration/test_podview_music_control.py",
+        "tests/integration/test_podview_music_selection.py",
+        "tests/integration/test_thin_live_idle_preclose.py",
+        "tests/podview/canonical-packet-account-visibility.test.mjs",
+        "tests/podview/canonical-packet-first-read-reconciliation.test.mjs",
+        "tests/podview/canonical-packet-ha-ingress-transport.test.mjs",
+        "tests/podview/canonical-packet-motion.test.mjs",
+        "tests/podview/canonical-packet-music-card-appearance.test.mjs",
+        "tests/podview/canonical-packet-player-view.test.mjs",
+        "tests/podview/canonical-packet-robot-control-panel.test.mjs",
+        "tests/podview/canonical-packet-shared-music-results.test.mjs",
+        "tests/podview/canonical-packet-timer-access.test.mjs",
+        "tests/podview/canonical-packet-visual-history.test.mjs",
+        "tests/unit/test_candidate_scope_admission67.py",
+        "tests/unit/test_ci_promotion.py",
+        "tests/unit/test_ci_scope.py",
+        "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_live_prompt.py",
+    }
+)
+ASSET_CHANGES = frozenset(
+    {
+        "frame-layout.css",
+        "music-results.js",
+        "player-view.js",
+        "podvoice-transport.js",
+        "robot-control-panel.js",
+        "timer-view.js",
+        "ui/components.css",
+        "ui/motion.js",
+        "widget-redesign.css",
+        "widget-view.js",
+    }
+)
+
+HA_RUNTIME = previous.HA_RUNTIME
+# CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
+REVIEWER = "/root/led_review_current"
+MANIFEST_SHA = "ddaa1f1dfc0434377611bf0223a10127b7f8e16744321c415637b3b1f2f1e0e3"
+PROFILE_AST = "86df7730854edf8c5368c465c73e6fd95e449e45dfc37b8f705b1c05ff802fa2"
+IMMUTABLE = previous.IMMUTABLE | {
+    "scripts/candidate_scope_admission66.py": "1ea664daae9e2ea7fc9069c23b0c7ff26a50a78e640e636ab679608588878335",
+    "scripts/podview66-admission-reviewed.json": "20deac962931fdd747dc1abbcae7e54d2abf069e7da7c8bcf6745d1936607e2b",
+    "scripts/candidate_scope_admission65.py": "03e84501ab219d2246c157a07185ffbaa4521b0a321f0ad165c793262000ad0f",
+    "scripts/podview65-admission-reviewed.json": "ed264ce19f593c1d04f36cc87b2025f21a61eaf3d2f2c49a51b81d21e52dd36f",
+}
+
+
+def record_at(root: Path) -> dict | None:
+    source = safe_file(root, "docs/STATUS.md").decode()
+    if RECORD_MARKER not in source:
+        return None
+    if source.count(RECORD_MARKER) != 1:
+        raise ValueError("duplicate PodVoice67 record")
+    parts = source.split(RECORD_MARKER, 1)[1].split("-->", 1)
+    if len(parts) != 2:
+        raise ValueError("unclosed PodVoice67 record")
+    record = json.loads(parts[0].strip(), object_pairs_hook=legacy._unique_record)
+    if not isinstance(record, dict):
+        raise ValueError("PodVoice67 record must be an object")
+    return record
+
+
+def config_only(root: Path) -> bool:
+    """Only add-on version trio changes; HA integration version remains0.1.5."""
+    return all(
+        strict.version_only(
+            legacy._git(root, "show", f"{BASE}:{name}"),
+            safe_file(root, name).decode(),
+            pattern,
+            expected,
+        )
+        for name, pattern, expected in (
+            ("podvoice/config.yaml", r'^version: "[^"\n]+"$', 'version: "2.0.67"'),
+            (
+                "podvoice/gatekeeper/__init__.py",
+                r'^__version__ = "[^"\n]+"$',
+                '__version__ = "2.0.67"',
+            ),
+            ("pyproject.toml", r'^version = "[^"\n]+"$', 'version = "2.0.67"'),
+            (
+                "custom_components/podvoice/manifest.json",
+                r'^  "version": "[^"\n]+",$',
+                '  "version": "0.1.5",',
+            ),
+        )
+    )
+
+
+ha_runtime_inventory = previous.ha_runtime_inventory
+
+
+def assets_match67(root: Path, runtime: dict, count: object) -> bool:
+    """Keep strict 143-file/18 MiB checks; only bound assets may differ from66."""
+    if not asset_contract.assets_match56(root, runtime, count):
+        return False
+    baseline = json.loads(legacy._git(root, "show", f"{BASE}:{STATIC}asset-manifest.json"))
+    original = {STATIC + row["path"]: row["sha256"] for row in baseline["files"]}
+    assets = {name for name in runtime if name.startswith(STATIC)}
+    if assets != set(original) | {STATIC + "asset-manifest.json"}:
+        return False
+    return all(
+        runtime[name] == digest
+        for name, digest in original.items()
+        if name.removeprefix(STATIC) not in ASSET_CHANGES
+    )
+
+
+def production_scope_matches(effective: set[str]) -> bool:
+    actual = {p for p in effective if p.startswith(legacy._PRODUCTION_PREFIXES)}
+    return actual - CONFIG == PRODUCTION
+
+
+def change_scope_matches(effective: set[str], tests: set[str]) -> bool:
+    allowed = (
+        PRODUCTION | tests | POLICY | CONFIG | TOOLING | {"podvoice/CHANGELOG.md", "docs/STATUS.md"}
+    )
+    return effective <= allowed
+
+
+def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: dict) -> bool:
+    if (
+        not DOMAINS
+        or not PRODUCTION
+        or not REVIEWER.strip()
+        or not IMMUTABLE
+        or not MANIFEST_SHA
+        or not PROFILE_AST
+        or set(record) != FIELDS
+        or type(record["version"]) is not int
+        or record["version"] != VERSION
+        or record["kind"] != KIND
+        or record["reviewer"] != REVIEWER
+        or record["domains"] != list(DOMAINS)
+        or report.domains != DOMAINS
+        or base_tip != BASE
+        or report.base != BASE
+        or record["base_tip"] != BASE
+        or record["merge_base"] != BASE
+        or any(
+            not isinstance(record[k], str) or not record[k].strip()
+            for k in FIELDS - {"version", "domains"}
+        )
+        or not strict.pins_match(root, IMMUTABLE)
+        or strict.ast_sha(safe_file(root, PROFILE), "PROFILE_AST") != PROFILE_AST
+    ):
+        return False
+    raw = safe_file(root, MANIFEST)
+    if sha(raw) != MANIFEST_SHA:
+        return False
+    manifest = json.loads(raw, object_pairs_hook=legacy._unique_record)
+    if (
+        set(manifest)
+        != {
+            "schema",
+            "base",
+            "production",
+            "regressions",
+            "runtime",
+            "config",
+            "policy",
+            "tooling",
+            "asset_count",
+        }
+        or manifest["schema"] != "podvoice67.admission.v1"
+        or manifest["base"] != BASE
+    ):
+        return False
+    prod, tests, runtime, config, policy, tooling = (
+        manifest[k] for k in ("production", "regressions", "runtime", "config", "policy", "tooling")
+    )
+    if (
+        not all(
+            strict.pins_match(root, pins)
+            for pins in (prod, tests, runtime, config, policy, tooling)
+        )
+        or set(prod) != PRODUCTION
+        or set(tests) != REQUIRED_TESTS
+        or set(config) != CONFIG
+        or set(policy) != POLICY - {PROFILE, MANIFEST}
+        or set(tooling) != TOOLING
+        or ha_runtime_inventory(root) != HA_RUNTIME
+        or set(runtime) != strict.runtime_inventory(root) | HA_RUNTIME
+        or not set(prod) <= set(runtime)
+        or any(not p.startswith("tests/") for p in tests)
+        or not config_only(root)
+        or not assets_match67(root, runtime, manifest["asset_count"])
+    ):
+        return False
+    effective = legacy._visual_repository_changes(root, BASE)
+    if (
+        not production_scope_matches(effective)
+        or {p for p in effective if p.startswith("tests/")} != set(tests)
+        or not REQUIRED_TESTS <= effective
+        or not change_scope_matches(effective, set(tests))
+    ):
+        return False
+    ignored = legacy._git(
+        root,
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+        "-z",
+        "--",
+        *legacy._PRODUCTION_PREFIXES,
+        "scripts/",
+    )
+    if any(p and not ("/__pycache__/" in p and p.endswith(".pyc")) for p in ignored.split("\0")):
+        return False
+    for name in effective:
+        safe_file(root, name)
+    return (
+        record["fingerprint"] == legacy.production_fingerprint(root, BASE, BASE, tuple(prod))
+        and record["regression_fingerprint"]
+        == legacy.regression_fingerprint(root, BASE, BASE, tuple(tests))
+        and record["runtime_fingerprint"] == strict.fingerprint(root, runtime)
+        and record["config_fingerprint"] == strict.fingerprint(root, CONFIG)
+        and record["policy_fingerprint"] == strict.fingerprint(root, POLICY)
+        and record["tooling_fingerprint"] == strict.fingerprint(root, TOOLING)
+        and record["manifest_fingerprint"] == MANIFEST_SHA
+    )
+
+
+def inspect_repository(root: Path, base: str) -> legacy.CandidateScope:
+    report = legacy.inspect_repository(root, base)
+    try:
+        record = record_at(root)
+        base_tip = legacy._git(root, "rev-parse", f"{base}^{{commit}}").strip()
+        valid = record is not None and validate(root, report, base_tip, record)
+        return replace(
+            report,
+            passed=valid,
+            reason="exact reviewed PodVoice67 admission"
+            if valid
+            else "missing or invalid PodVoice67 admission",
+        )
+    except (OSError, ValueError, TypeError, KeyError, SyntaxError, AttributeError):
+        return replace(report, passed=False, reason="malformed PodVoice67 admission")
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", default=BASE)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+    if not BASE or not REVIEWER or not MANIFEST_SHA or not PROFILE_AST:
+        print("candidate admission stopped: PV67 review bindings are not complete", file=sys.stderr)
+        return 2
+    try:
+        root = Path(legacy._git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+        report = inspect_repository(root, args.base)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"candidate admission stopped: {exc}", file=sys.stderr)
+        return 2
+    print(
+        json.dumps(asdict(report), indent=2)
+        if args.json
+        else f"candidate-scope {'PASS' if report.passed else 'FAIL'}: {report.reason}"
+    )
+    return 0 if report.passed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

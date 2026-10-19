@@ -1,4 +1,4 @@
-import {spotifyArtwork,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
+import {spotifyArtwork,spotifyItemUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
 
 export const MUSIC_TABS=[['mood','Stemning'],['feeling','Humør'],['top','Topsange'],['recent','Senest']];
 const text=(value,max=1024)=>typeof value==='string'?value.slice(0,max):'';
@@ -9,7 +9,7 @@ export function fixtureArtwork(value){
  if(/^assets\/[A-Za-z0-9_/-]+\.(png|jpg|jpeg|svg)$/.test(value))return value;
  try{const u=new URL(value);return u.protocol==='https:'&&['image-cdn-fa.spotifycdn.com','image-cdn-ak.spotifycdn.com'].includes(u.hostname)&&!u.port&&!u.username&&!u.password&&!u.search&&!u.hash&&/^\/image\/[A-Za-z0-9]+$/.test(u.pathname)?u.href:null;}catch{return null;}
 }
-export function localMusicCards(options,revision){return options.map(option=>({id:option.id,name:option.name,description:option.description,detail:option.detail,fixtureArt:fixtureArtwork(option.art.startsWith('https:')?option.art:`assets/${option.art}`),artLabel:`${option.collection?'Albumomslag':'Illustration'} til ${option.name}`,revision}));}
+export function localMusicCards(options,revision){return options.map(option=>({id:option.id,name:option.name,description:option.description,detail:option.detail,artworkRole:['top','recent'].includes(option.collection)?'cover':'editorial',fixtureArt:fixtureArtwork(option.art.startsWith('https:')?option.art:`assets/${option.art}`),artLabel:`${option.collection?'Albumomslag':'Illustration'} til ${option.name}`,revision}));}
 // Owned fallback files have distinct pinned content; a source cover is never invented.
 const THEME_FALLBACKS=['assets/morning-acoustic.png','assets/kitchen.png','assets/italian.png','assets/indie.png','assets/lake.png'];
 export function sourceMusicCards(tracks){
@@ -32,6 +32,7 @@ export class MusicResults{
   const wanted=new Set(cards.map(card=>card.id));for(const[id,row]of this.rows)if(!wanted.has(id)){cancelArtwork(row.children[0]);row.remove();this.rows.delete(id);}
   cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){row=this.create(card.id);this.rows.set(card.id,row);}row.musicCard=card;
    const nextRevision=String(card.revision??revision??'');if(row.dataset.revision!==nextRevision)row.dataset.revision=nextRevision;if(row.classList.contains('recommended')!==(index===0))row.classList.toggle('recommended',index===0);
+   const artworkRole=spotifyArtwork(card.artwork,card.uri)||!card.fixtureArt&&spotifyItemUrl(card.uri)||card.artworkRole==='cover'&&fixtureArtwork(card.fixtureArt)?'cover':'editorial';if(row.dataset.artworkRole!==artworkRole)row.dataset.artworkRole=artworkRole;
    const allowed=connected&&!busy&&(canChoose||canRenew)&&card.selectable!==false;if(row.disabled!==!allowed)row.disabled=!allowed;
    if(row.getAttribute('aria-disabled')!==String(!allowed||!!pendingId))row.setAttribute('aria-disabled',String(!allowed||!!pendingId));
    const accessibleLabel=`${allowed?'Afspil':'Afspilning ikke tilgængelig for'} ${text(card.name,256)}`;if(row.getAttribute('aria-label')!==accessibleLabel)row.setAttribute('aria-label',accessibleLabel);

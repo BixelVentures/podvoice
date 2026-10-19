@@ -917,18 +917,29 @@ class ThinSession:
             and getattr(self.voicepe, "wake_readiness", None) in ("proven", "recovered")
         )
 
+    def _timer_admission_blocker(self, *, owns_lock: bool = False) -> str | None:
+        if self._active:
+            return "active_session"
+        if self._closing:
+            return "closing"
+        if self._muted:
+            return "muted"
+        if self._teardown_incomplete:
+            return "teardown_incomplete"
+        if not owns_lock and self._teardown_lock.locked():
+            return "teardown_locked"
+        if self._close_task is not None and not self._close_task.done():
+            return "close_pending"
+        if self._device_playing:
+            return "device_playing"
+        if self._playback_lease is not None:
+            return "playback_owned"
+        if not self._timer_output_ready():
+            return "output_unavailable"
+        return None
+
     def _timer_idle(self, *, owns_lock: bool = False) -> bool:
-        return bool(
-            not self._active
-            and not self._closing
-            and not self._muted
-            and not self._teardown_incomplete
-            and (owns_lock or not self._teardown_lock.locked())
-            and (self._close_task is None or self._close_task.done())
-            and not self._device_playing
-            and self._playback_lease is None
-            and self._timer_output_ready()
-        )
+        return self._timer_admission_blocker(owns_lock=owns_lock) is None
 
     async def _poll_timers(self) -> None:
         """Read HA delivery state, never derive an expiry from a local clock."""
@@ -9475,11 +9486,18 @@ class ThinSession:
             authority, blocker = "Modellens afslutning", "Afventer hele afslutningssvaret"
         elif self.sm.state == State.THINKING:
             authority, blocker = "Provider/værktøj", "Afventer svar"
+        native_timer_blocker = getattr(self.voicepe, "timer_output_request_blocker", None)
         return {
+            **(
+                {"timer_native_request_blocker": native_timer_blocker()}
+                if callable(native_timer_blocker)
+                else {}
+            ),
             "session_id": self._history_session,
             "generation": getattr(self.brain, "_connection_generation", 0),
             "observed_at": time.time(),
             "wake_readiness": getattr(self.voicepe, "wake_readiness", "unknown"),
+            "timer_admission_blocker": self._timer_admission_blocker(),
             "phase": phase,
             "authority": authority,
             "blocker": blocker,

@@ -378,17 +378,25 @@ async def test_mismatched_owner_receipt_never_becomes_acceptance(rig, field, val
     assert result["outcome"] == "unknown"
 
 
-async def test_exact_owner_rejection_is_preserved_without_provider_detail(rig):
+@pytest.mark.parametrize(
+    "kind, expected",
+    [
+        ("stale_command", "stale_command"),
+        ("native_account_claim_required", "native_account_claim_required"),
+        ("private_detail", "unavailable"),
+    ],
+)
+async def test_exact_owner_rejection_is_preserved_without_provider_detail(rig, kind, expected):
     offered = await rig.offer()
     rig.mutate_receipt = lambda receipt: receipt.update(
         ok=False,
         outcome="rejected",
         provider_request_accepted=False,
-        error_kind="stale_command",
+        error_kind=kind,
         error="SECRET",
     )
     result = await rig.facade.execute(offered, "next", {}, lambda: True)
-    assert result["outcome"] == "rejected" and result["error_kind"] == "stale_command"
+    assert result["outcome"] == "rejected" and result["error_kind"] == expected
     assert "SECRET" not in json.dumps(result)
 
 
@@ -1137,3 +1145,41 @@ async def test_rapid_volume_then_audio4_uses_fresh_shared_sequence_without_fallb
         ("a" * 32 + ":4", "next"),
     ]
     assert all(not call[1].endswith("control_playback") for call in rig.calls)
+
+
+@pytest.mark.parametrize("case", ["exact", "generic", "extra", "unknown", "malformed", "stale"])
+async def test_selected_setup_exact_account_claim_refusal_stays_pre_effect(rig, case):
+    content_owner(rig)
+    value = {
+        "ok": False,
+        "error_kind": "native_account_claim_required",
+        "retry_allowed": False,
+        "physical_result_verified": False,
+    }
+    if case == "generic":
+        value["error_kind"] = "native_start_unavailable"
+    if case == "extra":
+        value["private"] = "SECRET"
+    if case == "unknown":
+        value["error_kind"] = "outcome_unknown"
+    if case == "malformed":
+        value["ok"] = 0
+    rig.value = value
+    if case == "stale":
+
+        async def replace_owner():
+            rig.tools._discovery = replace(rig.tools._discovery)
+
+        rig.hook = replace_owner
+    result = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    expected = (
+        "native_account_claim_required"
+        if case == "exact"
+        else "owner_replaced"
+        if case == "stale"
+        else "unavailable"
+    )
+    assert result == module._failure(expected)
+    assert len(rig.calls) == 1 and rig.calls[0][1].endswith("get_room_content_controls")
+    assert not rig.tools._refresh_podconnect_services.await_count
+    assert "SECRET" not in json.dumps(result)

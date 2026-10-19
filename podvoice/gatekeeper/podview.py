@@ -1501,13 +1501,24 @@ class PodViewBridge:
                     ),
                     timeout=8,
                 )
+                timer_id = result.get("id")
+                accepted = bool(
+                    result.get("ok") is True
+                    and current()
+                    and (
+                        action != "timer.start"
+                        or (isinstance(timer_id, str) and 1 <= len(timer_id) <= 200)
+                    )
+                )
                 receipt = {
-                    "ok": result.get("ok") is True,
+                    "ok": accepted,
                     "requestId": request_id,
-                    "outcome": "accepted" if result.get("ok") is True else "unknown",
+                    "outcome": "accepted" if accepted else "unknown",
                     "retryAllowed": False,
                     "physicalResultVerified": False,
                 }
+                if accepted and action == "timer.start":
+                    receipt["timerId"] = timer_id
                 self._receipts[key] = fingerprint, receipt
             except (TimeoutError, Exception):
                 pass  # no diagnostic/secret exception detail crosses the display boundary
@@ -2818,7 +2829,32 @@ async def _music_selection(request: web.Request) -> web.Response:
         controls = await (
             facade.setup_context if selection_action == "play_context" else facade.setup_track
         )(target["accountId"], target["targetId"], *native_binding, selected_current)
-        if controls.get("ok") is not True or not selected_current():
+        if not selected_current():
+            return _error("music_selection_unavailable")
+        if controls.get("ok") is not True:
+            if (
+                set(controls)
+                == {
+                    "ok",
+                    "outcome",
+                    "error_kind",
+                    "provider_request_accepted",
+                    "retry_allowed",
+                    "physical_result_verified",
+                }
+                and controls["outcome"] == "rejected"
+                and controls["error_kind"] == "native_account_claim_required"
+                and all(
+                    controls[key] is False
+                    for key in (
+                        "ok",
+                        "provider_request_accepted",
+                        "retry_allowed",
+                        "physical_result_verified",
+                    )
+                )
+            ):
+                return _error("native_account_claim_required")
             return _error("music_selection_unavailable")
         if (
             destination is not None

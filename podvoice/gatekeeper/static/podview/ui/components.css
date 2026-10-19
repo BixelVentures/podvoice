@@ -33,3 +33,48 @@ body:has(pv-widget-host[data-motion=reduced]) dialog,body:has(pv-widget-host[dat
 
 /* Existing family finish: one shallow elevation and one optical/type scale. */
 :root{--pv-surface-shadow:0 2px 6px rgba(46,37,26,.045),0 10px 24px rgba(46,37,26,.025);--pv-surface-shadow-hover:0 3px 8px rgba(46,37,26,.06),0 12px 26px rgba(46,37,26,.03);--pv-light-muted:#7b602e;--pv-detail-title:34px;--pv-detail-section:20px;--pv-player-title:20px;--pv-player-context:18px}
+
+/* Robot detail and its admitted native control panel: one status/action group.
+   These scoped refinements never alter overview cards or control authority. */
+pv-widget-host #device-view:has(#device-detail>pv-vacuum-widget:not([hidden]))>.response-heading{padding:0 0 var(--pv-screen-space-4)}
+pv-widget-host #device-view #device-detail>pv-vacuum-widget.pv-component[data-component=vacuum-widget]>.pv-content{gap:6px var(--pv-screen-space-6)}
+pv-widget-host #device-view #device-detail>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-actions{padding-top:0;border-top:0;margin:4px 0 0;gap:var(--pv-screen-space-3)}
+pv-widget-host #device-view #device-detail>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-meta{font-size:15px;line-height:1.4}
+pv-widget-host #device-view #device-detail button[data-robot-control=true]{font-weight:500;line-height:1.3}
+pv-widget-host #device-view #device-detail>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-actions>.pv-button{border-radius:var(--pv-hit-radius);min-height:var(--pv-hit-min);font-size:16px;line-height:1.3}
+pv-widget-host #device-view #device-detail>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-actions>.pv-button[data-action-id=stop]{background:var(--pv-screen-danger-surface);color:var(--pv-screen-danger)}
+pv-widget-host #device-view:has(#device-detail>pv-vacuum-widget:not([hidden]))>.device-history{margin:0;padding:var(--pv-screen-space-4) 0 0!important}
+pv-widget-host #device-view:has(#device-detail>pv-vacuum-widget:not([hidden]))>.device-history>h2{margin:0 0 var(--pv-screen-space-3);font-size:var(--pv-detail-section);line-height:1.25;color:var(--pv-screen-ink)}
+pv-widget-host #device-view #device-timeline.pv-component[data-component=activity-timeline] .pv-list{margin-left:4px;padding-left:0;border:0;gap:0}
+pv-widget-host #device-view #device-timeline.pv-component[data-component=activity-timeline] li{position:relative;margin-left:0;padding:12px 0 12px 22px;border:0;font-size:15px;line-height:1.45;color:var(--pv-screen-muted)}
+pv-widget-host #device-view #device-timeline.pv-component[data-component=activity-timeline] li::before{width:6px;height:6px;left:-3px;top:20px;background:var(--pv-screen-action-ink)}
+pv-widget-host #device-view #device-timeline.pv-component[data-component=activity-timeline] li::after{content:none}
+pv-widget-host #device-view #device-timeline.pv-component[data-component=activity-timeline] li:not([hidden]):has(~li:not([hidden]))::after{content:'';position:absolute;left:-.5px;top:23px;width:1px;height:100%;background:var(--pv-instrument-muted)}
+pv-widget-host #device-view #robot-recent{padding-top:var(--pv-screen-space-3)!important}
+pv-widget-host #device-view #robot-recent .robot-history-note{margin:0 0 var(--pv-screen-space-3);line-height:1.45}
+
+pv-widget-host>dialog.pv-component:has(pv-robot-control-panel)>header{margin-bottom:var(--pv-screen-space-4);align-items:center}
+pv-widget-host pv-robot-control-panel>.pv-component>.device-history{margin-top:var(--pv-screen-space-6)}
+pv-widget-host pv-robot-control-panel>.pv-component>.device-history>h3,pv-widget-host pv-robot-control-panel legend{font-size:18px;line-height:1.3;margin-bottom:var(--pv-screen-space-3)}
+pv-widget-host pv-robot-control-panel .pv-actions.transport{gap:var(--pv-screen-space-3);margin:0}
+pv-widget-host pv-robot-control-panel .pv-actions.transport>.pv-button{flex:1 1 120px;min-height:52px}
+pv-widget-host pv-robot-control-panel .pv-actions.transport>.pv-button.stop{background:var(--pv-screen-danger-surface);color:var(--pv-screen-danger)}
+pv-widget-host pv-robot-control-panel fieldset{margin-bottom:var(--pv-screen-space-4)}
+pv-widget-host pv-robot-control-panel .choice{min-height:52px;padding:12px 14px;font-size:16px;line-height:1.35}
+pv-widget-host pv-robot-control-panel .choice:has(input:checked){background:var(--pv-screen-selection);color:var(--pv-screen-action-ink);font-weight:500}
+pv-widget-host pv-robot-control-panel .repeat>.choice{flex:1 1 100px;justify-content:center}
+pv-widget-host pv-robot-control-panel .summary{margin-bottom:var(--pv-screen-space-3);font-size:15px;line-height:1.45}
+pv-widget-host pv-robot-control-panel>.pv-component .pv-button.start{min-height:56px;font-weight:500}
+pv-widget-host pv-robot-control-panel .settings>summary,pv-widget-host pv-robot-control-panel .robot-care>summary{font-size:18px;line-height:1.3;min-height:52px;font-weight:500;color:var(--pv-screen-ink)}
+pv-widget-host pv-robot-control-panel .robot-care{border-top:1px solid var(--pv-screen-line);padding-top:8px}
+pv-widget-host pv-robot-control-panel .robot-care-group{margin-top:var(--pv-screen-space-4)}
+pv-widget-host pv-robot-control-panel .robot-care-group>h3{font-size:16px;line-height:1.3;margin-bottom:var(--pv-screen-space-3)}
+pv-widget-host pv-robot-control-panel .robot-care-values{gap:8px 20px}
+pv-widget-host pv-robot-control-panel .robot-care-values :is(dt,dd){margin:0;font-size:15px;line-height:1.45}
+
+/* Light detail shares the existing robot detail heading/history rhythm.
+   Yellow remains the light family identity; availability is still real copy/actions. */
+pv-widget-host #device-view:has(#device-detail>pv-light-widget:not([hidden]))>.response-heading{padding:0 0 var(--pv-screen-space-4)}
+pv-widget-host #device-view:has(#device-detail>pv-light-widget:not([hidden]))>.device-history{margin:0;padding:var(--pv-screen-space-4) 0 0!important}
+pv-widget-host #device-view:has(#device-detail>pv-light-widget:not([hidden]))>.device-history>h2{margin:0 0 var(--pv-screen-space-3);font-size:var(--pv-detail-section);line-height:1.25;color:var(--pv-screen-ink)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-component[data-component=light-widget]{background:var(--pv-light-surface);color:var(--pv-light-ink);opacity:1}
