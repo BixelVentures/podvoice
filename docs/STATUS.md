@@ -85,8 +85,8 @@ The existing semantic evaluator has one additional synthetic provider-PCM overla
 case, with disjoint count-to-20 and 31+12→43 inputs. Ninety-two focused evaluator
 unit checks and static formatting/lint passed. Its final semantic verdict remains
 PENDING_AUDIO_REVIEW: continuous provider PCM has no response ID, so transcripts
-cannot certify actual interruption. No new runtime, prompt, VAD, timeout or firmware
-change has been made. A bounded provider run and raw-audio review remain pending,
+cannot certify actual interruption. For the interruption investigation, no runtime, prompt, VAD, timeout or firmware
+change was made. The later #153 direct-answer prompt draft is separate. A bounded provider run and raw-audio review remain pending,
 with a separate Restore Owner required before any approved HA pause.
 
 
@@ -116,6 +116,47 @@ key variables were cleared, the gate cancelled and the independent Restore Owner
 verified PodVoice 2.0.61 still running. No installation hold remains for this probe;
 it requires a supported private handoff before execution. The diagnostic acceptance
 edge remains open; this infrastructure failure is not a product failure.
+
+
+**Active #153 decision — direct-answer backchannel policy, 19 October.**
+Two bounded normal Talk typed-input flows on installed 2.0.61 used actual GPT-Live
+and the existing HA tools, without microphone, credential transfer, HA pause or
+household writes. Clock and weekday answers were correct; both explicit closing
+requests called end_conversation and reached the closed state. The primary output
+transcript nevertheless contained Hm before clock/direct weekday/close, and a
+second weather-plus-room read contained generic progress speech before backend
+completion and again before closing. This is current provider-text evidence, not
+audible PCM or physical Voice PE proof. The effective saved system prompt matches
+the shipped canonical prompt (16269 characters, SHA256
+`e7623a95b756c56c4c78256f917a21bb5aac644e3937ee98ed6b3063582708d8`).
+
+The existing primary policy prohibits generic receipts before/during backend work
+but does not explicitly extend that rule to direct answers. Independent source
+review accepts one primary-only direct-answer policy experiment. Hypothesis: an
+explicit direct-answer rule prevents standalone backchannels on that uncovered
+path; it does not prove the cause of already-prohibited backend preambles. The
+full chain is typed/native input → model-owned response/delegation → current tool
+result → primary output → drain → accepted semantic close → teardown/rearm.
+Preserve useful answers, necessary clarifications/errors, action-result truth,
+interruption, all generations and one close owner. No phrase/audio filter, local
+semantic authority, backend/runtime/firmware change or timeout tuning is in scope.
+
+Plan: add only the direct-answer sentence under Backchannel policy; use existing
+prompt/static checks and independent final diff review. Before acceptance, the
+next combined source-bound candidate must repeat the same normal Talk provider
+flows, retaining useful exact answers, tool choices and one clean close, without
+standalone receipts. Recurrence falsifies success. Audible and physical claims
+still require matching audio evidence. Rollback removes that sentence only; this
+private candidate changes neither installed61 nor the separately frozen UI62.
+
+The existing MCP recovery integration now checks exact structured home and sourced
+weather results through actual Thin/ToolRouter/MCP result submission after outage
+and fresh wake on native and Talk. Both focused cases and formatter/lint pass; an
+independent review found no material issue. The private three-line #153 addition
+also has independent source review and static lint/format GO. The normal focused
+dev command stopped before tests because free disk was below its 2 GiB guard; no
+guard was bypassed, and prompt tests/provider validation remain pending. Tool events and MCP data are synthetic;
+this is routing/recovery proof, not real model tool selection or spoken accuracy.
 
 ---
 
