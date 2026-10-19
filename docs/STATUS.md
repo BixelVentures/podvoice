@@ -1,3 +1,355 @@
+<!-- podview63-admission
+{
+  "version": 40,
+  "kind": "podview63_robot_voice_music_continuity",
+  "reviewer": "root-independent-review-20261019",
+  "domains": [
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "base_tip": "382c8275125fda4742c8f5947bb1ceed0e3b102d",
+  "merge_base": "382c8275125fda4742c8f5947bb1ceed0e3b102d",
+  "rationale": "ROOT-authorized combined63 exact source, integration and admission reviewed by /root/background_data_retention (receipt e8afee5206695ea6a55b9891e739719432a9993c713926a06014a4401c09ea66). Canonical robot/player/music continuity and exact reviewed voice/timer/diagnostic changes preserve existing ownership, currentness, AI budget and UNKNOWN no-replay guards. ROOT authorized only narrow review binding after this source GO. Source and local checks are not official CI, publication, Green installation or physical acceptance.",
+  "fingerprint": "9fbf7f407175641890d61df849f16faadd446c6fe4779bf565428aa24e2a5074",
+  "regression_fingerprint": "5f5260a53f6b286db752d94ffb42197797c5d5db58d349473a4980fd51cc43bf",
+  "runtime_fingerprint": "de30be847f3039242bcf8a20d018a52c25c5c61435b831ccf5c77c8e15b524d1",
+  "config_fingerprint": "f33acaf6532bf3d4726d640473aef6dc81020c9bddce8852d4790e93e384dfb7",
+  "policy_fingerprint": "256caf3e8432f35ab4511bc5019bebac9ca3b0f5a7613fd49aca36a3edbc728c",
+  "tooling_fingerprint": "d311f339649b1b226eaf34d7361cce308477b6647771cb4bca31188231e674a2",
+  "manifest_fingerprint": "e1e1c6eaf8937a379edf02e1c4f5465d5918ed868875efdc76b1bc0efbb2d874"
+}
+-->
+
+# Active voice lead — 19 October: complete software outcomes before physical acceptance
+
+Lead: this PodVoice chat. The user withdrew the physical test series and requires the
+complete PodVoice voice flow to pass automatable end-to-end outcome checks first.
+The separately coordinated PodView UI work is not a substitute for this work.
+
+**Observed installed baseline.** Green now runs PodVoice 2.0.62, commit
+`382c8275125fda4742c8f5947bb1ceed0e3b102d`, stored build marker
+`1948a3af1c1b48c88ce8b3f401d7819a7e10b3114592bb7a3e1b68ec9e8ac962`, and Speakers
+0.26.31. Official PR/main CI passed; release publication, immutable image source/assets,
+normal backup-enabled installation, runtime readback and preserved policy/settings
+were verified separately. The stored marker is not a fresh running-filesystem hash.
+The prior 2.0.61 findings below retain their original source boundary. Draft PR #214
+voice prompt/observer changes are not installed in 2.0.62. Physical voice acceptance
+has not been obtained on this combination. The next candidate is assembled by the
+PodView lead on actual 2.0.62; this chat supplies reviewed voice changes, not another
+release profile.
+
+**Actual 2.0.62 music outcome.** Normal Stemning and Humør each returned three real
+playlist cards. One Andre forslag request retained the disabled old cards while pending,
+but returned the same displayed titles reordered; new underlying playlist identities
+were not proved. One normal Play remained unknown, with no confirmed player state.
+A subsequent read-only Spotify snapshot reported fresh no_active_playback, and native
+controls returned target_not_current. These reads do not establish the original Play
+response or audible silence. No replay or Pause was sent. The PodView lead owns the
+music feedback/refresh repair. Actual timer evidence and its active repair decision
+follow below. The one timer was fully acknowledged and absent from UI/HA afterwards;
+no robot action or physical voice request was made.
+
+**19 October #110 active timer decision — before implementation.** Actual Green
+2.0.62 (`382c8275125fda4742c8f5947bb1ceed0e3b102d`) accepted one normal one-minute
+UI timer, displayed its countdown in Now/Ro, and reported native started then drained.
+The finished acknowledgement removed the exact timer from UI and HA without a duplicate.
+This proves neither audible alarm nor Stop while ringing. Source explains the missing
+Stop opportunity: the shipped alarm is a single 440 ms cue, and `_poll_timers` awaits
+its task, preventing that poll from observing HA `stop_requested` during output.
+
+Lead hypothesis: an existing-lease, finite alarm plus continued exact-source HA
+observation will provide a useful Stop window without a second alarm owner. The
+implementation target is one 20-second repeated cue at the existing 0.18 amplitude,
+on one playback lease/context; its hard wait is the declared asset duration plus
+bounded existing delivery margin, not an infinite repeat or a blind three-second
+extension. Core alone owns expiry. While the alarm runs, the existing poll must
+observe only its exact epoch/timer/alert/sink and stop on matching cancellation or
+loss/change of its source; no additional alert may be claimed. This is a specified
+usability target based on the observed 440 ms limitation, not measured room audibility.
+
+Affected chain: HA expiry/claim → current sink/context admission → finite ReplyBus
+asset → native/Talk playback → UI/HA cancel, physical Stop, wake, disconnect or cap →
+exact retirement acknowledgement → truthful stopped/drained/unknown receipt → one
+rearm → fresh wake. Preserve HA countdown ownership, one output owner, exact identities,
+source epoch and stale-event isolation. Do not report stopped from a sent command or
+attribute an old alarm to a replacement sink. Missing retirement remains incomplete.
+No gain, firmware, provider, permissions, semantic-close or general timeout tuning.
+
+Required causal checks: actual clip duration, HA cancel during output with the poll
+still alive, exact stopped rather than natural drained, one claim/retirement/rearm,
+source/epoch replacement, delayed old events after next wake, Talk exact Stop and
+disconnect, finite completion and existing timer regressions. Review both adapters
+independently before combined 63 source binding/official CI. Software target: an
+available HA cancel is consumed on the next existing two-second poll, followed by
+bounded exact retirement; room stop-to-silence is not inferred from this bound.
+Rollback is the unchanged 2.0.62 timer implementation. No new code, passing result,
+release, installation or physical acceptance is claimed by this decision.
+
+**#110 review boundaries and focused result.** The finite alarm/cancel
+implementation is under independent review. Two limits are retained explicitly:
+(1) the default reply HTTP route buffers/FLAC-encodes the finite asset before native
+playback start; the existing start deadline is unchanged and has not been measured
+on Green with this asset; (2) a committed HA claim whose response is lost remains
+fail-closed/held, without automatic output replay. This pre-existing recovery gap is
+not cured by a longer cue. Neither limit may be called fully accepted timer recovery.
+A hard-cap terminal stop may acknowledge Core only after exact sink retirement;
+without that proof it remains unknown/incomplete. The changed joined timer module
+now passes 7/7 through `scripts/dev fast`, with formatting/lint/mypy also passing.
+Its controlled native/Core/Talk cases cover the finite asset, live-poll cancellation,
+claim-response ordering, source epoch replacement, exact Stop and bounded terminal
+cleanup; native callbacks are injected, not physical device observations. Earlier
+attempts were stopped before pytest by the disk guard and are not product failures.
+One subsequent combined focused gate passed 5/5: three adjacent existing timer cases
+(native natural drain, missing retirement ACK recovery, and Talk same-page recovery)
+plus both new native LED semantic-close variants. Ruff/format/mypy passed on the
+same final bytes. The LED regression delegates actual light calls to `VoicePELink`
+and checks cyan → correlated close/OFF → next-wake cyan, no red on successful close,
+and red/retry before recovered OFF on injected rearm failure. It rejects an old
+playback finish before closing; injected native events still are not room/device proof.
+Independent adversarial review approved timer source SHA256
+`f234aa46f276adfd5816997c7ce9084a68d85cb4c97c0172f76810b7ac264d51`
+and joined test SHA256
+`8a2f94eecbfb1aeb75d32f6e94e1ba091f8fe820e86f7c0c21115d9264ba635b`.
+No production startup deadline extension or guard bypass was used. This is a reviewed
+software draft for the single combined next candidate, not a new installation or
+accepted physical timer/LED/voice flow.
+
+**Direct source finding.** On exact 2.0.61, native Live microphone frames continue
+during output. Ordinary `LiveTranscript` revises input and `LiveBackendStarted`
+records work, but neither connects new Live input to physical output interruption.
+The existing `_on_interrupted` path rejects the native legacy `full_duplex=False`
+flag, and the Live adapter emits no corresponding interrupt event. Existing
+input-forwarding checks therefore do not prove interruption, a relevant replacement
+answer in the same session, or the subsequent close/new wake. This is a software
+gap to reproduce, not merely a missing physical listening result.
+
+**Chain and invariants.** Review actual native input/capture generation → Live input
+revision and provider events → old response/physical playback owner → accepted new
+response → tool outcome and physical drain → one close/teardown → one correlated
+rearm/new wake. Preserve GPT-Live semantic authority, continuous active input, exact
+session/connection/input/output generations, no stale side effects or resumed stale
+audio, one playback/close owner, and independent native/Talk adapters. Neighbouring
+races include delayed old audio/tool/close events, an obsolete interruption after a
+new generation, native stop failure, and a cancelled or failed replacement response.
+
+**Falsifiable hypothesis and scope.** A missing current-Live interruption handoff
+allows obsolete output to continue despite new input. First reproduce that complete
+sequence on actual Thin/Live/native contracts; the repair must use observed Live
+authority, not invented provider ACKs or local phrase/VAD-based meaning. Do not
+blindly change the legacy duplex flag, firmware, gain, prompt, timeouts, or the
+separate PodView UI. Timer and voice-music outcome checks run independently on the
+same source and use inert service boundaries, not household actions.
+
+**Planned checks and rollback.** Reuse existing native and lifecycle regressions;
+add the smallest causal failing case to the existing harness where necessary.
+Require stale/duplicate/out-of-order events to stay inert across interruption,
+replacement output, close and the next generation, on both I/O adapters. Any runtime
+repair requires independent adversarial review, exact combined source binding and
+official CI before one coordinated release/install. Rollback boundary is the exact
+published 2.0.61 source; it does not inherit physical acceptance. No repair, provider
+proof, new release, installation or physical success is claimed by this plan.
+
+**Current results.** Native/firmware/wake contract checks: 93 passed on unchanged
+2.0.61. Twelve actual-entrypoint settings/recovery checks initially could not bind
+their localhost test server inside the sandbox; only those twelve were rerun with
+local-server permission and passed. The sandbox error was not a product fault.
+Fourteen existing lifecycle/SDK causal checks and 81 timer/voice-target checks also
+passed; overlapping scopes are not a combined test-count or physical proof. The joined voice-music outcome regression now passes all four native/Talk and
+accepted/unknown cases with independent review. It separates command receipts from
+externally observed playback, and covers Spotify-device routing; actual HomePod
+configured-alias outcomes remain a separate live edge. No household action or
+provider call was performed by these checks. No physical test request is active.
+
+**Independent review narrows the hypothesis.** The primary GPT-Live audio contract
+supplies ordered PCM without a spoken-response ID, output-done event, or an
+interrupt boundary. The provider can change its continuous output itself; the
+absence of a local stop callback alone is therefore not a demonstrated runtime
+fault. A transcript fragment or backend delegation cannot safely label subsequent
+PCM as a new answer. A naive native stop would also cause the current continuous
+stream to close. Do not introduce a local stop/duplex-flag patch or invent provider
+ACKs. Existing deterministic safety results stand. The unresolved acceptance edge
+is to establish the supported interruption/output behaviour from actual provider
+PCM and controlled synthetic input using the existing bounded probe, then replay
+its supported events through the actual adapters. A physical request remains
+withdrawn; no provider run or runtime repair is authorized by this record alone.
+
+
+**Voice PE scope clarification, 19 October.** This chat also owns physical-device
+LED feedback and timing: listening, thinking, answer playback, interruption, semantic/
+idle close, timer, error and rearm/readiness. Software acceptance must trace lifecycle
+commands through VoicePELink to the shipped firmware, including stale callbacks and
+absence of unexplained error transitions. Visible colour and room timing need their
+own final device observation; browser state or a sent LED command does not prove them.
+No speculative colour/timeout tuning is authorized by this clarification.
+
+**LED source audit result.** The current native Live path uses cyan for listening
+and known backend/tool work; primary-provider thinking has no observable event and
+must not be invented. Firmware owns admitted idle-close yellow after its exact LED
+transmission acknowledgement. An idle-close acknowledgement fault or incomplete
+teardown/rearm can lead to red; no current correlated trace establishes the cause of
+the user's earlier yellow → red → off report. Existing wake/work/idle-preclose tests
+cover delayed/stale acknowledgements, cancellation, reconnect and next generation.
+The adapter may catch light-command errors, so `led_command` records intent, not
+successful delivery or visible light. No LED runtime, colour or timeout repair was
+justified by this read-only audit; installed-device LED timing remains unverified.
+
+**Same-version acceptance scope.** The active goal covers all PodVoice controls,
+not a collection of per-component green results: wake → Danish answer → follow-up
+and interruption → semantic/idle close → next wake; home/weather and correct tool
+results; music start/move/queue/volume/attention restore; HA timer create/expiry/alarm/
+stop; and failure/recovery. Adjacent timer integration seams cover creation, Core
+expiry, Thin/native output custody and stop; they do not establish a single actual
+Green voice-to-alarm flow. Core restart is fail-closed, not timer persistence.
+
+The existing semantic evaluator has one additional synthetic provider-PCM overlap
+case, with disjoint count-to-20 and 31+12→43 inputs. Ninety-two focused evaluator
+unit checks and static formatting/lint passed. Its final semantic verdict remains
+PENDING_AUDIO_REVIEW: continuous provider PCM has no response ID, so transcripts
+cannot certify actual interruption. For the interruption investigation, no runtime, prompt, VAD, timeout or firmware
+change was made. The later #153 direct-answer prompt draft is separate. A bounded provider run and raw-audio review remain pending,
+with a separate Restore Owner required before any approved HA pause.
+
+
+**19 October live music observations, same 2.0.61 / Speakers 0.26.31.** One
+admitted Morning Coffee start on idle Kitchen produced Spotify playback and a fresh
+ready native room receipt with the correct HomePod/session/route. Automatic later
+items were observed under that session; this is not audible acceptance. PodView
+transport briefly enabled, then became stale/disabled. Its Pause attempt was
+unknown. A separate fresh owner-bound HA cleanup was definitively rejected with
+`stale_observation` before irreversible native commit; the reported older
+`observe_after_poll_sequence` is the previous possible-send floor, not evidence of
+a stale cached receipt. The existing held-prepare integration case covers the poll
+advance race. Do not infer a ledger bug or weaken identity guards from this trace.
+
+One independent normal Speakers Stop produced a local cannot-confirm alert. Fresh
+Spotify polls 231 and 241 then both reported paused on Kitchen with the same item
+and progress 18782 ms. Cleanup is observed paused, not physically silent. A separate
+`get_room_volume_controls` read returned `room_volume_unavailable`; transport's
+volume flag alone was not sufficient evidence. PodView lead owns the stale-control
+and volume investigation; these flows remain open. Evidence is retained at
+`/private/tmp/pv61-pc31-music-once-20261019/`.
+
+**Provider diagnostic did not run.** The reviewed private one-use gate was prepared,
+but the browser runtime denied local socket handoff with EPERM. No credential was
+accepted by the probe, no provider request started and no HA Stop occurred. Private
+key variables were cleared, the gate cancelled and the independent Restore Owner
+verified PodVoice 2.0.61 still running. No installation hold remains for this probe;
+it requires a supported private handoff before execution. The diagnostic acceptance
+edge remains open; this infrastructure failure is not a product failure.
+
+
+**Active #153 decision — direct-answer backchannel policy, 19 October.**
+Two bounded normal Talk typed-input flows on installed 2.0.61 used actual GPT-Live
+and the existing HA tools, without microphone, credential transfer, HA pause or
+household writes. Clock and weekday answers were correct; both explicit closing
+requests called end_conversation and reached the closed state. The primary output
+transcript nevertheless contained Hm before clock/direct weekday/close, and a
+second weather-plus-room read contained generic progress speech before backend
+completion and again before closing. This is current provider-text evidence, not
+audible PCM or physical Voice PE proof. The effective saved system prompt matches
+the shipped canonical prompt (16269 characters, SHA256
+`e7623a95b756c56c4c78256f917a21bb5aac644e3937ee98ed6b3063582708d8`).
+
+The existing primary policy prohibits generic receipts before/during backend work
+but does not explicitly extend that rule to direct answers. Independent source
+review accepts one primary-only direct-answer policy experiment. Hypothesis: an
+explicit direct-answer rule prevents standalone backchannels on that uncovered
+path; it does not prove the cause of already-prohibited backend preambles. The
+full chain is typed/native input → model-owned response/delegation → current tool
+result → primary output → drain → accepted semantic close → teardown/rearm.
+Preserve useful answers, necessary clarifications/errors, action-result truth,
+interruption, all generations and one close owner. No phrase/audio filter, local
+semantic authority, backend/runtime/firmware change or timeout tuning is in scope.
+
+Plan: add only the direct-answer sentence under Backchannel policy; use existing
+prompt/static checks and independent final diff review. Before acceptance, the
+next combined source-bound candidate must repeat the same normal Talk provider
+flows, retaining useful exact answers, tool choices and one clean close, without
+standalone receipts. Recurrence falsifies success. Audible and physical claims
+still require matching audio evidence. Rollback removes that sentence only; this
+private candidate changes neither installed61 nor the separately frozen UI62.
+
+The existing MCP recovery integration now checks exact structured home and sourced
+weather results through actual Thin/ToolRouter/MCP result submission after outage
+and fresh wake on native and Talk. Both focused cases and formatter/lint pass; an
+independent review found no material issue. The private three-line #153 addition
+also has independent source review and static lint/format GO. The first focused
+dev attempt correctly stopped below its 2 GiB free-space guard. Removing only the
+reproducible npm download cache with npm's own clean command freed 4.8 GiB; source,
+installed dependencies and evidence were preserved. The same focused prompt command
+then passed: 18 prompt tests, formatting/lint and mypy over 87 source files, in 2 s.
+No earlier passing suites were repeated. Provider validation on a newly installed
+combined candidate remains pending. Tool events and MCP data are synthetic;
+this is routing/recovery proof, not real model tool selection or spoken accuracy.
+
+
+**Joined timer outcome.** The one new existing-harness regression joins a completed
+SDK timer call through actual Thin/ToolRouter, an inert HA TimerBridge/CoreTimers
+ID, expiry, native VoicePELink with compiled StopContext, alarm ownership, Stop,
+exact started/stopped HA receipts and a fresh wake. Actual ThinSession.start owns
+the same live poll task across conversation stop and expiry; no manual replacement
+poll is used. A delayed old reply-finished event cannot change the next session.
+Focused format/lint/mypy and the one case pass in 3.9 s, with independent final GO
+on SHA256 `bd9764bdc74ea3725ecc2e08477566192284c139989c3c6e626ae83e06e9b28e`.
+This closes a stitched source/adapter coverage gap, not a demonstrated runtime bug.
+HA service metadata, Core expiry and native Stop are controlled test seams; real
+HA registration/uptime, firmware-generated Stop and audible alarm remain unproved.
+No production code was changed by this regression.
+
+**Current #215 observation and #153 repeat.** One normal Talk city question on
+installed61 had no visible answer by 49 s and was manually stopped. Retained
+content-free diagnostics establish provider connection at +3765 ms, backend start
+at +4167 ms and matched completed backend at +5412 ms, with no dropped events or
+incomplete flag; close was requested at +53554 ms and teardown completed at +56569
+ms. Primary output and backend final text are not retained, so the loss boundary
+remains unknown. Independent source/protocol review rejected a speculative local
+final-message relay: managed Responses delegation already returns results to Live.
+A single unchanged-source repeat returned the correct Copenhagen answer within
+12.1 s, then end_conversation, farewell and the closed/start state by 39.6 s from
+initial submission. The first failure remains failed; the repeat establishes an
+intermittent symptom, not a cure. It also reproduced [mouth noise] before the direct
+answer and before closing. No microphone, household writes, HA pause, new key or
+runtime patch was used. Receipts and the retained diagnostic export are under
+`/private/tmp/pv61-talk-actual-outcomes-20261019/`. No audible/native acceptance is
+claimed. Issues #153 and #215 retain these exact outcomes.
+
+
+**Active #98/#215 decision — bounded primary-output observability.** The retained
+city failure proves completed backend work but does not retain whether Thin
+received a nonempty primary Live output transcript. This is a diagnostic gap, not
+a proven speech cause. The observer distinguishes transcript seen from not seen
+only; false may coexist with audio/RTP and true proves neither UI display nor
+playback, audible speech or a later physical loss. Preserve content-free diagnostics, provider-owned meaning, current-session/
+connection identity and the single teardown owner. Add only one content-free
+primary-output observation flag/count to the existing bounded session/close
+record, using actual accepted primary output events and resetting at fresh wake.
+Do not retain text/audio, emit one event per fragment, wait for output, change
+permissions, retry, relay responses or alter lifecycle/audio/prompt timeouts.
+Hypothesis: completed backend work remains distinguishable from Thin's accepted
+nonempty primary output transcript receipt without retaining its text. Neither
+state localizes audio delivery or proves the cause of the original failure. Existing-harness causal
+checks must cover both outcomes, generation reset/stale events and sanitizer
+rejection of text/extra fields. Independent review is required before integration.
+Rollback removes only this observer field; no installation or cause fix is claimed.
+
+Actual change: accepted nonempty output transcripts mark their generation;
+existing teardown_complete emits only live_output_transcript_seen. Fresh wake and
+a different provider generation clear it; same-generation Ready cannot erase an
+earlier valid WebRTC transcript. The sanitizer accepts a strict boolean only on
+teardown and drops transcript text/extra fields. Four offline causal cases,
+format/lint and mypy over 87 source files pass in 1.5 s. Independent high-risk final
+GO covers four-file diff SHA256
+`98f8bad1426bc29b330cb591a5149e924f7f957bff7d70a3515afed04deaf62f`.
+Review caught and fixed an observer-only Ready-order race before freeze; this is
+not a discovered cause of the original missing reply. One actual-main Talk test
+could not bind localhost in the sandbox; its bootstrap attempted OpenAI TTS and
+automatic approval review rejected escalation under the declared no-provider
+scope. It was not retried or counted as passed. The accepted replacement uses the
+existing fully offline BrowserLink/native fixtures. Provider, UI and physical
+acceptance remain open. This observer is not part of the frozen 2.0.62 candidate.
+
+---
+
 <!-- podview62-admission
 {
   "version": 39,

@@ -6,7 +6,7 @@ import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-con
 class Node extends EventTarget{constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.dataset={};this.textContent='';}append(...nodes){this.children.push(...nodes);}after(node){this.sibling=node;}setAttribute(name,value){this[name]=value;}replaceChildren(...nodes){this.children=nodes;}querySelector(){return null;}querySelectorAll(){return [];}focus(){}showModal(){this.open=true;}close(){this.open=false;this.dispatchEvent(new Event('close'));}}
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
 const observed=()=>({config_entry_id:'account',owner_epoch:'epoch',poll_sequence:1,expiresAt:Date.now()+15000,state:'playing',item:{uri:'spotify:track:0123456789ABCDEFGHIJKL'},target:{id:'device'}});
-function fixture(){const previous=globalThis.document,nodes=new Map(),selectors=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,new Node('div'));return nodes.get(id);};globalThis.document={createElement:tag=>new Node(tag),getElementById:node,querySelector:selector=>selectors.get(selector)||null};const host=new Node('host');host.state={devices:[]};host.liveMedia={playback:observed()};host.liveSnapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:['music']}};host.liveMedia.playback=boundPlayback(host.liveSnapshot,host.liveMedia.playback);host.querySelector=selector=>{if(!selectors.has(selector))selectors.set(selector,new Node('div'));return selectors.get(selector);};let reads=0;const writes=[];const offer=(options=['pause','resume','next','previous','volume'],volume=20)=>({ok:true,schema:'podview.control.v1',roomId:'room',bootId:'boot',domain:'music',taskId:'offer-'+(++reads),revision:1,expiresAt:Date.now()/1000+30,options:options.map(action=>({id:`opaque-${reads}-${action}`,action,label:action,argsSchema:action==='volume'?{kind:'percent',min:0,max:50}:{kind:'none'}})),setup:{volume}});host.liveTransport={connected:true,controlSetup:async()=>offer(),controlAction:async(task,id,args)=>{writes.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'receipt'};}};const view=new LiveControlView(host);return {host,view,nodes,selectors,offer,writes,reads:()=>reads,restore(){view.cleanup();globalThis.document=previous;}};}
+function fixture(){const previous=globalThis.document,nodes=new Map(),selectors=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,new Node('div'));return nodes.get(id);};globalThis.document={createElement:tag=>new Node(tag),getElementById:node,querySelector:selector=>selectors.get(selector)||null};const host=new Node('host');host.state={devices:[{id:'vacuum.actual',kind:'vacuum',live:true,stale:false,status:'cleaning'}]};host.liveMedia={playback:observed()};host.liveSnapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:['music']}};host.liveMedia.playback=boundPlayback(host.liveSnapshot,host.liveMedia.playback);host.querySelector=selector=>{if(!selectors.has(selector))selectors.set(selector,new Node('div'));return selectors.get(selector);};let reads=0;const writes=[];const offer=(options=['pause','resume','next','previous','volume'],volume=20)=>({ok:true,schema:'podview.control.v1',roomId:'room',bootId:'boot',domain:'music',taskId:'offer-'+(++reads),revision:1,expiresAt:Date.now()/1000+30,options:options.map(action=>({id:`opaque-${reads}-${action}`,action,label:action,argsSchema:action==='volume'?{kind:'percent',min:0,max:50}:{kind:'none'}})),setup:{volume}});host.liveTransport={connected:true,controlSetup:async()=>offer(),controlAction:async(task,id,args)=>{writes.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'receipt'};}};const view=new LiveControlView(host);return {host,view,nodes,selectors,offer,writes,reads:()=>reads,restore(){view.cleanup();globalThis.document=previous;}};}
 test('paired controls enable only issued actions and observed bounded volume in retained geometry',async()=>{const f=fixture();try{f.host.liveTransport.controlSetup=async()=>f.offer(['pause','next','volume'],35);await f.view.prepareMusic();f.view.renderMusicControls();assert.equal(f.nodes.get('play-pause').hidden,false);assert.equal(f.nodes.get('next').hidden,false);assert.equal(f.nodes.get('previous').hidden,false);assert.equal(f.nodes.get('previous').disabled,true);assert.equal(f.nodes.get('volume').value,'35');assert.equal(f.nodes.get('volume').max,'50');assert.equal(f.writes.length,0);f.view.musicOffer.task.volume=null;f.view.renderMusicControls();assert.equal(f.selectors.get('.player .volume').hidden,false);assert.equal(f.nodes.get('volume').disabled,true);assert.equal(f.nodes.get('volume-value').textContent,'—');}finally{f.restore();}});
 test('unpaired, stale or unnamed target can neither fetch setup nor send',async()=>{for(const change of [f=>f.host.liveSnapshot.capabilities.controlSetup=[],f=>f.host.liveMedia.playback.stale=true,f=>f.host.liveMedia.playback.target=null,f=>f.host.liveTransport.connected=false]){const f=fixture();try{change(f);await f.view.prepareMusic();assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.reads(),0);assert.equal(f.writes.length,0);}finally{f.restore();}}});
 test('each explicit click uses fresh owner-issued task and ID exactly once without modal',async()=>{const f=fixture();try{await f.view.prepareMusic();const displayTask=f.view.musicOffer.task;assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.writes.length,1);assert.notEqual(f.writes[0].task.taskId,displayTask.taskId);assert.equal(f.writes[0].id,'opaque-2-pause');assert.deepEqual(f.writes[0].args,{});assert.equal(f.view.dialog.open,false);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.writes.length,1);}finally{f.restore();}});
@@ -146,4 +146,72 @@ test('passive music offer read does not block a robot setup',async()=>{
   preparation=f.view.prepareMusic();await f.view.open('vacuum',{entityId:'vacuum.actual'},new Node('button'));
   assert.equal(f.view.task.taskId,'robot-passive');assert.equal(f.view.musicReadPending,true);assert.equal(f.writes.length,0);
  }finally{read.resolve(f.offer());await preparation;f.restore();}
+});
+
+test('expired music offer renews once from a genuinely newer fresh observation without changing intent identity',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=fixture();try{
+  let calls=0;f.host.liveTransport.controlSetup=async()=>{calls++;return {...f.offer(['pause','next'],null),expiresAt:clock/1000+2};};
+  await f.view.prepareMusic();f.view.renderMusicControls();const key=f.view.musicContext().key,firstTask=f.view.musicOffer.task.taskId;
+  assert.equal(f.nodes.get('play-pause').disabled,false);clock+=2001;
+  await f.view.prepareMusic();f.view.renderMusicControls();assert.equal(calls,1);assert.equal(f.nodes.get('play-pause').disabled,true);
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:2,expiresAt:clock+15000};await f.view.prepareMusic();f.view.renderMusicControls();
+  assert.equal(f.view.musicContext().key,key);assert.equal(calls,2);assert.notEqual(f.view.musicOffer.task.taskId,firstTask);assert.equal(f.nodes.get('play-pause').disabled,false);
+  await f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,2);assert.equal(f.writes.length,0);
+ }finally{f.restore();Date.now=previousNow;}
+});
+
+test('failed passive preparation is not retried on the same poll and a newer read cannot bypass UNKNOWN intent',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=fixture();try{
+  let calls=0;f.host.liveTransport.controlSetup=async()=>{calls++;throw Error('temporary read failure');};
+  await f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,1);
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:2,expiresAt:clock+15000};await f.view.prepareMusic();assert.equal(calls,2);
+  const key=f.view.musicContext().key;f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:3,expiresAt:clock+15000};
+  await f.view.prepareMusic();assert.equal(calls,2);assert.equal(f.view.musicContext().key,key);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.writes.length,0);assert.equal(f.view.musicFence.outcome,'unknown');
+ }finally{f.restore();Date.now=previousNow;}
+});
+
+test('new-observation preparation is coalesced and late room replacement does not install its offer',async()=>{
+ const f=fixture();try{
+  const hold=deferred();let calls=0;f.host.liveTransport.controlSetup=()=>{calls++;return hold.promise;};
+  const pending=f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,1);
+  f.host.liveSnapshot={...f.host.liveSnapshot,roomId:'other'};hold.resolve(f.offer(['pause'],null));await pending;
+  assert.equal(f.view.musicOffer,null);assert.equal(f.view.musicReadPending,false);assert.equal(f.writes.length,0);
+ }finally{f.restore();}
+});
+
+
+test('explicit MOVE supersedes only passive preparation and discards its late offer',async()=>{
+ const f=fixture();try{
+  const passive=deferred(),move=deferred();enableMove(f);const make=f.host.liveTransport.controlSetup;let reads=0;
+  f.host.liveTransport.controlSetup=(domain,target)=>{reads++;return target.speakerId?move.promise:passive.promise;};
+  const reading=f.view.prepareMusic();assert.equal(f.view.musicReadPending,true);
+  const moving=f.view.moveSpeaker(alias(),()=>true);assert.equal(reads,2);assert.equal(f.view.setupPending,true);assert.equal(f.writes.length,0);
+  passive.resolve(f.offer(['pause','next']));await reading;assert.equal(f.view.musicOffer,null);assert.equal(f.view.setupPending,true);
+  move.resolve(await make('music',{}));assert.equal(await moving,true);assert.equal(f.writes.length,1);assert.equal(f.writes[0].id,'move:'+alias().speakerId);assert.equal(f.view.musicOffer,null);
+ }finally{f.restore();}
+});
+for(const reason of ['stale','expired','unknown','pending','setup','intent'])test(`passive preparation cannot unlock MOVE after ${reason}`,async()=>{
+ const f=fixture();try{
+  const passive=deferred();f.host.liveTransport.controlSetup=()=>passive.promise;const reading=f.view.prepareMusic();
+  if(reason==='stale')f.host.liveMedia.playback.stale=true;
+  if(reason==='expired')f.host.liveMedia.playback.expiresAt=Date.now()-1;
+  if(reason==='unknown')f.view.musicFence={key:f.view.musicContext().key,outcome:'unknown'};
+  if(reason==='pending')f.view.pending=true;
+  if(reason==='setup')f.view.setupPending=true;
+  if(reason==='intent')f.view.musicIntentPending=true;
+  assert.equal(await f.view.moveSpeaker(alias(),()=>true),false);assert.equal(f.reads(),0);assert.equal(f.writes.length,0);
+  passive.resolve(f.offer());await reading;
+ }finally{f.restore();}
+});
+
+test('late passive offer after MOVE UNKNOWN cannot restore controls or retry the effect',async()=>{
+ const f=fixture();try{
+  const passive=deferred();enableMove(f);const make=f.host.liveTransport.controlSetup;
+  f.host.liveTransport.controlSetup=(domain,target)=>target.speakerId?make(domain,target):passive.promise;
+  const reading=f.view.prepareMusic();f.host.liveTransport.controlAction=async(task,id,args)=>{f.writes.push({task,id,args});return {outcome:'unknown'};};
+  assert.equal(await f.view.moveSpeaker(alias(),()=>true),true);assert.equal(f.writes.length,1);assert.equal(f.view.musicFence.outcome,'unknown');
+  passive.resolve(f.offer(['pause','next']));await reading;assert.equal(f.view.musicOffer,null);assert.equal(f.view.musicFence.outcome,'unknown');
+  assert.equal(await f.view.moveSpeaker(alias(),()=>true),false);await f.view.prepareMusic();assert.equal(f.writes.length,1);assert.equal(f.view.musicOffer,null);
+ }finally{f.restore();}
 });

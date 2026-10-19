@@ -1,5 +1,12 @@
 ## 2.0.62 — PodView retained UI and playlist resilience
 
+## 2.0.63 — Grounded robot controls and voice/music continuity
+
+- Consolidate canonical robot status, settings, areas and explicit source-grounded suggestions; keep the existing registered UI owners and exact action admission.
+- Retain truthful music feedback across presentation expiry and refresh real playlist choices through bounded source-backed selection.
+- Improve retained player/header detail and speaker movement continuity without retrying unknown actions.
+- Include reviewed finite timer cancellation, content-free voice diagnostics and direct-answer prompt changes. Software evidence does not establish provider, audible or physical acceptance.
+
 - Keep existing widgets, artwork, navigation and controls stable while unchanged data refreshes; update only changed content and fade decoded artwork in its existing slot.
 - Align overview timer/grid, music card/tab spacing, visual-answer history previews and meaningful retained player states through the canonical component owners.
 - Improve source-backed Humør/Stemning playlist selection with bounded provider fallbacks; retain exact account/owner/currentness and renewal authority, and never invent playlist rows.

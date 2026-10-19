@@ -339,6 +339,76 @@ class DeviceControl:
         ]
         return history
 
+    def recipe_planning_context(self, offered: dict, owner: tuple[str, str]) -> dict | None:
+        """Read-only candidates from this fresh capability; never another effect owner."""
+        ticket = offered.get("capability_token")
+        if not isinstance(ticket, str):
+            return None
+        cap = self._display_tickets.get(ticket)
+        if (
+            cap is None
+            or cap.owner != owner
+            or cap.generation != self._generation
+            or not self.available
+            or cap.extended_only
+            or time.monotonic() - cap.issued_at > _TOKEN_TTL_S
+        ):
+            return None
+        history = self._cleaning_journal.planning_history(cap.vacuum)
+        if history is None:
+            return None
+        areas = dict(cap.area_segments)
+        expected = {
+            "vacuum_entity_id": cap.vacuum,
+            "device_identity": cap.identity,
+            "map_entity_id": cap.map_entity,
+            "map_fingerprint": cap.map_fingerprint,
+            "mapping_identity": cap.mapping_identity,
+        }
+        recipes = []
+        for record in history["items"]:
+            recipe = record["recipe"]
+            if (
+                record["outcome"] != "accepted_by_ha"
+                or any(recipe[key] != value for key, value in expected.items())
+                or any(area not in areas for area in recipe["area_ids"])
+                or record["recorded_at"] > time.time() + 1
+            ):
+                continue
+            recipes.append(
+                {
+                    "id": record["id"],
+                    "recordedAt": record["recorded_at"],
+                    "areaIds": recipe["area_ids"],
+                    "repeat": recipe["repeat"],
+                }
+            )
+        if not recipes:
+            return None
+        return {
+            "vacuum": cap.vacuum,
+            "generation": cap.generation,
+            "deviceIdentity": cap.identity,
+            "mapFingerprint": cap.map_fingerprint,
+            "mapRevision": cap.map_revision,
+            "mappingIdentity": cap.mapping_identity,
+            "journalRevision": history["revision"],
+            "areas": [
+                {"id": area, "segments": list(segments)} for area, segments in cap.area_segments
+            ],
+            "recipes": recipes,
+        }
+
+    def recipe_planning_current(self, context: dict) -> bool:
+        """Cached owner/source guard, no HA/disk/model I/O during snapshots."""
+        return bool(
+            self.available
+            and context.get("vacuum") in self._entities
+            and context.get("generation") == self._generation
+            and context.get("journalRevision") == self._cleaning_journal.planning_revision
+            and context.get("mapRevision") == self._map_revisions.get(context["vacuum"], 0)
+        )
+
     def declarations(self) -> list[dict]:
         return copy.deepcopy(_DECLARATIONS) if self.available else []
 

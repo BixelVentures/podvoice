@@ -1377,6 +1377,9 @@ class PodViewBridge:
         result["capabilities"]["controlSetup"] = self.controls.domains(room, token)
         result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
         result["capabilities"]["queueSelection"] = bool(self.queue.rules(room, token))
+        robot_suggestions = self.controls.robot_suggestions(room, token)
+        if robot_suggestions:
+            result["robotSuggestions"] = robot_suggestions
         if token in self._ha_actors and self._grant_current(room, token):
             result["admission"] = {"kind": "ha_ingress", "authenticated": True}
         return {**result, "revision": revision, "observedAt": time.time()}
@@ -2321,7 +2324,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     """One aggregate source set, never three mutually replacing search tasks."""
     from . import mood_diagnostics as diagnostic_log
     from .podview_feeling import THEMES as FEELING_THEMES
-    from .podview_feeling import choose
+    from .podview_feeling import assign_playlists, choose
     from .podview_mood import THEMES as MOOD_THEMES
 
     if kind not in {"mood", "feeling"}:
@@ -2532,21 +2535,18 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     ]
                 )
 
-            def assign(index, seen):
-                # Exactly three admitted bounded source lists; deterministic source order.
-                # Backtrack a collision instead of discarding an available full assignment.
-                if index == len(candidates):
-                    return []
-                for row, query in candidates[index]:
-                    if row["uri"] in seen:
-                        continue
-                    remaining = assign(index + 1, seen | {row["uri"]})
-                    if remaining is not None:
-                        return [(row, query), *remaining]
-                return None
-
-            selected = assign(0, set())
-            if selected is None and expected is None:
+            prior_uris = (
+                frozenset(row["uri"] for row in retained["rows"])
+                if request.query.get("refresh") == "1"
+                and retained
+                and retained["key"][:3] == key[:3]
+                else frozenset()
+            )
+            selected = assign_playlists(candidates, prior_uris)
+            if expected is None and (
+                selected is None
+                or (prior_uris and any(row["uri"] in prior_uris for row, _ in selected))
+            ):
                 # Only successful, current source samples reach this bounded broadening.
                 # No HTTP/auth/rate-limit/projection failure can trigger another read.
                 # Frozen renewal is excluded: it must revalidate its exact URI/name/query.
@@ -2559,7 +2559,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     if playlists is None:
                         return failed(f"{kind}_catalogue_unavailable")
                     candidates[index].extend((row, broader_queries[theme_id]) for row in playlists)
-                selected = assign(0, set())
+                selected = assign_playlists(candidates, prior_uris)
             if selected is None:
                 return failed(
                     f"{kind}_refresh_required"
@@ -3107,6 +3107,9 @@ def mount(
     from .podview_queue import queue_http
 
     async def close_receipts(_app):
+        robot_selector = getattr(tools, "podview_robot_recipe_selector", None)
+        if robot_selector is not None:
+            await robot_selector.aclose()
         locality = getattr(tools, "podview_locality", None)
         if locality is not None:
             await locality.aclose()

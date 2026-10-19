@@ -489,6 +489,7 @@ class TouchControls:
         def current():
             return self._current(task, token)
 
+        setup: dict
         self.busy.add(room)
         try:
             async with asyncio.timeout(20 if domain == "music" else 10):
@@ -690,8 +691,14 @@ class TouchControls:
                             )
             if not current():
                 return failure("stale_setup")
+            task["expires_at"] = time.time() + max(0, task["deadline"] - time.monotonic())
             self.tasks[task_id] = task
             task["setup_in_progress"] = False
+            if domain == "vacuum" and "recipeId" not in body:
+                self._schedule_robot_suggestion(task, token)
+                suggestion = self._robot_suggestion(task, token)
+                if suggestion is not None:
+                    setup["robotSuggestion"] = suggestion
             return {
                 "ok": True,
                 "schema": "podview.control.v1",
@@ -699,7 +706,7 @@ class TouchControls:
                 "bootId": self.bridge.boot_id,
                 "taskId": task_id,
                 "revision": 1,
-                "expiresAt": time.time() + max(0, task["deadline"] - time.monotonic()),
+                "expiresAt": task["expires_at"],
                 "domain": domain,
                 "options": public_options,
                 "setup": setup,
@@ -708,6 +715,110 @@ class TouchControls:
             return failure("setup_unavailable")
         finally:
             self.busy.discard(room)
+
+    def _schedule_robot_suggestion(self, task: dict, token: str) -> None:
+        """Optional read work starts only after actual native setup has completed."""
+        selector = getattr(self.bridge.tools, "podview_robot_recipe_selector", None)
+        device = getattr(self.bridge.tools, "_device_control", None)
+        if selector is None or device is None or "offered" not in task:
+            return
+        if not any(
+            o["action"] == "start" and o["schema"]["kind"] == "cleaning"
+            for o in task["options"].values()
+        ):
+            return
+        try:
+            context = device.recipe_planning_context(task["offered"], task["owner"])
+            if context is None:
+                return
+            context = {
+                **context,
+                "roomId": task["room"],
+                "policyIdentity": hashlib.sha256(
+                    json.dumps(self.policy, sort_keys=True).encode()
+                ).hexdigest(),
+            }
+            task["robot_planning"] = context
+
+            def current():
+                return bool(
+                    self.tasks.get(task["id"]) is task
+                    and not task["consumed"]
+                    and self._current(task, token)
+                    and device.recipe_planning_current(context)
+                    and getattr(self.bridge.tools, "podview_robot_recipe_selector", None)
+                    is selector
+                )
+
+            selector.schedule(context, current)
+        except Exception:
+            pass  # Optional suggestion cannot replace or disable the ordinary controls.
+
+    def _robot_suggestion(self, task: dict, token: str) -> dict | None:
+        """Pure cached projection for this exact authorized current task and actor."""
+        try:
+            return self._robot_suggestion_read(task, token)
+        except Exception:
+            return None  # An optional proposal never replaces ordinary snapshot/control data.
+
+    def _robot_suggestion_read(self, task: dict, token: str) -> dict | None:
+        if (
+            task["domain"] != "vacuum"
+            or task["consumed"]
+            or not self._current(task, token)
+            or self.tasks.get(task["id"]) is not task
+            or "robot_planning" not in task
+        ):
+            return None
+        context = task["robot_planning"]
+        selector = getattr(self.bridge.tools, "podview_robot_recipe_selector", None)
+        device = getattr(self.bridge.tools, "_device_control", None)
+        if selector is None or device is None or not device.recipe_planning_current(context):
+            return None
+        chosen = selector.selected(context)
+        recipe = next((row for row in context["recipes"] if row["id"] == chosen), None)
+        starts = [
+            (oid, option)
+            for oid, option in task["options"].items()
+            if option["action"] == "start" and option["schema"]["kind"] == "cleaning"
+        ]
+        if recipe is None or len(starts) != 1:
+            return None
+        oid, option = starts[0]
+        ids = {row["area_id"]: aid for aid, row in option["areas"].items()}
+        if not set(recipe["areaIds"]) <= set(ids):
+            return None
+        return {
+            "schema": "podview.robot-suggestion.v1",
+            "bootId": self.bridge.boot_id,
+            "roomId": task["room"],
+            "taskId": task["id"],
+            "revision": 1,
+            "optionId": oid,
+            "recipeId": chosen,
+            "areaIds": [ids[area] for area in recipe["areaIds"]],
+            "repeat": recipe["repeat"],
+            "expiresAt": task["expires_at"],
+            "source": "ai_recipe_selection",
+            "basis": "recent_choices",
+        }
+
+    def robot_suggestions(self, room: str, token: str) -> list[dict]:
+        """No jobs/I/O; no other room, actor, expired or spent task is exposed."""
+        result, seen = [], set()
+        for task in reversed(list(self.tasks.values())):
+            if task["room"] != room or task["domain"] != "vacuum":
+                continue
+            target = task["target"].get("entityId")
+            if target in seen:
+                continue
+            suggestion = self._robot_suggestion(task, token)
+            if suggestion is not None:
+                result.append(suggestion)
+                seen.add(target)
+            if len(result) == 12:
+                break
+        return result
 
     def _robot_options(self, task: dict, reuse: bool) -> list[dict]:
         data, rule = task["offered"]["data"], task["rule"]

@@ -7,6 +7,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from unit.test_openai_live import SDK, call, created, terminal
@@ -135,19 +136,49 @@ def good_rows(case="completed-side-address"):
 
     for index, name in enumerate(module.CASES[case]):
         emit("fixture_started", name=name)
+        if case == "interrupt-active-output" and index == 1:
+            emit("sdk_event", generation=1, protocol_type="session.output_audio.delta")
+            chunk = emit(
+                "decoded_output_chunk",
+                generation=1,
+                file="provider-output-1.pcm",
+                byte_start=2,
+                byte_end=4,
+                byte_length=2,
+                sha256=module.rig.digest(b"\x01\x00"),
+                pcm_all_zero=False,
+            )
+            chunk.update(
+                received_elapsed_s=chunk["elapsed_s"],
+                received_monotonic_s=100 + chunk["elapsed_s"],
+            )
         emit("fixture_finished", name=name)
         emit("sdk_event", generation=1, protocol_type="session.output_audio.delta")
+        byte_start = (index + (case == "interrupt-active-output" and index > 0)) * 2
         row = emit(
             "decoded_output_chunk",
             generation=1,
             file="provider-output-1.pcm",
-            byte_start=index * 2,
-            byte_end=index * 2 + 2,
+            byte_start=byte_start,
+            byte_end=byte_start + 2,
             byte_length=2,
-            sha256=module.rig.digest(b"\0\0"),
-            pcm_all_zero=True,
+            sha256=module.rig.digest(
+                b"\x01\x00" if case == "interrupt-active-output" and index == 0 else b"\0\0"
+            ),
+            pcm_all_zero=not (case == "interrupt-active-output" and index == 0),
         )
         row.update(received_elapsed_s=row["elapsed_s"], received_monotonic_s=100 + row["elapsed_s"])
+        if case == "interrupt-active-output" and index == 0:
+            emit(
+                "provider_pcm_lease_trigger",
+                provider_chunk_seq=row["seq"],
+                provider_chunk_sha256=row["sha256"],
+                provider_generation=1,
+                session_id="s1",
+                stream_id="stream1",
+                playback_id="playback1",
+                physical_playback_proven=False,
+            )
         emit(
             "LiveTranscript",
             generation=1,
@@ -157,12 +188,20 @@ def good_rows(case="completed-side-address"):
             start_ms=index * 1000,
             end_ms=index * 1000 + 200,
         )
-        if index == 0 or name in {"followup", "aside_correction", "resume"}:
+        if index == 0 or name in {"followup", "interrupt_followup", "aside_correction", "resume"}:
             emit(
                 "LiveTranscript",
                 generation=1,
                 direction="out",
-                text="Fire." if index == 0 else "Seks.",
+                text=(
+                    "En, to, tre."
+                    if case == "interrupt-active-output" and index == 0
+                    else "Treogfyrre."
+                    if name == "interrupt_followup"
+                    else "Fire."
+                    if index == 0
+                    else "Seks."
+                ),
                 start_ms=index * 1000 + 300,
                 end_ms=index * 1000 + 500,
             )
@@ -314,6 +353,63 @@ def test_positive_requires_observed_lifecycle_but_never_claims_physical_close():
     assert assess(rows)["verdict"] == "FAIL"
     assert report["physical_close"] == report["acoustic_addressee"] == "UNKNOWN"
     assert not report["physical_or_browser_proof"]
+
+
+def test_provider_pcm_lease_ready_requires_nonzero_pcm_and_current_synthetic_lease():
+    lease = SimpleNamespace(kind="live", phase="started", epoch=1, playback_id="playback1")
+    session = SimpleNamespace(
+        _playback_lease=lease,
+        _live_stream=SimpleNamespace(id="stream1"),
+        _active=True,
+        _epoch=1,
+        _history_session="s1",
+        brain=SimpleNamespace(_connection_generation=1),
+    )
+    capture = SimpleNamespace(clip=None, drains={"playback1": SimpleNamespace(done=lambda: False)})
+    rows = [dict(kind="decoded_output_chunk", seq=7, generation=1, pcm_all_zero=False, sha256="a")]
+    assert module.provider_pcm_lease_ready(rows, session, capture) == dict(
+        provider_chunk_seq=7,
+        provider_chunk_sha256="a",
+        provider_generation=1,
+        session_id="s1",
+        stream_id="stream1",
+        playback_id="playback1",
+        physical_playback_proven=False,
+    )
+    lease.phase = "finished"
+    assert module.provider_pcm_lease_ready(rows, session, capture) is None
+    lease.phase = "started"
+    rows[0]["pcm_all_zero"] = True
+    assert module.provider_pcm_lease_ready(rows, session, capture) is None
+
+
+def test_interrupt_overlap_needs_source_pcm_overlap_followup_and_close_but_pending_audio_review():
+    rows = good_rows("interrupt-active-output")
+    report = assess(rows, "interrupt-active-output")
+    assert report["verdict"] == "PENDING_AUDIO_REVIEW"
+    assert report["synthetic_live_lease_at_input"]
+    assert report["provider_pcm_during_second_input"]
+    assert report["followup_meaning_observed"]
+    assert report["functional_chain_observed"]
+    assert report["physical_or_browser_proof"] is False
+    for kind in ("provider_pcm_lease_trigger", "natural_thin_end"):
+        changed = [row for row in rows if row["kind"] != kind]
+        assert assess(changed, "interrupt-active-output")["verdict"] == "FAIL"
+    changed = copy.deepcopy(rows)
+    chunk = next(
+        row
+        for row in changed
+        if row["kind"] == "decoded_output_chunk"
+        and row["pcm_all_zero"] is False
+        and row["seq"]
+        > next(
+            r["seq"]
+            for r in changed
+            if r["kind"] == "fixture_started" and r["name"] == "interrupt_followup"
+        )
+    )
+    chunk["pcm_all_zero"] = True
+    assert assess(changed, "interrupt-active-output")["verdict"] == "FAIL"
 
 
 @pytest.mark.parametrize(

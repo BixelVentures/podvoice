@@ -32,8 +32,12 @@
 .pv-component[data-component=simple-diagram] .pv-visual-list{display:flex;gap:28px;align-items:stretch}.pv-component[data-component=simple-diagram] .pv-visual-item{flex:1;position:relative;padding:24px 16px;background:var(--pv-quiet-surface);border-radius:var(--pv-screen-radius-art)}.pv-component[data-component=simple-diagram] .pv-visual-item:not(:last-child)::after{content:'';position:absolute;right:-24px;top:44px;width:20px;height:20px;background:url('../../assets/icons/chevron-right.svg') center/18px no-repeat}.pv-component[data-component=simple-diagram] .pv-visual-label{font-size:24px;font-variant-numeric:tabular-nums;color:var(--pv-screen-action-ink)}.pv-component[data-component=simple-diagram] .pv-visual-value{font-size:22px;font-weight:500;line-height:1.2}.pv-component[data-component=simple-diagram] .pv-visual-detail{font-size:16px}
 @container(max-width:520px){.pv-component[data-component=simple-diagram] .pv-visual-list{flex-direction:column;gap:22px}.pv-component[data-component=simple-diagram] .pv-visual-item{padding:18px 20px 18px 64px}.pv-component[data-component=simple-diagram] .pv-visual-label{position:absolute;left:18px;top:22px}.pv-component[data-component=simple-diagram] .pv-visual-item:not(:last-child)::after{right:auto;left:27px;top:auto;bottom:-21px;transform:rotate(90deg)}.pv-visual .pv-visual-summary{font-size:20px}}
 
-/* One timeline rule: the list supplies it; items only supply the dots. */
-.pv-component[data-component=activity-timeline] .pv-list{border-left:1px solid var(--pv-instrument-muted);margin-left:5px;padding-left:0;gap:0}.pv-component[data-component=activity-timeline] li{margin-left:0;padding:14px 0 14px 24px;border:0}.pv-component[data-component=activity-timeline] li::before{left:-4px;top:23px}
+/* Connect displayed event dots only. Retained hidden rows are not endpoints. */
+.pv-component[data-component=activity-timeline] .pv-list{border-left:0;margin-left:5px;padding-left:0;gap:0}
+.pv-component[data-component=activity-timeline] li{margin-left:0;padding:14px 0 14px 24px;border:0}
+.pv-component[data-component=activity-timeline] li::before{left:-4px;top:23px;z-index:1}
+.pv-component[data-component=activity-timeline] li::after{content:none}
+.pv-component[data-component=activity-timeline] li:not([hidden]):has(~li:not([hidden]))::after{content:'';position:absolute;left:-1px;top:26.5px;width:1px;height:100%;background:var(--pv-instrument-muted)}
 .pv-component[data-component=timer-widget] .pv-button[data-action-id=start],.pv-component[data-component=timer-widget] .pv-button[data-action-id=resume],.pv-component[data-component=timer-widget] .pv-button[data-action-id=finish]{background:var(--pv-timer-accent);color:var(--pv-instrument)}
 
 .pv-visual .pv-image-fallback{min-height:clamp(180px,36cqw,320px);display:flex;align-items:center;margin:0}.pv-image-fallback[hidden]{display:none}

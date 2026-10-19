@@ -308,7 +308,21 @@ async def test_ai_quota_exhaustion_reuses_existing_closed_theme_ids_without_anot
         "evening_jazz",
         "indie",
     ]
-    assert len(c.calls) == 3 and selector.select.await_count == 1
+    assert c.calls == [
+        "morning acoustic",
+        "evening jazz",
+        "indie",
+        "acoustic",
+        "jazz",
+        "alternative",
+    ]
+    assert selector.select.await_count == 1
+    assert {row["uri"] for row in refreshed["data"]["tracks"]} == {
+        c.row(query)["uri"] for query in ("acoustic", "jazz", "alternative")
+    }
+    assert not {row["uri"] for row in first["data"]["tracks"]} & {
+        row["uri"] for row in refreshed["data"]["tracks"]
+    }
     no_effects(c)
 
 

@@ -46,6 +46,7 @@ class FaultServer:
         self.page_release = asyncio.Event()
         self.hold_page = False
         self.fail_page = False
+        self.include_outcomes = False
         self.inflight = 0
         self.max_inflight = 0
 
@@ -91,6 +92,11 @@ class FaultServer:
                     "description": "Fixture state",
                     "inputSchema": {"type": "object", "additionalProperties": False},
                 }
+                weather = {
+                    "name": "HassGetWeather",
+                    "description": "Fixture weather",
+                    "inputSchema": {"type": "object", "additionalProperties": False},
+                }
                 if self.paged and not body["params"].get("cursor"):
                     result = {"tools": [context], "nextCursor": "second"}
                 elif self.paged:
@@ -102,11 +108,34 @@ class FaultServer:
                         return httpx.Response(502, text="synthetic page interruption")
                     result = {"tools": [state]}
                 else:
-                    result = {"tools": [context, state]}
+                    result = {
+                        "tools": [context, state, weather]
+                        if self.include_outcomes
+                        else [context, state]
+                    }
             elif method == "tools/call":
-                if self.call_failure and body["params"]["name"] == "HassGetState":
+                name = body["params"]["name"]
+                if self.call_failure and name == "HassGetState":
                     return httpx.Response(502, text="synthetic MCP connection lost")
-                result = {"content": [{"type": "text", "text": "Fixture live state"}]}
+                if self.include_outcomes and name == "HassGetState":
+                    result = {"structuredContent": {"entity_id": "light.kitchen", "state": "on"}}
+                elif self.include_outcomes and name == "HassGetWeather":
+                    result = {
+                        "structuredContent": {
+                            "success": True,
+                            "result": {
+                                "source": "Home Assistant / Met.no",
+                                "location": "hjemmet",
+                                "retrieved_at": "2026-10-19T12:00:00+02:00",
+                                "forecast_type": "hourly",
+                                "forecast": [
+                                    {"datetime": "2026-10-19T13:00:00+02:00", "temperature": 12.5}
+                                ],
+                            },
+                        }
+                    }
+                else:
+                    result = {"content": [{"type": "text", "text": "Fixture live state"}]}
             else:
                 raise AssertionError(method)
             return httpx.Response(200, json={"jsonrpc": "2.0", "id": rid, "result": result})
@@ -217,6 +246,7 @@ async def test_atomic_pagination_failure_then_full_fresh_admission():
 @pytest.mark.parametrize("browser", [False, True])
 async def test_active_failure_dialog_schema_recovery_and_next_session(browser, monkeypatch):
     server = FaultServer()
+    server.include_outcomes = True
     wire = task = loop = None
     async with httpx.AsyncClient(transport=httpx.MockTransport(server.handle)) as client:
         router = await router_for(server, client)
@@ -318,6 +348,29 @@ async def test_active_failure_dialog_schema_recovery_and_next_session(browser, m
             assert (
                 results(sdk)[-1]["ok"] is True and server.count("tools/call", "HassGetState") == 2
             )
+            assert results(sdk)[-1]["data"] == {"entity_id": "light.kitchen", "state": "on"}
+            assert session._active and session.brain._connection_generation == generation
+            await emit(
+                sdk,
+                created("weather-restored", delegation="weather-restore"),
+                call(
+                    "weather-restored-call",
+                    name="HassGetWeather",
+                    arguments="{}",
+                    delegation="weather-restore",
+                ),
+                terminal("weather-restored", delegation="weather-restore"),
+            )
+            await until(lambda: len(results(sdk)) == 4)
+            weather_result = results(sdk)[-1]
+            assert weather_result["ok"] is True
+            assert weather_result["data"]["result"] == {
+                "source": "Home Assistant / Met.no",
+                "location": "hjemmet",
+                "retrieved_at": "2026-10-19T12:00:00+02:00",
+                "forecast_type": "hourly",
+                "forecast": [{"datetime": "2026-10-19T13:00:00+02:00", "temperature": 12.5}],
+            }
             assert session._active and session.brain._connection_generation == generation
             server.revision = "v2"
             assert await router.probe()
@@ -333,7 +386,7 @@ async def test_active_failure_dialog_schema_recovery_and_next_session(browser, m
                 call("drift-call", name="GetLiveContext", arguments="{}", delegation="d4"),
                 terminal("drift", delegation="d4"),
             )
-            await until(lambda: len(results(sdk)) == 4)
+            await until(lambda: len(results(sdk)) == 5)
             drift = results(sdk)[-1]
             assert (
                 drift["error_kind"] == "stale_schema"
@@ -362,9 +415,34 @@ async def test_active_failure_dialog_schema_recovery_and_next_session(browser, m
                 call("fresh-call", name="GetLiveContext", arguments="{}", delegation="d5"),
                 terminal("fresh", delegation="d5"),
             )
-            await until(lambda: len(results(sdk)) == 5)
+            await until(lambda: len(results(sdk)) == 6)
             assert results(sdk)[-1]["ok"] is True
             assert server.count("tools/call", "HassGetState") == 2
+            await emit(
+                sdk,
+                created("fresh-home", delegation="fresh-home"),
+                call(
+                    "fresh-home-call", name="HassGetState", arguments="{}", delegation="fresh-home"
+                ),
+                terminal("fresh-home", delegation="fresh-home"),
+            )
+            await until(lambda: len(results(sdk)) == 7)
+            assert results(sdk)[-1]["data"] == {"entity_id": "light.kitchen", "state": "on"}
+            await emit(
+                sdk,
+                created("fresh-weather", delegation="fresh-weather"),
+                call(
+                    "fresh-weather-call",
+                    name="HassGetWeather",
+                    arguments="{}",
+                    delegation="fresh-weather",
+                ),
+                terminal("fresh-weather", delegation="fresh-weather"),
+            )
+            await until(lambda: len(results(sdk)) == 8)
+            assert results(sdk)[-1] == weather_result
+            assert server.count("tools/call", "HassGetState") == 3
+            assert server.count("tools/call", "HassGetWeather") == 2
         finally:
             if loop:
                 loop.cancel()

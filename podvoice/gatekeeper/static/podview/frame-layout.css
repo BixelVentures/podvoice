@@ -245,3 +245,77 @@ pv-widget-host[data-view=active] .player[data-empty=true] .volume{visibility:hid
 @keyframes player-read-ack{from{opacity:.35;transform:translateY(3px)}to{opacity:.72;transform:none}}
 @media(prefers-reduced-motion:reduce){#player-empty[aria-busy=true]>img{animation:none}}
 [data-motion=reduced] #player-empty[aria-busy=true]>img{animation:none}
+
+/* Ro is one photo canvas: the same existing inset owns all four outer edges. */
+@media(min-width:760px){
+ body:has(>pv-widget-host[data-view=rest]){height:100dvh;min-height:0;padding:var(--frame-inset);overflow:hidden}
+ body:has(>pv-widget-host[data-view=rest])>pv-widget-host{height:100%;min-height:0}
+}
+
+/* The existing three header items share a primary and a secondary baseline.
+   An empty history count reserves its row without inventing metadata. */
+pv-widget-host .view-nav .header-context{gap:var(--pv-screen-space-4);align-items:center}
+pv-widget-host .view-nav .header-context #open-history,
+pv-widget-host .view-nav .header-context .header-weather{
+ display:grid;grid-template-columns:32px auto;align-items:start;column-gap:var(--pv-screen-space-2);
+ min-width:var(--pv-hit-min);height:56px;min-height:56px;padding:4px 8px;
+ border-radius:var(--pv-hit-radius);color:var(--pv-screen-ink);text-align:left;
+}
+pv-widget-host .view-nav .header-context #open-history>span,
+pv-widget-host .view-nav .header-context .header-weather>span,
+pv-widget-host .view-nav .header-context .header-time{
+ display:grid;grid-template-rows:28px 18px;row-gap:2px;align-content:start;
+}
+pv-widget-host .view-nav .header-context .header-time{min-width:88px;min-height:56px;padding:4px 0;text-align:right}
+pv-widget-host .view-nav .header-context #open-history strong,
+pv-widget-host .view-nav .header-context .header-weather strong,
+pv-widget-host .view-nav .header-context #header-clock{
+ font-size:var(--pv-screen-type-title);font-weight:500;line-height:28px;letter-spacing:-.02em;
+ font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+pv-widget-host .view-nav .header-context #open-history small,
+pv-widget-host .view-nav .header-context .header-weather small,
+pv-widget-host .view-nav .header-context #header-date{
+ font-size:var(--pv-screen-type-small);font-weight:400;line-height:18px;
+ color:var(--pv-screen-muted);letter-spacing:0;white-space:nowrap;
+}
+/* Match the existing glyphs' drawn area, not their different SVG viewboxes. */
+pv-widget-host .view-nav .header-context #open-history>img{width:32px;height:32px;margin:0;justify-self:center}
+pv-widget-host .view-nav .header-context .header-weather>img{width:24px;height:24px;margin:4px 0 0;justify-self:center}
+pv-widget-host .view-nav .header-context #open-history:focus-visible,
+pv-widget-host .view-nav .header-context .header-weather:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:2px}
+@media(hover:hover){
+ pv-widget-host .view-nav .header-context #open-history:hover:not(:disabled),
+ pv-widget-host .view-nav .header-context .header-weather:hover:not(:disabled){background:var(--pv-touch-wash)}
+}
+@media(max-width:759px){
+ pv-widget-host .view-nav .header-context{gap:8px}
+ pv-widget-host .view-nav .header-context #open-history,
+ pv-widget-host .view-nav .header-context .header-weather{grid-template-columns:24px auto;column-gap:4px;height:48px;min-height:var(--pv-hit-min);padding:4px}
+ pv-widget-host .view-nav .header-context #open-history>span,
+ pv-widget-host .view-nav .header-context .header-weather>span,
+ pv-widget-host .view-nav .header-context .header-time{grid-template-rows:24px 16px;row-gap:0}
+ pv-widget-host .view-nav .header-context .header-time{min-width:72px;min-height:48px;padding:4px 0}
+ pv-widget-host .view-nav .header-context #open-history strong,
+pv-widget-host .view-nav .header-context .header-weather strong,
+pv-widget-host .view-nav .header-context #header-clock{font-size:18px;line-height:24px}
+ pv-widget-host .view-nav .header-context #open-history small,
+pv-widget-host .view-nav .header-context .header-weather small,
+ pv-widget-host .view-nav .header-context #header-date{font-size:12px;line-height:16px}
+ pv-widget-host .view-nav .header-context #open-history>img{width:28px;height:28px}
+ pv-widget-host .view-nav .header-context .header-weather>img{width:22px;height:22px;margin:2px 0 0}
+}
+@media(max-width:359px){
+ pv-widget-host .view-nav .header-context{gap:4px}
+ pv-widget-host .view-nav .header-context #open-history{grid-template-columns:auto}
+ pv-widget-host .view-nav .header-context #open-history>img{display:none}
+ pv-widget-host .view-nav .header-context .header-weather{grid-template-columns:20px auto}
+ pv-widget-host .view-nav .header-context .header-weather>img{width:20px;height:20px}
+ pv-widget-host .view-nav .header-context #open-history strong,
+pv-widget-host .view-nav .header-context .header-weather strong,
+pv-widget-host .view-nav .header-context #header-clock{font-size:16px}
+ pv-widget-host .view-nav .header-context #open-history small,
+pv-widget-host .view-nav .header-context .header-weather small,
+ pv-widget-host .view-nav .header-context #header-date{font-size:11px}
+ pv-widget-host .view-nav .header-context .header-time{min-width:64px}
+}

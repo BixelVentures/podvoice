@@ -70,12 +70,10 @@ test('observed facts and request journal interleave by source timestamps without
  assert.equal(f.section().querySelector('pv-activity-timeline'),null);
 }));
 
-test('all existing rich facts and open disclosure survive; grant removal removes reuse only',()=>withDocument(()=>{
- const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-12,'h'),fact('battery',56,'%'),{...fact('child_lock',false),entityId:'switch.child_lock'}]},history:{status:'observed',items:[request('saved')]}}),true);
- renderRobotHistory(f.host);const details=f.section().querySelector('details');details.open=true;
- assert.ok(details.descendants().some(node=>node.tagName==='dt'&&node.textContent==='Filter'));assert.ok(details.descendants().some(node=>node.tagName==='dd'&&node.textContent==='12 timer over interval'));assert.ok(details.descendants().some(node=>node.tagName==='dt'&&node.textContent==='Børnelås'));assert.ok(details.descendants().some(node=>node.tagName==='dd'&&node.textContent==='Nej'));
- f.host.liveControls.allowed=()=>false;renderRobotHistory(f.host);assert.equal(f.section().querySelector('details').open,true);
- assert.equal(f.section().descendants().some(node=>node.tagName==='button'),false);
+test('grant removal removes history reuse while observed events remain, without a duplicate care disclosure',()=>withDocument(()=>{
+ const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-12,'h'),fact('battery',56,'%')]},history:{status:'observed',items:[request('saved')]}}),true);
+ renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('button').textContent,'Brug Stueetage igen');const timeline=f.timeline.data.items;
+ f.host.liveControls.allowed=()=>false;renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('button'),null);assert.deepEqual(f.timeline.data.items,timeline);
 }));
 
 test('return to canonical local/light detail restores timeline visibility and hides live-only content',()=>withDocument(()=>{
@@ -83,5 +81,15 @@ test('return to canonical local/light detail restores timeline visibility and hi
  renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);assert.equal(f.section().hidden,true);assert.equal(document.getElementById('robot-history-empty'),null);
 }));
 
-test('existing care disclosure contains semantic groups and dl rows, not new history/cards',()=>withDocument(()=>{const stale=fact('dock_error','water_empty');stale.stale=true;stale.updatedAt=now()-600;const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-80.1,'h'),stale,{...fact('dnd_start_time','22:00:00'),entityId:'time.dnd_start_time'}]}}));renderRobotHistory(f.host);const details=f.section().querySelector('details');assert.equal(details.children[0].textContent,'Pleje og indstillinger');assert.deepEqual(details.descendants().filter(n=>n.tagName==='h3').map(n=>n.textContent),['Vedligeholdelse','Dock og vand','Indstillinger']);assert.equal(details.descendants().filter(n=>n.tagName==='dl').length,3);assert.equal(details.descendants().filter(n=>n.tagName==='dt').length,3);assert.equal(details.descendants().filter(n=>n.tagName==='dd').length,3);assert.ok(details.descendants().some(n=>n.textContent==='Mangler vand · sidst kendt'));assert.equal(details.descendants().some(n=>n.tagName==='button'||n.tagName==='pv-activity-timeline'),false);}));
-test('empty care groups are omitted and zero is retained',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h')]}}));renderRobotHistory(f.host);const details=f.section().querySelector('details');assert.deepEqual(details.descendants().filter(n=>n.tagName==='h3').map(n=>n.textContent),['Vedligeholdelse']);assert.ok(details.descendants().some(n=>n.textContent==='0 timer tilbage'));}));
+test('robot history remains events and attention, without care/settings or a second control card',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h'),fact('dock_error','water_empty')]}}));renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('dl'),null);assert.equal(f.section().querySelector('button'),null);assert.ok(f.section().descendants().some(n=>n.textContent==='Dockfejl: Mangler vand'));assert.equal(f.timeline.data.state,'empty');}));
+
+test('same canonical timeline survives observed empty, real events and unavailable transitions',()=>withDocument(()=>{const d=device(),f=fixture(d),timeline=f.timeline;renderRobotHistory(f.host);assert.equal(f.timeline,timeline);assert.equal(timeline.hidden,false);d.history={status:'observed',items:[request('one')]};renderRobotHistory(f.host);assert.equal(timeline.data.items.length,1);assert.equal(timeline.data.state,'ready');d.history={status:'unavailable',items:[]};renderRobotHistory(f.host);assert.equal(timeline.hidden,false);assert.equal(timeline.data.items.length,0);assert.equal(timeline.data.state,'empty');assert.equal(f.history.children.length,1);assert.equal(document.getElementById('robot-history-empty'),null);}));
+
+test('unchanged robot observations perform no timeline reassignment or history replacement',()=>withDocument(()=>{
+ const d=device({telemetry:{status:'observed',items:[fact('filter_time_left',40,'h')]},history:{status:'observed',items:[request('one')]}}),f=fixture(d);renderRobotHistory(f.host);
+ let data=f.timeline.data,updates=0,replacements=0;const section=f.section(),original=section.replaceChildren;
+ Object.defineProperty(f.timeline,'data',{get:()=>data,set:value=>{updates++;data=value;}});section.replaceChildren=function(...args){replacements++;return original.apply(this,args);};
+ f.host.state.devices=[structuredClone(d)];renderRobotHistory(f.host);renderRobotHistory(f.host);
+ assert.equal(updates,0);assert.equal(replacements,0);assert.equal(section.querySelector('details'),null);
+ f.host.state.devices[0].history.items.push(request('two'));renderRobotHistory(f.host);assert.equal(updates,1);assert.equal(data.items.length,2);
+}));
