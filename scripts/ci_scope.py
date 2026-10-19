@@ -40,6 +40,8 @@ CI_SHARD_REQUIRED = frozenset(
         "scripts/ci_scope.py",
         "tests/unit/test_ci_scope.py",
         "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_release_contract.py",
+        "tests/unit/test_candidate_scope_admission65.py",
     }
 )
 
