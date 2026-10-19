@@ -1,4 +1,4 @@
-import {boundPlayback} from './root-room-fixture.mjs';
+import {boundPlayback} from './canonical-room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveQueueView,queueOffer} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';

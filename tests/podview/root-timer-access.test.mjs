@@ -7,14 +7,14 @@ test('TimerView retains current timer and disables cancellation on lost authorit
 test('pending and unknown preserve anatomy and block both actions; recovery only restores actual permissions',()=>{const v=fixture();for(const blocked of [{pending:true},{awaitingObservation:true,feedback:'Udfald ukendt · handlingen gentages ikke'}]){TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:true,...blocked});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.canCancel,false);}TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:false});assert.equal(v.canStart,true);assert.equal(v.canCancel,false);assert.equal(v.status.hidden,true);});
 import {readFileSync} from 'node:fs';
 test('actual live adapter keeps the empty form when no timer action is granted',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  $('results').hidden",start);
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start);
  assert.ok(start>=0&&end>start);const view=fixture();view.renderAccess=TimerView.prototype.renderAccess;
  const host={timerView:view,liveActionPending:false,liveActionFeedback:''};
  new Function('connected','snapshot',source.slice(start,end)).call(host,false,{timers:{status:'unavailable'},capabilities:{timerActions:[]}});
  assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.canCancel,false);assert.equal(view.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');
 });
 test('actual adapter distinguishes active observation wait from unknown outcome in aria-busy',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  $('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
  for(const [feedback,pending,busy,blocked] of [['',true,true,true],['Afventer opdateret timer',false,true,true],['Venter på hjemmet…',false,true,true],['Udfald ukendt · handlingen gentages ikke',false,false,true],['',false,false,false]]){
   const view=fixture();view.status.setAttribute=function(k,v){this[k]=v;};view.form.setAttribute=function(k,v){this[k]=v;};view.renderAccess=TimerView.prototype.renderAccess;
   render.call({timerView:view,liveActionPending:pending,liveActionFeedback:feedback},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel']}});

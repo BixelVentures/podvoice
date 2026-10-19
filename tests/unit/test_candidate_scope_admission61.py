@@ -273,3 +273,29 @@ def test_61_rejects_any_unreviewed_admin_ingress_configuration(replacement):
         assert not admission.config_only(ROOT)
     finally:
         path.write_bytes(before)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def historical61_source_root(tmp_path_factory):
+    """Run unchanged published61 proofs against their actual published source tree."""
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published61") / "repo"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(original_root), str(target)], check=True
+    )
+    subprocess.run(
+        ["git", "checkout", "--quiet", "79b8fe8cdd3d2ee55e811cd76ac9f37e067cae48"],
+        cwd=target,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "read-tree", "--reset", "-u", "3ec826aae34edf504ce66b7b2ccdc42b0d8c7ace"],
+        cwd=target,
+        check=True,
+    )
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root

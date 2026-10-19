@@ -15,9 +15,9 @@ export class TimerNotice {
   const timerId=timer?String(timer.id):null,represented=!!timerId&&visibleTimerId===timerId,show=!!timer&&timer.status==='done'&&!timer.stale&&!timer.noticeDismissed&&!represented,id=show?timerId:null;
   const waiting=show&&feedbackVisible;
   if(this.id!==id||this.waiting!==waiting){this.clearExpiry();this.id=id;this.waiting=waiting;}
-  this.element.hidden=!show||waiting;
+  const hidden=!show||waiting;if(this.element.hidden!==hidden)this.element.hidden=hidden;
   if(!show){this.id=null;return;}
-  this.element.dataset.timerId=id;this.name.textContent=timer.name||'Timer ved bordet';
+  if(this.element.dataset.timerId!==id)this.element.dataset.timerId=id;const name=timer.name||'Timer ved bordet';if(this.name.textContent!==name)this.name.textContent=name;
   if(waiting){if(this.timer===null)this.schedule(id,350,()=>{if(this.host.timerView?.renderNotice)this.host.timerView.renderNotice();else this.render(timer,focus,live,this.feedback?.hidden===false,visibleTimerId);});return;}
   if(this.timer===null)this.schedule(id,this.noticeMs,()=>this.dismiss(id));
  }

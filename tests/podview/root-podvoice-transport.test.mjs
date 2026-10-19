@@ -9,3 +9,25 @@ test('scoped action requires exact successful terminal receipt and sends only on
   const result=await t.controlAction({bootId:'test',roomId:'kitchen',taskId:'task',revision:1,domain:'vacuum'},'opaque',{});assert.equal(calls,1);assert.equal(result.outcome,malformed==='none'?'accepted':'unknown');assert.equal(result.retryAllowed,false);assert.equal(result.physicalResultVerified,false);t.close();
  }
 });
+
+test('music reads distinguish transient HTTP failures from access and invalid-response failures without retries',async()=>{
+ for(const status of [401,403,404,409,408,429,500,503,599,200])for(const malformed of [false,true]){
+  let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:status===200,status,json:async()=>{if(malformed)throw new SyntaxError('invalid JSON');return {ok:false,error:'music_unavailable'};}};}});
+  t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{musicRead:['playback']}};
+  try{await assert.rejects(()=>t.music('playback','account'),error=>{
+   const code=[401,403].includes(status)?'read_access_denied':[408,429].includes(status)||status>=500?'read_transient':undefined;
+   assert.equal(error.code,code,`${status} malformed=${malformed}`);return true;
+  });assert.equal(calls,1);}finally{t.close();}
+ }
+});
+
+test('home reads distinguish actual access denial from transient failures without retries',async()=>{
+ for(const status of [401,403,404,409,408,429,500,503,599,200])for(const malformed of [false,true]){
+  let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:status===200,status,json:async()=>{if(malformed)throw new SyntaxError('invalid JSON');return {schema:'podview.home.v1'};}};}});
+  t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{homeRead:['weather','vacuum']}};
+  try{if(status===200&&!malformed)assert.deepEqual(await t.home(),{schema:'podview.home.v1'});else await assert.rejects(()=>t.home(),error=>{
+   const code=[401,403].includes(status)?'read_access_denied':[408,429].includes(status)||status>=500?'read_transient':undefined;
+   assert.equal(error.code,code,`${status} malformed=${malformed}`);return true;
+  });assert.equal(calls,1);}finally{t.close();}
+ }
+});

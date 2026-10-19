@@ -8,7 +8,8 @@ test('disabled, unavailable, pending and selecting/playing cards retain full art
  // Catch a reintroduced dimming declaration even if the fixed state guard remains elsewhere.
  for(const rule of rules)if(rule.selectors.some(s=>/(?:^|\s)\.result(?::not\([^)]*\)|:[\w-]+|\[[^\]]*\])*$/.test(s))){const opacity=rule.body.match(/(?:^|;)\s*opacity\s*:\s*([^;]+)/);if(opacity)assert.equal(opacity[1].trim(),'1','Whole-card opacity reintroduced in '+rule.selectors.join(','));}
 });
-test('approved bottom readability gradient is preserved; there is no new card overlay or JS behavior change',()=>{
- const gradient=rules.find(rule=>rule.selectors.includes('.result::after'));assert.ok(gradient);assert.match(gradient.body,/background:linear-gradient\(180deg,#0000 20%,#0b192234 45%,#0b1922eb 100%\)/);assert.match(gradient.body,/z-index:-1/);assert.equal(rules.filter(rule=>rule.selectors.includes('.result::after')).length,1);
+test('rejected full-image veil and hover zoom stay removed while playback eligibility remains enforced',()=>{
+ const overlays=rules.filter(rule=>rule.selectors.includes('.result::after'));assert.ok(overlays.length);for(const rule of overlays){assert.match(rule.body,/content:\s*none/);assert.match(rule.body,/background:\s*none/);assert.doesNotMatch(rule.body,/gradient|opacity|filter/);}
+ for(const rule of rules)if(rule.selectors.some(selector=>selector.includes('.result-art')&&!selector.includes('live-art-fallback'))){assert.doesNotMatch(rule.body,/(?:^|;)\s*(?:filter|opacity)\s*:/);if(rule.selectors.some(selector=>selector.includes(':hover')))assert.doesNotMatch(rule.body,/scale\(/);}
  const runtime=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/music-results.js',import.meta.url),'utf8');assert.ok(runtime.includes('row.disabled=!allowed'));assert.ok(runtime.includes("row.setAttribute('aria-disabled',String(!allowed||!!pendingId))"));assert.ok(runtime.includes("row.setAttribute('aria-busy',String(pending))"));assert.ok(runtime.includes("if(!row.disabled&&row.getAttribute('aria-disabled')!=='true')"));
 });

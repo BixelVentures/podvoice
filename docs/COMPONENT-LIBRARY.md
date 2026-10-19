@@ -78,6 +78,10 @@ Brugerens seneste beskeder tillader at rette, justere og løfte de eksisterende 
 - Fælles værdier ejes af `dist/ui/components.css`. Overbliksfamilien bruger `--pv-overview-*` for slot, højde, padding, indre/ydre afstand, typografi og domænefarver. Skærmkomposition og komponentstyles forbruger disse tokens; de er ikke selvstændige designkilder.
 - Landskab:64px motivslot, fælles tekststart, samme chevron-inset og radius. Ved kompakt600px højde bruges104px kort,20px padding og16px ens rækkeafstand; større landskab116px kort,24px padding og24px rækkeafstand. Optisk motivstørrelse vurderes ud fra tegningen; robotasset med intern luft må kræve en anden billedbredde end en fyldt node.
 - Titler og metadata har én fælles skala. Timer beholder sin mørke instrumentidentitet, men følger de samme plads-, vægt- og tekstregler som øvrige oversigtswidgets. Hvid cirkel under robot/lys er fjernet. Timerens store udfyldte mørke flade er ikke en grund til at gøre dens ikon eller tekst mindre.
+- Overblikket bruger ét fælles gitter i DOM-rækkefølge: vejr/musik, robot/lys, derefter timer/radio og Tesla. En inaktiv timer fylder én almindelig celle; en faktisk aktiv eller færdig timer må fylde begge kolonner til den eksisterende urskive, status og handling. Kortets fælles højde er et minimum, så ombrudt tekst kan vokse uden at blive klippet; celler i samme række følger hinanden. En manglende makker opfinder ikke indhold eller en større Tesla-widget. Smalle skærme bruger én kolonne.
+- Musikforslag og de fire faner er én indholdsbestemt gruppe: fanerne følger kortene med den fælles afstand, også på høje skærme. Kortene beholder deres valgte geometri; kun kortområdet scroller, når den faktiske skærmhøjde kræver det. Tomt indhold reserverer ikke en usynlig kort-høj flade.
+- Musikbilleder gengives uden et dækkende lys-/mørkelag og uden hover-zoom. Læselighed støttes kun lokalt ved den eksisterende tekst; endeligt tryk-/afventningsfeedback tilhører Play eller Andre forslag, ikke billedets farver eller lysstyrke.
+- Ved en ny playlist står det eksisterende billedområde neutralt, indtil dens eget billede er klar. Den tidligere playlists billede vises ikke under den nye titel. En kort, afgrænset forberedelsesmarkør følger kun det faktiske billedkald og stopper ved klar/fejl/annullering; reduced motion bruger en statisk markør. Opdatering af samme playlist beholder dens korrekte billede. Ingen generisk ventetekst eller ekstra billedcontainer.
 - Vejrfoto er kun tilladt i overblikkets vejrwidget som et lille, blødt afgrænset højreområde ved kendt passende vejr/dagtid. Vejrdetaljen bruger ikke foto. Ingen hård rektangulær billedstribe eller større hero. Data, råværdier og faktisk kilde ændres ikke af farve/billede.
 
 ### Sammenhængende tilstandsserie og handlinger
@@ -86,7 +90,7 @@ Brugerens seneste beskeder tillader at rette, justere og løfte de eksisterende 
 
 | Tilstand | Fælles kontrakt |
 |---|---|
-| Tom / første læsning | Ægte tom anatomi med reserveret plads. Ingen opdigtede værdier, billeder, cover, volumen eller option-ID'er. Tom player bruger den eksisterende kompakte ikon/status/musikhandling, ikke en høj tom hvid kasse. |
+| Tom / første læsning | Ægte tom anatomi med reserveret plads. Ingen opdigtede værdier, billeder, cover, volumen eller option-ID'er. Tom player bevarer rummets overskrift og de faste pladser til status, billedområde og musikhandling; det tomme billedområde viser kun det eksisterende musiksymbol. Ro bruger samme kompakte variant. |
 | Udfyldt | Domæneinstrument, hierarki og handlinger følger samme anatomi. Opdatering flytter ikke knapper eller tekst til andre positioner. |
 | Igangværende / opdatering | Bevar nyttigt indhold og samme noder; brug `aria-busy` og endelig tilstandsbevægelse. Ingen generiske “Henter…”, “Starter…” eller tidsstyret venteprosa. Et nyt resultat erstatter først gammelt, når det er brugbart. |
 | Gammel / offline | Bevar senest kendte data, kvalificér aktualiteten hvor nødvendig, og vis kun faktisk mulige handlinger. Forbindelse genbekræftes før klar-status. Ingen opdigtet genoprettelse. |
@@ -98,6 +102,8 @@ Brugerens seneste beskeder tillader at rette, justere og løfte de eksisterende 
 Primære handlinger står i den eksisterende handlingsrække. Scope, indstillinger og udførsel har forskellige roller: vælg først område/rum/option, vis det valgte, og udfør derefter den navngivne handling. Sekundære indstillinger og kilder åbnes gennem eksisterende disclosure, aldrig en ny specialformular. Dialoger har samme luk-/tilbageprincip og returnerer fokus til udløseren. Touch og voice afklarer konkurrerende intentioner og bruger samme stabile mål; et sent svar må ikke udføre en forældet handling.
 
 Historik genbruger `pv-answer` i direkte læsbar tæthed, ikke generel 50%-miniaturisering. Preview er inert og skjult for hjælpeteknologier; faktisk online/offline-status bevares og må ikke forfalskes for at deaktivere preview.
+
+`Svar` åbner den eksisterende historik som et ikke-blokerende venstre opgavepanel. Player og header kan stadig betjenes; historikkens previews og scroll bliver i venstre område. Antal vises kun, når der faktisk findes svar. Panelets lukning gendanner den tidligere opgave og dens læseposition.
 
 ### Tesla og radio · nuværende visuelle scope
 

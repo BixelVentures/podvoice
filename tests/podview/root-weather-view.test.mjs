@@ -142,3 +142,38 @@ test('qualified locality accepts legacy30 and bounded60 seconds, rejects longer 
 
 test('transient stale weather retains future hourly facts with honest label but no fresh advice',()=>{const source=dualWeather(),w=projected(source),model=liveWeatherModel({...w,stale:true},{now});assert.equal(model.hours.length,1);assert.equal(model.days.length,1);assert.match(model.hoursLabel,/Sidst kendte/);assert.equal(model.summary,'');const expired=liveWeatherModel({...w,stale:true},{now:Date.parse(source.hourly.retrievedAt)+900000});assert.equal(expired.hours.length,0);});
 test('live first-empty weather preserves owned detail and eligible shortcut without invented values, then reuses nodes through restore',()=>{const f=fixture(),previous=globalThis.document;globalThis.document=f.doc;try{const host={live:true,liveTransport:{connected:true},liveSnapshot:{capabilities:{homeRead:['weather']}},state:{focus:'weather',liveWeather:null}};renderLiveWeather(host);const n=host.weatherNodes;assert.equal(f.node.hidden,false);assert.equal(n.card.hidden,false);assert.equal(n.value.textContent,'');assert.equal(n.icon.hidden,true);assert.equal(n.source.hidden,true);assert.equal(n.summary.hidden,true);host.state.focus='now';renderLiveWeather(host);assert.equal(f.ids.get('home-weather').hidden,false);assert.equal(f.ids.get('home-weather').querySelector('strong').textContent,'Vejr');assert.doesNotMatch(f.node.textContent,/Mårslet|Met.no|°/);host.state.liveWeather=weatherObservation(raw());host.state.focus='weather';renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'12°C');host.liveTransport.connected=false;renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'12°C');assert.match(n.subtitle.textContent,/Sidst kendte/);host.state.liveWeather=null;renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'');assert.equal(n.sourceCopy.textContent,'');host.liveSnapshot.capabilities.homeRead=[];host.state.focus='now';renderLiveWeather(host);assert.equal(f.ids.get('home-weather').hidden,true);}finally{globalThis.document=previous;}});
+
+function countWrites(f){
+ const writes=[],seen=new Set(),observe=node=>{if(!node||seen.has(node))return;seen.add(node);for(const key of ['textContent','hidden','disabled','src','alt','title']){
+  let owner=node,descriptor;while(owner&&!descriptor){descriptor=Object.getOwnPropertyDescriptor(owner,key);owner=Object.getPrototypeOf(owner);}let value=node[key];
+  Object.defineProperty(node,key,{configurable:true,get(){return descriptor?.get?descriptor.get.call(this):value;},set(next){writes.push({node,key,value:next});if(descriptor?.set)descriptor.set.call(this,next);else value=next;}});
+ }
+ for(const key of ['setAttribute','removeAttribute','insertBefore','append','remove','replaceChildren'])if(typeof node[key]==='function'){const original=node[key];node[key]=function(...args){writes.push({node,key,args});return original.apply(this,args);};}
+ if(node.style){const style=node.style,original=style.setProperty;style.getPropertyValue=key=>style.values[key]||'';style.setProperty=(...args)=>{writes.push({node,key:'style.setProperty',args});return original(...args);};node.style=new Proxy(style,{set(target,key,value){writes.push({node,key:`style.${String(key)}`,value});target[key]=value;return true;}});}
+ for(const child of node.childNodes||[])observe(child);
+ };
+ for(const node of f.ids.values())observe(node);return writes;
+}
+
+test('identical semantic weather model performs zero DOM property, attribute, style or tree writes',()=>{
+ const f=fixture(),model=localWeatherModel(),n=renderWeather(f.node,model),hour=n.hours.children[0],day=n.days.children[1];
+ const writes=countWrites(f);for(let i=0;i<3;i++)renderWeather(f.node,structuredClone(model));
+ assert.deepEqual(writes,[]);assert.equal(n.hours.children[0],hour);assert.equal(n.days.children[1],day);
+ const changed=structuredClone(model);changed.current.temperature='16°C';renderWeather(f.node,changed);
+ assert.deepEqual(writes.filter(row=>row.key==='textContent').map(row=>[row.node,row.value]),[[n.value,'16°C']]);
+ assert.equal(writes.some(row=>row.key==='src'||row.key==='insertBefore'||row.key==='style.setProperty'),false);
+});
+
+test('live background weather refresh updates only changed presentation and does not reset unchanged expiry timer',()=>{
+ const f=fixture(),previousDoc=globalThis.document,previousNow=Date.now,previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout;
+ globalThis.document=f.doc;Date.now=()=>now;let scheduled=0,cleared=0;globalThis.setTimeout=()=>++scheduled;globalThis.clearTimeout=()=>cleared++;
+ try{
+  const source=raw();source.current.is_daytime=true;const host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:weatherObservation(source)}};
+  renderLiveWeather(host);const nodes=host.weatherNodes,timer=host.weatherAdviceTimer,writes=countWrites(f),counts=[scheduled,cleared];
+  host.state.liveWeather=structuredClone(host.state.liveWeather);renderLiveWeather(host);renderLiveWeather(host);
+  assert.deepEqual(writes,[]);assert.equal(host.weatherNodes,nodes);assert.equal(host.weatherAdviceTimer,timer);assert.deepEqual([scheduled,cleared],counts);
+  host.state.liveWeather={...host.state.liveWeather,stale:true};renderLiveWeather(host);
+  assert.match(f.ids.get('home-weather').querySelector('small').textContent,/Sidst kendte vejr/);assert.equal(nodes.value.textContent,'12°C');assert.equal(nodes.subtitle.textContent,'Sidst kendte vejr');
+  host.state.liveWeather=null;renderLiveWeather(host);assert.equal(nodes.value.textContent,'');assert.equal(f.ids.get('header-weather').hidden,true);
+ }finally{globalThis.document=previousDoc;Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+});

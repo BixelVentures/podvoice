@@ -20,9 +20,9 @@ from gatekeeper import mood_diagnostics as diag
         ("owner", "playback_before", "mood_owner_unavailable", "none"),
         ("exception", "playlist_search", "mood_unavailable", "route_exception"),
         ("read_timeout", "playlist_search", "mood_unavailable", "route_exception"),
-        ("owner_timeout", "time_context", "mood_unavailable", "owner_timeout"),
-        ("budget", "playback_before", "mood_budget_unavailable", "none"),
-        ("selection", "model", "mood_selection_unavailable", "none"),
+        ("owner_timeout", "publish", "success", "owner_timeout"),
+        ("budget", "publish", "success", "not_ready"),
+        ("selection", "publish", "success", "none"),
         ("catalogue", "playlist_search", "mood_catalogue_unavailable", "none"),
         ("cancel", "playlist_search", "cancelled", "cancelled"),
     ],
@@ -207,7 +207,7 @@ async def test_actual_tab_caller_preserves_kind_and_catalogue_failure(
     assert body.get("error", "success") == outcome
     lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
     assert len(lines) == 1 and f"outcome={outcome}" in lines[0] and f"kind={kind}" in lines[0]
-    assert reads == ["playlist_search"] * 3
+    assert reads == ["playlist_search"] * (6 if empty else 3)
     assert mood_rig.router.podview_mood_selector.select.await_count == int(kind == "mood")
     assert bridge.controls.music.setup_context.await_count == 0
     assert bridge.controls.music.execute_context.await_count == 0

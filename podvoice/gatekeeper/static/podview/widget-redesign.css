@@ -2,7 +2,7 @@
 .view-nav #show-photo{display:flex;align-items:center;gap:10px;background:transparent;font-size:15px}.view-nav #show-photo img{width:20px;height:20px}.view-nav #show-photo[aria-pressed=true]{background:transparent}.view-nav #show-now,.view-nav #show-music,.view-nav #open-demo{display:none!important}
 [data-view=rest] .view-nav{display:none}.demo-note{display:none}.journey-status{position:absolute;z-index:5;left:40px;bottom:40px;max-width:52%;margin:0;padding:18px 24px;background:#fafafa;color:#19252a;border-radius:24px;font-size:19px;line-height:1.3;box-shadow:0 8px 32px #071e2814;pointer-events:none}.journey-status:empty{display:none}
 [data-view=active] .journey-status{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);font-size:16px;max-width:70%;background:#152f35;color:#fff}
-#music-response{background:transparent;padding:8px 0 0;overflow:visible}#music-response .response-heading{padding:0 12px 22px}#music-response h1{font-size:clamp(30px,3vw,44px);max-width:19ch;font-weight:500;line-height:1.06;letter-spacing:-.035em}#music-response .response-heading p{font-size:16px;margin-top:12px;color:#62696d}#collapse{align-self:flex-start;background:#fafafa}#music-response .expandable{overflow:visible;padding:0}#music-response .result-inner{height:100%}#result-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;height:100%;align-items:stretch}.result{position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;min-height:250px;padding:18px;border-radius:24px;overflow:hidden;color:white;background:#243f3e;text-align:left;border:0;box-shadow:none}.result::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#0000 20%,#0b192234 45%,#0b1922eb 100%);z-index:-1}.result .result-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;z-index:-2;transition:transform 350ms cubic-bezier(.16,1,.3,1)}.result .result-copy{flex:none}.result .result-copy h2{font-size:25px;font-weight:500;line-height:1.08;letter-spacing:-.025em;color:white;margin:0 0 10px}.result .result-copy p{color:#ffffffeb;font-size:14px;line-height:1.4;margin:0}.result .result-copy small{display:none}.result .result-play{position:static;align-self:flex-start;width:48px;height:48px;min-height:48px;margin-top:18px;background:#fffffff0;color:#10181d}.result .result-play img{filter:none;width:23px;height:23px}.result.recommended{background:#243f3e}.result:hover:not(:disabled) .result-art{transform:scale(1.04)}.result:hover:not(:disabled){background:#243f3e}.result[data-chosen=true]{outline:3px solid #fff;outline-offset:-6px}.result[data-pending=true]{outline:3px solid #c0e6f2;outline-offset:-6px}.result[data-chosen=true] .result-play{background:#bfe6ef}.refinements{padding:0 8px}.refinements button{border:0;background:#fafafa;min-height:48px;font-size:15px}.refinements button img{width:20px;height:20px}
+#music-response{background:transparent;padding:8px 0 0;overflow:visible}#music-response .response-heading{padding:0 12px 22px}#music-response h1{font-size:clamp(30px,3vw,44px);max-width:19ch;font-weight:500;line-height:1.06;letter-spacing:-.035em}#music-response .response-heading p{font-size:16px;margin-top:12px;color:#62696d}#collapse{align-self:flex-start;background:#fafafa}#music-response .expandable{overflow:visible;padding:0}#music-response .result-inner{height:100%}#result-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;height:100%;align-items:stretch}.result{position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;min-height:250px;padding:18px;border-radius:24px;overflow:hidden;color:white;background:#243f3e;text-align:left;border:0;box-shadow:none}.result::after{content:none;background:none}.result .result-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:0;z-index:-2;transition:transform 350ms cubic-bezier(.16,1,.3,1)}.result .result-copy{flex:none}.result .result-copy h2{font-size:25px;font-weight:500;line-height:1.08;letter-spacing:-.025em;color:white;margin:0 0 10px}.result .result-copy p{color:#ffffffeb;font-size:14px;line-height:1.4;margin:0}.result .result-copy small{display:none}.result .result-play{position:static;align-self:flex-start;width:48px;height:48px;min-height:48px;margin-top:18px;background:#fffffff0;color:#10181d}.result .result-play img{filter:none;width:23px;height:23px}.result.recommended{background:#243f3e}.result:hover:not(:disabled) .result-art{transform:none}.result:hover:not(:disabled){background:#243f3e}.result[data-chosen=true]{outline:3px solid #fff;outline-offset:-6px}.result[data-pending=true]{outline:3px solid #c0e6f2;outline-offset:-6px}.result[data-chosen=true] .result-play{background:#bfe6ef}.refinements{padding:0 8px}.refinements button{border:0;background:#fafafa;min-height:48px;font-size:15px}.refinements button img{width:20px;height:20px}
 /* Availability belongs to the existing disabled/busy controls; retained card art and copy stay legible. */
 .result:disabled,.result[aria-disabled=true],.result[aria-busy=true],[data-journey=selecting] .result:not([data-chosen=true]),[data-journey=playing] .result:not([data-chosen=true]){opacity:1}
 .player{background:#fafafa}.player .output h2{font-weight:500}.now-empty{padding:55px 20px;max-width:420px}.now-empty>img{width:48px;height:48px;opacity:.35;margin-bottom:24px}.now-empty h2{font-size:36px;font-weight:400;letter-spacing:-.03em;margin:0 0 14px}.now-empty p{font-size:18px;color:var(--muted);line-height:1.5}
@@ -202,7 +202,7 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:116px}
 
 /* Feedback occupies the existing card, never changes its flow or title. */
 .result{position:relative}.result-feedback{position:absolute;left:24px;right:24px;top:20px;min-height:24px;font-size:15px;line-height:24px;color:white;text-shadow:0 1px 8px #0008;pointer-events:none}.result-feedback:empty{visibility:hidden}.result[data-pending=true]{outline:3px solid var(--pv-screen-action-ink);outline-offset:-3px}.result[data-pending=true] .result-play{background:var(--pv-timer-accent)}
-button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120ms}button:active:not(:disabled){transform:scale(.985)}.result:active:not(:disabled){transform:scale(.995)}
+button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120ms}button:active:not(:disabled){transform:scale(.985)}.result:active:not(:disabled){transform:none}
 [data-motion=reduced] button{transition:none}@media(prefers-reduced-motion:reduce){button{transition:none}}
 
 .live-art-fallback{background:var(--pv-screen-control);padding:28%;object-fit:contain}.live-queue-track{cursor:default;min-height:72px}.live-queue-note,.weather-source,.robot-history-note{color:var(--pv-screen-muted);font-size:14px;line-height:1.5}.live-accounts{display:flex;flex-wrap:wrap;gap:12px}.robot-recent{margin-top:24px}.robot-recipe-row{padding:20px 24px;border-radius:24px;background:var(--pv-screen-surface);margin-top:12px}.robot-recipe-row p{margin:8px 0}.robot-recipe-row small{color:var(--pv-screen-muted)}
@@ -633,12 +633,12 @@ pv-widget-host #now-view #device-activities .resource-preview[data-kind=vacuum] 
 #now-view #home-weather[data-weather-phase=night] small{color:#d7e4ef}
 #now-view #home-weather[data-weather-phase=night]>img{filter:invert(1)}
 
-/* Music keeps its existing tabs outside the focused body at every landscape height.
-   Settled empty results use the existing message, without an invisible card-height spacer. */
+/* Music choices and their tabs form one content-sized group. Only the choices
+   scroll when the actual available height is smaller than the retained cards. */
 @media(min-width:760px){
  [data-view=active] .responses:has(>#music-response:not([hidden])){overflow:hidden}
- [data-view=active] .responses>#music-response:not([hidden]){flex:1;min-height:0;overflow:hidden}
- [data-view=active] #music-response .expandable{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+ [data-view=active] .responses>#music-response:not([hidden]){flex:0 1 auto;min-height:0;overflow:hidden}
+ [data-view=active] #music-response .expandable{flex:0 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
  [data-view=active] #music-response .result-inner{height:auto}
 }
 #music-response #result-list:empty{display:none}
@@ -665,3 +665,119 @@ pv-widget-host[data-view=active][data-selection-feedback=true] #player-empty p{m
 @media(max-width:759px){
  .result .result-copy h2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere}
 }
+
+/* One overview grid, in the same row-major order as the retained DOM. Neutral
+   wrappers do not create independent grids or full-width idle shortcuts. */
+pv-widget-host #now-view:not([hidden]){
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:var(--pv-overview-row-gap);align-content:start;
+}
+pv-widget-host #now-view>.response-heading{grid-column:1/-1;padding:8px 0 0;margin:0}
+pv-widget-host #now-view :is(.home-shortcuts,.now-activities,#device-activities):not([hidden]){display:contents}
+pv-widget-host #now-view>.home-extensions{margin:0!important}
+pv-widget-host #now-view>#timer-card{
+ grid-column:auto;align-self:stretch;min-width:0;min-height:var(--pv-overview-height);
+ margin:0;padding:0;gap:0;
+}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut){height:auto;min-height:var(--pv-overview-height)}
+pv-widget-host #now-view .timer-shortcut{margin:0;align-self:stretch}
+/* A real timer earns a wider instrument/action row. Idle never reserves it. */
+pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])){grid-column:1/-1}
+pv-widget-host #now-view #timer-card .timer-panel{min-height:var(--pv-overview-height);height:auto}
+pv-widget-host #now-view :is(#now-music,#now-empty,#restore-resources,#restore-timer,#quick-controls){grid-column:1/-1}
+@media(max-width:759px){
+ pv-widget-host #now-view:not([hidden]){grid-template-columns:minmax(0,1fr)}
+}
+
+/* Natural artwork stays untouched; only the existing lettering casts a local
+   shadow. Feedback belongs to the explicit control, never to an image wash. */
+.result .result-copy{ text-shadow:0 1px 3px #071e28,0 2px 12px #071e28cc }
+#result-list>.result:focus-visible{outline:3px solid var(--pv-focus-ring);outline-offset:-4px}
+.result .result-play{transition:transform var(--pv-screen-fast) var(--pv-screen-ease),background-color var(--pv-screen-fast)}
+.result:active:not(:disabled) .result-play{transform:scale(.94)}
+.result[data-pending=true] .result-play{animation:music-control-ack 180ms var(--pv-screen-ease) both}
+#music-refresh[aria-busy=true]>img{animation:music-refresh-ack 180ms var(--pv-screen-ease) both}
+@keyframes music-control-ack{from{transform:scale(.94)}to{transform:none}}
+@keyframes music-refresh-ack{from{transform:rotate(0)}to{transform:rotate(180deg)}}
+@media(prefers-reduced-motion:reduce){
+ .result .result-play,#music-refresh>img{animation:none!important;transition:none!important;transform:none!important}
+}
+[data-motion=reduced] .result .result-play,[data-motion=reduced] #music-refresh>img{animation:none!important;transition:none!important;transform:none!important}
+
+/* Empty and first-read playback retain the same room, track and artwork slots
+   as the populated sidebar. The only artwork is its honest music symbol. */
+pv-widget-host[data-view=active] #player-empty:not([hidden]){
+ display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:64px 76px minmax(80px,1fr) 100px;
+ gap:var(--pv-screen-space-4);padding:24px 20px 16px;background:var(--pv-screen-surface);
+ border-radius:var(--pv-screen-radius-frame);text-align:left;align-items:stretch;isolation:isolate;
+}
+pv-widget-host[data-view=active] #player-empty>div{display:contents}
+pv-widget-host[data-view=active] #player-empty :is(.output,h2){grid-column:1;grid-row:1;align-self:start;margin:0}
+pv-widget-host[data-view=active] #player-empty .output{justify-content:flex-start;text-align:left;padding:0;max-width:none;min-height:48px}
+pv-widget-host[data-view=active] #player-empty .output h2{justify-content:flex-start;width:100%;font-size:21px}
+pv-widget-host[data-view=active] #player-empty .output-room{justify-content:flex-start;text-align:left}
+pv-widget-host[data-view=active] #player-empty p{
+ grid-column:1;grid-row:2;align-self:start;width:100%;max-width:none;min-height:0;margin:0;
+ font-size:16px;line-height:1.45;text-wrap:pretty;text-align:left;
+}
+pv-widget-host[data-view=active] #player-empty::before{
+ content:"";grid-column:1;grid-row:3;min-width:0;min-height:0;
+ background:var(--pv-screen-control);border-radius:var(--pv-screen-radius-art);z-index:0;
+}
+pv-widget-host[data-view=active] #player-empty>img{grid-column:1;grid-row:3;align-self:center;justify-self:center;width:40px;height:40px;margin:0;z-index:1;opacity:.5}
+pv-widget-host[data-view=active] #player-empty>#empty-find-music{grid-column:1;grid-row:4;align-self:center;width:100%;max-width:none;min-height:52px;margin:0;justify-content:center}
+pv-widget-host[data-view=active] #player-empty #output:disabled{opacity:1;cursor:default}
+@media(min-width:760px) and (max-height:640px){
+ pv-widget-host[data-view=active] #player-empty:not([hidden]){grid-template-rows:48px 72px minmax(64px,1fr) 72px;gap:var(--pv-screen-space-3);padding:18px 20px 14px}
+ pv-widget-host[data-view=active] #player-empty .output h2{font-size:19px}
+ pv-widget-host[data-view=active] #player-empty p{font-size:15px}
+}
+@media(max-width:759px){
+ pv-widget-host[data-view=active] #player-empty:not([hidden]){grid-template-rows:auto auto minmax(160px,1fr) auto;min-height:380px;padding:24px}
+}
+
+/* Previous answers replace only the focused left pane. Its native nonmodal
+   dialog keeps the persistent player and header available to the household. */
+pv-widget-host[data-view=active] .responses{position:relative}
+pv-widget-host .responses:has(>#history[open]){overflow:hidden}
+pv-widget-host .responses>#history{
+ position:absolute;inset:0;margin:0;width:100%;height:100%;max-width:none;max-height:none;
+ padding:var(--pv-screen-space-6);border:0;border-radius:var(--pv-screen-radius-frame);
+ background:var(--pv-screen-paper);color:var(--pv-screen-ink);overflow:hidden;z-index:4;
+}
+pv-widget-host .responses>#history[open]{display:flex;flex-direction:column;gap:var(--pv-screen-space-6)}
+pv-widget-host #history::backdrop{background:transparent}
+pv-widget-host #history>header{position:static;top:auto;flex:none;padding:0;margin:0;background:transparent;align-items:center}
+pv-widget-host #history>header h2{font-size:clamp(28px,3vw,38px);line-height:1.1;letter-spacing:-.03em;font-weight:500}
+pv-widget-host #history>#history-example-note{flex:none;margin:0;font-size:14px}
+pv-widget-host #history>#retained{
+ grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;align-content:start;gap:var(--pv-screen-space-4);flex:1;min-height:0;
+ overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:4px;
+}
+pv-widget-host #history .retained-answer{flex:none;min-height:258px;background:var(--pv-screen-surface);border:0}
+pv-widget-host #history .history-open{border-top:0;min-height:80px;padding:16px 20px}
+pv-widget-host #history .history-preview{height:178px}
+@media(min-width:1200px){pv-widget-host #history>#retained{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:759px){
+ pv-widget-host .responses:has(>#history[open]){min-height:calc(100dvh - 100px)}
+ pv-widget-host .responses>#history{padding:var(--pv-screen-space-4)}
+}
+
+@media(min-width:760px){
+ pv-widget-host[data-view=rest] .responses>#history{width:calc(100% - 438px);min-width:320px}
+}
+
+/* A new logical playlist begins in its honest, same-size image well. This
+   bounded preparation mark is absent once decoding finishes or is cancelled. */
+.result:has(>.result-art[data-artwork-pending=true].live-art-fallback){background:var(--pv-screen-control);color:var(--pv-screen-ink)}
+.result:has(>.result-art[data-artwork-pending=true].live-art-fallback) .result-copy{text-shadow:none}
+.result:has(>.result-art[data-artwork-pending=true].live-art-fallback) .result-copy h2{color:var(--pv-screen-ink)}
+.result:has(>.result-art[data-artwork-pending=true].live-art-fallback) .result-copy p{color:var(--pv-screen-muted)}
+.result:has(>.result-art[data-artwork-pending=true].live-art-fallback)>.result-art{visibility:hidden}
+.result:has(>.result-art[data-artwork-pending=true].live-art-fallback)::before{
+ content:"";position:absolute;left:24px;top:28px;width:22px;height:22px;border-radius:50%;
+ background:var(--pv-screen-action-ink);opacity:.35;animation:music-art-preparation 600ms var(--pv-screen-ease) 3;pointer-events:none;
+}
+@keyframes music-art-preparation{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:.7;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.result:has(>.result-art[data-artwork-pending=true].live-art-fallback)::before{animation:none;transform:none}}
+[data-motion=reduced] .result:has(>.result-art[data-artwork-pending=true].live-art-fallback)::before{animation:none;transform:none}

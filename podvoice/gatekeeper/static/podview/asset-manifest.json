@@ -239,7 +239,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "41652a89e93763bef2ad22e6bde6e2f05af342e7a6846f5ceb3ee968be0cbfd0"
+      "sha256": "0ca40b473d755d2b68469936cac96e5d7c0fc3d65529f3077292a147e00cab11"
     },
     {
       "path": "ingress-kiosk.js",
@@ -267,15 +267,15 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "63242427d2f3bc8bff6a93f975af84969622d604d9b1cdc383afc90a3f782bce"
+      "sha256": "aa462be41ca8fd5323a2d1b69c06398bf9d03edc4e110b38b66b038a2d2dac5a"
     },
     {
       "path": "live-home-view.js",
-      "sha256": "b8933704e58383b02a5010b1a4f1462f19b67e8ab45ba6e23d0f46e63553a664"
+      "sha256": "2b92bdb29ff10f2192bb24076adb240602ad0975089a96ddb2f67ddf0f8f6aaf"
     },
     {
       "path": "live-media-view.js",
-      "sha256": "de9180d2125ce60abcc2efca73ba019d3b36dfa0a6d826f068d50a96bbdc9da0"
+      "sha256": "2e79d419c5b73f4ca60b3a2742fdafce228b81d25184460dd2a54c25a9178a19"
     },
     {
       "path": "live-music-selection-view.js",
@@ -311,7 +311,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "9428fcd15e545174351701d64040354cdf5389ea0ff4697333b1dfeb9088bcd4"
+      "sha256": "15656064e965ea10e3b3e7240d02a7ecc108d457c5f679b37fc9fa3481f87952"
     },
     {
       "path": "music-selection-model.js",
@@ -347,11 +347,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "b65689513b53ce59f1b477d0a62699e3f1abb38e230f9279d69544e137564621"
+      "sha256": "d11d5427c1b01522cbab3062622d6605e3a26d120c493de4d50ecd42ab1e0d5f"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "ac2d67293263edb27a5c8b80e08e272e35362f516b5801d69d8bf10ac81e8943"
+      "sha256": "85ca35074e7be47272abebb0a37b9e49c6b61dd6c0f9f80c1989e0b04f423fcd"
     },
     {
       "path": "podvoice-view.js",
@@ -423,7 +423,7 @@
     },
     {
       "path": "spotify-artwork.js",
-      "sha256": "d962b58e9cea51ec91153c3c447d70f63ca38bd2a9dc866cc77f2b51cd1675c8"
+      "sha256": "f1d6cb73c7dec72b3849bd8810c9f186ebf5e90a23a2ef827b0aa7c31e05bb42"
     },
     {
       "path": "style.css",
@@ -439,11 +439,11 @@
     },
     {
       "path": "timer-notice.js",
-      "sha256": "9eb8aa190debb28fe9ae6bf7f903e69a1d04510419a140cb9ae5329ad680b9d4"
+      "sha256": "d8a2eb282ed4724cc565876f7b2a0efe3a0734d1471dbbe4a77cda9462f7e3f7"
     },
     {
       "path": "timer-view.js",
-      "sha256": "5fbcdb0674bc6f5de043952070ef3724182dd0f81bc71b73c4e1761fdc7e6302"
+      "sha256": "a7ac3863e1d91592f3b36fa7e26ba25b202907c5b38842a93d2e9a0a4244aafc"
     },
     {
       "path": "ui/catalog.js",
@@ -471,7 +471,7 @@
     },
     {
       "path": "ui/library/components.js",
-      "sha256": "42021f182ef28737c90964947d750676d4ec27730aa2ba15f2a935b65037b0c9"
+      "sha256": "3784311be6eadad46b8942f7637c23e98c8fb3e1024a002998c68a130b588c0d"
     },
     {
       "path": "ui/library/library.css",
@@ -483,7 +483,7 @@
     },
     {
       "path": "ui/library/visual-components.js",
-      "sha256": "79bcfeb22e2bc9212b34bc72e18f0c3ecd4f10a986b715e20a804f3a3a7e942b"
+      "sha256": "928f092ea982b0b01182ad6965321980beee99cc271ccbdc6d4a569df3b1e53c"
     },
     {
       "path": "ui/motion.js",
@@ -499,7 +499,7 @@
     },
     {
       "path": "ui/resource-tile.js",
-      "sha256": "d2a34931a0a0b908e6eef361e524f8c4082e7f17e6a897add313879ac85e474d"
+      "sha256": "c1111c1047505a5d3efd07d49498b884ffd9b68f976dde6e7d327bcc5479b48f"
     },
     {
       "path": "ui/robot-motion.js",
@@ -507,7 +507,7 @@
     },
     {
       "path": "ui/scroll-edges.js",
-      "sha256": "c9b0fae1f5dc656c4e74a1d25f5ea9040dde7713961475b18e21ca17beca6c27"
+      "sha256": "cb8496fb0f2622082c172b760d6f2eb9abb57523ac275e41c35b08ddaf7346a3"
     },
     {
       "path": "ui/touch-intent.js",
@@ -547,7 +547,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "e547052f7754e20242d323e697063e0462e12c62aa38b08e1de5101bd33dfce7"
+      "sha256": "acfd9fc8b561db5a61df0ddd1d87f168bc8344a9087ca448536580a226349320"
     },
     {
       "path": "widget-model.js",
@@ -555,7 +555,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "6f0141b370e6e28a1278e38d68262a093dd0b0400b9b3f09f8b17c9bc57624cf"
+      "sha256": "3874d9bae72335729fa1340672d72eecbb195931cc81ba4ceaa4748deb524fd3"
     },
     {
       "path": "widget-view.css",
@@ -563,7 +563,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "38aad7a74971caadebdb18e38dc5ec813af9ac90519f04b4cb7ca5d64f1a01fb"
+      "sha256": "2a127bf9973fb030f206ba3a86076269a4072ab8bb888d618a15a5580bb8989c"
     },
     {
       "path": "workshop.css",
