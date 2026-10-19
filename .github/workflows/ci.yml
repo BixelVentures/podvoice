@@ -147,16 +147,18 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
+      - name: Reject cancelled unit checks
+        if: ${{ cancelled() }}
+        run: exit 1
       - name: Require complete unit evidence
+        if: ${{ always() }}
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
           PROMOTION_RESULT: ${{ needs.promotion.result }}
           TOOLING_ONLY: ${{ needs.scope.outputs.tooling_only }}
           REUSE: ${{ needs.promotion.outputs.reuse }}
           UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}
-          WORKFLOW_CANCELLED: ${{ cancelled() }}
         run: |
-          test "$WORKFLOW_CANCELLED" != true
           test "$SCOPE_RESULT" = success
           test "$PROMOTION_RESULT" = success
           if [ "$TOOLING_ONLY" = true ] || [ "$REUSE" = true ]; then

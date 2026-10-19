@@ -60,7 +60,11 @@ def test_ci_test_cohorts_preserve_all_gates_with_isolated_unit_shards():
     assert "name: lint-test (unit)" in aggregate
     assert "needs: [scope, promotion, unit-shards]" in aggregate
     assert "if: ${{ always() }}" in aggregate
-    assert "WORKFLOW_CANCELLED: ${{ cancelled() }}" in aggregate
+    assert (
+        "      - name: Reject cancelled unit checks\n        if: ${{ cancelled() }}\n        run: exit 1"
+        in aggregate
+    )
+    assert "WORKFLOW_CANCELLED" not in aggregate
     assert "UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}" in aggregate
     assert 'run: test "$UNIT_SHARDS_RESULT" = success' in aggregate
     assert "ruff check ." in aggregate and "ruff format --check ." in aggregate
@@ -117,10 +121,39 @@ def test_ci_unit_required_guard_never_accepts_cancelled_or_unknown_evidence(
         TOOLING_ONLY=tooling,
         REUSE=reuse,
         UNIT_SHARDS_RESULT=shards,
-        WORKFLOW_CANCELLED=cancelled,
     )
-    result = subprocess.run(["bash", "-e", "-c", guard], env=env, check=False)
+    cancel_step = workflow.split("      - name: Reject cancelled unit checks\n", 1)[1]
+    cancel_step = cancel_step.split("      - name: Require complete unit evidence", 1)[0]
+    assert "if: ${{ cancelled() }}" in cancel_step
+    cancel_command = cancel_step.split("        run: ", 1)[1].strip()
+    if cancelled == "true":
+        result = subprocess.run(["bash", "-e", "-c", cancel_command], env=env, check=False)
+        # An always-run evidence check may pass after cancellation; it cannot
+        # erase the earlier explicit failing step from the required job.
+        subprocess.run(["bash", "-e", "-c", guard], env=env, check=False)
+    else:
+        result = subprocess.run(["bash", "-e", "-c", guard], env=env, check=False)
     assert result.returncode == expected
+
+
+@pytest.mark.parametrize("invalid_env", [False, True])
+def test_ci_status_functions_are_only_used_in_supported_if_context(invalid_env):
+    import re
+
+    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    invalid = "          WORKFLOW_CANCELLED: ${{ cancelled() }}"
+    if invalid_env:
+        workflow += "\n" + invalid + "\n"
+    # GitHub status functions are supported in job/step `if`, not `env`.
+    # Keep these conditions on a single line so this bounded check can audit
+    # their actual workflow placement without a second YAML/schema framework.
+    status_call = re.compile(r"\b(?:always|cancelled|failure|success)\s*\(")
+    unsupported = [
+        line
+        for line in workflow.splitlines()
+        if status_call.search(line) and not line.lstrip().startswith("if:")
+    ]
+    assert unsupported == ([invalid] if invalid_env else [])
 
 
 @pytest.mark.parametrize("result", [0, 1, 5, -15])
