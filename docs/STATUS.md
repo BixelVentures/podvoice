@@ -1,3 +1,96 @@
+# Active voice lead — 19 October: complete software outcomes before physical acceptance
+
+Lead: this PodVoice chat. The user withdrew the physical test series and requires the
+complete PodVoice voice flow to pass automatable end-to-end outcome checks first.
+The separately coordinated PodView UI work is not a substitute for this work.
+
+**Observed baseline.** Green actually runs PodVoice 2.0.61, commit
+`79b8fe8cdd3d2ee55e811cd76ac9f37e067cae48`, stored build marker
+`c6703c379aa2496306686fc3a1359b4b1c1cf87e3503c9f26ed0afbc7849d3a1`, and Speakers
+0.26.31. The operator verified release, image source/assets, installation, runtime
+readback and preserved settings separately. The stored marker is not a fresh hash
+of the running filesystem. Earlier unsigned/installation statements below describe
+their historical preparation stage, not the current installation. Physical voice
+acceptance has not been obtained on this combination.
+
+**Direct source finding.** On exact 2.0.61, native Live microphone frames continue
+during output. Ordinary `LiveTranscript` revises input and `LiveBackendStarted`
+records work, but neither connects new Live input to physical output interruption.
+The existing `_on_interrupted` path rejects the native legacy `full_duplex=False`
+flag, and the Live adapter emits no corresponding interrupt event. Existing
+input-forwarding checks therefore do not prove interruption, a relevant replacement
+answer in the same session, or the subsequent close/new wake. This is a software
+gap to reproduce, not merely a missing physical listening result.
+
+**Chain and invariants.** Review actual native input/capture generation → Live input
+revision and provider events → old response/physical playback owner → accepted new
+response → tool outcome and physical drain → one close/teardown → one correlated
+rearm/new wake. Preserve GPT-Live semantic authority, continuous active input, exact
+session/connection/input/output generations, no stale side effects or resumed stale
+audio, one playback/close owner, and independent native/Talk adapters. Neighbouring
+races include delayed old audio/tool/close events, an obsolete interruption after a
+new generation, native stop failure, and a cancelled or failed replacement response.
+
+**Falsifiable hypothesis and scope.** A missing current-Live interruption handoff
+allows obsolete output to continue despite new input. First reproduce that complete
+sequence on actual Thin/Live/native contracts; the repair must use observed Live
+authority, not invented provider ACKs or local phrase/VAD-based meaning. Do not
+blindly change the legacy duplex flag, firmware, gain, prompt, timeouts, or the
+separate PodView UI. Timer and voice-music outcome checks run independently on the
+same source and use inert service boundaries, not household actions.
+
+**Planned checks and rollback.** Reuse existing native and lifecycle regressions;
+add the smallest causal failing case to the existing harness where necessary.
+Require stale/duplicate/out-of-order events to stay inert across interruption,
+replacement output, close and the next generation, on both I/O adapters. Any runtime
+repair requires independent adversarial review, exact combined source binding and
+official CI before one coordinated release/install. Rollback boundary is the exact
+published 2.0.61 source; it does not inherit physical acceptance. No repair, provider
+proof, new release, installation or physical success is claimed by this plan.
+
+**Current results.** Native/firmware/wake contract checks: 93 passed on unchanged
+2.0.61. Twelve actual-entrypoint settings/recovery checks initially could not bind
+their localhost test server inside the sandbox; only those twelve were rerun with
+local-server permission and passed. The sandbox error was not a product fault.
+Fourteen existing lifecycle/SDK causal checks and 81 timer/voice-target checks also
+passed; overlapping scopes are not a combined test-count or physical proof. The joined voice-music outcome regression now passes all four native/Talk and
+accepted/unknown cases with independent review. It separates command receipts from
+externally observed playback, and covers Spotify-device routing; actual HomePod
+configured-alias outcomes remain a separate live edge. No household action or
+provider call was performed by these checks. No physical test request is active.
+
+**Independent review narrows the hypothesis.** The primary GPT-Live audio contract
+supplies ordered PCM without a spoken-response ID, output-done event, or an
+interrupt boundary. The provider can change its continuous output itself; the
+absence of a local stop callback alone is therefore not a demonstrated runtime
+fault. A transcript fragment or backend delegation cannot safely label subsequent
+PCM as a new answer. A naive native stop would also cause the current continuous
+stream to close. Do not introduce a local stop/duplex-flag patch or invent provider
+ACKs. Existing deterministic safety results stand. The unresolved acceptance edge
+is to establish the supported interruption/output behaviour from actual provider
+PCM and controlled synthetic input using the existing bounded probe, then replay
+its supported events through the actual adapters. A physical request remains
+withdrawn; no provider run or runtime repair is authorized by this record alone.
+
+
+**Same-version acceptance scope.** The active goal covers all PodVoice controls,
+not a collection of per-component green results: wake → Danish answer → follow-up
+and interruption → semantic/idle close → next wake; home/weather and correct tool
+results; music start/move/queue/volume/attention restore; HA timer create/expiry/alarm/
+stop; and failure/recovery. Adjacent timer integration seams cover creation, Core
+expiry, Thin/native output custody and stop; they do not establish a single actual
+Green voice-to-alarm flow. Core restart is fail-closed, not timer persistence.
+
+The existing semantic evaluator has one additional synthetic provider-PCM overlap
+case, with disjoint count-to-20 and 31+12→43 inputs. Ninety-two focused evaluator
+unit checks and static formatting/lint passed. Its final semantic verdict remains
+PENDING_AUDIO_REVIEW: continuous provider PCM has no response ID, so transcripts
+cannot certify actual interruption. No new runtime, prompt, VAD, timeout or firmware
+change has been made. A bounded provider run and raw-audio review remain pending,
+with a separate Restore Owner required before any approved HA pause.
+
+---
+
 <!-- podview61-admission
 {
   "version": 38,
