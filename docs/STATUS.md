@@ -4,14 +4,93 @@ Lead: this PodVoice chat. The user withdrew the physical test series and require
 complete PodVoice voice flow to pass automatable end-to-end outcome checks first.
 The separately coordinated PodView UI work is not a substitute for this work.
 
-**Observed baseline.** Green actually runs PodVoice 2.0.61, commit
-`79b8fe8cdd3d2ee55e811cd76ac9f37e067cae48`, stored build marker
-`c6703c379aa2496306686fc3a1359b4b1c1cf87e3503c9f26ed0afbc7849d3a1`, and Speakers
-0.26.31. The operator verified release, image source/assets, installation, runtime
-readback and preserved settings separately. The stored marker is not a fresh hash
-of the running filesystem. Earlier unsigned/installation statements below describe
-their historical preparation stage, not the current installation. Physical voice
-acceptance has not been obtained on this combination.
+**Observed installed baseline.** Green now runs PodVoice 2.0.62, commit
+`382c8275125fda4742c8f5947bb1ceed0e3b102d`, stored build marker
+`1948a3af1c1b48c88ce8b3f401d7819a7e10b3114592bb7a3e1b68ec9e8ac962`, and Speakers
+0.26.31. Official PR/main CI passed; release publication, immutable image source/assets,
+normal backup-enabled installation, runtime readback and preserved policy/settings
+were verified separately. The stored marker is not a fresh running-filesystem hash.
+The prior 2.0.61 findings below retain their original source boundary. Draft PR #214
+voice prompt/observer changes are not installed in 2.0.62. Physical voice acceptance
+has not been obtained on this combination. The next candidate is assembled by the
+PodView lead on actual 2.0.62; this chat supplies reviewed voice changes, not another
+release profile.
+
+**Actual 2.0.62 music outcome.** Normal Stemning and Humør each returned three real
+playlist cards. One Andre forslag request retained the disabled old cards while pending,
+but returned the same displayed titles reordered; new underlying playlist identities
+were not proved. One normal Play remained unknown, with no confirmed player state.
+A subsequent read-only Spotify snapshot reported fresh no_active_playback, and native
+controls returned target_not_current. These reads do not establish the original Play
+response or audible silence. No replay or Pause was sent. The PodView lead owns the
+music feedback/refresh repair. Actual timer evidence and its active repair decision
+follow below. The one timer was fully acknowledged and absent from UI/HA afterwards;
+no robot action or physical voice request was made.
+
+**19 October #110 active timer decision — before implementation.** Actual Green
+2.0.62 (`382c8275125fda4742c8f5947bb1ceed0e3b102d`) accepted one normal one-minute
+UI timer, displayed its countdown in Now/Ro, and reported native started then drained.
+The finished acknowledgement removed the exact timer from UI and HA without a duplicate.
+This proves neither audible alarm nor Stop while ringing. Source explains the missing
+Stop opportunity: the shipped alarm is a single 440 ms cue, and `_poll_timers` awaits
+its task, preventing that poll from observing HA `stop_requested` during output.
+
+Lead hypothesis: an existing-lease, finite alarm plus continued exact-source HA
+observation will provide a useful Stop window without a second alarm owner. The
+implementation target is one 20-second repeated cue at the existing 0.18 amplitude,
+on one playback lease/context; its hard wait is the declared asset duration plus
+bounded existing delivery margin, not an infinite repeat or a blind three-second
+extension. Core alone owns expiry. While the alarm runs, the existing poll must
+observe only its exact epoch/timer/alert/sink and stop on matching cancellation or
+loss/change of its source; no additional alert may be claimed. This is a specified
+usability target based on the observed 440 ms limitation, not measured room audibility.
+
+Affected chain: HA expiry/claim → current sink/context admission → finite ReplyBus
+asset → native/Talk playback → UI/HA cancel, physical Stop, wake, disconnect or cap →
+exact retirement acknowledgement → truthful stopped/drained/unknown receipt → one
+rearm → fresh wake. Preserve HA countdown ownership, one output owner, exact identities,
+source epoch and stale-event isolation. Do not report stopped from a sent command or
+attribute an old alarm to a replacement sink. Missing retirement remains incomplete.
+No gain, firmware, provider, permissions, semantic-close or general timeout tuning.
+
+Required causal checks: actual clip duration, HA cancel during output with the poll
+still alive, exact stopped rather than natural drained, one claim/retirement/rearm,
+source/epoch replacement, delayed old events after next wake, Talk exact Stop and
+disconnect, finite completion and existing timer regressions. Review both adapters
+independently before combined 63 source binding/official CI. Software target: an
+available HA cancel is consumed on the next existing two-second poll, followed by
+bounded exact retirement; room stop-to-silence is not inferred from this bound.
+Rollback is the unchanged 2.0.62 timer implementation. No new code, passing result,
+release, installation or physical acceptance is claimed by this decision.
+
+**#110 review boundaries and focused result.** The finite alarm/cancel
+implementation is under independent review. Two limits are retained explicitly:
+(1) the default reply HTTP route buffers/FLAC-encodes the finite asset before native
+playback start; the existing start deadline is unchanged and has not been measured
+on Green with this asset; (2) a committed HA claim whose response is lost remains
+fail-closed/held, without automatic output replay. This pre-existing recovery gap is
+not cured by a longer cue. Neither limit may be called fully accepted timer recovery.
+A hard-cap terminal stop may acknowledge Core only after exact sink retirement;
+without that proof it remains unknown/incomplete. The changed joined timer module
+now passes 7/7 through `scripts/dev fast`, with formatting/lint/mypy also passing.
+Its controlled native/Core/Talk cases cover the finite asset, live-poll cancellation,
+claim-response ordering, source epoch replacement, exact Stop and bounded terminal
+cleanup; native callbacks are injected, not physical device observations. Earlier
+attempts were stopped before pytest by the disk guard and are not product failures.
+One subsequent combined focused gate passed 5/5: three adjacent existing timer cases
+(native natural drain, missing retirement ACK recovery, and Talk same-page recovery)
+plus both new native LED semantic-close variants. Ruff/format/mypy passed on the
+same final bytes. The LED regression delegates actual light calls to `VoicePELink`
+and checks cyan → correlated close/OFF → next-wake cyan, no red on successful close,
+and red/retry before recovered OFF on injected rearm failure. It rejects an old
+playback finish before closing; injected native events still are not room/device proof.
+Independent adversarial review approved timer source SHA256
+`f234aa46f276adfd5816997c7ce9084a68d85cb4c97c0172f76810b7ac264d51`
+and joined test SHA256
+`8a2f94eecbfb1aeb75d32f6e94e1ba091f8fe820e86f7c0c21115d9264ba635b`.
+No production startup deadline extension or guard bypass was used. This is a reviewed
+software draft for the single combined next candidate, not a new installation or
+accepted physical timer/LED/voice flow.
 
 **Direct source finding.** On exact 2.0.61, native Live microphone frames continue
 during output. Ordinary `LiveTranscript` revises input and `LiveBackendStarted`
@@ -72,6 +151,25 @@ PCM and controlled synthetic input using the existing bounded probe, then replay
 its supported events through the actual adapters. A physical request remains
 withdrawn; no provider run or runtime repair is authorized by this record alone.
 
+
+**Voice PE scope clarification, 19 October.** This chat also owns physical-device
+LED feedback and timing: listening, thinking, answer playback, interruption, semantic/
+idle close, timer, error and rearm/readiness. Software acceptance must trace lifecycle
+commands through VoicePELink to the shipped firmware, including stale callbacks and
+absence of unexplained error transitions. Visible colour and room timing need their
+own final device observation; browser state or a sent LED command does not prove them.
+No speculative colour/timeout tuning is authorized by this clarification.
+
+**LED source audit result.** The current native Live path uses cyan for listening
+and known backend/tool work; primary-provider thinking has no observable event and
+must not be invented. Firmware owns admitted idle-close yellow after its exact LED
+transmission acknowledgement. An idle-close acknowledgement fault or incomplete
+teardown/rearm can lead to red; no current correlated trace establishes the cause of
+the user's earlier yellow → red → off report. Existing wake/work/idle-preclose tests
+cover delayed/stale acknowledgements, cancellation, reconnect and next generation.
+The adapter may catch light-command errors, so `led_command` records intent, not
+successful delivery or visible light. No LED runtime, colour or timeout repair was
+justified by this read-only audit; installed-device LED timing remains unverified.
 
 **Same-version acceptance scope.** The active goal covers all PodVoice controls,
 not a collection of per-component green results: wake → Danish answer → follow-up
