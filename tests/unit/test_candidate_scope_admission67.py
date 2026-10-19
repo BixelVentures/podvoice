@@ -44,12 +44,13 @@ def test_67_inventory_is_exact_for_composed_backend_timer_ui_and_regressions():
         "podvoice/gatekeeper/thin.py",
         "podvoice/gatekeeper/voicepe.py",
     }
-    assert len(admission.REQUIRED_TESTS) == 25
+    assert len(admission.REQUIRED_TESTS) == 26
     assert admission.REQUIRED_TESTS == {
         "tests/integration/test_ha_timer_native_output.py",
         "tests/integration/test_podview_bridge.py",
         "tests/integration/test_podview_music_control.py",
         "tests/integration/test_podview_music_selection.py",
+        "tests/integration/test_thin_live_ten_cycles.py",
         "tests/integration/test_thin_live_idle_preclose.py",
         "tests/podview/canonical-packet-account-visibility.test.mjs",
         "tests/podview/canonical-packet-first-read-reconciliation.test.mjs",

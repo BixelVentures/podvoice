@@ -10,12 +10,12 @@
   "merge_base": "f12537026e6ceb199932c5aa05d977e43a47920e",
   "rationale": "Independent whole-source adoption GO from /root/led_review_current, receipt SHA256 927fb44380430159f92eb5024452620f75be3cd891417e2eaedb97cdeaac9309, reviewed candidate source tree cdfe29766dd8b6be9ffc306ce9686e43207b1adf. This binding pins the exact backend, UI, test and 143-asset inventory; runtime bytes remain those reviewed. Official CI, publication, installation and provider/native physical acceptance remain open. The observed native playback crash and second-alarm Stop failure remain unresolved; UNKNOWN timer Start stays fenced until exact same-scope observation, with no replay.",
   "fingerprint": "220ebf0c99fc1980849a9fb376b4a94f5d83ba983182bc9f9076873189d92845",
-  "regression_fingerprint": "9bde1e555f824011e17dac9c27323b5359c4fb7fe88f3203a84d34af0d3a6ec0",
+  "regression_fingerprint": "087006656e70f2d7481dfeb46f74becb62d24ad8491dae50a6c22b38c97ff127",
   "runtime_fingerprint": "a01234b2b933f36c326704598e5410ec48de952ddaa7026933b31fb217b2603e",
   "config_fingerprint": "8c54e8d303c02a80dadee57beb5c3692f8ef2a0d93b185343e160ba7eea23034",
-  "policy_fingerprint": "7b215fbfeadce8e48967383edf2b66a275bfd4df8c6284818eb9b0abf1c15c6f",
+  "policy_fingerprint": "9c73d7bb43faf5f43ba7a923424615c13237c46bb9b74d7e0ac5b5b17176024d",
   "tooling_fingerprint": "c7fc5fa9a644e2751eeef1371f0f49d492be507c0a1d8103d64ff9b902fe6874",
-  "manifest_fingerprint": "be7bbf03d285279463e773d7b01bc1c4fe0e73824047b265f2ec65ee205e7cad"
+  "manifest_fingerprint": "8f3595cc43c2e52a63fa93128fc4c0249d6928902d2f061831906234d50a3303"
 }
 -->
 
@@ -63,6 +63,16 @@ allerede eksisterende testfiler; browsertrinnet blev ikke kørt. Fejlen er bevar
 omfortolket til PASS. Lead udarbejder kun den afgrænsede release-fixturekorrektion i
 isoleret draft; PodView ejer fortsat UI-produktionskoden. Ingen produktionsrettelse
 udledes af denne CI-fejl. Samme PR bruges til den nødvendige korrigerede kandidat.
+
+**Faktisk PR224-successor CI.** Head d61194c3 bestod alle andre krævede kontroller,
+herunder det reelle UI-browserjob og build; én native10-cyklusfixture fejlede i cyklus10,
+mens den ventede på providerlukning. Den bevarede fixture havde relativ søvn på100 ms
+efter hver callback. Med den reproducerede12 ms callback-omkostning lagde den behandlingstid
+oven i hver kildeperiode og drev rapporteringen forbi native idle-vinduet. Kausal fixture-
+rettelse bruger absolut monoton cadence uden catch-up bursts; samme politik accepterer fortsat
+friske intervaller og afviser et reelt hul over200 ms. Den permanente red→green-regression
+består ti cyklusser med forsinkelsen, og produktionsbytes, bounds og timeouts er uændrede.
+Kun dette ugyldiggjorte fixturetrin er korrigeret; ingen ny fuld manuel CI eller produktfix.
 
 
 Lead: /root. This entry supersedes candidate/install wording in the dated notes below; those notes and historical admission records remain preserved. Green runs PodVoice2.0.66 commit`de46852d3d5d409bd94f14392c09b51b1280a2b1`, stored marker`3bf0cd7177920be7f7c7250628745eb1120fcfce3da3ab0ee613545551b5759e`, Speakers0.26.33 and now-active Control0.10.19. One HA Core restart loaded the new service fields. Runtime/readback and independent public-image identity are separate evidence; the stored marker is not a fresh whole-filesystem measurement. Existing policies/settings are preserved; no new grant or robot movement is claimed.

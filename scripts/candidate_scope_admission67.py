@@ -63,6 +63,7 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_bridge.py",
         "tests/integration/test_podview_music_control.py",
         "tests/integration/test_podview_music_selection.py",
+        "tests/integration/test_thin_live_ten_cycles.py",
         "tests/integration/test_thin_live_idle_preclose.py",
         "tests/podview/canonical-packet-account-visibility.test.mjs",
         "tests/podview/canonical-packet-first-read-reconciliation.test.mjs",
@@ -104,8 +105,8 @@ ASSET_CHANGES = frozenset(
 HA_RUNTIME = previous.HA_RUNTIME
 # CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
 REVIEWER = "/root/led_review_current"
-MANIFEST_SHA = "be7bbf03d285279463e773d7b01bc1c4fe0e73824047b265f2ec65ee205e7cad"
-PROFILE_AST = "29aa732286ff865e9ae52c9ca52ed4bdd96a55e18030d443ec6dc23493083d4e"
+MANIFEST_SHA = "8f3595cc43c2e52a63fa93128fc4c0249d6928902d2f061831906234d50a3303"
+PROFILE_AST = "112032f8fda50fb39957c2afe258529fb83fd01be5e8b3db5f2b868c3e6aa6bb"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission66.py": "1ea664daae9e2ea7fc9069c23b0c7ff26a50a78e640e636ab679608588878335",
     "scripts/podview66-admission-reviewed.json": "20deac962931fdd747dc1abbcae7e54d2abf069e7da7c8bcf6745d1936607e2b",
