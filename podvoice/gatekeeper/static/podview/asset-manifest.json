@@ -311,7 +311,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "31f7189de48d7d709952663a38fa0848b3720e94eef135c8b455c33ce3f66fed"
+      "sha256": "9428fcd15e545174351701d64040354cdf5389ea0ff4697333b1dfeb9088bcd4"
     },
     {
       "path": "music-selection-model.js",
@@ -563,7 +563,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "9519116469ba6f15c2c8c71a231473e37e3709f880eb167400235e6f39625ea6"
+      "sha256": "38aad7a74971caadebdb18e38dc5ec813af9ac90519f04b4cb7ca5d64f1a01fb"
     },
     {
       "path": "workshop.css",
