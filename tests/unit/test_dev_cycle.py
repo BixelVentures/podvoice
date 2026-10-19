@@ -80,6 +80,7 @@ def test_ci_test_cohorts_preserve_all_gates_with_isolated_unit_shards():
     assert "run: python scripts/dev_cycle.py unit-shard --shard ${{ matrix.shard }}" in shards
     assert "name: lint-test (rest)" in rest
     assert "needs: [scope, promotion, remaining-test-shards]" in rest
+    assert "      - name: Remaining tests\n" in rest
     assert "REST_SHARDS_RESULT: ${{ needs.remaining-test-shards.result }}" in rest
     assert 'test "$REST_SHARDS_RESULT" = success' in rest
     assert "needs: [scope, promotion]" in rest_shards

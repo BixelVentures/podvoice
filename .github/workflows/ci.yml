@@ -240,7 +240,7 @@ jobs:
       - name: Reject cancelled remainder checks
         if: ${{ cancelled() }}
         run: exit 1
-      - name: Require complete remainder evidence
+      - name: Remaining tests
         if: ${{ always() }}
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
