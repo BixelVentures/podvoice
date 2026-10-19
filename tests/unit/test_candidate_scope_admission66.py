@@ -12,6 +12,8 @@ from scripts import candidate_scope_admission66 as admission
 ROOT = Path(__file__).parents[2]
 PUBLISHED65_MERGE = "ffab41c96c2e0047bb992e10f6da323f03ce431a"
 PUBLISHED65_TREE = "8a72ed5c79eb863c78822cf7beb0b72a4ebd0bde"
+PUBLISHED66_MERGE = "de46852d3d5d409bd94f14392c09b51b1280a2b1"
+PUBLISHED66_TREE = "40fe3f61f91a09ecb8fc39e5527e16cb010cfd57"
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +25,19 @@ def historical65_root(tmp_path_factory):
     return target
 
 
-def test_66_exact_scope_and_history():
+@pytest.fixture(scope="module")
+def published66_root(tmp_path_factory):
+    target = tmp_path_factory.mktemp("published66") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED66_MERGE], cwd=target, check=True)
+    tree = subprocess.check_output(
+        ["git", "rev-parse", "HEAD^{tree}"], cwd=target, text=True
+    ).strip()
+    assert tree == PUBLISHED66_TREE
+    return target
+
+
+def test_66_exact_scope_and_history(published66_root):
     assert admission.BASE == "2c585fabdaaf52895a103db698988477eed098a4"
     assert admission.VERSION == 43
     assert admission.KIND == "podview66_idle_destination_timer_progress_robot_recovery"
@@ -77,35 +91,36 @@ def test_66_exact_scope_and_history():
     }
     assert admission.ASSET_COUNT == 143
     assert admission.IMMUTABLE.items() >= published65.IMMUTABLE.items()
-    assert admission.strict.pins_match(ROOT, admission.IMMUTABLE)
-    assert admission.config_only(ROOT)
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
+    assert admission.strict.pins_match(published66_root, admission.IMMUTABLE)
+    assert admission.config_only(published66_root)
+    report = admission.legacy.inspect_repository(published66_root, admission.BASE)
     assert report.domains == admission.DOMAINS
-    effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
+    effective = admission.legacy._visual_repository_changes(published66_root, admission.BASE)
     assert admission.production_scope_matches(effective)
     assert {p for p in effective if p.startswith("tests/")} == admission.REQUIRED_TESTS
     assert admission.change_scope_matches(effective, set(admission.REQUIRED_TESTS))
     bindings = (admission.REVIEWER, admission.MANIFEST_SHA, admission.PROFILE_AST)
     assert len({bool(value) for value in bindings}) == 1
-    assert admission.inspect_repository(ROOT, admission.BASE).passed == all(bindings)
+    assert admission.inspect_repository(published66_root, admission.BASE).passed == all(bindings)
 
 
-def test_66_manifest_exact_inventory():
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_66_manifest_exact_inventory(published66_root):
+    manifest = json.loads(admission.safe_file(published66_root, admission.MANIFEST))
     assert manifest["schema"] == "podvoice66.admission.v1"
     assert manifest["base"] == admission.BASE
     assert manifest["asset_count"] == admission.ASSET_COUNT == 143
     assert set(manifest["production"]) == admission.PRODUCTION
     assert set(manifest["regressions"]) == admission.REQUIRED_TESTS
     assert (
-        set(manifest["runtime"]) == admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+        set(manifest["runtime"])
+        == admission.strict.runtime_inventory(published66_root) | admission.HA_RUNTIME
     )
     assert set(manifest["config"]) == admission.CONFIG
     assert set(manifest["policy"]) == admission.POLICY - {admission.PROFILE, admission.MANIFEST}
     assert set(manifest["tooling"]) == admission.TOOLING
     for group in ("production", "regressions", "runtime", "config", "policy", "tooling"):
-        assert admission.strict.pins_match(ROOT, manifest[group])
-    assert admission.assets_match66(ROOT, manifest["runtime"], manifest["asset_count"])
+        assert admission.strict.pins_match(published66_root, manifest[group])
+    assert admission.assets_match66(published66_root, manifest["runtime"], manifest["asset_count"])
 
 
 def test_published65_accepted_and_cannot_authorize66(historical65_root):
@@ -124,16 +139,18 @@ def test_66_cli_closed_with_missing_binding(monkeypatch, capsys, binding):
 
 
 @pytest.fixture
-def synthetic_record(monkeypatch):
+def synthetic_record(monkeypatch, published66_root):
     """Transient validator preconditions only; never persisted as review authority."""
     reviewer = "Synthetic test-only reviewer"
-    manifest_sha = admission.sha(admission.safe_file(ROOT, admission.MANIFEST))
+    manifest_sha = admission.sha(admission.safe_file(published66_root, admission.MANIFEST))
     monkeypatch.setattr(admission, "REVIEWER", reviewer)
     monkeypatch.setattr(admission, "MANIFEST_SHA", manifest_sha)
     monkeypatch.setattr(
         admission,
         "PROFILE_AST",
-        admission.strict.ast_sha(admission.safe_file(ROOT, admission.PROFILE), "PROFILE_AST"),
+        admission.strict.ast_sha(
+            admission.safe_file(published66_root, admission.PROFILE), "PROFILE_AST"
+        ),
     )
     return {
         "version": admission.VERSION,
@@ -144,25 +161,28 @@ def synthetic_record(monkeypatch):
         "merge_base": admission.BASE,
         "rationale": "Synthetic validator regression; never persisted as admission authority.",
         "fingerprint": admission.legacy.production_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(admission.PRODUCTION)
+            published66_root, admission.BASE, admission.BASE, tuple(admission.PRODUCTION)
         ),
         "regression_fingerprint": admission.legacy.regression_fingerprint(
-            ROOT, admission.BASE, admission.BASE, tuple(admission.REQUIRED_TESTS)
+            published66_root, admission.BASE, admission.BASE, tuple(admission.REQUIRED_TESTS)
         ),
         "runtime_fingerprint": admission.strict.fingerprint(
-            ROOT, admission.strict.runtime_inventory(ROOT) | admission.HA_RUNTIME
+            published66_root,
+            admission.strict.runtime_inventory(published66_root) | admission.HA_RUNTIME,
         ),
-        "config_fingerprint": admission.strict.fingerprint(ROOT, admission.CONFIG),
-        "policy_fingerprint": admission.strict.fingerprint(ROOT, admission.POLICY),
-        "tooling_fingerprint": admission.strict.fingerprint(ROOT, admission.TOOLING),
+        "config_fingerprint": admission.strict.fingerprint(published66_root, admission.CONFIG),
+        "policy_fingerprint": admission.strict.fingerprint(published66_root, admission.POLICY),
+        "tooling_fingerprint": admission.strict.fingerprint(published66_root, admission.TOOLING),
         "manifest_fingerprint": manifest_sha,
     }
 
 
-def test_66_full_validator_accepts_66_and_rejects_65_schema(monkeypatch, synthetic_record):
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
-    assert admission.validate(ROOT, report, admission.BASE, synthetic_record)
-    wrong = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
+def test_66_full_validator_accepts_66_and_rejects_65_schema(
+    monkeypatch, published66_root, synthetic_record
+):
+    report = admission.legacy.inspect_repository(published66_root, admission.BASE)
+    assert admission.validate(published66_root, report, admission.BASE, synthetic_record)
+    wrong = json.loads(admission.safe_file(published66_root, admission.MANIFEST))
     wrong["schema"] = "podvoice65.admission.v1"
     wrong_raw = json.dumps(wrong).encode()
     real_safe_file = admission.safe_file
@@ -173,7 +193,7 @@ def test_66_full_validator_accepts_66_and_rejects_65_schema(monkeypatch, synthet
     )
     monkeypatch.setattr(admission, "MANIFEST_SHA", admission.sha(wrong_raw))
     synthetic_record["manifest_fingerprint"] = admission.sha(wrong_raw)
-    assert not admission.validate(ROOT, report, admission.BASE, synthetic_record)
+    assert not admission.validate(published66_root, report, admission.BASE, synthetic_record)
 
 
 @pytest.mark.parametrize(
@@ -184,17 +204,17 @@ def test_66_full_validator_accepts_66_and_rejects_65_schema(monkeypatch, synthet
         "podvoice/gatekeeper/voicepe.py",
     ],
 )
-def test_66_rejects_actual_unreviewed_production_drift(synthetic_record, name):
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
-    assert admission.validate(ROOT, report, admission.BASE, synthetic_record)
-    path = ROOT / name
+def test_66_rejects_actual_unreviewed_production_drift(published66_root, synthetic_record, name):
+    report = admission.legacy.inspect_repository(published66_root, admission.BASE)
+    assert admission.validate(published66_root, report, admission.BASE, synthetic_record)
+    path = published66_root / name
     before = path.read_bytes()
     try:
         path.write_bytes(before + b"\n")
-        effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
+        effective = admission.legacy._visual_repository_changes(published66_root, admission.BASE)
         assert not admission.production_scope_matches(effective)
         assert not admission.change_scope_matches(effective, set(admission.REQUIRED_TESTS))
-        assert not admission.validate(ROOT, report, admission.BASE, synthetic_record)
+        assert not admission.validate(published66_root, report, admission.BASE, synthetic_record)
     finally:
         path.write_bytes(before)
 
@@ -228,35 +248,37 @@ def test_actual_ci_shell_routes_exact_published_base(tmp_path, base, profile):
 @pytest.mark.parametrize(
     "name", ["scripts/candidate_scope_admission65.py", "scripts/podview65-admission-reviewed.json"]
 )
-def test_66_cannot_rebaseline_immutable_published65(synthetic_record, name):
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
-    assert admission.validate(ROOT, report, admission.BASE, synthetic_record)
-    path = ROOT / name
+def test_66_cannot_rebaseline_immutable_published65(published66_root, synthetic_record, name):
+    report = admission.legacy.inspect_repository(published66_root, admission.BASE)
+    assert admission.validate(published66_root, report, admission.BASE, synthetic_record)
+    path = published66_root / name
     before = path.read_bytes()
     try:
         path.write_bytes(before + b"\n")
-        assert not admission.strict.pins_match(ROOT, admission.IMMUTABLE)
-        assert not admission.validate(ROOT, report, admission.BASE, synthetic_record)
+        assert not admission.strict.pins_match(published66_root, admission.IMMUTABLE)
+        assert not admission.validate(published66_root, report, admission.BASE, synthetic_record)
     finally:
         path.write_bytes(before)
 
 
 @pytest.mark.parametrize("name", sorted(admission.PRODUCTION))
-def test_66_rejects_unreviewed_bytes_inside_the_allowed_owner(synthetic_record, name):
-    report = admission.legacy.inspect_repository(ROOT, admission.BASE)
-    assert admission.validate(ROOT, report, admission.BASE, synthetic_record)
-    path = ROOT / name
+def test_66_rejects_unreviewed_bytes_inside_the_allowed_owner(
+    published66_root, synthetic_record, name
+):
+    report = admission.legacy.inspect_repository(published66_root, admission.BASE)
+    assert admission.validate(published66_root, report, admission.BASE, synthetic_record)
+    path = published66_root / name
     before = path.read_bytes()
     try:
         path.write_bytes(before + b"\n")
-        effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
+        effective = admission.legacy._visual_repository_changes(published66_root, admission.BASE)
         assert admission.production_scope_matches(effective)
-        assert not admission.validate(ROOT, report, admission.BASE, synthetic_record)
+        assert not admission.validate(published66_root, report, admission.BASE, synthetic_record)
     finally:
         path.write_bytes(before)
 
 
-def test_66_asset_membership_and_reviewed_changes():
+def test_66_asset_membership_and_reviewed_changes(published66_root):
     assert admission.ASSET_CHANGES == {
         "podvoice-transport.js",
         "speaker-output-view.js",
@@ -267,30 +289,32 @@ def test_66_asset_membership_and_reviewed_changes():
         "live-music-selection-view.js",
         "live-media-view.js",
     }
-    manifest = json.loads(admission.safe_file(ROOT, admission.MANIFEST))
-    assert admission.assets_match66(ROOT, manifest["runtime"], 143)
+    manifest = json.loads(admission.safe_file(published66_root, admission.MANIFEST))
+    assert admission.assets_match66(published66_root, manifest["runtime"], 143)
     for invalid_count in (True, 142, 144):
-        assert not admission.assets_match66(ROOT, manifest["runtime"], invalid_count)
+        assert not admission.assets_match66(published66_root, manifest["runtime"], invalid_count)
 
 
-def test_66_unreviewed_asset_cannot_be_rebaselined_by_manifest():
+def test_66_unreviewed_asset_cannot_be_rebaselined_by_manifest(published66_root):
     name = admission.STATIC + "owner-answers.js"
     manifest_name = admission.STATIC + "asset-manifest.json"
-    original = {p: admission.safe_file(ROOT, p) for p in (name, manifest_name)}
-    runtime = json.loads(admission.safe_file(ROOT, admission.MANIFEST))["runtime"]
+    original = {p: admission.safe_file(published66_root, p) for p in (name, manifest_name)}
+    runtime = json.loads(admission.safe_file(published66_root, admission.MANIFEST))["runtime"]
     try:
-        (ROOT / name).write_bytes(original[name] + b"\n")
+        (published66_root / name).write_bytes(original[name] + b"\n")
         assets = json.loads(original[manifest_name])
         for row in assets["files"]:
             if row["path"] == "owner-answers.js":
-                row["sha256"] = admission.sha(admission.safe_file(ROOT, name))
-        (ROOT / manifest_name).write_text(json.dumps(assets, indent=2) + "\n")
-        runtime.update({p: admission.sha(admission.safe_file(ROOT, p)) for p in original})
-        assert admission.asset_contract.assets_match56(ROOT, runtime, 143)
-        assert not admission.assets_match66(ROOT, runtime, 143)
+                row["sha256"] = admission.sha(admission.safe_file(published66_root, name))
+        (published66_root / manifest_name).write_text(json.dumps(assets, indent=2) + "\n")
+        runtime.update(
+            {p: admission.sha(admission.safe_file(published66_root, p)) for p in original}
+        )
+        assert admission.asset_contract.assets_match56(published66_root, runtime, 143)
+        assert not admission.assets_match66(published66_root, runtime, 143)
     finally:
         for p, data in original.items():
-            (ROOT / p).write_bytes(data)
+            (published66_root / p).write_bytes(data)
 
 
 @pytest.mark.parametrize(
@@ -301,13 +325,13 @@ def test_66_unreviewed_asset_cannot_be_rebaselined_by_manifest():
         "panel_admin: true\nprivileged: true",
     ],
 )
-def test_66_rejects_any_unreviewed_admin_ingress_configuration(replacement):
-    path = ROOT / "podvoice/config.yaml"
+def test_66_rejects_any_unreviewed_admin_ingress_configuration(published66_root, replacement):
+    path = published66_root / "podvoice/config.yaml"
     before = path.read_bytes()
     try:
         source = before.decode().replace("panel_admin: true", replacement)
         assert source != before.decode()
         path.write_text(source)
-        assert not admission.config_only(ROOT)
+        assert not admission.config_only(published66_root)
     finally:
         path.write_bytes(before)

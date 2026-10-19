@@ -37,11 +37,17 @@ CI_SHARD_REQUIRED = frozenset(
     {
         WORKFLOW,
         "scripts/dev_cycle.py",
+        "tests/unit/test_dev_cycle.py",
+    }
+)
+CI_SHARD_OPTIONAL = frozenset(
+    {
         "scripts/ci_scope.py",
         "tests/unit/test_ci_scope.py",
-        "tests/unit/test_dev_cycle.py",
         "tests/unit/test_release_contract.py",
+        # Historical admission tests can be repaired against their pinned release trees.
         "tests/unit/test_candidate_scope_admission65.py",
+        "tests/unit/test_candidate_scope_admission66.py",
     }
 )
 
@@ -87,8 +93,11 @@ def ci_control_only(paths: Sequence[str]) -> bool:
     """Recognize the bounded CI trust-tool change; keep all product checks enabled."""
     changed = set(paths)
     return any(
-        required <= changed and changed <= (required | CI_CONTROL_OPTIONAL)
-        for required in (CI_CONTROL_REQUIRED, CI_SHARD_REQUIRED)
+        required <= changed <= (required | optional)
+        for required, optional in (
+            (CI_CONTROL_REQUIRED, CI_CONTROL_OPTIONAL),
+            (CI_SHARD_REQUIRED, CI_SHARD_OPTIONAL | CI_CONTROL_OPTIONAL),
+        )
     )
 
 
