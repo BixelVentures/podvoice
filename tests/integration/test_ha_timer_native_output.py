@@ -781,3 +781,100 @@ async def test_scoped_retry_pending_ha_report_does_not_hold_real_fresh_wake(cont
         finally:
             release_report.set()
             await asyncio.wait_for(session.aclose(), 10)
+
+
+async def test_timer_admission_status_uses_same_ordered_gate_without_effects(context, monkeypatch):
+    import time
+
+    manager, bridge, client, tools, calls, _ = build()
+    session, _ = session_for(tools)
+    native = Native(context)
+    session.voicepe = native.link
+    async with client:
+        await tools.timers.refresh("kitchen")
+        before_calls = list(calls), list(native.calls)
+        assert session._timer_idle()
+        assert session._timer_admission_blocker() is None
+        assert session._panel_status(time.monotonic())["timer_admission_blocker"] is None
+        for attribute, reason in (
+            ("_active", "active_session"),
+            ("_closing", "closing"),
+            ("_muted", "muted"),
+            ("_teardown_incomplete", "teardown_incomplete"),
+            ("_device_playing", "device_playing"),
+        ):
+            setattr(session, attribute, True)
+            assert session._timer_admission_blocker() == reason
+            assert not session._timer_idle()
+            setattr(session, attribute, False)
+        session._active = session._closing = True
+        assert session._timer_admission_blocker() == "active_session"
+        session._active = session._closing = False
+        await session._teardown_lock.acquire()
+        assert session._timer_admission_blocker() == "teardown_locked"
+        assert session._timer_admission_blocker(owns_lock=True) is None
+        assert session._timer_idle(owns_lock=True)
+        session._teardown_lock.release()
+        closing = asyncio.get_running_loop().create_future()
+        session._close_task = closing
+        assert session._timer_admission_blocker() == "close_pending"
+        closing.set_result(None)
+        assert session._timer_idle()
+        session._close_task = None
+        session._playback_lease = object()
+        assert session._timer_admission_blocker() == "playback_owned"
+        session._playback_lease = None
+        native.link.supports_timer_output = False
+        assert session._timer_admission_blocker() == "output_unavailable"
+        native.link.supports_timer_output = True
+        assert session._timer_idle()
+        assert (calls, native.calls) == before_calls
+        assert bridge.snapshot("kitchen")["finished"] == [] and manager.starts == 0
+
+
+@pytest.mark.parametrize(
+    "boundary, reason",
+    [
+        ("ready", None),
+        ("unsupported", "unsupported"),
+        ("missing", "idle_nonce_missing"),
+        ("active", "stop_context_active"),
+        ("connection", "idle_nonce_stale"),
+        ("reset", "idle_nonce_stale"),
+    ],
+)
+async def test_native_timer_request_status_matches_guard_without_constructing_id(
+    context, monkeypatch, boundary, reason
+):
+    import time
+
+    _, _, client, tools, _, _ = build()
+    session, _ = session_for(tools)
+    native = Native(context)
+    session.voicepe = native.link
+    if boundary == "unsupported":
+        native.link.supports_timer_output = False
+    elif boundary == "missing":
+        native.link._timer_idle_nonce = None
+    elif boundary == "active":
+        native.link._stop_session = "e" * 32
+    elif boundary == "connection":
+        native.link._connection_generation += 1
+    elif boundary == "reset":
+        native.link._stop_reset_generation += 1
+    before = native.link._timer_idle_nonce, native.link._stop_session, list(native.calls)
+    with monkeypatch.context() as patched:
+
+        def forbidden_request(*args, **kwargs):
+            raise AssertionError("status must never construct a random output request")
+
+        patched.setattr("gatekeeper.voicepe.secrets.token_hex", forbidden_request)
+        assert native.link.timer_output_request_blocker() == reason
+        status = session._panel_status(time.monotonic())
+        assert status["timer_native_request_blocker"] == reason
+    request = native.link.timer_output_request()
+    assert (request is None) == (reason is not None)
+    if request is not None:
+        assert native.link.valid_timer_request(request)
+    assert (native.link._timer_idle_nonce, native.link._stop_session, native.calls) == before
+    await client.aclose()

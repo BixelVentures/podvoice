@@ -216,7 +216,10 @@ export class PodVoiceTransport {
   // Exactly one send. A transport failure is UNKNOWN, never permission to resend.
   try {
    const response = await this.request(this.endpoint('actions'), {method:'POST',credentials:'same-origin',cache:'no-store',signal:this.controller.signal,headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify(body)});
-   return await response.json();
+   const result=await response.json();
+   if(response.status===409&&result?.ok===false&&result.retryAllowed===false&&Object.keys(result).every(key=>['ok','error','retryAllowed'].includes(key))&&['invalid_action','control_not_paired','invalid_request','timer_unavailable','stale_action','unsupported_action','request_capacity'].includes(result.error))return {...result,requestId,outcome:'rejected'};
+   if((!response.ok&&response.status!==409)||(response.status===409&&result?.ok!==false)||result?.requestId!==requestId||typeof result.ok!=='boolean'||!['accepted','unknown','rejected'].includes(result.outcome)||result.ok!==(result.outcome==='accepted')||result.retryAllowed!==false||action==='timer.start'&&result.ok&&(typeof result.timerId!=='string'||result.timerId.length<1||result.timerId.length>200))return {ok:false,requestId,outcome:'unknown',retryAllowed:false};
+   return result;
   } catch { return {ok:false,requestId,outcome:'unknown',retryAllowed:false}; }
  }
  close(disposeCoordinator=true) {

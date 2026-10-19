@@ -557,15 +557,26 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                         last_index=last_index, quiet_base=quiet_base
                     ):
                         index = last_index
+                        loop = asyncio.get_running_loop()
+                        next_report_at = loop.time() + 0.1
                         async with asyncio.timeout(WAIT_S + 2.0):
                             while not session._live_provider_closed.is_set():
-                                await asyncio.sleep(0.1)
+                                await asyncio.sleep(max(0.0, next_report_at - loop.time()))
                                 if session._live_provider_closed.is_set():
                                     break
                                 index += 1
                                 native_sample(
                                     session, link, clock, quiet_base, index, historical=False
                                 )
+                                # Model bounded callback scheduling work. Relative
+                                # sleeps add this cost to every source tick and
+                                # falsely turn a fresh stream into stale evidence.
+                                await asyncio.sleep(0.012)
+                                next_report_at += 0.1
+                                if next_report_at <= loop.time():
+                                    # A genuinely late report remains late; never
+                                    # backfill missing source intervals in a burst.
+                                    next_report_at = loop.time() + 0.1
 
                     # Only historical fixture intervals were skipped. During
                     # the unchanged real two-second preclose, fresh simulated

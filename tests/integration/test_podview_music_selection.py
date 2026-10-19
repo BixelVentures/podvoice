@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music import Rig
@@ -605,3 +606,66 @@ async def test_voice_answer_task_survives_only_original_receipt_on_later_turn(ri
     expired = await rig.router.dispatch("podview_music_options", {}, execution_context=later_turn)
     assert not expired["ok"]
     assert bridge.controls.music.execute_track.await_count == 0
+
+
+@pytest.mark.parametrize("case", ["exact", "generic", "extra", "unknown", "malformed", "stale"])
+async def test_real_controls_get_facade_and_route_preserve_only_current_account_claim(rig, case):
+    bridge, facade = rig.app[BRIDGE], rig.app[BRIDGE].controls.music
+    refusal = {
+        "ok": False,
+        "error_kind": "native_account_claim_required",
+        "retry_allowed": False,
+        "physical_result_verified": False,
+    }
+    if case == "generic":
+        refusal["error_kind"] = "native_start_unavailable"
+    if case == "extra":
+        refusal["private"] = "SECRET"
+    if case == "unknown":
+        refusal["error_kind"] = "outcome_unknown"
+    if case == "malformed":
+        refusal["ok"] = 0
+    original = rig.request
+    seen = []
+
+    async def request(req):
+        if req.url.path.endswith("/get_room_content_controls"):
+            assert req.method == "POST" and dict(req.url.params) == {"return_response": ""}
+            seen.append(req.url.path)
+            if case == "stale":
+                bridge._grants.clear()
+            return httpx.Response(200, json={"service_response": refusal})
+        return await original(req)
+
+    del facade.setup_track
+    async with httpx.AsyncClient(transport=httpx.MockTransport(request)) as backend:
+        rig.router._client = backend
+        async with TestClient(TestServer(rig.app)) as client:
+            headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+            source = await (
+                await client.get(
+                    "/view/api/music?kind=search&account=account-alpha&query=jazz", headers=headers
+                )
+            ).json()
+            response = await client.post(
+                "/view/api/music/selection/setup",
+                headers=headers,
+                json={
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "candidateSetId": source["candidateSet"]["candidateSetId"],
+                    "target": {
+                        "accountId": "account-alpha",
+                        "kind": "spotify_device",
+                        "targetId": "device-one",
+                    },
+                },
+            )
+            result = await response.json()
+    assert len(seen) == 1
+    assert result["ok"] is False and result["retryAllowed"] is False
+    assert result["error"] == (
+        "native_account_claim_required" if case == "exact" else "music_selection_unavailable"
+    )
+    assert "SECRET" not in str(result)
+    assert not facade.execute_track.await_count

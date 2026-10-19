@@ -2313,15 +2313,23 @@ class VoicePELink:
         self._timer_idle_nonce = None
         waiter.set_result(True)
 
-    def timer_output_request(self) -> str | None:
+    def timer_output_request_blocker(self) -> str | None:
         identity = self._timer_idle_nonce
-        if (
-            not self.supports_timer_output
-            or identity is None
-            or self._stop_session is not None
-            or identity[:2] != (self._connection_generation, self._stop_reset_generation)
-        ):
+        if not self.supports_timer_output:
+            return "unsupported"
+        if identity is None:
+            return "idle_nonce_missing"
+        if self._stop_session is not None:
+            return "stop_context_active"
+        if identity[:2] != (self._connection_generation, self._stop_reset_generation):
+            return "idle_nonce_stale"
+        return None
+
+    def timer_output_request(self) -> str | None:
+        if self.timer_output_request_blocker() is not None:
             return None
+        identity = self._timer_idle_nonce
+        assert identity is not None  # The synchronous guard above owns this read.
         return identity[2] + secrets.token_hex(16)
 
     @staticmethod

@@ -38,6 +38,35 @@ klassifikationen findes i [dokumentationsindekset](docs/README.md).
 9. Bevar én branch/PR; push er ikke release eller installation.
 10. Saml fysisk afprøvning i én kort serie; rapportér fysisk accept adskilt fra CI og kode.
 
+## Issueejerskab og faktisk levering
+
+- Hvert aktivt issue har én ansvarlig agent, et konkret brugerresultat
+  (`udløsende handling → forventet udfald`) og én næste handling i den eksisterende
+  STATUS-post. Lead ejer integration og levering; brugeren skal ikke koordinere agenter.
+- Issueejeren følger årsag → mindste rettelse → kausal regression af hele det berørte
+  softwareflow. En audit, patch, PR eller grøn komponenttest afslutter ikke opgaven.
+  Dokumenteres ingen kodefejl, angives den præcise resterende usikkerhed uden spekulativ patch.
+- Parallelisér uafhængige issues med tydeligt filejerskab og genbrug eksisterende
+  agenter. PodView ejer UI; PodVoice ejer stemme/Voice PE og koordinerer fælles
+  kontrakter og samlet installation uden parallel UI-implementation.
+- Før fysisk slutprøve skal kendte softwarefejl være rettet, og de relevante
+  automatiserbare brugerforløb have kontrollerede forventede udfald på samme kandidat.
+  Fysisk accept dækker de resterende mikrofon-, lyd-, synlige LED- og enhedsforhold;
+  den erstatter ikke manglende softwarearbejde. Udfald, som ikke kan automatiseres,
+  angives konkret; ingen opdigtet sikkerhedsprocent.
+- Én navngiven releaseejer fører autoriseret levering gennem merge → publicering →
+  installation på Green → versionsaflæsning og relevante live softwareforløb.
+  Push, review eller opstart alene er ikke slutleverance. Brug eksisterende
+  godkendelser inden for deres omfang; spørg kun ved en ny nødvendig grænse.
+- Genbrug uændrede beståede checks og reviews. Hver ny prøve eller gentagen
+  undersøgelse skal afgøre et konkret uløst spørgsmål; byg ikke nye test-, status-
+  eller koordinationssystemer som erstatning for rettelsen. Gentagne blokeringer
+  kræver en ændret kausal handling eller et præcist handoff, ikke samme loop.
+- Registrér pr. issue kode, verificeret softwareflow, publicering, installation og
+  fysisk accept særskilt. Fejlet eller ukendt forbliver åbent med ejer og næste
+  handling. Luk først issuet mod dets faktiske acceptkrav; testantal og estimater
+  er ikke bevis for funktion. Eksisterende sikkerheds- og reviewkrav bevares.
+
 ## Agentvalg
 
 Brug hurtigste tilstrækkeligt kompetente model. Afgrænsede docs-, status-, GitHub- og

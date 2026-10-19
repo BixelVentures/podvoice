@@ -4,20 +4,20 @@ const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>va
 // One animation owner per element. Read its visible position before cancelling;
 // retarget from there, never combine old transforms with a new layout measurement.
 export class SceneMotion {
- constructor(host){this.host=host;this.animations=new Map();this.scroll=new Map();}
- get reduced(){return this.host.dataset.motion==='reduced'||matchMedia('(prefers-reduced-motion: reduce)').matches;}
- cancel(){for(const animation of this.animations.values())animation.cancel();this.animations.clear();}
+ constructor(host){this.host=host;this.animations=new Map();this.scroll=new Map();this.media=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');this.onPreference=()=>{if(this.reduced)this.cancel();};this.listening=false;}
+ get reduced(){return this.host.dataset.motion==='reduced'||this.media?.matches===true;}
+ cancel(){for(const animation of this.animations.values())animation.cancel();this.animations.clear();if(this.listening){this.media.removeEventListener('change',this.onPreference);this.listening=false;}}
  animate(node,frames,duration=220){
-  this.animations.get(node)?.cancel();this.animations.delete(node);if(this.reduced||!node?.getClientRects().length)return;
-  const animation=node.animate(frames,{duration,easing:'cubic-bezier(.22,1,.36,1)'});this.animations.set(node,animation);
-  animation.finished.catch(()=>{}).finally(()=>{if(this.animations.get(node)===animation)this.animations.delete(node);});
+  this.animations.get(node)?.cancel();this.animations.delete(node);if(this.reduced||!node?.getClientRects().length){if(!this.animations.size)this.cancel();return;}
+  const animation=node.animate(frames,{duration,easing:'cubic-bezier(.22,1,.36,1)'});this.animations.set(node,animation);if(!this.listening&&this.media?.addEventListener){this.media.addEventListener('change',this.onPreference);this.listening=true;}
+  animation.finished.catch(()=>{}).finally(()=>{if(this.animations.get(node)===animation)this.animations.delete(node);if(!this.animations.size)this.cancel();});
  }
  resources(){
   const nodes=[...this.host.querySelectorAll('.resource-preview,.timer-panel')].filter(n=>n.getClientRects().length),boxes=new Map(nodes.map(n=>[n,n.getBoundingClientRect()]));
   boxes.layouts=new Map(nodes.map(node=>[node,resourceLayout(node)]));return boxes;
  }
  settleResources(before,viewChanged=false){
-  if(viewChanged||this.reduced){for(const node of before.keys()){this.animations.get(node)?.cancel();this.animations.delete(node);}return;}
+  if(viewChanged||this.reduced){for(const node of before.keys()){this.animations.get(node)?.cancel();this.animations.delete(node);}if(!this.animations.size)this.cancel();return;}
   for(const node of this.host.querySelectorAll('.resource-preview,.timer-panel')){
    if(!node.getClientRects().length)continue;const a=before.get(node),active=this.animations.get(node);
    if(sameLayout(before.layouts?.get(node),resourceLayout(node)))continue;
@@ -26,6 +26,7 @@ export class SceneMotion {
    const dx=a.x-b.x,dy=a.y-b.y;
    if(Math.abs(dx)+Math.abs(dy)>.5)this.animate(node,[{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],240);
   }
+  if(!this.animations.size)this.cancel();
  }
  capture(focus){
   const feed=this.host.querySelector('.responses'),player=this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])');this.scroll.set(focus,feed.scrollTop);

@@ -2178,7 +2178,7 @@
         },
         "definitions": {
           "arrow:$": 1,
-          "arrow:current": 1,
+          "arrow:current": 2,
           "arrow:outside": 1,
           "arrow:px": 1,
           "arrow:result": 1,
@@ -2211,6 +2211,8 @@
           "method:scheduleReceipt": 1,
           "method:scheduleTick": 1,
           "method:sendLiveTimer": 1,
+          "method:suspendLiveTimer": 1,
+          "method:reconcileLiveTimer": 1,
           "method:showFeedback": 1
         },
         "roots": [

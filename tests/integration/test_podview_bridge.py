@@ -27,7 +27,9 @@ def owner():
             }
         },
         bindings={"kitchen": ("voice_pe", "device-a")},
-        command=AsyncMock(return_value={"ok": True, "secret": "never forward"}),
+        command=AsyncMock(
+            return_value={"ok": True, "id": "created-timer", "secret": "never forward"}
+        ),
     )
 
     async def dispatch(name, args, room, session_id, request_id, execution_guard=None):
@@ -117,6 +119,7 @@ async def test_exact_pairing_revision_and_duplicate_requests_run_at_most_once():
     assert (await bridge.action(body, "wrong"))["error"] == "control_not_paired"
     first, duplicate = await asyncio.gather(bridge.action(body, token), bridge.action(body, token))
     assert first == duplicate and first["outcome"] == "accepted"
+    assert first["timerId"] == "created-timer"
     assert timers.command.await_count == 1 and not first["physicalResultVerified"]
     assert (await bridge.action({**body, "args": {"seconds": 600}}, token))[
         "error"
@@ -961,3 +964,71 @@ async def test_real_home_route_held_read_cannot_attach_revoked_ai_brief():
         result = await (await pending).json()
         assert result["weather"] == weather
         assert "aiAdvice" not in result["weather"]["data"]
+
+
+@pytest.mark.parametrize("timer_id", [None, "", "x" * 201, 17, [], {}])
+async def test_started_timer_without_bounded_native_id_stays_unknown_and_not_replayed(timer_id):
+    session, timers = owner()
+    timers.command.return_value = {"ok": True, "id": timer_id, "secret": "never forward"}
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+    result = await bridge.action(body, token)
+    assert result["ok"] is False and result["outcome"] == "unknown"
+    assert result["retryAllowed"] is False and result["physicalResultVerified"] is False
+    assert "timerId" not in result and "secret" not in result
+    assert await bridge.action(body, token) == result
+    assert timers.command.await_count == 1
+
+
+@pytest.mark.parametrize("boundary", ["owner", "binding", "epoch", "grant"])
+@pytest.mark.parametrize("action", ["timer.start", "timer.cancel"])
+async def test_timer_receipt_cannot_accept_post_dispatch_authority_change(boundary, action):
+    session, timers = owner()
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+    if action == "timer.cancel":
+        body.update(action=action, args={"timer_id": "t1"})
+
+    async def changed(*args, **kwargs):
+        if boundary == "owner":
+            session.tools.timers = SimpleNamespace()
+        elif boundary == "binding":
+            timers.bindings["kitchen"] = ("voice_pe", "replacement")
+        elif boundary == "epoch":
+            timers.snapshots["kitchen"]["epoch"] = "b" * 32
+        else:
+            bridge.revoke("kitchen")
+        return {"ok": True, "id": "created-timer"}
+
+    timers.command.side_effect = changed
+    result = await bridge.action(body, token)
+    assert result["ok"] is False and result["outcome"] == "unknown"
+    assert result["retryAllowed"] is False and "timerId" not in result
+    assert timers.command.await_count == 1
+
+
+async def test_start_receipt_names_only_new_ha_timer_with_existing_snapshot_row():
+    from integration.test_ha_timer_flow import build
+
+    _, native, client, tools, calls, _ = build()
+    old = native.command(
+        endpoint="kitchen", epoch=native.epoch, request_id="old", action="start", seconds=60
+    )
+    async with client:
+        await tools.timers.refresh("kitchen")
+        session, _ = owner()
+        session.tools = tools
+        bridge = PodViewBridge({"kitchen": session})
+        token = bridge.grant_timer_control("kitchen")
+        body = envelope(bridge)
+        body["taskId"] = "timers:" + native.epoch
+        result = await bridge.action(body, token)
+        assert result["ok"] and result["outcome"] == "accepted"
+        native_ids = {row["id"] for row in native.snapshot("kitchen")["timers"]}
+        assert result["timerId"] in native_ids - {old["id"]}
+        assert bridge.snapshot("kitchen")["timers"]["items"][0]["id"] == old["id"]
+        assert result["physicalResultVerified"] is False
+        assert await bridge.action(body, token) == result
+        assert [row["action"] for row in calls if "action" in row] == ["start"]

@@ -9,6 +9,10 @@ Disse krav gælder ved de risikofyldte opgavetyper, der er angivet i
 [AGENTS.md](../AGENTS.md). Læs kun de sektioner, som matcher arbejdet; de fire
 produktdokumenter er autoritative for runtime-retning og gates.
 
+Issueejerskab, forventet brugerresultat og ansvar gennem installation følger
+[AGENTS.md: Issueejerskab og faktisk levering](../AGENTS.md#issueejerskab-og-faktisk-levering).
+Denne fil tilføjer risikokontrol; den er ikke en alternativ afslutningsdefinition.
+
 Før freeze skal ændrede signaturer, callbacks og admission-grænser spores gennem
 alle berørte kaldesteder, wrappers og testfixtures. Ret disse i samme ændringssæt,
 så en forældet fixture ikke først opdages efter en lang samlet gate.

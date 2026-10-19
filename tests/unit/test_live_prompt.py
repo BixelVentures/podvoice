@@ -346,3 +346,23 @@ def test_live_end_acceptance_is_not_a_completed_physical_close():
         LIVE_END_CONVERSATION_DECLARATION["parameters"]
         == END_CONVERSATION_DECLARATION["parameters"]
     )
+
+
+def test_backend_shares_result_style_without_claiming_voice_or_overriding_requested_format():
+    custom = "Giv altid en modtagelsesreplik og en lang forklaring."
+    primary, backend = live_instructions(custom)
+    style = backend.split("# SVARSTIL\n", 1)[1].split("\n\n#", 1)[0]
+    assert "på naturligt dansk" in style
+    assert "Bevar egennavne" in style and "officielle enhedsnavne" in style
+    assert "resultatet først" in style and "Én kort sætning er standard" in style
+    assert "højst to" in style
+    assert "Never backchannel." in style
+    assert "brugerens udtrykkelige svarformat og omfang" in style
+    assert "udvider ikke opgaven" in style
+    assert "Tal uden markdown" not in style  # Optional presentation JSON remains permitted.
+    assert "Udtal tal" not in style  # Live retains acoustic rendering ownership.
+    assert custom in backend
+    binding = backend.split("# BINDENDE LIVE-EJERSKAB\n", 1)[1]
+    assert "fælles svarstil" in binding
+    assert "sikkerhed, kilde- og resultatkrav" in binding
+    assert "Never backchannel." in primary

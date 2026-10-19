@@ -1016,6 +1016,8 @@ async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
             await observed_preclose(session, sdk, link, clock)
+            close_trace = Mock(wraps=session._trace_event)
+            patch.setattr(session, "_trace_event", close_trace)
             original = session._live_preclose_quiet_current
             crossed = False
 
@@ -1039,8 +1041,17 @@ async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(
             assert crossed
             assert session._live_idle_preclose_task is None
             if cancel_error:
-                await until(lambda: session._transport_closing)
-                assert session._trace_reason == "live-idle-closing-cancel-failed"
+                await until(
+                    lambda: any(
+                        call.args == ("close_requested",) for call in close_trace.call_args_list
+                    )
+                )
+                close_events = [
+                    call for call in close_trace.call_args_list if call.args == ("close_requested",)
+                ]
+                assert len(close_events) == 1
+                assert close_events[0].kwargs["reason"] == "live-idle-closing-cancel-failed"
+                assert session._transport_closing
                 assert not any(call.args == (State.AI_SPEAKING,) for call in paint.call_args_list)
                 assert not any(call.args[0] == "LISTENING" for call in hub_state.call_args_list)
             else:

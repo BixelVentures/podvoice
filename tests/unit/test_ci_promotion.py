@@ -27,11 +27,11 @@ BASE_WORKFLOW = """name: CI
 jobs:
   scope:
     steps:
-      - name: Exact candidate admission (historical31/32, strict34-42)
+      - name: Exact candidate admission (historical31/32, strict34-66)
         run: |
           candidate_base="${CI_DIFF_BASE:-fallback}"
           if [ "$candidate_base" = "1111111111111111111111111111111111111111" ]; then
-            python3 scripts/candidate_scope_admission42.py --base "$candidate_base"
+            python3 scripts/candidate_scope_admission66.py --base "$candidate_base"
           else
             python3 scripts/candidate_scope_admission32.py --base "$candidate_base"
           fi
@@ -42,16 +42,16 @@ jobs:
 
 def _candidate_workflow_with_next_route() -> str:
     return BASE_WORKFLOW.replace(
-        "Exact candidate admission (historical31/32, strict34-42)",
-        "Exact candidate admission (historical31/32, strict34-43)",
+        "Exact candidate admission (historical31/32, strict34-66)",
+        "Exact candidate admission (historical31/32, strict34-67)",
     ).replace(
         """          if [ "$candidate_base" = "1111111111111111111111111111111111111111" ]; then
-            python3 scripts/candidate_scope_admission42.py --base "$candidate_base"
+            python3 scripts/candidate_scope_admission66.py --base "$candidate_base"
 """,
         """          if [ "$candidate_base" = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ]; then
-            python3 scripts/candidate_scope_admission43.py --base "$candidate_base"
+            python3 scripts/candidate_scope_admission67.py --base "$candidate_base"
           elif [ "$candidate_base" = "1111111111111111111111111111111111111111" ]; then
-            python3 scripts/candidate_scope_admission42.py --base "$candidate_base"
+            python3 scripts/candidate_scope_admission66.py --base "$candidate_base"
 """,
     )
 
@@ -70,9 +70,9 @@ def _evidence(
 ) -> dict:
     candidate_workflow = _candidate_workflow_with_next_route() if workflow_change else BASE_WORKFLOW
     admission_step = (
-        "Exact candidate admission (historical31/32, strict34-43)"
+        "Exact candidate admission (historical31/32, strict34-67)"
         if workflow_change
-        else "Exact candidate admission (historical31/32, strict34-42)"
+        else "Exact candidate admission (historical31/32, strict34-66)"
     )
     required = {
         "scope": (admission_step,),
@@ -181,7 +181,7 @@ def test_exact_admission_route_workflow_update_can_reuse() -> None:
     assert not _decide(unrelated_gate_edit)
     pending_label = deepcopy(evidence)
     pending_label["candidate_workflow"] = evidence["candidate_workflow"].replace(
-        "strict34-43)", "strict34-43, pending44)"
+        "strict34-67)", "strict34-67, pending68)"
     )
     assert not _decide(pending_label)
 

@@ -1,3 +1,24 @@
+<!-- podview67-admission
+{
+  "version": 44,
+  "kind": "podview67_timer_identity_account_refusal_ui",
+  "reviewer": "/root/led_review_current",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "f12537026e6ceb199932c5aa05d977e43a47920e",
+  "merge_base": "f12537026e6ceb199932c5aa05d977e43a47920e",
+  "rationale": "Independent whole-source adoption GO from /root/led_review_current, receipt SHA256 927fb44380430159f92eb5024452620f75be3cd891417e2eaedb97cdeaac9309, reviewed candidate source tree cdfe29766dd8b6be9ffc306ce9686e43207b1adf. This binding pins the exact backend, UI, test and 143-asset inventory; runtime bytes remain those reviewed. Official CI, publication, installation and provider/native physical acceptance remain open. The observed native playback crash and second-alarm Stop failure remain unresolved; UNKNOWN timer Start stays fenced until exact same-scope observation, with no replay.",
+  "fingerprint": "220ebf0c99fc1980849a9fb376b4a94f5d83ba983182bc9f9076873189d92845",
+  "regression_fingerprint": "087006656e70f2d7481dfeb46f74becb62d24ad8491dae50a6c22b38c97ff127",
+  "runtime_fingerprint": "a01234b2b933f36c326704598e5410ec48de952ddaa7026933b31fb217b2603e",
+  "config_fingerprint": "8c54e8d303c02a80dadee57beb5c3692f8ef2a0d93b185343e160ba7eea23034",
+  "policy_fingerprint": "9c73d7bb43faf5f43ba7a923424615c13237c46bb9b74d7e0ac5b5b17176024d",
+  "tooling_fingerprint": "c7fc5fa9a644e2751eeef1371f0f49d492be507c0a1d8103d64ff9b902fe6874",
+  "manifest_fingerprint": "8f3595cc43c2e52a63fa93128fc4c0249d6928902d2f061831906234d50a3303"
+}
+-->
+
 <!-- podview66-admission
 {
   "version": 43,
@@ -18,6 +39,63 @@
   "manifest_fingerprint": "20deac962931fdd747dc1abbcae7e54d2abf069e7da7c8bcf6745d1936607e2b"
 }
 -->
+
+## Active67 decision and actual Green delivery — 19 October2026
+
+### Aktivt issueejerskab og næste konkrete udfald
+
+| Issue/leverance | Ansvarlig | Brugerresultat og næste handling |
+|---|---|---|
+| PV #110 timer | /root, med /root/alarm_led_contract | Frisk timer → alarm → Stop → rearm → næste timer. Installér67, læs de to admission-blockers før én kontrolleret prøve; den anden66-alarm er fortsat fejlet/uforklaret. |
+| PV #215/#101, #153 svar | /root/native_pause_receipt | Spørgsmål giver meningsfuldt svar uden generisk fyldtale. Afgræns konkret fejlvej mod eksisterende spor og regressioner; ét vellykket Talk-svar beviser ikke generel løsning. |
+| PV #103/#124 afslutning/LED/wake | /root | Bevar fuld duplex og igangværende tale; afslut → korrekt LED-kommando → rearm → næste wake. Verificér den samlede installerede kandidats softwarekæde; synlig LED og akustik står til slutaccept. |
+| PC #56 musikstart | /root | Vælg musik → native afspilning uden crash. Indhent fatal header fra det observerede19.01-crash før kausal rettelse; UNKNOWN-Start gentages ikke. |
+| PV67 UI-fixtures | PodView-chatten | Ret de seks konkrete CI-fixturefejl i fem eksisterende filer mod uændret produktionskode; ingen ny UI-implementation i PodVoice. |
+| Samlet PV67 levering | /root; /root/public64_readback publicering; /root/led_finish_patch CI | Samme PR224 → krævede checks → merge → image/release → Green-installation → faktisk versions- og softwareflowkontrol. Ingen slutleverance påstået endnu. |
+
+Agentkontraktens leveringskrav er opdateret i AGENTS.md med henvisninger fra CLAUDE.md
+og AGENTKONTRAKT.md. Dette er arbejdsregler, ikke bevis for løste produktfejl.
+
+**Faktisk første PR224-CI.** Run39296786167 på head166ac360 bestod exact admission,
+alle otte unit-shards (5589 PASS, én skip), begge rest-shards (2081 PASS, én skip),
+aggregater, HA og build. UI-jobbet fejlede med seks fixture-/kontraktmismatches i fem
+allerede eksisterende testfiler; browsertrinnet blev ikke kørt. Fejlen er bevaret, ikke
+omfortolket til PASS. Lead udarbejder kun den afgrænsede release-fixturekorrektion i
+isoleret draft; PodView ejer fortsat UI-produktionskoden. Ingen produktionsrettelse
+udledes af denne CI-fejl. Samme PR bruges til den nødvendige korrigerede kandidat.
+
+**Faktisk PR224-successor CI.** Head d61194c3 bestod alle andre krævede kontroller,
+herunder det reelle UI-browserjob og build; én native10-cyklusfixture fejlede i cyklus10,
+mens den ventede på providerlukning. Den bevarede fixture havde relativ søvn på100 ms
+efter hver callback. Med den reproducerede12 ms callback-omkostning lagde den behandlingstid
+oven i hver kildeperiode og drev rapporteringen forbi native idle-vinduet. Kausal fixture-
+rettelse bruger absolut monoton cadence uden catch-up bursts; samme politik accepterer fortsat
+friske intervaller og afviser et reelt hul over200 ms. Den permanente red→green-regression
+består ti cyklusser med forsinkelsen, og produktionsbytes, bounds og timeouts er uændrede.
+Kun dette ugyldiggjorte fixturetrin er korrigeret; ingen ny fuld manuel CI eller produktfix.
+
+
+Lead: /root. This entry supersedes candidate/install wording in the dated notes below; those notes and historical admission records remain preserved. Green runs PodVoice2.0.66 commit`de46852d3d5d409bd94f14392c09b51b1280a2b1`, stored marker`3bf0cd7177920be7f7c7250628745eb1120fcfce3da3ab0ee613545551b5759e`, Speakers0.26.33 and now-active Control0.10.19. One HA Core restart loaded the new service fields. Runtime/readback and independent public-image identity are separate evidence; the stored marker is not a fresh whole-filesystem measurement. Existing policies/settings are preserved; no new grant or robot movement is claimed.
+
+**Actual66 outcomes.** One normal typed Talk probe with microphone OFF returned exactly “København.”; explicit closure then accepted end_conversation, spoke “Jeg runder af her.” and showed the system closed message. This is one provider/UI flow pass, not proof of every answer, provider input mode or native acoustic lifecycle. The failed65 receipt/long municipality answer remains failed; its cause is unresolved. The installed systemprompt is byteidentical to the canonical default, so a stale custom prompt/reset is not the explanation.
+
+The first native10s timer reported playback_started1792426612.272 → natural20s cue drain1792426632.555 → rearm1792426632.887 → LED-off command; one normal Færdig removed it. Green/off are source commands, not optical proof; no actual audible alarm or physical Stop is inferred. The second timer was never claimed before manual cancel; one normal UI Stop stayed pending/disabled for minutes. Its actual failure boundary remains unknown. The existing natural-drain→Færdig→second-expiry fixture passes unchanged runtime and does not explain away that failure.
+
+Follow-up source review found no idle-nonce TTL; 185 seconds alone does not establish a missing claim, and the ownership audit found no concrete persistent dirty-state defect.
+
+**Exact HA timer identity receipt (source-only).** A completed successful `timer.start` now returns its bounded native ID only while the original owner, grant, binding and HA epoch remain current after dispatch. Missing/invalid IDs or changed authority yield an idempotently cached unknown result without retry. The regression verifies that the returned ID identifies the newly created native timer while an older row remains in the snapshot. This grants no countdown, playback, LED or physical-stop authority; the UI consumer and combined candidate review remain pending.
+
+**Native account-claim refusal boundary (source-only).** PodView now preserves only the exact closed `native_account_claim_required` refusal from the existing content-controls GET through the facade and current selection route. Generic, stale, malformed or extra-field responses retain the unavailable path; no retry, fallback or playback is added. Installed Control0.10.19 does not emit this successor shape, and the UI/real installation behavior remains unverified.
+
+**Music cause boundary.** Initially stored Web identity equalled a fresh Web read while native identity differed. One normal Spotify Mac Connect selection of Køkkenalrum succeeded with a fresh HA playing observation; repeating the same identity reads then gave all_equal and content controls ready. This resolves that attempt's identity mismatch through the normal claim, without an invented identity crosswalk. Subsequently one normal PodView Rolig Aften Play at19:01:32 crashed native go-librespot (exit2), which autorespawned at19:01:34; the dispatched outcome is UNKNOWN and was not replayed. Actual audible playback and the crash cause remain unproved. The earlier raw-target-length/bootstrap hypothesis was refuted because scope_targets filters before UI; top-level cross_origin_denied is expected navigation denial, not evidence of the UI failure.
+
+**Single67 scope and hypothesis.** One unpublished successor combines the reviewed short backend result-style consistency rules, bounded status-only timer admission blockers and the fixture-only close_requested observation-race repair. The backend style does not establish a causal fix for153; current user format/extent, tool truth and primary acoustic ownership remain authoritative. Timer status exposes the existing admission reason without changing admission, guard, playback or LED behavior. The canonical PodView UI packet is now composed with the reviewed timer-ID and account-refusal backend changes; its mapped focused source suites pass 155/155. The conservative UNKNOWN Start fence remains until an exact same-scope timer observation resolves the intent; a same-name row is not guessed and no replay is made. Official CI, publication, installation and physical acceptance remain open. The observed native playback crash and second-alarm Stop failure also remain unresolved. No standalone release per increment.
+
+Affected chain: actual input → current primary/backend instructions and tool acceptance → observed response/output → exact native timer/music owner → physical drain/Stop → one teardown/rearm → truthful UI/readiness. Preserve exact room/profile/task/source/generation/deadline fences, terminal UNKNOWN/no replay, HA countdown ownership, full-duplex native input and one playback/lifecycle owner. Non-goals: phrase/PCM filtering, local semantic decisions, identity guessing, new credentials/capture/grants, robot motion, timeout/gain/LED-colour tuning, or speculative patches for the unresolved native crash/second timer.
+
+Focused evidence is retained, not rerun wholesale: initial prompt19PASS plus only the revised style-contract1PASS, unchanged-primary parity and static/type checks; timer admission7 focused cases and native/Talk neighbours; exact close_requested fixture repair with production bytes unchanged. Independent source receipts: `/private/tmp/pv67-backend-style-draft-20261019/independent-backend-style-review.json`, `/private/tmp/pv67-timer-admission-20261019/independent-timer-admission-review.json`, `/private/tmp/pv223-fixture-race-20261019/independent-fixture-race-review.json`. Combined final scope/review, relevant official CI, publication and installation remain pending. SafeEval/provider comparison applies to changed prompt semantics; no improvement is inferred from string tests.
+
+CI223 merged as`f1253702`; the same rest suite's measured212s versus324s is34.5% faster. Automatic main then exposed the historical66 fixture race, so the required gate blocked its publisher. This is development-cycle evidence, not product latency or a green67 release. Installed66 and its immutable image remain unchanged. Rollback is the published66 combination and preserved matching settings/backup; it carries no inherited physical acceptance. Source delivery, provider outcomes, installation and final microphone/audio/LED/device acceptance stay separate; all33 open PodVoice issues/three epics remain unclosed by this entry.
 
 ## Current consolidated66 candidate — 19 October2026
 

@@ -1,0 +1,44 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {deviceLabel} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const suspendCode=source.slice(source.indexOf(' suspendLiveTimer(){'),source.indexOf('\n reconcileLiveTimer('));
+const suspendLiveTimer=new Function(`return ({${suspendCode}}).suspendLiveTimer`)();
+const start=Math.min(source.indexOf(' for(const [id,node] of this.deviceNodes)'),source.indexOf(" const activities=$('device-activities')")),end=source.indexOf(' for(const[id,node]of this.answerNodes)',start);
+const render=new Function('s','$','document','createResourceTile','updateResourceTile','deviceLabel','deviceActions',source.slice(start,end));
+const load=new Function('applyHome','validateHome','return async function(){'+source.split(' async loadLiveHome(){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'')+'}')(applyHome,validateHome);
+function element(){return {children:[],dataset:{},parent:null,remove(){if(this.parent)this.parent.children=this.parent.children.filter(x=>x!==this);this.parent=null;},append(n){n.remove();this.children.push(n);n.parent=this;},insertBefore(n,ref){n.remove();const i=this.children.indexOf(ref);this.children.splice(i<0?this.children.length:i,0,n);n.parent=this;},setAttribute(k,v){(this.attrs??=new Map()).set(k,v);},getAttribute(k){return this.attrs?.get(k)??null;}};}
+test('actual device render retains empty row/widget through pending and home-error, then hands off and revokes',async()=>{
+ const els=new Map(),$=id=>{if(!els.has(id))els.set(id,element());return els.get(id);};const h={live:true,isConnected:true,liveHomeGeneration:0,liveSnapshot:{bootId:'b',roomId:'kitchen',capabilities:{homeRead:['vacuum']}},state:{devices:[{id:'light',kind:'light',status:'unavailable',timeline:[]}],focus:'now'},deviceNodes:new Map(),deviceRows:new Map(),dispatch(){throw Error('unexpected action')},focusHeading(){},liveTransport:{connected:true,home:async()=>{throw Error('synthetic read failure');}}};
+ h.render=()=>render.call(h,h.state,$,{createElement:element},()=>element(),(row,r)=>{row.dataset.target=r.target;},()=>'',()=>[]);h.render();const node=h.deviceNodes.get('podview-vacuum-empty'),row=h.deviceRows.get('podview-vacuum-empty'),light=h.deviceRows.get('light');assert.ok(node&&row);assert.equal(row.disabled,true);assert.equal(row.dataset.target,undefined);assert.equal(h.state.devices.length,1);
+ for(let i=0;i<3;i++){h.render();assert.equal(h.deviceNodes.get('podview-vacuum-empty'),node);assert.equal(h.deviceRows.get('podview-vacuum-empty'),row);}
+ await load.call(h);assert.equal(h.deviceNodes.get('podview-vacuum-empty'),node);assert.equal(h.deviceRows.get('podview-vacuum-empty'),row);assert.equal(h.liveHomePending,false);
+ h.liveTransport.home=async()=>({schema:'podview.home.v1',bootId:'b',roomId:'kitchen',revision:1,observedAt:1,vacuum:{status:'observed',items:[{entityId:'vacuum.synthetic',state:'docked',observedAt:1,source:'home_assistant_state'}]}});await load.call(h);assert.equal(h.deviceRows.has('podview-vacuum-empty'),false);assert.equal(h.deviceNodes.has('podview-vacuum-empty'),false);assert.ok(h.deviceRows.has('vacuum.synthetic'));assert.equal(h.deviceRows.get('light'),light);
+ h.state.devices=h.state.devices.filter(d=>d.kind!=='vacuum');h.render();assert.ok(h.deviceRows.has('podview-vacuum-empty'));h.liveSnapshot.capabilities.homeRead=[];h.render();assert.equal(h.deviceRows.has('podview-vacuum-empty'),false);assert.equal(h.deviceNodes.has('podview-vacuum-empty'),false);assert.equal(h.deviceRows.get('light'),light);
+});
+
+function homeHost(){const robot={id:'vacuum.private',kind:'vacuum',source:'home_assistant_state',live:true,battery:80},light={id:'light',kind:'light',status:'unavailable'};return {liveHomeGeneration:0,isConnected:true,liveSnapshot:{bootId:'b',roomId:'kitchen',capabilities:{homeRead:['vacuum','weather']}},state:{focus:robot.id,homeScope:'private',homeRevision:4,devices:[light,robot],liveWeather:{temperature:20}},renders:0,render(){this.renders++;},liveTransport:{connected:true},light,robot};}
+test('actual home read denial clears private weather/robot; transient or malformed read retains stale content',async()=>{
+ for(const code of ['read_access_denied','read_transient',undefined]){const h=homeHost();h.liveTransport.home=async()=>{throw Object.assign(new Error('home_unavailable'),{code});};await load.call(h);assert.equal(h.renders,1);assert.equal(h.liveHomePending,false);assert.equal(h.state.devices[0],h.light);if(code==='read_access_denied'){assert.equal(h.state.liveWeather,null);assert.deepEqual(h.state.devices,[h.light]);assert.equal(h.state.focus,'now');assert.equal(h.state.homeScope,null);}else{assert.equal(h.state.liveWeather.temperature,20);assert.equal(h.state.liveWeather.stale,true);assert.equal(h.state.devices[1].battery,80);assert.equal(h.state.devices[1].stale,true);assert.equal(h.state.focus,h.robot.id);}}
+});
+test('late old transport, generation, room or boot denial cannot clear a replacement observation',async()=>{
+ for(const boundary of ['transport','generation','room','boot']){const h=homeHost();let reject;h.liveTransport.home=()=>new Promise((resolve,no)=>{reject=no;});const pending=load.call(h);if(boundary==='transport')h.liveTransport={connected:true};if(boundary==='generation')h.liveHomeGeneration++;if(boundary==='room')h.liveSnapshot={...h.liveSnapshot,roomId:'other'};if(boundary==='boot')h.liveSnapshot={...h.liveSnapshot,bootId:'new'};reject(Object.assign(new Error('denied'),{code:'read_access_denied'}));await pending;assert.equal(h.renders,0);assert.equal(h.state.devices[1],h.robot);assert.equal(h.state.liveWeather.temperature,20);}
+});
+test('snapshot access denial clears home data immediately; a disconnected network retains it',()=>{
+ const callback=source.split('onConnection:status=>{')[1].split('},onSnapshot:')[0],connection=new Function('status',callback);
+ for(const denied of [true,false]){const h=homeHost();h.liveTransport.recoveryBlocked=denied;h.invalidateLiveMusic=()=>{};h.suspendLiveTimer=suspendLiveTimer;h.state.extraTimers=[];connection.call(h,'disconnected');assert.equal(h.state.liveWeather===null,denied);assert.equal(h.state.devices.some(d=>d.id===h.robot.id),!denied);assert.equal(h.renders,1);}
+});
+test('first accepted changed boot or room clears previous home display before new passive read',()=>{
+ const start=source.indexOf('if(this.liveSnapshot&&(this.liveSnapshot.bootId!==snapshot.bootId'),end=source.indexOf('this.reconcileLiveTimer(snapshot);',start),boundary=new Function('snapshot',source.slice(start,end));
+ for(const key of ['bootId','roomId']){const h=homeHost();h.invalidateLiveMusic=()=>{};boundary.call(h,{...h.liveSnapshot,[key]:'new'});assert.equal(h.state.liveWeather,null);assert.deepEqual(h.state.devices,[h.light]);assert.equal(h.state.focus,'now');assert.equal(h.liveHomeGeneration,1);}
+});
+
+
+test('overview maps known robot battery including zero, clears unknown values and preserves stale qualification and row identity',()=>{
+ const els=new Map(),$=id=>{if(!els.has(id))els.set(id,element());return els.get(id);},mapped=new Map(),robot={id:'vacuum.actual',kind:'vacuum',live:true,status:'docked',battery:0,timeline:[]},h={live:true,state:{devices:[robot],focus:'now',connected:true},deviceNodes:new Map(),deviceRows:new Map(),dispatch(){throw Error('unexpected action');},focusHeading(){}};
+ const draw=()=>render.call(h,h.state,$,{createElement:element},()=>element(),(row,r)=>mapped.set(r.kind,{row,...r}),deviceLabel,()=>[]);draw();const row=h.deviceRows.get(robot.id),node=h.deviceNodes.get(robot.id);assert.equal(mapped.get('vacuum').value,'0 %');assert.equal(mapped.get('vacuum').detail,'Ved basen');
+ for(const battery of [72,100]){robot.battery=battery;draw();assert.equal(mapped.get('vacuum').value,`${battery} %`);assert.equal(h.deviceRows.get(robot.id),row);assert.equal(h.deviceNodes.get(robot.id),node);}
+ robot.stale=true;draw();assert.equal(mapped.get('vacuum').value,'100 %');assert.equal(mapped.get('vacuum').detail,'Sidst kendt: Ved basen');
+ for(const battery of [null,undefined,NaN,Infinity,-1,101,true,'50']){robot.battery=battery;draw();assert.equal(mapped.get('vacuum').value,'');assert.equal(h.deviceRows.get(robot.id),row);}
+ robot.battery=42;robot.stale=false;draw();assert.equal(mapped.get('vacuum').value,'42 %');assert.equal(mapped.get('vacuum').detail,'Ved basen');assert.equal(mapped.get('vacuum').target,robot.id);assert.equal(mapped.get('vacuum').disabled,false);
+});

@@ -322,3 +322,16 @@ pv-widget-host .view-nav .header-context .header-weather small,
 
 /* The shared player image is always cover art, including local fixture covers. */
 .player .cover-button .cover{object-fit:contain;object-position:center}
+
+/* History stays the same nonmodal task pane, aligned with the focused surface.
+   Readable canonical previews use enough density for two complete gallery rows. */
+pv-widget-host[data-view] .responses>#history{padding:0}
+pv-widget-host .responses>#history[open]{gap:var(--pv-screen-space-4)}
+pv-widget-host .responses>#history>header h2{font-size:var(--pv-detail-title);line-height:1.12;letter-spacing:-.025em}
+pv-widget-host .responses>#history>#history-example-note{line-height:1.4;color:var(--pv-screen-muted)}
+pv-widget-host .responses>#history>#retained{gap:var(--pv-screen-space-4);padding:4px}
+pv-widget-host .responses>#history .retained-answer{min-height:206px}
+pv-widget-host .responses>#history .history-preview{height:132px}
+pv-widget-host .responses>#history .history-open{min-height:74px;padding:12px 16px;gap:4px}
+pv-widget-host .responses>#history .history-open strong{font-size:18px;line-height:1.25}
+pv-widget-host .responses>#history>#history-empty{max-width:36ch;padding:var(--pv-screen-space-6) 0;background:transparent}

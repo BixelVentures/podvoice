@@ -159,7 +159,7 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:116px}
 #timer-card[hidden],.timer-panel[hidden],.timer-running[hidden],.timer-recent[hidden],#timer-exact[hidden]{display:none}
 .timer-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px 20px 14px 14px;border-radius:var(--pv-resource-radius);background:var(--pv-instrument);color:#fff;min-height:110px}.timer-open{display:flex;align-items:center;gap:20px;text-align:left;background:transparent;color:inherit;min-width:0;padding:0;border-radius:16px}.timer-panel .timer-open:hover,.timer-panel .timer-open:active{background:transparent;color:inherit}.timer-panel:has(button.timer-open:hover){background:#24383c}.timer-instrument{position:relative;display:grid;place-items:center;flex:none;width:80px;height:80px}.timer-instrument svg{position:absolute;inset:0;fill:none;stroke-width:3;transform:rotate(-90deg);width:100%;height:100%}.timer-track{stroke:#52696d}.timer-progress{stroke:var(--pv-signal);stroke-linecap:round;stroke-dasharray:var(--progress) 100}.timer-count{font-size:25px;font-weight:500;letter-spacing:-.03em;font-variant-numeric:tabular-nums}.timer-instrument[data-long=true] .timer-count{font-size:18px}.timer-copy{display:grid;gap:7px;min-width:0}.timer-copy strong{font-size:20px;line-height:1.2;font-weight:500;overflow-wrap:anywhere}.timer-state{font-size:15px;color:var(--pv-instrument-muted)}.timer-panel .timer-finish{background:transparent;color:#d5e2e4;min-height:48px;padding:12px;border-radius:14px;font-size:15px}.timer-panel .timer-finish:hover{background:#344b50;color:white}.timer-panel[data-status=done]{background:var(--pv-instrument)}.timer-panel[data-status=done] .timer-finish{background:#ffc5b0;color:#34241f}.timer-panel[data-status=done] .timer-finish:hover{background:#ffd8c9;color:#34241f}.timer-panel[data-status=done] .timer-count{color:#ffc5b0}.timer-panel button:focus-visible{outline-color:#d2f0ed}
 .timer-shortcut{display:flex;align-items:center;gap:14px;width:100%;padding:18px 12px;background:transparent;text-align:left;border-radius:16px;margin-top:12px}.timer-shortcut>span{display:grid;gap:5px;flex:1}.timer-shortcut strong{font-size:18px;font-weight:500}.timer-shortcut small{font-size:14px;color:var(--muted)}.timer-shortcut>img{width:24px;height:24px}
-#timers-view{background:transparent;padding:8px 0;overflow:visible;flex:none}.timer-create{background:var(--pv-screen-surface);padding:24px 28px;border-radius:var(--pv-resource-radius);margin-bottom:28px}.timer-create h2,.timer-running h2,.timer-recent h2{font-size:20px;font-weight:500;margin:0 0 16px}.timer-stepper{display:flex;justify-content:center;align-items:center;gap:32px;margin:16px 0 24px}.timer-stepper .timer-adjust{width:64px;height:64px;min-width:64px;display:grid;place-items:center;border-radius:50%;background:var(--pv-screen-control);touch-action:manipulation}.timer-adjust img{width:30px;height:30px}.timer-selected{min-width:190px;text-align:center;display:grid;gap:6px}.timer-selected output{font-size:64px;line-height:1;font-weight:500;letter-spacing:-.03em;font-variant-numeric:tabular-nums}.timer-selected>span{font-size:14px;color:var(--pv-screen-muted)}.timer-presets{display:flex;gap:8px}.timer-presets button{flex:1;min-width:0;min-height:52px;border-radius:14px;padding:12px 8px;background:var(--pv-quiet-surface);color:var(--pv-screen-action-ink);font-size:16px;white-space:nowrap}.timer-presets button[aria-pressed=true],.timer-presets button[aria-pressed=true]:hover{background:var(--pv-instrument);color:white}.timer-create-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px}.timer-customize{background:transparent;color:var(--pv-screen-muted);font-size:14px;min-height:52px;padding:8px 0;border-radius:12px;text-align:left}.timer-start{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;min-width:160px;padding:12px 20px;border-radius:16px;background:var(--pv-screen-action-ink);color:white;font-size:18px}.timer-start img{width:20px;height:20px;filter:invert(1)}.timer-create .timer-start:hover:not(:disabled){background:#355d64;color:white}.timer-create button:disabled{opacity:.4;cursor:default}.timer-create button:active:not(:disabled){transform:scale(.97)}.timer-create button:focus-visible,.timer-create input:focus-visible{outline:3px solid var(--pv-focus-ring);outline-offset:3px}
+#timers-view{background:transparent;padding:8px 0;overflow:visible;flex:none}.timer-create{background:var(--pv-screen-surface);padding:24px 28px;border-radius:var(--pv-resource-radius);margin-bottom:28px}.timer-create h2,.timer-running h2,.timer-recent h2{font-size:20px;font-weight:500;margin:0 0 16px}.timer-stepper{display:flex;justify-content:center;align-items:center;gap:32px;margin:16px 0 24px}.timer-stepper .timer-adjust{width:64px;height:64px;min-width:64px;display:grid;place-items:center;border-radius:50%;background:var(--pv-screen-control);touch-action:manipulation}.timer-adjust img{width:30px;height:30px}.timer-selected{min-width:190px;text-align:center;display:grid;gap:6px}.timer-selected output{font-size:64px;line-height:1;font-weight:500;letter-spacing:-.03em;font-variant-numeric:tabular-nums}.timer-selected>span{font-size:14px;color:var(--pv-screen-muted)}.timer-presets{display:flex;gap:8px}.timer-presets button{flex:1;min-width:0;min-height:52px;border-radius:14px;padding:12px 8px;background:var(--pv-quiet-surface);color:var(--pv-screen-action-ink);font-size:16px;white-space:nowrap}.timer-presets button[aria-pressed=true],.timer-presets button[aria-pressed=true]:hover{background:var(--pv-instrument);color:white}.timer-create-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px}.timer-customize{background:transparent;color:var(--pv-screen-muted);font-size:14px;min-height:52px;padding:8px 0;border-radius:12px;text-align:left}.timer-start{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;min-width:160px;padding:12px 20px;border-radius:16px;background:var(--pv-screen-action-ink);color:white;font-size:18px}.timer-start img{width:20px;height:20px;filter:invert(1)}.timer-create .timer-start:hover:not(:disabled){background:#355d64;color:white}.timer-create button:disabled{opacity:.4;cursor:default}.timer-create button:focus-visible,.timer-create input:focus-visible{outline:3px solid var(--pv-focus-ring);outline-offset:3px}
 #timer-exact{padding-top:20px;margin-top:20px;border-top:1px solid var(--pv-screen-line)}.timer-name{display:block;font-size:14px}.timer-name>span{color:var(--pv-screen-muted)}.timer-create input{display:block;border:1px solid #b5c2c5;background:#fff;color:var(--pv-screen-ink);border-radius:12px;min-height:52px;padding:12px;min-width:0;width:100%;margin-top:8px;font-size:18px}.timer-duration{display:flex;gap:16px;margin:16px 0 0}.timer-duration label{flex:1;font-size:14px;min-width:0}.timer-duration input{text-align:center;font-size:24px;font-variant-numeric:tabular-nums}.timer-validation{font-size:14px;color:var(--pv-screen-danger);margin:12px 0 0}.timer-active-list{display:grid;gap:12px}.timer-recent{margin-top:28px}.timer-recent>div{display:flex;gap:12px;flex-wrap:wrap}.timer-recent button{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;padding:16px 20px;min-height:80px;background:var(--pv-screen-surface);border-radius:16px;max-width:100%}.timer-recent strong{font-size:14px;font-weight:400;color:var(--pv-screen-muted);overflow-wrap:anywhere}.timer-recent span{font-size:24px;font-variant-numeric:tabular-nums}
 @media(max-width:759px){.timer-create{padding:20px}.timer-stepper{gap:16px}.timer-selected{min-width:140px}.timer-selected output{font-size:52px}.timer-stepper .timer-adjust{width:56px;height:56px;min-width:56px}.timer-presets{flex-wrap:wrap}.timer-presets button{flex:1 1 26%}.timer-create-footer{flex-wrap:wrap}.timer-start{flex:1}.timer-panel{gap:12px;padding:14px}.timer-open{gap:12px}.timer-copy strong{font-size:18px}.timer-panel .timer-finish{padding:12px 8px}.timer-instrument{width:72px;height:72px}.timer-count{font-size:22px}}
 
@@ -205,8 +205,8 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:116px}
 
 /* Feedback occupies the existing card, never changes its flow or title. */
 .result{position:relative}.result-feedback{position:absolute;left:24px;right:24px;top:20px;min-height:24px;font-size:15px;line-height:24px;color:white;text-shadow:0 1px 8px #0008;pointer-events:none}.result-feedback:empty{visibility:hidden}.result[data-pending=true]{outline:3px solid var(--pv-screen-action-ink);outline-offset:-3px}.result[data-pending=true] .result-play{background:var(--pv-timer-accent)}
-button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120ms}button:active:not(:disabled){transform:scale(.985)}.result:active:not(:disabled){transform:none}
-[data-motion=reduced] button{transition:none}@media(prefers-reduced-motion:reduce){button{transition:none}}
+button{transition:background-color 140ms,color 140ms,opacity 140ms,transform 120ms}button:active:not(:disabled){transform:scale(.985)}.result:active:not(:disabled){transform:none;filter:none}
+[data-motion=reduced] button{transition:none}[data-motion=reduced] button:active:not(:disabled){transform:none}@media(prefers-reduced-motion:reduce){button{transition:none}button:active:not(:disabled){transform:none}}
 
 .live-art-fallback{background:var(--pv-screen-control);padding:28%;object-fit:contain}.live-queue-track{cursor:default;min-height:72px}.live-queue-note,.weather-source,.robot-history-note{color:var(--pv-screen-muted);font-size:14px;line-height:1.5}.live-accounts{display:flex;flex-wrap:wrap;gap:12px}.robot-recent{margin-top:24px}.robot-recipe-row{padding:20px 24px;border-radius:24px;background:var(--pv-screen-surface);margin-top:12px}.robot-recipe-row p{margin:8px 0}.robot-recipe-row small{color:var(--pv-screen-muted)}
 
@@ -670,7 +670,7 @@ pv-widget-host[data-view=active][data-selection-feedback=true] #player-empty p{m
 }
 
 /* One overview grid, in the same row-major order as the retained DOM. Neutral
-   wrappers do not create independent grids or full-width idle shortcuts. */
+   wrappers share one grid; the idle timer separates paired device and media rows. */
 pv-widget-host #now-view:not([hidden]){
  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
  gap:var(--pv-overview-row-gap);align-content:start;
@@ -679,12 +679,12 @@ pv-widget-host #now-view>.response-heading{grid-column:1/-1;padding:8px 0 0;marg
 pv-widget-host #now-view :is(.home-shortcuts,.now-activities,#device-activities):not([hidden]){display:contents}
 pv-widget-host #now-view>.home-extensions{margin:0!important}
 pv-widget-host #now-view>#timer-card{
- grid-column:auto;align-self:stretch;min-width:0;min-height:var(--pv-overview-height);
+ grid-column:1/-1;align-self:stretch;min-width:0;min-height:var(--pv-overview-height);
  margin:0;padding:0;gap:0;
 }
 pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut){height:auto;min-height:var(--pv-overview-height)}
 pv-widget-host #now-view .timer-shortcut{margin:0;align-self:stretch}
-/* A real timer earns a wider instrument/action row. Idle never reserves it. */
+/* Multiple timers retain a full-width row; the single active instrument below uses two rows. */
 pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])){grid-column:1/-1}
 pv-widget-host #now-view #timer-card .timer-panel{min-height:var(--pv-overview-height);height:auto}
 pv-widget-host #now-view :is(#now-music,#now-empty,#restore-resources,#restore-timer,#quick-controls){grid-column:1/-1}
@@ -856,11 +856,51 @@ pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource
 .timer-create h2,.timer-running h2,.timer-recent h2{font-size:var(--pv-detail-section);line-height:1.25}
 pv-robot-control-panel .robot-care>summary{font-weight:500;color:var(--pv-screen-ink)}
 .vehicle-hero{background:var(--pv-overview-vehicle)}
-#radio-view pv-choice-list .pv-list>button[aria-pressed=true]{background:var(--pv-overview-radio)}
-
-/* The existing weather symbol belongs with its value, not the opposite edge. */
+#radio-view pv-choice-list .pv-list>button/* Weather detail: place → current conditions → aligned hours → comparable days.
+   Reuses the same weather anatomy, semantic surface and genuine range variables. */
+#weather-view>.response-heading{padding-bottom:var(--pv-screen-space-3)}
 #weather-view .weather-current{justify-content:flex-start;gap:var(--pv-screen-space-6)}
-#weather-view .weather-current>img{order:-1;margin-right:0;flex:none}
+#weather-view .weather-current[data-weather-tone]{min-height:96px;padding:4px 0 var(--pv-screen-space-3)}
+#weather-view .weather-current>img{order:-1;margin-right:0;flex:none;width:64px;height:64px}
+#weather-view .weather-current>div{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--pv-screen-space-6);row-gap:6px;min-width:0;align-items:center}
+#weather-view .weather-current strong{grid-column:1;grid-row:1/3;font-size:80px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+#weather-view .weather-current p{grid-column:2;align-self:end;margin:0;font-size:22px;line-height:1.25;font-weight:500;overflow-wrap:break-word}
+#weather-view .weather-current span{grid-column:2;align-self:start;font-size:16px;line-height:1.4;color:#425e68}
+#weather-view .weather-summary{margin:var(--pv-screen-space-2) 0 var(--pv-screen-space-3);max-width:52ch;font-size:18px;line-height:1.4}
+#weather-view .weather-hours{gap:var(--pv-screen-space-2);padding:var(--pv-screen-space-3) 0;grid-auto-columns:calc((100% - 40px)/6);scroll-padding-inline:0}
+#weather-view .weather-hours>div{grid-template-rows:20px 28px 28px 20px minmax(20px,auto);gap:6px;align-content:start;min-width:0}
+#weather-view .weather-hours>div>span{grid-row:1;font-size:16px;line-height:1.25;color:#425e68}
+#weather-view .weather-hours>div>img{grid-row:2;width:28px;height:28px}
+#weather-view .weather-hours>div>strong{grid-row:3;font-size:24px;line-height:1.15;font-weight:500}
+#weather-view .weather-hours .weather-hour-rain{grid-row:4;font-size:15px;line-height:1.3;color:#425e68}
+#weather-view .weather-hours .weather-hour-wind{grid-row:5;min-width:0;font-size:14px;line-height:1.4;color:#425e68}
+#weather-view .weather-hours .weather-wind-label{overflow-wrap:break-word}
+#weather-view .weather-days{padding-top:var(--pv-screen-space-4)}
+#weather-view .weather-days h2{margin:0 0 var(--pv-screen-space-2);font-size:20px;line-height:1.3;font-weight:600}
+#weather-view .weather-days>div{grid-template-columns:112px 28px 48px minmax(48px,1fr) 48px;gap:var(--pv-screen-space-3);padding:var(--pv-screen-space-2) 0;font-size:16px;line-height:1.4;font-variant-numeric:tabular-nums}
+#weather-view .weather-days>div>strong:first-child{font-weight:500;overflow-wrap:break-word}
+#weather-view .weather-days>div>span:nth-child(3),#weather-view .weather-days>div>strong:last-child{text-align:right}
+#weather-view .weather-days>div>span:nth-child(3){color:#425e68}
+#weather-view .weather-days>div>img{width:26px;height:26px;justify-self:center}
+#weather-view .weather-source{margin-top:var(--pv-screen-space-4);font-size:13px;line-height:1.5;color:#425e68}
+@media(min-width:760px) and (max-height:640px){
+ #weather-view .weather-current strong{font-size:64px}
+ #weather-view .weather-current>img{width:56px;height:56px}
+ #weather-view .weather-current p{font-size:20px}
+ #weather-view .weather-current span{font-size:15px}
+}
+@media(max-width:759px){
+ #weather-view .weather-current{gap:var(--pv-screen-space-4)}
+ #weather-view .weather-current>div{column-gap:var(--pv-screen-space-4)}
+ #weather-view .weather-current strong{font-size:60px}
+ #weather-view .weather-current>img{width:48px;height:48px}
+ #weather-view .weather-current p{font-size:20px}
+ #weather-view .weather-current span{font-size:14px}
+ #weather-view .weather-hours{grid-auto-columns:calc((100% - 24px)/4)}
+ #weather-view .weather-days>div{grid-template-columns:84px 24px 40px minmax(32px,1fr) 40px;gap:var(--pv-screen-space-2)}
+}
+
+ .weather-current>img{order:-1;margin-right:0;flex:none}
 
 /* Content is primary; the persistent room remains a quieter, complete context. */
 [data-view=active] .player{background:var(--pv-screen-surface);box-shadow:var(--pv-surface-shadow)}
@@ -906,3 +946,37 @@ pv-robot-control-panel .robot-care>summary{font-weight:500;color:var(--pv-screen
  pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-copy strong{font-size:16px}
  pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-state{font-size:13px}
 }
+
+/* Existing player and music result anatomy: a cover is content, not a backdrop. */
+@media(min-width:760px){
+ [data-view=active] .player .track{min-height:64px;margin:4px 0 var(--pv-screen-space-4)}
+ [data-view=active] .player .track strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow-wrap:anywhere;font-size:var(--pv-screen-type-title);line-height:1.2}
+ [data-view=active] .player .output #player-room{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+ [data-view=active] .player .cover-button{flex:1;align-self:center;width:100%;max-height:304px;min-height:80px;border-radius:0;overflow:visible}
+ [data-view=active] .player .cover-button .cover{width:100%;height:100%;aspect-ratio:1;max-height:none;border-radius:0;object-fit:contain;object-position:center}
+ [data-view=active] .player .cover-hint{right:8px;bottom:8px}
+ [data-view=active] .player .transport{margin:var(--pv-screen-space-6) 0 var(--pv-screen-space-3);justify-content:center;gap:var(--pv-screen-space-6)}
+ [data-view=active] .player .volume{margin-top:auto;padding-top:var(--pv-screen-space-3)}
+}
+/* The role is admitted before fetch/decode and stays put on an image failure. */
+#result-list>.result[data-artwork-role=cover]{display:grid;grid-template-columns:minmax(0,1fr) 48px;grid-template-rows:auto auto;align-content:start;align-items:start;gap:var(--pv-screen-space-4) var(--pv-screen-space-3);height:auto;min-height:0;padding:0;border-radius:0;background:transparent;color:var(--pv-screen-ink)}
+#result-list>.result[data-artwork-role=cover]>.result-art{position:static;inset:auto;grid-column:1/-1;grid-row:1;z-index:auto;display:block;width:100%;height:auto;aspect-ratio:1;border-radius:0;object-fit:contain;object-position:center;margin:0;background:var(--pv-screen-control);transform:none;filter:none}
+#result-list>.result[data-artwork-role=cover]>.result-art.live-art-fallback{padding:38%;width:100%;height:auto;aspect-ratio:1;margin:0}
+#result-list>.result[data-artwork-role=cover]>.result-copy{grid-column:1;grid-row:2;min-height:0;text-shadow:none}
+#result-list>.result[data-artwork-role=cover]>.result-copy h2{font-size:var(--pv-player-title);line-height:1.2;color:var(--pv-screen-ink);margin:0 0 6px;overflow-wrap:anywhere}
+#result-list>.result[data-artwork-role=cover]>.result-copy p{font-size:15px;line-height:1.35;color:var(--pv-screen-muted);margin:0;overflow-wrap:anywhere}
+#result-list>.result[data-artwork-role=cover]>.result-play{grid-column:2;grid-row:2;align-self:start;margin:0;background:var(--pv-screen-control);color:var(--pv-screen-ink)}
+#result-list>.result[data-artwork-role=cover]>.result-feedback:empty{display:none}
+#music-detail .detail-cover,#music-detail .queue-track>img:not(.queue-play){border-radius:0;object-fit:contain;object-position:center}
+#music-detail .detail-controls h3{overflow-wrap:anywhere}
+#music-detail .detail-controls .transport{margin:var(--pv-screen-space-6) 0}
+#music-detail .detail-controls .volume{padding-top:var(--pv-screen-space-3)}
+
+/* A square source cover plus its caption/Play is taller than the old photo card.
+   The list ends after the complete card; existing sibling tabs stay in flow. */
+@media(min-width:760px){
+ [data-view=active] #music-response #result-list:has(>.result[data-artwork-role=cover]){height:auto;min-height:0;grid-auto-rows:max-content;align-items:start}
+}
+
+/* Square artwork rows have no enclosing surface; rounded clipping cuts captions. */
+#music-response:has(#result-list>.result[data-artwork-role=cover]){border-radius:0}

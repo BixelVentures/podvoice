@@ -127,6 +127,7 @@ _ERRORS = frozenset(
         "volume_above_approved_limit",
         "outcome_unknown",
         "native_start_unavailable",
+        "native_account_claim_required",
         "native_start_policy_changed",
         "native_account_unproven",
         "room_transport_unavailable",
@@ -1143,6 +1144,15 @@ class MusicControlFacade:
                 )
             if not self._current(binding, current):
                 return _failure("owner_replaced")
+            if (
+                isinstance(result, dict)
+                and set(result) == {"ok", "error_kind", "retry_allowed", "physical_result_verified"}
+                and result["ok"] is False
+                and result["error_kind"] == "native_account_claim_required"
+                and result["retry_allowed"] is False
+                and result["physical_result_verified"] is False
+            ):
+                return _failure("native_account_claim_required")
             value = _content_controls(result, account, target, room, homepod)
             action = "play_context" if context else "play_track"
             if value["status"] != "ready" or action not in value["actions"]:
