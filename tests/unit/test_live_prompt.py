@@ -110,8 +110,8 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
         assert "Delegér straks og i stilhed" in primary
-        assert "Giv ingen modtagelseskvittering, generisk ventereplik" in primary
-        assert "eller fremskridtsmeddelelse før eller under backendens arbejde" in primary
+        assert "Never backchannel." in primary
+        assert "fremskridtsreplikker — heller ikke “hmm”" in primary
         assert "valideret resultat og aktuel accept" in primary
         assert "Sig ingen generisk ventereplik før eller under kaldet" in backend
         assert "Kvitter kun for modtagelsen" not in primary
@@ -140,10 +140,13 @@ def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     assert "Delegér straks og i stilhed" in primary
     assert "Ved en handlingsanmodning: send først opgaven til\nbackend uden lyd" in primary
     assert "vent derefter stille på resultatet. Stilhed erstatter ikke delegation" in primary
-    assert "Giv ingen modtagelseskvittering, generisk ventereplik" in primary
-    assert "eller fremskridtsmeddelelse før eller under backendens arbejde" in primary
-    assert "Giv heller ingen ikkeverbale lytte- eller kvitteringslyde" in primary
-    assert "nynnen eller tøvelyde før eller under backendens arbejde" in primary
+    assert "Never backchannel." in primary
+    assert (
+        "Sig ingen modtagelses-, lytte- eller tøvelyde, nynnen, generiske kvitteringer" in primary
+    )
+    assert "fremskridtsreplikker — heller ikke “hmm”" in primary
+    assert "Det gælder direkte svar, backendopgaver og\nafslutning" in primary
+    assert "Begynd med det nyttige svar eller en nødvendig kort opklaring" in primary
     assert "det bekræftede resultat" in primary
     assert "valideret resultat og aktuel accept" in primary
     assert "før et opgaveresultat, en terminal kvittering eller afsked" in primary

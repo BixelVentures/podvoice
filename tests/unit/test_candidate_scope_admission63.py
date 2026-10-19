@@ -323,3 +323,29 @@ def test_63_rejects_any_unreviewed_admin_ingress_configuration(replacement):
         assert not admission.config_only(ROOT)
     finally:
         path.write_bytes(before)
+
+
+# Published63 assertion bodies stay byte-exact against their actual source.
+@pytest.fixture(scope="module", autouse=True)
+def historical63_source_root(tmp_path_factory):
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published63-source") / "repo"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(original_root), str(target)], check=True
+    )
+    subprocess.run(
+        ["git", "checkout", "--quiet", "fe3750cd47bd8f0d2d518fb5ccc51a380c17f65b"],
+        cwd=target,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "read-tree", "--reset", "-u", "d8e029071719b3db37730526721bfb7ed8b65bab"],
+        cwd=target,
+        check=True,
+    )
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root

@@ -1163,6 +1163,9 @@ class ThinSession:
         native = getattr(self.voicepe, "host", None) != "browser"
         timers = self.tools.timers
         source_binding = timers.bindings.get(self.room)
+        original_task = asyncio.current_task()
+        local_epoch = self._epoch
+        reconciled_claim = False
 
         def source_current():
             return (
@@ -1182,7 +1185,34 @@ class ThinSession:
             if not source_current():
                 return False
             state = await asyncio.wait_for(timers.refresh(self.room), C.TOOL_TIMEOUT_S)
-            return state.get("ok") is True and source_current()
+            if state.get("ok") is not True or not source_current():
+                return False
+            if reconciled_claim:
+                # Only this still-live task knows no output was admitted before
+                # its lost claim response. Core state alone cannot prove that.
+                row = next((item for item in state["finished"] if item["id"] == timer_id), None)
+                return bool(
+                    self._timer_alarm_task is original_task
+                    and self._epoch == local_epoch
+                    and not self._active
+                    and self._playback_lease is None
+                    and not output_requested
+                    and state["epoch"] == epoch
+                    and row is not None
+                    and (row["alert_id"], row["sink_id"]) == (alert_id, sink_id)
+                    and row["alert_state"] == "requested"
+                    and all(
+                        row[key] is False
+                        for key in (
+                            "stop_requested",
+                            "alerted",
+                            "physical_started",
+                            "physical_drained",
+                            "physical_stopped",
+                        )
+                    )
+                )
+            return True
 
         alert_id = receipt["alert_id"] or (
             self.voicepe.timer_output_request() if native else secrets.token_hex(16)
@@ -1217,7 +1247,14 @@ class ThinSession:
                     sink_id=sink_id,
                 )
                 if not claim.get("ok"):
-                    return
+                    if claim.get("error_kind") != "unknown_outcome":
+                        return
+                    reconciled_claim = True
+                    try:
+                        if not await fresh_source_current():
+                            return
+                    except (TimeoutError, Exception):
+                        return  # No fresh exact unserved claim: keep Core held.
                 if self._timer_alarm_task is asyncio.current_task():
                     self._timer_alarm_scope = (epoch, timer_id, alert_id, sink_id, True)
             try:
@@ -4706,7 +4743,7 @@ class ThinSession:
         if task is not asyncio.current_task() and not task.done():
             task.cancel()
         if (
-            reason not in ("semantic-end", "transport-close")
+            reason not in ("semantic-end", "transport-close", "cancel-failed")
             and self._active
             and not self._transport_closing
             and not self._live_finalizing
@@ -4904,10 +4941,26 @@ class ThinSession:
                 and getattr(self.voicepe, "connection_generation", None) == native_connection
                 and getattr(self.voicepe, "audio_generation", None) == audio_generation
             ):
-                with contextlib.suppress(Exception, asyncio.CancelledError):
+                cancel_currency = self._live_idle_preclose_token
+                cancel_returned = False
+                try:
                     await self.voicepe.cancel_live_closing(native_token)
-                if (
+                    cancel_returned = True
+                except (Exception, asyncio.CancelledError):
+                    pass
+                retired_here = (
+                    self._live_idle_preclose_task is task
+                    and self._live_idle_preclose_token == token
+                    and cancel_currency == token
+                    and not self._live_finalizing
+                )
+                if retired_here:
+                    self._cancel_live_idle_preclose(
+                        "owner-changed" if cancel_returned else "cancel-failed"
+                    )
+                current_owner = (
                     self._active
+                    and cancel_currency in (token, token + 1)
                     and self._epoch == epoch
                     and self._history_session == session_id
                     and self.brain._connection_generation == generation
@@ -4916,7 +4969,11 @@ class ThinSession:
                     and not self._transport_closing
                     and not self._live_finalizing
                     and self._live_idle_preclose_task is None
-                ):
+                    and self._live_idle_preclose_token == token + 1
+                )
+                if not cancel_returned and current_owner:
+                    self._request_close("live-idle-closing-cancel-failed", error_kind="device")
+                elif cancel_returned and current_owner:
                     output_pending = bool(
                         self._device_playing
                         or self._live_pending_audio is not None
@@ -7969,6 +8026,9 @@ class ThinSession:
             self._playback_finished.clear()
             self._device_playing = True  # echo shield UP: the room hears the assistant
             self._playback_t0 = time.monotonic()
+            if lease.kind == "timer":
+                # Idle alarms own output without opening a conversation or microphone.
+                self._set_led(State.AI_SPEAKING)
             if self._active:
                 self._cancel_followup_edge()
                 self.sm.state = State.AI_SPEAKING
@@ -9084,12 +9144,35 @@ class ThinSession:
         generation = getattr(brain, "_connection_generation", None)
         native_connection = getattr(self.voicepe, "connection_generation", None)
         audio_generation = getattr(self.voicepe, "audio_generation", None)
+        preclose_token = self._live_idle_preclose_token
+        lease = self._playback_lease
+        timer_paint = (
+            state == State.AI_SPEAKING
+            and not self._active
+            and lease is not None
+            and lease.kind == "timer"
+        )
         work_light = getattr(self.voicepe, "set_work_light", None)
         animate_work = (
             live_paint and display_state == State.THINKING and not error and not self._muted
         )
 
         async def paint() -> None:
+            if (timer_paint or state == State.IDLE) and (
+                self._epoch != epoch
+                or getattr(self.voicepe, "connection_generation", None) != native_connection
+                or getattr(self.voicepe, "audio_generation", None) != audio_generation
+            ):
+                return
+            if timer_paint and (
+                self._active
+                or lease is None
+                or self._playback_lease is not lease
+                or lease.kind != "timer"
+                or lease.phase != "started"
+                or self._timer_interrupt.is_set()
+            ):
+                return
             if live_paint and (
                 self._live_close_attempt is not None
                 or not self._active
@@ -9100,6 +9183,7 @@ class ThinSession:
                 or getattr(self.voicepe, "connection_generation", None) != native_connection
                 or getattr(self.voicepe, "audio_generation", None) != audio_generation
                 or self._live_idle_preclose_task is not None
+                or self._live_idle_preclose_token != preclose_token
             ):
                 return
             if animate_work and callable(work_light):

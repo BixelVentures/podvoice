@@ -5,7 +5,6 @@ This proves dispatch, custody and rearm ordering, not Core uptime or room audio.
 
 import asyncio
 import json
-from types import SimpleNamespace
 
 import pytest
 from fakes.fake_attention import FakeAttention
@@ -15,9 +14,10 @@ from integration.test_ha_timer_native_output import Native
 from test_thin_live import build as live_session
 from test_thin_live import emit, until
 from unit.test_openai_live import call, created, terminal
-from unit.test_voicepe_contract import TextSensorState
+from unit.test_voicepe_contract import LightInfo, TextSensorState, _StubClient
 
 from gatekeeper import constants as C
+from gatekeeper.events import State
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
@@ -27,21 +27,44 @@ from gatekeeper.thin import ThinSession
 pytest_plugins = ("integration.test_ha_timer_native_output",)
 
 
+GREEN = {"key": 9, "state": True, "rgb": (0.470, 0.863, 0.549), "brightness": 0.9, "effect": "None"}
+OFF = {"key": 9, "state": False, "effect": "None"}
+
+
+def record_native_lights(native):
+    """Observe the real VoicePELink light adapter without a network connection."""
+    commands = []
+    native.link._client = _StubClient([], [LightInfo("led_ring", 9)])
+    native.link._client.light_command = lambda **kwargs: commands.append(kwargs)
+    native.link._light_key = 9
+    return commands
+
+
 async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context):
     manager, bridge, client, tools, service_calls, _ = timer_router()
     native = Native(context)
     session, sdk, _, _, _ = live_session(device=native.link)
     session.tools, session.reply_bus, session.reply_url = tools, ReplyBus(), "http://fixture/reply"
     play_started = asyncio.Event()
+    lights = record_native_lights(native)
+    release_old_paint = asyncio.Event()
+    retirement_entered, release_retirement = asyncio.Event(), asyncio.Event()
     original_native_call = native.call
 
     async def hold_alert_until_stop(service, args=None):
         if service == "podvoice_reply_play":
             native.calls.append((service, args))
             assert context.admits(args["session"].encode(), args["generation"])
+            assert GREEN not in lights
+            session._on_media_state(True, "wrong-timer-playback")
+            await asyncio.sleep(0)
+            assert GREEN not in lights
             native.link._on_reply_status(args["token"] + ":started")
             play_started.set()
             return True
+        if service == "podvoice_timer_output_cancel":
+            retirement_entered.set()
+            await release_retirement.wait()
         return await original_native_call(service, args)
 
     native.link._call_service = hold_alert_until_stop
@@ -84,6 +107,20 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
             assert session._timer_poll_task is poll and not poll.done()
             manager.finish(timer_id)  # The inert CoreTimers callback, not a local alarm clock.
             await asyncio.wait_for(play_started.wait(), 5)
+            await until(lambda: GREEN in lights)
+            assert not session._active  # Alarm indication never opens provider/microphone.
+            original_spawn = session._spawn
+
+            async def delayed_paint(coro):
+                await release_old_paint.wait()
+                await coro
+
+            def queue_old_paint(coro, name):
+                return original_spawn(delayed_paint(coro), name)
+
+            session._spawn = queue_old_paint
+            session._set_led(State.AI_SPEAKING)
+            session._spawn = original_spawn
             assert (
                 session.reply_bus.take_turn_bytes("kitchen") == 20 * C.OUTPUT_RATE * C.SAMPLE_WIDTH
             )
@@ -97,8 +134,15 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
             )
             assert native.link._stop_armed and session._timer_alarm_task is not None
 
-            # Inject the firmware Stop callback while this exact timer owns output.
-            session._on_device_event("kitchen", SimpleNamespace(event_type="single_press"))
+            # The physical button stops the idle timer locally, then publishes its
+            # exact StopContext status; VoicePELink translates that into wake_stop.
+            assert context.stop()
+            native.link._on_stop_context(
+                f"{native.link._stop_session}:{native.link._stop_generation}:stopped"
+            )
+            await asyncio.wait_for(retirement_entered.wait(), 5)
+            assert lights[-1] == GREEN  # Stop request alone is not a terminal sink ACK.
+            release_retirement.set()
             await asyncio.wait_for(session._timer_alarm_task, 5)
             await until(lambda: not bridge.snapshot("kitchen")["finished"])
             assert [
@@ -115,15 +159,24 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
             )
             assert native.link.wake_readiness == "recovered"
             assert session._playback_lease is None and not session._teardown_incomplete
+            await until(lambda: lights[-1] == OFF)
 
             assert context.begin(b"f" * 32)
             native.link._on_state(TextSensorState("f" * 32 + ":0:disabled", key=43))
             await asyncio.wait_for(session.wake("fresh-after-alarm"), 3)
             assert session._active and native.link._stop_session == "f" * 32
+            await until(lambda: lights[-1].get("rgb") == (0.094, 0.733, 0.949))
+            after_wake = list(lights)
+            release_old_paint.set()
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            assert lights == after_wake  # Old timer green cannot repaint a fresh wake.
             native.link._on_reply_status(old_reply["token"] + ":finished")
             assert session._active and native.link._stop_session == "f" * 32
             assert len([name for name, _ in native.calls if name == "podvoice_reply_play"]) == 1
         finally:
+            release_old_paint.set()
+            release_retirement.set()
             await asyncio.wait_for(session.aclose(), 10)
 
 
@@ -134,6 +187,7 @@ async def test_ha_cancel_or_epoch_change_stops_exact_native_alarm(context, trigg
     session, _, _, _, _ = live_session(device=native.link)
     session.tools, session.reply_bus, session.reply_url = tools, ReplyBus(), "http://fixture/reply"
     started = asyncio.Event()
+    lights = record_native_lights(native)
     original_native_call = native.call
 
     async def hold_alert_until_stop(service, args=None):
@@ -165,6 +219,8 @@ async def test_ha_cancel_or_epoch_change_stops_exact_native_alarm(context, trigg
             timer_id = made["id"]
             manager.finish(timer_id)
             await asyncio.wait_for(started.wait(), 5)
+            await until(lambda: lights[-1] == GREEN)
+            assert not session._active
             alarm = session._timer_alarm_task
             assert alarm is not None and not alarm.done() and poll is not None and not poll.done()
 
@@ -200,6 +256,7 @@ async def test_ha_cancel_or_epoch_change_stops_exact_native_alarm(context, trigg
             assert [name for name, _ in native.calls].count("podvoice_timer_output_cancel") == 1
             assert [name for name, _ in native.calls].count("podvoice_rearm_wake_word") == 1
             assert session._playback_lease is None and not session._teardown_incomplete
+            await until(lambda: lights[-1] == OFF)
         finally:
             await asyncio.wait_for(session.aclose(), 10)
 
@@ -391,3 +448,119 @@ async def test_talk_alarm_cancel_or_lost_sink_keeps_exact_owner(disconnect):
         finally:
             await asyncio.wait_for(session.aclose(), 10)
             link.live_socket_closed()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "none",
+        "cancel",
+        "epoch",
+        "wake",
+        "physical",
+        "foreign",
+        "unknown",
+        "late_cancel",
+        "source",
+        "refresh_failure",
+        "late_source",
+    ],
+)
+async def test_lost_claim_response_reconciles_original_unserved_claim_once(context, mutation):
+    manager, bridge, client, tools, service_calls, _ = timer_router()
+    native = Native(context)
+    session, _, _, _, _ = live_session(device=native.link)
+    session.tools, session.reply_bus, session.reply_url = tools, ReplyBus(), "http://fixture/reply"
+    claimed = asyncio.Event()
+    release_claim = asyncio.Event()
+    watcher_checked = asyncio.Event()
+    original_command = session._timer_command
+    original_ready = session._timer_output_ready
+
+    def observed_ready():
+        ready = original_ready()
+        if claimed.is_set():
+            watcher_checked.set()  # Last exact-row watcher check, after its HA read.
+        return ready
+
+    async def delayed_claim(epoch, request, action, **args):
+        result = await original_command(epoch, request, action, **args)
+        if action == "claim_alert":
+            claimed.set()  # Core committed the exact claim; HA response is still held.
+            await release_claim.wait()
+            row = bridge._finished["kitchen"][args["timer_id"]]
+            if mutation == "cancel":
+                row["stop_requested"] = True
+            elif mutation == "epoch":
+                bridge.epoch = "f" * 32
+            elif mutation == "wake":
+                session._epoch += 1
+            elif mutation == "physical":
+                row["physical_started"] = True
+            elif mutation == "foreign":
+                row["sink_id"] = "voice_pe:foreign"
+            elif mutation == "unknown":
+                row["alert_state"] = "unknown"
+            elif mutation == "source":
+                tools.timers.bindings["kitchen"] = ("voice_pe", "replacement")
+            elif mutation == "refresh_failure":
+
+                async def failed_refresh(room):
+                    raise RuntimeError("synthetic failed fresh read")
+
+                tools.timers.refresh = failed_refresh
+            return {"ok": False, "error_kind": "unknown_outcome", "retry_allowed": False}
+        return result
+
+    async def inert_link_start():
+        pass
+
+    session._timer_command = delayed_claim
+    session._timer_output_ready = observed_ready
+    native.link.start = inert_link_start
+    original_context = native.link.set_timer_context
+
+    async def admit_then_cancel(alert_id):
+        result = await original_context(alert_id)
+        if mutation == "late_cancel":
+            next(iter(bridge._finished["kitchen"].values()))["stop_requested"] = True
+        elif mutation == "late_source":
+            tools.timers.bindings["kitchen"] = ("voice_pe", "replacement")
+        return result
+
+    native.link.set_timer_context = admit_then_cancel
+    async with client:
+        await tools.timers.refresh("kitchen")
+        try:
+            await session.start()
+            made = bridge.command(
+                endpoint="kitchen",
+                epoch=bridge.epoch,
+                request_id="start",
+                action="start",
+                seconds=1,
+            )
+            manager.finish(made["id"])
+            await asyncio.wait_for(claimed.wait(), 5)
+            await asyncio.wait_for(watcher_checked.wait(), 4)
+            assert not session._timer_interrupt.is_set()
+            assert [
+                row["action"] for row in service_calls if row.get("action") == "claim_alert"
+            ] == ["claim_alert"]
+            assert not [name for name, _ in native.calls if name == "podvoice_reply_play"]
+            release_claim.set()
+            alarm = session._timer_alarm_task
+            assert alarm is not None
+            await asyncio.wait_for(alarm, 5)
+            assert [
+                row["action"] for row in service_calls if row.get("action") == "claim_alert"
+            ] == ["claim_alert"]
+            if mutation == "none":
+                await until(lambda: bridge.snapshot("kitchen")["finished"][0]["physical_drained"])
+                assert not bridge.snapshot("kitchen")["finished"][0]["physical_stopped"]
+                assert [name for name, _ in native.calls].count("podvoice_reply_play") == 1
+            else:
+                assert not [name for name, _ in native.calls if name == "podvoice_reply_play"]
+        finally:
+            release_claim.set()
+            await asyncio.wait_for(session.aclose(), 10)

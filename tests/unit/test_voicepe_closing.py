@@ -57,6 +57,29 @@ async def test_admission_is_not_tx_done_out_of_order_and_old_owner_inert():
     assert out._call_service.call_args.args[0] == "podvoice_live_closing_cancel"
 
 
+@pytest.mark.parametrize("failure", ["unsent", "exception", "retired", "stale_connection"])
+async def test_closing_cancel_reports_known_send_failure_without_reusing_owner(failure):
+    out = link()
+    task = asyncio.create_task(
+        out.begin_live_closing(3, deadline=asyncio.get_running_loop().time() + 0.5)
+    )
+    await asyncio.sleep(0)
+    ack(out, token=3)
+    ack(out, token=3, phase="led_tx_done")
+    await task
+    if failure == "unsent":
+        out._call_service.return_value = False
+    elif failure == "exception":
+        out._call_service.side_effect = RuntimeError("offline failure")
+    elif failure == "retired":
+        out._retire_native_closing()
+    else:
+        out._connection_generation += 1
+    with pytest.raises(RuntimeError):
+        await out.cancel_live_closing(3)
+    assert out._native_closing_owner is None
+
+
 @pytest.mark.parametrize("boundary", ["stop", "disconnect", "timeout"])
 async def test_stop_disconnect_deadline_retire_waiter_and_delayed_ack(boundary):
     out = link()

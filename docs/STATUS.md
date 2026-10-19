@@ -1,3 +1,24 @@
+<!-- podview64-admission
+{
+  "version": 41,
+  "kind": "podvoice64_led_retirement_quiet_policy",
+  "reviewer": "/root/astra_actual_ui_acceptance_audit",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "fe3750cd47bd8f0d2d518fb5ccc51a380c17f65b",
+  "merge_base": "fe3750cd47bd8f0d2d518fb5ccc51a380c17f65b",
+  "rationale": "ROOT authorized one controlled pre-CI consolidation of completed LED retirement/timer indication, same-live-task lost-claim recovery and quiet GPT-Live primary policy. Independent exact combined946payload source/integration/admission GO is bound by receipt c5693c8e894d8659468ab3d17c3ad10f6644e983eeef56783b46f6c493d1feb4. UI143 remains exact published63; unchanged mechanical classifier physical_output is distinct from the explicitly reviewed prompt semantic scope. Exact ownership, generation/currentness, fresh unserved claim proof, no second claim and no restart/new-wake replay remain enforced. ROOT authorized only narrow review binding after source GO. No officialCI, publication, installation, actual provider quiet compliance, optical/audio or physical acceptance is claimed.",
+  "fingerprint": "017a959d10feb0fe85c498c2ae4de4442d46c6756927aa48a88d440db8bc7057",
+  "regression_fingerprint": "a93dd513a8770ca19054f0107b05de9c3b423cb34b83862dca89a940ac2ab905",
+  "runtime_fingerprint": "fdea3696e0b050d55e2e350e8982b475dc9989a54931994a2f8da7ee661f6486",
+  "config_fingerprint": "b14c8faceac5338905be37c46a6d187d7c199a66a85ef3877c85e3326cf5442c",
+  "policy_fingerprint": "e296c5cba5e54d0b40cf3fe089bfef46766e31356eb81add6aac81fe856a1e73",
+  "tooling_fingerprint": "b2679fedb6792ee7fd7b9ff6c106f321916e0caf957196f4ec07ab2366a32b57",
+  "manifest_fingerprint": "4f06f19ebf25f868b4ebb6c1e6d50642e02860e23fb2aadc3ff3eb736b3686e7"
+}
+-->
+
 <!-- podview63-admission
 {
   "version": 40,
@@ -19,6 +40,38 @@
   "manifest_fingerprint": "e1e1c6eaf8937a379edf02e1c4f5465d5918ed868875efdc76b1bc0efbb2d874"
 }
 -->
+
+## Active lead decision — #153 concise quiet Live policy (19 October)
+
+Observed installed 2.0.63 typed Talk outcomes: the explicit capital question produced
+“Hmm. København.”; an explicit close produced “Hmm.”, then accepted end_conversation
+and “Vi tales ved.” before system closure. Microphone stayed off. Evidence is in
+`/private/tmp/pv63-talk-outcomes-20261019/direct-answer-dom.txt` and
+`semantic-close-dom.txt`. The current verbose no-filler instructions did not prevent
+these provider-generated fragments. This is not physical Voice PE audio evidence.
+
+The affected chain is typed/native input → GPT-Live primary instructions → direct
+answer or managed backend delegation → completed validated tool/end result → Live
+output → the existing playback/drain/teardown/rearm owner. Hypothesis: a concise,
+global rule under the documented Backchannel policy heading improves compliance.
+The primary/backend split, completed-result requirements, interruption semantics,
+semantic end ownership and physical lifecycle invariants must remain unchanged.
+Non-goals: transcript/PCM filtering, local phrase decisions, model changes, firmware,
+new provider/key access or timeout tuning. Rollback is the prior prompt only.
+
+Planned checks: existing prompt regressions and static checks; independent prompt
+review; before claiming improvement, repeat on the delivered candidate the exact
+capital-only request (expected only “København.”) and explicit conversation close
+(expected no filler before delegation, accepted end tool, optional brief farewell,
+then closure). No provider or physical outcome is claimed by prompt tests.
+
+Candidate result: the opening Backchannel paragraphs now use the global “Never
+backchannel.” rule and a short Danish scope covering direct answers, backend work
+and closure. Delegation timing and every later policy section remain unchanged.
+Ruff/format pass. Existing prompt regression run: 17 passed, one obsolete wording
+assertion failed; after updating that assertion to the new wording, only that
+invalidated case was rerun and passed. Provider comparison, independent review,
+release, installation and physical acceptance remain open.
 
 # Active voice lead — 19 October: complete software outcomes before physical acceptance
 
@@ -84,6 +137,37 @@ available HA cancel is consumed on the next existing two-second poll, followed b
 bounded exact retirement; room stop-to-silence is not inferred from this bound.
 Rollback is the unchanged 2.0.62 timer implementation. No new code, passing result,
 release, installation or physical acceptance is claimed by this decision.
+
+**#110 same-task lost-claim recovery decision — before code.** Exact 2.0.63
+source returns immediately when the claim request has an unknown outcome. Core may
+already have committed the exact requested alert, so subsequent normal polling
+correctly refuses a second claim and the alarm remains held and unserved. The
+existing joined Core/Thin/native fixture will reproduce a committed claim whose
+response is lost, with no physical admission yet. Hypothesis: the original live
+alarm task alone can reconcile a fresh exact requested/unserved Core row against
+its original epoch/timer/alert/sink and still-current local session/source, then
+continue the original admission once. No second claim, replay after restart/new
+wake, or inference that unknown means absent is allowed. Re-read exact Core state
+before native admission and again after its await before playback; stop, physical
+flags, missing/mismatched row, source/wake change, or failed refresh forbid output.
+Native/Talk identity and one teardown owner remain unchanged. This isolated
+post-64 work must not hold or modify the LED release. No provider/home effects,
+new framework or timeout tuning is authorized.
+
+**Isolated recovery result.** The causal fixture first failed on exact 63: Core
+held the requested claim and no output reached native after the response was lost.
+The isolated patch handles only an `unknown_outcome` from the original claim. This
+same live alarm task re-reads the exact requested/unserved Core row, validates all
+physical and stop flags are false, preserves source/sink identity and original local
+epoch, and proves there has been no output admission. The normal admission checks
+repeat that strict read before context admission and after its await before playback.
+No second claim is sent. Joined timer checks pass 15 cases (seven unchanged plus
+eight recovery variants); three additional focused source-change/failed-refresh
+cases also pass. This includes cancellation after context admission and actual source
+replacement during that await. Ruff/format and mypy (87 sources) pass. A process
+restart or new wake has no surviving same-task authority, so held claims are not
+replayed. Independent review and future exact combined candidate binding remain
+required; no deployment or physical proof follows from this result.
 
 **#110 review boundaries and focused result.** The finite alarm/cancel
 implementation is under independent review. Two limits are retained explicitly:
@@ -192,6 +276,73 @@ cover delayed/stale acknowledgements, cancellation, reconnect and next generatio
 The adapter may catch light-command errors, so `led_command` records intent, not
 successful delivery or visible light. No LED runtime, colour or timeout repair was
 justified by this read-only audit; installed-device LED timing remains unverified.
+
+**19 October subsequent LED retirement decision — before code.** A later source
+audit found a narrower, reproducible owner-order hole on the unchanged 2.0.63
+source. The existing repeated-freshness fixture reaches a visible native yellow
+idle-preclose and then withdraws finalization before provider close. Thin cancels
+the exact firmware closing token but tests for an absent registered task before
+clearing its own task; firmware cancellation retires the TX token without repainting
+the pixels. Hypothesis: self-retirement skips the current conversation's output or
+listening repaint and can leave yellow displayed while that conversation stays open.
+This is a conditional software command-order defect, not a diagnosis of the earlier
+room yellow → red → off observation.
+
+Affected chain: completed physical reply → native quiet proof → closing LED TX ACK
+→ repeated freshness rejection → exact cancellation → restored current LED state
+or subsequent semantic/idle close → teardown → correlated rearm → next wake. Preserve
+one Thin close owner, firmware LED TX authority, current epoch/session/provider/native
+generation, stale cancellation isolation, truthful red on actual teardown/rearm
+failure, and Talk's separate I/O. No colour, timeout, provider, prompt, firmware,
+audio, or policy tuning. First strengthen the existing repeated-freshness test to
+require the current reply-state repaint and observe it fail; then retire the current
+task before the guarded repaint while prohibiting an old owner from painting over
+a replacement preclose. Run only the affected native/adjacent LED fixture and fast
+static checks, followed by independent adversarial review. A known-unsent cancel
+must enter the existing device-error close owner; a returned service send is only
+a command projection, never optical confirmation or a firmware cancel ACK. Rollback
+is the exact merged 2.0.63 tree `d8e029071719b3db37730526721bfb7ed8b65bab`; no test,
+review, release, installation or physical acceptance is claimed by this plan.
+
+**LED retirement draft result (isolated, post-63).** The strengthened existing
+freshness fixture failed on the exact 2.0.63 source: native closing cancel was
+requested, but no restored LED command was issued. The narrow draft retires the
+current idle-preclose task after its exact cancel returns, then rechecks epoch,
+session, provider/native/audio generations, original preclose token currency and
+absence of a replacement owner
+before painting the still-current reply state. `VoicePELink` now propagates a
+known-unsent cancellation or stale owner as an error; Thin uses its existing
+device-error close instead of a normal repaint when that send fails. This is a
+command-order repair after prior native `led_tx_done`, not a firmware cancel ACK or
+optical proof. Focused native/adjacent cases: 10 passed; adapter contract: 11 passed;
+three closing-attempt neighbors passed. Ruff/format and mypy (87 sources) passed.
+The subsequent focused whole idle-preclose module passes 65 cases, including
+exact externally retired owner restoration, failed cancellation without an optimistic
+normal repaint, replacement preclose already retired before old cancellation returns,
+and queued old paint delayed until after replacement retirement. Adapter closing
+contracts pass 11 cases; Ruff/format pass on the five changed Python files and mypy
+passes all 87 sources. The async paint captures monotonic preclose currency, so an
+old command cannot revive after a replacement starts and disappears. A returned
+cancel still is not firmware or optical acknowledgement.
+
+**Installed observation and timer LED addition.** Lead reports the published 2.0.63
+main `fe3750cd47bd8f0d2d518fb5ccc51a380c17f65b` installed on Green. The user then
+reported that an alarm sounded (tentatively), without LED, and pressed the Voice PE
+button. These are separate observations: actual audible alarm, exact button-stop
+correlation, and visible alarm state are not all proved by that report. In particular,
+absence of LED is an open product failure, not proof that Core timer expiry failed.
+The isolated successor also adds the existing green AI_SPEAKING projection only on
+an admitted exact timer playback start, without opening a conversation or microphone.
+Queued alarm paint requires that same started lease, epoch/native/audio generations,
+and no interrupt; IDLE cleanup is generation-fenced against the next wake. No new
+colour, firmware, timeout or alarm sound is introduced. The existing joined timer regression passes 7/7 with actual adapter command
+projection, Stop/OFF, and delayed paint after new wake; its strengthened first node
+also passes after withholding the exact stop acknowledgement, then traversing the
+compiled StopContext and actual native stopped-event parser. The other six unchanged
+results are retained. Independent adversarial source review reports no remaining
+finding; exact successor candidate binding remains open. Neither this isolated successor nor
+the user report establishes whole-flow physical acceptance; the earlier room yellow
+→ red → off sequence and its timing remain unresolved.
 
 **Same-version acceptance scope.** The active goal covers all PodVoice controls,
 not a collection of per-component green results: wake → Danish answer → follow-up

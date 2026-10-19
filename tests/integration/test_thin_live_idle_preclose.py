@@ -744,20 +744,28 @@ async def test_cancelled_led_restores_current_live_projection(monkeypatch, chang
 
 
 @pytest.mark.asyncio
-async def test_old_cancel_cannot_repaint_new_same_generation_visible_preclose(monkeypatch):
+@pytest.mark.parametrize("cancel_error", [False, True])
+@pytest.mark.parametrize("replacement_retired", [False, True])
+async def test_old_cancel_cannot_repaint_new_same_generation_visible_preclose(
+    monkeypatch, cancel_error, replacement_retired
+):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     entered, release = asyncio.Event(), asyncio.Event()
 
     async def blocked_cancel(token):
-        entered.set()
-        await release.wait()
+        if token == old_native_token:
+            entered.set()
+            await release.wait()
+            if cancel_error:
+                raise RuntimeError("old cancel not sent")
 
     try:
         with monkeypatch.context() as patch:
             clock_patch(patch, clock)
             await observed_preclose(session, sdk, link, clock)
             old = session._live_idle_preclose_task
+            old_native_token = session._live_close_next_token
             link.cancel_live_closing = AsyncMock(side_effect=blocked_cancel)
             row = observation(43)
             row["playback_id"] = session._playback_lease.playback_id
@@ -776,13 +784,17 @@ async def test_old_cancel_cannot_repaint_new_same_generation_visible_preclose(mo
                 )
             )
             new = session._live_idle_preclose_task
+            if replacement_retired:
+                session._cancel_live_idle_preclose("new-input")
+                await asyncio.wait_for(asyncio.gather(new, return_exceptions=True), 2)
+                assert session._live_idle_preclose_task is None
             paint = Mock()
             patch.setattr(session, "_set_led", paint)
             patch.setattr(session, "_refresh_live_work_led", lambda: None)
             release.set()
             await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
             paint.assert_not_called()
-            assert session._live_idle_preclose_task is new
+            assert session._live_idle_preclose_task is (None if replacement_retired else new)
             assert sdk.session.close.await_count == 0
     finally:
         release.set()
@@ -992,7 +1004,10 @@ async def test_direct_or_wrong_preclose_capability_cannot_bypass_ui_idle(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(monkeypatch):
+@pytest.mark.parametrize("cancel_error", [False, True])
+async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(
+    monkeypatch, cancel_error
+):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     try:
@@ -1013,11 +1028,25 @@ async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(monke
                 return result
 
             patch.setattr(session, "_live_preclose_quiet_current", cross_freshness)
+            if cancel_error:
+                link.cancel_live_closing = AsyncMock(side_effect=RuntimeError("cancel not sent"))
+            paint = Mock()
+            hub_state = Mock()
+            patch.setattr(session, "_set_led", paint)
+            patch.setattr(session, "_hub_state", hub_state)
             session._live_idle_preclose_deadline = asyncio.get_running_loop().time() - 1
             await until(lambda: link.cancel_live_closing.await_count == 1)
-            assert crossed and sdk.session.close.await_count == 0
-            assert not session._live_finalizing and session._active
+            assert crossed
             assert session._live_idle_preclose_task is None
+            if cancel_error:
+                await until(lambda: session._transport_closing)
+                assert session._trace_reason == "live-idle-closing-cancel-failed"
+                assert not any(call.args == (State.AI_SPEAKING,) for call in paint.call_args_list)
+                assert not any(call.args[0] == "LISTENING" for call in hub_state.call_args_list)
+            else:
+                assert sdk.session.close.await_count == 0
+                assert not session._live_finalizing and session._active
+                paint.assert_called_once_with(State.AI_SPEAKING)
     finally:
         await session.aclose()
 
@@ -1193,4 +1222,82 @@ async def test_reset_between_final_quiet_check_and_commit_cannot_reuse_serial(mo
             assert sdk.session.close.await_count == 0
             assert link.cancel_live_closing.await_count == 1
     finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel_error", [False, True])
+async def test_external_cancel_restores_exact_retired_owner_or_fails_closed(
+    monkeypatch, cancel_error
+):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def blocked_cancel(token):
+        entered.set()
+        await release.wait()
+        if cancel_error:
+            raise RuntimeError("old cancel not sent")
+
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            await observed_preclose(session, sdk, link, clock)
+            old = session._live_idle_preclose_task
+            link.cancel_live_closing = AsyncMock(side_effect=blocked_cancel)
+            session._cancel_live_idle_preclose("new-input")
+            await asyncio.wait_for(entered.wait(), 2)
+            paint, close = Mock(), Mock()
+            patch.setattr(session, "_set_led", paint)
+            patch.setattr(session, "_request_close", close)
+            patch.setattr(session, "_refresh_live_work_led", lambda: None)
+            release.set()
+            await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
+            if cancel_error:
+                paint.assert_not_called()
+                close.assert_called_once_with(
+                    "live-idle-closing-cancel-failed", error_kind="device"
+                )
+            else:
+                paint.assert_called_once_with(State.AI_SPEAKING)
+                close.assert_not_called()
+            assert session._active and sdk.session.close.await_count == 0
+    finally:
+        release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("replacement_retired", [False, True])
+async def test_queued_live_paint_cannot_cross_replacement_preclose(
+    monkeypatch, replacement_retired
+):
+    session, _, link = await setup(output=False)
+    queued = []
+    replacement = None
+    try:
+        with monkeypatch.context() as patch:
+            session._live_led_ready = True
+            patch.setattr(session, "_spawn", lambda coro, name: queued.append(coro))
+            light = AsyncMock()
+            patch.setattr(link, "set_light", light)
+            session._set_led(State.LISTENING)
+            assert len(queued) == 1
+            session._live_idle_preclose_token += 1
+            replacement = asyncio.create_task(asyncio.sleep(100))
+            session._live_idle_preclose_task = replacement
+            if replacement_retired:
+                session._cancel_live_idle_preclose("new-input")
+                await asyncio.gather(replacement, return_exceptions=True)
+                assert session._live_idle_preclose_task is None
+            await queued.pop()
+            light.assert_not_called()
+    finally:
+        for coro in queued:
+            coro.close()
+        if replacement is not None:
+            replacement.cancel()
+            await asyncio.gather(replacement, return_exceptions=True)
+        session._live_idle_preclose_task = None
         await session.aclose()

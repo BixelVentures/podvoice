@@ -1620,14 +1620,17 @@ class VoicePELink:
             raise
 
     async def cancel_live_closing(self, token: int) -> None:
+        """Retire the exact local owner and report a known-unsent cancel, not a device ACK."""
         owner = self._native_closing_owner
         if owner is None or owner[4] != token:
-            return
+            raise RuntimeError("No current native closing LED to cancel")
         self._retire_native_closing()
-        if owner[0] == self._connection_generation and owner[2] == self._source_pcm_nonce:
-            await self._call_service(
-                "podvoice_live_closing_cancel", {"nonce": owner[2], "token": token}
-            )
+        if owner[0] != self._connection_generation or owner[2] != self._source_pcm_nonce:
+            raise RuntimeError("Native closing LED owner changed before cancel")
+        if not await self._call_service(
+            "podvoice_live_closing_cancel", {"nonce": owner[2], "token": token}
+        ):
+            raise RuntimeError("Native closing LED cancel was not sent")
 
     async def request_callback_source_fence(self, token: int) -> None:
         """Preserve queue and PCM; observe matching token in the source ledger.
