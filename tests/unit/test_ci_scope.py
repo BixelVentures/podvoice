@@ -50,8 +50,9 @@ def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
     assert ci_scope.tooling_only(paths) is expected
 
 
-def test_only_exact_ci_control_files_skip_product_admission_but_not_checks():
-    exact = sorted(ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"})
+@pytest.mark.parametrize("required", [ci_scope.CI_CONTROL_REQUIRED, ci_scope.CI_SHARD_REQUIRED])
+def test_only_exact_ci_control_files_skip_product_admission_but_not_checks(required):
+    exact = sorted(required | {"docs/STATUS.md"})
     assert ci_scope.ci_control_only(exact)
     assert not ci_scope.tooling_only(exact)
     assert not ci_scope.ci_control_only([".github/workflows/ci.yml"])
@@ -59,8 +60,9 @@ def test_only_exact_ci_control_files_skip_product_admission_but_not_checks():
     assert not ci_scope.ci_control_only([*exact, "scripts/unknown.py"])
 
 
-def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path):
-    paths = sorted(ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"})
+@pytest.mark.parametrize("required", [ci_scope.CI_CONTROL_REQUIRED, ci_scope.CI_SHARD_REQUIRED])
+def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path, required):
+    paths = sorted(required | {"docs/STATUS.md"})
     output = tmp_path / "github-output"
     monkeypatch.setenv("CI_DIFF_BASE", "a" * 40)
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))

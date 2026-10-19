@@ -52,29 +52,180 @@ def test_ci_runs_for_prs_and_main_pushes_without_feature_branch_duplicates():
     assert "cancel-in-progress: false" in trigger_block
 
 
-def test_ci_test_cohorts_fail_fast_and_emit_hang_stacks_without_test_timeout():
-    workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
-    required = "-v --maxfail=1 -o faulthandler_timeout=60"
-    unit = workflow.split("      - name: Unit tests\n", maxsplit=1)[1].split(
-        "      - name: Remaining tests\n", maxsplit=1
-    )[0]
-    rest = workflow.split("      - name: Remaining tests\n", maxsplit=1)[1].split(
-        "\n\n  ui-browser:", maxsplit=1
-    )[0]
-
-    assert required in unit
-    assert "-vv" not in unit
-    assert "tests/unit --durations=15 --durations-min=1" in unit
-    assert required in rest
-    assert "-vv" not in rest
+def test_ci_test_cohorts_preserve_all_gates_with_isolated_unit_shards():
+    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    aggregate = workflow.split("  lint-test:\n", 1)[1].split("  unit-shards:\n", 1)[0]
+    shards = workflow.split("  unit-shards:\n", 1)[1].split("  remaining-tests:\n", 1)[0]
+    rest = workflow.split("  remaining-tests:\n", 1)[1].split("  ui-browser:\n", 1)[0]
+    assert "name: lint-test (unit)" in aggregate
+    assert "needs: [scope, promotion, unit-shards]" in aggregate
+    assert "if: ${{ always() }}" in aggregate
+    assert (
+        "      - name: Reject cancelled unit checks\n        if: ${{ cancelled() }}\n        run: exit 1"
+        in aggregate
+    )
+    assert "WORKFLOW_CANCELLED" not in aggregate
+    assert "UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}" in aggregate
+    assert 'run: test "$UNIT_SHARDS_RESULT" = success' in aggregate
+    assert "ruff check ." in aggregate and "ruff format --check ." in aggregate
+    assert "mypy podvoice/gatekeeper" in aggregate
+    assert "python -m pytest -q tests/unit/test_dev_cycle.py" in aggregate
+    assert "needs.scope.outputs.tooling_only != 'true'" in shards
+    assert "needs.promotion.outputs.reuse != 'true'" in shards
+    assert "runs-on: ubuntu-latest" in shards
+    assert "fail-fast: false" in shards
+    assert "shard: [1, 2, 3, 4, 5, 6, 7, 8]" in shards
+    assert "run: python scripts/dev_cycle.py unit-shard --shard ${{ matrix.shard }}" in shards
+    assert "name: lint-test (rest)" in rest
+    assert "needs: [scope, promotion]" in rest
+    assert "-v --maxfail=1 -o faulthandler_timeout=60" in rest
     assert (
         "--ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1" in rest
     )
-    ha = workflow.split("  ha-framework:\n", maxsplit=1)[1].split("  build-addon:\n", maxsplit=1)[0]
+    ha = workflow.split("  ha-framework:\n", 1)[1].split("  build-addon:\n", 1)[0]
     assert "needs: [scope, promotion]" in ha
     assert "--network none --read-only" in ha
     assert "ghcr.io/home-assistant/home-assistant@sha256:" in ha
     assert "-B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v" in ha
+
+
+@pytest.mark.parametrize(
+    "scope,promotion,tooling,reuse,shards,cancelled,expected",
+    [
+        ("success", "success", "false", "false", "success", "false", 0),
+        ("success", "success", "true", "false", "skipped", "false", 0),
+        ("success", "success", "false", "true", "skipped", "false", 0),
+        ("success", "success", "false", "false", "failure", "false", 1),
+        ("success", "success", "false", "false", "cancelled", "false", 1),
+        ("success", "success", "false", "false", "skipped", "false", 1),
+        ("success", "success", "true", "false", "skipped", "true", 1),
+        ("success", "success", "false", "true", "skipped", "true", 1),
+        ("success", "success", "false", "false", "success", "true", 1),
+        ("failure", "success", "false", "false", "success", "false", 1),
+        ("success", "failure", "false", "false", "success", "false", 1),
+        ("success", "success", "false", "true", "failure", "false", 1),
+    ],
+)
+def test_ci_unit_required_guard_never_accepts_cancelled_or_unknown_evidence(
+    scope, promotion, tooling, reuse, shards, cancelled, expected
+):
+    from textwrap import dedent
+
+    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    guard = workflow.split("      - name: Require complete unit evidence\n", 1)[1]
+    guard = dedent(guard.split("        run: |\n", 1)[1].split("      - name:", 1)[0])
+    env = dict(
+        os.environ,
+        SCOPE_RESULT=scope,
+        PROMOTION_RESULT=promotion,
+        TOOLING_ONLY=tooling,
+        REUSE=reuse,
+        UNIT_SHARDS_RESULT=shards,
+    )
+    cancel_step = workflow.split("      - name: Reject cancelled unit checks\n", 1)[1]
+    cancel_step = cancel_step.split("      - name: Require complete unit evidence", 1)[0]
+    assert "if: ${{ cancelled() }}" in cancel_step
+    cancel_command = cancel_step.split("        run: ", 1)[1].strip()
+    if cancelled == "true":
+        result = subprocess.run(["bash", "-e", "-c", cancel_command], env=env, check=False)
+        # An always-run evidence check may pass after cancellation; it cannot
+        # erase the earlier explicit failing step from the required job.
+        subprocess.run(["bash", "-e", "-c", guard], env=env, check=False)
+    else:
+        result = subprocess.run(["bash", "-e", "-c", guard], env=env, check=False)
+    assert result.returncode == expected
+
+
+@pytest.mark.parametrize("invalid_env", [False, True])
+def test_ci_status_functions_are_only_used_in_supported_if_context(invalid_env):
+    import re
+
+    workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
+    invalid = "          WORKFLOW_CANCELLED: ${{ cancelled() }}"
+    if invalid_env:
+        workflow += "\n" + invalid + "\n"
+    # GitHub status functions are supported in job/step `if`, not `env`.
+    # Keep these conditions on a single line so this bounded check can audit
+    # their actual workflow placement without a second YAML/schema framework.
+    status_call = re.compile(r"\b(?:always|cancelled|failure|success)\s*\(")
+    unsupported = [
+        line
+        for line in workflow.splitlines()
+        if status_call.search(line) and not line.lstrip().startswith("if:")
+    ]
+    assert unsupported == ([invalid] if invalid_env else [])
+
+
+@pytest.mark.parametrize("result", [0, 1, 5, -15])
+def test_ci_unit_shard_executes_exact_partition_and_preserves_exit(monkeypatch, tmp_path, result):
+    root = Path(__file__).parents[2]
+    batches = dev_cycle.unit_batches(root)
+    calls = []
+
+    def child(command, **kwargs):
+        calls.append((command, kwargs))
+        return result
+
+    monkeypatch.setattr(dev_cycle.subprocess, "call", child)
+    for index, batch in enumerate(batches, 1):
+        assert dev_cycle.run_ci_unit_shard(root, {"CI": "true"}, "python", index) == result
+        command, kwargs = calls[-1]
+        assert command == (
+            "python",
+            "-m",
+            "pytest",
+            "-v",
+            "--maxfail=1",
+            "-o",
+            "faulthandler_timeout=60",
+            *batch,
+            "--durations=15",
+            "--durations-min=1",
+        )
+        assert kwargs == {"cwd": root, "env": {"CI": "true"}}
+    assert len(batches) == dev_cycle.UNIT_BATCH_COUNT == 8
+    flattened = [module for batch in batches for module in batch]
+    assert len(flattened) == len(set(flattened))
+    with pytest.raises(dev_cycle.DevCycleError, match="no partition"):
+        dev_cycle.run_ci_unit_shard(root, {}, "python", 9)
+    assert len(calls) == 8
+
+
+@pytest.mark.parametrize(
+    "args", [["unit-shard"], ["unit-shard", "--shard", "0"], ["fast", "--shard", "1"]]
+)
+def test_ci_unit_shard_cli_rejects_missing_or_wrong_scope(args):
+    with pytest.raises(SystemExit):
+        dev_cycle.parse_args(args)
+
+
+def test_ci_unit_shard_bypasses_local_locks_and_returns_child_failure(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(dev_cycle, "GateLock", lambda: pytest.fail("local gate lock"))
+    monkeypatch.setattr(dev_cycle, "preflight", lambda *_args: pytest.fail("local gate preflight"))
+    calls = []
+
+    def child(root, env, python, shard):
+        calls.append((root, python, shard))
+        return 1
+
+    monkeypatch.setattr(dev_cycle, "run_ci_unit_shard", child)
+    assert dev_cycle.main(["unit-shard", "--shard", "3"]) == 1
+    assert calls == [(tmp_path.resolve(), sys.executable, 3)]
+
+
+@pytest.mark.parametrize("shard,expected", [(1, 1), (8, 0)])
+def test_ci_unit_shard_real_pytest_isolates_modules_and_propagates_failure(
+    tmp_path, shard, expected
+):
+    unit = tmp_path / "tests/unit"
+    unit.mkdir(parents=True)
+    for index in range(8):
+        (unit / f"test_module_{index}.py").write_text(
+            f"def test_case():\n    assert {index} != 0\n"
+        )
+    result = dev_cycle.run_ci_unit_shard(tmp_path, os.environ.copy(), sys.executable, shard)
+    assert result == expected
 
 
 def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
@@ -101,7 +252,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
     assert "cache-to:" not in build
-    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in publish
+    assert "needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
     assert "docker/build-push-action@v6" in publish
@@ -134,7 +285,7 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
         assert "docker/build-push-action@v6" in job
     fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
     assert build.count(fork_guard) == 3
-    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in publish
+    assert "needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]" in publish
     assert "push: true" in publish
     assert "Inspect immutable release version" in publish
     assert "Record published digest" in publish
@@ -1696,7 +1847,7 @@ def test_ci_workflow_change_keeps_full_build_but_cannot_republish_existing_versi
     )
     assert "needs.scope.outputs.pr_addon_changed == 'true'" in build
     assert "ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}" in publish
-    assert "needs: [scope, lint-test, ui-browser, ha-framework]" in publish
+    assert "needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]" in publish
     assert publish.count("if: steps.release.outputs.required == 'true'") == 3
     assert 'echo "required=false" >> "$GITHUB_OUTPUT"' in publish
     assert 'echo "required=true" >> "$GITHUB_OUTPUT"' in publish
