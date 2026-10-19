@@ -2630,3 +2630,35 @@ Create one additive37 profile using the existing strict safe-file, inventory and
   "rationale": "Independent exact37 SOURCE GO f8316790c49e6c5acc0ebb2e7c0106ab28600057052fb5d6b24ed105c444d5c4. Exact14-path composition preserves reviewed backup4bits, all historical30-36 admission bytes and STATUS records, closed2-asset production scope,241 runtime files,135 UI assets,9 HA files and version-only37 metadata. Author focused28 new/current dispatch cases and16 historical36 fixture cases PASS, formatter/lint and diff checks PASS; unchanged checks retained. Existing strict helpers/inventory/fingerprints reused without generic fallback, waived owner checks, provider/settings/grant/runtime/audio changes. Official CI, publication, installation, pairing and physical Voice PE/UI acceptance remain separate and open."
 }
 -->
+
+### Aktiv promptbeslutning — naturlig stemme, uden skabelonkvittering
+
+Lead: /root. På installeret 2.0.67 viste én normal Talk-tur `[hum] København.`;
+brugeren har udtrykkeligt præciseret, at naturlige smålyde, tøven og udtryksfuld
+stemme er ønskede, ikke en fejl eller en releasegate. Det er synlig transcripttekst,
+ikke bevis for hørbar lyd. Den shippede primærprompt forbyder imidlertid ordret
+`Never backchannel`, tøvelyde, nynnen og `hmm` også i direkte svar. Den
+falsificerbare årsag er derfor en for bred stilregel, som modsiger brugerens mål;
+denne observation beviser ikke, at provider faktisk adlyder eller at de tidligere
+gentagne standardreplikker er løst.
+
+Berørt kæde: brugerhensigt → primær Live-instruktion → eventuel stille delegation →
+backendresultat → naturligt direkte svar/afsked → transcript og playback → lukning
+og næste wake. Bevar én Live-ejer af lyd og semantik, tavs delegation før
+handlingsresultat, sand resultat-/afslutningskvittering, og backendens faktuelle
+svarstil. Ret kun primærpromptens overbrede forbud til et snævert forbud mod
+skabelonagtige modtagelses- og fremskridtsreplikker; ingen tekst-/PCM-
+filtrering, prompt-/timeouttuning, providerkald eller ændret værktøjskontrakt.
+Kør eksisterende fokuseret promptkontrakt, lint/format og uafhængigt kilde-/ejerreview
+før én koordineret PodVoice/PodView-kandidat. Rollback er dette isolerede prompt-
+ordvalg. CI, installation, faktisk providerlyd og fysisk Voice PE-accept er åbne.
+
+Faktisk draftresultat: den primære stilregel fraråder nu skabelonagtige
+modtagelses- og fremskridtsreplikker uden at forbyde naturlige smålyde, tøven
+eller prosodi i meningsfulde svar. Ingen backend-, værktøjs-, timeout- eller
+lydimplementation er ændret. De eksisterende 19 prompttests, Ruff check/format
+og diffkontrol består på det isolerede draft. Uafhængig ejer-/kildereviewer
+/root/playlist_cover_projection fandt og lukkede en tælle-ambiguitet i den første
+ordlyd; final to-filspatch `fee3e885ff1ecbb015f03b44e837b333eb4e7baa4afca63a85d84cad687f8e86`
+fik snævert GO. Ingen ny providerprøve, SafeEval, officiel CI, installation,
+hørbar eller fysisk accept er udført for denne promptrettelse.
