@@ -231,7 +231,7 @@
     },
     {
       "path": "frame-layout.css",
-      "sha256": "0da0a7c0003ad0bb21288a98851919260314a79fbb8af268ff36caa76c444672"
+      "sha256": "47141d25a7374b8d7b81f8f0761ff46814c31b49a16f706af384d596ecf06000"
     },
     {
       "path": "home-model.js",
@@ -267,11 +267,11 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "aa462be41ca8fd5323a2d1b69c06398bf9d03edc4e110b38b66b038a2d2dac5a"
+      "sha256": "d6be6f4b189889a2ff70c02aaaeaac9636a3f8be0333017efb21ab4a7d559c2a"
     },
     {
       "path": "live-home-view.js",
-      "sha256": "2b92bdb29ff10f2192bb24076adb240602ad0975089a96ddb2f67ddf0f8f6aaf"
+      "sha256": "f87b910b98ecc95487d575be2f335a5b39f4d9fd267d8066f0196c1f536574cc"
     },
     {
       "path": "live-media-view.js",
@@ -279,7 +279,7 @@
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "dced46cf0b189b92c9666072ee2467fbf594206992dc66521615dffc318202fe"
+      "sha256": "74e9d5c5103eaaeaf29b60686f616290a9735ca5705cf76d0924150af144636b"
     },
     {
       "path": "live-music-view.js",
@@ -347,7 +347,7 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "d11d5427c1b01522cbab3062622d6605e3a26d120c493de4d50ecd42ab1e0d5f"
+      "sha256": "f77d87367272b3223cfcfccb82700b8b4f0eb5eef4714009e5ecdb15ce71d2b3"
     },
     {
       "path": "podvoice-transport.js",
@@ -383,7 +383,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "56d8d2447479e78f527d6726d1ac6ac802db62d74c383be146c87b44a278148b"
+      "sha256": "2f3ef2eeda52893355aa4c5f785f58de78fe0805466a183cffeea559ab8aa0b4"
     },
     {
       "path": "robot-observation.js",
@@ -419,7 +419,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "a675e82e6713e526f7c9a693c001599ae827ba7c4889bf5582942ca4aacc7d53"
+      "sha256": "56f8f7bef7b40e619ce0b911243dd4016b7ed7e205839d0b671ced32793b2979"
     },
     {
       "path": "spotify-artwork.js",
@@ -475,7 +475,7 @@
     },
     {
       "path": "ui/library/library.css",
-      "sha256": "da75598f02a29d0baef640906be52334c106da2e5633911408ac760f6613c447"
+      "sha256": "d2be1b5dacbefb7ea01a6f90d37e6e064dd83479e0c89479380aabb3c9e8ac5c"
     },
     {
       "path": "ui/library/types.d.ts",
@@ -555,7 +555,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "3874d9bae72335729fa1340672d72eecbb195931cc81ba4ceaa4748deb524fd3"
+      "sha256": "ac6f8b91548cbab14d347b9216021bd949ead03a43bbf564770155c1c22ed23c"
     },
     {
       "path": "widget-view.css",

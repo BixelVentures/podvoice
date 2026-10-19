@@ -439,7 +439,7 @@ async def run(cfg: Config) -> None:
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
     tools.podview_weather_city = cfg.podview_weather_city
-    from .podview_enrichment import configured_selector
+    from .podview_enrichment import configured_robot_recipe_selector, configured_selector
     from .podview_mood import configured_mood_selector
     from .podview_mood_setup import setup_mood_budget
 
@@ -457,6 +457,11 @@ async def run(cfg: Config) -> None:
         )
         if mood_setup_ready
         else None
+    )
+    # Explicit robot recipe purpose shares the same approved aggregate allowance.
+    # No new switch, credential, ledger, refill or model quota is introduced.
+    tools.podview_robot_recipe_selector = configured_robot_recipe_selector(
+        tools.podview_mood_selector
     )
 
     tools.podview_receipts.configure_selector(

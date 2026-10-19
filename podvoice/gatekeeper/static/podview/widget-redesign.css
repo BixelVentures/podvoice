@@ -46,7 +46,10 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 .resource-dial-track{stroke:var(--pv-instrument-line)}.resource-dial-progress{stroke:var(--pv-signal);stroke-dasharray:var(--remaining) 100;stroke-linecap:round}
 .resource-visual .resource-value{font-size:19px;letter-spacing:-.03em;line-height:1;color:inherit;font-variant-numeric:tabular-nums}.resource-label strong{font-size:16px;font-weight:500;line-height:1.2}.resource-label small{font-size:13px;line-height:1.35;color:inherit;opacity:.75}.resource-chevron{width:16px;height:16px;opacity:.65}
 .resource-preview[data-kind=timer]{background:var(--pv-instrument);color:#fafafa}.resource-preview[data-kind=timer]>.resource-chevron{filter:invert(1)}
-.resource-preview[data-kind=light][data-status=on]{background:var(--pv-light-surface);color:var(--pv-light-ink)}
+/* Yellow identifies the light family in every availability/power state.
+   Actual on/off/unconnected status remains in the existing icon and copy. */
+.resource-preview[data-kind=light][data-status],
+#now-view #device-activities>.resource-preview[data-kind=light]:is([data-status],:disabled,[aria-disabled]){--overview-card-surface:var(--pv-light-surface);--overview-card-ink:var(--pv-light-ink);background:var(--pv-light-surface);color:var(--pv-light-ink);opacity:1}
 .resource-preview[data-kind=light] .resource-visual{border-radius:50%;background:#ffffff6b}.resource-preview[data-kind=light][data-status=off] .resource-visual>img{opacity:.45}
 .resource-preview[data-kind=vacuum] .resource-visual{background:transparent;border-radius:0}.resource-preview[data-status=unknown],.resource-preview[data-status=fault]{background:var(--pv-screen-danger-surface);color:var(--pv-screen-danger)}
 #now-view{background:transparent;padding:8px 0 0}#now-view>.response-heading{padding:0 12px 20px}#now-view .now-activities{padding:0;display:flex;flex-direction:column;gap:12px}
@@ -62,7 +65,7 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 
 /* Expanded resources keep the same silhouette and state colour as their tile. */
 #device-detail .pv-component{background:var(--pv-resource-quiet);color:var(--pv-screen-ink);border-radius:var(--pv-resource-radius);padding:28px;transition:background 220ms ease,color 220ms ease}
-#device-detail .pv-component[data-component=light-widget][data-power=true]{background:var(--pv-light-surface);color:var(--pv-light-ink)}
+#device-detail .pv-component[data-component=light-widget]{background:var(--pv-light-surface);color:var(--pv-light-ink)}
 #device-detail .pv-component .pv-content{grid-template-columns:156px minmax(0,1fr);gap:20px 28px;align-content:center;height:100%}
 #device-detail .pv-component .pv-instrument{width:156px;height:156px;grid-column:1;grid-row:1/3;background:#fafafabf;border:0;border-radius:50%;align-self:center}
 #device-detail .pv-component[data-component=vacuum-widget] .pv-instrument{background:transparent;border-radius:0}
@@ -492,11 +495,11 @@ pv-widget-host{--overview-lift:72px}
 .weather-current p,.weather-current span{color:inherit}
 .weather-view .weather-summary{font-size:18px;line-height:1.4;margin:16px 0}
 /* PROPOSAL ONLY: root owns canonical CSS. Existing disclosure, no cards. */
-#device-view .robot-care-group{margin-top:24px}
-#device-view .robot-care-group>h3{font-size:16px;font-weight:500;margin:0 0 12px}
-#device-view .robot-care-values{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px 24px;margin:0}
-#device-view .robot-care-values dt{color:var(--pv-screen-muted);overflow-wrap:anywhere}
-#device-view .robot-care-values dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+pv-robot-control-panel .robot-care-group{margin-top:24px}
+pv-robot-control-panel .robot-care-group>h3{font-size:16px;font-weight:500;margin:0 0 12px}
+pv-robot-control-panel .robot-care-values{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px 24px;margin:0}
+pv-robot-control-panel .robot-care-values dt{color:var(--pv-screen-muted);overflow-wrap:anywhere}
+pv-robot-control-panel .robot-care-values dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .vehicle-view > .response-heading { padding:0 0 16px; }
 .vehicle-hero { background:var(--pv-screen-control); border-radius:var(--pv-screen-radius); padding:24px; }
 .vehicle-status { margin:0 0 12px; font-size:16px; color:var(--pv-screen-muted); }
@@ -704,36 +707,33 @@ pv-widget-host #now-view :is(#now-music,#now-empty,#restore-resources,#restore-t
 }
 [data-motion=reduced] .result .result-play,[data-motion=reduced] #music-refresh>img{animation:none!important;transition:none!important;transform:none!important}
 
-/* Empty and first-read playback retain the same room, track and artwork slots
-   as the populated sidebar. The only artwork is its honest music symbol. */
+/* Empty playback keeps the sidebar bounds without pretending to be an album.
+   The room, real status and existing discovery action form one compact group. */
 pv-widget-host[data-view=active] #player-empty:not([hidden]){
- display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:64px 76px minmax(80px,1fr) 100px;
- gap:var(--pv-screen-space-4);padding:24px 20px 16px;background:var(--pv-screen-surface);
- border-radius:var(--pv-screen-radius-frame);text-align:left;align-items:stretch;isolation:isolate;
+ display:grid;grid-template-columns:32px minmax(0,1fr);grid-template-rows:64px minmax(48px,auto) 52px minmax(0,1fr);
+ gap:var(--pv-screen-space-4) 12px;padding:24px 20px 16px;background:transparent;
+ border-radius:var(--pv-screen-radius-frame);text-align:left;align-items:start;isolation:isolate;
 }
 pv-widget-host[data-view=active] #player-empty>div{display:contents}
-pv-widget-host[data-view=active] #player-empty :is(.output,h2){grid-column:1;grid-row:1;align-self:start;margin:0}
+pv-widget-host[data-view=active] #player-empty :is(.output,h2){grid-column:1/-1;grid-row:1;align-self:start;margin:0}
 pv-widget-host[data-view=active] #player-empty .output{justify-content:flex-start;text-align:left;padding:0;max-width:none;min-height:48px}
 pv-widget-host[data-view=active] #player-empty .output h2{justify-content:flex-start;width:100%;font-size:21px}
 pv-widget-host[data-view=active] #player-empty .output-room{justify-content:flex-start;text-align:left}
 pv-widget-host[data-view=active] #player-empty p{
- grid-column:1;grid-row:2;align-self:start;width:100%;max-width:none;min-height:0;margin:0;
+ grid-column:2;grid-row:2;align-self:center;width:100%;max-width:26ch;min-height:0;margin:0;
  font-size:16px;line-height:1.45;text-wrap:pretty;text-align:left;
 }
-pv-widget-host[data-view=active] #player-empty::before{
- content:"";grid-column:1;grid-row:3;min-width:0;min-height:0;
- background:var(--pv-screen-control);border-radius:var(--pv-screen-radius-art);z-index:0;
-}
-pv-widget-host[data-view=active] #player-empty>img{grid-column:1;grid-row:3;align-self:center;justify-self:center;width:40px;height:40px;margin:0;z-index:1;opacity:.5}
-pv-widget-host[data-view=active] #player-empty>#empty-find-music{grid-column:1;grid-row:4;align-self:center;width:100%;max-width:none;min-height:52px;margin:0;justify-content:center}
+pv-widget-host[data-view=active] #player-empty::before{content:none}
+pv-widget-host[data-view=active] #player-empty>img{grid-column:1;grid-row:2;align-self:center;justify-self:center;width:28px;height:28px;margin:0;opacity:.5}
+pv-widget-host[data-view=active] #player-empty>#empty-find-music{grid-column:1/-1;grid-row:3;align-self:start;width:100%;max-width:none;min-height:52px;margin:0;justify-content:center}
 pv-widget-host[data-view=active] #player-empty #output:disabled{opacity:1;cursor:default}
 @media(min-width:760px) and (max-height:640px){
- pv-widget-host[data-view=active] #player-empty:not([hidden]){grid-template-rows:48px 72px minmax(64px,1fr) 72px;gap:var(--pv-screen-space-3);padding:18px 20px 14px}
+ pv-widget-host[data-view=active] #player-empty:not([hidden]){grid-template-rows:48px minmax(48px,auto) 52px minmax(0,1fr);gap:var(--pv-screen-space-3) 12px;padding:18px 20px 14px}
  pv-widget-host[data-view=active] #player-empty .output h2{font-size:19px}
  pv-widget-host[data-view=active] #player-empty p{font-size:15px}
 }
 @media(max-width:759px){
- pv-widget-host[data-view=active] #player-empty:not([hidden]){grid-template-rows:auto auto minmax(160px,1fr) auto;min-height:380px;padding:24px}
+ pv-widget-host[data-view=active] #player-empty:not([hidden]){grid-template-rows:auto minmax(48px,auto) 52px minmax(0,1fr);min-height:380px;padding:24px}
 }
 
 /* Previous answers replace only the focused left pane. Its native nonmodal
@@ -781,3 +781,48 @@ pv-widget-host #history .history-preview{height:178px}
 @keyframes music-art-preparation{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:.7;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.result:has(>.result-art[data-artwork-pending=true].live-art-fallback)::before{animation:none;transform:none}}
 [data-motion=reduced] .result:has(>.result-art[data-artwork-pending=true].live-art-fallback)::before{animation:none;transform:none}
+
+/* Robot status and entry are one canonical card. Its single existing button
+   owns the whole hit area; admitted Pause/Stop remain first inside the dialog. */
+#device-view:has(#device-detail>pv-vacuum-widget:not([hidden])){overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+#device-detail:has(>pv-vacuum-widget:not([hidden])){flex:none;min-height:0;overflow:visible}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget]:not([hidden]){position:relative;height:auto;min-height:156px;padding:24px}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget]>.pv-content{grid-template-columns:80px minmax(0,1fr);gap:6px 24px;height:auto;align-content:center}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-instrument{width:80px;height:80px;grid-column:1;grid-row:1/4;align-self:center}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-instrument>img{width:72px;height:72px}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] h3:empty{display:none}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-resource-value{grid-column:2;grid-row:1;align-self:end;font-size:26px;line-height:1.2;margin:0;max-width:none}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-meta{grid-column:2;grid-row:2;margin:0;font-size:15px;color:var(--pv-vacuum-muted)}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-meta:empty{display:none}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-actions{grid-column:2;grid-row:3;margin:6px 0 0;align-self:start}
+#device-detail>pv-vacuum-widget[data-control-entry=true]{padding-inline-end:64px}
+#device-detail button[data-robot-control=true]{position:static;display:inline-flex;align-items:center;min-height:48px;padding:0;background:transparent;color:inherit;font-size:16px;text-align:left;border-radius:var(--pv-resource-radius)}
+#device-detail button[data-robot-control=true]::after{content:"";position:absolute;inset:0;border-radius:var(--pv-resource-radius)}
+#device-detail button[data-robot-control=true]::before{content:"";position:absolute;right:24px;top:50%;width:18px;height:18px;transform:translateY(-50%);background:url('assets/icons/chevron-right.svg') center/contain no-repeat;opacity:.65}
+#device-detail>pv-vacuum-widget:has(button[data-robot-control=true]:hover:not(:disabled)){background:var(--pv-vacuum-hover)}
+#device-detail>pv-vacuum-widget:has(button[data-robot-control=true]:focus-visible){outline:3px solid var(--pv-focus-ring);outline-offset:3px}
+#device-detail button[data-robot-control=true]:focus-visible{outline:none}
+pv-robot-control-panel .robot-care>summary{min-height:48px;align-content:center;font-size:18px;cursor:pointer}
+@media(max-width:759px){
+ #device-detail>pv-vacuum-widget[data-component=vacuum-widget]:not([hidden]){padding:20px;min-height:144px}
+ #device-detail>pv-vacuum-widget[data-component=vacuum-widget]>.pv-content{grid-template-columns:64px minmax(0,1fr);column-gap:16px}
+ #device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-instrument{width:64px;height:64px}
+ #device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-instrument>img{width:60px;height:60px}
+ #device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-resource-value{font-size:22px}
+ #device-detail>pv-vacuum-widget[data-control-entry=true]{padding-inline-end:52px}
+ #device-detail button[data-robot-control=true]::before{right:20px}
+}
+
+/* The same robot instrument becomes a compact observation header in its
+   existing control dialog; the admitted form owns the working space. */
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget]{padding:14px 20px;height:auto;min-height:88px}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget]>.pv-content{display:grid;grid-template-columns:40px minmax(0,1fr);grid-template-rows:auto auto auto;gap:2px 16px;align-content:center;height:auto}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-instrument{grid-column:1;grid-row:1/4;width:40px;height:40px;align-self:center;background:transparent;border:0}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-instrument>img{width:40px;height:40px}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] h3{grid-column:2;grid-row:1;margin:0;font-size:14px;line-height:1.3;font-weight:400;letter-spacing:0;color:var(--pv-vacuum-muted)}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-resource-value{grid-column:2;grid-row:2;margin:0;font-size:20px;line-height:1.25;max-width:none}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] .pv-meta{grid-column:2;grid-row:3;margin:0;font-size:14px;line-height:1.3;color:var(--pv-vacuum-muted)}
+pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-component=vacuum-widget] h3::after{content:none}
+pv-robot-control-panel form:has(>.heading)>[data-robot-proposal=true]{grid-column:1/-1;grid-row:auto;justify-self:start;max-width:100%;margin:0 0 12px}
+pv-robot-control-panel form:has(>.heading)>p[data-robot-proposal=true]{margin-bottom:8px}
+pv-robot-control-panel form:has(>.heading)>[data-robot-proposal=true][hidden]{display:none}

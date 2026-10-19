@@ -678,6 +678,7 @@ class ThinSession:
         self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_output_transcript_generation: int | None = None
         self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
         # Last exact native packet whose send_audio call returned. This is not a
@@ -861,6 +862,8 @@ class ThinSession:
         self._provider_trace_observer_installed = False
         self._timer_poll_task: asyncio.Task | None = None
         self._timer_alarm_task: asyncio.Task | None = None
+        self._timer_alarm_scope: tuple[str, str, str, str, bool] | None = None
+        self._timer_report_task: asyncio.Task | None = None
         self._timer_interrupt = asyncio.Event()
 
         if hub is not None:
@@ -967,6 +970,73 @@ class ThinSession:
                     except (TimeoutError, Exception):
                         state = {}
                         timers.snapshots.pop(self.room, None)
+                    alarm = self._timer_alarm_task
+                    if alarm is not None:
+                        if alarm.done():
+                            try:
+                                if alarm.cancelled():
+                                    raise RuntimeError(
+                                        "timer alert task cancelled before retirement"
+                                    )
+                                await asyncio.shield(alarm)
+                            except Exception:
+                                _LOG.exception("thin: timer alert task failed")
+                                self._teardown_incomplete = True
+                            finally:
+                                if self._timer_alarm_task is alarm:
+                                    self._timer_alarm_task = None
+                                    self._timer_alarm_scope = None
+                        else:
+                            scope = self._timer_alarm_scope
+                            if scope is not None:
+                                epoch, timer_id, alert_id, sink_id, claimed = scope
+                                row = next(
+                                    (
+                                        item
+                                        for item in state.get("finished", [])
+                                        if item["id"] == timer_id
+                                    ),
+                                    None,
+                                )
+                                if (
+                                    not state.get("ok")
+                                    or state.get("epoch") != epoch
+                                    or row is None
+                                    or (
+                                        claimed
+                                        and (row["alert_id"], row["sink_id"]) != (alert_id, sink_id)
+                                    )
+                                    or (
+                                        not claimed
+                                        and (row["alert_id"], row["sink_id"])
+                                        not in (("", ""), (alert_id, sink_id))
+                                    )
+                                    or row["stop_requested"]
+                                    or (
+                                        kind == "voice_pe"
+                                        and (
+                                            not self._timer_output_ready()
+                                            or sink_id
+                                            != "voice_pe:"
+                                            + (getattr(self.voicepe, "device_identity", None) or "")
+                                        )
+                                    )
+                                    or (
+                                        kind == "talk"
+                                        and (
+                                            not self._timer_endpoint_ready()
+                                            or sink_id
+                                            != getattr(self.voicepe, "timer_sink_identity", None)
+                                        )
+                                    )
+                                ):
+                                    self._timer_interrupt.set()
+                            await asyncio.sleep(2.0)
+                            continue  # An active alarm cannot admit another alert.
+                    report = self._timer_report_task
+                    if report is not None and not report.done():
+                        await asyncio.sleep(2.0)
+                        continue  # Wait for this exact physical result before recovery.
                     if state.get("ok") and self._timer_idle():
                         receipt = next(
                             (
@@ -993,19 +1063,32 @@ class ThinSession:
                         )
                         if receipt:
                             self._timer_interrupt.clear()
+                            self._timer_alarm_scope = (
+                                state["epoch"],
+                                receipt["id"],
+                                receipt["alert_id"],
+                                (
+                                    receipt["sink_id"]
+                                    or (
+                                        getattr(self.voicepe, "timer_sink_identity", None)
+                                        if kind == "talk"
+                                        else "voice_pe:"
+                                        + (getattr(self.voicepe, "device_identity", None) or "")
+                                    )
+                                    or ""
+                                ),
+                                bool(receipt["alert_id"]),
+                            )
                             task = asyncio.create_task(
                                 self._play_timer_alert(receipt, state["epoch"]),
                                 name="thin-timer-alert",
                             )
                             self._timer_alarm_task = task
-                            try:
-                                await asyncio.shield(task)
-                            finally:
-                                if task.done() and self._timer_alarm_task is task:
-                                    self._timer_alarm_task = None
                 else:
                     timers.unbind(self.room)
                     timers.snapshots.pop(self.room, None)
+                    if self._timer_alarm_task is not None and not self._timer_alarm_task.done():
+                        self._timer_interrupt.set()
                 await asyncio.sleep(2.0)
         finally:
             timers.unbind(self.room)
@@ -1041,7 +1124,11 @@ class ThinSession:
                     not timers.available(self.room)
                     or timers.bindings.get(self.room) != source_binding
                     or timers.snapshots.get(self.room, {}).get("epoch") != epoch
-                    or getattr(self.voicepe, "device_identity", None) != source_binding[1]
+                    or (
+                        getattr(self.voicepe, "device_identity", None) != source_binding[1]
+                        if source_binding[0] == "voice_pe"
+                        else getattr(self.voicepe, "timer_sink_identity", None) != sink_id
+                    )
                 ):
                     return  # No old physical report can be attributed to a new HA owner.
             result = await self._timer_command(
@@ -1075,34 +1162,27 @@ class ThinSession:
         recovering = bool(receipt["alert_id"])
         native = getattr(self.voicepe, "host", None) != "browser"
         timers = self.tools.timers
-        source_binding = timers.bindings.get(self.room) if native else None
+        source_binding = timers.bindings.get(self.room)
 
         def source_current():
             return (
                 not self._closing
                 and not self._timer_interrupt.is_set()
-                and (
-                    not native
-                    or bool(
-                        source_binding
-                        and timers.available(self.room)
-                        and timers.bindings.get(self.room) == source_binding
-                        and timers.snapshots.get(self.room, {}).get("epoch") == epoch
-                        and self._timer_output_ready()
-                    )
+                and bool(
+                    source_binding
+                    and timers.available(self.room)
+                    and timers.bindings.get(self.room) == source_binding
+                    and timers.snapshots.get(self.room, {}).get("epoch") == epoch
+                    and self._timer_output_ready()
+                    and (native or getattr(self.voicepe, "timer_sink_identity", None) == sink_id)
                 )
             )
 
         async def fresh_source_current():
             if not source_current():
                 return False
-            if native:
-                state = await asyncio.wait_for(
-                    timers.refresh(self.room),
-                    C.TOOL_TIMEOUT_S,
-                )
-                return state.get("ok") is True and source_current()
-            return True
+            state = await asyncio.wait_for(timers.refresh(self.room), C.TOOL_TIMEOUT_S)
+            return state.get("ok") is True and source_current()
 
         alert_id = receipt["alert_id"] or (
             self.voicepe.timer_output_request() if native else secrets.token_hex(16)
@@ -1116,6 +1196,8 @@ class ThinSession:
         )
         if not sink_id or (recovering and receipt["sink_id"] != sink_id):
             return  # Another browser/physical sink cannot prove an old sink quiet.
+        if self._timer_alarm_task is asyncio.current_task():
+            self._timer_alarm_scope = (epoch, timer_id, alert_id, sink_id, recovering)
         phases: list[str] = []
         lease = None
         quiet = False
@@ -1136,6 +1218,8 @@ class ThinSession:
                 )
                 if not claim.get("ok"):
                     return
+                if self._timer_alarm_task is asyncio.current_task():
+                    self._timer_alarm_scope = (epoch, timer_id, alert_id, sink_id, True)
             try:
                 if not recovering:
                     if (
@@ -1167,9 +1251,10 @@ class ThinSession:
                     lease.playback_id = "pv-timer-" + alert_id
                     self.reply_bus.clear(self.room)
                     self.reply_bus.start(self.room)
-                    self.reply_bus.push(
-                        self.room, audio_mod.error_tone(freqs=(880, 660), ms=(180, 260), amp=0.18)
-                    )
+                    cue = audio_mod.error_tone(freqs=(880, 660), ms=(180, 260), amp=0.18)
+                    one_second = C.OUTPUT_RATE * C.SAMPLE_WIDTH
+                    alarm_pcm = (cue + bytes(one_second - len(cue))) * 20
+                    self.reply_bus.push(self.room, alarm_pcm)
                     self.reply_bus.end(self.room)
                     output_requested = True
                     await asyncio.wait_for(self._play_reply_url(lease), TEARDOWN_STEP_TIMEOUT_S)
@@ -1180,9 +1265,9 @@ class ThinSession:
                     finished = asyncio.create_task(self._playback_finished.wait())
                     interrupted = asyncio.create_task(self._timer_interrupt.wait())
                     try:
-                        await asyncio.wait(
+                        completed, _ = await asyncio.wait(
                             (finished, interrupted),
-                            timeout=3.0,
+                            timeout=len(alarm_pcm) / one_second + 3.0,
                             return_when=asyncio.FIRST_COMPLETED,
                         )
                         if lease.phase == "finished":
@@ -1191,7 +1276,7 @@ class ThinSession:
                         finished.cancel()
                         interrupted.cancel()
                         await asyncio.gather(finished, interrupted, return_exceptions=True)
-                    cancelled = self._timer_interrupt.is_set()
+                    cancelled = self._timer_interrupt.is_set() or not completed
             except Exception as exc:
                 _LOG.warning("thin: timer alert output incomplete: %s", exc)
                 phases.append("unknown")
@@ -1255,7 +1340,7 @@ class ThinSession:
                         else None,
                     )
         # New wake need only wait for physical ownership, never HA network receipts.
-        self._spawn(
+        self._timer_report_task = self._spawn(
             self._timer_report(
                 epoch,
                 timer_id,
@@ -1418,6 +1503,7 @@ class ThinSession:
             raise RuntimeError("Live Alpha integration is unavailable")
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_output_transcript_generation = None
         self._live_close_attempt = None
         self._live_close_task = None
         self._live_close_cancel_reason = None
@@ -2576,7 +2662,14 @@ class ThinSession:
             # Avoid a false-dark gap between teardown and a later failed rearm.
             if self._closing or not hasattr(self.voicepe, "rearm_wake_word"):
                 self._set_led(State.IDLE)
-            self._trace_event("teardown_complete")
+            self._trace_event(
+                "teardown_complete",
+                live_output_transcript_seen=(
+                    self._live_output_transcript_generation is not None
+                    and self._live_output_transcript_generation
+                    == getattr(self.brain, "_connection_generation", None)
+                ),
+            )
         else:
             # A dark ring is the normal IDLE privacy signal. If physical stop failed,
             # darkness would lie; keep a red fault indication until the full retry has
@@ -3030,6 +3123,8 @@ class ThinSession:
         ):
             return
         if isinstance(ev, LiveSessionReady):
+            if self._live_output_transcript_generation != ev.generation:
+                self._live_output_transcript_generation = None
             self._trace_event("live_session_ready", provider_session_id=ev.session_id)
         elif isinstance(ev, LiveTransportReady):
             self._trace_event("live_sideband_ready", provider_session_id=ev.session_id)
@@ -3182,6 +3277,8 @@ class ThinSession:
                     input_revision=self._live_input_revision,
                 )
                 # Raw Live fragments are evidence, not a completed new turn.
+            elif ev.direction == "out" and ev.text.strip():
+                self._live_output_transcript_generation = ev.generation
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,

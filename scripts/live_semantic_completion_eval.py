@@ -35,9 +35,11 @@ MAX_BACKEND_RESPONSES = 4
 VARIANTS = ("baseline", "implicit")
 TEXTS = {
     "math": "Hvad er to plus to?",
+    "long_count": "Tæl langsomt fra en til tyve, et tal ad gangen.",
     "timer_10s": "Sæt en timer på 10 sekunder.",
     "side_address": "Peter, nu taler jeg med dig. Hvad skal vi have til aftensmad?",
     "followup": "Nabu, og hvad er tre plus tre?",
+    "interrupt_followup": "Nabu, hvad er enogtredive plus tolv?",
     "aside_correction": "Vent lidt, Peter, jeg spørger lige Nabu færdig. Nabu, jeg mente tre plus tre.",
     "unfinished": "Nabu, hvad er to plus to? Bagefter vil jeg lægge noget til, men jeg skal lige tænke.",
     "tv": "Og nu til vejret. I morgen bliver det skyet med regn fra vest.",
@@ -55,8 +57,9 @@ CASES = {
     "timer-10s": ("math", "timer_10s"),
     "pure-thanks": ("math", "pure_thanks"),
     "polite-followup": ("math", "polite_followup"),
+    "interrupt-active-output": ("long_count", "interrupt_followup", "explicit_close"),
 }
-POSITIVE_CASES = frozenset({"completed-side-address", "explicit-close"})
+POSITIVE_CASES = frozenset({"completed-side-address", "explicit-close", "interrupt-active-output"})
 POLICY = (
     "Implicit completion applies only after the assistant has delivered a complete answer "
     "and there is no unfinished thought, pending question, task, correction or approval. "
@@ -571,14 +574,66 @@ def answer_seen(rows, after_seq, endings):
     return rig.normalized(text).endswith(endings)
 
 
+def followup_seen(rows, after_seq, *, before_seq=None):
+    """Pace only a known synthetic follow-up, not a runtime turn boundary."""
+    window = [r for r in rows if before_seq is None or r["seq"] < before_seq]
+    incoming = [r for r in transcripts(window, "in") if r["seq"] > after_seq]
+    if not incoming or fixture_transcript(
+        "".join(r["text"] for r in incoming)
+    ) != fixture_transcript(TEXTS["interrupt_followup"]):
+        return False
+    return answer_seen(window, incoming[-1]["seq"], ("treogfyrre", "43"))
+
+
+def provider_pcm_lease_ready(rows, session, capture):
+    """Find nonzero provider PCM with an active null-drain lease, not audible playback."""
+    lease = session._playback_lease
+    stream = session._live_stream
+    if (
+        capture.clip is not None
+        or not session._active
+        or lease is None
+        or lease.kind != "live"
+        or lease.phase != "started"
+        or lease.epoch != session._epoch
+        or stream is None
+        or lease.playback_id not in capture.drains
+        or capture.drains[lease.playback_id].done()
+    ):
+        return None
+    first = next(
+        (
+            r
+            for r in rows
+            if r["kind"] == "decoded_output_chunk"
+            and r["generation"] == session.brain._connection_generation
+            and r["pcm_all_zero"] is False
+        ),
+        None,
+    )
+    if first is None:
+        return None
+    return dict(
+        provider_chunk_seq=first["seq"],
+        provider_chunk_sha256=first["sha256"],
+        provider_generation=session.brain._connection_generation,
+        session_id=session._history_session,
+        stream_id=stream.id,
+        playback_id=lease.playback_id,
+        physical_playback_proven=False,
+    )
+
+
 def fixture_transcript(text):
     """Compare complete controlled inputs while allowing numeric orthography.
 
     This is a fixture-only oracle, never runtime speech or intent routing.
     All remaining words must still match, including the entire closing input.
     """
-    digits = {"to": "2", "tre": "3"}
-    rendered = re.sub(r"\b(?:to|tre)\b", lambda match: digits[match[0]], text.lower())
+    digits = {"to": "2", "tre": "3", "tolv": "12", "enogtredive": "31"}
+    rendered = re.sub(
+        r"\b(?:to|tre|tolv|enogtredive)\b", lambda match: digits[match[0]], text.lower()
+    )
     return rig.normalized(rendered)
 
 
@@ -930,9 +985,56 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         len(starts) > 1 and rows and mapped_window_all_zero(starts[-1], rows[-1])
     )
     timer_chain = timer_action_chain(rows, outputs, starts) if case == "timer-10s" else None
+    lease_at_input_proven = followup_meaning_observed = provider_pcm_during_second_input = False
+    if case == "interrupt-active-output" and len(starts) == len(finished) == 3:
+        triggers = [r for r in rows if r["kind"] == "provider_pcm_lease_trigger"]
+        chunks = [r for r in rows if r["kind"] == "decoded_output_chunk"]
+        if len(triggers) == 1:
+            trigger = triggers[0]
+            source = next(
+                (r for r in chunks if r["seq"] == trigger.get("provider_chunk_seq")), None
+            )
+            lease_at_input_proven = bool(
+                source
+                and source["pcm_all_zero"] is False
+                and source["sha256"] == trigger.get("provider_chunk_sha256")
+                and trigger.get("provider_generation") == source["generation"] == 1
+                and all(
+                    isinstance(trigger.get(field), str) and trigger[field]
+                    for field in ("session_id", "stream_id", "playback_id")
+                )
+                and trigger.get("physical_playback_proven") is False
+                and len(settlements) == 1
+                and trigger["session_id"] == settlements[0].get("session_id")
+                and source["seq"] < trigger["seq"] < starts[1]["seq"]
+                and finished[0]["seq"] < trigger["seq"]
+            )
+        provider_pcm_during_second_input = any(
+            r["generation"] == 1
+            and r["pcm_all_zero"] is False
+            and starts[1]["seq"] < r["seq"] < finished[1]["seq"]
+            and starts[1]["elapsed_s"] < r["received_elapsed_s"] < finished[1]["elapsed_s"]
+            for r in chunks
+        )
+        followup_meaning_observed = followup_seen(
+            rows, starts[1]["seq"], before_seq=starts[2]["seq"]
+        )
     if evidence_complete:
         verdict = "FAIL"
-        if case == "timer-10s":
+        if case == "interrupt-active-output":
+            if (
+                lease_at_input_proven
+                and provider_pcm_during_second_input
+                and followup_meaning_observed
+                and functional_chain_observed
+                and len(accepted) == len(ends) == 1
+                and accepted[0][0]["seq"] > finished[-1]["seq"]
+                and not nonsemantic_close
+            ):
+                # Primary Live PCM has no response ID. The sealed audio still
+                # needs content review before this can be called interruption.
+                verdict = "PENDING_AUDIO_REVIEW"
+        elif case == "timer-10s":
             if (
                 opening_answered
                 and timer_chain is not None
@@ -1007,7 +1109,14 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         clean_shutdown=clean,
         usage_complete=usage_complete,
         timer_action_chain_observed=timer_chain is not None,
-        verdict_scope="synthetic_semantic_policy_only",
+        synthetic_live_lease_at_input=lease_at_input_proven,
+        provider_pcm_during_second_input=provider_pcm_during_second_input,
+        followup_meaning_observed=followup_meaning_observed,
+        verdict_scope=(
+            "synthetic_provider_pcm_receipt_and_semantic_policy_only"
+            if case == "interrupt-active-output"
+            else "synthetic_semantic_policy_only"
+        ),
         semantic_review_required=True,
         functional_chain_observed=functional_chain_observed,
         preaccept_output_observed=preaccept_output,
@@ -1180,8 +1289,33 @@ async def evaluate(
                 since_finished = (
                     now - evidence.started - finished[-1]["elapsed_s"] if finished else -1
                 )
-                if (
-                    stage == 0
+                if case == "interrupt-active-output" and stage == 0:
+                    overlap = provider_pcm_lease_ready(evidence.rows, session, capture)
+                    if overlap is not None:
+                        evidence.emit("provider_pcm_lease_trigger", **overlap)
+                        stage = 1
+                        capture.play_fixture(names[stage], fixtures[names[stage]])
+                elif (
+                    case == "interrupt-active-output"
+                    and stage == 1
+                    and capture.clip is None
+                    and followup_seen(
+                        evidence.rows,
+                        next(
+                            r["seq"]
+                            for r in evidence.rows
+                            if r["kind"] == "fixture_started" and r["name"] == names[1]
+                        ),
+                    )
+                ):
+                    await asyncio.sleep(rig.INPUT_DELAY_S)
+                    if not session._active:
+                        break
+                    stage = 2
+                    capture.play_fixture(names[stage], fixtures[names[stage]])
+                elif (
+                    case != "interrupt-active-output"
+                    and stage == 0
                     and capture.clip is None
                     and answer_seen(evidence.rows, -1, ("fire", "4"))
                 ):
@@ -1192,7 +1326,8 @@ async def evaluate(
                     stage = 1
                     capture.play_fixture(names[stage], fixtures[names[stage]])
                 elif (
-                    stage == 1
+                    case != "interrupt-active-output"
+                    and stage == 1
                     and len(names) == 3
                     and capture.clip is None
                     and since_finished >= rig.INPUT_DELAY_S

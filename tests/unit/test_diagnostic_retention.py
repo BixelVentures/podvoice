@@ -68,6 +68,33 @@ def test_diagnostic_retention_expires_separately_and_is_bounded(tmp_path, monkey
     assert not old.exists()
 
 
+def test_live_output_transcript_seen_is_teardown_only_boolean_without_content(tmp_path):
+    save_diagnostics(
+        tmp_path,
+        {
+            "id": "private session",
+            "events": [
+                {
+                    "event": "teardown_complete",
+                    "live_output_transcript_seen": False,
+                    "text": "private",
+                },
+                {"event": "teardown_complete", "live_output_transcript_seen": True},
+                {"event": "teardown_complete", "live_output_transcript_seen": "private"},
+                {"event": "live_backend_complete", "live_output_transcript_seen": True},
+            ],
+        },
+    )
+    saved = next(tmp_path.glob("*.diagnostic")).read_text()
+    assert "private" not in saved
+    assert [row.get("live_output_transcript_seen") for row in json.loads(saved)["events"]] == [
+        False,
+        True,
+        None,
+        None,
+    ]
+
+
 async def test_independent_diagnostics_need_no_audio_capture_and_survive_restart(tmp_path):
     from gatekeeper.audio_trace import AudioTraceRecorder
 

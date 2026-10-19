@@ -852,10 +852,7 @@
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
-          "factory:details:'device-history robot-care'",
-          "factory:dl:'robot-care-values'",
-          "factory:section:'device-history robot-recent pv-component'",
-          "factory:section:'robot-care-group'"
+          "factory:section:'device-history robot-recent pv-component'"
         ],
         "registrations": {},
         "customTags": [],
@@ -942,7 +939,9 @@
           "method:showTargets": 1,
           "method:showTracks": 1,
           "method:restoreRecoveryFocus": 1,
-          "method:observePlayback": 1
+          "method:observePlayback": 1,
+          "method:feedbackScope": 1,
+          "method:resultCurrent": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1397,11 +1396,14 @@
       "status": "approved-composition",
       "domOwner": "RobotControlPanel",
       "factoryClassArgument": 2,
-      "imports": [],
+      "imports": [
+        "dist/robot-observation.js"
+      ],
       "surface": {
         "customElementAccesses": 3,
         "rendererCalls": {},
         "definitions": {
+          "arrow:dirty": 1,
           "arrow:make": 1,
           "arrow:statusText": 1,
           "arrow:update": 1,
@@ -1415,19 +1417,24 @@
           "method:disabled": 1,
           "method:emit": 1,
           "method:observed": 1,
+          "method:suggest": 1,
           "method:syncDisabled": 1,
-          "method:updateObservation": 1
+          "method:updateObservation": 1,
+          "method:validSuggestion": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
           "factory:button:'pv-button pv-primary start'",
           "factory:button:option.action==='stop'?'pv-button pv-ghost stop':['pause'",
+          "factory:details:'device-history robot-care'",
           "factory:details:'device-history settings'",
           "factory:div:'heading'",
           "factory:div:'pv-actions transport'",
           "factory:div:'pv-component'",
+          "factory:dl:'robot-care-values'",
           "factory:form:'setting'",
-          "factory:section:'device-history'"
+          "factory:section:'device-history'",
+          "factory:section:'robot-care-group'"
         ],
         "registrations": {
           "'pv-robot-control-panel'": 1
@@ -1437,7 +1444,7 @@
         ],
         "dom": true
       },
-      "compositionScope": "D06 original presentation debt closed after source/test review: canonical pv-vacuum-widget owns observation; admitted native form/fieldset/legend controls use shared light-DOM pv-component/pv-button recipes and token stylesheet. No shadow root/style, duplicate robot instrument or additional authority.",
+      "compositionScope": "D06 original presentation debt closed after source/test review: canonical pv-vacuum-widget owns observation; admitted native form/fieldset/legend controls use shared light-DOM pv-component/pv-button recipes and token stylesheet. No shadow root/style, duplicate robot instrument or additional authority. 19 October direct user correction: the existing read-only care disclosure and three semantic group/list identities move from LiveHomeView history to this same admitted robot-control dialog; existing observed facts only, no new controls/family/authority.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/robot-observation.js": {

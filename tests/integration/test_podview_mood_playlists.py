@@ -55,6 +55,12 @@ async def mood_rig(rig):  # noqa: F811 - imported pytest fixture
             "calm acoustic": "c",
             "morning acoustic": "d",
             "evening jazz": "e",
+            # The same admitted bounded search port supports explicit-refresh broadening.
+            "dinner": "f",
+            "italian": "g",
+            "acoustic": "h",
+            "jazz": "i",
+            "alternative": "j",
         }[data["query"]]
         if rig.playlist_same:
             suffix = "a"
@@ -119,6 +125,10 @@ async def test_three_owned_themes_one_real_source_and_retained_until_refresh(moo
         refreshed = await mood(client, True)
         assert refreshed["ok"] and len(bridge.music_selection.sources) == 1
         assert mood_rig.router.podview_mood_selector.select.await_count == 2
+        assert not {row["uri"] for row in first["data"]["tracks"]} & {
+            row["uri"] for row in refreshed["data"]["tracks"]
+        }
+        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 12
 
 
 async def test_opaque_context_option_uses_existing_native_owner_once(mood_rig):

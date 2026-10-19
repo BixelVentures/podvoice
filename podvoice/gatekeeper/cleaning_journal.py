@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -281,5 +282,31 @@ class CleaningJournal:
             "items": [
                 {**copy.deepcopy(row), "physical_result_verified": False}
                 for row in reversed(self._state["records"])
+            ],
+        }
+
+    @property
+    def planning_revision(self) -> str | None:
+        """Cached source identity only: snapshot projection must never read disk."""
+        if not self._healthy:
+            return None
+        return hashlib.sha256(json.dumps(self._state, sort_keys=True).encode()).hexdigest()
+
+    def planning_history(self, vacuum: str) -> dict | None:
+        """Cached owner data, including unknown starts hidden by display eviction.
+
+        Normal history reads and start writes maintain this bounded owner state.
+        Optional proposal setup/snapshots must never introduce blocking disk I/O.
+        """
+        if not self._healthy or self._path is None:
+            return None
+        if any(row["recipe"]["vacuum_entity_id"] == vacuum for row in self._state["pending"]):
+            return None
+        return {
+            "revision": self.planning_revision,
+            "items": [
+                copy.deepcopy(row)
+                for row in reversed(self._state["records"])
+                if row["recipe"]["vacuum_entity_id"] == vacuum
             ],
         }
