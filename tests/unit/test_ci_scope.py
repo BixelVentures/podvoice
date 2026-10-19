@@ -57,6 +57,7 @@ def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
         ci_scope.CI_SHARD_REQUIRED | {"docs/STATUS.md"},
         ci_scope.CI_SHARD_REQUIRED | ci_scope.CI_SHARD_OPTIONAL,
         ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"},
+        ci_scope.CI_SHARD_REQUIRED | {"tests/unit/test_candidate_scope_admission66.py"},
     ],
 )
 def test_only_admitted_ci_control_files_skip_product_admission_but_not_checks(paths):
@@ -80,6 +81,7 @@ def test_ci_shard_scope_requires_every_core_path(missing):
         ci_scope.CI_SHARD_REQUIRED | {"docs/STATUS.md"},
         ci_scope.CI_SHARD_REQUIRED | ci_scope.CI_SHARD_OPTIONAL,
         ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"},
+        ci_scope.CI_SHARD_REQUIRED | {"tests/unit/test_candidate_scope_admission66.py"},
     ],
 )
 def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path, paths):

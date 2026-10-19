@@ -45,7 +45,9 @@ CI_SHARD_OPTIONAL = frozenset(
         "scripts/ci_scope.py",
         "tests/unit/test_ci_scope.py",
         "tests/unit/test_release_contract.py",
+        # Historical admission tests can be repaired against their pinned release trees.
         "tests/unit/test_candidate_scope_admission65.py",
+        "tests/unit/test_candidate_scope_admission66.py",
     }
 )
 
