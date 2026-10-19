@@ -123,7 +123,8 @@ if(!rejected)process.exit(2);"""
             ),
             text=True,
             capture_output=True,
-            timeout=5,
+            # This is a host-process budget for starting Node, not a product-latency assertion.
+            timeout=30,
             check=False,
         )
         assert checked.returncode == 0, checked.stderr

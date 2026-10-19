@@ -128,6 +128,9 @@ def test_missing_release_recovery_keeps_main_checks_and_guards_every_publish_ste
     header, *steps = publisher.split("\n      - ")
     assert "needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]" in header
     assert "github.ref == 'refs/heads/main'" in header
+    assert "!cancelled()" in header
+    for job in ("scope", "lint-test", "remaining-tests", "ui-browser", "ha-framework"):
+        assert f"needs.{job}.result == 'success'" in header
     assert "needs.scope.outputs.tooling_only != 'true'" in header
     assert "always()" not in header
     guard_position = next(i for i, step in enumerate(steps) if "id: release\n" in step)
@@ -148,3 +151,44 @@ def test_missing_release_recovery_keeps_main_checks_and_guards_every_publish_ste
             )
         ):
             assert "\n        if:" not in step
+
+
+def test_publisher_requires_every_job_to_succeed_even_when_ancestors_are_skipped() -> None:
+    publisher = (ROOT / ".github/workflows/ci.yml").read_text().split("  publish-addon:\n", 1)[1]
+    header = publisher.split("\n    needs:", 1)[0]
+    expression = header.split("if: ${{", 1)[1].split("}}", 1)[0]
+    jobs = ("scope", "lint-test", "remaining-tests", "ui-browser", "ha-framework")
+
+    for job in jobs:
+        assert f"needs.{job}.result == 'success'" in expression
+        expression = expression.replace(f"needs.{job}.result", f"{job.replace('-', '_')}_result")
+    assert "!cancelled()" in expression
+    expression = expression.replace("!cancelled()", "not cancelled")
+    expression = expression.replace("needs.scope.outputs.tooling_only", "tooling_only")
+    expression = expression.replace("github.ref", "ref").replace("github.event_name", "event_name")
+    expression = expression.replace("&&", "and").replace("||", "or")
+
+    def allowed(
+        results, *, cancelled=False, tooling_only="false", ref="refs/heads/main", event_name="push"
+    ):
+        context = {f"{job.replace('-', '_')}_result": results.get(job) for job in jobs}
+        context.update(
+            cancelled=cancelled,
+            tooling_only=tooling_only,
+            ref=ref,
+            event_name=event_name,
+        )
+        return eval(expression, {"__builtins__": {}}, context)
+
+    assert allowed(
+        dict.fromkeys(jobs, "success")
+    )  # Unreferenced transitive ancestors may be skipped.
+    for job in jobs:
+        for result in ("failure", "skipped", "cancelled", None):
+            results = dict.fromkeys(jobs, "success")
+            results[job] = result
+            assert not allowed(results)
+    assert not allowed(dict.fromkeys(jobs, "success"), cancelled=True)
+    assert not allowed(dict.fromkeys(jobs, "success"), tooling_only="true")
+    assert not allowed(dict.fromkeys(jobs, "success"), ref="refs/heads/release")
+    assert not allowed(dict.fromkeys(jobs, "success"), event_name="pull_request")

@@ -54,6 +54,7 @@ def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
     "paths",
     [
         ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"},
+        ci_scope.CI_PUBLISHER_REQUIRED | ci_scope.CI_PUBLISHER_OPTIONAL,
         ci_scope.CI_SHARD_REQUIRED | {"docs/STATUS.md"},
         ci_scope.CI_SHARD_REQUIRED | ci_scope.CI_SHARD_OPTIONAL,
         ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"},
@@ -74,10 +75,28 @@ def test_ci_shard_scope_requires_every_core_path(missing):
     assert not ci_scope.ci_control_only(paths)
 
 
+@pytest.mark.parametrize("missing", sorted(ci_scope.CI_PUBLISHER_REQUIRED))
+def test_publisher_guard_scope_requires_every_core_path(missing):
+    paths = (ci_scope.CI_PUBLISHER_REQUIRED - {missing}) | ci_scope.CI_PUBLISHER_OPTIONAL
+    assert not ci_scope.ci_control_only(paths)
+
+
+def test_publisher_guard_scope_rejects_unknown_and_product_paths():
+    assert ci_scope.CI_PUBLISHER_OPTIONAL == ci_scope.CI_CONTROL_OPTIONAL | {
+        "tests/integration/test_podview_research_receipts.py",
+        "tests/integration/test_thin_live_ten_cycles.py",
+    }
+    assert not ci_scope.ci_control_only(ci_scope.CI_PUBLISHER_REQUIRED | {"scripts/unknown.py"})
+    assert not ci_scope.ci_control_only(
+        ci_scope.CI_PUBLISHER_REQUIRED | {"podvoice/gatekeeper/thin.py"}
+    )
+
+
 @pytest.mark.parametrize(
     "paths",
     [
         ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"},
+        ci_scope.CI_PUBLISHER_REQUIRED | ci_scope.CI_PUBLISHER_OPTIONAL,
         ci_scope.CI_SHARD_REQUIRED | {"docs/STATUS.md"},
         ci_scope.CI_SHARD_REQUIRED | ci_scope.CI_SHARD_OPTIONAL,
         ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"},

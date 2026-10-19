@@ -407,10 +407,7 @@ jobs:
           bash scripts/check_podview_admin_stdin.sh "$image"
 
   publish-addon:
-    if: >-
-      needs.scope.outputs.tooling_only != 'true' &&
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.lint-test.result == 'success' && needs.remaining-tests.result == 'success' && needs.ui-browser.result == 'success' && needs.ha-framework.result == 'success' && needs.scope.outputs.tooling_only != 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]
     runs-on: ubuntu-latest
     steps:

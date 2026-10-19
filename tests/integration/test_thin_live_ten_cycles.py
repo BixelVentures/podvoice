@@ -546,15 +546,47 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
 
                 timeout_cycle = native and cycle > 5
                 if timeout_cycle:
+                    preclose_events = []
+                    original_trace = session._trace_event
+
+                    def trace_preclose(
+                        name, *, events=preclose_events, trace=original_trace, **fields
+                    ):
+                        if name.startswith("live_idle_preclose"):
+                            if len(events) == 16:
+                                events.pop(0)
+                            events.append(
+                                (
+                                    round(time.monotonic(), 3),
+                                    name,
+                                    {
+                                        key: fields[key]
+                                        for key in ("reason", "cause", "token")
+                                        if key in fields
+                                    },
+                                )
+                            )
+                        trace(name, **fields)
+
+                    session._trace_event = trace_preclose
                     quiet_base = clock[0]
                     native_sample(session, link, clock, quiet_base, 0, nonzero=True)
                     last_index = math.ceil(session.idle_timeout_s * 10) + 2
                     for index in range(1, last_index + 1):
                         native_sample(session, link, clock, quiet_base, index)
                     assert session._live_close_speech_played and session._live_quiet_ready()
+                    last_sent = [last_index]
+                    last_gaps = [None, None]
+                    max_host_gap = [0.0]
+                    reset_transitions = []
 
                     async def fresh_native_until_closed(
-                        last_index=last_index, quiet_base=quiet_base
+                        last_index=last_index,
+                        quiet_base=quiet_base,
+                        last_sent=last_sent,
+                        last_gaps=last_gaps,
+                        max_host_gap=max_host_gap,
+                        reset_transitions=reset_transitions,
                     ):
                         index = last_index
                         loop = asyncio.get_running_loop()
@@ -565,9 +597,39 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                                 if session._live_provider_closed.is_set():
                                     break
                                 index += 1
-                                native_sample(
+                                prior = link.latest
+                                reset_before = session._live_idle_window.reset_count
+                                row = native_sample(
                                     session, link, clock, quiet_base, index, historical=False
                                 )
+                                last_sent[0] = index
+                                if prior is not None:
+                                    last_gaps[:] = [
+                                        row["received_monotonic"] - prior["received_monotonic"],
+                                        (row["source_timestamp_ms"] - prior["source_timestamp_ms"])
+                                        / 1000,
+                                    ]
+                                    max_host_gap[0] = max(max_host_gap[0], last_gaps[0])
+                                if session._live_idle_window.reset_count != reset_before:
+                                    if len(reset_transitions) == 8:
+                                        reset_transitions.pop(0)
+                                    reset_transitions.append(
+                                        (
+                                            index,
+                                            session._live_idle_window.reset_reason,
+                                            None
+                                            if prior is None
+                                            else row["received_monotonic"]
+                                            - prior["received_monotonic"],
+                                            None
+                                            if prior is None
+                                            else (
+                                                row["source_timestamp_ms"]
+                                                - prior["source_timestamp_ms"]
+                                            )
+                                            / 1000,
+                                        )
+                                    )
                                 # Model bounded callback scheduling work. Relative
                                 # sleeps add this cost to every source tick and
                                 # falsely turn a fresh stream into stale evidence.
@@ -586,7 +648,55 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                         await observed(lambda: session._live_idle_preclose_deadline is not None)
                         await asyncio.wait_for(producer, WAIT_S + 2.0)
                         assert session._live_provider_closed.is_set()
+                    except TimeoutError as exc:
+                        window = session._live_idle_window
+                        preclose = session._live_idle_preclose_task
+                        latest = session._live_activity_latest
+                        diagnostic = {
+                            "cycle": cycle,
+                            "last_sent": last_sent[0],
+                            "last_host_source_gaps_s": last_gaps,
+                            "max_host_gap_s": max_host_gap[0],
+                            "provider_closed": session._live_provider_closed.is_set(),
+                            "provider_close_requested": session.brain._close_requested,
+                            "trace_reason": session._trace_reason,
+                            "active": session._active,
+                            "transport_closing": session._transport_closing,
+                            "finalizing": session._live_finalizing,
+                            "preclose_token": session._live_idle_preclose_token,
+                            "preclose_task_done": None if preclose is None else preclose.done(),
+                            "preclose_stack": []
+                            if preclose is None
+                            else [
+                                (frame.f_code.co_name, frame.f_lineno)
+                                for frame in preclose.get_stack(limit=1)
+                            ],
+                            "deadline_remaining_s": None
+                            if session._live_idle_preclose_deadline is None
+                            else session._live_idle_preclose_deadline
+                            - asyncio.get_running_loop().time(),
+                            "input_currency_current": (
+                                session._live_idle_input_owner
+                                == session._live_idle_input_currency()
+                            ),
+                            "activity_accepted": latest is not None
+                            and link.accepts_activity(latest),
+                            "work_clear": session._live_quiet_work_clear(
+                                semantic=False, synchronize_input=False
+                            ),
+                            "quiet": window.diagnostics(
+                                owner=session._live_idle_quiet_owner(),
+                                now=clock[0],
+                                idle_s=session.idle_timeout_s,
+                            ),
+                            "arrival_lag_s": window._arrival_lag,
+                            "minimum_arrival_lag_s": window._minimum_lag,
+                            "resets_during_reports": reset_transitions,
+                            "events": preclose_events,
+                        }
+                        raise AssertionError(f"native idle close blocked: {diagnostic!r}") from exc
                     finally:
+                        session._trace_event = original_trace
                         producer.cancel()
                         await asyncio.wait_for(
                             asyncio.gather(producer, return_exceptions=True), WAIT_S

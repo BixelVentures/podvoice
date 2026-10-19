@@ -42,6 +42,56 @@
 
 ## Active67 decision and actual Green delivery — 19 October2026
 
+### Udgivelsesrettelse efter verificeret merge
+
+Lead: /root. PR224 blev merget som `07d8d3e048c6f831864e8f89ddc54c09d995f40e`,
+præcis gennemgået tree `7bfda5babfee293693300ce3c5925e9fad435148`. PR-run39300982461
+bestod alle krævede checks, inklusive den tidligere fejlede native10-cycle-regression.
+Main-run39302112843 bestod og genbrugte det identiske PR-tree, men publisherjobbet
+118229978842 blev sprunget over uden trin. Det er ikke publicering; Green er stadig66.
+
+Den afgrænsede årsagshypotese er GitHubs implicitte `success()` ved et job uden en
+statusfunktion: bevidst udeladte, allerede dækkede transitive testjobs blokerer
+publicering trods fem succesfulde direkte kontroljobs. Rettelsen bruger `!cancelled()`
+og kræver eksplicit `success` fra alle fem direkte afhængigheder. Main/ref/event,
+produkt-/toolingafgrænsning og det eksisterende immutable-versionhegn bevares.
+Scope-undtagelsen kræver præcis workflow, scopeklassifikation og deres to relevante
+testfiler, med kun denne STATUS som valgfri fil; produktfiler og ukendte filer afvises.
+Ingen provider-, firmware-, runtime-, settings-, version- eller rettighedsændring.
+
+**Faktisk PR225-restdelkontrol.** Run39303377328 fejlede efter450 beståede tests,
+da weather-familien i `test_podview_research_receipts.py` ramte sin femsekunders
+`subprocess.run`-grænse under Node-processens start/eksekvering (5,02 s); den præcise procesfase er ukendt. Web-familien blev ikke
+kørt i dette run. Node-snippet importerer de synkrone `owner-answers.js`,
+`visual-content.js`, `research-answers.js` og `spotify-artwork.js`-validatorer; den
+importkæde starter ingen timer eller netværksarbejde og ændrer ikke svarassertionerne.
+Fixturebudgettet øges alene til 30 s som værtens procesopstarts-/eksekveringsgrænse,
+ikke en produktlatensmåling. Den parametriserede regression dækker både weather- og
+web-familien. Første lokale prøve blev standset af sandboxens TestServer-loopback-bind;
+den samme afgrænsede prøve bestod derefter med godkendt lokalt testnetværk: begge
+familier og den eksisterende workflow-statusscanner, fire tests. CI-scope tillader kun denne integrationstest som ekstra
+valgfri fil i publisher-klassifikationen; begge eksisterende familier skal bestå i CI.
+Der er ingen produktionskode-, produktlatens-, timeout-policy- eller versionændring.
+
+**Øvrige faktiske PR225-fejl.** Den eksisterende workflow-statusscanner kræver
+statusfunktioner på én `if:`-linje; publisherens semantisk identiske betingelse er
+flyttet til dette format, og scanneren består. Native10-cycle-testen ramte igen sin
+provider-close-observationstimeout på cyklus10 trods absolut rapportkadence. Den
+første kadencefejl er en selvstændigt reproduceret fixturefejl, men forklarer derfor
+ikke hele CI-fejlen. Ingen yderligere runtime- eller deadlineændring er begrundet.
+Den præcise observerede stoptilstand skal afgrænses med eksisterende ejer-/quiet-
+diagnostik i selve testens fejlrapport. Kandidaten er ikke release-godkendt af dette
+CI-run; merge/publicering af PR225 tilbageholdes, og tidligere PASS erstatter ikke
+fejlen. Det er fortsat softwarearbejde før fysisk slutaccept.
+
+Planlagt/afgrænset kontrol: eksisterende release- og scoperegressioner, cancellation,
+fejlet/skippet/manglende direkte kontrol, uafhængigt review og normal officiel CI.
+Faktisk publicering kræver derefter et kørt publisherjob, immutable digest og aflæsning
+af det publicerede image. Rollback er denne CI-only ændring; ingen imageoverskrivning,
+manuel testomgåelse eller Green-installation er udført af rettelsen. De faktiske
+musiknedbruds- og anden-timer-fejl står fortsat åbne.
+
+
 ### Aktivt issueejerskab og næste konkrete udfald
 
 | Issue/leverance | Ansvarlig | Brugerresultat og næste handling |
