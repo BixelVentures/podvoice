@@ -1,5 +1,13 @@
 ## 2.0.62 — PodView retained UI and playlist resilience
 
+## 2.0.64 — LED retirement and quiet primary policy
+
+- Restore only the current LED projection after exact closing cancellation; fence delayed paints against replacement owners and changed generations.
+- Indicate an actually started timer alarm through the existing LED adapter without opening a conversation or microphone; retain truthful terminal cleanup.
+- Reconcile a lost claim response only within the original live timer task after fresh exact unserved Core proof; never send a second claim or recover across a restart/new wake.
+- Consolidate the existing quiet GPT-Live primary policy while preserving silent delegation, validated action outcomes and semantic close.
+- Source checks do not prove optical LED, audible alarm, physical button behavior or actual model quiet compliance.
+
 ## 2.0.63 — Grounded robot controls and voice/music continuity
 
 - Consolidate canonical robot status, settings, areas and explicit source-grounded suggestions; keep the existing registered UI owners and exact action admission.
