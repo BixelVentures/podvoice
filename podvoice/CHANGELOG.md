@@ -1,3 +1,11 @@
+## 2.0.61 — beholdt widgetplads ved første hjemmelæsning, ubundet privat kandidat
+
+- Bevar robotwidgettens eksisterende tomme, deaktiverede plads, når robotlæsning er tilladt men første observation endnu mangler. Lys og øvrige widgets flytter ikke plads under den afgrænsede første læsning.
+- Gentagne afventende eller fejlede læsninger genbruger samme node. Faktisk observerede enheder overtager gennem den samme renderer; tilbagekaldt læseadgang fjerner pladsen. Ingen opdigtede enhedsdata, handlingsmål eller rettigheder.
+- Musikvalg, som kan fornyes, har samme tilgængelige Afspil-navn som øvrige afspillelige kort. Det tilføjer ingen bekræftelse og ændrer hverken rettigheder eller udførsel.
+- Find en fuld kombination af tre forskellige playlister i de samme tre afgrænsede søgeresultater, når en grådig første udvælgelse ellers fejler ved overlap. Ingen ekstra søgning, AI eller musikhandling. Den reproducerede kildefejl er rettet; årsagen til den observerede Humør-fejl på Green er fortsat ukendt.
+- Samme komponentbibliotek og143aktiver; kun de eksisterende widget-/musikkortejere, tilhørende manifest og den afgrænsede playlistematchning ændres. Uafhængigt metadatareview, officiel CI, publicering, installation og fysisk accept er særskilte; intet af dette er etableret af den private kandidat.
+
 ## 2.0.60 — normal adgang gennem Home Assistant og afgrænset statuslæsning, ubundet kandidat
 
 - Normal PodView bruger Home Assistants eksisterende administrator-Ingress med serverleverede rettigheder. Den særskilte skærmtilmelding beholdes kun i den eksisterende legacyvej; Par skærm fjernes fra den normale menunavigation.

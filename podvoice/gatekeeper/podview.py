@@ -2440,10 +2440,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             diagnostic.step("playlist_search")
             async with asyncio.TaskGroup() as reads:
                 lookups = [reads.create_task(read_theme(theme_id)) for theme_id in ids]
-            rows, seen = [], set()
+            rows, candidates = [], []
             epoch = None
             for theme_id, lookup in zip(ids, lookups, strict=True):
-                theme = themes[theme_id]
                 reply = lookup.result()
                 data = reply.get("data", {}) if reply.get("ok") is True else {}
                 if epoch is None:
@@ -2461,27 +2460,37 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                         if expected is not None
                         else f"{kind}_catalogue_unavailable"
                     )
-                playlist = next(
-                    (
+                candidates.append(
+                    [
                         row
                         for row in data.get("playlists", [])
-                        if row["uri"] not in seen
-                        and (
-                            expected is None
-                            or all(
-                                row.get(key) == expected[theme_id][key] for key in ("uri", "name")
-                            )
-                        )
-                    ),
-                    None,
+                        if expected is None
+                        or all(row.get(key) == expected[theme_id][key] for key in ("uri", "name"))
+                    ]
                 )
-                if playlist is None:
-                    return failed(
-                        f"{kind}_refresh_required"
-                        if expected is not None
-                        else f"{kind}_catalogue_empty"
-                    )
-                seen.add(playlist["uri"])
+
+            def assign(index, seen):
+                # Exactly three admitted bounded source lists; deterministic source order.
+                # Backtrack a collision instead of discarding an available full assignment.
+                if index == len(candidates):
+                    return []
+                for row in candidates[index]:
+                    if row["uri"] in seen:
+                        continue
+                    remaining = assign(index + 1, seen | {row["uri"]})
+                    if remaining is not None:
+                        return [row, *remaining]
+                return None
+
+            selected = assign(0, set())
+            if selected is None:
+                return failed(
+                    f"{kind}_refresh_required"
+                    if expected is not None
+                    else f"{kind}_catalogue_empty"
+                )
+            for theme_id, playlist in zip(ids, selected, strict=True):
+                theme = themes[theme_id]
                 rows.append(
                     {
                         "uri": playlist["uri"],
