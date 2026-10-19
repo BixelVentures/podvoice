@@ -1,3 +1,54 @@
+<!-- podview66-admission
+{
+  "version": 43,
+  "kind": "podview66_idle_destination_timer_progress_robot_recovery",
+  "reviewer": "/root/astra_actual_ui_acceptance_audit",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "2c585fabdaaf52895a103db698988477eed098a4",
+  "merge_base": "2c585fabdaaf52895a103db698988477eed098a4",
+  "rationale": "Exact unsigned66 source and admission independently reviewed by /root/astra_actual_ui_acceptance_audit; receipt SHA256 8c140910f38c2e703506c04c84a31a5c06a7782efd4b5e16e3a9214c0564eefb. Seven composed source increments retain exact143 UI members and existing native authority; bounded successor freezes the existing continuity-test clock without changing assertions or runtime bytes. Canonical ROOT adoption/parity, officialCI/publication/install and actual provider/physical acceptance remain separate; count changes no answer semantics and may include presentation JSON.",
+  "fingerprint": "9a9a432a498cd52da4c0cc4390f1acdd9ea32de06b04719334d3dfdb818e9496",
+  "regression_fingerprint": "bf238d99fab0446b136f3d71d19904529ad2dedc9c04b1c5e47440848c376042",
+  "runtime_fingerprint": "53a086a65a44f463c2c0235c7bf75058fed7bc348b4ab7d2b11215559ceda016",
+  "config_fingerprint": "75dd665c377956e1975624e83bd8bc63e8ae0541c8724e9258f6e894ad6f98bf",
+  "policy_fingerprint": "a02e74676a54a92dab2dab3d9cd46711e1edc8e7630cecee45a42da2ff5cda3c",
+  "tooling_fingerprint": "c64398576ea12f93ae7792124ace130b1e1ebc7829a086ba469b1433bc7a8708",
+  "manifest_fingerprint": "d715b61fb7ff0213edb7ee20bf21a103f2d251d8933cbff9800bb1bf9b070d3a"
+}
+-->
+
+## Current consolidated66 candidate — 19 October2026
+
+All seven reviewed source increments are composed on actual CI-main2c585fab (published product65 remains ffab41c). Combined backend238/238 and packaged UI1575/1575 pass; mypy87-source pass is reused on exact unchanged Python bytes. The dated draft sections below retain their original investigative context; independent increment source reviews and local integration checks are now complete, while exact whole-source admission review, official CI, publication, installation and actual provider/physical acceptance remain open. Next-destination choice itself performs no playback or MOVE; fresh native authority still governs Play. The character-count discriminator changes no answer semantics and may count presentation JSON. Timer source progress evidence does not establish audible alarm or visible LED success. No visual CSS exploration or unrelated feature is included.
+
+## Active lead decision — timer started receipt delayed during ringing, 19 October 2026
+
+Lead: /root. Actual installed65 test created HA-native r0 timer01M5A8VMENF8H2ZW3BH336K7JF for10s, accepted1792419942.870. Expiry was observed with alert_state=requested/physical_started=false, followed by an explicit exact cancel and eventual finished[]. This does not prove alarm audio or LED success/failure. Private receipts are retained; no physical readiness claim.
+
+Source evidence: ThinSession._play_timer_alert appends the correlated started phase after the actual native event, but defers HA report_alert until after retirement/rearm. The active HA row can therefore remain requested while the alarm is ringing. Cleanup may follow confirmed stopped without a start event. Hypothesis: reporting the observed started phase through the existing report owner promptly will make active HA progress truthful without changing playback, LED or stop semantics.
+
+Affected chain: HA timer expiry/claim → native timer context → exact playback start → HA report → physical cancel/retirement → rearm → final report/acknowledgement. Invariants: one alarm/playback owner, exact alert/sink/session/generation correlation, truthful physical receipt, no stale/duplicate event effect, no HA network wait delaying physical stop or rearm. Non-goals: new alarm owner, queue/framework, timeouts, sound/LED tuning, local semantics, claiming actual heard/visible proof.
+
+Planned correction: smallest existing-owner phase-report ordering fix, preserving bounded failure handling and final acknowledgement guards. Regressions must cover delayed/failed HA report concurrent with physical stop, stale/duplicate starts, no-start cancelled path, and final retirement ordering. Existing focused alarm/native adapter harness only; independent adversarial review before adoption; exact-tree binding and official CI on combined candidate. Rollback boundary: this reporting-only correction. Candidate result: observed started is now reported promptly through the existing metadata task; final phases await that exact successful report without holding physical retirement/rearm. The existing exact retirement retry serializes its metadata after the preceding report. Final cancel/ack is attempted only once the sink is proven quiet; unknown retirement remains held until the existing retry provides that proof. No new queue, timeout, sound or LED tuning.
+
+Causal validation: the existing joined timer/VoicePELink regression first failed because HA never observed started during ringing; after the fix it passed. Delayed and rejected HA-start reports cannot delay exact physical Stop/rearm (two variants passed); a combined delayed report/lost retirement ACK case also passed with final ordering intact. Pre-play cancellation passed with only unknown/stopped, no fabricated start. The focused timer file plus three native adapter checks ran 23 cases: 22 passed; one old epoch-change assertion incorrectly forbade an already sent old-epoch start receipt. The corrected assertion forbids replacement-epoch/terminal reporting, and only that invalidated case was rerun and passed. The composed retry and existing native lost-ACK case passed together. Ruff/format and mypy pass on changed files. Independent review, integration, official CI, installation and actual audible/visible acceptance remain open. Cleanup is not claimed as start/drain proof.
+
+## Active lead decision — real65 quiet-answer failure, 19 October 2026
+
+Lead: /root. Installed PodVoice2.0.65 source ffab41c96c2e0047bb992e10f6da323f03ce431a, Speakers0.26.32; Control0.10.18 and PodVoice integration2.0.65 downloaded and Core restarted once. New runtime service contracts observed; loaded manifest versions are expected values, not directly measured. Physical acceptance remains open.
+
+Direct evidence: the microphone-off Talk input “Hvad hedder Danmarks hovedstad? Svar kun med bynavnet.” produced a filler preamble and a long municipality answer. Private joined history/diagnostic receipts retain the exact input, primary output and completed delegated backend event. This is an actual #153 software/provider failure; no missing-output failure was reproduced. The existing trace omits the backend final answer, so it cannot distinguish verbose backend output from primary expansion.
+
+Causal chain: Talk submitted input → ThinSession input ownership → existing GPT-Live primary configuration → delegation → validated LiveBackendComplete.final_message → primary output transcript → Talk playback → common close/teardown. Native shares the backend event/retention owner, but this observation does not prove native audio, LEDs, rearm or next wake. Current input/generation and stale/failed completion admission remain unchanged.
+
+Invariant boundaries: GPT-Live owns semantics; ThinSession owns transport; retained diagnostics must remain content-free and bounded. Falsifiable hypothesis: a short plain backend final with long primary output shows primary expansion; a long final narrows the source only if it is an ordinary text result, since optional presentation JSON may contain short spoken text plus metadata. Count cannot prove preservation of the original delegated task wording.
+
+Planned minimal discriminator: add optional backend_final_char_count to the existing backend-complete diagnostic, only for a validated string and strict non-bool integer0..2048 through retention. No raw text, new events, provider calls, prompt changes, timeout tuning, local phrase filter, speech rewriting or additional test harness. Non-goal: claim a semantic fix from instrumentation. Regression: valid count retained; missing/null and invalid negative/float/bool/oversized/string fields omitted; relevant common/native/Talk completion paths unchanged. One independent focused review before integration; exact-tree binding and official CI on the eventual combined candidate. Rollback boundary is removal of this optional observation only. No candidate is declared physically ready by this decision.
+
+Draft result: the existing LiveBackendComplete event records the character count only for a completed, tool-free validated final string; the content-free retention filter accepts only a non-bool integer from 0 through 2048 on that event. Native and Talk synthetic-owner cases plus the strict retention negatives pass (3 focused cases); all 25 socket-free tests in the two affected files pass, as do formatter and lint on four changed source/test files and mypy on the two changed production modules. The existing actual-main Talk test in the same file could not bind localhost in this sandbox; its setup also attempted TTS, so this is neither a product failure nor a passing gate and was not retried. Independent review, exact-tree binding, official CI, a future matched real-provider comparison and physical acceptance remain open. This observation changes no answer semantics and does not repair the observed #153 failure.
+
 <!-- podview65-admission
 {
   "version": 42,

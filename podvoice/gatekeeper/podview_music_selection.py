@@ -55,6 +55,10 @@ class MusicSelection:
         self.sources: dict[str, dict] = {}
         self.tasks: dict[str, dict] = {}
         self.receipts: dict[tuple[str, str], tuple[str, dict]] = {}
+        self.inflight: dict[str, dict] = {}
+
+    def busy(self, room: object) -> bool:
+        return isinstance(room, str) and room in self.inflight
 
     def register(
         self,
@@ -66,6 +70,8 @@ class MusicSelection:
         scope: str = "",
     ) -> str | None:
         """Call only after the existing PodConnect response and context validation."""
+        if isinstance(context, dict) and self.busy(context.get("roomId")):
+            return None
         # A new source retires only this browser's earlier choices.
         retired = {key for key, row in self.sources.items() if row.get("scope", "") == scope}
         self.sources = {key: row for key, row in self.sources.items() if key not in retired}
@@ -152,8 +158,11 @@ class MusicSelection:
         authority: tuple,
         current: Callable[[], bool],
         candidate_ids: Any = None,
+        destination: dict | None = None,
     ) -> dict | None:
         """Issue one set of stable option IDs for both touch and voice selection."""
+        if self.busy(context.get("roomId")):
+            return None
         source = (
             self.sources.get(identifier)
             if isinstance(identifier, str) and _ID.fullmatch(identifier)
@@ -239,6 +248,7 @@ class MusicSelection:
                 time.monotonic() + 60,
             ),
             "consumed": False,
+            "destination": copy.deepcopy(destination),
         }
         # A newer target/confirmation replaces the older pending offer.
         self.tasks = {
@@ -259,9 +269,62 @@ class MusicSelection:
             "startVolumePercent": 35,
             "options": options,
             "expiresIn": max(0, int(task["deadline"] - time.monotonic())),
+            **(
+                {
+                    "destination": {
+                        "speakerId": destination["speaker"]["speakerId"],
+                        "name": destination["speaker"]["name"],
+                    }
+                }
+                if destination is not None
+                else {}
+            ),
         }
 
-    async def execute(
+    async def execute(self, *, effect_busy: set[str] | None = None, **arguments) -> dict:
+        """Retain this room's effect custody through send, receipt and route proof."""
+        task_id = arguments.get("task_id")
+        request_id = arguments.get("request_id")
+        if (
+            isinstance(task_id, str)
+            and isinstance(request_id, str)
+            and (task_id, request_id) in self.receipts
+        ):
+            # Preserve the original broker's fingerprint check and exact cached
+            # UNKNOWN/settled receipt without reacquiring or releasing custody.
+            return await self._execute(**arguments)
+        task = self.tasks.get(task_id) if isinstance(task_id, str) else None
+        room: str = task["context"]["roomId"] if task is not None else ""
+        failure = {
+            "ok": False,
+            "outcome": "rejected",
+            "retryAllowed": False,
+            "physicalResultVerified": False,
+        }
+        if task is None or self.busy(room) or (effect_busy is not None and room in effect_busy):
+            return failure
+        send_once = arguments["send_once"]
+
+        async def guarded_send(controls, uri, max_volume, current):
+            # A replacement before send may still revoke the pending read. Once
+            # admitted, no setup/source/effect can replace this operation during
+            # its physical send or post-send destination proof.
+            if self.busy(room) or (effect_busy is not None and room in effect_busy):
+                return failure
+            self.inflight[room] = task
+            if effect_busy is not None:
+                effect_busy.add(room)
+            try:
+                return await send_once(controls, uri, max_volume, current)
+            finally:
+                if self.inflight.get(room) is task:
+                    self.inflight.pop(room, None)
+                    if effect_busy is not None:
+                        effect_busy.discard(room)
+
+        return await self._execute(**{**arguments, "send_once": guarded_send})
+
+    async def _execute(
         self,
         *,
         task_id: str,

@@ -138,3 +138,11 @@ test('selected historical draft prefills existing editable form silently, surviv
 test('foreign or invalid history draft cannot prefill fields even at the public component boundary',()=>{
  for(const change of [d=>d.source='completed_cleaning',d=>d.areaIds=['foreign'],d=>d.repeat=0,d=>d.extra=true,d=>d.optionId='old']){const panel=new RobotControlPanel(),admitted=historicalTask();change(admitted.historyDraft);panel.data={task:admitted,device};assert.ok(panel.querySelectorAll('[name=areaIds]').every(x=>!x.checked));}
 });
+
+test('an authorized taskless read retains the real observation without terminal readonly or loading prose',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));
+ panel.data={task:null,device,readOnly:false};
+ assert.equal(panel.observation.data.text,'Ved basen');assert.equal(panel.querySelectorAll('form').length,0);assert.equal(panel.querySelectorAll('p').some(node=>/Kun status|ikke tilbudt|henter|venter/i.test(node.textContent)),false);assert.deepEqual(actions,[]);
+ for(const readOnly of [true,undefined]){panel.data={task:null,device,readOnly};assert.equal(panel.observation.data.text,'Ved basen');assert.equal(panel.querySelectorAll('p').some(node=>node.textContent==='Kun status og pleje er tilgængelig.'),true);assert.equal(panel.querySelectorAll('form').length,0);}
+ assert.deepEqual(actions,[]);
+});

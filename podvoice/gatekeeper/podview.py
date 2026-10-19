@@ -1153,6 +1153,16 @@ class PodViewBridge:
                 },
                 "startVolumePercent": task["volume"],
                 "maxVolumePercent": task["maxVolume"],
+                **(
+                    {
+                        "destination": {
+                            "speakerId": task["destination"]["speaker"]["speakerId"],
+                            "name": task["destination"]["speaker"]["name"],
+                        }
+                    }
+                    if task.get("destination") is not None
+                    else {}
+                ),
             },
         }
 
@@ -1181,6 +1191,16 @@ class PodViewBridge:
             )
 
         async def fresh_controls():
+            if task.get("destination") is not None:
+                destination = await podview_speakers.start_destination(
+                    self,
+                    room,
+                    task["account"],
+                    task["destination"]["speaker"]["speakerId"],
+                    selected_current,
+                )
+                if destination != task["destination"]:
+                    return {}
             result = await (
                 self.controls.music.setup_context
                 if task.get("action") == "play_context"
@@ -1188,7 +1208,13 @@ class PodViewBridge:
             )(task["account"], task["target"], *task["nativeBinding"], selected_current)
             return result.get("data", {}) if result.get("ok") is True else {}
 
+        async def send_selected(controls, uri, max_volume, active):
+            return await podview_room_media.execute_selected_destination(
+                self, room, task, controls, uri, max_volume, active
+            )
+
         result = await self.music_selection.execute(
+            effect_busy=self.controls.busy,
             task_id=task["id"],
             revision=args["revision"],
             option_id=args["optionId"],
@@ -1199,9 +1225,7 @@ class PodViewBridge:
             authority=task["authority"],
             current=selected_current,
             fresh_controls=fresh_controls,
-            send_once=self.controls.music.execute_context
-            if task.get("action") == "play_context"
-            else self.controls.music.execute_track,
+            send_once=send_selected,
         )
         return {"ok": result["ok"], "data": result}
 
@@ -2195,6 +2219,8 @@ async def _music(request: web.Request) -> web.Response:
         and bridge._grant_current(room, token)
         and bridge.controls.selection_allowed(room, token)
     )
+    if selection_requested and bridge.music_selection.busy(room):
+        return _error("music_busy", 429)
     selection_grant = bridge._grant_for_token(room, token) if selection_requested else None
     context_query = (query or "") if kind == "search" else f"{kind}:{query or 'collection'}"
     search_context = (
@@ -2366,7 +2392,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     selector = getattr(tools, "podview_mood_selector", None)
     if kind not in tools.podview_music_reads() or (kind == "mood" and selector is None):
         return _error(f"{kind}_not_admitted", 403)
-    if bridge._music_busy:
+    if bridge._music_busy or bridge.music_selection.busy(room):
         return _error("music_busy", 429)
     binding = _music_binding(bridge, room)
     grant = bridge._grant_for_token(room, token)
@@ -2712,6 +2738,8 @@ async def _music_selection(request: web.Request) -> web.Response:
         )
 
     if request.path.endswith("/setup"):
+        if bridge.music_selection.busy(room) or room in bridge.controls.busy:
+            return _error("music_busy", 429)
         required = {"bootId", "roomId", "candidateSetId", "target"}
         if set(body) not in (required, required | {"candidateIds"}) or not isinstance(
             body["candidateSetId"], str
@@ -2722,7 +2750,11 @@ async def _music_selection(request: web.Request) -> web.Response:
         if (
             source is None
             or not isinstance(target, dict)
-            or set(target) != {"accountId", "kind", "targetId"}
+            or set(target)
+            not in (
+                {"accountId", "kind", "targetId"},
+                {"accountId", "kind", "targetId", "speakerId"},
+            )
             or target["kind"] != "spotify_device"
             or target["accountId"] != source["context"]["configEntryId"]
             or not source_current(source)
@@ -2734,14 +2766,31 @@ async def _music_selection(request: web.Request) -> web.Response:
             "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track"
         )
         scope = podview_room_media.binding(bridge, room, target["accountId"])
+        destination = None
+        if "speakerId" in target:
+            destination = await podview_speakers.start_destination(
+                bridge,
+                room,
+                target["accountId"],
+                target["speakerId"],
+                lambda: source_current(source),
+            )
+            if destination is None:
+                return _error("target_not_granted", 403)
+        selected_pair = (
+            (destination["speaker"]["nativeRoomId"], destination["speaker"]["homepodId"])
+            if destination is not None
+            else (scope["nativeRoomId"], scope["nativeHomepodId"])
+            if scope is not None
+            else None
+        )
         matches = [
             row
             for row in bridge.controls.policy["music"]
             if scope is not None
             and row["accountId"] == target["accountId"]
             and row["targetId"] == target["targetId"]
-            and (row.get("nativeRoomId"), row.get("nativeHomepodId"))
-            == (scope["nativeRoomId"], scope["nativeHomepodId"])
+            and (row.get("nativeRoomId"), row.get("nativeHomepodId")) == selected_pair
             and selection_action in row["actions"]
         ]
         rule = matches[0] if len(matches) == 1 else None
@@ -2771,6 +2820,12 @@ async def _music_selection(request: web.Request) -> web.Response:
         )(target["accountId"], target["targetId"], *native_binding, selected_current)
         if controls.get("ok") is not True or not selected_current():
             return _error("music_selection_unavailable")
+        if (
+            destination is not None
+            and controls.get("data", {}).get("start_offer", {}).get("native_incarnation")
+            != destination["alias"]["binding"]["incarnation"]
+        ):
+            return _error("music_selection_unavailable")
         context = source["context"]
         session = bridge.sessions[room]
         authority = (session, getattr(session, "_epoch", None), context["taskId"], grant)
@@ -2786,7 +2841,10 @@ async def _music_selection(request: web.Request) -> web.Response:
             authority=authority,
             current=selected_current,
             candidate_ids=body.get("candidateIds"),
+            destination=destination,
         )
+        if offer is not None:
+            bridge.music_selection.tasks[offer["taskId"]]["destinationRule"] = rule
         return web.json_response(
             offer
             if offer is not None
@@ -2828,12 +2886,28 @@ async def _music_selection(request: web.Request) -> web.Response:
     facade = bridge.controls.music
 
     async def fresh_controls():
+        if task.get("destination") is not None:
+            destination = await podview_speakers.start_destination(
+                bridge,
+                room,
+                task["account"],
+                task["destination"]["speaker"]["speakerId"],
+                action_current,
+            )
+            if destination != task["destination"]:
+                return {}
         result = await (
             facade.setup_context if task.get("action") == "play_context" else facade.setup_track
         )(task["account"], task["target"], *task["nativeBinding"], action_current)
         return result.get("data", {}) if result.get("ok") is True else {}
 
+    async def send_selected(controls, uri, max_volume, current):
+        return await podview_room_media.execute_selected_destination(
+            bridge, room, task, controls, uri, max_volume, current
+        )
+
     result = await bridge.music_selection.execute(
+        effect_busy=bridge.controls.busy,
         task_id=body["taskId"],
         revision=body["revision"],
         option_id=body["optionId"],
@@ -2844,9 +2918,7 @@ async def _music_selection(request: web.Request) -> web.Response:
         authority=task["authority"],
         current=action_current,
         fresh_controls=fresh_controls,
-        send_once=facade.execute_context
-        if task.get("action") == "play_context"
-        else facade.execute_track,
+        send_once=send_selected,
     )
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 

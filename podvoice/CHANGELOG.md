@@ -1,5 +1,13 @@
 ## 2.0.62 — PodView retained UI and playlist resilience
 
+## 2.0.66 — Direct next destination and truthful task progress
+
+- Remember the next playback destination without starting or moving music; fresh exact native authority still controls explicit Play.
+- Request existing native setup when exact same-room discovery is honestly empty, for both playlists and song search; foreign, restricted, failed or stale observations remain closed.
+- Keep refresh focus stable, show honest robot pending copy, and clamp robot transport lifetime only for offered policy-admitted transport actions.
+- Report correlated native timer-start progress promptly without delaying physical Stop/rearm; add a bounded content-free backend final character-count discriminator.
+- Existing143-member UI kit and HA integration0.1.5 remain; source checks do not prove installed provider readiness, physical audio/LEDs or robot movement.
+
 ## 2.0.65 — Shared UI, playlist artwork and controller recovery
 
 - Consolidate canonical weather, timer, motion, robot history and retained player refinements in the existing143-member component implementation.

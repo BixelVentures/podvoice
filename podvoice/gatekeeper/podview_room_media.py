@@ -92,12 +92,108 @@ def binding(bridge, room, account):
 
 async def confirm_move_destination(bridge, task, result, current):
     """Publish only after fresh account, configured alias and native owner agree."""
-    offer = task["move_offer"]
-    wire = offer.wire
-    room = task["room"]
-    account = task["target"]["accountId"]
-    engine = task["target"]["targetId"]
-    destination = task["move_destination"]
+    confirmed = await _confirm_destination(
+        bridge,
+        task["room"],
+        task["target"]["accountId"],
+        task["target"]["targetId"],
+        task["move_destination"],
+        task["rule"],
+        task["move_offer"].wire,
+        task["move_offer"].wire["move_offer"]["native_incarnation"],
+        result,
+        current,
+    )
+    if confirmed:
+        scope = binding(bridge, task["room"], task["target"]["accountId"])
+        task["move_source_scope"] = (scope["targetId"], scope["bindingId"])
+        bridge._music_cache.clear()
+        bridge.music_selection.sources.clear()
+        bridge.music_selection.tasks.clear()
+        bridge.queue.tasks.clear()
+        bridge.controls.tasks = {task["id"]: task}
+    return confirmed
+
+
+async def execute_selected_destination(bridge, room, task, controls, uri, max_volume, current):
+    """Touch and voice use the same send-once and confirmed-room publication path."""
+    try:
+        result = await (
+            bridge.controls.music.execute_context
+            if task.get("action") == "play_context"
+            else bridge.controls.music.execute_track
+        )(controls, uri, max_volume, current)
+        if task.get("destination") is not None:
+            await finish_selected_destination(bridge, room, task, controls, result, current)
+        return result
+    except (Exception, asyncio.CancelledError):
+        if task.get("destination") is not None and _selected_destination_changed(
+            bridge, room, task
+        ):
+            # Fence synchronously before custody cleanup. Cancellation may arrive
+            # after the physical START, including inside its observation proof.
+            bridge._music_move_fence.add((room, task["account"]))
+        raise
+
+
+def _selected_destination_changed(bridge, room, task):
+    scope = binding(bridge, room, task["account"])
+    return (
+        scope is None or (scope["nativeRoomId"], scope["nativeHomepodId"]) != task["nativeBinding"]
+    )
+
+
+async def finish_selected_destination(bridge, room, task, controls, result, current):
+    """A START receipt is not room proof; uncertainty keeps further effects fenced."""
+    destination = task["destination"]["speaker"]
+    if not _selected_destination_changed(bridge, room, task):
+        return
+    key = (room, task["account"])
+    if result.get("outcome") == "rejected":
+        return
+    confirmed = False
+    if result.get("outcome") == "accepted" and result.get("accepted_selected_content") is True:
+        confirmed = await _confirm_destination(
+            bridge,
+            room,
+            task["account"],
+            task["target"],
+            destination,
+            task["destinationRule"],
+            controls,
+            controls["start_offer"]["native_incarnation"],
+            result,
+            current,
+            native_registry=task["destination"]["alias"]["binding"]["registry"],
+        )
+    if not confirmed:
+        bridge._music_move_fence.add(key)
+        return
+    # Keep only the consumed task/source for its cached receipt. Every other
+    # room-bound offer is retired after the new effective destination is proven.
+    source = bridge.music_selection.sources.get(task["candidateSetId"])
+    bridge._music_cache.clear()
+    bridge.music_selection.tasks = {task["id"]: task}
+    bridge.music_selection.sources = {task["candidateSetId"]: source} if source else {}
+    bridge.queue.tasks.clear()
+    bridge.controls.tasks.clear()
+
+
+async def _confirm_destination(
+    bridge,
+    room,
+    account,
+    engine,
+    destination,
+    rule,
+    wire,
+    native_incarnation,
+    result,
+    current,
+    *,
+    native_registry=None,
+):
+    """Shared MOVE/START publication owner: exact fresh account, alias and route."""
     native_room, homepod = destination["nativeRoomId"], destination["homepodId"]
     if not current():
         return False
@@ -160,20 +256,23 @@ async def confirm_move_destination(bridge, task, result, current):
                 or native.get("alias_incarnation") != owner.get("incarnation")
                 or native.get("alias_registry") != owner.get("registry")
                 or route.get("device_id") != homepod
-                or owner.get("incarnation") != wire["move_offer"]["native_incarnation"]
+                or owner.get("incarnation") != native_incarnation
+                or (native_registry is not None and owner.get("registry") != native_registry)
                 or proof_data.get("owner_epoch") != source["owner_epoch"]
                 or proof_data.get("poll_sequence") != source["poll_sequence"]
                 or proof_data.get("poll_sequence", 0) < wire["poll_sequence"]
                 or proof_data.get("valid_until", 0) <= time.time()
             ):
                 return False
-        if not current():
+        if not current() or not podview_music.project_owner("playback", source, account).get("ok"):
+            return False
+        if not any(candidate is rule for candidate in bridge.controls.policy.get("music", [])):
             return False
         key = (room, account)
         previous = bridge._music_destinations.get(key)
         bridge._music_destinations[key] = {
             "policy": bridge.controls.policy,
-            "rule": task["rule"],
+            "rule": rule,
             "session": bridge.sessions[room],
             "binding": bridge.tools.podview_music_binding(),
             "engine": engine,
@@ -185,13 +284,6 @@ async def confirm_move_destination(bridge, task, result, current):
         if scope is None:
             bridge._music_move_fence.add(key)
             return False
-        task["move_source_scope"] = (scope["targetId"], scope["bindingId"])
-        # A new effective destination invalidates every old room-bound offer.
-        bridge._music_cache.clear()
-        bridge.music_selection.sources.clear()
-        bridge.music_selection.tasks.clear()
-        bridge.queue.tasks.clear()
-        bridge.controls.tasks = {task["id"]: task}
         return True
     except Exception:
         return False

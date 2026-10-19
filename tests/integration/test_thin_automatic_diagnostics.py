@@ -131,6 +131,55 @@ async def test_live_output_transcript_marker_is_bounded_to_current_conversation(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("browser", [False, True])
+async def test_backend_final_count_uses_existing_native_and_talk_diagnostic_owner(
+    tmp_path, browser
+):
+    import hashlib
+
+    from test_talk_stop import HistoricalWavBrowserLink
+
+    from gatekeeper.openai_live import LiveBackendComplete
+
+    async def send_json(_event):
+        pass
+
+    async def send_bytes(_data):
+        pass
+
+    device = HistoricalWavBrowserLink(send_json, send_bytes) if browser else None
+    session, _, _, _, _ = build(device=device) if browser else build()
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    if browser:
+        session._private_contract_recorder = recorder
+    else:
+        session.audio_trace = recorder
+    await session.start()
+    try:
+        await session.wake()
+        owner = session._history_session
+        generation = session.brain._connection_generation
+        await session._on_live_event(
+            LiveBackendComplete(
+                "delegation", "response", "completed", None, generation, 0, "København"
+            )
+        )
+        await session.stop()
+        assert await recorder.wait_pending(timeout_s=3.0)
+        record = next(
+            item
+            for item in recorder.diagnostics()
+            if item["session_hash"] == hashlib.sha256(owner.encode()).hexdigest()
+        )
+        complete = next(row for row in record["events"] if row["event"] == "live_backend_complete")
+        assert complete["backend_final_char_count"] == 9
+        assert "final_message" not in complete and "text" not in complete
+    finally:
+        await session.aclose()
+        await recorder.shutdown(timeout_s=3.0)
+
+
+@pytest.mark.asyncio
 async def test_panel_alpha_wake_persists_automatic_trace_without_false_wake_reference(tmp_path):
     session, sdk, _, _, link = build()
     recorder = session.audio_trace = AudioTraceRecorder(tmp_path, automatic=True)

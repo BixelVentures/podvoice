@@ -125,11 +125,17 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
                 session.reply_bus.take_turn_bytes("kitchen") == 20 * C.OUTPUT_RATE * C.SAMPLE_WIDTH
             )
             assert session._timer_poll_task is poll and not poll.done()
+            await until(
+                lambda: any(
+                    row["id"] == timer_id and row["physical_started"]
+                    for row in bridge.snapshot("kitchen")["finished"]
+                )
+            )
             row = next(
                 row for row in bridge.snapshot("kitchen")["finished"] if row["id"] == timer_id
             )
             assert (
-                row["alert_state"] == "requested"
+                row["alert_state"] == "started"
                 and row["sink_id"] == "voice_pe:" + native.link.device_identity
             )
             assert native.link._stop_armed and session._timer_alarm_task is not None
@@ -249,9 +255,10 @@ async def test_ha_cancel_or_epoch_change_stops_exact_native_alarm(context, trigg
             else:
                 assert session._timer_report_task is not None
                 await asyncio.wait_for(session._timer_report_task, 5)
-                assert not [
-                    row for row in service_calls if row.get("action") == "report_alert"
-                ]  # Old owner cannot report into the replacement epoch.
+                reports = [row for row in service_calls if row.get("action") == "report_alert"]
+                assert all(
+                    row["phase"] == "started" and row["epoch"] != bridge.epoch for row in reports
+                )  # An earlier start report never acquires the replacement epoch.
                 assert not bridge.snapshot("kitchen")["finished"][0]["physical_stopped"]
             assert [name for name, _ in native.calls].count("podvoice_timer_output_cancel") == 1
             assert [name for name, _ in native.calls].count("podvoice_rearm_wake_word") == 1
@@ -564,3 +571,114 @@ async def test_lost_claim_response_reconciles_original_unserved_claim_once(conte
         finally:
             release_claim.set()
             await asyncio.wait_for(session.aclose(), 10)
+
+
+@pytest.mark.parametrize(
+    "report_ok,retry_retirement", [(True, False), (False, False), (True, True)]
+)
+async def test_delayed_started_report_never_holds_physical_stop_or_rearm(
+    context, report_ok, retry_retirement
+):
+    manager, bridge, client, tools, service_calls, _ = timer_router()
+    native = Native(context)
+    session, _, _, _, _ = live_session(device=native.link)
+    session.tools, session.reply_bus, session.reply_url = tools, ReplyBus(), "http://fixture/reply"
+    entered, release = asyncio.Event(), asyncio.Event()
+    original_command, original_native = session._timer_command, native.call
+
+    async def delayed_report(epoch, request, action, **args):
+        if action == "report_alert" and args.get("phase") == "started":
+            entered.set()
+            await release.wait()
+            if not report_ok:
+                return {"ok": False, "error": "fixture_report_failed"}
+        return await original_command(epoch, request, action, **args)
+
+    async def play_until_stopped(service, args=None):
+        if service == "podvoice_reply_play":
+            native.calls.append((service, args))
+            native.link._on_reply_status(args["token"] + ":started")
+            return True
+        return await original_native(service, args)
+
+    session._timer_command = delayed_report
+    native.link._call_service = play_until_stopped
+    native.drop_cancel_ack = int(retry_retirement)
+    async with client:
+        await tools.timers.refresh("kitchen")
+        made = bridge.command(
+            endpoint="kitchen", epoch=bridge.epoch, request_id="start", action="start", seconds=1
+        )
+        manager.finish(made["id"])
+        state = await tools.timers.refresh("kitchen")
+        alarm = asyncio.create_task(session._play_timer_alert(state["finished"][0], bridge.epoch))
+        session._timer_alarm_task = alarm
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            # Wrong/duplicate native start callbacks cannot publish a second receipt.
+            native.link._on_reply_status("wrong-token:started")
+            native.link._on_reply_status(native.link._reply_token + ":started")
+            assert context.stop()
+            native.link._on_stop_context(
+                f"{native.link._stop_session}:{native.link._stop_generation}:stopped"
+            )
+            await asyncio.wait_for(alarm, 4)
+            if retry_retirement:
+                assert session._teardown_incomplete and session._teardown_retry_task is not None
+                await asyncio.wait_for(session._teardown_retry_task, 5)
+            assert native.link.wake_readiness == "recovered"
+            assert session._playback_lease is None and not session._teardown_incomplete
+            assert session._timer_report_task is not None and not session._timer_report_task.done()
+            assert bridge.snapshot("kitchen")["finished"][0]["alert_state"] == "requested"
+            release.set()
+            result = await asyncio.wait_for(session._timer_report_task, 2)
+            reports = [row["phase"] for row in service_calls if row.get("action") == "report_alert"]
+            if report_ok:
+                assert result is True, (reports, bridge.snapshot("kitchen"))
+                if retry_retirement:
+                    assert reports == ["started", "unknown", "unknown", "stopped"]
+                else:
+                    assert reports == ["started", "stopped"]
+                assert not bridge.snapshot("kitchen")["finished"]
+            else:
+                assert result is False and reports == []
+                row = bridge.snapshot("kitchen")["finished"][0]
+                assert not row["physical_started"] and not row["physical_stopped"]
+                assert not [
+                    row for row in service_calls if row.get("action") == "acknowledge_finished"
+                ]
+        finally:
+            release.set()
+            await asyncio.gather(alarm, *list(session._tasks), return_exceptions=True)
+
+
+async def test_cancel_before_playback_acknowledges_only_stopped_without_started_receipt(context):
+    manager, bridge, client, tools, service_calls, _ = timer_router()
+    native = Native(context)
+    session, _, _, _, _ = live_session(device=native.link)
+    session.tools, session.reply_bus, session.reply_url = tools, ReplyBus(), "http://fixture/reply"
+    original_native = native.call
+
+    async def cancel_at_admission(service, args=None):
+        result = await original_native(service, args)
+        if service == "podvoice_timer_output":
+            session._timer_interrupt.set()
+        return result
+
+    native.link._call_service = cancel_at_admission
+    async with client:
+        await tools.timers.refresh("kitchen")
+        made = bridge.command(
+            endpoint="kitchen", epoch=bridge.epoch, request_id="start", action="start", seconds=1
+        )
+        manager.finish(made["id"])
+        state = await tools.timers.refresh("kitchen")
+        await session._play_timer_alert(state["finished"][0], bridge.epoch)
+        assert await session._timer_report_task is True
+        assert not bridge.snapshot("kitchen")["finished"]
+        assert [row["phase"] for row in service_calls if row.get("action") == "report_alert"] == [
+            "unknown",
+            "stopped",
+        ]
+        assert not [name for name, _ in native.calls if name == "podvoice_reply_play"]
+        assert native.link.wake_readiness == "recovered"

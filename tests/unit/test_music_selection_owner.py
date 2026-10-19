@@ -173,6 +173,33 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await pending)["outcome"], "rejected")
         self.assertEqual(self.sent, [])
 
+    async def test_inflight_same_request_returns_exact_unknown_and_pins_fingerprint(self):
+        offer = self.offer()
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def held_send(controls, uri, ceiling, current):
+            self.assertTrue(current())
+            self.sent.append(uri)
+            entered.set()
+            await release.wait()
+            return {"outcome": "accepted", "accepted_selected_content": True}
+
+        pending = asyncio.create_task(self.execute(offer, send_once=held_send))
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        try:
+            expected = copy.deepcopy(self.broker.receipts[(offer["taskId"], "one")][1])
+            self.assertEqual(expected["outcome"], "unknown")
+            self.assertEqual(await self.execute(offer, send_once=held_send), expected)
+            changed = await self.execute(offer, confirmed_volume=36, send_once=held_send)
+            self.assertEqual(changed["outcome"], "rejected")
+            self.assertEqual(len(self.sent), 1)
+        finally:
+            release.set()
+            settled = await pending
+        self.assertEqual(settled["outcome"], "accepted")
+        self.assertEqual(await self.execute(offer, send_once=held_send), settled)
+        self.assertEqual(len(self.sent), 1)
+
     async def test_new_source_during_fresh_read_revokes_old_send(self):
         offer = self.offer()
         entered, release = asyncio.Event(), asyncio.Event()

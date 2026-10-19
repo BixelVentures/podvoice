@@ -166,6 +166,9 @@ def content_free_manifest(manifest: dict) -> dict:
             elif event["event"] == "live_backend_complete" and key == "status":
                 if isinstance(value, str) and value in {"completed", "failed", "incomplete"}:
                     clean[key] = value
+            elif event["event"] == "live_backend_complete" and key == "backend_final_char_count":
+                if type(value) is int and 0 <= value <= 2048:
+                    clean[key] = value
             elif event["event"] == "teardown_complete" and key == "live_output_transcript_seen":
                 if type(value) is bool:
                     clean[key] = value

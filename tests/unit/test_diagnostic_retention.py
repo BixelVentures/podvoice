@@ -2,7 +2,12 @@ import json
 import os
 import time
 
-from gatekeeper.diagnostic_retention import DIAGNOSTIC_AGE_S, retain_diagnostics, save_diagnostics
+from gatekeeper.diagnostic_retention import (
+    DIAGNOSTIC_AGE_S,
+    content_free_manifest,
+    retain_diagnostics,
+    save_diagnostics,
+)
 
 
 def test_diagnostic_survives_audio_deletion_without_content(tmp_path):
@@ -93,6 +98,31 @@ def test_live_output_transcript_seen_is_teardown_only_boolean_without_content(tm
         None,
         None,
     ]
+
+
+def test_backend_final_count_is_bounded_to_completion_without_content():
+    values = [0, 9, 2048, None, -1, 2049, 9.0, True, "9"]
+    events = [
+        {"event": "live_backend_complete", "backend_final_char_count": value, "text": "secret"}
+        for value in values
+    ]
+    events.append({"event": "live_backend_complete"})
+    events.append({"event": "teardown_complete", "backend_final_char_count": 9})
+    retained = content_free_manifest({"events": events})["events"]
+    assert [row.get("backend_final_char_count") for row in retained] == [
+        0,
+        9,
+        2048,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
+    assert all("text" not in row for row in retained)
 
 
 async def test_independent_diagnostics_need_no_audio_capture_and_survive_restart(tmp_path):

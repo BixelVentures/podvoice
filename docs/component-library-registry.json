@@ -941,7 +941,8 @@
           "method:restoreRecoveryFocus": 1,
           "method:observePlayback": 1,
           "method:feedbackScope": 1,
-          "method:resultCurrent": 1
+          "method:resultCurrent": 1,
+          "method:destinationCurrent": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -2264,7 +2265,9 @@
           "method:clearLabel": 1,
           "method:configuredLabel": 1,
           "method:refreshConfiguredLabel": 1,
-          "function:configuredSpeakerLabel": 1
+          "function:configuredSpeakerLabel": 1,
+          "method:observedDestination": 1,
+          "method:selectionDestination": 1
         },
         "roots": [],
         "registrations": {},

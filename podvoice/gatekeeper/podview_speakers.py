@@ -122,6 +122,7 @@ def project(data, *, boot, room, account, default_room):
                     else None
                 ),
                 "selectable": False,
+                "startSelectable": False,
             }
         )
     return {
@@ -187,6 +188,11 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
         and controls.move.available
         and "music" in controls.domains(room, token)
     )
+    start_paired = bool(
+        grant is not None
+        and bridge._grant_current(room, token)
+        and controls.selection_allowed(room, token)
+    )
     policy_id, owner, tool_owner = (
         _fingerprint(policy),
         owner_binding(),
@@ -211,6 +217,14 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
             and tools.podview_music_binding() == tool_owner
             and "targets" in tools.podview_music_reads()
             and (
+                not start_paired
+                or (
+                    bridge._grant_for_token(room, token) is grant
+                    and bridge._grant_current(room, token)
+                    and controls.selection_allowed(room, token)
+                )
+            )
+            and (
                 not paired
                 or (
                     bridge._grant_for_token(room, token) is grant
@@ -233,6 +247,24 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
             account=account,
             default_room=scope["nativeRoomId"],
         )
+        if start_paired and isinstance(scope.get("targetId"), str):
+            for speaker in catalogue["speakers"]:
+                speaker["startSelectable"] = bool(
+                    speaker["availability"] == "available"
+                    and sum(
+                        row.get("accountId") == account
+                        and row.get("targetId") == scope["targetId"]
+                        and row.get("nativeRoomId") == speaker["nativeRoomId"]
+                        and row.get("nativeHomepodId") == speaker["homepodId"]
+                        and any(
+                            action in row.get("actions", [])
+                            and controls.selection_allowed(room, token, action)
+                            for action in ("play_track", "play_context")
+                        )
+                        for row in rules
+                    )
+                    == 1
+                )
         if paired and isinstance(scope.get("targetId"), str):
             any_available = False
             for speaker in catalogue["speakers"]:
@@ -255,3 +287,34 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
         return catalogue
     except (HTTPError, OSError, TimeoutError, ValueError, TypeError, KeyError):
         return unavailable()
+
+
+async def start_destination(bridge, room, account, speaker_id, current):
+    """Resolve intent through a fresh passive native catalogue, never a MOVE."""
+    if not isinstance(speaker_id, str) or re.fullmatch(r"[a-f0-9]{64}", speaker_id) is None:
+        return None
+    try:
+        data = await read_service(bridge.tools, account)
+        if not current():
+            return None
+        catalogue = project(
+            data, boot=bridge.boot_id, room=room, account=account, default_room=None
+        )
+        matches = [
+            row
+            for row in catalogue["speakers"]
+            if row["speakerId"] == speaker_id and row["availability"] == "available"
+        ]
+        if len(matches) != 1:
+            return None
+        destination = matches[0]
+        alias = next(
+            row
+            for row in data["targets"]
+            if row["kind"] == "configured_alias"
+            and row["target_id"] == destination["nativeRoomId"]
+            and row["homepod_id"] == destination["homepodId"]
+        )
+        return {"speaker": destination, "alias": copy.deepcopy(alias)}
+    except (HTTPError, OSError, TimeoutError, ValueError, TypeError, KeyError, StopIteration):
+        return None
