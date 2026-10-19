@@ -408,6 +408,12 @@ jobs:
 
   publish-addon:
     if: >-
+      !cancelled() &&
+      needs.scope.result == 'success' &&
+      needs.lint-test.result == 'success' &&
+      needs.remaining-tests.result == 'success' &&
+      needs.ui-browser.result == 'success' &&
+      needs.ha-framework.result == 'success' &&
       needs.scope.outputs.tooling_only != 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

@@ -33,6 +33,14 @@ CI_CONTROL_REQUIRED = frozenset(
     }
 )
 CI_CONTROL_OPTIONAL = frozenset({"docs/STATUS.md"})
+CI_PUBLISHER_REQUIRED = frozenset(
+    {
+        WORKFLOW,
+        "scripts/ci_scope.py",
+        "tests/unit/test_ci_scope.py",
+        "tests/unit/test_release_contract.py",
+    }
+)
 CI_SHARD_REQUIRED = frozenset(
     {
         WORKFLOW,
@@ -96,6 +104,7 @@ def ci_control_only(paths: Sequence[str]) -> bool:
         required <= changed <= (required | optional)
         for required, optional in (
             (CI_CONTROL_REQUIRED, CI_CONTROL_OPTIONAL),
+            (CI_PUBLISHER_REQUIRED, CI_CONTROL_OPTIONAL),
             (CI_SHARD_REQUIRED, CI_SHARD_OPTIONAL | CI_CONTROL_OPTIONAL),
         )
     )

@@ -42,6 +42,31 @@
 
 ## Active67 decision and actual Green delivery — 19 October2026
 
+### Udgivelsesrettelse efter verificeret merge
+
+Lead: /root. PR224 blev merget som `07d8d3e048c6f831864e8f89ddc54c09d995f40e`,
+præcis gennemgået tree `7bfda5babfee293693300ce3c5925e9fad435148`. PR-run39300982461
+bestod alle krævede checks, inklusive den tidligere fejlede native10-cycle-regression.
+Main-run39302112843 bestod og genbrugte det identiske PR-tree, men publisherjobbet
+118229978842 blev sprunget over uden trin. Det er ikke publicering; Green er stadig66.
+
+Den afgrænsede årsagshypotese er GitHubs implicitte `success()` ved et job uden en
+statusfunktion: bevidst udeladte, allerede dækkede transitive testjobs blokerer
+publicering trods fem succesfulde direkte kontroljobs. Rettelsen bruger `!cancelled()`
+og kræver eksplicit `success` fra alle fem direkte afhængigheder. Main/ref/event,
+produkt-/toolingafgrænsning og det eksisterende immutable-versionhegn bevares.
+Scope-undtagelsen kræver præcis workflow, scopeklassifikation og deres to relevante
+testfiler, med kun denne STATUS som valgfri fil; produktfiler og ukendte filer afvises.
+Ingen provider-, firmware-, runtime-, settings-, version- eller rettighedsændring.
+
+Planlagt/afgrænset kontrol: eksisterende release- og scoperegressioner, cancellation,
+fejlet/skippet/manglende direkte kontrol, uafhængigt review og normal officiel CI.
+Faktisk publicering kræver derefter et kørt publisherjob, immutable digest og aflæsning
+af det publicerede image. Rollback er denne CI-only ændring; ingen imageoverskrivning,
+manuel testomgåelse eller Green-installation er udført af rettelsen. De faktiske
+musiknedbruds- og anden-timer-fejl står fortsat åbne.
+
+
 ### Aktivt issueejerskab og næste konkrete udfald
 
 | Issue/leverance | Ansvarlig | Brugerresultat og næste handling |
