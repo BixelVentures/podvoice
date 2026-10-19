@@ -3,7 +3,18 @@ import {initialScene} from '../../podvoice/gatekeeper/static/podview/scene-model
 test('live snapshots remove fixture resources and never grant mutation',()=>{const s=liveScene(initialScene(),{voice:{sessionId:'real'},timers:{status:'observed',items:[{id:'actual',name:'Pasta',secondsLeft:9,status:'running'}]}});assert.equal(s.timer.id,'actual');assert.equal(s.connected,false);assert.equal(s.music.playback.active,false);assert.equal(s.devices.length,1);assert.equal(s.devices[0].status,'unavailable');assert.equal(s.devices[0].kind,'light');assert.deepEqual(s.answers,[]);assert.equal(liveLocalEvent({type:'timer-start'}),false);assert.equal(liveLocalEvent({type:'device-action'}),false);assert.equal(liveLocalEvent({type:'show',id:'weather'}),false);assert.equal(liveLocalEvent({type:'show',id:'timers'}),true);});
 test('unavailable authoritative timers do not become an invented empty observation',()=>{const s=liveScene(initialScene(),{voice:{},timers:{status:'unavailable',items:[{id:'old',name:'Old',secondsLeft:10,status:'running'}]}});assert.equal(s.timer,null);});
 import {liveTimerRequest} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-test('paired timer controls use only announced capability and exact native IDs',()=>{const s={timers:{status:'observed',items:[{id:'native'}]},capabilities:{timerActions:['timer.start','timer.cancel']}};const start={type:'timer-start',seconds:60,name:'Pasta'};assert.deepEqual(liveTimerRequest({...s,timers:{status:'observed',items:[]}},true,start),{action:'timer.start',args:{seconds:60,name:'Pasta'}});assert.equal(liveTimerRequest(s,true,start),null);assert.equal(liveTimerRequest(s,false,start),null);assert.equal(liveTimerRequest({...s,capabilities:{timerActions:[]}},true,start),null);assert.equal(liveTimerRequest(s,true,{...start,seconds:1.5}),null);assert.equal(liveTimerRequest(s,true,{type:'timer',id:'another',action:'cancel'}),null);assert.deepEqual(liveTimerRequest(s,true,{type:'timer',id:'native',action:'cancel'}),{action:'timer.cancel',args:{timer_id:'native'}});});
+test('paired timer controls use only announced capability and exact native IDs',()=>{
+ const s={timers:{status:'observed',items:[{id:'native'}]},capabilities:{timerActions:['timer.start','timer.cancel']}};
+ const empty={...s,timers:{status:'observed',items:[]}};
+ const start={type:'timer-start',seconds:60,name:'Pasta'};
+ assert.deepEqual(liveTimerRequest(empty,true,start),{action:'timer.start',args:{seconds:60,name:'Pasta'}});
+ assert.equal(liveTimerRequest(s,true,start),null);
+ assert.equal(liveTimerRequest(empty,false,start),null);
+ assert.equal(liveTimerRequest({...empty,capabilities:{timerActions:[]}},true,start),null);
+ assert.equal(liveTimerRequest(empty,true,{...start,seconds:1.5}),null);
+ assert.equal(liveTimerRequest(s,true,{type:'timer',id:'another',action:'cancel'}),null);
+ assert.deepEqual(liveTimerRequest(s,true,{type:'timer',id:'native',action:'cancel'}),{action:'timer.cancel',args:{timer_id:'native'}});
+});
 
 test('unconfigured light remains visible without enabling a command or inventing HA state',()=>{const s=liveScene(initialScene(),{voice:{},timers:{status:'observed',items:[]}});assert.equal(s.devices[0].hidden,false);assert.equal(liveLocalEvent({type:'show',id:s.devices[0].id}),true);assert.equal(liveLocalEvent({type:'device-action',action:'turn_on'}),false);});
 
@@ -25,3 +36,11 @@ test('finished owner status overrides stale one-second countdown without mutatin
 });
 
 test('interleaved real home reads and live snapshots keep vacuum then light without priority jumps',async()=>{const {applyHome}=await import('../../podvoice/gatekeeper/static/podview/home-model.js');const snapshot={voice:{sessionId:null},timers:{status:'observed',items:[]},capabilities:{homeRead:['vacuum']}};let scene=liveScene(initialScene(),snapshot);const observed=state=>({revision:1,vacuum:{status:'observed',items:[{entityId:'vacuum.actual',name:'Robot',state,source:'home_assistant_state',history:{items:[]}}]}});for(const state of ['cleaning','paused','docked']){scene=applyHome(scene,observed(state));const row=scene.devices.find(d=>d.kind==='vacuum');assert.deepEqual(scene.devices.map(d=>d.kind),['vacuum','light']);for(let i=0;i<3;i++){scene=liveScene(scene,snapshot);assert.deepEqual(scene.devices.map(d=>d.kind),['vacuum','light']);assert.equal(scene.devices[0],row);}}scene=applyHome(scene,{revision:2,vacuum:{status:'unavailable',items:[]}});scene=liveScene(scene,snapshot);assert.deepEqual(scene.devices.map(d=>d.kind),['vacuum','light']);assert.equal(scene.devices[0].stale,true);});
+
+test('finished native delivery facts survive projection without local stop proof',()=>{
+ const snap={bootId:'native-boot',voice:{},timers:{status:'observed',items:[{id:'native-id',name:'Te',secondsLeft:0,status:'finished',alertState:'started',physicalStopped:false,physicalDrained:false}]}};
+ const projected=liveScene(initialScene(),snap);assert.equal(projected.timer.alertState,'started');assert.equal(projected.timer.physicalStopped,false);assert.equal(projected.timer.physicalDrained,false);
+ const dismissed=liveScene({...projected,timer:{...projected.timer,noticeDismissed:true}},snap);assert.equal(dismissed.timer.physicalStopped,false);assert.equal(dismissed.timer.id,'native-id');assert.deepEqual(liveTimerRequest({...snap,capabilities:{timerActions:['timer.cancel']}},true,{type:'timer',id:'native-id',action:'cancel'}),{action:'timer.cancel',args:{timer_id:'native-id'}});
+ const stopped=liveScene(projected,{...snap,timers:{...snap.timers,items:[{...snap.timers.items[0],alertState:'stopped',physicalStopped:true}]}});assert.equal(stopped.timer.physicalStopped,true);assert.equal(projected.timer.physicalStopped,false);
+ const malformed=liveScene(projected,{...snap,timers:{...snap.timers,items:[{...snap.timers.items[0],physicalStopped:'true',physicalDrained:1,alertState:'invented'}]}});assert.equal(malformed.timer.physicalStopped,null);assert.equal(malformed.timer.physicalDrained,null);assert.equal(malformed.timer.alertState,null);
+});

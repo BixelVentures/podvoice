@@ -7,14 +7,41 @@ export function spotifyArtwork(value){
 export function spotifyItemUrl(uri){const match=/^spotify:(track|episode):([A-Za-z0-9]{22})$/.exec(typeof uri==='string'?uri:'');return match?`https://open.spotify.com/${match[1]}/${match[2]}`:null;}
 export function spotifyTrackUrl(uri){return typeof uri==='string'&&uri.startsWith('spotify:track:')?spotifyItemUrl(uri):null;}
 const FALLBACK='assets/icons/music-note-beamed.svg';
-function fallback(image){if(image.getAttribute('src')!==FALLBACK)image.src=FALLBACK;image.alt='Omslag ikke tilgængeligt';image.classList.remove('spotify-artwork');image.classList.add('live-art-fallback');}
-export function renderSpotifyArtwork(image,item){
+function fallback(image){image.artworkAnimation?.cancel();image.artworkAnimation=null;if(image.getAttribute('src')!==FALLBACK)image.src=FALLBACK;if(image.alt!=='Omslag ikke tilgængeligt')image.alt='Omslag ikke tilgængeligt';if(image.classList.contains('spotify-artwork'))image.classList.remove('spotify-artwork');if(!image.classList.contains('live-art-fallback'))image.classList.add('live-art-fallback');if(image.dataset.displayedArtwork!==undefined)delete image.dataset.displayedArtwork;}
+// The visible image stays in place while its admitted replacement is fetched and
+// decoded. A superseded load can never overwrite a later source or a fallback.
+export function cancelArtwork(image){
+ image.artworkAnimation?.cancel();image.artworkAnimation=null;
+ const request=image.artworkRequest;if(!request)return;image.artworkRequest=null;request.cancelled=true;request.probe.onload=null;request.probe.onerror=null;request.probe.removeAttribute?.('src');delete image.dataset.artworkPending;
+}
+function revealArtwork(image){
+ const view=image.ownerDocument?.defaultView,reduced=image.closest?.('[data-motion="reduced"]')||image.getRootNode?.()?.host?.dataset?.motion==='reduced'||view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+ if(reduced||image.isConnected===false||typeof image.animate!=='function')return;
+ const animation=image.animate([{opacity:0},{opacity:1}],{duration:180,easing:'cubic-bezier(.16,1,.3,1)',iterations:1});image.artworkAnimation=animation;
+ Promise.resolve(animation.finished).catch(()=>{}).finally(()=>{if(image.artworkAnimation===animation)image.artworkAnimation=null;});
+}
+export function renderRetainedArtwork(image,{url,identity,contentIdentity=identity,label,provider=false}={}){
+ if(image.referrerPolicy!=='no-referrer')image.referrerPolicy='no-referrer';if(image.decoding!=='async')image.decoding='async';
+ if(image.dataset.artworkContent!==contentIdentity){cancelArtwork(image);image.dataset.artworkContent=contentIdentity||'';delete image.dataset.failedArtwork;if(image.getAttribute('src')&&image.getAttribute('src')!==FALLBACK)fallback(image);}
+ if(!image.spotifyErrorHandler){image.spotifyErrorHandler=()=>{if(image.dataset.displayedArtwork&&image.getAttribute('src')!==FALLBACK){image.dataset.failedArtwork=image.dataset.displayedArtwork;if(image.artworkRequest?.identity===image.dataset.displayedArtwork)cancelArtwork(image);fallback(image);}};image.addEventListener('error',image.spotifyErrorHandler);}
+ if(image.dataset.artworkIdentity!==identity){cancelArtwork(image);image.dataset.artworkIdentity=identity||'';}
+ if(!url||!identity||image.dataset.failedArtwork===identity){cancelArtwork(image);fallback(image);return false;}
+ if(image.getAttribute('src')===url){if(image.alt!==label)image.alt=label;if(image.dataset.displayedArtwork!==identity)image.dataset.displayedArtwork=identity;if(image.classList.contains('live-art-fallback'))image.classList.remove('live-art-fallback');if(image.classList.contains('spotify-artwork')!==provider)image.classList[provider?'add':'remove']('spotify-artwork');return true;}
+ if(image.artworkRequest?.identity===identity){image.artworkRequest.label=label;return true;}
+ cancelArtwork(image);
+ const ImageClass=image.ownerDocument?.defaultView?.Image;
+ // Non-browser renderers do not own image decoding; native browsers always do.
+ if(!ImageClass){image.src=url;image.alt=label;image.dataset.displayedArtwork=identity;image.classList.remove('live-art-fallback');image.classList[provider?'add':'remove']('spotify-artwork');return true;}
+ if(!image.getAttribute('src'))fallback(image);
+ const probe=new ImageClass(),request={identity,contentIdentity,label,probe,cancelled:false};image.artworkRequest=request;image.dataset.artworkPending='true';probe.referrerPolicy='no-referrer';probe.decoding='async';
+ probe.onerror=()=>{if(image.artworkRequest!==request||request.cancelled)return;image.dataset.failedArtwork=identity;cancelArtwork(image);fallback(image);};
+ probe.onload=()=>{Promise.resolve().then(()=>probe.decode?.()).then(()=>{
+  if(image.artworkRequest!==request||request.cancelled||image.dataset.artworkIdentity!==identity||image.dataset.artworkContent!==contentIdentity)return;
+  image.artworkRequest=null;delete image.dataset.artworkPending;probe.onload=null;probe.onerror=null;image.src=url;image.alt=request.label;image.dataset.displayedArtwork=identity;image.classList.remove('live-art-fallback');image.classList[provider?'add':'remove']('spotify-artwork');revealArtwork(image);
+ }).catch(()=>probe.onerror?.());};
+ probe.src=url;return true;
+}
+export function renderSpotifyArtwork(image,item,contentIdentity=item?.uri){
  const art=spotifyItemUrl(item?.uri)?spotifyArtwork(item?.artwork):null;
- const identity=art?`${item.uri}|${art.url}`:'';
- image.referrerPolicy='no-referrer';image.decoding='async';image.dataset.artworkIdentity=identity;
- if(!image.spotifyErrorHandler){image.spotifyErrorHandler=()=>{if(image.classList.contains('spotify-artwork')&&image.dataset.artworkIdentity){image.dataset.failedArtwork=image.dataset.artworkIdentity;fallback(image);}};image.addEventListener('error',image.spotifyErrorHandler);}
- if(!art||image.dataset.failedArtwork===identity){fallback(image);return false;}
- if(image.getAttribute('src')!==art.url)image.src=art.url;
- image.alt=`Albumomslag til ${item.name||item.title||'sangen'}`;
- image.classList.remove('live-art-fallback');image.classList.add('spotify-artwork');return true;
+ return renderRetainedArtwork(image,{url:art?.url,identity:art?`${item.uri}|${art.url}`:'',contentIdentity,label:`Albumomslag til ${item?.name||item?.title||'sangen'}`,provider:true});
 }

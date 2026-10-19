@@ -2328,6 +2328,25 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         return _error("invalid_playlist_kind", 400)
     themes = FEELING_THEMES if kind == "feeling" else MOOD_THEMES
     retained_attribute = "_feeling_retained" if kind == "feeling" else "_mood_retained"
+    broader_queries = (
+        {
+            "energy": "feel good",
+            "calm": "acoustic",
+            "familiar": "classics",
+            "sing": "pop",
+            "soft": "acoustic",
+            "bright": "indie",
+        }
+        if kind == "feeling"
+        else {
+            "morning_acoustic": "acoustic",
+            "evening_jazz": "jazz",
+            "cooking": "dinner",
+            "italian": "italian",
+            "indie": "alternative",
+            "calm": "acoustic",
+        }
+    )
 
     tools = bridge.tools
     token = _request_token(request, room)
@@ -2409,13 +2428,41 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 ids = choose(retained)
             else:
                 assert selector is not None
-                if not selector.available:
-                    return failed(f"{kind}_budget_unavailable")
-                diagnostic.step("time_context")
-                coarse = await tools.podview_mood_context(current)
-                if coarse is not None:
-                    diagnostic.step("model")
-                ids = await selector.select(coarse, current=current) if coarse is not None else None
+                # AI enriches theme choice; its quota/provider cannot disable music.
+                # Never retry a model request or infer a model result from this fallback.
+                if selector.available:
+                    try:
+                        diagnostic.step("time_context")
+                        coarse = await tools.podview_mood_context(current)
+                        if coarse is not None and current():
+                            diagnostic.step("model")
+                            ids = await selector.select(coarse, current=current)
+                    except TimeoutError:
+                        diagnostic_log.note("owner_timeout")
+                    except Exception:
+                        diagnostic_log.note("model_parse")
+                else:
+                    diagnostic_log.note("not_ready")
+                if current() and (
+                    not isinstance(ids, list)
+                    or len(ids) != 3
+                    or any(not isinstance(x, str) or x not in themes for x in ids)
+                    or len(set(ids)) != 3
+                ):
+                    retained_ids = (
+                        [row.get("themeId") for row in retained["rows"]]
+                        if retained and retained["key"][1:3] == (account, room)
+                        else []
+                    )
+                    ids = (
+                        retained_ids
+                        if (
+                            len(retained_ids) == 3
+                            and all(isinstance(x, str) and x in themes for x in retained_ids)
+                            and len(set(retained_ids)) == 3
+                        )
+                        else ["cooking", "italian", "calm"]
+                    )
             if (
                 not current()
                 or not isinstance(ids, list)
@@ -2425,12 +2472,19 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             ):
                 return failed(f"{kind}_selection_unavailable")
 
-            async def read_theme(theme_id):
+            retained_queries: dict[str, str] = {}
+            if expected is not None:
+                assert retained is not None  # Expected rows were taken from this retained source.
+                retained_queries = retained.get("queries", {})
+            source_queries = {
+                theme_id: retained_queries.get(theme_id, themes[theme_id]["query"])
+                for theme_id in ids
+            }
+
+            async def read_theme(query):
                 if not current():
                     raise RuntimeError("mood owner replaced before lookup")
-                reply = await tools.podview_read(
-                    "playlist_search", account, themes[theme_id]["query"]
-                )
+                reply = await tools.podview_read("playlist_search", account, query)
                 if not current():
                     raise RuntimeError("mood owner replaced during lookup")
                 return reply
@@ -2439,11 +2493,14 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             # before the request can release its busy fence or publish any authority.
             diagnostic.step("playlist_search")
             async with asyncio.TaskGroup() as reads:
-                lookups = [reads.create_task(read_theme(theme_id)) for theme_id in ids]
+                lookups = [
+                    reads.create_task(read_theme(source_queries[theme_id])) for theme_id in ids
+                ]
             rows, candidates = [], []
             epoch = None
-            for theme_id, lookup in zip(ids, lookups, strict=True):
-                reply = lookup.result()
+
+            def admit(reply):
+                nonlocal epoch
                 data = reply.get("data", {}) if reply.get("ok") is True else {}
                 if epoch is None:
                     epoch = data.get("owner_epoch")
@@ -2455,6 +2512,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     or data.get("owner_epoch") != epoch
                     or data.get("source") != "spotify_web_api"
                 ):
+                    return None
+                return data.get("playlists", [])
+
+            for theme_id, lookup in zip(ids, lookups, strict=True):
+                playlists = admit(lookup.result())
+                if playlists is None:
                     return failed(
                         f"{kind}_refresh_required"
                         if expected is not None
@@ -2462,8 +2525,8 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     )
                 candidates.append(
                     [
-                        row
-                        for row in data.get("playlists", [])
+                        (row, source_queries[theme_id])
+                        for row in playlists
                         if expected is None
                         or all(row.get(key) == expected[theme_id][key] for key in ("uri", "name"))
                     ]
@@ -2474,22 +2537,38 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 # Backtrack a collision instead of discarding an available full assignment.
                 if index == len(candidates):
                     return []
-                for row in candidates[index]:
+                for row, query in candidates[index]:
                     if row["uri"] in seen:
                         continue
                     remaining = assign(index + 1, seen | {row["uri"]})
                     if remaining is not None:
-                        return [row, *remaining]
+                        return [(row, query), *remaining]
                 return None
 
             selected = assign(0, set())
+            if selected is None and expected is None:
+                # Only successful, current source samples reach this bounded broadening.
+                # No HTTP/auth/rate-limit/projection failure can trigger another read.
+                # Frozen renewal is excluded: it must revalidate its exact URI/name/query.
+                async with asyncio.TaskGroup() as reads:
+                    broader = [
+                        reads.create_task(read_theme(broader_queries[theme_id])) for theme_id in ids
+                    ]
+                for index, (theme_id, lookup) in enumerate(zip(ids, broader, strict=True)):
+                    playlists = admit(lookup.result())
+                    if playlists is None:
+                        return failed(f"{kind}_catalogue_unavailable")
+                    candidates[index].extend((row, broader_queries[theme_id]) for row in playlists)
+                selected = assign(0, set())
             if selected is None:
                 return failed(
                     f"{kind}_refresh_required"
                     if expected is not None
                     else f"{kind}_catalogue_empty"
                 )
-            for theme_id, playlist in zip(ids, selected, strict=True):
+            chosen_queries = {}
+            for theme_id, (playlist, query) in zip(ids, selected, strict=True):
+                chosen_queries[theme_id] = query
                 theme = themes[theme_id]
                 rows.append(
                     {
@@ -2506,7 +2585,11 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 return failed(f"{kind}_owner_replaced")
             diagnostic.step("publish")
             if not writable:
-                setattr(bridge, retained_attribute, {"key": key, "rows": copy.deepcopy(rows)})
+                setattr(
+                    bridge,
+                    retained_attribute,
+                    {"key": key, "rows": copy.deepcopy(rows), "queries": chosen_queries},
+                )
                 diagnostic.outcome = "success"
                 return web.json_response(
                     {
@@ -2542,7 +2625,11 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             )
             if identifier is None:
                 return failed(f"{kind}_source_rejected")
-            setattr(bridge, retained_attribute, {"key": key, "rows": copy.deepcopy(rows)})
+            setattr(
+                bridge,
+                retained_attribute,
+                {"key": key, "rows": copy.deepcopy(rows), "queries": chosen_queries},
+            )
             diagnostic.outcome = "success"
             return web.json_response(
                 {

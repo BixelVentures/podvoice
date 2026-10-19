@@ -54,3 +54,15 @@ test('mock start volume comes from its simulated owner receipt, while browsing a
  const done=step(pending,{type:'receipt',operation:pending.operation});
  assert.equal(done.playback.volume,35);
 });
+
+
+test('pending selection and room transfer preserve playback without generic waiting prose',()=>{
+ const before=initialWidgetState();
+ for(const event of [{type:'select',id:'smooth-jazz',revision:before.revision},{type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:before.revision}]){
+  const pending=step(before,event);
+  assert.ok(pending.pending);assert.deepEqual(pending.playback,before.playback);
+  assert.equal(pending.message,'');
+  assert.equal(step(pending,{type:'receipt',operation:pending.operation-1}),pending);
+  assert.equal(step(pending,{type:'receipt',operation:pending.operation}).pending,null);
+ }
+});

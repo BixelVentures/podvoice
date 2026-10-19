@@ -34,7 +34,7 @@ export class LiveControlView{
  }
  invalidateMusic(message='Musikken er ændret · hent betjeningen igen.',render=true){
   // Music observations cannot revoke a different domain's task or async owner.
-  this.musicGeneration=(this.musicGeneration||0)+1;this.musicOffer=null;this.musicAttempt=null;clearTimeout(this.musicExpiryTimer);
+  this.musicGeneration=(this.musicGeneration||0)+1;this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;clearTimeout(this.musicExpiryTimer);
   const operation=this.activeOperation;
   if(this.pending&&operation?.domain==='music'){this.remember(operation,'unknown');if(this.musicFence)this.musicFence={...this.musicFence,outcome:'unknown'};}
   else if(this.musicFence?.outcome!=='unknown')this.musicFence=null;
@@ -42,7 +42,7 @@ export class LiveControlView{
   if(render)this.render();
  }
  invalidate(message='Forbindelsen mangler · hent betjeningen igen.',render=true){
-  this.clearRobotRefresh();this.musicGeneration=(this.musicGeneration||0)+1;this.generation++;this.opening++;this.body.setAttribute('aria-busy','false');this.task=null;this.musicOffer=null;this.musicAttempt=null;clearTimeout(this.musicExpiryTimer);clearTimeout(this.expiryTimer);
+  this.clearRobotRefresh();this.musicGeneration=(this.musicGeneration||0)+1;this.generation++;this.opening++;this.body.setAttribute('aria-busy','false');this.task=null;this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;clearTimeout(this.musicExpiryTimer);clearTimeout(this.expiryTimer);
   if(this.pending&&this.musicFence)this.musicFence={...this.musicFence,outcome:'unknown'};
   if(this.pending&&this.activeOperation){this.remember(this.activeOperation,'unknown');this.note.textContent='Forbindelsen blev afbrudt · handlingen gentages ikke.';}else if(this.dialog.open)this.note.textContent=message;
   for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();
@@ -61,10 +61,10 @@ export class LiveControlView{
   this.pruneSpent();
   const context=this.musicContext();if(!context||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending)return;
   if(this.musicFence?.key===context.key&&this.musicFence.outcome==='unknown')return;
-  if(this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&context.pollSequence>this.musicFence.pollSequence){this.musicFence=null;this.musicOffer=null;this.musicAttempt=null;}
+  if(this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&context.pollSequence>this.musicFence.pollSequence){this.musicFence=null;this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;}
   if(this.musicOffer?.context.key===context.key&&this.musicOffer.task.expiresAt*1000>Date.now())return;
-  if(this.musicAttempt===context.key)return; // failed/expired read never retries automatically
-  this.musicOffer=null;this.musicAttempt=context.key;this.musicReadPending=true;const generation=this.generation,musicGeneration=this.musicGeneration||0;
+  if(this.musicAttempt===context.key&&this.musicAttemptPoll===context.pollSequence)return; // One read per fresh source observation; intent fences keep the stable context.
+  this.musicOffer=null;this.musicAttempt=context.key;this.musicAttemptPoll=context.pollSequence;this.musicReadPending=true;const generation=this.generation,musicGeneration=this.musicGeneration||0;
   try{const value=await this.host.liveTransport.controlSetup('music',context.target);if(generation!==this.generation||musicGeneration!==(this.musicGeneration||0)||!this.musicCurrent(context))return;const task=controlTask(value,this.host.liveSnapshot,'music');this.musicOffer={task,context};clearTimeout(this.musicExpiryTimer);this.musicExpiryTimer=setTimeout(()=>{this.renderMusicControls();},Math.max(0,task.expiresAt*1000-Date.now()));}
   catch{}finally{this.musicReadPending=false;if(this.host.isConnected)this.renderMusicControls();}
  }
@@ -87,7 +87,7 @@ export class LiveControlView{
   this.pruneSpent();const context=this.musicContext(),snapshot=this.host.liveSnapshot,binding=context&&mediaRoomBinding(snapshot,context.target.accountId),transport=this.host.liveTransport;
   if(!context||!binding||!catalogueCurrent()||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending||this.musicFence?.key===context.key&&['unknown','accepted'].includes(this.musicFence.outcome)||speaker?.kind!=='configured_alias'||speaker.accountId!==context.target.accountId||!/^[a-f0-9]{64}$/.test(speaker.speakerId)||speaker.selectable!==true||speaker.availability!=='available'||typeof speaker.nativeRoomId!=='string'||!speaker.nativeRoomId||typeof speaker.homepodId!=='string'||! /^[1-9][0-9]{0,19}$/.test(speaker.homepodId)||speaker.outputSelected===true||speaker.nativeRoomId===binding.nativeRoomId&&speaker.homepodId===binding.nativeHomepodId)return false;
   const generation=this.generation,musicGeneration=this.musicGeneration||0,bindingKey=JSON.stringify(binding),optionId='move:'+speaker.speakerId,operationCurrent=()=>generation===this.generation&&musicGeneration===(this.musicGeneration||0)&&this.host.liveTransport===transport&&this.musicCurrent(context)&&JSON.stringify(mediaRoomBinding(this.host.liveSnapshot,context.target.accountId))===bindingKey,current=()=>operationCurrent()&&catalogueCurrent();
-  this.musicIntentPending=true;this.setupPending=true;this.musicOffer=null;this.musicAttempt=context.key;clearTimeout(this.musicExpiryTimer);this.renderMusicControls();this.host.liveOutputs?.sync();let operation=null,sent=false;
+  this.musicIntentPending=true;this.setupPending=true;this.musicOffer=null;this.musicAttempt=context.key;this.musicAttemptPoll=context.pollSequence;clearTimeout(this.musicExpiryTimer);this.renderMusicControls();this.host.liveOutputs?.sync();let operation=null,sent=false;
   try{
    const value=await transport.controlSetup('music',{...context.target,speakerId:speaker.speakerId});if(!current())return false;
    const task=controlTask(value,this.host.liveSnapshot,'music');if(task.options.length!==1||task.options[0].id!==optionId||task.options[0].action!=='move_existing_session'||task.options[0].argsSchema.kind!=='none'||this.spent.has(task.taskId))throw Error('invalid_move_offer');

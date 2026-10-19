@@ -1,3 +1,11 @@
+## 2.0.62 — PodView retained UI and playlist resilience
+
+- Keep existing widgets, artwork, navigation and controls stable while unchanged data refreshes; update only changed content and fade decoded artwork in its existing slot.
+- Align overview timer/grid, music card/tab spacing, visual-answer history previews and meaningful retained player states through the canonical component owners.
+- Improve source-backed Humør/Stemning playlist selection with bounded provider fallbacks; retain exact account/owner/currentness and renewal authority, and never invent playlist rows.
+- Renew expired read-only room-control offers only on a genuinely new native poll and schedule reads within the actual remaining observation lifetime; preserve stable action and UNKNOWN/spent guards.
+- Source/package checks do not establish Green, audible playback or physical touch acceptance.
+
 ## 2.0.61 — beholdt widgetplads ved første hjemmelæsning, ubundet privat kandidat
 
 - Bevar robotwidgettens eksisterende tomme, deaktiverede plads, når robotlæsning er tilladt men første observation endnu mangler. Lys og øvrige widgets flytter ikke plads under den afgrænsede første læsning.

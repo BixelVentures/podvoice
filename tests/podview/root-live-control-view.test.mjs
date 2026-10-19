@@ -52,6 +52,22 @@ test('receipts retain at most sixteen, hide on owner change and preserve known a
  const f=fixture();try{f.view.domain='vacuum';f.view.target=target;for(let i=0;i<20;i++)f.view.remember({key:String(i),bootId:'boot',roomId:'room',domain:'vacuum',target,label:'Pause'},i%2?'accepted':'unknown');assert.equal(f.view.receipts.size,16);f.view.invalidate();assert.match(f.view.receiptNote.textContent,/modtaget/);f.host.liveSnapshot={...f.host.liveSnapshot,bootId:'new'};f.view.render();assert.equal(f.view.receiptNote.hidden,true);}finally{f.view.cleanup();}
 });
 
+for(const outcome of ['accepted','rejected','unknown'])test(`pending controls stay silent and inert before ${outcome} remains visible`,async()=>{
+ const f=fixture();try{
+  await open(f);const sending=f.view.send('pause',{});
+  assert.equal(f.view.pending,true);assert.equal(f.view.robotPanel.disabled,true);
+  assert.equal([...f.view.receipts.values()][0].outcome,'pending');
+  assert.equal(f.view.note.textContent,'');assert.equal(f.view.receiptNote.hidden,true);assert.equal(f.view.receiptNote.textContent,'');
+  assert.equal(f.view.slowTimer,undefined);
+  await f.view.send('pause',{});assert.equal(f.calls(),1);
+  f.action.resolve({ok:outcome==='accepted',outcome,requestId:'receipt'});await sending;
+  assert.equal(f.view.pending,false);assert.equal(f.view.receiptNote.hidden,false);
+  assert.match(f.view.receiptNote.textContent,outcome==='accepted'?/Anmodningen er modtaget\./:outcome==='unknown'?/ukendt.*gentages ikke/:/afvist/);
+  assert.equal([...f.view.receipts.values()][0].outcome,outcome);
+  await f.view.send('pause',{});assert.equal(f.calls(),1);
+ }finally{f.view.cleanup();}
+});
+
 test('cleaning map context belongs to the canonical area form, not a duplicate dialog note',async()=>{
  const f=fixture();try{
   const opening=f.view.open('vacuum',target,new Node('button'));

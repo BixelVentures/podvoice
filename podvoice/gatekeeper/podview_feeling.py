@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 THEMES = {
-    "energy": {"title": "Mere energi", "query": "feel good funk", "image": "assets/indie.png"},
+    "energy": {"title": "Mere energi", "query": "funk", "image": "assets/indie.png"},
     "calm": {"title": "Helt ned i tempo", "query": "peaceful acoustic", "image": "assets/lake.png"},
     "familiar": {
         "title": "Noget velkendt",

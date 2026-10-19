@@ -87,3 +87,12 @@ test('existing care disclosure contains semantic groups and dl rows, not new his
 test('empty care groups are omitted and zero is retained',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h')]}}));renderRobotHistory(f.host);const details=f.section().querySelector('details');assert.deepEqual(details.descendants().filter(n=>n.tagName==='h3').map(n=>n.textContent),['Vedligeholdelse']);assert.ok(details.descendants().some(n=>n.textContent==='0 timer tilbage'));}));
 
 test('same canonical timeline survives observed empty, real events and unavailable transitions',()=>withDocument(()=>{const d=device(),f=fixture(d),timeline=f.timeline;renderRobotHistory(f.host);assert.equal(f.timeline,timeline);assert.equal(timeline.hidden,false);d.history={status:'observed',items:[request('one')]};renderRobotHistory(f.host);assert.equal(timeline.data.items.length,1);assert.equal(timeline.data.state,'ready');d.history={status:'unavailable',items:[]};renderRobotHistory(f.host);assert.equal(timeline.hidden,false);assert.equal(timeline.data.items.length,0);assert.equal(timeline.data.state,'empty');assert.equal(f.history.children.length,1);assert.equal(document.getElementById('robot-history-empty'),null);}));
+
+test('unchanged robot observations perform no timeline reassignment or care replacement',()=>withDocument(()=>{
+ const d=device({telemetry:{status:'observed',items:[fact('filter_time_left',40,'h')]},history:{status:'observed',items:[request('one')]}}),f=fixture(d);renderRobotHistory(f.host);
+ let data=f.timeline.data,updates=0,replacements=0;const section=f.section(),details=section.querySelector('details'),original=section.replaceChildren;
+ Object.defineProperty(f.timeline,'data',{get:()=>data,set:value=>{updates++;data=value;}});section.replaceChildren=function(...args){replacements++;return original.apply(this,args);};details.open=true;
+ f.host.state.devices=[structuredClone(d)];renderRobotHistory(f.host);renderRobotHistory(f.host);
+ assert.equal(updates,0);assert.equal(replacements,0);assert.equal(section.querySelector('details'),details);assert.equal(details.open,true);
+ f.host.state.devices[0].history.items.push(request('two'));renderRobotHistory(f.host);assert.equal(updates,1);assert.equal(data.items.length,2);
+}));

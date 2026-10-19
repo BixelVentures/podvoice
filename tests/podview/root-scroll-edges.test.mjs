@@ -50,3 +50,8 @@ test('ScrollEdges tracks visibility and content changes, and removes its own eff
   for(const [name,value] of Object.entries(original)){if(value===undefined)delete globalThis[name];else globalThis[name]=value;}
  }
 });
+
+test('scroll edge observation writes only a changed axis/edge and never deletes absent attributes',async()=>{
+ const {ScrollEdges}=await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js'),previous=globalThis.getComputedStyle,writes=[];const dataset=new Proxy({}, {set:(target,key,value)=>{writes.push(['set',key,value]);target[key]=value;return true;},deleteProperty:(target,key)=>{writes.push(['delete',key]);delete target[key];return true;}});const node={dataset,classList:{contains:()=>false},clientHeight:100,scrollHeight:300,scrollTop:0,getClientRects:()=>[{}],overflow:'auto'};globalThis.getComputedStyle=node=>({scrollSnapType:'none',overflowY:node.overflow});
+ try{const edges=new ScrollEdges({});edges.measure(node);assert.deepEqual(writes,[['set','scrollAxis','y'],['set','scrollEdge','end']]);writes.length=0;for(let i=0;i<20;i++)edges.measure(node);assert.equal(writes.length,0);node.scrollTop=200;edges.measure(node);assert.deepEqual(writes,[['set','scrollEdge','start']]);writes.length=0;node.overflow='visible';edges.measure(node);assert.deepEqual(writes,[['delete','scrollAxis'],['delete','scrollEdge']]);writes.length=0;for(let i=0;i<20;i++)edges.measure(node);assert.equal(writes.length,0);}finally{globalThis.getComputedStyle=previous;}
+});

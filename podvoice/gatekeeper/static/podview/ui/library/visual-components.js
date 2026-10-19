@@ -1,7 +1,13 @@
 import {validateVisualContent,visualFamilies} from '../../visual-content.js';
 const make=(tag,cls,value)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(value!==undefined)el.textContent=value;return el;};
-const copy=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
+// Existing retained owner: update only the field whose presented value changed.
+const copy=(node,value,key='textContent',kind='property')=>{
+ if(kind==='attribute'){if(value===null){if(node.getAttribute(key)!=null)node.removeAttribute(key);}else if(node.getAttribute(key)!==String(value))node.setAttribute(key,String(value));return;}
+ if(kind==='delete'){if(node[key]!==undefined)delete node[key];return;}
+ if(node[key]!==value)node[key]=value;
+};
 class VisualComponent extends HTMLElement {
+ // Authority/provenance is always current, including a visually unchanged read.
  set data(value){this._data=value||{};if(this.isConnected)this.render();}
  get data(){return this._data||{};}
  connectedCallback(){this.render();}
@@ -26,27 +32,27 @@ class VisualComponent extends HTMLElement {
   items.forEach((item,index)=>{let row=map.get(item.id);if(!row){row=build();map.set(item.id,row);}update(row,item,index);if(parent.children[index]!==row)parent.insertBefore(row,parent.children[index]||null);});
  }
  render(){
-  this.build();const d=this.data,state=d.historical===true?'ready':d.state||'ready',busy=state==='loading'||state==='pending';this.dataset.state=state;this.setAttribute('aria-busy',String(state==='loading'||state==='pending'));
+  this.build();const d=this.data;const presentation=JSON.stringify([d.historical===true?'ready':d.state||'ready',d.content,d.ownerReceiptIds||[],d.allowConversation===true,d.historical===true,d.hideSummary===true,d.forecast===true],(_,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);if(this.lastPresentation===presentation)return;this.lastPresentation=presentation;const state=d.historical===true?'ready':d.state||'ready',busy=state==='loading'||state==='pending';copy(this.dataset,state,'state');copy(this,state==='loading'||state==='pending','aria-busy','attribute');
   const labels={loading:'',pending:'',empty:'Der er ikke noget at vise endnu.',error:'Visningen kunne ikke hentes.',offline:'Offline · sidst kendte oplysninger',unsupported:'Denne visning er ikke tilgængelig.'};
-  if(d.historical===true&&this.image&&this.image.getAttribute('src')!=='assets/bicycle-drivetrain-illustration.png'){this.image.removeAttribute('src');this.image.hidden=true;this.imageError.hidden=false;}
-  this.body.hidden=['empty','unsupported'].includes(state);this.sources.hidden=d.historical===true||this.body.hidden;copy(this.note,labels[state]||'');this.note.hidden=!this.note.textContent;
+  if(d.historical===true&&this.image&&this.image.getAttribute('src')!=='assets/bicycle-drivetrain-illustration.png'){copy(this.image,null,'src','attribute');copy(this.image,true,'hidden');copy(this.imageError,false,'hidden');}
+  copy(this.body,['empty','unsupported'].includes(state),'hidden');copy(this.sources,d.historical===true||this.body.hidden,'hidden');copy(this.note,labels[state]||'');copy(this.note,!this.note.textContent,'hidden');
   if(this.body.hidden)return;
+  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[],allowConversation:d.allowConversation===true});}catch{for(const row of this.sourceNodes.values()){const control=row.children[0];if(control.tagName==='BUTTON')copy(control,true,'disabled');}if(busy){copy(this.body,false,'hidden');copy(this.sources,d.historical===true||!this.lastContent,'hidden');copy(this.note,true,'hidden');if(!this.lastContent){copy(this.dataset,'true','empty');copy(this.summary,true,'hidden');if(this.figure&&this.family==='sourced-image'){copy(this.image.style,'hidden','visibility');copy(this.caption,true,'hidden');}else{this.placeholders??=Array.from({length:3},()=>{const row=make(this.family==='fact-card'?'div':'li','pv-visual-item');row.setAttribute('aria-hidden','true');row.append(make(this.family==='fact-card'?'dt':'span','pv-visual-label'),make(this.family==='fact-card'?'dd':'h2','pv-visual-value'),make('p','pv-visual-detail'));return row;});if(this.placeholders.some(row=>row.parentNode!==this.list))this.list.append(...this.placeholders);}}return;}copy(this.body,!this.lastContent,'hidden');copy(this.sources,d.historical===true||this.body.hidden,'hidden');copy(this.note,labels[state]||'Visningen kunne ikke læses.');copy(this.note,false,'hidden');return;}
   for(const row of this.placeholders||[])row.remove();
-  let content;try{content=validateVisualContent(this.family,d.content,{ownerReceiptIds:d.ownerReceiptIds||[],allowConversation:d.allowConversation===true});}catch{if(busy){this.body.hidden=false;this.sources.hidden=d.historical===true||!this.lastContent;this.note.hidden=true;if(!this.lastContent){this.dataset.empty='true';this.summary.hidden=true;if(this.figure&&this.family==='sourced-image'){this.image.style.visibility='hidden';this.caption.hidden=true;}else{this.placeholders??=Array.from({length:3},()=>{const row=make(this.family==='fact-card'?'div':'li','pv-visual-item');row.setAttribute('aria-hidden','true');row.append(make(this.family==='fact-card'?'dt':'span','pv-visual-label'),make(this.family==='fact-card'?'dd':'h2','pv-visual-value'),make('p','pv-visual-detail'));return row;});this.list.append(...this.placeholders);}}return;}this.body.hidden=!this.lastContent;this.sources.hidden=d.historical===true||this.body.hidden;copy(this.note,labels[state]||'Visningen kunne ikke læses.');this.note.hidden=false;return;}
-  this.dataset.empty='false';if(this.figure){this.image.style.visibility='';this.caption.hidden=false;}this.lastContent=content;copy(this.summary,content.summary);this.summary.hidden=d.hideSummary===true;
-  this.dataset.count=String((content.facts||content.events||content.nodes||[]).length);
+  copy(this.dataset,'false','empty');if(this.figure){copy(this.image.style,'','visibility');copy(this.caption,false,'hidden');}this.lastContent=content;copy(this.summary,content.summary);copy(this.summary,d.hideSummary===true,'hidden');
+  copy(this.dataset,String((content.facts||content.events||content.nodes||[]).length),'count');
   if(this.figure){
-   const img=content.image||content.illustration;this.figure.hidden=!img;this.dataset.illustrated=String(!!img);
-   if(img){this.dataset.imageKind=img.kind;if(d.historical===true&&img.url!=='assets/bicycle-drivetrain-illustration.png'){this.image.removeAttribute('src');this.image.hidden=true;this.imageError.hidden=false;}else if(this.image.getAttribute('src')!==img.url){this.image.hidden=false;this.imageError.hidden=true;this.image.src=img.url;}this.image.alt=img.alt;copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='album_cover'?'Omslag':img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
+   const img=content.image||content.illustration;copy(this.figure,!img,'hidden');copy(this.dataset,String(!!img),'illustrated');
+   if(img){copy(this.dataset,img.kind,'imageKind');if(d.historical===true&&img.url!=='assets/bicycle-drivetrain-illustration.png'){copy(this.image,null,'src','attribute');copy(this.image,true,'hidden');copy(this.imageError,false,'hidden');}else if(this.image.getAttribute('src')!==img.url){copy(this.image,false,'hidden');copy(this.imageError,true,'hidden');this.image.src=img.url;}copy(this.image,img.alt,'alt');copy(this.captionText,img.caption);copy(this.credit,`${img.kind==='album_cover'?'Omslag':img.kind==='illustration'?'Illustration':'Foto'} · ${img.credit}`);
    }
-   else delete this.dataset.imageKind;
+   else copy(this.dataset,null,'imageKind','delete');
   }
   if(this.family==='simple-diagram'){
-   if(content.illustration)this.caption.append(this.note);
-   else this.insertBefore(this.note,this.body);
+   if(content.illustration){if(this.note.parentNode!==this.caption)this.caption.append(this.note);}
+   else if(this.note.parentNode!==this)this.insertBefore(this.note,this.body);
   }
   const plannedTimeline=this.family==='answer-timeline'&&d.forecast!==true&&content.events.every(event=>event.status==='planned');
-  if(this.family==='answer-timeline'){this.timelineContext??=make('p','pv-timeline-context');if(!this.timelineContext.parentNode)this.body.insertBefore(this.timelineContext,this.list);copy(this.timelineContext,plannedTimeline?'Planlagt forløb':'');this.timelineContext.hidden=!plannedTimeline;}
+  if(this.family==='answer-timeline'){this.timelineContext??=make('p','pv-timeline-context');if(!this.timelineContext.parentNode)this.body.insertBefore(this.timelineContext,this.list);copy(this.timelineContext,plannedTimeline?'Planlagt forløb':'');copy(this.timelineContext,!plannedTimeline,'hidden');}
   if(this.list){
    const items=content.facts||content.events||content.nodes;
    this.reconcile(this.list,this.rows,items,()=>{
@@ -55,11 +61,11 @@ class VisualComponent extends HTMLElement {
    },(row,item,index)=>{
     const [label,value,detail]=row.children;
     copy(label,this.family==='fact-card'?item.label:this.family==='answer-timeline'?plannedTimeline?item.time:`${item.time}\n${d.forecast===true?'Prognose':item.status==='planned'?'Planlagt':'Registreret'}`:String(index+1).padStart(2,'0'));
-    copy(value,this.family==='fact-card'?item.value:item.label);copy(detail,item.detail);row.dataset.position=String(index+1);
+    copy(value,this.family==='fact-card'?item.value:item.label);copy(detail,item.detail);copy(row.dataset,String(index+1),'position');
    });
   }
-  this.sources.hidden=d.historical===true;if(d.historical===true)this.sources.open=false;
-  this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{const owner=s.kind==='owner_receipt';if((li.children[0].tagName==='BUTTON')!==owner){const control=make(owner?'button':'a');if(owner){control.type='button';control.className='text-control';control.addEventListener('click',()=>{if(this.data.historical===true||control.disabled)return;control.dispatchEvent(new CustomEvent('owner-source',{bubbles:true,composed:true,detail:{receiptId:li.dataset.receiptId}}));});}else{control.target='_blank';control.rel='noopener noreferrer';}li.children[0].replaceWith(control);}copy(li.children[0],s.label);if(owner)li.children[0].disabled=d.historical===true||['offline','loading','pending'].includes(state);li.dataset.receiptId=owner?s.receiptId:'';if(!owner){if(d.historical===true)li.children[0].removeAttribute('href');else li.children[0].href=s.url;}copy(li.children[1],owner?(s.scope==='conversation_answer'?'AI-forklaring':'Modtaget værktøjsresultat'):s.scope);});
+  copy(this.sources,d.historical===true,'hidden');if(d.historical===true)copy(this.sources,false,'open');
+  this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{const owner=s.kind==='owner_receipt';if((li.children[0].tagName==='BUTTON')!==owner){const control=make(owner?'button':'a');if(owner){control.type='button';control.className='text-control';control.addEventListener('click',()=>{if(this.data.historical===true||control.disabled)return;control.dispatchEvent(new CustomEvent('owner-source',{bubbles:true,composed:true,detail:{receiptId:li.dataset.receiptId}}));});}else{control.target='_blank';control.rel='noopener noreferrer';}li.children[0].replaceWith(control);}copy(li.children[0],s.label);if(owner)copy(li.children[0],d.historical===true||['offline','loading','pending'].includes(state),'disabled');copy(li.dataset,owner?s.receiptId:'','receiptId');if(!owner){if(d.historical===true)copy(li.children[0],null,'href','attribute');else copy(li.children[0],s.url,'href','attribute');}copy(li.children[1],owner?(s.scope==='conversation_answer'?'AI-forklaring':'Modtaget værktøjsresultat'):s.scope);});
  }
 }
 for(const family of visualFamilies)customElements.define(`pv-${family}`,class extends VisualComponent{});

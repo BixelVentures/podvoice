@@ -33,3 +33,8 @@ test('invalid timer clocks are inert and a pause racing expiry becomes finished'
  const finished=step(s,{type:'timer',id:s.timer.id,action:'pause',now:1000});
  assert.equal(finished.timer.remaining,0);assert.equal(finished.timer.status,'done');
 });
+
+test('native finished alert offers explicit stop until owner confirms drained or stopped',async()=>{
+ const {timerFinishLabel}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');const timer={status:'done',ownerBootId:'actual-owner',noticeDismissed:true,physicalStopped:false,physicalDrained:false};
+ assert.equal(timerFinishLabel(timer),'Stop alarm');assert.equal(timerFinishLabel({...timer,physicalStopped:true}),'Færdig');assert.equal(timerFinishLabel({...timer,physicalDrained:true}),'Færdig');assert.equal(timerFinishLabel({...timer,ownerBootId:undefined}),'Færdig');assert.equal(timerFinishLabel({status:'running',ownerBootId:'actual-owner'}),'Annuller');
+});

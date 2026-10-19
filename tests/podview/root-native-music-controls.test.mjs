@@ -54,3 +54,128 @@ for(const outcome of ['unknown','accepted'])test(`MOVE ${outcome} after catalogu
   await outputs.open();assert.equal(rows.children[0].disabled,true);assert.equal(await f.view.moveSpeaker(speaker,()=>true),false);assert.equal(f.writes.length,1);if(outcome==='unknown'){await f.view.prepareMusic();assert.equal(f.view.musicOffer,null);}
  }finally{outputs?.cleanup();f.restore();}
 });
+
+for(const kind of ['prepare','intent','move'])test(`music-only invalidation fences held ${kind} setup even when context returns to the same key`,async()=>{
+ const f=fixture();try{
+  if(kind==='intent')await f.view.prepareMusic();
+  if(kind==='move')enableMove(f);
+  const make=f.host.liveTransport.controlSetup,hold=deferred();f.host.liveTransport.controlSetup=()=>hold.promise;
+  const running=kind==='prepare'?f.view.prepareMusic():kind==='intent'?f.view.musicIntent('pause'):f.view.moveSpeaker(alias(),()=>true);
+  const generation=f.view.generation,opening=f.view.opening,key=f.view.musicContext().key;
+  f.view.invalidateMusic(undefined,false);
+  assert.equal(f.view.generation,generation);assert.equal(f.view.opening,opening);assert.equal(f.view.musicContext().key,key);
+  hold.resolve(await make('music',{}));await running;
+  assert.equal(f.view.musicOffer,null);assert.equal(f.writes.length,0);assert.equal(f.view.musicReadPending||false,false);assert.equal(f.view.musicIntentPending||false,false);
+ }finally{f.restore();}
+});
+test('music-only invalidation preserves pending vacuum ownership and its eventual real receipt',async()=>{
+ const f=fixture();try{
+  f.host.liveSnapshot.capabilities.controlSetup.push('vacuum');
+  f.view.domain='vacuum';f.view.target={entityId:'vacuum.actual'};f.view.dialog.open=true;
+  const task={bootId:'boot',roomId:'room',domain:'vacuum',taskId:'vacuum-task',revision:1,expiresAt:Date.now()/1000+60,options:[{id:'pause',action:'pause',label:'Pause rengøring',argsSchema:{kind:'none'}}]};f.view.task=task;
+  const hold=deferred();f.host.liveTransport.controlAction=async()=>hold.promise;
+  const running=f.view.send('pause',{}),generation=f.view.generation,opening=f.view.opening,operation=f.view.activeOperation;
+  assert.equal(operation.domain,'vacuum');assert.equal(f.view.pending,true);
+  f.view.invalidateMusic(undefined,false);
+  assert.equal(f.view.task,task);assert.equal(f.view.generation,generation);assert.equal(f.view.opening,opening);assert.equal(f.view.pending,true);assert.equal(f.view.activeOperation,operation);assert.equal(f.view.receipts.get(operation.key).outcome,'pending');
+  hold.resolve({ok:true,outcome:'accepted',requestId:'vacuum-receipt'});await running;
+  assert.equal(f.view.receipts.get(operation.key).outcome,'accepted');assert.match(f.view.note.textContent,/modtaget/);assert.equal(f.view.task,task);
+  f.view.setupPending=true;const openingBefore=f.view.opening;f.view.invalidateMusic(undefined,false);assert.equal(f.view.setupPending,true);assert.equal(f.view.opening,openingBefore);f.view.setupPending=false;
+  f.view.invalidate(undefined,false);assert.equal(f.view.task,null);
+ }finally{f.restore();}
+});
+test('music-only invalidation retains an unknown fence after a dispatched music write without revoking a vacuum task',async()=>{
+ const f=fixture();try{
+  await f.view.prepareMusic();f.view.domain='vacuum';const task={domain:'vacuum',taskId:'unrelated',expiresAt:Date.now()/1000+60};f.view.task=task;
+  const hold=deferred();f.host.liveTransport.controlAction=async()=>hold.promise;
+  const sending=f.view.musicIntent('pause');await new Promise(done=>setImmediate(done));assert.equal(f.view.activeOperation.domain,'music');
+  f.view.invalidateMusic(undefined,false);assert.equal(f.view.task,task);assert.equal(f.view.musicFence.outcome,'unknown');
+  hold.resolve({ok:true,outcome:'accepted',requestId:'late'});await sending;
+  assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.view.task,task);assert.equal(await f.view.musicIntent('pause'),false);
+ }finally{f.restore();}
+});
+test('held vacuum setup remains eligible after music-only invalidation',async()=>{
+ const f=fixture();try{
+  f.host.liveSnapshot.capabilities.controlSetup.push('vacuum');f.view.musicAttempt=f.view.musicContext().key;
+  const hold=deferred();f.host.liveTransport.controlSetup=async(domain)=>domain==='vacuum'?hold.promise:f.offer();
+  const opening=f.view.open('vacuum',{entityId:'vacuum.actual'},new Node('button'));
+  const generation=f.view.generation,sequence=f.view.opening;assert.equal(f.view.setupPending,true);
+  f.view.invalidateMusic(undefined,false);assert.equal(f.view.setupPending,true);assert.equal(f.view.generation,generation);assert.equal(f.view.opening,sequence);
+  hold.resolve({ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'vacuum-held',revision:1,expiresAt:Date.now()/1000+60,options:[{id:'pause',action:'pause',label:'Pause rengøring',argsSchema:{kind:'none'}}],setup:{mapName:null}});
+  await opening;assert.equal(f.view.task.taskId,'vacuum-held');assert.equal(f.view.robotPanel.disabled,false);
+ }finally{f.restore();}
+});
+
+test('held music intent reserves effect ownership against robot open and send',async()=>{
+ const f=fixture();const setup=deferred(),write=deferred();let intent;
+ try{
+  f.host.liveSnapshot.capabilities.controlSetup.push('vacuum');
+  const vacuumOffer={ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'robot-ready',revision:1,expiresAt:Date.now()/1000+60,options:[{id:'pause',action:'pause',label:'Pause',argsSchema:{kind:'none'}}],setup:{mapName:null}};
+  f.host.liveTransport.controlSetup=async domain=>domain==='vacuum'?vacuumOffer:f.offer();
+  await f.view.open('vacuum',{entityId:'vacuum.actual'},new Node('button'));
+  const task=f.view.task;await f.view.prepareMusic();
+  f.host.liveTransport.controlSetup=()=>setup.promise;
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.writes.push({task,id,args});return write.promise;};
+  intent=f.view.musicIntent('pause');f.view.render();
+  assert.equal(f.view.robotButton.disabled,true);assert.equal(f.view.robotPanel.disabled,true);
+  const opening=f.view.opening;f.view.open('vacuum',{entityId:'vacuum.other'},new Node('button'));
+  assert.equal(f.view.opening,opening);assert.equal(f.view.task,task);
+  await f.view.send('pause',{});assert.equal(f.writes.length,0);
+  setup.resolve(f.offer());await new Promise(done=>setImmediate(done));
+  assert.equal(f.writes.length,1);assert.equal(f.view.activeOperation.domain,'music');
+  write.resolve({ok:true,outcome:'accepted'});await intent;
+  assert.equal(f.view.robotButton.disabled,false);assert.equal(f.view.robotPanel.disabled,false);
+  await f.view.send('pause',{});assert.equal(f.writes.length,2);assert.equal(f.writes[1].task.domain,'vacuum');
+ }finally{setup.resolve(f.offer());write.resolve({ok:true,outcome:'accepted'});await intent;f.restore();}
+});
+test('late music setup cannot replace an already occupied effect slot',async()=>{
+ const f=fixture();const setup=deferred();let intent;
+ try{
+  await f.view.prepareMusic();f.host.liveTransport.controlSetup=()=>setup.promise;
+  intent=f.view.musicIntent('pause');
+  const operation={domain:'vacuum',key:'existing'};f.view.activeOperation=operation;f.view.pending=true;
+  setup.resolve(f.offer());assert.equal(await intent,false);
+  assert.equal(f.writes.length,0);assert.equal(f.view.activeOperation,operation);assert.equal(f.view.pending,true);
+ }finally{setup.resolve(f.offer());await intent;f.view.pending=false;f.view.activeOperation=null;f.restore();}
+});
+test('passive music offer read does not block a robot setup',async()=>{
+ const f=fixture();const read=deferred();let preparation;
+ try{
+  f.host.liveSnapshot.capabilities.controlSetup.push('vacuum');
+  f.host.liveTransport.controlSetup=async domain=>domain==='music'?read.promise:{ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'robot-passive',revision:1,expiresAt:Date.now()/1000+60,options:[{id:'pause',action:'pause',label:'Pause',argsSchema:{kind:'none'}}],setup:{mapName:null}};
+  preparation=f.view.prepareMusic();await f.view.open('vacuum',{entityId:'vacuum.actual'},new Node('button'));
+  assert.equal(f.view.task.taskId,'robot-passive');assert.equal(f.view.musicReadPending,true);assert.equal(f.writes.length,0);
+ }finally{read.resolve(f.offer());await preparation;f.restore();}
+});
+
+test('expired music offer renews once from a genuinely newer fresh observation without changing intent identity',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=fixture();try{
+  let calls=0;f.host.liveTransport.controlSetup=async()=>{calls++;return {...f.offer(['pause','next'],null),expiresAt:clock/1000+2};};
+  await f.view.prepareMusic();f.view.renderMusicControls();const key=f.view.musicContext().key,firstTask=f.view.musicOffer.task.taskId;
+  assert.equal(f.nodes.get('play-pause').disabled,false);clock+=2001;
+  await f.view.prepareMusic();f.view.renderMusicControls();assert.equal(calls,1);assert.equal(f.nodes.get('play-pause').disabled,true);
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:2,expiresAt:clock+15000};await f.view.prepareMusic();f.view.renderMusicControls();
+  assert.equal(f.view.musicContext().key,key);assert.equal(calls,2);assert.notEqual(f.view.musicOffer.task.taskId,firstTask);assert.equal(f.nodes.get('play-pause').disabled,false);
+  await f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,2);assert.equal(f.writes.length,0);
+ }finally{f.restore();Date.now=previousNow;}
+});
+
+test('failed passive preparation is not retried on the same poll and a newer read cannot bypass UNKNOWN intent',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=fixture();try{
+  let calls=0;f.host.liveTransport.controlSetup=async()=>{calls++;throw Error('temporary read failure');};
+  await f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,1);
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:2,expiresAt:clock+15000};await f.view.prepareMusic();assert.equal(calls,2);
+  const key=f.view.musicContext().key;f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:3,expiresAt:clock+15000};
+  await f.view.prepareMusic();assert.equal(calls,2);assert.equal(f.view.musicContext().key,key);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.writes.length,0);assert.equal(f.view.musicFence.outcome,'unknown');
+ }finally{f.restore();Date.now=previousNow;}
+});
+
+test('new-observation preparation is coalesced and late room replacement does not install its offer',async()=>{
+ const f=fixture();try{
+  const hold=deferred();let calls=0;f.host.liveTransport.controlSetup=()=>{calls++;return hold.promise;};
+  const pending=f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,1);
+  f.host.liveSnapshot={...f.host.liveSnapshot,roomId:'other'};hold.resolve(f.offer(['pause'],null));await pending;
+  assert.equal(f.view.musicOffer,null);assert.equal(f.view.musicReadPending,false);assert.equal(f.writes.length,0);
+ }finally{f.restore();}
+});

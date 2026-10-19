@@ -10,7 +10,19 @@ from integration.test_podview_music_selection import rig  # noqa: F401
 
 from gatekeeper.podview import BRIDGE
 
-QUERIES = ["feel good funk", "peaceful acoustic", "sing along classics"]
+QUERIES = ["funk", "peaceful acoustic", "sing along classics"]
+
+
+def empty_broader(account, epoch):
+    return {
+        "ok": True,
+        "data": {
+            "config_entry_id": account,
+            "owner_epoch": epoch,
+            "source": "spotify_web_api",
+            "playlists": [],
+        },
+    }
 
 
 @pytest.mark.parametrize(
@@ -29,8 +41,12 @@ async def test_existing_candidates_require_complete_distinct_assignment(
 ):
     r = feeling_rig
     original = r.router.podview_read
+    queries = []
 
     async def altered(kind, account=None, query=None):
+        queries.append(query)
+        if query not in QUERIES:
+            return empty_broader(account, r.playlist_epoch)
         value = await original(kind, account, query)
         if kind == "playlist_search":
             value["data"]["playlists"] = [
@@ -41,7 +57,7 @@ async def test_existing_candidates_require_complete_distinct_assignment(
 
     monkeypatch.setattr(r.router, "podview_read", altered)
     body = await read(r)
-    assert len([x for x in r.calls if "search_playlists" in x[1]]) == 3
+    assert len(queries) == (6 if expect is None else 3)
     assert r.router.podview_mood_selector.select.await_count == 0
     assert r.app[BRIDGE].controls.music.execute_context.await_count == 0
     if expect is None:
@@ -64,6 +80,8 @@ async def test_all_admitted_three_result_combinations_obey_matching(feeling_rig,
     lists = []
 
     async def altered(kind, account=None, query=None):
+        if query not in QUERIES:
+            return empty_broader(account, r.playlist_epoch)
         value = await original(kind, account, query)
         if kind == "playlist_search":
             value["data"]["playlists"] = [

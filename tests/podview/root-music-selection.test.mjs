@@ -1,4 +1,4 @@
-import {targetEnvelope} from './root-room-fixture.mjs';
+import {bindRoom,targetEnvelope} from './root-room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {searchSample,directTargets,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
@@ -95,3 +95,37 @@ test('search-capability revoke then restore cannot revive a held search',async()
  const pending=view.search();view.host.liveSnapshot={...snapshot(),capabilities:{...snapshot().capabilities,musicRead:['targets']}};view.onSnapshot();view.host.liveSnapshot=snapshot();view.onSnapshot();release(result());await pending;
  assert.equal(view.source,null);assert.equal(view.offer,null);
 });
+
+test('new start policy stays separate from manual observed volume and does not require a name in the closed offer target',()=>{
+ const source=searchSample(result(),'account','sang',snapshot());
+ const body={...offer(),observedVolumePercent:27};
+ const parsed=selectionOffer(body,source,target);
+ assert.equal(parsed.startVolumePercent,35);assert.equal('observedVolumePercent' in parsed,false);
+ assert.equal(parsed.target.name,'Køkkenalrum HomePod');
+ const legacy={...offer(),observedVolumePercent:35};delete legacy.startVolumePercent;
+ assert.equal(selectionOffer(legacy,source,target),null);
+ for(const bad of [-1,101,35.5,'35',null])assert.equal(selectionOffer({...offer(),startVolumePercent:bad},source,target),null);
+ const view=heldView({});view.source=source;view.offer=parsed;view.openConfirm(0);assert.equal(view.dialog.open,false);assert.match(view.feedback.message,/ikke længere/);
+});
+
+test('manual 27 percent never replaces explicit 35 percent start confirmation on the wire',async()=>{
+ let sent;const t=new PodVoiceTransport({url:'https://home.example/view/',fetch:async(_url,init)=>{sent=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,outcome:'accepted',requestId:sent.requestId,retryAllowed:false,physicalResultVerified:false})};}});
+ t.connected=true;t.snapshot=snapshot();
+ const parsed=selectionOffer({...offer(),observedVolumePercent:27},searchSample(result(),'account','sang',snapshot()),target);
+ await t.musicSelectionAction(parsed,'c'.repeat(24));
+ assert.equal(sent.confirmedVolumePercent,35);assert.equal('observedVolumePercent' in sent,false);assert.equal('startVolumePercent' in sent,false);
+ assert.equal('target' in sent,false);assert.equal('uri' in sent,false);t.close();
+});
+
+test('search form remains available but result action never opens a target or confirmation dialog',async()=>{
+ const previous=globalThis.document;
+ class Element extends EventTarget{constructor(tag){super();this.tagName=tag;this.children=[];this.attributes={};}append(...nodes){this.children.push(...nodes);}setAttribute(k,v){this.attributes[k]=v;}showModal(){this.open=true;}close(){this.open=false;}replaceChildren(){this.children=[];}}
+ globalThis.document={createElement:tag=>new Element(tag)};
+ let view;
+ try{const calls=[],s=snapshot();bindRoom(s,'account','direct-one');const host={isConnected:true,liveSnapshot:s,liveMedia:{account:'account'},querySelector:()=>new Element('div'),append(){},musicResults:{render(){}},liveTransport:{connected:true,musicSelectionSetup:async()=>offer(),musicSelectionAction:async(task,id)=>{calls.push(id);return {outcome:'accepted'};}}};view=new LiveMusicSelectionView(host);view.account='account';view.active=true;view.source=searchSample(result(),'account','sang',s);view.searchScope=view.context();view.targets=[target];view.showTargets();assert.equal(view.targetLabel.hidden,true);await view.chooseCard({optionIndex:0});assert.deepEqual(calls,['c'.repeat(24)]);assert.notEqual(view.dialog.open,true);assert.notEqual(view.searchDialog.open,true);assert.equal(view.targetLabel.hidden,true);await view.chooseCard({optionIndex:0});assert.equal(calls.length,1);view.openSearch();assert.equal(view.searchDialog.open,true);assert.equal(view.input.type,'search');
+ }finally{clearTimeout(view?.expiryTimer);globalThis.document=previous;}
+});
+
+test('search result Play uses room binding without a confirmation and shows its receipt only through player feedback',async()=>{const sent=[],view=heldView({musicSelectionSetup:async()=>offer(),musicSelectionAction:async(_task,id)=>{sent.push(id);return {outcome:'accepted'};}});try{bindRoom(view.host.liveSnapshot,'account','direct-one');view.active=true;view.source=searchSample(result(),'account','sang',view.host.liveSnapshot);view.searchScope=view.context();view.targets=[target];view.searchDialog={open:false};await view.chooseCard({optionIndex:0});assert.deepEqual(sent,['c'.repeat(24)]);assert.equal(view.dialog.open,false);assert.equal(view.searchDialog.open,false);assert.equal(view.note.textContent,'');assert.match(view.feedback.message,/modtaget/);await view.chooseCard({optionIndex:0});assert.equal(sent.length,1);}finally{clearTimeout(view.expiryTimer);}});
+
+test('search direct intent is cancelled by navigation while setup is held even if focus stays put',async()=>{let release,sent=0;const view=heldView({musicSelectionSetup:()=>new Promise(resolve=>release=resolve),musicSelectionAction:async()=>{sent++;return {outcome:'accepted'};}});try{bindRoom(view.host.liveSnapshot,'account','direct-one');view.host.state={focus:'music'};view.active=true;view.source=searchSample(result(),'account','sang',view.host.liveSnapshot);view.searchScope=view.context();view.targets=[target];const pending=view.chooseCard({optionIndex:0});view.host.state.focus='home';release(offer());await pending;assert.equal(sent,0);assert.equal(view.dialog.open,false);assert.equal(view.feedback,null);}finally{clearTimeout(view.expiryTimer);}});

@@ -1,3 +1,24 @@
+<!-- podview62-admission
+{
+  "version": 39,
+  "kind": "podview62_retained_ui_playlist_resilience",
+  "reviewer": "Independent /root/music_software_chain_acceptance final unsigned62 exact937payload source review (27boundedparitychecks, exact8finalpayloads and preservedhistory)",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "79b8fe8cdd3d2ee55e811cd76ac9f37e067cae48",
+  "merge_base": "79b8fe8cdd3d2ee55e811cd76ac9f37e067cae48",
+  "rationale": "ROOT-frozen143 canonical UI assets and exact reviewed6file playlist resilience/final8pin passive control-read continuity/player DOM updates, independently reviewed against actual61. Stable intent and UNKNOWN/spent guards are preserved. Source/package evidence only; no Green or physical acceptance.",
+  "fingerprint": "13f584b8fcbdafa863456cc7b06f5148b4e5662abae3c4c3a431624b206b4c06",
+  "regression_fingerprint": "2c711711528fef696316b81b28f8e40dc2fceddf43f4cd9ed7026552f9c54bb3",
+  "runtime_fingerprint": "a168cf0cec7a06d79519f995a6900f52c6e61f4beabc59ad64189cd0c5b254d3",
+  "config_fingerprint": "80e39df9a63b1a85b54e04119dd7220c7c48eb049aeb8554c0a2f532799b3675",
+  "policy_fingerprint": "8a0f342ee8daeaed3103910891222e51deee997bf029539b7f2e2ff3fa950000",
+  "tooling_fingerprint": "a6676e03b200e3611991c73e39821e4893157e05fe4ef244554b1db88dfe288d",
+  "manifest_fingerprint": "06dcfa274d054e3a7a05b6ede8c7665545238bf42395caad905ab0050087ca43"
+}
+-->
+
 <!-- podview61-admission
 {
   "version": 38,

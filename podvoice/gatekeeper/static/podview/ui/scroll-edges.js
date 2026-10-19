@@ -11,15 +11,15 @@ export class ScrollEdges {
  refresh(){if(this.frame||!this.resize)return;this.frame=requestAnimationFrame(()=>{this.frame=0;this.scan();});}
  scan(){
   const current=new Set(this.host.querySelectorAll(SELECTORS));
-  for(const [node,listener] of this.nodes)if(!current.has(node)){node.removeEventListener('scroll',listener);this.resize.unobserve(node);delete node.dataset.scrollAxis;delete node.dataset.scrollEdge;this.nodes.delete(node);}
+  for(const [node,listener] of this.nodes)if(!current.has(node)){node.removeEventListener('scroll',listener);this.resize.unobserve(node);if(node.dataset.scrollAxis!==undefined)delete node.dataset.scrollAxis;if(node.dataset.scrollEdge!==undefined)delete node.dataset.scrollEdge;this.nodes.delete(node);}
   for(const node of current){if(!this.nodes.has(node)){const listener=()=>this.measure(node);node.addEventListener('scroll',listener,{passive:true});this.resize.observe(node);this.nodes.set(node,listener);}this.measure(node);}
  }
  measure(node){
   const style=getComputedStyle(node),horizontal=node.classList.contains('weather-hours')||style.scrollSnapType.startsWith('x'),overflow=horizontal?style.overflowX:style.overflowY;
-  if(!['auto','scroll','overlay'].includes(overflow)){delete node.dataset.scrollAxis;delete node.dataset.scrollEdge;return;}
-  node.dataset.scrollAxis=horizontal?'x':'y';
+  if(!['auto','scroll','overlay'].includes(overflow)){if(node.dataset.scrollAxis!==undefined)delete node.dataset.scrollAxis;if(node.dataset.scrollEdge!==undefined)delete node.dataset.scrollEdge;return;}
+  const axis=horizontal?'x':'y';if(node.dataset.scrollAxis!==axis)node.dataset.scrollAxis=axis;
   const value=node.getClientRects().length?scrollEdgeState(horizontal?{position:node.scrollLeft,viewport:node.clientWidth,content:node.scrollWidth}:{position:node.scrollTop,viewport:node.clientHeight,content:node.scrollHeight}):'';
   if(node.dataset.scrollEdge!==value)node.dataset.scrollEdge=value;
  }
- detach(){if(this.frame)cancelAnimationFrame(this.frame);this.frame=0;this.resize?.disconnect();this.resize=null;this.mutations?.disconnect();this.mutations=null;this.host.removeEventListener('load',this.onChange,true);for(const [node,listener] of this.nodes){node.removeEventListener('scroll',listener);delete node.dataset.scrollAxis;delete node.dataset.scrollEdge;}this.nodes.clear();}
+ detach(){if(this.frame)cancelAnimationFrame(this.frame);this.frame=0;this.resize?.disconnect();this.resize=null;this.mutations?.disconnect();this.mutations=null;this.host.removeEventListener('load',this.onChange,true);for(const [node,listener] of this.nodes){node.removeEventListener('scroll',listener);if(node.dataset.scrollAxis!==undefined)delete node.dataset.scrollAxis;if(node.dataset.scrollEdge!==undefined)delete node.dataset.scrollEdge;}this.nodes.clear();}
 }
