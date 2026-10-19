@@ -153,10 +153,31 @@ The existing MCP recovery integration now checks exact structured home and sourc
 weather results through actual Thin/ToolRouter/MCP result submission after outage
 and fresh wake on native and Talk. Both focused cases and formatter/lint pass; an
 independent review found no material issue. The private three-line #153 addition
-also has independent source review and static lint/format GO. The normal focused
-dev command stopped before tests because free disk was below its 2 GiB guard; no
-guard was bypassed, and prompt tests/provider validation remain pending. Tool events and MCP data are synthetic;
+also has independent source review and static lint/format GO. The first focused
+dev attempt correctly stopped below its 2 GiB free-space guard. Removing only the
+reproducible npm download cache with npm's own clean command freed 4.8 GiB; source,
+installed dependencies and evidence were preserved. The same focused prompt command
+then passed: 18 prompt tests, formatting/lint and mypy over 87 source files, in 2 s.
+No earlier passing suites were repeated. Provider validation on a newly installed
+combined candidate remains pending. Tool events and MCP data are synthetic;
 this is routing/recovery proof, not real model tool selection or spoken accuracy.
+
+**Current #215 observation and #153 repeat.** One normal Talk city question on
+installed61 had no visible answer by 49 s and was manually stopped. Retained
+content-free diagnostics establish provider connection at +3765 ms, backend start
+at +4167 ms and matched completed backend at +5412 ms, with no dropped events or
+incomplete flag; close was requested at +53554 ms and teardown completed at +56569
+ms. Primary output and backend final text are not retained, so the loss boundary
+remains unknown. Independent source/protocol review rejected a speculative local
+final-message relay: managed Responses delegation already returns results to Live.
+A single unchanged-source repeat returned the correct Copenhagen answer within
+12.1 s, then end_conversation, farewell and the closed/start state by 39.6 s from
+initial submission. The first failure remains failed; the repeat establishes an
+intermittent symptom, not a cure. It also reproduced [mouth noise] before the direct
+answer and before closing. No microphone, household writes, HA pause, new key or
+runtime patch was used. Receipts and the retained diagnostic export are under
+`/private/tmp/pv61-talk-actual-outcomes-20261019/`. No audible/native acceptance is
+claimed. Issues #153 and #215 retain these exact outcomes.
 
 ---
 
