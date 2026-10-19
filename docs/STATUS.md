@@ -162,6 +162,20 @@ No earlier passing suites were repeated. Provider validation on a newly installe
 combined candidate remains pending. Tool events and MCP data are synthetic;
 this is routing/recovery proof, not real model tool selection or spoken accuracy.
 
+
+**Joined timer outcome.** The one new existing-harness regression joins a completed
+SDK timer call through actual Thin/ToolRouter, an inert HA TimerBridge/CoreTimers
+ID, expiry, native VoicePELink with compiled StopContext, alarm ownership, Stop,
+exact started/stopped HA receipts and a fresh wake. Actual ThinSession.start owns
+the same live poll task across conversation stop and expiry; no manual replacement
+poll is used. A delayed old reply-finished event cannot change the next session.
+Focused format/lint/mypy and the one case pass in 3.9 s, with independent final GO
+on SHA256 `bd9764bdc74ea3725ecc2e08477566192284c139989c3c6e626ae83e06e9b28e`.
+This closes a stitched source/adapter coverage gap, not a demonstrated runtime bug.
+HA service metadata, Core expiry and native Stop are controlled test seams; real
+HA registration/uptime, firmware-generated Stop and audible alarm remain unproved.
+No production code was changed by this regression.
+
 **Current #215 observation and #153 repeat.** One normal Talk city question on
 installed61 had no visible answer by 49 s and was manually stopped. Retained
 content-free diagnostics establish provider connection at +3765 ms, backend start
