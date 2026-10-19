@@ -89,6 +89,34 @@ cannot certify actual interruption. No new runtime, prompt, VAD, timeout or firm
 change has been made. A bounded provider run and raw-audio review remain pending,
 with a separate Restore Owner required before any approved HA pause.
 
+
+**19 October live music observations, same 2.0.61 / Speakers 0.26.31.** One
+admitted Morning Coffee start on idle Kitchen produced Spotify playback and a fresh
+ready native room receipt with the correct HomePod/session/route. Automatic later
+items were observed under that session; this is not audible acceptance. PodView
+transport briefly enabled, then became stale/disabled. Its Pause attempt was
+unknown. A separate fresh owner-bound HA cleanup was definitively rejected with
+`stale_observation` before irreversible native commit; the reported older
+`observe_after_poll_sequence` is the previous possible-send floor, not evidence of
+a stale cached receipt. The existing held-prepare integration case covers the poll
+advance race. Do not infer a ledger bug or weaken identity guards from this trace.
+
+One independent normal Speakers Stop produced a local cannot-confirm alert. Fresh
+Spotify polls 231 and 241 then both reported paused on Kitchen with the same item
+and progress 18782 ms. Cleanup is observed paused, not physically silent. A separate
+`get_room_volume_controls` read returned `room_volume_unavailable`; transport's
+volume flag alone was not sufficient evidence. PodView lead owns the stale-control
+and volume investigation; these flows remain open. Evidence is retained at
+`/private/tmp/pv61-pc31-music-once-20261019/`.
+
+**Provider diagnostic did not run.** The reviewed private one-use gate was prepared,
+but the browser runtime denied local socket handoff with EPERM. No credential was
+accepted by the probe, no provider request started and no HA Stop occurred. Private
+key variables were cleared, the gate cancelled and the independent Restore Owner
+verified PodVoice 2.0.61 still running. No installation hold remains for this probe;
+it requires a supported private handoff before execution. The diagnostic acceptance
+edge remains open; this infrastructure failure is not a product failure.
+
 ---
 
 <!-- podview61-admission
