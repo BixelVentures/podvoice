@@ -160,9 +160,10 @@ export class PodVoiceTransport {
  async musicSelectionSetup(candidateSetId,target,candidateIds){
   const s=this.snapshot;
   if(!this.connected||s?.capabilities.musicSelection!==true||!/^[a-f0-9]{64}$/.test(candidateSetId)||target?.kind!=='spotify_device'||typeof target.accountId!=='string'||!target.accountId||typeof target.targetId!=='string'||!target.targetId)throw new Error('selection_unavailable');
+  if(target.speakerId!==undefined&&!/^[a-f0-9]{64}$/.test(target.speakerId))throw new Error('invalid_destination');
   if(candidateIds!==undefined&&(!Array.isArray(candidateIds)||candidateIds.length<1||candidateIds.length>3||new Set(candidateIds).size!==candidateIds.length||candidateIds.some(id=>typeof id!=='string'||!/^[a-f0-9]{24}$/.test(id))))throw new Error('invalid_candidates');
   const url=new URL('music/selection/setup',this.base);
-  const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,candidateSetId,target:{accountId:target.accountId,kind:'spotify_device',targetId:target.targetId},...(candidateIds===undefined?{}:{candidateIds:[...candidateIds]})})});
+  const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,candidateSetId,target:{accountId:target.accountId,kind:'spotify_device',targetId:target.targetId,...(target.speakerId?{speakerId:target.speakerId}:{})},...(candidateIds===undefined?{}:{candidateIds:[...candidateIds]})})});
   const body=await response.json();if(!response.ok||body?.ok!==true)throw new Error(body?.error||'selection_unavailable');return body;
  }
  async musicSelectionAction(offer,optionId){

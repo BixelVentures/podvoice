@@ -5,10 +5,11 @@ import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoi
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen',revision:1,voice:{active:false,sessionId:null,turnId:null},timers:{status:'unavailable',items:[]},capabilities:{musicRead:[],timerActions:['timer.start'],musicSelection:true,controlSetup:['music']},controllerContinuity:{enabled:true,available:true,maxDays:30}});
 class Events{addEventListener(){}close(){this.closed=true;}}
 async function run({enabled=true,renewal='ok'}={}){
- const calls=[],jobs=new Map(),set=globalThis.setTimeout,clear=globalThis.clearTimeout;let serial=0;
+ const calls=[],jobs=new Map(),set=globalThis.setTimeout,clear=globalThis.clearTimeout,now=Date.now;let serial=0;
+ Date.now=()=>1792420000000;
  globalThis.setTimeout=(fn,ms)=>{const id=++serial;jobs.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>jobs.delete(id);
  const transport=new PodVoiceTransport({url:'https://example.test/view/',EventSource:Events,fetch:async(url,init)=>{calls.push([new URL(url).pathname,init]);if(String(url).includes('controller/renew')){if(renewal==='network')throw Error('offline');return {ok:renewal==='ok',json:async()=>({ok:renewal==='ok',expiresIn:300})};}const value=snapshot();value.controllerContinuity.enabled=enabled;return {ok:true,json:async()=>value};}});
- try{await transport.start();return {calls,jobs,transport,cleanup(){transport.close();globalThis.setTimeout=set;globalThis.clearTimeout=clear;}};}catch(error){transport.close();globalThis.setTimeout=set;globalThis.clearTimeout=clear;throw error;}
+ try{await transport.start();return {calls,jobs,transport,cleanup(){transport.close();globalThis.setTimeout=set;globalThis.clearTimeout=clear;Date.now=now;}};}catch(error){transport.close();globalThis.setTimeout=set;globalThis.clearTimeout=clear;Date.now=now;throw error;}
 }
 
 test('default-off never attempts enrollment renewal and preserves legacy transport',async()=>{const r=await run({enabled:false});try{assert.equal(r.calls.length,1);assert.equal(r.transport.snapshot.capabilities.musicSelection,true);assert.equal([...r.jobs.values()].some(j=>j.ms===240000),false);}finally{r.cleanup();}});

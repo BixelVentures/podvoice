@@ -118,3 +118,18 @@ test('only an explicitly selected historical recipe setup can publish its valida
 test('a selected historical setup arriving after room replacement cannot prefill or dispatch',async()=>{
  const f=fixture();try{const opening=f.view.open('vacuum',target,new Node('button'),'selected-recipe');f.host.liveSnapshot.roomId='other';f.setup.resolve(historicalOffer(f));await opening;assert.equal(f.view.task,null);assert.equal(f.calls(),0);}finally{f.view.cleanup();}
 });
+
+test('authorized robot setup pending and failure never project terminal readonly over the retained widget',async()=>{
+ const f=fixture();f.host.state.focus=target.entityId;
+ try{const opening=f.view.open('vacuum',target,f.view.robotButton),panel=f.view.robotPanel;
+ assert.equal(f.view.title.textContent,'Rengøring');assert.equal(f.view.body['aria-busy'],'true');assert.equal(panel.data.task,null);assert.equal(panel.data.readOnly,false);assert.equal(panel.data.device.status,'docked');assert.equal(panel.disabled,true);assert.equal(f.view.note.textContent,'');assert.equal(f.calls(),0);
+ f.setup.reject(Error('source read failed'));await opening;
+ assert.equal(f.view.robotPanel,panel);assert.equal(panel.data.readOnly,false);assert.equal(f.view.body['aria-busy'],'false');assert.match(f.view.note.textContent,/kunne ikke hentes/);assert.equal(panel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
+});
+for(const cause of ['missing-admission','stale-observation'])test(`actual ${cause} retains the honest status-only projection without fetching or effects`,()=>{
+ const f=fixture();f.host.state.focus=target.entityId;let reads=0;f.host.liveTransport.controlSetup=()=>{reads++;return f.setup.promise;};
+ try{if(cause==='missing-admission')f.host.liveSnapshot.capabilities.controlSetup=[];else f.host.state.devices[0].stale=true;
+ f.view.openRobot(f.view.robotButton);assert.equal(f.view.title.textContent,'Robotstøvsuger');assert.equal(f.view.robotPanel.data.readOnly,true);assert.equal(f.view.robotPanel.data.task,null);assert.equal(f.view.robotPanel.disabled,true);assert.match(f.view.note.textContent,/Kun status/);assert.equal(f.view.body['aria-busy'],'false');assert.equal(reads,0);assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
+});

@@ -1115,7 +1115,15 @@ class ThinSession:
         *,
         cancelled: bool,
         source_binding: tuple | None = None,
-    ) -> None:
+        previous: asyncio.Task | None = None,
+    ) -> bool:
+        # Serialize metadata only; no HA wait may hold physical retirement/rearm.
+        if previous is not None:
+            try:
+                if await asyncio.shield(previous) is not True:
+                    return False
+            except Exception:
+                return False
         # Delivery reports have no physical effects and cannot alter a newer lease.
         for phase in phases:
             if source_binding is not None:
@@ -1130,7 +1138,7 @@ class ThinSession:
                         else getattr(self.voicepe, "timer_sink_identity", None) != sink_id
                     )
                 ):
-                    return  # No old physical report can be attributed to a new HA owner.
+                    return False  # No old physical report can be attributed to a new HA owner.
             result = await self._timer_command(
                 epoch,
                 f"{alert_id}-{phase}",
@@ -1141,15 +1149,18 @@ class ThinSession:
                 phase=phase,
             )
             if not result.get("ok"):
-                return  # Ambiguous delivery remains held by HA; no blind replay.
+                return False  # Ambiguous delivery remains held by HA; no blind replay.
         if cancelled:
             result = await self._timer_command(
                 epoch, f"{alert_id}-cancel", "cancel", timer_id=timer_id
             )
-            if result.get("ok"):
-                await self._timer_command(
-                    epoch, f"{alert_id}-ack", "acknowledge_finished", timer_id=timer_id
-                )
+            if not result.get("ok"):
+                return False
+            result = await self._timer_command(
+                epoch, f"{alert_id}-ack", "acknowledge_finished", timer_id=timer_id
+            )
+            return result.get("ok") is True
+        return True
 
     async def _play_timer_alert(self, receipt: dict, epoch: str) -> None:
         """Bounded idle output lease, followed by native terminal stop and rearm.
@@ -1229,6 +1240,7 @@ class ThinSession:
         if self._timer_alarm_task is asyncio.current_task():
             self._timer_alarm_scope = (epoch, timer_id, alert_id, sink_id, recovering)
         phases: list[str] = []
+        started_report = None
         lease = None
         quiet = False
         cancelled = recovering
@@ -1299,6 +1311,19 @@ class ThinSession:
                         self._playback_started.wait(), FIXED_PLAYBACK_START_TIMEOUT_S
                     )
                     phases.append("started")
+                    started_report = self._spawn(
+                        self._timer_report(
+                            epoch,
+                            timer_id,
+                            alert_id,
+                            sink_id,
+                            ["started"],
+                            cancelled=False,
+                            source_binding=source_binding,
+                        ),
+                        "thin-timer-started-receipt",
+                    )
+                    self._timer_report_task = started_report
                     finished = asyncio.create_task(self._playback_finished.wait())
                     interrupted = asyncio.create_task(self._timer_interrupt.wait())
                     try:
@@ -1372,7 +1397,15 @@ class ThinSession:
                     self._schedule_teardown_retry(
                         release_music=True,
                         silence_complete=quiet,
-                        timer_retirement=(epoch, timer_id, alert_id, sink_id, tuple(phases), lease)
+                        timer_retirement=(
+                            epoch,
+                            timer_id,
+                            alert_id,
+                            sink_id,
+                            tuple(phases),
+                            lease,
+                            started_report,
+                        )
                         if native
                         else None,
                     )
@@ -1383,9 +1416,10 @@ class ThinSession:
                 timer_id,
                 alert_id,
                 sink_id,
-                phases,
-                cancelled=cancelled,
+                phases[1:] if started_report is not None else phases,
+                cancelled=cancelled and quiet,
                 source_binding=source_binding,
+                previous=started_report,
             ),
             "thin-timer-receipts",
         )
@@ -2848,10 +2882,20 @@ class ThinSession:
                     finally:
                         self._restore_provider_trace_observer()
             if receipt is not None:
+                assert timer_retirement is not None
                 owner, receipt_phases = receipt
-                self._spawn(
+                previous_report = self._timer_report_task
+                self._timer_report_task = self._spawn(
                     self._timer_report(
-                        owner[0], owner[1], owner[2], owner[3], list(receipt_phases), cancelled=True
+                        owner[0],
+                        owner[1],
+                        owner[2],
+                        owner[3],
+                        list(receipt_phases)[1:]
+                        if timer_retirement[6] is not None
+                        else list(receipt_phases),
+                        cancelled=True,
+                        previous=previous_report,
                     ),
                     "thin-timer-receipts",
                 )
@@ -3370,13 +3414,19 @@ class ThinSession:
                 if ev.status != "completed" or ev.tool_call_count == 0:
                     self._retire_live_review()
             self._record_live_usage()
-            self._trace_event(
-                "live_backend_complete",
-                response_id=ev.response_id,
-                delegation_id=ev.delegation_id,
-                status=ev.status,
-                usage=ev.usage,
-            )
+            details: dict[str, Any] = {
+                "response_id": ev.response_id,
+                "delegation_id": ev.delegation_id,
+                "status": ev.status,
+                "usage": ev.usage,
+            }
+            if (
+                ev.status == "completed"
+                and ev.tool_call_count == 0
+                and isinstance(ev.final_message, str)
+            ):
+                details["backend_final_char_count"] = len(ev.final_message)
+            self._trace_event("live_backend_complete", **details)
             if ev.status != "completed":
                 self._request_close("live-backend-failed", error_kind="connection")
             elif (

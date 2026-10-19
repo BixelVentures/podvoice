@@ -52,12 +52,21 @@ export function directTargets(body,account,snapshot){
  return targets;
 }
 
+
+// Request destination only: the native setup owner still grants every play offer.
+export function selectionRequestTargets(body,account,snapshot){
+ const targets=directTargets(body,account,snapshot);if(!targets||targets.length||body.data.targets.length)return targets;
+ if(Object.keys(body.data).join(',')!=='targets'||Object.keys(body).some(key=>!['ok','data','coverage','observedAt','roomBinding','bootId','roomId'].includes(key))||Object.hasOwn(body,'observedAt')&&!Number.isFinite(body.observedAt))return null;
+ const binding=mediaRoomBinding(snapshot,account);return [{accountId:account,kind:'spotify_device',targetId:binding.targetId,name:'Rummets højttaler'}];
+}
+
 export function selectionOffer(body,source,target,requestedAt=Date.now()){
  if(!source?.context||!target||body?.ok!==true||body.schema!=='podview.music-selection.v1'||body.candidateSetId!==source.context.candidateSetId||body.accountId!==target.accountId||body.target?.kind!=='spotify_device'||body.target.targetId!==target.targetId||!TASK.test(body.taskId)||body.revision!==source.context.revision||!integer(body.startVolumePercent,0,100)||!integer(body.expiresIn,1,60)||!Array.isArray(body.options)||body.options.length!==source.tracks.length)return null;
  if(!Number.isFinite(requestedAt)||requestedAt+body.expiresIn*1000<=Date.now())return null;
+ const destination=body.destination;if(target.speakerId?(!HEX64.test(target.speakerId)||!destination||Object.keys(destination).sort().join(',')!=='name,speakerId'||destination.speakerId!==target.speakerId||!text(destination.name,1024)):destination!==undefined)return null;
  const ids=new Set();
  for(let i=0;i<body.options.length;i++){const option=body.options[i],track=source.tracks[i];if(!OPTION.test(option?.id)||ids.has(option.id)||option.label!==track.name||option.artist!==track.artist)return null;ids.add(option.id);}
- return {bootId:source.context.bootId,roomId:source.context.roomId,accountId:target.accountId,candidateSetId:source.context.candidateSetId,target,taskId:body.taskId,revision:body.revision,startVolumePercent:body.startVolumePercent,options:body.options.map(row=>({id:row.id,label:row.label,artist:row.artist})),expiresAt:requestedAt+body.expiresIn*1000};
+ return {bootId:source.context.bootId,roomId:source.context.roomId,accountId:target.accountId,candidateSetId:source.context.candidateSetId,target,...(destination?{destination:{...destination}}:{}),taskId:body.taskId,revision:body.revision,startVolumePercent:body.startVolumePercent,options:body.options.map(row=>({id:row.id,label:row.label,artist:row.artist})),expiresAt:requestedAt+body.expiresIn*1000};
 }
 
 export function selectionCurrent(offer,snapshot,account,source){

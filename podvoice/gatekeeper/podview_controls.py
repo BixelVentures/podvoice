@@ -637,7 +637,10 @@ class TouchControls:
                     if active is not None:
                         task["vacuum_transport"] = facade
                         task["vacuum_transport_offer"] = active
-                        task["deadline"] = min(task["deadline"], active["deadline"])
+                        # An unused transport observation must not expire the separate
+                        # editable map/settings/start capability while it is being read.
+                        if set(active["actions"]) & set(rule["actions"]):
+                            task["deadline"] = min(task["deadline"], active["deadline"])
                         for action in active["actions"]:
                             if action not in rule["actions"]:
                                 continue

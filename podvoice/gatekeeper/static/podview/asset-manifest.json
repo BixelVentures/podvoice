@@ -267,7 +267,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "92f80d0cc860072249aa2f8ece165ad3a393af297b0825cee7c817fcdddb20de"
+      "sha256": "0454462a3f617e908e3504282e57bb48b1b95802666574cc4ad19acbb409791c"
     },
     {
       "path": "live-home-view.js",
@@ -275,11 +275,11 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "318615263f1c8c1341690fd4bfa44f9c7e8887497f3ea1ea9a7af97f681aef21"
+      "sha256": "d6b92620e927b5cc31ac67bed79db0142d69e0d67428ff8aeddf2257bd6bc831"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "83dc409ccb9f944f91ae30d2ad84c2846cf985830446b7a62cd4c39f5959edd0"
+      "sha256": "107d816aa821ff8c9b976be450851a02d89cc0285ffbef7bdc65ea6223e713d7"
     },
     {
       "path": "live-music-view.js",
@@ -311,11 +311,11 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "fdc5c8df6effcdd8e48e1019f1d3ee7874ab9c675a22547cff6d164bfae93ddf"
+      "sha256": "e7ea05e8eb48dd4a9ebde4c4639400a958534811ac5c2f36efc5c7f7f7b04010"
     },
     {
       "path": "music-selection-model.js",
-      "sha256": "3cf63a9d02d43051670155723cc891f7d473dc566c5c06ddc8626f8e0322af7b"
+      "sha256": "f19f92aacf3d70ff87f272bde133b57fc3a80d280a3cecd5ef49922e7b1b588e"
     },
     {
       "path": "ordbog.css",
@@ -351,7 +351,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "85ca35074e7be47272abebb0a37b9e49c6b61dd6c0f9f80c1989e0b04f423fcd"
+      "sha256": "1b3e26043d71dec0a142cd7b6241210e9b7e4b78167199db376ded601f9f8017"
     },
     {
       "path": "podvoice-view.js",
@@ -383,7 +383,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "c2bed47209ecdfac21713cce12d3419bad0ed66ca78bfa4b02782be504a8f521"
+      "sha256": "6207c13b119b29ae3f2773a6e96cf0a9d0e815610511071271ff231b70f0f18f"
     },
     {
       "path": "robot-observation.js",
@@ -419,7 +419,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "56f8f7bef7b40e619ce0b911243dd4016b7ed7e205839d0b671ced32793b2979"
+      "sha256": "900aae701e24370f00c0cec300f13b97792716bfd3db40c4c93eb90a8089386d"
     },
     {
       "path": "spotify-artwork.js",

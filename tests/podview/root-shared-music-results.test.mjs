@@ -22,7 +22,7 @@ function retainedResultSurface(){
  const writes=[];
  class ResultNode{
   constructor(tag){this.tag=tag;this.children=[];this.parentNode=null;this.attrs=new Map();this.listeners=new Map();const values={textContent:'',disabled:false,hidden:false,src:'',alt:'',referrerPolicy:'',decoding:'',className:''};
-   for(const key of Object.keys(values))Object.defineProperty(this,key,{get:()=>values[key],set:value=>{writes.push([this,key,value]);values[key]=value;}});
+   for(const key of Object.keys(values))Object.defineProperty(this,key,{get:()=>values[key],set:value=>{writes.push([this,key,value]);values[key]=value;if(key==='disabled'&&value&&this.ownerDocument?.activeElement===this)this.ownerDocument.activeElement=this.ownerDocument.body;}});
    this.dataset=new Proxy({},{set:(target,key,value)=>{writes.push([this,'data-'+key,value]);target[key]=value;return true;},deleteProperty:(target,key)=>{if(key in target)writes.push([this,'delete-data-'+key]);delete target[key];return true;}});
    this.style=new Proxy({},{set:(target,key,value)=>{writes.push([this,'style-'+key,value]);target[key]=value;return true;}});const classes=new Set();this.classList={contains:name=>classes.has(name),add:name=>{writes.push([this,'class-add',name]);classes.add(name);},remove:name=>{writes.push([this,'class-remove',name]);classes.delete(name);},toggle:(name,on)=>{writes.push([this,'class-toggle',name]);if(on)classes.add(name);else classes.delete(name);}};
   }
@@ -58,3 +58,37 @@ test('shared music removal and cleanup cancel owned probes without changing reta
 test('canonical result nodes prefer actual source playlist art over illustration and retain identical source cover without DOM writes',()=>{const f=retainedResultSurface(),uri='spotify:playlist:0123456789ABCDEFGHIJKL',artwork={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/sourceplaylist'},card={id:'source:0:'+uri,uri,name:'En rolig stund',sourceName:'Actual playlist name',description:'Actual playlist name',fixtureArt:'assets/lake.png',artwork};f.view.render({cards:[card]});const row=f.nodes.get('result-list').children[0];assert.equal(row.children[0].src,artwork.url);assert.equal(row.children[0].alt,'Playlisteomslag til Actual playlist name');assert.equal(row.children[0].classList.contains('spotify-artwork'),true);f.clear();f.view.render({cards:[{...card,artwork:{...artwork}}]});assert.deepEqual(f.writes,[]);assert.equal(f.nodes.get('result-list').children[0],row);f.view.cleanup();});
 
 test('actual track cards from the same album retain their genuine source covers rather than inventing unique playlist illustrations',()=>{const rows=[0,1,2].map(i=>({...track,uri:'spotify:track:'+String(i).padStart(22,'0')})),cards=sourceMusicCards(rows);assert.equal(cards.length,3);assert.equal(cards.every(card=>card.artwork.url===track.artwork.url&&!card.fixtureArt),true);assert.equal(cards.every(card=>!('sourceArtwork' in card)),true);});
+
+// The fixture models native disable blur so the original busy-disable defect
+// fails causally; it does not pretend to establish native browser acceptance.
+function refreshFocusSurface(){
+ const f=retainedResultSurface(),refresh=f.nodes.get('music-refresh'),doc=f.host.ownerDocument;
+ doc.body={tag:'body'};doc.activeElement=doc.body;let activations=0,focusCalls=0;
+ refresh.focus=()=>{focusCalls++;doc.activeElement=refresh;};
+ const activate=()=>{const event={blocked:false,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.blocked=true;}};refresh.listeners.get('click')?.(event);if(!event.blocked&&!refresh.disabled)activations++;return event;};
+ return {...f,refresh,doc,activate,get activations(){return activations;},get focusCalls(){return focusCalls;}};
+}
+test('refresh keeps its focused button and actual cards while busy, rejects duplicate activation and remains focused after success',()=>{
+ const f=refreshFocusSurface(),cards=resultCards();f.view.render({cards});f.refresh.focus();const calls=f.focusCalls,rows=[...f.nodes.get('result-list').children];
+ assert.equal(f.activate().blocked,false);assert.equal(f.activations,1);
+ f.view.render({cards,busy:true});assert.equal(f.refresh.disabled,false,'busy must not natively blur the focused refresh');assert.equal(f.refresh.getAttribute('aria-disabled'),'true');assert.equal(f.refresh.getAttribute('aria-busy'),'true');assert.equal(f.doc.activeElement,f.refresh);assert.deepEqual(f.nodes.get('result-list').children,rows);
+ assert.equal(f.activate().blocked,true);assert.equal(f.activations,1,'capture guard stops another host activation');
+ f.view.render({cards:resultCards().map(card=>({...card,id:card.id+'-new'}))});assert.equal(f.doc.activeElement,f.refresh);assert.equal(f.focusCalls,calls,'no restoration call or focus theft');assert.equal(f.refresh.getAttribute('aria-disabled'),'false');assert.equal(f.refresh.getAttribute('aria-busy'),'false');assert.equal(f.activate().blocked,false);assert.equal(f.activations,2);f.view.cleanup();
+});
+test('refresh failure retains cards and focus and allows one explicit retry',()=>{
+ const f=refreshFocusSurface(),cards=resultCards();f.view.render({cards});f.refresh.focus();f.view.render({cards,busy:true});const rows=[...f.nodes.get('result-list').children];
+ f.view.render({cards,status:'Kunne ikke opdatere · viser seneste udvalg.'});assert.equal(f.doc.activeElement,f.refresh);assert.deepEqual(f.nodes.get('result-list').children,rows);assert.equal(f.activate().blocked,false);assert.equal(f.activations,1);f.view.cleanup();
+});
+test('disconnect or capability loss natively disables refresh without restoring focus on recovery',()=>{
+ for(const revoked of [{connected:false},{canRefresh:false},{pendingId:'selection'}]){
+  const f=refreshFocusSurface(),cards=resultCards();f.view.render({cards});f.refresh.focus();f.view.render({cards,busy:true});const calls=f.focusCalls;
+  f.view.render({cards,...revoked});assert.equal(f.refresh.disabled,true);assert.equal(f.refresh.getAttribute('aria-disabled'),'true');assert.equal(f.doc.activeElement,f.doc.body);assert.equal(f.activate().blocked,true);assert.equal(f.activations,0);
+  const elsewhere={tag:'other-control'};f.doc.activeElement=elsewhere;f.view.render({cards});assert.equal(f.doc.activeElement,elsewhere);assert.equal(f.focusCalls,calls);f.view.cleanup();
+ }
+});
+test('refresh completion, failure and cleanup never steal focus after the user moves or navigates away',()=>{
+ for(const completion of [{},{status:'Kunne ikke opdatere · viser seneste udvalg.'}]){
+  const f=refreshFocusSurface(),cards=resultCards();f.view.render({cards});f.refresh.focus();f.view.render({cards,busy:true});const calls=f.focusCalls,elsewhere={tag:'different-control'};
+  f.doc.activeElement=elsewhere;f.view.render({cards,...completion});assert.equal(f.doc.activeElement,elsewhere);f.host.state.focus='now';f.doc.activeElement=f.doc.body;f.view.render({cards,...completion});assert.equal(f.doc.activeElement,f.doc.body);f.view.cleanup();assert.equal(f.doc.activeElement,f.doc.body);assert.equal(f.focusCalls,calls);
+ }
+});

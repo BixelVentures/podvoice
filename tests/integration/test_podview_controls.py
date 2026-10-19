@@ -1050,3 +1050,76 @@ async def test_offline_registered_owner_starts_selected_music_once_without_voice
     finally:
         await original_client.aclose()
         await reader.client.aclose()
+
+
+@pytest.mark.parametrize(
+    "state,features,actions",
+    [
+        ("docked", 16, ["start", "settings", "pause", "stop", "return"]),
+        ("idle", 16, ["start", "settings", "pause"]),
+    ],
+)
+async def test_unused_transport_cannot_shorten_editable_start_task(
+    fixture, monkeypatch, state, features, actions
+):
+    from gatekeeper import podview_controls
+
+    rig, bridge, token = fixture
+    rig.states[ROBOT]["state"] = state
+    rig.states[ROBOT]["attributes"]["supported_features"] = features
+    bridge.controls.policy["vacuum"][0]["actions"] = actions
+    clock = podview_controls.time
+    elapsed = 0
+    monkeypatch.setattr(
+        podview_controls,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: clock.monotonic() + elapsed,
+            time=lambda: clock.time() + elapsed,
+        ),
+    )
+    device = rig.router._device_control
+    original = device.display_setup
+
+    async def slow_read(*args, **kwargs):
+        nonlocal elapsed
+        offer = await original(*args, **kwargs)
+        elapsed = 14  # Simulate read latency without sleeping or sending an effect.
+        return offer
+
+    monkeypatch.setattr(device, "display_setup", slow_read)
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    assert offer["ok"], offer
+    assert any(option["action"] == "start" for option in offer["options"])
+    assert not any(
+        option["action"] in {"pause", "stop", "return", "resume"} for option in offer["options"]
+    )
+    remaining = offer["expiresAt"] - podview_controls.time.time()
+    assert 100 < remaining <= 106, remaining
+    assert bridge.controls._current(bridge.controls.tasks[offer["taskId"]], token)
+    assert not rig.writes
+
+
+@pytest.mark.parametrize(
+    "state,features,actions",
+    [
+        ("cleaning", 8, ["stop"]),
+        ("idle", 16, ["start", "settings", "return"]),
+    ],
+)
+async def test_executable_native_transport_keeps_original_short_deadline(
+    fixture, state, features, actions
+):
+    from gatekeeper import podview_controls
+
+    rig, bridge, token = fixture
+    rig.states[ROBOT]["state"] = state
+    rig.states[ROBOT]["attributes"]["supported_features"] = features
+    bridge.controls.policy["vacuum"][0]["actions"] = actions
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    assert offer["ok"], offer
+    assert any(option["action"] in {"stop", "return"} for option in offer["options"])
+    task = bridge.controls.tasks[offer["taskId"]]
+    assert task["deadline"] == task["vacuum_transport_offer"]["deadline"]
+    assert 0 < offer["expiresAt"] - podview_controls.time.time() <= 15
+    assert not rig.writes
