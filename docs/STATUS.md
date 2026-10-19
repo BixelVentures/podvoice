@@ -193,6 +193,41 @@ runtime patch was used. Receipts and the retained diagnostic export are under
 `/private/tmp/pv61-talk-actual-outcomes-20261019/`. No audible/native acceptance is
 claimed. Issues #153 and #215 retain these exact outcomes.
 
+
+**Active #98/#215 decision — bounded primary-output observability.** The retained
+city failure proves completed backend work but does not retain whether Thin
+received a nonempty primary Live output transcript. This is a diagnostic gap, not
+a proven speech cause. The observer distinguishes transcript seen from not seen
+only; false may coexist with audio/RTP and true proves neither UI display nor
+playback, audible speech or a later physical loss. Preserve content-free diagnostics, provider-owned meaning, current-session/
+connection identity and the single teardown owner. Add only one content-free
+primary-output observation flag/count to the existing bounded session/close
+record, using actual accepted primary output events and resetting at fresh wake.
+Do not retain text/audio, emit one event per fragment, wait for output, change
+permissions, retry, relay responses or alter lifecycle/audio/prompt timeouts.
+Hypothesis: completed backend work remains distinguishable from Thin's accepted
+nonempty primary output transcript receipt without retaining its text. Neither
+state localizes audio delivery or proves the cause of the original failure. Existing-harness causal
+checks must cover both outcomes, generation reset/stale events and sanitizer
+rejection of text/extra fields. Independent review is required before integration.
+Rollback removes only this observer field; no installation or cause fix is claimed.
+
+Actual change: accepted nonempty output transcripts mark their generation;
+existing teardown_complete emits only live_output_transcript_seen. Fresh wake and
+a different provider generation clear it; same-generation Ready cannot erase an
+earlier valid WebRTC transcript. The sanitizer accepts a strict boolean only on
+teardown and drops transcript text/extra fields. Four offline causal cases,
+format/lint and mypy over 87 source files pass in 1.5 s. Independent high-risk final
+GO covers four-file diff SHA256
+`98f8bad1426bc29b330cb591a5149e924f7f957bff7d70a3515afed04deaf62f`.
+Review caught and fixed an observer-only Ready-order race before freeze; this is
+not a discovered cause of the original missing reply. One actual-main Talk test
+could not bind localhost in the sandbox; its bootstrap attempted OpenAI TTS and
+automatic approval review rejected escalation under the declared no-provider
+scope. It was not retried or counted as passed. The accepted replacement uses the
+existing fully offline BrowserLink/native fixtures. Provider, UI and physical
+acceptance remain open. This observer is not part of the frozen 2.0.62 candidate.
+
 ---
 
 <!-- podview61-admission

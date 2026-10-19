@@ -42,6 +42,8 @@ async def test_other_room_cannot_write_or_finish_shared_capture(tmp_path):
 
 @pytest.mark.asyncio
 async def test_ordinary_alpha_wake_persists_without_manual_arm_and_off_does_not(tmp_path):
+    from gatekeeper.openai_live import LiveTranscript
+
     session, sdk, flag, _, link = build()
     recorder = session.audio_trace = AudioTraceRecorder(tmp_path, automatic=True)
     await session.start()
@@ -50,6 +52,9 @@ async def test_ordinary_alpha_wake_persists_without_manual_arm_and_off_does_not(
         assert recorder.owns(session.room, session._history_session)
         link.feed([b"\x01\x00" * 320])
         await until(lambda: sdk.session.input_audio.append.await_count > 0)
+        await session._on_live_event(
+            LiveTranscript("out", "native output", 0, 10, session.brain._connection_generation)
+        )
         await session.stop()
         await recorder.wait_pending(timeout_s=3.0)
         latest = recorder.snapshot()["latest"]
@@ -58,11 +63,68 @@ async def test_ordinary_alpha_wake_persists_without_manual_arm_and_off_does_not(
         assert latest["stages"]["device"]["samples"] > 0
         assert latest["stages"]["provider"]["samples"] > 0
         assert any(e["event"] == "wake_received" for e in latest["events"])
+        assert (
+            next(e for e in latest["events"] if e["event"] == "teardown_complete")[
+                "live_output_transcript_seen"
+            ]
+            is True
+        )
         assert any(e["event"] == "capture_finished" for e in latest["events"])
         flag[0] = False
         await session.wake("physical-attempt-off")
         assert not recorder.owns(session.room, session._history_session)
         await session.stop()
+    finally:
+        await session.aclose()
+        await recorder.shutdown(timeout_s=3.0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("browser", [False, True])
+async def test_live_output_transcript_marker_is_bounded_to_current_conversation(tmp_path, browser):
+    import hashlib
+
+    from test_talk_stop import HistoricalWavBrowserLink
+
+    from gatekeeper.openai_live import LiveSessionReady, LiveTranscript
+
+    async def send_json(_event):
+        pass
+
+    async def send_bytes(_data):
+        pass
+
+    device = HistoricalWavBrowserLink(send_json, send_bytes) if browser else None
+    session, _, _, _, _ = build(device=device) if browser else build()
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    if browser:
+        session._private_contract_recorder = recorder
+    else:
+        session.audio_trace = recorder
+    await session.start()
+    try:
+        for generation in (1, 2):
+            await session.wake()
+            owner = session._history_session
+            assert session.brain._connection_generation == generation
+            assert session._live_output_transcript_generation is None
+            session._trace_event("live_backend_complete", status="completed")
+            if generation == 2:
+                await session._on_live_event(LiveTranscript("out", "stale", 0, 10, 1))
+                assert session._live_output_transcript_generation is None
+                await session._on_live_event(LiveTranscript("out", "accepted", 0, 10, generation))
+                await session._on_live_event(LiveSessionReady("same-generation", generation))
+                assert session._live_output_transcript_generation == generation
+            await session.stop()
+            assert await recorder.wait_pending(timeout_s=3.0)
+            record = next(
+                item
+                for item in recorder.diagnostics()
+                if item["session_hash"] == hashlib.sha256(owner.encode()).hexdigest()
+            )
+            assert next(e for e in record["events"] if e["event"] == "teardown_complete")[
+                "live_output_transcript_seen"
+            ] is (generation == 2)
     finally:
         await session.aclose()
         await recorder.shutdown(timeout_s=3.0)

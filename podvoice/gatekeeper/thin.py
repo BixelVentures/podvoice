@@ -678,6 +678,7 @@ class ThinSession:
         self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_output_transcript_generation: int | None = None
         self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
         # Last exact native packet whose send_audio call returned. This is not a
@@ -1418,6 +1419,7 @@ class ThinSession:
             raise RuntimeError("Live Alpha integration is unavailable")
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_output_transcript_generation = None
         self._live_close_attempt = None
         self._live_close_task = None
         self._live_close_cancel_reason = None
@@ -2576,7 +2578,14 @@ class ThinSession:
             # Avoid a false-dark gap between teardown and a later failed rearm.
             if self._closing or not hasattr(self.voicepe, "rearm_wake_word"):
                 self._set_led(State.IDLE)
-            self._trace_event("teardown_complete")
+            self._trace_event(
+                "teardown_complete",
+                live_output_transcript_seen=(
+                    self._live_output_transcript_generation is not None
+                    and self._live_output_transcript_generation
+                    == getattr(self.brain, "_connection_generation", None)
+                ),
+            )
         else:
             # A dark ring is the normal IDLE privacy signal. If physical stop failed,
             # darkness would lie; keep a red fault indication until the full retry has
@@ -3030,6 +3039,8 @@ class ThinSession:
         ):
             return
         if isinstance(ev, LiveSessionReady):
+            if self._live_output_transcript_generation != ev.generation:
+                self._live_output_transcript_generation = None
             self._trace_event("live_session_ready", provider_session_id=ev.session_id)
         elif isinstance(ev, LiveTransportReady):
             self._trace_event("live_sideband_ready", provider_session_id=ev.session_id)
@@ -3182,6 +3193,8 @@ class ThinSession:
                     input_revision=self._live_input_revision,
                 )
                 # Raw Live fragments are evidence, not a completed new turn.
+            elif ev.direction == "out" and ev.text.strip():
+                self._live_output_transcript_generation = ev.generation
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,

@@ -166,6 +166,9 @@ def content_free_manifest(manifest: dict) -> dict:
             elif event["event"] == "live_backend_complete" and key == "status":
                 if isinstance(value, str) and value in {"completed", "failed", "incomplete"}:
                     clean[key] = value
+            elif event["event"] == "teardown_complete" and key == "live_output_transcript_seen":
+                if type(value) is bool:
+                    clean[key] = value
             elif key == "step" and event["event"] in _TEARDOWN_EVENTS:
                 if isinstance(value, str) and value in _TEARDOWN_STEPS:
                     clean[key] = value
