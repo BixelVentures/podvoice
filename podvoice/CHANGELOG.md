@@ -1,3 +1,8 @@
+## 2.0.68 — Natural voice expression
+
+- Tillad naturlige smålyde, tøven og prosodi i meningsfulde svar, mens skabelonagtige modtagelses- og fremskridtsreplikker fortsat frarådes.
+- Bevar tavs delegation, eksisterende værktøjer og modelstyret afslutning.
+
 ## 2.0.62 — PodView retained UI and playlist resilience
 
 ## 2.0.66 — Direct next destination and truthful task progress

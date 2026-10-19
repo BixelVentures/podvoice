@@ -1,3 +1,24 @@
+<!-- podview68-admission
+{
+  "version": 45,
+  "kind": "podvoice68_natural_primary_prompt",
+  "reviewer": "/root/playlist_cover_projection",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "f99be699315de44375bea46f1c667712dca21229",
+  "merge_base": "f99be699315de44375bea46f1c667712dca21229",
+  "rationale": "Exact68 scope is published67 plus the independently reviewed natural primary prompt and existing prompt regression. No UI, tool, lifecycle, timer, LED, native or firmware behavior changes. Natural sounds are permitted only within meaningful answers; silent delegation and semantic close remain unchanged. Source review receipt fee3 patch is reused; composition review, official CI and actual GPT-Live prompt preflight must be tracked separately. No provider, audible or physical acceptance is inherited.",
+  "fingerprint": "cf48b2b26972d294d8c874629a9726eaa06fe254f7c1dab44baae43a46b1130e",
+  "regression_fingerprint": "c004815fc8c7aee0737f5f25a8782a47b79defa35f837945531d0dceec9b549d",
+  "runtime_fingerprint": "8dfc2465c04e7bb4c95e1600bf7d638df67d9698134914da49e61d3c00bec70b",
+  "config_fingerprint": "872652a721f18dae06bfeb6ee70eecc73dfe18edbbc8d9ce31f7e71fe11142ca",
+  "policy_fingerprint": "6f5c5d53a72a9ea876bcfc3c556c25c600c02335b8705835afe3f35bb7d263f9",
+  "tooling_fingerprint": "2851c31c1b85b0efb31f2f618db8e2f363f1524a952706a8710011457e3eafae",
+  "manifest_fingerprint": "32e6deee294e9823e981b8934c72978d0ee5018be98e05d5dbcd78e09a2bd6e4"
+}
+-->
+
 <!-- podview67-admission
 {
   "version": 44,
@@ -2630,3 +2651,41 @@ Create one additive37 profile using the existing strict safe-file, inventory and
   "rationale": "Independent exact37 SOURCE GO f8316790c49e6c5acc0ebb2e7c0106ab28600057052fb5d6b24ed105c444d5c4. Exact14-path composition preserves reviewed backup4bits, all historical30-36 admission bytes and STATUS records, closed2-asset production scope,241 runtime files,135 UI assets,9 HA files and version-only37 metadata. Author focused28 new/current dispatch cases and16 historical36 fixture cases PASS, formatter/lint and diff checks PASS; unchanged checks retained. Existing strict helpers/inventory/fingerprints reused without generic fallback, waived owner checks, provider/settings/grant/runtime/audio changes. Official CI, publication, installation, pairing and physical Voice PE/UI acceptance remain separate and open."
 }
 -->
+
+### Aktiv promptbeslutning — naturlig stemme, uden skabelonkvittering
+
+Lead: /root. På installeret 2.0.67 viste én normal Talk-tur `[hum] København.`;
+brugeren har udtrykkeligt præciseret, at naturlige smålyde, tøven og udtryksfuld
+stemme er ønskede, ikke en fejl eller en releasegate. Det er synlig transcripttekst,
+ikke bevis for hørbar lyd. Den shippede primærprompt forbyder imidlertid ordret
+`Never backchannel`, tøvelyde, nynnen og `hmm` også i direkte svar. Den
+falsificerbare årsag er derfor en for bred stilregel, som modsiger brugerens mål;
+denne observation beviser ikke, at provider faktisk adlyder eller at de tidligere
+gentagne standardreplikker er løst.
+
+Berørt kæde: brugerhensigt → primær Live-instruktion → eventuel stille delegation →
+backendresultat → naturligt direkte svar/afsked → transcript og playback → lukning
+og næste wake. Bevar én Live-ejer af lyd og semantik, tavs delegation før
+handlingsresultat, sand resultat-/afslutningskvittering, og backendens faktuelle
+svarstil. Ret kun primærpromptens overbrede forbud til et snævert forbud mod
+skabelonagtige modtagelses- og fremskridtsreplikker; ingen tekst-/PCM-
+filtrering, prompt-/timeouttuning, providerkald eller ændret værktøjskontrakt.
+Kør eksisterende fokuseret promptkontrakt, lint/format og uafhængigt kilde-/ejerreview
+før én koordineret PodVoice/PodView-kandidat. Rollback er dette isolerede prompt-
+ordvalg. CI, installation, faktisk providerlyd og fysisk Voice PE-accept er åbne.
+
+Faktisk draftresultat: den primære stilregel fraråder nu skabelonagtige
+modtagelses- og fremskridtsreplikker uden at forbyde naturlige smålyde, tøven
+eller prosodi i meningsfulde svar. Ingen backend-, værktøjs-, timeout- eller
+lydimplementation er ændret. De eksisterende 19 prompttests, Ruff check/format
+og diffkontrol består på det isolerede draft. Uafhængig ejer-/kildereviewer
+/root/playlist_cover_projection fandt og lukkede en tælle-ambiguitet i den første
+ordlyd; final to-filspatch `fee3e885ff1ecbb015f03b44e837b333eb4e7baa4afca63a85d84cad687f8e86`
+fik snævert GO. Ingen ny providerprøve, SafeEval, officiel CI, installation,
+hørbar eller fysisk accept er udført for denne promptrettelse.
+
+### Aktiv samlet68-kandidat — kun naturlig primærstemme
+
+Lead: /root. Scope er præcis publiceret67 main f99be699315de44375bea46f1c667712dca21229 plus den uafhængigt reviewede primærprompt og dens eksisterende regression. Ingen UI-, timer-, musik-, LED-, lifecycle- eller firmwareændring tilføjes. PC35 udvikles separat. Versionsmetadata og eksisterende exact-tree-admission opdateres til68; uændrede aktiver og runtimeejere forbliver bundet. De19 fokuserede prompttests og kilde-GO genbruges, mens sammensætning, formatter/lint og admission kontrolleres på de faktiske68-bytes. Fokuseret semantisk prøve skal bruge den normale GPT-Live-vej, uden nøgleeksport eller eksperimentel startpolicy. Providerprøve, officiel CI, udgivelse, installation og fysisk accept er endnu åbne. Rollback er den reviewede promptdelta og versionsmetadata som én samlet kandidat.
+
+Faktisk68-kildekontrol: formatter/lint består; de19 eksisterende promptcases og to metadata-/scope-regressioner består på samme isolerede kandidat (21 i alt). Aktuel exact-tree-admission består med143 uændrede UI-aktiver og256 runtime-/HA-filer i manifestet. Uafhængigt sammensætningsreview afventer. Root har præciseret, at normal installation efter kilde-/CI-GO må ske som feltkandidat, mens den fokuserede semantiske accept fortsat er åben: én normal Talk-session på de installerede68-bytes, direkte spørgsmål → opfølgning → eksplicit afslutning → ny session. Den historiske Realtime-preflight eller den aktuelle67-session tæller ikke som68-bevis. Ingen ny providerprøve er kørt.
