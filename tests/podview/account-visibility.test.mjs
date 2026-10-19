@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
-const method=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n async sendLiveTimer('));
+const method=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n suspendLiveTimer('));
 const node=()=>({hidden:false,textContent:'',classList:{remove(){},contains(){return false;}},querySelector:()=>node(),setAttribute(){}});
 const elements=new Map();
 const render=new Function('$','LiveMusicCatalogueView','LiveMusicSelectionView','renderLiveWeather','renderRobotHistory',`return ({${method}}).renderLive`)(id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);},null,null,()=>{},()=>{});

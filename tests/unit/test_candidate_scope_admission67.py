@@ -44,7 +44,7 @@ def test_67_inventory_is_exact_for_composed_backend_timer_ui_and_regressions():
         "podvoice/gatekeeper/thin.py",
         "podvoice/gatekeeper/voicepe.py",
     }
-    assert len(admission.REQUIRED_TESTS) == 20
+    assert len(admission.REQUIRED_TESTS) == 25
     assert admission.REQUIRED_TESTS == {
         "tests/integration/test_ha_timer_native_output.py",
         "tests/integration/test_podview_bridge.py",
@@ -61,6 +61,11 @@ def test_67_inventory_is_exact_for_composed_backend_timer_ui_and_regressions():
         "tests/podview/canonical-packet-shared-music-results.test.mjs",
         "tests/podview/canonical-packet-timer-access.test.mjs",
         "tests/podview/canonical-packet-visual-history.test.mjs",
+        "tests/podview/account-visibility.test.mjs",
+        "tests/podview/canonical-next-music-card-appearance.test.mjs",
+        "tests/podview/canonical-next-visual-history.test.mjs",
+        "tests/podview/root-first-read-reconciliation.test.mjs",
+        "tests/podview/root-timer-access.test.mjs",
         "tests/unit/test_candidate_scope_admission67.py",
         "tests/unit/test_ci_promotion.py",
         "tests/unit/test_ci_scope.py",
@@ -68,6 +73,7 @@ def test_67_inventory_is_exact_for_composed_backend_timer_ui_and_regressions():
         "tests/unit/test_live_prompt.py",
     }
     assert "docs/MOTION.md" in admission.TOOLING
+    assert {"AGENTS.md", "CLAUDE.md", "docs/AGENTKONTRAKT.md"} <= admission.TOOLING
     assert admission.ASSET_CHANGES == {
         "frame-layout.css",
         "music-results.js",

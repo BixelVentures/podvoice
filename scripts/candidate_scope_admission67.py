@@ -31,7 +31,9 @@ RECORD_MARKER = "<!-- podview67-admission"
 STATIC = previous.STATIC
 CONFIG = previous.CONFIG | frozenset({"custom_components/podvoice/manifest.json"})
 POLICY = previous.POLICY | frozenset({PROFILE, MANIFEST})
-TOOLING = previous.TOOLING | frozenset({"docs/MOTION.md"})
+TOOLING = previous.TOOLING | frozenset(
+    {"AGENTS.md", "CLAUDE.md", "docs/AGENTKONTRAKT.md", "docs/MOTION.md"}
+)
 FIELDS = previous.FIELDS
 
 DOMAINS = ("physical_output",)
@@ -72,6 +74,11 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-packet-shared-music-results.test.mjs",
         "tests/podview/canonical-packet-timer-access.test.mjs",
         "tests/podview/canonical-packet-visual-history.test.mjs",
+        "tests/podview/account-visibility.test.mjs",
+        "tests/podview/canonical-next-music-card-appearance.test.mjs",
+        "tests/podview/canonical-next-visual-history.test.mjs",
+        "tests/podview/root-first-read-reconciliation.test.mjs",
+        "tests/podview/root-timer-access.test.mjs",
         "tests/unit/test_candidate_scope_admission67.py",
         "tests/unit/test_ci_promotion.py",
         "tests/unit/test_ci_scope.py",
@@ -97,8 +104,8 @@ ASSET_CHANGES = frozenset(
 HA_RUNTIME = previous.HA_RUNTIME
 # CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
 REVIEWER = "/root/led_review_current"
-MANIFEST_SHA = "ddaa1f1dfc0434377611bf0223a10127b7f8e16744321c415637b3b1f2f1e0e3"
-PROFILE_AST = "86df7730854edf8c5368c465c73e6fd95e449e45dfc37b8f705b1c05ff802fa2"
+MANIFEST_SHA = "be7bbf03d285279463e773d7b01bc1c4fe0e73824047b265f2ec65ee205e7cad"
+PROFILE_AST = "29aa732286ff865e9ae52c9ca52ed4bdd96a55e18030d443ec6dc23493083d4e"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission66.py": "1ea664daae9e2ea7fc9069c23b0c7ff26a50a78e640e636ab679608588878335",
     "scripts/podview66-admission-reviewed.json": "20deac962931fdd747dc1abbcae7e54d2abf069e7da7c8bcf6745d1936607e2b",
