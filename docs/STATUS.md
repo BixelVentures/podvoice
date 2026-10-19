@@ -9,16 +9,34 @@
   ],
   "base_tip": "eead19bcf86e958fdb78321fdd54549d393698c8",
   "merge_base": "eead19bcf86e958fdb78321fdd54549d393698c8",
-  "rationale": "Exact unsigned65 source and admission independently reviewed by /root/astra_actual_ui_acceptance_audit; receipt SHA256 0ab8ce1f99d4f2f4091b832112453a8e10629e5fdd9443bb927099f69a4050d1. Canonical UI143, cover compatibility, robot history, HA recovery and Talk intent source are included. Official Linux HA/CI, separate compatible Control and HAintegration0.1.5 installation/restart/readback, provider and physical acceptance remain separate.",
+  "rationale": "Same65 successor after official CI failures; source review identified two fixture protocol omissions. Exact unsigned source and metadata independently reviewed by /root/astra_actual_ui_acceptance_audit; receipt SHA256 4d486278f6ac1c975ed1685001d74d143c5156e7a48a453aad0d462f2db984b1. Only shared inert SDK/browser command ACK fixtures and necessary current admission metadata differ. Production30 and canonicalUI143 remain exact prior reviewed source. Actual browser CI cause is unconfirmed because artifact was inaccessible; officialCI including nine browser exit scenarios must rerun. Compatible Control, separate HAintegration0.1.5 installation/restart/readback, provider and physical acceptance remain separate.",
   "fingerprint": "0fc41a7905c6863fb5ad719dc41fd3a8fa49f99154bfcb64b4da0c11f6f2565a",
-  "regression_fingerprint": "be5b11f4e0bc0deb66b6ed4e1e10fbe16ea62f321fea0cf04c9d304b568d76a1",
+  "regression_fingerprint": "e9c208a309d12f59cb25e2c7bf21e6df93fb3b29b659851913a607ffab4c00c4",
   "runtime_fingerprint": "e7904fb840b84fb9fb4ec98e3a4dd18059a846f2bf9ae08a2ff77db4240b73e7",
   "config_fingerprint": "d7173a4bca02d819e77fbd4b4ff27512391c5520eb2184f2f8122508802e137e",
-  "policy_fingerprint": "d80b1cc1080303e06f03380f32634ce2c08b72aa1f433ef86c3ad78be6965d7c",
+  "policy_fingerprint": "75dc2463a07abb32e0bcdfe9a44f25e9bb8dc78a9c5efdbfbe3704f01a75429f",
   "tooling_fingerprint": "80b2387de5948d6545507b6daef3b641ea0aeb70b9a2b372bf031ef81ba15c21",
-  "manifest_fingerprint": "f28f38ac4c1b70803b2f531d019e5c4e063ef5e1aa7dc2ad3576337d3c027085"
+  "manifest_fingerprint": "ed264ce19f593c1d04f36cc87b2025f21a61eaf3d2f2c49a51b81d21e52dd36f"
 }
 -->
+
+## Same65 CI successor — fixture protocol recovery, 19 October
+
+The first PR220 head8eb667045cee9dda0c3bef6cc7fbed03332169e7 passed the
+HA framework job but failed the rest suite at saved-selection Talk startup; the
+browser daily_ui job also failed. The original CI evidence is retained. The shared
+inert OwnedWireSDK now returns matching serialized input-audio mute/unmute ACKs;
+the existing browser exit fixture observes the actual microphone command and
+returns exact same-socket acceptance while preserving unmatched/retired negatives.
+Only these reviewed test fixtures and necessary current65 admission metadata change.
+All30 production owners and canonical143 UI members remain byte-exact to the first
+reviewed candidate. Existing537 Python/1513 UI aggregate evidence remains tied to
+its unchanged source cohorts, not proof of the modified browser harness. The Python
+owner reported original causal RED and final affected variants PASS. The browser
+change has source/syntax review only; its actual CI failure artifact was inaccessible,
+so that failure's root cause is not confirmed. OfficialCI must rerun on the updated
+exact tree, including all9 browser exit scenarios. No timeout, original assertion,
+production behavior or native/provider/household acceptance is changed or claimed.
 
 ## Current consolidated65 candidate — 19 October
 

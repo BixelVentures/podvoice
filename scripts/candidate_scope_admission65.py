@@ -71,38 +71,40 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     {
+        "tests/podview/root-live-control-view.test.mjs",
+        "tests/integration/test_thin_live.py",
+        "tests/ha_framework/test_controller_admin_services.py",
+        "tests/podview/root-spotify-artwork.test.mjs",
+        "tests/browser/talk_exit_contract.cjs",
         "tests/podview/root-player-dom-delta.test.mjs",
-        "tests/podview/root-first-read-reconciliation.test.mjs",
+        "tests/unit/test_dev_cycle.py",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/integration/test_thin_live_failed_close_cleanup.py",
+        "tests/unit/test_candidate_scope_admission64.py",
         "tests/podview/canonical-next-collection-selection.test.mjs",
-        "tests/podview/root-mood-playlists.test.mjs",
-        "tests/unit/test_candidate_scope_admission65.py",
+        "tests/integration/test_podview_mood_playlists.py",
         "tests/podview/root-robot-control-panel.test.mjs",
+        "tests/integration/test_talk_rotation.py",
+        "tests/podview/root-first-read-reconciliation.test.mjs",
+        "tests/podview/root-weather-view.test.mjs",
+        "tests/unit/test_ha_controller_admin.py",
+        "tests/integration/test_talk_webrtc_browser.py",
+        "tests/integration/test_podview_music.py",
+        "tests/podview/root-mood-playlists.test.mjs",
+        "tests/podview/root-control-model.test.mjs",
+        "tests/integration/test_podview_admin_provision.py",
+        "tests/podview/root-motion.test.mjs",
+        "tests/podview/root-shared-music-results.test.mjs",
+        "tests/integration/test_podview_controls.py",
+        "tests/integration/test_podview_mood_preview.py",
+        "tests/integration/test_podview_playlist_refresh.py",
+        "tests/podview/root-collection-selection.test.mjs",
+        "tests/unit/test_podview_playlist_artwork.py",
+        "tests/unit/test_candidate_scope_admission65.py",
         "tests/integration/test_talk_webrtc.py",
+        "tests/unit/test_openai_live.py",
         "tests/podview/canonical-next-robot-control-panel.test.mjs",
         "tests/podview/mood-preview.test.mjs",
-        "tests/integration/test_talk_rotation.py",
-        "tests/integration/test_talk_webrtc_browser.py",
-        "tests/podview/root-collection-selection.test.mjs",
-        "tests/unit/test_dev_cycle.py",
-        "tests/podview/root-shared-music-results.test.mjs",
-        "tests/unit/test_openai_live.py",
-        "tests/integration/test_podview_admin_provision.py",
-        "tests/integration/test_thin_live.py",
-        "tests/podview/root-control-model.test.mjs",
-        "tests/integration/test_podview_controls.py",
-        "tests/podview/root-weather-view.test.mjs",
-        "tests/podview/root-live-media-view.test.mjs",
-        "tests/integration/test_podview_playlist_refresh.py",
-        "tests/podview/root-spotify-artwork.test.mjs",
-        "tests/integration/test_podview_mood_playlists.py",
-        "tests/integration/test_podview_music.py",
-        "tests/podview/root-motion.test.mjs",
-        "tests/unit/test_ha_controller_admin.py",
-        "tests/unit/test_candidate_scope_admission64.py",
-        "tests/unit/test_podview_playlist_artwork.py",
-        "tests/podview/root-live-control-view.test.mjs",
-        "tests/integration/test_podview_mood_preview.py",
-        "tests/ha_framework/test_controller_admin_services.py",
     }
 )
 ASSET_CHANGES = frozenset(
@@ -129,8 +131,8 @@ ASSET_CHANGES = frozenset(
 HA_RUNTIME = previous.HA_RUNTIME
 # CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
 REVIEWER = "/root/astra_actual_ui_acceptance_audit"
-MANIFEST_SHA = "f28f38ac4c1b70803b2f531d019e5c4e063ef5e1aa7dc2ad3576337d3c027085"
-PROFILE_AST = "00ade9bbf0199804c0ee08ac408dcecf88d2b77d00bbd89a3f7fbf0644e297ed"
+MANIFEST_SHA = "ed264ce19f593c1d04f36cc87b2025f21a61eaf3d2f2c49a51b81d21e52dd36f"
+PROFILE_AST = "d06bacd1aee20500566e7153f29ef3961229d2f9bc0d7c5de388e935e73ca671"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission64.py": "a0de725fb53480423817b600051c2a17445bb71d625e56bd3d5ed549c73d2793",
     "scripts/podview64-admission-reviewed.json": "4f06f19ebf25f868b4ebb6c1e6d50642e02860e23fb2aadc3ff3eb736b3686e7",

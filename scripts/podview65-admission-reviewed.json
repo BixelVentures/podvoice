@@ -34,6 +34,7 @@
     "podvoice/gatekeeper/tools.py": "ebccf2dd71436644b8400589c87d1ef451ebb55f272aa799b2c2438cf21cff37"
   },
   "regressions": {
+    "tests/browser/talk_exit_contract.cjs": "43a67a410b8a576f2132835c744b107d96266481602ef0905eda57b0ae75537a",
     "tests/ha_framework/test_controller_admin_services.py": "7c8455deae742f2304725737facb6b6efa34c9b9f3028fe1275eb06b1ab3b0d1",
     "tests/integration/test_podview_admin_provision.py": "4c7c46e6f39335327636cd2eac068820454aeccd779b9d49bf6630b9c694bc0d",
     "tests/integration/test_podview_controls.py": "9f752d8da939555f24471fd2dc48ed08b71803ff673e12bb387b80874115018b",
@@ -45,6 +46,7 @@
     "tests/integration/test_talk_webrtc.py": "463d4dd5761bc9b7a144224fe906330bf7e7d8c04ba89360a60316079f875e87",
     "tests/integration/test_talk_webrtc_browser.py": "1f9e92d3b099c4759af2120ad75d986bf43213641ef5bb1e74c583883200550c",
     "tests/integration/test_thin_live.py": "d3cde40d75f35721ddbac123bffdf0f73436072b281cace1adab729a558fb5c7",
+    "tests/integration/test_thin_live_failed_close_cleanup.py": "0d20179da6c600f682cd42a66831301a4f2e9f7daed6e689b1dfbce256b5bd15",
     "tests/podview/canonical-next-collection-selection.test.mjs": "34d5f4e7c7853ab5f17a3069750fc7de7e53c851e1ebb6c4ebe09c3a17aaadb9",
     "tests/podview/canonical-next-robot-control-panel.test.mjs": "b5058833c555e2b5ada0fdbf7e1b544d922232f2e8aeda8b7ff6d2c95fe7840c",
     "tests/podview/mood-preview.test.mjs": "d09514ef362316b343ccae1c1a8d6a3418277ef58db57fb83fd7f4efdaf87873",
@@ -61,7 +63,7 @@
     "tests/podview/root-spotify-artwork.test.mjs": "10b8b63877e6fff8122434610dd6d40013023eaf7f9ce75729078f337df05045",
     "tests/podview/root-weather-view.test.mjs": "94a5576fd0c9915027cada6af1a217f546054531e98cc099169f8e952758ba6a",
     "tests/unit/test_candidate_scope_admission64.py": "440c2aa3e217835a90cb583b0153810fc4f0075b054302f487d12b76de14a861",
-    "tests/unit/test_candidate_scope_admission65.py": "5f75b436df8aa402258dc4a4ede6e8eb0409e382825deb5494f9315e7f5e086f",
+    "tests/unit/test_candidate_scope_admission65.py": "2f4fd18cd61b67b132c599ec484919b1d453daa15aff9e4271c7ad125b127a65",
     "tests/unit/test_dev_cycle.py": "b0b56777dbf9ce4ddb3ff321674a6558efd920e0ce2212da581784b634efecf1",
     "tests/unit/test_ha_controller_admin.py": "c187fdc8a64bdf31aaf28b78b0b96c5c32666f7e8e772cff8a7a95b7a81ad6a3",
     "tests/unit/test_openai_live.py": "b7214830909bfe5d38242950c39fa63519560cc70a1b217074d1ce2f943aba60",
