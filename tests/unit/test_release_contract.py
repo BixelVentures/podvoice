@@ -156,7 +156,7 @@ def test_missing_release_recovery_keeps_main_checks_and_guards_every_publish_ste
 def test_publisher_requires_every_job_to_succeed_even_when_ancestors_are_skipped() -> None:
     publisher = (ROOT / ".github/workflows/ci.yml").read_text().split("  publish-addon:\n", 1)[1]
     header = publisher.split("\n    needs:", 1)[0]
-    expression = " ".join(header.split("if: >-\n", 1)[1].splitlines())
+    expression = header.split("if: ${{", 1)[1].split("}}", 1)[0]
     jobs = ("scope", "lint-test", "remaining-tests", "ui-browser", "ha-framework")
 
     for job in jobs:

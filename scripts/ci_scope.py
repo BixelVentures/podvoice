@@ -41,6 +41,12 @@ CI_PUBLISHER_REQUIRED = frozenset(
         "tests/unit/test_release_contract.py",
     }
 )
+CI_PUBLISHER_OPTIONAL = CI_CONTROL_OPTIONAL | frozenset(
+    {
+        "tests/integration/test_podview_research_receipts.py",
+        "tests/integration/test_thin_live_ten_cycles.py",
+    }
+)
 CI_SHARD_REQUIRED = frozenset(
     {
         WORKFLOW,
@@ -104,7 +110,7 @@ def ci_control_only(paths: Sequence[str]) -> bool:
         required <= changed <= (required | optional)
         for required, optional in (
             (CI_CONTROL_REQUIRED, CI_CONTROL_OPTIONAL),
-            (CI_PUBLISHER_REQUIRED, CI_CONTROL_OPTIONAL),
+            (CI_PUBLISHER_REQUIRED, CI_PUBLISHER_OPTIONAL),
             (CI_SHARD_REQUIRED, CI_SHARD_OPTIONAL | CI_CONTROL_OPTIONAL),
         )
     )

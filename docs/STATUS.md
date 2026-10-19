@@ -59,6 +59,31 @@ Scope-undtagelsen kræver præcis workflow, scopeklassifikation og deres to rele
 testfiler, med kun denne STATUS som valgfri fil; produktfiler og ukendte filer afvises.
 Ingen provider-, firmware-, runtime-, settings-, version- eller rettighedsændring.
 
+**Faktisk PR225-restdelkontrol.** Run39303377328 fejlede efter450 beståede tests,
+da weather-familien i `test_podview_research_receipts.py` ramte sin femsekunders
+`subprocess.run`-grænse under Node-processens start/eksekvering (5,02 s); den præcise procesfase er ukendt. Web-familien blev ikke
+kørt i dette run. Node-snippet importerer de synkrone `owner-answers.js`,
+`visual-content.js`, `research-answers.js` og `spotify-artwork.js`-validatorer; den
+importkæde starter ingen timer eller netværksarbejde og ændrer ikke svarassertionerne.
+Fixturebudgettet øges alene til 30 s som værtens procesopstarts-/eksekveringsgrænse,
+ikke en produktlatensmåling. Den parametriserede regression dækker både weather- og
+web-familien. Første lokale prøve blev standset af sandboxens TestServer-loopback-bind;
+den samme afgrænsede prøve bestod derefter med godkendt lokalt testnetværk: begge
+familier og den eksisterende workflow-statusscanner, fire tests. CI-scope tillader kun denne integrationstest som ekstra
+valgfri fil i publisher-klassifikationen; begge eksisterende familier skal bestå i CI.
+Der er ingen produktionskode-, produktlatens-, timeout-policy- eller versionændring.
+
+**Øvrige faktiske PR225-fejl.** Den eksisterende workflow-statusscanner kræver
+statusfunktioner på én `if:`-linje; publisherens semantisk identiske betingelse er
+flyttet til dette format, og scanneren består. Native10-cycle-testen ramte igen sin
+provider-close-observationstimeout på cyklus10 trods absolut rapportkadence. Den
+første kadencefejl er en selvstændigt reproduceret fixturefejl, men forklarer derfor
+ikke hele CI-fejlen. Ingen yderligere runtime- eller deadlineændring er begrundet.
+Den præcise observerede stoptilstand skal afgrænses med eksisterende ejer-/quiet-
+diagnostik i selve testens fejlrapport. Kandidaten er ikke release-godkendt af dette
+CI-run; merge/publicering af PR225 tilbageholdes, og tidligere PASS erstatter ikke
+fejlen. Det er fortsat softwarearbejde før fysisk slutaccept.
+
 Planlagt/afgrænset kontrol: eksisterende release- og scoperegressioner, cancellation,
 fejlet/skippet/manglende direkte kontrol, uafhængigt review og normal officiel CI.
 Faktisk publicering kræver derefter et kørt publisherjob, immutable digest og aflæsning
