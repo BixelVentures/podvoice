@@ -50,19 +50,40 @@ def test_only_explicit_tools_and_nonshipped_docs_narrow_ci(paths, expected):
     assert ci_scope.tooling_only(paths) is expected
 
 
-@pytest.mark.parametrize("required", [ci_scope.CI_CONTROL_REQUIRED, ci_scope.CI_SHARD_REQUIRED])
-def test_only_exact_ci_control_files_skip_product_admission_but_not_checks(required):
-    exact = sorted(required | {"docs/STATUS.md"})
-    assert ci_scope.ci_control_only(exact)
-    assert not ci_scope.tooling_only(exact)
+@pytest.mark.parametrize(
+    "paths",
+    [
+        ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"},
+        ci_scope.CI_SHARD_REQUIRED | {"docs/STATUS.md"},
+        ci_scope.CI_SHARD_REQUIRED | ci_scope.CI_SHARD_OPTIONAL,
+        ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"},
+    ],
+)
+def test_only_admitted_ci_control_files_skip_product_admission_but_not_checks(paths):
+    assert ci_scope.ci_control_only(paths)
+    assert not ci_scope.tooling_only(paths)
     assert not ci_scope.ci_control_only([".github/workflows/ci.yml"])
-    assert not ci_scope.ci_control_only([*exact, "podvoice/gatekeeper/thin.py"])
-    assert not ci_scope.ci_control_only([*exact, "scripts/unknown.py"])
+    assert not ci_scope.ci_control_only([*paths, "podvoice/gatekeeper/thin.py"])
+    assert not ci_scope.ci_control_only([*paths, "scripts/unknown.py"])
 
 
-@pytest.mark.parametrize("required", [ci_scope.CI_CONTROL_REQUIRED, ci_scope.CI_SHARD_REQUIRED])
-def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path, required):
-    paths = sorted(required | {"docs/STATUS.md"})
+@pytest.mark.parametrize("missing", sorted(ci_scope.CI_SHARD_REQUIRED))
+def test_ci_shard_scope_requires_every_core_path(missing):
+    paths = (ci_scope.CI_SHARD_REQUIRED - {missing}) | ci_scope.CI_SHARD_OPTIONAL
+    assert not ci_scope.ci_control_only(paths)
+
+
+@pytest.mark.parametrize(
+    "paths",
+    [
+        ci_scope.CI_CONTROL_REQUIRED | {"docs/STATUS.md"},
+        ci_scope.CI_SHARD_REQUIRED | {"docs/STATUS.md"},
+        ci_scope.CI_SHARD_REQUIRED | ci_scope.CI_SHARD_OPTIONAL,
+        ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"},
+    ],
+)
+def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path, paths):
+    paths = sorted(paths)
     output = tmp_path / "github-output"
     monkeypatch.setenv("CI_DIFF_BASE", "a" * 40)
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
@@ -73,6 +94,27 @@ def test_ci_control_diff_skips_only_candidate_admission(monkeypatch, tmp_path, r
         lambda *_args, **_kwargs: ("\0".join(paths) + "\0").encode(),
     )
     ci_scope.main()
+    assert output.read_text() == (
+        "tooling_only=false\nci_control_only=true\naddon_changed=false\npr_addon_changed=true\n"
+    )
+
+
+def test_ci_rest_shard_followup_on_pv66_base_keeps_product_checks(monkeypatch, tmp_path):
+    paths = sorted(
+        ci_scope.CI_SHARD_REQUIRED | {"scripts/ci_scope.py", "tests/unit/test_ci_scope.py"}
+    )
+    output = tmp_path / "github-output"
+    monkeypatch.setenv("CI_DIFF_BASE", "de46852d3d5d409bd94f14392c09b51b1280a2b1")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        subprocess,
+        "check_output",
+        lambda *_args, **_kwargs: ("\0".join(paths) + "\0").encode(),
+    )
+
+    ci_scope.main()
+
     assert output.read_text() == (
         "tooling_only=false\nci_control_only=true\naddon_changed=false\npr_addon_changed=true\n"
     )

@@ -24,6 +24,7 @@ COLLECTION_TIMEOUT_S = 15
 FAST_TIMEOUT_S = 120
 RELEASE_TIMEOUT_S = 240
 UNIT_BATCH_COUNT = 8
+REST_BATCH_COUNT = 2
 INTEGRATION_COHORT_COUNT = 2
 INTEGRATION_SDK_MODULE = "tests/integration/test_thin_live_ten_cycles.py"
 GATE_CACHE_STAGES = frozenset(
@@ -115,6 +116,47 @@ def run_ci_unit_shard(root: Path, env: dict[str, str], python: str, shard: int) 
         raise DevCycleError(f"unit shard {shard} has no partition")
     batch = batches[shard - 1]
     print(f"CI unit shard {shard}/{len(batches)}: {len(batch)} modules", flush=True)
+    return subprocess.call(
+        (
+            python,
+            "-m",
+            "pytest",
+            "-v",
+            "--maxfail=1",
+            "-o",
+            "faulthandler_timeout=60",
+            *batch,
+            "--durations=15",
+            "--durations-min=1",
+        ),
+        cwd=root,
+        env=env,
+    )
+
+
+def rest_test_batches(root: Path) -> tuple[tuple[str, ...], ...]:
+    """Partition every non-unit, non-HA pytest module once in stable order."""
+    files = sorted(
+        path.relative_to(root).as_posix()
+        for path in (root / "tests").rglob("*.py")
+        if (path.name.startswith("test_") or path.name.endswith("_test.py"))
+        and not path.relative_to(root).is_relative_to(Path("tests/unit"))
+        and not path.relative_to(root).is_relative_to(Path("tests/ha_framework"))
+    )
+    if not files:
+        raise DevCycleError("remaining-test worker found no test modules")
+    return tuple(
+        tuple(files[index::REST_BATCH_COUNT]) for index in range(min(REST_BATCH_COUNT, len(files)))
+    )
+
+
+def run_ci_rest_shard(root: Path, env: dict[str, str], python: str, shard: int) -> int:
+    """Run one deterministic remainder partition with the original pytest options."""
+    batches = rest_test_batches(root)
+    if not 1 <= shard <= len(batches):
+        raise DevCycleError(f"remaining-test shard {shard} has no partition")
+    batch = batches[shard - 1]
+    print(f"CI remaining-test shard {shard}/{len(batches)}: {len(batch)} modules", flush=True)
     return subprocess.call(
         (
             python,
@@ -1244,6 +1286,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
             "unit-worker",
             "integration-worker",
             "unit-shard",
+            "rest-shard",
         ),
         nargs="?",
         default="fast",
@@ -1261,10 +1304,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--integration-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
     )
-    parser.add_argument("--shard", type=int, choices=range(1, UNIT_BATCH_COUNT + 1))
+    parser.add_argument("--shard", type=int)
     args = parser.parse_args(argv)
-    if (args.mode == "unit-shard") != (args.shard is not None):
-        parser.error("--shard is required only for unit-shard")
+    if (args.mode in {"unit-shard", "rest-shard"}) != (args.shard is not None):
+        parser.error("--shard is required only for shard modes")
+    if args.mode == "unit-shard" and not 1 <= args.shard <= UNIT_BATCH_COUNT:
+        parser.error(f"--shard must be between 1 and {UNIT_BATCH_COUNT} for unit-shard")
+    if args.mode == "rest-shard" and not 1 <= args.shard <= REST_BATCH_COUNT:
+        parser.error(f"--shard must be between 1 and {REST_BATCH_COUNT} for rest-shard")
     if args.test and args.mode != "fast":
         parser.error("--test is only available for fast development feedback")
     return args
@@ -1276,6 +1323,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.mode == "unit-shard":
             return run_ci_unit_shard(
+                Path.cwd().resolve(), os.environ.copy(), sys.executable, args.shard
+            )
+        if args.mode == "rest-shard":
+            return run_ci_rest_shard(
                 Path.cwd().resolve(), os.environ.copy(), sys.executable, args.shard
             )
         if args.mode == "unit-worker":

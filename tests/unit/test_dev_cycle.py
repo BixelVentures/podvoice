@@ -23,6 +23,7 @@ from scripts.dev_cycle import (
     preflight,
     preflight_fingerprint,
     require_unchanged_scope,
+    rest_test_batches,
     run_parallel,
     run_release,
     run_unit_batches,
@@ -56,7 +57,8 @@ def test_ci_test_cohorts_preserve_all_gates_with_isolated_unit_shards():
     workflow = (Path(__file__).parents[2] / ".github/workflows/ci.yml").read_text()
     aggregate = workflow.split("  lint-test:\n", 1)[1].split("  unit-shards:\n", 1)[0]
     shards = workflow.split("  unit-shards:\n", 1)[1].split("  remaining-tests:\n", 1)[0]
-    rest = workflow.split("  remaining-tests:\n", 1)[1].split("  ui-browser:\n", 1)[0]
+    rest = workflow.split("  remaining-tests:\n", 1)[1].split("  remaining-test-shards:\n", 1)[0]
+    rest_shards = workflow.split("  remaining-test-shards:\n", 1)[1].split("  ui-browser:\n", 1)[0]
     assert "name: lint-test (unit)" in aggregate
     assert "needs: [scope, promotion, unit-shards]" in aggregate
     assert "if: ${{ always() }}" in aggregate
@@ -77,16 +79,72 @@ def test_ci_test_cohorts_preserve_all_gates_with_isolated_unit_shards():
     assert "shard: [1, 2, 3, 4, 5, 6, 7, 8]" in shards
     assert "run: python scripts/dev_cycle.py unit-shard --shard ${{ matrix.shard }}" in shards
     assert "name: lint-test (rest)" in rest
-    assert "needs: [scope, promotion]" in rest
-    assert "-v --maxfail=1 -o faulthandler_timeout=60" in rest
-    assert (
-        "--ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1" in rest
-    )
+    assert "needs: [scope, promotion, remaining-test-shards]" in rest
+    assert "REST_SHARDS_RESULT: ${{ needs.remaining-test-shards.result }}" in rest
+    assert 'test "$REST_SHARDS_RESULT" = success' in rest
+    assert "needs: [scope, promotion]" in rest_shards
+    assert "fail-fast: false" in rest_shards
+    assert "shard: [1, 2]" in rest_shards
+    assert "run: python scripts/dev_cycle.py rest-shard --shard ${{ matrix.shard }}" in rest_shards
     ha = workflow.split("  ha-framework:\n", 1)[1].split("  build-addon:\n", 1)[0]
     assert "needs: [scope, promotion]" in ha
     assert "--network none --read-only" in ha
     assert "ghcr.io/home-assistant/home-assistant@sha256:" in ha
     assert "-B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v" in ha
+
+
+def test_ci_rest_partitions_cover_every_nonunit_module_once(tmp_path):
+    files = [
+        "tests/integration/test_a.py",
+        "tests/integration/test_b.py",
+        "tests/podview/test_c_test.py",
+        "tests/unit/test_ignored.py",
+        "tests/ha_framework/test_ignored.py",
+    ]
+    for file in files:
+        path = tmp_path / file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+    batches = rest_test_batches(tmp_path)
+    flattened = [module for batch in batches for module in batch]
+    assert set(flattened) == {
+        "tests/integration/test_a.py",
+        "tests/integration/test_b.py",
+        "tests/podview/test_c_test.py",
+    }
+    assert len(flattened) == len(set(flattened))
+    assert len(batches) == 2
+
+
+def test_ci_rest_shard_preserves_full_pytest_contract(monkeypatch, tmp_path):
+    from scripts import dev_cycle
+
+    monkeypatch.setattr(
+        dev_cycle,
+        "rest_test_batches",
+        lambda _root: (("tests/a.py",), ("tests/b.py",)),
+    )
+    calls = []
+    monkeypatch.setattr(
+        dev_cycle.subprocess, "call", lambda command, **kwargs: calls.append((command, kwargs)) or 0
+    )
+
+    assert dev_cycle.run_ci_rest_shard(tmp_path, {}, "python", 2) == 0
+    command, kwargs = calls[0]
+    assert command == (
+        "python",
+        "-m",
+        "pytest",
+        "-v",
+        "--maxfail=1",
+        "-o",
+        "faulthandler_timeout=60",
+        "tests/b.py",
+        "--durations=15",
+        "--durations-min=1",
+    )
+    assert kwargs == {"cwd": tmp_path, "env": {}}
 
 
 @pytest.mark.parametrize(

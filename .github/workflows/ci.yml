@@ -233,19 +233,46 @@ jobs:
 
   remaining-tests:
     name: lint-test (rest)
-    needs: [scope, promotion]
-    if: needs.scope.outputs.tooling_only != 'true'
+    needs: [scope, promotion, remaining-test-shards]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
+      - name: Reject cancelled remainder checks
+        if: ${{ cancelled() }}
+        run: exit 1
+      - name: Require complete remainder evidence
+        if: ${{ always() }}
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          PROMOTION_RESULT: ${{ needs.promotion.result }}
+          TOOLING_ONLY: ${{ needs.scope.outputs.tooling_only }}
+          REUSE: ${{ needs.promotion.outputs.reuse }}
+          REST_SHARDS_RESULT: ${{ needs.remaining-test-shards.result }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          test "$PROMOTION_RESULT" = success
+          if [ "$TOOLING_ONLY" = true ] || [ "$REUSE" = true ]; then
+            test "$REST_SHARDS_RESULT" = skipped
+          else
+            test "$REST_SHARDS_RESULT" = success
+          fi
       - name: Reuse previously passed exact-tree PR checks
         if: needs.promotion.outputs.reuse == 'true'
         run: echo "Required PR checks already passed for this exact tree."
+
+  remaining-test-shards:
+    needs: [scope, promotion]
+    if: needs.scope.outputs.tooling_only != 'true' && needs.promotion.outputs.reuse != 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
       - uses: actions/checkout@v4
-        if: needs.promotion.outputs.reuse != 'true'
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
-        if: needs.promotion.outputs.reuse != 'true'
         with:
           python-version: "3.12"
           cache: pip
@@ -253,11 +280,9 @@ jobs:
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
       - name: Install product dependencies
-        if: needs.promotion.outputs.reuse != 'true'
         run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - name: Remaining tests
-        if: needs.promotion.outputs.reuse != 'true'
-        run: python -m pytest -v --maxfail=1 -o faulthandler_timeout=60 --ignore=tests/unit --ignore=tests/ha_framework --durations=15 --durations-min=1
+      - name: Remaining test partition
+        run: python scripts/dev_cycle.py rest-shard --shard ${{ matrix.shard }}
 
   ui-browser:
     needs: [scope, promotion]
