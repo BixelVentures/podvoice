@@ -45,7 +45,8 @@
     "podvoice/gatekeeper/live_prompt.py": "2c4184e53881667bd162c0f68347e68b96bbd0e418844cca84c68e4d5b8e9b37"
   },
   "regressions": {
-    "tests/unit/test_candidate_scope_admission68.py": "df719dc2d47a916d2ecf5578e740bef02e186c771afb9ca2ec8bb15cfab16eb4",
+    "tests/integration/test_thin_live_ten_cycles.py": "cfa3c769a828ba032b6dab6c5b3ad8e87508d8d86e5dd977e068f1b4a8d74bc3",
+    "tests/unit/test_candidate_scope_admission68.py": "f2212ea0b79c62b5a20f201a7aa42af029429efcff666a4fd742c544039b7205",
     "tests/unit/test_live_prompt.py": "e55812ea7ba736bd845d4a5c85834916fc70c0c7a026dab4a6f8b1c65a299c26"
   },
   "runtime": {

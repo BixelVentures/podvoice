@@ -30,6 +30,7 @@ def test_68_scope_keeps_all_ui_and_other_runtime_unchanged():
     assert admission.REQUIRED_TESTS == {
         "tests/unit/test_live_prompt.py",
         "tests/unit/test_candidate_scope_admission68.py",
+        "tests/integration/test_thin_live_ten_cycles.py",
     }
     assert admission.ASSET_CHANGES == frozenset()
     assert admission.DOMAINS == ("unclassified_runtime",)

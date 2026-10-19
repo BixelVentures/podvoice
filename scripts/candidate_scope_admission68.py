@@ -39,15 +39,19 @@ FIELDS = previous.FIELDS
 DOMAINS = ("unclassified_runtime",)
 PRODUCTION = frozenset({"podvoice/gatekeeper/live_prompt.py"})
 REQUIRED_TESTS = frozenset(
-    {"tests/unit/test_live_prompt.py", "tests/unit/test_candidate_scope_admission68.py"}
+    {
+        "tests/unit/test_live_prompt.py",
+        "tests/unit/test_candidate_scope_admission68.py",
+        "tests/integration/test_thin_live_ten_cycles.py",
+    }
 )
 ASSET_CHANGES = frozenset()
 
 HA_RUNTIME = previous.HA_RUNTIME
 # CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
 REVIEWER = "/root/playlist_cover_projection"
-MANIFEST_SHA = "32e6deee294e9823e981b8934c72978d0ee5018be98e05d5dbcd78e09a2bd6e4"
-PROFILE_AST = "19e309466d6da26812bd1da0a0baef120943d710b54fea467721082f04555df8"
+MANIFEST_SHA = "e120effec5dec0050620d8086ff389a30b280f67dc230e2003430cabe162af1f"
+PROFILE_AST = "67c5654b40f57081dc12205cb6237f9a57a7fb77f7c2dad177c311b8a3b502a6"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission67.py": "ed9c8735432d8d07ddae09b5a5cafe00d74a4667971cc80fc04ac738d01af104",
     "scripts/podview67-admission-reviewed.json": "8f3595cc43c2e52a63fa93128fc4c0249d6928902d2f061831906234d50a3303",
