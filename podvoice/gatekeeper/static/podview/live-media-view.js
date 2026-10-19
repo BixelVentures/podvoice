@@ -52,7 +52,12 @@ export class LiveMediaView{
    this.playback={...this.playback,displayRetained:true};this.queueControls.invalidate(false);
   }
   if(!this.host.liveSnapshot?.capabilities.musicRead.includes('queue')&&this.queue){this.queue=null;this.queueError=false;}
-  const p=roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account)?this.playback:null;this.host.playerView.renderPlayer({...livePlayerModel(p,!!this.host.liveTransport?.connected,this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||''),feedback:this.host.liveSelection?.feedback});
+  const p=roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account)?this.playback:null,feedback=this.host.liveSelection?.feedback;
+  // A fresh independent room observation owns current playback status. It does
+  // not turn a previous UNKNOWN request into success or restore its action.
+  const observed=Date.parse(p?.observedAt),currentStatus=feedback?.outcome==='unknown'&&!feedback.pending&&this.readState==='ready'&&this.host.liveTransport?.connected===true&&roomObservationCurrent(p,this.host.liveSnapshot)&&['playing','paused'].includes(p?.state)&&/^spotify:(track|episode):[A-Za-z0-9]{22}$/.test(p.item?.uri||'')&&p.config_entry_id===feedback.accountId&&p.target?.id===feedback.targetId&&Number.isFinite(observed)&&Number.isFinite(feedback.requestedAt)&&observed>=feedback.requestedAt&&/^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/.test(feedback.uri||'')&&(!/^spotify:(track|episode):/.test(feedback.uri)||p.item?.uri===feedback.uri);
+  if(currentStatus){if(this.selectionReceiptFeedback!==feedback){this.selectionReceiptFeedback=feedback;if(!this.host.feedbackMessage||this.host.feedbackMessage===feedback.message)this.host.showFeedback?.(feedback.message,false);}}else if(this.selectionReceiptFeedback!==feedback)this.selectionReceiptFeedback=null;
+  this.host.playerView.renderPlayer({...livePlayerModel(p,!!this.host.liveTransport?.connected,this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||''),feedback:currentStatus?null:feedback});
   this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true,gesture:this.host.liveControls?.musicVolumeGesture});
   this.renderQueue();this.host.liveControls?.render();this.host.liveCatalogue?.render();
  }

@@ -349,6 +349,10 @@ class OpenAILiveSession:
         self.on_webrtc_answer = on_webrtc_answer
         self.provider_session_started = False
         self._attachment_event_id: str | None = None
+        self._attachment_acked = False
+        self._webrtc_input_audio_enabled = True
+        self._input_audio_enabled: bool | None = None
+        self._input_audio_waiters: dict[str, tuple[str, asyncio.Future]] = {}
         self._webrtc_session_id: str | None = None
         self._webrtc_close_sent = False
         self.api_key = api_key
@@ -418,7 +422,11 @@ class OpenAILiveSession:
         return "webrtc" if self.webrtc_offer is not None else "websocket"
 
     def prepare_webrtc(
-        self, offer: str, on_answer: Callable[[str, str, int], Awaitable[None]]
+        self,
+        offer: str,
+        on_answer: Callable[[str, str, int], Awaitable[None]],
+        *,
+        input_audio_enabled: bool = True,
     ) -> None:
         """Stage one fresh browser offer only after the previous generation released.
 
@@ -442,6 +450,9 @@ class OpenAILiveSession:
             raise ValueError("invalid WebRTC offer or callback")
         if hashlib.sha256(offer.encode()).hexdigest() in self._used_webrtc_offers:
             raise LiveProtocolError("live_webrtc_offer_reused")
+        if type(input_audio_enabled) is not bool:
+            raise ValueError("invalid Live input audio intent")
+        self._webrtc_input_audio_enabled = input_audio_enabled
         self._webrtc_offer = offer
         self.on_webrtc_answer = on_answer
         self._webrtc_offer_consumed = False
@@ -654,6 +665,8 @@ class OpenAILiveSession:
         self._continuation_pending = False
         self._continuation_inflight = False
         self._text_continuation_id = None
+        self._attachment_acked = False
+        self._input_audio_enabled = None
         self._resampler = StreamResampler(self.input_rate, 24000)
         try:
             async with asyncio.timeout(self.timeout_s) as startup_deadline:
@@ -735,6 +748,10 @@ class OpenAILiveSession:
                     self._active(generation)
                     if startup_deadline.expired():
                         raise LiveProtocolError("live_startup_deadline_expired")
+                    await self._set_input_audio_enabled(
+                        self._webrtc_input_audio_enabled, connection, generation
+                    )
+                    self._active(generation)
                     assert self.on_webrtc_answer is not None
                     await self.on_webrtc_answer(session_id, answer, generation)
                     self._active(generation)
@@ -998,6 +1015,9 @@ class OpenAILiveSession:
             for waiter in self._append_waiters.values():
                 if not waiter.done():
                     waiter.set_exception(failure)
+            for _, waiter in self._input_audio_waiters.values():
+                if not waiter.done():
+                    waiter.set_exception(failure)
             # On protocol failure stale audio/tools cannot escape a saturated queue.
             while not self._queue.empty():
                 self._queue.get_nowait()
@@ -1052,9 +1072,15 @@ class OpenAILiveSession:
             if self._close_requested or self._ready is None or self._ready.done():
                 return
             assert self._webrtc_session_id is not None
-            self._emit(LiveTransportReady(self._webrtc_session_id, generation))
+            self._attachment_acked = True
             self._observe_private_contract("talk_attachment_ack", generation)
-            self._ready.set_result(None)
+            self._ready_webrtc_transport(generation)
+        elif kind in {"session.input_audio.muted", "session.input_audio.unmuted"}:
+            waiting = self._input_audio_waiters.get(event.get("client_event_id", ""))
+            if waiting is not None and waiting[0] == kind and not waiting[1].done():
+                self._input_audio_enabled = kind == "session.input_audio.unmuted"
+                waiting[1].set_result(None)
+                self._ready_webrtc_transport(generation)
         elif kind == "session.output_audio.delta":
             if self.transport == "webrtc":
                 return  # Browser WebRTC owns media; sideband reflection is never a second sink.
@@ -1443,6 +1469,54 @@ class OpenAILiveSession:
                     audio=base64.b64encode(wire).decode("ascii")
                 )
 
+    def _ready_webrtc_transport(self, generation: int) -> None:
+        if (
+            self.transport == "webrtc"
+            and generation == self._connection_generation
+            and self._attachment_acked
+            and self._input_audio_enabled is self._webrtc_input_audio_enabled
+            and not self._close_requested
+            and self._ready is not None
+            and not self._ready.done()
+        ):
+            assert self._webrtc_session_id is not None
+            self._emit(LiveTransportReady(self._webrtc_session_id, generation))
+            self._ready.set_result(None)
+
+    async def _set_input_audio_enabled(
+        self, enabled: bool, connection: Any, generation: int
+    ) -> None:
+        if self._input_audio_enabled is enabled:
+            return
+        event_id = "audio_mode_" + uuid.uuid4().hex
+        expected = "session.input_audio.unmuted" if enabled else "session.input_audio.muted"
+        waiter = asyncio.get_running_loop().create_future()
+        self._input_audio_waiters[event_id] = (expected, waiter)
+        self._input_audio_enabled = None  # A sent mode change is unknown until its exact ACK.
+        try:
+            async with asyncio.timeout(self.timeout_s):
+                method = (
+                    connection.session.input_audio.unmute
+                    if enabled
+                    else connection.session.input_audio.mute
+                )
+                await method(event_id=event_id)
+                await waiter
+                if generation != self._connection_generation or self._close_requested:
+                    raise LiveProtocolError("live_audio_input_mode_superseded")
+        finally:
+            self._input_audio_waiters.pop(event_id, None)
+
+    async def set_input_audio_enabled(self, enabled: bool) -> None:
+        if self.transport != "webrtc" or type(enabled) is not bool:
+            raise LiveProtocolError("live_audio_input_mode_unavailable")
+        generation = self._connection_generation
+        if self._ready is None or not self._ready.done() or self._input_audio_enabled is None:
+            raise LiveProtocolError("live_audio_input_mode_not_ready")
+        async with self._send_lock:
+            connection = self._active(generation)
+            await self._set_input_audio_enabled(enabled, connection, generation)
+
     async def send_text(
         self,
         text: str,
@@ -1454,8 +1528,14 @@ class OpenAILiveSession:
         del turn_id  # Live has no provider input-turn ACK; do not fabricate one.
         command = command_id or item_id or uuid.uuid4().hex
         generation = self._connection_generation
+        if self.transport == "webrtc" and (
+            self._ready is None or not self._ready.done() or self._input_audio_enabled is None
+        ):
+            raise LiveProtocolError("live_audio_input_mode_not_ready")
         async with self._send_lock:
             connection = self._active(generation)
+            if self.transport == "webrtc" and self._input_audio_enabled is None:
+                raise LiveProtocolError("live_audio_input_mode_not_ready")
             async with asyncio.timeout(self.timeout_s):
                 await connection.response.item.create(
                     event_id=f"text_{command}",
@@ -1915,6 +1995,10 @@ class OpenAILiveSession:
                 if not waiter.done():
                     waiter.cancel()
             self._append_waiters.clear()
+            for _, waiter in self._input_audio_waiters.values():
+                if not waiter.done():
+                    waiter.cancel()
+            self._input_audio_waiters.clear()
             try:
                 async with asyncio.timeout(self.timeout_s):
                     if manager is not None:

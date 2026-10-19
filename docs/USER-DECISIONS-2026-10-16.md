@@ -1,6 +1,25 @@
+## Nyeste præcisering ·19. oktober2026 · konceptet bevares
+
+Brugeren præciserer efter de tre nye studier: layoutet skal ikke nødvendigvis bevares direkte, men **konceptet skal**. De gode widgetidéer og løsninger må videreudvikles inden for PodViews genkendelige samspil mellem widget-/opgaveområde, vedvarende musikplayer og fotografisk Ro. Størrelser, proportioner, placeringer og dobbelthøjde må udvikles med begrundelse; ingen pixelmæssig fastlåsning og ingen erstatning med et andet produktkoncept. Den umiddelbart foregående assistantpåstand om at bevare hele layoutet var for snæver. De tre nye studier er inspiration til widgetløsninger, ikke godkendte komplette kompositioner. Vis forbedringer i denne sammenhæng før visuel slutaccept.
+
+## Seneste direkte retning ·19. oktober2026 · samlet UI-reset
+
+- Hele PodView-oplevelsen genåbnes: brand, komposition, hver widgets størrelse, detaljeside, tilstand, interaktion, animation og overgang. Apple Home, Mac og Tesla er kvalitetspejlemærker. Gamle godkendelser af enkeltbilleder låser ikke den nye visuelle retning.
+- Seneste billede1 og3 har meget lav vægt som præferenceinput. Ingen ny helhedsretning er valgt. Dribbble25911200 er direkte afvist og bruges ikke som positiv reference.
+- Kun Denver PFF-1082,1280×800,16:10 er produktmålet. Mac er udviklingsvisning. Ét eksisterende kanonisk bibliotek og de registrerede renderer-ejere bevares; dette beskytter fælles implementation, ikke afvist styling.
+- Visuelle retninger skal præsenteres sammenhængende med Ro, overblik, detaljer og tilstande, før der hævdes visuel accept. Research, kildegate og lokale tests er ikke visuel eller fysisk godkendelse.
+- Spotify-artwork bevarer det korrekte motiv og format på tværs af kort, player, kø og detaljer. Ny indholdsidentitet må ikke vise den tidligere listes billede. Ingen AI-efterligning af faktiske covers. Naturlige temabilleder skal være forskellige mellem de tre valg og kan genbruges med korrekt identitet.
+- Privat iCloud-album ønskes koblet til Ro snarest; faktisk kilde, album og normal login/2FA afklares via Home Assistant. Nuværende baggrund bevares indtil en reel billedkilde virker. Kalender og fælles indkøbsliste er fravalgt.
+
 # Gældende brugerbeslutninger · 16. oktober 2026
 
 ## Seneste direkte beslutninger ·19. oktober2026
+
+- **Eneste produktmål er Denver PFF-1082**, native1280×800/16:10 ifølge den officielle specifikation. Mac er kun udvikling/test med samme målformat. Tidligere iPad-/mobil- og øvrige Frameo-designmål er overstyret; faktisk installation/touch/WebView på1082 er særskilt bevis.
+- Stemning/Humør: brugeren forkaster det nuværende AI-billedudtryk. Krav: naturligt fotografisk udtryk, tre forskellige samtidige billeder, cache/genbrug af tidligere gode billeder tilladt. Rigtige Spotify-playlistebilleder prioriteres gennem valideret kildekæde; ingen ny betalt billedudbyder eller1sekundsgaranti er aktiveret.
+- **Visuel leverance har førsteprioritet**, mens resterende funktionelle dele færdiggøres parallelt. Nye konkrete retninger skal vises; et gammelt mockup eller testtal er ikke den bestilte designleverance.
+
+- Seneste afvisning: brugeren ønsker **ikke dagens aftaler eller en fælles indkøbsliste** som fremtidige widgets. Forslaget udgår; fokus er de eksisterende widgets, deres samlede design og funktion. Ingen nye familier tilføjes på baggrund af den tidligere anbefaling.
 
 - Alle seks konkrete researchfund skal omsættes til produktændringer: samlet robotstatus/betjening, kort rengøringsforløb, ærligt AI-grundlag, nyttig tom player, faktisk rumafspilning og ens komponentroller. Researchmængde er ikke implementering eller kvalitetsgodkendelse. Header skal have fælles optiske baselines og afbalanceret vægt; lys beholder sit gule univers også uden forbindelse, uden at farven foregiver tændt tilstand.
 - Ro skal på kort sigt kunne vise familiens/børnenes billeder som en ægte fotoramme. Dette er en særskilt kommende opgave; ingen fotos, album eller billedkilde er endnu leveret eller valgt. Det giver ikke adgang til en privat fotobibliotekskilde eller tilladelse til en ny cloud-upload.

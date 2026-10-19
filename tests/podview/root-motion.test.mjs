@@ -9,31 +9,31 @@ function resourceFixture(){
  const host={dataset:{motion:'system'},querySelectorAll:()=>nodes};
  const motion=new SceneMotion(host);
  function tile(y,log=[]){
-  const node={y,log,animations:[],getClientRects:()=>[{}],getBoundingClientRect(){this.log.push('read');return {x:0,y:this.y,width:200,height:80};},animate(frames,options){const animation={frames,options,cancelled:0,finished:new Promise(()=>{}),cancel(){this.cancelled++;node.log.push('cancel');}};this.animations.push(animation);return animation;}};
+  const node={y,visualOffset:0,log,animations:[],offsetParent:null,get offsetLeft(){return 0;},get offsetTop(){return this.y;},offsetWidth:200,offsetHeight:80,getClientRects:()=>[{}],getBoundingClientRect(){this.log.push('read');return {x:0,y:this.y+this.visualOffset,width:200,height:80};},animate(frames,options){const animation={frames,options,cancelled:0,finished:new Promise(()=>{}),cancel(){this.cancelled++;node.visualOffset=0;node.log.push('cancel');}};this.animations.push(animation);return animation;}};
   nodes.push(node);return node;
  }
  return {host,motion,nodes,tile};
 }
 function withMotionPreference(run,{reduced=false}={}){const previous=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:reduced});try{return run();}finally{globalThis.matchMedia=previous;}}
 
-test('resource capture measures the visible box before cancelling its owned animation',()=>withMotionPreference(()=>{
+test('resource capture measures the visible box without cancelling its owned animation',()=>withMotionPreference(()=>{
  const f=resourceFixture(),log=[],tile=f.tile(180,log);
  f.motion.animate(tile,[{transform:'translateY(-20px)'},{transform:'none'}],240);
  log.length=0;tile.y=160;
  const before=f.motion.resources();
- assert.deepEqual(log,['read','cancel']);
+ assert.deepEqual(log,['read']);
  assert.equal(before.get(tile).y,160);
- assert.equal(f.motion.animations.has(tile),false);
+ assert.equal(f.motion.animations.has(tile),true);
 }));
 
-test('unchanged resource geometry does not restart a cancelled animation',()=>withMotionPreference(()=>{
+test('unchanged resource geometry neither cancels nor restarts an active animation',()=>withMotionPreference(()=>{
  const f=resourceFixture(),tile=f.tile(180);
  f.motion.animate(tile,[{opacity:.5},{opacity:1}],160);
  const before=f.motion.resources();
  f.motion.settleResources(before);
- assert.equal(tile.animations[0].cancelled,1);
+ assert.equal(tile.animations[0].cancelled,0);
  assert.equal(tile.animations.length,1);
- assert.equal(f.motion.animations.size,0);
+ assert.equal(f.motion.animations.size,1);
 }));
 
 test('adding a resource fades it in and FLIP-shifts an existing resource below it',()=>withMotionPreference(()=>{
@@ -74,4 +74,19 @@ test('a reduced-motion retarget drops the cancelled animation owner immediately'
  const f=resourceFixture(),tile=f.tile(100);f.motion.animate(tile,[{opacity:0},{opacity:1}]);const animation=tile.animations[0];
  f.host.dataset.motion='reduced';f.motion.animate(tile,[{opacity:0},{opacity:1}]);
  assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,0);assert.equal(tile.animations.length,1);
+}));
+
+
+test('normal animation progress during an unchanged render is not mistaken for a layout change',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(180);f.motion.animate(tile,[{transform:'translateY(-20px)'},{transform:'none'}]);tile.visualOffset=-20;const before=f.motion.resources();tile.visualOffset=-15;f.motion.settleResources(before);assert.equal(tile.animations[0].cancelled,0);assert.equal(tile.animations.length,1);assert.equal(f.motion.animations.size,1);f.motion.cancel();
+}));
+test('a genuine layout retarget starts from the prior visible position with one animation owner',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(180);f.motion.animate(tile,[{transform:'translateY(-20px)'},{transform:'none'}]);tile.visualOffset=-20;const before=f.motion.resources();tile.y=220;f.motion.settleResources(before);assert.equal(tile.animations[0].cancelled,1);assert.equal(tile.animations.length,2);assert.deepEqual(tile.animations[1].frames,[{transform:'translate(0px,-60px)'},{transform:'none'}]);assert.equal(f.motion.animations.get(tile),tile.animations[1]);f.motion.cancel();assert.equal(tile.animations[1].cancelled,1);
+}));
+test('switching reduced motion cancels an already active resource transition without a replacement',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(180);f.motion.animate(tile,[{opacity:.5},{opacity:1}]);const before=f.motion.resources();f.host.dataset.motion='reduced';f.motion.settleResources(before);assert.equal(tile.animations[0].cancelled,1);assert.equal(tile.animations.length,1);assert.equal(f.motion.animations.size,0);
+}));
+
+test('an animation finishing between capture and settle does not create a replacement on unchanged layout',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(180);f.motion.animate(tile,[{transform:'translateY(-20px)'},{transform:'none'}]);tile.visualOffset=-5;const before=f.motion.resources();f.motion.animations.delete(tile);tile.visualOffset=0;f.motion.settleResources(before);assert.equal(tile.animations.length,1);assert.equal(tile.animations[0].cancelled,0);assert.equal(f.motion.animations.size,0);
 }));

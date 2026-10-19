@@ -141,6 +141,8 @@ class _LiveHandshake:
     resume_requested: bool = False
     resumed: asyncio.Future | None = None
     held: asyncio.Future | None = None
+    microphone: bool = False
+    input_mode_revision: int = 0
     activity_seq: int = 0
     activity_timestamp_ms: float = -1.0
 
@@ -337,6 +339,45 @@ class BrowserLink:
             "generation": handshake.generation,
         }
 
+    @property
+    def live_input_audio_enabled(self) -> bool:
+        handshake = self._live_handshake
+        if handshake is None:
+            raise RuntimeError("browser_live_handshake_missing")
+        self._require_live(handshake)
+        return handshake.microphone
+
+    def admit_live_input_mode(self, data: dict) -> bool:
+        handshake = self._live_handshake
+        if (
+            handshake is None
+            or not handshake.valid
+            or self._socket_closed
+            or data.get("attempt_id") != handshake.attempt_id
+            or data.get("provider_session_id") != handshake.provider_session_id
+            or type(data.get("generation")) is not int
+            or data["generation"] != handshake.generation
+            or type(data.get("microphone")) is not bool
+        ):
+            return False
+        handshake.microphone = data["microphone"]
+        handshake.input_mode_revision += 1
+        data["input_mode_revision"] = handshake.input_mode_revision
+        return True
+
+    async def sync_live_input_mode(self, brain, data: dict | None = None) -> None:
+        handshake = self._live_handshake
+        if handshake is None:
+            raise RuntimeError("browser_live_handshake_missing")
+        self._require_live(handshake)
+        revision = handshake.input_mode_revision
+        if data is not None and data.get("input_mode_revision") != revision:
+            raise RuntimeError("browser_live_input_mode_superseded")
+        await brain.set_input_audio_enabled(handshake.microphone)
+        self._require_live(handshake)
+        if handshake.input_mode_revision != revision:
+            raise RuntimeError("browser_live_input_mode_superseded")
+
     async def wait_live_started(self) -> None:
         handshake = self._live_handshake
         if handshake is None:
@@ -502,12 +543,14 @@ class BrowserLink:
             offer = data.get("sdp")
             if (
                 handshake.offer.done()
+                or type(data.get("microphone")) is not bool
                 or not isinstance(offer, str)
                 or not offer.startswith("v=0")
                 or len(offer.encode()) > 65536
             ):
                 self.invalidate_live_handshake()
                 return True
+            handshake.microphone = data["microphone"]
             handshake.offer.set_result(offer)
         elif kind == "live_resumed":
             if (
@@ -976,6 +1019,11 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                 "status": "accepted" if active else "rejected",
                 "code": "accepted" if active else "unavailable",
             }
+        if data["type"] == "live_input_mode":
+            await link.sync_live_input_mode(session.brain, data)
+            return {"status": "accepted", "code": "accepted"}
+        if getattr(session, "_active", False) and getattr(session, "_live_webrtc", False):
+            await link.sync_live_input_mode(session.brain)
         return await session.submit_text(str(data.get("text") or ""), data["command_id"])
 
     async def command_worker() -> None:
@@ -1070,7 +1118,7 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                 if not isinstance(data, dict):
                     continue
                 kind = data.get("type")
-                if kind in ("wake", "stop", "text"):
+                if kind in ("wake", "stop", "text", "live_input_mode"):
                     data["command_id"] = str(data.get("command_id") or uuid.uuid4().hex)
                 if kind == "stop":
                     if data["command_id"] in stop_receipts:
@@ -1088,6 +1136,13 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                 }:
                     if link.receive_live(data):
                         begin_stop("live-fault-" + uuid.uuid4().hex)
+                elif kind == "live_input_mode":
+                    if link.admit_live_input_mode(data):
+                        commands.put_nowait((command_epoch, data, stopping))
+                    else:
+                        await receipt(
+                            data["command_id"], status="rejected", code="stale_input_mode"
+                        )
                 elif kind in ("wake", "text"):
                     commands.put_nowait((command_epoch, data, stopping))
                 elif kind == "media":

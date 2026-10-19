@@ -167,6 +167,7 @@ class PodVoiceOptionsFlow(OptionsFlow):
             ):
                 choices[f"revoke_identity:{row['id']}"] = f"Fjern {row['name'][:80]}"
         choices["revoke:"] = "Nødluk hele rummet"
+        choices["recover:"] = "Gendan skærmadgang · fjern alle tidligere skærme"
         self._choices = choices
         return self.async_show_form(
             step_id="manage",
@@ -181,7 +182,7 @@ class PodVoiceOptionsFlow(OptionsFlow):
             or self._room not in self._rooms()
             or self._selected_endpoint is None
             or self._physical_endpoint(self._room) != self._selected_endpoint
-            or self._action not in ("approve", "revoke_identity", "revoke")
+            or self._action not in ("approve", "revoke_identity", "revoke", "recover")
         ):
             return self.async_abort(reason="admin_required")
         if self._submitted:

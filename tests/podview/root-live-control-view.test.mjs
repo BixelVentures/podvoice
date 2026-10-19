@@ -110,3 +110,11 @@ test('a failed robot setup keeps the canonical observed care panel without admit
 test('an admitted robot task cannot write after its observed device disappears or becomes stale',async()=>{
  const f=fixture();try{await open(f);assert.equal(f.view.robotPanel.disabled,false);f.host.state.devices=[];f.view.render();assert.equal(f.view.robotPanel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);f.host.state.devices=[{id:target.entityId,kind:'vacuum',live:true,status:'cleaning',stale:true}];f.view.render();assert.equal(f.view.robotPanel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);}finally{f.view.cleanup();}
 });
+
+function historicalOffer(f){return {...f.offer(),options:[{id:'reuse-current',action:'reuse',label:'Brug denne rengøring',argsSchema:{kind:'none'}},{id:'start-current',action:'start',label:'Start rengøring',argsSchema:{kind:'cleaning',areas:[{id:'area-current',label:'Køkken'}],repeat:{min:1,max:3}}}],setup:{historyDraft:{source:'accepted_start_history',optionId:'start-current',areaIds:['area-current'],repeat:2}}};}
+test('only an explicitly selected historical recipe setup can publish its validated task-bound draft with no action',async()=>{
+ for(const selected of [true,false]){const f=fixture();try{const opening=f.view.open('vacuum',target,new Node('button'),selected?'selected-recipe':undefined);f.setup.resolve(historicalOffer(f));await opening;assert.equal(f.calls(),0);if(selected){assert.deepEqual(f.view.task.historyDraft,{source:'accepted_start_history',optionId:'start-current',areaIds:['area-current'],repeat:2});assert.equal(f.view.robotPanel.data.task,f.view.task);}else{assert.equal(f.view.task,null);assert.match(f.view.note.textContent,/kunne ikke hentes/);}}finally{f.view.cleanup();}}
+});
+test('a selected historical setup arriving after room replacement cannot prefill or dispatch',async()=>{
+ const f=fixture();try{const opening=f.view.open('vacuum',target,new Node('button'),'selected-recipe');f.host.liveSnapshot.roomId='other';f.setup.resolve(historicalOffer(f));await opening;assert.equal(f.view.task,null);assert.equal(f.calls(),0);}finally{f.view.cleanup();}
+});

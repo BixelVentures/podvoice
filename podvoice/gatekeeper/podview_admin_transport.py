@@ -47,7 +47,8 @@ def _command(raw: bytes) -> dict:
         or set(value) != expected
         or type(value["schema"]) is not int
         or value["schema"] != 1
-        or action not in ("provision", "revoke", "list", "prepare", "approve", "revoke_identity")
+        or action
+        not in ("provision", "revoke", "recover", "list", "prepare", "approve", "revoke_identity")
         or not isinstance(value["room"], str)
         or not 1 <= len(value["room"]) <= 160
         or not isinstance(value["nonce"], str)
@@ -199,7 +200,18 @@ class AdminStdinTransport:
                     self.bridge._pairing_deadline = time.monotonic() + max(
                         0, row["deadline"] - time.time()
                     )
-                elif command["action"] == "revoke":
+                elif command["action"] in ("revoke", "recover"):
+                    recovering = command["action"] == "recover"
+                    if recovering and self.bridge.controls.policy.get("roomId") != room:
+                        raise ValueError("room policy unavailable")
+                    binding = self.bridge.controller_owner(room) if recovering else None
+                    pin = self.bridge.controller_pin(room) if recovering else ""
+                    if recovering:
+                        # Fence existing browser authority before the first disk await.
+                        self.bridge._controller_enabled = False
+                        self.bridge._pairing_hash = ""
+                        self.bridge._grants.clear()
+                        self.bridge._controller_grants.clear()
                     row = await asyncio.to_thread(self.state.load)
                     if (
                         row is None
@@ -226,9 +238,22 @@ class AdminStdinTransport:
                         )
                     if not self.bridge.revoke(room):
                         raise ValueError("registry revoke failed")
+                    if recovering and (
+                        not self.bridge.controller_owner_current(room, binding)
+                        or self.bridge.controller_pin(room) != pin
+                    ):
+                        raise ValueError("room owner changed")
                     reopened, registry = await asyncio.to_thread(
-                        self.state.profiles, room, row["pin"], self.registry_path
+                        self.state.profiles,
+                        room,
+                        pin if recovering else row["pin"],
+                        self.registry_path,
                     )
+                    if recovering and (
+                        not self.bridge.controller_owner_current(room, binding)
+                        or self.bridge.controller_pin(room) != pin
+                    ):
+                        raise ValueError("room owner changed")
                     self.bridge._controller_registry = registry
                     self.bridge._controller_enabled = reopened["enabled"]
                     self.bridge._controller_admin_state = self.state

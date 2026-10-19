@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sourceMusicCards,localMusicCards,fixtureArtwork,MUSIC_TABS} from '../../podvoice/gatekeeper/static/podview/music-results.js';
+import {sourceMusicCards,localMusicCards,fixtureArtwork,MUSIC_TABS,MusicResults} from '../../podvoice/gatekeeper/static/podview/music-results.js';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
 import {initialWidgetState,resultsFor} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
@@ -16,3 +16,45 @@ const sampleBody=count=>({ok:true,data:{config_entry_id:'account',tracks:Array.f
 test('stable full provider sample advances three actual source items only after a successful reread',()=>{const f=catalogue(),body=sampleBody(7);f.view.select('top');f.view.tracks('top',body,'account');assert.equal(f.view.sample.length,7);assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 0','Actual source 1','Actual source 2']);const first=f.view.cards;f.view.refresh();assert.equal(f.view.cards,first);assert.equal(f.view.busy,true);f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 3','Actual source 4','Actual source 5']);assert.equal(f.view.offset,3);const second=f.view.cards,sample=f.view.sample;f.view.refresh();f.view.failure('top');assert.equal(f.view.cards,second);assert.equal(f.view.sample,sample);assert.equal(f.view.offset,3);f.view.refresh();f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 6']);f.view.refresh();f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 0','Actual source 1','Actual source 2']);assert.deepEqual(f.reads,['top','top','top','top','top']);assert.equal(f.renders.at(-1).canChoose,false);});
 test('unchanged three-song source admits no fake extra suggestions and account reset clears sample page',()=>{const f=catalogue(),body=sampleBody(3);f.view.select('recent');f.view.tracks('recent',body,'account');const names=f.view.cards.map(card=>card.name);f.view.refresh();f.view.tracks('recent',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),names);assert.match(f.view.status,/Ingen andre sange/);f.view.resetAccount('other');assert.deepEqual(f.view.sample,[]);assert.equal(f.view.offset,0);});
 test('switching collection clears previous membership during loading and failure while same-collection refresh retains it',()=>{const f=catalogue(),body=sampleBody(7);f.view.select('top');f.view.tracks('top',body,'account');f.view.refresh();f.view.tracks('top',body,'account');assert.equal(f.view.offset,3);assert.equal(f.view.cards.length,3);f.view.select('recent');assert.equal(f.view.busy,true);assert.deepEqual(f.view.cards,[]);assert.deepEqual(f.view.sample,[]);assert.equal(f.view.offset,0);assert.equal(f.view.renderedKind,null);assert.equal(f.renders.at(-1).collection,'recent');assert.deepEqual(f.renders.at(-1).cards,[]);f.view.failure('recent');assert.equal(f.view.busy,false);assert.deepEqual(f.renders.at(-1).cards,[]);assert.match(f.renders.at(-1).status,/kunne ikke hentes/);f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards,[]);f.view.select('recent');f.view.tracks('recent',body,'account');const likedCards=f.view.cards;f.view.refresh();assert.equal(f.view.cards,likedCards);f.view.failure('recent');assert.equal(f.view.cards,likedCards);});
+
+
+function retainedResultSurface(){
+ const writes=[];
+ class ResultNode{
+  constructor(tag){this.tag=tag;this.children=[];this.parentNode=null;this.attrs=new Map();this.listeners=new Map();const values={textContent:'',disabled:false,hidden:false,src:'',alt:'',referrerPolicy:'',decoding:'',className:''};
+   for(const key of Object.keys(values))Object.defineProperty(this,key,{get:()=>values[key],set:value=>{writes.push([this,key,value]);values[key]=value;}});
+   this.dataset=new Proxy({},{set:(target,key,value)=>{writes.push([this,'data-'+key,value]);target[key]=value;return true;},deleteProperty:(target,key)=>{if(key in target)writes.push([this,'delete-data-'+key]);delete target[key];return true;}});
+   this.style=new Proxy({},{set:(target,key,value)=>{writes.push([this,'style-'+key,value]);target[key]=value;return true;}});const classes=new Set();this.classList={contains:name=>classes.has(name),add:name=>{writes.push([this,'class-add',name]);classes.add(name);},remove:name=>{writes.push([this,'class-remove',name]);classes.delete(name);},toggle:(name,on)=>{writes.push([this,'class-toggle',name]);if(on)classes.add(name);else classes.delete(name);}};
+  }
+  append(...nodes){for(const node of nodes)this.insertBefore(node,null);}
+  insertBefore(node,before){writes.push([this,'insert',node]);if(node.parentNode){const old=node.parentNode.children;old.splice(old.indexOf(node),1);}node.parentNode=this;const index=before?this.children.indexOf(before):this.children.length;this.children.splice(index,0,node);}
+  remove(){if(this.parentNode){writes.push([this,'remove']);const parent=this.parentNode;parent.children.splice(parent.children.indexOf(this),1);this.parentNode=null;}}
+  setAttribute(name,value){writes.push([this,name,value]);this.attrs.set(name,String(value));}
+  getAttribute(name){return name==='src'?this.src:this.attrs.get(name)??null;}
+  addEventListener(name,handler){this.listeners.set(name,handler);}
+  querySelector(selector){return selector==='[data-refresh-label]'?this.label:null;}
+  querySelectorAll(){return this.children;}
+ }
+ const doc={createElement:tag=>{const node=new ResultNode(tag);node.ownerDocument=doc;return node;}};
+ const nodes=new Map(['result-list','empty','result-count','response-title','music-refinements','music-refresh'].map(id=>[id,doc.createElement('div')]));nodes.get('music-refresh').label=doc.createElement('span');for(const [id]of MUSIC_TABS){const tab=doc.createElement('button');tab.dataset.collection=id;nodes.get('music-refinements').append(tab);}
+ const host={ownerDocument:doc,state:{focus:'music'},querySelector:selector=>nodes.get(selector.slice(1))};const chosen=[],view=new MusicResults(host,{choose:card=>chosen.push(card)});
+ return {host,view,nodes,writes,chosen,clear:()=>{writes.length=0;}};
+}
+const resultCards=()=>[{id:'first',name:'Musik til morgen',description:'Faktisk liste',detail:'Fra Spotify',fixtureArt:'assets/kitchen.png',artLabel:'Morgen',revision:1},{id:'second',name:'En rolig stund',description:'En anden liste',detail:'Fra Spotify',fixtureArt:'assets/lake.png',artLabel:'Ro',revision:1}];
+test('identical shared music render writes no DOM leaves or artwork and preserves keyed rows',()=>{
+ const f=retainedResultSurface(),vm={cards:resultCards(),heading:'Musik',revision:1};f.view.render(vm);const rows=[...f.nodes.get('result-list').children];f.clear();f.view.render({...vm,cards:resultCards()});f.view.render({...vm,cards:resultCards()});assert.deepEqual(f.writes,[]);assert.deepEqual(f.nodes.get('result-list').children,rows);f.view.cleanup();
+});
+test('one changed music title updates only that title and accessible label while authority revocation is immediate',()=>{
+ const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const row=f.nodes.get('result-list').children[0];f.clear();const changed=cards.map(card=>({...card}));changed[0].name='Ny titel';f.view.render({cards:changed});assert.deepEqual(f.writes.map(([,key])=>key),['aria-label','textContent']);assert.equal(row.children[1].children[0].textContent,'Ny titel');f.clear();f.view.render({cards:changed,canChoose:false});assert.equal(row.disabled,true);row.listeners.get('click')();assert.equal(f.chosen.length,0);assert.equal(f.writes.some(([,key])=>key==='src'),false);f.view.cleanup();
+});
+test('unchanged empty-busy music retains the same three placeholders without detach or reappend',()=>{
+ const f=retainedResultSurface();f.view.render({busy:true,cards:[]});const rows=[...f.nodes.get('result-list').children];f.clear();f.view.render({busy:true,cards:[]});assert.deepEqual(f.writes,[]);assert.deepEqual(f.nodes.get('result-list').children,rows);f.view.render({cards:resultCards()});assert.equal(f.nodes.get('result-list').children.some(row=>rows.includes(row)),false);f.view.cleanup();
+});
+test('shared music removal and cleanup cancel owned probes without changing retained cards',()=>{
+ const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const rows=[...f.nodes.get('result-list').children],removed=[],requests=rows.map(row=>{const request={cancelled:false,probe:{onload:()=>{},onerror:()=>{},removeAttribute:name=>removed.push(name)}};row.children[0].artworkRequest=request;row.children[0].dataset.artworkPending='true';return request;});
+ f.view.render({cards:[cards[1]]});assert.equal(requests[0].cancelled,true);assert.equal(requests[0].probe.onload,null);assert.equal(requests[1].cancelled,false);assert.equal(f.nodes.get('result-list').children[0],rows[1]);f.view.cleanup();assert.equal(requests[1].cancelled,true);assert.equal(requests[1].probe.onerror,null);assert.deepEqual(removed,['src','src']);
+});
+
+test('canonical result nodes prefer actual source playlist art over illustration and retain identical source cover without DOM writes',()=>{const f=retainedResultSurface(),uri='spotify:playlist:0123456789ABCDEFGHIJKL',artwork={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/sourceplaylist'},card={id:'source:0:'+uri,uri,name:'En rolig stund',sourceName:'Actual playlist name',description:'Actual playlist name',fixtureArt:'assets/lake.png',artwork};f.view.render({cards:[card]});const row=f.nodes.get('result-list').children[0];assert.equal(row.children[0].src,artwork.url);assert.equal(row.children[0].alt,'Playlisteomslag til Actual playlist name');assert.equal(row.children[0].classList.contains('spotify-artwork'),true);f.clear();f.view.render({cards:[{...card,artwork:{...artwork}}]});assert.deepEqual(f.writes,[]);assert.equal(f.nodes.get('result-list').children[0],row);f.view.cleanup();});
+
+test('actual track cards from the same album retain their genuine source covers rather than inventing unique playlist illustrations',()=>{const rows=[0,1,2].map(i=>({...track,uri:'spotify:track:'+String(i).padStart(22,'0')})),cards=sourceMusicCards(rows);assert.equal(cards.length,3);assert.equal(cards.every(card=>card.artwork.url===track.artwork.url&&!card.fixtureArt),true);assert.equal(cards.every(card=>!('sourceArtwork' in card)),true);});

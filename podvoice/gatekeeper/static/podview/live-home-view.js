@@ -10,8 +10,13 @@ export function renderLiveWeather(host){
   const button=$(id),visible=w?(id==='home-weather'?host.state.focus==='now':host.state.focus==='photo'?id==='photo-weather':id!=='photo-weather'):id==='home-weather'&&host.state.focus==='now'&&host.liveSnapshot?.capabilities?.homeRead?.includes('weather')===true;
   if(button.hidden!==!visible)button.hidden=!visible;if(button.disabled!==(!w&&!visible))button.disabled=!w&&!visible;
   const icon=button.querySelector(':scope > img'),file=w?conditionIcon(w.current?.condition,w.current?.isDaytime):null;if(icon){if(icon.hidden!==!file)icon.hidden=!file;const src=file?`assets/icons/${file}.svg`:null;if(src&&icon.getAttribute('src')!==src)icon.src=src;}
-  const strong=button.querySelector('strong'),title=!w?'Vejr':id==='home-weather'?[Number.isFinite(temp)?weatherTemperature(temp,w.unit):'Vejr',condition].filter(Boolean).join(' '):Number.isFinite(temp)?weatherTemperature(temp,w.unit):'Vejr';if(strong&&strong.textContent!==title)strong.textContent=title;
-  const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!w?'Ingen vejrdata':id==='home-weather'?[model.title,label].filter(Boolean).join(' · '):w.stale||!connected?'Sidst kendt':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;button.querySelector('.home-forecast')?.remove();
+  const temperature=Number.isFinite(temp)?weatherTemperature(temp,w.unit):'Vejr';
+  if(id==='home-weather'){
+   const value=button.querySelector('.home-temperature'),description=button.querySelector('.home-condition'),forecast=button.querySelector('.home-forecast'),range=model.current?.range||'';
+   if(value&&value.textContent!==temperature)value.textContent=temperature;if(description&&description.textContent!==condition)description.textContent=condition;
+   if(forecast){if(forecast.textContent!==range)forecast.textContent=range;if(forecast.hidden!==!range)forecast.hidden=!range;}
+  }else{const strong=button.querySelector('strong');if(strong&&strong.textContent!==temperature)strong.textContent=temperature;}
+  const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!w?'Ingen vejrdata':id==='home-weather'?[model.title,label].filter(Boolean).join(' · '):w.stale||!connected?'Sidst kendt':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;
  }
  const refreshAt=model.refreshAt||model.adviceUntil||null;if(refreshAt!==host.weatherAdviceAt||refreshAt&&!host.weatherAdviceTimer){globalThis.clearTimeout(host.weatherAdviceTimer);host.weatherAdviceTimer=null;host.weatherAdviceAt=refreshAt;if(refreshAt){let handle;handle=globalThis.setTimeout(()=>{if(host.weatherAdviceTimer!==handle)return;host.weatherAdviceTimer=null;if(host.isConnected)renderLiveWeather(host);},Math.min(2147483647,refreshAt-Date.now()+1));host.weatherAdviceTimer=handle;}}
 }

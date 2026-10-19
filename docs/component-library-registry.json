@@ -1210,7 +1210,8 @@
           "method:createRow": 1,
           "method:renderControls": 1,
           "method:renderPlayer": 1,
-          "function:placeOutputHeader": 1
+          "function:placeOutputHeader": 1,
+          "method:cleanup": 1
         },
         "roots": [
           "native:button:queue-track"
@@ -1397,7 +1398,8 @@
       "domOwner": "RobotControlPanel",
       "factoryClassArgument": 2,
       "imports": [
-        "dist/robot-observation.js"
+        "dist/robot-observation.js",
+        "dist/control-model.js"
       ],
       "surface": {
         "customElementAccesses": 3,
@@ -1420,6 +1422,7 @@
           "method:suggest": 1,
           "method:syncDisabled": 1,
           "method:updateObservation": 1,
+          "method:validHistoryDraft": 1,
           "method:validSuggestion": 1
         },
         "roots": [

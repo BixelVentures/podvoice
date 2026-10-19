@@ -219,7 +219,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "276f975cd9472b684d8640463964fc5c6fda0f27f424d8c6179169e085771aa6"
+      "sha256": "996f0558d4d3bb5f41057833d7b751e02dadf0d0b24c991b1eb13c2314ceefb9"
     },
     {
       "path": "example-sources.html",
@@ -231,7 +231,7 @@
     },
     {
       "path": "frame-layout.css",
-      "sha256": "47141d25a7374b8d7b81f8f0761ff46814c31b49a16f706af384d596ecf06000"
+      "sha256": "a911161318a9a776646744eaa3bc4d25b8b8ec6808c5bacdd38ad82e0b131d68"
     },
     {
       "path": "home-model.js",
@@ -267,19 +267,19 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "d6be6f4b189889a2ff70c02aaaeaac9636a3f8be0333017efb21ab4a7d559c2a"
+      "sha256": "92f80d0cc860072249aa2f8ece165ad3a393af297b0825cee7c817fcdddb20de"
     },
     {
       "path": "live-home-view.js",
-      "sha256": "f87b910b98ecc95487d575be2f335a5b39f4d9fd267d8066f0196c1f536574cc"
+      "sha256": "d0a90d3304b2f3e6eaa3e531fd5064d266ba8df0ef3ef106760dcd58a6aaad28"
     },
     {
       "path": "live-media-view.js",
-      "sha256": "2e79d419c5b73f4ca60b3a2742fdafce228b81d25184460dd2a54c25a9178a19"
+      "sha256": "318615263f1c8c1341690fd4bfa44f9c7e8887497f3ea1ea9a7af97f681aef21"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "74e9d5c5103eaaeaf29b60686f616290a9735ca5705cf76d0924150af144636b"
+      "sha256": "83dc409ccb9f944f91ae30d2ad84c2846cf985830446b7a62cd4c39f5959edd0"
     },
     {
       "path": "live-music-view.js",
@@ -311,11 +311,11 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "15656064e965ea10e3b3e7240d02a7ecc108d457c5f679b37fc9fa3481f87952"
+      "sha256": "fdc5c8df6effcdd8e48e1019f1d3ee7874ab9c675a22547cff6d164bfae93ddf"
     },
     {
       "path": "music-selection-model.js",
-      "sha256": "e08bdbedc64b6bb9fa22a7908dc679660d4567d2a70fdb6ff98a8d509054df62"
+      "sha256": "3cf63a9d02d43051670155723cc891f7d473dc566c5c06ddc8626f8e0322af7b"
     },
     {
       "path": "ordbog.css",
@@ -347,7 +347,7 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "f77d87367272b3223cfcfccb82700b8b4f0eb5eef4714009e5ecdb15ce71d2b3"
+      "sha256": "0c2e30da23b33a4be8bbf7e3e43a3ccbff4f65f12eb6b409fb754a14c4ab6374"
     },
     {
       "path": "podvoice-transport.js",
@@ -383,7 +383,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "2f3ef2eeda52893355aa4c5f785f58de78fe0805466a183cffeea559ab8aa0b4"
+      "sha256": "c2bed47209ecdfac21713cce12d3419bad0ed66ca78bfa4b02782be504a8f521"
     },
     {
       "path": "robot-observation.js",
@@ -423,7 +423,7 @@
     },
     {
       "path": "spotify-artwork.js",
-      "sha256": "f1d6cb73c7dec72b3849bd8810c9f186ebf5e90a23a2ef827b0aa7c31e05bb42"
+      "sha256": "93b0da2c2122a5068a882305566421fc78f9cae67f9a2c5727b7df2616a35be0"
     },
     {
       "path": "style.css",
@@ -451,7 +451,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "d950034068f53a8736ffcfe4b12fd1aaa4c5324fa483f3fdf55c74e498ba479d"
+      "sha256": "65b02e9d22753fad0be457fc6d7b6e3246cb03f4d989492eb56a4d6c3bcce886"
     },
     {
       "path": "ui/components.js",
@@ -475,7 +475,7 @@
     },
     {
       "path": "ui/library/library.css",
-      "sha256": "d2be1b5dacbefb7ea01a6f90d37e6e064dd83479e0c89479380aabb3c9e8ac5c"
+      "sha256": "bd3766db287eb5aabcc39fe6cc5d37e994b958b5c27a01a375d030b57244b77e"
     },
     {
       "path": "ui/library/types.d.ts",
@@ -487,7 +487,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "15f2fcade7ee76e72d1b372019005f509172e2ec8d062b7e73e53d240feaab53"
+      "sha256": "703d1eb5be400bf076e9e0d4261c1fa04c428311c5f7d299dddf57f388cce61b"
     },
     {
       "path": "ui/page-lifecycle.js",
@@ -555,7 +555,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "ac6f8b91548cbab14d347b9216021bd949ead03a43bbf564770155c1c22ed23c"
+      "sha256": "195f151f9843a2ee241bd468ef1a155af3ade8ca6abf34a2c7f5c47faf0efc09"
     },
     {
       "path": "widget-view.css",
@@ -563,7 +563,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "2a127bf9973fb030f206ba3a86076269a4072ab8bb888d618a15a5580bb8989c"
+      "sha256": "b0b932840252649167d78972c643f13ce4dc1a393dbe6f0021e2aa66ff2a7ae2"
     },
     {
       "path": "workshop.css",

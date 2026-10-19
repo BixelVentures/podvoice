@@ -975,6 +975,25 @@ class WebRTCSDK(SDK):
         self.client.live.sideband = SimpleNamespace(connect=self.connect)
         self.session.update = AsyncMock()
 
+        async def audio_mode(enabled, **kwargs):
+            await self.incoming.put(
+                {
+                    "type": "session.input_audio.unmuted"
+                    if enabled
+                    else "session.input_audio.muted",
+                    "client_event_id": kwargs["event_id"],
+                }
+            )
+
+        async def mute(**kwargs):
+            await audio_mode(False, **kwargs)
+
+        async def unmute(**kwargs):
+            await audio_mode(True, **kwargs)
+
+        self.session.input_audio.mute = AsyncMock(side_effect=mute)
+        self.session.input_audio.unmute = AsyncMock(side_effect=unmute)
+
     async def create(self, **_):
         return SimpleNamespace(
             session=SimpleNamespace(id="session_live"),
@@ -2952,3 +2971,96 @@ async def test_actual_live_call_reserves_and_sends_only_its_named_result_allowan
             assert decoded["result_truncated"] is True
     finally:
         await session.close()
+
+
+async def test_text_only_webrtc_waits_for_exact_audio_mute_ack_before_answer_or_ready():
+    session, sdk, _ = webrtc_provider(timeout_s=1)
+    answer = session.on_webrtc_answer
+    session.prepare_webrtc("v=0\r\ntext-only", answer, input_audio_enabled=False)
+    mute_entered = asyncio.Event()
+
+    async def hold_mute(**_):
+        mute_entered.set()
+
+    sdk.session.input_audio.mute.side_effect = hold_mute
+    connecting = asyncio.create_task(session.connect())
+    try:
+        await asyncio.wait_for(mute_entered.wait(), 1)
+        exact = sdk.session.input_audio.mute.await_args.kwargs["event_id"]
+        await sdk.acknowledge()
+        await asyncio.sleep(0)
+        assert not session._ready.done() and not answer.await_count
+        with pytest.raises(LiveProtocolError, match="live_audio_input_mode_not_ready"):
+            await session.send_text("must not escape before mute", command_id="early")
+        sdk.response.item.create.assert_not_awaited()
+        await session._handle(
+            {"type": "session.input_audio.muted", "client_event_id": "foreign"}, 1
+        )
+        await session._handle({"type": "session.input_audio.unmuted", "client_event_id": exact}, 1)
+        assert not session._ready.done() and not answer.await_count
+        await session._handle({"type": "session.input_audio.muted", "client_event_id": exact}, 0)
+        assert not session._ready.done() and not answer.await_count
+        await session._handle({"type": "session.input_audio.muted", "client_event_id": exact}, 1)
+        await connecting
+        assert session._ready.done() and session._input_audio_enabled is False
+        answer.assert_awaited_once()
+        receipt = await session.send_text("Hvad hedder Danmarks hovedstad?", command_id="text")
+        assert receipt["provider_ack"] == "unavailable"
+        assert sdk.response.item.create.await_args.kwargs["item"]["content"] == [
+            {"type": "input_text", "text": "Hvad hedder Danmarks hovedstad?"}
+        ]
+    finally:
+        if not connecting.done():
+            connecting.cancel()
+            await asyncio.gather(connecting, return_exceptions=True)
+        await session.close()
+
+
+async def test_webrtc_input_upgrade_requires_exact_ack_and_close_retires_waiter():
+    session, sdk, _ = webrtc_provider(timeout_s=1)
+    session.prepare_webrtc("v=0\r\ntext-only", session.on_webrtc_answer, input_audio_enabled=False)
+    await session.connect()
+    unmute_entered = asyncio.Event()
+
+    async def hold_unmute(**_):
+        unmute_entered.set()
+
+    sdk.session.input_audio.unmute.side_effect = hold_unmute
+    upgrading = asyncio.create_task(session.set_input_audio_enabled(True))
+    await asyncio.wait_for(unmute_entered.wait(), 1)
+    exact = sdk.session.input_audio.unmute.await_args.kwargs["event_id"]
+    await session._handle({"type": "session.input_audio.muted", "client_event_id": exact}, 1)
+    assert not upgrading.done() and session._input_audio_enabled is None
+    await session.close()
+    with pytest.raises(asyncio.CancelledError):
+        await upgrading
+    await session._handle({"type": "session.input_audio.unmuted", "client_event_id": exact}, 1)
+    assert session._input_audio_enabled is None
+
+
+async def test_text_only_missing_audio_mute_ack_fails_start_without_ready_or_answer():
+    session, sdk, _ = webrtc_provider(timeout_s=0.02)
+    answer = session.on_webrtc_answer
+    session.prepare_webrtc("v=0\r\ntext-only", answer, input_audio_enabled=False)
+    sdk.session.input_audio.mute.side_effect = None
+    with pytest.raises(TimeoutError):
+        await session.connect()
+    answer.assert_not_awaited()
+    assert session._input_audio_enabled is None
+    assert not session.provider_session_started and sdk.released
+    assert not any(type(event).__name__ == "LiveTransportReady" for event in session._queue._queue)
+    await session.close()
+
+
+async def test_typed_input_rechecks_audio_mode_after_waiting_for_send_lock():
+    session, sdk, _ = webrtc_provider()
+    await session.connect()
+    await session._send_lock.acquire()
+    sending = asyncio.create_task(session.send_text("must stay unsent", command_id="queued"))
+    await asyncio.sleep(0)
+    session._input_audio_enabled = None  # A preceding mode command lost its ACK.
+    session._send_lock.release()
+    with pytest.raises(LiveProtocolError, match="live_audio_input_mode_not_ready"):
+        await sending
+    sdk.response.item.create.assert_not_awaited()
+    await session.close()

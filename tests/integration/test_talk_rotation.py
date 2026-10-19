@@ -33,7 +33,12 @@ async def prepare(link, sent, token=None):
         "generation": 1,
     }
     link.receive_live(
-        {"type": "live_offer", "attempt_id": identity["attempt_id"], "sdp": "v=0\r\nfixture"}
+        {
+            "type": "live_offer",
+            "microphone": True,
+            "attempt_id": identity["attempt_id"],
+            "sdp": "v=0\r\nfixture",
+        }
     )
     _, answer = await task
     await answer("provider", "v=0\r\nanswer", 1)

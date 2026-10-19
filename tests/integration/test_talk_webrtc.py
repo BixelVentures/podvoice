@@ -11,9 +11,10 @@ from gatekeeper.talk import BrowserLink, run_talk
 
 
 class BrowserWire(Wire):
-    def __init__(self, *, offer=True, started=True):
+    def __init__(self, *, offer=True, started=True, microphone=True):
         super().__init__()
         self.offer_enabled, self.started_enabled = offer, started
+        self.microphone = microphone
         self.sdk = WebRTCSDK()
         self.stop_ack = True
 
@@ -22,6 +23,7 @@ class BrowserWire(Wire):
         if payload["type"] == "live_offer_request" and self.offer_enabled:
             self.send(
                 "live_offer",
+                microphone=self.microphone,
                 attempt_id=payload["attempt_id"],
                 sdp="v=0\r\n" + payload["attempt_id"],
             )
@@ -401,5 +403,44 @@ async def test_live_activity_route_is_observation_only_identity_fenced_and_allow
             {"type": "live_activity", **event, "observation_seq": 4, "browser_monotonic_ms": 1000}
         )
         assert link._activity_observation is None
+    finally:
+        await finish(wire, task)
+
+
+async def test_text_mode_upgrade_ack_cannot_overtake_new_disable_intent():
+    wire, link, session, _, _ = setup(microphone=False)
+    task = asyncio.create_task(run_talk(wire, session, link))
+    try:
+        wire.send("text", command_id="capital", text="Hvad hedder Danmarks hovedstad?")
+        await until(lambda: wire.result("capital") is not None)
+        assert wire.result("capital")["status"] == "submitted"
+        assert session.brain._input_audio_enabled is False
+        wire.sdk.session.input_audio.mute.assert_awaited_once()
+        answer = next(e for e in wire.outgoing if e["type"] == "live_answer")
+        identity = {k: answer[k] for k in ("attempt_id", "provider_session_id", "generation")}
+        wire.sdk.session.input_audio.unmute.side_effect = None
+        wire.send("live_input_mode", command_id="upgrade", microphone=True, **identity)
+        await until(lambda: wire.sdk.session.input_audio.unmute.await_count == 1)
+        exact = wire.sdk.session.input_audio.unmute.await_args.kwargs["event_id"]
+        wire.send("live_input_mode", command_id="disable", microphone=False, **identity)
+        await until(lambda: link.live_input_audio_enabled is False)
+        await session.brain._handle(
+            {"type": "session.input_audio.unmuted", "client_event_id": exact}, 1
+        )
+        await until(lambda: wire.result("disable") is not None)
+        assert wire.result("upgrade")["status"] == "rejected"
+        assert wire.result("disable")["status"] == "accepted"
+        assert session.brain._input_audio_enabled is False
+        assert wire.sdk.session.input_audio.mute.await_count == 2
+        old_count = wire.sdk.session.input_audio.unmute.await_count
+        wire.send(
+            "live_input_mode",
+            command_id="stale",
+            microphone=True,
+            **{**identity, "generation": identity["generation"] + 1},
+        )
+        await until(lambda: wire.result("stale") is not None)
+        assert wire.result("stale")["status"] == "rejected"
+        assert wire.sdk.session.input_audio.unmute.await_count == old_count
     finally:
         await finish(wire, task)

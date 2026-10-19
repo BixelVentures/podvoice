@@ -1,18 +1,18 @@
 /* PodView shared design tokens. Historical workshop styling: legacy-components.css. */
 /* Retained temporary conversation surface: one anchor, no layout participation. */
-:root{--pv-vacuum-surface:#f3e2dd;--pv-vacuum-ink:#573d36;--pv-vacuum-muted:#7f5b52;--pv-vacuum-hover:#ecd6cf}
+:root{--pv-vacuum-surface:#f0e4dc;--pv-vacuum-ink:#514036;--pv-vacuum-muted:#796052;--pv-vacuum-hover:#e9d9cf}
 .voice-surface{position:fixed;z-index:12;top:12px;left:50%;translate:-50% 0;width:280px;min-height:60px;padding:8px 18px;display:flex;align-items:center;gap:14px;border-radius:26px;background:var(--pv-instrument);color:#fafafa;box-shadow:0 8px 24px #0b19221c;pointer-events:none;isolation:isolate}
 .voice-surface[hidden]{display:none}.voice-mark{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--pv-timer-accent);transition:background 160ms ease}.voice-mark img{width:22px;height:22px}.voice-copy{min-width:0;display:grid;gap:3px;min-height:42px;align-content:center}.voice-copy strong{font-size:18px;line-height:1.25;font-weight:600;letter-spacing:-.02em}.voice-copy span{font-size:13px;line-height:1.3;color:var(--pv-instrument-muted)}.voice-surface[data-phase=ready] .voice-mark{background:var(--pv-quiet-surface)}.voice-surface[data-phase=thinking] .voice-mark,.voice-surface[data-phase=waiting] .voice-mark{background:var(--pv-instrument-muted)}
 @media(max-width:759px){.voice-surface{top:auto;bottom:max(16px,env(safe-area-inset-bottom));width:260px;min-height:66px;padding:10px 16px}}
 @media(prefers-reduced-motion:reduce){.voice-mark{transition:none}}
-:root{--pv-screen-paper:#ededed;--pv-screen-surface:#fafafa;--pv-screen-ink:#111217;--pv-screen-muted:#65676d;--pv-screen-accent:#147fe0;--pv-screen-selection:#e5f3fd;--pv-screen-radius:32px;--pv-screen-motion:240ms;--pv-screen-control:#eeeef0;--pv-screen-hover:#e2e5e9;--pv-screen-line:#e2e4e7;--pv-screen-action-ink:#07548e;--pv-screen-danger:#9b3530;--pv-screen-danger-surface:#f9eeeb;--pv-screen-fast:120ms;--pv-screen-ease:cubic-bezier(.2,.7,.2,1);--pv-screen-type-small:14px;--pv-screen-type-body:18px;--pv-screen-type-title:22px;--pv-screen-space-2:8px;--pv-screen-space-3:12px;--pv-screen-space-4:16px;--pv-screen-space-6:24px;--pv-screen-radius-control:24px;--pv-screen-radius-row:22px;--pv-screen-radius-field:14px;--pv-screen-font:Arial,Helvetica,sans-serif}
+:root{--pv-screen-paper:#f3f1ed;--pv-screen-surface:#fcfbf8;--pv-screen-ink:#111217;--pv-screen-muted:#66665e;--pv-screen-accent:#147fe0;--pv-screen-selection:#e5f3fd;--pv-screen-radius:32px;--pv-screen-motion:240ms;--pv-screen-control:#ede9e2;--pv-screen-hover:#e4dfd6;--pv-screen-line:#dedbd4;--pv-screen-action-ink:#07548e;--pv-screen-danger:#9b3530;--pv-screen-danger-surface:#f9eeeb;--pv-screen-fast:120ms;--pv-screen-ease:cubic-bezier(.2,.7,.2,1);--pv-screen-type-small:14px;--pv-screen-type-body:18px;--pv-screen-type-title:22px;--pv-screen-space-2:8px;--pv-screen-space-3:12px;--pv-screen-space-4:16px;--pv-screen-space-6:24px;--pv-screen-radius-control:24px;--pv-screen-radius-row:22px;--pv-screen-radius-field:14px;--pv-screen-font:Arial,Helvetica,sans-serif}
 
 :root{--pv-screen-radius-frame:28px;--pv-screen-radius-art:14px;--pv-screen-radius-choice:18px;--pv-screen-outline:#d6d9dd;--pv-screen-photo-fallback:#203432;--pv-screen-photo-scrim:#071e2880;--pv-screen-photo-scrim-bottom:#071e288c}
 /* PodView instruments: quiet surfaces, precise data, one warm active signal. */
 :root{--pv-instrument:#192326;--pv-instrument-muted:#b6c3c6;--pv-signal:#ef795f;--pv-quiet-surface:#e6eeec;--pv-instrument-line:#4c595b}
 :root{--pv-screen-accent:#335f65;--pv-screen-selection:#e0ebe7;--pv-screen-action-ink:#23464b}
 /* Shared resource anatomy: overview and compact supporting widgets. */
-:root{--pv-resource-gap:12px;--pv-resource-radius:24px;--pv-light-surface:#f3e7c8;--pv-light-ink:#654b22;--pv-resource-quiet:#e3e9e6}
+:root{--pv-resource-gap:12px;--pv-resource-radius:24px;--pv-light-surface:#f3e7c8;--pv-light-ink:#654b22;--pv-resource-quiet:#eeeae3}
 /* Shared interaction geometry: visible focus, rounded hit areas, restrained feedback. */
 :root{--pv-hit-min:48px;--pv-hit-radius:16px;--pv-hit-inset:12px;--pv-focus-ring:#365e63;--pv-touch-wash:rgba(38,62,67,.075)}
 :root{--pv-timer-accent:#ffc8b5;--pv-timer-control:#304449;--pv-timer-control-hover:#40595e}
@@ -28,5 +28,8 @@ body:has(pv-widget-host[data-motion=reduced]) dialog,body:has(pv-widget-host[dat
 @media(prefers-reduced-motion:reduce){dialog,dialog::backdrop{transition:none;transform:none}}
 
 /* Canonical overview family: all domains and states consume this one scale. */
-:root{--pv-overview-slot:64px;--pv-overview-icon:36px;--pv-overview-height:116px;--pv-overview-pad:24px;--pv-overview-inner-gap:16px;--pv-overview-row-gap:24px;--pv-overview-title:20px;--pv-overview-meta:15px;--pv-overview-timer:#394749;--pv-overview-timer-hover:#435457;--pv-overview-timer-ink:#f8faf9;--pv-overview-timer-muted:#d5dede;--pv-overview-radio:#f4e8ed;--pv-overview-vehicle:#e7e8e8}
+:root{--pv-overview-slot:64px;--pv-overview-icon:36px;--pv-overview-height:116px;--pv-overview-pad:24px;--pv-overview-inner-gap:16px;--pv-overview-row-gap:24px;--pv-overview-title:20px;--pv-overview-meta:16px;--pv-overview-timer:#2c383a;--pv-overview-timer-hover:#384749;--pv-overview-timer-ink:#f8faf9;--pv-overview-timer-muted:#d5dede;--pv-overview-radio:#f3e8eb;--pv-overview-vehicle:#e8e8e4}
 @media(min-width:760px) and (max-height:640px){:root{--pv-overview-height:104px;--pv-overview-pad:20px;--pv-overview-inner-gap:12px;--pv-overview-row-gap:16px;--pv-overview-title:18px;--pv-overview-meta:14px}}
+
+/* Existing family finish: one shallow elevation and one optical/type scale. */
+:root{--pv-surface-shadow:0 2px 6px rgba(46,37,26,.045),0 10px 24px rgba(46,37,26,.025);--pv-surface-shadow-hover:0 3px 8px rgba(46,37,26,.06),0 12px 26px rgba(46,37,26,.03);--pv-light-muted:#7b602e;--pv-detail-title:34px;--pv-detail-section:20px;--pv-player-title:20px;--pv-player-context:18px}

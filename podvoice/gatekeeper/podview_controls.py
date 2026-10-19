@@ -689,6 +689,8 @@ class TouchControls:
                                 if "map" in offered["data"]
                                 else {}
                             )
+                            if "recipeId" in body and "start" in rule["actions"]:
+                                setup["historyDraft"] = self._robot_history_draft(task)
             if not current():
                 return failure("stale_setup")
             task["expires_at"] = time.time() + max(0, task["deadline"] - time.monotonic())
@@ -836,6 +838,8 @@ class TouchControls:
                 {"kind": "none"},
                 {"steps": task["offered"]["steps"]},
             )
+            if "start" in rule["actions"]:
+                self._robot_start_option(data, add)
             return rows
         if "map" in rule["actions"] and data.get("map_options"):
             choices = {secrets.token_hex(12): name for name in data["map_options"]}
@@ -919,19 +923,51 @@ class TouchControls:
                 {"entity": setting["entity_id"], "extended": setting, "choices": choices},
             )
         if "start" in rule["actions"]:
-            areas = {secrets.token_hex(12): row for row in data.get("map", {}).get("areas", [])}
-            if areas:
-                add(
-                    "Start rengøring",
-                    "start",
-                    {
-                        "kind": "cleaning",
-                        "areas": [{"id": key, "label": row["name"]} for key, row in areas.items()],
-                        "repeat": {"min": 1, "max": 3},
-                    },
-                    {"areas": areas},
-                )
+            self._robot_start_option(data, add)
         return rows
+
+    @staticmethod
+    def _robot_start_option(data: dict, add) -> None:
+        areas = {secrets.token_hex(12): row for row in data.get("map", {}).get("areas", [])}
+        if areas:
+            add(
+                "Start rengøring",
+                "start",
+                {
+                    "kind": "cleaning",
+                    "areas": [{"id": key, "label": row["name"]} for key, row in areas.items()],
+                    "repeat": {"min": 1, "max": 3},
+                },
+                {"areas": areas},
+            )
+
+    @staticmethod
+    def _robot_history_draft(task: dict) -> dict:
+        starts = [
+            (oid, option)
+            for oid, option in task["options"].items()
+            if option["action"] == "start" and option["schema"]["kind"] == "cleaning"
+        ]
+        if len(starts) != 1:
+            raise ValueError("No current area start is available")
+        oid, option = starts[0]
+        saved = task["offered"]["steps"][-1]["arguments"]
+        current_ids = {row["area_id"]: aid for aid, row in option["areas"].items()}
+        area_ids = saved["area_ids"]
+        if (
+            not 1 <= len(area_ids) <= 32
+            or len(set(area_ids)) != len(area_ids)
+            or not set(area_ids) <= set(current_ids)
+            or type(saved["repeat"]) is not int
+            or not 1 <= saved["repeat"] <= 3
+        ):
+            raise ValueError("The accepted recipe cannot be mapped to this task")
+        return {
+            "source": "accepted_start_history",
+            "optionId": oid,
+            "areaIds": [current_ids[area] for area in area_ids],
+            "repeat": saved["repeat"],
+        }
 
     async def action(self, body: dict, token: str) -> dict:
         if (

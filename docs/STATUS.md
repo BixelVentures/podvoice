@@ -1,3 +1,66 @@
+<!-- podview65-admission
+{
+  "version": 42,
+  "kind": "podview65_ui_cover_controller_talk_continuity",
+  "reviewer": "/root/astra_actual_ui_acceptance_audit",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "eead19bcf86e958fdb78321fdd54549d393698c8",
+  "merge_base": "eead19bcf86e958fdb78321fdd54549d393698c8",
+  "rationale": "Exact unsigned65 source and admission independently reviewed by /root/astra_actual_ui_acceptance_audit; receipt SHA256 0ab8ce1f99d4f2f4091b832112453a8e10629e5fdd9443bb927099f69a4050d1. Canonical UI143, cover compatibility, robot history, HA recovery and Talk intent source are included. Official Linux HA/CI, separate compatible Control and HAintegration0.1.5 installation/restart/readback, provider and physical acceptance remain separate.",
+  "fingerprint": "0fc41a7905c6863fb5ad719dc41fd3a8fa49f99154bfcb64b4da0c11f6f2565a",
+  "regression_fingerprint": "be5b11f4e0bc0deb66b6ed4e1e10fbe16ea62f321fea0cf04c9d304b568d76a1",
+  "runtime_fingerprint": "e7904fb840b84fb9fb4ec98e3a4dd18059a846f2bf9ae08a2ff77db4240b73e7",
+  "config_fingerprint": "d7173a4bca02d819e77fbd4b4ff27512391c5520eb2184f2f8122508802e137e",
+  "policy_fingerprint": "d80b1cc1080303e06f03380f32634ce2c08b72aa1f433ef86c3ad78be6965d7c",
+  "tooling_fingerprint": "80b2387de5948d6545507b6daef3b641ea0aeb70b9a2b372bf031ef81ba15c21",
+  "manifest_fingerprint": "f28f38ac4c1b70803b2f531d019e5c4e063ef5e1aa7dc2ad3576337d3c027085"
+}
+-->
+
+## Current consolidated65 candidate — 19 October
+
+This current candidate summary supersedes the integration/review status of the dated
+source-draft notes below, while preserving those notes as historical evidence. The
+local candidate is based on actual published64 merge
+`eead19bcf86e958fdb78321fdd54549d393698c8`. Reviewed cover projection and opt-in
+capability negotiation, task-bound editable robot history, administrator recovery
+(#184), and exact Talk microphone intent (#219) are now integrated together.
+The local version proposal is add-on2.0.65 and separate HA integration0.1.5.
+
+Current software evidence: all143 canonical asset members match the final ROOT UI
+handoff, with16 changed assets versus64. The packaged UI aggregate passed1513 tests;
+the13 affected backend modules passed537 tests including local loopback controls.
+Ruff check and448-file formatting passed; the sole playlist DTO annotation finding
+was corrected without changing its initializer/behavior and full87-source mypy now
+passes. Exact source reviews are retained; combined unsigned admission/source review
+and official CI remain required before publication. HA framework registration and
+authorization coverage require official Linux CI; no local Linux-HA pass is claimed.
+
+The Control/PodVoice cover compatibility source pair is reviewed, including the
+explicit optional descriptor and legacy defaultFalse behavior. This does not prove
+that a compatible Control version is installed. Administrator recovery requires a
+separate0.1.5 custom-integration installation and HA restart; add-on-only installation
+cannot expose that service. Operator version/install/readback remains separate.
+These changes neither prove the cause of the unsolicited transcript17 nor claim a
+provider quiet-policy cure, audible music/alarm, robot movement or physical acceptance.
+
+### Successor draft result — not integrated or installed
+
+The explicit recover action is implemented through standard HA OptionsFlow/service and existing stdin revoke/profile owners. It clears live authority synchronously before the first disk await, durably disables the old private state, revokes the existing registry, checks exact current owner/pin, binds fresh profile approval to the current pin, then checks owner/pin again before enabling. It creates no credential and upgrades no old enrollment.
+
+Unchanged64 rejected the new command in the existing regression (first RED). Existing provision/admin-unit cohorts passed 36/36 on the initial draft. Independent-review corrections then passed only their affected/new six cases: successful recovery and separate fresh approval, registry failure, disable-before-write failure with reconstructed state/registry, owner replacement before/after rebind, and authority fencing during the first blocked disk read. Ruff/format and focused transport mypy pass. Counts overlap and are not additive product acceptance. HA Linux framework registration/nonadmin cases are staged but not run locally. Separate HA integration update is required; an add-on-only update cannot expose this service.
+
+Persistence limit: when the initial durable disable itself fails, the attempt reports failure and current runtime stays disabled; the reconstructed old enrollment can remain active under its OLD pin. No durable revocation is claimed in that case. The changed current pin still rejects that old identity. No provider, browser, Green, grant, robot or household effect was executed. Independent final review and combined release/install remain open.
+
+## Active successor decision — explicit administrator pin recovery (#184)
+
+Existing private admin state is loaded at startup; current-pin profiles initialization runs only when no private row exists. After a legitimate room-policy/native binding change, prepare/approve reject the old stored pin. Emergency revoke reopens that old pin and HA exposes no recovery action. A focused existing-owner regression rejects the proposed recover command on unchanged64; no household action or grant is performed.
+
+Hypothesis: one explicitly confirmed current-HA-admin recovery can reuse the existing stdin command and durable disable → old registry revoke → current-pin profiles sequence. Preserve authentication, same room, exact native owner across awaits, nonce/deadline, no old-profile upgrade, no secrets or automatic replay. New browser approval remains separate. No Voice/LED/timer/provider/UI143 changes. Test old-profile denial, new explicit approval, stale owner, disk failure and current admin checks; independent review required before integration. Rollback is unchanged64; this is source-only successor work.
+
 <!-- podview64-admission
 {
   "version": 41,
@@ -72,6 +135,48 @@ Ruff/format pass. Existing prompt regression run: 17 passed, one obsolete wordin
 assertion failed; after updating that assertion to the new wording, only that
 invalidated case was rerun and passed. Provider comparison, independent review,
 release, installation and physical acceptance remain open.
+
+
+## Active lead decision — text-only Talk provider audio intent (19 October)
+
+Actual installed 2.0.64, microphone off: a correctly submitted capital-only question
+was followed by provider output “[breath]”, provider input transcript “17”, then
+“Klokken er sytten.” Same session `talk:1792413855948251788` and generation 1 match
+History and diagnostic hash `86b859b58fb484377493465505d64967f7917ef5f6dc0e3cea0ffe0a8012dc5b`.
+Artifacts: `/private/tmp/pv64-green-install-20261019/talk-history.json`,
+`diagnostics.json`, and `talk-direct-dom.txt`. This does not prove why the provider
+produced “17”. Source proves a separate contract gap: text-only WebRTC sends an
+enabled synthetic silent track without muting provider audio input.
+
+Hypothesis: explicit browser microphone intent, enforced through acknowledged native
+provider audio mute/unmute, removes that unintended audio-input path. Chain: browser
+offer intent → trusted sideband exact mute/unmute ACK → transport/typed readiness →
+actual microphone enable → provider input/output → existing close/rearm. Invariants:
+Native Voice PE remains full duplex; only real intended audio is admitted; no stale
+ACK crosses attempt/session/generation; disabling hardware is immediate; enabling
+requires current unmute ACK. No filtering, local semantic decisions, prompt/model
+changes, new timeout, input replay or extra continuation. Rollback is this bounded
+Talk/provider-adapter change. Planned regression: startup exact/wrong/stale ACK,
+text before ACK, actual mic upgrade and disable race, existing native and Talk
+adapters. Independent review and delivered provider outcome remain mandatory.
+
+Implementation candidate (#219): the offer carries explicit microphone intent;
+text-only provider input is muted with exact client-event ACK before transport
+readiness, SDP answer or typed admission. Real microphone upgrades await a current
+unmute ACK; disable closes the hardware gate immediately. Existing command-worker
+ordering and per-attempt revision reject stale upgrade results. Startup user enable
+is visibly deferred until ready; startup disable retires the peer. Mode changes
+remain unknown until their exact ACK, and text rechecks that state inside send lock.
+Native input, prompt, model, household tools and timeout values are unchanged.
+
+Validation: existing provider/Talk/rotation modules passed 218 cases in 4.18 s;
+final changed causal/provider/browser nodes passed separately after review findings.
+Missing-mute-ACK and existing real BrowserLink confirmation rotation passed three
+cases; the final queued-text/startup-browser regressions passed two cases. Ruff,
+format and mypy on all changed source pass. The first fake ACK helper initially
+returned an unawaited coroutine; that fixture was repaired, not a production timeout.
+Independent source review and actual installed provider behavior remain open; this
+candidate does not claim the phantom “17” cause or a cure for primary-model filler.
 
 # Active voice lead — 19 October: complete software outcomes before physical acceptance
 

@@ -37,3 +37,11 @@ test('DND time settings preserve exact HHMM or HHMMSS and never infer dates or t
  assert.throws(()=>controlTask(settingsTask({kind:'time',current:'22:00',timezone:'UTC'}),snapshot,'vacuum',now));
  for(const schema of [volumeSchema(),{kind:'time',current:'22:00'}, {kind:'unknown',current:'22:00'}])assert.throws(()=>controlTask({...settingsTask(schema),domain:'music'},snapshot,'music',now));
 });
+
+const historyOffer=()=>({...task(),domain:'vacuum',options:[{id:'saved-reuse',label:'Brug denne rengøring',action:'reuse',argsSchema:{kind:'none'}},{id:'current-start',label:'Start rengøring',action:'start',argsSchema:{kind:'cleaning',areas:[{id:'current-area',label:'Køkken'},{id:'other-area',label:'Stue'}],repeat:{min:1,max:3}}}],setup:{historyDraft:{source:'accepted_start_history',optionId:'current-start',areaIds:['current-area'],repeat:2}}});
+test('historical draft is cloned only against this fresh admitted editable start and exact reuse option',()=>{
+ const raw=historyOffer(),admitted=controlTask(raw,snapshot,'vacuum',now);assert.deepEqual(admitted.historyDraft,raw.setup.historyDraft);raw.setup.historyDraft.areaIds[0]='other-area';assert.deepEqual(admitted.historyDraft.areaIds,['current-area']);assert.deepEqual(controlArgs(admitted,'current-start',{areaIds:['other-area'],repeat:3},now),{areaIds:['other-area'],repeat:3});
+});
+for(const kind of ['null','extra','source','option','area','duplicate','empty','repeat','type','missing-reuse','reuse-only','expired','foreign-room'])test(`closed history draft rejects ${kind}`,()=>{
+ const raw=historyOffer(),d=raw.setup.historyDraft;if(kind==='null')raw.setup.historyDraft=null;if(kind==='extra')d.settings=[];if(kind==='source')d.source='completed_cleaning';if(kind==='option')d.optionId='saved-reuse';if(kind==='area')d.areaIds=['raw-ha-area'];if(kind==='duplicate')d.areaIds=['current-area','current-area'];if(kind==='empty')d.areaIds=[];if(kind==='repeat')d.repeat=4;if(kind==='type')d.repeat='2';if(kind==='missing-reuse')raw.options.shift();if(kind==='reuse-only')raw.options.pop();if(kind==='expired')raw.expiresAt=now/1000-1;if(kind==='foreign-room')raw.roomId='other';assert.throws(()=>controlTask(raw,snapshot,'vacuum',now));
+});

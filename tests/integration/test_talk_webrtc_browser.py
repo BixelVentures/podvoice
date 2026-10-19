@@ -18,8 +18,10 @@ def test_shipped_browser_peer_identity_stop_late_offer_and_typed_to_mic():
         1
     ].split("// ---- End Live WebRTC ----", 1)[0]
     mic = (
-        "async function micStart()"
-        + html.split("async function micStart()", 1)[1].split("  if (captureAvailable())", 1)[0]
+        "async function micStart(forOffer)"
+        + html.split("async function micStart(forOffer)", 1)[1].split(
+            "  if (captureAvailable())", 1
+        )[0]
     )
     exit_handlers = "\n".join(
         line
@@ -31,6 +33,10 @@ def test_shipped_browser_peer_identity_stop_late_offer_and_typed_to_mic():
         )
     )
     assert len(exit_handlers.splitlines()) == 2
+    mode_result = html.split('else if (ev.type === "command_result") {', 1)[1].split(
+        "        var pending = pendingText[ev.command_id];", 1
+    )[0]
+    mode_result = "function receiveModeResult(ev) {" + mode_result + "}"
     harness = r"""
 const assert = require('node:assert/strict');
 // Track real Node timers: completion must mean no browser-owned work remains.
@@ -50,7 +56,11 @@ function track(){return {enabled:true,readyState:'live',stop(){this.readyState='
 function stream(){let t=track();return {getTracks:()=>[t],getAudioTracks:()=>[t]};}
 function ensurePlay(){if(!playCtx)playCtx={sampleRate:24000,createMediaStreamDestination:()=>({stream:stream()}),
  createBuffer:()=>({}),createBufferSource:()=>({connect(){},start(){},stop(){this.stopped=true;},disconnect(){}})};}
-function sendJson(x){sent.push(x);}
+let autoModeAck = true;
+function sendJson(x){sent.push(x);if(x.type==='live_input_mode') {
+ if(x.microphone) assert.equal(capStream.getAudioTracks()[0].enabled,false,'mic enabled before provider ACK');
+ if(autoModeAck) queueMicrotask(()=>receiveModeResult({command_id:x.command_id,status:'accepted'}));
+}}
 function logLine(){}
 function setState(){}
 const talkPane={hidden:false};
@@ -74,21 +84,50 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
 """
     cases = r"""
 (async()=>{
+ capStream=stream();
+ await openLivePeer(request('startup-disable'));
+ let startup=livePeer,startupMic=startup.input.getAudioTracks()[0];
+ assert.equal(sent.find(x=>x.type==='live_offer').microphone,true);
+ assert.equal(startupMic.enabled,false);
+ micStop();
+ assert.equal(startupMic.enabled,false);assert.equal(startupMic.readyState,'ended');
+ assert.equal(livePeer,null);
+ handleLiveMessage({...answer('startup-disable'),type:'live_ready'});
+ assert.equal(startupMic.enabled,false); // Late startup ACK cannot resurrect stopped hardware.
+ sent=[];peers=[];halted=false;
  await openLivePeer(request('a'));
  assert.equal(permissionCalls,0); // Typed first never asks for microphone permission.
  assert.equal(sent.filter(x=>x.type==='live_offer').length,1);
  let p=livePeer, clock=p.input.getAudioTracks()[0];
- assert.equal(clock.enabled,true); // Real silent input clock, matching the protocol probe.
+ assert.equal(await micStart(),false);assert.equal(permissionCalls,0); // Startup upgrade defers without changing offered intent.
+ assert.equal(p.microphone,false);
+ assert.equal(clock.enabled,false); // Text-only never admits the synthetic audio track.
+ assert.equal(sent.find(x=>x.type==='live_offer').microphone,false);
  await answerLivePeer(answer('wrong'));assert.equal(p.pc.remoteDescription,undefined);
  await answerLivePeer(answer('a'));
  p.pc.dc.onmessage({data:JSON.stringify({type:'session.started',session:{id:'provider-a'}})});
  assert.equal(sent.at(-1).type,'live_started');
  handleLiveMessage({...answer('a'),type:'live_ready'});
  assert.equal(p.ready,true);
- assert.equal(await micStart(),true); // Upgrade existing silent sender, no extra peer/PCM graph.
+ autoModeAck=false;
+ let upgrading=micStart();
+ await Promise.resolve();await Promise.resolve();await Promise.resolve();
+ let modeRequest=sent.find(x=>x.type==='live_input_mode');
+ assert.ok(modeRequest);assert.equal(capStream.getAudioTracks()[0].enabled,false);
+ receiveModeResult({command_id:'foreign',status:'accepted'});
+ assert.equal(capStream.getAudioTracks()[0].enabled,false);
+ receiveModeResult({command_id:modeRequest.command_id,status:'accepted'});
+ assert.equal(await upgrading,true); // Existing sender enables only after exact accepted ACK.
+ autoModeAck=true;
  assert.equal(permissionCalls,1);assert.equal(peers.length,1);assert.equal(capNode,null);
  assert.equal(clock.readyState,'ended');assert.equal(p.input.getAudioTracks()[0].enabled,true);
  let realMic=p.input.getAudioTracks()[0];
+ handleLiveMessage({...answer('a'),type:'live_ready'});
+ assert.equal(livePeer,p);assert.equal(realMic.enabled,true); // Duplicate Ready cannot fault an acknowledged upgrade.
+ micStop();await Promise.resolve();
+ assert.equal(realMic.enabled,false);
+ handleLiveMessage({...answer('a'),type:'live_ready'});
+ assert.equal(livePeer,p);assert.equal(realMic.enabled,false); // Nor can Ready reopen disabled hardware.
  handleLiveMessage({...answer('a'),type:'live_stop'});
  assert.equal(realMic.readyState,'ended');assert.equal(p.pc.connectionState,'closed');
  assert.equal(sent.at(-1).type,'live_stopped');
@@ -185,7 +224,7 @@ console.log('TALK_ASSERTIONS_COMPLETE pending_timers=' + pendingTimers.size);
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """
     result = subprocess.run(
-        [node, "-e", harness + helpers + mic + exit_handlers + cases],
+        [node, "-e", harness + helpers + mic + mode_result + exit_handlers + cases],
         text=True,
         capture_output=True,
         timeout=10,

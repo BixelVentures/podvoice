@@ -182,6 +182,7 @@ class _DiscoverySnapshot:
     retry_delay_s: float | None
     next_retry_at: float | None
     target_contracts: tuple[tuple[str, str], ...] = ()
+    playlist_search_artwork: bool = False
 
 
 _TARGETED_HA_INTENTS = {
@@ -425,6 +426,7 @@ class ToolRouter:
                 raise ValueError("HA services response is not a list of objects")
             discovered: set[str] = set()
             target_contracts: tuple[tuple[str, str], ...] = ()
+            playlist_search_artwork = False
             for domain in domains:
                 if domain.get("domain") != "podconnect":
                     continue
@@ -438,6 +440,20 @@ class ToolRouter:
                     raise ValueError("podconnect service name is malformed")
                 discovered = set(names)
                 target_contracts = playback_targets.contracts(services)
+                playlist_search = (
+                    services.get("search_playlists") if isinstance(services, dict) else None
+                )
+                service_fields = (
+                    playlist_search.get("fields") if isinstance(playlist_search, dict) else None
+                )
+                artwork_field = (
+                    service_fields.get("include_artwork")
+                    if isinstance(service_fields, dict)
+                    else None
+                )
+                playlist_search_artwork = (
+                    isinstance(artwork_field, dict) and artwork_field.get("required") is False
+                )
                 break
             # Only the latest service read may publish either domain. A cancelled
             # or delayed older read cannot restore contracts after a newer failure.
@@ -459,6 +475,7 @@ class ToolRouter:
                 server_info=snap.server_info,
                 schema_sha256=self._schema_sha256_for(snap.mcp_tools, discovered, target_contracts),
                 target_contracts=target_contracts,
+                playlist_search_artwork=playlist_search_artwork,
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -494,6 +511,7 @@ class ToolRouter:
                 api_id=snap.api_id,
                 server_info=snap.server_info,
                 schema_sha256=self._schema_sha256_for(snap.mcp_tools, frozenset()),
+                playlist_search_artwork=False,
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -553,6 +571,7 @@ class ToolRouter:
                 role_conflicts=tuple(conflicts),
                 podconnect_services=self._discovery.podconnect_services,
                 target_contracts=self._discovery.target_contracts,
+                playlist_search_artwork=self._discovery.playlist_search_artwork,
                 fetched_at=time.time(),
                 endpoint=self._safe_endpoint(getattr(self._mcp, "url", "")),
                 api_id=self._mcp_api_id(self._mcp),
@@ -2343,6 +2362,8 @@ class ToolRouter:
             args["limit"] = 20
         elif kind in {"search", "playlist_search"}:
             args.update(query=query, limit=3)
+            if kind == "playlist_search" and self._discovery.playlist_search_artwork:
+                args["include_artwork"] = True
         client = self._client
         assert client is not None
         async with asyncio.timeout(8):

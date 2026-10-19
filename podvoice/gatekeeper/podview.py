@@ -2570,16 +2570,17 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             for theme_id, (playlist, query) in zip(ids, selected, strict=True):
                 chosen_queries[theme_id] = query
                 theme = themes[theme_id]
-                rows.append(
-                    {
-                        "uri": playlist["uri"],
-                        "name": playlist["name"],
-                        "artist": theme["title"],
-                        "themeId": theme_id,
-                        "themeTitle": theme["title"],
-                        "themeArt": theme["image"],
-                    }
-                )
+                row = {
+                    "uri": playlist["uri"],
+                    "name": playlist["name"],
+                    "artist": theme["title"],
+                    "themeId": theme_id,
+                    "themeTitle": theme["title"],
+                    "themeArt": theme["image"],
+                }
+                if "artwork" in playlist:
+                    row["artwork"] = playlist["artwork"]
+                rows.append(row)
             diagnostic.step("playback_after")
             if not current():
                 return failed(f"{kind}_owner_replaced")

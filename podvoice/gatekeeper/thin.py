@@ -1883,7 +1883,9 @@ class ThinSession:
                     offer, answer = await self.voicepe.prepare_live_transport()
                     if not opening_is_current():
                         return
-                    opening_brain.prepare_webrtc(offer, answer)
+                    opening_brain.prepare_webrtc(
+                        offer, answer, input_audio_enabled=self.voicepe.live_input_audio_enabled
+                    )
                 await opening_brain.connect()
                 if not opening_is_current():
                     return
@@ -4172,7 +4174,9 @@ class ThinSession:
                 if self._live_webrtc:
                     offer, answer = await self.voicepe.prepare_live_transport(rotation_token=token)
                     check()
-                    brain.prepare_webrtc(offer, answer)
+                    brain.prepare_webrtc(
+                        offer, answer, input_audio_enabled=self.voicepe.live_input_audio_enabled
+                    )
                 await brain.connect()
                 check()
                 if brain._connection_generation == generation:

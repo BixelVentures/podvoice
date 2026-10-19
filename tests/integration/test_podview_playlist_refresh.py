@@ -24,6 +24,23 @@ async def direct(r, reason=""):
     return json.loads((await _mood_music(request, r.app[BRIDGE], "kitchen")).body)
 
 
+async def test_full_music_route_preserves_validated_playlist_cover(mood_rig):
+    mood_rig.playlist_artwork = True
+
+    result = await direct(mood_rig)
+
+    assert result["ok"] is True
+    assert all(
+        row["artwork"]
+        == {
+            "kind": "playlist_cover",
+            "provider": "spotify",
+            "url": "https://i.scdn.co/image/cover",
+        }
+        for row in result["data"]["tracks"]
+    )
+
+
 @pytest.mark.parametrize(
     "case",
     [

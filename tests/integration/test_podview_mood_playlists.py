@@ -42,6 +42,7 @@ async def mood_rig(rig):  # noqa: F811 - imported pytest fixture
     rig.playlist_epoch = "a" * 32
     rig.playlist_account = "account-alpha"
     rig.playlist_same = False
+    rig.playlist_artwork = False
     old = rig.client
 
     async def request(req):
@@ -81,7 +82,23 @@ async def mood_rig(rig):  # noqa: F811 - imported pytest fixture
                     "limit": 3,
                     "returned_count": 1,
                     "playlists": [
-                        {"uri": "spotify:playlist:" + suffix * 22, "name": f"Real {suffix}"}
+                        {
+                            **{
+                                "uri": "spotify:playlist:" + suffix * 22,
+                                "name": f"Real {suffix}",
+                            },
+                            **(
+                                {
+                                    "artwork": {
+                                        "kind": "playlist_cover",
+                                        "provider": "spotify",
+                                        "url": "https://i.scdn.co/image/cover",
+                                    }
+                                }
+                                if rig.playlist_artwork
+                                else {}
+                            ),
+                        }
                     ],
                 }
             },

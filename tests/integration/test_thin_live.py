@@ -2069,7 +2069,9 @@ async def test_real_browser_link_confirmation_holds_capture_until_closed_then_ne
             offers += 1
             if offers == 2:
                 assert sdk.session.close.await_count == 1
-            link.receive_live({**data, "type": "live_offer", "sdp": f"v=0\r\noffer-{offers}"})
+            link.receive_live(
+                {**data, "type": "live_offer", "microphone": True, "sdp": f"v=0\r\noffer-{offers}"}
+            )
         elif kind == "live_answer":
             started = {"type": "session.started", "session": {"id": data["provider_session_id"]}}
             link.receive_live({**data, "type": "live_started", "event": started})

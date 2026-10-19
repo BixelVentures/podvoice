@@ -39,7 +39,7 @@ def normalize_search_query(value: Any) -> str:
     return query
 
 
-def _artwork(value: Any) -> dict | None:
+def _artwork(value: Any, *, kind: str = "album_cover") -> dict | None:
     """Accept only PodConnect's optional Spotify image reference; never arbitrary URLs."""
     if not isinstance(value, dict) or set(value) != {"kind", "provider", "url"}:
         return None
@@ -49,7 +49,7 @@ def _artwork(value: Any) -> dict | None:
     try:
         parsed = urlsplit(url)
         if (
-            value.get("kind") != "album_cover"
+            value.get("kind") != kind
             or value.get("provider") != "spotify"
             or parsed.scheme != "https"
             or parsed.hostname != "i.scdn.co"
@@ -59,11 +59,12 @@ def _artwork(value: Any) -> dict | None:
             or parsed.query
             or parsed.fragment
             or not _ARTWORK_PATH.fullmatch(parsed.path)
+            or (kind == "playlist_cover" and url != f"https://i.scdn.co{parsed.path}")
         ):
             return None
     except ValueError:
         return None
-    return {"kind": "album_cover", "provider": "spotify", "url": url}
+    return {"kind": kind, "provider": "spotify", "url": url}
 
 
 def unavailable(kind: str = "unavailable") -> dict:
@@ -330,12 +331,16 @@ def project_playlists(value, account, query):
             return unavailable("malformed_response")
         projected = []
         for row in rows:
-            if not isinstance(row, dict) or set(row) != {"uri", "name"}:
+            if not isinstance(row, dict) or set(row) - {"uri", "name", "artwork"}:
                 return unavailable("malformed_response")
             uri = _text(row.get("uri"), 64)
             if re.fullmatch(r"spotify:playlist:[A-Za-z0-9]{22}", uri) is None:
                 return unavailable("malformed_response")
-            projected.append({"uri": uri, "name": _text(row.get("name"), 256)})
+            playlist: dict[str, Any] = {"uri": uri, "name": _text(row.get("name"), 256)}
+            artwork = _artwork(row.get("artwork"), kind="playlist_cover")
+            if artwork is not None:
+                playlist["artwork"] = artwork
+            projected.append(playlist)
         return {
             "ok": True,
             "data": {

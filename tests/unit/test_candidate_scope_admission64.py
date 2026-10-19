@@ -274,3 +274,29 @@ def test_64_rejects_any_unreviewed_admin_ingress_configuration(replacement):
         assert not admission.config_only(ROOT)
     finally:
         path.write_bytes(before)
+
+
+# Published64 assertion bodies stay byte-exact against their actual source.
+@pytest.fixture(scope="module", autouse=True)
+def historical64_source_root(tmp_path_factory):
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published64-source") / "repo"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--shared", str(original_root), str(target)], check=True
+    )
+    subprocess.run(
+        ["git", "checkout", "--quiet", "eead19bcf86e958fdb78321fdd54549d393698c8"],
+        cwd=target,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "read-tree", "--reset", "-u", "3b70095bd43f9af063c8a2e19e7c057f1553ac93"],
+        cwd=target,
+        check=True,
+    )
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root

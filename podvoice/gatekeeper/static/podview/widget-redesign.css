@@ -826,3 +826,83 @@ pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-component[data-componen
 pv-robot-control-panel form:has(>.heading)>[data-robot-proposal=true]{grid-column:1/-1;grid-row:auto;justify-self:start;max-width:100%;margin:0 0 12px}
 pv-robot-control-panel form:has(>.heading)>p[data-robot-proposal=true]{margin-bottom:8px}
 pv-robot-control-panel form:has(>.heading)>[data-robot-proposal=true][hidden]{display:none}
+
+/* Player/detail/queue images are cover roles; result cards may instead be editorial photos. */
+.result .result-art.spotify-artwork,.detail-cover,.queue-track>img:not(.queue-play){object-fit:contain;object-position:center}
+
+/* One existing kit, a quieter warm surface finish. No scene/grid or artwork changes. */
+:root{background:var(--pv-screen-paper);--surface:var(--pv-screen-surface);--muted:var(--pv-screen-muted)}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut){border-radius:var(--pv-resource-radius);box-shadow:var(--pv-surface-shadow)}
+pv-widget-host #now-view #home-music{--overview-card-surface:var(--pv-screen-control);background:var(--overview-card-surface)}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut)>span>strong{font-weight:500;line-height:1.22}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut)>span>small{line-height:1.4}
+pv-widget-host #now-view #device-activities>.resource-preview[data-kind=vacuum] .resource-visual>img{width:64px!important;height:64px!important}
+pv-widget-host #now-view #device-activities>.resource-preview[data-kind=vacuum] .resource-label small{color:var(--pv-vacuum-muted)}
+pv-widget-host #now-view #device-activities>.resource-preview[data-kind=light] .resource-label small{color:var(--pv-light-muted)}
+pv-widget-host #now-view #device-activities>.resource-preview:is([data-status=cleaning],[data-status=paused]) .resource-label small{font-weight:500;color:inherit}
+pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview):is(:disabled,[aria-disabled=true]){opacity:1;filter:none}
+@media(hover:hover){pv-widget-host #now-view :is(.home-shortcuts>button,#device-activities>.resource-preview,.timer-shortcut):hover:not(:disabled):not([aria-disabled=true]):not([aria-busy=true]){box-shadow:var(--pv-surface-shadow-hover)}}
+
+/* Existing detail owners use the same hierarchy, regardless of live/local data. */
+:is(#weather-view,#music-response,#device-view,#timers-view,#radio-view,#vehicle-view)>.response-heading h1{font-size:var(--pv-detail-title);font-weight:500;line-height:1.12;letter-spacing:-.025em}
+:is(#weather-view,#music-response,#device-view,#timers-view,#radio-view,#vehicle-view)>.response-heading p{color:var(--pv-screen-muted);font-size:16px;line-height:1.4}
+#device-detail>.pv-component:not([hidden]),.timer-create,.timer-panel,.vehicle-hero,.vehicle-secondary,.vehicle-history,#radio-view pv-choice-list .pv-list{box-shadow:var(--pv-surface-shadow);border-radius:var(--pv-resource-radius)}
+#device-detail>pv-vacuum-widget[data-component=vacuum-widget] .pv-instrument>img{width:80px;height:80px}
+#device-detail .pv-component .pv-actions{gap:var(--pv-screen-space-3)}
+.timer-panel{background:var(--pv-instrument)}
+.timer-panel .timer-copy strong{font-size:var(--pv-detail-section);line-height:1.25}
+.timer-panel .timer-finish{background:var(--pv-timer-control);color:var(--pv-overview-timer-ink);border-radius:var(--pv-hit-radius)}
+.timer-panel[data-status=done] .timer-finish{background:var(--pv-timer-accent);color:var(--pv-instrument)}
+.timer-create h2,.timer-running h2,.timer-recent h2{font-size:var(--pv-detail-section);line-height:1.25}
+pv-robot-control-panel .robot-care>summary{font-weight:500;color:var(--pv-screen-ink)}
+.vehicle-hero{background:var(--pv-overview-vehicle)}
+#radio-view pv-choice-list .pv-list>button[aria-pressed=true]{background:var(--pv-overview-radio)}
+
+/* The existing weather symbol belongs with its value, not the opposite edge. */
+#weather-view .weather-current{justify-content:flex-start;gap:var(--pv-screen-space-6)}
+#weather-view .weather-current>img{order:-1;margin-right:0;flex:none}
+
+/* Content is primary; the persistent room remains a quieter, complete context. */
+[data-view=active] .player{background:var(--pv-screen-surface);box-shadow:var(--pv-surface-shadow)}
+[data-view=active] .player .output #player-room{font-size:var(--pv-player-context);font-weight:500;line-height:1.25}
+[data-view=active] .player .track strong{font-size:var(--pv-player-title);font-weight:600;line-height:1.25}
+[data-view=active] .player .track span{font-size:15px;line-height:1.35;color:var(--pv-screen-muted)}
+.detail-controls h3{font-size:30px;line-height:1.15;letter-spacing:-.025em}
+
+/* Timer detail is a focused instrument, using the same retained timer anatomy.
+   Overview geometry and the authoritative finish action remain unchanged. */
+#timers-view .timer-running .timer-active-list{justify-items:center}
+#timers-view .timer-running .timer-panel{grid-template-columns:minmax(0,1fr);width:min(100%,400px);min-height:0;height:auto;gap:24px;padding:28px;align-items:stretch}
+#timers-view .timer-running .timer-open{display:grid;justify-items:center;gap:20px;min-height:0;text-align:center}
+#timers-view .timer-running .timer-instrument{width:200px;height:200px}
+#timers-view .timer-running .timer-count{font-size:52px;line-height:1}
+#timers-view .timer-running .timer-instrument[data-long=true] .timer-count{font-size:34px}
+#timers-view .timer-running .timer-copy{justify-items:center;gap:6px;max-width:28ch}
+#timers-view .timer-running .timer-copy strong{font-size:22px;line-height:1.25}
+#timers-view .timer-running .timer-state{font-size:16px;line-height:1.4}
+#timers-view .timer-running .timer-finish{width:100%;min-height:52px;font-size:16px}
+@media(max-width:419px){#timers-view .timer-running .timer-panel{padding:24px}}
+
+/* One active overview timer occupies two ordinary grid rows. Following Radio
+   and Tesla tiles fill the adjacent column in their existing DOM order.
+   Multiple visible timers retain the full-width, naturally growing fallback. */
+@media(min-width:760px){
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))){grid-column:1;grid-row:span 2;min-height:calc(2 * var(--pv-overview-height) + var(--pv-overview-row-gap))}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden])))>.timer-active-list{height:100%;min-height:0}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-panel:not([hidden]){grid-template-columns:minmax(0,1fr);height:100%;min-height:100%;box-sizing:border-box;padding:12px;gap:8px;align-content:center}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-open{display:grid;justify-items:center;gap:8px;min-height:0;text-align:center}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-instrument{width:120px;height:120px}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-count{font-size:34px;line-height:1}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-instrument[data-long=true] .timer-count{font-size:24px}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-copy{width:100%;min-width:0;gap:4px;justify-items:center}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-copy strong{max-width:100%;font-size:18px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-state{font-size:14px;line-height:1.3}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-finish{width:100%;min-height:48px;padding:10px 12px;font-size:15px}
+}
+@media(min-width:760px) and (max-height:640px){
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-panel:not([hidden]){padding:10px;gap:6px}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-open{gap:6px}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-instrument{width:96px;height:96px}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-copy strong{font-size:16px}
+ pv-widget-host #now-view>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])):not(:has(>.timer-active-list>.timer-panel:not([hidden])~.timer-panel:not([hidden]))) .timer-state{font-size:13px}
+}

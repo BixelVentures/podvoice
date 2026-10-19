@@ -1,5 +1,13 @@
 ## 2.0.62 — PodView retained UI and playlist resilience
 
+## 2.0.65 — Shared UI, playlist artwork and controller recovery
+
+- Consolidate canonical weather, timer, motion, robot history and retained player refinements in the existing143-member component implementation.
+- Preserve validated Spotify playlist covers through opt-in compatible Control reads, full/preview responses and identity-safe artwork transitions.
+- Restore administrator-managed controller approval after legitimate room/policy changes through separately updated HA integration0.1.5; no automatic grant or daily pairing step.
+- Gate Talk microphone intent on exact provider input-mode acknowledgement without altering native Voice PE or claiming the unsolicited transcript cause is solved.
+- Code and CI evidence do not establish installed Control/integration compatibility, audible music/alarm, robot motion or physical acceptance.
+
 ## 2.0.64 — LED retirement and quiet primary policy
 
 - Restore only the current LED projection after exact closing cancellation; fence delayed paints against replacement owners and changed generations.
