@@ -1,3 +1,12 @@
+## Nyeste præciseringer ·20. oktober2026 · samtale og overblik
+
+- Samtalen prioriteres med et afgrænset visuelt svar, dæmpede funktionsfarver, selektivt glas og korte meningsfulde reaktioner. Spørgsmålets forbindelse til svaret skal være tydelig; en genereret svartitel må ikke udgives for brugerens faktiske transskription.
+- Den store musikplayer bliver til højre. Højttalervælgeren øverst i playeren bevares og skal tydeligt kunne åbnes ved et ønsket højttalerskift.
+- Samtalestatus som “Svarer…” centreres i hele skærmens bredde, ikke kun i venstre opgaveområde.
+- Venstre område må scrolle og rumme flere widgets. Den synlige scrollbar skjules; selve scrollfunktionen bevares. Alle widgets skal ikke presses ind i første viewport.
+- Datoen bevares sammen med uret i headeren.
+- Brugerens positive feedback er en tilkendegivelse om fremgang, ikke samlet visuel slutaccept eller tilladelse til udgivelse/installation. Klikbar lokal vurdering mangler fortsat for denne revision.
+
 ## Nyeste præcisering ·19. oktober2026 · konceptet bevares
 
 Brugeren præciserer efter de tre nye studier: layoutet skal ikke nødvendigvis bevares direkte, men **konceptet skal**. De gode widgetidéer og løsninger må videreudvikles inden for PodViews genkendelige samspil mellem widget-/opgaveområde, vedvarende musikplayer og fotografisk Ro. Størrelser, proportioner, placeringer og dobbelthøjde må udvikles med begrundelse; ingen pixelmæssig fastlåsning og ingen erstatning med et andet produktkoncept. Den umiddelbart foregående assistantpåstand om at bevare hele layoutet var for snæver. De tre nye studier er inspiration til widgetløsninger, ikke godkendte komplette kompositioner. Vis forbedringer i denne sammenhæng før visuel slutaccept.

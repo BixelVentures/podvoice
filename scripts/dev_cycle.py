@@ -1219,6 +1219,7 @@ def run_release(
                 (
                     python,
                     {
+                        "d21c267817ce6744dfd59efeafb13a186f5fb78d": "scripts/candidate_scope_admission70.py",
                         "8cbca02897b8f59cbfd3392ef965b523b6d1db10": "scripts/candidate_scope_admission69.py",
                         "f99be699315de44375bea46f1c667712dca21229": "scripts/candidate_scope_admission68.py",
                         "f12537026e6ceb199932c5aa05d977e43a47920e": "scripts/candidate_scope_admission67.py",

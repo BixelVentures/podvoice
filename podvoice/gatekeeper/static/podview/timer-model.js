@@ -19,7 +19,7 @@ export function timerTransition(s,e){
   // The product exposes one unresolved timer. Existing owner records survive,
   // but hiding/dismissing that timer cannot admit another local start.
   if(timersFor(s).some(t=>t.status!=='cancelled'))return s;
-  const name=(typeof e.name==='string'?e.name.trim().slice(0,120):'')||'Timer ved bordet',timerSerial=s.timerSerial+1;
+  const name=(typeof e.name==='string'?e.name.trim().slice(0,120):'')||'',timerSerial=s.timerSerial+1;
   const recipe={name,seconds};
   return {...s,timerSerial,timer:{id:`local-timer-${timerSerial}`,name,duration:seconds,status:'running',remaining:seconds,deadline:e.now+seconds*1000,hidden:false},extraTimers:visibleTimers(s),timerHistory:[recipe,...(s.timerHistory||[]).filter(x=>x.name!==name||x.seconds!==seconds)].slice(0,6),notice:''};
  }
@@ -27,10 +27,13 @@ export function timerTransition(s,e){
  if(e.type==='timer-notice-dismiss')return mapTimers(s,t=>t.id===e.id&&t.status==='done'&&!t.noticeDismissed?{...t,noticeDismissed:true}:t);
  if(e.type==='timer')return mapTimers(s,t=>{
   if(t.id!==e.id||t.status==='cancelled')return t;
-  // Legacy workshop visibility/pause controls remain outside the product UI.
+  // Local controls never grant mutation authority over native owner records.
   if(e.action==='hide')return {...t,hidden:true};
   if(e.action==='show')return {...t,hidden:false};
   if(e.action==='cancel')return {...t,status:'cancelled',remaining:0};
+  if(!s.connected||s.live||t.ownerBootId||t.stale)return t;
+  if(e.action==='add'&&t.status==='done'&&e.seconds===60&&Number.isFinite(e.now))return {...t,status:'running',remaining:60,duration:60,deadline:e.now+60000,noticeDismissed:false};
+  if(e.action==='add'&&['running','paused'].includes(t.status)&&[60,300].includes(e.seconds)&&Number.isFinite(e.now)&&Number.isFinite(t.duration)&&t.duration+e.seconds<=86400){const remaining=t.status==='running'&&Number.isFinite(t.deadline)?Math.max(0,Math.ceil((t.deadline-e.now)/1000)):t.remaining;if(!Number.isFinite(remaining)||remaining<=0)return t;return {...t,remaining:remaining+e.seconds,duration:t.duration+e.seconds,deadline:t.status==='running'?t.deadline+e.seconds*1000:t.deadline};}
   if(e.action==='pause'&&t.status==='running'&&Number.isFinite(e.now)&&Number.isFinite(t.deadline)){const remaining=Math.max(0,Math.ceil((t.deadline-e.now)/1000));return {...t,status:remaining===0?'done':'paused',remaining};}
   if(e.action==='resume'&&t.status==='paused'&&Number.isFinite(e.now)&&Number.isFinite(t.remaining))return {...t,status:t.remaining===0?'done':'running',deadline:e.now+t.remaining*1000};
   return t;

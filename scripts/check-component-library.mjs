@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {composeStyles} from './build-assets.mjs';
+import {composeScriptBundle} from './build-scripts.mjs';
 
 const CANONICAL_RENDERERS=['MusicResults','PlayerView','TimerView','VoiceSurface','AnswerWidget','LibraryComponent','VisualComponent','renderWeather','createResourceTile','updateResourceTile'];
 const CONTAINERS=new Set(['div','article','section','aside','dialog','header','footer','nav','main','form','ol','ul','dl','table','figure','details','button']);
@@ -51,9 +53,17 @@ function validateComponentLibrary({root=process.cwd(),registryPath='docs/compone
  if(!registry.modules||!Array.isArray(registry.entrypoints)||!Array.isArray(registry.referenceOnlyFiles)||!registry.catalog||!Array.isArray(registry.sharedContracts))return {ok:false,errors:['Malformed component-library registry'],notes};
  if(registry.schema!==1||registry.approval?.authority!=='human-user'||!registry.approval?.request||!registry.approval?.date)errors.push('Missing explicit component-library approval authority');
  const visited=new Set();
- const known=new Set([...Object.keys(registry.modules),...registry.referenceOnlyFiles,...registry.entrypoints.flatMap(entry=>[entry.path,...entry.styles.map(style=>path.posix.join(path.posix.dirname(entry.path),style))])]);
+ const known=new Set([...Object.keys(registry.modules),...(registry.deliveryBundles||[]).map(bundle=>bundle.file),...registry.referenceOnlyFiles,...registry.entrypoints.flatMap(entry=>[entry.path,...(entry.generatedStyle?[path.posix.join(path.posix.dirname(entry.path),entry.generatedStyle)]:[]),...entry.styles.map(style=>path.posix.join(path.posix.dirname(entry.path),style))])]);
  function inventory(dir){for(const item of fs.readdirSync(path.join(root,dir),{withFileTypes:true})){const file=path.posix.join(dir,item.name);if(item.isDirectory())inventory(file);else if(/\.(?:m?js|html|css)$/.test(item.name)&&!known.has(file))errors.push(`Unregistered product source file: ${file}`);}}
  inventory('dist');
+ for(const bundle of registry.deliveryBundles||[]){try{
+  const entry=registry.entrypoints.find(item=>item.path===bundle.html);
+  if(entry&&JSON.stringify(bundle.sources)!==JSON.stringify(entry.scripts))errors.push(`${bundle.html}: generated script ownership changed`);
+  const expected=composeScriptBundle(root,bundle),actual=fs.readFileSync(path.join(root,bundle.file),'utf8');
+  if(actual!==expected)errors.push(`${bundle.file}: generated script differs from canonical sources; run npm run build:assets`);
+  const html=fs.readFileSync(path.join(root,bundle.html),'utf8');
+  if(JSON.stringify(htmlSurface(html).scripts)!==JSON.stringify([path.posix.relative(path.posix.dirname(bundle.html),bundle.file)]))errors.push(`${bundle.html}: entry scripts changed`);
+ }catch(error){errors.push(`${bundle.file}: generated script unavailable: ${error.message}`);}}
  function walk(file){
   if(visited.has(file))return;visited.add(file);const rule=registry.modules[file];if(!rule){errors.push(`Unregistered active module: ${file}`);return;}
   let source;try{source=fs.readFileSync(path.join(root,file),'utf8');}catch{errors.push(`Missing active module: ${file}`);return;}
@@ -78,7 +88,7 @@ function validateComponentLibrary({root=process.cwd(),registryPath='docs/compone
   for(const contract of rule.requiredCalls||[])if(!new RegExp(contract,'s').test(mask(source)))errors.push(`${file}: shared renderer route missing: ${contract}`);
   if(rule.status==='unapproved-debt')notes.push(`Unapproved debt retained: ${file} (${rule.debt})`);
  }
- for(const entry of registry.entrypoints){let html;try{html=fs.readFileSync(path.join(root,entry.path),'utf8');}catch{errors.push(`Missing entrypoint ${entry.path}`);continue;}const actual=htmlSurface(html);for(const tag of differences(inspectSurface(html).customTags,entry.customTags))errors.push(`${entry.path}: unregistered component use ${tag}`);if(JSON.stringify(actual.scripts)!==JSON.stringify(entry.scripts))errors.push(`${entry.path}: entry scripts changed`);if(JSON.stringify(actual.styles)!==JSON.stringify(entry.styles))errors.push(`${entry.path}: stylesheet ownership changed`);for(const x of differences(actual.roots,entry.roots))errors.push(`${entry.path}: unregistered container anatomy ${x}`);for(const script of actual.scripts)walk(path.posix.join(path.posix.dirname(entry.path),script));}
+ for(const entry of registry.entrypoints){let html;try{html=fs.readFileSync(path.join(root,entry.path),'utf8');}catch{errors.push(`Missing entrypoint ${entry.path}`);continue;}const actual=htmlSurface(html);for(const tag of differences(inspectSurface(html).customTags,entry.customTags))errors.push(`${entry.path}: unregistered component use ${tag}`);if(JSON.stringify(actual.scripts)!==JSON.stringify(entry.generatedScript?[entry.generatedScript]:entry.scripts))errors.push(`${entry.path}: entry scripts changed`);if(entry.generatedStyle){try{const directory=path.posix.dirname(entry.path),expected=composeStyles(entry.styles,source=>fs.readFileSync(path.join(root,directory,source),'utf8'),source=>fs.readFileSync(path.join(root,directory,source))),actualBundle=fs.readFileSync(path.join(root,directory,entry.generatedStyle),'utf8');if(actualBundle!==expected)errors.push(`${entry.path}: generated stylesheet differs from canonical sources; run npm run build:assets`);}catch(error){errors.push(`${entry.path}: generated stylesheet unavailable: ${error.message}`);}}if(JSON.stringify(actual.styles)!==JSON.stringify(entry.generatedStyle?[entry.generatedStyle]:entry.styles))errors.push(`${entry.path}: stylesheet ownership changed`);for(const x of differences(actual.roots,entry.roots))errors.push(`${entry.path}: unregistered container anatomy ${x}`);for(const script of entry.scripts)walk(path.posix.join(path.posix.dirname(entry.path),script));}
  for(const[file,rule]of Object.entries(registry.modules))if(!visited.has(file))errors.push(`Registry module no longer active; review/remove stale ownership: ${file}`);
  const catalog=fs.readFileSync(path.join(root,'dist/ui/library/catalog.js'),'utf8');const ids=[...catalog.matchAll(/^\s*\['([^']+)'/gm)].map(m=>m[1]);if(JSON.stringify(ids)!==JSON.stringify(Object.keys(registry.catalog)))errors.push('Catalogue families changed: new roles require specification and human approval');
  for(const required of registry.sharedContracts){const source=fs.readFileSync(path.join(root,required.path),'utf8');for(const phrase of required.patterns)if(!new RegExp(phrase,'s').test(source))errors.push(`${required.path}: missing shared anatomy contract: ${phrase}`);}

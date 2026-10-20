@@ -1,3 +1,29 @@
+<!-- podview70-admission
+{
+  "version": 47,
+  "kind": "podview70_canonical_ui_audio_delivery",
+  "reviewer": "/root/conversation_flows",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "d21c267817ce6744dfd59efeafb13a186f5fb78d",
+  "merge_base": "d21c267817ce6744dfd59efeafb13a186f5fb78d",
+  "rationale": "Independent packaging/admission and WAV-route review by /root/conversation_flows; UI byte parity verified against canonical source; not independent semantic review of reviewer-authored UI. Canonical complete-ui4 PodView191-asset inventory, guarded WAV suffix delivery and exact matching UI validator/tests. No Green installation, native audio, firmware or provider behavior changes. Official CI/publication remain separate evidence.",
+  "fingerprint": "8e95829fc802f2e0b069f9e017ebdb793a724c0b3fe7812b222908447574b0fa",
+  "regression_fingerprint": "40560aab7489bbf25d055612e3078e10f47a6b02e353325b047440ae418d5a52",
+  "runtime_fingerprint": "02cebe94f0e5ff5fa97c77427e8c8a76cbc5a1c0abaa0719bd6a881339dce4a3",
+  "config_fingerprint": "c4f00fa8cd37f5861342f744a98372bd63ca8e59e2db2ca6762eab662b34185e",
+  "policy_fingerprint": "289deeb5c3b85ce9cdb70e9452ad025025717e2bc986378c45d06b29338a2924",
+  "tooling_fingerprint": "84f6699d6c6bc923d4ccee1a2d9b1513b23556e01e6e8f56c1c7a1d4f787faf5",
+  "manifest_fingerprint": "cd682f56b22b97a540a772da3e06bb74e0ec3e0eee75a1b5b96ff7946eedb7e3"
+}
+-->
+
+## PodView 2.0.70 candidate · 20 October 2026
+
+User-authorized UI release, preserving all other 2.0.69 runtime owners. Source: frozen PodView complete-ui4 dist. Observed defect: the timer alarm requests a bundled WAV, but the HA asset suffix allowlist rejected WAV with 404. Hypothesis: allowing only the .wav suffix in the already guarded canonical asset route restores delivery without weakening cross-site/path validation. Regression: tests/integration/test_podview_audio_asset.py proves byte/MIME delivery, missing/disallowed paths, symlink escape and cross-site rejection. Non-goals: no Green installation, firmware, native timer rearm, provider behavior or physical audio claim. Rollback: redeploy the prior immutable 2.0.69 add-on image. Exact inventory and independent packaging/admission review verified; focused WAV security test passed (1), pairing plus WAV tests passed (6), canonical Node suite passed (1874). Official CI and publication remain pending.
+
 <!-- podview68-admission
 {
   "version": 45,

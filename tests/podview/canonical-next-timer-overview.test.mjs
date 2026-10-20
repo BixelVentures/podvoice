@@ -25,7 +25,7 @@ test('without an unfinished alert, the UI selects the running timer ending first
  assert.equal(view.canStart,false);
 });
 
-test('a finished timer projects 0:00 and stays current after notice dismissal',()=>{
+test('a finished timer normalizes remaining data to zero and stays current after notice dismissal',()=>{
  const finished={id:'finished',status:'done',noticeDismissed:true,remaining:1,deadline:null};
  const next={id:'next',status:'running',remaining:12,deadline:12000};
  const view=timerPresentation([next,finished]);
@@ -42,21 +42,10 @@ test('timer start becomes available only after the current record is resolved',(
  assert.equal(timerPresentation([{id:'old',status:'done',noticeDismissed:true}]).canStart,false);
 });
 
-test('retained hidden timer nodes cannot cause duplicate toast on overview or detail',()=>{
- const old={hidden:true,dataset:{timerId:'old'}},current={hidden:false,dataset:{timerId:'current'}};
- const rail={hidden:true,children:[]},overview={querySelectorAll:()=>[old,current]},detail={hidden:false,querySelectorAll:()=>[old,current]};
- const previous=globalThis.document;globalThis.document={getElementById:id=>id==='resource-rail'?rail:{hidden:false}};
- try{let represented;const view={host:{state:{}},currentTimer:{id:'current',status:'done',remaining:0},overviewList:overview,detail,notice:{render(...args){represented=args[4];}}};
-  for(const focus of ['now','timers']){TimerView.prototype.renderNotice.call(view,focus,true,false);assert.equal(represented,'current');}
-  rail.hidden=false;rail.children=[old,current];TimerView.prototype.renderNotice.call(view,'photo',true,false);assert.equal(represented,'current');
-  current.dataset.timerId='other';TimerView.prototype.renderNotice.call(view,'photo',true,false);assert.equal(represented,null);
- }finally{globalThis.document=previous;}
-});
-
 test('successful timer start renders its countdown without a spurious start validation warning',async()=>{
  const {timerTransition}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
- const blocked={hidden:true},running={},list={children:[]},recent={hidden:true,querySelector:()=>({replaceChildren(){}})};
- const note={hidden:true,textContent:'',setAttribute(){}},detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'.timer-recent':recent,'#timers-live-note':note})[selector]};
+ const blocked={hidden:true,setAttribute(){}},running={},list={children:[]},recent={hidden:true,querySelector:()=>({replaceChildren(){}})};
+ const detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'#timers-live-note':blocked,'.timer-recent':recent})[selector]};
  const form={elements:[],setAttribute(){}},view={host:{live:false},renderAccess:TimerView.prototype.renderAccess,nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};
  const previous=globalThis.document;globalThis.document={getElementById:()=>null};
  try{
@@ -68,7 +57,7 @@ test('successful timer start renders its countdown without a spurious start vali
   view.history=JSON.stringify(state.timerHistory);
   TimerView.prototype.render.call(view,state);
   assert.equal(view.currentTimer.remaining,60);
-  assert.equal(form.hidden,true);
+  assert.equal(form.hidden,false);
   assert.equal(blocked.hidden,true,'a valid start must not display a conflict warning');
   assert.equal(timerTransition(state,{type:'timer-start',seconds:120,now:1000}),state,'the single-timer guard must remain intact');
   state=timerTransition(state,{type:'tick',now:61000});
@@ -76,4 +65,14 @@ test('successful timer start renders its countdown without a spurious start vali
   state=timerTransition(state,{type:'timer',id:state.timer.id,action:'cancel'});
   TimerView.prototype.render.call(view,state);assert.equal(form.hidden,false);assert.equal(view.currentTimer,null);
  }finally{globalThis.document=previous;}
+});
+
+
+
+test('fullscreen alarm selects the next unacknowledged native ID across every underlying scene',()=>{
+ const first={id:'first',status:'done',noticeDismissed:true},stale={id:'stale',status:'done',stale:true},next={id:'next',status:'done'},other={id:'last',status:'done'};
+ let presented;const view={host:{state:{timer:first,extraTimers:[stale,next,other]}},currentTimer:first,canCancel:true,accessModel:{cancelBlockedIds:['last']},notice:{render(...args){presented=args;}}};
+ for(const focus of ['photo','now','music','timers','answer-one']){TimerView.prototype.renderNotice.call(view,focus,true,true);assert.equal(presented[0],next);assert.equal(presented[5].canCancel,true);assert.deepEqual(presented[5].cancelBlockedIds,['last']);}
+ next.noticeDismissed=true;TimerView.prototype.renderNotice.call(view,'music',true,false);assert.equal(presented[0],other);
+ other.status='cancelled';TimerView.prototype.renderNotice.call(view,'music',true,false);assert.equal(presented[0],first,'dismissed fallback is rejected by the notice without changing resource ownership');
 });

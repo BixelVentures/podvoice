@@ -1,18 +1,118 @@
-import {visualExamples} from './visual-examples.js';
-import {widgetCatalog,libraryGroups} from './ui/library/catalog.js';
-import './ui/library/components.js';
-import {ACTIVITIES} from './scene-model.js';
+import {productLibrary} from './library-catalog.js';
+
+// Component navigation only. Specimens load the canonical product entrypoint.
+// This module owns no widget markup, state renderer or integration authority.
 const $=id=>document.getElementById(id);
-let selected=Object.hasOwn(visualExamples,location.hash.slice(1))?location.hash.slice(1):'music-results',group=Object.hasOwn(visualExamples,location.hash.slice(1))?'Svar':'Musik',state='ready',revision=1,step=0,checked=[],choice='paper-fold',playing=true,volume=45,timer=60,timerRunning=false,localDeadline=null,timerTick,receiptTimer,vacuum='cleaning',light=true;
-const instances=new Map();
-const fields={context:{sessionId:'library-demo',taskId:'sample-task',revision:1}};
-const activityItems=()=>ACTIVITIES.map(x=>({id:x.id,label:x.title,detail:x.description,icon:x.icon}));
-function sample(id){const common={state,connected:state!=='offline',context:{...fields.context,taskId:`sample-${id}`,resourceId:`resource-${id}`,revision},items:activityItems(),selected:choice};const examples={
- 'widget-frame':{title:'Musik til madlavningen',text:'Svaret bliver her, når du folder det sammen.'},'widget-header':{title:'Hvad kan vi lave uden skærm?',source:'Lokalt eksempel',back:true},'action-button':{label:'Afspil i køkkenet',pendingLabel:'Starter i køkkenet…',tone:'primary',optionId:'smooth-jazz'},'choice-chip':{label:'Højst 20 min.',selected:choice==='quick',optionId:'quick'},'detail-sheet':{title:'Aktivitet ved bordet',label:'Se detaljer'},'inline-status':{text:state==='pending'?'Afventer observeret resultat…':'Svaret er klar',source:'Lokalt eksempel'},'concise-answer':{text:'Fold papir, hvis I vil starte med ét materiale. Brug et ark, og se trinene sammen.',source:'Lokalt aktivitetseksempel'},'source-list':{items:[{id:'local-source',label:'Aktiviteter ved bordet',url:'example-sources.html',scope:'Planlagte demotider · ingen liveopslag'}]},'choice-list':{},'comparison-table':{caption:'Plan for eksemplet',columns:[{key:'title',label:'Aktivitet'},{key:'minutes',label:'Tid'},{key:'materials',label:'Materialer'}],items:ACTIVITIES.map(x=>({...x,minutes:`${x.minutes} min.`,materials:`${x.materials} ${x.materials===1?'type':'typer'}`}))},'data-chart':{unit:'typer',items:ACTIVITIES.map(x=>({id:x.id,label:x.title,value:x.materials}))},'step-guide':{steps:ACTIVITIES[0].steps,index:step},'checklist':{checked,items:[{id:'paper',label:'Papir'},{id:'colors',label:'Farver'},{id:'glue',label:'Lim'}]},'follow-up-choices':{items:[{id:'quick',label:'Højst 20 min.'},{id:'few',label:'Færre materialer'},{id:'all',label:'Vis alle'}]},'music-results':{selected:['smooth-jazz','italian-favorites'].includes(choice)?choice:'smooth-jazz',items:[{id:'smooth-jazz',label:'Smooth Jazz',detail:'Behagelig stemning · 50 demosange',art:'assets/kitchen.png'},{id:'italian-favorites',label:'Italienske favoritter',detail:'Pop og klassikere · 42 demosange',art:'assets/italian.png'}]},'now-playing':{art:'assets/lake.png',title:'Spiller i stuen',text:'Soft Light · North',source:'Simuleret afspilning',actions:[{id:'toggle',label:playing?'Sæt musik på pause':'Afspil musik'},{id:'detail',label:'Se detaljer'}]},'transport-controls':{playing},'volume-control':{value:volume},'output-picker':{title:'Afspil på',label:'Spiller i stuen',selected:choice,items:['Stuen','Køkkenet','Hele huset'].map(x=>({id:x,label:x}))},'queue-view':{selected:choice,items:[{id:'soft-light',label:'Soft Light · North'},{id:'evening-kitchen',label:'Evening Kitchen · Juniper'},{id:'slow-sunday',label:'Slow Sunday · The Quiet Hours'}]},'situation-summary':{text:'Musik i stuen. En lokal timer ved bordet.',source:'Kendte ressourcer i dette eksempel'},'activity-card':{title:'Timer ved bordet',text:'En lille pause om et minut',source:'Lokal aktivitet',actions:[{id:'detail',label:'Se timer'}]},'timer-widget':{title:'Pause ved bordet',remaining:timer,source:timer===0?'Tiden er gået':timerRunning?'Tæller ned i denne browser':'Lokal demotimer',actions:[{id:timerRunning?'pause':'start',label:timerRunning?'Pause timer':'Start timer'},{id:'cancel',label:'Annuller timer'},{id:'hide',label:'Skjul timer'}]},'activity-timeline':{items:[{id:'started',time:'12:00',label:'Rengøring startet i eksemplet'},{id:'paused',time:'12:03',label:'Rengøring sat på pause'}]},'completion-notice':{text:'Din lokale timer er færdig',source:'Kun beskeden fjernes, når du trykker Skjul.'},'connection-notice':{text:'Forbindelsen er afbrudt',source:'Viser sidst kendte data. Handlinger bliver ikke gentaget.',label:'Hent demosnapshot'},'vacuum-widget':{title:'Robotstøvsuger',text:({cleaning:'Rengør køkkenet',paused:'Rengøring på pause',docking:'På vej til basen',stopped:'Rengøring stoppet'})[vacuum],source:'Simuleret enhed · intet kort tilgængeligt',actions:vacuum==='cleaning'?[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}]:vacuum==='paused'?[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}]:[]},'light-widget':{title:'Lys i køkkenet',text:light?'Lyset er tændt':'Lyset er slukket',source:'Simuleret observeret status',actions:[{id:'toggle',label:light?'Sluk lys':'Tænd lys'}]},};const result={...common,...examples[id],...(visualExamples[id]?{content:visualExamples[id].content}:{})};if(['empty','loading','error','unsupported'].includes(state)&&['source-list','choice-list','music-results','queue-view','activity-timeline','data-chart','comparison-table','checklist','follow-up-choices','output-picker','detail-sheet'].includes(id))result.items=[];return result;}
-function render(){for(const b of $('groups').children)b.setAttribute('aria-pressed',String(b.dataset.group===group));for(const b of $('component-menu').children){const entry=widgetCatalog.find(c=>c.id===b.dataset.id);b.hidden=entry.group!==group;b.setAttribute('aria-current',String(entry.id===selected));}const entry=widgetCatalog.find(c=>c.id===selected);$('component-title').textContent=entry.name;$('component-description').textContent=entry.description;for(const [id,el] of instances){el.hidden=id!==selected;el.inert=el.hidden;}if(!instances.has(selected)){const el=document.createElement(entry.tag);$('specimen').append(el);instances.set(selected,el);}instances.get(selected).data=sample(selected);$('usage').textContent=`${entry.group} · Native Web Component. Valg, fokus og DOM-identitet bevares ved opdateringer.`;$('state').value=state;}
-for(const g of libraryGroups){const b=document.createElement('button');b.type='button';b.dataset.group=g;b.textContent=g;b.addEventListener('click',()=>{clearTimeout(receiptTimer);group=g;selected=widgetCatalog.find(c=>c.group===g).id;state='ready';render();});$('groups').append(b);}
-for(const c of widgetCatalog){const b=document.createElement('button');b.type='button';b.dataset.id=c.id;b.textContent=c.name;b.addEventListener('click',()=>{clearTimeout(receiptTimer);selected=c.id;state='ready';render();});$('component-menu').append(b);}
-$('state').addEventListener('change',()=>{clearTimeout(receiptTimer);state=$('state').value;render();});$('motion-toggle').addEventListener('click',()=>{const reduced=document.body.dataset.motion!=='reduced';document.body.dataset.motion=reduced?'reduced':'system';$('motion-toggle').setAttribute('aria-pressed',String(reduced));});$('compact').addEventListener('click',()=>{const compact=document.querySelector('.preview-stage').classList.toggle('compact');$('compact').setAttribute('aria-pressed',String(compact));});$('reset-example').addEventListener('click',()=>{clearTimeout(receiptTimer);clearInterval(timerTick);timerTick=null;state='ready';step=0;checked=[];choice='paper-fold';playing=true;volume=45;timer=60;timerRunning=false;vacuum='cleaning';light=true;revision++;$('receipt').textContent='Eksemplet er nulstillet.';render();});$('refresh-example').addEventListener('click',()=>{clearTimeout(receiptTimer);state='loading';render();const target=selected;receiptTimer=setTimeout(()=>{if(selected!==target)return;state='ready';revision++;$('receipt').textContent='Eksemplet er opdateret. De samme kontroller er bevaret.';render();},700);});
-$('specimen').addEventListener('pv-action',e=>{const {action_id:a,option_id:id,value,revision:rev}=e.detail;if(rev!==revision)return;if(a==='preview'){volume=value;return;}if(a==='commit'){volume=value;revision++;$('receipt').textContent=`Lokal lydstyrke ${value} %. Ingen højttaler styret.`;render();return;}if(a==='toggle'&&selected==='widget-frame')return;if(a==='choose'||a==='output'){if(selected==='checklist')checked=checked.includes(id)?checked.filter(x=>x!==id):[...checked,id];else choice=id;}if(a==='activate')choice=choice==='quick'?'all':'quick';if(a==='step')step=Math.max(0,Math.min(3,step+(id==='next'?1:-1)));if(a==='toggle'&&selected==='transport-controls'||a==='toggle'&&selected==='now-playing')playing=!playing;if(a==='toggle'&&selected==='light-widget')light=!light;if(a==='pause'&&selected==='vacuum-widget')vacuum='paused';if(a==='resume')vacuum='cleaning';if(a==='dock')vacuum='docking';if(a==='stop'&&selected==='vacuum-widget')vacuum='stopped';if(selected==='timer-widget'){if(a==='start'){if(timer===0)timer=60;timerRunning=true;localDeadline=Date.now()+timer*1000;if(!timerTick)timerTick=setInterval(()=>{timer=Math.max(0,Math.ceil((localDeadline-Date.now())/1000));if(timer===0){timerRunning=false;clearInterval(timerTick);timerTick=null;$('receipt').textContent='Den lokale timer er færdig.';}if(selected==='timer-widget')render();},250);}if(a==='pause'||a==='cancel'){timerRunning=false;clearInterval(timerTick);timerTick=null;if(a==='cancel')timer=0;}if(a==='hide')$('receipt').textContent='Timeren fortsætter. Kun visningen skjules.';}
- revision++;$('receipt').textContent=a==='dismiss'?'Beskeden er skjult i eksemplet. Nulstil for at se den igen.':a==='dock'?'Observeret i demoen: på vej til basen. Rengøring er ikke bekræftet afsluttet.':a==='finish'?'Alle trin er gennemført i dette eksempel.':a==='open'?'Detaljer åbnet. Escape eller Tilbage returnerer til samme kontrol.':'Valg opdateret i det lokale eksempel.';if(a==='dismiss')instances.get(selected).hidden=true;else render();});
-window.addEventListener('pagehide',()=>{clearTimeout(receiptTimer);clearInterval(timerTick);});render();
+let selected=productLibrary[0],state=selected.states[0],compare=false,isolated=false;
+let flowSteps=[],flowIndex=-1,pendingFlow=false,flowKind='visual';
+let reducedMotion=false;
+function applyMotion(frame){const host=frame.contentDocument?.querySelector('pv-widget-host');if(host&&((host.dataset.motion==='reduced')!==reducedMotion))frame.contentDocument.getElementById('quiet-view')?.click();}
+const framing=new WeakMap();
+function fit(viewport){const frame=viewport.querySelector('iframe');if(!frame)return;const box=framing.get(frame)||{x:0,y:0,width:1280,height:800};const scale=viewport.clientWidth/box.width;frame.style.transform=`scale(${scale}) translate(${-box.x}px,${-box.y}px)`;viewport.style.aspectRatio=`${box.width}/${box.height}`;}
+const resize=new ResizeObserver(entries=>{for(const {target} of entries)fit(target);});
+const urlFor=sample=>`/?stage=${encodeURIComponent(sample.stage)}`;
+const readHash=()=>{const values=new URLSearchParams(location.hash.slice(1));const family=productLibrary.find(item=>item.id===values.get('component'));if(family){selected=family;state=family.states.find(item=>item.id===values.get('state'))||family.states[0];}compare=values.get('view')==='all';isolated=values.get('part')==='1'||selected.id==='voice';};
+// Only canonical component, state and viewing mode survive old survey URLs.
+const writeHash=()=>{const values=new URLSearchParams({component:selected.id,state:state.id,...(compare?{view:'all'}:{}),...(isolated?{part:'1'}:{})});history.replaceState(null,'',`#${values}`);};
+function frameSetup(frame,sample){
+ const selector=Object.hasOwn(sample,'selector')?sample.selector:selected.selector,showComponent=isolated&&!!selector;
+ frame.title=`${selected.name} · ${sample.label}`;
+ framing.delete(frame);frame.parentElement.style.maxWidth='';fit(frame.parentElement);
+ frame.onload=()=>{
+  const doc=frame.contentDocument;if(!doc)return;
+  frame.contentWindow.customElements.whenDefined('pv-widget-host').then(()=>{
+   if(!frame.isConnected||frame.contentDocument!==doc)return;
+   applyMotion(frame);
+   if(frame.id==='product-preview'&&pendingFlow){pendingFlow=false;advanceFlow();}
+   if(sample.open){const button=doc.querySelector(sample.open);if(button&&!button.disabled)button.click();}
+   if(showComponent){
+    const crop=()=>{
+     if(!frame.isConnected||frame.contentDocument!==doc)return;
+     const dialog=doc.querySelector('dialog[open]');
+     const nodes=dialog?[dialog]:[...doc.querySelectorAll(selector)].filter(item=>item.getBoundingClientRect().width>0);
+     if(!nodes.length){framing.delete(frame);frame.parentElement.style.maxWidth='';fit(frame.parentElement);return;}
+     const boxes=nodes.map(item=>item.getBoundingClientRect()),left=Math.min(...boxes.map(box=>box.x)),top=Math.min(...boxes.map(box=>box.y)),rect={x:left,y:top,width:Math.max(...boxes.map(box=>box.right))-left,height:Math.max(...boxes.map(box=>box.bottom))-top},x=Math.max(0,rect.x-8),y=Math.max(0,rect.y-8),width=Math.min(1280-x,rect.width+16),height=Math.min(800-y,rect.height+16);
+     if(width>0&&height>0){framing.set(frame,{x,y,width,height});frame.parentElement.style.maxWidth=`${width}px`;fit(frame.parentElement);}
+    };
+    frame.contentWindow.requestAnimationFrame(crop);
+    doc.addEventListener('click',()=>frame.contentWindow.requestAnimationFrame(crop));
+   }
+  });
+ };
+ frame.src=urlFor(sample);
+}
+function navigation(){
+ const query=$('component-search').value.trim().toLocaleLowerCase('da');
+ const matches=productLibrary.filter(item=>`${item.name} ${item.category} ${item.description}`.toLocaleLowerCase('da').includes(query));
+ $('component-menu').replaceChildren();let category='';
+ for(const item of matches){
+  if(item.category!==category){category=item.category;const title=document.createElement('p');title.className='menu-category';title.textContent=category;$('component-menu').append(title);}
+  const link=document.createElement('a');link.className='component-link';link.href=`#component=${encodeURIComponent(item.id)}`;link.setAttribute('aria-current',item.id===selected.id?'page':'false');
+  const label=document.createElement('strong');label.style.fontWeight='inherit';label.textContent=item.name;const count=document.createElement('span');count.textContent=String(item.states.length);link.append(label,count);
+  link.addEventListener('click',event=>{event.preventDefault();selected=item;state=item.states[0];render();});$('component-menu').append(link);
+ }
+ $('search-empty').hidden=matches.length>0;
+ $('catalog-count').textContent=`${productLibrary.length} komponentgrupper · ${productLibrary.reduce((sum,item)=>sum+item.states.length,0)} tilstande`;
+}
+function render(){
+ if(!pendingFlow){flowSteps=[];flowIndex=-1;$('flow-next').disabled=true;$('flow-next').textContent='Næste trin';$('flow-progress').textContent='Vælg en situation og følg den trin for trin.';}
+ navigation();writeHash();$('conversation-flow').hidden=!['conversation','voice'].includes(selected.id);$('component-title').textContent=selected.name;$('component-description').textContent=selected.description;
+ $('component-usage').textContent=selected.usage;$('component-interaction').textContent=selected.interaction;
+ $('component-limitations').replaceChildren(...selected.limitations.map(value=>{const li=document.createElement('li');li.textContent=value;return li;}));
+ $('state').replaceChildren(...selected.states.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.label;return option;}));$('state').value=state.id;
+ $('state-description').textContent=compare?'Se variationerne samlet. Vælg en tilstand for at åbne den og afprøve dens kontroller.':state.description;
+ $('preview-label').textContent=`${selected.name} · ${state.label}`;
+ $('isolate-component').disabled=!(Object.hasOwn(state,'selector')?state.selector:selected.selector);$('isolate-component').setAttribute('aria-pressed',String(isolated));$('isolate-component').textContent=isolated?'Hele skærmen':'Komponenten alene';
+ $('state-open').href=`/?qa=1280x800&stage=${encodeURIComponent(state.stage)}`;
+ $('state-open').title=state.open?'Åbn skærmen og tryk på komponentens detaljeknap.':'Åbn den samme tilstand i fuld størrelse.';
+ $('single-view').setAttribute('aria-pressed',String(!compare));$('compare-view').setAttribute('aria-pressed',String(compare));
+ $('single-preview').hidden=compare;$('comparison').hidden=!compare;
+ for(const viewport of $('comparison').querySelectorAll('.screen-viewport'))resize.unobserve(viewport);
+ $('comparison').replaceChildren();
+ if(compare){
+  $('product-preview').src='about:blank';
+  for(const sample of selected.states){
+   const article=document.createElement('article'),title=document.createElement('h2'),button=document.createElement('button'),viewport=document.createElement('div'),frame=document.createElement('iframe'),description=document.createElement('p');
+   button.type='button';button.textContent=sample.label;const activate=()=>{state=sample;compare=false;render();$('state').focus();};button.addEventListener('click',activate);title.append(button);
+   viewport.className='screen-viewport';viewport.addEventListener('click',activate);frame.loading='lazy';frame.tabIndex=-1;frame.setAttribute('aria-hidden','true');viewport.append(frame);description.textContent=sample.description;
+   article.append(title,viewport,description);$('comparison').append(article);frameSetup(frame,sample);resize.observe(viewport);
+  }
+ }else frameSetup($('product-preview'),state);
+}
+const flows={
+ 'return-followup':['conversation-visual','conversation-complete','conversation-interrupted','conversation-working','conversation-followup','conversation-complete'],
+ 'auto-return':['conversation-visual','conversation-complete'],
+ spoken:['conversation-listening','conversation-working','conversation-speaking','conversation-complete'],
+ visual:['conversation-listening','conversation-working','conversation-visual','conversation-complete'],
+ late:['conversation-listening','conversation-working','conversation-speaking','conversation-late','conversation-visual','conversation-complete'],
+ followup:['conversation-visual','conversation-interrupted','conversation-working','conversation-followup','conversation-complete'],
+ long:['conversation-visual','conversation-long','conversation-timer-finished','conversation-overview','conversation-resume','conversation-complete'],
+ connection:['conversation-visual','conversation-visual-error','conversation-offline','conversation-reconnecting','conversation-reconnected','conversation-complete'],
+ dialog:['conversation-visual','conversation-followup','conversation-complete'],
+ output:['conversation-visual','conversation-followup','conversation-complete']
+};
+function advanceFlow(){
+ const host=$('product-preview').contentDocument?.querySelector('pv-widget-host');
+ if(!host?.applyConversationPreview){$('flow-progress').textContent='Skærmen er ved at åbne. Prøv Næste trin om et øjeblik.';return;}
+ const next=flowIndex+1,stage=flowSteps[next];if(!stage)return;
+ if(!host.applyConversationPreview(stage)){$('flow-progress').textContent='Luk den åbne detalje for at fortsætte forløbet. Dit indhold bliver stående.';return;}
+ flowIndex=next;state=selected.states.find(item=>item.stage===stage)||state;writeHash();$('state').value=state.id;$('state-description').textContent=state.description;$('preview-label').textContent=`${selected.name} · ${state.label}`;$('state-open').href=`/?qa=1280x800&stage=${encodeURIComponent(stage)}`;
+ $('flow-progress').textContent=`${next+1} af ${flowSteps.length} · ${state.label}`;
+ if(['dialog','output'].includes(flowKind)&&next===0){host.ownerDocument.getElementById(flowKind==='output'?'output':'player-detail')?.click();$('flow-progress').textContent+=' · Prøv Næste trin med detaljen åben. Luk den, og prøv igen.';}
+ if(flowKind==='long'&&stage==='conversation-long')$('flow-progress').textContent+=' · Scroll ned i svaret før næste trin.';
+ if(flowKind==='long'&&stage==='conversation-overview')$('flow-progress').textContent+=' · Næste trin åbner samme svar ved din læseposition.';
+ if(flowKind==='auto-return')$('flow-progress').textContent+=stage==='conversation-complete'?' · Vent 30 sekunder uden at røre produktet. Det går til overblik; svaret bevares. Prøv igen og scroll eller tryk for at afbryde.':' · Tryk Næste for at afslutte talen og starte de 30 sekunders ro.';
+ if(flowKind==='return-followup')$('flow-progress').textContent+=stage==='conversation-complete'?(next===1?' · De 30 sekunder er startet. Vent lidt, og tryk Næste for at stille et nyt spørgsmål.':' · Det nye svar bliver stående.'):stage==='conversation-interrupted'?' · Ny tale afbryder automatisk retur. Det gamle svar bevares.':stage==='conversation-working'?' · Det gamle svar er stadig nyttigt, mens det nye bliver klart.':stage==='conversation-followup'?' · Nu overtager det nye svar.':'';
+ const following=selected.states.find(item=>item.stage===flowSteps[next+1]);$('flow-next').disabled=!following;$('flow-next').textContent=following?`Næste: ${following.label}`:'Forløbet er gennemført';
+}
+$('flow-start').addEventListener('click',()=>{selected=productLibrary.find(item=>item.id==='conversation');state=selected.states[0];compare=false;isolated=false;flowKind=$('flow-choice').value;flowSteps=flows[flowKind]||flows.visual;flowIndex=-1;pendingFlow=true;$('flow-next').disabled=false;render();});
+$('flow-next').addEventListener('click',advanceFlow);
+$('preview-motion').addEventListener('click',()=>{reducedMotion=!reducedMotion;$('preview-motion').setAttribute('aria-pressed',String(reducedMotion));for(const frame of document.querySelectorAll('.screen-viewport iframe'))applyMotion(frame);});
+$('component-search').addEventListener('input',navigation);
+$('state').addEventListener('change',()=>{flowSteps=[];flowIndex=-1;$('flow-next').disabled=true;state=selected.states.find(item=>item.id===$('state').value)||selected.states[0];render();});
+$('single-view').addEventListener('click',()=>{compare=false;render();});$('compare-view').addEventListener('click',()=>{compare=true;render();});
+$('reset-example').addEventListener('click',render);
+$('isolate-component').addEventListener('click',()=>{isolated=!isolated;render();});
+$('focus-preview').addEventListener('click',()=>{const focused=document.body.classList.toggle('preview-focused');$('focus-preview').setAttribute('aria-pressed',String(focused));$('focus-preview').textContent=focused?'Vis komponentliste':'Mere plads';});
+window.addEventListener('hashchange',()=>{readHash();render();});window.addEventListener('pagehide',()=>resize.disconnect(),{once:true});
+resize.observe($('product-preview').parentElement);readHash();render();

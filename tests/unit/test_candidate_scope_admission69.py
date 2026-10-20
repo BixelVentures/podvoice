@@ -1,8 +1,10 @@
 """PV69 keeps the native rearm delta and existing release routes closed."""
 
 import json
+import subprocess
 from pathlib import Path
 
+import pytest
 from scripts import candidate_scope_admission69 as admission
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,3 +82,22 @@ def test_69_both_existing_dispatchers_add_only_the_new_base_route():
     assert 'python3 scripts/candidate_scope_admission68.py --base "$candidate_base"' in workflow
     assert '"scripts/candidate_scope_admission32.py"' in local
     assert 'python3 scripts/candidate_scope_admission32.py --base "$candidate_base"' in workflow
+
+
+# Published69 assertions run against the published69 tree, not a later UI release.
+@pytest.fixture(scope="module", autouse=True)
+def historical69_source_root(tmp_path_factory):
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published69-source") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(
+        ["git", "checkout", "--quiet", "d21c267817ce6744dfd59efeafb13a186f5fb78d"],
+        cwd=target,
+        check=True,
+    )
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root

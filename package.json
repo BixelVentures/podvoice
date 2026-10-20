@@ -1,0 +1,17 @@
+{
+  "name": "podview-poc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run check:components && node --test tests/*.test.js",
+    "dev": "node scripts/dev.mjs",
+    "check:components": "node scripts/check-component-library.mjs",
+    "build:assets": "node scripts/build-assets.mjs && node scripts/build-scripts.mjs",
+    "predev": "npm run build:assets",
+    "pretest": "npm run build:assets"
+  },
+  "devDependencies": {
+    "axe-core": "4.14.0",
+    "esbuild": "0.28.2"
+  }
+}

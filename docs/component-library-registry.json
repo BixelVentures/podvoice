@@ -1,5 +1,22 @@
 {
   "schema": 1,
+  "deliveryBundles": [
+    {
+      "file": "dist/podview.bundle.js",
+      "html": "dist/index.html",
+      "sources": [
+        "ingress-kiosk.js",
+        "widget-view.js"
+      ]
+    },
+    {
+      "file": "dist/library.bundle.js",
+      "html": "dist/library.html",
+      "sources": [
+        "library.js"
+      ]
+    }
+  ],
   "approval": {
     "authority": "human-user",
     "date": "2026-10-16",
@@ -9,6 +26,8 @@
   "entrypoints": [
     {
       "path": "dist/index.html",
+      "generatedStyle": "podview.css",
+      "generatedScript": "podview.bundle.js",
       "scripts": [
         "ingress-kiosk.js",
         "widget-view.js"
@@ -26,7 +45,7 @@
         "html:article:response-widget",
         "html:aside:player",
         "html:aside:player-empty",
-        "html:aside:timer-alert",
+        "html:dialog:timer-alert",
         "html:button:activity-row",
         "html:button:cover-button",
         "html:button:detail-output",
@@ -41,6 +60,7 @@
         "html:button:screen-settings text-control",
         "html:button:text-control",
         "html:button:timer-notice-close",
+        "html:button:timer-notice-add",
         "html:button:timer-notice-open",
         "html:button:timer-shortcut",
         "html:button:track",
@@ -74,7 +94,10 @@
         "html:section:response-widget",
         "html:section:response-widget timers-view",
         "html:section:response-widget weather-view",
-        "html:section:responses"
+        "html:section:responses",
+        "html:div:player-progress",
+        "html:div:player-progress-times",
+        "html:button:detail-back"
       ],
       "customTags": [
         "pv-activity-timeline",
@@ -152,7 +175,7 @@
         "dist/speaker-output-view.js:SpeakerOutputView"
       ],
       "anatomy": [
-        "existing player aside + music-detail",
+        "existing persistent right player aside + retained music-detail left-column section (explicit clickable iteration 20 October 2026)",
         "queue-track order/art/copy/play",
         "existing transport/volume/output controls",
         "same output button in empty header; current native catalogue rows inside existing rooms dialog"
@@ -682,7 +705,8 @@
       "factoryClassArgument": 1,
       "imports": [
         "dist/weather-observation.js",
-        "dist/robot-observation.js"
+        "dist/robot-observation.js",
+        "dist/ha-home-observation.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -820,6 +844,7 @@
           "factory:div:'pv-actions'",
           "factory:div:'pv-content'",
           "factory:form:'pv-content'",
+          "factory:section:'device-history'",
           "factory:section:'pv-content'"
         ],
         "registrations": {},
@@ -829,7 +854,12 @@
         "dom": true
       },
       "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added. Reviewed44 renewal helpers only: explicit refresh reuses the registered pv-button pv-ghost anatomy; fresh task still requires server admission, no automatic effects or new family.",
-      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes",
+      "reviewedRobotDetailComposition": {
+        "date": "2026-10-20",
+        "scope": "User robot detail v27: relocate existing control entry below hero within existing device-history anatomy; local configured room IDs use existing choice-list and open existing confirmation form. No map geometry or new control authority.",
+        "newComponentFamilies": false
+      }
     },
     "dist/live-home-view.js": {
       "status": "approved-composition",
@@ -851,23 +881,25 @@
           "function:renderRobotHistory": 1
         },
         "roots": [
-          "factory:button:'pv-button pv-ghost'",
           "factory:section:'device-history robot-recent pv-component'"
         ],
         "registrations": {},
-        "customTags": [],
+        "customTags": [
+          "pv-choice-list"
+        ],
         "dom": true
       },
       "requiredCalls": [
         "renderWeather\\s*\\(view,\\s*model\\)"
       ],
-      "compositionScope": "D01 original presentation debt closed after source/test review: canonical renderWeather and the single existing pv-activity-timeline own weather/events; existing device-history disclosure contains semantic care dl groups and shared pv-button reuse controls. Domain data projection remains an adapter, not another visual family.",
+      "compositionScope": "Canonical renderWeather and single existing pv-activity-timeline own weather/events. Existing pv-choice-list owns retained recipe reuse choices; choosing only opens adjustment through stable record ID. Shared existing family, no new renderer.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/live-media-view.js": {
       "status": "approved-composition",
       "domOwner": "LiveMediaView data adapter; canonical pv-choice-list owns account choices, PlayerView owns player/control/queue",
       "factoryClassArgument": 1,
+      "compositionScope": "Account-selection navigation stays in the existing adapter: canChooseAccount derives access from validated choices and current read permissions; focusAccountChoice focuses the existing pv-choice-list. Neither helper creates markup, a renderer, or a component family.",
       "imports": [
         "dist/live-queue-view.js",
         "dist/media-observation.js",
@@ -888,7 +920,9 @@
           "method:renderQueue": 1,
           "method:selectAccount": 1,
           "method:setAccount": 1,
-          "method:clearRoom": 1
+          "method:clearRoom": 1,
+          "method:canChooseAccount": 1,
+          "method:focusAccountChoice": 1
         },
         "roots": [],
         "registrations": {},
@@ -1115,8 +1149,10 @@
           "class:MusicResults": 1,
           "function:fixtureArtwork": 1,
           "function:localMusicCards": 1,
+          "function:naturalThemeArtwork": 1,
           "function:sourceMusicCards": 1,
-          "method:create": 1
+          "method:create": 1,
+          "function:renderOverviewMediaValues": 1
         },
         "roots": [],
         "registrations": {},
@@ -1212,7 +1248,10 @@
           "method:renderControls": 1,
           "method:renderPlayer": 1,
           "function:placeOutputHeader": 1,
-          "method:cleanup": 1
+          "method:cleanup": 1,
+          "function:renderPlayerProgress": 1,
+          "arrow:format": 1,
+          "arrow:playerPreview": 1
         },
         "roots": [
           "native:button:queue-track"
@@ -1300,7 +1339,9 @@
       "imports": [
         "dist/visual-content.js",
         "dist/scene-model.js",
-        "dist/visual-examples.js"
+        "dist/visual-examples.js",
+        "dist/radio-model.js",
+        "dist/vehicle-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1355,7 +1396,9 @@
     "dist/radio-model.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/widget-model.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -1400,7 +1443,8 @@
       "factoryClassArgument": 2,
       "imports": [
         "dist/robot-observation.js",
-        "dist/control-model.js"
+        "dist/control-model.js",
+        "dist/scene-model.js"
       ],
       "surface": {
         "customElementAccesses": 3,
@@ -1559,11 +1603,15 @@
         "definitions": {
           "class:TimerNotice": 1,
           "method:attach": 1,
+          "method:startAudio": 1,
+          "method:stopAudio": 1,
           "method:cleanup": 1,
           "method:clearExpiry": 1,
           "method:dismiss": 1,
           "method:render": 1,
-          "method:schedule": 1
+          "method:schedule": 1,
+          "method:setPulse": 1,
+          "method:hide": 1
         },
         "roots": [],
         "registrations": {},
@@ -1574,14 +1622,21 @@
     "dist/timer-view.js": {
       "status": "approved-renderer",
       "domOwner": "TimerView",
+      "compositionScope": "20 October 2026 direct full timer detail request: existing exact-duration fields exposed by timer-custom; timer-actions adds local +1/+5/pause/resume within retained timer-panel. Native owner still only offers admitted Start/Cancel; no new family or live authority.",
       "factoryClassArgument": 1,
       "imports": [
         "dist/timer-model.js",
-        "dist/timer-notice.js"
+        "dist/timer-notice.js",
+        "dist/overview-activity-model.js",
+        "dist/scene-model.js",
+        "dist/ui/resource-tile.js"
       ],
       "surface": {
         "customElementAccesses": 0,
-        "rendererCalls": {},
+        "rendererCalls": {
+          "createResourceTile": 1,
+          "updateResourceTile": 2
+        },
         "definitions": {
           "arrow:end": 1,
           "arrow:matches": 1,
@@ -1593,13 +1648,18 @@
           "method:constructor": 1,
           "method:render": 1,
           "method:renderNotice": 1,
-          "method:updatePicker": 1
+          "method:updatePicker": 1,
+          "method:renderOverviewActivities": 1,
+          "method:bindActivityGesture": 1,
+          "method:finishActivityGesture": 1
         },
         "roots": [
           "html:button:timer-adjust",
+          "html:button:timer-custom",
           "html:button:timer-finish",
           "html:button:timer-start",
           "html:div:timer-active-list",
+          "html:div:timer-actions",
           "html:div:timer-create-footer",
           "html:div:timer-duration",
           "html:div:timer-presets",
@@ -1612,9 +1672,12 @@
           "native:article:timer-panel"
         ],
         "registrations": {},
-        "customTags": [],
+        "customTags": [
+          "pv-choice-list"
+        ],
         "dom": true
-      }
+      },
+      "reviewedActivitySelection": "Direct user authorization: existing current resource slot combines active timers and robot activity using registered resource-preview and choice-list, manual selection, stable IDs, no grid reorder."
     },
     "dist/ui/gestures.js": {
       "status": "active-support",
@@ -1629,7 +1692,12 @@
           "arrow:down": 1,
           "arrow:end": 1,
           "arrow:move": 1,
+          "arrow:pointerCancel": 1,
+          "arrow:touchDown": 1,
+          "arrow:touchEnd": 1,
+          "arrow:touchMove": 1,
           "arrow:wheel": 1,
+          "function:atScrollTop": 1,
           "function:attachGestures": 1,
           "function:gestureIntent": 1,
           "function:transitionContent": 1,
@@ -1662,7 +1730,8 @@
       "imports": [
         "dist/ui/library/visual-components.js",
         "dist/visual-content.js",
-        "dist/ui/library/catalog.js"
+        "dist/ui/library/catalog.js",
+        "dist/ui/conclusion-disclosure.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -1717,13 +1786,15 @@
       "domOwner": "VisualComponent, four validated families only",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/visual-content.js"
+        "dist/visual-content.js",
+        "dist/ui/conclusion-disclosure.js"
       ],
       "surface": {
         "customElementAccesses": 1,
         "rendererCalls": {},
         "definitions": {
           "arrow:copy": 1,
+          "arrow:weatherPresentation": 1,
           "arrow:make": 1,
           "class:VisualComponent": 1,
           "class:extends": 1,
@@ -1731,7 +1802,8 @@
           "method:connectedCallback": 1,
           "method:data": 2,
           "method:reconcile": 1,
-          "method:render": 1
+          "method:render": 1,
+          "method:disconnectedCallback": 1
         },
         "roots": [
           "factory:details:'pv-visual-sources'",
@@ -1756,13 +1828,19 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:release": 1,
+          "arrow:resourceLayout": 1,
+          "arrow:sameLayout": 1,
           "class:SceneMotion": 1,
-          "method:animate": 1,
           "method:cancel": 1,
           "method:capture": 1,
+          "method:card": 1,
           "method:constructor": 1,
           "method:enter": 1,
+          "method:holdGeometry": 1,
+          "method:overlay": 1,
           "method:reduced": 1,
+          "method:releaseGeometry": 1,
           "method:resources": 1,
           "method:settleResources": 1
         },
@@ -1897,7 +1975,9 @@
     "dist/vehicle-model.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ha-home-observation.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -1936,6 +2016,7 @@
           "method:render": 1
         },
         "roots": [
+          "factory:button:'text-control'",
           "factory:details:'device-history vehicle-disclosure'",
           "factory:div:'vehicle-battery-rail'",
           "factory:div:'vehicle-content'",
@@ -2013,7 +2094,7 @@
           "method:update": 1
         },
         "roots": [
-          "factory:aside:'voice-surface'",
+          "factory:div:'voice-surface'",
           "factory:div:'voice-copy'"
         ],
         "registrations": {},
@@ -2091,10 +2172,14 @@
           "function:renderWeather": 1,
           "function:rows": 1,
           "function:weatherMetrics": 1,
-          "function:weatherSourceLabel": 1
+          "function:weatherOverviewDetail": 1,
+          "function:weatherSourceLabel": 1,
+          "arrow:weatherHeaderVisible": 1,
+          "function:renderOverviewForecast": 1
         },
         "roots": [
           "factory:div:'weather-current'",
+          "factory:dl:'weather-metadata'",
           "factory:footer:'weather-source'",
           "factory:header:'response-heading'",
           "factory:section:'weather-days'",
@@ -2103,6 +2188,11 @@
         "registrations": {},
         "customTags": [],
         "dom": true
+      },
+      "reviewedOverviewForecast": {
+        "date": "2026-10-20",
+        "scope": "Direct user brief: existing overview weather button gains five-hour strip in existing home-forecast span. Shared local/live owner, actual model hours only, no extra card or controls. Latest explicit weather detail brief adds a definition list inside existing current card for admitted available next-hour rain probability and wind; UV/sunset omitted because not admitted. No new family.",
+        "newComponentFamilies": false
       }
     },
     "dist/widget-model.js": {
@@ -2140,6 +2230,7 @@
         "dist/player-view.js",
         "dist/ui/touch-intent.js",
         "dist/ui/scroll-edges.js",
+        "dist/ui/screen-lifecycle.js",
         "dist/voice-surface.js",
         "dist/live-control-view.js",
         "dist/live-answer-view.js",
@@ -2163,7 +2254,10 @@
         "dist/music-results.js",
         "dist/widget-model.js",
         "dist/scene-model.js",
-        "dist/answer-widget.js"
+        "dist/answer-widget.js",
+        "dist/local-robot-view.js",
+        "dist/ui/answer-auto-return.js",
+        "dist/ui/pressed-state.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2179,10 +2273,10 @@
         "definitions": {
           "arrow:$": 1,
           "arrow:current": 2,
-          "arrow:outside": 1,
           "arrow:px": 1,
           "arrow:result": 1,
           "class:WidgetHost": 1,
+          "method:applyConversationPreview": 1,
           "method:alignClock": 1,
           "method:alignOverview": 1,
           "method:build": 1,
@@ -2194,6 +2288,8 @@
           "method:disconnectedCallback": 1,
           "method:dispatch": 1,
           "method:focusHeading": 1,
+          "method:openOverviewRobot": 1,
+          "method:renderOverviewAction": 1,
           "method:invalidateLiveMusic": 1,
           "method:liveMusicAccountChanged": 1,
           "method:loadLiveHome": 1,
@@ -2213,12 +2309,16 @@
           "method:sendLiveTimer": 1,
           "method:suspendLiveTimer": 1,
           "method:reconcileLiveTimer": 1,
-          "method:showFeedback": 1
+          "method:showFeedback": 1,
+          "method:renderConnectionNotice": 1
         },
         "roots": [
           "native:article:retained-answer",
           "native:button:history-open",
+          "native:button:resource-direct-action",
+          "native:div:resource-card",
           "native:button:retained-answer",
+          "native:button:text-control",
           "native:div:history-preview"
         ],
         "registrations": {
@@ -2226,7 +2326,8 @@
         },
         "customTags": [
           "pv-answer",
-          "pv-inline-status"
+          "pv-inline-status",
+          "pv-choice-list"
         ],
         "dom": true
       },
@@ -2237,7 +2338,12 @@
         "this\\.musicResults\\.render\\s*\\(",
         "this\\.playerView\\.renderPlayer\\s*\\(",
         "createResourceTile\\s*\\("
-      ]
+      ],
+      "reviewedConnectionExtension": {
+        "date": "2026-10-20",
+        "scope": "Explicitly approved first-run connection copy and inline read-only retry inside existing connection-note. Reuses text-control; transport snapshot reread only, no account wizard or mutation replay.",
+        "newComponentFamilies": false
+      }
     },
     "dist/speaker-output-view.js": {
       "status": "approved-renderer",
@@ -2277,6 +2383,192 @@
         "dom": true
       },
       "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family."
+    },
+    "dist/local-robot-view.js": {
+      "status": "approved-composition",
+      "domOwner": "Local data adapter for existing RobotControlPanel, robot history and admitted control dialog",
+      "factoryClassArgument": 2,
+      "imports": [
+        "dist/robot-control-panel.js",
+        "dist/live-home-view.js",
+        "dist/control-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:make": 1,
+          "class:LocalRobotView": 1,
+          "method:act": 1,
+          "method:allowed": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:openRobot": 1,
+          "method:render": 1,
+          "method:seed": 1
+        },
+        "roots": [
+          "factory:button:'dialog-close'",
+          "factory:button:'text-control'",
+          "factory:dialog:'pv-component'",
+          "factory:div:'pv-content'",
+          "factory:section:'device-history'"
+        ],
+        "registrations": {},
+        "customTags": [
+          "pv-choice-list",
+          "pv-robot-control-panel"
+        ],
+        "dom": true
+      },
+      "reviewedPresentationExtension": {
+        "date": "2026-10-19",
+        "scope": "User-authorized complete local robot journey. Reuses live control dialog anatomy and canonical panel/history. Synthetic data, no physical effects.",
+        "newComponentFamilies": false
+      },
+      "reviewedRobotDetailComposition": {
+        "date": "2026-10-20",
+        "scope": "User robot detail v27: relocate existing control entry below hero within existing device-history anatomy; local configured room IDs use existing choice-list and open existing confirmation form. No map geometry or new control authority.",
+        "newComponentFamilies": false
+      }
+    },
+    "dist/ui/answer-auto-return.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:AnswerAutoReturn": 1,
+          "function:autoReturnCandidate": 1,
+          "method:attach": 1,
+          "method:cancel": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:sync": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "20 October latest user brief:90 seconds without interaction after explicit conversation/visual completion returns toRo. Input resets idle clock; guides/open details excluded. Reuses existing host navigation and preserves answers/resources."
+    },
+    "dist/ui/screen-lifecycle.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:ScreenLifecycle": 1,
+          "function:detailFocus": 1,
+          "function:safeScreenReload": 1,
+          "function:screenBusy": 1,
+          "function:screenClock": 1,
+          "method:attach": 1,
+          "method:cleanup": 1,
+          "method:constructor": 1,
+          "method:refreshAfterWake": 1,
+          "method:releaseWakeLock": 1,
+          "method:resetDetail": 1,
+          "method:resetIdle": 1,
+          "method:schedule": 1,
+          "method:stopTimer": 1,
+          "method:sync": 1,
+          "method:syncDetail": 1,
+          "method:syncIdle": 1,
+          "method:syncWakeLock": 1,
+          "method:wake": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "20 October direct user brief4/9: screen-only night schedule, bounded Ro drift, read-only wake refresh and explicit kiosk maintenance guarded against active resources/tasks. No DOM, widget family, fabricated sun sensor, live effect authority or ordinary-browser zoom change."
+    },
+    "dist/overview-activity-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:overviewActivities": 1,
+          "function:selectOverviewActivity": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ha-home-observation.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:finite": 1,
+          "arrow:isVehicleObservation": 1,
+          "function:lightsObservation": 1,
+          "function:vehicleObservation": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/pressed-state.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:clear": 1,
+          "arrow:down": 1,
+          "arrow:move": 1,
+          "arrow:up": 1,
+          "arrow:visibility": 1,
+          "function:attachPressedState": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "Direct user brief 6: pointer-held feedback cleanup only, no DOM construction or new component family."
+    },
+    "dist/ui/conclusion-disclosure.js": {
+      "status": "approved-renderer",
+      "domOwner": "conclusionDisclosure within existing concise-answer and visual summary",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:measure": 1,
+          "function:conclusionDisclosure": 1,
+          "method:update": 1
+        },
+        "roots": [
+          "native:button:text-control conclusion-toggle"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "reviewedScope": "Explicit user R2.7 and root approval: shared existing conclusion clamp with Vis mere text-control, full text preserved, no new family."
     }
   },
   "sharedContracts": [
@@ -2315,6 +2607,7 @@
     "dist/library.css",
     "dist/library.html",
     "dist/library.js",
+    "dist/library-catalog.js",
     "dist/model.js",
     "dist/ordbog.css",
     "dist/ordbog.html",

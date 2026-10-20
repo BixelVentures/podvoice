@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
-function fixture(current=null){const status={hidden:true,textContent:'',setAttribute(){}},finish={hidden:false,disabled:false},form={hidden:true,elements:[{}],setAttribute(){}};return {currentTimer:current,form,connected:false,canStart:false,detail:{querySelector:()=>status},nodes:new Map([['detail:actual',{querySelector:()=>finish}]]),updatePicker(){},status,finish};}
+function fixture(current=null){const status={hidden:true,textContent:'',setAttribute(){}},finish={hidden:false,disabled:false},form={hidden:true,elements:[{}],setAttribute(){}};return {currentTimer:current,form,connected:false,canStart:false,detail:{querySelector:()=>status},nodes:new Map([['detail:actual',{querySelector:()=>finish,querySelectorAll:()=>[]}]]),updatePicker(){},status,finish};}
 test('TimerView retains an unavailable first-empty draft without granting Start',()=>{const v=fixture();TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false,feedback:'Timerstyring er ikke tilgængelig lige nu.'});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.status.hidden,false);assert.equal(v.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');});
-test('TimerView retains current timer and disables cancellation on lost authority',()=>{const timer={id:'actual',remaining:73},v=fixture(timer);TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false});assert.equal(v.currentTimer,timer);assert.equal(v.form.hidden,true);assert.equal(v.finish.hidden,false);assert.equal(v.finish.disabled,true);assert.equal(v.canCancel,false);});
+test('TimerView retains current timer and disables cancellation on lost authority',()=>{const timer={id:'actual',remaining:73},v=fixture(timer);TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false});assert.equal(v.currentTimer,timer);assert.equal(v.form.hidden,false);assert.equal(v.finish.hidden,false);assert.equal(v.finish.disabled,true);assert.equal(v.canCancel,false);});
 test('pending and unknown preserve anatomy and block both actions; recovery only restores actual permissions',()=>{const v=fixture();for(const blocked of [{pending:true},{awaitingObservation:true,feedback:'Udfald ukendt · handlingen gentages ikke'}]){TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:true,...blocked});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.canCancel,false);}TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:false});assert.equal(v.canStart,true);assert.equal(v.canCancel,false);assert.equal(v.status.hidden,true);});
 import {readFileSync} from 'node:fs';
 test('actual live adapter keeps the empty form when no timer action is granted',()=>{
@@ -138,7 +138,7 @@ test('UNKNOWN cancellation blocks same ID but permits distinct observed timer ca
  await t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'other'}});assert.equal(t.calls.length,2);await t.host.sendLiveTimer(cancelExact);assert.equal(t.calls.length,2);
 });
 test('TimerView exposes only independent Cancel buttons while Start is uncertain',()=>{
- const v=fixture({id:'other'}),blocked={hidden:false,disabled:false},other={hidden:false,disabled:true};v.nodes=new Map([['exact',{dataset:{timerId:'exact'},querySelector:()=>blocked}],['other',{dataset:{timerId:'other'},querySelector:()=>other}]]);
+ const v=fixture({id:'other'}),blocked={hidden:false,disabled:false},other={hidden:false,disabled:true};v.nodes=new Map([['exact',{dataset:{timerId:'exact'},querySelector:()=>blocked,querySelectorAll:()=>[]}],['other',{dataset:{timerId:'other'},querySelector:()=>other,querySelectorAll:()=>[]}]]);
  TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:true,awaitingObservation:true,allowIndependentCancel:true,cancelBlockedIds:['exact'],feedback:unknownText});assert.equal(v.canStart,false);assert.equal(blocked.disabled,true);assert.equal(other.disabled,false);
 });
 
@@ -148,4 +148,12 @@ test('unavailable epoch does not erase retained Start fence through actual acces
  const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end));t.host.timerView={renderAccess(value){this.access=value;}};
  t.observe(t.snapshot({timers:{status:'unavailable',epoch:null,items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(t.host.liveTimerFences.length,1);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
  t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(t.host.timerView.access.awaitingObservation,true);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
+});
+
+test('retained UNKNOWN Start explains disabled empty form after independent observed cancellation',async()=>{
+ const t=timerOwner({items:[],held:true}),start=t.host.sendLiveTimer(startOne);t.settle({ok:false,outcome:'unknown'});await start;
+ t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'alarm',status:'finished'}]}}));const stop=t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'alarm'}});t.settle({ok:true,outcome:'accepted'},1);await stop;t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));
+ const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end)),view=fixture();view.renderAccess=TimerView.prototype.renderAccess;t.host.timerView=view;
+ render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.status.hidden,false);assert.equal(view.status.textContent,'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.');assert.equal(t.host.liveActionFeedback,'');assert.equal(t.host.liveTimerFences.length,1);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
+ t.observe(t.snapshot({timers:{status:'observed',epoch:'new-authoritative-epoch',items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.canStart,true);assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');
 });

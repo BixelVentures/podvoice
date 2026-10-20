@@ -7,10 +7,14 @@ export function scrollEdgeState({position,viewport,content}){
 }
 export class ScrollEdges {
  constructor(host){this.host=host;this.nodes=new Map();this.onChange=()=>this.refresh();}
- attach(){if(this.resize)return;this.resize=new ResizeObserver(this.onChange);this.mutations=new MutationObserver(this.onChange);this.mutations.observe(this.host,{childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden','open'],subtree:true});this.resize.observe(this.host);this.host.addEventListener('load',this.onChange,true);this.refresh();}
+ attach(){if(this.resize)return;this.resize=new ResizeObserver(this.onChange);this.mutations=new MutationObserver(this.onChange);
+  // The canonical player dialog is a body sibling, not a child of WidgetHost.
+  // Observe its real queue with the same owner, including native open/close.
+  const detail=this.host.ownerDocument?.getElementById('music-detail');this.roots=[this.host];if(detail&&!this.host.contains(detail))this.roots.push(detail);
+  for(const root of this.roots){this.mutations.observe(root,{childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden','open'],subtree:true});this.resize.observe(root);root.addEventListener('load',this.onChange,true);}this.refresh();}
  refresh(){if(this.frame||!this.resize)return;this.frame=requestAnimationFrame(()=>{this.frame=0;this.scan();});}
  scan(){
-  const current=new Set(this.host.querySelectorAll(SELECTORS));
+  const current=new Set((this.roots||[this.host]).flatMap(root=>[...root.querySelectorAll(SELECTORS)]));
   for(const [node,listener] of this.nodes)if(!current.has(node)){node.removeEventListener('scroll',listener);this.resize.unobserve(node);if(node.dataset.scrollAxis!==undefined)delete node.dataset.scrollAxis;if(node.dataset.scrollEdge!==undefined)delete node.dataset.scrollEdge;this.nodes.delete(node);}
   for(const node of current){if(!this.nodes.has(node)){const listener=()=>this.measure(node);node.addEventListener('scroll',listener,{passive:true});this.resize.observe(node);this.nodes.set(node,listener);}this.measure(node);}
  }
@@ -21,5 +25,5 @@ export class ScrollEdges {
   const value=node.getClientRects().length?scrollEdgeState(horizontal?{position:node.scrollLeft,viewport:node.clientWidth,content:node.scrollWidth}:{position:node.scrollTop,viewport:node.clientHeight,content:node.scrollHeight}):'';
   if(node.dataset.scrollEdge!==value)node.dataset.scrollEdge=value;
  }
- detach(){if(this.frame)cancelAnimationFrame(this.frame);this.frame=0;this.resize?.disconnect();this.resize=null;this.mutations?.disconnect();this.mutations=null;this.host.removeEventListener('load',this.onChange,true);for(const [node,listener] of this.nodes){node.removeEventListener('scroll',listener);if(node.dataset.scrollAxis!==undefined)delete node.dataset.scrollAxis;if(node.dataset.scrollEdge!==undefined)delete node.dataset.scrollEdge;}this.nodes.clear();}
+ detach(){if(this.frame)cancelAnimationFrame(this.frame);this.frame=0;this.resize?.disconnect();this.resize=null;this.mutations?.disconnect();this.mutations=null;for(const root of this.roots||[this.host])root.removeEventListener('load',this.onChange,true);this.roots=[];for(const [node,listener] of this.nodes){node.removeEventListener('scroll',listener);if(node.dataset.scrollAxis!==undefined)delete node.dataset.scrollAxis;if(node.dataset.scrollEdge!==undefined)delete node.dataset.scrollEdge;}this.nodes.clear();}
 }

@@ -17,6 +17,8 @@ export const FEELING_PLAYLISTS=[
  {id:'feeling:bright',name:'Et lyst øjeblik',description:'Let · God energi',detail:'',track:1,art:'kitchen.png'},
 ];
 export const TRACKS=MUSIC_FIXTURE;
+// Synthetic position for the local interaction example, not a track duration claim.
+export const LOCAL_POSITION_EXAMPLE=Object.freeze({durationMs:180000,progressMs:84000});
 export const musicArtwork=art=>art.startsWith('https://')?art:`assets/${art}`;
 // Account collection membership is an explicit local scenario, never a claim about the user's account.
 const COLLECTION_TRACKS={top:[0,1,2,3,4,5,6],recent:[1,3,5,0,2,4,6]};
@@ -26,9 +28,9 @@ export const TARGETS=[
  {accountId:'household',kind:'configured_alias',targetId:'kitchen',name:'Køkkenet',detail:'HomePod · Klar',available:true},
  {accountId:'household',kind:'spotify_device',targetId:'office',name:'Kontoret',detail:'Ikke tilgængelig',available:false},
 ];
-export const COLLECTIONS={mood:{title:'Hvad er stemningen i køkkenet?',description:'Lidt jazz, italienske klassikere eller rolig indie?'},feeling:{title:'Hvad har du lyst til at høre?',description:'Mere energi, noget roligt eller velkendte toner?'},top:{title:'Dine topsange',description:'Musik, du vender tilbage til.'},recent:{title:'Senest spillet',description:'Find tilbage til noget, du har hørt.'}};
+export const COLLECTIONS={mood:{title:'Hvad er stemningen?',description:'Lidt jazz, italienske klassikere eller rolig indie?'},feeling:{title:'Hvad har du lyst til at høre?',description:'Mere energi, noget roligt eller velkendte toner?'},top:{title:'Dine topsange',description:'Musik, du vender tilbage til.'},recent:{title:'Senest spillet',description:'Find tilbage til noget, du har hørt.'}};
 export const MUSIC_OPTIONS=[...PLAYLISTS,...FEELING_PLAYLISTS,...['top','recent'].flatMap(collection=>[...TRACKS].map((t,i)=>({id:`${collection}:${t.id}`,name:t.title,description:t.artist,art:t.art,detail:'',collection,track:i})))];
-export function initialWidgetState(){return {revision:1,filter:'all',collection:'mood',suggestionPage:0,collectionPages:{mood:0},refreshPending:null,refreshStatus:'',refreshSerial:0,collapsed:false,playback:{active:true,track:0,room:'Stuen',accountId:'household',kind:'configured_alias',targetId:'living-room',playing:true,volume:MOCK_PLAYBACK_POLICY.startVolumePercent},pending:null,operation:0,message:''};}
+export function initialWidgetState(){return {revision:1,filter:'all',collection:'mood',suggestionPage:0,collectionPages:{mood:0},refreshPending:null,refreshStatus:'',refreshSerial:0,collapsed:false,playback:{active:true,track:0,progressMs:LOCAL_POSITION_EXAMPLE.progressMs,room:'Stuen',accountId:'household',kind:'configured_alias',targetId:'living-room',playing:true,volume:MOCK_PLAYBACK_POLICY.startVolumePercent},pending:null,operation:0,message:''};}
 export function musicRefreshFeedback(s){return s.refreshPending?'':s.refreshStatus==='error'?'Kunne ikke opdatere · prøv igen':s.refreshStatus==='empty'?'Ingen nye forslag · viser seneste udvalg':'';}
 export function resultsFor(s){
  const pool=s.collection==='mood'||!s.collection?PLAYLISTS.filter(p=>s.filter==='all'||p[s.filter]):s.collection==='feeling'?FEELING_PLAYLISTS:(COLLECTION_TRACKS[s.collection]||[]).map(index=>MUSIC_OPTIONS.find(p=>p.collection===s.collection&&p.track===index));
@@ -46,11 +48,12 @@ export function widgetTransition(s,e){
   case 'filter':return s;
   case 'collapse':return {...s,collapsed:!s.collapsed};
   case 'select':{const choice=resultsFor(s).find(p=>p.id===e.id);if(e.revision!==s.revision||!choice||s.pending||s.refreshPending)return s;const operation=s.operation+1;const track=choice.track??PLAYLISTS.findIndex(p=>p.id===e.id);return {...s,operation,pending:{operation,id:e.id,room:s.playback.room,accountId:s.playback.accountId,kind:s.playback.kind,targetId:s.playback.targetId,track,art:TRACKS[track].art,playing:true,active:true,volume:MOCK_PLAYBACK_POLICY.startVolumePercent},message:''};}
-  case 'target':{const t=TARGETS.find(t=>t.accountId===e.accountId&&t.kind===e.kind&&t.targetId===e.targetId);if(!t?.available||e.revision!==s.revision||!s.playback.active)return s;const operation=s.operation+1;return {...s,operation,pending:{...s.playback,operation,room:t.name,accountId:t.accountId,kind:t.kind,targetId:t.targetId},message:''};}
-  case 'receipt':if(!s.pending||e.operation!==s.pending.operation)return s;return {...s,pending:null,playback:{...s.playback,room:s.pending.room,accountId:s.pending.accountId,kind:s.pending.kind,targetId:s.pending.targetId,track:s.pending.track,art:s.pending.art,volume:s.pending.volume??s.playback.volume,playing:s.pending.playing,active:s.pending.active},message:''};
+  case 'target':{const t=TARGETS.find(t=>t.accountId===e.accountId&&t.kind===e.kind&&t.targetId===e.targetId);if(!t?.available||e.revision!==s.revision)return s;if(!s.playback.active){if(s.pending)return s;if(s.playback.accountId===t.accountId&&s.playback.kind===t.kind&&s.playback.targetId===t.targetId)return s;return {...s,playback:{...s.playback,room:t.name,accountId:t.accountId,kind:t.kind,targetId:t.targetId},message:''};}const operation=s.operation+1;return {...s,operation,pending:{...s.playback,operation,room:t.name,accountId:t.accountId,kind:t.kind,targetId:t.targetId},message:''};}
+  case 'receipt':if(!s.pending||e.operation!==s.pending.operation)return s;return {...s,pending:null,playback:{...s.playback,room:s.pending.room,accountId:s.pending.accountId,kind:s.pending.kind,targetId:s.pending.targetId,track:s.pending.track,progressMs:s.pending.id?0:s.playback.progressMs,art:s.pending.art,volume:s.pending.volume??s.playback.volume,playing:s.pending.playing,active:s.pending.active},message:''};
   case 'toggle':if(!s.playback.active)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,playing:!s.playback.playing},message:''};
-  case 'skip':if(!s.playback.active)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,art:undefined,track:(s.playback.track+(e.delta<0?-1:1)+TRACKS.length)%TRACKS.length},message:''};
-  case 'queue-select':{const index=TRACKS.findIndex(t=>t.id===e.id);if(e.revision!==s.revision||index<0)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,track:index,art:TRACKS[index].art,playing:true,active:true},message:''};}
+  case 'skip':if(!s.playback.active)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,art:undefined,progressMs:0,track:(s.playback.track+(e.delta<0?-1:1)+TRACKS.length)%TRACKS.length},message:''};
+  case 'queue-select':{const index=TRACKS.findIndex(t=>t.id===e.id);if(e.revision!==s.revision||index<0)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,track:index,progressMs:0,art:TRACKS[index].art,playing:true,active:true},message:''};}
+  case 'seek':{if(!s.playback.active||s.pending||e.trackId!==TRACKS[s.playback.track]?.id||e.operation!==s.operation||!Number.isSafeInteger(e.positionMs)||e.positionMs<0||e.positionMs>LOCAL_POSITION_EXAMPLE.durationMs||e.positionMs===s.playback.progressMs)return s;return {...s,playback:{...s.playback,progressMs:e.positionMs}};}
   case 'volume':{const value=Number(e.value);return Number.isFinite(value)?{...s,playback:{...s.playback,volume:Math.max(0,Math.min(100,value))}}:s;}
   default:return s;
  }

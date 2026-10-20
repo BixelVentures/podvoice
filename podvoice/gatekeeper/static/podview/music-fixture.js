@@ -5,7 +5,7 @@ export const MUSIC_FIXTURE = [
     "id": "heartless",
     "title": "Heartless",
     "artist": "Kanye West",
-    "art": "https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02346d77e155d854735410ed18",
+    "art": "https://image-cdn-fa.spotifycdn.com/image/ab67616d0000b273346d77e155d854735410ed18",
     "uri": "spotify:track:4EWCNWgDS8707fNSZ1oaA5",
     "fixture": true,
     "metadataSource": "https://open.spotify.com/track/4EWCNWgDS8707fNSZ1oaA5"

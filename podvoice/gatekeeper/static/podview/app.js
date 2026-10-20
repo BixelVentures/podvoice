@@ -4,7 +4,7 @@ const stage=document.getElementById('stage');const dock=document.getElementById(
 const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=name=>'<svg aria-hidden="true"><use href="#i-'+name+'"/></svg>';
 const date=()=>new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Copenhagen'}).format(new Date());
-const time=()=>new Intl.DateTimeFormat('da-DK',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'}).format(new Date()).replace('.',':');
+const time=()=>new Intl.DateTimeFormat('da-DK',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Copenhagen'}).format(new Date());
 try{const saved=JSON.parse(localStorage.getItem('podview-poc-favorites')||'[]');if(Array.isArray(saved))memory=saved.filter(x=>x&&PEOPLE.includes(x.owner)&&RECIPES.some(r=>r.id===x.recipe));}catch{storageAvailable=false;}
 function send(e){const previous=state;state=transition(state,e);if(state.task?.recipe&&previous.task?.step!==state.task.step){const recipe=RECIPES.find(r=>r.id===state.task.recipe);state.notice='Trin '+(state.task.step+1)+' af '+recipe.steps.length+': '+recipe.steps[state.task.step];}render();}
 function activeEvent(type,extra={}){return {type,taskId:state.task?.id,revision:state.task?.revision,...extra};}

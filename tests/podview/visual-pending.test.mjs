@@ -13,7 +13,7 @@ test('visual pending adds no loading prose and keeps actual speaking/listening l
  assert.equal(voicePresentation(voice,false,pending),null);assert.equal(voicePresentation({...voice,active:false},true,pending),null);
  assert.equal(voicePresentation(voice,true,{...pending,sessionId:'other'}).detail,'');
  assert.equal(voicePresentation(voice,true).detail,'');
- assert.equal(value.key,voicePresentation(voice,true,{...pending}).key);assert.notEqual(value.key,voicePresentation(voice,true).key);
+ assert.equal(value.key,voicePresentation(voice,true,{...pending}).key);assert.equal(value.key,voicePresentation(voice,true).key);
 });
 test('new optional pending scope is closed and old31 client safely ignores it',()=>{
  assert.equal(accept(PodVoiceTransport,snapshot()),true);assert.equal(accept(OldTransport,snapshot()),true);
