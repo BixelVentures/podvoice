@@ -150,8 +150,10 @@ provider-neutrale lifecycle-signaler er `wait_for_user` for ikke-henvendt tale e
 anmodning/afslutningshensigt, og
 `end_conversation` for en klar semantisk afslutning. PodVoice fortolker aldrig brugerens
 ord og ejer kun transportlukningen, så én teardown og én wake-rearm kan garanteres.
-Et rent tak til et allerede givet svar kan derfor mødes med stilhed uden lukning.
-Eksisterende korreleret silent-tool-ACK åbner followup; næste spørgsmål eller normal
+GPT-Live kan fortolke en kort kvittering efter et fuldt besvaret spørgsmål som
+afslutning og vælge det eksisterende `end_conversation`. En kvittering med opfølgning,
+accept af et tilbud eller en udtrykkelig tænkepause bevarer samtalen. Ved stille venten
+åbner eksisterende korreleret silent-tool-ACK followup; næste spørgsmål eller normal
 fysisk idle bestemmer fortsættelsen. Høflighed i handlinger, spørgsmål, godkendelser
 og uklar henvendt tale er ikke denne undtagelse. Ingen lokal fraseregel eller ny tilstand.
 

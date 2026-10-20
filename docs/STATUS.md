@@ -1,3 +1,24 @@
+<!-- podview70-admission
+{
+  "version": 47,
+  "kind": "podvoice70_idle_preclose_input_boundary",
+  "reviewer": "/root/review70",
+  "domains": [
+    "realtime_semantics"
+  ],
+  "base_tip": "d21c267817ce6744dfd59efeafb13a186f5fb78d",
+  "merge_base": "d21c267817ce6744dfd59efeafb13a186f5fb78d",
+  "fingerprint": "2a6fb1761cad85864c85053900fdf3a6e8e036cb6780393f9f5c2c486606f085",
+  "regression_fingerprint": "2863bed0223e99d23b8f01d589ea2bbba18228cbff76f8b658a62ef48772cdd3",
+  "runtime_fingerprint": "705ebfaae68f1b1ece0f2ad06605fd62c9f47ba9df3e09b84a42ea949cce0e4f",
+  "config_fingerprint": "c4f00fa8cd37f5861342f744a98372bd63ca8e59e2db2ca6762eab662b34185e",
+  "policy_fingerprint": "661e1c4778ff27e94526e0276e32b4bdcbc8d354ea27731aad1cb35e15ba6794",
+  "tooling_fingerprint": "7822365454d3ce0f4e95289835a1104f54fe268f8d8932a045012cf7efca79e8",
+  "manifest_fingerprint": "3b68ba07bc706fca818c37666b805411a1066b128a8ebeaa0c7070afc854c9d7",
+  "rationale": "Independent short-primary SOURCE GO /root/ready70_provider reviewed live_prompt.py 1ff73e19515af2c243b33c7b2d4614364e66c10c3b7d4ac737a579e2bde4e795 and unchanged thin.py dc10b8de725feceedf1abe1ce16d4e66bb2aa77cb86cc1361560c5d94f6d7367. This is source review only. Final provider result-4 pure-thanks failed: Tak was recognized, followed by silence and no backend/END within 45 seconds. The short-primary experiment is not certified as a solution and the candidate is NOT TEST READY. No official CI, publication, installation or physical acceptance is claimed. Exact candidate admission also remains failed because the inspector reports physical_output, realtime_semantics and rearm while this reviewed binding names realtime_semantics only. Do not infer a production fix from source review or component checks."
+}
+-->
+
 <!-- podview68-admission
 {
   "version": 45,
@@ -2741,3 +2762,181 @@ Retained installed68 software evidence from /root: a fresh normal Talk session a
   "rationale": "Independent unsigned composition GO tree9166b0cfed84af9811ba2cad391d1f2bb081bba1 receipt e0e4130862c164dd882cdc04e0eadbf09ccd62bbc496fed226b6e67274705e57 reuses exact runtime/test SOURCE GO b4ae6b259113561fb57e90f1785275f00535bf7f594a7cc0b2141e4afb01cb22 on patch85ae7bdccf22ef10d4b6c64a71e6c5841cfde86d6400824c482d4d86bc01cb3e. Sole behavior delta VoicePELink native timer nonce/rearm ordering;143 UI assets and all other owners remain unchanged. Fourteen final boundary cases,40 stop/closing neighbours and changed statics pass; unchanged native/Talk/rearm results retained with original scope. This binding permits source admission only; official final CI, publication, installation and second physical timer/voice acceptance remain open. Actual68 first alarm audio/greenLED/Stop-lightoff is user-confirmed; native receive order selecting either repaired source race remains unknown."
 }
 -->
+
+## 20 October 2026 — installed69 native idle-close failure (active investigation)
+
+Lead /root; issue103. Green69 git d21c267817ce6744dfd59efeafb13a186f5fb78d,
+rootfs-v1 f4bb090aa76dea976319cb694f0135a0151f1bdb06811bb7f403b8a90efe9909,
+Speakers38; no install pending. Physical session r0:1792482470740264158 answered
+the date request and bare Tak, then failed automatic close. User confirms quiet
+room, brief yellow and physical button required. Preclose LED TX at2491.786 was
+cancelled at2492.194 by fresh advancing native VAD active under unchanged owner;
+output energy was zero. Button2514.202 recovered through teardown/rearm/IDLE/OFF.
+Complete four-part local audio trace retained; no audio uploaded or new probe.
+
+Offline device PCM contains a low-level changing harmonic signal at cancellation.
+Comparison against retained speaker PCM did not establish replay/echo (4s waveform
+NCC below0.05). Both Live and VAD tap post-XMOS channel1; their gain/frontend differ.
+No stale event, missing AEC split or semantic END failure established. Bare Tak need
+not call END; app idle must close independently. No threshold, gain, timeout, prompt,
+firmware or LED change justified. Physical close remains FAILED, not golden.
+
+Affected chain: native input/VAD and consumed output -> quiet owner -> visible
+preclose -> cancel -> fresh quiet -> provider close -> playback drain -> teardown ->
+rearm. Preserve fresh-input cancellation, full duplex and exact owner/generation
+fences. Non-goals: UI, new classifier, masking LED, new framework or physical retry.
+Immediate falsifiable question: does actual shipped69 software recover from native
+activity cancellation after a full new quiet period? Extend only the existing native
+active regression through one close/drain/rearm; no product change. Existing tests
+cover cancellation and other reset recovery separately, not this complete chain.
+Results and any proven runtime cause remain pending; no new release candidate.
+
+Actual focused result: the extended existing native-active-without-SDK-delta case
+passes against unchanged69 runtime, including retired old preclose, full fresh idle,
+replacement visible token for2s, exactly one SDK-wire close, rejection of foreign
+playback finish, exact lease drain and one rearm. Formatter/lint pass. Lead read the
+changed assertions. Patch SHA256 5c60d50543ba85d96b3b1d97e76867d5bda38cfc0dea961750446d46e17050a5;
+receipt native-active-idle-recovery-receipt.json retained beside this draft.
+This narrows, but does not fix, the physical failure: controlled recovery works;
+actual repeated native activity in a user-confirmed quiet room remains unresolved.
+No provider call, installed change, runtime patch or new physical acceptance.
+
+### 20 October — active70 closure repair decision, not yet a result
+
+User requests actual fixes, one combined release and Green installation. Lead /root.
+Observed69 quiet-room failure above disproves daily-use idle closure. Current
+ESPHome documentation defines microWakeWord VAD as a wake false-accept filter;
+local model/frontend matches upstream. GPT-Live SDK3.13.0 exposes no Realtime VAD
+or server idle option. OpenAI live-conversations documents app inactivity management,
+actual playback/work settlement and graceful session.close/session.closed.
+
+Falsifiable cause hypothesis: current wake-VAD-only idle permission can indefinitely
+veto auto-close on background-like residuals while Live already hears the continuous
+stream. Smallest repair: retain native quiet fallback, and after current consumed
+output/work quiet ask the SAME Live session once for a current semantic decision.
+The instruction is NOT a statement of user silence or a close grant. Existing
+completed end_conversation plus input/backend/output currency, provider-close and
+exact native drain/rearm remain the only semantic finalizer. No second classifier,
+firmware tuning, local phrase matching, transcript-gap silence or forced close.
+
+Independent design review /root/pc36_diag_review: GO to bounded implementation,
+causal regression and actual provider preflight. Capture/session/provider ownership
+must be rechecked under send lock before append. One-shot is spent before await and
+unknown sends never retry; ACK only delivery. Review-generated audio cannot create
+an automatic review loop. Teardown/reconnect retires the sender. Relevant neighbors:
+new native speech/queued input, backend/tool work, late output, model END and exact
+playback finish, rotation/reconnect, timeout/ambiguous append. Test both no-END and
+valid-END paths and preserve full duplex. Natural sounds remain allowed; primary
+silence wording for all delegations is a separately falsifiable minimal prompt
+candidate, not a proven provider fix.
+
+Source/API references: https://esphome.io/components/micro_wake_word/ and
+https://developers.openai.com/api/docs/guides/live-conversations#close-idle-sessions-and-resume.
+No production change or physical pass yet. Rollback boundary: installed69 remains
+until composed source review, causal gates, final provider preflight and official CI;
+70 is not test-ready merely from design approval. UI and native firmware unchanged.
+
+### Actual70 provider preflight — first candidate FAILED expected outcome
+
+One real SDK/provider session, synthetic math input, actual useful answer “Det er
+fire.” Application review requested at11.465s; exact session.instructions.appended
+at12.150s. Through45s no backend delegation/END followed; all later output was zero.
+Result UNKNOWN/observation_deadline, clean teardown; second case was NOT run.
+HA69 was stopped for the exclusive window and restarted at08:55UTC; normal UI
+confirms Kører. No room audio/HA actions or key persistence. Evidence stays private
+in /private/tmp/pv70-provider-preflight/provider-result-1/quiet.
+
+This invalidates the first review-prompt hypothesis and prior admission pins for
+any changed successor. instructions.append only adds context; it promises no new
+model decision. No unsupported response.create-as-primary-trigger will be added.
+Native VAD confidence/debounce is also not a supported patch: user-confirmed quiet
+has48 advancing inferences over4.83s with confidence up to254, overlapping actual
+speech up to255. Weakening that gate would risk real input without separating noise.
+
+Lead permits exactly one bounded semantic successor, independently design-reviewed
+by /root/review70: explicitly ask the SAME Live primary to delegate one current
+original-audio/context assessment. Existing backend END permits a trusted app-review
+completion only when no current directed speech, unanswered request or pending work;
+existing WAIT preserves unfinished/ambiguous interaction. No claim of user silence,
+new classifier, tool, protocol or forced END. Normal user/media/ack rules, full duplex,
+actual END settlement, current input/output and native drain/rearm remain unchanged.
+Both real-provider quiet completion and unfinished-followup must pass; firstfailure
+ends this approach rather than another prompt-search loop. Candidate NOT TEST READY.
+
+### Actual70 second idle review FAILED; final scope reduced to contextual completion
+
+Second real quiet case again reached a useful answer and exact append ACK but no
+backend/END before45s; clean teardown, secondcase not run. HA69 restarted and Kører
+verified after the bounded pause. This ends the proactive idle-review approach;
+its whole patch/bindings/results are retained privately, and ALL its runtime,
+provider guard and added idle-review tests are removed from the final candidate.
+No further prompt-iteration or VAD-library replacement follows from these failures.
+Offline comparisons also reject blind tuning: HA MicroVAD calls the same interval
+speech for400/40010ms frames; stricter WebRTC rejects it but loses quiet speech.
+
+The actual field trigger contains a separate concrete policy defect: Live was
+explicitly instructed to keep a bare acknowledgement open even after a completed
+answer, despite the user's expected natural completion. Final minimal70 hypothesis
+changes only Live primary/backend adaptation and END/WAIT descriptions: assess the
+whole audio/context; a short acknowledgement after a fully delivered answer can
+express completion only without follow-up, unanswered work, pending approval or
+requested wait. Model chooses existing END; no local phrase routing, new engine,
+transport, timing, VAD, tools or microphone change. Ordinary answer alone stays open.
+Canonical INVARIANTER/ARKITEKTUR clarify this same model-owned interpretation;
+PRODUKTMÅL acceptance gates remain unchanged. User's original physical quiet-room
+AUTONOMOUS idle failure remains unresolved and is not reclassified as fixed.
+
+Independent /root/review70 exact-source/safety GO: thin dc10b8de725feceedf1abe1ce16d4e66bb2aa77cb86cc1361560c5d94f6d7367,
+live_prompt dd037d64985992f8874e22c923a57818a17f67dae5816446aad3dac0a53f69f9.
+20 focused prompt cases and statics pass. Final provider gate uses existing semantic
+harness and synthetic pure-thanks positive plus polite-followup negative, no appended
+review. Real END settlement/natural teardown/rearm required for positive; negative
+must answer six and preserve conversation. Fixed2cases,150s limit, firstfailure stop.
+These source results are not provider success, publication, installation or physical
+acceptance. Lead /root owns combined delivery after real provider outcome and CI.
+
+### Final70 actual provider result — pure-thanks FAILED; candidate NOT TEST READY
+
+One bounded provider start ran the frozen contextual-thanks candidate and recognized
+the synthetic “Tak.” input. After the already completed answer “Det er fire.”, Live
+said “Selv tak, vi tales ved.” but made zero backend tool calls and no
+`end_conversation` call through the full45s observation window. The positive oracle
+therefore failed with `observation_deadline`; the second polite-followup case was
+not run. Shutdown completed cleanly and usage was complete; HA69 was restarted and
+normal UI confirmed Kører. Private evidence: `/private/tmp/pv70-provider-preflight/provider-result-3/pure-thanks/`.
+
+This is a real provider FAIL for the required pure-thanks semantic outcome, not an
+audio-recognition miss or teardown failure. No final70 provider acceptance is
+claimed; candidate is NOT TEST READY. Read-only source audit found no missing
+`end_conversation` schema/tool: the managed Responses delegation uses `tool_choice:
+auto`, which allows a spoken response without a tool call. Appended
+`PRIMARY_PRESENTATION_INSTRUCTIONS` only restricts optional presentation formatting
+and explicitly leaves closure unchanged; it does not explain or override this result.
+No source change or further provider attempt is authorized by this observation.
+The final candidate prompt SHA is `734196578bdbfd6e631f7c848627d71bf77bdb075f9b9344b3408d5c589a8c10`; the durable contextual-thanks review receipt still records an earlier prompt SHA and needs correction or reviewer re-ack before final-byte review can be claimed.
+
+Bounded short-primary candidate, not an accepted repair: the real-provider pure-thanks
+turn recognized the input and spoke a farewell but emitted no structured END for 45s.
+The existing explicit primary END-before-farewell rule was ignored; no missing schema
+or source-owned alternate cause was found. Falsifiable hypothesis: reducing the primary
+to acoustic turn rules and one salient structured-close instruction, while retaining
+the unchanged detailed backend policy, may improve Live's delegation choice. Only
+`live_prompt.py` primary and its source assertions change. Test the same pure-thanks
+positive and polite-followup negative once; any missing END, premature farewell,
+followup loss or contradictory tool outcome rejects this candidate. Do not alter
+idle/VAD, transport, schemas, backend policy, physics, installation or release state.
+Rollback is the preserved prior primary. Native idle fallback remains an independent
+FAILED physical issue; no prompt result can reclassify it.
+
+### Short-primary actual provider result4 — pure-thanks FAILED
+
+One bounded provider start used the frozen short-primary candidate. The synthetic
+“Tak.” input was recognized; Live stayed silent, made zero backend tool calls and
+emitted no `end_conversation` through the45s observation window. The positive case
+failed with `observation_deadline`, so the polite-followup case was not run. Teardown
+was clean; HA69 was restarted and normal UI confirmed Kører. Private evidence:
+`/private/tmp/pv70-provider-preflight/provider-result-4/pure-thanks/`.
+
+This falsifies the short-primary hypothesis for the required positive case. It does
+not supersede provider-result3 or establish a new schema/runtime defect. Final70 is
+not provider-accepted; do not start another prompt variant from these results.

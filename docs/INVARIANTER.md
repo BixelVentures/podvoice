@@ -138,7 +138,7 @@ Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
 3. En almindelig klar brugertur besvares direkte af GPT-Live. Kun en handling
    eller et opslag bruger det nødvendige domæneværktøj; `end_conversation` bruges kun
    til semantisk afslutning, og `wait_for_user` kun til ikke-henvendt tale eller et rent modtaget-signal
-   for et allerede givet svar uden ny anmodning eller afslutningshensigt. GPT-Live afgør betydningen; et rent tak giver stille venten med åben samtale. Spørgsmål,
+   for et allerede givet svar uden ny anmodning eller afslutningshensigt. GPT-Live afgør betydningen i hele lyd- og samtalekonteksten: en kort kvittering efter et fuldt besvaret spørgsmål kan udtrykke afslutning og give `end_conversation`; en kvittering med fortsættelse eller udestående arbejde bevarer samtalen. Spørgsmål,
    høflige handlinger, tilbud/godkendelser og nødvendig opklaring behandles stadig. De to
    lifecycle-signaler er interne og må aldrig dispatches til HA/MCP. Lokal tekstmatching
    af “farvel”-varianter er ikke afslutningsautoritet.

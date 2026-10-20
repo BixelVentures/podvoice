@@ -8,7 +8,7 @@ from scripts import candidate_scope_admission69 as admission
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_69_profile_is_exact_native_nonce_rearm_and_version_only():
+def test_69_profile_is_exact_native_nonce_rearm_and_version_only(monkeypatch):
     assert admission.BASE == "8cbca02897b8f59cbfd3392ef965b523b6d1db10"
     assert admission.VERSION == 46
     assert admission.KIND == "podvoice69_timer_rearm_nonce_boundary"
@@ -20,6 +20,18 @@ def test_69_profile_is_exact_native_nonce_rearm_and_version_only():
         "tests/integration/test_ha_timer_native_output.py",
         "tests/unit/test_candidate_scope_admission69.py",
     }
+    # Historical69 checks its published snapshot after newer version metadata lands.
+    read = admission.safe_file
+    snapshot = "d21c267817ce6744dfd59efeafb13a186f5fb78d"
+    monkeypatch.setattr(
+        admission,
+        "safe_file",
+        lambda root, name: (
+            admission.legacy._git(root, "show", f"{snapshot}:{name}").encode()
+            if name in admission.CONFIG
+            else read(root, name)
+        ),
+    )
     assert admission.config_only(ROOT)
 
 
@@ -73,7 +85,7 @@ def test_69_both_existing_dispatchers_add_only_the_new_base_route():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text()
     local = (ROOT / "scripts/dev_cycle.py").read_text()
     assert (
-        f'if [ "$candidate_base" = "{admission.BASE}" ]; then\n'
+        f'elif [ "$candidate_base" = "{admission.BASE}" ]; then\n'
         '            python3 scripts/candidate_scope_admission69.py --base "$candidate_base"'
     ) in workflow
     assert (f'"{admission.BASE}": "scripts/candidate_scope_admission69.py",') in local

@@ -887,6 +887,60 @@ async def test_current_native_active_without_sdk_delta_revokes_old_preclose(monk
             assert session._active and session._live_mic_submitted is last_forwarded
             assert session.brain.input_sequence == input_index_before
             assert session._live_input_revision == input_revision_before
+
+            # Native activity retired the old yellow owner without any model END.
+            # Keep fresh quiet reports flowing through a complete replacement
+            # idle/preclose, then verify the existing provider and physical drain.
+            await observed(lambda: preclose_owner["task"].done())
+            assert session._live_idle_preclose_task is None
+            assert link.cancel_live_closing.await_count == 1
+
+            async def fresh_quiet_until_provider_closed():
+                index = native._activity_latest["sequence"]
+                while not session._live_provider_closed.is_set():
+                    await asyncio.sleep(0.1)
+                    index += 1
+                    deliver(index)
+
+            producer = asyncio.create_task(fresh_quiet_until_provider_closed())
+            await asyncio.wait_for(
+                producer,
+                session.idle_timeout_s + thin_module.LIVE_IDLE_PRECLOSE_S + WAIT_S,
+            )
+            assert len(cutoff) == 1
+            replacement = cutoff[0]
+            visible = [
+                (at, fields)
+                for name, at, fields in records
+                if name == "live_idle_preclose_visible"
+                and fields["token"] != preclose_owner["token"]
+            ]
+            assert len(visible) == 1
+            assert visible[0][1]["token"] > preclose_owner["token"]
+            assert replacement["wire_finisher_task"] is not preclose_owner["task"]
+            assert replacement["elapsed_tokens"] == (visible[0][1]["token"],)
+            assert replacement["at"] - visible[0][0] >= thin_module.LIVE_IDLE_PRECLOSE_S
+            assert (
+                replacement["at"] - first_quiet_after_active_at
+                >= session.idle_timeout_s + thin_module.LIVE_IDLE_PRECLOSE_S
+            )
+            assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
+            assert not tools.calls and not session._ending_conversation
+            assert session._active and link.rearm_calls == 0
+            assert stream.finished
+            assert await asyncio.wait_for(stream.next_chunk(), WAIT_S) is None
+            session._on_media_state(False, "foreign-finish")
+            assert session._active and link.rearm_calls == 0
+            session._on_media_state(False, lease.playback_id)
+            await observed(sdk.exit_entered.is_set)
+            owner = session._close_task
+            assert owner is not None and not owner.done()
+            sdk.allow_exit.set()
+            await asyncio.wait_for(asyncio.shield(owner), WAIT_S)
+            assert not session._active and link.rearm_calls == 1
+            assert session._trace_reason == "app-idle-timeout"
+            assert sdk.released and not session._teardown_incomplete
+            assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
         finally:
             sdk.allow_exit.set()
             if producer is not None:

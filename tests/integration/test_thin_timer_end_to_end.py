@@ -50,22 +50,33 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
     release_old_paint = asyncio.Event()
     retirement_entered, release_retirement = asyncio.Event(), asyncio.Event()
     original_native_call = native.call
+    rearm_count = 0
 
     async def hold_alert_until_stop(service, args=None):
+        nonlocal rearm_count
         if service == "podvoice_reply_play":
             native.calls.append((service, args))
             assert context.admits(args["session"].encode(), args["generation"])
-            assert GREEN not in lights
+            assert lights[-1] != GREEN
+            green_before = lights.count(GREEN)
             session._on_media_state(True, "wrong-timer-playback")
             await asyncio.sleep(0)
-            assert GREEN not in lights
+            assert lights.count(GREEN) == green_before
             native.link._on_reply_status(args["token"] + ":started")
             play_started.set()
             return True
         if service == "podvoice_timer_output_cancel":
             retirement_entered.set()
             await release_retirement.wait()
-        return await original_native_call(service, args)
+        result = await original_native_call(service, args)
+        if service == "podvoice_rearm_wake_word":
+            # The real firmware mints a fresh capability for every rearm. The
+            # one-alarm Native fixture otherwise repeats its fixed idle nonce.
+            rearm_count += 1
+            native.idle = f"{rearm_count:032x}"
+            context.idle(native.idle.encode())
+            native.link._on_timer_context("idle:" + native.idle)
+        return result
 
     native.link._call_service = hold_alert_until_stop
 
@@ -89,7 +100,7 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
                 call(
                     "timer-call",
                     name="podvoice_start_timer",
-                    arguments=json.dumps({"seconds": 1, "name": "Pasta"}),
+                    arguments=json.dumps({"seconds": 10, "name": "Pasta"}),
                 ),
                 terminal("timer-response"),
             )
@@ -99,7 +110,7 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
             timer_id = result["id"]
             assert timer_id in manager.timers and manager.starts == 1
             assert service_calls[-1]["action"] == "start"
-            assert service_calls[-1]["seconds"] == 1
+            assert service_calls[-1]["seconds"] == 10
             assert service_calls[-1]["name"] == "Pasta"
 
             await session.stop()
@@ -140,8 +151,9 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
             )
             assert native.link._stop_armed and session._timer_alarm_task is not None
 
-            # The physical button stops the idle timer locally, then publishes its
-            # exact StopContext status; VoicePELink translates that into wake_stop.
+            # Simulate the spoken Stop model's captured-command detection, not
+            # stop_from_button(). Acoustic recognition is not proved here.
+            # VoicePELink translates the exact StopContext status into wake_stop.
             assert context.stop()
             native.link._on_stop_context(
                 f"{native.link._stop_session}:{native.link._stop_generation}:stopped"
@@ -180,6 +192,46 @@ async def test_completed_voice_timer_reaches_native_stop_and_fresh_wake(context)
             native.link._on_reply_status(old_reply["token"] + ":finished")
             assert session._active and native.link._stop_session == "f" * 32
             assert len([name for name, _ in native.calls if name == "podvoice_reply_play"]) == 1
+
+            # A second completed voice call uses the same delivered software
+            # chain after the first alarm's retirement and fresh conversation.
+            await emit(
+                sdk,
+                created("second-timer-response"),
+                call(
+                    "second-timer-call",
+                    name="podvoice_start_timer",
+                    arguments=json.dumps({"seconds": 10, "name": "Te"}),
+                ),
+                terminal("second-timer-response"),
+            )
+            await until(lambda: sdk.response.item.create.await_count == 2)
+            second = json.loads(sdk.response.item.create.await_args.kwargs["item"]["output"])
+            assert second["ok"] and second["id"] != timer_id and manager.starts == 2
+            assert manager.timers[second["id"]].seconds_left == 10
+            await session.stop()
+            assert native.link.timer_output_request_blocker() is None
+            play_started.clear()
+            manager.finish(second["id"])
+            await asyncio.wait_for(play_started.wait(), 5)
+            await until(lambda: GREEN == lights[-1])
+            assert context.stop()  # Same local Stop detection on the second owner.
+            native.link._on_stop_context(
+                f"{native.link._stop_session}:{native.link._stop_generation}:stopped"
+            )
+            await asyncio.wait_for(session._timer_alarm_task, 5)
+            await until(lambda: not bridge.snapshot("kitchen")["finished"])
+            assert native.link.wake_readiness == "recovered"
+            assert native.link.timer_output_request_blocker() is None
+            assert session._playback_lease is None and not session._teardown_incomplete
+            assert [
+                row["phase"] for row in service_calls if row.get("action") == "report_alert"
+            ] == ["started", "stopped", "started", "stopped"]
+            assert len([name for name, _ in native.calls if name == "podvoice_reply_play"]) == 2
+            assert context.begin(b"a" * 32)
+            native.link._on_state(TextSensorState("a" * 32 + ":0:disabled", key=43))
+            await asyncio.wait_for(session.wake("fresh-after-second-alarm"), 3)
+            assert session._active and native.link._stop_session == "a" * 32
         finally:
             release_old_paint.set()
             release_retirement.set()

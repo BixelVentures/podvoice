@@ -352,6 +352,14 @@ LIVE_END_CONVERSATION_DECLARATION = {
         "action receipt, a natural farewell, or remain silent, without an invitation.",
     )
     .replace(
+        "Do not infer completion from a media-stop word, politeness, an ordinary answer or lookup.",
+        "An ordinary answer, lookup or media-stop word alone is not completion. "
+        "Live may assess a short acknowledgement after a fully delivered answer as "
+        "conversational completion from the whole audio and context, only with no "
+        "follow-up, unanswered task, pending approval or requested wait. Politeness "
+        "within a request, offer acceptance or unfinished thought is not completion.",
+    )
+    .replace(
         "When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech.",
         "A request to stop assistant speech means be quiet and keep listening in the same "
         "conversation; do not call this tool for that request. Use silent=true only for "
@@ -388,7 +396,10 @@ LIVE_WAIT_FOR_USER_DECLARATION = {
         "addressee assessment. Use only when the provided context explicitly establishes "
         "speech not addressed to the assistant, without a new request, question or intent "
         "to end. A pure acknowledgement without a new request, question or ending intent "
-        "needs no tool: let Live listen silently. Clear ending intent requires "
+        "needs no tool: let Live listen silently. But a short acknowledgement that Live "
+        "assesses from the whole audio and context as completion after a fully delivered "
+        "answer requires end_conversation, only if no follow-up, unanswered task, "
+        "pending approval or requested wait remains. Clear ending intent requires "
         "end_conversation, even when accompanied by thanks. ",
     ),
 }

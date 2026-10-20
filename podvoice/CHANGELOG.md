@@ -1,3 +1,9 @@
+## 2.0.70 — Contextual conversation completion
+
+- Shorten GPT-Live voice instructions and keep detailed task rules in the backend; preserve model-owned structured completion and unfinished follow-ups.
+- Keep existing idle timing, microphone, provider protocol, timer/Stop, playback and rearm owners unchanged.
+- Preserve all 143 UI assets and installed Speakers 0.26.38. Software checks do not establish physical voice, audio or LED acceptance.
+
 ## 2.0.69 - Native timer rearm admission
 
 - Keep a fresh idle timer capability provisional until its exact native rearm acknowledgement, including out-of-order sensor delivery.
