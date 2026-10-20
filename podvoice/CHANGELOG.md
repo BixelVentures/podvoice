@@ -1,3 +1,9 @@
+## 2.0.70
+
+- Deliver the canonical PodView UI refinement: stable colored widget grid, detailed weather/timer views, player queue, accessible interaction and motion.
+- Serve the bundled timer WAV through the existing guarded asset route, with traversal and cross-site regression coverage.
+- No Green installation or physical speaker acceptance is implied by this release.
+
 ## 2.0.69 - Native timer rearm admission
 
 - Keep a fresh idle timer capability provisional until its exact native rearm acknowledgement, including out-of-order sensor delivery.

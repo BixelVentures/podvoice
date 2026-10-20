@@ -10,7 +10,7 @@ export function playbackObservation(v,account,previous){
  const state=v.playback?.state;if(!['playing','paused','no_active_playback'].includes(state))throw Error('invalid_playback_state');
  if(state==='no_active_playback'&&(v.playback.item!==null||v.playback.target!==null))throw Error('contradictory_empty_playback');
  const target=v.playback.target;if(target!==null&&(target?.kind!=='spotify_device'||typeof target.target_id!=='string'||!target.target_id))throw Error('invalid_playback_target');
- return {config_entry_id:account,owner_epoch:epoch,poll_sequence:v.poll_sequence,observedAt,expiresAt,ageMs:v.observation.age_ms,maxAgeMs:v.observation.max_age_ms,receivedAt,state,item:item(v.playback.item),target:target?{id:txt(target.target_id),name:target.name===null?null:txt(target.name)}:null};
+ return {config_entry_id:account,owner_epoch:epoch,poll_sequence:v.poll_sequence,observedAt,expiresAt,ageMs:v.observation.age_ms,maxAgeMs:v.observation.max_age_ms,receivedAt,state,progressMs:state!=='no_active_playback'&&Number.isSafeInteger(v.playback.progress_ms)&&v.playback.progress_ms>=0?v.playback.progress_ms:null,item:item(v.playback.item),target:target?{id:txt(target.target_id),name:target.name===null?null:txt(target.name)}:null};
 }
 export function queueObservation(v,account){
  if(v?.ok!==true||v.schema!=='podconnect.queue.v1'||v.config_entry_id!==account||v.scope!=='account'||v.relation_to_playback!=='not_atomic'||!Array.isArray(v.items)||v.items.length>20||v.returned_count!==v.items.length)throw Error('invalid_queue');

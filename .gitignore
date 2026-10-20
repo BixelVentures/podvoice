@@ -20,3 +20,6 @@ __pycache__/
 
 # local preview server config (machine-specific path)
 .claude/launch.json
+
+# Canonical UI validator build dependencies
+node_modules/

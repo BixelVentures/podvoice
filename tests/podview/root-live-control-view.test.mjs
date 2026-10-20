@@ -5,9 +5,9 @@ import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-con
 // Minimal DOM port: exercise the shipped view's constructor, render and async
 // handlers. Real browser focus/layout remains a separate QA gate.
 class Node extends EventTarget {
- constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.textContent='';}
- append(...nodes){this.children.push(...nodes);}
- after(node){this.sibling=node;}
+ constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.textContent='';this.dataset={};}
+ append(...nodes){for(const node of nodes){if(node.parentNode){const index=node.parentNode.children.indexOf(node);if(index>=0)node.parentNode.children.splice(index,1);}this.children.push(node);node.parentNode=this;}}
+ after(node){this.sibling=node;if(this.parentNode){const index=this.parentNode.children.indexOf(this);this.parentNode.children.splice(index+1,0,node);node.parentNode=this.parentNode;}}
  remove(){this.isConnected=false;}
  setAttribute(name,value){this[name]=value;}
  replaceChildren(...nodes){this.children=nodes;}
@@ -89,10 +89,10 @@ test('robot tasks without an area form retain supplied map context in the dialog
 });
 
 
-test('the single existing robot entry stays inside its observed status card and never starts the robot',()=>{
- const f=fixture(),actions=new Node('div'),card={actions,dataset:{}};actions.append=(node)=>{actions.children.push(node);node.parentNode=actions;};f.host.deviceNodes=new Map([[target.entityId,card]]);f.host.state={focus:target.entityId,devices:[{id:target.entityId,kind:'vacuum',live:true,status:'docked',stale:false}]};
- try{f.view.render();assert.equal(f.view.robotButton.parentNode,actions);assert.equal(actions.children.length,1);assert.equal(f.view.robotButton.hidden,false);assert.equal(card.dataset.controlEntry,'true');f.view.render();assert.equal(actions.children.length,1);assert.equal(f.calls(),0);assert.equal(f.view.dialog.open,false);
-  f.host.state.devices[0].stale=true;f.view.render();assert.equal(f.view.robotButton.disabled,false);assert.equal(f.view.robotButton.textContent,'Se robot');assert.equal(f.calls(),0);f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();assert.equal(f.view.robotButton.hidden,false);assert.equal(f.view.robotButton.parentNode,actions);assert.equal(f.calls(),0);
+test('the single robot control entry stays below its status hero and never starts the robot',()=>{
+ const f=fixture(),detail=new Node('section'),hero=new Node('div'),actions=new Node('div'),card=new Node('pv-vacuum-widget');card.actions=actions;detail.append(hero);hero.append(card);card.append(actions);f.host.deviceNodes=new Map([[target.entityId,card]]);f.host.state={focus:target.entityId,devices:[{id:target.entityId,kind:'vacuum',live:true,status:'docked',stale:false}]};
+ try{f.view.render();const entry=f.view.robotEntry;assert.equal(entry.parentNode,detail);assert.deepEqual(detail.children,[hero,entry]);assert.equal(f.view.robotButton.parentNode,entry);assert.equal(actions.children.length,0);assert.equal(f.view.robotButton.hidden,false);assert.equal(card.dataset.controlEntry,'true');f.view.render();assert.equal(f.view.robotEntry,entry);assert.deepEqual(detail.children,[hero,entry]);assert.equal(entry.children.filter(node=>node===f.view.robotButton).length,1);assert.equal(f.calls(),0);assert.equal(f.view.dialog.open,false);
+  f.host.state.devices[0].stale=true;f.view.render();assert.equal(f.view.robotButton.disabled,false);assert.equal(f.view.robotButton.textContent,'Se robot');assert.equal(f.calls(),0);f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();assert.equal(f.view.robotButton.hidden,false);assert.equal(f.view.robotButton.parentNode,entry);assert.equal(f.calls(),0);f.host.state.focus='now';f.view.render();assert.equal(entry.hidden,true);assert.equal(f.calls(),0);
  }finally{f.view.cleanup();}
 });
 

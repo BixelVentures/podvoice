@@ -1,1 +1,60 @@
-<!doctype html><html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PodView · Komponentbibliotek</title><link rel="stylesheet" href="ui/components.css"><link rel="stylesheet" href="ui/library/library.css"><link rel="stylesheet" href="library.css"></head><body><header class="library-header"><a href="/">Til PodView</a><div><h1>Komponenter</h1><p>32 byggesten til svar og aktiviteter</p></div><button id="motion-toggle" aria-pressed="false">Rolige overgange</button></header><main class="library-layout"><aside aria-label="Komponenter"><nav id="groups" aria-label="Komponentfamilier"></nav><div id="component-menu"></div></aside><section class="library-detail" aria-labelledby="component-title"><header><div><h2 id="component-title"></h2><p id="component-description"></p></div><label for="state">Tilstand<select id="state"><option value="ready">Klar</option><option value="loading">Indlæser</option><option value="pending">Handling afventer</option><option value="empty">Tom</option><option value="error">Fejl</option><option value="offline">Offline</option><option value="unsupported">Ikke understøttet</option></select></label></header><div class="preview-stage"><div id="specimen"></div></div><div class="sample-controls"><button id="reset-example">Nulstil eksempel</button><button id="compact" aria-pressed="false">Kompakt</button><button id="refresh-example">Opdatér eksemplet</button></div><p id="receipt" role="status">Prøv komponenten med touch eller tastatur.</p><div class="sample-info"><p id="usage"></p><p>Eksempeldata. Enhedshandlinger kvitteres lokalt og styrer ikke dit hjem. Overgange forklarer åbning, valg og status; ingen evig animation.</p><a href="components.html">Tidligere workshop</a></div></section></main><script type="module" src="library.js"></script></body></html>
+<!doctype html>
+<html lang="da">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>PodView · Widgets og tilstande</title>
+ <link rel="stylesheet" href="ui/components.css"><link rel="stylesheet" href="library.css">
+</head>
+<body>
+ <header class="library-header">
+  <a class="brand" href="library.html">PodView <span>Komponentbibliotek</span></a>
+  <p>Samme komponenter som på skærmen · lokale eksempeldata</p>
+  <a id="open-product" href="/?stage=conversation-overview" target="_blank" rel="noopener">Åbn hoved-UI <span aria-hidden="true">↗</span></a>
+ </header>
+ <div class="library-layout">
+  <aside class="library-sidebar" aria-label="Komponentbibliotek">
+   <label for="component-search">Find en komponent</label>
+   <input id="component-search" type="search" placeholder="Fx timer, vejr eller svar" autocomplete="off">
+   <p id="catalog-count"></p>
+   <nav id="component-menu" aria-label="Widgets og komponenter"></nav>
+   <p id="search-empty" hidden>Ingen komponenter matcher din søgning.</p>
+  </aside>
+  <main>
+   <header class="component-heading">
+    <div><h1 id="component-title">Widgets og tilstande</h1><p id="component-description"></p></div>
+    <button id="focus-preview" type="button" aria-pressed="false">Mere plads</button>
+   </header>
+   
+   <section id="conversation-flow" class="conversation-flow" aria-label="Afprøv et samtaleforløb" hidden>
+    <div><h2>Prøv hele forløbet</h2><p>Musik og timer fortsætter i samme skærm, mens du går gennem samtalen. Lokal simulering uden mikrofon eller lyd.</p></div>
+    <label for="flow-choice">Situation<select id="flow-choice"><option value="spoken">Mundtligt svar uden kort</option><option value="visual" selected>Visuelt svar under tale</option><option value="late">Visualisering kommer senere</option><option value="followup">Opfølgning og afbrydelse</option><option value="long">Langt svar og timerfærdig</option><option value="connection">Fejl og genforbindelse</option><option value="dialog">Svar mens playerdetaljen er åben</option><option value="output">Svar mens højttalervælgeren er åben</option><option value="return-followup">Svar → pause → opfølgning</option><option value="auto-return">Automatisk retur efter 30 sekunder</option></select></label>
+    <div class="flow-controls"><button type="button" id="flow-start">Start forløb</button><button type="button" id="flow-next" disabled>Næste trin</button><span id="flow-progress" role="status">Vælg en situation og følg den trin for trin.</span></div>
+   </section>
+   <div class="state-toolbar">
+    <label for="state">Tilstand <select id="state"></select></label>
+    <div class="view-modes" role="group" aria-label="Visning">
+     <button id="single-view" type="button" aria-pressed="true">Afprøv</button>
+     <button id="compare-view" type="button" aria-pressed="false">Alle tilstande</button>
+    </div>
+    <button id="reset-example" type="button">Nulstil</button>
+    <button id="isolate-component" type="button" aria-pressed="false">Komponenten alene</button>
+    <button id="preview-motion" type="button" aria-pressed="false">Reduceret bevægelse</button>
+    <a id="state-open" href="/?stage=conversation-overview" target="_blank" rel="noopener">Åbn i 1280 × 800 ↗</a>
+   </div>
+   <p id="state-description" class="state-description" role="status"></p>
+   <section id="single-preview" aria-label="Klikbar komponent i PodView">
+    <div class="frame-label"><span id="preview-label"></span><span>1280 × 800 · tilpasset til vinduet</span></div>
+    <div class="screen-viewport"><iframe id="product-preview" title="Klikbart PodView-eksempel" src="about:blank"></iframe></div>
+   </section>
+   <section id="comparison" class="comparison" aria-label="Alle komponentens tilstande" hidden></section>
+   <div class="component-notes">
+    <section><h2>Hvornår bruges den?</h2><p id="component-usage"></p></section>
+    <section><h2>Prøv selv</h2><p id="component-interaction"></p></section>
+   </div>
+   <details class="coverage"><summary>Datagrænser og resterende arbejde</summary><ul id="component-limitations"></ul><p>Eksemplerne bruger produktets faktiske komponenter. Musik og enheder er simulerede; timeren kører kun lokalt. En previewtilstand er ikke dokumentation for et gennemført PodVoice-forløb.</p></details>
+
+  </main>
+ </div>
+ <script type="module" src="library.bundle.js"></script>
+</body>
+</html>

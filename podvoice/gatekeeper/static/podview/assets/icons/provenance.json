@@ -1,0 +1,172 @@
+{
+  "package": "@phosphor-icons/core",
+  "version": "2.1.1",
+  "source": "https://registry.npmjs.org/@phosphor-icons/core/-/core-2.1.1.tgz",
+  "archiveSha256": "313332be6190b724da24107addd781799b48bf76b13963f24501112ffe1baadd",
+  "weight": "regular",
+  "files": {
+    "moon.svg": {
+      "source": "package/assets/regular/moon.svg",
+      "sha256": "5c91f82aea4e7b53305bf29628caebc22a1198ba9fa46c62eef13fb8b3c3f21d"
+    },
+    "chevron-left.svg": {
+      "source": "package/assets/regular/caret-left.svg",
+      "sha256": "623bf248fe21a8170344e168aaac2e174119cea5d7c5d0fb0dc84f581009475f"
+    },
+    "timer.svg": {
+      "source": "package/assets/regular/timer.svg",
+      "sha256": "eccb04ff7903c451948aba91d91606eba71d9e050ed52b9e14a0e11199379d0e"
+    },
+    "play-fill.svg": {
+      "source": "package/assets/regular/play.svg",
+      "sha256": "885b3ed2095889c4ff063dac35dc424cb9f6c00273ab44e2f90dc9dadbee661a"
+    },
+    "volume-up-fill.svg": {
+      "source": "package/assets/regular/speaker-high.svg",
+      "sha256": "caca5fc1ee8489ac19232301d2c96f6d4048802491d75d761bbb89d5c98e459d"
+    },
+    "skip-end-fill.svg": {
+      "source": "package/assets/regular/skip-forward.svg",
+      "sha256": "52f1ed5a89f1a38bf8537b38bd2da0501e396fc4cb03a2cdde38d248ceb03fbe"
+    },
+    "check2.svg": {
+      "source": "package/assets/regular/check.svg",
+      "sha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12"
+    },
+    "cloud.svg": {
+      "source": "package/assets/regular/cloud.svg",
+      "sha256": "a72f1f201500924d20a30d7190a3277e411ab526d5b71a6f6a91b0812a09c669"
+    },
+    "pause-fill.svg": {
+      "source": "package/assets/regular/pause.svg",
+      "sha256": "7a9a8fe311234262b85c6e332f77db4ba9a59b6ca4292c41d327977cf61a2fc9"
+    },
+    "arrow-left.svg": {
+      "source": "package/assets/regular/arrow-left.svg",
+      "sha256": "3c2001cf957d182fc54927e4b286cc8cf66dd97830f441ca2650d42a63a9006a"
+    },
+    "arrow-left-long.svg": {
+      "source": "package/assets/regular/arrow-left.svg",
+      "sha256": "3c2001cf957d182fc54927e4b286cc8cf66dd97830f441ca2650d42a63a9006a"
+    },
+    "robot.svg": {
+      "source": "package/assets/regular/robot.svg",
+      "sha256": "defac7635fe4235e3b6c8a1edabca345ac9dc2e8a2ec79ec82088845562a8128"
+    },
+    "cloud-rain.svg": {
+      "source": "package/assets/regular/cloud-rain.svg",
+      "sha256": "87b26b17df248c1863be81a1798933ccb5ad42b41afd2ffdef4a38c987588c5f"
+    },
+    "pencil.svg": {
+      "source": "package/assets/regular/pencil-simple.svg",
+      "sha256": "999530da442f44d8cf0054364373d16150f3e082c2ac294a4988a9c3a4295c28"
+    },
+    "sun.svg": {
+      "source": "package/assets/regular/sun.svg",
+      "sha256": "8df1c7b747774f8b2c1fe353b1b785c74aac35bfa50f2ed7d8d9a85a4191b2ac"
+    },
+    "paper-plane.svg": {
+      "source": "package/assets/regular/paper-plane.svg",
+      "sha256": "e78237442e5f8a263e899168ef14f12b7cfca5d16f801a8303df12e1f2f055fc"
+    },
+    "lightbulb.svg": {
+      "source": "package/assets/regular/lightbulb.svg",
+      "sha256": "b61e4d9685a1d74e579a7dbbe0d5222bdf8dcdcaf5b67825a17ff45363e4fadd"
+    },
+    "mic.svg": {
+      "source": "package/assets/regular/microphone.svg",
+      "sha256": "b49dabfaf603e82594cef0c5e5784c747f4c098b7723d2973c92965745ca93a9"
+    },
+    "gear.svg": {
+      "source": "package/assets/regular/gear.svg",
+      "sha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64"
+    },
+    "card.svg": {
+      "source": "package/assets/regular/sidebar.svg",
+      "sha256": "d919f2b3fcfeae9a4ef61fba45f54e7d343ada48628585e38c5675782c6247ff"
+    },
+    "x-lg.svg": {
+      "source": "package/assets/regular/x.svg",
+      "sha256": "7397b15e1fa66eaf6ff9b59fe91d483cb5c3bcf75b2fe052097ab6f0593b513a"
+    },
+    "dash.svg": {
+      "source": "package/assets/regular/minus.svg",
+      "sha256": "5a068d1cfd707fde5ddb0ce0623958123b6a5afba98401318983aeb0fdad6382"
+    },
+    "plus.svg": {
+      "source": "package/assets/regular/plus.svg",
+      "sha256": "d688feb9dd2e41c1721d6906a05a2a42e18cd774762fe706d72b2bdfd91cddc4"
+    },
+    "arrow-refresh.svg": {
+      "source": "package/assets/regular/arrow-clockwise.svg",
+      "sha256": "4a78a777b692cb74826e3071ae7049cc0d3927e68a7b8272e7251b1760cd771f"
+    },
+    "car-front.svg": {
+      "source": "package/assets/regular/car-profile.svg",
+      "sha256": "be8757b255ba0294ae73f6b79d0ab823efb3589be7333c83d525b677b01b47af"
+    },
+    "music-note-beamed.svg": {
+      "source": "package/assets/regular/music-notes.svg",
+      "sha256": "b991d76e24e781b864f9ad8b7aa14e516d4fd851871a979928917e20d492eca0"
+    },
+    "cloud-sun.svg": {
+      "source": "package/assets/regular/cloud-sun.svg",
+      "sha256": "568d1629b9cff658ebcf9405bb6dc9af46b8fbc676ee4924690d96842e8bb324"
+    },
+    "chevron-right.svg": {
+      "source": "package/assets/regular/caret-right.svg",
+      "sha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7"
+    },
+    "boombox.svg": {
+      "source": "package/assets/regular/radio.svg",
+      "sha256": "07218be27079d4dd3ff8fc105594e15e95532c5260beadb8565173a47d03c80c"
+    },
+    "soundwave.svg": {
+      "source": "package/assets/regular/waveform.svg",
+      "sha256": "8f6a47cff9b0fb3a8f25fe411b9cc1b24d063d6577c8d07cc53b0e9b080afaa0"
+    },
+    "three-dots.svg": {
+      "source": "package/assets/regular/dots-three.svg",
+      "sha256": "ca4e748007101155641ec3041cd129bb03a8030d0eed16e313b9dd75e6beac77"
+    },
+    "speaker-output.svg": {
+      "source": "package/assets/regular/speaker-hifi.svg",
+      "sha256": "582ba467cd79b96d3c4baae867223ae906c64c46f71e2f5268f89a62bf934427"
+    },
+    "chevron-up.svg": {
+      "source": "package/assets/regular/caret-up.svg",
+      "sha256": "bccc26004e73e5de783ac6dde607e3671e776261d81972ccdbd296b4aca21ca9"
+    },
+    "check-circle-fill.svg": {
+      "source": "package/assets/regular/check-circle.svg",
+      "sha256": "e02a080c3d1a758de5c5fd41abd913dec4cffbc70fe1e9637dbf7ce35f377055"
+    },
+    "chevron-down.svg": {
+      "source": "package/assets/regular/caret-down.svg",
+      "sha256": "53f0cf2d0b144ac3cb07e353e0cd0853ffb3ed432d741460ce288edfcb0924b1"
+    },
+    "sliders.svg": {
+      "source": "package/assets/regular/sliders.svg",
+      "sha256": "b8a605cf4794c23b8345e082a48abc0394a056a94b29a8dda9951973a9bfa461"
+    },
+    "circle.svg": {
+      "source": "package/assets/regular/circle.svg",
+      "sha256": "efc9ee22b165d0d40c21b1c5ebe2463c99744af44ab6f530b4d6c44f25181974"
+    },
+    "skip-start-fill.svg": {
+      "source": "package/assets/regular/skip-back.svg",
+      "sha256": "20f318558e166d5dea09fb854a1bbc199e9891b17febed640e912a6ee4712d37"
+    },
+    "pin-angle.svg": {
+      "source": "package/assets/regular/push-pin.svg",
+      "sha256": "64c2dc8e17ac0dc1107990c1843654804f7960c35c49acdb5df5c45286910de1"
+    },
+    "chat-circle.svg": {
+      "source": "package/assets/regular/chat-circle.svg",
+      "sha256": "09e36aa820a39bbc8cffe705ad84c836d1e5733f83dc1d2212a965fdacdf4a67"
+    }
+  },
+  "exceptions": {
+    "vacuum.svg": "Retained existing circular vacuum silhouette; Phosphor 2.1.1 has no vacuum icon. No invented replacement."
+  }
+}

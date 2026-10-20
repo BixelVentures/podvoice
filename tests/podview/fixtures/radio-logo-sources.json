@@ -1,0 +1,41 @@
+{
+  "checked": "2026-10-20",
+  "note": "Original published DR Design images embedded unchanged. SVG viewport selects the channel mark; no lettering recreated. P4 mark identifies network; adjacent text identifies \u00d8stjylland. P6 uses secondary mark from official design teaser.",
+  "assets": {
+    "p3": {
+      "page": "https://www.drdesign.org/pagep3-1",
+      "url": "https://images.squarespace-cdn.com/content/v1/59428a0b44024391be8970d8/1651653415343-5A3VOXOP4MJDV5FTLG9S/DRP3_logo_primaer_RGB.png?format=500w",
+      "sourceSha256": "8cb32b8c81aeaff76b738729f7e9224610daa1dc60e50af53d559d8edc6baa13",
+      "presentationViewBox": "0 0 500 500",
+      "localAsset": "dist/assets/radio-p3.svg"
+    },
+    "p4-ostjylland": {
+      "page": "https://www.drdesign.org/pagep4",
+      "url": "https://images.squarespace-cdn.com/content/v1/59428a0b44024391be8970d8/1589872804099-0J23S3J2BF2SBV94UALB/P4_logoer.png?format=500w",
+      "sourceSha256": "4781129fc86d40deb258c1ae110d7dd4229718e6118a1daaada8274177cacd26",
+      "presentationViewBox": "0 0 204 208",
+      "localAsset": "dist/assets/radio-p4-ostjylland.svg"
+    },
+    "p6-beat": {
+      "page": "https://www.drdesign.org/dr-100-r-copy",
+      "url": "https://images.squarespace-cdn.com/content/v1/59428a0b44024391be8970d8/2c7f4a83-e403-4410-8e0d-7876064ef449/P6_TEASER_DESIGNMANAGER.png?format=500w",
+      "sourceSha256": "e9e7ca05d15671675d0704fa44406b1dbd336d4b0d2bccf1386e55eeba8223f4",
+      "presentationViewBox": "172 62 156 156",
+      "localAsset": "dist/assets/radio-p6-beat.svg"
+    },
+    "p8-jazz": {
+      "page": "https://www.drdesign.org/pagep8-1",
+      "url": "https://images.squarespace-cdn.com/content/v1/59428a0b44024391be8970d8/1725439485147-7QNHXR6EKEBE2XL7DR1D/DRP8_logo_sekundaer_RGB.png?format=500w",
+      "sourceSha256": "75b8b915eef9bebbde2c6ea20f901cbb26e89560db3099e108e59a49a4ee2960",
+      "presentationViewBox": "0 0 500 500",
+      "localAsset": "dist/assets/radio-p8-jazz.svg"
+    },
+    "p1": {
+      "page": "https://www.drdesign.org/pagep1",
+      "url": "https://images.squarespace-cdn.com/content/v1/59428a0b44024391be8970d8/1589875139490-N5TMBT5W4GCFVZC0Q1CM/image-asset.png?format=500w",
+      "sourceSha256": "40d8c14ae7236c69ea9dd31ecd47e2d54068e1ee63d8ec7e707a59edeacea5b0",
+      "presentationViewBox": "0 0 208 208",
+      "localAsset": "dist/assets/radio-p1.svg"
+    }
+  }
+}

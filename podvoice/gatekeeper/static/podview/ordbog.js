@@ -1,10 +1,10 @@
 import './ui/library/components.js';import {visualExamples} from './visual-examples.js';
 const $=id=>document.getElementById(id),common={state:'ready',quietStatus:true,connected:true,context:{sessionId:'glossary-example',taskId:'example',revision:1}},sample={
- 'timer-widget':{title:'Pasta',text:'5:00',remaining:300,duration:600,source:'Tæller ned · eksempel',actions:[]},
+ 'timer-widget':{title:'Timer',text:'5:00',remaining:300,duration:600,source:'Tæller ned · eksempel',actions:[]},
  'vacuum-widget':{title:'Robotstøvsuger',text:'Rengør',source:'Eksempel på vedvarende aktivitet',actions:[]},
- 'now-playing':{title:'Musik',text:'Soft Light · North',art:'assets/lake.png',source:'Eksempel på afspilning',actions:[]},
+ 'now-playing':{title:'Musik',text:'Soft Light · North',art:'assets/lake.webp',source:'Eksempel på afspilning',actions:[]},
  'choice-list':{items:[{id:'kitchen',label:'Køkken',detail:'Et konkret område'},{id:'hall',label:'Entré',detail:'Et andet område'}]},
- 'comparison-table':{caption:'Et lille valg',columns:[{key:'title',label:'Aktivitet'},{key:'time',label:'Tid'},{key:'needs',label:'Du skal bruge'}],items:[{id:'fold',title:'Fold papir',time:'10 min.',needs:'Papir'},{id:'draw',title:'Tegn sammen',time:'15 min.',needs:'Papir og farver'}]},
+ 'comparison-table':{caption:'Et lille valg',columns:[{key:'title',label:'Aktivitet'},{key:'time',label:'Tid'},{key:'needs',label:'Du skal bruge'}],items:[{id:'fold',title:'Fold papir',time:'10 min',needs:'Papir'},{id:'draw',title:'Tegn sammen',time:'15 min',needs:'Papir og farver'}]},
  'step-guide':{steps:['Find et ark papir.','Fold det på midten.','Fold hjørnerne og vingerne.'],index:0},
  'inline-status':{text:'Hjemmet svarer langsomt',source:'Din handling er sendt én gang.'},
  'completion-notice':{text:'Anmodningen er modtaget',source:'Widgetten viser det observerede resultat.'}

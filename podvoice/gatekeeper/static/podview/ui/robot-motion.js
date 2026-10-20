@@ -1,4 +1,4 @@
-// A moving glyph means only that the current observation says cleaning. It
+// One finite glyph acknowledgement means a new observation says cleaning. It
 // carries no room path, coverage, estimated finish time or physical verification.
 export function robotIsCleaning(device,{connected=true,live=false,now=Date.now()}={}){
  if(!connected||!device||device.status!=='cleaning'||device.stale||device.hidden)return false;
@@ -14,7 +14,7 @@ const frames=[
 ];
 export class RobotMotion{
  constructor(host,{document=globalThis.document,media=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)'),Observer=globalThis.MutationObserver,now=Date.now,setTimer=(...args)=>globalThis.setTimeout(...args),clearTimer=(...args)=>globalThis.clearTimeout(...args)}={}){
-  this.host=host;this.document=document;this.media=media;this.Observer=Observer;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.expiryTimer=null;this.expiryAt=null;this.animations=new Map();this.onChange=()=>this.sync();
+  this.host=host;this.document=document;this.media=media;this.Observer=Observer;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.expiryTimer=null;this.expiryAt=null;this.animations=new Map();this.states=new Map();this.onChange=()=>this.sync();
  }
  attach(){if(this.attached)return;this.attached=true;this.media?.addEventListener('change',this.onChange);this.document?.addEventListener('visibilitychange',this.onChange);if(this.Observer){this.observer=new this.Observer(this.onChange);this.observer.observe(this.host,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','open','data-motion']});}}
  candidates(){
@@ -27,13 +27,20 @@ export class RobotMotion{
  sync(){
   if(!this.host.isConnected){this.cleanup();return;}this.attach();
   const reduced=this.media?.matches||this.host.dataset.motion==='reduced'||this.document?.documentElement?.dataset.motion==='reduced';
-  const connected=this.host.live?!!this.host.liveTransport?.connected:this.host.state?.connected!==false,wanted=new Set(),now=this.now();let expiryAt=null;
-  if(!reduced&&!this.document?.hidden)for(const {icon,device} of this.candidates()){
-   if(!robotIsCleaning(device,{connected,live:this.host.live,now})||!icon?.animate||!icon.isConnected||!icon.getClientRects().length)continue;
+  const connected=this.host.live?!!this.host.liveTransport?.connected:this.host.state?.connected!==false,wanted=new Set(),now=this.now(),states=new Map(),scope=JSON.stringify([this.host.liveSnapshot?.bootId||null,this.host.liveSnapshot?.roomId||null]);let expiryAt=null;
+  // Read semantic state even while hidden/reduced/offline. Returning to normal
+  // must not replay an old cleaning cue or treat a refreshed timestamp as new.
+  for(const {icon,device} of this.candidates()){
+   if(!device)continue;const key=scope+':'+device.id;states.set(key,device.status);
+   if(reduced||this.document?.hidden||!robotIsCleaning(device,{connected,live:this.host.live,now})||!icon?.animate||!icon.isConnected||!icon.getClientRects().length)continue;
+   wanted.add(icon);if(!this.animations.has(icon)){
+    if(this.states.get(key)==='cleaning')continue;
+    const animation=icon.animate(frames,{duration:480,iterations:1,easing:'cubic-bezier(.2,.7,.2,1)'});animation.id='pv-observed-robot-cleaning';this.animations.set(icon,animation);
+    animation.finished?.catch(()=>{}).finally(()=>{if(this.animations.get(icon)===animation)this.animations.delete(icon);if(!this.animations.size)this.clearExpiry();});
+   }
    if(this.host.live||device.live){const expires=device.observedAt*1000+90001;expiryAt=expiryAt===null?expires:Math.min(expiryAt,expires);}
-   wanted.add(icon);if(this.animations.has(icon))continue;
-   const animation=icon.animate(frames,{duration:4200,iterations:Infinity,easing:'ease-in-out'});animation.id='pv-observed-robot-cleaning';this.animations.set(icon,animation);
   }
+  this.states=states;
   for(const [icon,animation] of this.animations)if(!wanted.has(icon)){animation.cancel();this.animations.delete(icon);}
   if(this.expiryAt!==expiryAt){this.clearExpiry();if(expiryAt!==null){this.expiryAt=expiryAt;let handle;handle=this.setTimer(()=>{if(this.expiryTimer!==handle)return;this.expiryTimer=null;this.expiryAt=null;this.sync();},Math.max(1,expiryAt-now));this.expiryTimer=handle;this.expiryTimer?.unref?.();}}
  }

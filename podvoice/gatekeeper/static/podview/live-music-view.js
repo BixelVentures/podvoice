@@ -2,7 +2,7 @@ import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSe
 import {sourceMusicCards} from './music-results.js';
 import {spotifyArtwork,spotifyTrackUrl} from './spotify-artwork.js';
 export const MAX_MUSIC_SAMPLE=100;
-const HEADINGS={mood:'Hvad er stemningen i køkkenet?',feeling:'Hvad har du lyst til at høre?',top:'Dine topsange',recent:'Senest spillet'};
+const HEADINGS={mood:'Hvad er stemningen?',feeling:'Hvad har du lyst til at høre?',top:'Dine topsange',recent:'Senest spillet'};
 
 export function projectMusicTracks(body,account){
  if(body?.ok!==true||!Array.isArray(body.data?.tracks)||body.data.tracks.length>MAX_MUSIC_SAMPLE||account!==undefined&&(typeof account!=='string'||!account||body.data.config_entry_id!==account))return null;

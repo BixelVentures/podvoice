@@ -10,6 +10,9 @@ class Node {
  descendants(){return this.children.flatMap(node=>[node,...node.descendants()]);}
  closest(){return this.parent||this;}
  setAttribute(name,value){this.attributes[name]=value;}
+ getAttribute(name){return this.attributes[name]??null;}
+ remove(){if(this.parent){this.parent.children=this.parent.children.filter(node=>node!==this);this.parent=null;}}
+ insertBefore(node,before){node.remove();node.parent=this;const index=before?this.children.indexOf(before):this.children.length;this.children.splice(index,0,node);}
  addEventListener(name,handler){this.listeners[name]=handler;}
 }
 function fixture(device,allowed=false){
@@ -53,11 +56,11 @@ test('request journal shares canonical history; unknown never offers reuse or cl
  assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);
  assert.equal(f.section().querySelector('pv-activity-timeline'),null);
  assert.equal(f.section().descendants().some(node=>node.textContent==='Senest anmodet'),false);
- assert.match(f.timeline.data.items[0].label,/^Start anmodet/);assert.match(f.timeline.data.items[1].label,/^Udfald ukendt/);
+ assert.match(f.timeline.data.items[0].label,/^Udfald ukendt/);assert.match(f.section().querySelector('pv-choice-list').data.items[0].detail,/1 gang · Vælg rengøring$/);assert.equal(f.section().querySelector('h2').textContent,'Seneste valg');
  assert.equal(f.timeline.data.items.some(row=>/afsluttet|færdig/i.test(row.label)),false);
- const buttons=f.section().descendants().filter(node=>node.tagName==='button');assert.equal(buttons.length,1);assert.equal(buttons[0].className,'pv-button pv-ghost');buttons[0].listeners.click();assert.deepEqual(f.calls,['accepted']);
+ const choices=f.section().querySelector('pv-choice-list');assert.equal(choices.data.items.length,1);assert.equal(choices.dataset.reuse,'true');choices.listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'accepted'}});assert.deepEqual(f.calls,['accepted']);
  assert.equal(document.getElementById('robot-history-empty'),null);
- assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-request:accepted','robot-request:unknown']);
+ assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-request:unknown']);
 }));
 
 test('observed facts and request journal interleave by source timestamps without implying completion',()=>withDocument(()=>{
@@ -72,8 +75,8 @@ test('observed facts and request journal interleave by source timestamps without
 
 test('grant removal removes history reuse while observed events remain, without a duplicate care disclosure',()=>withDocument(()=>{
  const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-12,'h'),fact('battery',56,'%')]},history:{status:'observed',items:[request('saved')]}}),true);
- renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('button').textContent,'Brug Stueetage igen');const timeline=f.timeline.data.items;
- f.host.liveControls.allowed=()=>false;renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('button'),null);assert.deepEqual(f.timeline.data.items,timeline);
+ renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('pv-choice-list').data.items[0].label,'Stueetage');assert.equal(f.section().querySelector('pv-choice-list').data.items[0].detail,'1 gang · Vælg rengøring');assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);
+ f.host.liveControls.allowed=()=>false;renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('pv-choice-list').data.items.length,0);assert.equal(f.history.hidden,false);assert.equal(f.timeline.data.items[0].id,'robot-request:saved');assert.match(f.timeline.data.items[0].label,/Start anmodet/);
 }));
 
 test('return to canonical local/light detail restores timeline visibility and hides live-only content',()=>withDocument(()=>{
@@ -81,7 +84,7 @@ test('return to canonical local/light detail restores timeline visibility and hi
  renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);assert.equal(f.section().hidden,true);assert.equal(document.getElementById('robot-history-empty'),null);
 }));
 
-test('robot history remains events and attention, without care/settings or a second control card',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h'),fact('dock_error','water_empty')]}}));renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('dl'),null);assert.equal(f.section().querySelector('button'),null);assert.ok(f.section().descendants().some(n=>n.textContent==='Dockfejl: Mangler vand'));assert.equal(f.timeline.data.state,'empty');}));
+test('robot history remains events and attention, without care/settings or a second control card',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h'),fact('dock_error','water_empty')]}}));renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('dl'),null);assert.equal(f.section().querySelector('pv-choice-list').data.items.length,0);assert.ok(f.section().descendants().some(n=>n.textContent==='Dockfejl: Mangler vand'));assert.equal(f.timeline.data.state,'empty');}));
 
 test('same canonical timeline survives observed empty, real events and unavailable transitions',()=>withDocument(()=>{const d=device(),f=fixture(d),timeline=f.timeline;renderRobotHistory(f.host);assert.equal(f.timeline,timeline);assert.equal(timeline.hidden,false);d.history={status:'observed',items:[request('one')]};renderRobotHistory(f.host);assert.equal(timeline.data.items.length,1);assert.equal(timeline.data.state,'ready');d.history={status:'unavailable',items:[]};renderRobotHistory(f.host);assert.equal(timeline.hidden,false);assert.equal(timeline.data.items.length,0);assert.equal(timeline.data.state,'empty');assert.equal(f.history.children.length,1);assert.equal(document.getElementById('robot-history-empty'),null);}));
 
@@ -92,4 +95,18 @@ test('unchanged robot observations perform no timeline reassignment or history r
  f.host.state.devices=[structuredClone(d)];renderRobotHistory(f.host);renderRobotHistory(f.host);
  assert.equal(updates,0);assert.equal(replacements,0);assert.equal(section.querySelector('details'),null);
  f.host.state.devices[0].history.items.push(request('two'));renderRobotHistory(f.host);assert.equal(updates,1);assert.equal(data.items.length,2);
+}));
+
+
+test('telemetry and adjacent requests preserve canonical choices and stable recipe identifiers',()=>withDocument(()=>{
+ const saved=request('saved'),d=device({history:{status:'observed',items:[saved]}}),f=fixture(d,true);renderRobotHistory(f.host);
+ const choices=f.section().querySelector('pv-choice-list'),section=f.section();let data=choices.data,writes=0;Object.defineProperty(choices,'data',{get:()=>data,set:value=>{writes++;data=value;}});
+ renderRobotHistory(f.host);assert.equal(writes,0);d.telemetry.items=[fact('dock_error','water_empty')];renderRobotHistory(f.host);assert.equal(section.querySelector('pv-choice-list'),choices);assert.equal(writes,0);
+ d.history.items.unshift(request('recent'));renderRobotHistory(f.host);assert.equal(choices.data.items[1].id,'saved');choices.listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'saved'}});assert.deepEqual(f.calls,['saved']);
+ saved.recipe.repeat=2;renderRobotHistory(f.host);assert.match(choices.data.items[1].detail,/2 gange · Vælg rengøring$/);d.history.items=[saved];d.telemetry.items=[];renderRobotHistory(f.host);assert.equal(section.children.length,2);assert.equal(section.children[1],choices);writes=0;renderRobotHistory(f.host);assert.equal(writes,0);
+ choices.listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'foreign'}});assert.deepEqual(f.calls,['saved']);
+}));
+
+test('local example history is labeled locally and never admits a local outcome on the live path',()=>withDocument(()=>{
+ const d=device({live:false,history:{status:'observed',items:[request('local','accepted_local')]}}),f=fixture(d,true);f.host.localRobot={areaLabels:new Map([['actual-area','Køkken']]),allowed:()=>true,openRobot:(_,id)=>f.calls.push(id)};renderRobotHistory(f.host);assert.equal(f.section().hidden,false);assert.equal(f.section().querySelector('pv-choice-list').data.items[0].label,'Køkken');assert.ok(!f.section().descendants().some(node=>String(node.textContent||'').includes('Lokalt eksempel')));assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);assert.match(f.section().querySelector('pv-choice-list').data.items[0].detail,/Vælg rengøring$/);f.section().querySelector('pv-choice-list').listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'local'}});assert.deepEqual(f.calls,['local']);f.host.live=true;d.live=true;renderRobotHistory(f.host);assert.equal(f.section().querySelector('pv-choice-list').data.items.length,0);assert.match(f.timeline.data.items[0].label,/^Udfald ukendt/);
 }));

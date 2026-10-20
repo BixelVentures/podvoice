@@ -1,3 +1,4 @@
+import {lightsObservation,vehicleObservation} from './ha-home-observation.js';
 import {weatherObservation,hourlyWeather} from './weather-observation.js';
 import {robotObservation} from './robot-observation.js';
 // Closed passive projection. It never issues capabilities, stores HA keys,
@@ -16,20 +17,21 @@ export function validateHome(value,roomId,bootId){
  // Settings/actions are deliberately excluded until their separate owner
  // contract is implemented. Extra remote fields cannot silently enable controls.
  let weather=null;try{if(value.weather?.status==='observed')weather=weatherObservation(value.weather.data);}catch{}
- return {schema:value.schema,bootId:value.bootId,roomId,revision:value.revision,observedAt:value.observedAt,vacuum:{status:value.vacuum.status,items},weather};
+ return {schema:value.schema,bootId:value.bootId,roomId,revision:value.revision,observedAt:value.observedAt,vacuum:{status:value.vacuum.status,items},weather,lights:lightsObservation(value.lights),vehicle:vehicleObservation(value.vehicle)};
 }
 export function orderHomeDevices(devices){const slot=d=>d.kind==='vacuum'?0:d.kind==='light'?1:2;return [...devices].sort((a,b)=>slot(a)-slot(b));}
 export function applyHome(scene,home,allowed=["vacuum","weather"]){
  const scope=typeof home.bootId==='string'&&home.bootId&&typeof home.roomId==='string'&&home.roomId?JSON.stringify([home.bootId,home.roomId]):null,sameScope=scope!==null&&scope===scene.homeScope,scopeChanged=(scope!==null||scene.homeScope!=null)&&scope!==scene.homeScope;
- const previous=scene.devices.filter(d=>d.source==='home_assistant_state');
+ const previous=scene.devices.filter(d=>d.source==='home_assistant_state'&&d.kind==='vacuum');
  const rows=!allowed.includes('vacuum')?[]:home.vacuum.status==='observed'?home.vacuum.items.map(item=>{const prior=sameScope?previous.find(d=>d.id===item.entityId&&d.source===item.source):null,telemetry=item.telemetryUnavailable===true&&item.telemetry?.status==='unavailable'&&prior?.telemetry?.status==='observed'?{...prior.telemetry,items:prior.telemetry.items.map(row=>({...row,stale:true}))}:item.telemetry;return {id:item.entityId,kind:'vacuum',name:item.name,source:item.source,history:item.history,telemetry,observedAt:item.observedAt,battery:item.battery,revision:home.revision,live:true,status:({returning:'docking',idle:'stopped',error:'fault'})[item.state]||item.state,pending:null,hidden:false,timeline:[]};}):scopeChanged?[]:previous.map(d=>({...d,stale:true}));
  // Stable family slots match the approved overview, regardless of which
  // observation arrives first. Activity or urgency never reorders them.
  const priorWeather=scene.liveWeather,incoming=home.weather,identity=incoming?.observationScope,oldIdentity=priorWeather?.observationScope,priorHourly=priorWeather?hourlyWeather(priorWeather):null;
  const retainHourly=sameScope&&incoming?.forecastType==='daily'&&incoming.hourlyUnavailable===true&&!incoming.hourly&&identity&&oldIdentity&&identity.entityId===oldIdentity.entityId&&identity.ownerEpoch===oldIdentity.ownerEpoch&&priorHourly?.observationScope?.entityId===identity.entityId&&priorHourly.observationScope.ownerEpoch===identity.ownerEpoch&&incoming.source===priorWeather.source&&incoming.location===priorWeather.location&&['temperature','precipitation','windSpeed'].every(key=>incoming.units?.[key]===priorWeather.units?.[key]);
  const weather=retainHourly?{...incoming,hourly:{...priorHourly,stale:true}}:incoming;
- const devices=orderHomeDevices([...scene.devices.filter(d=>d.source!=='home_assistant_state'),...rows]),removed=previous.some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
- return {...scene,liveWeather:!allowed.includes('weather')?null:weather|| (!scopeChanged&&scene.liveWeather?{...scene.liveWeather,stale:true}:null),devices,focus:removed?'now':scene.focus,homeRevision:home.revision,homeScope:scope};
+ const lightRows=home.lights?.items,priorLights=scene.devices.filter(d=>d.kind==='light'&&d.source==='home_assistant_state'),lights=!allowed.includes('light')?[]:lightRows? [{id:'podview-ha-lights',kind:'light',name:'Lys',scope:'home',live:true,source:'home_assistant_state',observedAt:home.lights.observedAt,revision:home.revision,status:lightRows.some(row=>['unknown','unavailable'].includes(row.state))?'unknown':lightRows.every(row=>row.state==='off')?'off':lightRows.every(row=>row.state==='on')?'on':'mixed',displayState:lightRows.some(row=>['unknown','unavailable'].includes(row.state))?'Lysstatus ukendt':`${lightRows.filter(row=>row.state==='on').length} af ${lightRows.length} tændt`,observedLights:lightRows,pending:null,hidden:false,timeline:[]}]:sameScope?priorLights.map(d=>({...d,stale:true})):[];
+ const devices=orderHomeDevices([...scene.devices.filter(d=>d.source!=='home_assistant_state'&&!(d.kind==='light'&&lights.length)),...rows,...lights]),removed=previous.some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
+ return {...scene,vehicle:!allowed.includes('vehicle')?null:home.vehicle||(sameScope&&scene.vehicle?{...scene.vehicle,stale:true}:null),liveWeather:!allowed.includes('weather')?null:weather|| (!scopeChanged&&scene.liveWeather?{...scene.liveWeather,stale:true}:null),devices,focus:removed?'now':scene.focus,homeRevision:home.revision,homeScope:scope};
 }
 
 function historyObservation(v){

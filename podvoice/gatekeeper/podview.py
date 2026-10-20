@@ -3168,7 +3168,7 @@ async def _assets(request: web.Request) -> web.StreamResponse:
         not target.is_relative_to(root.resolve())
         or not target.is_file()
         or target.suffix
-        not in {".html", ".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".woff2"}
+        not in {".html", ".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".wav"}
     ):
         raise web.HTTPNotFound()
     return web.FileResponse(

@@ -1,5 +1,22 @@
-#timer-alert{touch-action:pan-y;z-index:22}
-#timer-alert #timer-alert-dismiss{width:auto;min-width:72px;padding:10px 14px;background:#ffc5b0;color:#192a2d;font-weight:650}
-#timer-alert #timer-alert-dismiss:hover:not(:disabled){background:#ffd8c9;color:#192a2d}
-#timer-alert .timer-notice-open{min-width:48px;padding:8px;background:transparent;color:#c9d9dc;font-size:12px}
+/* The existing timer notice occupies the native top layer, including over details. */
+#timer-alert{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;box-sizing:border-box;margin:0;border:0;border-radius:0;padding:32px;overflow:auto;background:var(--pv-color-ink,#192a2d);color:#fff;text-align:center;touch-action:pan-y}
+#timer-alert[open]{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;animation:timer-alarm-enter 240ms ease-out both}
+#timer-alert::backdrop{background:#192a2d}
+#timer-alert .notice-icon{position:relative;width:72px;height:72px;border-radius:50%;background:transparent}
+#timer-alert .notice-icon::before{content:"";position:absolute;inset:0;border:2px solid currentColor;border-radius:50%;opacity:.3}
+#timer-alert[data-pulse="true"] .notice-icon::before{animation:timer-alarm-ring 1s ease-in-out 60}
+#timer-alert .notice-icon img{width:32px;height:32px}
+#timer-alert .notice-copy{display:flex;flex-direction:column;gap:16px;margin:0;max-width:min(100%,800px);overflow-wrap:anywhere}
+#timer-alert .notice-copy span{font-size:var(--pv-type-display);line-height:1.15;color:inherit;font-weight:600}
+#timer-alert .notice-copy strong{font-size:var(--pv-type-value);line-height:1;font-variant-numeric:tabular-nums;font-weight:600}
+#timer-alert-status{max-width:640px;margin:0;font-size:var(--pv-type-body);line-height:1.4;color:#d2dfe1}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add){width:96px;min-width:96px;height:96px;min-height:96px;border-radius:50%;padding:8px;font-size:var(--pv-type-section);line-height:1.15;background:#ffc5b0;color:#192a2d;font-weight:650;flex:none}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):hover:not(:disabled){background:#ffd8c9;color:#192a2d}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):disabled{opacity:.5}
+#timer-alert .timer-notice-open{min-height:48px;padding:8px 16px;background:transparent;color:#c9d9dc;font-size:var(--pv-type-secondary)}
 #timer-alert .timer-notice-open:hover:not(:disabled){background:#30464a;color:#fff}
+@keyframes timer-alarm-enter{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes timer-alarm-ring{0%,100%{opacity:.25}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){#timer-alert[open],#timer-alert[data-pulse="true"] .notice-icon::before{animation:none}}
+@media(max-height:560px){#timer-alert[open]{justify-content:flex-start;gap:16px;padding:24px}}
+body:has(>pv-widget-host[data-motion=reduced]) #timer-alert[open],body:has(>pv-widget-host[data-motion=reduced]) #timer-alert .notice-icon::before{animation:none}
