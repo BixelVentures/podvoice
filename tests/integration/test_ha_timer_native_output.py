@@ -87,6 +87,8 @@ class Native:
         self.retired = False
         self.drop_cancel_ack = 0
         self.muted = False
+        self.idle_before_rearm_ack = False
+        self.retired_before_rearm_ack = None
         self.rearm()
 
     def rearm(self):
@@ -147,11 +149,101 @@ class Native:
             self.retired = False
             self.context.idle(self.idle.encode())
             self.link._on_stop_context("0" * 32 + ":0:idle")
+            if self.idle_before_rearm_ack:
+                self.link._on_timer_context("idle:" + self.idle)
+                assert self.link.timer_output_request() is None
+                if self.retired_before_rearm_ack is not None:
+                    self.link._on_stop_context(f"{self.output}:2:{self.retired_before_rearm_ack}")
+                    assert self.link.timer_output_request() is None
             self.link._on_state(TextSensorState(f"{args['token']}:recovered", key=6))
             # rearmed() precedes the recovered ACK; idle capability is published
             # only by the following component loop after detector ACK.
-            self.link._on_timer_context("idle:" + self.idle)
+            if not self.idle_before_rearm_ack:
+                self.link._on_timer_context("idle:" + self.idle)
         return True
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    [
+        "idle_before_ack",
+        "idle_before_ack_stopped",
+        "idle_before_ack_cancelled",
+        "idle_before_ack_fault",
+        "retired_stopped",
+        "retired_cancelled",
+        "retired_fault",
+    ],
+)
+async def test_timer_rearm_preserves_next_idle_capability_across_native_delivery(context, boundary):
+    native = Native(context)
+    old_request, old_session = native.request, native.output
+    assert await native.link.set_timer_context(old_request)
+    assert (await native.link.retire_timer_context(old_request))["outcome"] == "retired"
+    native.idle_before_rearm_ack = boundary.startswith("idle_before_ack")
+    if boundary.startswith("idle_before_ack_"):
+        native.retired_before_rearm_ack = boundary.removeprefix("idle_before_ack_")
+    assert await native.link.rearm_wake_word() == "recovered"
+    if boundary.startswith("retired_"):
+        native.link._on_stop_context(f"{old_session}:2:{boundary.removeprefix('retired_')}")
+    assert native.link.timer_output_request_blocker() is None
+    native.link._on_timer_context("idle:" + old_request[:32])
+    next_request = native.link.timer_output_request()
+    assert next_request is not None and next_request[:32] != old_request[:32]
+    assert not await native.link.set_timer_context(old_request)
+    native.output = "e" * 32
+    assert await native.link.set_timer_context(next_request)
+    assert native.link._stop_session == native.output
+    native.link._on_stop_context(f"{old_session}:2:stopped")
+    assert native.link._stop_session == native.output and native.link._stop_armed
+    native.link._on_stop_context(f"{native.output}:1:stopped")
+    assert native.link._stop_cancelled and not native.link._stop_armed
+
+
+@pytest.mark.parametrize(
+    "boundary", ["fault", "mute", "wake", "reset", "cancel", "disconnect", "failed_ack"]
+)
+async def test_timer_rearm_staged_idle_is_revoked_before_success(context, boundary):
+    native = Native(context)
+    assert await native.link.set_timer_context(native.request)
+    assert (await native.link.retire_timer_context(native.request))["outcome"] == "retired"
+    original = native.call
+
+    async def service(name, args=None):
+        if name != "podvoice_rearm_wake_word":
+            return await original(name, args)
+        native.link._on_timer_context("idle:" + "d" * 32)
+        assert native.link.timer_output_request() is None
+        if boundary == "fault":
+            native.link._on_stop_context("0" * 32 + ":0:fault")
+        elif boundary == "mute":
+            native.link._revoke_timer_admission()
+        elif boundary == "wake":
+            native.link._on_stop_context("e" * 32 + ":0:disabled")
+        elif boundary == "reset":
+            native.link._reset_stop_context()
+        elif boundary == "disconnect":
+            await native.link._on_disconnect()
+            return True
+        elif boundary == "failed_ack":
+            native.link._on_state(TextSensorState(f"{args['token']}:fault", key=6))
+            return True
+        else:
+            raise asyncio.CancelledError
+        native.link._on_state(TextSensorState(f"{args['token']}:recovered", key=6))
+        return True
+
+    native.link._call_service = service
+    if boundary == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            await native.link.rearm_wake_word()
+    elif boundary in ("disconnect", "failed_ack"):
+        with pytest.raises(RuntimeError):
+            await native.link.rearm_wake_word()
+    else:
+        assert await native.link.rearm_wake_word() == "recovered"
+    assert native.link._timer_rearm_idle_nonce is None
+    assert native.link.timer_output_request() is None
 
 
 async def test_idle_expiry_requires_native_output_admission_after_rearm(context):

@@ -222,6 +222,8 @@ class VoicePELink:
         self.supports_timer_output = False
         self._timer_status_key: int | None = None
         self._timer_idle_nonce: tuple[int, int, str] | None = None
+        self._timer_consumed_idle_nonce: str | None = None
+        self._timer_rearm_idle_nonce: tuple[int, int, int, str] | None = None
         self._timer_pending: tuple[tuple[int, int, str], str, asyncio.Future] | None = None
         self._timer_cancel_pending: tuple[int, int, str, str, asyncio.Future] | None = None
         self.supports_stop_context = False
@@ -242,6 +244,7 @@ class VoicePELink:
         self._stop_outcome: str | None = None
         self._stop_orphan: tuple[str, int] | None = None
         self._retired_stop_session: str | None = None
+        self._rearmed_stop_session: tuple[int, int, str] | None = None
         self._stop_idle_confirmed = False
         self._stop_reset_generation = 0
         self._stop_live_revision = 0
@@ -1285,7 +1288,8 @@ class VoicePELink:
                     if self._stop_session is not None
                     else self._stop_orphan
                 )
-                self._retired_stop_session = self._stop_session
+                if previous_context is not None:
+                    self._retired_stop_session = previous_context[0]
                 self._reset_stop_context()
                 self._stop_orphan = previous_context  # failed rearm can still disable/retry
                 ok = await self._call_service("podvoice_rearm_wake_word", {"token": token})
@@ -1317,6 +1321,7 @@ class VoicePELink:
             finally:
                 if self._rearm_waiter is waiter:
                     self._rearm_waiter = None
+                self._timer_rearm_idle_nonce = None
                 self._rearm_outcome = None
                 self._rearm_expected_token = None
 
@@ -1929,12 +1934,31 @@ class VoicePELink:
                         else:
                             self._last_rearm_token = int(token_text)
                             self._stop_orphan = None
+                            if self._retired_stop_session is not None:
+                                self._rearmed_stop_session = (
+                                    self._connection_generation,
+                                    self._stop_reset_generation,
+                                    self._retired_stop_session,
+                                )
+                            staged = self._timer_rearm_idle_nonce
+                            if (
+                                staged is not None
+                                and staged[:3]
+                                == (
+                                    self._connection_generation,
+                                    self._stop_reset_generation,
+                                    int(token_text),
+                                )
+                                and self._stop_session is None
+                            ):
+                                self._timer_idle_nonce = (staged[0], staged[1], staged[3])
                             if stale:
                                 log.info(
                                     "voicepe %s: cleared %d queued mic frames at rearm boundary",
                                     self.host,
                                     stale,
                                 )
+                    self._timer_rearm_idle_nonce = None
                     self._rearm_outcome = outcome
                     self._rearm_waiter.set()
             else:
@@ -2229,6 +2253,7 @@ class VoicePELink:
 
     def _revoke_timer_admission(self) -> None:
         self._timer_idle_nonce = None
+        self._timer_rearm_idle_nonce = None
         pending = self._timer_pending
         if pending is not None and not pending[2].done():
             pending[2].set_result(False)
@@ -2243,6 +2268,23 @@ class VoicePELink:
             return len(token) == 32 and all(c in "0123456789abcdef" for c in token)
 
         if len(parts) == 2 and parts[0] == "idle" and valid(parts[1]):
+            if parts[1] == self._timer_consumed_idle_nonce:
+                return  # A retained capability consumed by the preceding timer stays spent.
+            if (
+                self._stop_session is None
+                and self._rearm_waiter is not None
+                and self._rearm_expected_token is not None
+                and self._rearm_outcome is None
+            ):
+                # Native sensors may arrive out of publication order. This grants
+                # nothing until the exact pending rearm succeeds on the same reset.
+                self._timer_rearm_idle_nonce = (
+                    self._connection_generation,
+                    self._stop_reset_generation,
+                    self._rearm_expected_token,
+                    parts[1],
+                )
+                return
             if self._stop_session is None and self._stop_orphan is None:
                 self._timer_idle_nonce = (
                     self._connection_generation,
@@ -2387,6 +2429,7 @@ class VoicePELink:
             pending = (identity, request_id, waiter)
             self._timer_pending = pending
             self._timer_idle_nonce = None
+            self._timer_consumed_idle_nonce = identity[2]
             try:
                 if not await self._call_service(
                     "podvoice_timer_output",
@@ -2599,6 +2642,12 @@ class VoicePELink:
                 self._stop_outcome = "idle"
                 self._stop_changed.set()
             return
+        if token != self._stop_session and self._rearmed_stop_session == (
+            self._connection_generation,
+            self._stop_reset_generation,
+            token,
+        ):
+            return  # Successful rearm retired this exact context, not a newer one.
         if (
             generation == 0
             and outcome == "disabled"
@@ -2621,8 +2670,26 @@ class VoicePELink:
                 "fault",
             ):
                 self._stop_idle_confirmed = False
+                staged = self._timer_rearm_idle_nonce
+                retiring_rearm = (
+                    token == self._retired_stop_session
+                    and self._rearm_waiter is not None
+                    and self._rearm_outcome is None
+                    and staged is not None
+                    and staged[:3]
+                    == (
+                        self._connection_generation,
+                        self._stop_reset_generation,
+                        self._rearm_expected_token,
+                    )
+                )
+                self._timer_rearm_idle_nonce = None
                 if outcome in ("stopped", "fault", "cancelled"):
                     self._revoke_timer_admission()
+                if retiring_rearm:
+                    # Process old cleanup, but it cannot invalidate a provisional
+                    # new idle capability that still awaits this rearm's own ACK.
+                    self._timer_rearm_idle_nonce = staged
                 self._stop_orphan = (token, generation)
                 self._stop_outcome = "orphan"
                 self._stop_changed.set()

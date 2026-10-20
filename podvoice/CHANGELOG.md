@@ -1,3 +1,10 @@
+## 2.0.69 - Native timer rearm admission
+
+- Keep a fresh idle timer capability provisional until its exact native rearm acknowledgement, including out-of-order sensor delivery.
+- Keep consumed timer nonces spent and prevent a retired timer Stop callback from revoking the next idle capability.
+- Preserve current-context Stop, fault, mute, disconnect and reset fencing; no UI, prompt, firmware, sound or timeout changes.
+- Software boundary regressions are verified; installation and the second physical timer sequence require fresh acceptance.
+
 ## 2.0.68 — Natural voice expression
 
 - Tillad naturlige smålyde, tøven og prosodi i meningsfulde svar, mens skabelonagtige modtagelses- og fremskridtsreplikker fortsat frarådes.
