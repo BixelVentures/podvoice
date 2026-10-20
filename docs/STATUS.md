@@ -2940,3 +2940,13 @@ was clean; HA69 was restarted and normal UI confirmed Kører. Private evidence:
 This falsifies the short-primary hypothesis for the required positive case. It does
 not supersede provider-result3 or establish a new schema/runtime defect. Final70 is
 not provider-accepted; do not start another prompt variant from these results.
+
+### Current69 restored and device reconnected
+
+Normal HA UI again confirms2.0.69 Kører after provider4. User reconnected
+Voice PE; fresh authenticated runtime status confirms connected=true, IDLE,
+wake_readiness=recovered and both timer blockers null. This supersedes the
+earlier offline observation; it is readiness, not physical voice/LED acceptance.
+The short-primary and other failed drafts are preserved on codex/voice70-idle-review,
+not merged or released. Last isolated startup-contract check passes13cases; no
+additional provider rerun or broad CI is justified for the failed candidate.
