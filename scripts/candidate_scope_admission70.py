@@ -21,7 +21,7 @@ safe_file = previous.safe_file
 BASE = "d21c267817ce6744dfd59efeafb13a186f5fb78d"
 KIND = "podview70_canonical_ui_audio_delivery"
 VERSION = 47
-ASSET_COUNT = 191
+ASSET_COUNT = 192
 MAX_ASSET_TOTAL_BYTES = 34 * 1024 * 1024
 PROFILE = "scripts/candidate_scope_admission70.py"
 MANIFEST = "scripts/podview70-admission-reviewed.json"
@@ -80,6 +80,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/assets/icons/boombox.svg",
         "podvoice/gatekeeper/static/podview/assets/icons/car-front.svg",
         "podvoice/gatekeeper/static/podview/assets/icons/card.svg",
+        "podvoice/gatekeeper/static/podview/assets/icons/chat-circle.svg",
         "podvoice/gatekeeper/static/podview/assets/icons/check-circle-fill.svg",
         "podvoice/gatekeeper/static/podview/assets/icons/check2.svg",
         "podvoice/gatekeeper/static/podview/assets/icons/chevron-down.svg",
@@ -195,6 +196,7 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     [
+        "tests/firmware/stop_idle_recovery_test.cpp",
         "tests/integration/test_podview_audio_asset.py",
         "tests/integration/test_podview_pairing_navigation.py",
         "tests/podview/account-visibility.test.mjs",
@@ -240,6 +242,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/root-timer-dom-delta.test.mjs",
         "tests/podview/root-timer-notice.test.mjs",
         "tests/podview/root-timer-overview.test.mjs",
+        "tests/podview/root-topbar.test.mjs",
         "tests/podview/root-weather-view.test.mjs",
         "tests/podview/visual-pending.test.mjs",
         "tests/unit/test_candidate_scope_admission69.py",
@@ -251,8 +254,8 @@ ASSET_CHANGES = frozenset()
 HA_RUNTIME = previous.HA_RUNTIME
 # CLOSED TEMPLATE: bindings and complete source/test inventories await source freeze and independent exact-tree review.
 REVIEWER = "/root/conversation_flows"
-MANIFEST_SHA = "cd682f56b22b97a540a772da3e06bb74e0ec3e0eee75a1b5b96ff7946eedb7e3"
-PROFILE_AST = "556c69a60c916928cdcca197fade9ffad09ad8fc86170365f82ba96131bb8139"
+MANIFEST_SHA = "0cb6a41e5ab89b4fd0fad6b6656d44e554a364ebec1eb887f37336640dfc5c09"
+PROFILE_AST = "ea77f9a97bf36eb8e35ea76ed097b3b7f07add71ad16daaafc0c2e649164d05d"
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission69.py": "f56897091a633ae82f39fa7702f6be49f0733b2d2e01393bdac58e87670799dc",
     "scripts/podview69-admission-reviewed.json": "13f6e113a2d12b74a1ebcd599eec38d06f280f6054d2b7ad3db290f173fd3e00",
@@ -304,7 +307,7 @@ ha_runtime_inventory = previous.ha_runtime_inventory
 
 
 def assets_match70(root: Path, runtime: dict, count: object) -> bool:
-    """Exact canonical191 asset inventory; path/hash/byte ceiling are fail closed."""
+    """Exact canonical192 asset inventory; path/hash/byte ceiling are fail closed."""
     if type(count) is not int or count != ASSET_COUNT:
         return False
     raw = safe_file(root, STATIC + "asset-manifest.json")

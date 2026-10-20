@@ -160,6 +160,10 @@
     "pin-angle.svg": {
       "source": "package/assets/regular/push-pin.svg",
       "sha256": "64c2dc8e17ac0dc1107990c1843654804f7960c35c49acdb5df5c45286910de1"
+    },
+    "chat-circle.svg": {
+      "source": "package/assets/regular/chat-circle.svg",
+      "sha256": "09e36aa820a39bbc8cffe705ad84c836d1e5733f83dc1d2212a965fdacdf4a67"
     }
   },
   "exceptions": {

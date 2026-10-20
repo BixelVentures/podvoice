@@ -97,7 +97,8 @@
         "html:section:responses",
         "html:div:player-progress",
         "html:div:player-progress-times",
-        "html:button:detail-back"
+        "html:button:detail-back",
+        "html:button:header-time"
       ],
       "customTags": [
         "pv-activity-timeline",
@@ -2310,7 +2311,10 @@
           "method:suspendLiveTimer": 1,
           "method:reconcileLiveTimer": 1,
           "method:showFeedback": 1,
-          "method:renderConnectionNotice": 1
+          "method:renderConnectionNotice": 1,
+          "method:renderTopbar": 1,
+          "method:renderTopbarClock": 1,
+          "method:renderTopbarScroll": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2343,7 +2347,8 @@
         "date": "2026-10-20",
         "scope": "Explicitly approved first-run connection copy and inline read-only retry inside existing connection-note. Reuses text-control; transport snapshot reread only, no account wizard or mutation replay.",
         "newComponentFamilies": false
-      }
+      },
+      "reviewedTopbar": "Direct user topbar brief: same registered header on overview/detail/answer; title mirrors canonical scene, one Back, minute-only clock transition and clock to Ro; preserved Ro composition."
     },
     "dist/speaker-output-view.js": {
       "status": "approved-renderer",

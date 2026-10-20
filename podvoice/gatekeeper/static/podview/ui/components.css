@@ -300,7 +300,7 @@ pv-widget-host pv-choice-list.pv-component[data-context-picker=rooms] .pv-choice
 }
 
 /* Persistent active rail uses one viewport anchor across every focus page. */
-:root{--pv-player-inset:20px}
+:root{--pv-player-inset:20px;--pv-header-value-size:22px}
 
 /* An unconnected car has no event history to inspect. */
 #vehicle-view[data-vehicle-mode=unconnected] .vehicle-history{display:none}

@@ -87,7 +87,7 @@ export function renderLocalWeather(doc,model=localWeatherModel(),{detail=true}={
    assign('small',!model.current&&!model.hours?.length&&!model.days?.length?'Ingen vejrdata':weatherOverviewDetail(model));
    renderOverviewForecast(button,model);
   }
-  else{assign('strong',model.current?.temperature);assign(id==='photo-weather'?':scope > span':'small',model.current?.condition);}
+  else{assign('strong',id==='header-weather'?model.current?.temperature?.replace(/°[CF]$/,'°'):model.current?.temperature);assign(id==='photo-weather'?':scope > span':'small',model.current?.condition);}
   const icon=button.querySelector(':scope > img');if(icon)artwork(icon,model.current?.icon);
  }
  return detail?renderWeather(doc.getElementById('weather-view'),model):null;
