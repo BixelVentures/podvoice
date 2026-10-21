@@ -1318,40 +1318,55 @@ class ThinSession:
                     self.reply_bus.end(self.room)
                     output_requested = True
                     await asyncio.wait_for(self._play_reply_url(lease), TEARDOWN_STEP_TIMEOUT_S)
-                    await asyncio.wait_for(
-                        self._playback_started.wait(), FIXED_PLAYBACK_START_TIMEOUT_S
-                    )
-                    phases.append("started")
-                    started_report = self._spawn(
-                        self._timer_report(
-                            epoch,
-                            timer_id,
-                            alert_id,
-                            sink_id,
-                            ["started"],
-                            cancelled=False,
-                            source_binding=source_binding,
-                        ),
-                        "thin-timer-started-receipt",
-                    )
-                    self._timer_report_task = started_report
-                    finished = asyncio.create_task(self._playback_finished.wait())
+                    started = asyncio.create_task(self._playback_started.wait())
                     interrupted = asyncio.create_task(self._timer_interrupt.wait())
                     try:
                         completed, _ = await asyncio.wait(
-                            (finished, interrupted),
-                            timeout=len(alarm_pcm) / one_second + 3.0,
+                            (started, interrupted),
+                            timeout=FIXED_PLAYBACK_START_TIMEOUT_S,
                             return_when=asyncio.FIRST_COMPLETED,
                         )
-                        if lease.phase == "finished":
-                            phases.append("drained")
                     finally:
-                        finished.cancel()
+                        started.cancel()
                         interrupted.cancel()
-                        await asyncio.gather(finished, interrupted, return_exceptions=True)
-                    cancelled = self._timer_interrupt.is_set() or not completed
+                        await asyncio.gather(started, interrupted, return_exceptions=True)
+                    cancelled = self._timer_interrupt.is_set()
+                    if started in completed:
+                        phases.append("started")
+                        started_report = self._spawn(
+                            self._timer_report(
+                                epoch,
+                                timer_id,
+                                alert_id,
+                                sink_id,
+                                ["started"],
+                                cancelled=False,
+                                source_binding=source_binding,
+                            ),
+                            "thin-timer-started-receipt",
+                        )
+                        self._timer_report_task = started_report
+                    elif not cancelled:
+                        raise TimeoutError("timer playback start unavailable")
+                    if not cancelled:
+                        finished = asyncio.create_task(self._playback_finished.wait())
+                        interrupted = asyncio.create_task(self._timer_interrupt.wait())
+                        try:
+                            completed, _ = await asyncio.wait(
+                                (finished, interrupted),
+                                timeout=len(alarm_pcm) / one_second + 3.0,
+                                return_when=asyncio.FIRST_COMPLETED,
+                            )
+                            if lease.phase == "finished":
+                                phases.append("drained")
+                        finally:
+                            finished.cancel()
+                            interrupted.cancel()
+                            await asyncio.gather(finished, interrupted, return_exceptions=True)
+                        cancelled = self._timer_interrupt.is_set() or not completed
             except Exception as exc:
                 _LOG.warning("thin: timer alert output incomplete: %s", exc)
+                cancelled = cancelled or self._timer_interrupt.is_set()
                 phases.append("unknown")
             finally:
                 try:

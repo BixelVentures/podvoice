@@ -1,3 +1,9 @@
+## 2.0.71
+
+- Reject unsupported native software starts before they trigger a false device error.
+- Stop a native timer even when Stop arrives before its start completes.
+- Align backend handoff instructions with the official GPT-Live `SpawnThinking` contract.
+
 ## 2.0.70
 
 - Deliver the canonical PodView UI refinement: stable colored widget grid, detailed weather/timer views, player queue, accessible interaction and motion.

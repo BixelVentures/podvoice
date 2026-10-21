@@ -800,6 +800,58 @@ async def test_retained_old_retirement_ack_cannot_adopt_newer_physical_context(c
             await asyncio.gather(task, return_exceptions=True)
 
 
+@pytest.mark.parametrize(
+    ("play_admitted", "start_seen"), [(True, False), (True, True), (False, False)]
+)
+async def test_spoken_stop_at_timer_playback_start_boundary_cancels_exact_ha_receipt(
+    context, monkeypatch, play_admitted, start_seen
+):
+    from gatekeeper import thin as thin_module
+
+    manager, bridge, client, tools, service_calls, _ = build()
+    session, _ = session_for(tools)
+    native = Native(context)
+    session.voicepe = native.link
+    native.link.on_media_state, native.link.on_event = (
+        session._on_media_state,
+        session._on_device_event,
+    )
+    monkeypatch.setattr(thin_module, "FIXED_PLAYBACK_START_TIMEOUT_S", 0.05)
+    original_call = native.call
+
+    async def spoken_stop_before_start(service, args=None):
+        if service == "podvoice_reply_play":
+            native.calls.append((service, args))
+            if start_seen:
+                native.link._on_reply_status(args["token"] + ":started")
+            assert context.stop()  # The firmware Stop-model's correlated context edge.
+            native.link._on_stop_context(f"{native.output}:1:stopped")
+            return play_admitted  # No later playback-start event follows this stop.
+        return await original_call(service, args)
+
+    native.link._call_service = spoken_stop_before_start
+    made = bridge.command(
+        endpoint="kitchen", epoch=bridge.epoch, request_id="one", action="start", seconds=1
+    )
+    manager.finish(made["id"])
+    async with client:
+        state = await tools.timers.refresh("kitchen")
+        task = asyncio.create_task(session._play_timer_alert(state["finished"][0], bridge.epoch))
+        session._timer_alarm_task = task
+        await asyncio.wait_for(task, 4)
+        await asyncio.wait_for(asyncio.gather(*list(session._tasks)), 4)
+
+    assert bridge.snapshot("kitchen")["finished"] == []
+    assert [row["phase"] for row in service_calls if row.get("action") == "report_alert"] == (
+        ["started", "stopped"]
+        if start_seen
+        else (["stopped"] if play_admitted else ["unknown", "stopped"])
+    )
+    assert len([row for row in service_calls if row.get("action") == "cancel"]) == 1
+    assert native.link.wake_readiness == "recovered"
+    assert session._playback_lease is None and not session._teardown_incomplete
+
+
 async def test_scoped_retry_pending_ha_report_does_not_hold_real_fresh_wake(context):
     from test_thin_live import build as live_session
     from test_thin_live import until

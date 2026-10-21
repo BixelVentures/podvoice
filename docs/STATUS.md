@@ -1,3 +1,36 @@
+<!-- podvoice71-admission
+{
+  "version": 48,
+  "kind": "podvoice71_native_listen_timer_and_live_dispatch",
+  "reviewer": "/root/voice_music_fix",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3",
+  "merge_base": "0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3",
+  "fingerprint": "2e3f6faee7fa5c846bbc2f7dfa0d10da13e5be07c2c5ac6c976d952b886afc9d",
+  "regression_fingerprint": "3fafceb6be0c902610cc236daabc55f24dff4b05e71b4ed02a9170a5fb5d4b27",
+  "runtime_fingerprint": "84f848c0a9fa63d8b285da98613384c4bb94c210f0d136c6f78038ea8763e7dd",
+  "config_fingerprint": "c89419ff7ae0afb70536e182e71c0b8ce3145fdf3b7a83cd0f3690bccdf82a9a",
+  "policy_fingerprint": "51d9c0e7d1ec19edbdc579d913d0a727d0b008c7e8e7ec524697b57bafe84902",
+  "tooling_fingerprint": "604a7d7c1348a2b60363758b8b4bc0df812cc5c2b850e6bea9d4cf833ae67476",
+  "manifest_fingerprint": "f8f77f80ee1313be0e0e37f049bd748e3a01e2a0204df797de738060f7c4e7de",
+  "rationale": "Source candidate only. Independent exact source GO for web.py/thin.py and their two regression files is recorded in /private/tmp/voice21-review.json (voice_closure_fix; reviewed file hashes match). live_prompt.py and test_live_prompt.py source GO, including 20 focused tests and static checks, is recorded in /private/tmp/voice21-prompt-operator-review.json; that review approves the bounded procedure, not provider outcomes. Final independent composition review by voice_music_fix reports SOURCE/ADMISSION GO for staged tree 555c720397cc4e5490b584eca0d823043487a2cf on base 0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3: 16-path scope, classifier physical_output, three production owners, version trio and four regressions exact; 192 asset hashes unchanged and immutable70 lineage preserved. Explicit-close and polite-followup provider results are UNKNOWN. Two automatic-review rejections blocked the private one-use key transfer and operator launch because user authorization could not be verified in the trusted transcript. No key handoff, provider call or HA pause occurred; direct user authorization remains pending. The legacy panel still presents Start samtale and posts action=listen, now receiving guarded409; issue #229 remains open for visible-control correction. Official CI may run against this frozen source candidate. Provider proof, publication, Green installation, live software acceptance and physical microphone/audio/LED/next-wake acceptance remain pending."
+}
+-->
+
+## PodVoice 2.0.71 source candidate — 21 October 2026
+
+Lead: /root. The exact source candidate is based on merged 2.0.70 `0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3`. It combines the native listen 409 safety guard, Stop-before-playback-start timer correction, and the reviewed GPT-Live `SpawnThinking` backend handoff instruction. The prompt edit aligns the documented tool handoff and retains Danish/security, pure Tak, direct answers and explicit-close ownership; it does not prove provider behavior.
+
+The affected chain is native listen admission → one ThinSession → GPT-Live handoff → correlated timer playback/Stop → exact retirement and rearm. The server guard returns before synthetic WAKE_WORD. Correlated Stop wakes the playback-start wait; no-start, rejected-play and observed-start outcomes retain their distinct stopped/unknown/started reporting, HA acknowledgement and retirement order. Invariants: ThinSession remains the single session owner; native timer Stop remains correlated; stale retirement cannot affect a newer generation; provider meaning is not inferred from source text. The falsifiable prompt hypothesis is that the explicit official handoff token will be emitted on backend work while direct-answer behavior and semantic close remain unchanged. Non-goals: no tool/policy/firmware/VAD/gain/timeout change, no generated provider ACK, and no physical audio claim.
+
+**Source review and exact scope.** The native listen/timer source review in `/private/tmp/voice21-review.json` is bound to matching web/thin/test hashes and reports GO; its six focused cases and changed-file static checks passed. Prompt/operator source review in `/private/tmp/voice21-prompt-operator-review.json` reports prompt SOURCE_GO and procedure GO; its 20 prompt tests and static checks passed. The pre-bind composition review by `voice_music_fix` confirmed the exact 16-path candidate, classifier `physical_output`, three changed runtime owners plus version CONFIG, four regression files, 2.0.71 metadata, preserved 192 asset hashes and immutable70 lineage. `voice_music_fix` issued final SOURCE/ADMISSION GO for staged tree `555c720397cc4e5490b584eca0d823043487a2cf`; its review confirms no new source or composition defect.
+
+**Provider gate is blocked.** Explicit-close and polite-followup provider results are UNKNOWN. Two automatic-review rejections blocked the private one-use key transfer and operator launch because the user's prior authorization could not be verified in the trusted transcript. No key handoff, provider call or HA pause occurred. The direct user authorization question remains pending; the reviewed operator procedure is not a provider result.
+
+The legacy panel still presents Start samtale and posts `action=listen`, which now receives guarded409. Issue #229 remains open for a visible-control correction and browser expectation. This is a frozen source candidate for official CI only, not provider-, software-flow-, installation- or physical-test-ready. Publication and Green installation remain pending the user answer and provider gate; microphone, audible output, LED and next-wake acceptance remain open.
+
 <!-- podview70-admission
 {
   "version": 47,
@@ -2767,3 +2800,21 @@ Retained installed68 software evidence from /root: a fresh normal Talk session a
   "rationale": "Independent unsigned composition GO tree9166b0cfed84af9811ba2cad391d1f2bb081bba1 receipt e0e4130862c164dd882cdc04e0eadbf09ccd62bbc496fed226b6e67274705e57 reuses exact runtime/test SOURCE GO b4ae6b259113561fb57e90f1785275f00535bf7f594a7cc0b2141e4afb01cb22 on patch85ae7bdccf22ef10d4b6c64a71e6c5841cfde86d6400824c482d4d86bc01cb3e. Sole behavior delta VoicePELink native timer nonce/rearm ordering;143 UI assets and all other owners remain unchanged. Fourteen final boundary cases,40 stop/closing neighbours and changed statics pass; unchanged native/Talk/rearm results retained with original scope. This binding permits source admission only; official final CI, publication, installation and second physical timer/voice acceptance remain open. Actual68 first alarm audio/greenLED/Stop-lightoff is user-confirmed; native receive order selecting either repaired source race remains unknown."
 }
 -->
+
+## Aktiv21/10 — samlet Voice PE-rettelse fra publiceret2.0.70
+
+Lead/releaseejer: /root. Brugeren bestiller afslutning, manglende svar, musik og stemme-Stop parallelt og én samlet installation. Kildebase0508f9d bevarer PodViews192 aktiver. Sidst bekræftet Green69/Speakers38 er historisk, ikke frisk versionsaflæsning.
+
+Timerhypotese: fysisk korreleret Stop mellem URL-start og playback_started kan sætte _timer_interrupt uden at vække startventetiden. Timeout kan da rydde native men undlade HA-cancel/ack. Kæde: firmwareStop → VoicePELink → Thin interrupt → playback-start/drain → HA kvittering → rearm. Ejer /root/voice_timer_stop retter kun dette vindue efter RED regression; aktiv/gammel generation, fejl og Talk bevares.
+
+#229: native /api/control listen poster wake uden firmwarekontekst, hvilket beviseligt gav nul mikrofonframes og live-context-unconfirmed/rød på69. Mindste rettelse afviser unsupported softwarestart før nogen event; fysisk wake/knap og Stop/Talk bevares. Root ejer web.py/test_web.py. Ingen falsk nonce eller bypass.
+
+#103: frisk fysisk MWW active annullerede korrekt gul preclose i et menneskeligt stille rum; senere stille knapcyklus lykkedes. Ingen bevist Thin-deadlock, gain-, LED- eller timeoutårsag. Fire promptforsøg fejlede og holdes ude. /root/voice_closure_fix undersøger kun konkrete ejer-/eventfejl. /root/voice_reply_recovery ejer provideradapteranalyse; /root/voice_music_fix ejer musikbackend.
+
+Regression: berørte native/Talk/HA-kæder, ingen sideeffekt ved afvist start, Stop under start og stale generation; formatter/lint, uafhængigt adversarial review, én endelig officielCI. Ingen fysisk accept arves. Rollback: forrige immutable image og uændret firmware. Kandidaten er endnu ikke frosset/testklar/udgivet/installeret; uløste årsager forbliver åbne.
+
+21/10 frisk Green-aflæsning: installeret69/d21c267/rootfsf4bb090a, Kører; native forbundetIDLE/recovered, begge timerblokeringer null. Knapsession09:03 blev afbrudt med fysisk knap efter1,8s under transport_connect; det er ikke et manglende providersvar. Normal installeret Talk gav GetDateTime og klokkesvar09:28; eksplicit “Vi er færdige. Afslut samtalen nu.” gav end_conversation og terminal afslutning. Dette er Talksoftware, ikke akustisk puckaccept.
+
+Timer/web sourceGO: /root/voice_closure_fix, privat voice21-review.json binder de fire faktiske filer. NativeStop-startpermutationer og webkontrol består; UI's gamle Startknap er stadig unsupported, så229 er ikke komplet. Ingen #103patch er dokumenteret: faktiskMWWactive kræver fysiskårsagsafklaring.
+
+Afgrænset ny providerhypotese: officiel https://developers.openai.com/api/docs/guides/live-prompting kræver gpt-live-1-instruktionen Generate <|SpawnThinking|> i stedet for generisk delegation; nuværende primærprompt har kun generisk delegation. Kun denne kontrakttekst/labels må justeres; ingen ny semantiskregel, keyword, timeout, VAD eller outputrelay. Falsifikation: samme shippedeThin-startup og rigtigeGPTLive må give eksplicitEND efter entydig afslutning, men ingenEND ved høflig opfølgning. RentTak er ifølge produktkontrakten venten, ikkeEND; gamle rentTak-trials beviser derfor ikke eksplicitafslutningsfejl. Uafhængigt review og en afgrænset rigtigproviderprøve kræves før adoption. Fejler eller mangler prøven, holdes promptdeltaen ude af den samlede leverance.

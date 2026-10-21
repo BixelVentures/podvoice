@@ -3185,7 +3185,12 @@ async def _control(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": f"unknown room {room!r}"}, status=404)
 
     if action == "listen":
-        await session.sm.post(Event(EventType.WAKE_WORD, room))
+        # Native wake needs the firmware-owned microphone/context boundary.
+        # A synthetic event cannot create it and would cause a false device fault.
+        return web.json_response(
+            {"ok": False, "error": "Start Voice PE med wakeword eller den fysiske knap."},
+            status=409,
+        )
     elif action == "stop":
         await session.sm.post(Event(EventType.CLOSURE_TOKEN, room, {"kind": "stop"}))
     elif action == "test_tone":
