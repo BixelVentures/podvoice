@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from unit.test_openai_live import SDK, call, created, terminal
 
+from gatekeeper.config import Config
 from gatekeeper.podview_presentation import BACKEND_PRESENTATION_INSTRUCTIONS
 from gatekeeper.thin import (
     APPROVE_ACTION_DECLARATION,
@@ -343,6 +344,65 @@ def assess(rows, case="completed-side-address", **kwargs):
     )
 
 
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("none", "OBSERVED_PASS"),
+        ("model-close", "FAIL"),
+        ("missing-answer", "FAIL"),
+        ("late-answer", "FAIL"),
+    ],
+)
+def test_polite_followup_accepts_only_legitimate_app_idle_after_answer(mutation, expected):
+    rows = good_rows("polite-followup")
+    rows.pop()  # The app's normal idle close can precede the eight-second observation.
+    finish = next(r for r in reversed(rows) if r["kind"] == "fixture_finished")
+    answer = dict(
+        kind="LiveTranscript",
+        seq=len(rows),
+        elapsed_s=finish["elapsed_s"] + 1,
+        generation=1,
+        direction="out",
+        text="Seks.",
+        start_ms=1300,
+        end_ms=1500,
+    )
+    if mutation not in ("missing-answer", "late-answer"):
+        rows.append(answer)
+    reason = "model-close" if mutation == "model-close" else "app-idle-timeout"
+    rows.append(
+        dict(
+            kind="natural_thin_end",
+            seq=len(rows),
+            elapsed_s=finish["elapsed_s"] + 6,
+            physical_close_proven=False,
+            timeline=[
+                dict(
+                    event=event,
+                    seq=seq,
+                    at_ms=seq * 1000,
+                    session_id="s1",
+                    provider_generation=1,
+                    close_id="close1",
+                    **({"reason": reason} if event == "close_requested" else {}),
+                )
+                for seq, event in enumerate(
+                    ("close_requested", "teardown_complete", "wake_rearm_recovered"), 20
+                )
+            ],
+        )
+    )
+    rows[-1]["timeline"][-1]["at_ms"] = rows[-1]["timeline"][-2]["at_ms"]
+    if mutation == "late-answer":
+        answer["seq"] = len(rows)
+        rows.append(answer)
+    report = assess(rows, "polite-followup", stayed_open=False)
+    assert report["verdict"] == expected
+    assert report["negative_idle_complete"] is (mutation != "model-close")
+    assert report["end_calls"] == report["current_receipt_settlements"] == 0
+    assert report["physical_close"] == "UNKNOWN"
+
+
 def test_positive_requires_observed_lifecycle_but_never_claims_physical_close():
     report = assess(good_rows())
     assert report["verdict"] == "OBSERVED_PASS"
@@ -468,6 +528,16 @@ def synthetic_fixtures(tmp_path):
         )
     (path / "manifest.json").write_text(json.dumps(manifest))
     return module.rig.load_fixtures(path, texts=module.TEXTS)
+
+
+@pytest.mark.asyncio
+async def test_offline_startup_binding_uses_shipped_configured_idle_period(synthetic_fixtures):
+    manifest, fixtures = synthetic_fixtures
+    binding = await module.export_startup_binding(
+        "baseline", manifest, fixtures, case="explicit-close"
+    )
+    app_config = Config(podconnect_base_url="", podconnect_token="", voicepe_noise_psk="", rooms=())
+    assert binding["context"]["idle_timeout_s"] == app_config.idle_timeout_s == 4
 
 
 async def until(predicate):

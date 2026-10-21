@@ -61,8 +61,8 @@ def test_voice_owns_listening_style_and_delegation_backend_owns_product_rules():
         "Interruption policy:",
         "Delegation policy:",
         "Backend tools:",
-        "Delegate to the backend when:",
-        "Do not delegate to the backend when:",
+        "Generate <|SpawnThinking|> when:",
+        "Do not generate <|SpawnThinking|> when:",
     ):
         assert label in primary
     assert "Afbrudt tale\nannullerer ikke backendens arbejde" in primary
@@ -106,6 +106,11 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
     capable = live_confirmation_capable_instructions(*normal)
     confirmation = live_confirmation_instructions(*normal, held_proposal())
     for primary, backend in (normal, capable, confirmation):
+        assert "Generate <|SpawnThinking|> when:" in primary
+        assert "Do not generate <|SpawnThinking|> when:" in primary
+        assert "Generate <|SpawnThinking|> før backendarbejde" in primary
+        assert "Ved tydelig\nafslutningshensigt: Generate <|SpawnThinking|>" in primary
+        assert "<|SpawnThinking|>" not in backend
         assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
@@ -120,6 +125,30 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert "stille fortsat lytning" in primary
         assert "ti og lyt videre i samme" in primary
         assert "stop musik" in primary
+
+
+def test_startup_primary_carries_official_delegation_token_in_all_branches():
+    from gatekeeper.openai_live import OpenAILiveSession
+
+    for system_prompt in (SYSTEM_PROMPT_DA, "Brugerdefineret backendregel."):
+        primary, backend = live_instructions(system_prompt)
+        for kwargs, proposal in (
+            ({}, None),
+            ({"confirmation_enabled": True}, None),
+            ({}, held_proposal()),
+        ):
+            session = OpenAILiveSession(
+                api_key="offline-test-key",
+                tool_declarations=[],
+                instructions=primary,
+                backend_instructions=backend,
+                **kwargs,
+            )
+            config = session._configuration(proposal)
+            assert "Generate <|SpawnThinking|> when:" in config["instructions"]
+            assert "Do not generate <|SpawnThinking|> when:" in config["instructions"]
+            assert "Generate <|SpawnThinking|> før backendarbejde" in config["instructions"]
+            assert "<|SpawnThinking|>" not in config["delegation"]["responses"]["instructions"]
 
 
 def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
@@ -315,6 +344,8 @@ def test_history_confirmation_marks_past_context_without_changing_default_or_pro
 
 def test_semantic_farewell_delegates_closure_before_optional_spoken_farewell():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "Generate <|SpawnThinking|> when:" in primary
+    assert "Do not generate <|SpawnThinking|> when:" in primary
     assert "delegér afslutningen til backend før en eventuel" in primary
     assert "At sige farvel lukker ikke forbindelsen" in primary
     assert "kort afsked eller afslutte uden ord" in primary

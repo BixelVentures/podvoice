@@ -2333,8 +2333,10 @@ async def test_control_actions():
     stub = _StubSession("kitchen")
     async with _client(hub, {"kitchen": stub}) as client:
         r = await client.post("/api/control", json={"room": "kitchen", "action": "listen"})
-        assert (await r.json())["ok"] is True
-        assert stub.sm.posted[-1].type is EventType.WAKE_WORD
+        assert r.status == 409
+        assert (await r.json())["ok"] is False
+        assert stub.sm.posted == []
+        assert stub.playback.tones == 0
 
         r = await client.post("/api/control", json={"room": "kitchen", "action": "stop"})
         assert (await r.json())["ok"] is True

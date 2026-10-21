@@ -30,6 +30,8 @@ from pathlib import Path
 
 import live_confirmation_eval as rig
 
+from gatekeeper.config import Config
+
 OBSERVATION_S = 45.0
 MAX_BACKEND_RESPONSES = 4
 VARIANTS = ("baseline", "implicit")
@@ -838,10 +840,45 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         and negative_windows[0]["session_active"] is True
     )
     natural = [r for r in rows if r["kind"] == "natural_thin_end"]
+    negative_idle_complete = False
+    if case == "polite-followup" and len(natural) == 1 and finished:
+        lifecycle = [
+            event
+            for event in natural[0]["timeline"]
+            if event["event"] in ("close_requested", "teardown_complete", "wake_rearm_recovered")
+        ]
+        negative_idle_complete = bool(
+            natural[0]["seq"] > finished[-1]["seq"]
+            and [event["event"] for event in lifecycle]
+            == ["close_requested", "teardown_complete", "wake_rearm_recovered"]
+            and lifecycle[0].get("reason") == "app-idle-timeout"
+            and lifecycle[0].get("close_id")
+            and lifecycle[0].get("session_id")
+            and len({event.get("close_id") for event in lifecycle}) == 1
+            and len({event.get("session_id") for event in lifecycle}) == 1
+            and all(event.get("provider_generation") == 1 for event in lifecycle)
+            and all(
+                before["seq"] < after["seq"] and before["at_ms"] <= after["at_ms"]
+                for before, after in pairwise(lifecycle)
+            )
+            and not any(
+                event["event"] == "live_terminal_backend_settled"
+                for event in natural[0]["timeline"]
+            )
+        )
     nonsemantic_close = any(
         event["event"] == "close_requested" and event.get("reason") != "model-close"
         for ending in natural
         for event in ending["timeline"]
+    )
+    polite_followup_answered = (
+        answer_seen(
+            [r for r in rows if not natural or r["seq"] < natural[0]["seq"]],
+            starts[-1]["seq"] if starts else -1,
+            ("seks", "6"),
+        )
+        if case == "polite-followup"
+        else False
     )
     verdict = "UNKNOWN"
     evidence_complete = recognized and timing and fixtures_complete and clean and usage_complete
@@ -1076,14 +1113,15 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                     else "OBSERVED_PASS"
                 )
         elif (
-            stayed_open
-            and negative_window_complete
+            ((stayed_open and negative_window_complete and not natural) or negative_idle_complete)
             and not ends
             and not settlements
             and opening_answered
             and (
                 not any(r["seq"] > starts[-1]["seq"] for r in outputs)
                 if case == "pure-thanks"
+                else polite_followup_answered
+                if case == "polite-followup"
                 else answer_seen(rows, starts[-1]["seq"], ("seks", "6"))
             )
         ):
@@ -1106,6 +1144,7 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         nonsemantic_close=nonsemantic_close,
         stayed_open=stayed_open,
         negative_window_complete=negative_window_complete,
+        negative_idle_complete=negative_idle_complete,
         clean_shutdown=clean,
         usage_complete=usage_complete,
         timer_action_chain_observed=timer_chain is not None,
@@ -1193,6 +1232,9 @@ async def evaluate(
     if client_factory is None and expected_startup is None and startup_binding_sink is None:
         raise RuntimeError("expected_startup_binding_required")
     primary, backend = instructions(variant)
+    # Mirror the add-on's Config -> ThinSession binding. Thin's direct-constructor
+    # 25 s fallback is not the shipped four-second conversation policy.
+    app_config = Config(podconnect_base_url="", podconnect_token="", voicepe_noise_psk="", rooms=())
     tools = TimerProbeTools(evidence) if case == "timer-10s" else NoActions(evidence)
     streams = rig.LiveAudioStreams()
     capture = rig.SyntheticCapture(evidence, streams)
@@ -1209,6 +1251,7 @@ async def evaluate(
         client_factory=client_factory,
     )
     live.startup_context = dict(
+        idle_timeout_s=app_config.idle_timeout_s,
         capture_hold_supported=bool(capture.supports_live_capture_hold),
         hold_callable=callable(getattr(capture, "hold_live_capture", None)),
         resume_callable=callable(getattr(capture, "resume_live_capture", None)),
@@ -1230,6 +1273,7 @@ async def evaluate(
         playback=rig.Playback(sink=capture.play_pcm),
         tools=tools,
         hub=rig.StatusHub(history=rig.History(evidence.directory / "history.jsonl")),
+        idle_timeout_s=app_config.idle_timeout_s,
         max_session_s=OBSERVATION_S + 5,
     )
     reason, clean, stayed_open = "observation_deadline", False, False
