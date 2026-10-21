@@ -1,3 +1,15 @@
+## Active72 explicit finite visual grant · lead decision ·21October2026
+
+Lead/root: the user explicitly requests finishing/activating the visual AI extension on Green. Existing finite visual20 is durably reserved at startup, so another installation cannot legitimately reuse its remaining in-memory allowance. Hypothesis: a separate explicitly approved finite grant can activate at most20 additional Luna requests without touching the historical ledger or introducing any ongoing allowance.
+
+Implement a default-empty trusted Supervisor option, closed purpose podview_visual_v1/model gpt-6-luna/max_requests1..20/grant_id/approval_ref. One immutable grant-policy binding and approval-reference binding prevent changed limit/reference/ID replay of the same approval. A separate durable grant ledger reuses RequestAllowance.prepare's startup charging; historical budget and initialized marker are never changed or migrated. Invalid/partial/changed grants fail closed without legacy fallback. Failure, cancellation, restart or unknown outcome never refunds/refills; any unused reserved process allowance is lost at restart and must be reported honestly. No mood budget, controller/security/session/voice action changes, credentials export or provider request in development. Regressions: max bound, exact replay, changed grant/ref/limit, approval reuse, symlink/partial/crash, startup exhaustion and no fallback; exact source/composition independent review before release. Rollback leaves the new option empty and preserves all ledger bytes. Concrete final human approval of the exact new finite grant is still required before writing Supervisor policy or spending; implementation authorization is not a fabricated paid approval.
+
+## Lead scope clarification · PodView72 ·21October2026
+
+Lead/root records the user's direct request to finish the visual AI extension, generated mood covers, and install the remaining v37 UI on HA. Later direct feedback adds meaningful Medium/Large widget content, with weather Large as reference; final UI inventory is temporarily unfrozen pending the canonical owners. Small remains simple with no inner buttons.
+
+Cover implementation proposal accepted for preparation, not paid activation: one pinned gpt-image-2.5-flare-2026-09-08 owner, square1024 low WebP, at most6 lifetime attempts, six closed existing mood IDs and fixed prompts only. No room/transcript/location/track data is sent. Existing configured provider credential stays server-side. One finite background warmup after explicit policy opt-in; reads/scroll/refresh cannot create provider requests. Durable attempts are charged before dispatch, including failure/unknown/cancellation; no refund/retry/refill/reset. Static theme art remains until a verified cached image exists; Spotify artwork identity is preserved. Exact model/finite paid policy requires the human's concrete final approval before activation; no dollar cap is claimed from a request count. Default-off implementation may ship independently of that approval. Runtime, semantic prompt change, composition and route/cache boundaries require independent review; provider proof, installed byte readback and physical acceptance remain distinct. No other voice/lifecycle/controller authority is expanded.
+
 <!-- podvoice71-admission
 {
   "version": 48,
@@ -2827,3 +2839,173 @@ Regression: berørte native/Talk/HA-kæder, ingen sideeffekt ved afvist start, S
 Timer/web sourceGO: /root/voice_closure_fix, privat voice21-review.json binder de fire faktiske filer. NativeStop-startpermutationer og webkontrol består; UI's gamle Startknap er stadig unsupported, så229 er ikke komplet. Ingen #103patch er dokumenteret: faktiskMWWactive kræver fysiskårsagsafklaring.
 
 Afgrænset ny providerhypotese: officiel https://developers.openai.com/api/docs/guides/live-prompting kræver gpt-live-1-instruktionen Generate <|SpawnThinking|> i stedet for generisk delegation; nuværende primærprompt har kun generisk delegation. Kun denne kontrakttekst/labels må justeres; ingen ny semantiskregel, keyword, timeout, VAD eller outputrelay. Falsifikation: samme shippedeThin-startup og rigtigeGPTLive må give eksplicitEND efter entydig afslutning, men ingenEND ved høflig opfølgning. RentTak er ifølge produktkontrakten venten, ikkeEND; gamle rentTak-trials beviser derfor ikke eksplicitafslutningsfejl. Uafhængigt review og en afgrænset rigtigproviderprøve kræves før adoption. Fejler eller mangler prøven, holdes promptdeltaen ude af den samlede leverance.
+
+
+## Active72 composition ·21 October2026 · AI visual value and thematic covers
+
+Lead /root; visual/source implementation /root/fast_ai61; release admission
+/root/release_ready_sol; cover owner /root/detail_consistency61. Current official
+base85a296a7394b621e76533cc4365e435fd9017743 contains merged71. Prior assumptions
+that71was not official are superseded by fresh remote/readback evidence; absent
+GitHub tag/release alone is not an OCI-publication or installed-version blocker.
+The isolated durable candidate is `~/.local/share/podvoice/podview-ai72-20261021`,
+branch `codex/podview-ai72-20261021`. No source69rollback or changes to other voice
+workstreams are allowed. Root owns final currentUIasset freeze and Green.
+
+Observed causal defects: spoken-only delegated completions automatically become
+concise visual receipts/history; malformed/unsupported presentation attempts also
+fallback to spoken text on screen. This violates the user's explicit judgment
+that the screen must add visual value; brief command acknowledgements belong to
+voice plus the existing resource widget. The bounded reviewed Luna bridge selects
+immutable facts after the first admitted source-backed display but cannot change
+this presentation-owner admission rule. User now explicitly requests both that
+AIextension and generated thematic covers on Green.
+
+Lead approved before runtime edits: spoken-only or null presentation gives no new
+visual receipt; invalid/unsupported presentation has no synthetic concise fallback.
+Explicit concise requires a closed semantic declaration
+`content:{visualValue:reference}` from the existing conversation model, instructed
+to reserve it for useful reread/reference content rather than commands/status/
+dialogue glue. Registered comparisons/steps/choices/source-backed weather/facts
+retain existing strict shapes and owners. No local phrase/length-based intent
+heuristic, newUIfamily, provider call or voice engine is introduced.
+
+Whole affected chain: existing backend completion → spoken extraction and normal
+voice delivery → current same-task presentation admission → optional already-admitted
+finite Luna simplification → canonical renderer/history; newer owner/input/task/
+revision, completion, cancellation, expiry and shutdown fence late work. Declining
+a visual must not interrupt speech or delete existing useful unrelated history.
+Rollback is these source/admission/UIasset changes as one candidate; firmware, VAD,
+ASR, sound and primary lifecycle are outside this72scope. Preserve exact71runtime
+except owned reviewed presentation/AIchanges and root's canonicalUIpins.
+
+Required focused regressions: no plain/null/acknowledgement/malformed visual; strict
+semantic reference declaration and supported formats; original spoken extraction;
+source, history and stale/duplicate/late-task behaviour; already-reviewed finite
+allowance/budget/cleanup. Generated-cover provider/model/finite-budget/admission
+must be concrete before any paid image work; never reuse/refill the finite visual
+allowance or mood20/day200/month ledger as an invented imagegeneration budget.
+Coverowner must document exact purpose/privacy/cache/expiry/provenance/late-owner
+and cancellation contract before image-owner runtime edits.
+
+Independent source/composition/admission review, required focused/full/officialCI,
+actual bounded provider preflight, immutable image readback, root-only installation
+and live canonical rendering remain distinct gates. Nothing in this decision
+claims a real model/image request, installation, rendered or physical acceptance.
+
+
+### PodView72 release/admission preparation
+
+Release metadata owner: /root/release_ready_sol under root. Additive72 local/officialCI route targets exact current main85a296a7394b621e76533cc4365e435fd9017743. Historical profiles/manifests remain immutable. Version trio72 is source metadata only. Final root UI14 inventory is200exact assets (build20261021-unified-ui14,34200897bytes); reviewed generated-cover and strict visual-grant contracts are composed. Independent exact-composition review binds the additive72 profile; full release/officialCI and installed provider evidence remain distinct. No publication, installation, quota reset or activation is implied. Root refreshed the actual Supervisor page and confirmed2.0.71/Kører; the earlier69label was cached DOM. Exact process artifact readback remains separate.
+
+
+### Actual72 visual-value source result
+
+The prior reviewed finite-Luna bridge is composed byte-identically on71; all four
+upstream presentation/selector/receipt/test owners were verified unchanged69→71.
+The new presentation-owner rule now declines plain spoken text and explicitnull
+without creating a receipt/history record. Invalid/executable/unavailable or
+unsupported presentation forms no longer fallback to concise spoken-text echoes.
+Explicitconcise accepts only closed `content:{visualValue:reference}`, judged by
+the existing conversation model under the updated backend instructions; no local
+phrase/length intent classifier or extra call exists. This declaration is stripped
+from the canonicalUIpayload. Valid registered comparisons/steps/choices and source-
+bound facts/weather/charts/Spotifyimage provenance retain their existing path.
+
+Authoritative focusedfast passed192unit/owner/promptcases with Ruff/format and
+mypy87sources. ActualSDK→Thin→receipt integration then passed85cases across the
+three existing presentation integration modules, including primaryfirstdisplay
+before heldLunaselection and no addedresponse.create. Three pre-existing image-
+context fixtures initially failed because they expected the now-forbidden concise
+fallback; they were corrected to await actual backendterminal and assert no new
+visual/archive. The final integrationfast command failed only its closingdiffcheck
+on concurrent UIfixture `tests/podview/root-timer-model.test.mjs:56` blankEOF; root
+was notified. This is85pytestPASS, not a completedwholefast/releasePASS. The prior
+192unitfastPASS retains its actualscope.
+
+Visualruntime and ownedtests are frozen for independentreview. Newpresentation
+SHA256 `021ee06dec43eaae4047d14e1457cc328063ecc1f2e2a06f12d77ec9635f1c9b`;
+unitpresentationtest `9d2064966e550ad8fc5638e36418267c020eff44fd7f5ba32003c2b81d0ee0dd`;
+existingpipelineintegrationtest `fad7724cdd2cb9a6fe42715dd1b58ffb03298eda6d31e486a552fb4c8985ae42`.
+No providerrequest, Greenaction, publication or installation by this owner.
+
+Activationconstraint: the existing finitevisual20bundle is prepaid durably at
+startup. A laterrestart cannot recreate its spentallowance, even when requests
+wereunused; the existingpolicy is not an ongoingquota. Actualremainingbalance is
+unknown. The existing safe `visualEnrichment` capability reflects runtimeavailable
+only, not exactbalance or cause. Preserveledger; do not claim72startupactivates a
+spentbundle. Generatedcovers still require their separately admitted concrete
+provider/model/finitepolicy under the coverowner; no moodallowance is borrowed.
+
+
+### Actual72 packaged legacy fixture reconciliation
+
+The existing74non-root packagedJSmodules initially ran980cases:700PASS,280FAIL.
+Failures were obsolete nativeDOMtest ports (missing attribute reflection),
+extracted-method dependencies missing current kit/weather/light owners, and
+assertions for explicitly superseded visual anatomy/copy/return behaviour.
+No runtime patch was made from those fixture errors. /root/fast_ai61 owned the
+cohort with disjoint player/weather/history assistance from/release_ready_sol and
+vehicle/voice/motion/timer/journey assistance from/registry_review61.
+
+The test-only nativeDOMattribute adapter preserves each port's original mutation
+hooks and reflects actual attributes/dataset/class removal. Existing owner,
+stale/revision/generation, no-replay, source precision, focus, idempotence, motion
+preference and cleanup assertions remain; no test was skipped or dropped. Current
+canonical root adapters replace obsolete duplicate adapter bodies only after
+checking retained named cases or mapping explicitly changed visual behaviour.
+Additional current canonical cases expand coverage; no historical admission
+profile or runtime was rebaselined.
+
+Final integrated74module cohort:1042/1042PASS,0fail/skip/cancel; log
+`/private/tmp/podvoice72-packaged-legacy-tests-final.log`. All41changednon-root
+adapters/helpers passed Node syntax and `git diff --check`; exact changedpath list
+is `/private/tmp/podvoice72-legacy-changed-files.txt`. This test result does not
+establish final72source freeze, whole release/officialCI, browser pixels, provider
+acceptance, installation or physical behaviour. Cover, explicitnewfinitegrant and
+root's finalUIfreeze remain owned by their existing workstreams.
+
+
+### PodView72 exact approved activation and provider sequence
+
+Root confirms the user explicitly approved one-time20new Luna visual requests and6Flare image attempts; this approval is achieved and must not be requested again. Exact sanitized root policy artifact: `docs/release-ha72/approved-ai-policies.json`, SHA256e6aa1df7a9c859b1ac4df4e4d2fd8753082bdd292854cb0e881c0efc3f1472c0. Root-owned actual activation remains pending release/install; no policy or credential is copied into runtime during source composition. Existing mood20/day200/month and legacy finite ledgers are preserved. New finite visual grant and independent image allowance are purpose-bound, no refill/reset/replay.
+
+The actual provider check will run after installation through the normal configured in-process Talk/receipt owner with the approved grant, rather than exporting an API key, creating a preinstall ledger or claiming a separate semantic probe proves this application chain. Exact compiled/source review and officialCI precede candidate delivery; successful installed provider/visual/image outcomes, measured latency and physical acceptance remain separate. Current source/provider result is not yet a runtime provider GO.
+
+
+### Final72 exact composition and conservative grant semantics
+
+Canonical root UI14 is frozen at200assets,2733/2733 packaged Node tests pass with no skipped/cancelled cases, and13 bound admission positive/negative mechanism checks pass. The3backend-added signed-domain/account/robot regressions are retained. The latest grant owner94455e0f uses conservative one-startup semantics: an existing immutable approval/grant identity can never reserve another bundle, including after lost reservations or rolled-back used counters. This preserves the exact user-approved20new Luna/6Flare allowances without replay/refill; activation and actual provider outcomes await installation.
+
+<!-- podview72-admission
+{
+  "version": 49,
+  "kind": "podview72_semantic_presentation_and_optional_ai",
+  "reviewer": "/root/ai_review61",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "85a296a7394b621e76533cc4365e435fd9017743",
+  "merge_base": "85a296a7394b621e76533cc4365e435fd9017743",
+  "fingerprint": "b889f34bf4362e07712a128f91035c4464978ec5ac3c0af67fdd6cf5a8367443",
+  "regression_fingerprint": "848474fe085ebeab42b075cccc34e6349262d0f0b250a3ed65ebfac611590e83",
+  "runtime_fingerprint": "0ba46242f7924bd71027626edb6185897f47c4c99f08d85669cd5aa1cddbfa4c",
+  "config_fingerprint": "7c45420f5da7269e19b87ac131be36e0f67303835ad077596339d34a5de6470f",
+  "policy_fingerprint": "3f01b77935428883c98a9bd2faac49152968b6233ac54a2528e02030bb22d27a",
+  "tooling_fingerprint": "79f7e57eef0ff9630aab3255feab724ab21c521d3d188feaaabc5f5fa0f66b4c",
+  "manifest_fingerprint": "4036107f7e1ec032f86958626cf492014fac273514e0136c322d5ce5d192595f",
+  "rationale": "Independent /root/ai_review61 exact composition SOURCE/ADMISSION GO on frozen UI14 and reviewed semantic presentation, default-off generated covers and strict one-startup visual grant; receipt SHA256 6a0e7c4e86c1a56104c108d7fdd4fbdc1cfa60f99fe043bb617310a42a6e6d28.2733 packaged Node cases and13 bound admission mutation checks PASS. Source admission only; full local/officialCI, immutable ARM64 publication/install and actual provider/physical acceptance remain distinct. Canonical documentation-only correction now records actual phase ellipses/positions and existing answer return timing; no executable or asset bytes changed."
+}
+-->
+
+
+### Actual72 final local release validation ·21 October2026
+
+Independent exact source/composition/admission review and final documentation-only binding confirmation are GO. Final manifest4036107f7e1ec032f86958626cf492014fac273514e0136c322d5ce5d192595f and profileba4c54881b55565f830905dd2ec636cd447cbb70cea35065b6672a3ee2afbec3 bind81production paths,173changed regressions,315runtime paths,27tooling paths and200root-canonicalUI14assets. The final independent report addendum SHA256 is a017aa4db449141979d1fc1bcc06da719a0eaf65c03e1cf7dddd16b07a60b66d.
+
+All5758unit cases pass across the existing eight disjoint CI partitions (652/466/729/778/798/1023/544/768), all2107integration cases pass (6SDK-cycle +2101remainder), all2733packaged Node cases pass without skips/cancellations, and13bound admission mutation checks pass. Ruff471files, mypy89sources, exact scope/admission, canonical200asset parity and final diff checks pass. The five pinned browser workers (live_status,daily_ui,wake_words,settings_dirty,setup_flow) pass and join cleanly; receipt66dad6e0f46a4050803360c260de5fc1 uses Node24.19.0/Playwright1.62.1/Chromium1234.
+
+The initial local240s aggregate integration bound expired after1999passing cases while a normal2s timer-watcher/C++fixture case progressed. The unchanged22-case timer module passed59.28s, confirming aggregate elapsed time rather than a reproduced hang. Lead approved bounded480s recovery of interrupted cohorts; passed SDK/static evidence was retained. Completed unit1..3 receipts were retained when the just-started fourth cohort was interrupted to run remaining existing disjoint CI shards in parallel pairs. No case/assertion was removed or weakened; all final required coverage is complete. Detailed local logs: /private/tmp/podvoice72-full-release-final.log, /private/tmp/podvoice72-full-release-recovery.log and /private/tmp/podvoice72-unit-shards-final.log.
+
+This is local source/software validation, not officialCI/publication/installation/provider or physical acceptance. Root currently holds merge and Green installation while assessing a newly reported Connect/no-audio observation on installed71;72is not installed. The approved20new Luna/6Flare grants are not activated by source composition and have not been spent here.

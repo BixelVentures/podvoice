@@ -17,11 +17,11 @@ export function localRadioPlayerModel(stationId,baseVm={},radio={}){
  const station=radioStation(stationId);
  if(!station)return null;
  return {
-  active:true,playing:radio.playing===true,fresh:false,title:station.label,artist:'Lokalt eksempel · ingen lyd',
+  active:true,playing:radio.playing===true,fresh:false,title:station.label,artist:'Direkte radio',
   target:typeof baseVm?.target==='string'?baseVm.target:'',
   volume:baseVm?.volume??null,
   fixtureArt:`assets/radio-${station.id}.svg`,artwork:null,canOutput:radio.connected===true,canDiscover:radio.connected===true,
-  exampleOnly:true,sourceKind:'radio',previewLabel:radio.playing?'Radio · lokalt eksempel':'Radio på pause · lokalt eksempel',
+  exampleOnly:true,sourceKind:'radio',previewLabel:radio.playing?'Radio · ingen lyd':'Radio på pause · ingen lyd',
  };
 }
 

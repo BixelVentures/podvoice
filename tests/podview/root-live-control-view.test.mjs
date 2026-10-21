@@ -9,7 +9,8 @@ class Node extends EventTarget {
  append(...nodes){for(const node of nodes){if(node.parentNode){const index=node.parentNode.children.indexOf(node);if(index>=0)node.parentNode.children.splice(index,1);}this.children.push(node);node.parentNode=this;}}
  after(node){this.sibling=node;if(this.parentNode){const index=this.parentNode.children.indexOf(this);this.parentNode.children.splice(index+1,0,node);node.parentNode=this.parentNode;}}
  remove(){this.isConnected=false;}
- setAttribute(name,value){this[name]=value;}
+ setAttribute(name,value){this[name]=String(value);}
+ getAttribute(name){return this[name]??null;}
  replaceChildren(...nodes){this.children=nodes;}
  focus(){}
  showModal(){this.open=true;}
@@ -131,5 +132,16 @@ for(const cause of ['missing-admission','stale-observation'])test(`actual ${caus
  const f=fixture();f.host.state.focus=target.entityId;let reads=0;f.host.liveTransport.controlSetup=()=>{reads++;return f.setup.promise;};
  try{if(cause==='missing-admission')f.host.liveSnapshot.capabilities.controlSetup=[];else f.host.state.devices[0].stale=true;
  f.view.openRobot(f.view.robotButton);assert.equal(f.view.title.textContent,'Robotstøvsuger');assert.equal(f.view.robotPanel.data.readOnly,true);assert.equal(f.view.robotPanel.data.task,null);assert.equal(f.view.robotPanel.disabled,true);assert.match(f.view.note.textContent,/Kun status/);assert.equal(f.view.body['aria-busy'],'false');assert.equal(reads,0);assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
+});
+
+
+test('kit-bound admitted volume form preserves schema and native submit authority',()=>{
+ const f=fixture();try{
+  const requests=[];f.view.send=(id,args)=>requests.push({id,args});f.view.domain='music';f.view.task={domain:'music',volume:23,options:[{id:'volume-opaque',action:'volume',label:'Lydstyrke',argsSchema:{kind:'percent',min:0,max:45}}]};f.view.buildOptions();
+  const form=f.view.body.querySelectorAll('form')[0],range=form.querySelectorAll('input')[0],submit=form.querySelectorAll('button')[0];
+  assert.equal(f.view.dialog.getAttribute('data-kit'),'dialog');assert.equal(range.getAttribute('data-kit'),'slider');assert.equal(range.value,'23');assert.equal(range.max,'45');assert.equal(range.type,'range');assert.equal(submit.type,'submit');assert.equal(submit.getAttribute('data-kit-variant'),'primary');assert.deepEqual(requests,[]);
+  form.elements={percent:range};range.value='31';form.dispatchEvent(new Event('submit',{cancelable:true}));assert.deepEqual(requests,[{id:'volume-opaque',args:{percent:31}}]);
+  const close=f.view.dialog.children[0].children[1];assert.equal(close.getAttribute('data-kit'),'button');const serial=f.view.opening;close.dispatchEvent(new Event('click'));assert.equal(f.view.opening,serial+1);assert.deepEqual(f.view.body.children,[]);assert.equal(requests.length,1);
  }finally{f.view.cleanup();}
 });

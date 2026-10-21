@@ -56,3 +56,11 @@ test('a finished finite cue releases its owner and timer; same data/new timestam
 test('reduced/background initial observations and cleanup do not defer or replay a cleaning cue',()=>{
  for(const hidden of ['reduced','background']){const f=fixture();try{if(hidden==='reduced')f.media.matches=true;else f.doc.hidden=true;f.motion.sync();assert.equal(f.photo.calls.length,0);f.media.matches=false;f.doc.hidden=false;f.motion.sync();assert.equal(f.photo.calls.length,0);f.device.status='paused';f.motion.sync();f.device.status='cleaning';f.motion.sync();assert.equal(f.photo.calls.length,1);f.motion.cleanup();f.motion.sync();assert.equal(f.photo.calls.length,1);}finally{f.motion.cleanup();}}
 });
+
+test('settled unchanged cleaning skips visibility layout reads while active and new cues still measure',async()=>{
+ const f=fixture(),icons=[f.photo,f.detail,f.panel];let reads=0;for(const icon of icons){const original=icon.getClientRects;icon.getClientRects=function(){reads++;return original.call(this);};}
+ try{f.motion.sync();assert.equal(reads,3);f.detail.visible=false;f.motion.sync();assert.equal(reads,6);assert.equal(f.detail.calls[0].cancelled,true,'active hidden glyph is still cancelled');for(const icon of icons)icon.calls[0].finish();await settled();reads=0;
+  f.motion.sync();f.device.observedAt=Date.now()/1000;f.motion.sync();assert.equal(reads,0,'same observation cannot require rendered geometry once the cue has settled');assert(icons.every(icon=>icon.calls.length===1));
+  f.device.status='paused';f.motion.sync();f.device.status='cleaning';f.detail.visible=true;f.motion.sync();assert.equal(reads,3);assert(icons.every(icon=>icon.calls.length===2),'new semantic transition still acknowledges');
+ }finally{f.motion.cleanup();}
+});

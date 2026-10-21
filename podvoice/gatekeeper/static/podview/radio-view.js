@@ -1,3 +1,4 @@
+import {createKitComponent,applyKitTemplate} from './ui/kit.js';
 import {stations,radioStation} from './radio-model.js';
 
 // Editorial channel descriptions, not live programme metadata.
@@ -7,9 +8,9 @@ const DESCRIPTIONS={'p3':'Musik og underholdning','p1':'Nyheder og samtaler','p4
 // The parent owns navigation and the shared right-hand PlayerView. This view
 // only reports an explicit, local station choice; it never starts playback.
 export class RadioView{
- constructor(root,{onSelect=()=>{}}={}){
-  this.root=root;
-  this.onSelect=onSelect;
+ constructor(root,{onSelect=()=>{},onOpenPlayer=()=>{}}={}){
+  this.root=root;applyKitTemplate(root,'detail');
+  this.onSelect=onSelect;this.onOpenPlayer=onOpenPlayer;
   this.state={live:true,connected:false,stationId:null};
   this.handleAction=event=>{
    if(event.target!==this.list||event.detail?.action_id!=='choose')return;
@@ -25,14 +26,14 @@ export class RadioView{
  build(){
   const doc=this.root.ownerDocument||document;
   const header=doc.createElement('header'),copy=doc.createElement('div'),title=doc.createElement('h1'),subtitle=doc.createElement('p');
-  header.className='response-heading';
+  header.className='response-heading pv-topbar';header.dataset.detailZone='header';
   copy.dataset.customize='radio';
   title.textContent='Radio';
   subtitle.textContent='Vælg en station';
   copy.append(title,subtitle);header.append(copy);
   const list=doc.createElement('pv-choice-list');
-  list.setAttribute('aria-label','Radiostationer');
-  this.root.replaceChildren(header,list);
+  list.setAttribute('aria-label','Radiostationer');list.className='radio-station-tiles pv-tiles';list.dataset.detailZone='controls';
+  const hero=createKitComponent('hero',{document:doc,tag:'section',className:'radio-hero pv-hero',identity:'neutral',label:'Valgt radiostation'});hero.dataset.detailZone='hero';this.stationArt=doc.createElement('img');this.stationArt.className='radio-hero-art';this.stationArt.alt='';this.stationArt.width=96;this.stationArt.height=96;this.stationTitle=doc.createElement('h2');this.stationStatus=doc.createElement('p');this.stationStatus.className='pv-meta';const stationCopy=doc.createElement('div');stationCopy.append(this.stationTitle,this.stationStatus);hero.append(this.stationArt,stationCopy);this.hero=hero;this.playerButton=createKitComponent('listrow',{document:doc,tag:'button',className:'radio-open-player pv-button',label:'Se afspiller'});this.playerButton.textContent='Se afspiller';this.playerButton.type='button';this.openPlayer=()=>{if(!this.state.stationId)return;this.onOpenPlayer();};this.playerButton.addEventListener('click',this.openPlayer);this.root.replaceChildren(header,hero,list,this.playerButton);
   this.header=header;this.subtitle=subtitle;this.list=list;
  }
  render({live=true,connected=false,stationId=null,playing=null}={}){
@@ -42,15 +43,15 @@ export class RadioView{
   if(this.renderSignature===signature)return this;
   this.renderSignature=signature;this.state={live,connected,stationId:selected,playing:playback};
   const selectable=live===false&&connected===true;
-  this.subtitle.textContent=selectable?(selected?`${radioStation(selected).label} · ${playback===false?'På pause':playback===true?'Spiller':'Valgt'}`:'Vælg en station'):!connected?'Forbindelsen mangler. Dine stationer bliver her.':'Radioafspilning er ikke tilsluttet endnu.';
-  this.list.data={
-   items:stations.map(({id,label})=>({id,label,detail:(selected===id?(playback===true?'Spiller · ':playback===false?'På pause · ':'Valgt · '):'')+DESCRIPTIONS[id],icon:`radio-${id}`,current:selected===id&&playback===true})),selected,
+  this.subtitle.textContent=selectable?(selected?`${radioStation(selected).label} · ${playback===false?'På pause':playback===true?'Valgt':'Valgt'}`:'Vælg en station'):!connected?'Forbindelsen mangler. Dine stationer bliver her.':'Radioafspilning er ikke tilsluttet endnu.';
+  this.hero.dataset.kitState=selected?'ready':'empty';this.stationArt.src=selected?`assets/radio-${selected}.svg`:'assets/icons/boombox.svg';this.stationTitle.textContent=selected?radioStation(selected).label:'Vælg en radiostation';this.stationStatus.textContent=selected?(playback===false?'På pause':playback===true?'Valgt':'Valgt'):selectable?'Stationen vises her, når du vælger.':!connected?'Ikke forbundet':'Radio er ikke tilsluttet endnu';this.playerButton.hidden=!selected;this.list.data={
+   items:stations.map(({id,label})=>({id,label,detail:(selected===id?(playback===true?'Valgt · ':playback===false?'På pause · ':'Valgt · '):'')+DESCRIPTIONS[id],icon:`radio-${id}`,current:false})),selected,
    connected:selectable,state:selectable?'ready':connected?'unsupported':'offline',
    stateText:'',quietStatus:true,
   };
   return this;
  }
- destroy(){this.root.removeEventListener('pv-action',this.handleAction);}
+ destroy(){this.root.removeEventListener('pv-action',this.handleAction);this.playerButton?.removeEventListener('click',this.openPlayer);}
 }
 
 export {stations};

@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 // Minimal DOM port for actual form events and emitted arguments. Browser layout
 // and native focus behavior remain a separate QA gate.
 class Node extends EventTarget{
- constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.textContent='';this.value='';this.checked=false;if(tag!=='host')this.disabled=false;}
+ constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes=new Map();this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.textContent='';this.value='';this.checked=false;if(tag!=='host')this.disabled=false;}
  append(...nodes){this.children.push(...nodes);}
- prepend(...nodes){this.children.unshift(...nodes);}
+ prepend(...nodes){this.children=this.children.filter(node=>!nodes.includes(node));this.children.unshift(...nodes);}
  replaceChildren(...nodes){this.children=nodes;}
- setAttribute(key,value){this[key]=value;}
+ setAttribute(key,value){this.attributes.set(key,String(value));this[key]=String(value);if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}
+ getAttribute(key){if(key.startsWith('data-'))return this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]??null;return this.attributes.get(key)??null;}
  attachShadow(){this.shadowRoot=new Node('shadow');return this.shadowRoot;}
  querySelectorAll(selector){const matches=node=>selector.split(',').some(part=>{
   const attr=part.match(/\[([^=\]]+)=([^\]]+)\]/),tag=part.match(/^[a-z][a-z0-9-]*/i);
@@ -23,17 +24,16 @@ const device={status:'docked',battery:null,observedAt:1770000000};
 const emit=(node,type)=>node.dispatchEvent(new Event(type,{cancelable:true}));
 test('room and repeat touch selections emit only admitted option and area IDs; observations retain the draft',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device};assert.equal(actions.length,0);
- const root=panel,form=root.querySelector('form'),submit=form.querySelectorAll('button').at(-1),rooms=form.querySelectorAll('[name=areaIds]');assert.equal(submit.disabled,true);emit(form,'submit');assert.equal(actions.length,0);
+ const root=panel,form=root.querySelector('form'),submit=panel.cleaningSubmit,rooms=form.querySelectorAll('[name=areaIds]');assert.equal(submit.disabled,true);emit(form,'submit');assert.equal(actions.length,0);
  rooms[0].checked=true;const repeat=form.querySelectorAll('[name=repeat]');repeat[0].checked=false;repeat[2].checked=true;emit(form,'change');assert.equal(submit.disabled,false);
  panel.observed({...device,status:'cleaning',battery:42});assert.equal(root.querySelector('form'),form);assert.equal(rooms[0].checked,true);assert.equal(repeat[2].checked,true);assert.match(panel.observation.data.detail,/42 %/);
  emit(form,'submit');assert.deepEqual(actions,[{optionId:'start-option',args:{areaIds:['area-k'],repeat:3}}]);
- emit(form.querySelectorAll('button').find(node=>node.textContent==='Vælg alle'),'click');emit(form,'submit');assert.deepEqual(actions.at(-1).args.areaIds,['area-k','area-s']);
- emit(form.querySelectorAll('button').find(node=>node.textContent==='Fjern alle'),'click');assert.equal(submit.disabled,true);emit(form,'submit');assert.equal(actions.length,2);
+ assert.equal(panel.transportControls.querySelector('button'),submit);assert.equal(submit.getAttribute('form'),form.id);assert.equal(submit.textContent,'Start i Køkken');assert.ok(!panel.querySelectorAll('button').some(node=>['Vælg alle','Fjern alle'].includes(node.textContent)));emit(rooms[1],'click');emit(form,'submit');assert.deepEqual(actions.at(-1).args.areaIds,['area-k','area-s']);emit(rooms[0],'click');emit(rooms[1],'click');assert.equal(submit.disabled,true);emit(form,'submit');assert.equal(actions.length,2);
 });
 test('setting choice uses its exact runtime ID and disabled controls cannot emit a command',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device};assert.doesNotMatch(panel.observation.data.detail,/Batteri/);
- const select=panel.querySelector('select'),form=panel.querySelectorAll('form')[1];assert.equal(select.querySelectorAll('option')[0].value,'');assert.deepEqual(select.querySelectorAll('option').slice(1).map(n=>n.value),['fan-quiet','fan-max']);
- select.value='fan-max';emit(select,'change');emit(form,'submit');assert.deepEqual(actions,[{optionId:'fan-option',args:{choiceId:'fan-max'}}]);panel.disabled=true;assert.ok(panel.querySelectorAll('button').every(n=>n.disabled));assert.ok(panel.querySelectorAll('input').every(n=>n.disabled));assert.equal(select.disabled,true);emit(form,'submit');assert.equal(actions.length,1);
+ const form=panel.querySelectorAll('form')[1],choices=form.querySelectorAll('[name=choiceId]'),submit=form.querySelectorAll('button').at(-1);assert.equal(panel.querySelector('select'),null);assert.deepEqual(choices.map(node=>node.value),['fan-quiet','fan-max']);assert.ok(choices.every(node=>node['aria-pressed']==='false'));assert.equal(submit.disabled,true);emit(form,'submit');assert.deepEqual(actions,[]);
+ emit(choices[1],'click');assert.deepEqual(choices.map(node=>node['aria-pressed']),['false','true']);assert.deepEqual(actions,[]);emit(form,'submit');assert.deepEqual(actions,[{optionId:'fan-option',args:{choiceId:'fan-max'}}]);panel.disabled=true;assert.ok(panel.querySelectorAll('button').every(n=>n.disabled));assert.ok(panel.querySelectorAll('input').every(n=>n.disabled));emit(choices[0],'click');emit(form,'submit');assert.equal(choices[1]['aria-pressed'],'true');assert.equal(actions.length,1);
 });
 test('supplied history does not create a parallel history or receipt actions inside robot controls',()=>{
  const panel=new RobotControlPanel(),actions=[],recipes=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.addEventListener('robot-control-recipe',event=>recipes.push(event.detail));
@@ -53,7 +53,7 @@ test('server-issued resume uses the existing canonical transport group and exact
 test('a map-only admitted setting remains actionable without a contradictory empty-controls message',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{domain:'vacuum',options:[{id:'map-opaque',label:'Kort',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'upstairs-opaque',label:'1. Sal'}]}}]},device};
  const root=panel;assert.equal(root.querySelectorAll('p').some(n=>n.textContent==='Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.'),false);assert.equal(root.querySelector('details').open,true);
- const select=root.querySelector('select');select.value='upstairs-opaque';emit(select,'change');emit(root.querySelector('form'),'submit');assert.deepEqual(actions,[{optionId:'map-opaque',args:{choiceId:'upstairs-opaque'}}]);
+ const choice=root.querySelector('[name=choiceId]');assert.equal(choice.value,'upstairs-opaque');emit(choice,'click');emit(root.querySelector('form'),'submit');assert.deepEqual(actions,[{optionId:'map-opaque',args:{choiceId:'upstairs-opaque'}}]);
  panel.data={task:{domain:'vacuum',options:[]},device};assert.equal(root.querySelectorAll('p').some(n=>n.textContent==='Områdevalg og indstillinger er ikke tilbudt i den aktuelle betjening.'),true);
 });
 
@@ -92,7 +92,7 @@ test('control adapter shares canonical observation and button presentation witho
  assert.deepEqual(panel.observation.data.actions,[]);
  assert.ok(panel.querySelectorAll('button').every(button=>button.className.split(' ').includes('pv-button')));
  assert.equal(panel.querySelectorAll('fieldset').length,2);
- assert.deepEqual(panel.querySelectorAll('legend').map(node=>node.textContent),['Vælg områder','Antal rengøringer']);
+ assert.deepEqual(panel.querySelectorAll('legend').map(node=>node.textContent),['Vælg rum','Gennemløb']);
 });
 
 
@@ -100,7 +100,7 @@ test('existing read-only care moves beside admitted robot controls and updates w
  const at=Date.now()/1000,fact=(key,value,unit=null)=>({key,value,unit,updatedAt:at,stale:false});
  const observed={...device,telemetry:{status:'observed',items:[fact('filter_time_left',0,'h'),fact('dock_error','water_empty'),fact('dnd_start_time','22:00:00')]}};
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device:observed};
- const care=panel.care,summary=care.querySelector('summary'),form=panel.querySelector('form'),area=form.querySelector('input');area.checked=true;care.open=true;
+ const care=panel.care,summary=care.querySelector('summary'),form=panel.querySelector('form'),area=form.querySelector('[name=areaIds]');emit(area,'click');care.open=true;
  assert.equal(care.hidden,false);assert.equal(summary.textContent,'Pleje og status');assert.deepEqual(care.querySelectorAll('h3').map(node=>node.textContent),['Vedligeholdelse','Dock og vand','Indstillinger']);assert.deepEqual(care.querySelectorAll('dd').map(node=>node.textContent),['0 timer tilbage','Mangler vand','22:00']);assert.equal(care.querySelectorAll('button,input,select').length,0);assert.deepEqual(actions,[]);
  panel.observed({...observed,stale:true});assert.equal(panel.care,care);assert.equal(care.open,true);assert.equal(care.querySelector('summary'),summary);assert.equal(panel.querySelector('form'),form);assert.equal(area.checked,true);assert.ok(care.querySelectorAll('dd').every(node=>node.textContent.endsWith(' · sidst kendt')));assert.deepEqual(actions,[]);
  panel.observed({...observed,telemetry:{status:'unavailable',items:[]}});assert.equal(care.hidden,true);assert.equal(panel.querySelector('form'),form);assert.equal(area.checked,true);assert.deepEqual(actions,[]);
@@ -110,8 +110,8 @@ const suggestionTask=()=>({domain:'vacuum',bootId:'boot-current',roomId:'room-cu
 const suggestionFor=task=>({schema:'podview.robot-suggestion.v1',bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:1,optionId:task.options[0].id,recipeId:'d'.repeat(32),areaIds:[task.options[0].argsSchema.areas[1].id],repeat:2,expiresAt:task.expiresAt,source:'ai_recipe_selection',basis:'recent_choices'});
 test('a grounded proposal fills only current admitted areas/repeat on explicit apply and never starts',()=>{
  const panel=new RobotControlPanel(),admitted=suggestionTask(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device};const form=panel.querySelector('form'),areas=form.querySelectorAll('[name=areaIds]'),repeats=form.querySelectorAll('[name=repeat]'),proposal=suggestionFor(admitted);
- assert.equal(panel.suggest(proposal),true);assert.equal(panel.proposalButton.hidden,false);assert.equal(panel.proposalCaption.textContent,'Forslag fra dine seneste valg: Stue · 2 gange');assert.ok(form.children.includes(panel.proposalCaption));assert.ok(form.children.includes(panel.proposalButton));assert.ok(!form.querySelector('div').children.includes(panel.proposalCaption));assert.ok(form.children.indexOf(panel.proposalButton)<form.children.indexOf(form.querySelector('fieldset')));assert.ok(areas.every(input=>!input.checked));assert.deepEqual(actions,[]);
- emit(panel.proposalButton,'click');assert.deepEqual(areas.map(input=>input.checked),[false,true]);assert.deepEqual(repeats.map(input=>input.checked),[false,true,false]);assert.equal(form.querySelectorAll('p').find(node=>node.className==='summary').textContent,'Stue · 2 gange');assert.equal(panel.proposalButton.textContent,'Forslag valgt');assert.deepEqual(actions,[]);assert.equal(panel.querySelector('form'),form);
+ assert.equal(panel.suggest(proposal),true);assert.equal(panel.proposalButton.hidden,false);assert.equal(panel.proposalCaption.textContent,'Fra dine seneste valg: Stue · 2 gange');assert.ok(panel.proposalZone.children.includes(panel.proposalCaption));assert.ok(panel.proposalZone.children.includes(panel.proposalButton));assert.equal(panel.proposalZone.hidden,false);assert.ok(panel.content.children.indexOf(panel.proposalZone)>panel.content.children.findIndex(node=>node.children.includes(form)));assert.ok(areas.every(input=>!input.checked));assert.deepEqual(actions,[]);
+ emit(panel.proposalButton,'click');assert.deepEqual(areas.map(input=>input.checked),[false,true]);assert.deepEqual(repeats.map(input=>input.checked),[false,true,false]);assert.equal(form.querySelectorAll('p').find(node=>node.className==='summary').textContent,'Stue · 2 gange');assert.equal(panel.proposalButton.textContent,'Valgt');assert.deepEqual(actions,[]);assert.equal(panel.querySelector('form'),form);
  emit(form,'submit');assert.deepEqual(actions,[{optionId:admitted.options[0].id,args:{areaIds:[proposal.areaIds[0]],repeat:2}}]);
 });
 test('late proposals never overwrite a user draft or revive disconnected/readonly controls',()=>{
@@ -131,7 +131,7 @@ test('stale or consumed proposal cannot be applied after the current panel is di
 const historicalTask=()=>{const admitted=suggestionTask();admitted.options.push({id:'e'.repeat(24),action:'reuse',label:'Brug denne rengøring',argsSchema:{kind:'none'}});admitted.historyDraft={source:'accepted_start_history',optionId:admitted.options[0].id,areaIds:[admitted.options[0].argsSchema.areas[0].id],repeat:2};return admitted;};
 test('selected historical draft prefills existing editable form silently, survives observation and late AI, then explicit Start uses edited current IDs',()=>{
  const panel=new RobotControlPanel(),admitted=historicalTask(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device};
- const form=panel.querySelector('form'),areas=form.querySelectorAll('[name=areaIds]'),repeats=form.querySelectorAll('[name=repeat]');assert.deepEqual(areas.map(x=>x.checked),[true,false]);assert.deepEqual(repeats.map(x=>x.checked),[false,true,false]);assert.deepEqual(actions,[]);assert.equal(panel.proposalCaption.textContent,'Fra dit tidligere valg · bruger aktuelle indstillinger');assert.equal(panel.proposalButton.hidden,true);const saved=panel.querySelectorAll('button').find(n=>n.textContent==='Start uændret');assert.equal(saved,undefined);assert.equal(panel.querySelectorAll('button').filter(n=>n.className==='pv-button pv-primary start').length,1);
+ const form=panel.querySelector('form'),areas=form.querySelectorAll('[name=areaIds]'),repeats=form.querySelectorAll('[name=repeat]');assert.deepEqual(areas.map(x=>x.checked),[true,false]);assert.deepEqual(repeats.map(x=>x.checked),[false,true,false]);assert.deepEqual(actions,[]);assert.equal(panel.proposalCaption.textContent,'Dit tidligere rumvalg');assert.equal(panel.proposalButton.hidden,true);const saved=panel.querySelectorAll('button').find(n=>n.textContent==='Start uændret');assert.equal(saved,undefined);assert.equal(panel.querySelectorAll('button').filter(n=>n.classList.contains('pv-primary')&&n.classList.contains('start')&&n.getAttribute('data-kit-variant')==='primary').length,1);
  assert.equal(panel.suggest(suggestionFor(admitted)),false);assert.deepEqual(areas.map(x=>x.checked),[true,false]);areas[0].checked=false;areas[1].checked=true;repeats[1].checked=false;repeats[2].checked=true;emit(form,'change');panel.observed({...device,battery:45});assert.equal(panel.querySelector('form'),form);assert.equal(panel.suggest(suggestionFor(admitted)),false);assert.deepEqual(actions,[]);emit(form,'submit');assert.deepEqual(actions,[{optionId:admitted.options[0].id,args:{areaIds:[admitted.options[0].argsSchema.areas[1].id],repeat:3}}]);
  panel.disabled=true;emit(form,'submit');assert.equal(actions.length,1);
 });
@@ -152,4 +152,46 @@ test('robot control keeps canonical status identity and connection while observa
  const panel=new RobotControlPanel();panel.data={task:task(),device:{...device,live:true,status:'cleaning',pending:true,battery:76},connected:true};
  const form=panel.querySelector('form');assert.equal(panel.observation.data.title,'Robotstøvsuger');assert.equal(panel.observation.data.resourceStatus,'cleaning');assert.equal(panel.observation.data.state,'pending');assert.equal(panel.observation.data.quietStatus,true);assert.equal(panel.observation.data.connected,true);assert.equal(panel.observation.data.text,'Rengør');
  panel.observed({...device,live:true,status:'stopped',stale:true,battery:130},{connected:false});assert.equal(panel.querySelector('form'),form);assert.equal(panel.observation.data.resourceStatus,'stopped');assert.equal(panel.observation.data.state,'ready');assert.equal(panel.observation.data.connected,false);assert.equal(panel.observation.data.text,'Sidst kendt: Ingen aktiv rengøring');assert.equal(panel.observation.data.detail,'');
+});
+
+
+test('room tiles and repeat segments use semantic buttons, retain IDs and never dispatch before Start',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',e=>actions.push(e.detail));panel.data={task:task(),device};
+ const form=panel.querySelector('form'),rooms=form.querySelectorAll('[name=areaIds]'),repeats=form.querySelectorAll('[name=repeat]');
+ assert.ok([...rooms,...repeats].every(node=>node.tagName==='BUTTON'&&node.type==='button'));
+ assert.equal(form.querySelectorAll('input').length,0);assert.deepEqual(rooms.map(n=>n['aria-pressed']),['false','false']);
+ emit(rooms[0],'click');emit(rooms[1],'click');emit(repeats[2],'click');assert.deepEqual(rooms.map(n=>n['aria-pressed']),['true','true']);assert.deepEqual(repeats.map(n=>n['aria-pressed']),['false','false','true']);assert.deepEqual(actions,[]);
+ panel.observed(device);assert.equal(panel.querySelector('form'),form);assert.equal(rooms[0].value,'area-k');assert.equal(panel.querySelectorAll('svg').length,0);
+ emit(form,'submit');assert.deepEqual(actions,[{optionId:'start-option',args:{areaIds:['area-k','area-s'],repeat:3}}]);
+ panel.disabled=true;emit(rooms[0],'click');emit(repeats[0],'click');assert.deepEqual(rooms.map(n=>n.checked),[true,true]);assert.equal(repeats[2].checked,true);
+});
+
+
+test('real robot command and repeat controls bind shared Button or Segmented recipes without changing admitted IDs',()=>{
+ const panel=new RobotControlPanel();panel.data={task:task(),device};const buttons=panel.querySelectorAll('button');
+ assert.ok(buttons.length>0);for(const button of buttons){const family=button.getAttribute('data-kit');assert.ok(['button','chip','tile'].includes(family),button.textContent);if(button.name==='repeat'||button.name==='choiceId')assert.equal(family,'chip');}
+ const original=panel.querySelector('form');panel.observed({...device,battery:50});assert.equal(panel.querySelector('form'),original);assert.deepEqual(panel.querySelectorAll('[name=areaIds]').map(button=>button.value),['area-k','area-s']);
+});
+
+test('identical current task payloads retain editable rooms, repeat and disclosure without reviving old task controls',()=>{
+ const panel=new RobotControlPanel(),admitted=task(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device};const form=panel.querySelector('form'),rooms=form.querySelectorAll('[name=areaIds]'),repeat=form.querySelectorAll('[name=repeat]');emit(rooms[1],'click');emit(repeat[2],'click');const settings=panel.querySelectorAll('details').find(node=>node.className.includes('settings'));settings.open=true;
+ panel.data={task:JSON.parse(JSON.stringify(admitted)),device:{...device,battery:77}};assert.equal(panel.querySelector('form'),form);assert.equal(settings.open,true);assert.equal(rooms[1].checked,true);assert.equal(repeat[2].checked,true);emit(form,'submit');assert.deepEqual(actions,[{optionId:'start-option',args:{areaIds:['area-s'],repeat:3}}]);
+ panel.data={task:{...task(),taskId:'replacement'},device};emit(form,'submit');assert.equal(actions.length,1,'detached old form cannot act on replacement task even when option ID is repeated');
+});
+
+test('transport hierarchy has one current primary command, and observation changes fence the retained old command',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));const option=(action,label)=>({id:`opaque-${action}`,action,label,argsSchema:{kind:'none'}}),admitted={domain:'vacuum',options:[option('return','Til basen'),option('pause','Pause rengøring'),option('stop','Stop rengøring'),option('resume','Fortsæt rengøring'),task().options[1]]};panel.data={task:admitted,device:{...device,status:'cleaning'}};
+ const commands=panel.querySelectorAll('button').filter(node=>node.dataset.actionId),primary=commands.filter(node=>node.className.split(' ').includes('pv-primary'));assert.equal(primary.length,1);assert.equal(primary[0].textContent,'Pause rengøring');assert.equal(commands[0],primary[0]);assert.equal(commands.find(node=>node.dataset.actionId==='resume').disabled,true);assert.equal(panel.querySelectorAll('details').find(node=>node.className.includes('settings')).open,false);assert.equal(panel.querySelectorAll('p').some(node=>/ikke tilbudt/.test(node.textContent)),false);
+ panel.observed({...device,status:'paused'});assert.equal(primary[0].disabled,true);emit(primary[0],'click');assert.deepEqual(actions,[]);const resume=commands.find(node=>node.dataset.actionId==='resume');assert.equal(resume.disabled,false);assert.equal(resume.classList.contains('pv-primary'),true);assert.equal(resume.getAttribute('data-kit-variant'),'primary');assert.equal(primary[0].classList.contains('pv-primary'),false);assert.equal(primary[0].getAttribute('data-kit-variant'),'secondary');assert.equal(panel.transportControls.children[0],resume);assert.equal(panel.transportControls.querySelectorAll('button').length,commands.length);const retainedButtons=[...panel.transportControls.children];panel.observed({...device,status:'paused',battery:42});assert.deepEqual(panel.transportControls.children,retainedButtons);assert.equal(panel.transportControls.children.filter(node=>node.classList.contains('pv-primary')).length,1);emit(resume,'click');assert.deepEqual(actions,[{optionId:'opaque-resume',args:{}}]);
+ for(const patch of [{stale:true},{pending:true}]){panel.observed({...device,status:'paused',...patch});assert.equal(resume.disabled,true);emit(resume,'click');}panel.observed({...device,status:'paused'},{connected:false});emit(resume,'click');assert.equal(actions.length,1);
+});
+
+test('expired task and local-only selection are explicit at the actual form boundary',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{...task(),expiresAt:Date.now()/1000-1},device};const form=panel.querySelector('form');for(const room of form.querySelectorAll('[name=areaIds]'))room.checked=true;emit(form,'change');emit(form,'submit');assert.deepEqual(actions,[]);assert.ok(panel.querySelectorAll('button').every(button=>button.disabled));
+ panel.data={task:task(),device,localOnly:true};const localForm=panel.querySelector('form');assert.equal(panel.cleaningSubmit.textContent,'Start rengøring');assert.equal(panel.observation.data.detail,'Eksempel');assert.ok(!localForm.querySelectorAll('p').some(node=>/Kun lokalt|Gem valg lokalt/.test(node.textContent)));assert.equal(panel.value.localOnly,true);assert.deepEqual(actions,[]);
+});
+
+
+test('status owns the Robot Hero while observed battery, area and duration remain secondary ListRow facts',()=>{
+ const at=Date.now()/1000,fact=(key,value,unit)=>({key,value,unit,updatedAt:at,stale:false});const panel=new RobotControlPanel();panel.data={task:task(),device:{...device,live:true,status:'cleaning',battery:76,telemetry:{status:'observed',items:[fact('cleaning_area',23,'m²'),fact('cleaning_time',18,'min'),fact('filter_time_left',40,'h')]}}};assert.equal(panel.observation.data.text,'Rengør');assert.equal(panel.observation.data.value,undefined);assert.match(panel.observation.data.detail,/Batteri 76 %/);assert.match(panel.observation.data.detail,/23 m²/);assert.match(panel.observation.data.detail,/18 min/);const maintenance=panel.care.querySelectorAll('div').find(node=>node.className.includes('robot-care-row'));assert.equal(maintenance.getAttribute('data-kit'),'listrow');panel.observed({...device,status:'docked',battery:76});assert.equal(panel.observation.data.text,'Ved basen');assert.equal(panel.observation.data.value,undefined);
 });

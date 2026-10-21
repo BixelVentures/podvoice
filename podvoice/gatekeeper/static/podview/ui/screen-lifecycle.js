@@ -55,8 +55,8 @@ export class ScreenLifecycle{
   host.dataset.night=String((host.previewStage==='night'||hour>=22||hour<6)&&now>=this.nightWakeUntil);host.dataset.nightSource=host.previewStage==='night'?'local-preview':'clock-schedule';
   const drift=rest?[[0,0],[4,0],[0,4],[-4,0],[0,-4]][this.step%5]:[0,0];host.style.setProperty('--drift-x',`${drift[0]}px`);host.style.setProperty('--drift-y',`${drift[1]}px`);
   if(this.wakeRequested&&(!screenBusy(host)||host.liveTransport?.connected!==true))this.refreshAfterWake();
-  if(this.wakeSnapshot!==undefined&&host.liveStatus==='connected'&&host.liveSnapshot!==this.wakeSnapshot){this.wakeSnapshot=undefined;const note=host.ownerDocument.getElementById('connection-note');const copy=host.connectionCopy?.parentNode===note?host.connectionCopy:null;if((copy?copy.nodeValue:note?.textContent)==='Opdaterer…'){note.hidden=true;if(copy)copy.nodeValue='';else note.textContent='';}}
-  if(this.wakeSnapshot!==undefined&&['connecting','connected'].includes(host.liveStatus)){const note=host.ownerDocument.getElementById('connection-note');if(note){note.hidden=false;if(host.connectionCopy?.parentNode===note)host.connectionCopy.nodeValue='Opdaterer…';else note.textContent='Opdaterer…';if(host.connectionRetry)host.connectionRetry.hidden=true;}}
+  if(this.wakeSnapshot!==undefined&&host.liveStatus==='connected'&&host.liveSnapshot!==this.wakeSnapshot){this.wakeSnapshot=undefined;host.showFeedback?.('',false,{source:'wake'});}
+  if(this.wakeSnapshot!==undefined&&['connecting','connected'].includes(host.liveStatus))host.showFeedback?.('Opdaterer…',true,{source:'wake'});
   if(!this.kiosk||host.ownerDocument.visibilityState==='hidden')return;
   const crossedMaintenance=this.lastClock&&hour>=4&&(this.lastClock.day!==day||this.lastClock.hour<4);
   this.lastClock={day,hour};

@@ -7,3 +7,13 @@ test('idle uses the same output node and neutral empty header, never fake playin
 test('populated playback restores the same canonical output node',()=>{const s=surface();placeOutputHeader(s.view,{active:false,canOutput:true});placeOutputHeader(s.view,{active:true,canOutput:true});assert.deepEqual(s.parent.children,[s.output,s.next]);assert.equal(s.copy.children[0],s.emptyTitle);});
 for(const state of [{active:false,loading:true,canOutput:true},{active:false,canOutput:false},{active:false,loading:false,canOutput:false}])test(`empty room header survives first read, disconnection and failure without granting control: ${JSON.stringify(state)}`,()=>{const s=surface(),identity=s.output.listenerIdentity;placeOutputHeader(s.view,{active:false,canOutput:true,configuredTarget:'Køkkenalrum HomePod'});placeOutputHeader(s.view,{...state,configuredTarget:'Køkkenalrum HomePod'});assert.deepEqual(s.copy.children,[s.output]);assert.deepEqual(s.parent.children,[s.next]);assert.equal(s.output.listenerIdentity,identity);assert.equal(s.output.disabled,true);assert.equal(s.room.textContent,'Køkkenalrum HomePod');assert.equal(s.state.textContent,'');assert.equal(s.output.attributes['aria-label'],'Konfigureret højttaler: Køkkenalrum HomePod');});
 test('repeated idle renders never duplicate control or header',()=>{const s=surface();for(let i=0;i<3;i++)placeOutputHeader(s.view,{active:false,canOutput:true});assert.deepEqual(s.copy.children,[s.output]);placeOutputHeader(s.view,{active:true});placeOutputHeader(s.view,{active:false,canOutput:true});assert.deepEqual(s.copy.children,[s.output]);assert.deepEqual(s.parent.children,[s.next]);});
+
+
+test('idle output accessible name always includes its visible heading across configured and unavailable states',()=>{
+ const s=surface();
+ for(const value of [{canOutput:true},{canOutput:false},{canOutput:true,configuredTarget:'Køkkenalrum HomePod'},{canOutput:false,configuredTarget:'Stue'}]){
+  placeOutputHeader(s.view,{active:false,...value});
+  assert.ok(s.room.textContent);assert.ok(s.output.getAttribute('aria-label').includes(s.room.textContent));
+  assert.equal(s.output.disabled,!value.canOutput);
+ }
+});

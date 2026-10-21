@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {previewScene,previewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {previewScene as createPreviewScene,previewStates,timerPreviewStates,musicPreviewStates,radioPreviewStates,weatherPreviewStates,answerPreviewStates,deviceOfflinePreviewStates,coexistencePreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 import {sceneTransition,deviceActions} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+const previewNow=Date.parse('2026-10-20T09:10:00Z');
+const previewScene=name=>createPreviewScene(name,previewNow);
 test('state previews retain resources independently of answer and connection status',()=>{
  for(const name of ['waiting','partial','ready','empty','error','offline','connecting','ended']){
   const s=previewScene(name);assert.equal(s.timer.status,'running',name);assert.equal(s.timer.remaining,60,name);assert.equal(s.music.playback.track,0,name);
@@ -19,14 +21,207 @@ test('preview states distinguish unknown device result, completed timer and no a
 test('stacked scenes preserve timer and devices when opening a detail',()=>{
  for(const name of ['stack','music-stack']){const s=previewScene(name);assert.equal(s.devices.length,2);assert.equal(s.timer.status,'running');const detail=sceneTransition(s,{type:'show',id:'demo-light'});assert.equal(detail.music,s.music);assert.equal(detail.timer,s.timer);assert.equal(detail.devices,s.devices);}
 });
-test('device detail returns one actual step without stopping resources',()=>{
- const s=previewScene('music-stack');const detail=sceneTransition(s,{type:'show',id:'demo-vacuum'});assert.equal(detail.detailOrigin,'music');const next=sceneTransition(detail,{type:'show',id:'demo-light'});assert.equal(next.detailOrigin,'music');const back=sceneTransition(next,{type:'device-back'});assert.equal(back.focus,'demo-vacuum');assert.equal(sceneTransition(back,{type:'back'}).focus,'music');assert.equal(back.music,s.music);assert.equal(back.timer,s.timer);assert.equal(back.devices,s.devices);
+test('device detail returns to overview then Ro without stopping resources',()=>{
+ const s=previewScene('music-stack');const detail=sceneTransition(s,{type:'show',id:'demo-vacuum'});assert.equal(detail.detailOrigin,'music');const next=sceneTransition(detail,{type:'show',id:'demo-light'});assert.equal(next.detailOrigin,'music');const back=sceneTransition(next,{type:'device-back'});assert.equal(back.focus,'now');assert.equal(sceneTransition(back,{type:'back'}).focus,'photo');assert.equal(back.music,s.music);assert.equal(back.timer,s.timer);assert.equal(back.devices,s.devices);
 });
 
-test('weather detail returns to the same task and keeps its resources',()=>{let s=previewScene('music-stack');const music=s.music,timer=s.timer;s=sceneTransition(s,{type:'show',id:'weather'});assert.equal(s.focus,'weather');s=sceneTransition(s,{type:'device-back'});assert.equal(s.focus,'music');assert.deepEqual(s.music,music);assert.deepEqual(s.timer,timer);});
+test('weather detail returns to overview and keeps its resources',()=>{let s=previewScene('music-stack');const music=s.music,timer=s.timer;s=sceneTransition(s,{type:'show',id:'weather'});assert.equal(s.focus,'weather');s=sceneTransition(s,{type:'device-back'});assert.equal(s.focus,'now');assert.deepEqual(s.music,music);assert.deepEqual(s.timer,timer);});
 
 test('the music entry keeps household fixtures when navigating to overview and rest',()=>{
  const s=previewScene('top');assert.deepEqual(s.devices.map(d=>d.kind),['vacuum','light']);
  const now=sceneTransition(s,{type:'show',id:'now'}),rest=sceneTransition(now,{type:'show',id:'photo'});
  assert.equal(now.devices,s.devices);assert.equal(rest.devices,s.devices);assert.equal(rest.music,s.music);
+});
+
+import {devicePreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {lightSelection} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {conversationPreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {validateVisualContent} from '../../podvoice/gatekeeper/static/podview/visual-content.js';
+test('explicit device audit stages use canonical IDs across detail, overview and Ro',()=>{
+ for(const name of devicePreviewStates){
+  const [domain,layer,status]=name.split('-'),kind=domain==='robot'?'vacuum':'light',id=`demo-${kind}`,s=previewScene(name),device=s.devices.find(d=>d.id===id);
+  assert.ok(previewStates.includes(name));assert.equal(device.exampleOnly,true);
+  assert.equal(s.focus,layer==='detail'?id:layer==='overview'?'now':'photo',name);
+  assert.equal(!!device.pending,status==='pending',name);
+  assert.equal(device.status,status==='pending'?(kind==='light'?'on':'cleaning'):status,name);
+  if(kind==='light')assert.equal(lightSelection(device).status,device.status,name);
+  const detail=sceneTransition(s,{type:'show',id});assert.equal(detail.music,s.music);assert.equal(detail.devices,s.devices);
+ }
+});
+
+test('conversation previews keep listening and voice-only replies on the useful overview',()=>{
+ const overview=previewScene('conversation-overview');
+ for(const stage of ['listening','working','speaking']){
+  const scene=previewScene(`conversation-${stage}`);
+  assert.equal(scene.focus,'now');
+  assert.deepEqual(scene.answers,[]);
+  assert.equal(scene.pendingAnswer,null,'a voice phase must not invent a visual request');
+  assert.deepEqual(scene.music,overview.music);
+  assert.deepEqual(scene.timer,overview.timer);
+  assert.deepEqual(scene.devices,overview.devices);
+ }
+ assert.equal(previewScene('conversation-speaking').voicePreviewPhase,'AI_SPEAKING');
+ assert.equal(overview.timer.remaining,522);
+});
+
+test('late and interrupted conversation previews retain the same useful answer and resources',()=>{
+ const visible=previewScene('conversation-visual');
+ for(const stage of ['late','interrupted']){
+  const scene=previewScene(`conversation-${stage}`);
+  assert.equal(scene.focus,visible.focus);
+  assert.deepEqual(scene.answers,visible.answers);
+  assert.deepEqual(scene.music,visible.music);
+  assert.deepEqual(scene.timer,visible.timer);
+  assert.equal(scene.pendingAnswer,null);
+  const lateReceipt=sceneTransition(scene,{type:'answer-result',id:'old-answer',generation:scene.generation,status:'ready'});
+  assert.equal(lateReceipt,scene,'a late result without a matching pending task cannot replace focus');
+ }
+ assert.equal(previewScene('conversation-late').voicePreviewPhase,'THINKING');
+ assert.equal(previewScene('conversation-interrupted').voicePreviewPhase,'LISTENING');
+});
+
+test('speech completion and a follow-up do not discard the visual answer or running resources',()=>{
+ const visible=previewScene('conversation-visual'),complete=previewScene('conversation-complete'),followup=previewScene('conversation-followup');
+ assert.equal(complete.voicePreviewPhase,'IDLE');
+ assert.equal(complete.focus,visible.focus);
+ assert.equal(complete.answers[0].status,'ready');
+ assert.deepEqual(complete.answers[0].content,visible.answers[0].content);
+ assert.equal(followup.answers[0].id,visible.answers[0].id);
+ assert.equal(followup.answers[0].revision,visible.answers[0].revision+1);
+ assert.notEqual(followup.answers[0].title,visible.answers[0].title);
+ for(const scene of [complete,followup]){
+  assert.deepEqual(scene.music,visible.music);
+  assert.deepEqual(scene.timer,visible.timer);
+  assert.equal(scene.pendingAnswer,null);
+ }
+});
+
+test('conversation fixtures are deterministic and carry no live answer or source authority',()=>{
+ for(const name of conversationPreviewStates){
+  assert.ok(previewStates.includes(name));
+  const scene=previewScene(name);
+  assert.deepEqual(previewScene(name),scene);
+  for(const answer of scene.answers){
+   assert.equal(answer.exampleOnly,true);
+   assert.equal(answer.live,undefined);
+   assert.equal(answer.receiptId,undefined);
+   assert.equal(answer.provenance,undefined);
+   assert.deepEqual(validateVisualContent(answer.kind,answer.content),answer.content);
+   assert.match(answer.content.sources[0].label,/forhåndsvisning/i);
+   assert.equal(answer.content.sources[0].url,'example-sources.html');
+  }
+ }
+});
+
+test('conversation countdown is anchored to preview creation instead of the Unix epoch',()=>{
+ const scene=createPreviewScene('conversation-overview',previewNow);
+ assert.equal(scene.timer.deadline,previewNow+522000);
+ const next=sceneTransition(scene,{type:'tick',now:previewNow+1000});
+ assert.equal(next.timer.status,'running');assert.equal(next.timer.remaining,521);
+});
+
+test('finished timer coexists with short and scroll-length visual answers without changing resource identities',()=>{
+ const active=previewScene('conversation-visual');
+ for(const name of coexistencePreviewStates){
+  const scene=previewScene(name),answer=scene.answers[0];
+  assert.ok(previewStates.includes(name));assert.equal(scene.focus,active.focus);
+  assert.equal(answer.id,active.answers[0].id);assert.equal(answer.status,'ready');
+  assert.equal(answer.exampleOnly,true);assert.equal(answer.live,undefined);
+  assert.equal(scene.timer.id,active.timer.id);assert.equal(scene.timer.status,'done');assert.equal(scene.timer.remaining,0);
+  assert.deepEqual(scene.music,active.music);assert.deepEqual(scene.devices,active.devices);
+  assert.equal(scene.voicePreviewPhase,'AI_SPEAKING');
+  assert.deepEqual(validateVisualContent(answer.kind,answer.content),answer.content);
+ }
+ assert.equal(previewScene('conversation-visual-timer-finished').answers[0].content.facts.length,4);
+ assert.equal(previewScene('conversation-long-timer-finished').answers[0].content.facts.length,6);
+});
+
+test('timer catalog renders real empty, running, completed and retained states across all layers',()=>{
+ for(const name of timerPreviewStates){
+  const [,layer,status]=name.split('-'),scene=previewScene(name);
+  assert.equal(scene.focus,layer==='detail'?'timers':layer==='rest'?'photo':'now');
+  assert.equal(scene.timer===null,status==='empty');
+  if(status==='running'){assert.equal(scene.timer.remaining,522);assert.equal(scene.timer.deadline,previewNow+522000);}
+  if(status==='finished'){assert.equal(scene.timer.remaining,0);assert.equal(scene.timer.status,'done');}
+  if(status==='multiple'){assert.equal(scene.extraTimers?.length||0,0);assert.equal(scene.timer.status,'running');assert.deepEqual(scene.timerHistory.map(item=>item.seconds),[180,300,600]);}
+  if(status==='stale'){assert.equal(scene.connected,false);assert.equal(scene.timer.stale,true);assert.equal(sceneTransition(scene,{type:'tick',now:previewNow+600000}).timer.remaining,522);}
+  assert.equal(scene.timer?.ownerBootId,undefined,'local fixture cannot claim native ownership');
+ }
+});
+
+test('music catalog keeps existing choices through refresh failures and covers all four collections',()=>{
+ for(const collection of ['mood','feeling','top','recent'])assert.equal(previewScene(`music-${collection}`).music.collection,collection);
+ assert.equal(previewScene('music-paused').music.playback.playing,false);
+ assert.ok(previewScene('music-refreshing').music.refreshPending);
+ for(const status of ['error','empty']){const scene=previewScene(`music-refresh-${status}`);assert.equal(scene.music.refreshStatus,status);assert.equal(scene.music.suggestionPage,0);assert.equal(scene.music.refreshPending,null);}
+ for(const name of musicPreviewStates)assert.equal(previewScene(name).focus,'music');
+});
+
+test('radio and vehicle catalog states stay local and never invent connected vehicle data',()=>{
+ for(const name of radioPreviewStates)assert.equal(previewScene(name).focus,'radio');
+ assert.equal(previewScene('radio-selected').radioStationId,'p3');
+ assert.equal(previewScene('radio-selected').music.playback.active,false);
+ assert.equal(previewScene('radio-paused').radioPlaying,false);
+ assert.equal(previewScene('radio-offline').connected,false);
+ const vehicle=previewScene('vehicle-unconnected');assert.equal(vehicle.focus,'vehicle');assert.equal(vehicle.vehicle,undefined);
+ for(const name of weatherPreviewStates){const scene=previewScene(name);assert.equal(scene.focus,'weather');assert.equal(scene.weatherPreview,name.slice(8));assert.equal(scene.liveWeather,undefined);}
+});
+
+test('device offline previews retain observed state while blocking model actions',()=>{
+ for(const name of deviceOfflinePreviewStates){
+  const scene=previewScene(name),kind=name.startsWith('robot')?'vacuum':'light',device=scene.devices.find(d=>d.kind===kind);
+  assert.equal(scene.connected,false);assert.equal(device.status,kind==='vacuum'?'cleaning':'on');
+  const action=deviceActions(device)[0];assert.ok(action);
+  assert.equal(sceneTransition(scene,{type:'device-action',sessionId:scene.sessionId,taskId:device.id,revision:device.revision,action:action.id}),scene);
+ }
+});
+
+test('all ten answer families expose canonical lifecycle examples without live authority',()=>{
+ for(const name of answerPreviewStates){
+  const scene=previewScene(name),answer=scene.answers[0];assert.ok(answer,name);assert.equal(scene.focus,answer.id);
+  assert.equal(answer.exampleOnly,true);assert.equal(answer.live,undefined);assert.equal(answer.receiptId,undefined);
+  if(name.endsWith('-offline')){assert.equal(scene.connected,false);assert.equal(answer.status,'ready');}
+  if(name.endsWith('-waiting'))assert.ok(scene.pendingAnswer);
+  if(name.endsWith('-complete'))assert.equal(answer.status,'done');
+ }
+ const long=previewScene('answer-fact-card-long').answers[0];assert.equal(long.content.facts.length,6);assert.deepEqual(validateVisualContent(long.kind,long.content),long.content);
+});
+
+
+test('local weather answer hours follow Copenhagen review time across afternoon and midnight',()=>{
+ for(const [time,labels] of [
+  ['2026-10-20T11:37:00Z',['14','15','16']],
+  ['2026-10-20T21:37:00Z',['00','01','02']],
+  ['2026-12-20T12:37:00Z',['14','15','16']]
+ ]){
+  const answer=createPreviewScene('conversation-visual',Date.parse(time)).answers[0];
+  assert.deepEqual(answer.content.facts.slice(1).map(fact=>fact.label),labels);
+  assert.equal(answer.content.summary,'Ja, den næste time ser bedst ud.');
+  assert.equal(answer.exampleOnly,true);assert.match(answer.content.sources[0].scope,/Opdigtet vejrforløb/);
+  assert.deepEqual(createPreviewScene('conversation-followup',Date.parse(time)).answers[0].title,'Og hvis vi venter et par timer?');
+ }
+});
+
+test('on and mixed light fixtures restore a nonzero preview dimmer level for every lit dimmable lamp',()=>{for(const name of ['light-detail-on','light-detail-mixed']){const s=previewScene(name),light=s.devices.find(d=>d.kind==='light');assert.ok(light.lights.filter(l=>l.on&&l.dimmable).every(l=>l.brightness>0));assert.equal(light.lights.find(l=>l.id==='kitchen-counter').dimmable,false);}});
+
+
+test('new library domain snapshots carry genuine owner input and no live action rights',async()=>{
+ const {libraryDomainPreviewStates}=await import('../../podvoice/gatekeeper/static/podview/preview-scenes.js');
+ const {vehicleModel}=await import('../../podvoice/gatekeeper/static/podview/vehicle-model.js');
+ const {deviceOverviewFacts,lightSelection}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+ for(const stage of libraryDomainPreviewStates){assert(previewStates.includes(stage));const scene=previewScene(stage);assert.deepEqual(scene,previewScene(stage),stage);assert.equal(scene.sessionId,'demo-session-1');}
+ for(const kind of ['robot','light']){
+  const empty=previewScene(`${kind}-detail-empty`);assert.equal(empty.connected,false);assert.equal(empty.devices.length,1);assert.equal(empty.devices[0].presentationOnly,true);assert.equal(empty.devices[0].status,'unavailable');assert.deepEqual(deviceActions(empty.devices[0]),[]);
+  const stale=previewScene(`${kind}-detail-stale`).devices.find(d=>d.kind===(kind==='robot'?'vacuum':'light'));assert.equal(stale.stale,true);
+ }
+ const longRobot=previewScene('robot-detail-long').devices.find(d=>d.kind==='vacuum');assert(deviceOverviewFacts(longRobot,previewNow/1000).facts.some(row=>row.id==='room'&&row.value.length>60));
+ const care=previewScene('robot-detail-care').devices.find(d=>d.kind==='vacuum');assert(care.telemetry.items.some(row=>row.key==='filter_time_left'));assert(care.telemetry.items.some(row=>row.key==='dock_error'));
+ const longLight=previewScene('light-detail-long').devices.find(d=>d.kind==='light');assert(lightSelection(longLight).title.length>45);assert.equal(lightSelection(longLight).targetIds.length,1);
+ assert.equal(lightSelection(previewScene('light-detail-room-living').devices.find(d=>d.kind==='light')).roomId,'living');assert.equal(lightSelection(previewScene('light-detail-room-kitchen').devices.find(d=>d.kind==='light')).roomId,'kitchen');
+ for(const layer of ['detail','overview','rest'])assert.equal(previewScene(`timer-${layer}-paused`).timer.status,'paused');
+ assert.equal(previewScene('music-offline').connected,false);const unknown=previewScene('music-unknown');assert.equal(unknown.music.pending,null);assert.match(unknown.music.message,/Udfald ukendt/);
+ for(const variant of ['unknown','stale']){const model=vehicleModel(previewScene(`vehicle-${variant}`).vehicle);assert.equal(model.exampleOnly,true);assert.deepEqual(model.actions,[]);assert.match(model.context,/Lokalt eksempel/);assert.equal(model.modelName,undefined);if(variant==='unknown'){assert.equal(model.batteryPercent,null);assert.equal(model.status,'Status ukendt');}else{assert.equal(model.batteryPercent,72);assert.match(model.status,/Sidst kendt/);}}
+ const emptyQueue=previewScene('player-queue-empty');assert.equal(emptyQueue.focus,'player');assert.equal(emptyQueue.music.playback.active,false);assert.equal(emptyQueue.playerPreview,'empty');assert.equal(previewScene('player-queue-error').playerPreview,'error');
+ for(const stage of ['player-long-output','music-long-output'])assert(previewScene(stage).music.playback.room.length>45);
+ assert.equal(previewScene('weather-unconnected').weatherPreview,'empty');assert.equal(previewScene('weather-offline').weatherPreview,'stale');
 });

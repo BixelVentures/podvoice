@@ -1,4 +1,5 @@
-// A display-only return to Ro. This never dismisses an answer or
+// A display-only return to overview. Its normal idle owner later opens Ro.
+// This never dismisses an answer or
 // stops a resource. Speech completion must come from an explicit owner signal.
 export function autoReturnCandidate(host){
  const s=host.state,answer=s?.answers?.find(item=>item.id===s.focus&&!item.hidden);
@@ -34,8 +35,9 @@ export class AnswerAutoReturn{
    if(!expected)return;
    this.cancelled.add(expected);
    if(!this.host.isConnected||this.host.ownerDocument?.visibilityState==='hidden'||!current?.eligible||current.identity!==expected)return;
-   this.host.sceneNavigation=true;this.host.dispatch({type:'show',id:'photo'});
-  },90000);
+   this.host.screenLifecycle?.resetIdle();
+   this.host.sceneNavigation=true;this.host.dispatch({type:'show',id:'now'});
+  },30000);
  }
  cleanup(){this.cancel(true);if(!this.attached)return;const doc=this.host.ownerDocument;for(const type of ['pointerdown','click','touchstart','wheel','keydown','scroll'])doc.removeEventListener(type,this.interact,true);doc.removeEventListener('visibilitychange',this.visibility);this.attached=false;}
 }

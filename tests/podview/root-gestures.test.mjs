@@ -8,3 +8,10 @@ test('ordinary activity content never becomes a horizontal scene carousel',()=>{
 import {wheelGesture} from '../../podvoice/gatekeeper/static/podview/ui/gestures.js';
 test('a deliberate trackpad swipe returns once while inertial events cannot repeat',()=>{let s={};let fires=0;for(const [at,dx] of [[0,-30],[20,-40],[40,-50],[60,-100],[80,-100]]){const r=wheelGesture(s,{dx,dy:0,at});s=r.state;if(r.intent)fires++;assert.equal(r.capture,true);}assert.equal(fires,1);});
 test('vertical scroll, pinch and horizontal controls cannot become trackpad navigation',()=>{let r=wheelGesture({}, {dx:-5,dy:60,at:0});assert.equal(r.capture,false);r=wheelGesture(r.state,{dx:-150,dy:0,at:20});assert.equal(r.intent,null);assert.equal(wheelGesture({}, {dx:-200,dy:0,at:0,blocked:true}).intent,null);assert.equal(wheelGesture({}, {dx:-200,dy:0,at:0,mode:1}).intent,null);});
+
+test('content transition cancels prior owner and reduces to a bounded opacity fade',async()=>{
+ const {transitionContent}=await import('../../podvoice/gatekeeper/static/podview/ui/gestures.js');const priorMatch=globalThis.matchMedia,priorStyle=globalThis.getComputedStyle;let cancelled=0,result;
+ globalThis.matchMedia=()=>({matches:true});globalThis.getComputedStyle=()=>({opacity:'.8',transform:'none'});
+ const element={isConnected:true,closest:()=>null,getAnimations:()=>[{id:'pv-content-transition',cancel(){cancelled++;}}],animate(frames,options){result={frames,options};return result;}};
+ try{transitionContent(element);assert.equal(cancelled,1);assert.equal(result.options.duration,120);assert.equal(result.options.easing,'cubic-bezier(.2,0,0,1)');for(const frame of result.frames)assert.deepEqual(Object.keys(frame),['opacity']);element.isConnected=false;result=null;transitionContent(element);assert.equal(result,null);}finally{globalThis.matchMedia=priorMatch;globalThis.getComputedStyle=priorStyle;}
+});

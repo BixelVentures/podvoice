@@ -45,15 +45,17 @@ class FakeElement {
     this.inert = false;
     this.textContent = '';
     this.animations = [];
+    const properties=new Map();this.style={setProperty:(name,value)=>properties.set(name,value),getPropertyValue:name=>properties.get(name)||'',removeProperty:name=>properties.delete(name)};
   }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   removeAttribute(name) { this.attributes.delete(name); }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
-  append(...nodes) { this.children.push(...nodes); }
+  append(...nodes) { for(const node of nodes){ if(node.parentNode){ const previous=node.parentNode.children;previous.splice(previous.indexOf(node),1); }this.children.push(node);node.parentNode=this;} }
   querySelector(selector) {
     if (selector === '.voice-copy') return this.children.find(child => child.className === 'voice-copy') ?? null;
     return null;
   }
+  getBoundingClientRect(){return {top:this.visualTop??(Number.parseFloat(this.style.getPropertyValue('--pv-voice-top'))||16),height:48};}
   animate(frames, options) {
     let resolve;
     const animation = {
@@ -181,10 +183,14 @@ test('a detached host cannot reopen or schedule a new voice surface',()=>withBro
  assert.equal(surface.node.hidden,true);assert.equal(surface.node.inert,true);assert.equal(timers.size,0);
 }));
 
-test('every actual owner phase has one finite acknowledgement and identical ticks never loop',()=>withBrowser(()=>{
- const {surface}=fixture();for(const phase of ['LISTENING','THINKING','AI_SPEAKING','LOUNGE_WINDOW','CLOSING','UNKNOWN']){const presentation=voicePresentation({active:true,sessionId:'s',turnId:'turn',phase});surface.update(presentation);const animation=surface.markAnimation;assert(animation,phase);assert.equal(animation.options.duration,220);assert.equal(animation.options.iterations,undefined);const count=surface.mark.animations.length;surface.update({...presentation});assert.equal(surface.mark.animations.length,count);}
+test('actual active phases own their mark activity without moving or resizing the pill; ready and closing settle once',()=>withBrowser(()=>{
+ const {surface}=fixture();for(const phase of ['LISTENING','THINKING','AI_SPEAKING','LOUNGE_WINDOW','CLOSING','UNKNOWN']){
+  const presentation=voicePresentation({active:true,sessionId:'s',turnId:'turn',phase});surface.update(presentation);const copy=surface.copyAnimation||surface.animation;assert.equal(copy.options.duration,120);assert(copy.frames.every(frame=>!Object.hasOwn(frame,'transform')));
+  const mark=surface.markAnimation;assert(mark,phase);assert.equal(mark.options.iterations,['LOUNGE_WINDOW','CLOSING'].includes(phase)?1:Infinity);const count=surface.mark.animations.length;surface.update({...presentation});assert.equal(surface.markAnimation,mark);assert.equal(surface.mark.animations.length,count);assert.equal(mark.cancelled,0);
+ }
  surface.cleanup();assert.equal(surface.markAnimation,null);
 }));
+
 test('closing stays visible without animation under reduced motion, then hides on inactivity',()=>withBrowser(()=>{
  const {surface,host}=fixture();host.dataset.motion='reduced';
  surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase:'CLOSING'}));
@@ -192,6 +198,102 @@ test('closing stays visible without animation under reduced motion, then hides o
  surface.update(voicePresentation({active:false,sessionId:'s',turnId:'t',phase:'CLOSING'}));
  assert.equal(surface.node.hidden,true);assert.equal(surface.value,null);
 }));
-test('voice surface reuses header activity slot without creating a second component',()=>withBrowser(()=>{
- const host=new FakeElement('div'),slot=new FakeElement('span');host.dataset.motion='system';host.isConnected=true;host.querySelector=selector=>selector==='.header-activity'?slot:null;const surface=new VoiceSurface(host);assert.deepEqual(slot.children,[surface.node]);assert.equal(host.children.length,0);surface.update(view('s','t','responding'));surface.cleanup();assert.equal(slot.children.length,1);assert.equal(surface.node.hidden,true);
+test('voice surface retains one host node outside hidden or transformed topbar slots',()=>withBrowser(()=>{
+ const host=new FakeElement('div'),slot=new FakeElement('span');host.dataset.motion='system';host.isConnected=true;host.querySelector=selector=>selector==='.header-activity'?slot:null;const surface=new VoiceSurface(host);assert.deepEqual(slot.children,[]);assert.deepEqual(host.children,[surface.node]);surface.update(view('s','t','responding'));surface.cleanup();assert.equal(host.children.length,1);assert.equal(surface.node.hidden,true);
+}));
+test('visual enrichment arrival, revision and completion never replay unchanged speech status',()=>withBrowser(()=>{
+ const {surface}=fixture(),voice={active:true,sessionId:'s',turnId:'t',phase:'AI_SPEAKING'};
+ surface.update(voicePresentation(voice));
+ const entry=surface.animation,mark=surface.markAnimation;
+ for(const pending of [{sessionId:'s',taskId:'answer',revision:1},{sessionId:'s',taskId:'answer',revision:2},null]){
+  surface.update(voicePresentation(voice,true,pending));
+  assert.equal(surface.animation,entry);assert.equal(surface.markAnimation,mark);
+  assert.equal(entry.cancelled,0);assert.ok(mark);assert.equal(mark.cancelled,0);
+  assert.equal(surface.label.textContent,'Svarer…');assert.equal(surface.detail.hidden,true);
+ }
+ assert.equal(surface.mark.animations.length,1);surface.cleanup();
+}));
+test('switching the local motion setting during exit hides the status immediately',()=>withBrowser(()=>{
+ const {surface,host}=fixture();surface.update(view('s','t','responding'));surface.update(null);
+ const exiting=surface.animation;assert.equal(surface.node.hidden,false);
+ host.dataset.motion='reduced';surface.update(null);
+ assert.equal(exiting.cancelled,1);assert.equal(surface.node.hidden,true);
+ assert.equal(surface.animation,null);assert.equal(surface.node.inert,true);
+ surface.update(view('s','t2','listening'));assert.equal(surface.node.hidden,false);
+ assert.equal(surface.mark.animations.length,1);assert.equal(surface.markAnimation,null);assert.equal(surface.label.textContent,'Lytter…');
+ surface.cleanup();
+}));
+test('opaque session and turn separators cannot collide and suppress an actual new turn',()=>{
+ assert.notEqual(view('session:turn','next').key,view('session','turn:next').key);
+});
+
+
+test('conversation status uses a neutral container with valid live-region semantics',()=>withBrowser(()=>{
+ const host={dataset:{},isConnected:true,querySelector(){return null;},append(){}};const surface=new VoiceSurface(host);assert.equal(surface.node.tagName,'div');assert.equal(surface.node.getAttribute('role'),'status');assert.equal(surface.node.getAttribute('aria-live'),'polite');assert.equal(surface.node.getAttribute('aria-atomic'),'true');assert.equal(surface.mark.getAttribute('aria-hidden'),'true');surface.cleanup();
+}));
+
+
+test('Svar and active voice occupy one retained center slot with the original button as sole history authority',()=>withBrowser(()=>{
+ const host=new FakeElement('div'),slot=new FakeElement('span'),history=new FakeElement('button');
+ host.dataset={motion:'system',view:'active'};host.isConnected=true;
+ host.querySelector=selector=>selector==='.header-activity'?slot:selector==='#open-history'?history:null;
+ history.setAttribute('aria-label','Svar · Se tidligere svar');history.setAttribute('aria-expanded','true');history.setAttribute('aria-controls','history');
+ const originalIcon=new FakeElement('img'),originalCopy=new FakeElement('span');history.append(originalIcon,originalCopy);
+ const surface=new VoiceSurface(host),phase=view('s','t','thinking');surface.update(phase);
+ assert.equal(surface.node.parentNode,host);assert.equal(history.parentNode,slot);assert.deepEqual(slot.children,[history]);assert.deepEqual(host.children,[surface.node]);assert.deepEqual(history.children,[originalIcon,originalCopy]);assert.equal(history.dataset.voicePhase,'thinking');assert.equal(host.dataset.voicePhase,'thinking');assert.equal(history.getAttribute('aria-label'),'Tænker… · Se tidligere svar');
+ const retained=[...slot.children],animation=surface.markAnimation;surface.update({...phase});assert.deepEqual(slot.children,retained);assert.equal(surface.markAnimation,animation);
+ host.dataset.view='rest';surface.update(phase);assert.equal(surface.node.parentNode,host);assert.equal(history.parentNode,slot);assert.equal(history.dataset.voicePhase,undefined);assert.equal(host.dataset.voicePhase,undefined);assert.equal(history.getAttribute('aria-label'),'Svar · Se tidligere svar');
+ host.dataset.view='active';surface.update(phase);assert.equal(surface.node.parentNode,host);assert.equal(surface.markAnimation,animation);assert.deepEqual(history.children,[originalIcon,originalCopy]);
+ surface.update(null);assert.equal(surface.node.hidden,false);assert.equal(surface.node.inert,true);assert.equal(surface.node.parentNode,host);assert.equal(history.dataset.voicePhase,undefined);assert.equal(host.dataset.voicePhase,undefined);assert.equal(history.getAttribute('aria-expanded'),'true');assert.equal(history.getAttribute('aria-controls'),'history');
+ surface.update(view('s','t2','responding'));surface.cleanup();assert.equal(history.dataset.voicePhase,undefined);assert.equal(host.dataset.voicePhase,undefined);assert.equal(history.getAttribute('aria-label'),'Svar · Se tidligere svar');assert.equal(surface.node.hidden,true);assert.equal(history.parentNode,slot);
+}));
+
+test('phase activity ends on owner exit, settles at ready, and never survives background or disconnect',()=>withBrowser(()=>{
+ const doc=new EventTarget();doc.createElement=tag=>new FakeElement(tag);doc.hidden=false;globalThis.document=doc;
+ const {surface,host}=fixture();surface.update(view('s','t','listening'));const mic=surface.markAnimation;assert.equal(surface.icon.src,'assets/icons/mic.svg');assert.equal(mic.options.iterations,Infinity);
+ surface.update(view('s','t','thinking'));assert.equal(mic.cancelled,1);const thinking=surface.markAnimation;assert.equal(surface.icon.src,'assets/icons/chat-circle.svg');assert.equal(surface.label.textContent,'Tænker…');assert(surface.label.textContent.endsWith('…'));assert.equal(surface.label.textContent.match(/…/g).length,1);
+ surface.update(view('s','t','responding'));assert.equal(thinking.cancelled,1);const speaking=surface.markAnimation;assert.equal(surface.icon.src,'assets/icons/soundwave.svg');
+ doc.hidden=true;doc.dispatchEvent(new Event('visibilitychange'));assert.equal(speaking.cancelled,1);assert.equal(surface.markAnimation,null);doc.hidden=false;doc.dispatchEvent(new Event('visibilitychange'));assert.equal(surface.markAnimation.options.iterations,Infinity);
+ surface.update(view('s','t','ready'));assert.equal(surface.markAnimation.options.iterations,1);assert.equal(surface.icon.src,'assets/icons/check2.svg');surface.update(null);assert.equal(surface.markAnimation,null);
+ surface.update(view('s','t2','thinking'));const active=surface.markAnimation;host.isConnected=false;surface.update(view('s','t2','thinking'));assert.equal(active.cancelled,1);assert.equal(surface.node.hidden,true);assert.equal(surface.markAnimation,null);const count=surface.mark.animations.length;doc.dispatchEvent(new Event('visibilitychange'));assert.equal(surface.mark.animations.length,count);
+}));
+
+test('active conversation exit reveals the retained Svar action over120ms and releases all status activity',async()=>withBrowser(async()=>{
+ const host=new FakeElement('div'),slot=new FakeElement('span'),history=new FakeElement('button');host.dataset={motion:'system',view:'active'};host.isConnected=true;history.setAttribute('aria-label','Svar · Se tidligere svar');history.setAttribute('aria-controls','history');host.querySelector=selector=>selector==='.header-activity'?slot:selector==='#open-history'?history:null;
+ const surface=new VoiceSurface(host);surface.update(view('s','t','thinking'));const pulse=surface.markAnimation;surface.update(null);const exit=surface.animation;
+ assert.equal(pulse.cancelled,1);assert.equal(surface.markAnimation,null);assert.equal(surface.node.hidden,false);assert.equal(surface.node.inert,true);assert.equal(surface.node.getAttribute('aria-hidden'),'true');assert.equal(history.getAttribute('aria-label'),'Svar · Se tidligere svar');assert.equal(history.getAttribute('aria-controls'),'history');assert.equal(history.inert,false);assert.equal(history.parentNode,slot);assert.equal(exit.options.duration,120);assert(exit.frames.every(frame=>Object.keys(frame).length===1));
+ surface.update(null);assert.equal(surface.animation,exit,'repeated inactive snapshots retain the same exit');exit.finish();await flush();assert.equal(surface.node.hidden,true);assert.equal(surface.animation,null);const count=surface.node.animations.length;surface.update(null);assert.equal(surface.node.animations.length,count);surface.cleanup();
+}));
+
+test('thinking and waiting remain legible throughout a visible breathing cue and preserve the same activity on repeated observations',()=>withBrowser(()=>{
+ for(const phase of ['THINKING','UNKNOWN']){const {surface}=fixture(),presentation=voicePresentation({active:true,sessionId:'s',turnId:'t',phase});surface.update(presentation);const activity=surface.markAnimation;
+  assert.equal(activity.options.iterations,Infinity);assert(activity.frames.every(frame=>frame.opacity>=.8),'active symbol must not disappear into a dim gray outline');assert.notEqual(activity.frames[0].transform,activity.frames[1].transform,'work activity must be visible through geometry as well as a slight tone change');
+  surface.update({...presentation});assert.equal(surface.markAnimation,activity);assert.equal(activity.cancelled,0);surface.update(null);assert.equal(activity.cancelled,1);assert.equal(surface.markAnimation,null);surface.cleanup();
+ }
+}));
+
+
+test('all voice phases retain one host node and existing activity across Ro, overview, detail and repeated library updates',()=>withBrowser(()=>{
+ const host=new FakeElement('div'),slot=new FakeElement('span'),history=new FakeElement('button');host.dataset={motion:'system',view:'active'};host.isConnected=true;
+ let photoReads=0;const photo={getClientRects(){photoReads++;throw Error('voice position must not depend on photo geometry');}};
+ host.querySelector=selector=>selector==='.header-activity'?slot:selector==='#open-history'?history:selector==='#photo-view'?photo:null;
+ const surface=new VoiceSurface(host),node=surface.node,copy=surface.node.querySelector('.voice-copy'),mark=surface.mark;
+ for(const phase of ['LISTENING','THINKING','AI_SPEAKING','LOUNGE_WINDOW','CLOSING','UNKNOWN']){
+  const presentation=voicePresentation({active:true,sessionId:'s',turnId:'t',phase});surface.update(presentation);const activity=surface.markAnimation,entrance=surface.animation,copyAnimation=surface.copyAnimation;
+  for(const [screen,level] of [['rest','home'],['active','home'],['active','detail'],['rest','home'],['active','detail']]){host.dataset.view=screen;host.dataset.level=level;surface.update({...presentation});
+   assert.equal(surface.node,node);assert.equal(surface.node.parentNode,host);assert.equal(surface.node.querySelector('.voice-copy'),copy);assert.equal(surface.mark,mark);assert.equal(surface.markAnimation,activity);assert.equal(surface.animation,entrance);assert.equal(surface.copyAnimation,copyAnimation);assert.equal(node.hidden,false);assert.deepEqual(host.children,[node]);assert.deepEqual(slot.children,[history]);
+  }
+ }
+ assert.equal(photoReads,0);surface.cleanup();assert.equal(surface.node.hidden,true);assert.equal(surface.markAnimation,null);
+}));
+
+
+test('each actual voice phase owns its semantic icon and one static ellipsis only for ongoing activity',()=>withBrowser(()=>{
+ const {surface}=fixture();
+ const expected=[['LISTENING','Lytter…','mic'],['THINKING','Tænker…','chat-circle'],['AI_SPEAKING','Svarer…','soundwave'],['LOUNGE_WINDOW','Klar til mere','check2'],['CLOSING','Afslutter…','chat-circle'],['UNKNOWN','Venter…','chat-circle']];
+ for(const [phase,label,icon] of expected){surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase}));
+  assert.equal(surface.label.textContent,label);assert.equal(surface.icon.src,`assets/icons/${icon}.svg`);assert.equal(surface.mark.children.length,1);assert.equal(surface.node.querySelector('.voice-copy').children.length,2,'status uses its actual label and existing hidden detail, with no separate dots element');assert.equal((label.match(/…/g)||[]).length,phase==='LOUNGE_WINDOW'?0:1);
+  const activity=surface.markAnimation;surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase}));assert.equal(surface.markAnimation,activity);
+ }
+ surface.update(null);assert.equal(surface.markAnimation,null);surface.cleanup();
 }));

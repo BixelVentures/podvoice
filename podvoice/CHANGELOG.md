@@ -1,3 +1,7 @@
+## 2.0.72 · source candidate
+
+Semantic visual presentation and optional bounded AI enrichment; final generated-cover and canonical UI scope await exact independent admission. Not released or installed.
+
 ## 2.0.71
 
 - Reject unsupported native software starts before they trigger a false device error.

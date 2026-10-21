@@ -1,0 +1,1285 @@
+/* User-supplied PodView kit: canonical values and compatibility aliases. */
+:root{
+ --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#A2402F;--pv-danger-tint:#F6E7E4;
+ --pv-weather:#E4EDF2;--pv-weather-strong:#C9DAE5;--pv-weather-ink:#2F5D7C;
+ --pv-robot:#F6E4E6;--pv-robot-strong:#EDC9CE;--pv-robot-ink:#8C3A4B;
+ --pv-light:#F8EFD2;--pv-light-strong:#F0DC9E;--pv-light-ink:#7A5A10;
+ --pv-tesla:#E1EFE9;--pv-tesla-strong:#C3E0D3;--pv-tesla-ink:#2F6B55;
+ --pv-font:"Inter Variable",Inter,Arial,Helvetica,sans-serif;
+ --pv-t-meta:400 15px/20px var(--pv-font);--pv-t-body:400 17px/24px var(--pv-font);--pv-t-label:600 20px/26px var(--pv-font);--pv-t-title:600 28px/34px var(--pv-font);--pv-t-value:500 40px/44px var(--pv-font);--pv-t-hero:500 64px/64px var(--pv-font);
+ --pv-type-meta:15px;--pv-type-caption:var(--pv-type-meta);--pv-type-card-value:17px;--pv-type-body:var(--pv-type-card-value);--pv-type-card-title:20px;--pv-type-label:var(--pv-type-card-title);--pv-type-title:28px;--pv-type-display:40px;--pv-type-value:64px;--pv-type-clock:128px;--pv-type-header-value:var(--pv-type-label);
+ --pv-screen-space-1:var(--pv-s1);--pv-screen-space-2:var(--pv-s1);--pv-screen-space-3:var(--pv-s2);--pv-screen-space-4:var(--pv-s2);--pv-screen-space-5:var(--pv-s3);--pv-screen-space-6:var(--pv-s3);--pv-screen-space-8:var(--pv-s4);--pv-screen-space-10:var(--pv-s5);
+ --pv-screen-radius:var(--pv-r-l);--pv-screen-radius-control:var(--pv-r-l);--pv-screen-radius-row:var(--pv-r-l);--pv-screen-radius-field:var(--pv-r-s);--pv-screen-radius-frame:var(--pv-r-l);--pv-screen-radius-art:var(--pv-r-s);--pv-screen-radius-choice:var(--pv-r-s);--pv-screen-radius-pill:var(--pv-r-pill);--pv-resource-radius:var(--pv-r-l);--pv-hit-radius:var(--pv-r-s);
+ --pv-weight-regular:400;--pv-weight-medium:500;--pv-weight-semibold:600;--pv-weight-bold:var(--pv-weight-semibold);
+ --pv-s1:8px;--pv-s2:16px;--pv-s3:24px;--pv-s4:32px;--pv-s5:40px;
+ --pv-r-s:16px;--pv-r-l:24px;--pv-r-pill:999px;
+ --pv-icon-s:24px;--pv-icon-m:32px;--pv-icon-l:48px;--pv-icon-stroke:2px;
+ --pv-shadow:0 1px 2px rgba(27,29,28,.06),0 8px 24px rgba(27,29,28,.06);--pv-scrim:rgba(27,29,28,.32);
+ --pv-d-press:90ms;--pv-d-fast:200ms;--pv-d-move:280ms;--pv-ease:cubic-bezier(.2,0,0,1);--pv-hit:64px;--pv-hit-min:48px;
+ --pv-screen-paper:var(--pv-bg);--pv-screen-surface:var(--pv-surface);--pv-screen-control:var(--pv-surface-2);--pv-screen-hover:var(--pv-line);--pv-screen-line:var(--pv-line);--pv-screen-outline:var(--pv-line);--pv-screen-ink:var(--pv-ink);--pv-screen-muted:var(--pv-ink-3);--pv-screen-action-ink:var(--pv-ink);--pv-screen-accent:var(--pv-ink);--pv-screen-selection:var(--pv-surface-2);--pv-screen-danger:var(--pv-danger);--pv-screen-danger-surface:var(--pv-danger-tint);--pv-screen-font:var(--pv-font);
+ --pv-instrument:var(--pv-dark);--pv-instrument-muted:var(--pv-on-dark);--pv-instrument-line:var(--pv-ink-3);--pv-resource-quiet:var(--pv-surface-2);--pv-quiet-surface:var(--pv-surface-2);--pv-neutral-category:var(--pv-surface-2);
+ --pv-vacuum-surface:var(--pv-robot);--pv-vacuum-ink:var(--pv-robot-ink);--pv-vacuum-muted:var(--pv-robot-ink);--pv-vacuum-hover:var(--pv-robot-strong);--pv-light-surface:var(--pv-light);--pv-light-muted:var(--pv-light-ink);--pv-weather-surface:var(--pv-weather);--pv-vehicle-surface:var(--pv-tesla);
+ --pv-overview-timer:var(--pv-dark);--pv-overview-timer-hover:var(--pv-ink-2);--pv-overview-timer-ink:var(--pv-on-dark);--pv-overview-timer-muted:var(--pv-on-dark);--pv-overview-vehicle:var(--pv-tesla);--pv-overview-weather:var(--pv-weather);
+ --pv-surface-shadow:var(--pv-shadow);--pv-surface-shadow-hover:var(--pv-shadow);--pv-layer-glass:var(--pv-surface);--pv-layer-backdrop:var(--pv-scrim);
+ --pv-screen-motion:var(--pv-d-move);--pv-screen-fast:var(--pv-d-fast);--pv-motion-feedback:var(--pv-d-fast);--pv-ease-enter:var(--pv-ease);--pv-ease-press:var(--pv-ease);--pv-screen-ease:var(--pv-ease);--pv-press-in:var(--pv-d-press);--pv-press-out:var(--pv-d-fast);--pv-hit-primary:var(--pv-hit);
+ --pv-leading-meta:20px;--pv-leading-body:24px;--pv-leading-secondary:24px;--pv-leading-widget:26px;--pv-leading-section:26px;--pv-leading-focus:34px;--pv-leading-player:34px;
+}
+
+/* Twelve shared component anatomies; domain selectors below bind existing owners. */
+:root{--pv-vejr:var(--pv-weather);--pv-vejr-strong:var(--pv-weather-strong);--pv-vejr-ink:var(--pv-weather-ink);--pv-lys:var(--pv-light);--pv-lys-strong:var(--pv-light-strong);--pv-lys-ink:var(--pv-light-ink);--pv-detail-min:200px;--pv-detail-columns:4;--pv-detail-columns-content:3;--pv-press-release:160ms;--pv-clock-size:128px;--pv-clock-night:#B04A3A}
+.pv-card,.pv-hero,.pv-tile{box-sizing:border-box;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow);color:var(--pv-ink);background:var(--pv-surface)}
+.pv-card{padding:var(--pv-s3);gap:var(--pv-s1)}
+.pv-hero{grid-column:1/-1;width:100%;min-height:var(--pv-detail-min);padding:var(--pv-s4);gap:var(--pv-s2)}
+.pv-tile{min-width:0;padding:var(--pv-s3);display:flex;flex-direction:column;align-items:flex-start;gap:var(--pv-s2);text-align:left;white-space:normal}
+.pv-tile[aria-pressed=true],.pv-toggle[aria-checked=true]{background:var(--pv-tint-strong,var(--pv-surface-2))}
+.pv-chip,.pv-segment,.pv-btn{min-height:var(--pv-hit);border:0;border-radius:var(--pv-r-pill);padding:0 var(--pv-s3);font:var(--pv-t-body);font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1);background:var(--pv-surface-2);color:var(--pv-ink)}
+.pv-btn{padding:0 var(--pv-s4);font:var(--pv-t-label)}
+.pv-btn.--primary,.pv-btn.pv-primary{background:var(--pv-ink);color:var(--pv-on-dark)}
+.pv-btn.--icon{width:var(--pv-hit);padding:0;flex:none}
+.pv-chip[aria-pressed=true],.pv-segment[aria-pressed=true]{background:var(--pv-ink);color:var(--pv-on-dark)}
+/* Discovery uses the same 64px Chips target as the canonical control recipe. */
+pv-widget-host #music-refinements>button[data-kit=chip]{height:var(--pv-hit);min-height:var(--pv-hit);padding-block:0;font:var(--pv-t-body)}
+.pv-seg,.pv-segmented{display:flex;gap:var(--pv-s1);border:0;padding:0;min-width:0}
+.pv-seg>button,.pv-segmented>button{flex:1}
+.pv-slider{min-height:var(--pv-hit);touch-action:none;font:var(--pv-t-body)}
+.pv-slider.--v{width:var(--pv-hit);height:160px;border-radius:var(--pv-r-pill)}
+.pv-row{min-height:var(--pv-hit);gap:var(--pv-s2);font:var(--pv-t-body);border-radius:var(--pv-r-s)}
+.pv-section,.pv-section-header{margin:0;font:var(--pv-t-label)}
+.pv-icon{width:var(--pv-icon-m);height:var(--pv-icon-m);flex:none;stroke-width:2;stroke:currentColor;fill:none}
+.pv-icon.--24{width:var(--pv-icon-s);height:var(--pv-icon-s)}.pv-icon.--48{width:var(--pv-icon-l);height:var(--pv-icon-l)}
+.pv-clock{font-size:var(--pv-clock-size);font-weight:500;font-variant-numeric:tabular-nums}
+/* Press belongs to the nearest control, never a static container or its active child. */
+:is(button,a[href],summary,[role=button]):is(.pv-card,.pv-hero,.pv-tile,.pv-btn):is(:active,.is-pressed):not([disabled],[aria-disabled=true],[data-touch-cancelled=true]):not(:has(:is(button,a[href],summary,input,select,textarea,[role=button],[role=slider]):is(:active,.is-pressed))){transform:none;scale:1;filter:brightness(.985);transition:filter var(--pv-d-press) var(--pv-ease)}
+/* Shared detail rhythm uses content, never blank filler to reach a coordinate. */
+pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail){row-gap:var(--pv-s3);color:var(--pv-ink)}
+pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail) :is(h2,h3,legend){font:var(--pv-t-label);color:var(--pv-ink)}
+pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note){font-size:var(--pv-type-body);line-height:var(--pv-leading-body)}
+/* Robot: one observed hero, neutral controls, room tiles and repeated choice. */
+pv-widget-host #device-view [data-robot-rooms=true]>.pv-meta{background:var(--pv-surface-2);padding:var(--pv-s3);font:var(--pv-t-body)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-hero{min-height:var(--pv-detail-min);padding:var(--pv-s4);background:var(--pv-robot);box-shadow:var(--pv-shadow)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-hero>.pv-content{grid-template-columns:48px minmax(0,1fr);gap:var(--pv-s2);align-content:center}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .pv-hero :is(.pv-instrument,.pv-instrument>img){width:var(--pv-icon-l);height:var(--pv-icon-l)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .pv-hero .pv-resource-value{font:var(--pv-t-value);max-width:none}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .pv-hero .pv-meta{font:var(--pv-t-body)}
+pv-robot-control-panel .choices.pv-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);padding:0;border:0}
+pv-robot-control-panel .choices.pv-tiles>legend,pv-robot-control-panel .repeat>legend{grid-column:1/-1;margin-bottom:var(--pv-s2)}
+pv-robot-control-panel .choices.pv-tiles>.pv-tile{min-height:177px;border:0;background:var(--pv-surface-2);font:var(--pv-t-label);justify-content:flex-end;padding:var(--pv-s3);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
+pv-robot-control-panel .choices.pv-tiles>.pv-tile::before{content:'';width:var(--pv-icon-m);height:var(--pv-icon-m);border:2px solid currentColor;border-radius:var(--pv-r-s);margin-bottom:auto;opacity:.7}
+pv-robot-control-panel .choices.pv-tiles>.pv-tile[aria-pressed=true]{background:var(--pv-robot-strong);color:var(--pv-robot-ink);box-shadow:inset 0 0 0 2px var(--pv-robot-ink)}
+pv-robot-control-panel .repeat.pv-segmented{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);border:0;padding:0}
+pv-robot-control-panel .repeat.pv-segmented>button{min-height:var(--pv-hit);font:var(--pv-t-body);font-weight:600;border-radius:var(--pv-r-pill)}
+pv-robot-control-panel .repeat.pv-segmented>button[aria-pressed=true]{background:var(--pv-ink);color:var(--pv-on-dark)}
+pv-robot-control-panel .pv-suggestions{padding:var(--pv-s3);border-radius:var(--pv-r-l);background:var(--pv-surface);box-shadow:var(--pv-shadow)}
+pv-robot-control-panel :is(.summary,.pv-meta){font:var(--pv-t-body)}
+pv-robot-control-panel .pv-actions.transport>.stop{background:var(--pv-surface-2);color:var(--pv-ink)}
+/* Vehicle: access and combined climate lead; charging stays content-sized. */
+pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero{padding:var(--pv-s3)!important;gap:var(--pv-s3);background:var(--pv-tesla);min-height:var(--pv-detail-min);box-shadow:var(--pv-shadow)}
+pv-widget-host #vehicle-view .vehicle-control-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s2);align-items:stretch}
+pv-widget-host #vehicle-view .vehicle-control-tiles>:is(section,label){display:flex;flex-direction:column;gap:var(--pv-s2);padding:var(--pv-s3);background:var(--pv-surface);min-width:0;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
+pv-widget-host #vehicle-view .vehicle-control-tiles .vehicle-detail-values{display:block;margin:0}
+pv-widget-host #vehicle-view .vehicle-section-heading{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex-wrap:nowrap;gap:var(--pv-s1);width:100%;margin:0;padding:0;font:var(--pv-t-label);text-align:left}
+pv-widget-host #vehicle-view .vehicle-section-heading small{font:var(--pv-t-body)}
+pv-widget-host #vehicle-view .vehicle-temperature-controls output{font:var(--pv-t-value)}
+pv-widget-host #vehicle-view .vehicle-control-tiles button{min-height:var(--pv-hit);padding:0 var(--pv-s2);font:var(--pv-t-body);font-weight:600;border-radius:var(--pv-r-pill)}
+pv-widget-host #vehicle-view .vehicle-lock-controls{display:flex;flex-direction:column;gap:var(--pv-s1);margin-top:auto}
+pv-widget-host #vehicle-view .vehicle-charge-limit{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--pv-s2);font:var(--pv-t-body);margin-top:var(--pv-s3)}
+pv-widget-host #vehicle-view .vehicle-charge-limit input{min-height:var(--pv-hit);width:100%;padding:0}
+pv-widget-host #vehicle-view .vehicle-charge-limit output{font:var(--pv-t-label)}
+pv-widget-host #vehicle-view .vehicle-detail-values{gap:var(--pv-s2)}
+pv-widget-host #vehicle-view .vehicle-detail-values>div{padding:var(--pv-s2);background:var(--pv-surface-2);border-radius:var(--pv-r-s)}
+pv-widget-host #vehicle-view .vehicle-detail-values :is(dt,dd){font:var(--pv-t-body)}
+/* ONE overview content recipe: S/M/L share header and fixed status zone.
+   Weather adds its source-bound numeric reading below the same header. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut){
+ display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr);
+ grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px;
+ align-items:start;align-content:stretch;gap:var(--pv-s2);
+ padding:var(--pv-s3);min-width:0;height:100%;text-align:left;
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(span:not(.resource-visual),.resource-label){display:contents}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(img:first-child,.resource-visual){
+ grid-column:1;grid-row:1;align-self:center;justify-self:start;
+ width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;object-fit:contain;
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview>.resource-visual{display:grid!important;place-items:center}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-visual>img{width:var(--pv-icon-m)!important;height:var(--pv-icon-m)!important;max-width:var(--pv-icon-m);max-height:var(--pv-icon-m);padding:0;object-fit:contain}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>strong{
+ display:block;grid-column:2;grid-row:1;align-self:center;min-width:0;
+ margin:0;padding:0;font:var(--pv-t-label);line-height:26px;
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>small{
+ display:block;grid-column:1/-1;grid-row:3;align-self:start;min-height:48px;max-height:48px;
+ margin:0;padding:0;font:var(--pv-t-body);line-height:24px;overflow:hidden;text-wrap:pretty;
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview .resource-value:not([hidden]){
+ display:block;position:static;grid-column:1/-1;grid-row:3;align-self:start;
+ transform:none;margin:0;padding:0;max-width:none;font:var(--pv-t-body);line-height:24px;text-wrap:pretty;
+}
+
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview[data-kind=vacuum] .resource-label>small:not([hidden]){grid-column:1/-1;grid-row:3;align-self:start;min-height:20px;max-height:20px;margin-top:28px;font:var(--pv-t-meta);line-height:20px}
+/* M keeps its fixed status zone. Source metadata is optional and never adds a control. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-music>span>small[data-media-metadata=true]{height:48px;min-height:48px;max-height:48px;white-space:pre;overflow:hidden;text-overflow:ellipsis;font:var(--pv-t-meta);line-height:24px}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-music>span>small[data-media-metadata=true]::first-line{font:var(--pv-t-body);line-height:24px}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview[data-kind=vacuum] .resource-label>small:not([hidden]){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A real command occupies the reserved footer, never the shared title row.
+   Fixed64 touch width leaves readable status space even in the S slot. */
+pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) var(--pv-hit)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview .resource-label>:is(small,.resource-value){box-sizing:border-box;width:100%;min-width:0;padding-inline-end:calc(var(--pv-hit) + var(--pv-s2));white-space:normal;overflow-wrap:anywhere}
+pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview .resource-label>small{align-self:center;min-height:0;max-height:48px;line-height:24px}
+pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview[data-kind=vacuum] .resource-value{align-self:start;margin-top:var(--pv-s1)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview[data-kind=vacuum] .resource-label>small:not([hidden]){align-self:start;margin-top:var(--pv-s5);min-height:20px;max-height:20px;line-height:20px}
+
+/* L weather uses the common header baseline, then one centered reading and forecast. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather{
+ grid-template-columns:var(--pv-icon-m) minmax(0,1fr);
+ grid-template-rows:var(--pv-icon-m) minmax(96px,1fr) var(--pv-leading-meta) calc(var(--pv-leading-meta) + var(--pv-icon-s) + var(--pv-leading-widget) + 2 * var(--pv-s1));
+ row-gap:var(--pv-s2);align-content:stretch;background:var(--pv-weather);color:var(--pv-ink);
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather::after{
+ content:'Vejr';grid-column:2;grid-row:1;align-self:center;
+ font:var(--pv-t-label);line-height:var(--pv-leading-widget);color:var(--pv-ink);
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather>span:not([hidden])>strong{
+ display:flex;flex-direction:column;align-items:flex-start;justify-content:center;align-self:stretch;
+ grid-column:1/-1;grid-row:2;gap:var(--pv-s1);margin:0;padding:0;min-height:0;
+}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-temperature{font:var(--pv-t-hero);line-height:1;color:var(--pv-weather-ink);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-condition{margin:0;font:var(--pv-t-body);line-height:var(--pv-leading-body);min-height:var(--pv-leading-body);color:var(--pv-ink-2)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather>span:not([hidden])>small{grid-column:1/-1;grid-row:3;align-self:start;margin:0;padding:0;font:var(--pv-t-meta);line-height:var(--pv-leading-meta);color:var(--pv-ink-3)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-forecast{display:grid;grid-column:1/-1;grid-row:4;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--pv-s1);align-self:start;width:100%;margin:0;padding:0}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-forecast-hour{display:grid;grid-template-rows:var(--pv-leading-meta) var(--pv-icon-s) var(--pv-leading-widget);gap:var(--pv-s1);justify-items:center;align-items:center;min-width:0}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-forecast-hour>span{grid-row:1;font:var(--pv-t-meta);line-height:var(--pv-leading-meta);color:var(--pv-ink-3)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-forecast-hour>img{grid-row:2;width:var(--pv-icon-s);height:var(--pv-icon-s)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-forecast-hour>strong{grid-row:3;font:var(--pv-t-label);line-height:var(--pv-leading-widget);color:var(--pv-weather-ink);font-variant-numeric:tabular-nums}
+
+/* The retained Svar action and fixed VoiceSurface share one224×48 footprint.
+   Topbar remains80px; actual paint and hit bounds agree at y16. */
+pv-widget-host[data-view=active] .view-nav>.header-left{position:static}
+pv-widget-host[data-view=active] .view-nav .header-left>.header-activity{
+ position:absolute;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);
+ translate:none;display:grid;grid-template-columns:1fr;justify-content:center;align-items:center;
+ width:224px;max-width:224px;height:48px;margin:0;overflow:visible;flex:none;pointer-events:none;
+}
+pv-widget-host[data-view=active] .view-nav .header-activity>#open-history{
+ grid-column:1;grid-row:1;z-index:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+ width:224px;max-width:224px;height:48px;min-height:48px;max-height:48px;margin:0;padding:0 var(--pv-s3);
+ gap:var(--pv-s1);border:0;border-radius:var(--pv-r-pill);text-align:center;pointer-events:auto;
+}
+pv-widget-host[data-view=active][data-voice-phase] .view-nav .header-activity>#open-history{background:var(--pv-dark);color:var(--pv-on-dark)}
+pv-widget-host[data-view=active][data-voice-phase] .view-nav .header-activity>#open-history>:is(img,span){visibility:hidden}
+
+/* Station tiles share one grid and one status treatment. */
+pv-widget-host #radio-view .radio-station-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2)}
+pv-widget-host #radio-view .radio-station-tiles>button{min-height:177px;padding:var(--pv-s3);background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
+/* Speaker selection is a left-column dialog; the player stays legible. */
+pv-widget-host>:is(#rooms,#light-detail){position:fixed;inset:auto;margin:0;left:calc(24px + (100vw - 64px)*9/26);top:50%;transform:translate(-50%,-50%);width:min(520px,calc((100vw - 64px)*9/13 - 48px));max-height:calc(100dvh - 64px);padding:var(--pv-s4);background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow);backdrop-filter:none;color:var(--pv-ink)}
+pv-widget-host>:is(#rooms,#light-detail)::backdrop{background:linear-gradient(to right,var(--pv-scrim) 0 calc(24px + (100vw - 64px)*9/13),transparent calc(24px + (100vw - 64px)*9/13) 100%)}
+/* Dialog anatomy is shared by actual retained dialogs and kit specimens. */
+.pv-kit-dialog:not(dialog):not([data-kit-variant=toast]),dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]){display:grid;gap:var(--pv-s2)}
+.pv-kit-dialog>form{display:grid;gap:var(--pv-s2);padding:0;margin:0;min-width:0}
+.pv-kit-dialog .pv-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);margin:0;padding:0}
+.pv-kit-dialog .pv-dialog-header>h2{font:var(--pv-t-title);line-height:var(--pv-leading-focus);margin:0;min-width:0;text-wrap:balance}
+.pv-kit-dialog .pv-dialog-close{display:inline-flex;align-items:center;justify-content:center;flex:none;width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0;margin:0;background:transparent;border:0;border-radius:var(--pv-r-pill)}
+.pv-kit-dialog .pv-dialog-close>img{display:block;width:var(--pv-icon-s);height:var(--pv-icon-s);margin:0;padding:0}
+.pv-kit-dialog .pv-dialog-description{font:var(--pv-t-body);line-height:var(--pv-leading-body);color:var(--pv-ink-2);margin:0;padding:0}
+.pv-kit-dialog .pv-dialog-content{display:grid;gap:var(--pv-s2);min-width:0;margin:0;padding:0}
+.pv-kit-dialog .pv-dialog-actions{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:var(--pv-s2);margin:0;padding:var(--pv-s2) 0 0}
+.pv-kit-dialog[data-kit-variant=toast]>.pv-dialog-content{display:block;font:var(--pv-t-body);margin:0;padding:0}
+/* Immediate speaker selection has no invented confirmation footer. */
+#room-options,.pv-kit-dialog .pv-dialog-content:has(>.pv-kit-listrow){display:grid;gap:var(--pv-s2);margin:0;padding:0}
+#room-options>button,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow{
+ display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr) max-content;
+ align-items:center;justify-content:stretch;min-height:96px;width:100%;
+ gap:var(--pv-s2);padding:var(--pv-s2);text-align:left;
+}
+#room-options>button>img,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow>img{display:block;width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;margin:0;object-fit:contain}
+#room-options>button>span:first-of-type,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow>span:first-of-type{display:grid;gap:var(--pv-s1);min-width:0;margin:0;padding:0}
+#room-options>button strong,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow strong{font:var(--pv-t-label);line-height:var(--pv-leading-widget);margin:0;min-width:0;overflow-wrap:anywhere}
+#room-options>button small,#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow :is(small,.target-status){font:var(--pv-t-meta);line-height:var(--pv-leading-meta);margin:0}
+#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow>.target-status{max-width:96px;text-align:right;white-space:normal}
+
+/* Header controls paint the same rounded bounds that receive the touch. */
+pv-widget-host .view-nav #open-history.header-history{position:relative;box-sizing:border-box;height:var(--pv-hit-min);min-height:var(--pv-hit-min);max-height:var(--pv-hit-min);border-radius:var(--pv-r-pill);background:var(--pv-surface-2);color:var(--pv-ink);box-shadow:none;isolation:isolate}
+pv-widget-host .view-nav #open-history.header-history::before{content:none;display:none}
+pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true]){background:var(--pv-dark);color:var(--pv-on-dark)}
+pv-widget-host .view-nav #open-history.header-history img{width:var(--pv-icon-s);height:var(--pv-icon-s);margin:0;filter:none;opacity:1}
+pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true])>img{filter:brightness(0) invert(1)}
+pv-widget-host .view-nav #open-history.header-history :is(span,strong,small){color:inherit}
+pv-widget-host .view-nav #open-history.header-history strong{display:block;margin:0;font:var(--pv-t-label);font-weight:600;line-height:24px}
+pv-widget-host .view-nav #open-history.header-history:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:4px}
+@media(max-width:759px){.vehicle-control-tiles,pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:1fr}pv-robot-control-panel .choices.pv-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host>:is(#rooms,#light-detail){left:50%;width:calc(100vw - 48px)}}
+@media(prefers-reduced-motion:reduce){:root{--pv-d-fast:120ms;--pv-d-move:120ms}:is(button,a[href],summary,[role=button]):is(.pv-card,.pv-hero,.pv-tile,.pv-btn):is(:active,.is-pressed):not([disabled],[aria-disabled=true],[data-touch-cancelled=true]):not(:has(:is(button,a[href],summary,input,select,textarea,[role=button],[role=slider]):is(:active,.is-pressed))){transform:none;scale:1;filter:none;transition:none}}
+@media(min-width:760px){
+ pv-widget-host[data-view=active] .player.pv-card{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-s1);padding:var(--pv-s3);height:100%;overflow:hidden;grid-template-rows:48px minmax(0,1fr) 56px 40px 64px 64px}
+ pv-widget-host[data-view=active] .player.pv-card>.output{
+  grid-row:1;display:flex;justify-content:space-between;align-items:center;
+  width:100%;height:48px;min-height:48px;margin:0;padding:0;border-radius:0;background:transparent;gap:var(--pv-s1);
+ }
+ pv-widget-host[data-view=active] .player.pv-card>.output h2{width:100%;height:48px;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:20px 28px;align-items:center;gap:0;margin:0;font:var(--pv-t-body);text-align:center}
+ pv-widget-host[data-view=active] .player.pv-card>.output #player-state{grid-column:1;grid-row:1;justify-self:center;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] .player.pv-card>.output .output-room{grid-column:1;grid-row:2;align-self:center;justify-self:center;margin:0}
+ pv-widget-host[data-view=active] .player.pv-card>.cover-button{
+  grid-row:2;display:block;min-height:0;min-width:0;height:100%;width:auto;max-width:100%;
+  max-height:326px;aspect-ratio:1/1;align-self:center;justify-self:center;padding:0;margin:0;
+ }
+ pv-widget-host[data-view=active] .player.pv-card>.cover-button>.cover{display:block;width:100%;height:100%;max-width:100%;max-height:100%;aspect-ratio:1/1;object-fit:cover}
+ pv-widget-host[data-view=active] .player.pv-card>.track{grid-row:3;margin:0;padding:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:0;background:transparent}
+ pv-widget-host[data-view=active] .player.pv-card>.player-progress{grid-row:4}
+ pv-widget-host[data-view=active] .player.pv-card>.transport{grid-row:5;justify-content:space-between}
+ pv-widget-host[data-view=active] .player.pv-card>.transport .round{width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);background:transparent}
+ pv-widget-host[data-view=active] .player.pv-card>.transport .main-control{background:var(--pv-dark)}
+ pv-widget-host[data-view=active] .player.pv-card>.volume{grid-row:6}
+}
+/* Seek is the same native, kit-painted control at every desktop height. */
+@media(min-width:760px){
+/* VolumeSlider keeps its existing icon slot as an actual IconButton. */
+pv-widget-host .player .volume>.volume-mute{display:grid;place-items:center;flex:0 0 var(--pv-hit);width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0;margin:0;background:transparent;border-radius:var(--pv-r-pill)}
+pv-widget-host .player .volume>.volume-mute>img{width:var(--pv-icon-s);height:var(--pv-icon-s);margin:0;padding:0}
+pv-widget-host .player #detail-seek:not([hidden]){display:block;appearance:none;-webkit-appearance:none;width:100%;height:48px;min-height:48px;margin:0;padding:0;border:0;background:transparent;cursor:pointer;touch-action:pan-x}
+pv-widget-host .player>.player-progress:has(#detail-seek:not([hidden])){height:48px;min-height:48px;margin-top:var(--pv-screen-space-1);position:relative}
+pv-widget-host .player>.player-progress #detail-seek:not([hidden]){position:absolute;inset:0;height:48px;padding-bottom:var(--pv-screen-space-4)}
+pv-widget-host .player>.player-progress:has(#detail-seek:not([hidden])) .player-progress-times{position:absolute;inset:auto 0 0;line-height:20px;pointer-events:none}
+pv-widget-host .player #detail-seek::-webkit-slider-runnable-track{height:5px;border-radius:var(--pv-r-s);background:linear-gradient(to right,var(--pv-volume-thumb) 0%,var(--pv-volume-thumb) var(--seek-progress,0%),var(--pv-volume-track) var(--seek-progress,0%),var(--pv-volume-track) 100%)}
+pv-widget-host .player #detail-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin-top:-5.5px;border:0;border-radius:var(--pv-screen-radius-pill);background:var(--pv-volume-thumb)}
+pv-widget-host .player #detail-seek::-moz-range-track{height:5px;border:0;border-radius:var(--pv-r-s);background:var(--pv-volume-track)}
+pv-widget-host .player #detail-seek::-moz-range-progress{height:5px;border:0;border-radius:var(--pv-r-s);background:var(--pv-volume-thumb)}
+pv-widget-host .player #detail-seek::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:var(--pv-screen-radius-pill);background:var(--pv-volume-thumb)}
+pv-widget-host .player #detail-seek:focus-visible{outline:2px solid var(--pv-volume-thumb);outline-offset:2px;border-radius:var(--pv-r-s)}
+pv-widget-host .player #detail-seek:disabled{opacity:.45;cursor:not-allowed}
+}
+/* A short canvas shrinks only the artwork row; text and touch controls retain
+   their actual height. No auto-size image may paint across another grid row. */
+@media(min-width:760px) and (max-height:680px){
+ pv-widget-host[data-view=active] .player.pv-card{grid-template-rows:48px minmax(0,1fr) 56px 48px 64px 64px;gap:var(--pv-s1);padding:var(--pv-s3);min-height:0;overflow:hidden}
+ pv-widget-host[data-view=active] .player.pv-card>.cover-button{grid-row:2;width:auto;height:100%;max-width:min(100%,220px);max-height:220px;min-height:0;min-width:0;aspect-ratio:1;align-self:center;justify-self:center;margin:0;padding:0}
+ pv-widget-host[data-view=active] .player.pv-card>.cover-button>.cover{width:100%;height:100%;max-width:100%;max-height:100%;aspect-ratio:1;object-fit:cover}
+ pv-widget-host[data-view=active] .player.pv-card>.track{height:56px;min-height:0;margin:0;padding:0;overflow:hidden}
+ pv-widget-host[data-view=active] .player.pv-card>.player-progress,pv-widget-host[data-view=active] .player.pv-card>.player-progress:has(#detail-seek:not([hidden])){height:48px;min-height:0;margin:0;padding:0;min-width:0;align-self:center}
+ pv-widget-host[data-view=active] .player.pv-card>.transport{height:64px;min-height:0;margin:0;padding:0;gap:var(--pv-s2)}
+ pv-widget-host[data-view=active] .player.pv-card>.volume{height:48px;min-height:0;margin:0;padding:0;gap:var(--pv-s2)}
+}
+
+/* Timeline thumb remains a touch target; only its dot paint is conditional. */
+pv-widget-host .player #detail-seek::-webkit-slider-thumb{opacity:0}
+pv-widget-host .player #detail-seek::-moz-range-thumb{opacity:0}
+pv-widget-host .player #detail-seek:is(:hover,:active,:focus-visible)::-webkit-slider-thumb{opacity:1}
+pv-widget-host .player #detail-seek:is(:hover,:active,:focus-visible)::-moz-range-thumb{opacity:1}
+pv-widget-host[data-view=active] .player.pv-card>.track strong{font:var(--pv-t-label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+pv-widget-host[data-view=active] .player.pv-card>.track span{font:var(--pv-t-body)}
+/* Grid belongs on station rows, never on the custom-element wrapper. */
+pv-widget-host #radio-view .radio-station-tiles{display:block}
+pv-widget-host #radio-view .radio-station-tiles>.pv-content{display:block}
+pv-widget-host #radio-view .radio-station-tiles .pv-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2)}
+/* Five real stations fill two complete rows without a synthetic sixth tile. */
+pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button:nth-child(5):last-child){grid-template-columns:repeat(6,minmax(0,1fr))}
+pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button:nth-child(5):last-child)>button{grid-column:span 2}
+pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button:nth-child(5):last-child)>button:nth-child(-n+2){grid-column:span 3}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>button{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:64px auto minmax(48px,1fr);align-content:start;align-items:start;justify-items:start;gap:var(--pv-s2);width:100%;min-width:0;min-height:177px;padding:var(--pv-s3);border-radius:var(--pv-r-l);background:var(--pv-surface);box-shadow:var(--pv-shadow)}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>button strong{font:var(--pv-t-label)}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>button span{font:var(--pv-t-body)}
+pv-widget-host #vehicle-view .vehicle-secondary{display:flex;flex-direction:column;gap:var(--pv-s3);box-shadow:none;border-radius:0}
+pv-widget-host #vehicle-view .vehicle-control-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:var(--pv-s2)}
+pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure{width:auto;grid-column:auto;min-width:0}
+pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{width:100%;grid-column:1/-1}
+@media(min-width:760px){
+ pv-widget-host[data-view=active] .frame>.responses{height:100%;min-height:0;overflow:hidden}
+ pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]){height:100%;max-height:100%;min-height:0;flex:1 1 0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;scroll-padding:var(--pv-s3)}
+ pv-widget-host[data-view=active] #device-view>[data-robot-rooms=true]{flex:0 0 auto;min-height:0}
+}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;grid-row:auto}
+pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"])::before{opacity:1}
+pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="end"])::after{opacity:1}
+pv-widget-host .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail)>:not([hidden]){flex-shrink:0}
+pv-widget-host #vehicle-view .vehicle-hero{height:auto;max-height:none;flex:0 0 auto;overflow:visible;display:flex;flex-direction:column;align-items:stretch}
+/* Player detail begins at its queue; only actual feedback keeps a header. */
+pv-widget-host #music-detail>.response-heading:has(#detail-status:empty){display:none}
+pv-widget-host #music-detail>.detail-queue{margin:0;padding:0;border-top:0}
+#music-detail #queue{display:flex;flex-direction:column;gap:var(--pv-s1);width:100%;padding:0}
+#music-detail #queue .queue-track{display:grid;grid-template-columns:var(--pv-hit) var(--pv-hit) minmax(0,1fr) var(--pv-hit);align-items:center;gap:var(--pv-s2);width:100%;height:96px;min-height:96px;max-height:96px;padding:var(--pv-s2) var(--pv-s3);text-align:left;overflow:hidden}
+#music-detail #queue .queue-track>.queue-cover{width:var(--pv-hit);height:var(--pv-hit);object-fit:contain;align-self:center;justify-self:center}
+#music-detail #queue .queue-track>.queue-copy{display:grid;gap:0;min-width:0;max-width:100%;overflow:hidden}
+#music-detail #queue .queue-track>span :is(strong,small){display:block;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#music-detail #queue .queue-track strong{font:var(--pv-t-body);font-weight:600}
+#music-detail #queue .queue-track small{font:var(--pv-t-meta);color:var(--pv-ink-3)}
+#music-detail #queue .queue-track>.queue-play{width:64px;height:64px;padding:20px;box-sizing:border-box;object-fit:contain;align-self:center;justify-self:center;margin:0;border-radius:0}
+#music-detail #queue .queue-track>.queue-order{width:var(--pv-hit);height:var(--pv-hit);display:grid;place-items:center;justify-content:center;padding:0;font:var(--pv-t-meta);font-variant-numeric:tabular-nums;color:var(--pv-ink);text-align:center;touch-action:pan-y;cursor:default;user-select:none;background-image:none}
+#music-detail #queue .queue-track>.queue-order>img{width:var(--pv-icon-s);height:var(--pv-icon-s);margin:0;padding:0;object-fit:contain}
+/* Unavailable playback dims only the action, never the observed artwork or row. */
+#music-detail #queue .queue-track:disabled{opacity:1;cursor:default}
+#music-detail #queue .queue-track:disabled>.queue-play{opacity:.45}
+#music-detail #queue .queue-track:not([aria-current=true]):disabled>.queue-order{color:var(--pv-ink-3)}
+pv-widget-host[data-view=active] #now-view>#timer-card .timer-panel.pv-hero{background:var(--pv-dark);color:var(--pv-on-dark);min-height:96px;padding:var(--pv-s2) var(--pv-s3)}
+pv-widget-host[data-view=active] #now-view>#timer-card .timer-panel.pv-hero :is(.timer-count,.timer-state,.timer-copy strong){color:var(--pv-on-dark)}
+pv-widget-host[data-view=active] #now-view>#timer-card .timer-panel.pv-hero .timer-finish{min-height:var(--pv-hit);border-radius:var(--pv-r-pill);background:var(--pv-ink-2);color:var(--pv-on-dark)}
+@media(min-width:760px){pv-widget-host[data-view=active] .frame>.player.pv-card{grid-column:2;grid-row:1;align-self:start;margin:0;min-height:0;max-height:min(100%,692px);height:100%;position:relative;top:auto}}
+/* Palette bindings are semantic at each retained owner; night only dims Ro. */
+:root{--pv-timer-idle-surface:color-mix(in srgb,var(--pv-dark) 88%,var(--pv-on-dark));--pv-timer-accent:var(--pv-on-dark);--pv-timer-control:var(--pv-ink-2);--pv-timer-control-hover:var(--pv-ink-3);--pv-color-ink:var(--pv-ink);--pv-overview-radio:var(--pv-surface-2);--pv-volume-track:var(--pv-ink-3);--pv-volume-thumb:var(--pv-ink);--pv-focus-ring:var(--pv-ink);--pv-screen-photo-fallback:var(--pv-dark)}
+pv-widget-host[data-view=active] .view-nav{opacity:1;color:var(--pv-ink)}
+pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title{font:var(--pv-t-title);color:var(--pv-ink);opacity:1}
+pv-widget-host[data-topbar=true][data-view=active] .view-nav #show-photo{background:var(--pv-surface-2);color:var(--pv-ink);opacity:1}
+pv-widget-host[data-topbar=true][data-view=active] .view-nav #show-photo img{opacity:1;filter:none}
+pv-widget-host #now-view #home-weather[data-weather-phase]{background:var(--pv-weather);color:var(--pv-ink)}
+pv-widget-host #now-view #home-weather[data-weather-phase]>img{filter:none}
+pv-widget-host #weather-view :is(.weather-current,.weather-hours,.weather-days,.weather-live-advice){color:var(--pv-weather-ink)}
+pv-widget-host #weather-view .weather-current,pv-widget-host #weather-view .weather-current[data-weather-tone]{display:grid;grid-template-columns:var(--pv-icon-l) minmax(0,1fr);align-items:start;gap:var(--pv-s2);min-height:200px;padding:var(--pv-s4);background:var(--pv-weather);color:var(--pv-weather-ink);border-radius:var(--pv-r-l);box-sizing:border-box}
+pv-widget-host #weather-view .weather-current>img{grid-column:1;grid-row:1;order:0;align-self:start;margin:0;width:var(--pv-icon-l);height:var(--pv-icon-l)}
+pv-widget-host #weather-view .weather-current>div{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-s1);min-width:0}
+pv-widget-host #weather-view .weather-current strong{grid-column:1;grid-row:auto;font:var(--pv-t-hero);line-height:1;letter-spacing:-.04em}
+pv-widget-host #weather-view .weather-current p{grid-column:1;align-self:start;font:var(--pv-t-label);margin:0}
+pv-widget-host #weather-view .weather-current span{grid-column:1;align-self:start;font:var(--pv-t-body)}
+pv-widget-host #weather-view .weather-current .weather-metadata{grid-column:1;margin:0;font:var(--pv-t-body)}
+pv-widget-host #weather-view .weather-current .weather-metadata :is(dt,dd){font:var(--pv-t-body);color:inherit}
+pv-widget-host #weather-view .weather-current .weather-metadata dd{font-weight:var(--pv-weight-semibold)}
+pv-widget-host #weather-view .weather-current .weather-summary{grid-column:1;margin-top:var(--pv-s1);font:var(--pv-t-body);max-width:52ch}
+pv-widget-host #weather-view .weather-current[data-weather-state=empty]{min-height:0}
+pv-widget-host #weather-view :is(.weather-current,.weather-hours,.weather-days) :is(strong,small,p,span){color:var(--pv-weather-ink)}
+pv-widget-host #weather-view .weather-hours>div{background:transparent}
+pv-widget-host #weather-view .weather-days .temperature-range{background:var(--pv-weather-strong)}
+pv-widget-host #weather-view .weather-days .temperature-range::before{background:var(--pv-weather-ink)}
+pv-widget-host #vehicle-view .vehicle-hero{background:var(--pv-tesla);color:var(--pv-tesla-ink)}
+pv-widget-host #vehicle-view .vehicle-hero :is(h2,p,small,strong,span,.vehicle-status,.vehicle-context,.vehicle-connection-note){color:var(--pv-tesla-ink)}
+pv-widget-host #now-view #home-vehicle :is(strong,small){color:var(--pv-tesla-ink)}
+pv-widget-host :is(#device-detail pv-vacuum-widget.pv-component,pv-robot-control-panel .pv-hero){background:var(--pv-robot);color:var(--pv-robot-ink)}
+pv-widget-host :is(#device-detail pv-vacuum-widget.pv-component,pv-robot-control-panel .pv-hero) :is(h3,.pv-meta,.pv-resource-value){color:var(--pv-robot-ink)}
+pv-widget-host #now-view .resource-preview[data-kind=vacuum] :is(strong,small){color:var(--pv-robot-ink)}
+pv-widget-host #now-view .resource-preview[data-kind=light][data-status=on] :is(strong,small){color:var(--pv-light-ink)}
+pv-widget-host #device-detail pv-light-widget.pv-component[data-status=on] :is(h3,.pv-meta,.pv-resource-value){color:var(--pv-light-ink)}
+#timer-alert,#timer-alert::backdrop{background:var(--pv-dark);color:var(--pv-on-dark)}
+#timer-alert .notice-icon>img{filter:brightness(0) invert(1)}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add){background:var(--pv-on-dark);color:var(--pv-ink)}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):hover:not(:disabled){background:var(--pv-line);color:var(--pv-ink)}
+#timer-alert :is(#timer-alert-status,.timer-notice-open){color:var(--pv-on-dark)}
+::selection{background:var(--pv-line);color:var(--pv-ink)}
+input,textarea{caret-color:var(--pv-ink)}
+/* The same recipe classes style standalone kit nodes and every product owner. */
+.pv-kit{--pv-tint:var(--pv-surface);--pv-tint-strong:var(--pv-surface-2);--pv-tint-ink:var(--pv-ink);--pv-button-tint:var(--pv-tint-strong);box-sizing:border-box;font-family:var(--pv-font)}
+.pv-kit[data-kit-identity=weather]{--pv-tint:var(--pv-weather);--pv-tint-strong:var(--pv-weather-strong);--pv-tint-ink:var(--pv-weather-ink)}
+.pv-kit[data-kit-identity=robot]{--pv-tint:var(--pv-robot);--pv-tint-strong:var(--pv-robot-strong);--pv-tint-ink:var(--pv-robot-ink)}
+.pv-kit[data-kit-identity=light]{--pv-tint:var(--pv-light);--pv-tint-strong:var(--pv-light-strong);--pv-tint-ink:var(--pv-light-ink)}
+.pv-kit[data-kit-identity=tesla]{--pv-tint:var(--pv-tesla);--pv-tint-strong:var(--pv-tesla-strong);--pv-tint-ink:var(--pv-tesla-ink);--pv-button-tint:color-mix(in srgb,var(--pv-tesla-strong) 96%,var(--pv-surface))}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile)[data-kit-identity]{background:var(--pv-tint);color:var(--pv-tint-ink)}
+.pv-component[data-component=timer-widget].pv-kit-hero{--pv-tint:var(--pv-dark);--pv-tint-ink:var(--pv-on-dark)}
+.pv-component[data-component=light-widget].pv-kit-hero .pv-meta{color:var(--pv-light-ink)}
+.pv-component[data-component=timer-widget][data-state=error] :is(.pv-copy,.pv-meta,.pv-state-note){color:var(--pv-danger-tint)}
+.pv-kit-card{display:flex;flex-direction:column;gap:var(--pv-s1)}
+.pv-kit-hero{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:var(--pv-s2);min-height:var(--pv-detail-min);padding:var(--pv-s4)}
+.pv-kit-hero .kit-value{font:var(--pv-t-hero);font-variant-numeric:tabular-nums;color:inherit}
+.pv-kit :is(.kit-title,.kit-label){font:var(--pv-t-label);color:inherit;margin:0}
+.pv-kit .kit-meta{font:var(--pv-t-body);color:inherit;margin:0}
+.pv-kit-tile{min-height:177px;font:var(--pv-t-label)}
+.pv-kit.pv-kit-tile[aria-pressed=true]{background:var(--pv-tint-strong);color:var(--pv-tint-ink);box-shadow:inset 0 0 0 2px var(--pv-tint-ink)}
+.pv-kit.pv-kit-tile[data-kit-identity=tesla][aria-pressed=true]{--pv-tint-ink:var(--pv-ink)}
+/* Buttons keep their own explicit identity, or inherit the closest retained
+   colored Card/Hero/Tile palette. Other omitted identities remain neutral. */
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile)[data-kit-identity] .pv-kit.pv-kit-button:not([data-kit-identity]){--pv-tint:inherit;--pv-tint-strong:inherit;--pv-tint-ink:inherit;--pv-button-tint:inherit}
+.pv-kit.pv-kit-button,pv-widget-host :is(#vehicle-view,#device-view) .pv-kit.pv-kit-button{background:var(--pv-button-tint);color:var(--pv-tint-ink)}
+.pv-kit.pv-kit-button:is([data-kit-variant=primary],.--primary),pv-widget-host :is(#vehicle-view,#device-view) .pv-kit.pv-kit-button:is([data-kit-variant=primary],.--primary){background:var(--pv-tint-ink);color:var(--pv-on-dark)}
+.pv-kit-toggle[aria-checked=true],.pv-kit-chip[aria-pressed=true]{background:var(--pv-ink);color:var(--pv-on-dark)}
+.pv-kit-button[data-kit-variant=danger],.pv-btn.--danger{background:var(--pv-danger-tint);color:var(--pv-danger)}
+.pv-kit-toggle{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1);min-height:var(--pv-hit);padding:0 var(--pv-s3);border:0;border-radius:var(--pv-r-pill);font:var(--pv-t-body);font-weight:600;background:var(--pv-surface-2);color:var(--pv-ink)}
+.pv-kit-listrow{display:flex;align-items:center;min-height:var(--pv-hit);gap:var(--pv-s2);padding:var(--pv-s2);background:var(--pv-surface-2);color:var(--pv-ink);font:var(--pv-t-body);text-align:left;border:0}
+/* Selected ListRow is the whole retained row; inset border preserves geometry. */
+.pv-kit-listrow[aria-pressed=true],#room-options>.pv-kit-listrow[aria-pressed=true],#music-detail #queue .queue-track[aria-current=true]{background:var(--pv-line);color:var(--pv-ink);box-shadow:none}
+.pv-kit-sectionheader{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);color:var(--pv-ink)}
+.pv-kit-topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);color:var(--pv-ink)}
+.pv-kit-topbar :is(h1,h2){font:var(--pv-t-title);color:inherit;margin:0}
+.pv-kit-dialog{padding:var(--pv-s4);border:0;border-radius:var(--pv-r-l);background:var(--pv-surface);color:var(--pv-ink);box-shadow:var(--pv-shadow)}
+.pv-kit-dialog[data-kit-variant=toast]{background:var(--pv-dark);color:var(--pv-on-dark)}
+.pv-kit-icon{display:inline-flex;align-items:center;justify-content:center}
+.pv-kit-icon>img{width:100%;height:100%;object-fit:contain}
+.pv-kit-slider{accent-color:var(--pv-ink)}
+.pv-kit:is(button,input):focus-visible{outline:2px solid var(--pv-ink);outline-offset:4px}
+.pv-kit:is(button,input):disabled{cursor:default;opacity:.56}
+
+/* Domain anatomy consumes the canonical kit; all dimensions/colours are shared tokens. */
+pv-widget-host #device-view [data-robot-rooms=true]>.pv-meta{margin:var(--pv-s2) 0 0;padding:0;background:none;font:var(--pv-t-meta);color:var(--pv-ink-2)}
+pv-widget-host pv-robot-control-panel .choices.pv-tiles>.robot-room-tile{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:var(--pv-s2);padding:var(--pv-s3);min-height:var(--pv-tile-height,177px)}
+pv-widget-host pv-robot-control-panel .choices.pv-tiles>.robot-room-tile::before{content:none;display:none}
+pv-widget-host pv-robot-control-panel .robot-room-icon{width:var(--pv-icon-m);height:var(--pv-icon-m);object-fit:contain;flex:none}
+pv-widget-host pv-robot-control-panel .robot-room-label{font:var(--pv-t-label)}
+pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:var(--pv-s2)}
+pv-widget-host #vehicle-view .vehicle-control-tiles>:is(section,label){display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;text-align:left;min-height:var(--pv-tile-height,177px);padding:var(--pv-s3);margin:0;gap:var(--pv-s2);background:var(--pv-surface);border-radius:var(--pv-r-l);min-width:0}
+pv-widget-host #vehicle-view .vehicle-control-tiles :is(h2,h3){align-self:start;width:100%;font:var(--pv-t-label);line-height:var(--pv-leading-widget);margin:0;padding:0;text-align:left}
+pv-widget-host #vehicle-view .vehicle-control-tiles .vehicle-section-heading small{font:var(--pv-t-body);color:var(--pv-ink-3);padding:0}
+pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure>button{margin-top:0;width:100%}
+pv-widget-host #vehicle-view .vehicle-control-tiles .vehicle-temperature-controls{display:grid;grid-template-columns:var(--pv-hit) minmax(0,1fr) var(--pv-hit);grid-template-rows:auto var(--pv-hit);align-items:center;gap:var(--pv-s1);padding:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+pv-widget-host #vehicle-view .vehicle-temperature-controls>h3{grid-column:1/-1;grid-row:1;font:var(--pv-t-meta);color:var(--pv-ink-2)}
+pv-widget-host #vehicle-view .vehicle-temperature-controls>output{grid-column:2;grid-row:2;align-self:end;justify-self:center;display:grid;place-items:center;height:var(--pv-hit);font:var(--pv-t-label);white-space:nowrap}
+pv-widget-host #vehicle-view .vehicle-temperature-controls>button{grid-row:2;align-self:end;width:var(--pv-hit);height:var(--pv-hit);padding:0;font:var(--pv-t-title)}
+pv-widget-host #vehicle-view .vehicle-temperature-controls>button:first-of-type{grid-column:1}
+pv-widget-host #vehicle-view .vehicle-temperature-controls>button:last-of-type{grid-column:3}
+pv-widget-host #vehicle-view .vehicle-lock-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:var(--pv-s1);width:100%;margin:auto 0 0}
+pv-widget-host #vehicle-view .vehicle-lock-controls>button:first-child{grid-column:1/-1}
+pv-widget-host #vehicle-view .vehicle-lock-controls button{white-space:normal}
+pv-widget-host #vehicle-view .vehicle-charge-limit input{width:100%;min-width:0;min-height:var(--pv-hit);accent-color:var(--pv-tesla-ink);-webkit-appearance:none;appearance:none;background:transparent;touch-action:pan-y}
+pv-widget-host #vehicle-view .vehicle-charge-limit input::-webkit-slider-runnable-track{height:var(--pv-s1);border-radius:var(--pv-r-pill);background:linear-gradient(to right,var(--pv-tesla-ink) 0 var(--pv-slider-fill),var(--pv-tesla-strong) var(--pv-slider-fill) 100%)}
+pv-widget-host #vehicle-view .vehicle-charge-limit input::-webkit-slider-thumb{-webkit-appearance:none;width:var(--pv-icon-s);height:var(--pv-icon-s);margin-top:calc((var(--pv-s1) - var(--pv-icon-s))/2);border:0;border-radius:var(--pv-r-pill);background:var(--pv-tesla-ink)}
+pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-track{height:var(--pv-s1);border-radius:var(--pv-r-pill);background:var(--pv-tesla-strong)}
+pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-progress{height:var(--pv-s1);background:var(--pv-tesla-ink)}
+pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-thumb{width:var(--pv-icon-s);height:var(--pv-icon-s);border:0;border-radius:var(--pv-r-pill);background:var(--pv-tesla-ink)}
+pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{padding:var(--pv-s3);min-width:0;min-height:0}
+pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-section-heading{flex-direction:row;align-items:baseline;justify-content:space-between;gap:var(--pv-s2)}
+pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-detail-values{display:flex;flex-wrap:wrap;gap:var(--pv-s2) var(--pv-s4);margin:var(--pv-s2) 0 0}
+pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-detail-values>.vehicle-fact-row{flex:1 1 auto;justify-content:flex-start;gap:var(--pv-s1)}
+pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-charge-limit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--pv-s1) var(--pv-s2);padding:var(--pv-s2) 0 0;margin:var(--pv-s2) 0 0;border-top:1px solid var(--pv-line)}
+pv-widget-host #vehicle-view .vehicle-charge-limit>.pv-section-header{grid-column:1;grid-row:1;font:var(--pv-t-body)}
+pv-widget-host #vehicle-view .vehicle-charge-limit>output{grid-column:2;grid-row:1;font:var(--pv-t-label)}
+pv-widget-host #vehicle-view .vehicle-charge-limit>input{grid-column:1/-1;grid-row:2}
+pv-widget-host #vehicle-view .vehicle-detail-values>.vehicle-fact-row{display:flex;flex-direction:row;justify-content:space-between;align-items:baseline;gap:var(--pv-s2);min-height:0;padding:0;border:0;border-radius:0;background:transparent}
+pv-widget-host #vehicle-view .vehicle-fact-row>dt{font:var(--pv-t-body);color:var(--pv-ink-2)}
+pv-widget-host #vehicle-view .vehicle-fact-row>dd{font:var(--pv-t-label);margin:0;text-align:right}
+pv-widget-host #radio-view .radio-hero{display:flex;flex-direction:row;align-items:center;gap:var(--pv-s3);padding:var(--pv-s4);background:var(--pv-surface-2);min-height:var(--pv-detail-min)}
+pv-widget-host #radio-view .radio-hero>div{display:grid;align-content:center;gap:4px;min-width:0;min-height:116px;flex:1}
+pv-widget-host #radio-view .radio-hero-art{box-sizing:border-box;width:calc(var(--pv-icon-l)*2);height:calc(var(--pv-icon-l)*2);object-fit:contain;flex:none}
+pv-widget-host #radio-view .radio-hero h2{font:var(--pv-t-title);line-height:34px;min-height:0;margin:0;overflow-wrap:anywhere}
+pv-widget-host #radio-view .radio-hero p{font:var(--pv-t-body);line-height:24px;min-height:0;margin:0;color:var(--pv-ink-2)}
+pv-widget-host #radio-view .radio-station-tiles .pv-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;padding:var(--pv-s3);min-height:var(--pv-tile-height,177px)}
+pv-widget-host #radio-view .radio-open-player{width:100%;min-height:var(--pv-hit);justify-content:flex-start;padding:var(--pv-s2) var(--pv-s3);background:var(--pv-surface);font:var(--pv-t-label)}
+
+@media(max-width:600px){pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:1fr}pv-widget-host #radio-view .radio-station-tiles .pv-list{grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host #radio-view .radio-station-tiles .pv-list>button:nth-child(n){grid-column:auto}}
+
+/* Existing light and answer owners consume the shared kit. */
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list{display:flex;flex-wrap:wrap;gap:var(--pv-screen-space-2)}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button{min-height:var(--pv-hit-min);padding:var(--pv-screen-space-2) var(--pv-screen-space-4);border-radius:var(--pv-screen-radius-pill);background:transparent;border:0;box-shadow:none;font-size:var(--pv-type-body)}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button[aria-pressed=true]{background:var(--pv-screen-selection)}
+pv-widget-host #device-view .light-adjustments{gap:var(--pv-screen-space-4);margin-top:var(--pv-screen-space-4);align-items:stretch}
+pv-widget-host #device-view .light-scenes{grid-row:1;gap:var(--pv-screen-space-3)}
+pv-widget-host #device-view .light-scenes>button{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-screen-space-2);min-height:var(--pv-hit);background:var(--pv-light-surface)}
+pv-widget-host #device-view .light-scenes>button img{width:var(--pv-icon-s);height:var(--pv-icon-s)}
+pv-widget-host #device-view .light-brightness{min-height:312px;grid-template-rows:64px 160px auto;background:var(--pv-light-surface)}
+pv-widget-host #device-view .light-brightness:not(:has(>input)){grid-template-rows:64px 160px auto;min-height:312px;background:var(--pv-light-surface)}
+pv-widget-host #device-view .light-brightness>.light-toggle{padding:var(--pv-screen-space-1);border-radius:var(--pv-screen-radius-field);background:transparent}
+pv-widget-host #device-view .light-brightness:not(:has(>input))>.light-toggle{grid-row:1/-1;background:transparent;min-width:0;padding:var(--pv-screen-space-2)}
+pv-widget-host #device-view .light-brightness[data-on=false]{background:var(--pv-screen-control)}
+/* Shared template: content zones retain their canonical owners and scroll. */
+.pv-kit-template-detail{row-gap:var(--pv-s3);column-gap:var(--pv-s2)}
+.pv-kit-template-detail>[data-detail-zone]{flex-shrink:0;min-width:0}
+pv-widget-host #device-view pv-vacuum-widget.pv-kit-hero .pv-resource-value.kit-value{font:var(--pv-t-hero);color:var(--pv-robot-ink);margin:0}
+pv-widget-host #device-view pv-vacuum-widget.pv-kit-hero h3{font:var(--pv-t-label);color:var(--pv-robot-ink)}
+pv-widget-host #device-view pv-vacuum-widget.pv-kit-hero .pv-meta{font:var(--pv-t-body);color:var(--pv-robot-ink)}
+.pv-comparison-head{display:none}
+.pv-comparison-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s2)}
+.pv-comparison-tile{display:flex;flex-direction:column;gap:var(--pv-s2);padding:var(--pv-s3)}
+.pv-comparison-tile>div{font:var(--pv-t-body);width:100%}
+.pv-comparison-tile>div::before{content:attr(data-label);display:block;font:var(--pv-t-meta);color:var(--pv-ink-3);margin-bottom:var(--pv-s1)}
+.pv-table-choice,.pv-check{min-height:var(--pv-hit-min)!important}
+#timer-alert:is([open],:focus){background:var(--pv-dark);color:var(--pv-on-dark);outline:none}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add){width:200px;min-height:96px;border-radius:var(--pv-r-pill);font:var(--pv-t-label);background:var(--pv-on-dark);color:var(--pv-dark)}
+#timer-alert #timer-alert-add{background:var(--pv-ink-2);color:var(--pv-on-dark)}
+#timer-alert :is(#timer-alert-dismiss,#timer-alert-add):focus:not(:focus-visible){outline:none;box-shadow:none}
+@media(max-width:759px){.pv-comparison-tiles{grid-template-columns:1fr}}
+
+/* One canonical notification surface, wholly inside the response column. */
+body #playback-status.action-feedback{position:fixed;left:var(--pv-s3);right:auto;top:auto;bottom:var(--pv-s3);transform:none;translate:none;width:max-content;max-width:min(520px,calc((100vw - 48px - var(--pv-s3)) * .7));margin:0;display:grid;align-items:center;gap:var(--pv-s2);z-index:12;pointer-events:auto;padding:var(--pv-s2) var(--pv-s3);border-radius:var(--pv-r-l);font:var(--pv-t-body)}
+pv-widget-host .responses{scroll-padding-bottom:88px}
+body:has(#playback-status:not([hidden])) pv-widget-host .responses{scroll-padding-bottom:88px}
+body #playback-status button{justify-self:start;min-height:var(--pv-hit);padding:var(--pv-s1) var(--pv-s3)}
+
+/* One transient material layer, owned and removed by SceneMotion. */
+
+/* Ro has one outer photo inset and one shared inset for content on that photo.
+   Compact cards retain their independent16px internal padding. */
+:root{--pv-rest-outer-inset:var(--frame-inset);--pv-rest-content-inset:var(--pv-s3)}
+pv-widget-host[data-view=rest] .photo-view{padding:var(--pv-rest-content-inset)}
+/* Canonical Ro resources. One retained96px row; state never changes its footprint. */
+pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview){position:absolute;bottom:var(--pv-rest-content-inset);height:96px;min-height:96px;max-height:96px;margin:0;padding:var(--pv-s2)!important;gap:var(--pv-s2);align-items:center;background:var(--pv-rest-glass);color:var(--pv-ink);backdrop-filter:blur(16px);box-shadow:var(--pv-shadow);border-radius:var(--pv-r-l);translate:none;overflow:hidden}
+pv-widget-host[data-view=rest] :is(.player,#player-empty){right:var(--pv-rest-content-inset);top:auto;width:390px;display:grid;grid-template-columns:64px minmax(0,1fr) 48px;grid-template-rows:64px}
+/* Only the finite moving player suspends backdrop sampling; settled Ro keeps glass. */
+pv-widget-host[data-view=rest] :is(.player,#player-empty)[data-scene-player-moving=true]{backdrop-filter:none;-webkit-backdrop-filter:none}
+pv-widget-host[data-view=rest] .player :is(.cover-button,.cover-button .cover){grid-column:1;grid-row:1;width:64px;height:64px;min-height:0;margin:0;align-self:center;border-radius:var(--pv-r-s)}
+pv-widget-host[data-view=rest] .player .track{grid-column:2;grid-row:1;align-self:center;min-width:0;min-height:48px;margin:0;padding:0!important;display:flex;flex-direction:column;justify-content:center;gap:0;background:transparent;color:var(--pv-ink);text-align:left}
+pv-widget-host[data-view=rest] .player .track :is(strong,span){overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:100%}
+pv-widget-host[data-view=rest] .player .track strong{font:var(--pv-t-body);font-weight:600;color:var(--pv-ink)}
+pv-widget-host[data-view=rest] .player .track span{font:var(--pv-t-meta);color:var(--pv-ink-2)}
+pv-widget-host[data-view=rest] .player :is(.output,.volume,.player-progress,.cover-hint,#previous,#next){display:none!important}
+pv-widget-host[data-view=rest] .player .transport{grid-column:3;grid-row:1;align-self:center;margin:0;padding:0;display:flex;gap:0}
+pv-widget-host[data-view=rest] .player .transport .main-control{width:48px;height:48px;min-height:48px;padding:var(--pv-s1);background:transparent;color:var(--pv-ink)}
+pv-widget-host[data-view=rest] .player .main-control>img{width:var(--pv-icon-m);height:var(--pv-icon-m);filter:brightness(0);opacity:1}
+pv-widget-host[data-view=rest] #player-empty{grid-template-columns:var(--pv-icon-m) minmax(0,1fr);grid-template-rows:64px}
+pv-widget-host[data-view=rest] #player-empty>.player-empty-art{display:grid;place-items:center;grid-column:1;grid-row:1;width:var(--pv-icon-m);height:var(--pv-icon-m);align-self:center;justify-self:start;background:transparent;pointer-events:none}
+pv-widget-host[data-view=rest] #player-empty>.player-empty-art>img{width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;background:transparent;filter:brightness(0)}
+pv-widget-host[data-view=rest] #player-empty>div{display:none}
+pv-widget-host[data-view=rest] #player-empty>#empty-find-music{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);width:100%;height:96px;min-height:96px;margin:0;padding:var(--pv-s2) var(--pv-s2) var(--pv-s2) 64px;background:transparent;color:var(--pv-ink);border-radius:inherit;font:var(--pv-t-body);font-weight:600;text-align:left}
+pv-widget-host[data-view=rest] #player-empty>#empty-find-music img{width:var(--pv-icon-s);height:var(--pv-icon-s);filter:brightness(0)}
+pv-widget-host[data-view=rest] #resource-rail{position:absolute;left:var(--pv-rest-content-inset);right:auto;bottom:var(--pv-rest-content-inset);display:flex;flex-direction:column;flex-wrap:nowrap;width:320px;gap:var(--pv-s2);margin:0;max-height:calc(100% - 240px);overflow:auto;scrollbar-width:thin;translate:none}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview{position:relative;inset:auto;display:grid;grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-rows:64px;min-width:0;width:100%;flex:none;text-align:left}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-visual{grid-column:1;grid-row:1;width:var(--pv-icon-l);height:var(--pv-icon-l);margin:0;display:grid;place-items:center;align-self:center;background:transparent}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-visual>img{width:var(--pv-icon-l);height:var(--pv-icon-l);filter:brightness(0);opacity:1}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview :is(.resource-visual>svg,.resource-chevron){display:none!important}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label{grid-column:2;grid-row:1;display:grid;gap:0;min-width:0;text-align:left}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label strong{margin:0;font:var(--pv-t-body);font-weight:600;color:var(--pv-ink)}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label :is(small,.resource-value){position:static;transform:none;margin:0;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:var(--pv-t-meta);color:var(--pv-ink-2)}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=timer]{background:var(--pv-dark);color:var(--pv-on-dark);backdrop-filter:none}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=timer] .resource-visual>img{filter:brightness(0) invert(1)}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=timer] .resource-label>strong{display:none}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=timer] .resource-value{font:var(--pv-t-value);order:0;color:var(--pv-on-dark);font-variant-numeric:tabular-nums}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=timer] .resource-label>small{font:var(--pv-t-meta);order:1;color:var(--pv-on-dark)}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=timer][data-status=done] .resource-value{font:var(--pv-t-label);white-space:normal}
+pv-widget-host[data-view=rest] .photo-weather{position:absolute;right:var(--pv-rest-content-inset);top:var(--pv-rest-content-inset);z-index:2;display:grid;grid-template-columns:var(--pv-icon-m) auto;gap:var(--pv-s1) var(--pv-s2);align-items:center;min-height:64px;padding:0;background:transparent;color:var(--pv-on-dark);border:0;box-shadow:none;backdrop-filter:none;border-radius:var(--pv-r-s);translate:none}
+pv-widget-host[data-view=rest] .photo-weather:hover:not(:disabled){background:transparent}
+pv-widget-host[data-view=rest] .photo-weather:focus-visible{outline:2px solid var(--pv-on-dark);outline-offset:4px}
+pv-widget-host[data-view=rest] .photo-weather>img{width:var(--pv-icon-m);height:var(--pv-icon-m);filter:brightness(0) invert(1)}
+pv-widget-host[data-view=rest] .photo-weather strong{font:var(--pv-t-title);color:inherit;letter-spacing:0}
+pv-widget-host[data-view=rest] .photo-weather>span{grid-column:1/-1;font:var(--pv-t-body);text-align:right;color:inherit}
+body:has(pv-widget-host[data-view=rest]) #playback-status.action-feedback{bottom:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset) + 96px + var(--pv-s2));max-width:calc(100vw - 2 * (var(--pv-rest-outer-inset) + var(--pv-rest-content-inset)));left:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset))}
+
+/* Ro uses compact glass rows; weather stays directly on the photograph. */
+:root{--pv-rest-glass:color-mix(in srgb,var(--pv-surface) 72%,transparent)}
+
+pv-widget-host[data-view=rest] .photo-time{color:var(--pv-on-dark);gap:var(--pv-s2)}
+pv-widget-host[data-view=rest] #photo-clock{font-weight:600}
+pv-widget-host[data-view=rest] #photo-date{font-size:20px;line-height:26px;font-weight:400;color:inherit}
+pv-widget-host[data-view=rest][data-night=true] .photo-time{color:var(--pv-clock-night)}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Timer overview: retained content, then cancel and detail in native tab order. */
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero{display:grid;grid-template-columns:64px minmax(0,1fr) max-content 64px;align-items:center;gap:var(--pv-s2);min-height:112px;height:auto;padding:var(--pv-s2) var(--pv-s3)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-instrument{grid-column:1;grid-row:1}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy{grid-column:2;grid-row:1;grid-template-columns:max-content minmax(0,1fr);grid-template-rows:26px 20px;column-gap:var(--pv-s3);row-gap:4px;align-content:center;align-items:center;min-height:64px}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){margin:0;padding:0;align-self:center;min-height:0}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>.timer-count{align-self:center}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open{position:static;display:grid;place-items:center;place-content:center;grid-template-columns:none;grid-column:4;grid-row:1;width:var(--pv-hit);min-width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0;gap:0;justify-self:end;align-self:center;background:var(--pv-timer-control);color:var(--pv-on-dark);border-radius:var(--pv-r-pill)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open>.timer-chevron{width:var(--pv-icon-s);height:var(--pv-icon-s);padding:0;background:none;border-radius:0;filter:invert(1)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-finish{position:static;grid-column:3;grid-row:1;width:auto;min-width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);justify-self:end;align-self:center;font:var(--pv-t-body)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero[data-status=done]>.timer-copy>.timer-count{font:var(--pv-t-title);line-height:34px}
+@media(max-width:759px){
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero{grid-template-columns:64px minmax(0,1fr) 64px}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy{grid-column:2/-1;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 26px 20px;column-gap:0}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>.timer-count{grid-column:1;grid-row:1;font:var(--pv-t-value);line-height:44px}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>strong{grid-column:1;grid-row:2}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>.timer-state{grid-column:1;grid-row:3}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-finish{grid-column:2;grid-row:2}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open{grid-column:3;grid-row:2}
+}
+/* Native controls inherit kit ink instead of platform black. */
+input[type=range],.pv-slider{color:var(--pv-ink)}
+#timer-alert[open]{animation-timing-function:var(--pv-ease)}
+/* Kit material geometry wins over legacy domain selectors. */
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){border-radius:var(--pv-r-l)!important;box-shadow:var(--pv-shadow)}
+.pv-kit.pv-kit-tile{padding:var(--pv-s3)!important}
+pv-widget-host #vehicle-view .vehicle-control-tiles>:is(section,label){padding:var(--pv-s3)!important}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms]{min-height:0;margin:0}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list{flex-direction:row;align-items:center;align-content:start;min-height:0;height:auto}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;flex:1;min-height:var(--pv-hit-min);height:var(--pv-hit-min);gap:var(--pv-s1);padding:0 var(--pv-s2)}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-meta{display:none}
+/* Hero value and paired timer actions use the same anatomy in every owner. */
+.pv-kit.pv-kit-hero .kit-value{font:var(--pv-t-hero)!important;color:inherit}
+/* The detail scrollport owns overflow; an inner resource wrapper never collapses its Hero. */
+pv-widget-host #device-view #device-detail{flex:0 0 auto;height:auto;max-height:none;overflow:visible}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero:not([hidden]){min-height:var(--pv-detail-min);height:auto;padding:var(--pv-s4)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-content{grid-template-columns:var(--pv-icon-l) minmax(0,1fr);gap:var(--pv-s2) var(--pv-s3)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-instrument{width:var(--pv-icon-l);height:var(--pv-icon-l)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-instrument img{width:var(--pv-icon-l);height:var(--pv-icon-l)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-actions{grid-column:1/-1;grid-row:3;margin:0}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-resource-value{font:var(--pv-t-value)!important;grid-row:2;line-height:1.1}
+/* Isolated specimens inherit the same complete type/native-control recipe. */
+.pv-kit :is(h2,h3){font:var(--pv-t-label);color:inherit;margin:0}
+.pv-kit.pv-kit-dialog>h2,.pv-kit.pv-kit-topbar :is(h1,h2){font:var(--pv-t-title)}
+input.pv-kit-slider{background:transparent;color:var(--pv-ink)}
+input.pv-kit-slider.--v{writing-mode:vertical-lr;direction:rtl;width:var(--pv-hit);height:160px}
+.pv-kit.pv-kit-hero:not(.timer-panel){padding:var(--pv-s4)!important}
+pv-widget-host #vehicle-view .vehicle-control-tiles{grid-auto-rows:1fr}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){border:0}
+
+/* Hidden answer anatomy must never be revived by a family layout recipe. */
+#answer-host>pv-answer.answer-widget [hidden]{display:none!important}
+/* Response canvas: one frame, a readable lead, a purposeful visual field and a retained action dock. */
+#answer-host>pv-answer.answer-widget{--pv-answer-accent:var(--pv-dark);--pv-answer-tint:var(--pv-surface-2);position:relative;display:flex;flex-direction:column;align-self:stretch;gap:var(--pv-s3);width:100%;height:auto;min-height:calc(100dvh - 144px);margin:0;padding:var(--pv-s4);border-radius:var(--pv-r-l);background:var(--pv-surface);color:var(--pv-ink);box-sizing:border-box}
+#answer-host>pv-answer.answer-widget[data-answer-domain=weather]{--pv-answer-accent:var(--pv-weather-ink);--pv-answer-tint:var(--pv-weather);background:var(--pv-surface)}
+#answer-host>pv-answer.answer-widget:is([data-answer-state=error],[data-answer-state=offline]){background:var(--pv-surface)}
+pv-widget-host[data-topbar=true] #answer-host>pv-answer.answer-widget>.response-heading,#answer-host>pv-answer.answer-widget>.response-heading{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:0;min-height:0;margin:0;padding:0;border:0}
+#answer-host>pv-answer.answer-widget .answer-canvas-icon{display:none!important}
+#answer-host>pv-answer.answer-widget .answer-heading-target{display:block!important;grid-column:1;min-width:0}
+pv-widget-host[data-topbar=true] #answer-host>pv-answer.answer-widget>.response-heading h1,#answer-host>pv-answer.answer-widget>.response-heading h1{font:var(--pv-t-body);font-weight:400;color:var(--pv-ink-2);margin:0;max-width:65ch}
+#answer-host>pv-answer.answer-widget[data-has-conclusion=true]>.response-heading{display:block!important}
+#answer-host>pv-answer.answer-widget[data-question-repeated=true]>.response-heading .answer-heading-target{display:block!important}
+#answer-host>pv-answer.answer-widget .answer-content{display:flex;flex-direction:column;flex:1;min-height:0;gap:var(--pv-s3);padding:0}
+#answer-host>pv-answer.answer-widget .answer-scroll{display:flex;flex-direction:column;flex:1;min-height:0;gap:var(--pv-s3);margin:0;padding:0;overflow:visible;justify-content:flex-start}
+#answer-host>pv-answer.answer-widget :is(.answer-visual,.intro,.comparison,.chart,.guide,.checklist,.answer-choices){padding:0;min-height:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+#answer-host>pv-answer.answer-widget :is(.answer-visual,.comparison,.chart,.guide,.checklist,.answer-choices){display:flex;flex-direction:column;flex:1}
+#answer-host>pv-answer.answer-widget .pv-visual-body{flex:1;display:flex;flex-direction:column;gap:var(--pv-s3);min-height:100%;padding:0}
+#answer-host>pv-answer.answer-widget .pv-visual-lead{order:0;display:grid;grid-template-columns:var(--pv-icon-l) minmax(0,1fr);gap:var(--pv-s2);align-items:start;min-height:var(--pv-icon-l);margin:0;padding:0}
+#answer-host>pv-answer.answer-widget .pv-answer-domain-icon{grid-column:1;grid-row:1;width:var(--pv-icon-l);height:var(--pv-icon-l);margin:0;object-fit:contain}
+#answer-host>pv-answer.answer-widget .pv-visual-lead>.pv-visual-summary{grid-column:2;margin:0;font:var(--pv-t-title)!important;max-width:42ch;color:var(--pv-ink)}
+#answer-host>pv-answer.answer-widget .pv-visual-summary::before,#answer-host>pv-answer.answer-widget .intro .pv-conclusion::before{content:none;display:none}
+#answer-host>pv-answer.answer-widget .pv-visual-lead>.pv-visual-detail{grid-column:2;margin:0;font:var(--pv-t-body);color:var(--pv-ink-2)}
+#answer-host>pv-answer.answer-widget .pv-visual-lead>.conclusion-toggle{grid-column:2;justify-self:start;min-height:var(--pv-hit);margin:0;padding:var(--pv-s2);font:var(--pv-t-body)}
+#answer-host>pv-answer.answer-widget .intro>.pv-content{display:block;min-height:0;margin:0;padding:0}
+#answer-host>pv-answer.answer-widget .intro>.pv-content::before{content:none;display:none}
+#answer-host>pv-answer.answer-widget .intro .pv-concise-icon{width:var(--pv-icon-l);height:var(--pv-icon-l);object-fit:contain;margin:0 0 var(--pv-s3)}
+#answer-host>pv-answer.answer-widget .intro :is(.pv-copy,.pv-conclusion){font:var(--pv-t-title)!important;margin:0;max-width:42ch}
+#answer-host>pv-answer.answer-widget[data-answer-family=concise] .intro{display:flex;flex:0 0 auto;align-items:start;padding:var(--pv-s3);background:var(--pv-answer-tint);border-radius:var(--pv-r-s)}
+#answer-host>pv-answer.answer-widget[data-answer-family=concise] .intro :is(.pv-copy,.pv-conclusion){font:var(--pv-t-title)!important;line-height:1.3!important;max-width:48ch;-webkit-line-clamp:6}
+#answer-host>pv-answer.answer-widget .pv-visual-list{order:2;flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s2);margin:0;padding:0;list-style:none}
+#answer-host>pv-answer.answer-widget .pv-visual-item,#answer-host>pv-answer.answer-widget .pv-visual-item:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:var(--pv-s1);min-width:0;min-height:var(--pv-hit);height:auto;margin:0;padding:var(--pv-s3);border:1px solid var(--pv-line);border-radius:var(--pv-r-s);background:var(--pv-surface-2);color:var(--pv-ink);box-shadow:none}
+#answer-host>pv-answer.answer-widget .pv-visual-item[data-answer-role=primary][data-value-kind=numeric]{grid-column:1/-1;justify-content:center;min-height:240px;padding:var(--pv-s4);border:0;background:var(--pv-dark);color:var(--pv-on-dark)}
+#answer-host>pv-answer.answer-widget .pv-visual-item .pv-visual-label{position:static;font:var(--pv-t-label);color:inherit;margin:0}
+#answer-host>pv-answer.answer-widget .pv-visual-item .pv-visual-value{font:var(--pv-t-label);color:inherit;margin:0!important;max-width:100%;overflow-wrap:break-word;word-break:normal}
+#answer-host>pv-answer.answer-widget .pv-visual-item[data-answer-role=primary][data-value-kind=numeric] .pv-visual-value{font:var(--pv-t-value)}
+#answer-host>pv-answer.answer-widget .pv-visual-item[data-value-kind=numeric] .pv-visual-value{white-space:nowrap;overflow-wrap:normal;font-variant-numeric:tabular-nums}
+#answer-host>pv-answer.answer-widget .pv-visual-item[data-answer-role=primary][data-value-kind=numeric] .pv-visual-value{font:var(--pv-t-hero)}
+#answer-host>pv-answer.answer-widget .pv-visual-item[data-value-density=long] .pv-visual-value{font:var(--pv-t-value);white-space:normal;overflow-wrap:anywhere}
+#answer-host>pv-answer.answer-widget .pv-visual-item .pv-visual-detail{font:var(--pv-t-body);line-height:1.45;color:inherit;opacity:.8;max-width:54ch;margin:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);margin:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item{display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr);grid-template-areas:'icon label' 'icon value';align-content:center;justify-items:start;gap:var(--pv-s1) var(--pv-s2);min-height:120px;padding:var(--pv-s2);background:var(--pv-weather);color:var(--pv-weather-ink);border:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item:first-child{grid-column:1/-1;grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-areas:'icon value' 'icon label';min-height:200px;padding:var(--pv-s4);background:var(--pv-weather-strong)}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item>dd[aria-hidden=true]{grid-area:icon;margin:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item>dd[aria-hidden=true]>img{width:var(--pv-icon-m);height:var(--pv-icon-m);opacity:1}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item:first-child>dd[aria-hidden=true]>img{width:var(--pv-icon-l);height:var(--pv-icon-l)}
+#answer-host>pv-answer.answer-widget .pv-visual-body>small{order:3;margin:0;font:var(--pv-t-meta);color:var(--pv-ink-3)}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-list{grid-template-columns:1fr;gap:0;border:1px solid var(--pv-line);border-radius:var(--pv-r-s);overflow:hidden}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-item{display:grid;grid-template-columns:104px minmax(0,1fr);gap:var(--pv-s1) var(--pv-s3);min-height:96px;padding:var(--pv-s2) var(--pv-s3);border:0;border-bottom:1px solid var(--pv-line);border-radius:0;background:var(--pv-surface-2)}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-item:last-child{border-bottom:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-item::before{display:none}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-label{grid-row:1/3;font:var(--pv-t-title);white-space:pre-line}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-value{font:var(--pv-t-label)}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=answer-timeline] .pv-visual-detail{grid-column:2}
+#answer-host>pv-answer.answer-widget .pv-timeline-context{order:1;font:var(--pv-t-meta);margin:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-visual-lead{order:0}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-item::after{display:none}
+#answer-host>pv-answer.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-label{display:none}
+#answer-host>pv-answer.answer-widget .pv-answer-image,#answer-host>pv-answer.answer-widget .pv-component[data-component=simple-diagram][data-illustrated=true] .pv-answer-image{order:1;display:flex;flex-direction:column;align-items:stretch;gap:var(--pv-s2);margin:0;padding:var(--pv-s2);background:var(--pv-surface-2);border-radius:var(--pv-r-s)}
+#answer-host>pv-answer.answer-widget .pv-answer-image>img{display:block;width:100%;height:320px;max-height:320px;object-fit:contain;border-radius:var(--pv-r-s)}
+#answer-host>pv-answer.answer-widget .pv-image-credit,#answer-host>pv-answer.answer-widget figcaption{font:var(--pv-t-meta);color:var(--pv-ink-3)}
+#answer-host>pv-answer.answer-widget :is(.comparison,.chart,.guide,.checklist,.answer-choices)>.pv-content{min-height:0;padding:0;margin:0;background:transparent;border:0;box-shadow:none}
+#answer-host>pv-answer.answer-widget :is(.comparison,.chart,.checklist,.answer-choices)>.pv-content{display:flex;flex-direction:column;flex:1}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison{display:flex;flex-direction:column;flex:1;min-height:0}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tiles{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tile{height:100%;display:flex;flex-direction:column;gap:var(--pv-s3);min-height:300px;margin:0;padding:var(--pv-s3);border:1px solid var(--pv-line);border-radius:var(--pv-r-s);background:var(--pv-surface-2);box-shadow:none}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tile>div{font:var(--pv-t-label);padding:0}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tile>div::before{display:block;font:var(--pv-t-meta);color:var(--pv-ink-3);margin-bottom:var(--pv-s1)}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tile>div:first-child::before{display:none}
+#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tile>div[data-value-kind=numeric]{font:var(--pv-t-value)}
+#answer-host>pv-answer.answer-widget .comparison .pv-table-choice{display:block;min-height:var(--pv-hit);padding:0;border-radius:0;background:transparent;font:var(--pv-t-label);text-align:left}
+#answer-host>pv-answer.answer-widget .answer-choices .pv-list{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget .answer-choices .pv-list>.pv-button,#answer-host>pv-answer.answer-widget .answer-choices .pv-readonly-row{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:var(--pv-s2);min-height:248px;height:auto;padding:var(--pv-s3);border:1px solid var(--pv-line);border-radius:var(--pv-r-s);background:var(--pv-surface-2);box-shadow:none;text-align:left}
+#answer-host>pv-answer.answer-widget .answer-choices .pv-list>.pv-button[aria-pressed=true]{border-color:var(--pv-ink);background:var(--pv-answer-tint);box-shadow:inset 0 0 0 1px var(--pv-ink)}
+#answer-host>pv-answer.answer-widget .answer-choices .pv-choice-icon{width:var(--pv-icon-l);height:var(--pv-icon-l);margin:0 0 var(--pv-s2)}
+#answer-host>pv-answer.answer-widget .answer-choices :is(strong,.pv-readonly-row>strong){font:var(--pv-t-label)}
+#answer-host>pv-answer.answer-widget .answer-choices .pv-meta{font:var(--pv-t-body);line-height:1.4}
+#answer-host>pv-answer.answer-widget .chart .pv-list{display:grid;gap:var(--pv-s4);padding:var(--pv-s3);border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
+#answer-host>pv-answer.answer-widget .chart .pv-chart-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--pv-s2);padding:0}
+#answer-host>pv-answer.answer-widget .chart .pv-chart-row>span{font:var(--pv-t-label)}
+#answer-host>pv-answer.answer-widget .chart .pv-chart-row>output{font:var(--pv-t-value)}
+#answer-host>pv-answer.answer-widget .chart meter{grid-column:1/-1;grid-row:2;width:100%;height:var(--pv-s2);border-radius:var(--pv-r-pill)}
+#answer-host>pv-answer.answer-widget .chart meter::-webkit-meter-bar{height:var(--pv-s2);border:0;border-radius:var(--pv-r-pill);background:var(--pv-line)}
+#answer-host>pv-answer.answer-widget .chart meter::-webkit-meter-optimum-value{background:var(--pv-ink);border-radius:var(--pv-r-pill)}
+#answer-host>pv-answer.answer-widget .chart meter::-moz-meter-bar{background:var(--pv-ink);border-radius:var(--pv-r-pill)}
+#answer-host>pv-answer.answer-widget .guide,#answer-host>pv-answer.answer-widget .guide>.pv-content{display:flex;flex-direction:column;gap:var(--pv-s3);flex:1}
+#answer-host>pv-answer.answer-widget .guide>.pv-content{padding:var(--pv-s3);border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
+#answer-host>pv-answer.answer-widget .guide .pv-step-position{font:var(--pv-t-value);color:var(--pv-ink);margin:0}
+#answer-host>pv-answer.answer-widget .guide .pv-meta{font:var(--pv-t-body);margin:0}
+#answer-host>pv-answer.answer-widget .guide .pv-step-progress{width:100%;height:var(--pv-s1);accent-color:var(--pv-ink)}
+#answer-host>pv-answer.answer-widget .guide .pv-step{font:var(--pv-t-title);line-height:1.3;min-height:120px;max-width:36ch;margin:0}
+#answer-host>pv-answer.answer-widget .guide .pv-step-outline{display:grid;gap:var(--pv-s3);margin:0;padding-left:var(--pv-s3);font:var(--pv-t-title)}
+#answer-host>pv-answer.answer-widget .guide .pv-actions{display:flex;justify-content:space-between;gap:var(--pv-s2);margin:auto 0 0;padding-top:var(--pv-s3)}
+#answer-host>pv-answer.answer-widget .guide .pv-actions>.pv-button{min-height:var(--pv-hit);padding:var(--pv-s2) var(--pv-s3);font:var(--pv-t-body)}
+#answer-host>pv-answer.answer-widget .checklist .pv-list{display:flex;flex-direction:column;border:1px solid var(--pv-line);border-radius:var(--pv-r-s);overflow:hidden}
+#answer-host>pv-answer.answer-widget .checklist .pv-list>.pv-button,#answer-host>pv-answer.answer-widget .checklist .pv-readonly-row{display:flex;align-items:center;justify-content:flex-start;gap:var(--pv-s2);width:100%;min-height:80px;padding:var(--pv-s2) var(--pv-s3);border:0;border-bottom:1px solid var(--pv-line);border-radius:0;background:var(--pv-surface-2);font:var(--pv-t-label);text-align:left}
+#answer-host>pv-answer.answer-widget .checklist .pv-button::before{flex:0 0 var(--pv-icon-s);width:var(--pv-icon-s);height:var(--pv-icon-s);background-size:var(--pv-icon-s)}
+#answer-host>pv-answer.answer-widget .checklist .pv-readonly-row>strong{font:var(--pv-t-label)}
+#answer-host>pv-answer.answer-widget .checklist .pv-readonly-row>.pv-meta{margin-inline-start:auto;font:var(--pv-t-meta)}
+#answer-host>pv-answer.answer-widget .answer-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pv-s2);flex:none;min-height:0;margin:auto 0 0;padding-top:var(--pv-s3);border-top:1px solid var(--pv-line)}
+#answer-host>pv-answer.answer-widget .followups>.pv-content{padding:0}
+#answer-host>pv-answer.answer-widget .followups .pv-list{display:flex;flex-wrap:wrap;gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget :is(.open-weather-answer,.retry-answer,.start-guide,.followups .pv-button){min-height:var(--pv-hit);margin:0;padding:var(--pv-s2) var(--pv-s3);font:var(--pv-t-body)}
+#answer-host>pv-answer.answer-widget .retry-answer{background:var(--pv-ink);color:var(--pv-on-dark)}
+#answer-host>pv-answer.answer-widget .answer-content>:is(.sources,.answer-source-menu){position:static;order:6;flex:none;width:100%;max-height:none;overflow:visible;margin:0;padding:0;border:0;border-top:1px solid var(--pv-line);border-radius:0;background:transparent}
+#answer-host>pv-answer.answer-widget .answer-content>:is(.sources,.answer-source-menu)>summary{display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;width:100%;height:auto;min-height:var(--pv-hit);margin:0;padding:var(--pv-s2);gap:var(--pv-s2);font:var(--pv-t-body);color:var(--pv-ink-2);border-radius:var(--pv-r-s);list-style:none;cursor:pointer}
+#answer-host>pv-answer.answer-widget .answer-content>:is(.sources,.answer-source-menu)>summary::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);flex:0 0 var(--pv-icon-s);margin-inline-start:auto;background:url('assets/icons/chevron-down.svg') center/contain no-repeat}
+#answer-host>pv-answer.answer-widget .answer-content>:is(.sources,.answer-source-menu)[open]>summary::after{transform:rotate(180deg)}
+#answer-host>pv-answer.answer-widget .answer-content>:is(.sources,.answer-source-menu)>:is(.pv-visual-source-panel,pv-source-list){position:static;inset:auto;width:100%;max-width:none;max-height:none;overflow:visible;margin:0;padding:var(--pv-s3) var(--pv-s2);box-sizing:border-box;background:transparent;box-shadow:none;border-radius:0}
+#answer-host>pv-answer.answer-widget .answer-content>:is(.sources,.answer-source-menu):not([open])>:is(.pv-visual-source-panel,pv-source-list){display:none}
+#answer-host>pv-answer.answer-widget .answer-meta{order:5;margin:0;font:var(--pv-t-meta);color:var(--pv-ink-3)}
+#answer-host>pv-answer.answer-widget .answer-visual.pv-component[data-state]>.pv-state-note:not([hidden]),#answer-host>pv-answer.answer-widget .answer-status.pv-component[data-state] .pv-copy:not([hidden]){position:static;min-height:0;padding:var(--pv-s2);margin:0 0 var(--pv-s3);font:var(--pv-t-body);max-width:none;border:1px solid var(--pv-line);border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
+#answer-host>pv-answer.answer-widget .answer-visual.pv-component[data-state]>.pv-state-note::before,#answer-host>pv-answer.answer-widget .answer-status.pv-component[data-state] .pv-copy::before{content:none;display:none}
+@media(max-width:759px){#answer-host>pv-answer.answer-widget{min-height:calc(100dvh - 144px);padding:var(--pv-s3)}#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tiles,#answer-host>pv-answer.answer-widget .answer-choices .pv-list,#answer-host>pv-answer.answer-widget .pv-component[data-component=simple-diagram] .pv-visual-list{grid-template-columns:1fr}#answer-host>pv-answer.answer-widget .comparison .pv-comparison-tile,#answer-host>pv-answer.answer-widget .answer-choices .pv-list>.pv-button{min-height:160px}#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item{grid-template-columns:1fr;grid-template-areas:'label' 'icon' 'value'}#answer-host>pv-answer.answer-widget .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item:first-child{grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-areas:'icon value' 'icon label'}#answer-host>pv-answer.answer-widget .pv-visual-list{grid-template-columns:1fr}}
+
+/* Answer titles are context, not claimed transcripts. Longer conclusions read as prose. */
+#answer-host>pv-answer.answer-widget .pv-visual[data-conclusion-density=prose] .pv-visual-lead>.pv-visual-summary,#answer-host>pv-answer.answer-widget[data-conclusion-density=prose] .intro :is(.pv-copy,.pv-conclusion){font:400 20px/26px var(--pv-font)!important;max-width:62ch;letter-spacing:0}
+#answer-host>pv-answer.answer-widget .pv-visual-item[data-answer-role=primary][data-value-kind=text]{grid-column:1/-1;min-height:0;padding:var(--pv-s3);background:var(--pv-surface-2);color:var(--pv-ink)}
+#answer-host>pv-answer.answer-widget .pv-visual-lead:has(>.pv-visual-summary[hidden]):not(:has(>.pv-visual-detail:not([hidden]))){display:none}
+
+/* SourceDisclosure grows below the retained answer instead of taking height
+   from its visual field. The outer task pane remains the only scroll owner. */
+/* Resource details have individual scrollports; the answer and continuing
+   activities form one stream and therefore use the outer task pane. */
+pv-widget-host[data-view=active] .frame>.responses:has(>#answer-host:not([hidden])>pv-answer.answer-widget:not([hidden])){overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;touch-action:pan-y;overflow-anchor:none}
+#answer-host>pv-answer.answer-widget:has(>.answer-content>:is(.sources,.answer-source-menu)[open]:not([hidden])){height:auto;max-height:none;flex:0 0 auto}
+#answer-host>pv-answer.answer-widget:has(>.answer-content>:is(.sources,.answer-source-menu)[open]:not([hidden])) :is(.answer-content,.answer-scroll,.answer-visual,.pv-visual-body,.pv-visual-list,.comparison,.chart,.guide,.checklist,.answer-choices){flex:0 0 auto;min-height:0;height:auto;max-height:none}
+#answer-host>pv-answer.answer-widget:has(>.answer-content>:is(.sources,.answer-source-menu)[open]:not([hidden])) .answer-scroll{min-height:var(--pv-answer-retained-body-height,max-content)}
+#answer-host>pv-answer.answer-widget:has(>.answer-content>:is(.sources,.answer-source-menu)[open]:not([hidden])) .answer-scroll>*{flex-shrink:0}
+
+/* Short responses fit with their real action dock; long responses keep natural scrollable sections. */
+#answer-host>pv-answer.answer-widget[data-answer-extent=short]{padding:var(--pv-s3);gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] :is(.answer-content,.answer-scroll,.pv-visual-body){gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-visual-body{min-height:0}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-visual-item[data-answer-role=primary][data-value-kind=numeric]{min-height:160px;padding:var(--pv-s3)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item{min-height:96px;padding:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-component[data-component=fact-card][data-presentation=weather] .pv-visual-item:first-child{min-height:128px;padding:var(--pv-s2) var(--pv-s3)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-answer-image>img{height:240px;max-height:240px}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .answer-actions{padding-top:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .comparison .pv-comparison-tile{min-height:220px}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .answer-choices .pv-list>.pv-button{min-height:200px}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide>.pv-content{display:grid;grid-template-columns:80px minmax(0,1fr);grid-template-rows:auto auto minmax(80px,1fr) auto;gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide .pv-step-position{grid-column:1;grid-row:1/3;align-self:center}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide .pv-meta{grid-column:2;grid-row:1}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide .pv-step-progress{grid-column:2;grid-row:2}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide .pv-step{grid-column:1/-1;grid-row:3;min-height:80px}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide .pv-actions{grid-column:1/-1;grid-row:4;padding-top:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short] .guide>.pv-content:has(.pv-step-outline:not([hidden])){display:block}
+#answer-host>pv-answer.answer-widget[data-answer-extent=long]{min-height:0;height:auto}
+#answer-host>pv-answer.answer-widget[data-answer-extent=long] .pv-visual-body{min-height:0}
+#answer-host>pv-answer.answer-widget .pv-visual-source-panel>small{display:block;margin-top:var(--pv-s2);font:var(--pv-t-meta);color:var(--pv-ink-3)}
+
+/* Existing answer-history identity now composes canonical ListRows. */
+pv-widget-host .responses>#history #retained{display:flex;flex-direction:column;align-items:stretch;align-self:stretch;order:1;width:100%;max-width:none;min-width:0;gap:0;margin:0;padding:0;box-sizing:border-box}
+pv-widget-host .responses>#history .retained-answer{display:block;flex:0 0 auto;align-self:stretch;width:100%;max-width:none;min-width:0;min-height:0;height:auto;padding:0;box-sizing:border-box;border:0;border-bottom:1px solid var(--pv-line);border-radius:0;box-shadow:none;background:transparent;overflow:visible}
+pv-widget-host .responses>#history .history-open{position:relative;display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr) var(--pv-icon-s);align-items:center;gap:var(--pv-s2);width:100%;max-width:none;min-width:0;min-height:80px;height:auto;padding:var(--pv-s3);box-sizing:border-box;border:0;border-radius:0;background:transparent;box-shadow:none;text-align:left;overflow:visible}
+pv-widget-host .responses>#history .history-open::after{content:none}
+pv-widget-host .responses>#history .history-domain-icon{width:var(--pv-icon-m);height:var(--pv-icon-m);object-fit:contain;align-self:start;margin-top:var(--pv-s1)}
+pv-widget-host .responses>#history .history-copy{display:flex;flex-direction:column;gap:var(--pv-s1);min-width:0;white-space:normal;overflow:visible}
+pv-widget-host .responses>#history .history-copy strong{display:block;font:var(--pv-t-label);color:var(--pv-ink);white-space:normal;overflow-wrap:break-word}
+pv-widget-host .responses>#history .history-excerpt{display:block;font:var(--pv-t-body);color:var(--pv-ink-2);white-space:normal;overflow-wrap:break-word}
+pv-widget-host .responses>#history .history-copy small{display:block;font:var(--pv-t-meta);color:var(--pv-ink-3);white-space:normal}
+pv-widget-host .responses>#history .history-chevron{width:var(--pv-icon-s);height:var(--pv-icon-s);object-fit:contain}
+pv-widget-host .responses>#history .history-open:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:var(--pv-s1);border-radius:var(--pv-r-s)}
+pv-widget-host .responses>#history>#history-example-note{order:3;width:100%;margin:var(--pv-s2) 0 0;padding:0 var(--pv-s3);font:var(--pv-t-meta);color:var(--pv-ink-3)}
+
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview)>:is(img:last-child,.resource-chevron){display:none}
+
+/* Ro feedback sits above the compact widget row, never over a timer or music. */
+
+
+/* Robot controls: one room heading, natural sections, one 24px inter-zone gap. */
+pv-widget-host #device-view [data-robot-rooms=true]{gap:var(--pv-s3)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>.device-history{margin:0;padding:0!important;min-height:0;background:transparent;border:0;box-shadow:none}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>.robot-cleaning-zone{margin:0;padding:0!important}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form{display:flex;flex-direction:column;gap:var(--pv-s2);margin:0;padding:var(--pv-s3);min-height:0;box-shadow:none}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form>.robot-room-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);margin:0;padding:0;min-height:0}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-context>h2{font:var(--pv-t-label);margin:0}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-heading>button{min-height:var(--pv-hit);margin:0;padding:0 var(--pv-s2);font:var(--pv-t-body)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-context>.robot-map-meta{margin:var(--pv-s1) 0 0;font:var(--pv-t-meta);color:var(--pv-ink-3)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-legend{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form>fieldset{margin:0;padding:0}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form>.repeat{margin-top:var(--pv-s1)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .choices.pv-tiles>.robot-room-tile{height:177px;min-height:177px;max-height:177px;gap:var(--pv-s2);padding:var(--pv-s3);box-shadow:none;justify-content:space-between}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-icon{width:var(--pv-icon-m);height:var(--pv-icon-m)}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-label{font:var(--pv-t-label);text-align:left;white-space:normal;overflow-wrap:break-word}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form>.summary{margin:0;font:var(--pv-t-body)}
+#answer-host>pv-answer.answer-widget .pv-visual-lead>.pv-conclusion::before{display:none;content:none}
+pv-widget-host[data-view=active] .player.pv-card>.transport:has(>#previous[hidden]):has(>#next[hidden]){justify-content:center}
+/* Detail scrollports reserve a shared gutter so card shadows survive clipping. */
+pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]){padding-inline:var(--pv-s2);box-sizing:border-box}
+
+
+
+
+
+
+/* The existing empty player retains the same room/artwork/status/action anatomy. */
+pv-widget-host .player[data-read-state=error] #player-state{color:var(--pv-danger)}
+pv-widget-host[data-view=active] #player-empty:not([hidden]){display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:var(--pv-s1);height:100%;min-height:0;padding:var(--pv-s3);background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow);text-align:left}
+pv-widget-host[data-view=active] #player-empty>.player-empty-copy{display:contents}
+pv-widget-host[data-view=active] #player-empty .output{order:0;flex:none;width:100%;height:48px;min-height:48px;margin:0;padding:0;justify-content:space-between;text-align:left}
+pv-widget-host[data-view=active] #player-empty .output h2{display:flex;align-items:center;justify-content:space-between;width:100%;margin:0;font:var(--pv-t-body)}
+pv-widget-host[data-view=active] #player-empty #output:disabled{opacity:1;cursor:default}
+pv-widget-host[data-view=active] #player-empty>.player-empty-art{order:1;display:grid;place-items:center;flex:none;align-self:center;width:min(100%,326px);max-width:none;height:auto;aspect-ratio:1;background:var(--pv-surface-2);border-radius:var(--pv-r-s);overflow:hidden}
+pv-widget-host[data-view=active] #player-empty>.player-empty-art>img{display:block;width:64px;height:64px;max-width:25%;max-height:25%;padding:0;background:transparent;object-fit:contain;filter:none;opacity:1;visibility:visible}
+pv-widget-host[data-view=active] #player-empty p{order:2;flex:none;align-self:stretch;max-width:none;min-height:24px;margin:0;font:var(--pv-t-body);color:var(--pv-ink-2);text-align:center}
+pv-widget-host[data-view=active] #player-empty[data-state=error] p{color:var(--pv-danger)}
+pv-widget-host[data-view=active] #player-empty>#empty-find-music{order:3;flex:none;width:100%;min-height:64px;margin:auto 0 0;padding:0 var(--pv-s2);font:var(--pv-t-body)}
+pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending])>.player-empty-copy{display:contents}
+pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) .output{display:none}
+pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) p{display:block;position:absolute;left:64px;right:var(--pv-s2);top:var(--pv-s2);max-height:40px;min-height:0;margin:0;overflow:hidden;font:var(--pv-t-meta);color:var(--pv-ink-2);pointer-events:none}
+pv-widget-host[data-view=rest] #player-empty[data-state=error] p{color:var(--pv-danger)}
+pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending])>#empty-find-music{align-items:flex-end;padding-top:48px;font:var(--pv-t-meta)}
+@media(min-width:760px) and (max-height:640px){pv-widget-host[data-view=active] #player-empty>.player-empty-art{width:min(100%,220px,max(96px,calc(100dvh - 448px)));align-self:center}}
+@media(max-width:759px){pv-widget-host[data-view=active] #player-empty:not([hidden]){height:auto;min-height:0}}
+
+/* Every MusicResults card shares one surface; rank does not invent a selection. */
+#music-response #result-list>.result{background:var(--pv-surface);color:var(--pv-ink)}
+#music-response #result-list>.result .result-play{display:grid;place-items:center;width:64px;height:64px;min-height:64px;padding:0;border:0;border-radius:var(--pv-r-pill);background:var(--pv-surface-2);color:var(--pv-ink)}
+#music-response #result-list>.result .result-play>img{width:24px;height:24px;filter:none}
+#music-response #result-list>.result .result-art.live-art-fallback{filter:none}
+#music-response #result-list>.result[data-chosen=true]{outline:2px solid var(--pv-ink);outline-offset:-2px}
+#music-response #result-list>.result[data-pending=true]{outline:2px solid var(--pv-ink);outline-offset:-2px}
+pv-widget-host[data-topbar=true] #music-response>.response-heading{min-height:48px;padding:0;margin:0 0 var(--pv-s2);align-items:center}
+pv-widget-host[data-topbar=true] #music-response #result-count{font:var(--pv-t-meta);margin:0}
+/* Quiet inactive Timer uses the existing raised warm charcoal; active timer
+   remains the dark emphasis surface. Both retain the same white ink/icon. */
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut{background:var(--pv-timer-idle-surface);color:var(--pv-on-dark)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut small{color:var(--pv-on-dark)}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut>img{filter:brightness(0) invert(1)}
+/* Inactive overview: weather/robot retain their places; the right-hand small
+   cards are Lights/Tesla, then Radio/Timer. Music retains the larger left slot. */
+@media(min-width:760px) and (min-height:641px){
+ pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden])){grid-template-rows:repeat(3,177px);grid-auto-rows:auto}
+ pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))>#home-weather{grid-row:1/3}
+ pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))>.resource-card[data-kind=vacuum]{grid-row:1}
+ pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))>:is(.resource-card[data-kind=light],#home-vehicle){grid-row:2}
+ pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))>#home-music{grid-column:1/3;grid-row:3}
+pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))>#home-radio{grid-column:3;grid-row:3}
+ pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))>#timer-card{grid-row:3;grid-column:4;min-height:177px;width:100%;max-width:100%;padding:0;background:transparent}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut{display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr);grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px;align-items:start;min-height:177px;height:177px;width:100%;gap:var(--pv-s2);padding:var(--pv-s3);border-radius:var(--pv-r-l);background:var(--pv-timer-idle-surface);color:var(--pv-on-dark);box-shadow:var(--pv-shadow)}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut>span{display:contents}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut strong{grid-column:2;grid-row:1;font:var(--pv-t-label);align-self:center}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut small{grid-column:1/-1;grid-row:3;align-self:start;min-height:48px;max-height:48px;display:block;font:var(--pv-t-body);line-height:24px;color:var(--pv-on-dark)}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card>.timer-shortcut>img:last-child{display:none}
+
+}
+
+pv-widget-host[data-view=active] #player-empty:not([hidden]){margin:0;top:auto;grid-column:2;grid-row:1;align-self:stretch;position:relative}
+pv-widget-host[data-topbar=true] #vehicle-view>.response-heading{display:none}
+pv-widget-host #vehicle-view .vehicle-hero{position:relative}
+pv-widget-host #vehicle-view .vehicle-context{position:absolute;right:var(--pv-s3);top:var(--pv-s3);font:var(--pv-t-meta);margin:0;color:var(--pv-tesla-ink)}/* Ro timer shares the compact media footprint; feedback clears the whole row. */
+
+
+
+
+
+
+
+
+
+
+
+pv-widget-host[data-view=rest] .frame::before,pv-widget-host[data-view=rest] .frame::after{display:none}
+
+
+/* One top origin for every composed left pane, shared with the retained player. */
+pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#weather-view,#device-view,#vehicle-view,#radio-view,#timers-view,#music-response,#history):not([hidden]){margin-block-start:0;padding-block-start:0;align-self:stretch;width:100%}
+pv-widget-host[data-view=active] .responses>#music-detail:not([hidden]){padding:var(--pv-s3);height:100%}
+/* Weather uses the same detail template: only its existing Hero is toned. */
+pv-widget-host[data-view=active] .responses>#weather-view.weather-view:not([hidden]){margin-block-start:0;margin-inline:0;width:100%;padding:0 var(--pv-s2) var(--pv-s1);box-sizing:border-box;background:transparent;box-shadow:none;border-radius:0}
+pv-widget-host[data-topbar=true] .responses>#history>header{display:none}
+pv-widget-host .responses:focus,pv-widget-host #header-title:focus{outline:none;box-shadow:none}
+pv-widget-host .view-nav .header-title:has(>#header-title-action){overflow:visible}
+pv-widget-host .view-nav #header-title-action{box-sizing:border-box;display:inline-flex;align-items:center;min-width:0;min-height:var(--pv-hit);height:var(--pv-hit);max-width:calc(100% + 2 * var(--pv-s2));margin-block:0;margin-inline:calc(-1 * var(--pv-s2));padding:var(--pv-s1) var(--pv-s2);border:0;border-radius:var(--pv-r-s);background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;white-space:inherit;box-shadow:none;transform:none;filter:none}
+pv-widget-host .view-nav #header-title-action:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:4px}
+
+
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-label>strong,#home-vehicle>span>strong){color:var(--pv-ink)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview[data-overview-priority=unavailable] .resource-value{color:var(--pv-ink-2)}
+
+pv-widget-host[data-view=active][data-level=home] .frame>.responses{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;min-height:0;overflow-anchor:none}
+body:has(#playback-status:not([hidden])) pv-widget-host[data-view=active] #now-view:not([hidden]){padding-bottom:88px}
+
+/* Music discovery has tabs, results and one quiet footer action. */
+pv-widget-host[data-topbar=true] #music-response>.response-heading{display:none}
+pv-widget-host #music-response .music-result-summary{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;padding:0;margin:0}
+pv-widget-host #music-response>.music-refresh-message{order:9;flex:none;grid-column:1;grid-row:3;align-self:center;min-width:0;max-width:none;max-height:var(--pv-hit);overflow-y:auto;margin:0;padding:0;font:var(--pv-t-meta);line-height:20px;text-align:left;overflow-wrap:anywhere;color:var(--pv-ink-2)}
+pv-widget-host #music-response>.music-refresh-message[data-refresh-outcome=error]{color:var(--pv-danger)}
+pv-widget-host #music-response>.music-refresh-footer{order:10;grid-column:2;grid-row:3;align-self:center;justify-self:end;flex:none;height:var(--pv-hit);min-height:var(--pv-hit);max-height:var(--pv-hit);margin:0;padding:0 var(--pv-s3);font:var(--pv-t-body);border-radius:var(--pv-r-pill);background:var(--pv-surface-2);width:208px;min-width:208px;justify-content:center;box-sizing:border-box}
+pv-widget-host #music-response .result-inner,pv-widget-host #music-response #result-list{height:auto}
+/* The existing status and retry button share reserved footer tracks. Revealing
+   a refresh error cannot append a row or displace the retained result cards. */
+pv-widget-host[data-view=active][data-topbar=true] .responses>#music-response:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) 208px;grid-template-rows:auto minmax(min-content,1fr) var(--pv-hit);column-gap:var(--pv-s2);row-gap:var(--pv-s3);padding-bottom:var(--pv-s1)}
+pv-widget-host[data-topbar=true] #music-response>#music-refinements{grid-column:1/-1;grid-row:1;min-width:0}
+pv-widget-host[data-topbar=true] #music-response>#results{grid-column:1/-1;grid-row:2;min-width:0;align-self:start}
+@media(max-width:759px){
+ pv-widget-host[data-view=active][data-topbar=true] .responses>#music-response:not([hidden]){grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(min-content,1fr) var(--pv-hit) var(--pv-hit);row-gap:var(--pv-s2)}
+ pv-widget-host #music-response>.music-refresh-message{grid-column:1;grid-row:3}
+ pv-widget-host #music-response>.music-refresh-footer{grid-column:1;grid-row:4}
+}
+/* Vertical content scroll is free; snapping belongs only to horizontal rails. */
+pv-widget-host[data-view=active][data-level=home] .frame>.responses{scroll-snap-type:none}
+body #playback-status.action-feedback{min-height:var(--pv-hit);box-sizing:border-box}
+
+/* TopBar owns detail titles. Empty duplicate headers cannot create vertical drift. */
+pv-widget-host[data-topbar=true] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view)>.response-heading{display:none}
+
+/* Canonical Timer detail. Legacy setup/running recipes are removed from other layers. */
+pv-widget-host #timers-view{--pv-timer-setup-size:200px;--pv-timer-running-size:280px;background:transparent;box-shadow:none;border:0;border-radius:0;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:var(--pv-s3);width:100%;min-width:0;box-sizing:border-box;padding-block:0}
+pv-widget-host #timers-view>.response-heading,pv-widget-host #timers-view .timer-running>h2,pv-widget-host #timers-view .timer-create>h2{display:none}
+pv-widget-host #timers-view :is(.timer-create,.timer-running){width:100%;max-width:none;min-width:0;flex:none;margin:0;box-sizing:border-box}
+pv-widget-host #timers-view :is(.timer-create,.timer-running .timer-panel){width:100%;max-width:none;min-width:0;min-height:528px;padding:var(--pv-s4);box-sizing:border-box;background:var(--pv-dark);color:var(--pv-on-dark);border:0;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
+pv-widget-host #timers-view .timer-create:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--pv-timer-setup-size) 64px 64px;align-content:center;justify-items:stretch;gap:var(--pv-s3)}
+pv-widget-host #timers-view .timer-stepper{grid-column:1;grid-row:1;display:grid;grid-template-columns:64px minmax(0,var(--pv-timer-setup-size)) 64px;grid-template-rows:var(--pv-timer-setup-size);justify-content:center;align-items:center;width:100%;min-width:0;height:var(--pv-timer-setup-size);margin:0;gap:var(--pv-s3)}
+pv-widget-host #timers-view .timer-stepper>.timer-adjust{position:static;grid-column:auto;grid-row:1;display:grid;place-items:center;justify-self:center;width:64px;height:64px;min-width:64px;min-height:64px;margin:0;padding:var(--pv-s2);border:0;border-radius:var(--pv-r-pill);background:var(--pv-ink-2);color:var(--pv-on-dark)}
+pv-widget-host #timers-view .timer-stepper>.timer-adjust>img{width:32px;height:32px;filter:brightness(0) invert(1)}
+pv-widget-host #timers-view .timer-selected{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--pv-s1);justify-self:center;width:100%;max-width:var(--pv-timer-setup-size);height:auto;aspect-ratio:1;min-width:0;box-sizing:border-box;margin:0;border:4px solid var(--pv-ink-2);border-radius:var(--pv-r-pill);color:var(--pv-on-dark)}
+pv-widget-host #timers-view .timer-selected output{font:var(--pv-t-hero);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.035em;color:inherit}
+pv-widget-host #timers-view .timer-selected[data-long=true] output{font-size:var(--pv-type-display)}
+pv-widget-host #timers-view .timer-selected>span{font:var(--pv-t-meta);color:inherit}
+pv-widget-host #timers-view .timer-presets{grid-column:1;grid-row:2;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:64px;gap:var(--pv-s2);width:100%;min-width:0;margin:0}
+pv-widget-host #timers-view .timer-presets>button{display:flex;align-items:center;justify-content:center;width:100%;min-width:0;height:64px;min-height:64px;margin:0;padding:0 var(--pv-s2);border:0;border-radius:var(--pv-r-pill);background:var(--pv-ink-2);color:var(--pv-on-dark);font:var(--pv-t-body);font-weight:600;white-space:nowrap}
+pv-widget-host #timers-view .timer-presets>button[aria-pressed=true]{background:var(--pv-on-dark);color:var(--pv-dark)}
+pv-widget-host #timers-view .timer-create-footer{grid-column:1;grid-row:3;display:block;width:100%;margin:0;padding:0}
+pv-widget-host #timers-view .timer-start{display:flex;align-items:center;justify-content:center;gap:var(--pv-s2);width:100%;max-width:none;height:64px;min-height:64px;margin:0;padding:0 var(--pv-s3);border:0;border-radius:var(--pv-r-pill);background:var(--pv-on-dark);color:var(--pv-dark);font:var(--pv-t-label)}
+pv-widget-host #timers-view .timer-start>img{width:24px;height:24px;filter:none}
+pv-widget-host #timers-view #timer-exact[hidden]{display:none}
+pv-widget-host #timers-view .timer-validation{font:var(--pv-t-meta);color:var(--pv-danger)}
+pv-widget-host #timers-view .timer-running .timer-active-list{display:block;width:100%;margin:0;padding:0}
+pv-widget-host #timers-view .timer-running .timer-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:var(--pv-timer-running-size) 64px;align-content:center;align-items:center;gap:var(--pv-s3)}
+pv-widget-host #timers-view .timer-running .timer-open{grid-column:1/-1;grid-row:1;display:grid;place-items:center;width:100%;min-width:0;min-height:0;margin:0;padding:0;background:transparent}
+pv-widget-host #timers-view .timer-running .timer-instrument{grid-column:1;grid-row:1;justify-self:center;width:var(--pv-timer-running-size);height:var(--pv-timer-running-size)}
+pv-widget-host #timers-view .timer-running .timer-count{max-width:100%;font:var(--pv-t-hero);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.035em;color:var(--pv-on-dark)}
+pv-widget-host #timers-view .timer-running .timer-instrument[data-long=true] .timer-count{font-size:var(--pv-type-display)}
+pv-widget-host #timers-view .timer-running .timer-copy{display:none}
+pv-widget-host #timers-view .timer-running .timer-track{stroke:var(--pv-ink-2)}
+pv-widget-host #timers-view .timer-running .timer-progress{stroke:var(--pv-on-dark)}
+pv-widget-host #timers-view .timer-running :is(.timer-track,.timer-progress){stroke-width:5;stroke-linecap:round}
+pv-widget-host #timers-view .timer-running .timer-actions{grid-column:1;grid-row:2;display:block;width:100%;margin:0;padding:0}
+pv-widget-host #timers-view .timer-running :is(.timer-actions>button,.timer-finish){display:flex;align-items:center;justify-content:center;width:100%;height:64px;min-height:64px;margin:0;padding:0 var(--pv-s3);border:0;border-radius:var(--pv-r-pill);font:var(--pv-t-label)}
+pv-widget-host #timers-view .timer-running .timer-actions>button{background:var(--pv-on-dark);color:var(--pv-dark)}
+pv-widget-host #timers-view .timer-running .timer-finish{position:static;grid-column:2;grid-row:2;background:var(--pv-ink-2);color:var(--pv-on-dark)}
+/* Overview cancellation keeps the same canonical Button target and body role. */
+pv-widget-host #now-view #timer-card .timer-active-list .timer-panel .timer-finish{height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);font:var(--pv-t-body)}
+pv-widget-host #timers-view .timer-running .timer-panel[data-status=done] .timer-count{max-width:200px;font:var(--pv-t-title);white-space:normal;text-align:center}
+pv-widget-host #timers-view .timer-running .timer-panel[data-status=done] .timer-finish{grid-column:1/-1;background:var(--pv-on-dark);color:var(--pv-dark)}
+pv-widget-host #timers-view .timer-recent{margin:0;padding:0}
+pv-widget-host #timers-view .timer-recent>h2{font:var(--pv-t-label);margin:0 0 var(--pv-s2)}
+@media(min-width:760px) and (max-height:640px){pv-widget-host #timers-view{--pv-timer-setup-size:160px;--pv-timer-running-size:224px}pv-widget-host #timers-view :is(.timer-create,.timer-running .timer-panel){min-height:440px}pv-widget-host #timers-view .timer-selected output{font:var(--pv-t-value)}}
+@media(max-width:759px){pv-widget-host #timers-view{--pv-timer-setup-size:160px;--pv-timer-running-size:224px}pv-widget-host #timers-view :is(.timer-create,.timer-running .timer-panel){min-height:480px;padding:var(--pv-s3)}pv-widget-host #timers-view .timer-stepper{gap:var(--pv-s2)}pv-widget-host #timers-view .timer-selected output{font-size:clamp(24px,8vw,40px);line-height:1}pv-widget-host #timers-view .timer-presets{gap:var(--pv-s1)}pv-widget-host #timers-view .timer-presets>button{padding:0 var(--pv-s1)}pv-widget-host #timers-view .timer-running .timer-instrument{max-width:100%;aspect-ratio:1;height:auto}}
+
+/* Robot detail begins at the shared pane origin; padding belongs inside its Hero. */
+pv-widget-host #device-view>.device-history[data-robot-rooms=true]{padding-block-start:0}
+
+/* Tall viewports preserve the player instrument rather than stretching its rows. */
+@media(min-width:760px){pv-widget-host[data-view=active] #player-empty:not([hidden]){max-height:692px;align-self:start}}
+
+/* VoiceSurface retains one footprint; its owner moves it inside Ro's photo. */
+pv-widget-host>.voice-surface,pv-widget-host[data-view]>.voice-surface{position:fixed;inset:var(--pv-voice-top,var(--pv-s2)) auto auto 50%;translate:-50% 0;transform:none;z-index:12;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:224px;min-width:224px;max-width:224px;height:48px;min-height:48px;max-height:48px;margin:0;padding:0 var(--pv-s3);gap:var(--pv-s1);border-radius:var(--pv-r-pill);background:var(--pv-dark);color:var(--pv-on-dark);box-shadow:none;pointer-events:none}
+pv-widget-host[data-view]>.voice-surface[hidden]{display:none}
+pv-widget-host .voice-surface[data-phase] .voice-mark{display:grid;place-items:center;width:24px;height:24px;flex:0 0 24px;background:none;border-radius:0}
+pv-widget-host .voice-surface .voice-mark>img{display:block;width:24px;height:24px;filter:invert(1)}
+pv-widget-host .voice-surface .voice-copy{display:flex;align-items:center;flex:0 1 auto;width:auto;min-width:0;max-width:calc(224px - 2 * var(--pv-s3) - var(--pv-icon-s) - var(--pv-s1));height:24px;min-height:24px;margin:0;padding:0;gap:0;overflow:hidden}
+pv-widget-host .voice-surface .voice-copy>strong{display:block;margin:0;padding:0;font:var(--pv-t-label);font-weight:600;line-height:24px;letter-spacing:0;white-space:nowrap}
+pv-widget-host .voice-surface .voice-copy>span{display:none}
+pv-widget-host .voice-surface :is(.voice-copy,.voice-mark)::after{content:none;display:none}
+
+/* A full-pane history is a navigation destination, not a focused input surface. */
+pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focus-visible{outline:none;box-shadow:none}
+
+
+/* A collapsed source disclosure after actions needs no second footer divider.
+   Keep the body/action boundary and restore the source boundary when open or
+   when a visible metadata section separates actions from the disclosure. */
+:is(#answer-host>pv-answer.answer-widget,pv-widget-host .history-preview>pv-answer.answer-widget)>.answer-content:not(:has(>[data-response-zone=metadata]:not([hidden]):not(.sources):not(.answer-source-menu)))>.answer-actions:not([hidden])~:is(.sources,.answer-source-menu):not([hidden]):not([open]){border-top:0}
+
+/* MusicResults: a reserved action footer; pending belongs to the chosen Play. */
+#music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"]){grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(calc(2 * var(--pv-leading-widget) + var(--pv-s1) + 2 * var(--pv-leading-body)),auto) var(--pv-hit)}
+#music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy{grid-column:1/-1;grid-row:2}
+#music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-play{grid-column:1/-1;grid-row:3;justify-self:end;align-self:end;position:relative;animation:none}
+#music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-feedback{display:block;position:absolute;inset:auto;width:1px;height:1px;min-height:0;max-height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;text-shadow:none}
+#music-response #result-list>.result .result-play::before{content:none}
+#music-response #result-list>.result[data-pending=true][aria-busy=true] .result-play::before{content:'';position:absolute;inset:4px;border:3px solid var(--pv-line);border-top-color:var(--pv-ink);border-radius:var(--pv-r-pill);animation:pv-music-play-pending 1s linear infinite;pointer-events:none}
+#music-response #result-list>.result[data-pending=true] .result-play>img{opacity:.65}
+@keyframes pv-music-play-pending{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){#music-response #result-list>.result[data-pending=true] .result-play::before{animation:none}}
+[data-motion=reduced] #music-response #result-list>.result[data-pending=true] .result-play::before{animation:none}
+
+/* A narrow screen retains the same result Card with enough width for its
+   cover, title and artist. The detail pane already owns native vertical scroll. */
+@media(max-width:600px){pv-widget-host #music-response #result-list{grid-template-columns:minmax(0,1fr)}}
+
+/* Native controls share tactile feedback; readable body content stays selectable. */
+:is(button,a[href],summary,[role=button]){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+:is(input,textarea,[contenteditable]:not([contenteditable=false])){-webkit-user-select:text;user-select:text}
+:is(button,a[href],summary,[role=button]).is-pressed:not([disabled],[aria-disabled=true],[data-touch-cancelled=true]){box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)!important;filter:none!important;transform:none!important;scale:1!important}
+:is(button,a[href],summary,[role=button])[data-pv-pointer-focus=true]:focus{outline:none!important}
+/* Native :active on an ancestor must not multiply a child's press treatment. */
+:is(button,a[href],summary,[role=button]):active{filter:none!important;transform:none!important;scale:1!important}
+
+/* Robot detail: the same admitted form anatomy inside the detail and its dialog. */
+pv-widget-host pv-robot-control-panel>.robot-control-panel{display:flex;flex-direction:column;gap:var(--pv-s3);padding:0;background:transparent}
+pv-widget-host pv-robot-control-panel>.robot-control-panel>.device-history{margin:0;padding:0!important}
+pv-widget-host pv-robot-control-panel .robot-cleaning-form{display:flex;flex-direction:column;gap:var(--pv-s2);margin:0;padding:var(--pv-s3);background:var(--pv-surface);border-radius:var(--pv-r-l)}
+pv-widget-host pv-robot-control-panel .robot-room-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2)}
+pv-widget-host pv-robot-control-panel .robot-room-context>h2{margin:0;font:var(--pv-t-label)}
+pv-widget-host pv-robot-control-panel .robot-map-meta{margin:var(--pv-s1) 0 0;font:var(--pv-t-meta);color:var(--pv-ink-3)}
+pv-widget-host pv-robot-control-panel .robot-room-legend{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+pv-widget-host pv-robot-control-panel .robot-cleaning-form>:is(fieldset,p){margin:0}
+pv-widget-host pv-robot-control-panel .robot-cleaning-form>.history-note{font:var(--pv-t-meta);color:var(--pv-ink-2);max-width:60ch}
+pv-widget-host pv-robot-control-panel .settings>.setting{display:flex;flex-direction:column;align-items:stretch;gap:var(--pv-s2);margin:var(--pv-s2) 0 0;padding:var(--pv-s3) 0;border-radius:0;background:transparent;box-shadow:none;border-bottom:1px solid var(--pv-line)}
+pv-widget-host pv-robot-control-panel .settings>.setting>h4{margin:0;font:var(--pv-t-label)}
+pv-widget-host pv-robot-control-panel .settings>.setting>.pv-segmented{display:flex;flex-wrap:wrap;gap:var(--pv-s1)}
+pv-widget-host pv-robot-control-panel .settings>.setting>.pv-segmented>.pv-segment{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere}
+pv-widget-host pv-robot-control-panel .settings>.setting>input{box-sizing:border-box;width:100%;min-height:var(--pv-hit);padding:var(--pv-s2);font:var(--pv-t-body);color:var(--pv-ink);background:var(--pv-surface);border:1px solid var(--pv-line);border-radius:var(--pv-r-s)}
+pv-widget-host pv-robot-control-panel .settings>.setting>button{align-self:flex-start}
+pv-widget-host pv-robot-control-panel .transport>.pv-primary{flex-basis:100%}
+
+/* Device details share explicit Hero roles in every state and control owner.
+   Status/helper text flows in its own rows; only admitted numeric battery is a value. */
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]{height:auto;max-height:none;min-height:var(--pv-detail-min);padding:var(--pv-s4)!important;overflow:visible}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-content{display:grid;grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-rows:auto auto auto auto;gap:var(--pv-s1) var(--pv-s3);align-items:start;align-content:start;height:auto;min-height:0}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-instrument{grid-column:1;grid-row:1/4;width:var(--pv-icon-l);height:var(--pv-icon-l);margin:0;padding:0;border:0;background:transparent;align-self:start}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-instrument>img{width:var(--pv-icon-l);height:var(--pv-icon-l);filter:none}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] h3{position:static;grid-column:2;grid-row:1;align-self:start;font:var(--pv-t-label);margin:0;max-width:none}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-resource-value{position:static;grid-column:2;grid-row:2;align-self:start;font:var(--pv-t-title)!important;max-width:100%;margin:0;letter-spacing:-.02em;overflow-wrap:break-word;white-space:normal}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-resource-value-kind=measurement] .pv-resource-value{font:var(--pv-t-value)!important;font-variant-numeric:tabular-nums}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-meta{position:static;grid-column:2;grid-row:3;align-self:start;font:var(--pv-t-body);margin:0;color:inherit;max-width:52ch;white-space:normal;overflow-wrap:break-word}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-actions{grid-column:2;grid-row:4;margin:var(--pv-s1) 0 0;align-self:start}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] :is(h3,.pv-meta,.pv-actions):empty{display:none}
+pv-widget-host #device-view pv-light-widget.pv-kit-hero[data-kit-state]:not([data-kit-state=ready]){background:var(--pv-light);color:var(--pv-light-ink)}
+pv-widget-host #device-view pv-light-widget.pv-kit-hero[data-kit-state]:not([data-kit-state=ready]) :is(h3,p){color:var(--pv-light-ink)}
+pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero[data-kit-state]:not([data-kit-state=ready]){display:grid;grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-rows:auto auto auto auto;gap:var(--pv-s1) var(--pv-s3)}
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state]:not([data-kit-state=ready])>.pv-icon{grid-column:1;grid-row:1/4;align-self:start;width:var(--pv-icon-l);height:var(--pv-icon-l)}
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state]:not([data-kit-state=ready]) .vehicle-context{position:static;grid-column:2;grid-row:1;font:var(--pv-t-label);margin:0}
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state]:not([data-kit-state=ready]) .vehicle-status{grid-column:2;grid-row:2;font:var(--pv-t-title);margin:0;max-width:none}
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state]:not([data-kit-state=ready]) .vehicle-connection-note{grid-column:2;grid-row:3;font:var(--pv-t-body);margin:0;color:inherit}
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state]:not([data-kit-state=ready]) .vehicle-content{grid-column:1/-1;grid-row:4;display:block;margin-top:var(--pv-s2)}
+/* ChoiceList is a layout host. Only its station Tiles own a surface/elevation. */
+pv-widget-host #radio-view .radio-station-tiles.pv-component{padding:0!important;border:0;border-radius:0;background:transparent;box-shadow:none}
+pv-widget-host #radio-view .radio-station-tiles>.pv-content{padding:0;background:transparent;box-shadow:none}
+/* Empty and selected Radio keep the same Hero slots. A placeholder glyph
+   occupies its reserved cover frame; decoding cannot change the row height. */
+pv-widget-host #radio-view .radio-hero[data-kit-state=empty] .radio-hero-art{padding:var(--pv-s3)}
+pv-widget-host #radio-view .radio-open-player[hidden]{display:flex!important;visibility:hidden;pointer-events:none}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true]{background:var(--pv-surface-2)!important;color:var(--pv-ink)!important;border-color:transparent;box-shadow:var(--pv-shadow)}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:4px}
+@media(max-width:600px){pv-widget-host #radio-view .radio-hero{padding:var(--pv-s3)}pv-widget-host #radio-view .radio-hero-art{width:var(--pv-icon-l);height:var(--pv-icon-l)}pv-widget-host #radio-view .radio-hero[data-kit-state=empty] .radio-hero-art{padding:0}}
+/* Actual Weather and Clock buttons share exactly the same outer touch inset. */
+pv-widget-host[data-topbar=true] .view-nav .header-context>:is(#header-weather,#header-ro){height:var(--pv-hit);min-height:var(--pv-hit);box-sizing:border-box;margin:0;padding:var(--pv-s1) var(--pv-s2);border:0;border-radius:var(--pv-r-s)}
+/* Slider fills the retained Player's 24 px inner width; output stays announced. */
+pv-widget-host[data-view=active] .player.pv-card>.volume{display:flex;align-items:center;gap:var(--pv-s2);width:100%;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;box-sizing:border-box}
+pv-widget-host[data-view=active] .player.pv-card>.volume>.volume-mute{flex:0 0 var(--pv-hit);width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit)}
+pv-widget-host[data-view=active] .player.pv-card>.volume>#volume{flex:1 1 0;width:0;min-width:0;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0}
+pv-widget-host[data-view=active] .player.pv-card>.volume>#volume-value.sr-only{position:absolute;width:1px;height:1px;min-width:0;min-height:0;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Native horizontal Slider: the same bounded fill in Player and library.
+   Vertical light dimmers retain their existing orientation and domain paint. */
+input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v){--pv-slider-ink:var(--pv-ink);--pv-slider-track:var(--pv-line);appearance:none;-webkit-appearance:none;min-height:var(--pv-hit);margin:0;padding:0;border:0;background:transparent;touch-action:pan-y}
+input.pv-kit.pv-kit-slider[data-kit-identity=tesla]:not([aria-orientation=vertical]):not(.--v){--pv-slider-ink:var(--pv-tesla-ink);--pv-slider-track:var(--pv-tesla-strong)}
+input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-webkit-slider-runnable-track{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-pill);background:linear-gradient(to right,var(--pv-slider-ink) 0 var(--pv-slider-progress,0%),var(--pv-slider-track) var(--pv-slider-progress,0%) 100%)}
+input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:var(--pv-volume-thumb-size,24px);height:var(--pv-volume-thumb-size,24px);margin-top:calc((var(--pv-volume-track-size,6px) - var(--pv-volume-thumb-size,24px))/2);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-ink)}
+input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-moz-range-track{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-track)}
+input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-moz-range-progress{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-ink)}
+input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-moz-range-thumb{width:var(--pv-volume-thumb-size,24px);height:var(--pv-volume-thumb-size,24px);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-ink)}
+/* A station/status change consumes its reserved two-line S-card footer only. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio>span>small{height:48px;min-height:48px;max-height:48px;line-height:24px;overflow:hidden;overflow-wrap:normal;white-space:normal}
+
+/* Quiet title navigation acknowledges touch without painting a large rectangle. */
+[data-pv-press=quiet].is-pressed:not([disabled],[aria-disabled=true]){box-shadow:none!important;opacity:.64}
+
+/* Lamp Tiles retain one column, including a non-dimmable switch. */
+pv-widget-host #device-view .light-adjustments{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);margin-top:0}
+pv-widget-host #device-view .light-brightness,
+pv-widget-host #device-view .light-brightness:not(:has(>input)){box-sizing:border-box;grid-template-columns:minmax(0,1fr);grid-template-rows:64px 80px 24px;gap:var(--pv-s1);padding:var(--pv-s2);height:222px;min-height:222px;max-height:222px;align-content:start;background:var(--pv-light);color:var(--pv-light-ink)}
+pv-widget-host #device-view .light-brightness>.light-toggle,
+pv-widget-host #device-view .light-brightness:not(:has(>input))>.light-toggle{grid-row:1;grid-column:1;min-height:var(--pv-hit);height:var(--pv-hit);padding:0;background:transparent}
+pv-widget-host #device-view .light-brightness>.light-toggle>.light-name{font:var(--pv-t-label)}
+pv-widget-host #device-view .light-brightness>.light-toggle>.light-state{font:var(--pv-t-body)}
+pv-widget-host #device-view .light-brightness>input{grid-row:2;grid-column:1;height:80px;min-height:80px}
+pv-widget-host #device-view .light-brightness>img{grid-row:2;grid-column:1;width:var(--pv-icon-l);height:var(--pv-icon-l)}
+pv-widget-host #device-view .light-brightness>output{grid-row:3;grid-column:1;font:var(--pv-t-body)}
+pv-widget-host #device-view .light-brightness[data-level-known=false]>input{visibility:hidden}
+pv-widget-host #device-view .light-brightness[data-confirmed=false]{background:var(--pv-surface-2);color:var(--pv-ink-3)}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button{height:var(--pv-hit);min-height:var(--pv-hit);background:var(--pv-surface-2);font:var(--pv-t-body)}
+pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button[aria-pressed=true]{background:var(--pv-light-strong);color:var(--pv-light-ink)}
+/* Only current observed Light data uses the large Hero value. Empty/error
+   Heroes retain their approved status, icon and connection explanation. */
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-light-current=true] .pv-resource-value{font:var(--pv-t-hero)!important}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-light-current=true] .pv-actions>.pv-button{min-height:var(--pv-hit);padding:0 var(--pv-s3);background:var(--pv-surface);color:var(--pv-light-ink);font:var(--pv-t-body);border-radius:var(--pv-r-pill)}
+@media(max-width:600px){pv-widget-host #device-view .light-adjustments{grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-light-current=true] .pv-resource-value{font:var(--pv-t-value)!important}}
+@media(max-width:420px){pv-widget-host #device-view .light-adjustments{grid-template-columns:minmax(0,1fr)}}
+/* Compact volume spacing preserves the full mute hit target. */
+pv-widget-host[data-view=active] .player.pv-card>.volume{gap:var(--pv-s1)}
+/* Routine output has one centered row; meaningful exceptional status keeps its own slot. */
+pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-r-pill)}
+pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state:empty),pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state[data-routine-output=true]){grid-template-rows:48px}
+pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state:empty) .output-room,pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state[data-routine-output=true]) .output-room{grid-row:1}
+
+/* Button state contract: only the exact owner's current attributes can paint
+   a persistent state. Press/release remains owned by attachPressedState. */
+.pv-kit.pv-kit-button{transition:background-color var(--pv-d-fast) var(--pv-ease),color var(--pv-d-fast) var(--pv-ease),box-shadow var(--pv-d-fast) var(--pv-ease)}
+.pv-kit.pv-kit-button:is([aria-pressed=true],[aria-checked=true],[data-selected=true]){background:var(--pv-button-tint)!important;color:var(--pv-tint-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-tint-ink)}
+.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play){position:relative;cursor:progress;opacity:1}
+/* The 24 px Icon-sized mark stays inside the Button's existing 32 px inset.
+   Its one finite reveal ends as a still pending mark, never as success. */
+.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{content:'';position:absolute;right:var(--pv-s1);top:50%;width:var(--pv-icon-s);height:var(--pv-icon-s);box-sizing:border-box;transform:translateY(-50%);border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-button-busy-reveal var(--pv-d-fast) var(--pv-ease) 1 both}
+.pv-kit.pv-kit-button:is([data-kit-variant=icon],.--icon)[aria-busy=true]:not(.result-play)::after{inset:var(--pv-s1);width:auto;height:auto;transform:none}
+.pv-kit.pv-kit-button:is([data-state=error],[aria-invalid=true]){background:var(--pv-danger-tint)!important;color:var(--pv-danger)!important;box-shadow:inset 0 0 0 2px var(--pv-danger)}
+.pv-kit.pv-kit-button:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){cursor:default;opacity:.56}
+@keyframes pv-button-busy-reveal{from{opacity:.35}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-button{transition:none}.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}}
+[data-motion=reduced] .pv-kit.pv-kit-button{transition:none}
+[data-motion=reduced] .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}
+
+/* Explicit Card sizes reuse the actual overview owners. Without data-kit-size
+   the product keeps its normal grid. The running Timer remains its wide owner. */
+:root{--pv-card-s-width:199px;--pv-card-m-width:414px;--pv-card-l-width:414px;--pv-card-row-height:177px;--pv-card-l-height:370px}
+pv-widget-host #now-view [data-kit-size=s]{--pv-card-size-width:var(--pv-card-s-width);--pv-card-size-height:var(--pv-card-row-height)}
+pv-widget-host #now-view [data-kit-size=m]{--pv-card-size-width:var(--pv-card-m-width);--pv-card-size-height:var(--pv-card-row-height)}
+pv-widget-host #now-view [data-kit-size=l]{--pv-card-size-width:var(--pv-card-l-width);--pv-card-size-height:var(--pv-card-l-height)}
+pv-widget-host[data-view=active] #now-view :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card,.resource-preview,#timer-card:not([data-activity-kind=timer]))[data-kit-size]{box-sizing:border-box;grid-column:auto!important;grid-row:auto!important;flex:0 0 auto;width:var(--pv-card-size-width)!important;min-width:var(--pv-card-size-width)!important;max-width:var(--pv-card-size-width)!important;height:var(--pv-card-size-height)!important;min-height:var(--pv-card-size-height)!important;max-height:var(--pv-card-size-height)!important;overflow:hidden;align-self:start;justify-self:start}
+pv-widget-host[data-view=active] #now-view :is(.resource-card,#timer-card:not([data-activity-kind=timer]))[data-kit-size]{padding:0}
+pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio,#home-vehicle,.resource-preview)[data-kit-size],
+pv-widget-host[data-view=active] #now-view .resource-card[data-kit-size]>.resource-preview,
+pv-widget-host[data-view=active] #now-view #timer-card:not([data-activity-kind=timer])[data-kit-size]>.timer-shortcut{box-sizing:border-box;width:100%;height:100%;min-height:0;max-height:none;display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr);grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px;gap:var(--pv-s2);padding:var(--pv-s3);align-items:start;align-content:stretch;overflow:hidden}
+pv-widget-host[data-view=active] #now-view :is(.resource-card,#home-music,#home-radio,#home-vehicle,.resource-preview,#timer-card:not([data-activity-kind=timer]))[data-kit-size] :is(.resource-label,span)>strong,
+pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)[data-kit-size]>span>strong{min-width:0;max-width:100%;max-height:52px;white-space:normal;overflow-wrap:anywhere;overflow:hidden;align-self:start}
+pv-widget-host[data-view=active] #now-view [data-kit-size=s]>.resource-direct-action{display:none!important;pointer-events:none}
+pv-widget-host[data-view=active] #now-view .resource-card[data-kit-size=s]>.resource-preview{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s]) .resource-label>:is(small,.resource-value){padding-inline-end:0!important;margin-top:0}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s])[data-kind=vacuum] .resource-label>small{display:none!important}
+pv-widget-host[data-view=active] #now-view #home-music[data-kit-size=s]>span>small[data-media-metadata=true]{height:24px;min-height:24px;max-height:24px;white-space:pre;font:var(--pv-t-body);line-height:24px;overflow:hidden;text-overflow:ellipsis}
+pv-widget-host[data-view=active] #now-view .resource-card[data-kit-size=l]>.resource-preview,
+pv-widget-host[data-view=active] #now-view .resource-preview[data-kit-size=l]{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 96px}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum] .resource-value{font:var(--pv-t-title);line-height:34px;margin-top:0}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum] .resource-label>small:not([hidden]){margin-top:42px;min-height:0;max-height:40px;white-space:normal;overflow-wrap:anywhere;line-height:20px}
+/* S weather is one real reading/status. M retains a compact time/value forecast;
+   L keeps the existing high/low and icon forecast, with no manufactured facts. */
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=s]{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px;gap:var(--pv-s2)}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=s]>span>strong{grid-row:3!important;display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;align-items:flex-start!important;justify-content:start;gap:0!important;height:48px;min-height:48px;max-height:48px!important}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=s] .home-temperature{font:var(--pv-t-title);line-height:28px}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=s] .home-condition{font:var(--pv-t-meta);line-height:20px;min-height:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+pv-widget-host[data-view=active] #now-view #home-weather:is([data-kit-size=s],[data-kit-size=m])>span>small,
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=s] .home-forecast{display:none!important}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m]{grid-template-rows:var(--pv-icon-m) 28px minmax(0,1fr);gap:var(--pv-s1)}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m]>span>strong{grid-row:2;display:flex;flex-direction:row;align-items:baseline;justify-content:start;gap:var(--pv-s1);max-height:28px;overflow:hidden}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m] .home-temperature{font:var(--pv-t-title);line-height:28px}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m] .home-condition{font:var(--pv-t-meta);line-height:20px;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m] .home-forecast{grid-row:3;align-self:end}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m] .home-forecast-hour{grid-template-rows:20px 24px;gap:0}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m] .home-forecast-hour>img{display:none}
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=m] .home-forecast-hour>strong{grid-row:2;font:var(--pv-t-body);line-height:24px}
+/* Sized weather readings are values, never title-sized two-line headings. */
+pv-widget-host[data-view=active] #now-view #home-weather[data-kit-size=l]>span>strong{display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;align-items:flex-start!important;justify-content:center;align-self:stretch;max-height:none!important;height:auto;gap:var(--pv-s1)}
+pv-widget-host[data-view=active] #now-view #home-weather:is([data-kit-size=s],[data-kit-size=l]) .home-condition{display:block;margin:0!important;flex:0 0 auto}
+/* Robot status and optional facts occupy distinct rows of the existing footer.
+   The explicit spacer rows preserve the same48/96px footer footprints. */
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 24px calc(var(--pv-s1)/2) 20px!important;row-gap:0!important}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 34px var(--pv-s1) 20px 34px!important;row-gap:0!important}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size]>.resource-preview,.resource-preview[data-kit-size])[data-kind=vacuum]>.resource-label{display:contents!important}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size]>.resource-preview,.resource-preview[data-kit-size])[data-kind=vacuum]>.resource-label>strong{grid-column:2;grid-row:1;align-self:start}
+pv-widget-host[data-view=active] #now-view :is(.resource-card:is([data-kit-size=m],[data-kit-size=l])>.resource-preview,.resource-preview:is([data-kit-size=m],[data-kit-size=l]))[data-kind=vacuum]>.resource-label>.resource-value{grid-column:1/-1;grid-row:3!important;margin:0!important;align-self:start!important}
+pv-widget-host[data-view=active] #now-view :is(.resource-card:is([data-kit-size=m],[data-kit-size=l])>.resource-preview,.resource-preview:is([data-kit-size=m],[data-kit-size=l]))[data-kind=vacuum]>.resource-label>small:not([hidden]){grid-column:1/-1;grid-row:5!important;margin:0!important;align-self:start!important;min-height:20px!important;max-height:20px!important;line-height:20px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* End explicit Card sizes. */
+
+/* Factual Card content is the same retained role in every domain. S never
+   reveals extra rows; M offers three useful readings, L adds known context. */
+.resource-facts,.resource-context{display:none!important}
+.resource-facts{grid-column:1/-1;min-width:0;max-width:100%;margin:0;padding:0;gap:var(--pv-s2);text-align:left}
+.resource-fact{display:grid;grid-template-rows:20px 24px;min-width:0;max-width:100%;gap:0;margin:0;padding:0}
+.resource-fact-label,.resource-fact-value{display:block;min-width:0;max-width:100%;margin:0;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit}
+.resource-fact-label{font:var(--pv-t-meta);line-height:20px}
+.resource-fact-value{font:var(--pv-t-body);line-height:24px;font-variant-numeric:tabular-nums}
+.resource-context{grid-column:1/-1;min-width:0;max-width:100%;margin:0;padding:0;font:var(--pv-t-meta);line-height:20px;white-space:normal;overflow-wrap:anywhere;color:inherit}
+/* Actual default M owners and explicitly sized M owners share one dense grid. */
+pv-widget-host[data-view=active] #now-view :is(#home-music:not([data-kit-size]),.resource-card:not([data-kit-size])>.resource-preview[data-kind=vacuum]:not([data-kit-size]))[data-has-facts=true],
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=m][data-has-facts=true],[data-kit-size=m]>[data-has-facts=true]):not(#home-weather):not(.timer-open){grid-template-rows:var(--pv-icon-m) 24px minmax(44px,1fr)!important;row-gap:var(--pv-s1)!important;column-gap:var(--pv-s2);align-content:stretch}
+pv-widget-host[data-view=active] #now-view :is(#home-music:not([data-kit-size]),.resource-card:not([data-kit-size])>.resource-preview[data-kind=vacuum]:not([data-kit-size]))[data-has-facts=true]>.resource-facts,
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=m][data-has-facts=true],[data-kit-size=m]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-facts:not([hidden]){display:grid!important;grid-column:1/-1;grid-row:3!important;grid-template-columns:repeat(3,minmax(0,1fr));align-self:end;gap:var(--pv-s1)}
+pv-widget-host[data-view=active] #now-view :is(#home-music:not([data-kit-size]),.resource-card:not([data-kit-size])>.resource-preview[data-kind=vacuum]:not([data-kit-size]))[data-has-facts=true]>.resource-facts>.resource-fact:nth-child(n+4),
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=m][data-has-facts=true],[data-kit-size=m]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-facts>.resource-fact:nth-child(n+4){display:none}
+pv-widget-host[data-view=active] #now-view :is(#home-music:not([data-kit-size]),.resource-card:not([data-kit-size])>.resource-preview[data-kind=vacuum]:not([data-kit-size]))[data-has-facts=true]>span>small,
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=m][data-has-facts=true],[data-kit-size=m]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>span>small{grid-row:2!important;margin:0!important;min-height:0!important;max-height:24px!important;line-height:24px!important;white-space:pre!important;overflow:hidden;text-overflow:ellipsis;align-self:start!important}
+pv-widget-host[data-view=active] #now-view :is(#home-music:not([data-kit-size]),.resource-card:not([data-kit-size])>.resource-preview[data-kind=vacuum]:not([data-kit-size]))[data-has-facts=true]>.resource-label>.resource-value,
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=m][data-has-facts=true],[data-kit-size=m]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-label>.resource-value{grid-row:2!important;align-self:start!important;margin:0!important;line-height:24px}
+/* The larger Card reads as current state, six actual facts, then recent context. */
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=l][data-has-facts=true],[data-kit-size=l]>[data-has-facts=true]):not(#home-weather):not(.timer-open){grid-template-rows:var(--pv-icon-m) 40px minmax(0,1fr) 40px!important;row-gap:var(--pv-s1)!important;column-gap:var(--pv-s2);align-content:stretch}
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=l][data-has-facts=true],[data-kit-size=l]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-facts:not([hidden]){display:grid!important;grid-column:1/-1;grid-row:3!important;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:44px;gap:var(--pv-s2);align-self:start}
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=l][data-has-facts=true],[data-kit-size=l]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-facts>.resource-fact>.resource-fact-value{font:var(--pv-t-label);line-height:24px}
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=l][data-has-facts=true],[data-kit-size=l]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-context:not([hidden]){display:block!important;grid-row:4!important;max-height:40px;align-self:end}
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=l][data-has-facts=true],[data-kit-size=l]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>span>small{grid-row:2!important;margin:0!important;min-height:0!important;max-height:40px!important;white-space:pre!important;line-height:34px!important;align-self:start!important;overflow:hidden;text-overflow:ellipsis;font:var(--pv-t-title)}
+pv-widget-host[data-view=active] #now-view :is([data-kit-size=l][data-has-facts=true],[data-kit-size=l]>[data-has-facts=true]):not(#home-weather):not(.timer-open)>.resource-label>.resource-value{grid-row:2!important;align-self:start!important;margin:0!important;font:var(--pv-t-title);line-height:34px}
+/* Exceptional Robot feedback retains its own right-hand space beside state. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview[data-kind=vacuum][data-has-facts=true]>.resource-label>small:not([hidden]){grid-row:2!important;justify-self:end;max-width:45%;min-height:0!important;max-height:24px!important;margin:0!important;line-height:20px!important;font:var(--pv-t-meta);text-align:right;white-space:nowrap!important;align-self:start!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview[data-kind=vacuum][data-has-facts=true]:has(>.resource-label>small:not([hidden]))>.resource-label>.resource-value{max-width:55%}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum][data-has-facts=true]{grid-template-rows:var(--pv-icon-m) 24px minmax(44px,1fr)!important;row-gap:var(--pv-s1)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum][data-has-facts=true]{grid-template-rows:var(--pv-icon-m) 40px minmax(0,1fr) 40px!important;row-gap:var(--pv-s1)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size]>.resource-preview,.resource-preview[data-kit-size])[data-kind=vacuum][data-has-facts=true]>.resource-label>.resource-value{grid-row:2!important;margin:0!important}
+pv-widget-host[data-view=active] #now-view .resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview[data-has-facts=true]>:is(.resource-facts,.resource-context){box-sizing:border-box;padding-inline-end:calc(var(--pv-hit) + var(--pv-s2))}
+pv-widget-host[data-view=active] #now-view [data-kit-size=s] :is(.resource-facts,.resource-context),
+pv-widget-host[data-view=active] #now-view [data-kit-size=s]>:is(.resource-facts,.resource-context){display:none!important}
+/* End factual Card content. */
+/* Speaker selection reads as one compact icon/name/chevron group. */
+pv-widget-host #output .output-room{align-items:center;gap:var(--pv-s1)}
+pv-widget-host #output .output-room::after{margin-left:0;align-self:center}
+/* The header ends at 80px. Its 16px content inset belongs inside the left
+   viewport, so scrolled cards reach the divider while the player stays put. */
+@media(min-width:760px){
+ pv-widget-host[data-topbar=true][data-view=active]{--pv-topbar-content-gap:var(--pv-s2)}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav{margin-bottom:0}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav::after{bottom:0}
+ pv-widget-host[data-topbar=true][data-view=active] .frame>.responses{box-sizing:border-box;padding-block-start:var(--pv-topbar-content-gap)}
+ pv-widget-host[data-topbar=true][data-view=active] .frame>.player.pv-card{margin-block-start:var(--pv-topbar-content-gap);height:calc(100% - var(--pv-topbar-content-gap));max-height:min(calc(100% - var(--pv-topbar-content-gap)),692px)}
+}
+/* Hero facts share one inset and type rhythm in every row of the energy grid. */
+pv-widget-host #vehicle-view .vehicle-metrics>.vehicle-metric{min-width:0;margin:0;padding:0;border:0;background:transparent}
+pv-widget-host #vehicle-view .vehicle-metrics>.vehicle-metric>dt{margin:0 0 var(--pv-s1);padding:0;font:var(--pv-t-meta);color:var(--pv-tesla-ink)}
+pv-widget-host #vehicle-view .vehicle-metrics>.vehicle-metric>dd{margin:0;padding:0;font:var(--pv-t-title);font-variant-numeric:tabular-nums;letter-spacing:-.025em;color:var(--pv-tesla-ink)}
+
+/* Robot detail refines the existing Hero, Tile, Chip and read-only ListRow roles.
+   Inline panels and the #device-detail owner share the base Hero specificity. */
+pv-widget-host #device-view pv-robot-control-panel>.robot-control-panel>.device-history{margin:0;padding:0!important;min-height:0;background:transparent;border:0;box-shadow:none}
+pv-widget-host #device-view:has(>pv-robot-control-panel:not([hidden]),>[data-robot-rooms=true]:not([hidden])){padding-block-start:0}
+pv-widget-host #device-view>:is(pv-robot-control-panel,[data-robot-rooms=true]):not([hidden]){margin-block:0;padding-block-start:0}
+pv-widget-host pv-robot-control-panel>.robot-control-panel>pv-vacuum-widget.pv-kit-hero{margin-block:0}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport{display:flex;flex-wrap:wrap;gap:var(--pv-s2);margin:var(--pv-s3) 0 0 calc(var(--pv-icon-l) + var(--pv-s3));padding:0;border:0}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:empty{display:none}
+pv-widget-host pv-robot-control-panel .transport>.pv-primary{flex-basis:auto}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value{font:var(--pv-t-hero)!important;letter-spacing:-.02em;text-wrap:balance}
+pv-widget-host #device-view pv-robot-control-panel .robot-cleaning-form{padding:0;background:transparent;border-radius:0;box-shadow:none;gap:var(--pv-s2)}
+pv-widget-host #device-view pv-robot-control-panel .choices.pv-tiles>.robot-room-tile{background:var(--pv-surface-2);color:var(--pv-ink);box-shadow:none}
+pv-widget-host #device-view pv-robot-control-panel .choices.pv-tiles>.robot-room-tile[aria-pressed=true]{background:var(--pv-robot-strong);color:var(--pv-robot-ink);box-shadow:inset 0 0 0 2px var(--pv-robot-ink)}
+pv-widget-host pv-robot-control-panel .repeat.pv-segmented>button[aria-pressed=true]{background:var(--pv-robot-strong);color:var(--pv-robot-ink)}
+pv-widget-host pv-robot-control-panel .pv-suggestions{padding:0;border-radius:0;background:transparent;box-shadow:none}
+pv-widget-host pv-robot-control-panel .robot-care-values{display:flex;flex-direction:column;gap:var(--pv-s1);margin:0}
+pv-widget-host pv-robot-control-panel .robot-care-row.pv-kit-listrow{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);padding:var(--pv-s2);border-radius:var(--pv-r-s);background:var(--pv-surface);font:var(--pv-t-body)}
+pv-widget-host pv-robot-control-panel .robot-care-row>:is(dt,dd){margin:0;font:inherit}
+pv-widget-host pv-robot-control-panel .robot-care-row>dd{text-align:right;color:var(--pv-robot-ink)}
+@media(max-width:759px){pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport{margin-inline-start:0}pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value{font:var(--pv-t-value)!important}}
+/* Media M uses the Card's existing image/title/metadata/context roles. The
+   whole Card keeps navigation; there is no second play or open control. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]{grid-template-columns:96px minmax(0,1fr) var(--pv-icon-s)!important;grid-template-rows:minmax(26px,max-content) 24px 24px!important;column-gap:var(--pv-s2)!important;row-gap:var(--pv-s1)!important;align-content:center!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>img:first-child{box-sizing:border-box;grid-column:1;grid-row:1/4;align-self:center;width:96px;height:96px;max-width:96px;max-height:96px;object-fit:contain;padding:var(--pv-s3);border-radius:var(--pv-r-s);filter:none;opacity:1}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>img:first-child[data-displayed-artwork]{padding:0;object-fit:cover}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>span>strong{grid-column:2;grid-row:1!important;font:var(--pv-t-label);line-height:26px;align-self:end;max-height:52px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>span>small{grid-column:2;grid-row:2!important;font:var(--pv-t-body);line-height:24px!important;height:24px!important;min-height:0!important;max-height:24px!important;margin:0!important;align-self:start!important;white-space:nowrap!important;text-overflow:ellipsis;overflow:hidden}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>span>small::first-line{font:inherit}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>.resource-context:not([hidden]){display:block!important;grid-column:2;grid-row:3!important;font:var(--pv-t-body);line-height:24px;max-height:24px;align-self:start;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]:not([data-kit-size=l])>.resource-facts{display:none!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media][data-kit-size=l]{grid-template-rows:32px 24px 24px minmax(0,1fr)!important;align-content:stretch!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media][data-kit-size=l]>.resource-facts:not([hidden]){grid-row:4!important;grid-column:1/-1;margin-top:var(--pv-s2)}
+/* The existing trailing image keeps a dedicated navigation role even after
+   retained fact/context spans are appended after it. It is not :last-child. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]>img:nth-of-type(2){display:block!important;position:static;grid-column:3;grid-row:1/4;align-self:center;justify-self:end;width:var(--pv-icon-s);height:var(--pv-icon-s);min-width:0;max-width:var(--pv-icon-s);max-height:var(--pv-icon-s);padding:0;margin:0;object-fit:contain}
+/* S values are measurements in the existing value role, never extra controls. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview[data-kind=light][data-has-overview-value=true],.resource-preview[data-kit-size=s][data-kind=light][data-has-overview-value=true],#home-vehicle[data-has-overview-value=true]:not([data-kit-size=m]):not([data-kit-size=l])):not([data-kit-size=m]):not([data-kit-size=l]),
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-card[data-kit-size=s]>.resource-preview[data-kind=light][data-has-overview-value=true]{grid-template-rows:32px 48px 24px!important;row-gap:var(--pv-s1)!important;align-content:space-between}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview[data-kind=light][data-has-overview-value=true],.resource-preview[data-kit-size=s][data-kind=light][data-has-overview-value=true],#home-vehicle[data-has-overview-value=true]:not([data-kit-size=m]):not([data-kit-size=l]))>span>.resource-value:not([hidden]){grid-column:1/-1;grid-row:2!important;font:var(--pv-t-value);line-height:48px;letter-spacing:-.02em;white-space:nowrap;align-self:end!important;margin:0!important;font-variant-numeric:tabular-nums}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview[data-kind=light][data-has-overview-value=true],.resource-preview[data-kit-size=s][data-kind=light][data-has-overview-value=true],#home-vehicle[data-has-overview-value=true]:not([data-kit-size=m]):not([data-kit-size=l]))>span>small{grid-column:1/-1;grid-row:3!important;font:var(--pv-t-body);line-height:24px!important;min-height:0!important;max-height:24px!important;margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:is([data-kit-size=m],[data-kit-size=l])>.resource-preview,.resource-preview:is([data-kit-size=m],[data-kit-size=l]))[data-kind=light]>.resource-label>.resource-value{display:none!important}
+
+/* M Robot is a status Card, not a telemetry dashboard. The existing value and
+   metadata roles stay readable; richer admitted facts remain in the L Card. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather){grid-template-rows:var(--pv-icon-m) 48px 40px!important;row-gap:calc(var(--pv-s1)/2)!important;align-content:start;padding:var(--pv-s3)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather)>.resource-label{display:contents!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather)>.resource-label>.resource-value{grid-column:1/-1;grid-row:2!important;align-self:start!important;justify-self:start;max-width:100%;margin:0!important;font:var(--pv-t-body)!important;line-height:24px!important;white-space:normal;overflow:visible;text-overflow:clip}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather):is([data-resource-status=cleaning],[data-resource-status=paused],[data-resource-status=docked],[data-resource-status=docking],[data-resource-status=returning],[data-resource-status=stopped],[data-resource-status=complete])>.resource-label>.resource-value{font:var(--pv-t-value)!important;line-height:48px!important;white-space:nowrap}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather)>.resource-label>strong{grid-column:2;grid-row:1;align-self:start;font:var(--pv-t-label)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather)>.resource-label>small:not([hidden]){grid-column:1/-1;grid-row:3!important;align-self:start!important;justify-self:start;min-height:0!important;max-height:40px!important;max-width:100%;margin:0!important;font:var(--pv-t-body);line-height:20px!important;text-align:left;white-space:normal!important;text-overflow:clip;overflow:hidden}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size])>.resource-preview,.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m])[data-kind=vacuum]:not(#home-weather)>:is(.resource-facts,.resource-context){display:none!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-card:is(:not([data-kit-size]),[data-kit-size=m]):has(>.resource-direct-action:not([hidden]))>.resource-preview[data-kind=vacuum]:not(#home-weather)>.resource-label>:is(.resource-value,small){box-sizing:border-box;padding-inline-end:calc(var(--pv-hit) + var(--pv-s2))}
+/* The retained robot-rooms section owns its own top inset. Match both
+   canonical detail ancestries so legacy :has(#device-detail) padding cannot win. */
+pv-widget-host :is(#device-view,#device-view #device-detail) .device-history[data-robot-rooms=true]{padding-block-start:0!important}

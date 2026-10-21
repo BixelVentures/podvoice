@@ -2,18 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
 import {TimerNotice} from '../../podvoice/gatekeeper/static/podview/timer-notice.js';
+import {readFileSync} from 'node:fs';
+
+test('overview Timer icon Button centers its grid track as well as its24px icon',()=>{
+ const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),legacy=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-redesign.css',import.meta.url),'utf8'),selector='pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open',rule=css.slice(css.indexOf(selector+'{'),css.indexOf('}',css.indexOf(selector+'{'))+1);
+ assert.match(legacy,/\.timer-open\{[^}]*justify-content:flex-start/,'the retained legacy content alignment would otherwise pack the implicit track left');
+ assert.match(rule,/display:grid;place-items:center;place-content:center/);assert.match(rule,/width:var\(--pv-hit\)/);assert.match(rule,/height:var\(--pv-hit\)/);assert.equal((64-24)/2,20,'the24px Icon has equal20px space inside its64px Button');
+});
 
 function element(name,writes){
  const values={hidden:false,disabled:false,textContent:''},attrs=new Map(),styles=new Map(),selectors=new Map(),listeners=new Map();
- const node={name,children:[],selectors,listeners,dataset:new Proxy({}, {set(target,key,value){writes.push(`${name}.data.${key}`);target[key]=value;return true;}}),style:{getPropertyValue:key=>styles.get(key)||'',setProperty(key,value){writes.push(`${name}.style.${key}`);styles.set(key,String(value));}},getAttribute:key=>attrs.get(key),setAttribute(key,value){writes.push(`${name}.attr.${key}`);attrs.set(key,String(value));},querySelector:selector=>selectors.get(selector),querySelectorAll:()=>[],addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:(type,fn)=>{if(listeners.get(type)===fn)listeners.delete(type);},append(child){writes.push(`${name}.append`);node.children.push(child);},insertBefore(child,before){writes.push(`${name}.insert`);node.children=node.children.filter(n=>n!==child);const index=node.children.indexOf(before);node.children.splice(index<0?node.children.length:index,0,child);},replaceChildren(){writes.push(`${name}.replaceChildren`);node.children=[];},focus(){node.focused=true;},scrollIntoView(){writes.push(`${name}.scroll`);}};
+ const node={name,children:[],selectors,listeners,dataset:new Proxy({}, {set(target,key,value){writes.push(`${name}.data.${key}`);target[key]=value;return true;}}),style:{getPropertyValue:key=>styles.get(key)||'',setProperty(key,value){writes.push(`${name}.style.${key}`);styles.set(key,String(value));}},getAttribute:key=>attrs.get(key)??null,removeAttribute(key){writes.push(`${name}.remove.${key}`);attrs.delete(key);},setAttribute(key,value){writes.push(`${name}.attr.${key}`);attrs.set(key,String(value));},querySelector:selector=>selectors.get(selector),querySelectorAll:()=>[],addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:(type,fn)=>{if(listeners.get(type)===fn)listeners.delete(type);},append(child){writes.push(`${name}.append`);node.children.push(child);},insertBefore(child,before){writes.push(`${name}.insert`);node.children=node.children.filter(n=>n!==child);const index=node.children.indexOf(before);node.children.splice(index<0?node.children.length:index,0,child);},replaceChildren(){writes.push(`${name}.replaceChildren`);node.children=[];},focus(){node.focused=true;},scrollIntoView(){writes.push(`${name}.scroll`);}};
  for(const property of Object.keys(values))Object.defineProperty(node,property,{get:()=>values[property],set:value=>{writes.push(`${name}.${property}`);values[property]=value;}});
- Object.defineProperty(node,'innerHTML',{set(html){writes.push(`${name}.innerHTML`);for(const selector of ['.timer-open','.timer-count','.timer-instrument','.timer-copy strong','.timer-state','.timer-finish'])selectors.set(selector,element(`${name}${selector}`,writes));if(html.includes('timer-actions')){selectors.set('.timer-actions',element('actions',writes));const buttons=[['add','60'],['add','300'],['toggle','']].map(([action,seconds])=>{const button=element(action+seconds,writes);button.dataset.timerAction=action;button.dataset.seconds=seconds;return button;});node.querySelectorAll=selector=>selector==='[data-timer-action]'?buttons:[];}}});
+ let markup='';Object.defineProperty(node,'innerHTML',{get:()=>markup,set(html){markup=html;writes.push(`${name}.innerHTML`);for(const selector of ['.timer-open','.timer-count','.timer-instrument','.timer-copy strong','.timer-state','.timer-finish'])selectors.set(selector,element(`${name}${selector}`,writes));if(html.includes('timer-actions')){selectors.set('.timer-actions',element('actions',writes));const buttons=[['toggle','']].map(([action,seconds])=>{const button=element(action+seconds,writes);button.dataset.timerAction=action;button.dataset.seconds=seconds;return button;});node.querySelectorAll=selector=>selector==='[data-timer-action]'?buttons:[];}}});
  return node;
 }
 function fixture(){
  const writes=[],dispatched=[],form=element('form',writes),detail=element('detail',writes),overviewList=element('overview',writes),shortcut=element('shortcut',writes),note=element('note',writes),recent=element('recent',writes),list=element('detailList',writes),running=element('running',writes);
  const controls=['output','.timer-selected>span','[data-adjust="-60"]','[data-adjust="60"]','.timer-start','.timer-validation'];for(const selector of controls)form.selectors.set(selector,element(`form:${selector}`,writes));
- const presets=[1,5,10,15,30].map(n=>{const b=element(`preset:${n}`,writes);b.dataset.minutes=String(n);return b;});form.querySelectorAll=selector=>selector==='[data-minutes]'?presets:[];form.elements=[element('name',writes),element('hours',writes),element('minutes',writes),element('seconds',writes),...presets,...controls.filter(s=>s.includes('adjust')||s==='.timer-start').map(s=>form.querySelector(s))];
+ const presets=[3,5,10,15].map(n=>{const b=element(`preset:${n}`,writes);b.dataset.minutes=String(n);return b;});form.querySelectorAll=selector=>selector==='[data-minutes]'?presets:[];form.elements=[element('name',writes),element('hours',writes),element('minutes',writes),element('seconds',writes),...presets,...controls.filter(s=>s.includes('adjust')||s==='.timer-start').map(s=>form.querySelector(s))];
  for(const [selector,node]of [['.timer-active-list',list],['.timer-running',running],['#timers-live-note',note],['.timer-recent',recent]])detail.selectors.set(selector,node);
  const host={live:true,dispatch:event=>dispatched.push(event),focusHeading(){}};
  const view=Object.assign(Object.create(TimerView.prototype),{host,detail,form,overviewList,shortcut,nodes:new Map(),history:'[]',duration:300,accessModel:{connected:true,canStart:true,canCancel:true}});
@@ -34,7 +41,7 @@ test('live timer retains explicit authority through countdown and switches the s
  const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
  try{const state={connected:true,focus:'timers',timer,timerHistory:[]};f.view.render(state);const card=f.view.nodes.get(`detail:${timer.id}`),finish=card.querySelector('.timer-finish');assert.equal(finish.disabled,false);f.writes.length=0;f.view.render({...state,timer:{...timer,remaining:58}});assert.equal(f.writes.some(write=>write.endsWith('.disabled')),false,'a tick must not revoke/regrant existing controls');
   f.view.render({...state,timer:{...timer,status:'done',remaining:0}});assert.equal(f.view.nodes.get(`detail:${timer.id}`),card);assert.equal(finish.textContent,'Stop alarm');
-  for(const key of [`overview:${timer.id}`,`detail:${timer.id}`]){const completed=f.view.nodes.get(key);assert.equal(completed.querySelector('.timer-count').textContent,'Tiden er gået');assert.equal(completed.querySelector('.timer-state').textContent,'');assert.equal(completed.querySelector('.timer-state').hidden,true);assert.equal(completed.querySelector('.timer-open').getAttribute('aria-label').split('Tiden er gået').length-1,1);assert.doesNotMatch(completed.querySelector('.timer-open').getAttribute('aria-label'),/0:00/);}
+  for(const key of [`overview:${timer.id}`,`detail:${timer.id}`]){const completed=f.view.nodes.get(key);assert.equal(completed.querySelector('.timer-count').textContent,'Tiden er gået');assert.equal(completed.querySelector('.timer-state').textContent,'');assert.equal(completed.querySelector('.timer-state').hidden,true);const label=completed.querySelector('.timer-open').getAttribute('aria-label');assert.equal(label.split('Tiden er gået').length-1,1);assert.doesNotMatch(label,/0:00/);if(key.startsWith('overview:'))assert.match(label,/Åbn timerdetaljer$/);}
   finish.listeners.get('click')();assert.deepEqual(f.dispatched,[{type:'timer',id:timer.id,action:'cancel'}]);
   f.view.render({...state,timer:{...timer,status:'done',remaining:0,physicalDrained:true}});assert.equal(finish.textContent,'Færdig');assert.equal(finish.getAttribute('aria-label'),'Færdig timer');f.view.renderAccess({connected:false});finish.listeners.get('click')();assert.equal(f.dispatched.length,1,'lost authority must disable the same retained action');
  }finally{globalThis.document=prior;}
@@ -71,23 +78,34 @@ test('shared recent-choice rows refill by stable recipe key without starting a t
 test('detail actions retain their nodes and dispatch only permitted local timer operations',()=>{
  const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
  try{const local={...timer,ownerBootId:undefined,id:'local',deadline:Date.now()+59000};f.view.host.live=false;f.view.host.state={connected:true,focus:'timers',timer:local,timerHistory:[]};f.view.render(f.view.host.state);
- const detail=f.view.nodes.get('detail:local'),buttons=detail.querySelectorAll('[data-timer-action]');assert.equal(buttons.length,3);assert.equal(detail.querySelector('.timer-actions').hidden,false);buttons[0].listeners.get('click')();assert.equal(f.dispatched[0].action,'add');assert.equal(f.dispatched[0].seconds,60);assert.equal(f.dispatched[0].id,'local');
- f.view.host.state.timer={...local,status:'paused'};f.view.render(f.view.host.state);assert.equal(buttons[2].textContent,'Fortsæt');buttons[2].listeners.get('click')();assert.equal(f.dispatched[1].action,'resume');assert.equal(detail.querySelectorAll('[data-timer-action]')[0],buttons[0]);
- f.view.host.state.connected=false;f.view.render(f.view.host.state);assert(buttons.every(b=>b.disabled));buttons[1].listeners.get('click')();assert.equal(f.dispatched.length,2);
- f.view.host.live=true;f.view.host.state.connected=true;f.view.host.state.timer={...local,ownerBootId:'native'};f.view.render(f.view.host.state);assert.equal(detail.querySelector('.timer-actions').hidden,true);assert(buttons.every(b=>b.disabled));buttons[2].listeners.get('click')();assert.equal(f.dispatched.length,2);
+ const detail=f.view.nodes.get('detail:local'),buttons=detail.querySelectorAll('[data-timer-action]');assert.equal(buttons.length,1);assert.equal(detail.querySelector('.timer-actions').hidden,false);buttons[0].listeners.get('click')();assert.equal(f.dispatched[0].action,'pause');assert.equal(f.dispatched[0].id,'local');
+ f.view.host.state.timer={...local,status:'paused'};f.view.render(f.view.host.state);assert.equal(buttons[0].textContent,'Fortsæt');buttons[0].listeners.get('click')();assert.equal(f.dispatched[1].action,'resume');assert.equal(detail.querySelectorAll('[data-timer-action]')[0],buttons[0]);
+ f.view.host.state.connected=false;f.view.render(f.view.host.state);assert(buttons.every(b=>b.disabled));buttons[0].listeners.get('click')();assert.equal(f.dispatched.length,2);
+ f.view.host.live=true;f.view.host.state.connected=true;f.view.host.state.timer={...local,ownerBootId:'native'};f.view.render(f.view.host.state);assert.equal(detail.querySelector('.timer-actions').hidden,true);assert(buttons.every(b=>b.disabled));buttons[0].listeners.get('click')();assert.equal(f.dispatched.length,2);
  }finally{globalThis.document=prior;}
 });
 
-test('overview activity selection preserves timer card and manual selection through ticks',()=>{
+test('timer-only overview preserves its card through ticks and returns to neutral start after cancellation',()=>{
  const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
  try{
-  f.view.overview=element('activitySlot',f.writes);f.view.activityChoices=element('choices',f.writes);f.view.activityResource=element('resource',f.writes);
+  f.view.overview=element('activitySlot',f.writes);
   const state={connected:true,focus:'now',timer,timerHistory:[],devices:[]};f.view.host.state=state;f.view.render(state);f.view.renderOverviewActivities(state);
   const card=f.view.nodes.get(`overview:${timer.id}`);assert.equal(f.view.overviewSelectedId,`timer:${timer.id}`);assert.equal(f.view.overviewList.hidden,false);assert.equal(f.view.shortcut.hidden,true);
-  const choiceData=f.view.activityChoices.data;f.view.renderOverviewActivities({...state,timer:{...timer,remaining:58}});
-  assert.equal(f.view.nodes.get(`overview:${timer.id}`),card);assert.equal(f.view.activityChoices.data,choiceData,'ticks do not re-render the selector');
+  f.view.renderOverviewActivities({...state,timer:{...timer,remaining:58}});assert.equal(f.view.nodes.get(`overview:${timer.id}`),card);assert.equal(f.view.activityChoices,undefined);assert.equal(f.view.activityResource,undefined);
   f.view.renderOverviewActivities({...state,timer:null});assert.equal(f.view.shortcut.hidden,false);assert.equal(f.view.overviewList.hidden,true);assert.equal(card.hidden,true);
  }finally{globalThis.document=prior;}
+});
+
+test('timer activity changes leave movement to the outer scene owner, including hidden detail updates and later navigation',()=>{
+ const f=fixture(),prior=globalThis.document,priorMedia=globalThis.matchMedia;globalThis.document=f.document;globalThis.matchMedia=()=>({matches:false});
+ try{
+  f.view.overview=element('activitySlot',f.writes);f.view.overviewList.animate=f.view.shortcut.animate=()=>{throw Error('nested timer entrance must not compete with SceneMotion');};
+  const empty={connected:true,focus:'timers',timer:null,timerHistory:[],devices:[]};f.view.host.state=empty;f.view.renderOverviewActivities(empty);
+  const state={...empty,timer};f.view.host.state=state;f.view.renderOverviewActivities(state);const card=f.view.nodes.get(`overview:${timer.id}`);
+  f.view.renderOverviewActivities({...state,focus:'now'});f.writes.length=0;f.view.renderOverviewActivities({...state,focus:'now',timer:{...timer,remaining:58}});
+  assert.equal(f.view.nodes.get(`overview:${timer.id}`),card);assert.equal(f.view.activityAnimation,null);assert.equal(f.writes.some(write=>/\.innerHTML$|\.append$|\.insert$/.test(write)),false);
+  f.view.renderOverviewActivities(empty);assert.equal(f.view.overviewList.hidden,true);assert.equal(f.view.shortcut.hidden,false);assert.equal(f.view.activityAnimation,null);
+ }finally{globalThis.document=prior;globalThis.matchMedia=priorMedia;}
 });
 
 test('completed timer retains actual alarm time in the existing card after bounded audio, with honest blocked-audio copy',()=>{
@@ -95,8 +113,39 @@ test('completed timer retains actual alarm time in the existing card after bound
  try{const at=new Date(2026,9,20,18,5).getTime(),done={...timer,status:'done',remaining:0};f.view.notice={completions:new Map([[timer.id,{at,exhausted:true,played:true}]])};const card=f.view.card(done,f.list,`detail:${timer.id}`);assert.equal(card.querySelector('.timer-state').textContent,'Timeren ringede kl. 18.05');f.view.notice.completions.get(timer.id).played=false;f.view.card(done,f.list,`detail:${timer.id}`);assert.equal(card.querySelector('.timer-state').textContent,'Timeren blev færdig kl. 18.05');assert.equal(f.view.nodes.get(`detail:${timer.id}`),card);
  }finally{globalThis.document=prior;}
 });
-test('running timer leaves its next-duration presets editable without granting a second Start',()=>{
+test('running and paused timers hide creation and prevent draft changes until cancellation',()=>{
  const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
- try{f.view.host.live=false;f.view.render({connected:true,focus:'timers',timer:{...timer,ownerBootId:undefined},timerHistory:[]});assert.equal(f.form.hidden,false);assert.equal(f.view.canStart,false);for(const button of f.form.querySelectorAll('[data-minutes]'))assert.equal(button.disabled,false);assert.equal(f.form.querySelector('.timer-start').disabled,true);
+ try{f.view.host.live=false;for(const status of ['running','paused']){const current={...timer,status,ownerBootId:undefined};f.view.render({connected:true,focus:'timers',timer:current,timerHistory:[]});assert.equal(f.form.hidden,true);assert.equal(f.view.canStart,false);for(const button of f.form.querySelectorAll('[data-minutes]'))assert.equal(button.disabled,true);assert.equal(f.form.querySelector('.timer-start').disabled,true);const draft=f.view.duration;f.view.fill({seconds:180});assert.equal(f.view.duration,draft);assert.equal(f.view.currentTimer,current);}
+ f.view.render({connected:true,focus:'timers',timer:{...timer,status:'cancelled'},timerHistory:[]});assert.equal(f.form.hidden,false);assert.equal(f.view.canStart,true);assert.equal(f.form.querySelector('.timer-start').disabled,false);
+ }finally{globalThis.document=prior;}
+});
+
+test('recent durations stay hidden during an active timer and retain three unique recipes',()=>{const f=fixture(),previous=globalThis.document;globalThis.document={createElement:()=>element('recentChoices',f.writes),getElementById:()=>null};try{const history=[{seconds:60},{seconds:120},{seconds:60},{seconds:180},{seconds:240}],recent=f.view.detail.querySelector('.timer-recent');recent.selectors.set('div',element('recentItems',f.writes));f.view.render({connected:true,focus:'timers',timer:{id:'active',status:'running',remaining:120,total:120,endsAt:Date.now()+120000},timerHistory:history});assert.equal(recent.hidden,true);assert.deepEqual(f.view.recentChoices.data.items.map(row=>JSON.parse(row.id)),[60,120,180]);assert.deepEqual(f.dispatched,[]);}finally{globalThis.document=previous;}});
+
+test('top slot stays Timer with combined activity and neutral without a timer while robot and Tesla retain their own state',()=>{
+ const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
+ try{
+  f.view.overview=element('timerSlot',f.writes);
+  const robot={id:'robot-stable',kind:'vacuum',status:'cleaning',battery:76},vehicle={mode:'observed',source:'home_assistant_state',charging:{status:'charging'},batteryPercent:42};
+  for(const domain of ['combined','robot-only','Tesla-only']){
+   const state={connected:true,focus:'now',timer:domain==='combined'?timer:null,timerHistory:[],devices:domain==='Tesla-only'?[]:[robot],vehicle:domain==='robot-only'?null:vehicle};f.view.host.state=state;f.view.renderOverviewActivities(state);
+   assert.equal(f.view.overview.dataset.activityKind,domain==='combined'?'timer':'empty');assert.equal(f.view.shortcut.hidden,domain==='combined');assert.equal(f.view.overviewList.hidden,domain!=='combined');assert.equal(f.view.activityChoices,undefined);assert.equal(f.view.activityResource,undefined);assert.deepEqual(f.view.overview.children,[]);assert.equal(state.devices[0],domain==='Tesla-only'?undefined:robot);assert.equal(state.vehicle,domain==='robot-only'?null:vehicle);assert.deepEqual(f.dispatched,[]);
+  }
+  const done={...timer,status:'done',remaining:0};f.view.renderOverviewActivities({timer:done,extraTimers:[{...timer,id:'another',status:'running'}],devices:[robot],vehicle});assert.equal(f.view.overviewActivities.length,1);assert.equal(f.view.overviewSelectedId,`timer:${timer.id}`);const card=f.view.nodes.get(`overview:${timer.id}`);assert.equal(card.querySelector('.timer-count').textContent,'Tiden er gået');assert.equal(card.querySelector('.timer-finish').textContent,'Stop alarm');
+ }finally{globalThis.document=prior;}
+});
+
+test('overview reads ring and copy before two sibling actions whose native focus order is Cancel then detail',()=>{
+ const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
+ try{
+  const state={connected:true,focus:'now',timer,timerHistory:[]};f.view.host.state=state;f.view.render(state);const card=f.view.nodes.get(`overview:${timer.id}`),roots=[],stack=[],buttons=[];
+  // Parse the actual produced markup, rather than inventing a fake child order.
+  for(const token of card.innerHTML.matchAll(/<(\/)?([a-z][\w-]*)([^>]*)>/gi)){
+   if(token[1]){stack.pop();continue;}
+   const node={tag:token[2],className:/class="([^"]*)"/.exec(token[3])?.[1]||'',parent:stack.at(-1),children:[]};(node.parent?.children||roots).push(node);if(node.tag==='button')buttons.push(node);if(!['img','input','br'].includes(node.tag)&&!token[3].endsWith('/'))stack.push(node);
+  }
+  assert.deepEqual(roots.map(node=>node.className),['timer-instrument','timer-copy','timer-finish','timer-open']);assert.deepEqual(buttons.map(node=>node.className),['timer-finish','timer-open']);assert.ok(buttons.every(node=>!node.parent),'both controls are native siblings, with no nested action');assert.equal(buttons[1].children[0].className,'timer-chevron');
+  const open=card.querySelector('.timer-open'),finish=card.querySelector('.timer-finish');assert.equal(open.getAttribute('data-kit'),'button');assert.match(open.getAttribute('aria-label'),/Timer · 0:59 · Slutter .+ · Åbn timerdetaljer/);finish.listeners.get('click')();assert.deepEqual(f.dispatched,[{type:'timer',id:timer.id,action:'cancel'}]);open.listeners.get('click')();assert.deepEqual(f.dispatched.at(-1),{type:'show',id:'timers'});
+  f.view.render({...state,connected:false,timer:{...timer,status:'paused'}});f.view.renderAccess({connected:false});assert.equal(f.view.nodes.get(`overview:${timer.id}`),card);assert.equal(card.querySelector('.timer-open'),open);assert.equal(card.querySelector('.timer-finish'),finish);assert.match(open.getAttribute('aria-label'),/På pause/);assert.equal(finish.disabled,true);const count=f.dispatched.length;finish.listeners.get('click')();assert.equal(f.dispatched.length,count);open.listeners.get('click')();assert.deepEqual(f.dispatched.at(-1),{type:'show',id:'timers'},'navigation survives loss of command authority');
  }finally{globalThis.document=prior;}
 });

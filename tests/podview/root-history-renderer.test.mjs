@@ -1,9 +1,12 @@
+import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {visualExamples} from '../../podvoice/gatekeeper/static/podview/visual-examples.js';
 import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 class Node extends EventTarget{
  constructor(tag='div'){super();this.tagName=tag.toUpperCase();this.localName=tag;this.children=[];this.dataset={};this.style={};this.attrs=new Map();this.hidden=false;this.disabled=false;this.textContent='';this.className='';this.isConnected=true;this.classList={add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');},remove:name=>{this.className=this.className.split(' ').filter(n=>n!==name).join(' ');},contains:name=>this.className.split(' ').includes(name),toggle:(name,on)=>on?this.classList.add(name):this.classList.remove(name)};}
+ get childNodes(){return this.children;}
+ contains(node){return this===node||this.children.some(child=>child.contains(node));}
  append(...nodes){for(const n of nodes){n.remove();n.parentNode=this;this.children.push(n);}}
  insertBefore(n,before){n.remove();n.parentNode=this;const i=this.children.indexOf(before);if(i<0)this.children.push(n);else this.children.splice(i,0,n);}
  remove(){if(this.parentNode){const a=this.parentNode.children;a.splice(a.indexOf(this),1);this.parentNode=null;}}
@@ -121,4 +124,119 @@ test('diagram empty state and invalid first read keep their explanation outside 
  view.data={state:'ready',content};assert.equal(view.note.parentNode,view.caption);
  view.data={state:'empty'};assert.equal(view.body.hidden,true);assert.equal(view.note.hidden,false);assert.equal(view.note.parentNode,view);
  const invalid=document.createElement('pv-fact-card');invalid.data={state:'ready',content:{}};assert.equal(invalid.dataset.state,'error');assert.equal(invalid.body.hidden,true);assert.equal(invalid.note.hidden,false);assert.match(invalid.note.textContent,/kunne ikke læses/);
+});
+
+test('archived local error answers never present a retry action in any family',()=>{for(const kind of ['concise','choices','comparison','chart','steps','checklist','fact-card','sourced-image','answer-timeline','simple-diagram']){const view=widget(),answer={id:'archived-'+kind,kind,title:'Tidligere svar',status:'error',historical:true,revision:1,...(visualExamples[kind]?{content:structuredClone(visualExamples[kind].content)}:{})};view.update({connected:true},answer);assert.equal(view.querySelector('.retry-answer').hidden,true,kind);}});
+
+test('fact presentation keeps one primary role and adapts long numeric values without changing source facts or row identity',()=>{
+ const view=document.createElement('pv-fact-card'),content=structuredClone(visualExamples['fact-card'].content);
+ content.facts[0].value='15°';view.data={content,state:'ready'};const primary=view.list.children[0];
+ assert.equal(primary.dataset.answerRole,'primary');assert.equal(primary.dataset.valueKind,'numeric');assert.equal(primary.dataset.valueDensity,'short');
+ assert.ok(view.list.children.slice(1).every(row=>row.dataset.answerRole==='supporting'));assert.equal(primary.getAttribute('data-kit'),'listrow');
+ const long='123456789012345678901234567890 kWh',changed=structuredClone(content);changed.facts[0].value=long;view.data={content:changed,state:'ready'};
+ assert.equal(view.list.children[0],primary);assert.equal(primary.dataset.valueDensity,'long');assert.equal(primary.children[1].textContent,long);assert.equal(changed.facts[0].value,long);assert.equal(content.facts[0].value,'15°');
+ view.data={state:'pending'};assert.equal(view.list.children[0],primary);assert.equal(primary.children[1].textContent,long);assert.equal(view.note.hidden,true);
+ view.data={state:'interrupted'};assert.equal(view.body.hidden,false);assert.equal(view.list.children[0],primary);assert.equal(view.note.textContent,'Svaret blev afbrudt.');
+});
+
+test('step indicator and progress follow the actual current instruction and disappear for read-only source steps',()=>{
+ const guide=document.createElement('pv-step-guide'),steps=['Find papir.','Fold papiret.'];
+ guide.data={steps,index:0,connected:true,state:'ready'};
+ assert.equal(guide.position.textContent,'01');assert.equal(guide.progress.value,1);assert.equal(guide.progress.max,2);assert.equal(guide.titleNode.textContent,steps[0]);
+ const previous=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:true});try{guide.data={steps,index:1,connected:true,state:'ready'};}finally{globalThis.matchMedia=previous;}
+ assert.equal(guide.position.textContent,'02');assert.equal(guide.progress.value,2);assert.equal(guide.titleNode.textContent,steps[1]);assert.equal(guide.next.hidden,true);assert.equal(guide.finish.hidden,false);
+ guide.data={readOnly:true,stepItems:[{id:'actual-step',text:'Anvisning fra kilden.'}],connected:false,state:'ready'};
+ assert.equal(guide.position.hidden,true);assert.equal(guide.progress.hidden,true);assert.equal(guide.actions.hidden,true);assert.equal(guide.outline.children[0].textContent,'Anvisning fra kilden.');
+});
+
+test('response canvas error dock exposes the actual retry without reviving actions from a different answer',()=>{
+ const view=widget(),scene={connected:true,sessionId:'local'};
+ view.update(scene,{id:'choices',kind:'choices',title:'Valg',status:'ready',filter:'all',revision:1});
+ assert.equal(view.querySelector('.followups').hidden,false);
+ view.update(scene,{id:'weather',kind:'concise',title:'Vejret',status:'error',revision:1});
+ assert.equal(view.querySelector('.retry-answer').hidden,false);assert.equal(view.querySelector('.answer-actions').hidden,false);assert.equal(view.querySelector('.followups').hidden,true);assert.equal(view.querySelector('.start-guide').hidden,true);
+});
+
+test('visual sources follow the answer as a named disclosure, never a leading ellipsis row',()=>{
+ const view=document.createElement('pv-fact-card');view.data={state:'ready',content:visualExamples['fact-card'].content};
+ assert.equal(view.sources.children[0].textContent,'Kilder');assert.equal(view.sources.children[0].querySelector('img'),null);assert.equal(view.sources.parentNode,view);assert.ok(view.children.indexOf(view.sources)>view.children.indexOf(view.body));assert.equal(view.lead.querySelector('details'),null);
+ const widgetView=widget(),answer={id:'fact',kind:'fact-card',title:'Fakta',status:'ready',content:visualExamples['fact-card'].content};widgetView.update({connected:true},answer);
+ assert.equal(widgetView.visualNode.sources.parentNode,widgetView.querySelector('.answer-content'));assert.equal(widgetView.querySelector('.response-heading').children.includes(widgetView.visualNode.sources),false);
+});
+
+test('comparison content remains hidden and inert through successive step updates',()=>{
+ const view=widget(),scene={connected:true,sessionId:'local'},answer={id:'same-task',kind:'comparison',title:'En pause',status:'ready',filter:'all',selected:'paper-fold',revision:1};
+ view.update(scene,answer);assert.equal(view.querySelector('.comparison').hidden,false);assert.equal(view.querySelector('.comparison').inert,false);
+ for(const step of [0,1,2]){view.update(scene,{...answer,kind:'steps',step,revision:step+2});assert.equal(view.querySelector('.comparison').hidden,true);assert.equal(view.querySelector('.comparison').inert,true);assert.equal(view.querySelector('.answer-choices').hidden,true);assert.equal(view.querySelector('.answer-choices').inert,true);assert.equal(view.querySelector('.guide').hidden,false);assert.equal(view.querySelector('.guide').inert,false);assert.equal(view.querySelector('.guide').data.index,step);}
+});
+
+test('long conclusions use prose density and duplicate title text is suppressed without mutating source content',()=>{
+ const view=document.createElement('pv-fact-card'),content=structuredClone(visualExamples['fact-card'].content),summary='Et roligt forløb kan deles op i flere små bidder. '.repeat(5).trim();content.summary=summary;content.facts[0].value='En kort sløjfe';
+ view.data={state:'ready',contextTitle:'Hvad kan vi gøre i eftermiddag?',content};
+ assert.equal(view.dataset.conclusionDensity,'prose');assert.equal(view.summary.textContent,summary);assert.equal(view.summary.hidden,false);assert.equal(view.list.children[0].dataset.valueKind,'text');
+ const row=view.list.children[0];view.data={state:'ready',contextTitle:summary,content};assert.equal(view.summary.hidden,true);assert.equal(view.list.children[0],row);assert.equal(content.summary,summary);assert.equal(content.facts[0].value,'En kort sløjfe');
+ view.data={state:'interrupted'};assert.equal(view.summary.textContent,summary);assert.equal(view.list.children[0],row);assert.equal(view.note.textContent,'Svaret blev afbrudt.');
+});
+
+
+test('the actual conversation-long lead uses prose density while a short numeric fact conclusion stays brief',()=>{
+ const long=previewScene('conversation-long').answers[0];assert.ok(long.content.summary.startsWith('Planlæg en kort rundtur'));assert.ok(long.content.summary.length>100&&long.content.summary.length<160);
+ const view=document.createElement('pv-fact-card');view.data={state:'ready',contextTitle:long.title,content:long.content};assert.equal(view.dataset.conclusionDensity,'prose');
+ const answer=widget();answer.update({connected:true},long);assert.equal(answer.dataset.conclusionDensity,'prose');
+ view.data={state:'ready',content:visualExamples['fact-card'].content};assert.equal(view.dataset.conclusionDensity,'brief');
+});
+
+test('shared viewport density follows visible content rather than example IDs or source payload size',()=>{
+ for(const stage of ['conversation-complete','answer-fact-card-ready','answer-steps-ready']){const scene=previewScene(stage),answer=scene.answers[0],view=widget();view.update(scene,answer);assert.equal(view.dataset.answerExtent,'short',stage);if(stage==='conversation-complete'){assert.equal(view.querySelector('.open-weather-answer').hidden,false);assert.equal(view.querySelector('.answer-actions').hidden,false);}}
+ const scene=previewScene('conversation-long'),answer=scene.answers[0],view=widget();view.update(scene,answer);assert.equal(view.dataset.answerExtent,'long');const content=structuredClone(visualExamples['fact-card'].content);content.sources[0].scope='A'.repeat(240);view.update({connected:true},{...answer,id:'different-id',title:'Kort faktasvar',content});assert.equal(view.dataset.answerExtent,'short');
+});
+
+test('weather example disclosure lives in Kilder while current facts and the primary action remain visible',()=>{
+ const scene=previewScene('conversation-complete'),answer=scene.answers[0],view=widget();view.update(scene,answer);const visual=view.visualNode;
+ assert.equal(visual.weatherCaption.parentNode,visual.sourcePanel);assert.equal(visual.weatherCaption.textContent,'Vejrforløb · forhåndsvisning');assert.equal(visual.body.hidden,false);assert.equal(view.querySelector('.open-weather-answer').hidden,false);assert.equal(view.querySelector('.open-weather-answer').inert,false);assert.ok(visual.list.children.every(row=>row.hidden!==true));
+});
+
+
+test('opening retained visual sources measures the body before native expansion and keeps current content',()=>{
+ const view=widget(),scene=previewScene('conversation-complete'),answer=scene.answers[0];view.update(scene,answer);
+ const visual=view.visualNode,sources=visual.sources,summary=sources.children[0],body=view.querySelector('.answer-scroll'),values=new Map(),row=visual.list.children[0],button=view.querySelector('.open-weather-answer');
+ view.style.setProperty=(key,value)=>values.set(key,value);view.style.removeProperty=key=>values.delete(key);
+ body.getBoundingClientRect=()=>({height:410});
+ let scrolls=0;view.scrollIntoView=body.scrollIntoView=summary.scrollIntoView=()=>scrolls++;
+ summary.click();assert.equal(values.get('--pv-answer-retained-body-height'),'410px');
+ sources.open=true;sources.dispatchEvent(new Event('toggle'));view.update(scene,{...answer});
+ assert.equal(view.visualNode,visual);assert.equal(visual.list.children[0],row);assert.equal(view.querySelector('.open-weather-answer'),button);assert.equal(sources.open,true);assert.equal(values.get('--pv-answer-retained-body-height'),'410px');assert.equal(scrolls,0);
+ // A click on the already-open disclosure must not capture its expanded height.
+ body.getBoundingClientRect=()=>({height:999});summary.click();assert.equal(values.get('--pv-answer-retained-body-height'),'410px');
+ sources.open=false;sources.dispatchEvent(new Event('toggle'));assert.equal(values.has('--pv-answer-retained-body-height'),false);
+ body.getBoundingClientRect=()=>({height:415});summary.click();assert.equal(values.get('--pv-answer-retained-body-height'),'415px');
+ view.update(scene,{...answer,id:'a-new-answer'});assert.equal(values.has('--pv-answer-retained-body-height'),false);
+});
+
+test('visual sources close with Escape without scrolling the retained answer to its trigger',()=>{
+ const view=document.createElement('pv-fact-card');view.data={state:'ready',content:visualExamples['fact-card'].content};const sources=view.sources,summary=sources.children[0];
+ let focusOptions;summary.focus=options=>focusOptions=options;sources.open=true;const escape=new Event('keydown');escape.key='Escape';sources.dispatchEvent(escape);
+ assert.equal(sources.open,false);assert.deepEqual(focusOptions,{preventScroll:true});
+});
+
+
+test('typed and visual source disclosures share flow capture and a detached old toggle cannot clear the current footprint',()=>{
+ const view=widget(),values=new Map();view.style.setProperty=(key,value)=>values.set(key,value);view.style.removeProperty=key=>values.delete(key);view.querySelector('.answer-scroll').getBoundingClientRect=()=>({height:380});
+ const typed=new Node('details'),typedSummary=new Node('summary');typed.append(typedSummary);view.bindSourceDisclosure(typed);typedSummary.click();typed.open=true;typed.dispatchEvent(new Event('toggle'));assert.equal(values.get('--pv-answer-retained-body-height'),'380px');
+ const scene=previewScene('conversation-complete');view.update(scene,scene.answers[0]);const visual=view.visualNode.sources;view.querySelector('.answer-scroll').getBoundingClientRect=()=>({height:410});visual.children[0].click();visual.open=true;typed.open=false;typed.dispatchEvent(new Event('toggle'));
+ assert.equal(values.get('--pv-answer-retained-body-height'),'410px');visual.open=false;visual.dispatchEvent(new Event('toggle'));assert.equal(values.size,0);
+});
+
+
+test('explicit source disclosure releases a real pointer geometry hold before native open and close',async()=>{
+ const {SceneMotion}=await import('../../podvoice/gatekeeper/static/podview/ui/motion.js');
+ const view=widget(),scene=previewScene('conversation-complete');view.update(scene,scene.answers[0]);const sources=view.visualNode.sources,summary=sources.children[0],properties=new Map();
+ view.offsetHeight=656;view.getClientRects=()=>[{}];view.getBoundingClientRect=()=>({height:656,x:0,y:0});
+ view.style={getPropertyValue:key=>properties.get(key)?.value||'',getPropertyPriority:key=>properties.get(key)?.priority||'',setProperty:(key,value,priority='')=>properties.set(key,{value,priority}),removeProperty:key=>properties.delete(key)};
+ view.querySelector('.answer-scroll').getBoundingClientRect=()=>({height:410});
+ const host={dataset:{},isConnected:true,querySelectorAll:()=>[view]};host.motion=new SceneMotion(host);view.closest=selector=>selector==='pv-widget-host'?host:null;
+ for(const open of [false,true]){sources.open=open;host.motion.holdGeometry();assert.equal(properties.get('max-height').value,'656px');assert.equal(properties.get('max-height').priority,'important');assert.equal(host.motion.geometry.size,1);
+  summary.click();assert.equal(sources.open,open,'native details remains the activation owner');assert.equal(host.motion.geometry.size,0);for(const key of ['height','min-height','max-height'])assert.equal(properties.has(key),false,key);
+ }
+ assert.equal(properties.get('--pv-answer-retained-body-height').value,'410px');
 });

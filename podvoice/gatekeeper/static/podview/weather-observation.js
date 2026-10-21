@@ -14,7 +14,7 @@ export function weatherAppearance(current,{fresh=true}={}){
  return {tone,phase,photo:tone==='partlycloudy'&&phase==='day'};
 }
 export function weatherTemperature(value,unit='°C'){
- return Number.isFinite(value)?`${new Intl.NumberFormat('da-DK',{maximumFractionDigits:0}).format(Math.abs(value)<0.5?0:value)}${unit}`:'—';
+ return Number.isFinite(value)?`${new Intl.NumberFormat('da-DK',{maximumFractionDigits:0}).format(Math.abs(value)<0.5?0:value)}${unit==='°C'||unit==='C'?'°':unit}`:'—';
 }
 export const localDayKey=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 export function completeHourlyDayRanges(periods){

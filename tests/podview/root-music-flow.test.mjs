@@ -5,7 +5,7 @@ test('voice and touch resolve the identical bound option and correlated receipt'
 test('stale, cross-session, hidden options and late cancelled stages cannot advance',()=>{const s=ready(),e={type:'choose',run:s.run,sessionId:'s1',revision:2,optionId:'jazz',allowed:['jazz'],operation:1};for(const change of [{revision:1},{sessionId:'s2'},{optionId:'other'},{run:0}])assert.equal(step(s,{...e,...change}),s);const cancelled=step(s,{type:'cancel'});assert.equal(step(cancelled,e),cancelled);assert.equal(step(cancelled,{type:'options',run:s.run,revision:2}),cancelled);});
 
 
-test('journey waiting keeps status empty and hidden while confirmed playback keeps its result',async()=>{
+test('journey waiting clears only its queue source while confirmed playback announces its result',async()=>{
  const {MusicJourney}=await import('../../podvoice/gatekeeper/static/podview/flow-controller.js');
  const {initialWidgetState}=await import('../../podvoice/gatekeeper/static/podview/widget-model.js');
  const oldDocument=globalThis.document,oldWindow=globalThis.window;
@@ -13,14 +13,19 @@ test('journey waiting keeps status empty and hidden while confirmed playback kee
  const fakeWindow={};fakeWindow.parent=fakeWindow;
  globalThis.window=fakeWindow;globalThis.document={querySelector:id=>nodes.get(id)};
  try{
-  const host={state:{connected:true,sessionId:'s1',music:initialWidgetState()},dataset:{},querySelectorAll:()=>[],renderVoice(){}};
+  const notifications=[];const host={state:{connected:true,sessionId:'s1',music:initialWidgetState()},dataset:{},querySelectorAll:()=>[],renderVoice(){},showFeedback(message,pending,options){notifications.push({message,pending,...options});}};
   const journey={host,state:{phase:'selecting',sessionId:'s1',operation:0,optionId:'smooth-jazz'},clear(){throw Error('unexpected cancellation');}};
   for(const phase of ['thinking','selecting']){
    journey.state.phase=phase;MusicJourney.prototype.render.call(journey);
-   assert.equal(nodes.get('#journey-status').textContent,'');assert.equal(nodes.get('#journey-status').hidden,true);
+   assert.deepEqual(notifications.at(-1),{message:'',pending:false,source:'journey'});
    assert.equal(host.dataset.journey,phase);
   }
   journey.state.phase='playing';MusicJourney.prototype.render.call(journey);
-  assert.equal(nodes.get('#journey-status').hidden,false);assert.match(nodes.get('#journey-status').textContent,/spiller i stuen/);
+  assert.equal(notifications.at(-1).source,'journey');assert.match(notifications.at(-1).message,/spiller i stuen/);
  }finally{globalThis.document=oldDocument;globalThis.window=oldWindow;}
+});
+
+test('late local journey render cannot overwrite Find musik heading with collection title',async()=>{
+ const {MusicJourney}=await import('../../podvoice/gatekeeper/static/podview/flow-controller.js'),{initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');const previous={document:globalThis.document,window:globalThis.window};const nodes=new Map(['#response-title','#result-count','#journey-status'].map(id=>[id,{textContent:'',hidden:false}]));globalThis.document={querySelector:id=>nodes.get(id)};const window={};window.parent=window;globalThis.window=window;
+ try{const host={state:initialScene(),dataset:{},querySelectorAll:()=>[],renderVoice(){}},journey=Object.assign(Object.create(MusicJourney.prototype),{host,state:newMusicFlow()});for(const collection of ['mood','feeling','top','recent']){host.state.music.collection=collection;journey.render();assert.equal(nodes.get('#response-title').textContent,'Find musik');assert.ok(nodes.get('#result-count').textContent.length>0);}}finally{Object.assign(globalThis,previous);}
 });

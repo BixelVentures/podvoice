@@ -72,3 +72,26 @@ test('cleanup removes listeners, owned timeout and cancellation feedback',()=>{
  const f=fixture();f.tapDown();f.events.fire('pointermove',f.pointer({clientX:120}));f.dispose();assert.equal(f.button.attrs.size,0);assert.equal(f.surface.listeners.size,0);assert.equal(f.events.listeners.size,0);assert.equal(f.document.listeners.size,0);assert.equal(f.jobs.size,0);
  const g=fixture();g.tapDown();g.tapUp();assert.equal(g.jobs.size,1);g.dispose();assert.equal(g.jobs.size,0);
 });
+
+test('press correlation belongs to the nearest nested control, never the compound card',async()=>{
+ const {nearestPressControl}=await import('../../podvoice/gatekeeper/static/podview/ui/touch-intent.js');
+ const outer={matches:selector=>selector.includes('[role="button"]')};
+ const inner={matches:selector=>selector.startsWith('button,')};
+ const icon={matches:()=>false};
+ assert.equal(nearestPressControl([icon,inner,outer]),inner);
+ assert.equal(nearestPressControl([icon,outer]),outer);
+ const staticCard={matches:()=>false};assert.equal(nearestPressControl([icon,staticCard]),null);
+});
+
+test('nested slider and editable fields own their gesture without arming an ancestor card',async()=>{
+ const {nearestPressControl}=await import('../../podvoice/gatekeeper/static/podview/ui/touch-intent.js');
+ const outer={matches:selector=>selector.includes('[role="button"]')};
+ for(const field of ['input','select','textarea','[role="slider"]','[contenteditable="true"]']){
+  const inner={matches:selector=>selector.split(',').includes(field)};
+  assert.equal(nearestPressControl([inner,outer]),null,field);
+ }
+ const f=fixture(),range={matches:selector=>selector==='input,select,textarea,[role="slider"],[role="textbox"],[role="spinbutton"],[contenteditable="true"]'};
+ f.tapDown({target:range,composedPath:()=>[range,f.button,f.surface]});
+ f.events.fire('pointermove',f.pointer({clientX:150}));f.tapUp({clientX:150});
+ assert.equal(f.button.attrs.size,0);assert.equal(f.jobs.size,0);assert.equal(f.click().defaultPrevented,undefined);f.dispose();
+});

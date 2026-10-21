@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {applyKitComponent} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import {resourceOverviewAction} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
+import {devicePresentation} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const method=source.slice(source.indexOf(' openOverviewRobot('),source.indexOf('\n focusHeading(){')).trim();
+const open=new Function(`return function ${method}`)();
+const device={id:'robot-stable-id',kind:'vacuum',status:'docked',revision:4};
+function fixture({live=false,change={},allowed=true}={}){const calls=[],opener={},host={live,state:{connected:true,focus:'now',devices:[{...device,live,...change}]},dispatch(event){calls.push(event);this.state.focus=event.id;}};host[live?'liveControls':'localRobot']={allowed:domain=>domain==='vacuum'&&allowed,openRobot(node){assert.equal(host.state.focus,device.id);assert.equal(node,opener);calls.push('existing-bound-controls');}};return {host,calls,opener};}
+test('explicit detail navigation helper opens the existing robot detail without starting or opening another form',()=>{for(const live of [false,true]){const f=fixture({live});open.call(f.host,device.id,f.opener);assert.deepEqual(f.calls,[{type:'show',id:device.id}]);}});
+test('explicit detail navigation helper rejects stale, busy, missing permission, active and foreign IDs',()=>{for(const options of [{allowed:false},{change:{stale:true}},{change:{pending:{}}},{change:{status:'cleaning'}},{change:{presentationOnly:true}}]){const f=fixture(options);open.call(f.host,device.id,f.opener);assert.deepEqual(f.calls,[]);}const f=fixture({live:true});f.host.liveControls.setupPending=true;open.call(f.host,device.id,f.opener);open.call(f.host,'foreign',f.opener);assert.deepEqual(f.calls,[]);});
+test('overview battery reports actual bounded readings and never invents missing telemetry',()=>{assert.equal(devicePresentation({...device,battery:76}).value,'76 %');assert.equal(devicePresentation({...device,battery:0}).value,'0 %');for(const battery of [null,undefined,NaN,101,-1])assert.equal(devicePresentation({...device,battery}).value,'');});
+
+test('S Light keeps whole-card detail navigation while M Robot alone retains capability-bound commands',async()=>{
+ const {deviceActions}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),body=source.slice(source.indexOf(' renderOverviewAction('),source.indexOf('\n openOverviewRobot(')).trim();
+ class Node{constructor(){this.children=[];this.dataset={};this.attrs={};this.handlers={};this.hidden=false;this.inert=false;}append(n){n.parentNode?.children.splice(n.parentNode.children.indexOf(n),1);this.children.push(n);n.parentNode=this;}insertBefore(n,b){this.children.splice(this.children.indexOf(b),0,n);n.parentNode=this;}addEventListener(k,f){this.handlers[k]=f;}getAttribute(k){return this.attrs[k];}setAttribute(k,v){this.attrs[k]=v;}}
+ const draw=new Function('document','deviceActions','resourceOverviewAction','applyKitComponent',`return function ${body}`)({createElement:()=>new Node()},deviceActions,resourceOverviewAction,applyKitComponent),parent=new Node(),row=new Node();parent.append(row);row.dataset={target:'light',status:'off',resourceStatus:'off'};
+ const d={id:'light',kind:'light',status:'off',revision:7},events=[],host={live:false,state:{connected:true,sessionId:'session',devices:[d]},dispatch:e=>events.push(e)};draw.call(host,row,d);const shell=row.overviewShell,action=row.overviewAction;
+ assert.equal(shell.children[0],row);assert.equal(shell.children[1],action);assert.equal(row.children.length,0);assert.equal(action.textContent,'');assert.equal(action.hidden,true);assert.equal(action.disabled,true);assert.equal(action.getAttribute('data-kit'),'button');draw.call(host,row,d);assert.equal(row.overviewShell,shell);assert.equal(row.overviewAction,action);assert.equal(parent.children.length,1);
+ d.revision=8;action.handlers.click();assert.deepEqual(events,[]);
+ host.live=true;draw.call(host,row,d);assert.equal(action.disabled,true);action.handlers.click();assert.equal(events.length,0);
+ const robot={id:'robot',kind:'vacuum',status:'cleaning',revision:11};host.live=false;host.localRobot={allowed:()=>true};host.state.devices=[robot];row.dataset.target='robot';draw.call(host,row,robot);assert.equal(action.textContent,'Pause');assert.equal(action.hidden,false);assert.equal(action.disabled,false);action.handlers.click();assert.deepEqual(events.at(-1),{type:'device-action',sessionId:'session',taskId:'robot',revision:11,action:'pause'});
+ // A previously visible M action cannot fire after the same retained card becomes S.
+ const beforeSizeChange=events.length;shell.dataset.kitSize='s';action.handlers.click();assert.equal(events.length,beforeSizeChange);draw.call(host,row,robot);assert.equal(action.hidden,true);assert.equal(action.disabled,true);shell.dataset.kitSize='m';draw.call(host,row,robot);assert.equal(action.hidden,false);assert.equal(action.disabled,false);
+ robot.pending={operation:1};draw.call(host,row,robot);assert.equal(action.disabled,true);const count=events.length;action.handlers.click();assert.equal(events.length,count);robot.pending=null;robot.status='paused';draw.call(host,row,robot);assert.equal(action.textContent,'Fortsæt');assert.equal(action.hidden,false);robot.revision=12;action.handlers.click();assert.deepEqual(events.at(-1),{type:'device-action',sessionId:'session',taskId:'robot',revision:12,action:'resume'});for(const state of ['docked','stopped','complete','docking','fault','unknown','unavailable']){robot.status=state;draw.call(host,row,robot);assert.equal(action.hidden,true,state);assert.equal(action.textContent,'');const before=events.length;action.handlers.click();assert.equal(events.length,before,'hidden state never navigates or commands');}robot.status='cleaning';robot.live=true;host.live=true;host.liveControls={allowed:()=>true};draw.call(host,row,robot);assert.equal(action.hidden,true,'no prepared live pause capability is invented');
+});
+
+test('one kit rule admits only relevant owner-supplied overview commands and never duplicate navigation',()=>{
+ const ctx={connected:true,canControl:true,actions:[{id:'pause',label:'Pause rengøring'},{id:'resume',label:'Fortsæt rengøring'},{id:'start',label:'Start'},{id:'show',label:'Vælg rum'}]};
+ assert.deepEqual(resourceOverviewAction({kind:'vacuum',status:'cleaning'},ctx),{id:'pause',label:'Pause',ariaLabel:'Pause rengøring',disabled:false});
+ assert.equal(resourceOverviewAction({kind:'vacuum',status:'paused'},ctx).id,'resume');for(const status of ['cleaning','paused'])assert.equal(resourceOverviewAction({kind:'vacuum',status},{...ctx,size:'s'}),null);assert.equal(resourceOverviewAction({kind:'vacuum',status:'cleaning'},{...ctx,size:'m'}).id,'pause');
+ for(const status of ['docked','stopped','complete','docking','returning','idle','fault','error','unavailable','unknown'])assert.equal(resourceOverviewAction({kind:'vacuum',status},ctx),null,status);
+ for(const change of [{connected:false},{canControl:false},{live:true},{actions:[]}])assert.equal(resourceOverviewAction({kind:'vacuum',status:'cleaning'},{...ctx,...change}),null);
+ for(const change of [{stale:true},{live:true},{presentationOnly:true}])assert.equal(resourceOverviewAction({kind:'vacuum',status:'cleaning',...change},ctx),null);
+ assert.equal(resourceOverviewAction({kind:'vacuum',status:'cleaning',pending:{action:'pause'}},ctx).disabled,true);
+ for(const status of ['on','off','mixed','unknown','unavailable','fault'])assert.equal(resourceOverviewAction({kind:'light',status},{...ctx,actions:[{id:'turn_on',label:'Tænd lys'},{id:'turn_off',label:'Sluk lys'}]}),null,'S Light offers no inner command in '+status);
+ assert.equal(resourceOverviewAction({kind:'light',status:'unknown'},{...ctx,actions:[{id:'turn_on',label:'Tænd lys'}]}),null);
+ assert.equal(resourceOverviewAction({kind:'weather',status:'ready'},ctx),null);
+});

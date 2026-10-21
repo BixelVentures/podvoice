@@ -1,4 +1,4 @@
-import {bindRoom,boundPlayback,targetEnvelope} from './root-room-fixture.mjs';
+import {bindRoom,boundPlayback,targetEnvelope} from './room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,selectionOffer} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';

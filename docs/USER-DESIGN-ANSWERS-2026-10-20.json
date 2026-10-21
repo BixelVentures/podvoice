@@ -1,0 +1,77 @@
+{
+  "question-1": {
+    "vote": "yes",
+    "note": "B valgt direkte i chatten: rolig blå flade uden foto.",
+    "component": "Vejr",
+    "state": "Overblikskort",
+    "question": "Skal vejret have en helt rolig blå flade uden foto?",
+    "reviewedVariant": "alternative"
+  },
+  "question-3": {
+    "vote": "yes",
+    "note": "B valgt direkte i chatten: højttaler på én linje uden Spiller på.",
+    "component": "Musikplayer",
+    "state": "Spiller",
+    "question": "Skal højttaleren stå på én linje uden teksten »Spiller på«?",
+    "reviewedVariant": "alternative"
+  },
+  "question-4": {
+    "vote": "yes",
+    "note": "A valgt: mørk aktiv timer. Samme bredde fra aktiv til færdig, så layoutet ikke hopper.",
+    "component": "Timer",
+    "state": "Aktiv timer · overblik",
+    "question": "Skal en aktiv timer have studiets mørke flade, også mens resten af overblikket er lyst?",
+    "reviewedVariant": "current"
+  },
+  "question-5": {
+    "vote": "yes",
+    "note": "",
+    "component": "Timer",
+    "state": "Tiden er gået · overblik",
+    "question": "Skal »Tiden er gået« overtage tallets plads, når timeren er færdig?"
+  },
+  "question-6": {
+    "vote": "no",
+    "note": "",
+    "component": "Robotstøvsuger",
+    "state": "Overblik · ved basen",
+    "question": "Skal robotikonet være mindre, når robotten står ved basen?"
+  },
+  "question-7": {
+    "vote": "yes",
+    "note": "",
+    "component": "Lys",
+    "state": "Ikke tilgængeligt",
+    "question": "Skal utilgængeligt lys beholde den varme funktionsfarve?"
+  },
+  "question-10": {
+    "vote": "maybe",
+    "note": "",
+    "component": "Samtale og feedback",
+    "state": "Du afbryder",
+    "question": "Skal det gamle svar få en lille markering »Forrige svar«, mens du stiller en opfølgning?"
+  },
+  "question-9": {
+    "vote": "yes",
+    "note": "B valgt: Til overblik nederst. Automatisk retur efter PodVoice/delay foreslået; timing og afbrydelsesregler endnu åbne.",
+    "component": "Samtale og feedback",
+    "state": "Tale afsluttet",
+    "question": "Skal det færdige svar have en tydelig »Til overblik«-handling nederst?",
+    "reviewedVariant": "alternative"
+  },
+  "question-11": {
+    "vote": "yes",
+    "note": "B valgt: køen i fokus. Toppen skal løftes markant til Spotify-niveau, med tidslinjevælger hvor afspilningen understøtter det.",
+    "component": "Musikplayer",
+    "state": "Udvidet player og kø",
+    "question": "Skal detaljelaget prioritere køen over en gentagelse af det store cover?",
+    "reviewedVariant": "alternative"
+  },
+  "question-12": {
+    "vote": "yes",
+    "note": "",
+    "component": "Overblik og Ro",
+    "state": "Overblik med aktiviteter",
+    "question": "Skal næste kortrække være delvist synlig som tegn på, at man kan scrolle?"
+  }
+}

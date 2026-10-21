@@ -3,6 +3,7 @@ import {validateVisualContent} from './visual-content.js';
 import {visualFamilies} from './visual-content.js';
 import {FORMATS,initialScene,sceneTransition as step} from './scene-model.js';
 import {vehicleFixture} from './vehicle-model.js';
+import {vehicleObservation} from './ha-home-observation.js';
 import {localRadioTransition} from './radio-model.js';
 // Deterministic, explicitly documented prototype states; no integrations or requests.
 export const playerPreviewStates=['empty','loading','missing-art','offline','error'].flatMap(state=>['rest','active'].map(mode=>`player-${mode}-${state}`));
@@ -19,8 +20,11 @@ export const answerPreviewStates=FORMATS.flatMap(format=>answerPreviewStatuses.m
 export const conversationPreviewStates=['overview','listening','working','speaking','visual','late','complete','interrupted','followup','long','resume','timer-finished','offline','reconnecting','reconnected','visual-error'].map(state=>`conversation-${state}`);
 export const coexistencePreviewStates=['conversation-visual-timer-finished','conversation-long-timer-finished'];
 export const firstRunPreviewStates=['first-connecting','first-unavailable','first-denied','first-empty'];
-export const previewStates=[...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
+// Additional authored snapshots exercise only fields accepted by existing owners.
+export const libraryDomainPreviewStates=['robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','music-offline','music-unknown','music-long-output','player-queue-empty','player-queue-error','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
+export const previewStates=[...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name,now=Date.now()){
+ if(libraryDomainPreviewStates.includes(name))return libraryDomainPreviewScene(name,now);
  if(firstRunPreviewStates.includes(name)){const connectionPreview=name==='first-empty'?{status:'connected',snapshot:{capabilities:{homeRead:[],musicRead:[],timerActions:[],answerRead:false}}}:{status:name==='first-connecting'?'connecting':'disconnected',blocked:name==='first-denied'};const scene=initialScene();return {...scene,music:{...scene.music,playback:{...scene.music.playback,active:false,playing:false}},focus:'now',connected:false,weatherPreview:'empty',connectionPreview,devices:[],timer:null,extraTimers:[],answers:[]};}
  if(coexistencePreviewStates.includes(name)){
   let s=conversationPreviewScene('conversation-visual',now);
@@ -44,11 +48,11 @@ export function previewScene(name,now=Date.now()){
  if(radioPreviewStates.includes(name))return radioPreviewScene(name);
  if(weatherPreviewStates.includes(name))return {...step(initialScene(),{type:'show',id:'weather'}),weatherPreview:name.slice('weather-'.length)};
  if(answerPreviewStates.includes(name))return answerPreviewScene(name);
- if(name==='activities-combined')return {...devicePreviewScene(timerPreviewScene('timer-overview-running',now),'robot-overview-cleaning'),vehicle:vehicleFixture({charging:true,now})};
- if(['vehicle-charging','vehicle-charging-overview'].includes(name))return {...initialScene(),focus:name==='vehicle-charging'?'vehicle':'now',vehicle:vehicleFixture({charging:true,now})};
+ if(name==='activities-combined')return {...devicePreviewScene(timerPreviewScene('timer-overview-running',now),'robot-overview-cleaning'),vehicle:vehicleFixture({charging:true,now,controls:true})};
+ if(['vehicle-charging','vehicle-charging-overview'].includes(name))return {...initialScene(),focus:name==='vehicle-charging'?'vehicle':'now',vehicle:vehicleFixture({charging:true,now,controls:true})};
  if(name==='vehicle-unconnected')return step(initialScene(),{type:'show',id:'vehicle'});
  if(deviceOfflinePreviewStates.includes(name)){const [kind,layer]=name.split('-');return step(devicePreviewScene(initialScene(),`${kind}-${layer}-${kind==='robot'?'cleaning':'on'}`),{type:'offline'});}
- let s=initialScene();if(devicePreviewStates.includes(name))return devicePreviewScene(s,name);if(name?.startsWith('header-')&&Object.hasOwn(headerPreviewPhases,name.slice(7)))return {...s,focus:'now',navStack:[],voicePreviewPhase:headerPreviewPhases[name.slice(7)]};if(name==='visual-history'){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});return localAnswerHistory({...s,focus:'now'});}if(playerPreviewStates.includes(name)){const rest=name.startsWith('player-rest-'),status=name.replace(/^player-(rest|active)-/,'');return {...s,focus:rest?'photo':'music',navStack:[],playerPreview:status,...(status==='empty'?{music:{...s.music,playback:{...s.music.playback,active:false,playing:false}}}:{}),connected:status!=='offline'};}if(['rest','nothing','now','quiet','music','top','weather','timers','paused'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});s={...s,focus:'music',navStack:[],detailOrigin:undefined};}
+ let s=initialScene();if(devicePreviewStates.includes(name))return devicePreviewScene(s,name,now);if(name?.startsWith('header-')&&Object.hasOwn(headerPreviewPhases,name.slice(7)))return {...s,focus:'now',navStack:[],voicePreviewPhase:headerPreviewPhases[name.slice(7)]};if(name==='visual-history'){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});return localAnswerHistory({...s,focus:'now'});}if(playerPreviewStates.includes(name)){const rest=name.startsWith('player-rest-'),status=name.replace(/^player-(rest|active)-/,'');return {...s,focus:rest?'photo':'music',navStack:[],playerPreview:status,...(status==='empty'?{music:{...s.music,playback:{...s.music.playback,active:false,playing:false}}}:{}),connected:status!=='offline'};}if(['rest','nothing','now','quiet','music','top','weather','timers','paused'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});s={...s,focus:'music',navStack:[],detailOrigin:undefined};}
  if(!previewStates.includes(name))return s;
  if(visualFamilies.includes(name)){s=step(s,{type:'request',kind:name});return step(s,{type:'answer-result',...s.pendingAnswer,status:'ready'});}
  if(['stack','music-stack'].includes(name)){s=step(s,{type:'timer-start',now});for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'14.50'});return step(s,{type:'show',id:name==='stack'?'now':'music'});}
@@ -129,7 +133,8 @@ function timerPreviewScene(name,now){
  s=step(s,{type:'tick',now});
  if(status==='finished')s=step(s,{type:'tick',now:s.timer.deadline});
  if(status==='stale')s={...step(s,{type:'offline'}),timer:{...s.timer,stale:true,deadline:null}};
- if(status==='multiple')s={...s,extraTimers:[{...s.timer,id:'local-timer-2',name:'Te',duration:180,remaining:120,deadline:now+120000}],timerSerial:2};
+ // Keep the legacy stage URL, but obey the product's single-timer contract.
+ if(status==='multiple')s={...s,timerHistory:[{seconds:180},{seconds:300},{seconds:600}]};
  return s;
 }
 
@@ -184,14 +189,44 @@ export function localAnswerHistory(scene){
 }
 
 // Explicit QA-only model input. All layers continue through the normal renderers.
-function devicePreviewScene(s,name){
+function devicePreviewScene(s,name,now=Date.now()){
  const [domain,layer,status]=name.split('-'),kind=domain==='robot'?'vacuum':'light',id=`demo-${kind}`;
+ const observedAt=Math.floor(now/1000),telemetry=status=>{const rows=[['cleaning_area',12.5,'m²'],['cleaning_time',600,'s'],['cleaning_mode','vac_and_mop',null],['selected_map','Stueetagen',null],['last_clean_end',observedAt-86400,null],['last_clean_start',observedAt-87000,null]];if(['cleaning','paused','pending'].includes(status))rows.unshift(['current_room','Køkkenet',null],['clean_percent',38,'%']);return {status:'observed',source:'local_preview',exampleOnly:true,items:rows.map(([key,value,unit])=>({key,value,unit,updatedAt:observedAt,retrievedAt:observedAt,stale:false}))};};
  for(const resource of ['vacuum','light'])s=step(s,{type:'device-demo',kind:resource,time:'12.00'});
  s={...s,devices:s.devices.map(d=>{
   if(d.id!==id)return d;
   const observed=status==='pending'?(kind==='light'?'on':'cleaning'):status;
-  return {...d,exampleOnly:true,status:observed,...(kind==='light'?{lights:d.lights.map((lamp,index)=>({...lamp,on:observed==='mixed'?index%2===0:observed==='on'}))}:{battery:76}),pending:status==='pending'?{operation:1,action:kind==='light'?'turn_off':'pause',generation:s.generation,...(kind==='light'?{targetIds:d.lights.map(lamp=>lamp.id),scopeLabel:'Hele hjemmet'}:{})}:null,timeline:[{id:'preview-observed',label:kind==='light'?'Lysstatus':'Robotstatus',time:'12.00'}]};
+  return {...d,exampleOnly:true,status:observed,...(kind==='light'?{lights:d.lights.map((lamp,index)=>{const on=observed==='mixed'?index%2===0:observed==='on';return {...lamp,on,...(lamp.dimmable&&on?{brightness:lamp.brightness>0?lamp.brightness:60}:{})};})}:{battery:76,...(!['unknown','fault','unavailable'].includes(status)?{telemetry:telemetry(status)}:{})}),pending:status==='pending'?{operation:1,action:kind==='light'?'turn_off':'pause',generation:s.generation,...(kind==='light'?{targetIds:d.lights.map(lamp=>lamp.id),scopeLabel:'Hele hjemmet'}:{})}:null,timeline:[{id:'preview-observed',label:kind==='light'?'Lysstatus':'Robotstatus',time:'12.00'}]};
  }),deviceOperation:status==='pending'?1:s.deviceOperation,navStack:[],detailOrigin:undefined};
  s=step(s,{type:'show',id:'now'});
  return layer==='overview'?s:step(s,{type:'show',id:layer==='rest'?'photo':id});
+}
+
+
+// Catalog snapshots have no transport, credentials or new effect authority.
+// Missing owner states (e.g. Tesla command pending) are deliberately not staged.
+function libraryDomainPreviewScene(name,now){
+ if(['robot-detail-empty','light-detail-empty'].includes(name))return step(previewScene('first-empty',now),{type:'show',id:name.startsWith('robot')?'podview-vacuum-empty':'podview-light-empty'});
+ if(name.startsWith('robot-detail-')){
+  const s=devicePreviewScene(initialScene(),'robot-detail-cleaning',now),status=name.slice('robot-detail-'.length),at=now/1000;
+  return {...s,devices:s.devices.map(d=>d.kind!=='vacuum'?d:{...d,...(status==='stale'?{stale:true}:{}),telemetry:{...d.telemetry,items:[...d.telemetry.items.map(row=>status==='long'&&['current_room','selected_map'].includes(row.key)?{...row,value:row.key==='current_room'?'Den store sammenhængende stue og spisestue ved terrassen og køkkenet':'Stueetagen med køkken, spisestue, arbejdsområde og den lange fordelingsgang'}:row),...(status==='care'?[['main_brush_time_left',72000,'s'],['filter_time_left',18000,'s'],['dirty_box_full',true,null],['dock_error','water_tank_not_installed',null]].map(([key,value,unit])=>({key,value,unit,updatedAt:at,retrievedAt:at,stale:false})):[])]}})};
+ }
+ if(name.startsWith('light-detail-')){
+  const s=devicePreviewScene(initialScene(),'light-detail-on',now),variant=name.slice('light-detail-'.length),selection=({'room-living':'room:living','room-kitchen':'room:kitchen',lamp:'light:living-ceiling',long:'light:living-ceiling'})[variant]||'home';
+  return {...s,devices:s.devices.map(d=>d.kind!=='light'?d:{...d,stale:variant==='stale',lightSelectionId:selection,lights:d.lights.map(lamp=>variant==='long'&&lamp.id==='living-ceiling'?{...lamp,name:'Pendlen over det lange spisebord ved vinduerne mod haven',roomName:'Stue og spisestue i den åbne køkkenalrumsløsning'}:lamp)})};
+ }
+ if(name.startsWith('weather-'))return {...previewScene(name==='weather-unconnected'?'first-empty':'weather-stale',now),focus:'weather',connected:false,weatherPreview:name==='weather-unconnected'?'empty':'stale'};
+ if(name.startsWith('timer-')){const s=timerPreviewScene(name.replace(/paused$/,'running'),now);return step(s,{type:'timer',id:s.timer.id,action:'pause',now});}
+ if(name.startsWith('vehicle-')){
+  const known=name==='vehicle-stale',data=known?{batteryPercent:72,rangeKm:312,locked:true,charging:{status:'charging',powerKw:11,endsAt:now/1000+2700},climate:{status:'off',temperatureC:19}}:{};
+  const admitted=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:now/1000,entityIds:['sensor.podview_preview_car'],data});
+  return {...initialScene(),focus:'vehicle',vehicle:{...admitted,exampleOnly:true,context:'Lokalt eksempel · passiv bilstatus',source:'Lokalt eksempel',stale:known}};
+ }
+ let s=initialScene();
+ if(name==='music-unknown')s=step(s,{type:'music',event:{type:'select',id:'smooth-jazz',revision:s.music.revision}});
+ if(['music-offline','music-unknown'].includes(name))return step(s,{type:'offline'});
+ if(['player-queue-empty','player-queue-error'].includes(name))return {...s,focus:'player',playerPreview:name.endsWith('error')?'error':'empty',music:{...s.music,playback:{...s.music.playback,active:false,playing:false}}};
+ // A long configured destination is real input to the existing local player,
+ // media Card metadata and output label. Track/album identity stays unchanged.
+ return {...s,focus:name.startsWith('player')?'player':'music',music:{...s.music,playback:{...s.music.playback,room:'Køkken og spisestue med højttalerne ved det lange spisebord'}}};
 }
