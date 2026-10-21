@@ -223,7 +223,8 @@ async def test_live_typed_receipt_is_only_visible_input_and_history_persists_onc
         await connection.aclose()
 
 
-async def test_actual_provider_error_is_one_talk_system_line_and_next_turn_recovers():
+@pytest.mark.parametrize("failure", ["provider", "backend_failed", "backend_incomplete"])
+async def test_actual_provider_error_is_one_talk_system_line_and_next_turn_recovers(failure):
     from gatekeeper.talk import TalkConnection, TalkHub
 
     wire = BrowserWire()
@@ -241,15 +242,20 @@ async def test_actual_provider_error_is_one_talk_system_line_and_next_turn_recov
         assert wire.result("failed")["status"] == "submitted"
         failed_sdk = wire.sdk
         failed_generation = session.live_brain._connection_generation
-        await failed_sdk.incoming.put(
-            {"type": "error", "error": {"message": "private provider error secret"}}
-        )
+        if failure == "provider":
+            await failed_sdk.incoming.put(
+                {"type": "error", "error": {"message": "private provider error secret"}}
+            )
+        else:
+            await failed_sdk.incoming.put(created())
+            await failed_sdk.incoming.put(terminal(status=failure.removeprefix("backend_")))
         await until(lambda: session._close_task is not None and session._close_task.done())
         await until(lambda: len([e for e in wire.outgoing if e["type"] == "error"]) == 1)
         failures = [e for e in wire.outgoing if e["type"] == "error"]
         assert failures[0]["error"] == "Samtalen blev afbrudt af en forbindelsesfejl."
         assert "private provider error secret" not in str(wire.outgoing)
         assert not session._active and link._live_handshake is None
+        assert not [e for e in wire.outgoing if e["type"] == "play"]
         assert any(e["type"] == "state" and e["state"] == "IDLE" for e in wire.outgoing)
         failed_sdk.session.close.assert_awaited_once()
         await until(lambda: not session._teardown_incomplete)

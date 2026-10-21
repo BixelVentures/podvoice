@@ -3476,7 +3476,7 @@ class ThinSession:
                 details["backend_final_char_count"] = len(ev.final_message)
             self._trace_event("live_backend_complete", **details)
             if ev.status != "completed":
-                self._request_close("live-backend-failed", error_kind="connection")
+                self._request_close("error:connection", error_kind="connection")
             elif (
                 ev.tool_call_count == 0
                 and self._live_confirmation_generation == ev.generation
