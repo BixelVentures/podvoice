@@ -55,6 +55,7 @@ REQUIRED_TESTS = frozenset(
     {
         "tests/integration/test_web.py",
         "tests/integration/test_ha_timer_native_output.py",
+        "tests/unit/test_candidate_scope_admission70.py",
         "tests/unit/test_live_prompt.py",
         "tests/unit/test_candidate_scope_admission71.py",
     }
@@ -65,8 +66,8 @@ IMMUTABLE = previous.IMMUTABLE | {
     "scripts/podview70-admission-reviewed.json": "0cb6a41e5ab89b4fd0fad6b6656d44e554a364ebec1eb887f37336640dfc5c09",
 }
 REVIEWER = "/root/voice_music_fix"
-MANIFEST_SHA = "f8f77f80ee1313be0e0e37f049bd748e3a01e2a0204df797de738060f7c4e7de"
-PROFILE_AST = "2edcf82c28e9a8f0c0ac9be86877451508d946eb879edcdc5517000fce43dfce"
+MANIFEST_SHA = "06e079e6f66b0c2269b0cbe8b69d3b87f1c7a5cece45eda08b4451bf84c421c1"
+PROFILE_AST = "4ebdf5f04decf416ec3c70548d4ad8b31fd9bd2c6328b8227565d9b982b6be82"
 
 
 def record_at(root: Path) -> dict | None:

@@ -1,11 +1,29 @@
 """PV70 binds only canonical UI and guarded WAV delivery; previous profiles stay fixed."""
 
 import json
+import subprocess
 from pathlib import Path
 
+import pytest
 from scripts import candidate_scope_admission70 as admission
 
 ROOT = Path(__file__).resolve().parents[2]
+PUBLISHED_70 = "0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def published_70_source_root(tmp_path_factory):
+    """Run the immutable70 contract against its published tree, not a successor."""
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published70-source") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED_70], cwd=target, check=True)
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root
 
 
 def test_exact_70_scope_and_config():

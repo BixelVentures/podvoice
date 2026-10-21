@@ -9,7 +9,8 @@
   "regressions": {
     "tests/integration/test_ha_timer_native_output.py": "0d3596e47e09da14e1b73ab526e69808a57f79ff03f1d8dda545db4d9017b5ed",
     "tests/integration/test_web.py": "97c67cfcc0d995f49dbcb468799adac65663174d7a2b461e75ce4ea65e54d368",
-    "tests/unit/test_candidate_scope_admission71.py": "50cdfd00e4693951fe1693b450e4e064eeb02b24a984bcdb7abf8acd9682bbb6",
+    "tests/unit/test_candidate_scope_admission70.py": "7202bff023bde18a38acd72232dbf5d629482db463a6da67e053af18fa21a32a",
+    "tests/unit/test_candidate_scope_admission71.py": "8196f6b919030e5ff67e15b70cb80769b3f170c7f6c88d7a35a874a70ef1ac7d",
     "tests/unit/test_live_prompt.py": "023093f441fe93df91b6a5ec5c0f8872851bc511d94c02262c623636be3a653d"
   },
   "runtime": {
