@@ -42,13 +42,17 @@ int main() {
   f.reply.play("alarm","url",session,1); assert(f.player.plays==1);
   f.player.state=media_player::MEDIA_PLAYER_STATE_ANNOUNCING; f.reply.loop();
   f.reply.invalidate_timer_admission(); assert(f.player.stops==0); // other API client cannot stop alarm
-  f.reply.stop_timer_output(); assert(f.player.stops==1);
-  f.reply.stop_timer_output(); assert(f.player.stops==1);
+  const auto old_stop_command=f.detector.command;
+  f.detector.deliver(old_stop_command); assert(f.player.stops==1);
+  assert(f.context.values.back()==session+":1:stopped");
+  assert(f.reply.get_timer_stop_trigger()->fires==0); // HA owns this alarm, not the device timer
+  f.detector.deliver(old_stop_command); assert(f.player.stops==1); // duplicate is inert
   assert(!f.reply.begin_conversation()); // wake/button only stop alarm until full cleanup
   f.reply.play("late","url",session,1); assert(f.player.plays==1);
   f.player.state=media_player::MEDIA_PLAYER_STATE_IDLE; f.finish(session);
   assert(f.idle()!=idle); assert(f.reply.begin_conversation()); f.ack();
   auto fresh=f.reply.conversation_nonce(); assert(fresh!=session);
+  f.detector.deliver(old_stop_command); assert(f.player.stops==1); // stale Stop cannot cross rearm
   f.reply.begin_timer_output(idle,request); assert(f.reply.conversation_nonce()==fresh);
   Fixture muted; idle=muted.idle(); request=idle+std::string(32,'a'); muted.reply.begin_timer_output(idle,request); muted.ack();
   muted.mute.publish(true); assert(muted.player.stops==1);
