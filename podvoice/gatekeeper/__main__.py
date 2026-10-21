@@ -848,6 +848,7 @@ async def run(cfg: Config) -> None:
             speech.prewarm(
                 [
                     _C.FALLBACK_CONNECTION,
+                    _C.FALLBACK_CAPACITY,
                     _C.FALLBACK_TIMEOUT,
                     _C.TIMER_DONE,
                     _C.FALLBACK_HOME_UNREACHABLE,

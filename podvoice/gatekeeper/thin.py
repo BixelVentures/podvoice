@@ -3667,6 +3667,7 @@ class ThinSession:
     async def _run_live_batch(self, batch: LiveToolBatch, epoch: float) -> None:
         """Execute a completed provider batch under the existing server policy."""
         from .openai_live import LiveProtocolError
+        from .provider_budget import ProviderBudgetUnavailable
 
         revision = self._live_backend_revisions.get(batch.response_id)
         visual_provider = self.brain
@@ -4072,7 +4073,15 @@ class ThinSession:
                 ),
             )
             if current():
-                self._request_close("live-tool-failed", error_kind="connection")
+                if (
+                    stage == "admission"
+                    and completed_results == 0
+                    and isinstance(exc, ProviderBudgetUnavailable)
+                    and str(exc) == "live_result_capacity_unavailable"
+                ):
+                    self._request_close("error:capacity", error_kind="capacity")
+                else:
+                    self._request_close("live-tool-failed", error_kind="connection")
         finally:
             if reviewed is not None and self._live_review is reviewed:
                 self._retire_live_review()

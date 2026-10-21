@@ -868,8 +868,11 @@ class TalkHub:
 
     def failure(self, room: str, kind: str) -> None:
         """Show an actual Thin error close as a system line, never provider text."""
+        from . import constants as C
+
         messages = {
             "connection": "Samtalen blev afbrudt af en forbindelsesfejl.",
+            "capacity": C.FALLBACK_CAPACITY,
             "timeout": "Samtalen blev afbrudt, fordi forbindelsen tog for lang tid.",
             "account": "Samtalen blev afbrudt på grund af en fejl i taletjenestens konto.",
             "device": "Samtalen blev afbrudt af en enhedsfejl.",
