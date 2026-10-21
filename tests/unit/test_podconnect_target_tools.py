@@ -843,3 +843,60 @@ def test_complete_current_catalog_and_extra_device_fit_measured_read_allowance(c
     assert len(result["data"]["targets"]) == count
     assert MAX_TOOL_RESULT_BYTES < tool_result_size(result) <= MAX_PLAYBACK_TARGET_RESULT_BYTES
     assert raw == original
+
+
+async def test_production_live_move_declaration_cannot_offer_always_refused_alias():
+    from types import SimpleNamespace
+
+    from gatekeeper.execution_policy import ExecutionContext
+
+    requests = []
+
+    async def peer(request):
+        requests.append(request.method)
+        assert request.method == "GET"
+        return httpx.Response(200, json=service_page())
+
+    router, client = await make_router(peer)
+    try:
+        old = targets.declarations([], router._discovery.target_contracts)
+        old_move = next(row for row in old if row["name"] == "podconnect_move_playback")
+        assert old_move["parameters"]["properties"]["kind"]["enum"] == [
+            "configured_alias",
+            "spotify_device",
+        ]
+        current = next(
+            row for row in router.declarations() if row["name"] == "podconnect_move_playback"
+        )
+        assert current["parameters"]["properties"]["kind"]["enum"] == ["spotify_device"]
+        frozen = copy.deepcopy(current)
+        router._podview_music_owner = SimpleNamespace(voice_music_available=lambda: True)
+        offered = {row["name"]: row for row in router.declarations()}
+        assert {
+            "podconnect_get_targets",
+            "podview_music_options",
+            "podview_music_select_option",
+        } <= offered.keys()
+        assert current == frozen and old_move["parameters"]["properties"]["kind"]["enum"] == [
+            "configured_alias",
+            "spotify_device",
+        ]
+        args = {"config_entry_id": "A", "kind": "configured_alias", "target_id": "r1"}
+        context = ExecutionContext("session", "live:1:response", "live")
+        stale = await router.dispatch(
+            "podconnect_move_playback",
+            args,
+            execution_context=context,
+            expected_declaration_sha256=router._schema_sha256_for_declarations([old_move]),
+        )
+        assert stale["error_kind"] == "stale_schema"
+        refused = await router.dispatch(
+            "podconnect_move_playback",
+            args,
+            execution_context=context,
+            expected_declaration_sha256=router.declaration_hashes()["podconnect_move_playback"],
+        )
+        assert refused["error_kind"] == "room_move_requires_exact_owner"
+        assert all(method == "GET" for method in requests)
+    finally:
+        await client.aclose()
