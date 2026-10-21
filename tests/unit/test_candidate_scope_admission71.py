@@ -54,6 +54,8 @@ def test_exact_71_scope_and_version_trio():
         "tests/integration/test_web.py",
         "tests/integration/test_ha_timer_native_output.py",
         "tests/unit/test_candidate_scope_admission70.py",
+        "tests/unit/test_live_confirmation_eval.py",
+        "tests/unit/test_live_semantic_completion_eval.py",
         "tests/unit/test_live_prompt.py",
         "tests/unit/test_candidate_scope_admission71.py",
     }

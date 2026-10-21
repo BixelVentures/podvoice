@@ -10,8 +10,10 @@
     "tests/integration/test_ha_timer_native_output.py": "0d3596e47e09da14e1b73ab526e69808a57f79ff03f1d8dda545db4d9017b5ed",
     "tests/integration/test_web.py": "97c67cfcc0d995f49dbcb468799adac65663174d7a2b461e75ce4ea65e54d368",
     "tests/unit/test_candidate_scope_admission70.py": "7202bff023bde18a38acd72232dbf5d629482db463a6da67e053af18fa21a32a",
-    "tests/unit/test_candidate_scope_admission71.py": "8196f6b919030e5ff67e15b70cb80769b3f170c7f6c88d7a35a874a70ef1ac7d",
-    "tests/unit/test_live_prompt.py": "023093f441fe93df91b6a5ec5c0f8872851bc511d94c02262c623636be3a653d"
+    "tests/unit/test_candidate_scope_admission71.py": "82796e17c3257a975ea92de811378dd107ace2667e8c32a9d333e210a68486dc",
+    "tests/unit/test_live_confirmation_eval.py": "7b7507341bbb8eb07db63d4d7ba3d156778cbe905158704cc86bbe30e972a33f",
+    "tests/unit/test_live_prompt.py": "023093f441fe93df91b6a5ec5c0f8872851bc511d94c02262c623636be3a653d",
+    "tests/unit/test_live_semantic_completion_eval.py": "bca674c2f87fd3ceb78de1e9f2973ed7a5e5961a1a6a20b5f3dd991ad21bb677"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "dd755ce121e980305514a946dfebd8d50f747c3abe5ef550de9a5854bf5890b2",
@@ -384,7 +386,8 @@
     "scripts/build-scripts.mjs": "468358f2d7f90c1525b98a49fa563bd2f2b4aa88b8d6adc48a6f67e7a0a00d2e",
     "scripts/check-component-library.mjs": "cd5a9678ca8b836afbbc1af3032bfdd7e7566a192ba98197f7b894729fadd373",
     "scripts/check_podview_admin_stdin.sh": "63e9c696589e7660b99035dcfca5d751814cde8e1f4b6593fa908bdcda576058",
-    "scripts/live_semantic_completion_eval.py": "235b7ca28b1e3e7a7a840141bbcb718227f70501e1a85cd8e70cee5df234e413",
+    "scripts/live_confirmation_eval.py": "41563d0d67e84f6477d7b8201b8e461a5b7b80e31ed7af3d25c44194ad473203",
+    "scripts/live_semantic_completion_eval.py": "3d5b8b03ce27552bf73f88eb6334c434a75bb493cf1f61a20024e4c03cf301f7",
     "scripts/provision_mood_budget.py": "70590ecc4ebc717fc0c2b00d824c561b607510380582fe2baef5cfdd84e54fda",
     "scripts/revoke-podview-controller.py": "1cae1f9f516e5fed803425ebbf17e0e255052b983794b3e5f9556deb85226201"
   },

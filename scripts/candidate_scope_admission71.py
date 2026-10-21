@@ -39,6 +39,8 @@ TOOLING = TOOLING | frozenset(
         "package.json",
         "package-lock.json",
         ".gitignore",
+        "scripts/live_confirmation_eval.py",
+        "scripts/live_semantic_completion_eval.py",
     }
 )
 FIELDS = previous.FIELDS
@@ -56,6 +58,8 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_web.py",
         "tests/integration/test_ha_timer_native_output.py",
         "tests/unit/test_candidate_scope_admission70.py",
+        "tests/unit/test_live_confirmation_eval.py",
+        "tests/unit/test_live_semantic_completion_eval.py",
         "tests/unit/test_live_prompt.py",
         "tests/unit/test_candidate_scope_admission71.py",
     }
@@ -66,8 +70,8 @@ IMMUTABLE = previous.IMMUTABLE | {
     "scripts/podview70-admission-reviewed.json": "0cb6a41e5ab89b4fd0fad6b6656d44e554a364ebec1eb887f37336640dfc5c09",
 }
 REVIEWER = "/root/voice_music_fix"
-MANIFEST_SHA = "06e079e6f66b0c2269b0cbe8b69d3b87f1c7a5cece45eda08b4451bf84c421c1"
-PROFILE_AST = "4ebdf5f04decf416ec3c70548d4ad8b31fd9bd2c6328b8227565d9b982b6be82"
+MANIFEST_SHA = "5fda116fabbedc6d505fc33622c2a63cb52d4337cf2aaaf0d75edadb9eb5cab6"
+PROFILE_AST = "14db830d1ee94737f24554ec2b7402b48cb1faf431b9f0e1b950007ac7871aa6"
 
 
 def record_at(root: Path) -> dict | None:

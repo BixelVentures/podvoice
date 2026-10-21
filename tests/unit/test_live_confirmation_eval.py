@@ -12,6 +12,7 @@ from unit.test_openai_live import SDK, call, created, terminal
 
 from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.live_audio import LiveAudioStreams
+from gatekeeper.live_idle import NativeIdleWindow
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts/live_confirmation_eval.py"
@@ -1299,6 +1300,91 @@ async def test_capture_hold_retires_old_fixture_and_resume_uses_fresh_bytes(tmp_
     assert not await capture.set_live_context()
     assert capture._stop_generation == 2
     evidence.close()
+
+
+@pytest.mark.asyncio
+async def test_synthetic_closing_led_ack_requires_fresh_mic_source_and_retires_token(tmp_path):
+    evidence = module.Evidence(tmp_path / "closing-led")
+    capture = module.SyntheticCapture(evidence, LiveAudioStreams())
+    frames = capture.pcm_frames()
+    try:
+        assert await capture.set_live_context()
+        await capture.start_streaming()
+        nonce = await capture.enable_callback_source_provenance()
+        with pytest.raises(RuntimeError, match="synthetic_closing_owner_invalid"):
+            await capture.begin_live_closing(1, deadline=asyncio.get_running_loop().time() + 1)
+        await anext(frames)
+        ack = await capture.begin_live_closing(1, deadline=asyncio.get_running_loop().time() + 1)
+        assert ack["phase"] == "led_tx_done" and ack["nonce"] == nonce
+        assert ack["capture_epoch"] > 0 and ack["token"] == 1
+        assert evidence.rows[-1]["physical_verified"] is False
+        await capture.cancel_live_closing(1)
+        assert evidence.rows[-1]["physical_verified"] is False
+        with pytest.raises(RuntimeError, match="synthetic_closing_owner_invalid"):
+            await capture.cancel_live_closing(1)
+        capture.cut_audio_boundary("stale")
+        with pytest.raises(RuntimeError, match="synthetic_closing_owner_invalid"):
+            await capture.begin_live_closing(2, deadline=asyncio.get_running_loop().time() + 1)
+    finally:
+        await frames.aclose()
+        await capture.aclose()
+        evidence.close()
+
+
+@pytest.mark.asyncio
+async def test_synthetic_consumed_output_admits_only_fresh_quiet_and_retires_stale_owner(tmp_path):
+    evidence = module.Evidence(tmp_path / "quiet-observer")
+    streams = LiveAudioStreams()
+    capture = module.SyntheticCapture(evidence, streams)
+    rows = []
+    capture.on_activity = rows.append
+    capture.on_media_state = lambda *_: None
+    assert await capture.set_live_context()
+    stream = streams.open("synthetic-session")
+    await capture.play_url(f"http://synthetic.invalid/{stream.id}.wav", playback_id="play-0")
+    stream.append(b"\x01\0" * 2400)
+    stream.append(b"\0" * 4800)
+    stream.finish()
+    await asyncio.wait_for(capture.drains["play-0"], 1)
+    assert [row["output"]["peak"] == 0 for row in rows] == [False, True]
+    assert not capture.accepts_activity(rows[-1])
+    rows.clear()
+    capture._playback_id = "play-1"
+    capture._output_source_epoch += 1
+    capture._output_frames = 0
+    window = NativeIdleWindow(freshness_s=0.2, require_input_quiet=False)
+    owner = ("settled-end", 1)
+    try:
+        for index, pcm in enumerate([b"\x01\0" * 2400, *([b"\0" * 4800] * 5)]):
+            capture._observe_output_chunk(pcm, "play-1", now=100.0 + index / 10)
+            row = rows[-1]
+            assert row["synthetic"] is True and row["physical_verified"] is False
+            assert capture.accepts_activity(row)
+            assert row["output"]["consumed_frames"] == (index + 1) * 2400
+            window.observe(
+                row,
+                owner=owner,
+                now=row["received_monotonic"],
+                work_clear=index >= 1,
+                output_started=True,
+            )
+            if index < 3:
+                assert not window.ready(owner=owner, now=row["received_monotonic"], idle_s=0.19)
+        assert window.ready(owner=owner, now=rows[-1]["received_monotonic"], idle_s=0.19)
+        old = rows[-1]
+        assert await capture.set_live_context()
+        assert not capture.accepts_activity(old)
+        capture._playback_id = "play-2"
+        capture._observe_output_chunk(b"\0" * 4800, "play-1", now=101.0)
+        assert rows[-1] is old
+        capture._observe_output_chunk(b"\0" * 4800, "play-2", now=101.1)
+        assert capture.accepts_activity(rows[-1])
+        assert not capture.accepts_activity(old)
+        await capture.stop_playback(playback_id="play-2")
+        assert not capture.accepts_activity(rows[-1])
+    finally:
+        await capture.aclose()
+        evidence.close()
 
 
 @pytest.mark.asyncio

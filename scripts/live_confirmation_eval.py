@@ -28,6 +28,7 @@ import tempfile
 import time
 import unicodedata
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "podvoice"))
@@ -743,7 +744,9 @@ class SyntheticCapture:
     supports_live_semantic_stop = True
     supports_same_breath = supports_wake_audio_boundary = True
     supports_physical_rearm_ack = supports_podvoice_channel = True
+    supports_closing_led_tx = True  # Synthetic ACK only; never physical LED evidence.
     on_media_state = None
+    on_activity = None
     wake_readiness = "unknown"
 
     def __init__(self, evidence, streams):
@@ -757,11 +760,23 @@ class SyntheticCapture:
         self.drains = {}
         self.closed = False
         self._stop_generation = 0
+        self._activity_latest = None
+        self._activity_sequence = 0
+        self._output_source_epoch = 0
+        self._output_frames = 0
+        self._input_frames = 0
+        self._playback_id = None
+        self._source_nonce = 0
+        self._source_pcm_previous = None
+        self._closing_token = None
 
     async def set_live_context(self):
         if self.closed:
             return False
         self._stop_generation += 1
+        self._activity_latest = None
+        self._source_pcm_previous = None
+        self._closing_token = None
         self.evidence.emit(
             "synthetic_live_context_ack",
             generation=self._stop_generation,
@@ -787,6 +802,7 @@ class SyntheticCapture:
     def cut_audio_boundary(self, reason):
         self.audio_generation += 1
         self.clip = None
+        self._source_pcm_previous = None
         self.evidence.emit(
             "synthetic_capture_boundary", reason=reason, capture_generation=self.audio_generation
         )
@@ -830,24 +846,149 @@ class SyntheticCapture:
                     )
                 frame = frame.ljust(FRAME_BYTES, b"\0")
             self.evidence.write(f"source-{self.phase}.pcm", frame)
+            self._input_frames += len(frame) // 2
+            if self._source_nonce:
+                self._source_pcm_previous = SimpleNamespace(
+                    nonce=self._source_nonce, capture_epoch=self.audio_generation + 1
+                )
             yield frame
+
+    async def enable_callback_source_provenance(self):
+        self._source_nonce += 1
+        self._source_pcm_previous = None
+        return self._source_nonce
+
+    async def begin_live_closing(self, token, *, deadline):
+        source = self._source_pcm_previous
+        if (
+            type(token) is not int
+            or token <= 0
+            or self.closed
+            or not self.streaming
+            or self._closing_token is not None
+            or source is None
+            or source.nonce != self._source_nonce
+            or deadline <= asyncio.get_running_loop().time()
+        ):
+            raise RuntimeError("synthetic_closing_owner_invalid")
+        self._closing_token = token
+        self.evidence.emit("synthetic_closing_led_ack", token=token, physical_verified=False)
+        return dict(
+            phase="led_tx_done",
+            nonce=source.nonce,
+            capture_epoch=source.capture_epoch,
+            token=token,
+            tx_sequence=1,
+            tx_us=1,
+        )
+
+    async def cancel_live_closing(self, token):
+        if token != self._closing_token:
+            raise RuntimeError("synthetic_closing_owner_invalid")
+        self._closing_token = None
+        self.evidence.emit("synthetic_closing_led_cancel", token=token, physical_verified=False)
+
+    def accepts_activity(self, observation):
+        return (
+            not self.closed
+            and observation is self._activity_latest
+            and observation.get("synthetic") is True
+            and observation.get("native_generation") == self._stop_generation
+            and observation.get("playback_id") == self._playback_id
+            and self._playback_id is not None
+        )
+
+    def _observe_output_chunk(self, pcm, playback_id, *, now=None):
+        """Emulate consumed PCM counters for synthetic quiet policy, never room proof."""
+        if not pcm or len(pcm) % 2 or playback_id != self._playback_id:
+            return
+        now = time.monotonic() if now is None else now
+        samples = array.array("h", pcm)
+        if sys.byteorder != "little":
+            samples.byteswap()
+        begin = self._output_frames
+        self._output_frames += len(samples)
+        self._activity_sequence += 1
+        source_ms = int(now * 1000) & 0xFFFFFFFF
+        peak = max(abs(sample) for sample in samples)
+        row = {
+            "source": "voice_pe_firmware",  # Emulated schema; explicitly synthetic below.
+            "synthetic": True,
+            "physical_verified": False,
+            "received_monotonic": now,
+            "sequence": self._activity_sequence,
+            "source_timestamp_ms": source_ms,
+            "native_session": self.evidence.directory.name,
+            "native_generation": self._stop_generation,
+            "native_connection": 1,
+            "native_reset": 0,
+            "reply_token": "synthetic-output",
+            "playback_id": playback_id,
+            "input": {
+                "valid": self.streaming,
+                "state": "active" if self.clip is not None else "quiet",
+                "inference_seq": self._activity_sequence,
+                "inference_ms": source_ms,
+                "capture_epoch": self.audio_generation,
+                "detector_run": 1,
+                "sample_end": self._input_frames,
+            },
+            "output": {
+                "valid": True,
+                "source_epoch": self._output_source_epoch,
+                "sample_rate": 24000,
+                "sample_count": len(samples),
+                "peak": peak,
+                "sum_squares": sum(sample * sample for sample in samples),
+                "frame_begin": begin,
+                "frame_end": self._output_frames,
+                "consumed_frames": self._output_frames,
+                "mix_seq": self._activity_sequence,
+                "mix_ms": source_ms,
+                "producer_idle": False,
+                "resampler_quiescent": False,
+                "source_quiescent": False,
+            },
+        }
+        self._activity_latest = row
+        self.evidence.emit(
+            "synthetic_output_consumed",
+            sequence=row["sequence"],
+            playback_id=playback_id,
+            frame_begin=begin,
+            frame_end=self._output_frames,
+            peak=peak,
+            physical_verified=False,
+        )
+        if self.on_activity is not None:
+            self.on_activity(row)
 
     async def play_url(self, url, *, playback_id=None):
         stream = self.streams.claim(url.rsplit("/", 1)[-1].split(".")[0])
+        self._playback_id = playback_id
+        self._activity_latest = None
+        self._output_source_epoch += 1
+        self._output_frames = 0
 
         async def drain():
             try:
-                while await stream.next_chunk() is not None:
-                    pass
+                while (pcm := await stream.next_chunk()) is not None:
+                    self._observe_output_chunk(pcm, playback_id)
             except LiveAudioError:
                 pass
             finally:
+                if self._playback_id == playback_id:
+                    self._playback_id = None
+                    self._activity_latest = None
                 self.on_media_state(False, playback_id)
 
         self.on_media_state(True, playback_id)
         self.drains[playback_id] = asyncio.create_task(drain())
 
     async def stop_playback(self, *, playback_id=None):
+        if self._playback_id == playback_id:
+            self._playback_id = None
+            self._activity_latest = None
         task = self.drains.get(playback_id)
         if task:
             task.cancel()
@@ -866,6 +1007,10 @@ class SyntheticCapture:
 
     async def aclose(self):
         self.closed = True
+        self._playback_id = None
+        self._activity_latest = None
+        self._source_pcm_previous = None
+        self._closing_token = None
         for task in self.drains.values():
             task.cancel()
         await asyncio.gather(*self.drains.values(), return_exceptions=True)
