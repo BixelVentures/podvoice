@@ -1,3 +1,4 @@
+import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LiveAnswerView,answerReadContext } from '../../podvoice/gatekeeper/static/podview/live-answer-view.js';
@@ -19,6 +20,7 @@ class Node extends EventTarget {
   showModal() { this.open = true; }
   close() { this.open = false; this.dispatchEvent(new Event('close')); }
 }
+installDOMAttributes(Node);
 
 const deferred = () => {
   let resolve;

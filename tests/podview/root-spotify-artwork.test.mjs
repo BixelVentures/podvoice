@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {spotifyArtwork,spotifyItemUrl,spotifyTrackUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
+import {generatedMoodArtwork,spotifyArtwork,spotifyItemUrl,spotifyTrackUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
 const art={kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/ab67616d0000b273abc'};
 const uri='spotify:track:0123456789ABCDEFGHIJKL';
 test('closed artwork allowlist rejects noncanonical ports, credentials, paths and executable extensions',()=>{
@@ -38,11 +38,11 @@ test('first artwork keeps the existing fallback geometry until decoding complete
  const before=writes();renderSpotifyArtwork(node,track);renderSpotifyArtwork(node,{...track,name:'Updated title'});assert.equal(writes(),before);assert.equal(probes.length,1);assert.equal(node.alt,'Albumomslag til Updated title');
 });
 test('replacement is decoded in the background and a late older load cannot replace the newest artwork',async()=>{
- const {node,probes}=decodingImage();node.src='assets/kitchen.png';node.dataset.artworkContent='same-playlist';
- renderRetainedArtwork(node,{url:'assets/lake.png',identity:'lake',contentIdentity:'same-playlist',label:'Lake'});const oldLoad=probes[0].onload;
- renderRetainedArtwork(node,{url:'assets/indie.png',identity:'indie',contentIdentity:'same-playlist',label:'Indie'});assert.equal(node.src,'assets/kitchen.png');assert.equal(probes[0].src,null);assert.equal(probes[0].onerror,null);
- oldLoad();probes[0].resolve();await flush();assert.equal(node.src,'assets/kitchen.png');
- probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,'assets/indie.png');assert.equal(node.alt,'Indie');assert.equal(node.classList.contains('spotify-artwork'),false);
+ const {node,probes}=decodingImage();node.src='assets/kitchen.webp';node.dataset.artworkContent='same-playlist';
+ renderRetainedArtwork(node,{url:'assets/lake.webp',identity:'lake',contentIdentity:'same-playlist',label:'Lake'});const oldLoad=probes[0].onload;
+ renderRetainedArtwork(node,{url:'assets/indie.webp',identity:'indie',contentIdentity:'same-playlist',label:'Indie'});assert.equal(node.src,'assets/kitchen.webp');assert.equal(probes[0].src,null);assert.equal(probes[0].onerror,null);
+ oldLoad();probes[0].resolve();await flush();assert.equal(node.src,'assets/kitchen.webp');
+ probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,'assets/indie.webp');assert.equal(node.alt,'Indie');assert.equal(node.classList.contains('spotify-artwork'),false);
 });
 test('decode failure becomes one honest missing cover and never retries the failed identity on snapshot refresh',async()=>{
  const {node,probes}=decodingImage(),track={uri,name:'Actual',artwork:art};renderSpotifyArtwork(node,track);
@@ -57,20 +57,20 @@ test('disconnect cancellation and missing source invalidate delayed decodes with
  }
 });
 test('a failed old visible image does not cancel a newer decode already in progress',async()=>{
- const {node,probes}=decodingImage();renderRetainedArtwork(node,{url:'assets/kitchen.png',identity:'kitchen',contentIdentity:'same-playlist',label:'Kitchen'});probes[0].onload();probes[0].resolve();await flush();
- renderRetainedArtwork(node,{url:'assets/lake.png',identity:'lake',contentIdentity:'same-playlist',label:'Lake'});node.error();assert.equal(node.dataset.failedArtwork,'kitchen');assert.equal(node.dataset.artworkPending,'true');
- probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,'assets/lake.png');assert.equal(node.alt,'Lake');
+ const {node,probes}=decodingImage();renderRetainedArtwork(node,{url:'assets/kitchen.webp',identity:'kitchen',contentIdentity:'same-playlist',label:'Kitchen'});probes[0].onload();probes[0].resolve();await flush();
+ renderRetainedArtwork(node,{url:'assets/lake.webp',identity:'lake',contentIdentity:'same-playlist',label:'Lake'});node.error();assert.equal(node.dataset.failedArtwork,'kitchen');assert.equal(node.dataset.artworkPending,'true');
+ probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,'assets/lake.webp');assert.equal(node.alt,'Lake');
 });
 
 test('new playlist identity clears old artwork immediately even when image URL is unchanged',async()=>{
- const {node,probes}=decodingImage(),url='assets/kitchen.png';renderRetainedArtwork(node,{url,identity:'art-one',contentIdentity:'playlist-one',label:'One'});probes[0].onload();probes[0].resolve();await flush();assert.equal(node.src,url);
+ const {node,probes}=decodingImage(),url='assets/kitchen.webp';renderRetainedArtwork(node,{url,identity:'art-one',contentIdentity:'playlist-one',label:'One'});probes[0].onload();probes[0].resolve();await flush();assert.equal(node.src,url);
  renderRetainedArtwork(node,{url,identity:'art-two',contentIdentity:'playlist-two',label:'Two'});assert.equal(node.src,'assets/icons/music-note-beamed.svg');assert.equal(node.dataset.artworkPending,'true');assert.equal(node.dataset.displayedArtwork,undefined);assert.equal(probes.length,2);
  probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,url);assert.equal(node.alt,'Two');
 });
 test('same playlist changed image retains its own cover until decode while changed account clears it',async()=>{
- const {node,probes}=decodingImage();renderRetainedArtwork(node,{url:'assets/kitchen.png',identity:'one',contentIdentity:'account-one|playlist',label:'One'});probes[0].onload();probes[0].resolve();await flush();
- renderRetainedArtwork(node,{url:'assets/lake.png',identity:'two',contentIdentity:'account-one|playlist',label:'Two'});assert.equal(node.src,'assets/kitchen.png');const late=probes[1].onload;
- renderRetainedArtwork(node,{url:'assets/indie.png',identity:'three',contentIdentity:'account-two|playlist',label:'Three'});assert.equal(node.src,'assets/icons/music-note-beamed.svg');late();probes[1].resolve();await flush();assert.equal(node.src,'assets/icons/music-note-beamed.svg');probes[2].onload();probes[2].resolve();await flush();assert.equal(node.src,'assets/indie.png');
+ const {node,probes}=decodingImage();renderRetainedArtwork(node,{url:'assets/kitchen.webp',identity:'one',contentIdentity:'account-one|playlist',label:'One'});probes[0].onload();probes[0].resolve();await flush();
+ renderRetainedArtwork(node,{url:'assets/lake.webp',identity:'two',contentIdentity:'account-one|playlist',label:'Two'});assert.equal(node.src,'assets/kitchen.webp');const late=probes[1].onload;
+ renderRetainedArtwork(node,{url:'assets/indie.webp',identity:'three',contentIdentity:'account-two|playlist',label:'Three'});assert.equal(node.src,'assets/icons/music-note-beamed.svg');late();probes[1].resolve();await flush();assert.equal(node.src,'assets/icons/music-note-beamed.svg');probes[2].onload();probes[2].resolve();await flush();assert.equal(node.src,'assets/indie.webp');
 });
 
 test('unchanged successful artwork performs no source, attribute, class or dataset DOM writes',async()=>{
@@ -87,7 +87,7 @@ function motionImage({systemReduced=false,kitReduced=false,shadowReduced=false}=
 }
 test('only a newly decoded image receives one bounded ready fade; identical snapshots do not restart it',async()=>{
  const {node,probes,animations}=motionImage(),track={uri,name:'Actual',artwork:art};renderSpotifyArtwork(node,track);assert.equal(animations.length,0);probes[0].onload();await flush();assert.equal(animations.length,0);probes[0].resolve();await flush();
- assert.equal(animations.length,1);assert.deepEqual(animations[0].frames,[{opacity:0},{opacity:1}]);assert.equal(animations[0].options.duration,180);assert.equal(animations[0].options.iterations,1);assert.equal(animations[0].options.fill,undefined);assert.equal(node.src,art.url);
+ assert.equal(animations.length,1);assert.deepEqual(animations[0].frames,[{opacity:0},{opacity:1}]);assert.equal(animations[0].options.duration,120);assert.equal(animations[0].options.iterations,1);assert.equal(animations[0].options.fill,undefined);assert.equal(node.src,art.url);
  renderSpotifyArtwork(node,track);renderSpotifyArtwork(node,track);assert.equal(animations.length,1);assert.equal(animations[0].cancelled,false);animations[0].finish();await flush();assert.equal(node.artworkAnimation,null);assert.equal(node.src,art.url);
 });
 test('superseding image content and disconnect cancel any running ready fade without affecting newer ownership',async()=>{
@@ -108,3 +108,61 @@ test('a displayed image failure cancels its ready fade before showing the honest
 test('playlist cover is an optional closed source image bound only to an exact playlist URI; track and episode admission stays unchanged',()=>{const playlist=uri.replace('track','playlist'),cover={...art,kind:'playlist_cover'};assert.deepEqual(spotifyArtwork(cover,playlist),cover);for(const id of [undefined,uri,uri.replace('track','episode'),'spotify:playlist:short',playlist+'?play=1'])assert.equal(spotifyArtwork(cover,id),null);assert.equal(spotifyArtwork(art,playlist),null);assert.deepEqual(spotifyArtwork(art,uri),art);assert.deepEqual(spotifyArtwork(art,uri.replace('track','episode')),art);assert.equal(spotifyItemUrl(playlist),null);for(const change of [a=>a.provider='model',a=>a.html='<img>',a=>a.url='https://image-cdn-ak.spotifycdn.com/image/abc',a=>a.url+='?v=1',a=>a.url='http://i.scdn.co/image/abc']){const value={...cover};change(value);assert.equal(spotifyArtwork(value,playlist),null);}const node=image();assert.equal(renderSpotifyArtwork(node,{uri:playlist,name:'Actual playlist',artwork:cover}),true);assert.equal(node.src,cover.url);assert.equal(node.alt,'Playlisteomslag til Actual playlist');});
 
 test('real playlist cover uses the same retained decode lifecycle, keeps unchanged identity and rejects late older playlist art',async()=>{const {node,probes,writes}=decodingImage(),playlist=uri.replace('track','playlist'),cover={...art,kind:'playlist_cover'};renderSpotifyArtwork(node,{uri:playlist,name:'Actual playlist',artwork:cover});assert.equal(probes.length,1);assert.equal(node.src,'assets/icons/music-note-beamed.svg');probes[0].onload();probes[0].resolve();await flush();assert.equal(node.src,cover.url);const before=writes();renderSpotifyArtwork(node,{uri:playlist,name:'Actual playlist',artwork:cover});assert.equal(writes(),before);assert.equal(probes.length,1);const second=playlist.replace(/L$/,'M'),third=playlist.replace(/L$/,'N');renderSpotifyArtwork(node,{uri:second,name:'Second',artwork:cover});assert.equal(node.src,'assets/icons/music-note-beamed.svg','new playlist never shows old playlist cover');const late=probes[1].onload;renderSpotifyArtwork(node,{uri:third,name:'Third',artwork:{...cover,url:'https://i.scdn.co/image/third'}});late();probes[1].resolve();await flush();assert.notEqual(node.src,cover.url);probes[2].onload();probes[2].resolve();await flush();assert.equal(node.src,'https://i.scdn.co/image/third');assert.equal(node.alt,'Playlisteomslag til Third');});
+
+test('failed admitted playlist cover decodes one owned illustration without retrying the primary on refresh',async()=>{
+ const {node,probes,writes,animations}=motionImage(),playlist={uri:'spotify:playlist:0123456789ABCDEFGHIJKL',name:'Actual list',artwork:{...art,kind:'playlist_cover'},fallbackArt:'assets/kitchen.webp',fallbackLabel:'Illustration til madlavning'};
+ renderSpotifyArtwork(node,playlist);assert.equal(probes[0].src,art.url);probes[0].onerror();assert.equal(probes.length,2);assert.equal(probes[1].src,'assets/kitchen.webp');assert.equal(node.src,'assets/icons/music-note-beamed.svg');
+ renderSpotifyArtwork(node,playlist);assert.equal(probes.length,2,'poll does not restart fallback or provider');probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,'assets/kitchen.webp');assert.equal(node.alt,'Illustration til madlavning');assert.equal(node.classList.contains('spotify-artwork'),false);assert.equal(animations.length,1);
+ const before=writes();renderSpotifyArtwork(node,playlist);renderSpotifyArtwork(node,playlist);assert.equal(writes(),before);assert.equal(probes.length,2);assert.equal(animations.length,1);
+});
+test('provider decode and owned fallback failures are both latched without a retry loop',async()=>{
+ const {node,probes}=decodingImage(),playlist={uri:'spotify:playlist:0123456789ABCDEFGHIJKL',artwork:{...art,kind:'playlist_cover'},fallbackArt:'assets/lake.webp'};
+ renderSpotifyArtwork(node,playlist);probes[0].onload();probes[0].reject(Error('invalid cover'));await flush();assert.equal(probes.length,2);probes[1].onerror();for(let i=0;i<5;i++)renderSpotifyArtwork(node,playlist);assert.equal(probes.length,2);assert.equal(node.src,'assets/icons/music-note-beamed.svg');assert.equal(node.dataset.artworkPending,undefined);
+});
+test('visible source failure uses the current backup while cancelled or superseded loads cannot revive it',async()=>{
+ for(const mode of ['visible','new-content','disconnect']){
+  const {node,probes}=decodingImage(),playlist={uri:'spotify:playlist:0123456789ABCDEFGHIJKL',artwork:{...art,kind:'playlist_cover'},fallbackArt:'assets/kitchen.webp'};
+  renderSpotifyArtwork(node,playlist);probes[0].onload();probes[0].resolve();await flush();node.error();assert.equal(probes.length,2);const late=probes[1].onload;
+  if(mode==='new-content')renderSpotifyArtwork(node,{...playlist,uri:playlist.uri.replace(/L$/,'M'),fallbackArt:'assets/lake.webp'});
+  if(mode==='disconnect')cancelArtwork(node);
+  late();probes[1].resolve();await flush();assert.equal(node.src,mode==='visible'?'assets/kitchen.webp':'assets/icons/music-note-beamed.svg');
+  if(mode==='new-content'){probes[2].onload();probes[2].resolve();await flush();assert.equal(node.src,art.url);}
+ }
+});
+test('fallback admission cannot turn a track or invalid owned path into another image request',()=>{
+ for(const fallbackArt of ['https://evil.example/image/abc','assets/indie.webp','assets/../kitchen.png','assets/not-owned.png']){
+  const {node,probes}=decodingImage();renderSpotifyArtwork(node,{uri:'spotify:playlist:0123456789ABCDEFGHIJKL',artwork:{...art,kind:'playlist_cover'},fallbackArt});probes[0].onerror();assert.equal(probes.length,1);assert.equal(node.src,'assets/icons/music-note-beamed.svg');
+ }
+ const {node,probes}=decodingImage();renderSpotifyArtwork(node,{uri,artwork:art,fallbackArt:'assets/kitchen.webp'});probes[0].onerror();assert.equal(probes.length,1,'track covers do not become themed illustrations');
+});
+
+
+test('quiet same-option refresh retains its accepted image through replacement failure and missing art without retry loops',async()=>{
+ const {node,probes}=decodingImage(),first={url:'assets/kitchen.webp',identity:'accepted',contentIdentity:'same-option',label:'Morgen',quiet:true};renderRetainedArtwork(node,first);probes[0].onload();probes[0].resolve();await flush();assert.equal(node.src,first.url);
+ const next={...first,url:'assets/lake.webp',identity:'replacement',backup:{url:'assets/indie.webp',identity:'backup',label:'Alternativ'}};renderRetainedArtwork(node,next);assert.equal(node.src,first.url);assert.equal(node.dataset.artworkPending,'true');probes[1].onerror();assert.equal(node.src,first.url);assert.equal(node.dataset.artworkPending,undefined);for(let i=0;i<3;i++)renderRetainedArtwork(node,next);assert.equal(probes.length,2);assert.equal(node.src,first.url);renderRetainedArtwork(node,{...first,url:undefined,identity:''});assert.equal(node.src,first.url);assert.equal(node.classList.contains('live-art-fallback'),false);
+});
+test('quiet decoded exact URLs can be reused immediately while a different option never borrows unrequested artwork',async()=>{
+ const {node,probes}=decodingImage(),first={url:'assets/kitchen.webp',identity:'first-art',contentIdentity:'first-option',label:'Første',quiet:true};renderRetainedArtwork(node,first);probes[0].onload();probes[0].resolve();await flush();const second=image();second.ownerDocument=node.ownerDocument;renderRetainedArtwork(second,{...first,identity:'second-art',contentIdentity:'first-option',label:'Andet'});assert.equal(second.src,first.url);assert.equal(second.alt,'Andet');assert.equal(Boolean(second.artworkRequest),false);assert.equal(second.dataset.artworkPending,undefined);assert.equal(probes.length,1);
+ renderRetainedArtwork(second,{url:'assets/lake.webp',identity:'third-art',contentIdentity:'third-option',label:'Tredje',quiet:true});assert.equal(second.src,'assets/icons/music-note-beamed.svg');assert.equal(second.dataset.displayedArtwork,undefined);assert.equal(second.dataset.artworkQuiet,'true');assert.equal(probes.length,2);
+});
+test('quiet superseded decode cannot restore an earlier option and cleanup cancels the in-flight replacement',async()=>{
+ const {node,probes}=decodingImage();renderRetainedArtwork(node,{url:'assets/kitchen.webp',identity:'one',contentIdentity:'one',label:'Et',quiet:true});const late=probes[0].onload;renderRetainedArtwork(node,{url:'assets/lake.webp',identity:'two',contentIdentity:'two',label:'To',quiet:true});late();probes[0].resolve();await flush();assert.equal(node.dataset.displayedArtwork,undefined);assert.equal(node.dataset.artworkContent,'two');cancelArtwork(node);probes[1].resolve();await flush();assert.equal(node.dataset.displayedArtwork,undefined);assert.equal(node.artworkRequest,null);assert.equal(node.dataset.artworkPending,undefined);
+});
+test('quiet artwork reveals immediately after decode with all motion disabled',async()=>{
+ const {node,probes,animations}=motionImage({systemReduced:true});renderRetainedArtwork(node,{url:'assets/kitchen.webp',identity:'quiet',contentIdentity:'quiet-option',label:'Rolig',quiet:true});probes[0].onload();probes[0].resolve();await flush();assert.equal(node.src,'assets/kitchen.webp');assert.equal(animations.length,0);assert.equal(node.dataset.artworkPending,undefined);
+});
+
+
+test('generated mood art admits only an exact closed mood directory and lowercase immutable digest',()=>{
+ const digest='a1'.repeat(32);
+ for(const id of ['morning_acoustic','evening_jazz','cooking','italian','indie','calm'])assert.equal(generatedMoodArtwork(`theme-art/${id}/${digest}.webp`,id),`theme-art/${id}/${digest}.webp`);
+ const valid=`theme-art/cooking/${digest}.webp`;
+ for(const value of [undefined,null,'',`theme-art/unknown/${digest}.webp`,`theme-art/italian/${digest}.webp`,valid.toUpperCase(),valid+'?cache=1',valid+'#art',valid+'/',valid.replace('.webp','.png'),valid.replace(digest,'a'.repeat(63)),valid.replace(digest,'a'.repeat(65)),'/'+valid,'/view/'+valid,'https://example.test/view/'+valid,'//example.test/'+valid,'../'+valid,valid.replace('/cooking/','/cooking/../cooking/'),valid.replace('/cooking/','/cooking%2f/'),valid.replace('/cooking/','/cooking%2F/'),valid.replace('/cooking/','/cooking\\/'),valid.replace('/cooking/','/cooking//')])assert.equal(generatedMoodArtwork(value,'cooking'),null,String(value));
+ assert.equal(generatedMoodArtwork(valid,'unknown'),null);assert.equal(generatedMoodArtwork(valid,'italian'),null);
+});
+
+test('generated thematic fallback follows an actual failed playlist cover, never replaces track album art',async()=>{
+ const path='theme-art/cooking/'+'c'.repeat(64)+'.webp',playlist={uri:'spotify:playlist:0123456789ABCDEFGHIJKL',name:'Actual playlist',themeId:'cooking',artwork:{...art,kind:'playlist_cover'},fallbackArt:path,fallbackLabel:'Illustration til madlavning'};
+ const {node,probes}=decodingImage();renderSpotifyArtwork(node,playlist,playlist.uri,true);assert.equal(probes[0].src,art.url);probes[0].onerror();assert.equal(probes[1].src,path);probes[1].onload();probes[1].resolve();await flush();assert.equal(node.src,path);assert.equal(node.alt,'Illustration til madlavning');assert.equal(node.classList.contains('spotify-artwork'),false);
+ for(const item of [{...playlist,themeId:'italian'},{...playlist,uri,artwork:art}]){const f=decodingImage();renderSpotifyArtwork(f.node,item);f.probes[0].onerror();assert.equal(f.probes.length,1);assert.equal(f.node.src,'assets/icons/music-note-beamed.svg');}
+});

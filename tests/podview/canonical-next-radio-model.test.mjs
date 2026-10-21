@@ -22,7 +22,7 @@ test('local selection changes only source content of the shared player model',()
  assert.equal(first.active,true);
  assert.equal(first.playing,false);
  assert.equal(first.fresh,false);
- assert.equal(first.artist,'Lokalt eksempel · ingen lyd');
+ assert.equal(first.artist,'Direkte radio');
  assert.equal(first.fixtureArt,'assets/radio-p3.svg');
  assert.equal(first.artwork,null);
  assert.equal(first.canOutput,false);
@@ -31,7 +31,7 @@ test('local selection changes only source content of the shared player model',()
  assert.equal(first.target,'Stuen');
  assert.equal(first.exampleOnly,true);
  assert.equal(first.sourceKind,'radio');
- assert.equal(first.previewLabel,'Radio på pause · lokalt eksempel');
+ assert.equal(first.previewLabel,'Radio på pause · ingen lyd');
  assert.equal(base.title,'Old track');
  assert.equal(localRadioPlayerModel('unknown',base),null);
  assert.equal('uri' in first,false);

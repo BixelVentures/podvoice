@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sourceMusicCards,localMusicCards,fixtureArtwork,MUSIC_TABS,MusicResults} from '../../podvoice/gatekeeper/static/podview/music-results.js';
+import {sourceMusicCards,localMusicCards,localDiscoveryCards,fixtureArtwork,MUSIC_TABS,MusicResults} from '../../podvoice/gatekeeper/static/podview/music-results.js';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
-import {initialWidgetState,resultsFor} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
+import {initialWidgetState,resultsFor,widgetTransition} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
 const track={title:'Source title <img onerror=bad()>',artist:'Actual artist',uri:'spotify:track:0123456789ABCDEFGHIJKL',artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/abc'}};
 function catalogue(){const renders=[],reads=[],host={state:{focus:'music'},musicResults:{render:vm=>renders.push(vm)}};const view=new LiveMusicCatalogueView(host,kind=>reads.push(kind));host.liveCatalogue=view;view.updateCapabilities(true,['recent','top','recent']);view.resetAccount('account');return {view,host,renders,reads};}
 test('typed fixture and real source adapters share card fields without personal claims or action authority',()=>{const local=localMusicCards(resultsFor(initialWidgetState()),1),source=sourceMusicCards([track]);assert.equal(local.length,3);assert.equal(source[0].name,track.title);assert.equal(source[0].description,track.artist);assert.equal(source[0].detail,'');assert.equal('action' in source[0],false);assert.equal('fixtureArt' in source[0],false);assert.deepEqual(MUSIC_TABS.map(x=>x[0]),['mood','feeling','top','recent']);assert.equal(fixtureArtwork('https://evil.example/image/x'),null);assert.equal(fixtureArtwork('assets/../secret.svg'),null);assert.equal(fixtureArtwork('assets/kitchen.webp'),'assets/kitchen.webp');});
@@ -45,7 +45,7 @@ test('identical shared music render writes no DOM leaves or artwork and preserve
  const f=retainedResultSurface(),vm={cards:resultCards(),heading:'Musik',revision:1};f.view.render(vm);const rows=[...f.nodes.get('result-list').children];f.clear();f.view.render({...vm,cards:resultCards()});f.view.render({...vm,cards:resultCards()});assert.deepEqual(f.writes,[]);assert.deepEqual(f.nodes.get('result-list').children,rows);f.view.cleanup();
 });
 test('one changed music title updates only that title and accessible label while authority revocation is immediate',()=>{
- const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const row=f.nodes.get('result-list').children[0];f.clear();const changed=cards.map(card=>({...card}));changed[0].name='Ny titel';f.view.render({cards:changed});assert.deepEqual(f.writes.map(([,key])=>key),['aria-label','textContent']);assert.equal(row.children[1].children[0].textContent,'Ny titel');f.clear();f.view.render({cards:changed,canChoose:false});assert.equal(row.disabled,true);row.listeners.get('click')();assert.equal(f.chosen.length,0);assert.equal(f.writes.some(([,key])=>key==='src'),false);f.view.cleanup();
+ const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const row=f.nodes.get('result-list').children[0];f.clear();const changed=cards.map(card=>({...card}));changed[0].name='Ny titel';f.view.render({cards:changed});assert.deepEqual(f.writes.map(([,key])=>key),['textContent']);assert.equal(row.children[1].children[0].textContent,'Ny titel');f.clear();f.view.render({cards:changed,canChoose:false});assert.equal(row.disabled,true);row.listeners.get('click')();assert.equal(f.chosen.length,0);assert.equal(f.writes.some(([,key])=>key==='src'),false);f.view.cleanup();
 });
 test('unchanged empty-busy music retains the same three placeholders without detach or reappend',()=>{
  const f=retainedResultSurface();f.view.render({busy:true,cards:[]});const rows=[...f.nodes.get('result-list').children];f.clear();f.view.render({busy:true,cards:[]});assert.deepEqual(f.writes,[]);assert.deepEqual(f.nodes.get('result-list').children,rows);f.view.render({cards:resultCards()});assert.equal(f.nodes.get('result-list').children.some(row=>rows.includes(row)),false);f.view.cleanup();
@@ -121,15 +121,70 @@ test('source reorder retains the same card and decoded cover while repeated occu
 });
 
 test('pending play feedback changes once and clears without remounting or claiming playback',()=>{
- const f=retainedResultSurface(),cards=resultCards();f.view.render({cards,pendingId:cards[0].id});const row=f.nodes.get('result-list').children[0];assert.equal(row.children[2].textContent,'Afventer afspilning');f.clear();f.view.render({cards,pendingId:cards[0].id});assert.deepEqual(f.writes,[]);
- f.view.render({cards});assert.equal(row.children[2].textContent,'');assert.equal(row.getAttribute('aria-label'),'Afspil Musik til morgen · Faktisk liste · Fra Spotify');assert.equal(f.nodes.get('result-list').children[0],row);f.view.cleanup();
+ const f=retainedResultSurface(),cards=resultCards();f.view.render({cards,pendingId:cards[0].id});const row=f.nodes.get('result-list').children[0];assert.equal(row.children[2].textContent,'Starter afspilning');f.clear();f.view.render({cards,pendingId:cards[0].id});assert.deepEqual(f.writes,[]);
+ f.view.render({cards});assert.equal(row.children[2].textContent,'');assert.equal(row.getAttribute('aria-label'),null);assert.equal(row.getAttribute('aria-description'),'Afspil');assert.equal(f.nodes.get('result-list').children[0],row);f.view.cleanup();
 });
 
 test('music option accessible names include all visible text in ready, pending and unavailable states',()=>{
  const f=retainedResultSurface(),cards=[{...resultCards()[0],name:'Morgenmusik',description:'Rolige sange',detail:'Akustisk'}];
  for(const state of [{},{pendingId:cards[0].id},{canChoose:false}]){
-  f.view.render({cards,...state});const row=f.nodes.get('result-list').children[0],name=row.getAttribute('aria-label');
-  for(const value of ['Morgenmusik','Rolige sange','Akustisk',...(state.pendingId?['Afventer afspilning']:[])])assert.ok(name.includes(value),`${name} omits ${value}`);
+  f.view.render({cards,...state});const row=f.nodes.get('result-list').children[0],name=[...row.children[1].children,row.children[2]].map(node=>node.textContent).join(' ');assert.equal(row.getAttribute('aria-label'),null);
+  for(const value of ['Morgenmusik','Rolige sange','Akustisk',...(state.pendingId?['Starter afspilning']:[])])assert.ok(name.includes(value),`${name} omits ${value}`);
  }
  f.view.cleanup();
+});
+
+
+test('local discovery shows exactly the selected tab trio with stable admitted identities',()=>{
+ for(const [collection]of MUSIC_TABS){
+  const state={music:{...initialWidgetState(),collection,revision:7}},cards=localDiscoveryCards(state),expected=localMusicCards(resultsFor(state.music),7);
+  assert.equal(cards.length,3);assert.deepEqual(cards.map(card=>card.id),expected.map(card=>card.id));assert.deepEqual(cards.map(({collection:_,...card})=>card),expected);assert.ok(cards.every(card=>card.collection===collection&&card.revision===7));assert.ok(cards.every(card=>!card.group&&!card.action&&!card.id.startsWith('continue:')));
+ }
+});
+test('selected trio keeps DOM identity on unchanged reads without extra group headings or current-track card',()=>{
+ const f=retainedResultSurface();f.host.state.music=initialWidgetState();f.view.render({cards:localDiscoveryCards(f.host.state)});const children=[...f.nodes.get('result-list').children];assert.equal(children.length,3);assert.equal(children.some(node=>node.className==='music-group-heading'),false);assert.equal(f.nodes.get('result-list').dataset.grouped,'false');f.clear();f.view.render({cards:localDiscoveryCards(f.host.state)});assert.deepEqual(f.writes,[]);assert.deepEqual(f.nodes.get('result-list').children,children);f.view.cleanup();
+});
+test('browsing every tab preserves paused playback, track position and selected output',()=>{
+ const f=retainedResultSurface();f.host.state.music=initialWidgetState();f.host.state.music.playback={...f.host.state.music.playback,playing:false,progressMs:84000,room:'Køkken',targetId:'kitchen'};const playback=f.host.state.music.playback;
+ for(const [collection]of MUSIC_TABS){f.host.state.music=widgetTransition(f.host.state.music,{type:'collection',value:collection});const cards=localDiscoveryCards(f.host.state);f.view.render({cards,collection});assert.equal(cards.length,3);assert.strictEqual(f.host.state.music.playback,playback);assert.equal(f.chosen.length,0);assert.ok([...f.view.rows.values()].every(row=>row.musicCard.collection===collection));}
+ f.view.cleanup();
+});
+test('a selected-tab choice uses its current revision without switching or resuming transport during browsing',()=>{
+ const f=retainedResultSurface();f.host.state.music=widgetTransition(initialWidgetState(),{type:'collection',value:'recent'});f.host.state.music.playback={...f.host.state.music.playback,playing:false};const playback=f.host.state.music.playback,revision=f.host.state.music.revision;let transportCalls=0;f.host.dispatch=()=>transportCalls++;f.host.ownerDocument.getElementById=()=>({click:()=>transportCalls++});f.host.music=()=>transportCalls++;f.view.render({cards:localDiscoveryCards(f.host.state),collection:'recent'});const row=[...f.view.rows.values()][0];assert.equal(Number(row.dataset.revision),revision);assert.equal(row.musicCard.collection,'recent');assert.equal(row.getAttribute('aria-description'),'Afspil');row.listeners.get('click')();assert.equal(f.chosen[0].id,row.musicCard.id);assert.equal(transportCalls,0);assert.strictEqual(f.host.state.music.playback,playback);f.view.cleanup();
+});
+
+test('offline music tabs remain browseable while all play cards and refresh stay disabled',()=>{
+ const f=retainedResultSurface();f.view.render({cards:resultCards(),collection:'recent',connected:false});
+ assert.ok(f.nodes.get('music-refinements').children.every(tab=>tab.disabled===false));assert.equal(f.nodes.get('music-refresh').disabled,true);assert.ok(f.nodes.get('result-list').children.every(row=>row.disabled));
+ for(const row of f.nodes.get('result-list').children)row.listeners.get('click')();assert.deepEqual(f.chosen,[]);f.view.cleanup();
+});
+test('offline live catalogue tabs reuse exact cached cards without issuing provider reads',()=>{
+ const f=catalogue();f.view.select('top');f.view.tracks('top',{ok:true,data:{config_entry_id:'account',tracks:[track]}},'account');const retained=f.view.cards;f.view.updateCapabilities(false,['top','recent']);const before=f.reads.length;
+ f.view.select('recent');f.view.select('top');assert.equal(f.view.cards,retained);assert.equal(f.reads.length,before);assert.equal(f.renders.at(-1).connected,false);f.view.refresh();assert.equal(f.reads.length,before);
+});
+
+test('refresh keeps admitted old cards usable and images retained while only the action announces pending',()=>{
+ const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const rows=[...f.nodes.get('result-list').children],art=rows.map(row=>row.children[0]),sources=art.map(node=>node.src),refresh=f.nodes.get('music-refresh');f.view.render({cards,busy:true});assert.deepEqual(f.nodes.get('result-list').children,rows);assert.deepEqual(rows.map(row=>row.children[0]),art);assert.deepEqual(art.map(node=>node.src),sources);assert.ok(rows.every(row=>!row.disabled&&row.getAttribute('aria-disabled')==='false'));assert.equal(refresh.label.textContent,'Henter forslag');assert.equal(refresh.dataset.refreshState,'pending');assert.equal(refresh.getAttribute('aria-disabled'),'true');f.clear();f.view.render({cards,busy:true});assert.deepEqual(f.writes,[],'unchanged pending does not restart image work or refresh motion');
+ for(const end of [{status:'Kunne ikke opdatere · viser seneste udvalg.'},{connected:false},{canRefresh:false},{pendingId:cards[0].id}]){f.view.render({cards,busy:true,...end});if(!end.status)assert.equal(refresh.dataset.refreshState,'idle');}
+ f.view.render({cards,status:'Kunne ikke opdatere · viser seneste udvalg.'});assert.equal(refresh.dataset.refreshState,'idle');assert.equal(refresh.label.textContent,'Prøv igen');f.view.render({cards,busy:true});f.view.cleanup();assert.equal(refresh.dataset.refreshState,'idle');assert.equal(refresh.getAttribute('aria-busy'),'false');
+});
+
+test('actual retained card cancels a local refresh before forwarding its stable option identity',async()=>{
+ const {LocalMusicRefresh}=await import('../../podvoice/gatekeeper/static/podview/flow-controller.js'),{initialScene,sceneTransition}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');const f=retainedResultSurface();let callback,cancelled=0;f.host.isConnected=true;f.host.state={...initialScene(),focus:'music'};f.host.render=()=>f.view.render({cards:localDiscoveryCards(f.host.state),busy:!!f.host.state.music.refreshPending,connected:f.host.state.connected});f.host.musicRefresh=new LocalMusicRefresh(f.host,{after(fn){callback=fn;return 1;},cancel(){cancelled++;}});f.host.dispatch=event=>{f.host.state=sceneTransition(f.host.state,event);f.host.musicRefresh.sync();f.host.render();};f.host.render();const row=f.nodes.get('result-list').children[0],id=row.dataset.optionId,art=row.children[0],before=f.host.state.music.playback;f.host.musicRefresh.start();assert.equal(row.disabled,false);assert.equal(f.nodes.get('music-refresh').label.textContent,'Henter forslag');row.listeners.get('click')();assert.equal(cancelled,1);assert.equal(f.host.state.music.refreshPending,null);assert.equal(f.nodes.get('music-refresh').dataset.refreshState,'idle');assert.equal(f.chosen[0].id,id);assert.equal(row.dataset.revision,String(f.host.state.music.revision));assert.equal(row.children[0],art);assert.equal(f.host.state.music.playback,before);const current=f.host.state;callback();assert.equal(f.host.state,current);f.view.cleanup();
+});
+
+test('actual refresh error and empty preview fixtures expose distinct scoped feedback and a retry without replacing cards or player',async()=>{
+ const {previewScene}=await import('../../podvoice/gatekeeper/static/podview/preview-scenes.js');for(const [stage,outcome]of [['music-refresh-error','error'],['music-refresh-empty','empty']]){const f=retainedResultSurface();f.host.state=previewScene(stage);const cards=localDiscoveryCards(f.host.state),playback=f.host.state.music.playback;f.view.render({cards});const rows=[...f.nodes.get('result-list').children],message=f.nodes.get('empty'),refresh=f.nodes.get('music-refresh');assert.equal(message.hidden,false);assert.equal(message.getAttribute('role'),'status');assert.equal(message.dataset.refreshOutcome,outcome);assert.match(message.textContent,outcome==='error'?/Kunne ikke hente nye forslag/:/Ingen nye forslag i denne opdatering/);assert.doesNotMatch(message.textContent,/Spotify|ikke flere|slut/i);assert.equal(refresh.label.textContent,'Prøv igen');assert.equal(refresh.disabled,false);f.clear();f.view.render({cards});assert.deepEqual(f.writes,[],'same settled outcome is not rewritten or re-announced');assert.deepEqual(f.nodes.get('result-list').children,rows);assert.equal(f.host.state.music.playback,playback);f.view.cleanup();}
+});
+
+test('retry after an actual failed or empty local read clears old feedback while pending and fences earlier completions',async()=>{
+ const {LocalMusicRefresh}=await import('../../podvoice/gatekeeper/static/podview/flow-controller.js'),{initialScene,sceneTransition}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');for(const outcome of ['error','empty']){const f=retainedResultSurface(),callbacks=[],cancelled=[];let result=outcome;f.host.isConnected=true;f.host.state={...initialScene(),focus:'music'};f.host.render=()=>f.view.render({cards:localDiscoveryCards(f.host.state),busy:!!f.host.state.music.refreshPending,connected:f.host.state.connected});f.host.musicRefresh=new LocalMusicRefresh(f.host,{outcome:()=>result,after(fn){callbacks.push(fn);return callbacks.length;},cancel:id=>cancelled.push(id)});f.host.dispatch=event=>{f.host.state=sceneTransition(f.host.state,event);f.host.musicRefresh.sync();f.host.render();};f.host.render();const rows=[...f.nodes.get('result-list').children],player=f.host.state.music.playback;f.host.musicRefresh.start();callbacks[0]();assert.equal(f.nodes.get('empty').hidden,false);assert.equal(f.nodes.get('empty').dataset.refreshOutcome,outcome);assert.deepEqual(f.nodes.get('result-list').children,rows);f.host.musicRefresh.start();assert.equal(f.nodes.get('empty').hidden,true);assert.equal(f.nodes.get('music-refresh').label.textContent,'Henter forslag');const retry=f.host.state;callbacks[0]();assert.equal(f.host.state,retry);result='ready';callbacks[1]();assert.equal(f.nodes.get('empty').hidden,true);assert.equal(f.nodes.get('music-refresh').label.textContent,'Andre forslag');assert.equal(f.host.state.music.playback,player);assert.notDeepEqual(f.nodes.get('result-list').children,rows);f.view.cleanup();}
+});
+
+test('actual catalogue pending projection marks only the clicked retained Play and clears on outcome, owner change, disconnect and cleanup',()=>{
+ const f=retainedResultSurface();f.host.live=true;f.host.musicResults=f.view;const catalogue=new LiveMusicCatalogueView(f.host,()=>{}),cards=resultCards(),source={};catalogue.cards=cards;catalogue.connected=true;const entry={cards,source};catalogue.entries.set(catalogue.key(),entry);let scope='owner-a';
+ const selection=f.host.liveSelection={pending:true,pendingCardId:cards[1].id,pendingCardSource:source,pendingFeedbackScope:'owner-a',collectionEntry:entry,feedbackScope:()=>scope};
+ const project=()=>catalogue.render();project();const rows=[...f.nodes.get('result-list').children];assert.equal(rows[0].dataset.pending,'false');assert.equal(rows[1].dataset.pending,'true');assert.equal(rows[1].getAttribute('aria-busy'),'true');assert.equal(rows[1].children[3].children[0].src,'assets/icons/play-fill.svg','activity never rotates or replaces the Play symbol');rows[1].listeners.get('click')();assert.equal(f.chosen.length,0,'pending row cannot duplicate the action');f.clear();project();assert.deepEqual(f.writes,[],'same request does not restart CSS state or replace its retained row');
+ for(const stop of [()=>selection.pending=false,()=>scope='owner-b',()=>catalogue.connected=false,()=>selection.pendingCardSource={}]){selection.pending=true;selection.pendingCardSource=source;catalogue.connected=true;scope='owner-a';project();assert.equal(rows[1].dataset.pending,'true');stop();project();assert.equal(rows[1].dataset.pending,'false');assert.equal(rows[1].getAttribute('aria-busy'),'false');}
+ selection.pending=true;selection.pendingCardSource=source;scope='owner-a';project();f.view.cleanup();assert.equal(rows[1].dataset.pending,'false');assert.equal(rows[1].getAttribute('aria-busy'),'false');assert.equal(rows[1].children[2].textContent,'');
 });

@@ -48,3 +48,23 @@ test('fallback allocation reserves later primary art and replaces abstract theme
  const source=collectionSample(value,'account','mood',snapshot()),cards=sourceMusicCards(source.tracks);assert.deepEqual(cards.map(card=>card.fixtureArt),['assets/editorial-ocean.webp','assets/editorial-vinyl.webp','assets/editorial-forest.webp']);assert.ok(renewCollectionSelection(source,cards));
  Object.assign(value.data.tracks[0],{themeId:'indie',themeTitle:'Indie i baggrunden',artist:'Indie i baggrunden',themeArt:'assets/indie.webp'});const abstractSource=collectionSample(value,'account','mood',snapshot()),natural=sourceMusicCards(abstractSource.tracks);assert.ok(abstractSource);assert.equal(natural.some(card=>card.fixtureArt==='assets/indie.webp'),false);assert.equal(new Set(natural.map(card=>card.fixtureArt)).size,3);assert.ok(renewCollectionSelection(abstractSource,natural),'owned display alternative does not rewrite renewal identity');
 });
+
+
+test('owner mood rows admit generated themeArt without granting it to other collection kinds or replacing Spotify cover priority',()=>{
+ const value=body();value.data.tracks.forEach((row,index)=>row.themeArt=`theme-art/${row.themeId}/${String(index+1).repeat(64)}.webp`);
+ const source=collectionSample(value,'account','mood',snapshot());assert.ok(source);const cards=sourceMusicCards(source.tracks,'mood');assert.deepEqual(cards.map(card=>card.fixtureArt),value.data.tracks.map(row=>row.themeArt));assert.equal(new Set(cards.map(card=>card.fixtureArt)).size,3);assert.ok(renewCollectionSelection(source,cards));
+ assert.ok(sourceMusicCards(source.tracks,'feeling').every(card=>card.fixtureArt.startsWith('assets/')));assert.ok(sourceMusicCards(source.tracks).every(card=>card.fixtureArt.startsWith('assets/')));
+ for(const bad of ['theme-art/italian/'+'1'.repeat(64)+'.webp','theme-art/cooking/'+'A'.repeat(64)+'.webp','theme-art/cooking/'+'a'.repeat(64)+'.webp?x=1','https://example.test/view/theme-art/cooking/'+'a'.repeat(64)+'.webp']){const invalid=structuredClone(value);invalid.data.tracks[0].themeArt=bad;assert.equal(collectionSample(invalid,'account','mood',snapshot()),null);}
+ value.data.tracks[0].artwork={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/actual'};const withCover=collectionSample(value,'account','mood',snapshot()),preferred=sourceMusicCards(withCover.tracks,'mood')[0];assert.equal(preferred.artwork.url,value.data.tracks[0].artwork.url);assert.equal(preferred.fixtureArt,undefined);assert.equal(preferred.fallbackArt,value.data.tracks[0].themeArt);
+});
+
+test('actual catalogue admits generated mood art and preserves the exact frozen card allocation through renewal and tab navigation',()=>{
+ const value=body();value.data.tracks.forEach((row,index)=>row.themeArt=`theme-art/${row.themeId}/${String(index+1).repeat(64)}.webp`);
+ const host={state:{focus:'music'},liveSnapshot:snapshot(),musicResults:{render(){}},liveSelection:{invalidate(){},leave(){}},liveTransport:{connected:true},liveStatus:'connected'},view=new LiveMusicCatalogueView(host,()=>{});host.liveCatalogue=view;view.account='account';view.updateCapabilities(true,host.liveSnapshot.capabilities.musicRead);
+ try{view.select('mood');view.tracks('mood',value,'account');const cards=view.cards;assert.deepEqual(cards.map(card=>card.fixtureArt),value.data.tracks.map(row=>row.themeArt));view.select('top');view.select('mood');assert.equal(view.cards,cards);view.tracks('mood',structuredClone(value),'account');assert.equal(view.cards,cards);assert.ok(view.entries.get(view.key()).source);assert.ok(cards.every(card=>!('taskId' in card)&&!('grant' in card)));}finally{clearTimeout(view.expiryTimer);}
+});
+
+
+test('generated digest identifies duplicate image bytes even under different closed mood directories',()=>{
+ const value=body();value.data.tracks.forEach(row=>row.themeArt=`theme-art/${row.themeId}/${'a'.repeat(64)}.webp`);const source=collectionSample(value,'account','mood',snapshot());assert.ok(source);const cards=sourceMusicCards(source.tracks,'mood');assert.equal(cards[0].fixtureArt,value.data.tracks[0].themeArt);assert.ok(cards.slice(1).every(card=>card.fixtureArt.startsWith('assets/')));assert.equal(new Set(cards.map(card=>card.fixtureArt)).size,3);assert.deepEqual(sourceMusicCards(source.tracks,'mood'),cards);assert.ok(renewCollectionSelection(source,cards));
+});

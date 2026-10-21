@@ -13,6 +13,7 @@ class Node extends EventTarget {
   contains(node) { return node != null && (this === node || this.children.some(child => child === node || child?.contains?.(node) === true)); }
   replaceChildren(...nodes) { this.children = nodes; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name)??null; }
   removeAttribute(name) { this.attributes.delete(name); }
   getClientRects() { return this.hidden ? [] : [{}]; }
   focus() { this.focused = true; }
@@ -355,5 +356,44 @@ test('superseded same-task reads and source completions cannot republish after r
   const fresh=f.answer();fresh.revision=3;answersRead.resolve(fresh);sourceRead.resolve(sourceResponse());
   await pending;await pendingSource;assert.equal(f.host.state.answers.length,0);
   assert.equal(f.view.dialog.open,false);assert.equal(f.view.body.children.length,0);
+ }finally{f.restore();}
+});
+
+
+test('a long held touch retains an admitted answer without navigation until release and a quiet fresh owner read',async()=>{
+ const f=fixture({focus:'now'});try{
+  f.host.screenLifecycle={pointers:new Set([7])};f.host.lastInteractionAt=Date.now()-10000;
+  await f.read();const answer=f.host.state.answers[0],content=answer.content;
+  assert.equal(f.host.state.focus,'now');assert.equal(f.host.events.length,0);assert.equal(f.view.presented.has(answer.id),false);assert.equal(answer.readConnected,true);assert.equal(f.view.currentAnswer(receiptId).id,answer.id);
+  f.host.screenLifecycle.pointers.clear();f.host.lastInteractionAt=Date.now();f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();
+  assert.equal(f.host.events.length,0,'release does not waive the quiet interval');assert.deepEqual(f.host.state.answers[0].content,content);
+  f.host.lastInteractionAt=Date.now()-2000;f.view.lastRead=0;await f.view.refresh();assert.deepEqual(f.host.events,[{type:'show',id:answer.id}]);
+  f.host.state={...f.host.state,focus:'now'};f.view.lastRead=0;await f.view.refresh();assert.equal(f.host.events.length,1,'same receipt is not reopened after Back');
+ }finally{f.restore();}
+});
+
+test('background reads retain useful answers and surface only after returning visible to a quiet allowed screen',async()=>{
+ for(const hiddenMode of ['hidden','visibilityState']){const f=fixture({focus:'photo'});try{
+  if(hiddenMode==='hidden')document.hidden=true;else document.visibilityState='hidden';
+  await f.read();assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.focus,'photo');assert.equal(f.host.events.length,0);assert.equal(f.view.presented.size,0);
+  document.hidden=false;document.visibilityState='visible';f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();
+  assert.deepEqual(f.host.events,[{type:'show',id:'receipt:'+receiptId}]);
+ }finally{f.restore();}}
+});
+
+test('owner displaySuggested alone selects auto-surfacing regardless of short or long admitted text',async()=>{
+ for(const summary of ['Et kort faktasvar.','En længere kildebundet forklaring. '.repeat(12)]){const f=fixture({focus:'now'});try{
+  const quiet=f.answer();quiet.items[0].displaySuggested=false;quiet.items[0].content.summary=summary;await f.read(quiet);
+  assert.equal(f.host.state.answers[0].content.summary,summary);assert.equal(f.host.events.length,0);assert.equal(f.view.presented.size,0);
+  const suggested=structuredClone(quiet);suggested.items[0].displaySuggested=true;f.view.lastRead=0;f.host.liveTransport.answers=async()=>suggested;await f.view.refresh();assert.deepEqual(f.host.events,[{type:'show',id:'receipt:'+receiptId}]);
+ }finally{f.restore();}}
+});
+
+test('hidden deferred receipts remain hidden through fresh reads and historical retention never forces a detail',async()=>{
+ const f=fixture({focus:'now'});try{
+  f.host.lastInteractionAt=Date.now();await f.read();const answer=f.host.state.answers[0];
+  f.host.state={...f.host.state,answers:[{...answer,hidden:true}]};f.host.lastInteractionAt=Date.now()-2000;f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();
+  assert.equal(f.host.events.length,0);assert.equal(f.host.state.answers[0].hidden,true);assert.equal(f.view.presented.size,0);
+  f.view.lastRead=0;f.host.liveTransport.answers=async()=>({...f.answer(),items:[]});await f.view.refresh();assert.equal(f.host.events.length,0);assert.equal(f.host.state.focus,'now');assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.host.state.answers[0].hidden,true);
  }finally{f.restore();}
 });

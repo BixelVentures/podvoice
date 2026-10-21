@@ -61,6 +61,6 @@ export class LiveMediaView{
   if(currentStatus){if(this.selectionReceiptFeedback!==feedback){this.selectionReceiptFeedback=feedback;if(!this.host.feedbackMessage||this.host.feedbackMessage===feedback.message)this.host.showFeedback?.(feedback.message,false);}}else if(this.selectionReceiptFeedback!==feedback)this.selectionReceiptFeedback=null;
   this.host.playerView.renderPlayer({...livePlayerModel(p,!!this.host.liveTransport?.connected,this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||''),canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:feedback});
   this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true,gesture:this.host.liveControls?.musicVolumeGesture});
-  this.renderQueue();this.host.liveControls?.render();this.host.liveCatalogue?.render();
+  this.renderQueue();this.host.liveControls?.render();this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
  }
 }

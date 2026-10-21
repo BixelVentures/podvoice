@@ -32,6 +32,9 @@ export class RobotMotion{
   // must not replay an old cleaning cue or treat a refreshed timestamp as new.
   for(const {icon,device} of this.candidates()){
    if(!device)continue;const key=scope+':'+device.id;states.set(key,device.status);
+   // A settled, already acknowledged cleaning observation cannot start a cue.
+   // Active cues still measure visibility below so hiding/removal cancels them.
+   if(device.status==='cleaning'&&this.states.get(key)==='cleaning'&&!this.animations.has(icon))continue;
    if(reduced||this.document?.hidden||!robotIsCleaning(device,{connected,live:this.host.live,now})||!icon?.animate||!icon.isConnected||!icon.getClientRects().length)continue;
    wanted.add(icon);if(!this.animations.has(icon)){
     if(this.states.get(key)==='cleaning')continue;

@@ -30,7 +30,7 @@ export const productLibrary=[
   state('composition','conversation-visual','Svar med aktiviteter','Svaret tager fokus; kun relevante aktive ressourcer er sekundære.'),
   state('composition','answer-fact-card-long','Langt indhold','Prøv scroll og kontrollér, at playeren bliver på sin plads.')
  ]},
- {id:'voice',name:'Samtalestatus',category:'Skærm',description:'Én rolig status midt på skærmen. Den viser faktisk aktivitet og overtager aldrig svarområdet.',usage:'Status vises kun under en aktiv samtale. Mikrofonen betyder aktivt input. Ingen bølgende lydmåler.',interaction:'Se de seks synlige faser samlet. Åbn Hele skærmen for at vurdere placering og vægt sammen med player og indhold.',limitations:['Lokale gengivelser af ejerens faser. Fysisk tale, fuld duplex og lydoutput kræver PodVoice-prøve.','Ingen status betyder ikke, at et nyttigt visuelt svar skal lukkes.'],states:[
+ {id:'voice',name:'Samtalestatus',category:'Skærm',description:'Én rolig status øverst midt på skærmen. Den viser faktisk aktivitet og overtager aldrig svarområdet.',usage:'Status vises kun under en aktiv samtale. Mikrofonen betyder aktivt input. Ingen bølgende lydmåler.',interaction:'Se de seks synlige faser samlet. Åbn Hele skærmen for at vurdere placering og vægt sammen med player og indhold.',limitations:['Lokale gengivelser af ejerens faser. Fysisk tale, fuld duplex og lydoutput kræver PodVoice-prøve.','Ingen status betyder ikke, at et nyttigt visuelt svar skal lukkes.'],states:[
   state('voice','header-listening','Lytter','Du taler. Eksisterende indhold bliver stående.'),
   state('voice','header-thinking','Arbejder','PodVoice arbejder. Ingen stor tom svarflade.'),
   state('voice','header-speaking','Svarer','PodVoice taler. Et visuelt svar kan komme uafhængigt.'),
@@ -60,65 +60,79 @@ export const productLibrary=[
   state('conversation','offline','Forbindelsen forsvinder','Seneste indhold bevares, og fjernhandlinger må ikke gentages.'),
   state('conversation','connecting','Genforbindelse','Indhold bliver, mens forbindelsen genoprettes.'),
   state('conversation','header-ready','Klar til at lytte videre','Den eksisterende status for fortsættelse af samtalen.'),
-  state('conversation','header-waiting','Status ukendt','Ingen sikker tale- eller lyttetilstand kan udledes.')
+  state('conversation','header-waiting','Status ukendt','Ingen sikker tale- eller lyttetilstand kan udledes.'),
+  ...FORMATS.map(format=>state('conversation',`answer-${format}-ready`,`Svarformat · ${answerNames[format]}`,answerDescriptions[format],{answerFormat:format}))
  ]},
  {id:'music',name:'Musikvalg',category:'Musik',description:'De fire aftalte musikfaner med genkendelige valg og bevarede billeder.',usage:'Stemning, Humør, Topsange og Senest bruger samme musikområde.',interaction:'Skift fane, vælg musik, og prøv Andre forslag. Valgene er lokale og spiller ikke lyd.',limitations:['Musikudvalget er eksempeldata, ikke en læsning af din Spotify-konto.'],states:[
   ...[['mood','Stemning'],['feeling','Humør'],['top','Topsange'],['recent','Senest']].map(([stage,label])=>state('music',`music-${stage}`,label,'Fanevalg bevarer den faste player og bruger samme musikkomponent.')),
   state('music','music-refreshing','Nye forslag afventer','Eksisterende forslag bevares, mens en opdatering afventer.'),
   state('music','music-refresh-error','Opdatering fejlede','Tidligere forslag bevares. Ingen falsk succes.'),
   state('music','music-refresh-empty','Ingen nye forslag','Det tomme opdateringsresultat erstatter ikke brugbare tidligere valg.'),
-  state('music','pending','Afspilning afventer','Det valgte nummer er endnu ikke en observeret afspilning.')
+  state('music','pending','Afspilning afventer','Det valgte nummer er endnu ikke en observeret afspilning.'),
+  state('music','music-offline','Forbindelse mangler','Musikfaner og tidligere valg kan stadig læses; ingen ny afspilning.'),
+  state('music','music-unknown','Udfald ukendt','Forbindelsen afbrydes efter valg; ingen automatisk gentagelse.'),
+  state('music','music-long-output','Langt højttalernavn','Lang kendt destination i den samme player og overblikskortets fakta.')
  ]},
  {id:'player',name:'Musikplayer',category:'Musik',description:'Fast højrezone med stort cover, højttaler, transport og adskilt volumen.',usage:'Playeren bevarer position og indhold, når venstre opgaveområde ændrer sig.',interaction:'Tryk på cover eller titel for detaljer, højttaleren for outputvalg, og prøv pause eller volumen.',limitations:['Transport og outputvalg er lokale eksempler. Der sendes ingen kommandoer til højttalere.','Manglende native position giver ingen opdigtet afspilningsfremdrift.'],states:[
   state('player','conversation-overview','Spiller','Den store højreplayer i overblikket.'),
   state('player','music-paused','På pause','Samme cover og destination, ændret transporttilstand.'),
   ...['active','rest'].flatMap(mode=>[['empty','Ingen afspilning'],['loading','Første indlæsning'],['missing-art','Omslag mangler'],['offline','Sidst kendt afspilning'],['error','Fejl']].map(([status,label])=>state('player',`player-${mode}-${status}`,`${mode==='active'?'Stor':'Ro'} · ${label}`,'Den eksisterende player bevarer sin egen anatomi; ingen separat loadingflade.'))),
   state('player','conversation-overview','Udvidet player og kø','Detaljer åbner som et roligt lag over den samme skærm.',{open:'#player-detail',key:'player'}),
+  state('player','player-queue-empty','Tom kø','Den faktiske kødetalje uden en aktiv afspilning eller opdigtede numre.'),
+  state('player','player-queue-error','Afspilningsfejl og tom kø','Playerens eksisterende fejltilstand og ærlig tom kø; ingen falsk køkvittering.'),
+  state('player','player-long-output','Langt højttalernavn','Lang destinationslabel med samme sang, cover og kø.'),
   state('player','conversation-overview','Skift højttaler','Den eksisterende højttalervælger. Et eksplicit valg ændrer det lokale output.',{open:'#output',key:'output'})
  ]},
- {id:'weather',name:'Vejr',category:'Hjem',description:'Kompakt overblik og en fotofri detalje med de relevante timer.',usage:'Vejret fylder lidt i overblikket. Et spørgsmål kan give et større, fokuseret vejrsvar.',interaction:'Åbn vejret fra kortet eller headeren; scroll gennem prognosen og læs kilden.',limitations:['Vejrdata er et fast lokalt eksempel, ikke dagens vejrudsigt. Tilstandene beviser ikke en aktuel kildeforbindelse.'],states:[
+ {id:'weather',name:'Vejr',category:'Hjem',description:'Kompakt overblik og en fotofri detalje med de relevante timer.',usage:'Vejret fylder lidt i overblikket. Et spørgsmål kan give et større, fokuseret vejrsvar.',interaction:'Åbn vejret fra kortet eller headeren; scroll gennem prognosen og læs kilden.',limitations:['Vejrdata er et fast lokalt eksempel, ikke dagens vejrudsigt. Tilstandene beviser ikke en aktuel kildeforbindelse.','Vejrejeren har ingen selvstændig kommando-pending eller providerfejltilstand. Tom kilde og sidst kendt prognose vises ærligt.'],states:[
   state('weather','conversation-overview','Overblikskort','Lille vejrværdi og kort kontekst i overblikket.'),
   state('weather','weather-ready','Vejrdetalje','Fotofri prognose med timer, vind og kilde.'),
   state('weather','weather-empty','Ingen vejrdata','Den samme vejrdetalje uden et leveret kildegrundlag.'),
   state('weather','weather-stale','Sidst kendte vejrdata','Forældet prognose bevares og kvalificeres; der opfindes ingen opdatering.'),
+  state('weather','weather-unconnected','Ikke forbundet','Ingen kilde eller prognose; samme ærlige tomme vejr-Hero.'),
+  state('weather','weather-offline','Offline med kendt prognose','Den seneste prognose bevares og markeres sidst kendt.'),
   state('weather','conversation-visual','Vejr som svar','En konklusion og udvalgte fakta om et konkret eksempelspørgsmål.')
  ]},
  {id:'timer',name:'Timer',category:'Hjem',description:'Tom indgang, aktivt instrument og en tydelig afslutning.',usage:'En aktiv timer må bruge mere plads end den tomme indgang. Færdig skal kunne findes uden at lede.',interaction:'Start en lokal timer, åbn detaljer og afslut den. Ingen fysisk alarm afspilles.',limitations:['Timeren er lokal. Native alarmlyd og stopkvittering er ikke efterprøvet her.'],states:[
-  ...[['empty','Ingen timer','Indgang til at vælge en tid.'],['running','Aktiv timer','Tiden tæller ned lokalt.'],['finished','Tiden er gået','Færdigtilstanden bliver, indtil den håndteres.'],['multiple','Flere timere','Hver timer har sin egen identitet og afslutning.'],['stale','Sidst kendt timer','Forældet observation skal fremgå uden en falsk ny bekræftelse.']].flatMap(([status,label,rule])=>['overview','detail','rest'].map(layer=>state('timer',`timer-${layer}-${status}`,`${label} · ${{overview:'overblik',detail:'detalje',rest:'Ro'}[layer]}`,rule)))
+  ...[['empty','Ingen timer','Indgang til at vælge en tid.'],['running','Aktiv timer','Tiden tæller ned lokalt.'],['finished','Tiden er gået','Færdigtilstanden bliver, indtil den håndteres.'],['multiple','Timer og seneste tider','Én aktiv timer. Tidligere varigheder kan vælges uden at starte en ekstra timer.'],['stale','Sidst kendt timer','Forældet observation skal fremgå uden en falsk ny bekræftelse.']].flatMap(([status,label,rule])=>['overview','detail','rest'].map(layer=>state('timer',`timer-${layer}-${status}`,`${label} · ${{overview:'overblik',detail:'detalje',rest:'Ro'}[layer]}`,rule)))
+  ,...['overview','detail','rest'].map(layer=>state('timer',`timer-${layer}-paused`,`Timer på pause · ${{overview:'overblik',detail:'detalje',rest:'Ro'}[layer]}`,'Samme lokale timer på pause; annullér eller afslut før ny varighed.'))
  ]},
- {id:'robot',name:'Robotstøvsuger',category:'Hjem',description:'Én genkendelig robot med status, betjening og fælles hændelseshistorik.',usage:'Ved basen er sekundært. Aktivitet og fejl kan få mere vægt; ingen opdigtet kortvisning.',interaction:'Åbn Betjen robot, vælg områder og gentagelser, eller genbrug et lokalt historikvalg.',limitations:['Start gemmer kun et lokalt valg. Robotten bevæger sig ikke.','En accepteret start er ikke dokumentation for en afsluttet rengøring.'],states:[
+ {id:'robot',name:'Robotstøvsuger',category:'Hjem',description:'Én genkendelig robot med status, betjening og fælles hændelseshistorik.',usage:'Ved basen er sekundært. Aktivitet og fejl kan få mere vægt; ingen opdigtet kortvisning.',interaction:'Åbn Betjen robot, vælg områder og gentagelser, eller genbrug et lokalt historikvalg.',limitations:['Start og statusændringer er lokale eksempler. Robotten bevæger sig ikke.','En accepteret start er ikke dokumentation for en afsluttet rengøring.'],states:[
   ...devicePreviewStatuses.robot.map(status=>state('robot',`robot-detail-${status}`,deviceNames[status],deviceRules[status])),
   state('robot','robot-overview-docked','Overblik · ved basen','Sekundært kort i det fælles overblik.'),
   state('robot','robot-overview-cleaning','Overblik · rengør','Aktiv status i samme kortanatomi.'),
   state('robot','robot-rest-cleaning','Ro · rengør','Den kompakte ressource er tilgængelig over billedrammen.'),
   state('robot','robot-detail-offline','Forbindelse mangler','Sidst kendte rengøring bevares. Betjening er ikke tilgængelig.'),
+  ...[['empty','Ingen robotdata','Manglende opsætning med helper og uden tom historik.'],['stale','Sidst kendte robotdata','Seneste observation bliver stående uden aktive kommandoer.'],['long','Langt rum- og kortnavn','Lange faktisk understøttede metadata i samme Hero, pleje-ListRows og S/M/L-kort.'],['care','Pleje og dockstatus','Observerede eksempelværdier for filter, børste, vandbeholder og dockfejl.']].map(([status,label,description])=>state('robot',`robot-detail-${status}`,label,description)),
   state('robot','robot-detail-docked','Områder og gentagelser','Den eksisterende rengøringsformular; justér før eksplicit Start.',{open:'[data-robot-control]',key:'controls'})
  ]},
- {id:'lights',name:'Lys',category:'Hjem',description:'Et dæmpet varmt funktionsunivers med ærlig status.',usage:'Ikke tilsluttet lys fylder mindre end et aktuelt svar. En gruppe kan have blandet tilstand.',interaction:'Prøv de tilgængelige lokale lyskontroller; forbindelsesfejl må ikke ligne et slukket lys.',limitations:['Lysbetjening her er simuleret. Tilgængelighed i hjemmet skal bekræftes af den faktiske ejer.'],states:[
+ {id:'lights',name:'Lys',category:'Hjem',description:'Et dæmpet varmt funktionsunivers med ærlig status.',usage:'Ikke tilsluttet lys fylder mindre end et aktuelt svar. En gruppe kan have blandet tilstand.',interaction:'Prøv de tilgængelige lokale lyskontroller; forbindelsesfejl må ikke ligne et slukket lys.',limitations:['Lysbetjening her er simuleret. Tilgængelighed i hjemmet skal bekræftes af den faktiske ejer.','Farve/temperatur og rigtige scener er ikke optaget i den aktuelle kontrakt; biblioteket opfinder ingen dialog eller kommando.'],states:[
   ...devicePreviewStatuses.light.map(status=>state('lights',`light-detail-${status}`,deviceNames[status],deviceRules[status])),
   state('lights','light-overview-unavailable','Overblik · ikke tilgængeligt','Rolig og ærlig indgang uden påstand om tændt lys.'),
   state('lights','light-overview-on','Overblik · tændt','Samme kortfamilie som de øvrige enheder.'),
   state('lights','light-rest-on','Ro · tændt','Kompakt ressource med samme observerede tilstand.'),
-  state('lights','light-detail-offline','Forbindelse mangler','Sidst kendt lysstatus bliver; fjernbetjening afventer forbindelse.')
+  state('lights','light-detail-offline','Forbindelse mangler','Sidst kendt lysstatus bliver; fjernbetjening afventer forbindelse.'),
+  ...[['empty','Ingen lysdata','Manglende opsætning; ingen spøgelseslamper eller scener.'],['stale','Sidst kendt lysstatus','Kendte lamper bliver stående uden aktive kommandoer.'],['long','Langt lampe- og rumnavn','Samme lampe valgt med lange labels; prøv også S/M/L.'],['room-living','Rum · Stuen','Eksisterende rumvalg med stuens to lamper.'],['room-kitchen','Rum · Køkkenet','Eksisterende rumvalg med dæmpbar lampe og kontakt.'],['lamp','Lampe · Loftlys','Eksisterende lampevalg med lysstyrke og tænd/sluk; ingen ny farvedialog.']].map(([status,label,description])=>state('lights',`light-detail-${status}`,label,description))
  ]},
- {id:'radio',name:'Radio',category:'Hjem',description:'Stationsvalg bruger den eksisterende musikplayer.',usage:'Radio har sin egen indgang, men ikke en separat afspiller eller et ekstra playerlayout.',interaction:'Vælg en station og se, hvordan kilde og titel ændres i højreplayeren.',limitations:['Stationsvalget er visuelt og lokalt. Der er ingen DR-stream eller lydforbindelse.'],states:[
+ {id:'radio',name:'Radio',category:'Hjem',description:'Stationsvalg bruger den eksisterende musikplayer.',usage:'Radio har sin egen indgang, men ikke en separat afspiller eller et ekstra playerlayout.',interaction:'Vælg en station og se, hvordan kilde og titel ændres i højreplayeren.',limitations:['Stationsvalget er visuelt og lokalt. Der er ingen DR-stream eller lydforbindelse.','Radioejeren tilbyder valgt, pause, tomt valg og offline; der findes ingen særskilt radiofejl eller kommandopending at demonstrere.'],states:[
   state('radio','radio-ready','Stationsvalg','P3, P1, P4 og flere i den eksisterende valgkomponent.'),
   state('radio','radio-selected','Station valgt','Radioindhold i samme højreplayer.'),
   state('radio','radio-paused','På pause','Den valgte station bevares på pause.'),
   state('radio','radio-offline','Forbindelse mangler','Stationerne bliver synlige; valg er ikke en liveafspilning.')
  ]},
- {id:'vehicle',name:'Tesla',category:'Hjem',description:'Grå Model Y 2023 med en ærlig endnu ikke tilsluttet tilstand.',usage:'Bilen er en sekundær destination. Ukendte værdier må ikke ligne målte data.',interaction:'Åbn de eksisterende detaljer om opladning, klima og øvrige muligheder.',limitations:['Ingen Tesla-integration, målinger eller betjening er tilsluttet. Derfor vises der ikke opdigtede tilstande for opladning eller kørsel.'],states:[
+ {id:'vehicle',name:'Tesla',category:'Hjem',description:'Ærlig ikke-tilsluttet bil samt tydeligt lokale og passive status-eksempler.',usage:'Bilen er en sekundær destination. Ukendte værdier må ikke ligne målte data.',interaction:'Åbn de eksisterende detaljer om opladning, klima og øvrige muligheder.',limitations:['Ingen Tesla-integration, målinger eller betjening er tilsluttet. Passive ukendte/sidst kendte observationer og lokale ladeeksempler er særskilt mærket.','Bilkontrakten tilbyder ingen kommando-pending, fault eller bagagerumskommando. De manglende tilstande opfindes ikke.'],states:[
   state('vehicle','conversation-overview','Overblik · ikke tilsluttet','Den kompakte bilindgang uden påstået batteri eller rækkevidde.'),
   state('vehicle','vehicle-unconnected','Detaljer · ikke tilsluttet','Bilens faktiske nuværende produktstatus og åbne detaljeafsnit.'),
   state('vehicle','vehicle-charging','Opladning · lokalt eksempel','Eksempel på batteri, ladeeffekt og forventet sluttid; ingen bilforbindelse.'),
-  state('vehicle','vehicle-charging-overview','Overblik · lokalt ladeeksempel','Samme eksempel i overblikkets aktivitet uden reel bilforbindelse.')
+  state('vehicle','vehicle-charging-overview','Overblik · lokalt ladeeksempel','Samme eksempel i overblikkets aktivitet uden reel bilforbindelse.'),
+  state('vehicle','vehicle-unknown','Ukendt · passivt eksempel','Den eksisterende passive kontrakt uden kendte målinger, model eller handlinger.'),
+  state('vehicle','vehicle-stale','Sidst kendt · passivt eksempel','Kendte passive fakta kvalificeres som sidst kendte; ingen aktive bilkommandoer.')
  ]},
  ...FORMATS.map(format=>({id:`answer-${format}`,name:answerNames[format],category:'Visuelle svar',description:answerDescriptions[format],usage:'Ét afgrænset svar med tydeligt hierarki og plads til indhold. Playeren bliver til højre.',interaction:format==='steps'?'Gå frem og tilbage mellem trinene. Åbn kilder og vend tilbage uden at stoppe musik.':format==='checklist'?'Markér punkter og se, at resten af indholdet bevares.':format==='choices'||format==='comparison'?'Vælg en mulighed og følg den videre i samme opgave.':'Prøv kilder, scroll og lukning. At skjule svaret stopper ikke andre ressourcer.',limitations:['Indholdet er lokalt eksempelmateriale. Det dokumenterer rendering, ikke PodVoices livelevering af dette format.'],states:[
   ...answerPreviewStatuses.map(status=>state(`answer-${format}`,`answer-${format}-${status}`,...answerStates[status])),
   ...(format==='fact-card'?[state('answer-fact-card','answer-fact-card-long','Langt svar','Længere indhold kan scrolle; højreplayeren beholder sin placering.')]:[]),
   ...(['steps','checklist'].includes(format)?[state(`answer-${format}`,`answer-${format}-complete`,'Gennemført','Gennemført vejledning eller liste bevares, indtil brugeren forlader den.')]:[])
  ]})),
- {id:'history',name:'Svarhistorik',category:'Detaljer',description:'Tidligere svar genkendes på deres visuelle indhold.',usage:'Historikken åbner i venstre område, mens musikplayeren er tilgængelig.',interaction:'Vælg et visuelt preview, åbn svaret, og gå tilbage til samme sted i historikken.',limitations:['Eksemplerne er lokale. Den nuværende backendhistorik er ikke varig familiehukommelse eller en fuld transskription.'],states:[
+ {id:'history',name:'Svarhistorik',category:'Detaljer',description:'Tidligere svar vises som en overskuelig liste med spørgsmål og kort uddrag.',usage:'Historikken åbner i venstre område, mens musikplayeren er tilgængelig.',interaction:'Vælg et spørgsmål, åbn svaret, og gå tilbage til samme sted i historikken.',limitations:['Eksemplerne er lokale. Den nuværende backendhistorik er ikke varig familiehukommelse eller en fuld transskription.'],states:[
   state('history','visual-history','Visuelle forhåndsvisninger','De ti eksisterende svarformater i den kanoniske historik.'),
   state('history','conversation-overview','Tom historik','Ingen tidligere svar må opfindes.',{open:'#open-history',key:'empty'}),
   state('history','conversation-complete','Efter samtalen','Et nyttigt svar står stadig efter talens afslutning.')
@@ -133,7 +147,7 @@ export const productLibrary=[
 
 // Optional framing hints for the review canvas; selectors point into the same
 // product document. They must never be used to construct substitute widgets.
-const familySelectors={voice:'.header-activity .voice-surface:not([hidden])',music:'#music-response',player:'.player:not([hidden]),#player-empty:not([hidden])',weather:'#weather-view',timer:'#timers-view',robot:'#device-view',lights:'#device-view',radio:'#radio-view',vehicle:'#vehicle-view',history:'#history'};
+const familySelectors={voice:'pv-widget-host>.voice-surface:not([hidden])',music:'#music-response',player:'.player:not([hidden]),#player-empty:not([hidden])',weather:'#weather-view',timer:'#timers-view',robot:'#device-view',lights:'#device-view',radio:'#radio-view',vehicle:'#vehicle-view',history:'#history'};
 for(const family of productLibrary){
  family.selector=family.id.startsWith('answer-')?'#answer-host':familySelectors[family.id];
  for(const item of family.states){
@@ -141,10 +155,11 @@ for(const family of productLibrary){
   if(item.open)item.selector=item.open==='#player-detail'?'#music-detail':item.open==='#output'?'#rooms':item.open==='#open-history'?'#history':'dialog[aria-labelledby="local-robot-title"][open]';
   else if(family.id==='composition')item.isolationNote='Kompositionen vurderes som en hel skærm; vælg en widget i listen for at se den alene.';
   else if(family.id==='conversation'){
-   if(['offline','connecting'].includes(item.stage))item.selector='#connection-note:not([hidden])';
+   if(item.answerFormat)item.selector='#answer-host';
+   else if(['offline','connecting'].includes(item.stage))item.selector='#playback-status:not([hidden])';
    else if(item.stage==='conversation-overview'){item.selector=null;item.isolationNote='Ingen samtaleaktivitet er synlig i denne tilstand.';}
    else if(item.stage==='conversation-complete')item.selector='#answer-host';
-   else item.selector='.header-activity .voice-surface:not([hidden])';
+   else item.selector='pv-widget-host>.voice-surface:not([hidden])';
   }
   else if(family.id==='weather'&&item.stage==='conversation-overview')item.selector='#home-weather';
   else if(family.id==='weather'&&item.stage==='conversation-visual')item.selector='#answer-host';

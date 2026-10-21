@@ -14,7 +14,7 @@ export const MUSIC_FIXTURE = [
     "id": "end-of-beginning",
     "title": "End of Beginning",
     "artist": "Djo",
-    "art": "https://image-cdn-ak.spotifycdn.com/image/ab67616d00001e02da27026597de2d0d940990d2",
+    "art": "https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02da27026597de2d0d940990d2",
     "uri": "spotify:track:6ZWIIawlXC4O3z9yEuJvDo",
     "fixture": true,
     "metadataSource": "https://open.spotify.com/track/6ZWIIawlXC4O3z9yEuJvDo"

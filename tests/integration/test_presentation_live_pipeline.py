@@ -304,8 +304,109 @@ async def test_actual_image_context_uses_only_exact_current_user_input(inputs):
         payload = message("sourced-image")
         payload["presentation"].update(title="Cyklens pedaler", summary="Kæden driver baghjulet")
         await emit(sdk, created(), assistant_item(json.dumps(payload)), terminal())
-        await until(lambda: bool(store.snapshot(session.room, session)["items"]))
-        assert store.snapshot(session.room, session)["items"][0]["family"] == "concise"
+        await until(lambda: session.brain.backend_sequence >= 1 and not session.brain._responses)
+        assert not store.snapshot(session.room, session)["items"]
+        assert store._history == {}
         assert not tools.calls
     finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Musikken spiller nu.",
+        json.dumps({"spoken": "Timeren er startet.", "presentation": None}),
+        json.dumps(
+            {"spoken": "Udført.", "presentation": {**message()["presentation"], "content": {}}}
+        ),
+    ],
+)
+async def test_actual_spoken_only_or_unqualified_ack_completion_does_not_publish_visual(text):
+    session, sdk, _, tools, _ = build()
+    store = tools.podview_receipts = VisualReceiptOwner()
+    await session.start()
+    try:
+        await session.wake()
+        creates = sdk.response.create.await_count
+        await emit(sdk, created(), assistant_item(text), terminal())
+        await until(lambda: session.brain.backend_sequence >= 1 and not session.brain._responses)
+        assert not store.snapshot(session.room, session)["items"]
+        assert store._history == {} and store._selection is None
+        assert sdk.response.create.await_count == creates and not tools.calls
+        instructions = sdk.session.start.await_args.kwargs["session"]["delegation"]["responses"][
+            "instructions"
+        ]
+        assert 'content{visualValue:"reference"}' in instructions
+        assert "presentation:null" in instructions
+    finally:
+        await session.aclose()
+
+
+async def test_actual_multi_fact_final_publishes_before_optional_selection_in_same_thin_owner():
+    from datetime import UTC, datetime, timedelta
+    from unittest.mock import AsyncMock
+
+    from unit.test_openai_live import call
+    from unit.test_weather_result import weather_payload
+
+    session, sdk, _, tools, _ = build()
+    store = tools.podview_receipts = VisualReceiptOwner()
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def select(content, **kwargs):
+        started.set()
+        await release.wait()
+        return {"family": "fact-card", "content": {**content, "facts": content["facts"][1:]}}
+
+    selector = AsyncMock()
+    selector.select.side_effect = select
+    store.configure_selector(selector)
+    tools.declarations = lambda: [
+        {
+            "name": "weather_forecast",
+            "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+        }
+    ]
+    weather, now = weather_payload(1), datetime.now(UTC)
+    weather["data"]["result"].update(retrieved_at=now.isoformat(), state_updated_at=now.isoformat())
+    weather["data"]["result"]["forecast"][0]["datetime"] = (now + timedelta(hours=1)).isoformat()
+
+    async def dispatch(*args, **kwargs):
+        return weather
+
+    tools.dispatch = dispatch
+    await session.start()
+    try:
+        await session.wake()
+        initial_creates = sdk.response.create.await_count
+        await emit(sdk, created(), call(name="weather_forecast", arguments="{}"), terminal())
+        await until(lambda: bool(store._rooms.get(session.room, {}).get("source_registry")))
+        await until(lambda: sdk.response.create.await_count == initial_creates + 1)
+        data = message("fact-card")
+        data["presentation"].update(
+            origin="owner_sources",
+            sourceCalls=["c1"],
+            content={
+                "facts": [
+                    {"callId": "c1", "field": field} for field in ("temperature", "condition")
+                ]
+            },
+        )
+        await emit(sdk, created("r2"), assistant_item(json.dumps(data)), terminal("r2"))
+        await started.wait()
+        initial = store.snapshot(session.room, session)
+        assert len(initial["items"][0]["content"]["facts"]) == 2 and "pending" not in initial
+        assert sdk.response.create.await_count == initial_creates + 1
+        release.set()
+        await store._selection
+        after = store.snapshot(session.room, session)
+        assert after["items"][0]["receiptId"] == initial["items"][0]["receiptId"]
+        assert after["items"][0]["content"]["facts"] == initial["items"][0]["content"]["facts"][1:]
+        assert after["items"][0]["provenance"] == initial["items"][0]["provenance"]
+        assert sdk.response.create.await_count == initial_creates + 1
+        selector.select.assert_awaited_once()
+    finally:
+        release.set()
+        await store.aclose()
         await session.aclose()

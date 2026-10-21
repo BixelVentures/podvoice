@@ -55,7 +55,9 @@ class Config:
     podview_pairing_sha256: str = ""
     podview_control_policy: str = ""
     podview_visual_policy: str = ""
+    podview_visual_grant: str = ""
     podview_mood_policy: str = ""
+    podview_theme_art_policy: str = ""
     podview_mood_setup_policy: str = ""
     podview_weather_city: str = ""
     podview_robot_read_policy: str = ""
@@ -170,10 +172,16 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         podview_research_visual_policy=str(opts.get("podview_research_visual_policy", ""))
         if not settings_source_untrusted
         else "",
+        podview_theme_art_policy=str(opts.get("podview_theme_art_policy", ""))
+        if not settings_source_untrusted
+        else "",
         podview_mood_policy=str(opts.get("podview_mood_policy", ""))
         if not settings_source_untrusted
         else "",
         podview_mood_setup_policy=str(opts.get("podview_mood_setup_policy", ""))
+        if not settings_source_untrusted
+        else "",
+        podview_visual_grant=str(opts.get("podview_visual_grant", ""))
         if not settings_source_untrusted
         else "",
         podview_visual_policy=str(opts.get("podview_visual_policy", ""))
@@ -311,7 +319,9 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["supervisor_token"] = opts.get("supervisor_token", "")
     # These owner-authority fields come ONLY from Supervisor options, never panel settings.
     merged["podview_visual_policy"] = opts.get("podview_visual_policy", "")
+    merged["podview_visual_grant"] = opts.get("podview_visual_grant", "")
     merged["podview_mood_policy"] = opts.get("podview_mood_policy", "")
+    merged["podview_theme_art_policy"] = opts.get("podview_theme_art_policy", "")
     merged["podview_mood_setup_policy"] = opts.get("podview_mood_setup_policy", "")
     merged["podview_weather_city"] = opts.get("podview_weather_city", "")
     merged["podview_robot_read_policy"] = opts.get("podview_robot_read_policy", "")

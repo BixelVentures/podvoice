@@ -10,7 +10,7 @@ test('next twelve hours sort by instant before limiting across offsets and midni
  const observed=weatherObservation(raw),before=structuredClone(observed),rawBefore=structuredClone(raw);
  const model=liveWeatherModel(observed,{now});
  assert.deepEqual(model.hours.map(h=>h.id),timestamps.slice(0,12));
- assert.equal(model.hours[0].temperature,'0°C');
+ assert.equal(model.hours[0].temperature,'0°');
  assert.equal(model.hours[0].windBearing,0);
  assert.equal(model.source,'Kilde: Met.no');
  assert.deepEqual(observed,before);assert.deepEqual(raw,rawBefore);

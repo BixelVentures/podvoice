@@ -1,3 +1,4 @@
+import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-control-view.js';
@@ -15,6 +16,7 @@ class Node extends EventTarget {
  close(){this.open=false;this.dispatchEvent(new Event('close'));}
  querySelectorAll(selector){const tags=selector.split(',').map(x=>x.toUpperCase());return this.children.flatMap(n=>[...(tags.includes(n.tagName)?[n]:[]),...n.querySelectorAll(selector)]);}
 }
+installDOMAttributes(Node);
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const target={entityId:'vacuum.actual'};
 function fixture(){

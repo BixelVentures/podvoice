@@ -46,8 +46,27 @@ test('adding a resource fades it in and FLIP-shifts an existing resource below i
  assert.equal(existing.animations[0].options.duration,240);
  assert.deepEqual(existing.animations[0].frames,[{transform:'translate(0px,-80px)'},{transform:'none'}]);
  assert.equal(added.animations.length,1);
- assert.equal(added.animations[0].options.duration,160);
+ assert.equal(added.animations[0].options.duration,120);
  assert.deepEqual(added.animations[0].frames,[{opacity:.45},{opacity:1}]);
+}));
+
+test('an overview grid move has one outer owner, so nested previews retain the exact card displacement',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),card=f.tile(180),preview=f.tile(180),panel=f.tile(100),timer=f.tile(100);
+ card.id='robot-card';timer.id='timer-card';card.contains=node=>node===preview;timer.contains=node=>node===panel;
+ const before=f.motion.resources();assert.deepEqual([...before.keys()],[card,timer]);
+ // The active timer adds one row: the robot and its preview both lay out120px lower.
+ card.y+=120;preview.y+=120;timer.offsetHeight=112;panel.offsetHeight=112;
+ f.motion.settleResources(before);
+ assert.deepEqual(card.animations[0].frames,[{transform:'translate(0px,-120px)'},{transform:'none'}]);
+ assert.equal(preview.animations.length,0,'the child inherits exactly one120px translation rather than240px');
+ assert.equal(panel.animations.length,0,'the timer panel has no competing entrance beneath the timer owner');
+ f.motion.settleResources(f.motion.resources());assert.equal(card.animations.length,1,'an unchanged tick cannot restart the grid move');f.motion.cancel();
+}));
+
+test('a resource hidden by a state change immediately loses its old transform owner',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(180);let visible=true;tile.getClientRects=()=>visible?[{}]:[];
+ f.motion.animate(tile,[{transform:'translateY(120px)'},{transform:'none'}]);const before=f.motion.resources();visible=false;f.motion.settleResources(before);
+ assert.equal(tile.animations[0].cancelled,1);assert.equal(f.motion.animations.has(tile),false);visible=true;f.motion.settleResources(f.motion.resources());assert.equal(tile.animations.length,1);f.motion.cancel();
 }));
 
 test('view changes and reduced motion suppress resource animations',()=>withMotionPreference(()=>{
@@ -110,49 +129,45 @@ test('last animation completion releases preference listener but superseded comp
 test('initial reduced preference does not attach a listener or replay motion until another explicit request',()=>{
  const f=preferenceMotion();try{const node=f.tile(100);f.media.matches=true;f.motion.animate(node,[{opacity:0},{opacity:1}]);assert.equal(node.animations.length,0);assert.equal(f.attached,0);f.media.matches=false;f.media.dispatchEvent(new Event('change'));assert.equal(node.animations.length,0);f.motion.animate(node,[{opacity:0},{opacity:1}]);assert.equal(node.animations.length,1);assert.equal(f.listeners.size,1);}finally{f.restore();}
 });
-test('Ro entry introduces the player while ordinary detail entry leaves it stable',()=>withMotionPreference(()=>{
- const f=fixture(),photo={...f.content},frame={...f.content};
- const query=f.motion.host.querySelector;f.motion.host.querySelector=selector=>selector==='#photo-view'?photo:selector==='.frame'?frame:query(selector);
- f.motion.enter('photo','now',box);
- assert.equal(f.motion.animations.has(f.content),true);assert.equal(f.motion.animations.has(f.player),true);assert.equal(f.motion.animations.has(frame),false);
- f.motion.cancel();f.motion.enter('now','photo',box);
- assert.equal(f.motion.animations.has(photo),true);assert.equal(f.motion.animations.has(f.player),false);assert.equal(f.motion.animations.has(frame),false);
- for(const frames of f.calls)for(const keyframe of frames){assert.equal(keyframe.filter,undefined);assert.doesNotMatch(keyframe.transform||'',/scale/);}
-}));
-
 function navigationFixture(){
- const node=(id,rect)=>({id,hidden:false,inert:false,dataset:{},style:{},children:[],animations:[],getAttribute:()=>null,removeAttribute(){this.style={};},setAttribute(){},getClientRects(){return this.hidden?[]:[rect];},getBoundingClientRect:()=>rect,querySelector(){return null;},animate(frames,options){let resolve;const animation={frames,options,cancelled:0,paused:0,played:0,cancel(){this.cancelled++;},pause(){this.paused++;},play(){this.played++;},finished:new Promise(done=>resolve=done),finish:()=>resolve()};this.animations.push(animation);return animation;}});
+ const node=(id,rect)=>({id,hidden:false,inert:false,dataset:{},style:{},children:[],animations:[],getClientRects(){return this.hidden?[]:[rect];},getBoundingClientRect:()=>rect,querySelector(){return null;},animate(frames,options){let resolve;const animation={frames,options,cancelled:0,cancel(){this.cancelled++;},finished:new Promise(done=>resolve=done),finish:()=>resolve()};this.animations.push(animation);return animation;}});
  const photo=node('photo-view',{x:0,y:0,width:1280,height:800}),overview=node('now-view',{x:28,y:80,width:824,height:650}),detail=node('weather-view',{x:28,y:80,width:824,height:650}),heading=node('heading',{x:28,y:80,width:824,height:70}),cards=Array.from({length:8},(_,i)=>node('card-'+i,{x:28+(i%2)*420,y:150+Math.floor(i/2)*180,width:400,height:176})),player=node('player',{x:876,y:112,width:376,height:650});
  detail.children=[heading,...cards.slice(6)];detail.querySelector=()=>heading;overview.hidden=true;detail.hidden=true;
- const feed={scrollTop:53,children:[photo,overview,detail]},host={isConnected:true,dataset:{motion:'system'},querySelector:s=>s==='.responses'?feed:s==='#photo-view'?photo:s==='#home-weather'?cards[0]:s.startsWith('.player')?player:null,querySelectorAll:s=>s.startsWith('#now-view')?cards:[]};
- return {motion:new SceneMotion(host),host,feed,photo,overview,detail,heading,cards,player};
+ const surfaces=[],document={createElement(){throw Error('navigation must not create a proxy or clone');}};
+ const feed={scrollTop:53,children:[photo,overview,detail]},host={ownerDocument:document,append(){throw Error('navigation must not append an extra layer');},isConnected:true,dataset:{motion:'system'},querySelector:s=>s==='.responses'?feed:s==='#photo-view'?photo:s.startsWith('.player')?player:null,querySelectorAll:()=>cards};
+ return {motion:new SceneMotion(host),host,feed,photo,overview,detail,heading,cards,player,surfaces};
 }
-test('Ro retains and fades its photo, staggers at most six cards and decodes player within a bounded wait',async()=>withMotionPreference(async()=>{
- const f=navigationFixture();let ready;const decoded=new Promise(done=>ready=done);f.player.querySelector=()=>({complete:true,naturalWidth:300,decode:()=>decoded});
+test('the same player moves by its actual geometry both ways between Ro and active, never during detail navigation',()=>withMotionPreference(()=>{
+ const f=navigationFixture();let y=300;f.player.getBoundingClientRect=()=>({x:876,y,width:376,height:650});
+ const wake=f.motion.capture('photo','now');y=80;f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',wake);assert.equal(f.player.animations.length,1);assert.equal(f.player.animations[0].frames[0].transform,'translate(0px,220px)');assert.equal(f.player.animations[0].options.duration,200);assert.equal(f.motion.animations.size,2);f.motion.cancel();
+ const old=f.motion.capture('now','photo');y=300;f.overview.hidden=true;f.photo.hidden=false;f.motion.enter('now','photo',old,true);assert.equal(f.player.animations.length,2);assert.equal(f.player.animations[1].frames[0].transform,'translate(0px,-220px)');assert.equal(f.player.animations[1].options.duration,200);assert(f.photo.animations[0].frames.every(frame=>Object.keys(frame).length===1));f.motion.cancel();
+ f.photo.hidden=true;f.overview.hidden=false;const before=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',before);assert.equal(f.player.animations.length,2);assert.equal(f.motion.animations.has(f.player),false);f.motion.cancel();
+}));
+
+test('Ro to overview gently fades one pane in place without child stagger or an artwork wait',()=>withMotionPreference(()=>{
+ const f=navigationFixture();f.player.querySelector=()=>{throw Error('navigation must not gate on cover decoding');};
  const before=f.motion.capture('photo','now');f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',before);
- assert.equal(f.photo.hidden,false);assert.equal(f.photo.inert,true);assert.equal(f.photo.animations[0].options.duration,200);
- assert.deepEqual(f.cards.map(c=>c.animations.length),[1,1,1,1,1,1,0,0]);
- f.cards.slice(0,6).forEach((card,i)=>{assert.equal(card.animations[0].options.delay,i*30);assert.equal(card.animations[0].options.duration,160);});
- const player=f.player.animations[0];assert.equal(player.paused,1);assert.equal(player.played,0);assert.equal(player.options.duration,240);assert.equal(player.frames[0].opacity,1);
- ready();await Promise.resolve();assert.equal(player.played,1);assert.equal(f.motion.waits.size,0);
- f.motion.cancel();assert.equal(f.photo.hidden,true);assert.equal(f.photo.inert,false);assert.equal(f.motion.exits.size,0);assert.equal(f.motion.animations.size,0);
+ assert.equal(f.motion.animations.size,1);assert.equal(f.overview.hidden,false);assert.equal(f.overview.animations.length,1);assert.equal(f.overview.animations[0].options.duration,200);assert.equal(f.overview.animations[0].options.delay,0);assert.deepEqual(f.overview.animations[0].frames,[{opacity:.65},{opacity:1}]);assert.equal(f.photo.hidden,true);assert.equal(f.photo.animations.length,0);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
 }));
-test('card to heading uses 280ms FLIP and return restores the exact overview scroll with 240ms FLIP',()=>withMotionPreference(()=>{
+
+test('opening and returning move only the actual incoming pane at normal scale and full opacity',()=>withMotionPreference(()=>{
  const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;
- let before=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',before);
- assert.equal(f.heading.animations[0].options.duration,280);assert.equal(f.heading.animations[0].options.easing,'cubic-bezier(.2,0,0,1)');assert.match(f.heading.animations[0].frames[0].transform,/scale\(/);
- assert.equal(f.overview.animations[0].options.duration,90);
- before=f.motion.capture('weather','now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter('weather','now',before,true);
- assert.equal(f.feed.scrollTop,53);assert.equal(f.cards[0].animations.at(-1).options.duration,240);assert.equal(f.player.animations.length,0);f.motion.cancel();assert.equal(f.detail.hidden,true);
+ const open=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',open);
+ assert.equal(f.motion.animations.size,1);assert.equal(f.heading.animations.length,0);assert.equal(f.overview.hidden,true);assert.equal(f.player.animations.length,0);
+ const animation=f.detail.animations[0];assert.equal(animation.options.duration,200);assert.equal(animation.options.delay,0);assert.equal(animation.options.easing,'cubic-bezier(.2,0,0,1)');assert.deepEqual(animation.frames,[{opacity:1,transform:'translateX(16px)'},{opacity:1,transform:'none'}]);
+ const back=f.motion.capture('weather','now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter('weather','now',back,true);
+ assert.equal(f.feed.scrollTop,53);assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,1);assert.deepEqual(f.overview.animations[0].frames,[{opacity:1,transform:'translateX(-16px)'},{opacity:1,transform:'none'}]);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
 }));
+
 test('same-view requests keep scroll and do not animate, and older WebView without WAAPI still navigates',()=>withMotionPreference(()=>{
  const f=navigationFixture();f.motion.enter('now','now',null);assert.equal(f.feed.scrollTop,53);assert.equal(f.motion.animations.size,0);
- f.photo.hidden=true;f.overview.hidden=false;f.overview.animate=undefined;f.motion.enter('weather','now',null,true);assert.equal(f.feed.scrollTop,0);assert.equal(f.motion.animations.size,0);
+ f.photo.hidden=true;f.overview.hidden=false;f.overview.animate=undefined;for(const card of f.cards)card.animate=undefined;f.host.ownerDocument=undefined;f.motion.enter('weather','now',null,true);assert.equal(f.feed.scrollTop,0);assert.equal(f.motion.animations.size,0);
 }));
-test('cancelled cover decoding cannot replay a discarded navigation',async()=>withMotionPreference(async()=>{
- const f=navigationFixture();let ready;const decoded=new Promise(done=>ready=done);f.player.querySelector=()=>({complete:true,naturalWidth:300,decode:()=>decoded});
- const before=f.motion.capture('photo','now');f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',before);const animation=f.player.animations[0];f.motion.cancel();ready();await Promise.resolve();assert.equal(animation.played,0);assert.equal(animation.cancelled,1);assert.equal(f.motion.waits.size,0);
-}));
+test('reduced navigation uses120ms opacity only and keeps persistent playback untouched',()=>{
+ const f=navigationFixture();f.host.dataset.motion='reduced';f.photo.hidden=true;f.overview.hidden=false;
+ const old=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',old);
+ assert.equal(f.motion.animations.size,1);assert.equal(f.detail.animations[0].options.duration,120);assert.equal(f.detail.animations[0].options.delay,0);assert(f.detail.animations[0].frames.every(frame=>Object.keys(frame).length===1&&typeof frame.opacity==='number'));assert.equal(f.player.animations.length,0);f.motion.cancel();
+});
 
 test('timer72→112 FLIPs every retained overview sibling40px without animating layout properties',()=>withMotionPreference(()=>{
  const f=resourceFixture(),timer=f.tile(100),weather=f.tile(188),robot=f.tile(188),light=f.tile(380),vehicle=f.tile(380),music=f.tile(492),radio=f.tile(492);
@@ -177,25 +192,100 @@ test('touch geometry hold retains measured height and releases with FLIP; alarm 
  f.motion.holdGeometry();f.host.state.timer={status:'done'};f.motion.resources();assert.equal(f.motion.geometry.size,0);assert.equal(values.size,0);f.motion.cancel();
 }));
 
-test('all detail and return section animations finish inside their single navigation budget',()=>withMotionPreference(()=>{
+test('all detail content arrives in the pane without independent child animations or geometry reads',()=>withMotionPreference(()=>{
  const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;
- const before=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',before);
- for(const node of [f.heading,...f.cards])for(const a of node.animations)assert(a.options.duration+a.options.delay<=280);
- f.overview.children=[f.cards[0],...f.cards.slice(1,5)];const returning=f.motion.capture('weather','now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter('weather','now',returning,true);
- for(const node of f.cards.slice(0,5))for(const a of node.animations)assert(a.options.duration+a.options.delay<=240);
- f.motion.cancel();
-}));
-test('resource wrapper is the sole return FLIP owner and interrupt capture excludes outgoing overlay',()=>withMotionPreference(()=>{
- const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;const card=f.cards[0],shell=f.cards[1];card.overviewShell=shell;assert.equal(f.motion.card('weather'),shell);
- const before=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',before);assert.equal(f.overview.hidden,false,'outgoing overlay retained only for fade');
- const interrupted=f.motion.capture('weather','now');assert.equal(interrupted.outgoing,f.detail,'capture current content, not the previous overlay');assert.equal(f.overview.hidden,true);f.motion.cancel();
+ for(const node of [f.heading,...f.cards,f.detail,f.overview,f.player])node.getBoundingClientRect=()=>{throw Error('ordinary navigation needs no FLIP measurement');};
+ const old=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',old);
+ assert.equal(f.motion.animations.size,1);assert(f.detail.children.every(node=>node.animations.length===0));assert.equal(f.detail.animations[0].options.duration,200);f.motion.cancel();
 }));
 
-test('Ro decode wait plus player and bounded card stagger reserve rendering budget below360ms',()=>withMotionPreference(()=>{
+test('interruption cancels the previous pane without reviving outgoing content or adding layers',()=>withMotionPreference(()=>{
+ const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',null);const first=f.detail.animations[0];
+ f.motion.capture('weather','now');assert.equal(first.cancelled,1);assert.equal(f.motion.animations.size,0);assert.equal(f.overview.hidden,true);f.detail.hidden=true;f.overview.hidden=false;f.motion.enter('weather','now',null,true);assert.equal(f.motion.animations.size,1);assert.equal(f.detail.hidden,true);f.motion.cancel();
+}));
+
+test('pane entry has no decode timer or delayed reveal work that can replay after cancellation',()=>withMotionPreference(()=>{
  const savedSet=globalThis.setTimeout,savedClear=globalThis.clearTimeout,delays=[];globalThis.setTimeout=(fn,delay)=>{delays.push(delay);return 1;};globalThis.clearTimeout=()=>{};
- try{const f=navigationFixture();f.player.querySelector=()=>({complete:true,naturalWidth:300,decode:()=>new Promise(()=>{})});const before=f.motion.capture('photo','now');f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',before);assert.deepEqual(delays,[80]);assert.equal(f.player.animations[0].options.duration+delays[0],320);assert.equal(Math.max(...f.cards.flatMap(n=>n.animations.map(a=>a.options.duration+a.options.delay))),310);f.motion.cancel();assert.equal(f.motion.waits.size,0);}finally{globalThis.setTimeout=savedSet;globalThis.clearTimeout=savedClear;}
+ try{const f=navigationFixture();f.player.querySelector=()=>{throw Error('no cover gate');};const before=f.motion.capture('photo','now');f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',before);assert.deepEqual(delays,[]);assert.equal(f.motion.animations.size,1);assert.equal(f.overview.animations.length,1);const animation=f.overview.animations[0];f.motion.cancel();assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,0);}finally{globalThis.setTimeout=savedSet;globalThis.clearTimeout=savedClear;}
 }));
 
 test('navigation skips discarded resource-grid measurements; stable-view reconciliation remains active',()=>{
  let reads=0;const host={dataset:{},state:{focus:'weather'},lastRenderedFocus:'now',querySelectorAll(){reads++;return[];}};const motion=new SceneMotion(host);assert.equal(motion.resources().size,0);assert.equal(reads,0);host.lastRenderedFocus='weather';motion.resources();assert.equal(reads,1);motion.cancel();
+});
+
+test('overflowing overview wakes without spatial motion, a hint or child choreography',()=>withMotionPreference(()=>{
+ const f=navigationFixture();Object.assign(f.feed,{clientHeight:650,scrollHeight:850});const before=f.motion.capture('photo','now');f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',before);
+ assert.equal(f.motion.animations.size,1);assert.equal(f.overview.animations.length,1);assert(f.overview.animations[0].frames.every(frame=>Object.keys(frame).length===1));assert.equal(f.feed.scrollTop,0);assert(f.cards.every(card=>card.animations.length===0));f.motion.cancel();
+}));
+
+test('five pointer taps40ms apart cannot activate incoming content; keyboard and expiry remain available',()=>{
+ const savedSet=globalThis.setTimeout,savedClear=globalThis.clearTimeout;let expire,delay,cleared=0;
+ globalThis.setTimeout=(fn,ms)=>{expire=fn;delay=ms;return 1;};globalThis.clearTimeout=()=>cleared++;
+ try{const f=navigationFixture(),listeners=new Map(),node={addEventListener(type,fn,capture){assert.equal(capture,true);listeners.set(type,fn);},removeEventListener(type,fn){if(listeners.get(type)===fn)listeners.delete(type);}};
+ f.motion.guardNavigation(node,280);assert.equal(delay,280);let blocked=0,stopped=0;
+ for(let time=0;time<200;time+=40)listeners.get('click')({detail:1,preventDefault(){blocked++;},stopImmediatePropagation(){stopped++;}});
+ listeners.get('click')({detail:0,preventDefault(){throw Error('keyboard blocked');}});assert.equal(blocked,5);assert.equal(stopped,5);listeners.get('pointerdown')({type:'pointerdown',detail:0,preventDefault(){blocked++;},stopImmediatePropagation(){stopped++;}});assert.equal(blocked,6);assert.equal(stopped,6);
+ expire();assert.equal(listeners.size,0);assert.equal(f.motion.releaseNavigationGuard,null);
+ f.motion.guardNavigation(node,120);assert.equal(delay,120);f.motion.cancel();assert.equal(listeners.size,0);assert.ok(cleared>=2);
+ }finally{globalThis.setTimeout=savedSet;globalThis.clearTimeout=savedClear;}
+});
+
+test('Ro minute update retains digit nodes and animates only changed figures, with no identical-update restart',()=>{
+ const f=fixture(),calls=[];f.motion.animate=(node,frames,duration,options)=>calls.push({node,frames,duration,options});const clock={ownerDocument:{createElement:()=>({textContent:''})},replaceChildren(...children){this.children=children;}};
+ f.motion.updateClock(clock,'18.09');const digits=[...clock.children];assert.equal(calls.length,0);f.motion.updateClock(clock,'18.09');assert.equal(calls.length,0);f.motion.updateClock(clock,'18.10');assert.equal(calls.length,2);assert.equal(calls[0].node,digits[3]);assert.equal(calls[1].node,digits[4]);assert.deepEqual(clock.children,digits);assert.equal(clock.children.map(n=>n.textContent).join(''),'18.10');assert(calls.every(c=>c.options.fadeReduced&&c.frames.every(frame=>Object.keys(frame).length===1)));f.motion.updateClock(clock,'18.10');assert.equal(calls.length,2);
+});
+test('interrupted toast exit cannot hide a replacement message and reduced feedback uses120ms opacity',async()=>{
+ const f=fixture();f.motion.host.dataset.motion='reduced';const animations=[],node={hidden:false,getClientRects:()=>[box],animate(frames,options){let resolve,reject;const a={frames,options,finished:new Promise((yes,no)=>{resolve=yes;reject=no;}),cancel(){reject(new Error('cancel'));},finish(){resolve();}};animations.push(a);return a;}};
+ f.motion.feedback(node,false);f.motion.feedback(node,true);animations[0].finish();await Promise.resolve();assert.equal(node.hidden,false);assert.equal(animations[1].options.duration,120);f.motion.feedback(node,false);animations.at(-1).finish();await Promise.resolve();assert.equal(node.hidden,true);f.motion.cancel();
+});
+
+test('geometry hold snapshots every height once before any layout write and restores originals',()=>{
+ const order=[],nodes=[0,1,2].map(index=>{const values=new Map([['min-height','12px']]);return {getClientRects:()=>[{}],get offsetHeight(){order.push('read'+index);return 72+index;},style:{getPropertyValue:key=>values.get(key)||'',getPropertyPriority:()=>'',setProperty(key,value){order.push('write'+index);values.set(key,value);},removeProperty:key=>values.delete(key)},values};});
+ const motion=new SceneMotion({dataset:{},querySelectorAll:()=>nodes});motion.holdGeometry();assert.deepEqual(order.slice(0,3),['read0','read1','read2']);assert.equal(order.filter(x=>x.startsWith('read')).length,3);assert.equal(order.slice(3).every(x=>x.startsWith('write')),true);motion.holdGeometry();assert.equal(order.length,12);
+ nodes.forEach(node=>{node.getBoundingClientRect=()=>({});});motion.releaseGeometry(false);for(const node of nodes){assert.equal(node.values.get('min-height'),'12px');assert.equal(node.values.has('height'),false);}motion.cancel();
+});
+
+test('all widgets preserve outer and nested scroll through the same complete-pane forward and back interaction',()=>withMotionPreference(()=>{
+ for(const focus of ['weather','music','timers','radio','vehicle','robot','light','player']){
+  const f=navigationFixture(),nested={scrollTop:77,scrollLeft:19};f.feed.querySelectorAll=()=>[nested];f.photo.hidden=true;f.overview.hidden=false;
+  const old=f.motion.capture('now',focus);f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now',focus,old);assert.equal(f.detail.animations.length,1,focus);assert.equal(f.detail.animations[0].frames[0].opacity,1,focus);
+  nested.scrollTop=0;nested.scrollLeft=0;const back=f.motion.capture(focus,'now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter(focus,'now',back,true);
+  assert.equal(f.feed.scrollTop,53,focus);assert.equal(nested.scrollTop,77,focus);assert.equal(nested.scrollLeft,19,focus);assert.equal(f.motion.animations.size,1,focus);assert.equal(f.overview.animations[0].frames[0].transform,'translateX(-16px)',focus);assert.equal(f.heading.animations.length,0,focus);assert.equal(f.player.animations.length,0,focus);assert(f.cards.every(card=>card.animations.length===0),focus);f.motion.cancel();
+ }
+}));
+
+test('resource settling reads all changed boxes before the first animation writes',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),order=[],nodes=[f.tile(0),f.tile(80),f.tile(160)];const before=f.motion.resources();
+ for(const node of nodes){node.y+=40;const visible=node.getClientRects;node.getClientRects=function(){order.push('visibility');return visible.call(this);};const read=node.getBoundingClientRect;node.getBoundingClientRect=function(){order.push('read');return read.call(this);};const animate=node.animate;node.animate=function(...args){order.push('animate');return animate.apply(this,args);};}
+ f.motion.settleResources(before);assert.deepEqual(order,['visibility','visibility','visibility','read','read','read','animate','animate','animate']);f.motion.cancel();
+}));
+
+test('reduced Ro crossings preserve both routes with120ms pane fades and no player movement',()=>{
+ const f=navigationFixture();f.host.dataset.motion='reduced';let y=300;f.player.getBoundingClientRect=()=>({x:876,y,width:376,height:650});
+ const wake=f.motion.capture('photo','now');y=80;f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',wake);assert.equal(f.player.animations.length,0);assert.equal(f.overview.animations[0].options.duration,120);assert(f.overview.animations[0].frames.every(frame=>Object.keys(frame).length===1));
+ const rest=f.motion.capture('now','photo');y=300;f.overview.hidden=true;f.photo.hidden=false;f.motion.enter('now','photo',rest,true);assert.equal(f.player.animations.length,0);assert.equal(f.photo.animations[0].options.duration,120);assert(f.photo.animations[0].frames.every(frame=>Object.keys(frame).length===1));f.motion.cancel();assert.equal(f.motion.animations.size,0);
+});
+
+test('one notification enters, changes once, ignores repeated copy and retains content until its exit finishes',async()=>{
+ const f=fixture(),animations=[],node={dataset:{source:'connection'},textContent:'Forbinder',hidden:true,getClientRects(){return this.hidden?[]:[box];},animate(frames,options){let finish;const a={frames,options,cancelled:0,finished:new Promise(done=>finish=done),cancel(){this.cancelled++;},finish(){finish();}};animations.push(a);return a;}};
+ f.motion.feedback(node,true);assert.equal(node.hidden,false);assert.equal(animations.length,1);assert.equal(animations[0].options.duration,160);f.motion.feedback(node,true);assert.equal(animations.length,1,'unchanged queue observation never restarts feedback');
+ node.textContent='Offline';f.motion.feedback(node,true);assert.equal(animations.length,2);assert.equal(animations[0].cancelled,1);assert.equal(animations[1].options.duration,120);assert(animations[1].frames.every(frame=>Object.keys(frame).length===1),'notice replacement settles quietly without moving');
+ f.motion.feedback(node,false);assert.equal(node.hidden,false);assert.equal(node.textContent,'Offline');const exit=animations.at(-1);f.motion.feedback(node,false);assert.equal(animations.at(-1),exit);exit.finish();await Promise.resolve();assert.equal(node.hidden,true);f.motion.cancel();
+});
+test('a detached notification owner hides immediately without an exit animation',()=>{
+ const f=fixture();f.motion.host.isConnected=false;const node={hidden:false,textContent:'Offline',getClientRects:()=>[box],animate(){throw Error('detached owner must not animate');}};f.motion.feedback(node,false);assert.equal(node.hidden,true);
+});
+
+test('finite player FLIP releases only its own transient paint marker on finish and retains the same moving node',async()=>{
+ const f=navigationFixture();let y=300;f.player.getBoundingClientRect=()=>({x:876,y,width:390,height:96});const before=f.motion.capture('now','photo');y=650;f.overview.hidden=true;f.photo.hidden=false;f.motion.enter('now','photo',before,true);
+ assert.equal(f.player.dataset.scenePlayerMoving,'true');assert.equal(f.motion.playerPaint.size,1);assert.equal(f.player.animations.length,1);assert.equal(f.player.animations[0].frames[0].transform,'translate(0px,-350px)');assert.deepEqual(f.player.style,{});
+ f.player.animations[0].finish();await new Promise(resolve=>setImmediate(resolve));assert.equal(f.player.dataset.scenePlayerMoving,undefined);assert.equal(f.motion.playerPaint.size,0);assert.equal(f.motion.animations.has(f.photo),true,'player paint finishes independently of the entering photo');assert.deepEqual(f.player.style,{});f.motion.cancel();
+});
+test('cancel, rapid reverse and reduced navigation leave no stale player paint marker',async()=>{
+ const f=navigationFixture();let y=300;f.player.getBoundingClientRect=()=>({x:876,y,width:390,height:96});const first=f.motion.capture('now','photo');y=650;f.motion.enter('now','photo',first,true);const outgoing=f.player.animations[0];assert.equal(f.player.dataset.scenePlayerMoving,'true');
+ const reverse=f.motion.capture('photo','now');assert.equal(outgoing.cancelled,1);assert.equal(f.player.dataset.scenePlayerMoving,undefined);y=90;f.motion.enter('photo','now',reverse);assert.equal(f.player.dataset.scenePlayerMoving,'true');const current=f.player.animations[1];outgoing.finish();await new Promise(resolve=>setImmediate(resolve));assert.equal(f.player.dataset.scenePlayerMoving,'true','superseded completion cannot release the current paint owner');assert.equal(f.motion.animations.get(f.player),current);
+ f.motion.cancel();assert.equal(f.player.dataset.scenePlayerMoving,undefined);assert.equal(f.motion.playerPaint.size,0);assert.equal(current.cancelled,1);f.host.dataset.motion='reduced';f.motion.enter('now','photo',{x:800,y:90,width:390,height:96},true);assert.equal(f.player.dataset.scenePlayerMoving,undefined);assert.equal(f.player.animations.length,2);f.motion.cancel();
+});
+test('disconnected or WAAPI-unavailable player never retains transient paint state',()=>{
+ for(const unavailable of ['disconnected','no-waapi']){const f=navigationFixture();if(unavailable==='disconnected')f.host.isConnected=false;else f.player.animate=undefined;f.motion.enter('now','photo',{x:300,y:400,width:390,height:96},true);assert.equal(f.player.dataset.scenePlayerMoving,undefined);assert.equal(f.motion.playerPaint.size,0);f.motion.cancel();}
 });
