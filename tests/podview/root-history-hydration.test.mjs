@@ -16,6 +16,7 @@ class Node extends EventTarget {
   contains(node) { return node != null && (this === node || this.children.some(child => child === node || child?.contains?.(node) === true)); }
   replaceChildren(...nodes) { this.children = nodes; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name)??null; }
   removeAttribute(name) { this.attributes.delete(name); }
   getClientRects() { return this.hidden ? [] : [{}]; }
   focus() { this.focused = true; }

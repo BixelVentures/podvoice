@@ -3,12 +3,18 @@ import assert from 'node:assert/strict';
 import {TimerNotice} from '../../podvoice/gatekeeper/static/podview/timer-notice.js';
 import {timerTransition} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
 class FakeElement {
- constructor(){this.hidden=true;this.open=false;this.dataset={};this.listeners=new Map();this.textContent='';this.children=new Map();this.opens=0;this.closes=0;}
+ constructor(){this.className='';this.attributes=new Map();this.hidden=true;this.open=false;this.dataset={};this.listeners=new Map();this.textContent='';this.children=new Map();this.opens=0;this.closes=0;}
+ setAttribute(key,value){this.attributes.set(key,String(value));if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}getAttribute(key){return this.attributes.get(key)??null;}
  querySelector(s){if(!this.children.has(s))this.children.set(s,new FakeElement());return this.children.get(s);}
  addEventListener(t,f){this.listeners.set(t,f);}removeEventListener(t,f){if(this.listeners.get(t)===f)this.listeners.delete(t);}
  showModal(){this.open=true;this.opens++;}close(){this.open=false;this.closes++;}focus(){this.focused=true;}
 }
 function setup(){const jobs=new Map(),all=new Map(),dispatched=[];let serial=0;const element=new FakeElement(),previous={isConnected:true,focus(){this.restored=true;}};element.ownerDocument={activeElement:previous};const notice=new TimerNotice({dispatch:e=>dispatched.push(e)},element,{setTimer(fn,ms){const id=++serial;jobs.set(id,{fn,ms});all.set(id,fn);return id;},clearTimer:id=>jobs.delete(id)});return{notice,element,jobs,all,dispatched,previous};}
+test('completion binds the existing Dialog and three retained Buttons without granting alarm authority',()=>{
+ const f=setup(),notice=f.notice;assert.equal(f.element.dataset.kit,'dialog');assert.match(notice.name.className,/pv-dialog-header/);assert.match(f.element.querySelector('.notice-copy').className,/pv-dialog-content/);assert.match(notice.status.className,/pv-dialog-description/);
+ for(const [button,variant,owner]of [[notice.stop,'primary',notice.onStop],[notice.add,'secondary',notice.onAdd],[notice.closeButton,'secondary',notice.onDismiss]]){assert.equal(button.dataset.kit,'button');assert.equal(button.dataset.kitVariant,variant);assert.equal(button.listeners.get('click'),owner);}
+ assert.deepEqual(f.dispatched,[]);assert.equal(f.element.opens,0);notice.onStop();notice.onAdd();assert.deepEqual(f.dispatched,[]);notice.cleanup();
+});
 const done={id:'one',name:'Pasta',status:'done'},access={canCancel:true};
 const render=(n,t=done,live=false,a=access)=>n.render(t,'music',live,true,t?.id,a);
 

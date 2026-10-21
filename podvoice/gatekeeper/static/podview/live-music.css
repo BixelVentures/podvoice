@@ -1,24 +1,24 @@
 /* Read-only Spotify source surfaces. Original covers stay square and unobscured. */
 #live-music .live-music-note{height:24px;min-height:24px;margin:10px 0 12px;font-size:var(--pv-type-caption);line-height:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#live-music .live-music-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0;align-items:start;min-height:260px}
-#live-music .live-music-result{padding:0 0 4px;background:transparent;border:0;border-radius:0;gap:12px;min-height:260px}
+#live-music .live-music-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);margin:0;align-items:start;min-height:260px}
+#live-music .live-music-result{padding:0 0 var(--pv-s1);background:transparent;border:0;border-radius:0;gap:var(--pv-s2);min-height:260px}
 #live-music .live-track-art{display:block;position:static;width:100%;height:auto;aspect-ratio:1;border-radius:0;overflow:visible;background:var(--pv-screen-control)}
 #live-music .live-track-art .live-track-cover{display:block;width:100%;height:100%;aspect-ratio:1;object-fit:contain;object-position:center;opacity:1;border-radius:0}
 #live-music .live-track-art .live-track-cover.live-art-fallback{padding:28%;opacity:.6}
 #live-music .live-music-result .result-copy{flex:none;width:100%}
 #live-music .live-music-result .result-copy h2{font-size:var(--pv-type-body);line-height:1.2;color:var(--pv-screen-ink);margin:0 0 5px}
 #live-music .live-music-result .result-copy p{display:block;font-size:var(--pv-type-caption);line-height:1.25;color:var(--pv-screen-muted)}
-#live-music .spotify-source-link{min-height:48px;display:flex;align-items:center;margin-top:0;font-size:var(--pv-type-body);color:var(--pv-screen-ink);font-weight:600}
-#live-music .refinements{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 4px}
-#live-music .refinements button{flex:1;min-width:96px;min-height:48px;font-size:var(--pv-type-body);padding:10px 16px}
-.live-accounts{margin:0 0 12px;gap:8px}
-.live-accounts .text-control{border-radius:18px;background:var(--pv-screen-control);min-height:48px;padding:10px 16px;font-size:var(--pv-type-body)}
+#live-music .spotify-source-link{min-height:48px;display:flex;align-items:center;margin-top:0;font-size:var(--pv-type-body);color:var(--pv-screen-ink);font-weight:var(--pv-weight-semibold)}
+#live-music .refinements{display:flex;flex-wrap:wrap;gap:var(--pv-s1);margin:0 0 4px}
+#live-music .refinements button{flex:1;min-width:96px;min-height:48px;font-size:var(--pv-type-body);padding:var(--pv-s2) var(--pv-s2)}
+.live-accounts{margin:0 0 12px;gap:var(--pv-s1)}
+.live-accounts .text-control{border-radius:var(--pv-r-l);background:var(--pv-screen-control);min-height:48px;padding:var(--pv-s2) var(--pv-s2);font-size:var(--pv-type-body)}
 .live-accounts .text-control[aria-pressed=true]{background:var(--pv-screen-selection);color:var(--pv-screen-action-ink)}
 
 @media(max-width:759px){#live-music .live-music-list{grid-auto-flow:column;grid-auto-columns:minmax(180px,76%);grid-template-columns:none;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;min-height:300px}#live-music .live-music-result{scroll-snap-align:start;min-height:300px}.live-accounts{flex-wrap:nowrap;overflow-x:auto}.live-accounts button{white-space:nowrap;flex:none}}
 
 /* Only the catalogue body scrolls; account/categories and player remain in place. */
-@media(min-width:760px){[data-mode=live] #music-response>.response-heading,[data-mode=live] #music-response>.live-accounts{flex:none}#live-music{display:flex;flex-direction:column;flex:1;min-height:0}#live-music>.refinements,#live-music>.live-music-note{flex:none}#live-music .live-music-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin}#live-music .live-music-result{display:grid;grid-template-columns:minmax(0,1fr) 56px;grid-template-rows:auto auto;gap:10px 8px;min-height:0;align-items:start}#live-music .live-track-art{grid-column:1/-1;width:min(100%,190px)}#live-music .live-music-result .result-copy{grid-column:1;font-size:var(--pv-type-caption)}#live-music .live-music-result .result-copy h2{font-size:var(--pv-type-body)}#live-music .spotify-source-link{grid-column:2;grid-row:2;min-height:48px;font-size:var(--pv-type-body);align-self:start;justify-content:flex-end}}
+@media(min-width:760px){[data-mode=live] #music-response>.response-heading,[data-mode=live] #music-response>.live-accounts{flex:none}#live-music{display:flex;flex-direction:column;flex:1;min-height:0}#live-music>.refinements,#live-music>.live-music-note{flex:none}#live-music .live-music-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin}#live-music .live-music-result{display:grid;grid-template-columns:minmax(0,1fr) 56px;grid-template-rows:auto auto;gap:var(--pv-s2) var(--pv-s1);min-height:0;align-items:start}#live-music .live-track-art{grid-column:1/-1;width:min(100%,190px)}#live-music .live-music-result .result-copy{grid-column:1;font-size:var(--pv-type-caption)}#live-music .live-music-result .result-copy h2{font-size:var(--pv-type-body)}#live-music .spotify-source-link{grid-column:2;grid-row:2;min-height:48px;font-size:var(--pv-type-body);align-self:start;justify-content:flex-end}}
 @media(min-width:760px){[data-mode=live] #music-response #live-music .live-music-list{height:auto;min-height:0}[data-mode=live] #music-response #live-music .live-music-result{height:auto;min-height:0}}
 #live-music .live-music-result:hover{background:transparent}#live-music .live-music-result:hover .result-art{transform:none}
 
@@ -27,6 +27,6 @@
 /* Search, confirmation and targets use dialog.pv-component in library.css.
    Provider results use the retained canonical MusicResults renderer. */
 
-.weather-live-advice p{margin:8px 0}.weather-live-advice .weather-advice-period,.weather-live-advice .weather-advice-children{font-size:var(--pv-type-caption);color:#4b626b}.weather-live-advice .weather-advice-period{font-size:var(--pv-type-caption)}
+.weather-live-advice p{margin:8px 0}.weather-live-advice .weather-advice-period,.weather-live-advice .weather-advice-children{font-size:var(--pv-type-caption);color:var(--pv-weather-ink)}.weather-live-advice .weather-advice-period{font-size:var(--pv-type-caption)}
 
-@media(max-width:759px){.weather-current{min-width:0;gap:16px}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
+@media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}

@@ -16,3 +16,9 @@ test('current and duplicate queue occurrences preserve only actual closed Spotif
  assert.notEqual(q.items[0].id,q.items[1].id);assert.deepEqual(q.items.map(i=>i.artwork),[art,art]);
  v.playback.item.artwork={...art,url:'https://wrong.example/cover'};assert.equal(playbackObservation(v,'account').item.artwork,null);
 });
+
+test('source progress is admitted only as a nonnegative safe integer, never carried between item observations',()=>{
+ for(const value of [0,500,1000]){const v=playback();v.playback.progress_ms=value;assert.equal(playbackObservation(v,'account').progressMs,value);}
+ for(const value of [undefined,null,-1,NaN,Infinity,'500',1.5,Number.MAX_SAFE_INTEGER+1]){const v=playback();v.playback.progress_ms=value;assert.equal(playbackObservation(v,'account').progressMs,null);}
+ const v=playback();v.playback.progress_ms=500;const old=playbackObservation(v,'account');const next=playback();next.playback.item={...item,uri:'spotify:track:new'};assert.equal(playbackObservation(next,'account',old).progressMs,null);
+});

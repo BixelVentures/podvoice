@@ -439,9 +439,18 @@ async def run(cfg: Config) -> None:
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
     tools.podview_weather_city = cfg.podview_weather_city
-    from .podview_enrichment import configured_robot_recipe_selector, configured_selector
+    from .podview_enrichment import configured_robot_recipe_selector
     from .podview_mood import configured_mood_selector
     from .podview_mood_setup import setup_mood_budget
+    from .podview_theme_art import configured_theme_art
+    from .podview_visual_grant import configured_visual_selector
+
+    tools.podview_theme_art = configured_theme_art(
+        ha_client,
+        cfg.openai_api_key,
+        cfg.podview_theme_art_policy,
+        settings_path.parent / "podview-theme-art",
+    )
 
     mood_setup_ready = setup_mood_budget(
         settings_path, cfg.podview_mood_policy, cfg.podview_mood_setup_policy
@@ -465,11 +474,12 @@ async def run(cfg: Config) -> None:
     )
 
     tools.podview_receipts.configure_selector(
-        configured_selector(
+        configured_visual_selector(
             ha_client,
             cfg.openai_api_key,
             cfg.podview_visual_policy,
             settings_path.parent / "podview-visual-budget.json",
+            cfg.podview_visual_grant,
         )
     )
     tools.podview_receipts.configure_research_mode(cfg.podview_research_visual_policy)
@@ -815,6 +825,9 @@ async def run(cfg: Config) -> None:
     )
     admin_transport.start()
     runner = await start_web(app)
+    # Explicit opt-in only: finite background work never delays the first screen.
+    if tools.podview_theme_art is not None:
+        tools.podview_theme_art.start()
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

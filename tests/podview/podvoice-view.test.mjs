@@ -52,5 +52,6 @@ test('packaged live HTML fails closed before JavaScript starts',()=>{
  const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');
  for(const id of ['music-response','music-refinements','header-weather'])assert.match(html,new RegExp('id="'+id+'" hidden'));
  assert.match(html,/<aside class="player" hidden/);
- assert.match(html,/<p id="connection-note" class="connection-note" role="status" hidden><\/p>/);
+ assert.doesNotMatch(html,/id="connection-note"/,'Connection feedback must not reserve an inline panel before its owner runs');
+ const host=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');assert.match(host,/new NotificationQueue/,'Connection feedback uses the existing canonical notification owner');
 });

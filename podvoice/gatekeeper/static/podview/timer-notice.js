@@ -1,3 +1,4 @@
+import {applyKitComponent,applyKitDialog} from './ui/kit.js';
 // One canonical completion surface. Closing this view never claims to stop a
 // native alarm: only the existing, authority-checked timer action can do that.
 export class TimerNotice {
@@ -5,6 +6,8 @@ export class TimerNotice {
   this.host=host;this.element=element;this.setTimer=setTimer;this.clearTimer=clearTimer;this.timer=null;this.id=null;this.disposed=false;this.pulsedIds=new Set();this.now=now;this.createAudio=createAudio;this.onElapsed=onElapsed;this.completions=new Map();this.audioTimer=null;this.audioGeneration=0;
   this.add=element.querySelector('#timer-alert-add');
   this.name=element.querySelector('.notice-copy>span');this.stop=element.querySelector('#timer-alert-dismiss');this.closeButton=element.querySelector('#timer-alert-open');this.status=element.querySelector('#timer-alert-status');
+  applyKitDialog(element,{header:this.name,content:element.querySelector('.notice-copy'),description:this.status});
+  for(const [button,variant]of [[this.stop,'primary'],[this.add,'secondary'],[this.closeButton,'secondary']])if(button)applyKitComponent(button,'button',{variant});
   this.onStop=()=>{if(!this.id||!this.allowed||this.disposed)return;this.stopAudio();this.host.dispatch({type:'timer',id:this.id,action:'cancel'});};
   this.onAdd=()=>{if(!this.id||!this.canAdd||this.disposed)return;const id=this.id;this.pulsedIds.delete(id);this.stopAudio();this.completions.delete(id);this.host.dispatch({type:'timer',id,action:'add',seconds:60,now:Date.now()});};
   this.onDismiss=()=>this.dismiss(this.id);

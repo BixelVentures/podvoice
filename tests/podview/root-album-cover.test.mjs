@@ -11,7 +11,7 @@ test('same sourced-image anatomy shows album cover with honest Spotify attributi
  visual.image.dispatchEvent(new Event('error'));assert.equal(visual.image.hidden,true);assert.equal(visual.imageError.hidden,false);assert.equal(visual.captionText.textContent,'Source song');assert.equal(visual.credit.textContent,'Omslag · Spotify');assert.equal(visual.sourceList.children.length,1);assert.deepEqual(c,before);
 });
 test('album-cover images reuse strict existing Spotify host/path identity',()=>{
- for(const bad of ['https://foreign.invalid/image/id','https://127.0.0.1/image/id','http://i.scdn.co/image/id','https://user@i.scdn.co/image/id','https://i.scdn.co:443/image/id','https://i.scdn.co/image/id?x=1','https://i.scdn.co/image/../id','https://i.scdn.co/image/id#x','https://I.SCDN.CO/image/id','assets/bicycle-drivetrain-illustration.png']){
+ for(const bad of ['https://foreign.invalid/image/id','https://127.0.0.1/image/id','http://i.scdn.co/image/id','https://user@i.scdn.co/image/id','https://i.scdn.co:443/image/id','https://i.scdn.co/image/id?x=1','https://i.scdn.co/image/../id','https://i.scdn.co/image/id#x','https://I.SCDN.CO/image/id','assets/bicycle-drivetrain-illustration.webp']){
   const raw=content();raw.image.url=bad;assert.throws(()=>validate('sourced-image',raw,{ownerReceiptIds:[receipt]}),bad);
  }
  const raw=content();raw.image.sourceId='foreign';assert.throws(()=>validate('sourced-image',raw,{ownerReceiptIds:[receipt]}));

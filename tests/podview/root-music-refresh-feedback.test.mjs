@@ -59,3 +59,7 @@ test('local adapter maps fixture reader failure to retry feedback without replac
  const {host,complete}=harness({outcome(){throw new Error('local fixture unavailable');}}),before=resultsFor(host.state.music);
  host.refresh.start();complete();assert.equal(host.state.music.refreshStatus,'error');assert.deepEqual(resultsFor(host.state.music),before);
 });
+
+test('choosing an admitted old option cancels its refresh through the owner and fences the late result',()=>{
+ const {host,queued,late}=harness(),playback=host.state.music.playback;host.refresh.start();const option=resultsFor(host.state.music)[0];assert.equal(host.refresh.cancelForSelection('not-admitted'),false);assert.equal(queued.size,1);assert.equal(host.refresh.cancelForSelection(option.id),true);assert.equal(queued.size,0);assert.equal(host.state.music.refreshPending,null);assert.equal(host.state.music.playback,playback);host.dispatch({type:'music',event:{type:'select',id:option.id,revision:host.state.music.revision}});assert.equal(host.state.music.pending.id,option.id);assert.equal(host.state.music.playback,playback,'selection waits for its own receipt');const selected=host.state;late();assert.equal(host.state,selected,'cancelled read cannot replace selected content');
+});

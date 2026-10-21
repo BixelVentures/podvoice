@@ -1,3 +1,15 @@
+## Active72 explicit finite visual grant · lead decision ·21October2026
+
+Lead/root: the user explicitly requests finishing/activating the visual AI extension on Green. Existing finite visual20 is durably reserved at startup, so another installation cannot legitimately reuse its remaining in-memory allowance. Hypothesis: a separate explicitly approved finite grant can activate at most20 additional Luna requests without touching the historical ledger or introducing any ongoing allowance.
+
+Implement a default-empty trusted Supervisor option, closed purpose podview_visual_v1/model gpt-6-luna/max_requests1..20/grant_id/approval_ref. One immutable grant-policy binding and approval-reference binding prevent changed limit/reference/ID replay of the same approval. A separate durable grant ledger reuses RequestAllowance.prepare's startup charging; historical budget and initialized marker are never changed or migrated. Invalid/partial/changed grants fail closed without legacy fallback. Failure, cancellation, restart or unknown outcome never refunds/refills; any unused reserved process allowance is lost at restart and must be reported honestly. No mood budget, controller/security/session/voice action changes, credentials export or provider request in development. Regressions: max bound, exact replay, changed grant/ref/limit, approval reuse, symlink/partial/crash, startup exhaustion and no fallback; exact source/composition independent review before release. Rollback leaves the new option empty and preserves all ledger bytes. Concrete final human approval of the exact new finite grant is still required before writing Supervisor policy or spending; implementation authorization is not a fabricated paid approval.
+
+## Lead scope clarification · PodView72 ·21October2026
+
+Lead/root records the user's direct request to finish the visual AI extension, generated mood covers, and install the remaining v37 UI on HA. Later direct feedback adds meaningful Medium/Large widget content, with weather Large as reference; final UI inventory is temporarily unfrozen pending the canonical owners. Small remains simple with no inner buttons.
+
+Cover implementation proposal accepted for preparation, not paid activation: one pinned gpt-image-2.5-flare-2026-09-08 owner, square1024 low WebP, at most6 lifetime attempts, six closed existing mood IDs and fixed prompts only. No room/transcript/location/track data is sent. Existing configured provider credential stays server-side. One finite background warmup after explicit policy opt-in; reads/scroll/refresh cannot create provider requests. Durable attempts are charged before dispatch, including failure/unknown/cancellation; no refund/retry/refill/reset. Static theme art remains until a verified cached image exists; Spotify artwork identity is preserved. Exact model/finite paid policy requires the human's concrete final approval before activation; no dollar cap is claimed from a request count. Default-off implementation may ship independently of that approval. Runtime, semantic prompt change, composition and route/cache boundaries require independent review; provider proof, installed byte readback and physical acceptance remain distinct. No other voice/lifecycle/controller authority is expanded.
+
 <!-- podvoice71-admission
 {
   "version": 48,
@@ -25,26 +37,6 @@ Lead: /root. The exact source candidate is based on merged 2.0.70 `0508f9d9d8ae3
 
 The affected chain is native listen admission → one ThinSession → GPT-Live handoff → correlated timer playback/Stop → exact retirement and rearm. The server guard returns before synthetic WAKE_WORD. Correlated Stop wakes the playback-start wait; no-start, rejected-play and observed-start outcomes retain their distinct stopped/unknown/started reporting, HA acknowledgement and retirement order. Invariants: ThinSession remains the single session owner; native timer Stop remains correlated; stale retirement cannot affect a newer generation; provider meaning is not inferred from source text. The falsifiable prompt hypothesis is that the explicit official handoff token will be emitted on backend work while direct-answer behavior and semantic close remain unchanged. Non-goals: no tool/policy/firmware/VAD/gain/timeout change, no generated provider ACK, and no physical audio claim.
 
-**Prioriteret issuekø — seneste brugerbeslutning 21/10 2026.** Connect-fejl først, derefter Voice PE, derefter resten. Ét aktivt issue ad gangen; ingen parallelle issues og ingen deludgivelser. #215's reviewede softwareændring ligger på arbejdsbranchen til den samlede kandidat og overtager ikke igen prioriteten fra Connect eller Voice PE.
-
-1. **Connect:** Afspilning uden lyd, forbindelsen/aktivering og korrekt lydrute først (#58/#53/#12/#10 efter faktisk berørt årsag), derefter øvrige konkrete Connect-betjeningsfejl, herunder #51 Pause/Genoptag/Næste/Forrige, musikflytning og dæmpning/gendannelse. Genbrug leverede38-rettelser; fysisk manglende bevis må ikke føre til en opdigtet ny patch eller ukendt replay. Den fundne #51-rest er softwarearbejde og er ikke færdig.
-2. **Voice PE:** manglende stemmesvar (#101), semantisk afslutning og næste wake (#103), korrekt LED-feedback/timing, tale under svar uden forkert lukning (#124), timeralarm og stemme-/knap-Stop (#110), ingen gentagne generiske Modtaget-kvitteringer (#153; naturlig hum er tilladt), derefter stemmens recovery (#119/#109). Softwareforløb færdiggøres før én samlet fysisk serie.
-3. **Resten:** øvrige Talk-acceptpunkter (#215/#219), diagnostik (#98), settings/migration/rollback (#113), målte hastighedsforbedringer (#104→#105/#106/#107→#108), samlet accept/stabilitetsobservation (#112/#116). Ingen vilkårlig tuning eller nye testprodukter. Epics #96/#94/#95 afspejler deres egne faktiske krav.
-
-PodView ejer UI. Mobil, Frameo #180 og GPT-Lives egen websøgning #151 er fortsat udskudt; regneopfølgning #102 har lav prioritet. Alle aftalte softwareændringer samles, reviewes og leveres i én kompatibel opdatering, før fysisk accept samles bagefter.
-
-**Lead work order — 21 October 2026.** User explicitly restores #215 as the sole active issue: finish its software work before switching topics. Spotify Connect playback with no audible output is the next priority, not lighting; do not switch to it while #215 is active. One issue at a time; no partial releases. All agreed software fixes are collected before one combined release/install. Physical testing is deferred; UI remains PodView-owned. Latest count: 34 open PodVoice issues (including three epics), 11 PodConnect issues. Installed HA readback is PodVoice2.0.72/Kører; root did not initiate that update.
-
-**#215 reviewed draft result — 21 October 2026.** Two demonstrated software gaps are corrected in the unpublished draft: actual error-close notifications now reach Talk's existing visible system-error receiver, and an accepted typed WebRTC request without newly observed primary text gets the factual 30s unknown-text notice. The observer never stops audio, closes, retries, forwards backend text or claims a semantic/provider ACK. The causal Thin/BrowserLink/SDK test includes completed backend output, actual audio activity without primary text, one notice, later primary reply and another typed input. Fifteen focused cases pass, including fast output during SDK send, current/new input, Stop, stale session/provider generation, and native neighbours; disabling the callback makes the causal case fail. The existing whole-HTML browser contract passes 13/13 with the actual notice visible, later primary reply, no replay/media-stop and no page/cleanup errors. Browser report: `/private/tmp/pv215-green72-20261021/talk-text-report.json`; HTML SHA256 `bd638fd99d323ca90388a26d2aba4aa76bba042b8c0ba01be58d346eb9ebb7cb`. Changed Python formatter/lint and diff checks pass. No unchanged broad gate/provider probe was repeated.
-
-Independent adversarial reviewer /root/voice_music_fix gives narrow source GO on thin SHA256 `2b99e61c5ba674ab14ec5b37b0e2bf79e4dedc126d7e0dd0853bb04caf12a6ba`, talk `04f25aab9fd28aade8578d89e95c3b67f8f475c8bb68665d035abc347540bd53`, Talk integration `e470163f10d7218c6e0b857697730cc1063ffb203ae00daa860167e5df97867c`, Thin integration `82e548d6852cb0940dd615a70da15e61e19ff5f4a3786d7c107985a18d250c94`. Review confirms owner/generation fencing, fast/new/late output and unchanged native/audio mechanics. Limit: the SDK has no reliable per-question primary identity; delayed old text can satisfy the observation check. No semantic-answer guarantee or original61 cause is inferred. The retained original failed boundary cannot be recovered. #215 remains open, planned combined build, not release-ready or installed; the current72 positive probe is separate. Next concrete action is durable draft push and exact acceptance-gap assessment before any transition to Connect. No additional speculative output relay, prompt/VAD tuning or new test system is justified by the unavailable61 trace.
-
-**Sequential handoff after #215 source work.** Independent acceptance-gap review permits parking #215 as **planlagt build**, not closing it: no further source correction is justified by the unavailable61 trace. Reviewed draft commit `d128ecde034ac96d4ff8a0afc6aadf2587fa5c38` is pushed to `codex/voice-completion-20261021`; GitHub and local tree both equal `73e2f2676e5bcd6025d21b9400d085ccecd890f3`. After the eventual combined installation, check one normal typed Talk answer-or-bounded-notice flow and usable subsequent input; retain any observed per-question correlation failure as unresolved. No release/install now. Sole active issue becomes PC58/Connect playback without audible output. Reuse installed38 source fixes and software sequence; read current native/C route without starting music before choosing another patch. Bound each issue investigation to 10–15 minutes before recording a concrete fix or precise evidence gap and moving sequentially. No parallel issues.
-
-**Active #215 causal decision — accepted text with silent primary output.** On installed 2.0.72 (`c9b04906f7f3386ea404fbf5deca9011489936a1`, rootfs marker `dd5ca3ea9ed2210d435bd8eaf5257133cc46111ad5480861cd30bdb00253eb37`), the exact capital question returned the correct visible primary answer with microphone unopened. Same-session backend completed at 6105 ms with 32 final characters; subsequent explicit end settled and teardown completed at 34416 ms, `live_output_transcript_seen=true`, no diagnostic drops/incomplete. Receipt: `/private/tmp/pv215-green72-20261021/receipt.json`. This is a current positive path, not a cure for the failed61 attempt.
-
-Source analysis localizes a separate outcome gap: `_submit_live_text` returns only transport submission; WebRTC is excluded from the native quiet gate; the session-duration ceiling is not a truthful per-input no-answer result. Hypothesis: a completed backend followed by no primary output leaves Talk indefinitely available without resolving the unanswered input until session ceiling. First reproduce this chain in the existing WebRTC fixture. A correction must preserve primary/model semantic ownership, actual browser media, session/generation/input currency, concurrent new input, tool progress, Stop and one teardown; neither absent transcript nor backend completion alone proves silence. No speculative response relay, replay, primary-completion event, VAD/gain/prompt tuning or arbitrary deadline is authorized by this hypothesis. A bound and observable failure oracle require review before runtime implementation. Rollback removes only the eventual bounded-outcome change; no release is allowed until the complete agreed candidate is ready. Physical testing is deferred and is not a blocker for this Talk issue.
-
 **Delivered candidate and open physical acceptance — PodVoice 2.0.71 (21 October 2026).** The original explicit-close provider FAIL remains retained. The corrected-config attempt is UNKNOWN and its audio audit/negative window remain incomplete. The final matching-config batch produced a polite-followup raw PASS (8 seconds open, no end/settlement, clean usage) and an explicit-close raw UNKNOWN: exact phrase recognition and one accepted/completed end at 12.73 s, settlement at 13.97 s, factual post-accept notice at 14.30 s, natural close at 20.565 s, teardown/rearm at 20.576 s, no faults or usage errors. The allowed `[sigh]` before acceptance requires audio audit, so this is not a provider PASS. Independent manual semantic/software review is GO from correlated wire transcript, decision and mechanics; audibility and physical acceptance remain UNKNOWN.
 
 The suspected 25-second production delay is falsified. A directly constructed `ThinSession` defaults to `IDLE_FALLBACK_S=25`, but production `_make_thin_session` passes `cfg.idle_timeout_s` at `podvoice/gatekeeper/__main__.py:198`; `Config.idle_timeout_s` defaults to four seconds at `podvoice/gatekeeper/config.py:83`. The semantic-completion evaluator omitted that production configuration, so its 25-second quiet wait does not establish a product-runtime defect.
@@ -55,7 +47,7 @@ The config-faithful evaluator now exercises the chain explicit user end → curr
 
 **Provider evidence and evaluator follow-up.** The original explicit-close FAIL, corrected-config UNKNOWN and final explicit-close UNKNOWN are retained as separate results. The final matching-config polite-followup scenario passed its raw oracle: no end or settlement during the eight-second observation and clean usage. The explicit-close raw report remains UNKNOWN pending audio audit because a natural `[sigh]` preceded acceptance; after acceptance, exact end, settlement, truthful notice, natural close, teardown and rearm were observed without faults. Independent manual semantic/software review is GO; this does not prove audibility or physical puck acceptance. The 25-second quiet wait was caused by evaluator configuration omission; production uses four seconds and no runtime change was made. After that bounded provider batch HA was restored at 2.0.69; it was subsequently updated to 2.0.71 as recorded below.
 
-The legacy panel still presents Start samtale and posts `action=listen`, which now receives guarded409. Issue #229 remains open for a visible-control correction and browser expectation. #110 software fix is delivered with physical edge acceptance pending; #103 remains a physical acceptance item. #215 remains a Talk/software investigation and is not blocked by physical Voice PE testing. PodView owns the #229 visible-control correction. The pre-repair CI result is superseded by final PR CI 39585692186 (all jobs PASS) and main run 39586360966 (checks reused, publish successful). OCI version 2.0.71 is published and installed on Green. Fresh readback confirms version 2.0.71/Kører, main SHA 84c75d6b9e9eb89698d40333ffe310333e5375eb and rootfs-v1:b072e4eb19b4cbba49305bd68bec4ec79ace695ab645587d513ff4c8b9bb2880. The installed Talk software completed a GetDateTime question and explicit end flow; this does not establish physical Voice PE behavior. Native wake/audibility, microphone, audible output, LED and next-wake acceptance remain open. The user explicitly deferred the GitHub version tag/release page; the OCI image is published and installed. No further login is requested.
+The legacy panel still presents Start samtale and posts `action=listen`, which now receives guarded409. Issue #229 remains open for a visible-control correction and browser expectation. #110 software fix is delivered with physical edge acceptance pending; #103 and #215 remain physical acceptance items. PodView owns the #229 visible-control correction. The pre-repair CI result is superseded by final PR CI 39585692186 (all jobs PASS) and main run 39586360966 (checks reused, publish successful). OCI version 2.0.71 is published and installed on Green. Fresh readback confirms version 2.0.71/Kører, main SHA 84c75d6b9e9eb89698d40333ffe310333e5375eb and rootfs-v1:b072e4eb19b4cbba49305bd68bec4ec79ace695ab645587d513ff4c8b9bb2880. The installed Talk software completed a GetDateTime question and explicit end flow; this does not establish physical Voice PE behavior. Native wake/audibility, microphone, audible output, LED and next-wake acceptance remain open. The user explicitly deferred the GitHub version tag/release page; the OCI image is published and installed. No further login is requested.
 
 
 **Installed native timer check.** Native timer delivery check on installed 2.0.71: one exact ten-second timer (01M5F1HDPTM92GS69G5GRJ4JGA) was accepted by the existing HA timer service. The device reported playback_started at 1792580052.429132; the green LED command followed, then native rearm acknowledgement and recovered wake at 1792580055.791491, LED-off commands and timer-terminal-ack cancellation. A subsequent HA status returned timers: [] and finished: [], and runtime r0 was connected/IDLE/recovered with both admission blockers null. The UI Stop command was accepted, but the available timeline does not independently identify the causal Stop source; no spoken-Stop or audible/optical claim is made.
@@ -2849,6 +2841,200 @@ Timer/web sourceGO: /root/voice_closure_fix, privat voice21-review.json binder d
 Afgrænset ny providerhypotese: officiel https://developers.openai.com/api/docs/guides/live-prompting kræver gpt-live-1-instruktionen Generate <|SpawnThinking|> i stedet for generisk delegation; nuværende primærprompt har kun generisk delegation. Kun denne kontrakttekst/labels må justeres; ingen ny semantiskregel, keyword, timeout, VAD eller outputrelay. Falsifikation: samme shippedeThin-startup og rigtigeGPTLive må give eksplicitEND efter entydig afslutning, men ingenEND ved høflig opfølgning. RentTak er ifølge produktkontrakten venten, ikkeEND; gamle rentTak-trials beviser derfor ikke eksplicitafslutningsfejl. Uafhængigt review og en afgrænset rigtigproviderprøve kræves før adoption. Fejler eller mangler prøven, holdes promptdeltaen ude af den samlede leverance.
 
 
+## Active72 composition ·21 October2026 · AI visual value and thematic covers
+
+Lead /root; visual/source implementation /root/fast_ai61; release admission
+/root/release_ready_sol; cover owner /root/detail_consistency61. Current official
+base85a296a7394b621e76533cc4365e435fd9017743 contains merged71. Prior assumptions
+that71was not official are superseded by fresh remote/readback evidence; absent
+GitHub tag/release alone is not an OCI-publication or installed-version blocker.
+The isolated durable candidate is `~/.local/share/podvoice/podview-ai72-20261021`,
+branch `codex/podview-ai72-20261021`. No source69rollback or changes to other voice
+workstreams are allowed. Root owns final currentUIasset freeze and Green.
+
+Observed causal defects: spoken-only delegated completions automatically become
+concise visual receipts/history; malformed/unsupported presentation attempts also
+fallback to spoken text on screen. This violates the user's explicit judgment
+that the screen must add visual value; brief command acknowledgements belong to
+voice plus the existing resource widget. The bounded reviewed Luna bridge selects
+immutable facts after the first admitted source-backed display but cannot change
+this presentation-owner admission rule. User now explicitly requests both that
+AIextension and generated thematic covers on Green.
+
+Lead approved before runtime edits: spoken-only or null presentation gives no new
+visual receipt; invalid/unsupported presentation has no synthetic concise fallback.
+Explicit concise requires a closed semantic declaration
+`content:{visualValue:reference}` from the existing conversation model, instructed
+to reserve it for useful reread/reference content rather than commands/status/
+dialogue glue. Registered comparisons/steps/choices/source-backed weather/facts
+retain existing strict shapes and owners. No local phrase/length-based intent
+heuristic, newUIfamily, provider call or voice engine is introduced.
+
+Whole affected chain: existing backend completion → spoken extraction and normal
+voice delivery → current same-task presentation admission → optional already-admitted
+finite Luna simplification → canonical renderer/history; newer owner/input/task/
+revision, completion, cancellation, expiry and shutdown fence late work. Declining
+a visual must not interrupt speech or delete existing useful unrelated history.
+Rollback is these source/admission/UIasset changes as one candidate; firmware, VAD,
+ASR, sound and primary lifecycle are outside this72scope. Preserve exact71runtime
+except owned reviewed presentation/AIchanges and root's canonicalUIpins.
+
+Required focused regressions: no plain/null/acknowledgement/malformed visual; strict
+semantic reference declaration and supported formats; original spoken extraction;
+source, history and stale/duplicate/late-task behaviour; already-reviewed finite
+allowance/budget/cleanup. Generated-cover provider/model/finite-budget/admission
+must be concrete before any paid image work; never reuse/refill the finite visual
+allowance or mood20/day200/month ledger as an invented imagegeneration budget.
+Coverowner must document exact purpose/privacy/cache/expiry/provenance/late-owner
+and cancellation contract before image-owner runtime edits.
+
+Independent source/composition/admission review, required focused/full/officialCI,
+actual bounded provider preflight, immutable image readback, root-only installation
+and live canonical rendering remain distinct gates. Nothing in this decision
+claims a real model/image request, installation, rendered or physical acceptance.
+
+
+### PodView72 release/admission preparation
+
+Release metadata owner: /root/release_ready_sol under root. Additive72 local/officialCI route targets exact current main85a296a7394b621e76533cc4365e435fd9017743. Historical profiles/manifests remain immutable. Version trio72 is source metadata only. Final root UI14 inventory is200exact assets (build20261021-unified-ui14,34200897bytes); reviewed generated-cover and strict visual-grant contracts are composed. Independent exact-composition review binds the additive72 profile; full release/officialCI and installed provider evidence remain distinct. No publication, installation, quota reset or activation is implied. Root refreshed the actual Supervisor page and confirmed2.0.71/Kører; the earlier69label was cached DOM. Exact process artifact readback remains separate.
+
+
+### Actual72 visual-value source result
+
+The prior reviewed finite-Luna bridge is composed byte-identically on71; all four
+upstream presentation/selector/receipt/test owners were verified unchanged69→71.
+The new presentation-owner rule now declines plain spoken text and explicitnull
+without creating a receipt/history record. Invalid/executable/unavailable or
+unsupported presentation forms no longer fallback to concise spoken-text echoes.
+Explicitconcise accepts only closed `content:{visualValue:reference}`, judged by
+the existing conversation model under the updated backend instructions; no local
+phrase/length intent classifier or extra call exists. This declaration is stripped
+from the canonicalUIpayload. Valid registered comparisons/steps/choices and source-
+bound facts/weather/charts/Spotifyimage provenance retain their existing path.
+
+Authoritative focusedfast passed192unit/owner/promptcases with Ruff/format and
+mypy87sources. ActualSDK→Thin→receipt integration then passed85cases across the
+three existing presentation integration modules, including primaryfirstdisplay
+before heldLunaselection and no addedresponse.create. Three pre-existing image-
+context fixtures initially failed because they expected the now-forbidden concise
+fallback; they were corrected to await actual backendterminal and assert no new
+visual/archive. The final integrationfast command failed only its closingdiffcheck
+on concurrent UIfixture `tests/podview/root-timer-model.test.mjs:56` blankEOF; root
+was notified. This is85pytestPASS, not a completedwholefast/releasePASS. The prior
+192unitfastPASS retains its actualscope.
+
+Visualruntime and ownedtests are frozen for independentreview. Newpresentation
+SHA256 `021ee06dec43eaae4047d14e1457cc328063ecc1f2e2a06f12d77ec9635f1c9b`;
+unitpresentationtest `9d2064966e550ad8fc5638e36418267c020eff44fd7f5ba32003c2b81d0ee0dd`;
+existingpipelineintegrationtest `fad7724cdd2cb9a6fe42715dd1b58ffb03298eda6d31e486a552fb4c8985ae42`.
+No providerrequest, Greenaction, publication or installation by this owner.
+
+Activationconstraint: the existing finitevisual20bundle is prepaid durably at
+startup. A laterrestart cannot recreate its spentallowance, even when requests
+wereunused; the existingpolicy is not an ongoingquota. Actualremainingbalance is
+unknown. The existing safe `visualEnrichment` capability reflects runtimeavailable
+only, not exactbalance or cause. Preserveledger; do not claim72startupactivates a
+spentbundle. Generatedcovers still require their separately admitted concrete
+provider/model/finitepolicy under the coverowner; no moodallowance is borrowed.
+
+
+### Actual72 packaged legacy fixture reconciliation
+
+The existing74non-root packagedJSmodules initially ran980cases:700PASS,280FAIL.
+Failures were obsolete nativeDOMtest ports (missing attribute reflection),
+extracted-method dependencies missing current kit/weather/light owners, and
+assertions for explicitly superseded visual anatomy/copy/return behaviour.
+No runtime patch was made from those fixture errors. /root/fast_ai61 owned the
+cohort with disjoint player/weather/history assistance from/release_ready_sol and
+vehicle/voice/motion/timer/journey assistance from/registry_review61.
+
+The test-only nativeDOMattribute adapter preserves each port's original mutation
+hooks and reflects actual attributes/dataset/class removal. Existing owner,
+stale/revision/generation, no-replay, source precision, focus, idempotence, motion
+preference and cleanup assertions remain; no test was skipped or dropped. Current
+canonical root adapters replace obsolete duplicate adapter bodies only after
+checking retained named cases or mapping explicitly changed visual behaviour.
+Additional current canonical cases expand coverage; no historical admission
+profile or runtime was rebaselined.
+
+Final integrated74module cohort:1042/1042PASS,0fail/skip/cancel; log
+`/private/tmp/podvoice72-packaged-legacy-tests-final.log`. All41changednon-root
+adapters/helpers passed Node syntax and `git diff --check`; exact changedpath list
+is `/private/tmp/podvoice72-legacy-changed-files.txt`. This test result does not
+establish final72source freeze, whole release/officialCI, browser pixels, provider
+acceptance, installation or physical behaviour. Cover, explicitnewfinitegrant and
+root's finalUIfreeze remain owned by their existing workstreams.
+
+
+### PodView72 exact approved activation and provider sequence
+
+Root confirms the user explicitly approved one-time20new Luna visual requests and6Flare image attempts; this approval is achieved and must not be requested again. Exact sanitized root policy artifact: `docs/release-ha72/approved-ai-policies.json`, SHA256e6aa1df7a9c859b1ac4df4e4d2fd8753082bdd292854cb0e881c0efc3f1472c0. Root-owned actual activation remains pending release/install; no policy or credential is copied into runtime during source composition. Existing mood20/day200/month and legacy finite ledgers are preserved. New finite visual grant and independent image allowance are purpose-bound, no refill/reset/replay.
+
+The actual provider check will run after installation through the normal configured in-process Talk/receipt owner with the approved grant, rather than exporting an API key, creating a preinstall ledger or claiming a separate semantic probe proves this application chain. Exact compiled/source review and officialCI precede candidate delivery; successful installed provider/visual/image outcomes, measured latency and physical acceptance remain separate. Current source/provider result is not yet a runtime provider GO.
+
+
+### Final72 exact composition and conservative grant semantics
+
+Canonical root UI14 is frozen at200assets,2733/2733 packaged Node tests pass with no skipped/cancelled cases, and13 bound admission positive/negative mechanism checks pass. The3backend-added signed-domain/account/robot regressions are retained. The latest grant owner94455e0f uses conservative one-startup semantics: an existing immutable approval/grant identity can never reserve another bundle, including after lost reservations or rolled-back used counters. This preserves the exact user-approved20new Luna/6Flare allowances without replay/refill; activation and actual provider outcomes await installation.
+
+<!-- podview72-admission
+{
+  "version": 49,
+  "kind": "podview72_semantic_presentation_and_optional_ai",
+  "reviewer": "/root/ai_review61",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "85a296a7394b621e76533cc4365e435fd9017743",
+  "merge_base": "85a296a7394b621e76533cc4365e435fd9017743",
+  "fingerprint": "b889f34bf4362e07712a128f91035c4464978ec5ac3c0af67fdd6cf5a8367443",
+  "regression_fingerprint": "848474fe085ebeab42b075cccc34e6349262d0f0b250a3ed65ebfac611590e83",
+  "runtime_fingerprint": "0ba46242f7924bd71027626edb6185897f47c4c99f08d85669cd5aa1cddbfa4c",
+  "config_fingerprint": "7c45420f5da7269e19b87ac131be36e0f67303835ad077596339d34a5de6470f",
+  "policy_fingerprint": "3f01b77935428883c98a9bd2faac49152968b6233ac54a2528e02030bb22d27a",
+  "tooling_fingerprint": "79f7e57eef0ff9630aab3255feab724ab21c521d3d188feaaabc5f5fa0f66b4c",
+  "manifest_fingerprint": "4036107f7e1ec032f86958626cf492014fac273514e0136c322d5ce5d192595f",
+  "rationale": "Independent /root/ai_review61 exact composition SOURCE/ADMISSION GO on frozen UI14 and reviewed semantic presentation, default-off generated covers and strict one-startup visual grant; receipt SHA256 6a0e7c4e86c1a56104c108d7fdd4fbdc1cfa60f99fe043bb617310a42a6e6d28.2733 packaged Node cases and13 bound admission mutation checks PASS. Source admission only; full local/officialCI, immutable ARM64 publication/install and actual provider/physical acceptance remain distinct. Canonical documentation-only correction now records actual phase ellipses/positions and existing answer return timing; no executable or asset bytes changed."
+}
+-->
+
+
+### Actual72 final local release validation ·21 October2026
+
+Independent exact source/composition/admission review and final documentation-only binding confirmation are GO. Final manifest4036107f7e1ec032f86958626cf492014fac273514e0136c322d5ce5d192595f and profileba4c54881b55565f830905dd2ec636cd447cbb70cea35065b6672a3ee2afbec3 bind81production paths,173changed regressions,315runtime paths,27tooling paths and200root-canonicalUI14assets. The final independent report addendum SHA256 is a017aa4db449141979d1fc1bcc06da719a0eaf65c03e1cf7dddd16b07a60b66d.
+
+All5758unit cases pass across the existing eight disjoint CI partitions (652/466/729/778/798/1023/544/768), all2107integration cases pass (6SDK-cycle +2101remainder), all2733packaged Node cases pass without skips/cancellations, and13bound admission mutation checks pass. Ruff471files, mypy89sources, exact scope/admission, canonical200asset parity and final diff checks pass. The five pinned browser workers (live_status,daily_ui,wake_words,settings_dirty,setup_flow) pass and join cleanly; receipt66dad6e0f46a4050803360c260de5fc1 uses Node24.19.0/Playwright1.62.1/Chromium1234.
+
+The initial local240s aggregate integration bound expired after1999passing cases while a normal2s timer-watcher/C++fixture case progressed. The unchanged22-case timer module passed59.28s, confirming aggregate elapsed time rather than a reproduced hang. Lead approved bounded480s recovery of interrupted cohorts; passed SDK/static evidence was retained. Completed unit1..3 receipts were retained when the just-started fourth cohort was interrupted to run remaining existing disjoint CI shards in parallel pairs. No case/assertion was removed or weakened; all final required coverage is complete. Detailed local logs: /private/tmp/podvoice72-full-release-final.log, /private/tmp/podvoice72-full-release-recovery.log and /private/tmp/podvoice72-unit-shards-final.log.
+
+This is local source/software validation, not officialCI/publication/installation/provider or physical acceptance. Root currently holds merge and Green installation while assessing a newly reported Connect/no-audio observation on installed71;72is not installed. The approved20new Luna/6Flare grants are not activated by source composition and have not been spent here.
+
+
+## Retained sequential Voice/Connect draft work after main72 integration
+
+**Prioriteret issuekø — seneste brugerbeslutning 21/10 2026.** Connect-fejl først, derefter Voice PE, derefter resten. Ét aktivt issue ad gangen; ingen parallelle issues og ingen deludgivelser. #215's reviewede softwareændring ligger på arbejdsbranchen til den samlede kandidat og overtager ikke igen prioriteten fra Connect eller Voice PE.
+
+1. **Connect:** Afspilning uden lyd, forbindelsen/aktivering og korrekt lydrute først (#58/#53/#12/#10 efter faktisk berørt årsag), derefter øvrige konkrete Connect-betjeningsfejl, herunder #51 Pause/Genoptag/Næste/Forrige, musikflytning og dæmpning/gendannelse. Genbrug leverede38-rettelser; fysisk manglende bevis må ikke føre til en opdigtet ny patch eller ukendt replay. Den fundne #51-rest er softwarearbejde og er ikke færdig.
+2. **Voice PE:** manglende stemmesvar (#101), semantisk afslutning og næste wake (#103), korrekt LED-feedback/timing, tale under svar uden forkert lukning (#124), timeralarm og stemme-/knap-Stop (#110), ingen gentagne generiske Modtaget-kvitteringer (#153; naturlig hum er tilladt), derefter stemmens recovery (#119/#109). Softwareforløb færdiggøres før én samlet fysisk serie.
+3. **Resten:** øvrige Talk-acceptpunkter (#215/#219), diagnostik (#98), settings/migration/rollback (#113), målte hastighedsforbedringer (#104→#105/#106/#107→#108), samlet accept/stabilitetsobservation (#112/#116). Ingen vilkårlig tuning eller nye testprodukter. Epics #96/#94/#95 afspejler deres egne faktiske krav.
+
+PodView ejer UI. Mobil, Frameo #180 og GPT-Lives egen websøgning #151 er fortsat udskudt; regneopfølgning #102 har lav prioritet. Alle aftalte softwareændringer samles, reviewes og leveres i én kompatibel opdatering, før fysisk accept samles bagefter.
+
+**Lead work order — 21 October 2026.** User explicitly restores #215 as the sole active issue: finish its software work before switching topics. Spotify Connect playback with no audible output is the next priority, not lighting; do not switch to it while #215 is active. One issue at a time; no partial releases. All agreed software fixes are collected before one combined release/install. Physical testing is deferred; UI remains PodView-owned. Latest count: 34 open PodVoice issues (including three epics), 11 PodConnect issues. Installed HA readback is PodVoice2.0.72/Kører; root did not initiate that update.
+
+**#215 reviewed draft result — 21 October 2026.** Two demonstrated software gaps are corrected in the unpublished draft: actual error-close notifications now reach Talk's existing visible system-error receiver, and an accepted typed WebRTC request without newly observed primary text gets the factual 30s unknown-text notice. The observer never stops audio, closes, retries, forwards backend text or claims a semantic/provider ACK. The causal Thin/BrowserLink/SDK test includes completed backend output, actual audio activity without primary text, one notice, later primary reply and another typed input. Fifteen focused cases pass, including fast output during SDK send, current/new input, Stop, stale session/provider generation, and native neighbours; disabling the callback makes the causal case fail. The existing whole-HTML browser contract passes 13/13 with the actual notice visible, later primary reply, no replay/media-stop and no page/cleanup errors. Browser report: `/private/tmp/pv215-green72-20261021/talk-text-report.json`; HTML SHA256 `bd638fd99d323ca90388a26d2aba4aa76bba042b8c0ba01be58d346eb9ebb7cb`. Changed Python formatter/lint and diff checks pass. No unchanged broad gate/provider probe was repeated.
+
+Independent adversarial reviewer /root/voice_music_fix gives narrow source GO on thin SHA256 `2b99e61c5ba674ab14ec5b37b0e2bf79e4dedc126d7e0dd0853bb04caf12a6ba`, talk `04f25aab9fd28aade8578d89e95c3b67f8f475c8bb68665d035abc347540bd53`, Talk integration `e470163f10d7218c6e0b857697730cc1063ffb203ae00daa860167e5df97867c`, Thin integration `82e548d6852cb0940dd615a70da15e61e19ff5f4a3786d7c107985a18d250c94`. Review confirms owner/generation fencing, fast/new/late output and unchanged native/audio mechanics. Limit: the SDK has no reliable per-question primary identity; delayed old text can satisfy the observation check. No semantic-answer guarantee or original61 cause is inferred. The retained original failed boundary cannot be recovered. #215 remains open, planned combined build, not release-ready or installed; the current72 positive probe is separate. Next concrete action is durable draft push and exact acceptance-gap assessment before any transition to Connect. No additional speculative output relay, prompt/VAD tuning or new test system is justified by the unavailable61 trace.
+
+**Sequential handoff after #215 source work.** Independent acceptance-gap review permits parking #215 as **planlagt build**, not closing it: no further source correction is justified by the unavailable61 trace. Reviewed draft commit `d128ecde034ac96d4ff8a0afc6aadf2587fa5c38` is pushed to `codex/voice-completion-20261021`; GitHub and local tree both equal `73e2f2676e5bcd6025d21b9400d085ccecd890f3`. After the eventual combined installation, check one normal typed Talk answer-or-bounded-notice flow and usable subsequent input; retain any observed per-question correlation failure as unresolved. No release/install now. Sole active issue becomes PC58/Connect playback without audible output. Reuse installed38 source fixes and software sequence; read current native/C route without starting music before choosing another patch. Bound each issue investigation to 10–15 minutes before recording a concrete fix or precise evidence gap and moving sequentially. No parallel issues.
+
+**Active #215 causal decision — accepted text with silent primary output.** On installed 2.0.72 (`c9b04906f7f3386ea404fbf5deca9011489936a1`, rootfs marker `dd5ca3ea9ed2210d435bd8eaf5257133cc46111ad5480861cd30bdb00253eb37`), the exact capital question returned the correct visible primary answer with microphone unopened. Same-session backend completed at 6105 ms with 32 final characters; subsequent explicit end settled and teardown completed at 34416 ms, `live_output_transcript_seen=true`, no diagnostic drops/incomplete. Receipt: `/private/tmp/pv215-green72-20261021/receipt.json`. This is a current positive path, not a cure for the failed61 attempt.
+
+Source analysis localizes a separate outcome gap: `_submit_live_text` returns only transport submission; WebRTC is excluded from the native quiet gate; the session-duration ceiling is not a truthful per-input no-answer result. Hypothesis: a completed backend followed by no primary output leaves Talk indefinitely available without resolving the unanswered input until session ceiling. First reproduce this chain in the existing WebRTC fixture. A correction must preserve primary/model semantic ownership, actual browser media, session/generation/input currency, concurrent new input, tool progress, Stop and one teardown; neither absent transcript nor backend completion alone proves silence. No speculative response relay, replay, primary-completion event, VAD/gain/prompt tuning or arbitrary deadline is authorized by this hypothesis. A bound and observable failure oracle require review before runtime implementation. Rollback removes only the eventual bounded-outcome change; no release is allowed until the complete agreed candidate is ready. Physical testing is deferred and is not a blocker for this Talk issue.
+
+The legacy panel still presents Start samtale and posts `action=listen`, which now receives guarded409. Issue #229 remains open for a visible-control correction and browser expectation. #110 software fix is delivered with physical edge acceptance pending; #103 remains a physical acceptance item. #215 remains a Talk/software investigation and is not blocked by physical Voice PE testing. PodView owns the #229 visible-control correction. The pre-repair CI result is superseded by final PR CI 39585692186 (all jobs PASS) and main run 39586360966 (checks reused, publish successful). OCI version 2.0.71 is published and installed on Green. Fresh readback confirms version 2.0.71/Kører, main SHA 84c75d6b9e9eb89698d40333ffe310333e5375eb and rootfs-v1:b072e4eb19b4cbba49305bd68bec4ec79ace695ab645587d513ff4c8b9bb2880. The installed Talk software completed a GetDateTime question and explicit end flow; this does not establish physical Voice PE behavior. Native wake/audibility, microphone, audible output, LED and next-wake acceptance remain open. The user explicitly deferred the GitHub version tag/release page; the OCI image is published and installed. No further login is requested.
+
 **#215 deterministic characterization result.** The existing real Thin/BrowserLink/WebRTC SDK composition now reproduces accepted typed input, completed backend, no primary output and no per-input failure. The only existing terminal boundary is normal max-session closure. The one focused test passes as a characterization of the defect, not a repaired outcome; format/lint and diff checks pass. No runtime correction is implemented. The proposed 30-second observation-warning draft is not implemented: it would introduce a new policy and could confuse absent text with absent audio. No guessed deadline, transcript-only watchdog, duplicate backend relay or automatic request retry is introduced. The retained Green diagnostic collection was inspected once for the original61 chain; its twenty saved session entries no longer include the failed61 attempt (the earliest remaining session is later). It cannot recover the missing old primary/RTP evidence. Current72 positive evidence remains separately recorded.
 
 
@@ -2886,3 +3072,13 @@ Required causal checks: accepted typed + completed backend + zero primary output
 **PC8 consumer draft result.** The production instance tool page now advertises only the executable Spotify-device form of the historical transfer tool, with a truthful description retaining the HA contract fingerprint. Both production Thin adapters already execute Live contexts that refuse configured_alias through that tool; no usable Talk action was removed. The pure HA descriptor/builder, typed configured-room catalog, current refusal before send, canonical paired MOVE, policy and media path are unchanged. The new real-router case is RED on baseline and GREEN on the correction: detached pages remain unchanged, old broad-page hashes reject stale_schema, unsupported current calls perform zero POST, and canonical MOVE options remain available. Existing complete target-router/Thin-target neighbour modules and canonical Voice MOVE integration pass; formatter/lint/diff checks pass. Current main72's declaration/dispatch functions were read and match this owner boundary; later integration must preserve unrelated PodView72 work.
 
 Independent review /root/voice_music_fix: GO on tools.py SHA2566a5a7069049c601921ca25b3cbd89aa7a6e6950e470afe6424c3bbfa3a4804ff and regression SHA256346bd96b9cbbeb2af0d05d27e6b06bae5177230b233a7a61d1ef5f38e9516862. The broad HA discovery diagnostic hash remains distinct from the actual sent tool-page hash; no equivalence is claimed. Status **planlagt samlet build**, not released/installed/physically accepted. Because this narrows a model-facing schema, final combined-candidate GPT-Live side-effect-free semantic preflight is required under PRODUKTMÅL; perform it once on frozen final bits, not a provider round per issue. The original audible-move cause is not inferred from this declaration fix. Connect implementation continues sequentially; no parallel issues and no partial release.
+
+**PC9 sequential existing-code assessment.** Independent reviewer voice_music_fix finds no additional demonstrated attention defect in current Speakers38+PC51 source. Manager A30/B65 tests retain output-specific own-base grant/order and truthful desired_only; actual composed C output-owner suite already passed with A5/B5 and A30/B65 restoration, manual/stale/unknown/custody cases. Native attention/manager bits were not changed by51. Root traced shared Thin heartbeat-stop/join→original lease release and adapter pending/unknown/current-owner checks; they preserve exact original ownership and do not equate desired_only with restored sound. PC9 remains delivered software / physical routed A→B duck/restore and next-wake acceptance open. No new patch, broad rerun, home action or partial release. GitHub9 reflects current software/physical separation instead of stale18 installation wording. Next sequential work remains Connect outstanding source requirements, then Voice PE; UI and other enhancements do not displace them.
+
+
+**Sequential Connect source pass completed — 21 October.** PC29 startup/RSS custody, PC13 context-404 prepare-before-commit, PC11 stale alias/status and PC6 Autoplay corrections remain present in installed38; no new defect justified a runtime patch. Their existing source/official38 CI evidence is retained. The actual composed PC51 Native direct Next/natural-EOF/Autoplay/paused neighbour selection passed under the cached pinned Linux builder (session77081, exit0). PC6 GitHub now separates delivered source from remaining same-candidate audible queue/OFF/Stop/reconnect acceptance. No playback or home control was started. PC51 and PC8 are the actual new code changes reserved for the combined build. Next single active issue is Voice PE103 close/LED/rearm: inspect concrete remaining software gaps without repeating rejected VAD/gain guesses. Integrate latest main72 PodView changes intact before final candidate checks; no partial release.
+
+
+**Active Connect no-start field failure — 21 October, 20:54–20:56 Europe/Copenhagen.** User now confirms Spotify timeline stands still after selecting the Connect speaker and pressing Play. Fresh normal Green Speakers38 log shows authenticated dealer transfer_received, explicit alias3 selected, then transfer_failed: failed setting stream for an episode, `alias registry unavailable or changed`; repeated fresh user transfer and load-context fail at the same guard. This is current source/field evidence distinct from old PC58 playlist START starvation and cannot be labelled audio-only or cured by pause-control work. Normal /api/rooms concurrently reported native playing=true despite this incomplete transfer; that summary is not route or successful-start proof. Root performed read-only browser navigation only, no playback/stop/replay. One active software owner voice_music_fix traces exact Native source/player admission and registry snapshots before proposing minimal correction; root leads integration. Preserve anti-stale alias/connection/session/output custody guards, no blind retry, timeout, credentials or speaker override. Required causal regression: current authenticated explicit transfer/Play can start on matching current registry; a changed/stale registry still gives zero new effect; prior content and native/C custody remain protected. Independent review required before adoption. No release until whole software candidate.
+
+PC58 current-source continuation: finite refusal diagnostic is persisted in remote PodConnect draft ee24de22d0b1e1b464195219bd3a92a6cc57429c (tree5c26d6f29d569925894d35ece925f1b4edfec65d), not a functional repair/release. The concrete closed-prior-AppPlayer source gap now has a bounded Native/C retirement design recorded in PodConnect STATUS, implementation owners voice_music_fix/voice_closure_fix; only one active issue. Fresh direct-field receipt is private at /private/tmp/pc58-direct-connect-20261021/field-receipt.json. Current signal is stalled Spotify, not proven counters advancing. No new music or stop/replay by root. Voice103 bounded read-only review found no additional lifecycle code defect: fresh current activity correctly revokes preclose; stale currency and teardown/rearm remain fenced. Do not patch those guards to hide a contradictory native sensor observation. Its physical/acoustic remainder is preserved while Connect remains first.

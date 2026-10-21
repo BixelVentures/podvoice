@@ -155,7 +155,9 @@ class VisualReceiptOwner:
             self._history.clear()
             self._history_boot = boot
 
-    def _archive_display(self, room_id: str, state: dict, item: dict) -> None:
+    def _archive_display(
+        self, room_id: str, state: dict, item: dict, *, replace_existing: bool = False
+    ) -> None:
         # Called only after final owner/source admission, never pending selection.
         if (
             self._closed
@@ -177,7 +179,13 @@ class VisualReceiptOwner:
                 "items": [],
             }
             self._history[room_id] = prior
-        if any(row["display"]["receiptId"] == item["receiptId"] for row in prior["items"]):
+        existing = next(
+            (row for row in prior["items"] if row["display"]["receiptId"] == item["receiptId"]),
+            None,
+        )
+        if (existing is not None and not replace_existing) or (
+            replace_existing and (existing is None or existing["binding"] != key[:3])
+        ):
             return
         kind = item["provenance"].get("kind")
         if kind not in {"tool_result", "ha_weather", "owner_sources", "ai_explanation"}:
@@ -199,6 +207,11 @@ class VisualReceiptOwner:
             ):
                 return
         except (ValueError, TypeError, OverflowError):
+            return
+        if existing is not None:
+            existing["display"] = display
+            prior["revision"] += 1
+            self._notify(room_id)
             return
         prior["items"].insert(0, {"binding": key[:3], "display": display})
         if len(prior["items"]) > 20:
@@ -280,7 +293,9 @@ class VisualReceiptOwner:
     def selection_enabled(self) -> bool:
         return bool(self._selector is not None and self._selector.available and not self._closed)
 
-    async def _select(self, room_id: str, state: dict, row: dict) -> None:
+    async def _select(
+        self, room_id: str, state: dict, row: dict, *, published: tuple[int, dict] | None = None
+    ) -> None:
         selector = self._selector
         if selector is None:
             return
@@ -289,7 +304,9 @@ class VisualReceiptOwner:
             if current is not state or row not in state["items"]:
                 return
             deadline = self._clock() + 5
-            revision = state["revision"]
+            revision = published[0] if published else state["revision"]
+            original = published[1] if published else None
+            selection_task = asyncio.current_task()
 
             def current_receipt() -> bool:
                 current = self._current(room_id)
@@ -298,6 +315,16 @@ class VisualReceiptOwner:
                     and row in state["items"]
                     and state["revision"] == revision
                     and self._clock() < deadline
+                    and selection_task is not None
+                    and not selection_task.cancelling()
+                    and (
+                        not published
+                        or (
+                            not state.get("completed")
+                            and state["current"]() is True
+                            and row["item"] == original
+                        )
+                    )
                 )
 
             async with asyncio.timeout(5):
@@ -331,8 +358,16 @@ class VisualReceiptOwner:
             ids = [f["id"] for f in chosen]
             if len(set(ids)) != len(ids):
                 return
+            if published and selected.get("family") != "fact-card":
+                return
             source_ids = {f["sourceId"] for f in chosen}
-            selected_sources = [s for s in content["sources"] if s["id"] in source_ids]
+            selected_sources = (
+                content["sources"]
+                if published
+                else [s for s in content["sources"] if s["id"] in source_ids]
+            )
+            if published and chosen == content["facts"]:
+                return  # Unchanged reads do not republish or restart UI motion.
             if row["item"]["family"] == "answer-timeline":
                 # Model chooses only immutable candidate IDs; owner copies source
                 # periods in original chronology, never model prose or timestamps.
@@ -356,7 +391,10 @@ class VisualReceiptOwner:
                 }
             row["item"]["displaySuggested"] = True
             state["revision"] += 1
-            self._archive_display(room_id, state, row["item"])
+            self._archive_display(
+                room_id, state, row["item"], replace_existing=published is not None
+            )
+            self._notify(room_id)
         except (Exception, asyncio.CancelledError):
             return  # Optional display cannot change ACK, playback, close or rearm.
         finally:
@@ -647,9 +685,32 @@ class VisualReceiptOwner:
 
         accepted = offer_completed(self, owner, **binding)
         if accepted:
-            state = self._rooms[binding["room_id"]]
-            self._archive_display(binding["room_id"], state, state["items"][0]["item"])
-            self._notify(binding["room_id"])
+            room_id = binding["room_id"]
+            state = self._rooms[room_id]
+            row = state["items"][0]
+            item = row["item"]
+            self._archive_display(room_id, state, item)
+            self._notify(room_id)
+            # First display is already admitted. Optional simplification must not
+            # reserve/suppress the primary answer or become a voice dependency.
+            if (
+                self.selection_enabled
+                and item["family"] == "fact-card"
+                and item["provenance"].get("kind") == "owner_sources"
+                and len(item["content"].get("facts", [])) >= 2
+                and not state.get("enrichment_offered")
+                and (self._selection is None or self._selection.done())
+            ):
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    return accepted
+                state["enrichment_offered"] = True
+                self._selection = loop.create_task(
+                    self._select(
+                        room_id, state, row, published=(state["revision"], copy.deepcopy(item))
+                    )
+                )
         return accepted
 
     def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:

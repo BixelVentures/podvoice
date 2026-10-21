@@ -348,6 +348,7 @@ class ToolRouter:
         self._hub = hub
         self.execution_policy = execution_policy or ExecutionPolicy()
         self.podview_mood_selector: Any = None
+        self.podview_theme_art: Any = None
         self.podview_robot_recipe_selector: Any = None
         self._discovery = _DiscoverySnapshot(
             generation=0,

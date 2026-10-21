@@ -1,3 +1,4 @@
+import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import {bindRoom,targetEnvelope} from './canonical-room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -120,6 +121,7 @@ test('manual 27 percent never replaces explicit 35 percent start confirmation on
 test('search form remains available but result action never opens a target or confirmation dialog',async()=>{
  const previous=globalThis.document;
  class Element extends EventTarget{constructor(tag){super();this.tagName=tag;this.children=[];this.attributes={};}append(...nodes){this.children.push(...nodes);}setAttribute(k,v){this.attributes[k]=v;}showModal(){this.open=true;}close(){this.open=false;}replaceChildren(){this.children=[];}}
+installDOMAttributes(Element);
  globalThis.document={createElement:tag=>new Element(tag)};
  let view;
  try{const calls=[],s=snapshot();bindRoom(s,'account','direct-one');const host={isConnected:true,liveSnapshot:s,liveMedia:{account:'account'},querySelector:()=>new Element('div'),append(){},musicResults:{render(){}},liveTransport:{connected:true,musicSelectionSetup:async()=>offer(),musicSelectionAction:async(task,id)=>{calls.push(id);return {outcome:'accepted'};}}};view=new LiveMusicSelectionView(host);view.account='account';view.active=true;view.source=searchSample(result(),'account','sang',s);view.searchScope=view.context();view.targets=[target];view.showTargets();assert.equal(view.targetLabel.hidden,true);await view.chooseCard({optionIndex:0});assert.deepEqual(calls,['c'.repeat(24)]);assert.notEqual(view.dialog.open,true);assert.notEqual(view.searchDialog.open,true);assert.equal(view.targetLabel.hidden,true);await view.chooseCard({optionIndex:0});assert.equal(calls.length,1);view.openSearch();assert.equal(view.searchDialog.open,true);assert.equal(view.input.type,'search');

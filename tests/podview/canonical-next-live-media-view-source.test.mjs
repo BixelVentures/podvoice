@@ -1,3 +1,4 @@
+import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import {bindRoom,boundPlayback} from './canonical-room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,6 +20,7 @@ class DOMNode extends EventTarget{
  querySelector(tag){return this.children.find(n=>n.tagName===tag.toUpperCase())||null;}
  close(){this.open=false;}click(){if(!this.disabled)this.dispatchEvent(new Event('click'));}
 }
+installDOMAttributes(DOMNode);
 function domSurface(){const f=surface(),nodes=new Map(),groups=new Map(),doc={getElementById:id=>{if(!nodes.has(id))nodes.set(id,new DOMNode());return nodes.get(id);},createElement:tag=>new DOMNode(tag),querySelector:selector=>groups.get(selector)};globalThis.document=doc;f.host.ownerDocument=doc;f.host.dataset={};f.host.querySelector=selector=>{if(!groups.has(selector))groups.set(selector,new DOMNode());return groups.get(selector);};doc.getElementById('detail-output').append(new DOMNode('span'));doc.getElementById('player-empty').append(new DOMNode('p'));const selected=[];f.host.playerView=new PlayerView(f.host,{chooseQueue:item=>selected.push(item)});f.view.render=LiveMediaView.prototype.render;f.view.renderQueue=LiveMediaView.prototype.renderQueue;return {...f,doc,nodes,groups,selected};}
 test('single real account auto-select notifies catalogue and binds playback request',async()=>{const f=surface();try{await f.view.refresh();assert.equal(f.view.account,'first');assert.deepEqual(f.changes,['first']);assert.deepEqual(f.calls,[['targets',undefined],['playback','first']]);assert.equal(f.view.playback.item.name,'Actual song');}finally{f.restore();}});
 test('manual account switch revokes old playback/catalogue immediately and rejects unknown accounts',async()=>{const f=surface();try{f.view.accounts.data={items:[{id:'first',label:'First'},{id:'second',label:'Second'}]};f.view.account='first';f.view.playback={owner_epoch:'old'};const hold=deferred();f.host.liveTransport.music=()=>hold.promise;bindRoom(f.host.liveSnapshot,'second');f.view.selectAccount('second');assert.equal(f.view.account,'second');assert.equal(f.view.playback,null);assert.deepEqual(f.changes,[null,'second']);f.view.selectAccount('unknown');assert.equal(f.view.account,'second');hold.resolve(payload('second'));await new Promise(done=>setImmediate(done));assert.equal(f.view.playback.config_entry_id,'second');}finally{f.restore();}});

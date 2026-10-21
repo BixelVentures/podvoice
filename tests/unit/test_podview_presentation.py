@@ -11,7 +11,7 @@ from gatekeeper.podview_presentation import explanation_content, final_message
 from gatekeeper.podview_receipts import VisualReceiptOwner
 
 CONTENTS = {
-    "concise": {},
+    "concise": {"visualValue": "reference"},
     "comparison": {"columns": ["Materiale"], "items": [{"label": "Papirfly", "values": ["Papir"]}]},
     "choices": {"items": [{"label": "Tegn", "detail": "Et lokalt forslag"}]},
     "chart": {
@@ -99,7 +99,7 @@ def test_malformed_ambiguous_oversized_or_executable_envelopes_are_not_literal_f
     assert final_message(raw) is None
 
 
-def test_plain_text_is_only_concise_and_model_urls_ids_or_assumed_completion_rejected():
+def test_plain_text_has_no_visual_presentation_and_model_urls_ids_or_completion_rejected():
     assert final_message("En kort forklaring.")["presentation"] is None
     for family, bad in [
         ("checklist", {"items": [{"label": "Rent", "checked": True}]}),
@@ -259,12 +259,11 @@ def test_replay_selector_suppression_stop_and_normal_close_keep_original_lifecyc
 
 
 @pytest.mark.parametrize("family", ["fact-card", "chart"])
-def test_generated_facts_and_chart_numbers_are_concise_without_false_source_claim(family):
+def test_generated_facts_and_chart_numbers_never_fabricate_a_concise_fallback(family):
     owner, sink = object(), VisualReceiptOwner()
-    assert sink.offer_completed_answer(**context(owner, message=json.dumps(message(family))))
-    row = sink.snapshot("kitchen", owner)["items"][0]
-    assert row["family"] == "concise" and row["provenance"] == {"kind": "ai_explanation"}
-    assert "facts" not in row["content"] and "items" not in row["content"]
+    assert not sink.offer_completed_answer(**context(owner, message=json.dumps(message(family))))
+    assert sink.snapshot("kitchen", owner)["items"] == []
+    assert sink._history == {}
 
 
 def test_missing_or_tampered_pinned_asset_does_not_publish_an_image(monkeypatch):
@@ -272,11 +271,11 @@ def test_missing_or_tampered_pinned_asset_does_not_publish_an_image(monkeypatch)
 
     monkeypatch.setattr(producer, "owned_image_sources", lambda: {})
     owner, sink = object(), VisualReceiptOwner()
-    assert sink.offer_completed_answer(
+    assert not sink.offer_completed_answer(
         **context(owner, message=json.dumps(message("sourced-image")))
     )
-    row = sink.snapshot("kitchen", owner)["items"][0]
-    assert row["family"] == "concise" and "image" not in row["content"]
+    assert sink.snapshot("kitchen", owner)["items"] == []
+    assert sink._history == {}
 
 
 @pytest.mark.parametrize(
@@ -367,10 +366,11 @@ def test_model_bicycle_title_cannot_authorize_unrelated_or_missing_user_context(
     owner, sink = object(), VisualReceiptOwner()
     data = message("sourced-image")
     data["presentation"].update(title="Cyklens kæde", summary="Cyklens pedaler og baghjul")
-    assert sink.offer_completed_answer(
+    assert not sink.offer_completed_answer(
         **context(owner, message=json.dumps(data), question_context=question)
     )
-    assert sink.snapshot("kitchen", owner)["items"][0]["family"] == "concise"
+    assert sink.snapshot("kitchen", owner)["items"] == []
+    assert sink._history == {}
 
 
 def test_unrelated_context_removes_optional_diagram_illustration_only():
@@ -385,3 +385,112 @@ def test_unrelated_context_removes_optional_diagram_illustration_only():
     )
     row = sink.snapshot("kitchen", owner)["items"][0]
     assert row["family"] == "simple-diagram" and "illustration" not in row["content"]
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Musikken spiller nu.",
+        "Timeren er startet.",
+        "Tak, vi tales ved.",
+        "En lang talt forklaring uden udtrykkeligt valgt visuelt indhold. " * 6,
+        json.dumps({"spoken": "Rengøringen er sat i gang.", "presentation": None}),
+        "{malformed}",
+        json.dumps({"spoken": "Modtaget.", "presentation": {"family": "unknown"}}),
+    ],
+)
+def test_spoken_only_null_acknowledgements_and_malformed_output_never_create_visual_or_history(raw):
+    owner, sink = object(), VisualReceiptOwner()
+    assert not sink.offer_completed_answer(**context(owner, message=raw))
+    assert sink.snapshot("kitchen", owner)["items"] == []
+    assert sink._history == {} and sink._selection is None
+    if not raw.startswith("{"):
+        assert final_message(raw) == {"spoken": raw, "presentation": None}
+
+
+@pytest.mark.parametrize(
+    "raw_content",
+    [
+        {},
+        {"visualValue": "acknowledgement"},
+        {"visualValue": True},
+        {"visualValue": "reference", "automatic": True},
+    ],
+)
+def test_concise_requires_closed_explicit_reference_judgment(raw_content):
+    owner, sink = object(), VisualReceiptOwner()
+    data = message("concise")
+    data["spoken"] = "Musikken spiller nu."
+    data["presentation"]["summary"] = data["spoken"]
+    data["presentation"]["content"] = raw_content
+    raw = json.dumps(data)
+    assert (
+        final_message(raw)["spoken"] == data["spoken"]
+    )  # Declining the visual keeps voice extraction.
+    assert not sink.offer_completed_answer(**context(owner, message=raw))
+    assert sink.snapshot("kitchen", owner)["items"] == []
+    assert sink._history == {}
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "A → B",
+        "Varme udvider luften; afkøling får den til at trække sig sammen. Sæt forsøget op, så beholderen er åben.",
+    ],
+)
+def test_useful_explicit_concise_reference_uses_same_registered_renderer_without_length_heuristic(
+    summary,
+):
+    owner, sink = object(), VisualReceiptOwner()
+    data = message("concise")
+    data["presentation"]["summary"] = summary
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(data)))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "concise" and item["displaySuggested"] is True
+    assert item["content"]["summary"] == summary
+    assert set(item["content"]) == {"summary", "sources"}  # Admission signal is not a new UI shape.
+    assert sink._history["kitchen"]["items"][0]["display"]["content"] == item["content"]
+
+
+def test_spoken_followup_decline_preserves_existing_useful_answer_and_archive():
+    import copy
+
+    owner, sink = object(), VisualReceiptOwner()
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(message("steps"))))
+    before = copy.deepcopy(sink.snapshot("kitchen", owner))
+    archive = copy.deepcopy(sink._history["kitchen"], {id(owner): owner})
+    assert not sink.offer_completed_answer(
+        **context(owner, response_id="spoken-ack", message="Ja, timeren er startet.")
+    )
+    assert sink.snapshot("kitchen", owner) == before
+    assert sink._history["kitchen"] == archive
+
+
+@pytest.mark.parametrize(
+    "family,content",
+    [
+        ("comparison", {"columns": ["A"], "items": []}),
+        ("steps", {"steps": []}),
+        ("choices", {"items": [{"label": "A"}]}),
+        ("simple-diagram", {"nodes": []}),
+    ],
+)
+def test_malformed_explicit_family_never_falls_back_to_spoken_text(family, content):
+    owner, sink = object(), VisualReceiptOwner()
+    data = message(family)
+    data["presentation"]["content"] = content
+    raw = json.dumps(data)
+    assert final_message(raw)["spoken"] == data["spoken"]
+    assert not sink.offer_completed_answer(**context(owner, message=raw))
+    assert sink.snapshot("kitchen", owner)["items"] == [] and sink._history == {}
+
+
+def test_backend_instructions_reserve_visuals_for_semantic_added_value_without_an_extra_call():
+    from gatekeeper.podview_presentation import BACKEND_PRESENTATION_INSTRUCTIONS
+
+    assert 'concise content{visualValue:"reference"}' in BACKEND_PRESENTATION_INSTRUCTIONS
+    assert "presentation:null" in BACKEND_PRESENTATION_INSTRUCTIONS
+    assert "kommando-kvittering" in BACKEND_PRESENTATION_INSTRUCTIONS
+    assert "konkret visuel merværdi" in BACKEND_PRESENTATION_INSTRUCTIONS
+    assert "Ingen ekstra modelrunde" in BACKEND_PRESENTATION_INSTRUCTIONS

@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 const root=fileURLToPath(new URL('../dist/',import.meta.url));
-export const stylesheetSources=['ui/components.css','widget-view.css','ui/library/library.css','frame-layout.css','widget-redesign.css','timer-notice.css','live-music.css'];
+export const stylesheetSources=['ui/components.css','widget-view.css','ui/library/library.css','frame-layout.css','widget-redesign.css','timer-notice.css','live-music.css','ui-kit.css'];
 export function composeStyles(sources,readSource,readAsset=()=>null){
  const sections=sources.map(source=>{
   const css=readSource(source);

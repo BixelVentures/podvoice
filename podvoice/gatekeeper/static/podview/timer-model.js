@@ -33,7 +33,6 @@ export function timerTransition(s,e){
   if(e.action==='cancel')return {...t,status:'cancelled',remaining:0};
   if(!s.connected||s.live||t.ownerBootId||t.stale)return t;
   if(e.action==='add'&&t.status==='done'&&e.seconds===60&&Number.isFinite(e.now))return {...t,status:'running',remaining:60,duration:60,deadline:e.now+60000,noticeDismissed:false};
-  if(e.action==='add'&&['running','paused'].includes(t.status)&&[60,300].includes(e.seconds)&&Number.isFinite(e.now)&&Number.isFinite(t.duration)&&t.duration+e.seconds<=86400){const remaining=t.status==='running'&&Number.isFinite(t.deadline)?Math.max(0,Math.ceil((t.deadline-e.now)/1000)):t.remaining;if(!Number.isFinite(remaining)||remaining<=0)return t;return {...t,remaining:remaining+e.seconds,duration:t.duration+e.seconds,deadline:t.status==='running'?t.deadline+e.seconds*1000:t.deadline};}
   if(e.action==='pause'&&t.status==='running'&&Number.isFinite(e.now)&&Number.isFinite(t.deadline)){const remaining=Math.max(0,Math.ceil((t.deadline-e.now)/1000));return {...t,status:remaining===0?'done':'paused',remaining};}
   if(e.action==='resume'&&t.status==='paused'&&Number.isFinite(e.now)&&Number.isFinite(t.remaining))return {...t,status:t.remaining===0?'done':'running',deadline:e.now+t.remaining*1000};
   return t;

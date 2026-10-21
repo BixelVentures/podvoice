@@ -2615,6 +2615,10 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     "themeTitle": theme["title"],
                     "themeArt": theme["image"],
                 }
+                # Cache projection only. GET/refresh/scroll never starts image work.
+                theme_art = getattr(tools, "podview_theme_art", None)
+                if kind == "mood" and theme_art is not None:
+                    row["themeArt"] = theme_art.store.url(theme_id) or row["themeArt"]
                 if "artwork" in playlist:
                     row["artwork"] = playlist["artwork"]
                 rows.append(row)
@@ -3150,6 +3154,29 @@ async def _home(request: web.Request) -> web.Response:
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
+async def _theme_art_asset(request: web.Request) -> web.StreamResponse:
+    """Authenticated immutable thematic illustration, never arbitrary filesystem I/O."""
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    owner = getattr(request.app[BRIDGE].tools, "podview_theme_art", None)
+    theme, digest = request.match_info.get("theme", ""), request.match_info.get("digest", "")
+    raw = None if owner is None else owner.store.read(theme, digest)
+    if raw is None:
+        raise web.HTTPNotFound()
+    return web.Response(
+        body=raw,
+        content_type="image/webp",
+        headers={
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "ETag": f'"{digest}"',
+            "X-Content-Type-Options": "nosniff",
+            "X-PodView-Art-Provenance": "generated-theme-illustration",
+            "Referrer-Policy": "same-origin",
+        },
+    )
+
+
 async def _assets(request: web.Request) -> web.StreamResponse:
     denied = await _guard(request)
     if denied is not None:
@@ -3216,6 +3243,9 @@ def mount(
     from .podview_queue import queue_http
 
     async def close_receipts(_app):
+        theme_art = getattr(tools, "podview_theme_art", None)
+        if theme_art is not None:
+            await theme_art.aclose()
         robot_selector = getattr(tools, "podview_robot_recipe_selector", None)
         if robot_selector is not None:
             await robot_selector.aclose()
@@ -3246,6 +3276,7 @@ def mount(
             web.get("/view/api/home", _home),
             web.get("/view/api/answers", _answers),
             web.get("/view/api/sources/{receipt_id}", _answers),
+            web.get("/view/theme-art/{theme}/{digest}.webp", _theme_art_asset),
             web.get("/view/", _assets),
             web.get("/view/{asset:.*}", _assets),
         ]

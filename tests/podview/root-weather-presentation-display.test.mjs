@@ -17,20 +17,20 @@ const values=a=>weatherFactDisplay(a).facts.map(f=>f.value);
 const freeze=v=>{if(v&&typeof v==='object'){Object.freeze(v);Object.values(v).forEach(freeze);}return v;};
 test('same-envelope admitted weather exact facts get display copies, raw wire and source GET stay canonical',()=>{
  const f=freeze(fixture()),before=JSON.stringify(f),answer=parse(f);
- assert.deepEqual(values(answer),['15°C','Let skyet']);
+ assert.deepEqual(values(answer),['15°','Let skyet']);
  assert.deepEqual(answer.content.facts.map(f=>f.value),['15.1 °C','partlycloudy']);
  const raw=ownedSource({...f.envelope.items[0],schema:'podview.presentation.source.v1'},id,now+1,f.snapshot);
  assert.deepEqual(raw.facts.map(f=>f.value),['15.1 °C','partlycloudy']);assert.equal(JSON.stringify(f),before);
 });
 test('shared whole-degree and condition rules apply only to exact bound facts',()=>{
- for(const [input,expected] of [['-2.5 °C','-3°C'],['-0.4 °C','0°C'],['15,1 °C','15,1 °C'],['102 °C','102 °C']]){const f=fixture();for(const row of f.envelope.items)row.content.facts[0].value=input;assert.equal(values(parse(f))[0],expected);}
+ for(const [input,expected] of [['-2.5 °C','-3°'],['-0.4 °C','0°'],['15,1 °C','15,1 °C'],['102 °C','102 °C']]){const f=fixture();for(const row of f.envelope.items)row.content.facts[0].value=input;assert.equal(values(parse(f))[0],expected);}
  for(const input of ['constructor','__proto__','partlycloudy later']){const f=fixture();for(const row of f.envelope.items)row.content.facts[1].value=input;assert.equal(values(parse(f))[1],input);}
 });
 test('coincidental generic facts, missing or mismatched source bindings never receive weather formatting',()=>{
  for(const mutate of [f=>f.envelope.items.pop(),f=>f.envelope.items[0].provenance.receiptIds=['c'.repeat(32)],f=>f.envelope.items[1].provenance={kind:'tool_result'},f=>f.envelope.items[1].content.facts.forEach(f=>f.label+=' andet'),f=>f.envelope.items[1].content.facts.forEach(f=>f.value+=' andet'),f=>f.envelope.items[1].content.facts.forEach(f=>f.detail='Citat')]){const f=fixture();mutate(f);assert.deepEqual(values(parse(f)),['15.1 °C','partlycloudy']);}
 });
 test('one exact weather match never formats unmatched facts in the same card, or wire hints',()=>{
- const f=fixture();f.envelope.items[1].content.facts.pop();f.envelope.items[0].weatherDisplayFactIds=['fact:1'];assert.deepEqual(values(parse(f)),['15°C','partlycloudy']);
+ const f=fixture();f.envelope.items[1].content.facts.pop();f.envelope.items[0].weatherDisplayFactIds=['fact:1'];assert.deepEqual(values(parse(f)),['15°','partlycloudy']);
 });
 test('expired weather and wrong owner remain rejected instead of gaining display authority',()=>{
  const f=fixture();f.envelope.items[1].provenance.validUntil=now/1000;assert.throws(()=>parse(f),/expired_weather_source/);

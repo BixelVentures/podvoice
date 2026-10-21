@@ -1,12 +1,22 @@
 // Keep native click/keyboard activation; reject only a cancelled touch/pen press.
 // In particular, touch implicit pointer capture can deliver click to the original
 // button even when release occurred beyond its bounds.
+const pressSelector='button,a[href],summary,input[type="button"],input[type="submit"],input[type="reset"],[role="button"]';
+const fieldSelector='input,select,textarea,[role="slider"],[role="textbox"],[role="spinbutton"],[contenteditable="true"]';
+// Stop at the first interactive node. A slider or text field inside a compound
+// control owns its gesture; walking past it would arm the ancestor's click guard.
+export function nearestPressControl(nodes){
+ for(const node of nodes){
+  if(node?.matches?.(pressSelector))return node;
+  if(node?.matches?.(fieldSelector))return null;
+ }
+ return null;
+}
 export function attachTouchIntent(surface,{window:events=surface.ownerDocument.defaultView,now=()=>performance.now()}={}){
  const document=surface.ownerDocument;
- const selector='button,a[href],summary,input[type="button"],input[type="submit"],input[type="reset"],[role="button"]';
  let press=null,released=null,expiry=null;
  const path=e=>e.composedPath?.()||[e.target];
- const controlFor=e=>path(e).find(node=>node?.matches?.(selector));
+ const controlFor=e=>nearestPressControl(path(e));
  const available=control=>control.isConnected&&!control.disabled&&!control.closest('[inert],[hidden],[aria-disabled="true"]');
  const clearExpiry=()=>{if(expiry!==null)events.clearTimeout(expiry);expiry=null;};
  const clearFeedback=()=>{press?.control.removeAttribute('data-touch-cancelled');};

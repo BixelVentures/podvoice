@@ -57,7 +57,7 @@ test('successful timer start renders its countdown without a spurious start vali
   view.history=JSON.stringify(state.timerHistory);
   TimerView.prototype.render.call(view,state);
   assert.equal(view.currentTimer.remaining,60);
-  assert.equal(form.hidden,false);
+  assert.equal(form.hidden,true);
   assert.equal(blocked.hidden,true,'a valid start must not display a conflict warning');
   assert.equal(timerTransition(state,{type:'timer-start',seconds:120,now:1000}),state,'the single-timer guard must remain intact');
   state=timerTransition(state,{type:'tick',now:61000});

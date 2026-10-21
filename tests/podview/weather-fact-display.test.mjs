@@ -5,12 +5,12 @@ const answer=()=>({live:true,kind:'fact-card',receiptId:'actual-receipt',ownerRe
 const freeze=value=>{if(value&&typeof value==='object'){Object.freeze(value);Object.values(value).forEach(freeze);}return value;};
 test('typed owned weather receives shared Danish display while canonical values and provenance stay immutable',()=>{
  const raw=freeze(answer()),display=weatherFactDisplay(raw);
- assert.deepEqual(display.facts.map(f=>f.value),['15°C','Let skyet']);
+ assert.deepEqual(display.facts.map(f=>f.value),['15°','Let skyet']);
  assert.deepEqual(raw.content.facts.map(f=>f.value),['15.1 °C','partlycloudy']);
  assert.equal(display.sources,raw.content.sources);assert.equal(display.facts[0].id,'temp');assert.equal(display.facts[0].sourceId,'source:actual');assert.equal(raw.provenance.source,'Met.no');
 });
 test('whole degrees use shared negative-half and zero behavior, never relabel another unit or parse prose',()=>{
- for(const [raw,expected] of [['-2.5 °C','-3°C'],['-0.4 °C','0°C'],['0.5 °C','1°C'],['100.1 °C','100.1 °C'],['72.3 °F','72.3 °F'],['15,1 °C','15,1 °C'],['15.1 °C senere','15.1 °C senere'],['1e2 °C','1e2 °C']]){const a=answer();a.content.facts[0].value=raw;assert.equal(weatherFactDisplay(a).facts[0].value,expected);}
+ for(const [raw,expected] of [['-2.5 °C','-3°'],['-0.4 °C','0°'],['0.5 °C','1°'],['100.1 °C','100.1 °C'],['72.3 °F','72.3 °F'],['15,1 °C','15,1 °C'],['15.1 °C senere','15.1 °C senere'],['1e2 °C','1e2 °C']]){const a=answer();a.content.facts[0].value=raw;assert.equal(weatherFactDisplay(a).facts[0].value,expected);}
 });
 test('generic facts, examples, unbound sources and non-current weather detail remain untouched',()=>{
  for(const mutate of [a=>a.live=false,a=>a.kind='comparison',a=>a.provenance.kind='completed_tool',a=>a.ownerReceiptIds=[],a=>a.content.sources[0].receiptId='other',a=>a.content.sources[0].kind='url']){const a=answer();mutate(a);assert.equal(weatherFactDisplay(a),a.content);}
@@ -33,7 +33,7 @@ test('existing actual fact-widget renderer receives display copy and retains can
   const a=answer();a.status='ready';a.readConnected=true;
   const host={querySelector:q,dataset:{},visualNode:{localName:'pv-fact-card'}};
   registry.get('pv-answer').prototype.renderVisualAnswer.call(host,{connected:true},a);
-  assert.deepEqual(host.visualNode.data.content.facts.map(f=>f.value),['15°C','Let skyet']);
+  assert.deepEqual(host.visualNode.data.content.facts.map(f=>f.value),['15°','Let skyet']);
   assert.equal(a.content.facts[0].value,'15.1 °C');assert.equal(a.content.facts[1].value,'partlycloudy');
   a.status='waiting';registry.get('pv-answer').prototype.renderVisualAnswer.call(host,{connected:true},a);assert.equal(host.visualNode.data.content,undefined);
  }finally{globalThis.HTMLElement=oldElement;globalThis.customElements=oldRegistry;}

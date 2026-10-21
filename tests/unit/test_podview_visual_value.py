@@ -452,3 +452,272 @@ async def test_completed_query_is_bounded_untrusted_context_only_and_does_not_mo
         selected = await selector.select(sample, current=lambda: True)
         assert selected["content"] == content()
         assert len(hits) == 1
+
+
+def offer_completed_facts(store, owner, *, current=lambda: True, **overrides):
+    """Use the real source/final-answer owners rather than constructing private rows."""
+    from unit.test_podview_presentation import context, message
+    from unit.test_weather_result import weather_payload
+
+    assert offer(
+        store,
+        owner=owner,
+        turn_id="live:1:source",
+        task_id="answer:delegation",
+        input_revision=1,
+        delegation_id="delegation",
+        tool_name="weather_forecast",
+        result=weather_payload(),
+        current=current,
+        read_current=lambda completed: True,
+    )
+    final = message("fact-card")
+    final["presentation"].update(
+        origin="owner_sources",
+        sourceCalls=["call"],
+        summary="Vejret i dag.",
+        content={
+            "facts": [{"callId": "call", "field": field} for field in ("temperature", "condition")]
+        },
+    )
+    args = context(owner, message=json.dumps(final), current=current)
+    args.update(overrides)
+    assert store.offer_completed_answer(**args)
+    return args
+
+
+async def test_completed_answer_displays_before_same_finite_luna_call_and_keeps_source_bytes(
+    monkeypatch,
+):
+    import copy
+    from datetime import datetime
+
+    from unit.test_weather_result import weather_payload
+
+    stamp = datetime.fromisoformat(weather_payload()["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr("time.time", lambda: stamp)
+    started, release = asyncio.Event(), asyncio.Event()
+    seen = []
+
+    async def respond(request):
+        body = json.loads(request.content)
+        data = json.loads(body["input"][1]["content"])
+        assert body["model"] == MODEL and body["reasoning"] == {"effort": "none"}
+        assert body["max_output_tokens"] == 256 and len(request.content) <= 4096
+        assert "tools" not in body
+        seen.append(data)
+        started.set()
+        await release.wait()
+        return result({"show": True, "fact_ids": [data["facts"][1]["id"]]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        selector = VisualSelector(
+            client,
+            "test-key",
+            MODEL,
+            allowance=RequestAllowance(1),
+            budget=ProviderBudgetCoordinator(),
+        )
+        store, owner = VisualReceiptOwner(clock=lambda: 0), object()
+        store.bind_history_boot("test-boot")
+        store.configure_selector(selector)
+        args = offer_completed_facts(store, owner)
+        before = store.snapshot("kitchen")["items"][0]
+        original = copy.deepcopy(before)
+        assert len(before["content"]["facts"]) == 2 and "pending" not in store.snapshot("kitchen")
+        assert seen == []  # Synchronous publication does not wait for the optional task.
+        assert not store.offer_completed_answer(**args)  # Duplicate final is inert.
+        await started.wait()
+        assert selector.allowance.remaining == 0
+        assert store.snapshot("kitchen")["items"][0] == before
+        state = store._rooms["kitchen"]
+        assert not state.get("selection_offered")  # Never suppress the primary answer.
+        release.set()
+        await store._selection
+        after = store.snapshot("kitchen")["items"][0]
+        assert after["content"]["facts"] == [original["content"]["facts"][1]]
+        assert after["content"]["summary"] == original["content"]["summary"]
+        assert after["content"]["sources"] == original["content"]["sources"]
+        assert {k: v for k, v in after.items() if k not in {"content", "answerRevision"}} == {
+            k: v for k, v in original.items() if k not in {"content", "answerRevision"}
+        }
+        assert after["answerRevision"] == original["answerRevision"] + 1
+        assert len(seen) == 1 and seen[0] == original["content"]
+        assert store.source("kitchen", after["receiptId"])["sourceText"].count("\n") == 1
+        assert store._history["kitchen"]["items"][0]["display"]["content"] == after["content"]
+        await store.aclose()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "revision",
+        "answer",
+        "owner",
+        "expiry",
+        "complete",
+        "revoked",
+        "inactive",
+        "choice",
+        "cancel",
+        "close",
+    ],
+)
+async def test_completed_enrichment_cannot_replace_changed_or_retired_answer(monkeypatch, change):
+    from datetime import datetime
+
+    from unit.test_podview_presentation import context, message
+    from unit.test_weather_result import weather_payload
+
+    stamp = datetime.fromisoformat(weather_payload()["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr("time.time", lambda: stamp)
+    started, release = asyncio.Event(), asyncio.Event()
+    live, now = [True], [0.0]
+
+    async def select(data, **kwargs):
+        started.set()
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            await release.wait()  # A cancellation-resistant provider must still be inert.
+        return {"family": "fact-card", "content": {**data, "facts": data["facts"][1:]}}
+
+    selector = AsyncMock()
+    selector.select.side_effect = select
+    store, owner = VisualReceiptOwner(clock=lambda: now[0]), object()
+    store.configure_selector(selector)
+    offer_completed_facts(store, owner, current=lambda: live[0])
+    await started.wait()
+    task = store._selection
+    state, row = store._rooms["kitchen"], store._rooms["kitchen"]["items"][0]
+    if change == "revision":
+        state["revision"] += 1
+    elif change == "answer":
+        assert store.offer_completed_answer(
+            **context(owner, response_id="later", message=json.dumps(message()))
+        )
+    elif change == "owner":
+        assert offer(store, owner=object())
+    elif change == "expiry":
+        now[0] = 6
+    elif change == "complete":
+        store.complete("kitchen", owner, "session", 1)
+    elif change == "revoked":
+        store.revoke("kitchen", owner, "session", 1)
+    elif change == "inactive":
+        live[0] = False
+    elif change == "choice":
+        row["item"]["content"]["summary"] = "Et nyere valgt indhold"
+    elif change == "cancel":
+        task.cancel()
+        await asyncio.sleep(0)
+    else:
+        store.close()
+        await asyncio.sleep(0)
+    release.set()
+    await task
+    assert len(row["item"]["content"]["facts"]) == 2
+    assert selector.select.await_count == 1
+    await store.aclose()
+
+
+@pytest.mark.parametrize(
+    "outcome", ["unchanged", "declined", "malformed", "exhausted", "rate_limited"]
+)
+async def test_optional_bridge_failure_or_no_change_preserves_first_answer(monkeypatch, outcome):
+    from datetime import datetime
+
+    from unit.test_weather_result import weather_payload
+
+    stamp = datetime.fromisoformat(weather_payload()["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr("time.time", lambda: stamp)
+    hits = []
+
+    def respond(request):
+        data = json.loads(json.loads(request.content)["input"][1]["content"])
+        hits.append(request)
+        if outcome == "rate_limited":
+            return httpx.Response(429)
+        if outcome == "unchanged":
+            return result({"show": True, "fact_ids": [f["id"] for f in data["facts"]]})
+        if outcome == "declined":
+            return result({"show": False, "fact_ids": []})
+        return result({"show": True, "fact_ids": ["invented"]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        allowance = RequestAllowance(0 if outcome == "exhausted" else 1)
+        selector = VisualSelector(
+            client, "test-key", MODEL, allowance=allowance, budget=ProviderBudgetCoordinator()
+        )
+        store, owner = VisualReceiptOwner(clock=lambda: 0), object()
+        store.configure_selector(selector)
+        args = offer_completed_facts(store, owner)
+        before = store.snapshot("kitchen")
+        history_revision = store._history["kitchen"]["revision"]
+        if store._selection is not None:
+            await store._selection
+        assert store.snapshot("kitchen") == before
+        assert store._history["kitchen"]["revision"] == history_revision
+        assert not store.offer_completed_answer(**args)
+        assert len(hits) == (outcome != "exhausted")
+        assert allowance.remaining == 0
+        await store.aclose()
+
+
+@pytest.mark.parametrize("family", ["concise", "choices", "checklist", "single-fact"])
+async def test_optional_bridge_skips_unsupported_or_single_fact_answers(monkeypatch, family):
+    from datetime import datetime
+
+    from unit.test_podview_presentation import message
+    from unit.test_weather_result import weather_payload
+
+    stamp = datetime.fromisoformat(weather_payload()["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr("time.time", lambda: stamp)
+    selector = AsyncMock()
+    store, owner = VisualReceiptOwner(clock=lambda: 0), object()
+    store.configure_selector(selector)
+    final = message("fact-card" if family == "single-fact" else family)
+    if family == "single-fact":
+        final["presentation"].update(
+            origin="owner_sources",
+            sourceCalls=["call"],
+            content={"facts": [{"callId": "call", "field": "temperature"}]},
+        )
+    offer_completed_facts(store, owner, message=json.dumps(final))
+    assert len(store.snapshot("kitchen")["items"]) == 1
+    assert store._selection is None
+    selector.select.assert_not_awaited()
+    await store.aclose()
+
+
+async def test_completed_enrichment_binds_revision_before_task_can_start(monkeypatch):
+    from datetime import datetime
+
+    from unit.test_podview_presentation import context, message
+    from unit.test_weather_result import weather_payload
+
+    stamp = datetime.fromisoformat(weather_payload()["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr("time.time", lambda: stamp)
+    hits = []
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: hits.append(request))
+    ) as client:
+        selector = VisualSelector(
+            client,
+            "test-key",
+            MODEL,
+            allowance=RequestAllowance(1),
+            budget=ProviderBudgetCoordinator(),
+        )
+        store, owner = VisualReceiptOwner(clock=lambda: 0), object()
+        store.configure_selector(selector)
+        offer_completed_facts(store, owner)
+        old = store._rooms["kitchen"]["items"][0]
+        task = store._selection
+        assert store.offer_completed_answer(
+            **context(owner, response_id="immediate-next", message=json.dumps(message()))
+        )
+        await task
+        assert hits == [] and selector.allowance.remaining == 1
+        assert len(old["item"]["content"]["facts"]) == 2
+        await store.aclose()

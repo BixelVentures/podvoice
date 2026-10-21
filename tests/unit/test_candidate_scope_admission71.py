@@ -21,12 +21,22 @@ def published_71_source_root(tmp_path_factory):
         text=True,
         capture_output=True,
     )
+    ref = "2.0.71"
+    if published.returncode != 0:
+        # The user deferred the tag; the actual published71 merge is immutable.
+        ref = "84c75d6b9e9eb89698d40333ffe310333e5375eb"
+        published = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
     if published.returncode != 0:
         yield ROOT
         return
     target = tmp_path_factory.mktemp("published71-source") / "repo"
     subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
-    subprocess.run(["git", "checkout", "--quiet", "2.0.71"], cwd=target, check=True)
+    subprocess.run(["git", "checkout", "--quiet", ref], cwd=target, check=True)
     ROOT = target
     try:
         yield target

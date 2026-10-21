@@ -260,7 +260,11 @@ def explanation_content(
         return f"presentation:{receipt_id}:{index}"
 
     if family == "concise":
-        _object(raw, set())
+        # Semantic intent comes from the existing conversation model, never a
+        # local phrase/length heuristic. Do not admit an unqualified text echo.
+        _object(raw, {"visualValue"})
+        if raw["visualValue"] != "reference":
+            raise ValueError("concise requires explicit useful reference value")
     elif family == "comparison":
         _object(raw, {"columns", "items"})
         columns = [_text(label, 80) for label in _rows(raw["columns"], 3)]
@@ -443,14 +447,7 @@ def offer_completed(
             return False
         presentation = parsed["presentation"]
         if presentation is None:
-            presentation = {
-                "family": "concise",
-                "title": "Svar fra PodVoice",
-                "summary": parsed["spoken"],
-                "origin": "ai_explanation",
-                "content": {},
-                "sourceCalls": [],
-            }
+            return False  # Spoken-only completion never fabricates a visual/history receipt.
         if (
             presentation["origin"] == "ai_explanation"
             and (
@@ -466,14 +463,7 @@ def offer_completed(
                     },
                 }
             else:
-                presentation = {
-                    "family": "concise",
-                    "title": "Svar fra PodVoice",
-                    "summary": parsed["spoken"],
-                    "origin": "ai_explanation",
-                    "content": {},
-                    "sourceCalls": [],
-                }
+                return False  # Unsupported image is not a reason to echo spoken text.
         receipt_id = secrets.token_hex(16)
         now, deadline = time.time(), sink._clock() + 120
         provenance: dict = {"kind": "ai_explanation"}
@@ -512,7 +502,6 @@ def offer_completed(
                 _object(presentation["content"], {"items"})
                 items = []
                 chart_unit = None
-                chart_fallback = False
                 for i, ref in enumerate(_rows(presentation["content"]["items"])):
                     _object(ref, {"callId", "field"})
                     record = source_rows.get(ref["callId"])
@@ -539,8 +528,7 @@ def offer_completed(
                     ):
                         return False
                     if not -1_000_000_000 <= value <= 1_000_000_000:
-                        chart_fallback = True
-                        break
+                        return False  # Keep source values; do not fabricate a text fallback.
                     chart_unit = unit
                     items.append(
                         {
@@ -550,36 +538,24 @@ def offer_completed(
                             "sourceId": "source:" + receipt_id,
                         }
                     )
-                if chart_fallback:
-                    presentation = {
-                        "family": "concise",
-                        "title": "Svar fra PodVoice",
-                        "summary": parsed["spoken"],
-                        "origin": "ai_explanation",
-                        "content": {},
-                        "sourceCalls": [],
-                    }
-                    provenance = {"kind": "ai_explanation"}
-                    content = explanation_content(presentation, receipt_id)
-                else:
-                    content = {
-                        "summary": presentation["summary"],
-                        "sources": [
-                            {
-                                "id": "source:" + receipt_id,
-                                "kind": "owner_receipt",
-                                "receiptId": receipt_id,
-                                "label": "Værktøjsgrundlag fra PodVoice",
-                                "scope": "tool_result",
-                            }
-                        ],
-                        "unit": chart_unit,
-                        "unitSingular": chart_unit,
-                        "items": items,
-                    }
-                    source_text = "\n".join(
-                        f"{row['label']}: {row['value']} {chart_unit}" for row in items
-                    )[:1200]
+                content = {
+                    "summary": presentation["summary"],
+                    "sources": [
+                        {
+                            "id": "source:" + receipt_id,
+                            "kind": "owner_receipt",
+                            "receiptId": receipt_id,
+                            "label": "Værktøjsgrundlag fra PodVoice",
+                            "scope": "tool_result",
+                        }
+                    ],
+                    "unit": chart_unit,
+                    "unitSingular": chart_unit,
+                    "items": items,
+                }
+                source_text = "\n".join(
+                    f"{row['label']}: {row['value']} {chart_unit}" for row in items
+                )[:1200]
             elif presentation["family"] == "sourced-image":
                 _object(presentation["content"], {"image"})
                 ref = _object(presentation["content"]["image"], {"callId", "field"})
@@ -613,24 +589,8 @@ def offer_completed(
                     ],
                 }
             elif presentation["family"] != "fact-card":
-                # Do not turn arbitrary web prose into charts/procedures or source claims.
-                presentation = {
-                    "family": "concise",
-                    "title": presentation["title"],
-                    "summary": parsed["spoken"],
-                    "origin": "ai_explanation",
-                    "content": {},
-                    "sourceCalls": [],
-                }
-                provenance = {"kind": "ai_explanation"}
-                content = explanation_content(
-                    presentation,
-                    receipt_id,
-                    owned_images=owned_image_sources()
-                    if presentation["family"] == "sourced-image"
-                    or "ownedImage" in presentation.get("content", {})
-                    else {},
-                )
+                # Unsupported source anatomy never acquires a synthetic text fallback.
+                return False
             else:
                 _object(presentation["content"], {"facts"})
                 facts = []
@@ -682,25 +642,14 @@ def offer_completed(
                 }
                 source_text = "\n".join(f"{f['label']}: {f['value']}" for f in facts)[:1200]
         else:
-            try:
-                content = explanation_content(
-                    presentation,
-                    receipt_id,
-                    owned_images=owned_image_sources()
-                    if presentation["family"] == "sourced-image"
-                    or "ownedImage" in presentation.get("content", {})
-                    else {},
-                )
-            except ValueError:
-                presentation = {
-                    "family": "concise",
-                    "title": presentation["title"],
-                    "summary": parsed["spoken"],
-                    "origin": "ai_explanation",
-                    "content": {},
-                    "sourceCalls": [],
-                }
-                content = explanation_content(presentation, receipt_id)
+            content = explanation_content(
+                presentation,
+                receipt_id,
+                owned_images=owned_image_sources()
+                if presentation["family"] == "sourced-image"
+                or "ownedImage" in presentation.get("content", {})
+                else {},
+            )
             valid_until = now + 120
         if not current():
             return False
@@ -772,7 +721,7 @@ def offer_completed(
 
 
 PRIMARY_PRESENTATION_INSTRUCTIONS = """\nPodView-præsentation er valgfri og må ikke udløse delegation alene for at tegne et svar. Et allerede delegeret slutresultat kan være JSON med spoken og presentation. Brug kun spoken som det naturlige svar; læs aldrig JSON, metadata eller præsentationsfelter op. Det ændrer ikke samtalens handlinger, godkendelser eller afslutning.\n"""
-BACKEND_PRESENTATION_INSTRUCTIONS = """\nNår du allerede udfører denne delegerede opgave, kan et nyttigt visuelt svar følge med dit NORMALE sidste assistantresultat. Ingen ekstra værktøjer, opslag eller modelrunde for visningen. Hold hele resultatet under2048 UTF-8bytes. Returnér da kun JSON {"spoken":"det almindelige korte danske svar","presentation":{"family":"...","title":"...","summary":"...","origin":"ai_explanation","content":{},"sourceCalls":[]}}. Ellers returnér almindelig kort tekst. Brug aldrig HTML, CSS, JS, URLer, IDer eller handlingsargumenter. En AI-forklaring er undervisning/foreslået plan, aldrig påstand om husstandens aktuelle målinger eller udførte handlinger. Vælg kun meningsfuldt format: concise content{}, comparison content{columns:[tekst],items:[{label,values:[tekst]}]}, choices content{items:[{label,detail}]}, chart kræver origin owner_sources og content{items:[{callId,field:"temperature"}]} fra faktisk accepteret vejr; serveren kopierer tal/enhed, steps content{steps:[tekst]}, checklist content{items:[{label}]} aldrig antaget færdig, fact-card kræver owner_sources og de nedenfor beskrevne kildefelter, answer-timeline content{events:[{time,label,detail}]} kun foreslået plan, simple-diagram content{nodes:[{label,detail}]} med valgfri ownedImage:"bicycle_drivetrain" kun ved forklaring om cyklens drivlinje. Højst8rækker,6valg/sammenligningsrækker,3sammenligningskolonner,5diagramnoder,6facts. Hver tekst kort; summary højst600tegn. Aktuelle vejrmålinger kræver origin owner_sources, sourceCalls:[de faktiske accepterede tool call-IDer], family fact-card og content{facts:[{callId,field:"temperature" eller "condition" (webværktøjets korte hele kildeuddrag kan vælges som field:"excerpt:0" til "excerpt:5")}]}; server kopierer selv kildens værdier. Andre faktiske data må ikke opfindes som AI-eksempel. sourced-image content{ownedImage:"bicycle_drivetrain"} må kun vælges til en relevant undervisningsforklaring om cyklens pedaler/kæde/baghjul. Det er en AI-genereret principskitse, ikke teknisk dokumentation. Til andre emner vælg et andet format; opfind aldrig billedURL/kilde/credit. Hvis format/kilde ikke passer, vælg concise.\n"""
+BACKEND_PRESENTATION_INSTRUCTIONS = """\nNår du allerede udfører denne delegerede opgave, kan et nyttigt visuelt svar følge med dit NORMALE sidste assistantresultat. Ingen ekstra værktøjer, opslag eller modelrunde for visningen. Hold hele resultatet under2048 UTF-8bytes. Returnér da kun JSON {"spoken":"det almindelige korte danske svar","presentation":{"family":"...","title":"...","summary":"...","origin":"ai_explanation","content":{},"sourceCalls":[]}}. Ellers returnér almindelig kort tekst. Brug aldrig HTML, CSS, JS, URLer, IDer eller handlingsargumenter. En AI-forklaring er undervisning/foreslået plan, aldrig påstand om husstandens aktuelle målinger eller udførte handlinger. Vælg kun meningsfuldt format: concise content{visualValue:"reference"} kun til nyttig genlæsning/reference, comparison content{columns:[tekst],items:[{label,values:[tekst]}]}, choices content{items:[{label,detail}]}, chart kræver origin owner_sources og content{items:[{callId,field:"temperature"}]} fra faktisk accepteret vejr; serveren kopierer tal/enhed, steps content{steps:[tekst]}, checklist content{items:[{label}]} aldrig antaget færdig, fact-card kræver owner_sources og de nedenfor beskrevne kildefelter, answer-timeline content{events:[{time,label,detail}]} kun foreslået plan, simple-diagram content{nodes:[{label,detail}]} med valgfri ownedImage:"bicycle_drivetrain" kun ved forklaring om cyklens drivlinje. Højst8rækker,6valg/sammenligningsrækker,3sammenligningskolonner,5diagramnoder,6facts. Hver tekst kort; summary højst600tegn. Aktuelle vejrmålinger kræver origin owner_sources, sourceCalls:[de faktiske accepterede tool call-IDer], family fact-card og content{facts:[{callId,field:"temperature" eller "condition" (webværktøjets korte hele kildeuddrag kan vælges som field:"excerpt:0" til "excerpt:5")}]}; server kopierer selv kildens værdier. Andre faktiske data må ikke opfindes som AI-eksempel. sourced-image content{ownedImage:"bicycle_drivetrain"} må kun vælges til en relevant undervisningsforklaring om cyklens pedaler/kæde/baghjul. Det er en AI-genereret principskitse, ikke teknisk dokumentation. Til andre emner vælg et andet format; opfind aldrig billedURL/kilde/credit. Hvis format/kilde ikke passer, returnér presentation:null eller almindelig talt tekst uden visning.\n"""
 
 
 def remember_source(
@@ -872,3 +821,8 @@ def remember_source(
 
 
 BACKEND_PRESENTATION_INSTRUCTIONS += """\nEt faktisk accepteret podconnect_recently_played, podconnect_top_tracks eller podconnect_liked kan også give sourced-image med origin owner_sources, sourceCalls:[det faktiske call-ID] og content{image:{callId:det samme call-ID,field:"track:0:artwork"}}. Indekset er den nøjagtige række i det modtagne tracks-array; vælg kun en række med artwork.kind album_cover og provider spotify. Serveren kopierer selv konto, nummer, omslag og Spotify-kilde; opfind aldrig URL/credit/licens eller andre metadata. Et omslag beviser ikke aktuel afspilning, dato eller antal afspilninger. Brug dette kun, når omslaget er relevant for brugerens musikspørgsmål; andre emners billedkilder er ikke understøttet. Ingen ekstra kald eller modelrunde for billedet.\n"""
+
+
+BACKEND_PRESENTATION_INSTRUCTIONS += """
+Vælg en visning kun når den giver konkret visuel merværdi ud over det talte svar: en sammenligning, overskuelige trin/valg, et kildebundet vejroverblik/faktagrundlag eller en forklaring, som brugeren meningsfuldt kan genlæse. En kommando-kvittering, afspilnings-/timer-/enhedsstatus, tak, farvel, opklaring eller anden dialoglim skal bruge presentation:null eller almindelig talt tekst; den eksisterende widget viser opgavens status. Opfind aldrig en kort tekstvisning blot fordi backendopgaven er færdig. concise kræver content{visualValue:"reference"}; dette er din udtrykkelige semantiske vurdering af nyttigt referenceindhold, ikke en standardværdi eller længdeklassifikation. Ved tvivl: ingen ny visning. Tale og allerede nyttigt skærmindhold fortsætter uafhængigt. Ingen ekstra modelrunde, værktøj eller opslag for at afgøre dette.
+"""
