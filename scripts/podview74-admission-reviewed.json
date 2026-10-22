@@ -8,7 +8,7 @@
     "pyproject.toml": "0d2fea95b42602559c029f67848a02a90690c908612ed0fae8dc0b2639d1ff14"
   },
   "policy": {
-    ".github/workflows/ci.yml": "6e0d460069b780a15dd53f882103064bcfa19cbdbc33c79e4f1e679d47d0fca0",
+    ".github/workflows/ci.yml": "ac76b59eb154f4cf32c4027340c98acffb2fb86cf9480cb90ccee39fb8ecddca",
     "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
     "scripts/candidate_scope_admission55.py": "27bcff315821d51484026279cbe78574e5ff04a2601cb1ba7417621dd34d2869",
@@ -63,15 +63,16 @@
   },
   "regressions": {
     "tests/browser/daily_ui.cjs": "b4d90d1b1d7700ce4cfb30c58a3b16b1e392a79472cb91d3430edd75ecc9af05",
+    "tests/browser/live_status.cjs": "fa8fadcbdee5b382be4cb2f65b937ae546d3b03525a68c664623f768894719e2",
     "tests/integration/test_podview_controller_continuity.py": "032d8c89050e81a6541e0166651fa64e34fbca85d22a0299e924062d80094e4f",
     "tests/integration/test_talk_webrtc_browser.py": "06c7d164f38b99a16dce2647a7cf58808f40becd4e470d0be0675c67ffe76d9b",
     "tests/podview/controller-peer-recovery.test.mjs": "c7e4ef16436217d8abed4c5fe3067e4dae69cb0e63fd777a4c51e505b892b940",
+    "tests/podview/root-overview-media-cards.test.mjs": "b6e4e7845c4eda946e340abbefe02fe9bbf584bf4fb46d66296bea0bab5012c8",
     "tests/podview/root-robot-control-panel.test.mjs": "e038840d77df21da0723081107df2af22437faa4c3f2f97c003f32eeee0ba179",
     "tests/unit/test_candidate_scope_admission73.py": "4fb9f469d9e6a88318ced1fe001ee65df8de01493fac5877c3beafb15319decf",
     "tests/unit/test_candidate_scope_admission74.py": "cd2881c107958923ce78c468d6080f3918eb23c6f7cf06a921ddfa4182287258",
     "tests/unit/test_dev_cycle.py": "160f85ebdc69242950a68903b18168d28241da0c570e97f906bb27c6d3dd4460",
-    "tests/unit/test_panel_contract.py": "5bd660552dfb68d08e7cb630dc938decc8cae80fc27ad9634fff16546822b36f",
-    "tests/podview/root-overview-media-cards.test.mjs": "b6e4e7845c4eda946e340abbefe02fe9bbf584bf4fb46d66296bea0bab5012c8"
+    "tests/unit/test_panel_contract.py": "5bd660552dfb68d08e7cb630dc938decc8cae80fc27ad9634fff16546822b36f"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "dd755ce121e980305514a946dfebd8d50f747c3abe5ef550de9a5854bf5890b2",
@@ -392,7 +393,7 @@
   },
   "schema": "podview74.admission.v1",
   "tooling": {
-    ".github/workflows/ci.yml": "6e0d460069b780a15dd53f882103064bcfa19cbdbc33c79e4f1e679d47d0fca0",
+    ".github/workflows/ci.yml": "ac76b59eb154f4cf32c4027340c98acffb2fb86cf9480cb90ccee39fb8ecddca",
     ".gitignore": "59fefbd55eb97763c5e82d9c5fc428f02b553138907a1d3501ab8eaaf16e7b21",
     "AGENTS.md": "c451ba9702c2ca9b92e89fdc5f98f6bf3337757b860bb647be1d6e5dc8885bdb",
     "CLAUDE.md": "ae8fd9ee7093a80647592372719a956f6d938a04838dee845bb22ccb5beb5a7c",

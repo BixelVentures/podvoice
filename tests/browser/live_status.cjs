@@ -114,12 +114,12 @@ if (process.env.PODVOICE_BROWSER_PROOF === '1') {
         assert.equal(await page.locator('.room img').count(),0);
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow '+width);
         await page.locator('.room button').first().focus();
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Start samtale');
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Stop');
         await page.evaluate(()=>{document.querySelector('details.room-diagnostics').open=true;document.querySelector('details.live-explanation').open=true; var v=rooms['Køkken'].live_status;applyEvent({type:'live_status',room:'Køkken',live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Et værktøj arbejder'}});});
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Start samtale','SSE preserves button focus');
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Stop','SSE preserves button focus');
         assert.equal(await page.locator('details.live-explanation').evaluate(e=>e.open),true);
         await page.evaluate(()=>{var v=rooms['Køkken'].live_status;applyStatus({rooms:[{...rooms['Køkken'],live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Afventer svar'}}]});});
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Start samtale','poll preserves button focus');
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Stop','poll preserves button focus');
         assert.equal(await page.locator('details.live-explanation').evaluate(e=>e.open),true);
         await page.locator('details.live-explanation summary').focus();
         await page.evaluate(()=>{var v=rooms['Køkken'].live_status;applyEvent({type:'live_status',room:'Køkken',live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Næste måling'}});});

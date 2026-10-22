@@ -10,13 +10,13 @@
   "base_tip": "0dfae681c18c104d98a1b91fe8b03f9ef8c75834",
   "merge_base": "0dfae681c18c104d98a1b91fe8b03f9ef8c75834",
   "fingerprint": "a8d5397c2b47675797da8b24be8065663f2a5c8151bad376d6dd64443c9a8b7f",
-  "regression_fingerprint": "5ecabbdb61fa241383e097074eae4b033b72ad128d155d5a0dcd6aa82ee8bf8a",
+  "regression_fingerprint": "a42cdebddd0dadc699c3dc16db2f920231f965423926aa88e1ed3bc7abbea44e",
   "runtime_fingerprint": "a7c5c9e4d2618eaa507b492348dc295668dbbb421eb9bc1541f176ba0b3ff268",
   "config_fingerprint": "0d53a062c82890d0c165cec2c31146df1fe613edb7c9256a715cda79b1eb42bd",
-  "policy_fingerprint": "32d6caaa61e0e163004fe0ee58b50666b7b1963b420d606d993bd3755b34072c",
-  "tooling_fingerprint": "28ecf5241d95c78f74132daaf7acefc825a1a69b310fc44079bcb04c9e7c0ade",
-  "manifest_fingerprint": "e5faba03f556bd74e38583024e4e7630b800ed40647a4f107ddf09e1ab5e23c7",
-  "rationale": "Final UI20 source and exact six-production/ten-regression scope independently approved by /root/sol61_review74_final under Python3.12. Caption-only widget condition and existing causal test are the sole additions to the previously reviewed74 inventories; strict function logic is identical. Exact200 assets and all manifest hashes match; runtime315,config4,prior-policy44,tooling27 and historical73 pins remain closed. Reviewed robot, legacy.sub, permission and peer-recovery evidence is retained. Only final binding/hash closure and affected admission tests are renewed; official CI/publication/installation and physical QA remain pending."
+  "policy_fingerprint": "036f6713077bdb19c55a52a08bb8c01fc88a404360ec519f42914cf7171f9be2",
+  "tooling_fingerprint": "98a5f8a41a3842812b4305845aacd53abaf967743ba58e04e6a4b47c52055b60",
+  "manifest_fingerprint": "3f13ac9e9956411ae732a3fb5df110654a4e3baba4466e78276babdbfd428602",
+  "rationale": "Final UI20 source and exact six-production/ten-regression scope independently approved by /root/sol61_review74_final under Python3.12. Caption-only widget condition and existing causal test are the sole additions to the previously reviewed74 inventories; strict function logic is identical. Exact200 assets and all manifest hashes match; runtime315,config4,prior-policy44,tooling27 and historical73 pins remain closed. Reviewed robot, legacy.sub, permission and peer-recovery evidence is retained. Only final binding/hash closure and affected admission tests are renewed; official CI/publication/installation and physical QA remain pending. Final CI correction: display label advances74; legacy live_status keyboard assertions follow Stop instead of removed unsupported Start, retaining focus checks. No production/runtime/config change."
 }
 -->
 
@@ -3233,3 +3233,6 @@ Root is now the sole mutating release lead after the prior coordinator capacity 
 
 ## Final UI20 candidate74 validation —22October2026
 UI20 exact admission PASS and all12 admission regressions PASS on fixed Python3.12 in the durable development clone. Shipped media-card regression6/6 and robot-panel regression36/36 PASS; canonical UI owner reports1701 PASS and independent source GO. Earlier unchanged source checks and final legacy Chromium receipt remain applicable. Manifest e5faba03f556bd74e38583024e4e7630b800ed40647a4f107ddf09e1ab5e23c7; bound profile8f36a976e9def395881f6b427284b17f84b3d1c5150b0d054dd18a53040b21b0. Root exclusively owns PR234 upload/CI/merge/publication; PodView exclusively owns subsequent Green installation/runtime verification. Official CI, publication, installation and physical acceptance remain pending. Superseded transfer v2 must not be published.
+
+### Candidate74 first official CI correction
+Run39766397959 rejected stale workflow display version73 and live_status focus expectations for removed Start. Corrected label74 and three expected Stop strings; source GO from independent sol61_review74_final. No production or runtime bytes changed. Exact admission PASS and25 promotion/admission tests PASS. Corrected live_status Chromium PASS with cleanup_complete true; receipt /Users/madsbachandersen/.cache/podvoice-dev/browser-proof/pv74-ci-live-status-20261022/receipt.json. Required final official CI remains pending; prior failed run stays failed.

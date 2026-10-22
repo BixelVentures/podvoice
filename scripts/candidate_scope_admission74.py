@@ -56,6 +56,7 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_candidate_scope_admission73.py",
         "tests/unit/test_panel_contract.py",
         "tests/browser/daily_ui.cjs",
+        "tests/browser/live_status.cjs",
     }
 )
 
@@ -66,8 +67,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 }
 # Deliberately unbound: no prepared draft may claim final reviewed admission.
 REVIEWER = "/root/sol61_review74_final"
-MANIFEST_SHA = "e5faba03f556bd74e38583024e4e7630b800ed40647a4f107ddf09e1ab5e23c7"
-PROFILE_AST = "55a43c56b440d9c63a2130d980540660f3dc03b038d4ae457e5c1c67d40bd5d9"
+MANIFEST_SHA = "3f13ac9e9956411ae732a3fb5df110654a4e3baba4466e78276babdbfd428602"
+PROFILE_AST = "a628d762be2a15dd33af4d35155aac0fa8c3ebb8084cecc6735b9acfd5f854a1"
 
 
 def record_at(root: Path) -> dict | None:
