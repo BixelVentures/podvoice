@@ -35,7 +35,7 @@ export class SceneMotion {
   if(previous?.visible===visible&&(!visible||previous.signature===signature))return;
   const token={};this.feedbackTokens.set(node,token);this.feedbackStates.set(node,{visible,signature});
   if(visible){node.hidden=false;this.animate(node,previous?.visible?[{opacity:.7},{opacity:1}]:[{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'none'}],previous?.visible?120:160,{fadeReduced:true});return;}
-  const animation=this.animate(node,[{opacity:1},{opacity:0}],120,{fadeReduced:true});if(!animation){node.hidden=true;return;}animation.finished.then(()=>{if(this.feedbackTokens.get(node)===token)node.hidden=true;},()=>{});
+  const animation=this.animate(node,[{opacity:1},{opacity:0}],120,{fadeReduced:true});if(!animation){node.hidden=true;return;}animation.finished.then(()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;},()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;});
  }
  holdGeometry(){
   if(this.geometry.size)return;

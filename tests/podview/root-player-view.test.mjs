@@ -336,3 +336,26 @@ test('radio station branding uses decoded cover pixels at the same quiet12percen
  for(const [sourceKind,source]of [['radio','assets/radio-p3.svg'],['music','assets/top-heartless.svg']]){f.view.progressVM={active:true,sourceKind};cover.src=source;f.view.updateCoverTone();assert.equal(style.getPropertyValue('--player-cover-tone'),'rgb(0 255 0 / .12)');assert.equal(style.getPropertyValue('--pv-cover'),'rgb(0 255 0 / .12)');assert.equal(cover.src,source);f.view.updateCoverTone();}
  assert.equal(samples,2,'the actual source palette is cached rather than re-read or branded by phase');f.view.cleanup();
 });
+
+test('open player detail and fixed empty player share honest source states through active-to-empty crossings',()=>{
+ const f=surface({live:true}),active={active:true,playing:true,fresh:true,title:'Observed song',artist:'Observed artist',target:'Kitchen',canOutput:true};
+ for(const [status,connected,message]of [
+  ['loading',true,'Henter afspilningsstatus'],
+  ['error',true,'Afspilningen kunne ikke hentes.'],
+  ['ready',false,'Afspilningen kan ikke hentes offline.'],
+  ['account-selection',true,'Vælg en musikkonto.'],
+  ['ready',true,'Vælg en stemning eller sang.'],
+ ]){
+  f.view.renderPlayer(active);const title=f.nodes.get('detail-title'),detail=f.nodes.get('detail-status');
+  const vm=livePlayerModel(null,connected,status);f.view.renderPlayer(vm);
+  assert.equal(detail.textContent,message);assert.equal(f.view.emptyCopy.textContent,message);
+  assert.equal(f.nodes.get('detail-title'),title);assert.equal(f.nodes.get('detail-status'),detail);
+  assert.equal(f.nodes.get('track-name').textContent,'');assert.equal(f.nodes.get('play-pause').disabled,true);
+  assert.equal(f.nodes.get('player-empty').getAttribute('aria-busy'),String(status==='loading'));
+  f.view.renderPlayer({...vm,feedback:{message:'Afspilningen kunne ikke bekræftes',pending:false}});
+  assert.equal(detail.textContent,'Afspilningen kunne ikke bekræftes');assert.equal(f.view.emptyCopy.textContent,detail.textContent);
+ }
+ f.view.renderPlayer(active);assert.equal(f.nodes.get('track').getAttribute('aria-label'),null);
+ assert.equal(f.nodes.get('track').getAttribute('aria-description'),'Åbn afspiller');
+ assert.equal(f.nodes.get('track-name').textContent,active.title);assert.equal(f.nodes.get('track-artist').textContent,active.artist);
+});

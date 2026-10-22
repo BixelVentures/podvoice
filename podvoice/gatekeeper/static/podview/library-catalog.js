@@ -22,7 +22,7 @@ export const productLibrary=[
  {id:'composition',name:'Overblik og Ro',category:'Skærm',description:'Den samlede komposition med et fleksibelt venstreområde og vedvarende player.',usage:'Brug overblikket til det aktuelle og Ro til billedrammen. Sekundære widgets må ligge længere nede i scroll.',interaction:'Åbn en widget, brug Tilbage, og prøv scroll. Musik og timere skal bevare deres identitet.',limitations:['Ro bruger den eksisterende baggrund. Privat fotoalbum er udskudt.'],states:[
   ...[['first-connecting','Første forbindelse'],['first-unavailable','Ingen forbindelse endnu'],['first-denied','Home Assistant kræver login'],['first-empty','Forbundet uden tilgængeligt indhold']].map(([stage,label])=>state('composition',stage,label,'Lokalt tilstandseksempel. Ingen faktisk HA-login, netværksforbindelse eller enheder. Prøv igen viser forbindelsestilstanden uden netværkskald.')),
   state('composition','night','Ro · nat','Nattevisning med dæmpet foto og varmt ur. Lokalt eksempel; ingen påstået solsensor.'),
-  state('composition','activities-combined','Timer, robot og opladning · lokalt eksempel','Vælg mellem tre aktiviteter i samme hero; ingen fysisk betjening.'),
+  state('composition','activities-combined','Timer, robot og opladning · lokalt eksempel','Aktiv timer i den faste timerbar med robot og opladning i deres egne widgets; ingen fysisk betjening.'),
   state('composition','conversation-overview','Overblik med aktiviteter','To kolonner, aktiv timer og stor player. Scroll i venstre side.'),
   state('composition','nothing','Overblik uden aktive timere','Indgange til hjemmet, uden at opfinde aktive ressourcer.'),
   state('composition','rest','Ro med musik','Foto, ur og dato med kompakt afspilning.'),
@@ -117,7 +117,9 @@ export const productLibrary=[
   state('radio','radio-ready','Stationsvalg','P3, P1, P4 og flere i den eksisterende valgkomponent.'),
   state('radio','radio-selected','Station valgt','Radioindhold i samme højreplayer.'),
   state('radio','radio-paused','På pause','Den valgte station bevares på pause.'),
-  state('radio','radio-offline','Forbindelse mangler','Stationerne bliver synlige; valg er ikke en liveafspilning.')
+  state('radio','radio-offline','Forbindelse mangler','Stationerne bliver synlige; valg er ikke en liveafspilning.'),
+  state('radio','first-denied','Adgang afvist · stationsvalg','Åbn det eksisterende stationsvalg uden adgang. Stationerne er synlige, men kan ikke vælges; lokalt eksempel uden DR-forbindelse.',{open:'#home-radio',key:'denied'}),
+  state('radio','first-unavailable','Ikke forbundet · stationsvalg','Åbn det eksisterende stationsvalg uden forbindelse. Ingen valgt station eller afspilning opfindes.',{open:'#home-radio',key:'unavailable'})
  ]},
  {id:'vehicle',name:'Tesla',category:'Hjem',description:'Ærlig ikke-tilsluttet bil samt tydeligt lokale og passive status-eksempler.',usage:'Bilen er en sekundær destination. Ukendte værdier må ikke ligne målte data.',interaction:'Åbn de eksisterende detaljer om opladning, klima og øvrige muligheder.',limitations:['Ingen Tesla-integration, målinger eller betjening er tilsluttet. Passive ukendte/sidst kendte observationer og lokale ladeeksempler er særskilt mærket.','Bilkontrakten tilbyder ingen kommando-pending, fault eller bagagerumskommando. De manglende tilstande opfindes ikke.'],states:[
   state('vehicle','conversation-overview','Overblik · ikke tilsluttet','Den kompakte bilindgang uden påstået batteri eller rækkevidde.'),
@@ -152,7 +154,7 @@ for(const family of productLibrary){
  family.selector=family.id.startsWith('answer-')?'#answer-host':familySelectors[family.id];
  for(const item of family.states){
   item.selector=family.selector??null;
-  if(item.open)item.selector=item.open==='#player-detail'?'#music-detail':item.open==='#output'?'#rooms':item.open==='#open-history'?'#history':'dialog[aria-labelledby="local-robot-title"][open]';
+  if(item.open)item.selector=item.open==='#player-detail'?'#music-detail':item.open==='#output'?'#rooms':item.open==='#open-history'?'#history':item.open==='#home-radio'?'#radio-view':'dialog[aria-labelledby="local-robot-title"][open]';
   else if(family.id==='composition')item.isolationNote='Kompositionen vurderes som en hel skærm; vælg en widget i listen for at se den alene.';
   else if(family.id==='conversation'){
    if(item.answerFormat)item.selector='#answer-host';

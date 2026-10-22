@@ -187,6 +187,13 @@ pv-widget-host[data-motion=reduced]>.frame{translate:none;scale:none;transition:
 .player-progress progress::-moz-progress-bar{background:var(--ink,var(--pv-ink));border-radius:var(--pv-r-s)}
 .player-progress-times{display:flex;justify-content:space-between;line-height:1.4;margin-top:var(--pv-screen-space-2)}
 .player-progress[data-stale="true"] progress{opacity:.5}
+/* Connection and command permission never fade the retained media itself.
+   Disabled transport/volume controls keep their own existing kit treatment. */
+pv-widget-host .player,
+pv-widget-host .player>:is(#player-detail,#track,#output),
+pv-widget-host .player .cover,
+pv-widget-host #music-detail .detail-cover,
+pv-widget-host #music-detail #queue>.queue-track{opacity:1;filter:none}
 .player-progress>small:not([hidden]){position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:var(--pv-type-meta);line-height:var(--pv-leading-meta);color:var(--pv-screen-muted);white-space:nowrap;pointer-events:none}
 pv-widget-host .player-progress:not([hidden])+.transport{margin-top:var(--pv-screen-space-3)}
 dialog#music-detail .player-progress{margin-top:var(--pv-screen-space-5);font-size:var(--pv-type-meta);line-height:var(--pv-leading-meta)}

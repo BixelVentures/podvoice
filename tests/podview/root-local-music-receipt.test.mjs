@@ -5,7 +5,8 @@ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widg
 const method=source.slice(source.indexOf(' scheduleReceipt('),source.indexOf('\n scheduleAnswer(')).trim();
 function fixture(){
  const timers=[],cancelled=[],events=[],receipts=[];
- const schedule=new Function('setTimeout','clearTimeout',`return ({${method}}).scheduleReceipt;`)((fn,delay)=>{const timer={fn,delay};timers.push(timer);return timer;},timer=>cancelled.push(timer));
+ const schedule=new Function('setTimeout','clearTimeout',`return ({${method}
+}).scheduleReceipt;`)((fn,delay)=>{const timer={fn,delay};timers.push(timer);return timer;},timer=>cancelled.push(timer));
  const host={live:false,frozenPreview:true,isConnected:true,state:{generation:1,music:{pending:{operation:7}}},music:event=>events.push(event),journey:{receipt:operation=>receipts.push(operation)}};
  return {schedule,host,timers,cancelled,events,receipts};
 }

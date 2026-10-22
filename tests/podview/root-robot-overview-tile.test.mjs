@@ -59,3 +59,12 @@ test('compact Light uses the complete admitted count and status without inventin
 test('M Robot keeps one readable status and battery/context line while richer source facts remain retained for L',()=>{
  const {node,nodes}=fixture(),now=Date.now()/1000,fact=(key,value,unit)=>({key,value,unit,updatedAt:now,retrievedAt:now,stale:false}),model=robot({battery:76,telemetry:{status:'observed',items:[fact('cleaning_area',12.5,'m²'),fact('cleaning_time',10,'min'),fact('cleaning_mode','vac_and_mop',null)]}});node.overviewShell={dataset:{kitSize:'m'}};updateResourceTile(node,model);assert.equal(nodes.get('.resource-value').textContent,'Ved basen');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.doesNotMatch(nodes.get('small').textContent,/Seneste|12,5|10 min|Støvsugning/);const rows=[...node.resourceFacts.rows.values()];assert.ok(node.resourceFacts.items.some(item=>item.id==='cleaning_mode'));node.overviewShell.dataset.kitSize='l';updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');assert.deepEqual([...node.resourceFacts.rows.values()],rows);node.overviewShell.dataset.kitSize='s';updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');delete node.overviewShell;node.parentNode={id:'resource-rail'};updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');
 });
+
+
+test('unconnected placeholder names come from the actual domain and rendered status',()=>{
+ for(const [kind,label]of [['vacuum','Robotstøvsuger'],['light','Lys']]){
+  const {node,nodes}=fixture(),presentation=devicePresentation({id:`empty-${kind}`,kind,status:'unavailable',live:true,presentationOnly:true});
+  updateResourceTile(node,{...presentation,target:`empty-${kind}`,detail:'Ikke forbundet'});
+  assert.equal(nodes.get('strong').textContent,label);assert.equal(nodes.get(kind==='vacuum'?'.resource-value':'small').textContent,'Ikke forbundet');assert.equal(node.disabled,false);assert.equal(node.getAttribute('aria-label'),null);
+ }
+});

@@ -866,6 +866,35 @@ class TalkHub:
     def activity(self, room: str, text: str) -> None:
         self._post({"type": "activity", "text": text})
 
+    def failure(self, room: str, kind: str) -> None:
+        """Show an actual Thin error close as a system line, never provider text."""
+        from . import constants as C
+
+        messages = {
+            "connection": "Samtalen blev afbrudt af en forbindelsesfejl.",
+            "capacity": C.FALLBACK_CAPACITY,
+            "timeout": "Samtalen blev afbrudt, fordi forbindelsen tog for lang tid.",
+            "account": "Samtalen blev afbrudt på grund af en fejl i taletjenestens konto.",
+            "device": "Samtalen blev afbrudt af en enhedsfejl.",
+        }
+        self._post(
+            {
+                "type": "error",
+                "error": messages.get(kind, "Samtalen blev afbrudt af en teknisk fejl."),
+            }
+        )
+
+    def text_response_unknown(self, room: str, command_id: str) -> None:
+        """A typed turn has no observed primary text within the display window."""
+        self._post(
+            {
+                "type": "error",
+                "code": "text_response_unknown",
+                "command_id": command_id,
+                "error": "Der er endnu ikke modtaget et tekstsvar. Beskeden bliver ikke sendt igen automatisk.",
+            }
+        )
+
     def tool_call(
         self, room: str, name: str, result: dict | None = None, args: dict | None = None
     ) -> None:

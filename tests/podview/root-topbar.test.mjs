@@ -48,7 +48,7 @@ test('desktop header keeps its divider at80 and gives the scroll viewport the in
  assert.match(boundary,/\.view-nav\{margin-bottom:0\}/);
  assert.match(boundary,/\.view-nav::after\{bottom:0\}/);
  assert.match(boundary,/\.frame>\.responses\{box-sizing:border-box;padding-block-start:var\(--pv-topbar-content-gap\)\}/);
- assert.match(boundary,/\.frame>\.player\.pv-card\{margin-block-start:var\(--pv-topbar-content-gap\);height:calc\(100% - var\(--pv-topbar-content-gap\)\);max-height:min\(calc\(100% - var\(--pv-topbar-content-gap\)\),692px\)\}/);
+ assert.match(boundary,/\.frame>:is\(\.player\.pv-card,#player-empty\)\{margin-block-start:var\(--pv-topbar-content-gap\);height:calc\(100% - var\(--pv-topbar-content-gap\)\);max-height:min\(calc\(100% - var\(--pv-topbar-content-gap\)\),692px\)\}/);
  assert.match(effects,/\.frame::before\{top:0;height:48px;/,'the existing fade starts at the viewport edge');
  assert.doesNotMatch(boundary,/(?:translate|transform|position:\s*absolute|bottom:calc\(-1)/,'geometry comes from normal flow');
  // Moving the gap inside the larger viewport preserves the initial card and

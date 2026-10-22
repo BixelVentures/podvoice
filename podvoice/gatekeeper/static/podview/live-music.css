@@ -5,6 +5,13 @@
 #live-music .live-track-art{display:block;position:static;width:100%;height:auto;aspect-ratio:1;border-radius:0;overflow:visible;background:var(--pv-screen-control)}
 #live-music .live-track-art .live-track-cover{display:block;width:100%;height:100%;aspect-ratio:1;object-fit:contain;object-position:center;opacity:1;border-radius:0}
 #live-music .live-track-art .live-track-cover.live-art-fallback{padding:28%;opacity:.6}
+/* A read-only/offline card still owns its original cover and readable title. */
+pv-widget-host #music-response #result-list>.result,
+pv-widget-host #live-music .live-music-result,
+pv-widget-host #live-music .live-track-art{opacity:1;filter:none}
+pv-widget-host #music-response #result-list>.result>.result-art:not(.live-art-fallback),
+pv-widget-host #live-music .live-track-art>.live-track-cover:not(.live-art-fallback){opacity:1;filter:none}
+pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=true])>.result-play{opacity:.45}
 #live-music .live-music-result .result-copy{flex:none;width:100%}
 #live-music .live-music-result .result-copy h2{font-size:var(--pv-type-body);line-height:1.2;color:var(--pv-screen-ink);margin:0 0 5px}
 #live-music .live-music-result .result-copy p{display:block;font-size:var(--pv-type-caption);line-height:1.25;color:var(--pv-screen-muted)}

@@ -188,7 +188,7 @@ test('transport hierarchy has one current primary command, and observation chang
 
 test('expired task and local-only selection are explicit at the actual form boundary',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{...task(),expiresAt:Date.now()/1000-1},device};const form=panel.querySelector('form');for(const room of form.querySelectorAll('[name=areaIds]'))room.checked=true;emit(form,'change');emit(form,'submit');assert.deepEqual(actions,[]);assert.ok(panel.querySelectorAll('button').every(button=>button.disabled));
- panel.data={task:task(),device,localOnly:true};const localForm=panel.querySelector('form');assert.equal(panel.cleaningSubmit.textContent,'Start rengøring');assert.equal(panel.observation.data.detail,'Eksempel');assert.ok(!localForm.querySelectorAll('p').some(node=>/Kun lokalt|Gem valg lokalt/.test(node.textContent)));assert.equal(panel.value.localOnly,true);assert.deepEqual(actions,[]);
+ panel.data={task:task(),device,localOnly:true};const localForm=panel.querySelector('form');assert.equal(panel.cleaningSubmit.textContent,'Start rengøring');assert.equal(panel.observation.data.detail,'');assert.equal(panel.value.localOnly,true);assert.ok(!localForm.querySelectorAll('p').some(node=>/Kun lokalt|Gem valg lokalt/.test(node.textContent)));assert.equal(panel.value.localOnly,true);assert.deepEqual(actions,[]);
 });
 
 

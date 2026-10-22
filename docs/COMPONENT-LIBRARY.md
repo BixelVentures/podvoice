@@ -1,5 +1,26 @@
 # PodView · det eneste komponentbibliotek
 
+## Tværgående sammenhæng · v42 · 22. oktober 2026
+
+Kvaliteten vurderes løbende på tværs af widgets, detaljer, bibliotek og faktiske klikforløb: fælles topanker, typografiske roller, ikonvægt, flader, spacing, handlingsplacering og tilstandsskift. En isoleret pæn skærm er ikke accept. Ændringer udføres hos den eksisterende ejer og kontrolleres i dens forbrugere; brugerens direkte beslutninger har forrang for eksterne reviews.
+
+- Card M med cover bruger cover/titel/kunstner/status; de generiske faktarækker må ikke lægges oven i denne anatomi. Card L kan vise kildebundne ekstra fakta. Allerede synlig kunstner, stationsnavn og lysantal gentages ikke som endnu en måling; L-rengøringsform kan bruge to linjer i sin eksisterende faktarolle. Kunstneren er body, underordnet titel. S-titler afkortes på én linje frem for at bryde danske ord; små musik-/radiokort har ingen ekstra dekorativ navigationsrække.
+- Robot M viser status som hovedværdi og faktisk batteri/rum som metadata. Det er ikke et lille telemetri-dashboard. Detaljens inaktive areal/varighed mærkes »Senest« via samme formatter i lokal og live ejer. Pending knyttes til den faktisk sendte option; andre kommandoer kan være disabled uden at foregive at være den afventende handling.
+- Lampens valgte objekt viser sin tilstand (Tændt/Slukket), mens rum/hjem bruger tællinger. Dialogens handling hedder Tænd/Sluk. Egen accepteret ændring bevarer den åbne dialog, fokus og kladde; ændret ekstern binding/revision, scope eller adgang lukker den efter de eksisterende sikkerhedsregler.
+- Vejrets Hero bruger samme indryks- og tekstroller som ressource-Hero. Kildebundne gamle oplysninger mærkes »Sidst kendte vejr«; et faktisk tomt succesopslag er fortsat forskelligt fra en kendt forbindelsesfejl.
+- Den aktive Timer beholder mørk dial og sine eksisterende kontroller. På pause, færdig eller forældet status står inden i dialens eksisterende tekstrolle, så tallet ikke kan læses som et almindeligt kørende ur. Normal Timer-titel gentages ikke dér.
+- Radio beholder den statiske introduktion; valg vises på station og i den eksisterende player. Ingen ekstra »Se afspiller«-vej til en tom nummerkø for direkte radio. Musik bevarer sin rigtige kø. En tom player-detalje genbruger samme ærlige tilstandstekst som den faste player, ikke en opdigtet bekræftelse af tom afspilning.
+
+Render- og flowbeviser samt afgrænsninger: [v42 review](qa-v42/REVIEW.md). Ingen ny komponentfamilie, nye live-kapabiliteter eller AI-testkald følger af dette kvalitetsløft.
+
+## Afgrænset v39-forbedring · 21. oktober 2026
+
+Groks forslag bruges selektivt efter de direkte brugerbeslutninger nedenfor. Vejrets tomme Hero lader tekstrollen spænde hele det eksisterende grid, når ikonrollen er skjult; kendt vejr bevarer ikon/tekst og timeprognose. Ingen fast 810px tekstbredde, universel 264px Hero eller opdigtet vejrejer-fejltilstand.
+
+De eksisterende interaktive roller Svar, outputvælger, titel/kunstner og positions-slider bruger `--pv-hit` (64px). Svar bevarer sin synlige 48px pill i den større native trykflade. Titel og kunstner deler den eksisterende knap; kunstneren bliver ikke en ny handling. Playerens faste ydre geometri bevares; separate kontrolrækker får deres egne ikke-overlappende touchområder, og det eksisterende kvadratiske billedområde tilpasser sig pladsen. Andre forslag bevarer sit eksisterende 64px mål.
+
+Manglende forbindelse bruger »Ikke forbundet«; hjælpesætningen forklarer kun opsætning, når den faktisk mangler. Offline med kendt indhold og en ikke-understøttet radiofunktion beskrives særskilt. Tesla-kortets overflødige dekorative chevron er fjernet; hele den eksisterende knap ejer fortsat navigation. Ingen nye kommandoer, komponentfamilier, interaktionsgestus eller providerrettigheder følger af rettelserne.
+
 ## Gældende tværgående detaljeregler · 21. oktober 2026
 
 Senere direkte brugerbeslutninger i denne runde har forrang over ældre daterede skitser nedenfor. De gælder de eksisterende 12 primitiver, produktets faktiske ejere og bibliotekets samme fabriksfunktioner:
@@ -471,3 +492,15 @@ Hver kendt lampes eksisterende navneknap er navigation til én retained native D
 Skift af session/opgave/revision/rum, fjernet lampe, ukendt lampetilstand eller forbindelsesskift lukker eller afskærer den gamle binding. Luk/Escape returnerer fokus til den samme synlige navneknap; en fjernet knap falder tilbage til den eksisterende overskrift. En forsinket close-hændelse kan ikke rydde en genåbnet binding. Samme Dialog, Tile, Button, Toggle og Slider-ejere gælder bibliotek og produkt; ingen ny familie eller HA-kommandomyndighed.
 
 Færdigt visuelt svar følger den eksisterende `AnswerAutoReturn`: 30 sekunder efter både tale og visuelt indhold er afsluttet → Lige nu; derefter den eksisterende 3 minutters inaktivitet til Ro. Berøring, ny tale, modal, holdt peger og åbne detaljer følger ejerens afbrydelsesværn. Musik, timer og svarhistorik bevares.
+
+
+### v40 · delte tilstandsrettelser, 21. oktober 2026
+
+TopBar afkorter lange titler før den faste Svar-pille med mindst24px mellemrum på desktop. Variable Button/Chip-labels bruger én linje med ellipsis; fuldt tilgængeligt navn bevares. Musikcovers og titler dæmpes aldrig ved manglende transportmyndighed; kun kommandomålet deaktiveres. Radio forbliver Card S, også med aktiv timer, og afviste/ikke tilbudte stationshandlinger blokeres både nativt og i handleren.
+
+Direkte brugerkorrektion: Den eksisterende Toast-portal beholder sin tidligere naturlige højde, ombrudte tekst og Retry med normal luft i flowet. Ingen tvungen64px række eller afkortning. Den reserverer ingen layoutplads, udløber efter6sekunder og lukkes ved tryk udenfor uden at opsluge trykket. Kun Retry tager pointer-events. Vedvarende forbindelsesforklaring står i det relevante Hero. Kun kendt årsag giver setup-/utilgængelig-/adgangstekst; et tomt vellykket opslag bliver ikke til opdigtet adgangsfejl.
+
+Lokale færdige svar-fixturer bruger samme returregel som produktet: bundet svarrevision, færdigt visuelt indhold og afsluttet tale, dernæst30sekunder uden berøring til Lige nu og en frisk eksisterende3minuttersfrist til Ro. Fixturen simulerer kun sin egen afgrænsede taleafslutning; ingen betalt AI eller livekvote bruges.
+
+
+v41 topanker: Den eksisterende desktop-komposition bruger samme --pv-topbar-content-gap for både fyldt .player.pv-card og #player-empty i alle tomme/fejl-/offline-tilstande. Begge starter ved y96, mens venstre scrollkant/headerdivider fortsat er y80. Dette er en præcisering af den fælles kompositionsregel, ingen ny variant eller mobil-/Ro-ændring.

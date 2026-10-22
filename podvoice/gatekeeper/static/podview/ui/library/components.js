@@ -64,7 +64,7 @@ class LibraryComponent extends HTMLElement {
    const setup=k==='light-widget'&&d.resourceStatus==='unavailable'&&d.title&&d.title!=='Lys'&&d.title!=='Hele hjemmet'?d.title:'';
    const label=k==='vacuum-widget'?'Robotstøvsuger':'Lys';
    text(this.titleNode,setup?label:d.title||label);
-   text(this.value,d.text||({unavailable:'Ikke forbundet',unknown:'Status ukendt',fault:'Status kunne ikke hentes',error:'Status kunne ikke hentes',empty:'Ingen status endnu',unsupported:'Ikke tilsluttet endnu'})[d.resourceStatus||d.state]||'Status ukendt');
+   text(this.value,['unavailable','disconnected'].includes(d.resourceStatus)?'Ikke forbundet':d.text||({unavailable:'Ikke forbundet',unknown:'Status ukendt',fault:'Status kunne ikke hentes',error:'Status kunne ikke hentes',empty:'Ingen status endnu',unsupported:'Ikke tilsluttet endnu'})[d.resourceStatus||d.state]||'Status ukendt');
    const battery=k==='vacuum-widget'&&typeof d.value==='string'&&/^\d+(?:[.,]\d+)?\s?%$/.test(d.value)&&!/batteri/i.test(d.source||d.detail||'')?`Batteri: ${d.value}`:'';
    text(this.meta,[setup,d.source||d.detail,battery].filter((entry,index,all)=>entry&&all.indexOf(entry)===index&&entry!==d.text).join(' · '));
   }

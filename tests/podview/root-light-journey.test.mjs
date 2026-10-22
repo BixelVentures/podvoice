@@ -59,3 +59,9 @@ test('offline area browsing preserves honest last-known data while every command
  for(const e of [{type:'light-scene',optionId:'hygge'},{type:'light-toggle',optionId:'kitchen-counter'},{type:'device-action',action:'turn_on'}])assert.equal(step(s,{...e,...binding(s,light(s))}),s);
  const stale={...light(s),stale:true};assert.deepEqual(deviceActions(stale),[]);
 });
+
+
+test('selected lamp Hero uses its room as context without repeating the lamp title',()=>{
+ const s=select(start(),'light:living-floor'),d=light(s),shown=devicePresentation(d);
+ assert.equal(shown.title,'Gulvlampe');assert.equal(shown.scope,'Stuen');assert.doesNotMatch(shown.scope,/Gulvlampe/);assert.equal(shown.power,true);
+});

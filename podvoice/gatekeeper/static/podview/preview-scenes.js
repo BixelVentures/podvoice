@@ -25,7 +25,7 @@ export const libraryDomainPreviewStates=['robot-detail-empty','robot-detail-stal
 export const previewStates=[...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name,now=Date.now()){
  if(libraryDomainPreviewStates.includes(name))return libraryDomainPreviewScene(name,now);
- if(firstRunPreviewStates.includes(name)){const connectionPreview=name==='first-empty'?{status:'connected',snapshot:{capabilities:{homeRead:[],musicRead:[],timerActions:[],answerRead:false}}}:{status:name==='first-connecting'?'connecting':'disconnected',blocked:name==='first-denied'};const scene=initialScene();return {...scene,music:{...scene.music,playback:{...scene.music.playback,active:false,playing:false}},focus:'now',connected:false,weatherPreview:'empty',connectionPreview,devices:[],timer:null,extraTimers:[],answers:[]};}
+ if(firstRunPreviewStates.includes(name)){const connectionPreview=name==='first-empty'?{status:'connected',reason:'setup',snapshot:{capabilities:{homeRead:[],musicRead:[],timerActions:[],answerRead:false}}}:{status:name==='first-connecting'?'connecting':'disconnected',blocked:name==='first-denied'};const scene=initialScene();return {...scene,music:{...scene.music,playback:{...scene.music.playback,active:false,playing:false}},focus:'now',connected:false,weatherPreview:'empty',connectionPreview,devices:[],timer:null,extraTimers:[],answers:[]};}
  if(coexistencePreviewStates.includes(name)){
   let s=conversationPreviewScene('conversation-visual',now);
   if(name==='conversation-long-timer-finished'){
@@ -120,7 +120,10 @@ function conversationPreviewScene(name,now){
  })}))};
  // Late/interrupted snapshots intentionally keep useful content and no fake
  // pending receipt. The phase alone does not promise a future visual answer.
- return {...s,voicePreviewPhase:phases[stage]};
+ const answer=s.answers.find(item=>item.id===s.focus),completed=['complete','long','resume'].includes(stage);
+ return {...s,voicePreviewPhase:completed?'IDLE':phases[stage],
+  ...(completed?{localAnswerCompletion:{answerId:answer.id,revision:answer.revision,voice:'completed',visual:'completed'}}:{}),
+  ...(['visual','followup'].includes(stage)?{localVoiceCompletion:{answerId:answer.id,revision:answer.revision,phase:'AI_SPEAKING',durationMs:4000}}:{})};
 }
 
 // Catalog inputs only. They enter the same scene and resource renderers as the
@@ -178,6 +181,7 @@ function answerPreviewScene(name){
   ].map(([id,label,value,detail])=>({id,label,value,detail,sourceId:'example'})),
   sources:[{id:'example',label:'PodView · forhåndsvisning',url:'example-sources.html',scope:'Illustrativt indhold til prøve af langt svar og scroll. Ingen aktuel rute, vejrudsigt eller personlig anbefaling.'}]
  })}))};
+ if(['ready','long','complete'].includes(status)){const answer=s.answers[0];s={...s,voicePreviewPhase:'IDLE',localAnswerCompletion:{answerId:answer.id,revision:answer.revision,voice:'completed',visual:'completed'}};}
  return s;
 }
 

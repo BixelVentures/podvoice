@@ -1,23 +1,24 @@
+import {homeConnectionPresentation} from './podvoice-view.js';
 import {conditionLabel,conditionIcon,weatherTemperature} from './weather-observation.js';
 import {renderWeather,liveWeatherModel,weatherOverviewDetail,weatherHeaderVisible,renderOverviewForecast} from './weather-view.js';
 import {robotFacts} from './robot-observation.js';
 const $=id=>document.getElementById(id),make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
 export function renderLiveWeather(host){
- const w=host.state.liveWeather,view=$('weather-view'),connected=host.live?host.liveTransport?.connected===true:host.state.connected!==false,model=liveWeatherModel(w,{connected,aiContext:host.liveSnapshot?{...host.liveSnapshot.answers,roomId:host.liveSnapshot.roomId}:null});
+ const w=host.state.liveWeather,view=$('weather-view'),connected=host.live?host.liveTransport?.connected===true:host.state.connected!==false,reason=homeConnectionPresentation({status:host.liveStatus,blocked:host.liveTransport?.recoveryBlocked===true,browserOffline:host.browserOffline===true}).reason,model=liveWeatherModel(w,{connected,reason,aiContext:host.liveSnapshot?{...host.liveSnapshot.answers,roomId:host.liveSnapshot.roomId}:null});
  if(host.state.focus==='weather'||host.weatherNodes)host.weatherNodes=renderWeather(view,model);if(view.hidden!==(host.state.focus!=='weather'))view.hidden=host.state.focus!=='weather';
  const temp=w?.current?.temperature,condition=conditionLabel(w?.current?.condition),hasWeather=!!model.current||model.hours.length>0||model.days.length>0;
  for(const id of ['header-weather','photo-weather','home-weather']){
-  const button=$(id),visible=id==='header-weather'?weatherHeaderVisible(host.state.focus,hasWeather):hasWeather?(id==='home-weather'?host.state.focus==='now':host.state.focus==='photo'?id==='photo-weather':id!=='photo-weather'):id==='home-weather'&&host.state.focus==='now'&&host.liveSnapshot?.capabilities?.homeRead?.includes('weather')===true;
+  const button=$(id),visible=id==='header-weather'?weatherHeaderVisible(host.state.focus,hasWeather):hasWeather?(id==='home-weather'?host.state.focus==='now':host.state.focus==='photo'?id==='photo-weather':id!=='photo-weather'):id==='home-weather'&&host.state.focus==='now'&&(!!model.connectionReason||host.liveSnapshot?.capabilities?.homeRead?.includes('weather')===true);
   if(button.hidden!==!visible)button.hidden=!visible;const disabled=id==='header-weather'?!hasWeather:!w&&!visible;if(button.disabled!==disabled)button.disabled=disabled;
   if(id==='header-weather'){const pending=String(!host.browserOffline&&host.liveStatus==='connecting'&&!hasWeather);if(button.getAttribute('aria-busy')!==pending)button.setAttribute('aria-busy',pending);}
-  const icon=button.querySelector(':scope > img'),file=w?conditionIcon(w.current?.condition,w.current?.isDaytime):null;if(icon){if(icon.hidden!==!file)icon.hidden=!file;const src=file?`assets/icons/${file}.svg`:null;if(src&&icon.getAttribute('src')!==src)icon.src=src;}
+  const icon=button.querySelector(':scope > img'),file=w?conditionIcon(w.current?.condition,w.current?.isDaytime):model.emptyIcon;if(icon){if(icon.hidden!==!file)icon.hidden=!file;const src=file?`assets/icons/${file}.svg`:null;if(src&&icon.getAttribute('src')!==src)icon.src=src;}
   const temperature=Number.isFinite(temp)?weatherTemperature(temp,w.unit):id==='home-weather'?'':hasWeather?'Vejr':'';
   if(id==='home-weather'){
    const value=button.querySelector('.home-temperature'),description=button.querySelector('.home-condition'),forecast=button.querySelector('.home-forecast'),range=model.current?.range||'';
-   if(value&&value.textContent!==temperature)value.textContent=temperature;if(description&&description.textContent!==condition)description.textContent=condition;
+   if(value&&value.textContent!==temperature)value.textContent=temperature;if(description&&description.textContent!==(condition||model.overviewStatus||''))description.textContent=condition||model.overviewStatus||'';
    renderOverviewForecast(button,model);
   }else{const strong=button.querySelector('strong'),label=id==='header-weather'?(Number.isFinite(temp)?temperature.replace(/°[CF]$/,'°'):'—'):temperature;if(strong&&strong.textContent!==label)strong.textContent=label;}
-  const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!hasWeather?(id==='header-weather'?'Vejr ukendt':'Ingen vejrdata'):id==='home-weather'?weatherOverviewDetail(model):model.sourceStale?'Sidst kendt':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;
+  const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!hasWeather?(id==='header-weather'?'Vejr ukendt':model.emptyDetail||model.overviewStatus||'Ingen vejrdata'):id==='home-weather'?weatherOverviewDetail(model):model.sourceStale?'Sidst kendt':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;
  }
  const refreshAt=model.refreshAt||model.adviceUntil||null;if(refreshAt!==host.weatherAdviceAt||refreshAt&&!host.weatherAdviceTimer){globalThis.clearTimeout(host.weatherAdviceTimer);host.weatherAdviceTimer=null;host.weatherAdviceAt=refreshAt;if(refreshAt){let handle;handle=globalThis.setTimeout(()=>{if(host.weatherAdviceTimer!==handle)return;host.weatherAdviceTimer=null;if(host.isConnected)renderLiveWeather(host);},Math.min(2147483647,refreshAt-Date.now()+1));host.weatherAdviceTimer=handle;}}
 }

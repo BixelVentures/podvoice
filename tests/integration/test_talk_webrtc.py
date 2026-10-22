@@ -223,6 +223,207 @@ async def test_live_typed_receipt_is_only_visible_input_and_history_persists_onc
         await connection.aclose()
 
 
+@pytest.mark.parametrize("failure", ["provider", "backend_failed", "backend_incomplete"])
+async def test_actual_provider_error_is_one_talk_system_line_and_next_turn_recovers(failure):
+    from gatekeeper.talk import TalkConnection, TalkHub
+
+    wire = BrowserWire()
+    connection = TalkConnection(wire)
+    connection.start()
+    link = BrowserLink(connection.send_json, connection.send_bytes)
+    session, _, _, _, _ = build(device=link)
+    session.live_brain.client_factory = wire.sdk.factory
+    session.hub = TalkHub(connection.send_json)
+    connection.attach(session)
+    task = asyncio.create_task(run_talk(connection, session, link))
+    try:
+        wire.send("text", command_id="failed", text="Hvad er klokken?")
+        await until(lambda: wire.result("failed") is not None)
+        assert wire.result("failed")["status"] == "submitted"
+        failed_sdk = wire.sdk
+        failed_generation = session.live_brain._connection_generation
+        if failure == "provider":
+            await failed_sdk.incoming.put(
+                {"type": "error", "error": {"message": "private provider error secret"}}
+            )
+        else:
+            await failed_sdk.incoming.put(created())
+            await failed_sdk.incoming.put(terminal(status=failure.removeprefix("backend_")))
+        await until(lambda: session._close_task is not None and session._close_task.done())
+        await until(lambda: len([e for e in wire.outgoing if e["type"] == "error"]) == 1)
+        failures = [e for e in wire.outgoing if e["type"] == "error"]
+        assert failures[0]["error"] == "Samtalen blev afbrudt af en forbindelsesfejl."
+        assert "private provider error secret" not in str(wire.outgoing)
+        assert not session._active and link._live_handshake is None
+        assert not [e for e in wire.outgoing if e["type"] == "play"]
+        assert any(e["type"] == "state" and e["state"] == "IDLE" for e in wire.outgoing)
+        failed_sdk.session.close.assert_awaited_once()
+        await until(lambda: not session._teardown_incomplete)
+
+        # A duplicate/retired provider event cannot report into the next turn.
+        await session.live_brain._handle(
+            {"type": "error", "error": {"message": "retired"}}, failed_generation
+        )
+        wire.sdk = WebRTCSDK()
+        session.live_brain.client_factory = wire.sdk.factory
+        wire.send("text", command_id="fresh", text="Hvad er hovedstaden i Danmark?")
+        await until(lambda: wire.result("fresh") is not None)
+        assert wire.result("fresh")["status"] == "submitted", wire.result("fresh")
+        await session.live_brain._handle(
+            {"type": "error", "error": {"message": "stale"}}, failed_generation
+        )
+        await wire.sdk.incoming.put(
+            {
+                "type": "session.output_transcript.delta",
+                "delta": "København.",
+                "start_ms": 0,
+                "end_ms": 250,
+            }
+        )
+        await until(
+            lambda: any(
+                e["type"] == "transcript_fragment" and e.get("text") == "København."
+                for e in wire.outgoing
+            )
+        )
+        wire.send("stop", command_id="ordinary-stop")
+        await until(lambda: wire.result("ordinary-stop") is not None)
+        await until(lambda: session._close_task is not None and session._close_task.done())
+        assert len([e for e in wire.outgoing if e["type"] == "error"]) == 1
+    finally:
+        await finish(wire, task)
+        await connection.aclose()
+
+
+async def test_talk_text_observation_sees_primary_text_during_sdk_send(monkeypatch):
+    from gatekeeper import thin as thin_module
+    from gatekeeper.talk import TalkHub
+
+    monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 0.04)
+    wire, link, session, _, _ = setup()
+    session.hub = TalkHub(wire.send_json)
+
+    async def fast_text(**_):
+        await wire.sdk.incoming.put(
+            {
+                "type": "session.output_transcript.delta",
+                "delta": "København.",
+                "start_ms": 0,
+                "end_ms": 250,
+            }
+        )
+        await until(lambda: session._talk_output_text_revision == 1)
+
+    wire.sdk.response.item.create.side_effect = fast_text
+    task = asyncio.create_task(run_talk(wire, session, link))
+    try:
+        wire.send("text", command_id="fast", text="Hvad er hovedstaden i Danmark?")
+        await until(lambda: wire.result("fast") is not None)
+        assert wire.result("fast")["status"] == "submitted"
+        assert session._talk_text_observation_task is None
+        await asyncio.sleep(0.06)
+        assert not [e for e in wire.outgoing if e.get("code") == "text_response_unknown"]
+        wire.send("stop", command_id="stop")
+        await until(lambda: wire.result("stop") is not None)
+        assert not [e for e in wire.outgoing if e["type"] == "error"]
+    finally:
+        await finish(wire, task)
+
+
+async def test_mic_only_talk_never_arms_typed_text_observation(monkeypatch):
+    from gatekeeper import thin as thin_module
+    from gatekeeper.talk import TalkHub
+
+    monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 0.03)
+    wire, link, session, _, _ = setup()
+    session.hub = TalkHub(wire.send_json)
+    task = asyncio.create_task(run_talk(wire, session, link))
+    try:
+        wire.send("wake", command_id="mic-only")
+        await until(lambda: wire.result("mic-only") is not None)
+        assert wire.result("mic-only")["status"] == "accepted"
+        await asyncio.sleep(0.05)
+        assert session._talk_text_observation_task is None
+        assert not [e for e in wire.outgoing if e.get("code") == "text_response_unknown"]
+        wire.send("stop", command_id="stop")
+        await until(lambda: wire.result("stop") is not None)
+    finally:
+        await finish(wire, task)
+
+
+async def test_talk_text_observation_retires_new_input_stop_and_old_session(monkeypatch):
+    from gatekeeper import thin as thin_module
+    from gatekeeper.talk import TalkHub
+
+    monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 1.0)
+    wire, link, session, _, _ = setup()
+    session.hub = TalkHub(wire.send_json)
+    task = asyncio.create_task(run_talk(wire, session, link))
+    try:
+        wire.send("text", command_id="old", text="Hvad er klokken?")
+        await until(lambda: wire.result("old") is not None)
+        assert wire.result("old")["status"] == "submitted"
+        old_task = session._talk_text_observation_task
+        old_identity = (
+            "old",
+            session.brain,
+            session._epoch,
+            session._history_session,
+            session.brain._connection_generation,
+            session._live_input_revision,
+            session.brain.input_sequence,
+            session._talk_output_text_revision,
+        )
+        await asyncio.sleep(0)  # Old owner's wait has captured the long test bound.
+        monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 0.06)
+        wire.send("text", command_id="new", text="Hvad er datoen?")
+        await until(lambda: wire.result("new") is not None)
+        assert wire.result("new")["status"] == "submitted"
+        await until(lambda: old_task.done())
+        assert old_task.cancelled()
+        await until(lambda: any(e.get("code") == "text_response_unknown" for e in wire.outgoing))
+        assert [
+            e["command_id"] for e in wire.outgoing if e.get("code") == "text_response_unknown"
+        ] == ["new"]
+        assert session._active and wire.sdk.response.item.create.await_count == 2
+        monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 1.0)
+        wire.send("text", command_id="stopped", text="Hvad er vejret?")
+        await until(lambda: wire.result("stopped") is not None)
+        assert wire.result("stopped")["status"] == "submitted"
+        pending = session._talk_text_observation_task
+        wire.send("stop", command_id="stop")
+        await until(lambda: wire.result("stop") is not None)
+        await until(lambda: pending.done())
+        assert pending.cancelled()
+        wire.send("text", command_id="fresh", text="Hvad er klokken nu?")
+        await until(lambda: wire.result("fresh") is not None)
+        assert wire.result("fresh")["status"] == "submitted"
+        await asyncio.sleep(0)  # Fresh owner's wait has already captured its bound.
+        monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 0)
+        await session._observe_talk_text(*old_identity)
+        assert [
+            e["command_id"] for e in wire.outgoing if e.get("code") == "text_response_unknown"
+        ] == ["new"]
+        fresh_pending = session._talk_text_observation_task
+        await wire.sdk.incoming.put(
+            {
+                "type": "session.input_transcript.delta",
+                "delta": "En ny talemelding.",
+                "start_ms": 0,
+                "end_ms": 250,
+            }
+        )
+        await until(lambda: fresh_pending.done())
+        assert fresh_pending.cancelled()
+        assert [
+            e["command_id"] for e in wire.outgoing if e.get("code") == "text_response_unknown"
+        ] == ["new"]
+        wire.send("stop", command_id="final-stop")
+        await until(lambda: wire.result("final-stop") is not None)
+    finally:
+        await finish(wire, task)
+
+
 async def test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispatches(monkeypatch):
     """Field order: offer -> blocked HTTP create -> timeout -> client release.
 

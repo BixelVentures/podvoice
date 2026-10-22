@@ -1,11 +1,12 @@
-import {deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts,robotDetailMetadata} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
 const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 const suspendCode=source.slice(source.indexOf(' suspendLiveTimer(){'),source.indexOf('\n reconcileLiveTimer('));
 const suspendLiveTimer=new Function(`return ({${suspendCode}}).suspendLiveTimer`)();
 const start=Math.min(source.indexOf(' for(const [id,node] of this.deviceNodes)'),source.indexOf(" const activities=$('device-activities')")),end=source.indexOf(' for(const[id,node]of this.answerNodes)',start);
-const render=new Function('devicePresentation','lightSelection','deviceOverviewFacts','return function(s,$,document,createResourceTile,updateResourceTile,deviceLabel,deviceActions){this.renderOverviewAction=()=>{};'+source.slice(start,end)+'}')(devicePresentation,lightSelection,deviceOverviewFacts);
+const render=new Function('devicePresentation','lightSelection','deviceOverviewFacts','robotDetailMetadata','homeConnectionPresentation','return function(s,$,document,createResourceTile,updateResourceTile,deviceLabel,deviceActions){this.renderOverviewAction=()=>{};const homeConnection=homeConnectionPresentation(this.live?{status:this.liveStatus,blocked:this.liveTransport?.recoveryBlocked===true,browserOffline:this.browserOffline===true}:s.connectionPreview||{});'+source.slice(start,end)+'}')(devicePresentation,lightSelection,deviceOverviewFacts,robotDetailMetadata,homeConnectionPresentation);
 const load=new Function('applyHome','validateHome','return async function(){'+source.split(' async loadLiveHome(){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'')+'}')(applyHome,validateHome);
 function element(){return {children:[],dataset:{},parent:null,remove(){if(this.parent)this.parent.children=this.parent.children.filter(x=>x!==this);this.parent=null;},append(n){n.remove();this.children.push(n);n.parent=this;},insertBefore(n,ref){n.remove();const i=this.children.indexOf(ref);this.children.splice(i<0?this.children.length:i,0,n);n.parent=this;},setAttribute(k,v){(this.attrs??=new Map()).set(k,v);},getAttribute(k){return this.attrs?.get(k)??null;}};}
 test('actual device render retains empty row/widget through pending and home-error, then hands off and retains honest empty access after revocation',async()=>{

@@ -58,7 +58,7 @@ test('same-bound expiry before refresh keeps the real player and queue visible w
   const unavailable={...payload('first'),status:'unavailable',data:null};
   f.host.liveTransport.music=async()=>unavailable;f.view.lastRead=0;await f.view.refresh();
   assert.equal(f.view.playback,null);assert.equal(f.nodes.get('track-name').textContent,'');
-  assert.equal(f.nodes.get('music-detail').hidden,false,'left detail stays mounted when playback becomes unavailable');assert.equal(f.nodes.get('detail-title').textContent,'Afspiller');assert.equal(f.nodes.get('detail-status').textContent,'Ingen musik spiller lige nu');assert.equal(f.nodes.get('detail-track').textContent,'');assert.equal(f.view.queueControls.retained,null);
+  assert.equal(f.nodes.get('music-detail').hidden,false,'left detail stays mounted when playback becomes unavailable');assert.equal(f.nodes.get('detail-title').textContent,'Afspiller');assert.equal(f.nodes.get('detail-status').textContent,'Vælg en stemning eller sang.');assert.equal(f.nodes.get('detail-status').textContent,f.host.playerView.emptyCopy.textContent,'unavailable playback uses the same honest state on both player surfaces');assert.equal(f.nodes.get('detail-track').textContent,'');assert.equal(f.view.queueControls.retained,null);
  }finally{f.restore();}
 });
 test('queue empty slot distinguishes missing access, pending read, error and observed empty queue',async()=>{

@@ -2,6 +2,8 @@
 
 import asyncio
 import sys
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from test_talk_stop import _exit_session_owners, _finish_exit_session, _observe_exit_aclose
@@ -9,9 +11,11 @@ from test_talk_webrtc import finish, setup
 from test_thin_live import build, emit, until
 from unit.test_openai_live import DiagnosticWireSDK, call, created, terminal
 
+from gatekeeper import constants as C
 from gatekeeper.audio_trace import AudioTraceRecorder
-from gatekeeper.provider_budget import ProviderBudgetCoordinator
-from gatekeeper.talk import run_talk
+from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
+from gatekeeper.reply import ReplyBus
+from gatekeeper.talk import TalkHub, run_talk
 
 LEDGER_FIELDS = (
     "target_tokens",
@@ -78,6 +82,13 @@ async def test_actual_sdk_budget_thin_admission_trace_preserves_decision_and_dis
     brain.provider_budget = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
     brain.capacity_monotonic = lambda: clock[0]
     brain.timeout_s = 2  # Existing DiagnosticWireSDK fixture startup/cleanup bound.
+    spoken = []
+    if case == "deadline":
+        session.speech = SimpleNamespace(
+            cached=lambda phrase: spoken.append(phrase) or b"\x01\x00" * 1200
+        )
+        session.reply_bus = ReplyBus()
+        session.reply_url = "http://fixture/error.flac"
     original_rows = []
     brain.provider_observer = original_rows.append
     original_observer = brain.provider_observer
@@ -124,6 +135,9 @@ async def test_actual_sdk_budget_thin_admission_trace_preserves_decision_and_dis
             assert tools.calls == [] and waits == []
             assert not any(e["type"] == "response.item.create" for e in sdk.wire)
             assert not session._active and link.rearm_calls == 1
+            assert session._trace_reason == "error:capacity"
+            assert spoken == [C.FALLBACK_CAPACITY]
+            assert len(link.announced_urls) == 1
             events = recorder.snapshot()["latest"]["events"]
         else:
             await until(lambda: any(e["type"] == "response.create" for e in sdk.wire))
@@ -161,6 +175,26 @@ async def test_actual_sdk_budget_thin_admission_trace_preserves_decision_and_dis
         assert brain._lease is None and brain._reader is None
     finally:
         await finish_fixture(session, seen, recorder, sys.exception())
+
+
+@pytest.mark.asyncio
+async def test_missing_live_batch_is_not_misreported_as_capacity():
+    session, sdk, _, tools, link = build()
+    session.live_brain.admit_tool_batch = AsyncMock(
+        side_effect=ProviderBudgetUnavailable("missing_or_replayed_live_batch")
+    )
+    await session.start()
+    try:
+        await session.wake()
+        await emit(sdk, created("missing-batch"), call(arguments="{}"), terminal("missing-batch"))
+        await until(lambda: session._close_task is not None)
+        await asyncio.wait_for(asyncio.shield(session._close_task), 2)
+        assert session._trace_reason == "live-tool-failed"
+        assert tools.calls == [] and link.announced_urls == []
+        assert link.rearm_calls == 1
+    finally:
+        await session.stop()
+        await session.aclose()
 
 
 @pytest.mark.asyncio
@@ -207,6 +241,7 @@ async def test_talk_capacity_observation_does_not_create_a_physical_trace(
     case, tmp_path, monkeypatch
 ):
     wire, link, session, _, tools = setup()
+    session.hub = TalkHub(wire.send_json)
     recorder = AudioTraceRecorder(tmp_path)  # Never attached/armed for Talk.
     seen = _observe_exit_aclose(session, monkeypatch)
     brain = session.live_brain
@@ -243,6 +278,10 @@ async def test_talk_capacity_observation_does_not_create_a_physical_trace(
             assert tools.calls == [] and waits == []
             assert wire.sdk.response.item.create.await_count == 0
             assert not session._teardown_incomplete
+            assert [e["error"] for e in wire.outgoing if e["type"] == "error"] == [
+                C.FALLBACK_CAPACITY
+            ]
+            assert not [e for e in wire.outgoing if e["type"] == "play"]
         else:
             await until(lambda: wire.sdk.response.create.await_count == 1)
             assert tools.calls == [("status", {})] and waits == pytest.approx([1.608])

@@ -497,6 +497,142 @@ async def emit(sdk, *events):
 
 
 @pytest.mark.asyncio
+async def test_typed_webrtc_completed_backend_without_primary_output_reports_unknown_text(
+    monkeypatch,
+):
+    """Backend completion cannot certify text; the bounded notice leaves Live open."""
+
+    from test_talk_webrtc import BrowserWire, finish
+    from unit.test_openai_live import envelope
+
+    from gatekeeper import thin as thin_module
+    from gatekeeper.talk import BrowserLink, TalkConnection, TalkHub, run_talk
+
+    assert thin_module.TALK_TEXT_OBSERVATION_S == 30.0
+    monkeypatch.setattr(thin_module, "TALK_TEXT_OBSERVATION_S", 0.05)
+
+    wire = BrowserWire(microphone=False)
+    connection = TalkConnection(wire)
+    connection.start()
+    link = BrowserLink(connection.send_json, connection.send_bytes)
+    session, _, _, _, _ = build(device=link)
+    session.live_brain.client_factory = wire.sdk.factory
+    session.hub = TalkHub(connection.send_json)
+    connection.attach(session)
+    events = []
+    original_trace = session._trace_event
+
+    def record(event_name, **details):
+        events.append((event_name, details))
+        original_trace(event_name, **details)
+
+    monkeypatch.setattr(session, "_trace_event", record)
+    task = asyncio.create_task(run_talk(connection, session, link))
+    try:
+        wire.send("text", command_id="capital", text="Hvad er hovedstaden i Danmark?")
+        await until(lambda: wire.result("capital") is not None)
+        assert wire.result("capital")["status"] == "submitted"
+        assert session.brain._input_audio_enabled is False
+
+        backend_answer = "København er Danmarks hovedstad."
+        await emit(
+            wire.sdk,
+            created(),
+            envelope(
+                "response.output_item.done",
+                item={
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": backend_answer}],
+                },
+            ),
+            terminal(),
+        )
+        await until(lambda: any(name == "live_backend_complete" for name, _ in events))
+        assert any(
+            name == "live_backend_complete"
+            and details["status"] == "completed"
+            and details["backend_final_char_count"] == len(backend_answer)
+            for name, details in events
+        )
+        assert session._active and session._idle_deadline is None
+        assert not session._live_quiet_work_clear(semantic=False)
+        assert session._live_output_transcript_generation is None
+        assert not any(
+            item["type"] in {"transcript", "transcript_fragment"} and item.get("dir") == "out"
+            for item in wire.outgoing
+        )
+        assert not any(name == "failure" for name, _ in events)
+        handshake = link._live_handshake
+        audio = {
+            "status": "observed",
+            "stats_timestamp_ms": 1234.5,
+            "total_audio_energy": 0.04,
+            "total_samples_duration": 0.25,
+            "source_generation": 1,
+            "audio_level": 0.4,
+        }
+        wire.send(
+            "live_activity",
+            attempt_id=handshake.attempt_id,
+            provider_session_id=handshake.provider_session_id,
+            generation=handshake.generation,
+            observation_seq=1,
+            browser_monotonic_ms=250.0,
+            input=audio,
+            output=audio,
+            render={
+                "status": "observed",
+                "current_time_s": 0.25,
+                "paused": False,
+                "muted": False,
+                "volume": 1,
+                "ready_state": 4,
+            },
+            drain_confirmed=False,
+        )
+        await until(lambda: link._activity_observation is not None)
+        await until(lambda: any(e.get("code") == "text_response_unknown" for e in wire.outgoing))
+        notices = [e for e in wire.outgoing if e.get("code") == "text_response_unknown"]
+        assert len(notices) == 1
+        assert notices[0]["error"] == (
+            "Der er endnu ikke modtaget et tekstsvar. Beskeden bliver ikke sendt igen automatisk."
+        )
+        assert session._talk_text_observation_task is None
+        await asyncio.sleep(0.06)
+        assert len([e for e in wire.outgoing if e.get("code") == "text_response_unknown"]) == 1
+        assert session._active and not session._transport_closing
+        assert not [e for e in wire.outgoing if e["type"] in ("stop_playback", "live_stop")]
+        assert wire.sdk.response.item.create.await_count == 1
+        await emit(
+            wire.sdk,
+            {
+                "type": "session.output_transcript.delta",
+                "delta": "København.",
+                "start_ms": 0,
+                "end_ms": 250,
+            },
+        )
+        await until(
+            lambda: any(
+                e["type"] == "transcript_fragment" and e.get("text") == "København."
+                for e in wire.outgoing
+            )
+        )
+        wire.send("text", command_id="next", text="Hvad er hovedstaden i Sverige?")
+        await until(lambda: wire.result("next") is not None)
+        assert wire.result("next")["status"] == "submitted"
+        wire.send("stop", command_id="stop")
+        await until(lambda: wire.result("stop") is not None)
+        assert len([e for e in wire.outgoing if e.get("code") == "text_response_unknown"]) == 1
+        assert not any(name == "failure" for name, _ in events)
+    finally:
+        await finish(wire, task)
+        await connection.aclose()
+
+
+@pytest.mark.asyncio
 async def test_selection_is_next_wake_and_stop_rejects_stale_stream_and_generation():
     session, sdk, flag, _, link = build()
     await session.start()

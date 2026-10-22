@@ -141,7 +141,7 @@ test('qualified locality accepts legacy30 and bounded60 seconds, rejects longer 
 });
 
 test('transient stale weather retains future hourly facts with honest label but no fresh advice',()=>{const source=dualWeather(),w=projected(source),model=liveWeatherModel({...w,stale:true},{now});assert.equal(model.hours.length,1);assert.equal(model.days.length,1);assert.match(model.hoursLabel,/Sidst kendte/);assert.equal(model.summary,'');const expired=liveWeatherModel({...w,stale:true},{now:Date.parse(source.hourly.retrievedAt)+900000});assert.equal(expired.hours.length,0);});
-test('live first-empty weather preserves owned detail and eligible shortcut without invented values, then reuses nodes through restore',()=>{const f=fixture(),previous=globalThis.document;globalThis.document=f.doc;try{const host={live:true,liveTransport:{connected:true},liveSnapshot:{capabilities:{homeRead:['weather']}},state:{focus:'weather',liveWeather:null}};renderLiveWeather(host);const n=host.weatherNodes;assert.equal(f.node.hidden,false);assert.equal(n.card.hidden,false);assert.equal(n.value.textContent,'');assert.equal(n.icon.hidden,true);assert.equal(n.source.hidden,true);assert.equal(n.summary.hidden,true);host.state.focus='now';renderLiveWeather(host);assert.equal(f.ids.get('home-weather').hidden,false);assert.equal(f.ids.get('home-weather').querySelector('strong').textContent,'');assert.doesNotMatch(f.node.textContent,/Mårslet|Met.no|°/);host.state.liveWeather=weatherObservation(raw());host.state.focus='weather';renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'12°');host.liveTransport.connected=false;renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'12°');assert.match(n.subtitle.textContent,/Sidst kendte/);host.state.liveWeather=null;renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'');assert.equal(n.sourceCopy.textContent,'');host.liveSnapshot.capabilities.homeRead=[];host.state.focus='now';renderLiveWeather(host);assert.equal(f.ids.get('home-weather').hidden,true);}finally{globalThis.document=previous;}});
+test('live first-empty weather preserves owned detail and eligible shortcut without invented values, then reuses nodes through restore',()=>{const f=fixture(),previous=globalThis.document;globalThis.document=f.doc;try{const host={live:true,liveTransport:{connected:true},liveSnapshot:{capabilities:{homeRead:['weather']}},state:{focus:'weather',liveWeather:null}};renderLiveWeather(host);const n=host.weatherNodes;assert.equal(f.node.hidden,false);assert.equal(n.card.hidden,false);assert.equal(n.value.textContent,'');assert.equal(n.icon.hidden,true);assert.equal(n.source.hidden,true);assert.equal(n.summary.hidden,true);host.state.focus='now';renderLiveWeather(host);assert.equal(f.ids.get('home-weather').hidden,false);assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'');assert.equal(f.ids.get('home-weather').querySelector('.home-condition').textContent,'Ingen vejrdata');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Der er endnu ingen vejroplysninger at vise.');assert.doesNotMatch(f.node.textContent,/Mårslet|Met.no|°/);host.state.liveWeather=weatherObservation(raw());host.state.focus='weather';renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'12°');host.liveTransport.connected=false;renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'12°');assert.match(n.subtitle.textContent,/Sidst kendte/);host.state.liveWeather=null;renderLiveWeather(host);assert.equal(host.weatherNodes,n);assert.equal(n.value.textContent,'');assert.equal(n.sourceCopy.textContent,'');host.liveSnapshot.capabilities.homeRead=[];host.state.focus='now';renderLiveWeather(host);assert.equal(f.ids.get('home-weather').hidden,true);}finally{globalThis.document=previous;}});
 
 function countWrites(f){
  const writes=[],seen=new Set(),observe=node=>{if(!node||seen.has(node))return;seen.add(node);for(const key of ['textContent','hidden','disabled','src','alt','title']){
@@ -162,6 +162,18 @@ test('identical semantic weather model performs zero DOM property, attribute, st
  const changed=structuredClone(model);changed.current.temperature='16°';renderWeather(f.node,changed);
  assert.deepEqual(writes.filter(row=>row.key==='textContent').map(row=>[row.node,row.value]),[[n.value,'16°']]);
  assert.equal(writes.some(row=>row.key==='src'||row.key==='insertBefore'||row.key==='style.setProperty'),false);
+});
+
+test('stale weather is visibly qualified inside the retained Hero metadata even when its page heading is hidden',()=>{
+ const f=fixture(),rawSource=dualWeather();rawSource.hourly.forecast[0].wind_speed=10;
+ const observation=projected(rawSource),before=structuredClone(observation),fresh=liveWeatherModel(observation,{now}),n=renderWeather(f.node,fresh),wind=n.metadataRows.get('wind'),hour=n.hours.children[0],day=n.days.children[1];
+ const stale=liveWeatherModel(observation,{now,connected:false}),modelBefore=structuredClone(stale);renderWeather(f.node,stale);
+ const freshness=n.metadataRows.get('freshness');assert.ok(freshness);assert.equal(freshness.parentNode,n.metadata);assert.equal(n.metadata.parentNode.parentNode,n.card);assert.equal(n.metadata.hidden,false);assert.equal(freshness.children[0].textContent,'Status');assert.equal(freshness.children[1].textContent,'Sidst kendte vejr');
+ assert.equal(n.value.textContent,'12°');assert.strictEqual(n.metadataRows.get('wind'),wind);assert.strictEqual(n.hours.children[0],hour);assert.strictEqual(n.days.children[1],day);assert.equal(n.sourceCopy.textContent,'Kilde: Met.no');assert.equal(n.summary.hidden,true);assert.deepEqual(observation,before);assert.deepEqual(stale,modelBefore);
+ const writes=countWrites(f);for(let i=0;i<3;i++)renderWeather(f.node,structuredClone(stale));assert.deepEqual(writes,[]);assert.strictEqual(n.metadataRows.get('freshness'),freshness);
+ const partial=liveWeatherModel({...observation,current:null},{now,connected:false});renderWeather(f.node,partial);assert.strictEqual(n.metadataRows.get('freshness'),freshness);assert.equal(n.hours.hidden,false);assert.equal(n.days.hidden,false);
+ renderWeather(f.node,fresh);assert.equal(n.metadataRows.has('freshness'),false);assert.strictEqual(n.metadataRows.get('wind'),wind);assert.equal(n.value.textContent,'12°');
+ renderWeather(f.node,liveWeatherModel(null,{reason:'unavailable'}));assert.equal(n.metadata.hidden,true);assert.equal(n.metadataRows.has('freshness'),false);
 });
 
 test('live background weather refresh updates only changed presentation and does not reset unchanged expiry timer',()=>{
@@ -192,7 +204,7 @@ test('live overview clears absent or unmatched forecast facts without removing i
  const f=fixture(),previous={doc:globalThis.document,now:Date.now,set:globalThis.setTimeout,clear:globalThis.clearTimeout};globalThis.document=f.doc;Date.now=()=>now;globalThis.setTimeout=()=>1;globalThis.clearTimeout=()=>{};
  try{const host={isConnected:true,live:true,liveTransport:{connected:true},liveSnapshot:{capabilities:{homeRead:['weather']}},state:{focus:'now',liveWeather:projected(dualWeather())}},home=f.ids.get('home-weather'),temperature=home.querySelector('.home-temperature'),condition=home.querySelector('.home-condition'),forecast=home.querySelector('.home-forecast');host.state.focus='weather';renderLiveWeather(host);host.state.focus='now';renderLiveWeather(host);
  for(const source of [raw(),{...dualWeather(),forecast:[{datetime:'2026-10-16T12:00:00Z',temperature:17,highTemperature:17,lowTemperature:9}]},{...dualWeather(),forecast:[{datetime:'2026-10-15T12:00:00Z',temperature:17,highTemperature:17}]},{...dualWeather(),current:null}]){host.state.liveWeather=projected(source);renderLiveWeather(host);assert.equal(home.querySelector('.home-forecast'),forecast);assert.equal(forecast.hidden,host.weatherNodes.hours.hidden);assert.equal(forecast.children.length,Math.min(5,host.weatherNodes.hours.children.length));assert.equal(home.querySelector('.home-temperature'),temperature);assert.equal(home.querySelector('.home-condition'),condition);}
- host.state.liveWeather=null;renderLiveWeather(host);assert.equal(temperature.textContent,'');assert.equal(condition.textContent,'');assert.equal(forecast.hidden,true);assert.equal(forecast.textContent,'');assert.equal(home.querySelector('small').textContent,'Ingen vejrdata');assert.doesNotMatch(home.textContent,/°|Mårslet|Eftermiddag|Aften/);
+ host.state.liveWeather=null;renderLiveWeather(host);assert.equal(temperature.textContent,'');assert.equal(condition.textContent,'Ingen vejrdata');assert.equal(forecast.hidden,true);assert.equal(forecast.textContent,'');assert.equal(home.querySelector('small').textContent,'Der er endnu ingen vejroplysninger at vise.');assert.doesNotMatch(home.textContent,/°|Mårslet|Eftermiddag|Aften/);
  }finally{globalThis.document=previous.doc;Date.now=previous.now;globalThis.setTimeout=previous.set;globalThis.clearTimeout=previous.clear;}
 });
 
@@ -215,7 +227,7 @@ test('scheduled source expiry updates header photo overview and detail without r
 test('missing current weather has an honest retained empty hero and preserves available forecast',()=>{
  const {node}=fixture(),empty=liveWeatherModel(null),n=renderWeather(node,empty);
  assert.equal(n.card.getAttribute('data-weather-state'),'empty');
- assert.equal(n.description.textContent,'Vejret er ikke tilgængeligt');
+ assert.equal(n.description.textContent,'Ingen vejrdata');
  assert.equal(n.range.textContent,'Der er endnu ingen vejroplysninger at vise.');
  assert.equal(n.range.hidden,false);assert.equal(n.icon.hidden,true);assert.equal(n.value.textContent,'');
  const source={...raw(),current:null},partial=liveWeatherModel(projected(source),{now});
@@ -224,6 +236,33 @@ test('missing current weather has an honest retained empty hero and preserves av
  const card=n.card;renderWeather(node,liveWeatherModel(projected(),{now}));assert.equal(n.card,card);
  assert.equal(n.card.getAttribute('data-weather-state'),'current');assert.equal(n.value.textContent,'12°');
  renderWeather(node,liveWeatherModel(projected(),{now,connected:false}));assert.equal(n.card.getAttribute('data-weather-state'),'stale');assert.equal(n.value.textContent,'12°');
+});
+
+test('explicit connection causes share the retained empty Hero and overview without a weather observation',()=>{
+ const {doc,ids}=fixture(),home=ids.get('home-weather');let retained;
+ for(const [reason,helper] of [['setup','Tilføj i Home Assistant'],['unavailable','Home Assistant svarer ikke lige nu'],['denied','PodView har ikke adgang – log ind i Home Assistant']]){
+  const model=liveWeatherModel(null,{reason,connected:false,now}),view=renderLocalWeather(doc,model);
+  if(retained)assert.strictEqual(view,retained);retained=view;
+  assert.equal(model.connectionReason,reason);assert.equal(view.description.textContent,'Ikke forbundet');assert.equal(view.range.textContent,helper);assert.equal(view.value.textContent,'');assert.equal(view.icon.hidden,false);assert.equal(view.icon.src,'assets/icons/cloud-sun.svg');assert.equal(view.icon.getAttribute('alt'),'');
+  assert.equal(home.querySelector('.home-condition').textContent,'Ikke forbundet');assert.equal(home.querySelector('small').textContent,helper);assert.equal(home.querySelector(':scope > img').src,view.icon.src);assert.equal(home.querySelector('.home-temperature').textContent,'');
+  for(const section of [view.metadata,view.summary,view.hours,view.days,view.source])assert.equal(section.hidden,true);
+  assert.equal(view.card.getAttribute('data-weather-photo'),'false');assert.equal(view.card.getAttribute('data-kit-state'),'empty');assert.doesNotMatch(doc.getElementById('weather-view').textContent,/°|Mårslet|Met\.no/);
+ }
+ renderLocalWeather(doc,liveWeatherModel(null,{reason:'empty',now}));assert.equal(retained.description.textContent,'Ingen vejrdata');assert.equal(retained.icon.hidden,true);assert.equal(home.querySelector('.home-condition').textContent,'Ingen vejrdata');
+});
+
+test('missing data and transport alone never invent connection setup or permission causes',()=>{
+ for(const reason of [undefined,null,'empty','error','toString',{reason:'setup'}]){
+  const model=liveWeatherModel(null,{connected:false,reason,now});assert.equal(model.overviewStatus,'Ingen vejrdata');assert.equal(model.connectionReason,null);assert.equal(model.emptyIcon,null);assert.equal(model.emptyDetail,'Der er endnu ingen vejroplysninger at vise.');
+ }
+ const source=projected({...raw(),current:null,forecast:[]}),model=liveWeatherModel(source,{reason:'empty',now});assert.equal(model.emptyTitle,'Ingen vejrdata');assert.equal(model.title,'Mårslet');assert.equal(model.source,'Kilde: Met.no');
+});
+
+test('a lost weather connection retains real current and partial forecast facts instead of an empty cause',()=>{
+ const {node}=fixture(),source=projected(dualWeather()),view=renderWeather(node,liveWeatherModel(source,{now})),firstHour=view.hours.children[0],firstDay=view.days.children[1];
+ const offline=liveWeatherModel(source,{reason:'unavailable',connected:false,now});renderWeather(node,offline);
+ assert.equal(offline.overviewStatus,undefined);assert.equal(offline.sourceStale,true);assert.equal(view.value.textContent,'12°');assert.equal(view.subtitle.textContent,'Sidst kendte vejr');assert.strictEqual(view.hours.children[0],firstHour);assert.strictEqual(view.days.children[1],firstDay);assert.equal(view.summary.hidden,true);assert.equal(view.sourceCopy.textContent,'Kilde: Met.no');
+ const partial=liveWeatherModel(projected({...dualWeather(),current:null}),{reason:'unavailable',connected:false,now});renderWeather(node,partial);assert.equal(partial.overviewStatus,undefined);assert.equal(view.description.textContent,'Aktuelt vejr ikke tilgængeligt');assert.equal(view.range.textContent,'Se den tilgængelige prognose nedenfor.');assert.equal(view.icon.hidden,true);assert.equal(view.hours.hidden,false);assert.equal(view.days.hidden,false);
 });
 
 test('named forecast rows have group semantics rather than prohibited names on generic divs',()=>{
@@ -237,8 +276,8 @@ test('named forecast rows have group semantics rather than prohibited names on g
 test('first empty weather never exposes an unnamed compact button or duplicates the domain as a fake value',()=>{
  const f=fixture(),previous=globalThis.document;globalThis.document=f.doc;
  try{const host={live:true,liveTransport:{connected:true},liveSnapshot:{capabilities:{homeRead:['weather']}},state:{focus:'now',liveWeather:null}};
-  for(const weather of [null,weatherObservation({...raw(),current:null,forecast:[]})]){host.state.liveWeather=weather;renderLiveWeather(host);assert.equal(f.ids.get('header-weather').hidden,false);assert.equal(f.ids.get('header-weather').disabled,true);assert.equal(f.ids.get('header-weather').querySelector('strong').textContent,'—');assert.equal(f.ids.get('header-weather').querySelector('small').textContent,'Vejr ukendt');assert.equal(f.ids.get('photo-weather').hidden,true);assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Ingen vejrdata');}
-  renderLocalWeather(f.doc,liveWeatherModel(null));assert.equal(f.ids.get('header-weather').disabled,true);assert.equal(f.ids.get('header-weather').querySelector('strong').textContent,'—');assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Ingen vejrdata');
+  for(const weather of [null,weatherObservation({...raw(),current:null,forecast:[]})]){host.state.liveWeather=weather;renderLiveWeather(host);assert.equal(f.ids.get('header-weather').hidden,false);assert.equal(f.ids.get('header-weather').disabled,true);assert.equal(f.ids.get('header-weather').querySelector('strong').textContent,'—');assert.equal(f.ids.get('header-weather').querySelector('small').textContent,'Vejr ukendt');assert.equal(f.ids.get('photo-weather').hidden,true);assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'');assert.equal(f.ids.get('home-weather').querySelector('.home-condition').textContent,'Ingen vejrdata');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Der er endnu ingen vejroplysninger at vise.');}
+  renderLocalWeather(f.doc,liveWeatherModel(null));assert.equal(f.ids.get('header-weather').disabled,true);assert.equal(f.ids.get('header-weather').querySelector('strong').textContent,'—');assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'');assert.equal(f.ids.get('home-weather').querySelector('.home-condition').textContent,'Ingen vejrdata');assert.equal(f.ids.get('home-weather').querySelector('small').textContent,'Der er endnu ingen vejroplysninger at vise.');
  }finally{globalThis.document=previous;}
 });
 

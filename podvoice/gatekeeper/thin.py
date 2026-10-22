@@ -78,6 +78,7 @@ LIVE_CONFIRMATION_START_INSTRUCTION = (
 )
 MAX_TYPED_TEXT_CHARS = 2000
 MAX_TALK_COMMAND_ID_CHARS = 128
+TALK_TEXT_OBSERVATION_S = 30.0
 _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
     {
         "response_created",
@@ -679,6 +680,8 @@ class ThinSession:
         self._live_stream = None
         self._live_output_bytes = 0
         self._live_output_transcript_generation: int | None = None
+        self._talk_output_text_revision = 0
+        self._talk_text_observation_task: asyncio.Task | None = None
         self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
         # Last exact native packet whose send_audio call returned. This is not a
@@ -1601,6 +1604,8 @@ class ThinSession:
         self._live_stream = None
         self._live_output_bytes = 0
         self._live_output_transcript_generation = None
+        self._retire_talk_text_observation()
+        self._talk_output_text_revision = 0
         self._live_close_attempt = None
         self._live_close_task = None
         self._live_close_cancel_reason = None
@@ -2241,6 +2246,7 @@ class ThinSession:
             return self._close_task
         if not self._active:
             return None
+        self._retire_talk_text_observation()
         # A normal close seals only already admitted immutable visual reads.
         # This notification neither waits nor grants any tool/action authority.
         if normal_read_close:
@@ -2294,6 +2300,8 @@ class ThinSession:
     ) -> None:
         if not self._active or epoch != self._epoch:
             return
+        close_id = self._close_id
+        close_owner = asyncio.current_task()
         self._ending_conversation = True
         self._trace_reason = reason
         self._publish_panel_status(force=True)
@@ -2316,6 +2324,17 @@ class ThinSession:
             self._trace_event("failure", kind=error_kind)
             if self.hub is not None:
                 self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
+                failure = getattr(self.hub, "failure", None)
+                if (
+                    callable(failure)
+                    and self._active
+                    and self._epoch == epoch
+                    and self._close_id == close_id
+                    and self._close_task is close_owner
+                ):
+                    # Only the admitted error close may publish a Talk system line.
+                    with contextlib.suppress(Exception):
+                        failure(self.room, error_kind)
             # Red is a bounded, truthful error indication while the error is spoken.
             # Once teardown/rearm completes, IDLE must be dark; a persistent red ring
             # made a healthy rearmed puck look permanently wedged in the room.
@@ -3369,6 +3388,7 @@ class ThinSession:
                     return  # Empty provider fragments are not fresh authorizing input.
                 if self._live_rotating:
                     return  # Capture transition input cannot authorize the fresh phase.
+                self._retire_talk_text_observation()
                 self._retire_live_review()
                 self._live_input_revision += 1
                 self._remember_live_input(
@@ -3388,6 +3408,8 @@ class ThinSession:
                 # Raw Live fragments are evidence, not a completed new turn.
             elif ev.direction == "out" and ev.text.strip():
                 self._live_output_transcript_generation = ev.generation
+                self._talk_output_text_revision += 1
+                self._retire_talk_text_observation()
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,
@@ -3454,7 +3476,7 @@ class ThinSession:
                 details["backend_final_char_count"] = len(ev.final_message)
             self._trace_event("live_backend_complete", **details)
             if ev.status != "completed":
-                self._request_close("live-backend-failed", error_kind="connection")
+                self._request_close("error:connection", error_kind="connection")
             elif (
                 ev.tool_call_count == 0
                 and self._live_confirmation_generation == ev.generation
@@ -3645,6 +3667,7 @@ class ThinSession:
     async def _run_live_batch(self, batch: LiveToolBatch, epoch: float) -> None:
         """Execute a completed provider batch under the existing server policy."""
         from .openai_live import LiveProtocolError
+        from .provider_budget import ProviderBudgetUnavailable
 
         revision = self._live_backend_revisions.get(batch.response_id)
         visual_provider = self.brain
@@ -4050,7 +4073,15 @@ class ThinSession:
                 ),
             )
             if current():
-                self._request_close("live-tool-failed", error_kind="connection")
+                if (
+                    stage == "admission"
+                    and completed_results == 0
+                    and isinstance(exc, ProviderBudgetUnavailable)
+                    and str(exc) == "live_result_capacity_unavailable"
+                ):
+                    self._request_close("error:capacity", error_kind="capacity")
+                else:
+                    self._request_close("live-tool-failed", error_kind="connection")
         finally:
             if reviewed is not None and self._live_review is reviewed:
                 self._retire_live_review()
@@ -4191,6 +4222,7 @@ class ThinSession:
                 ):
                     return
                 self._cancel_live_end()
+                self._retire_talk_text_observation()
                 self._live_rotating = True
                 self._live_close_speech_played = False
                 self._live_close_output_observation = None
@@ -5289,6 +5321,7 @@ class ThinSession:
                     "transition",
                     "Bekræftelsen forbinder; send beskeden igen.",
                 )
+            self._retire_talk_text_observation()
             pending_closing = self._cancel_closing_attempt("typed-input")
             if pending_closing is not None and pending_closing is not asyncio.current_task():
                 with contextlib.suppress(asyncio.CancelledError):
@@ -5302,6 +5335,9 @@ class ThinSession:
             self._live_input_revision += 1
             history_session = self._history_session
             admitted_at = time.time()
+            provider, epoch = self.brain, self._epoch
+            generation, revision = provider._connection_generation, self._live_input_revision
+            output_revision = self._talk_output_text_revision
             try:
                 input_index = self.brain.note_local_input()
                 self._remember_live_input(input_index, text, "typed")
@@ -5313,6 +5349,33 @@ class ThinSession:
                     "rejected",
                     "provider_unavailable",
                     "Live kunne ikke modtage beskeden.",
+                )
+            unknown_text = getattr(self.hub, "text_response_unknown", None)
+            if (
+                self._live_webrtc
+                and callable(unknown_text)
+                and self._active
+                and not self._transport_closing
+                and self._epoch == epoch
+                and self._history_session == history_session
+                and self.brain is provider
+                and provider._connection_generation == generation
+                and self._live_input_revision == revision
+                and provider.input_sequence == input_index
+                and self._talk_output_text_revision == output_revision
+            ):
+                self._talk_text_observation_task = self._spawn(
+                    self._observe_talk_text(
+                        command_id,
+                        provider,
+                        epoch,
+                        history_session,
+                        generation,
+                        revision,
+                        input_index,
+                        output_revision,
+                    ),
+                    "thin-talk-text-observation",
                 )
             if self.hub is not None:
                 if hasattr(self.hub, "submitted_text"):
@@ -5331,6 +5394,46 @@ class ThinSession:
                 "Sendt til Live; ingen separat modtagelseskvittering.",
                 session_id=self._history_session,
             )
+
+    def _retire_talk_text_observation(self) -> None:
+        task = self._talk_text_observation_task
+        self._talk_text_observation_task = None
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+
+    async def _observe_talk_text(
+        self,
+        command_id,
+        provider,
+        epoch,
+        session_id,
+        generation,
+        revision,
+        input_index,
+        output_revision,
+    ) -> None:
+        task = asyncio.current_task()
+        try:
+            await asyncio.sleep(TALK_TEXT_OBSERVATION_S)
+            if (
+                self._talk_text_observation_task is task
+                and self._active
+                and not self._transport_closing
+                and self._epoch == epoch
+                and self._history_session == session_id
+                and self.brain is provider
+                and provider._connection_generation == generation
+                and self._live_input_revision == revision
+                and provider.input_sequence == input_index
+                and self._talk_output_text_revision == output_revision
+            ):
+                callback = getattr(self.hub, "text_response_unknown", None)
+                if callable(callback):
+                    with contextlib.suppress(Exception):
+                        callback(self.room, command_id)
+        finally:
+            if self._talk_text_observation_task is task:
+                self._talk_text_observation_task = None
 
     # ------------------------------------------------------------- provider events
     def _manual_input_response_enabled(self) -> bool:

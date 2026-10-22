@@ -38,3 +38,13 @@ test('radio and empty/stale variants omit unsupported program/album/future-time 
  const empty=projection({live:true,vm:{active:false},vehicle:vehicleModel(null)});for(const id of ['home-music','home-radio','home-vehicle','open-timers'])assert.deepEqual(empty.calls.get(id).facts,[],id);
  const paused=projection({vm:{active:true,title:'Observed song',artist:'Observed artist',target:'Observed room',playing:false,fresh:false,positionFresh:false,progressMs:20000,durationMs:60000}});assert(paused.calls.get('home-music').facts.every(row=>row.stale));assert.equal(paused.calls.get('home-music').facts.some(row=>row.id==='album'),false);
 });
+
+
+test('Robot Hero metadata puts actual battery first and qualifies inactive cleaning measurements',async()=>{
+ const {robotDetailMetadata}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),at=Date.now()/1000,telemetry={status:'observed',items:[{key:'cleaning_area',value:12.5,unit:'m²',updatedAt:at,stale:false},{key:'cleaning_time',value:600,unit:'s',updatedAt:at,stale:false}]};
+ assert.equal(robotDetailMetadata({kind:'vacuum',status:'docked',battery:76,telemetry},at),'Batteri 76 % · Senest: 12,5 m² · 10 min');
+ assert.equal(robotDetailMetadata({kind:'vacuum',status:'cleaning',battery:76,telemetry},at),'Batteri 76 % · 12,5 m² · 10 min');
+ assert.equal(robotDetailMetadata({kind:'vacuum',status:'paused',battery:0,telemetry},at),'Batteri 0 % · 12,5 m² · 10 min');
+ assert.equal(robotDetailMetadata({kind:'vacuum',status:'docked',battery:null}), '');
+ assert.match(robotDetailMetadata({kind:'vacuum',status:'docked',battery:76,stale:true,telemetry},at),/sidst kendt/);
+});

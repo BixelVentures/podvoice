@@ -882,6 +882,19 @@ class ToolRouter:
             )
             + self._device_control.declarations()
         )
+        # Both production adapters execute Live contexts. Their historical alias
+        # transfer is refused below; advertise only its supported Spotify form.
+        for declaration in declarations:
+            if declaration["name"] == "podconnect_move_playback":
+                declaration["parameters"]["properties"]["kind"]["enum"] = ["spotify_device"]
+                contract = declaration["description"].split(" HA contract SHA256: ", 1)[1]
+                declaration["description"] = (
+                    "Move existing playback only to an explicit Spotify-device target from its "
+                    "account catalog (kind=spotify_device). Configured room aliases require the "
+                    "separate purpose-bound room MOVE flow. Provider request acceptance does not "
+                    "prove playback or audible output; never retry an unknown outcome. "
+                    "HA contract SHA256: " + contract
+                )
         owner = self._podview_music_owner
         if owner is not None and owner.voice_music_available():
             declarations.extend(

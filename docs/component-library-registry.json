@@ -887,7 +887,8 @@
       "imports": [
         "dist/weather-observation.js",
         "dist/weather-view.js",
-        "dist/robot-observation.js"
+        "dist/robot-observation.js",
+        "dist/podvoice-view.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2418,7 +2419,8 @@
           "method:sendLiveTimer": 1,
           "method:suspendLiveTimer": 1,
           "method:renderOverviewFacts": 1,
-          "method:renderOverviewMediaCards": 1
+          "method:renderOverviewMediaCards": 1,
+          "arrow:outside": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2715,7 +2717,8 @@
         "definitions": {
           "class:NotificationQueue": 1,
           "method:cleanup": 1,
-          "method:next": 1
+          "method:next": 1,
+          "method:dismiss": 1
         },
         "roots": [],
         "registrations": {},

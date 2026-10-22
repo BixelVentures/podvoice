@@ -73,6 +73,23 @@ module.exports=async function runTalkTextContracts(browser,{source,sourceSha,sta
   }
   const countUnknown=o=>o.lines.filter(l=>l.text===unknown).length;
   const users=o=>o.lines.filter(l=>l.who==='you');
+  await one('unconfirmed-text-notice-is-visible-without-replay-or-media-stop',async({send,read,receive})=>{
+    const id=await send('Hvad er hovedstaden i Danmark?');
+    await receive({type:'command_result',command_id:id,status:'submitted'});
+    const before=await read();
+    const message='Der er endnu ikke modtaget et tekstsvar. Beskeden bliver ikke sendt igen automatisk.';
+    await receive({type:'error',code:'text_response_unknown',command_id:id,error:message});
+    let o=await read();
+    assert.equal(o.lines.filter(l=>l.who==='system'&&l.text===message).length,1);
+    assert.equal(o.frames.length,1,'notice never resends the typed input');
+    assert.equal(o.stops.length,0,'notice never stops the active session');
+    assert.equal(o.state,before.state,'notice is not a provider/lifecycle state');
+    assert.equal(o.disabled,false,'next input remains usable');
+    await receive({type:'transcript_fragment',dir:'out',segment_id:'late-primary',text:'København.'});
+    o=await read();
+    assert.ok(o.lines.some(l=>l.text==='København.'),'later real primary output is still rendered');
+    assert.equal(o.frames.length,1);
+  });
   await one('disconnect-reconnect-retired-receipts',async({page,read,send,close,reconnect,receive})=>{
     const old=await send('first');await page.locator('#ctext').fill('newer draft');await close();
     let o=await read();assert.equal(countUnknown(o),1);assert.equal(o.draft,'newer draft');assert.equal(users(o).length,0);assert.equal(o.disabled,true);assert.equal(o.leases,0);
@@ -169,7 +186,7 @@ module.exports=async function runTalkTextContracts(browser,{source,sourceSha,sta
       await page.evaluate(()=>window.__textIO.throwClose=false);await reconnect();assert.equal((await read()).disabled,false,fault+' existing reconnect recovers');
     }
   });
-  const report={issue:[95,115],html_sha256:sourceSha,status:results.every(r=>r.pass)?'PASS':'FAIL',run_complete:results.length===12,results,
+  const report={issue:[95,115,215],html_sha256:sourceSha,status:results.every(r=>r.pass)?'PASS':'FAIL',run_complete:results.length===13,results,
     evidence:'Actual complete shipped HTML; inert socket and controlled existing timer callbacks; no microphone, provider, household, audible or physical acceptance.'};
   if(proof)fs.writeFileSync(path.join(proof,'talk-text-report.json'),JSON.stringify(report,null,2)+'\n');
   assert.equal(report.run_complete&&report.status==='PASS',true,JSON.stringify(results.filter(r=>!r.pass)));

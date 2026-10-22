@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createKitComponent,applyKitComponent} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
 import {productLibrary,libraryCategories,libraryStateCount} from '../../podvoice/gatekeeper/static/podview/library-catalog.js';
-import {previewStates,answerPreviewStatuses} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {previewStates,previewScene,answerPreviewStatuses} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 import {FORMATS} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 
 test('product library links only actual local product preview stages with unique identities',()=>{
@@ -16,7 +16,7 @@ test('product library links only actual local product preview stages with unique
    assert(!states.has(state.id),`duplicate state ${state.id}`);states.add(state.id);
    assert(previewStates.includes(state.stage),`unknown stage ${state.stage}`);
    assert(state.label&&state.description);
-   if(state.open)assert(['#player-detail','#output','#open-history','[data-robot-control]'].includes(state.open),`unexpected automatic action ${state.open}`);
+   if(state.open)assert(['#player-detail','#output','#open-history','#home-radio','[data-robot-control]'].includes(state.open),`unexpected automatic action ${state.open}`);
   }
  }
  assert.equal(libraryStateCount,states.size);
@@ -41,6 +41,22 @@ test('missing source integrations remain explicit and never get fabricated ready
  assert(voice.limitations.some(text=>text.includes('Fuld duplex')));
 });
 
+test('Radio denial and unavailable specimens open the existing detail without inventing authority',()=>{
+ const radio=productLibrary.find(item=>item.id==='radio');
+ for(const stage of ['first-denied','first-unavailable']){
+  const sample=radio.states.find(item=>item.stage===stage);assert(sample,stage);
+  assert.equal(sample.open,'#home-radio');assert.equal(sample.selector,'#radio-view');
+  const scene=previewScene(sample.stage,1_000);
+  assert.equal(scene.connected,false);assert.equal(scene.connectionPreview.status,'disconnected');
+  assert.equal(Boolean(scene.connectionPreview.blocked),stage==='first-denied');
+  assert.equal(scene.music.playback.active,false);assert.equal(scene.music.playback.playing,false);
+  assert.deepEqual(scene.devices,[]);
+ }
+ const combined=productLibrary.find(item=>item.id==='composition').states.find(item=>item.stage==='activities-combined');
+ assert.match(combined.description,/faste timerbar/);assert.match(combined.description,/egne widgets/);
+ assert.doesNotMatch(combined.description,/tre aktiviteter i samme hero/);
+});
+
 test('component isolation targets the displayed anatomy and respects intentional absence',()=>{
  const sample=(family,stage)=>productLibrary.find(item=>item.id===family).states.find(item=>item.stage===stage);
  assert.equal(sample('weather','conversation-overview').selector,'#home-weather');
@@ -53,7 +69,7 @@ test('component isolation targets the displayed anatomy and respects intentional
  const noTimer=sample('timer','timer-rest-empty');assert.equal(noTimer.selector,null);assert(noTimer.isolationNote);
  const noConversation=sample('conversation','conversation-overview');assert.equal(noConversation.selector,null);assert(noConversation.isolationNote);
  const dialogs=productLibrary.flatMap(family=>family.states).filter(item=>item.open);
- assert(dialogs.every(item=>['#music-detail','#rooms','#history','dialog[aria-labelledby="local-robot-title"][open]'].includes(item.selector)));
+ assert(dialogs.every(item=>['#music-detail','#rooms','#history','#radio-view','dialog[aria-labelledby="local-robot-title"][open]'].includes(item.selector)));
 });
 
 test('published component library omits surveys while the original decisions remain archived',async()=>{

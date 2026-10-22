@@ -61,3 +61,14 @@ test('actual host routes local radio controls and valid music selection returns 
  music.call(host,{type:'select',id:'smooth-jazz',revision:0});assert.equal(host.state.radioStationId,'p3');music.call(host,{type:'select',id:'smooth-jazz',revision:host.state.music.revision});assert.equal(host.state.radioStationId,null);assert.ok(host.state.music.pending);
  const live={live:true,state:host.state,liveMedia:{playback:{state:'playing'}},liveControls:{musicIntent(action){this.action=action;}}};music.call(live,{type:'toggle'});assert.equal(live.liveControls.action,'pause');assert.equal(live.state,host.state);
 });
+
+test('retained Radio transport focus callback cannot navigate or dispatch playback',async()=>{
+ const {readFileSync}=await import('node:fs');const {initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),code=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0];
+ for(const connected of [true,false]){
+  const timer={id:'timer-kept',remaining:41},answers=[{id:'answer-kept',status:'ready'}],state={...localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'}),focus:'radio',connected,timer,answers},calls=[];
+  const run=new Function('$',`return function(){${code}}`)(id=>{assert.equal(id,'play-pause');return {focus:options=>calls.push(options)};});
+  const host={state,dispatch(){assert.fail('Radio focus callback must not navigate');},music(){assert.fail('Radio focus callback must not issue playback');}};
+  run.call(host);assert.equal(host.state,state);assert.equal(host.state.timer,timer);assert.equal(host.state.answers,answers);assert.equal(host.state.radioStationId,'p3');assert.deepEqual(calls,[{preventScroll:true}]);
+ }
+});
