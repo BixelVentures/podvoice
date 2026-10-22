@@ -468,15 +468,16 @@ async function settingsTouchTargets(browser) {
           assert.equal(await page.locator('#'+id).count(),0,'conversation test UI removed: '+id);
 
         assert.equal(await page.locator('#s_live_alpha').count(),0,'single Live provider has no preference switch');
-        assert.equal(await page.locator('.primary-controls button').count(),2);
+        assert.equal(await page.locator('.primary-controls button').count(),1);
+        assert.match(await page.locator('.room .wake-guidance').innerText(),/vækkeordet eller knappen på Voice PE/);
+        assert.equal(await page.getByRole('button',{name:'Start samtale i Køkken',exact:true}).count(),0);
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),false);
         assert.equal(await page.locator('#activity-section').evaluate(e=>e.open),false);
         assert.match(await page.locator('.room').innerText(),/Lytter/);
         assert.doesNotMatch(await page.locator('#svc').getAttribute('title')||'',/aktiv Realtime-session/);
         assert.ok(!await page.locator('#svc span').first().getAttribute('title').then(x=>x.includes('aktiv Realtime-session')));
-        await clickControl('Start samtale i Køkken');
         await clickControl('Stop i Køkken');
-        assert.deepEqual(commands,[{room:'Køkken',action:'listen'},{room:'Køkken',action:'stop'}]);
+        assert.deepEqual(commands,[{room:'Køkken',action:'stop'}]);
         assert.equal(await page.locator('#toast').innerText(),'Kommando modtaget');
         assert.match(await page.locator('#capabilities').textContent(),/Tid: verificeret/);
         assert.match(await page.locator('#capabilities').textContent(),/Hjem: fundet/);
@@ -540,10 +541,10 @@ async function settingsTouchTargets(browser) {
         assert.equal(await page.locator('#rooms .rname').innerText(),'Voice PE');
         assert.equal(await page.locator('#pane-home .live-title').innerText(),'Vækning ikke bekræftet');
         assert.match(await page.locator('#rooms').innerText(),/Prøv dit vækkeord/);
-        await clickControl('Start samtale i Voice PE');
+        assert.equal(await page.getByRole('button',{name:'Start samtale i Voice PE',exact:true}).count(),0);
         await clickControl('Stop i Voice PE');
-        assert.deepEqual(commands.slice(2),[{room:'R0',action:'listen'},{room:'R0',action:'stop'}]);
-        commands.length=2;
+        assert.deepEqual(commands.slice(1),[{room:'R0',action:'stop'}]);
+        commands.length=1;
         await page.evaluate(()=>{const rm=rooms.R0;applyStatus({...lastStatus,rooms:[rm,{...rm,room:'r1'}]});});
         serverStatus=await page.evaluate(()=>lastStatus);
         assert.deepEqual(await page.locator('#rooms .rname').allTextContents(),['Voice PE 1','Voice PE 2']);
@@ -601,7 +602,7 @@ async function settingsTouchTargets(browser) {
         await page.keyboard.press('Enter');
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),true);
         await clickControl('Test højttaler i Køkken');
-        assert.deepEqual(commands[2],{room:'Køkken',action:'test_speaker'});
+        assert.deepEqual(commands.at(-1),{room:'Køkken',action:'test_speaker'});
         await page.waitForFunction(()=>Array.from(document.querySelectorAll('.primary-controls button')).every(e=>!e.disabled));
         await page.locator('.room-diagnostics > summary').focus();
         await page.evaluate(v=>applyEvent({type:'live_status',room:'Køkken',live_status:v}),sample('LISTENING',{blocker:'fixture update'}));

@@ -301,6 +301,7 @@
   .room .live-title { font-size:1.6rem; letter-spacing:-.025em; }
   .room .primary-controls { display:grid; grid-template-columns:1fr 1fr; margin-top:20px; }
   .room .primary-controls button { font-size:.95rem; min-height:48px; }
+  .room .wake-guidance { align-self:center; color:var(--fg-dim); font-size:.88rem; }
   .room-diagnostics { border-top:1px solid var(--border); margin-top:18px; padding-top:4px; }
   .room-diagnostics > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--fg-dim); }
   .room-diagnostics > summary::after { content:" ▸"; margin-left:auto; }
@@ -905,7 +906,8 @@ function roomCard(rm, diagnostic) {
   }
   var ctl = el("div", diagnostic ? "ctl" : "ctl primary-controls");
   var controls = diagnostic ? [["Afspil tone", "test_tone"], ["Test højttaler", "test_speaker"]]
-    : [["Start samtale", "listen"], ["Stop", "stop"]];
+    : [["Stop", "stop"]];
+  if (!diagnostic) ctl.appendChild(el("span", "wake-guidance", "Start med vækkeordet eller knappen på Voice PE."));
   controls.forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " i " + (diagnostic ? safe(rm, "room", "") : roomDisplayName(rm.room)));
@@ -957,7 +959,7 @@ function renderRooms() {
       if (!diagnostic) {
         card.querySelector(".rname").textContent = roomDisplayName(id);
         var buttons = card.querySelectorAll(".primary-controls button");
-        ["Start samtale", "Stop"].forEach(function (label, index) {
+        ["Stop"].forEach(function (label, index) {
           buttons[index].setAttribute("aria-label", label + " i " + roomDisplayName(id));
         });
       }
