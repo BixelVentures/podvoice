@@ -179,12 +179,18 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
     sdk = sdks[0]
     old_connection, lease = live._connection, live._lease
     operations = []
+    teardown_steps = []
     heartbeat_stop, attention_release, silence = (
         session.heartbeat.stop,
         session.attention.release,
         session._silence_device,
     )
+    teardown_step = session._teardown_step
     broken = [fault]
+
+    async def record_teardown_step(label, awaitable, **kwargs):
+        teardown_steps.append(label)
+        return await teardown_step(label, awaitable, **kwargs)
 
     async def stop_heartbeat():
         operations.append("heartbeat")
@@ -207,6 +213,7 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
     monkeypatch.setattr(session.heartbeat, "stop", stop_heartbeat)
     monkeypatch.setattr(session.attention, "release", release_attention)
     monkeypatch.setattr(session, "_silence_device", stop_output)
+    monkeypatch.setattr(session, "_teardown_step", record_teardown_step)
     try:
         await refused_batch(sdk)
         waiter = sdk.manager_waiting if adapter == "talk" else sdk.socket.waiting
@@ -222,11 +229,24 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
         duplicate = asyncio.create_task(session.stop(reason="stop-word"))
         await duplicate
         assert session._close_task is owner and owner.done()
+        assert [(k, f["reason"]) for k, f in rows if k == "close_requested"] == [
+            ("close_requested", "error:capacity")
+        ]
+        error_steps = [
+            step for step in teardown_steps if step in ("error-speech", "silence-after-error")
+        ]
+        assert error_steps == (
+            [] if fault == "silence" else ["error-speech", "silence-after-error"]
+        )
         expected = ["silence", "heartbeat", "attention"]
         if adapter == "native" and fault == "silence":
             expected = ["silence"]
         elif fault == "heartbeat":
             expected = ["silence", "heartbeat"]
+        if error_steps:
+            # Capacity refusal now attempts the cached error clip. The second
+            # stop belongs to that same close owner, after the clip attempt.
+            expected.insert(1, "silence")
         assert operations == expected
         attempts = int("attention" in expected and fault != "attention")
         assert len(session.attention.release_calls) == attempts

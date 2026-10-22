@@ -65,6 +65,8 @@
     "tests/integration/test_talk_webrtc.py": "c5b67e95dc2fe4b0bdeb6bc4fdf65c4b1472949d61716d54249c5f7b722f5a0a",
     "tests/integration/test_thin_live.py": "82e548d6852cb0940dd615a70da15e61e19ff5f4a3786d7c107985a18d250c94",
     "tests/integration/test_thin_live_admission_trace.py": "1d756d22c57905636169bb614c48c1260c737bbe6ce067dd31888a364954a431",
+    "tests/integration/test_thin_live_failed_close_cleanup.py": "847789813503cb535a80cdc984bf3cac971ce21fb981a94d77ea8b3780957094",
+    "tests/unit/test_candidate_scope_admission72.py": "8269a6aaf1191c911d18361fbd655682d1dffad2d37b1c774674c9234930f822",
     "tests/unit/test_candidate_scope_admission73.py": "2deba46aef016a98856f5055d86308f4192fffb4c6b2fc297463bb19b5cda84e",
     "tests/unit/test_podconnect_target_tools.py": "346bd96b9cbbeb2af0d05d27e6b06bae5177230b233a7a61d1ef5f38e9516862"
   },

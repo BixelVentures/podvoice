@@ -123,9 +123,11 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_live_error_admission.py",
         "tests/integration/test_talk_webrtc.py",
         "tests/integration/test_thin_live.py",
+        "tests/integration/test_thin_live_failed_close_cleanup.py",
         "tests/integration/test_thin_live_admission_trace.py",
-        "tests/unit/test_podconnect_target_tools.py",
+        "tests/unit/test_candidate_scope_admission72.py",
         "tests/unit/test_candidate_scope_admission73.py",
+        "tests/unit/test_podconnect_target_tools.py",
     }
 )
 HA_RUNTIME = previous.HA_RUNTIME
@@ -134,8 +136,8 @@ IMMUTABLE = previous.IMMUTABLE | {
     "scripts/podview72-admission-reviewed.json": "4036107f7e1ec032f86958626cf492014fac273514e0136c322d5ce5d192595f",
 }
 REVIEWER = "/root/voice_closure_fix"
-MANIFEST_SHA = "2ad1ab3429224796053f3d168158b160b274744be021b2db884c23b63153a092"
-PROFILE_AST = "04a81c35c2ace2061abe76157fcac0069009446e71f67f06b07fd16a3a2031f2"
+MANIFEST_SHA = "ef688c4b23c16a9f7a241511f351a7cff3f9b882979fdc45607eb5ff06c22212"
+PROFILE_AST = "f12df465b0b79378d3d150335fb2315a6be852573afaca223e36242e4a0b9470"
 
 
 def record_at(root: Path) -> dict | None:

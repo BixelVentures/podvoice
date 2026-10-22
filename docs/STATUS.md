@@ -3144,12 +3144,14 @@ Lead removes only the self-imposed requirement to make this isolated old candida
   "base_tip": "c9b04906f7f3386ea404fbf5deca9011489936a1",
   "merge_base": "c9b04906f7f3386ea404fbf5deca9011489936a1",
   "fingerprint": "3d0964ce6f6e404aae67ce65a05b19de33726b38c743128eae432c73eb66faf2",
-  "regression_fingerprint": "982be94bd5e54b9c70b5f955b0d94e097c147de9eab8d69a52d4e0f1e70fa0cf",
+  "regression_fingerprint": "ae10cb728e52e5ac04ac7545005358d2c89023ca5dc6bbbf3edeeb7a3870647b",
   "runtime_fingerprint": "0242f2d09e182baf908bf232041c00987f451eb67da1d0c7c4aefd121c5a7ebe",
   "config_fingerprint": "3b439bd28973097e67a2a5926dee0673fe75ef01ff41217e832ff41ee050f506",
-  "policy_fingerprint": "70b0c24a93abf6f537649f8e30d649a6fdbc7c362dcc6b08a044db7e19b3ea43",
+  "policy_fingerprint": "79a75a607f13d6ad7bc8bc27c11214f54907f1f0ec7ecdcb15044aca93b733d2",
   "tooling_fingerprint": "e4facfb2cba325070c839629bede0869a7ce97624263d46ac5c4162badfb64f5",
-  "manifest_fingerprint": "2ad1ab3429224796053f3d168158b160b274744be021b2db884c23b63153a092",
-  "rationale": "Independent /root/voice_closure_fix source and admission review22October GO: manifest2ad1ab3429224796053f3d168158b160b274744be021b2db884c23b63153a092 matches 5 production,8 regression,315 runtime,4 config,42 policy,27 tooling pins and200 assets. Retained issue reviews and focused regressions remain applicable. This binds software scope only; final provider preflight, official CI, publication, installation and physical acceptance remain outstanding. Issue215 exact-format observation remains unresolved."
+  "manifest_fingerprint": "ef688c4b23c16a9f7a241511f351a7cff3f9b882979fdc45607eb5ff06c22212",
+  "rationale": "Independent /root/voice_closure_fix source and admission review22October GO: manifest2ad1ab3429224796053f3d168158b160b274744be021b2db884c23b63153a092 matches 5 production,8 regression,315 runtime,4 config,42 policy,27 tooling pins and200 assets. Retained issue reviews and focused regressions remain applicable. This binds software scope only; final provider preflight, official CI, publication, installation and physical acceptance remain outstanding. Issue215 exact-format observation remains unresolved. Independent reviewer voice_closure_fix also approved historical72 and failed-close regression corrections, exact 10-test manifest ef688c4b23c16a9f7a241511f351a7cff3f9b882979fdc45607eb5ff06c22212; production/runtime unchanged, final provider preflight passed as separately recorded. Official final CI still required."
 }
 -->
+
+22October final73 side-effect-free provider/schema preflight on frozen source36b9cab/tree804fdceaf1b7e335bca9bda7ccd830adbf98b8f3: one actual GPT-Live WebSocket session accepted the two production ToolRouter declarations from mocked HA service discovery; move kind enum exactly spotify_device (declaration405ad48b305f28fc6e0bc9f2cd4af593f0c17382503c19d2a9e3589f20ac5a1f, wire49cee791182c5f6c58bf06e538844875a5b72ab852996884b1c8cdb3bb55763b). Backend and primary Live both returned Copenhagen as Denmark capital; primary natural nonlexical sound retained per user preference. No tool dispatch, commentary injection, household action or retry; cleanup voice_final/backend_usage_complete true, no errors. Receipt /private/tmp/pv73-schema-final-20261022/summary.json; scriptdebd3830a2c54d9802ae717f0baa012e92ede655be93aa11c0df378671d10496. HA verified stopped before provider and restarted once; Kører on unchanged2.0.72 confirmed08:16:43UTC within three-minute window. Existing key in RAM only, reference cleared, form closed. This passes the declared normal-answer/schema provider preflight, not Green full HA inventory, WebRTC, physical speech or residual215 exact-format acceptance. Official CI run39746109356 and coordinated Connect correction remain pending.

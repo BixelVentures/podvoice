@@ -1,11 +1,28 @@
-"""Successor72 dispatch is additive and unreviewed candidates fail closed."""
+"""Published72 admission remains historical and unreviewed successors fail closed."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
 from scripts import candidate_scope_admission72 as admission
 
 ROOT = Path(__file__).resolve().parents[2]
+PUBLISHED_72 = "c9b04906f7f3386ea404fbf5deca9011489936a1"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def published_72_source_root(tmp_path_factory):
+    """Run immutable72 assertions against its published tree, not a later successor."""
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published72-source") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED_72], cwd=target, check=True)
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root
 
 
 def test_72_base_and_version_trio():
