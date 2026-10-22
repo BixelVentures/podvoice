@@ -905,7 +905,8 @@ function roomCard(rm, diagnostic) {
   }
   var ctl = el("div", diagnostic ? "ctl" : "ctl primary-controls");
   var controls = diagnostic ? [["Afspil tone", "test_tone"], ["Test højttaler", "test_speaker"]]
-    : [["Start samtale", "listen"], ["Stop", "stop"]];
+    : [["Stop", "stop"]];
+  if (!diagnostic) ctl.appendChild(el("span", "sub", "Start med vækkeordet eller knappen på Voice PE."));
   controls.forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " i " + (diagnostic ? safe(rm, "room", "") : roomDisplayName(rm.room)));
@@ -957,7 +958,7 @@ function renderRooms() {
       if (!diagnostic) {
         card.querySelector(".rname").textContent = roomDisplayName(id);
         var buttons = card.querySelectorAll(".primary-controls button");
-        ["Start samtale", "Stop"].forEach(function (label, index) {
+        ["Stop"].forEach(function (label, index) {
           buttons[index].setAttribute("aria-label", label + " i " + roomDisplayName(id));
         });
       }
@@ -1947,7 +1948,7 @@ setInterval(function () {
       else if (name === "AbortError") micHint.textContent = "Mikrofonstarten blev afbrudt. Prøv igen.";
       else if (name === "OverconstrainedError") micHint.textContent = "Browseren kunne ikke levere det ønskede lydformat. Brug Voice PE eller en anden browser.";
       else if (framed) micHint.textContent = "Talk-mikrofonen understøttes ikke inde i dette Home Assistant-panel. Brug Voice PE; du kan stadig skrive her.";
-      else micHint.textContent = "Mikrofonen er blokeret. På iPhone: Indstillinger → Apps → Home Assistant → Mikrofon.";
+      else micHint.textContent = "Mikrofonen er blokeret. Tillad mikrofonen for denne side i browserens webstedsindstillinger, og prøv igen.";
       setState("blokeret", "pill-down");
       return false;
     }

@@ -415,7 +415,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "b1f1195cf23d714660e20b609d8e5a437f6bf6176236a63fd21a7bb32b7aa8d4"
+      "sha256": "51a596717c6680c2bf32c199ace3d865cede91e68264be5e22da2173c848c4af"
     },
     {
       "path": "ingress-kiosk.js",
@@ -451,7 +451,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "2e9d3a29fb80ec1bbe8b21e6afca0357a03fcbb44a89affdcec6059d82c76bdb"
+      "sha256": "8ee1a4683fa192c5207f7a1cc10639fa7b359da9c01d78f594ff897ee05ef80e"
     },
     {
       "path": "live-home-view.js",
@@ -543,7 +543,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "3be0ef2deef369f32efc4572a0a284da6abe8ef36517335bd21d5f88b770abbf"
+      "sha256": "4e85f9e602ade939c0db77aaf2615d28634725ef70c25e8b8a40bb43a64fae1f"
     },
     {
       "path": "podview.css",
@@ -791,7 +791,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "c423b843e7af370a4ccfe1e767b6a20efe2abc3c923a0087f6238c8cfd3092b4"
+      "sha256": "1bb43bc0107d8f94d01b30b707a0e26217020f081f58345c5fd43d63689157b6"
     },
     {
       "path": "workshop.css",

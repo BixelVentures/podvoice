@@ -1,3 +1,71 @@
+<!-- podview74-admission
+{
+  "version": 51,
+  "kind": "podview74_legacy_guidance_and_robot_presentation",
+  "reviewer": "/root/sol61_review74_final",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "0dfae681c18c104d98a1b91fe8b03f9ef8c75834",
+  "merge_base": "0dfae681c18c104d98a1b91fe8b03f9ef8c75834",
+  "fingerprint": "a8d5397c2b47675797da8b24be8065663f2a5c8151bad376d6dd64443c9a8b7f",
+  "regression_fingerprint": "a42cdebddd0dadc699c3dc16db2f920231f965423926aa88e1ed3bc7abbea44e",
+  "runtime_fingerprint": "a7c5c9e4d2618eaa507b492348dc295668dbbb421eb9bc1541f176ba0b3ff268",
+  "config_fingerprint": "0d53a062c82890d0c165cec2c31146df1fe613edb7c9256a715cda79b1eb42bd",
+  "policy_fingerprint": "036f6713077bdb19c55a52a08bb8c01fc88a404360ec519f42914cf7171f9be2",
+  "tooling_fingerprint": "98a5f8a41a3842812b4305845aacd53abaf967743ba58e04e6a4b47c52055b60",
+  "manifest_fingerprint": "3f13ac9e9956411ae732a3fb5df110654a4e3baba4466e78276babdbfd428602",
+  "rationale": "Final UI20 source and exact six-production/ten-regression scope independently approved by /root/sol61_review74_final under Python3.12. Caption-only widget condition and existing causal test are the sole additions to the previously reviewed74 inventories; strict function logic is identical. Exact200 assets and all manifest hashes match; runtime315,config4,prior-policy44,tooling27 and historical73 pins remain closed. Reviewed robot, legacy.sub, permission and peer-recovery evidence is retained. Only final binding/hash closure and affected admission tests are renewed; official CI/publication/installation and physical QA remain pending. Final CI correction: display label advances74; legacy live_status keyboard assertions follow Stop instead of removed unsupported Start, retaining focus checks. No production/runtime/config change."
+}
+-->
+
+## Final UI20 adoption — 22 October 2026
+
+Actual Green73 QA also showed an empty Find musik card claiming disconnected while the live transport was connected. PodView proved the same scene-versus-transport presentation boundary: liveScene.connected deliberately stays false to fence local command authority. The minimal canonical widget-view condition now reads only the actual live transport for the empty-card caption; it does not admit a command or change navigation, retained metadata, capabilities, paid quotas, controller grants or voice lifecycle. Actual render/liveScene regression failed before and passes after; canonical1701 tests and syntax PASS. PodView final UI owner and independent registry_review61 exact-source GO received. The whole frozen UI20 inventory is200 files, manifest SHA434d95a2d98772a6c5f9833ccc8b26314b0836fe7ab25b691cea17ce1ede39f4. Only index marker, widget-view and generated bundle change from reviewed UI19. UI19 robot source/test and the approved legacy guidance/error-copy deltas are retained.
+
+The v2 portable payload a443803d5f7fbd636edb7ef1dc71cdcd7a283697c1bc56c48cc6450e2f5861d8 is superseded and held from push. This same74 successor explicitly adds only widget-view and its existing root-mirrored causal test to exact inventories, renews affected hashes/bindings and scoped tests, and reuses all unchanged prior reviews/checks. Root now owns GitHub branch/PR/CI/merge/publication exclusively; PodView owns HA installation and runtime/UI verification exclusively. No push is eligible until final UI20/hash closure. No new release, provider probe, local semantic engine, extra component family or broad audit is introduced.
+
+## Corrected final74 result — 22 October 2026
+
+The requested existing-style correction is complete. Guidance uses legacy .sub; no dedicated wake-guidance CSS remains. Independent /root/sol61_review74_final tiny-source GO and final Python3.12.13 hash-only closure are GO. Current profile SHA256c7e9274096d3664a0247569d8e96982d56b9c85bb1cc7a56bcf58fe290f55eb4, ASTe1f63d67b63f0bd8d5e09e95eb34e2c5900cb0691e77c74f5c6f2982341c01f6, manifest5538b1d36a3f4c91d8d399908e62c57bac48f16c0829450761e2a6a5574890cf. HTMLf9f63183edc70f2cbd5ecd2f992077f5307a13a286b1c97eda7ced85dd6ebe01; dailyUI fixtureb4d90d1b1d7700ce4cfb30c58a3b16b1e392a79472cb91d3430edd75ecc9af05.
+
+The existing pinned Node24.19.0/Playwright1.62.1/Chromium1234 daily_ui worker passed with owned process registry and cleanup_complete:true in the durable dev clone. Receipt: /Users/madsbachandersen/.cache/podvoice-dev/browser-proof/pv74-final-sub-guidance-20261022/receipt.json. This is actual shipped HTML with synthetic APIs; no live HA, provider or device effects. Updated exact74 CLI admission PASS and all12 bound74/mutation tests PASS. Earlier Ruff/format/mypy and unchanged source/regression evidence are reused, not rerun. No runtime fix was made for the tooling-only selector/tracking observations.
+
+Only the newly corrected v2 portable payload is eligible for the release handoff; the earlier f17241 payload remains revoked. Official CI, publication, Green installation/readback and installed/physical QA still await the one PodView release owner. No image/version in production was overwritten.
+
+## Final UI-owner review correction — 22 October 2026
+
+After the first frozen74 handoff, PodView final UI review rejected the new wake-guidance CSS as an unnecessary ad hoc style. The prior portable payload f17241abaa4893c3f187c17a91e05eb949327e618fbc811d620ab4023bd546da is superseded and must not be pushed. Minimal correction reuses the existing legacy .sub class, removes only the new style rule, and updates the browser selector. Text, Stop routing/label, physical wake instruction, canonical UI19 and all runtime/authority bits stay unchanged. Only the affected shipped-HTML Chromium regression and tiny independent source/UI review are renewed, then the two changed hashes and exact74 binding; all other prior evidence is reused. No new UI family, provider call, broad gate or installation is authorized by this correction. The previous frozen result below remains its original historical result, not admission for changed bytes.
+
+## Frozen74 software result — 22 October 2026
+
+Independent /root/sol61_review74_final source/composition/strict-scope GO and final Python3.12.13 hash-only closure are complete. Bound profile SHA2568d4b8db52256c8351486653f29bfa6fc29a9733ccb491cd7143df602caae0d07, AST65729014316d975ca56085a62dd4424dbeaef42455520db49dd850528fd2697b, manifest6d81f09cba9ad2e5ffab31568419cdd44fa3669ca33d4e7f3ccf21b14c56f733. No reviewed source changed during final binding.
+
+In the durable unsynchronized clone /Users/madsbachandersen/.local/share/podvoice/pv74-backlog-qa-20261022, the existing Python3.12 venv ran scripts/dev fast --base0dfae681 --test tests/unit/test_candidate_scope_admission74.py:12/12 PASS, Ruff PASS,9 files already formatted, mypy89 source files PASS,18.5s total. The initial selector stopped before tests because the new test was not yet tracked; tracking the three new candidate files allowed the existing gate to proceed, without changing product or test behavior. This is focused software evidence, not a full official release CI or physical acceptance.
+
+Prior unchanged evidence retained: UI19 canonical1700 PASS, adopted robot composed module36/36 PASS, legacy229 Chromium/parse PASS,197 modules13 JS/50 Python PASS,115 causal old-HTML RED/new-HTML GREEN and18 focused PASS plus Ruff. No provider, HA, robot, music or timer action was executed in this preparation. Official CI, publication, exact Green installation/readback and relevant installed/physical QA remain pending. PodView owns final delivery; the source is handed off through the existing draftPR234 with expected head79507faee4652a50a5d734fd90333ba3c30884b2.
+
+## Active coordinated 2.0.74 preparation — 22 October 2026
+
+Root owns isolated successor metadata/admission; PodView remains the sole final merge/publication/install writer and final UI owner. Published73/40 and the current Green installation are immutable. The user explicitly authorized simultaneous backlog work and GPT-6.1-Sol for all new tasks. Prepare reviewed #229 and #197 from PR234, then reviewed #115 permission-copy and PodView's confirmed robot controls correction once final UI bytes are supplied. Observed actual Green73 QA: robot task is received but controls stay disabled; PodView confirmed that the renderer passes a voice/demo connected:false instead of the live domain/transport readiness. No robot action was sent. #187 is back In Progress, not accepted.
+
+Hypothesis: the smallest renderer-owned corrections plus current authority fences repair the observed controls without changing ThinSession, firmware, GPT-Live prompt/tool dispatch, audio, timers or native playback ownership. Required chain: authorized browser action/read → actual room/domain capability → existing backend effect guard → truthful UI; current voice lifecycle and next wake remain unchanged. Preserve stale/generation/room/session/UNKNOWN/no-replay guards, existing controller policy and paid ledgers. Non-goals: new features, mobile/Frameo/native-web, quotas, timeout tuning or provider probes.
+
+Prepare version/config/build74 and minimal existing strict-scope successor, with published73 profile/manifest immutable and historical73 tests pinned to that actual snapshot. Keep final reviewer/hash/manifest bindings empty until all reviewed UI bytes are frozen. Reuse unchanged passed runtime/provider checks; run changed error-path and composed UI regressions, static checks and exact admission, followed by one final official CI on the frozen candidate. No production gate is waived by draft or local PASS. Rollback is the prior immutable73 image with settings/policies preserved. This entry is a preparation decision, not a release/install/physical result.
+
+## Active backlog QA candidate — #229 and #197 — 22 October 2026
+
+Lead: root. PodView retains final UI acceptance and sole ownership of the already published 2.0.73 / Speakers 0.26.40 installation. This separate draft does not change those immutable images or the shared release branch.
+
+Observed #229: the served legacy static/index.html still offers Start samtale/action=listen although the native handler rejects that unsupported path before microphone context. Hypothesis: removing this unsupported renderer action, while retaining physical wake guidance and the existing Stop route, prevents the misleading browser flow without altering any voice owner. Chain: legacy room card → existing control API → native context guard; physical wake/button → ThinSession → playback → teardown/rearm is unchanged. Neighbour risks: opaque room relabeling, multiple room cards, diagnostic controls, accessible Stop label and original room routing. Non-goals: software wake support, firmware, prompt, timings, canonical UI18, grants, provider calls and current installation.
+
+The isolated two-file draft removes only the unsupported Start control, adds short physical wake guidance and updates the existing shipped-HTML Chromium expectations. The browser regression checks no listen dispatch, retained Stop and opaque room relabeling; synthetic Chromium and JS parsing passed. Independent GPT-6.1-Sol review /root/sol61_review229 is GO for HTML SHA256 5be2565503cdd8301f7bfdae9b7bdc88ef5c9452d0749dd08102e62e2b7849f0 and browser fixture d0045f96013508b1bf8673887e7f988d829d79f01e6cc4505e07948cb15c95f7. Browser fixtures are not installed or physical proof. Rollback is the two-file renderer/test delta, with runtime guards untouched.
+
+#197's intended same-profile peer-read recovery exists; no current runtime failure has been reproduced. The regression is integrated into the two existing peer-recovery and controller-continuity modules. Actual transport with modeled shared cookie/grant rotation passes 13 JavaScript cases; the actual backend renewal/authority helper module passes 50 Python cases, plus Ruff lint/format. Independent GPT-6.1-Sol /root/sol61_review197 reviewed patch SHA256 cc010fc768737afde78645742a8a43b34daa783bdf216621a6f84286a73544ab and gives GO for Ready for QA, not Done. The HTTP/SSE cookie propagation remains modeled, snapshots return the allowed fixture, and no-replay only means no automatic dispatch in this scenario; real browser/server coupling and installed acceptance remain QA. No production #197 patch was justified.
+
+Status: unversioned draft source for the next coordinated candidate; no publication, installation or physical acceptance. Existing 2.0.73 admission metadata is historical for its frozen source and does not admit this changed tree. Exact successor scope binding and final official CI remain required before this draft can merge/release. No broad gate or provider call is repeated for this preparation.
+
 ## Active72 explicit finite visual grant · lead decision ·21October2026
 
 Lead/root: the user explicitly requests finishing/activating the visual AI extension on Green. Existing finite visual20 is durably reserved at startup, so another installation cannot legitimately reuse its remaining in-memory allowance. Hypothesis: a separate explicitly approved finite grant can activate at most20 additional Luna requests without touching the historical ledger or introducing any ongoing allowance.
@@ -3162,3 +3230,9 @@ PodView owns UI bytes and reports published/reviewedUI18 while Green72 still has
 
 ## Active coordinated73 failover lead —22October2026
 Root is now the sole mutating release lead after the prior coordinator capacity failure and explicit freeze acknowledgement. Frozen voice73 plus independently reviewed UI18 is adopted at276470d; scope is only final73 admission bindings, reviewed manifest and this STATUS record. Hypothesis: stale bindings, not runtime or UI defects, prevent the reviewed combined source from admission. Preserve all runtime/config/policy/provider/firmware and200UI bytes, the one ThinSession owner, stale/unknown-effect fences and immutable historical admission profiles. Reuse unchanged provider/source and2764frontend PASS evidence; run exact admission, focused73 regression and static checks from durable storage, then independent combined binding review and official final CI. Rollback is these three metadata files only. No push, provider call, grant reset, HA stop/install or physical acceptance is performed in this step; #215 exact-format and physical acceptance remain open.
+
+## Final UI20 candidate74 validation —22October2026
+UI20 exact admission PASS and all12 admission regressions PASS on fixed Python3.12 in the durable development clone. Shipped media-card regression6/6 and robot-panel regression36/36 PASS; canonical UI owner reports1701 PASS and independent source GO. Earlier unchanged source checks and final legacy Chromium receipt remain applicable. Manifest e5faba03f556bd74e38583024e4e7630b800ed40647a4f107ddf09e1ab5e23c7; bound profile8f36a976e9def395881f6b427284b17f84b3d1c5150b0d054dd18a53040b21b0. Root exclusively owns PR234 upload/CI/merge/publication; PodView exclusively owns subsequent Green installation/runtime verification. Official CI, publication, installation and physical acceptance remain pending. Superseded transfer v2 must not be published.
+
+### Candidate74 first official CI correction
+Run39766397959 rejected stale workflow display version73 and live_status focus expectations for removed Start. Corrected label74 and three expected Stop strings; source GO from independent sol61_review74_final. No production or runtime bytes changed. Exact admission PASS and25 promotion/admission tests PASS. Corrected live_status Chromium PASS with cleanup_complete true; receipt /Users/madsbachandersen/.cache/podvoice-dev/browser-proof/pv74-ci-live-status-20261022/receipt.json. Required final official CI remains pending; prior failed run stays failed.

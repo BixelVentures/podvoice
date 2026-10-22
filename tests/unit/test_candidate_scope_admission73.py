@@ -1,11 +1,29 @@
 """Successor73 admission dispatch is strict and remains closed before review."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
 from scripts import candidate_scope_admission73 as admission
 
 ROOT = Path(__file__).resolve().parents[2]
+
+PUBLISHED_73 = "0dfae681c18c104d98a1b91fe8b03f9ef8c75834"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def published_73_source_root(tmp_path_factory):
+    """Run immutable73 assertions against its published tree, not a later successor."""
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published73-source") / "repo"
+    subprocess.run(["git", "clone", "--quiet", "--shared", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED_73], cwd=target, check=True)
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root
 
 
 def test_73_base_and_version_trio():

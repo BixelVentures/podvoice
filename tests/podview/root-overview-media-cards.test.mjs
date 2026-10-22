@@ -6,6 +6,7 @@ import {fixtureArtwork,renderOverviewMediaValues} from '../../podvoice/gatekeepe
 import {radioStation,localRadioPlayerModel} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
 import {localPlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
 import {initialScene} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {liveScene,liveLocalEvent,liveTimerRequest} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {vehicleFixture,vehicleModel} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderOverviewMediaCards('),end=source.indexOf('\n renderOverviewFacts(',start);
 const method=source.slice(start,end).trim();
@@ -19,7 +20,7 @@ function fixture({live=false,vm=localPlayerModel(initialScene()),state=initialSc
   const card={ownerDocument:doc,dataset:id==='home-radio'?{kitSize:radioSize}:{},image,heading,small,label,querySelector:selector=>selector===':scope>img:first-child'?image:selector==='strong'?heading:selector==='small'?small:selector===':scope>span'?label:null};cards.set(id,card);
  }
  const render=new Function('$','spotifyArtwork','spotifyItemUrl','renderRetainedArtwork','cancelArtwork','fixtureArtwork','radioStation','projectVehicle',`return function ${method}`)(id=>cards.get(id),spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,fixtureArtwork,radioStation,vehicleModel);
- doc.getElementById=id=>cards.get(id);const host={live,state,ownerDocument:doc,playerView:{progressVM:vm}};return {cards,host,probes,writes,render:vehicle=>render.call(host,vehicle??vehicleFixture({charging:true}))};
+ doc.getElementById=id=>cards.get(id);const host={live,state,liveTransport:live?{connected:state.connected}:undefined,ownerDocument:doc,playerView:{progressVM:vm}};return {cards,host,probes,writes,render:vehicle=>render.call(host,vehicle??vehicleFixture({charging:true}))};
 }
 const flush=async()=>{for(let i=0;i<7;i++)await Promise.resolve();};
 test('M music retains source-owned cover/title/artist and decodes once across unchanged updates',async()=>{
@@ -49,3 +50,19 @@ test('full media and compact projections have one copy writer across empty/known
   card.dataset.kitSize='s';update();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(text,vm.active?'Spiller: Actual song\nActual artist':'Ingen seneste afspilning');const compactBefore=mutations;update();assert.equal(mutations,compactBefore);
  }
 });
+
+ test('live empty music follows transport readiness, keeps navigation and never enables local command authority',()=>{
+ const snapshot={voice:{},timers:{status:'observed',items:[]},capabilities:{}};
+ const state=liveScene(initialScene(),snapshot),f=fixture({live:true,state,vm:{active:false}}),card=f.cards.get('home-music');
+ assert.equal(state.connected,false,'live scene deliberately cannot authorize the local reducer');
+ f.host.liveTransport={connected:true};f.render();
+ assert.equal(card.heading.textContent,'Find musik');assert.equal(card.small.textContent,'Vælg musik');
+ assert.equal(liveLocalEvent({type:'show',id:'music'},state),true);
+ assert.equal(liveTimerRequest(snapshot,true,{type:'timer-start',seconds:60,name:'test'}),null,'a connected transport alone supplies no command capability');
+ f.host.liveTransport.connected=false;f.render();assert.equal(card.small.textContent,'Ikke forbundet');
+ assert.equal(liveLocalEvent({type:'show',id:'music'},state),true,'offline navigation remains available');
+ f.host.liveTransport.connected=true;f.render();assert.equal(card.small.textContent,'Vælg musik');assert.equal(state.connected,false);
+ f.host.playerView.progressVM={active:true,title:'Retained song',artist:'Retained artist',fresh:false};
+ f.host.liveTransport.connected=false;f.render();assert.equal(card.heading.textContent,'Retained song');assert.equal(card.small.textContent,'Retained artist');
+ assert.equal(f.probes.length,0,'no invented art or provider call');
+ });

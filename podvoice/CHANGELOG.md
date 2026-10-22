@@ -1,3 +1,9 @@
+## 2.0.74 · source candidate
+
+- Replace the unsupported legacy browser Start control with physical wake guidance.
+- Coordinate the remaining reviewed PodView presentation and permission guidance in one release.
+- Final exact source admission, official CI, publication and installation remain pending.
+
 ## 2.0.72 · source candidate
 
 Semantic visual presentation and optional bounded AI enrichment; final generated-cover and canonical UI scope await exact independent admission. Not released or installed.

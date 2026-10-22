@@ -610,3 +610,25 @@ def test_long_initial_window_cannot_come_from_panel_or_untrusted_settings(tmp_pa
     assert not cfg.podview_controller_enabled
     options.write_text(json.dumps(malicious))
     assert load_config(options).podview_controller_pairing_seconds == 86400
+
+
+async def test_same_profile_renewal_replaces_only_the_current_action_grant(tmp_path):
+    bridge, timers, code = rig(tmp_path)
+    credential, old_grant = await enroll(bridge, code)
+    identity = credential.split(".", 1)[0]
+
+    first = await renew(bridge, credential)
+    assert first.status == 200
+    fresh_grant = first.cookies["podview_control"].value
+    assert bridge._grant_slot("kitchen", fresh_grant) == ("kitchen", identity)
+    assert bridge._grant_current("kitchen", fresh_grant)
+    assert not bridge._grant_current("kitchen", old_grant)
+
+    second = await renew(bridge, credential)
+    assert second.status == 200
+    latest_grant = second.cookies["podview_control"].value
+    assert latest_grant != fresh_grant
+    assert bridge._grant_slot("kitchen", latest_grant) == ("kitchen", identity)
+    assert bridge._grant_current("kitchen", latest_grant)
+    assert not bridge._grant_current("kitchen", fresh_grant)
+    assert timers.command.await_count == 0
