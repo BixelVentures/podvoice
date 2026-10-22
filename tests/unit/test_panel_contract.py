@@ -141,7 +141,7 @@ def test_talk_wakes_only_after_successful_capture_and_releases_tracks():
     assert 'if (ev.state === "IDLE") { endTurn(); micStop(); }' in html
     assert 'micBtn.setAttribute("aria-pressed", "true")' in html
     assert "Talk-mikrofonen understøttes ikke inde i dette Home Assistant-panel" in html
-    assert "Indstillinger → Apps → Home Assistant → Mikrofon" in html
+    assert "Tillad mikrofonen for denne side i browserens webstedsindstillinger" in html
     assert 'id="cplay"' in html
 
 

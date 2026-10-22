@@ -48,7 +48,7 @@ function setTimeout(callback, delay) {
 }
 function clearTimeout(timer) { pendingTimers.delete(timer); nativeClearTimeout(timer); }
 
-let sent = [], peers = [], permissionCalls = 0, replaceGate = null, offerGate = null, permissionGate = null;
+let sent = [], peers = [], permissionCalls = 0, replaceGate = null, offerGate = null, permissionGate = null, permissionError = null;
 var ws = {}, wsReady = true, socketGeneration = 1, halted = false, capStream = null, capCtx = null, capNode = null,
     playCtx = null, micOn = false, micRequestSerial = 0;
 var micHint = {}, micBtn = {classList:{add(){},remove(){}},setAttribute(){}};
@@ -68,7 +68,7 @@ const document={getElementById(id){assert.equal(id,"pane-talk");return talkPane;
 var exitCallbacks={};
 var window={self:{},top:{},addEventListener(name,callback){exitCallbacks[name]=callback;}};
 // A lexical mock also works when Node exposes a getter-only global navigator.
-const navigator={mediaDevices:{async getUserMedia(){permissionCalls++;if(permissionGate)return await permissionGate;return stream();}}};
+const navigator={mediaDevices:{async getUserMedia(){permissionCalls++;if(permissionError)throw {name:permissionError};if(permissionGate)return await permissionGate;return stream();}}};
 class RTCPeerConnection{
  constructor(){this.iceGatheringState='complete';this.connectionState='new';peers.push(this);}
  addTrack(t){this.sender={track:t,async replaceTrack(next){if(replaceGate)await replaceGate;this.track=next;}};return this.sender;}
@@ -219,6 +219,30 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
    assert.equal(microphone.readyState,'ended');assert.equal(owned.pc.connectionState,'closed');
    assert.equal(audio.paused,true);assert.equal(audio.srcObject,null);
  }
+ // Exercise actual shipped getUserMedia rejection; no capture or provider call.
+ window.self=window.top;
+ const deniedAction='Mikrofonen er blokeret. Tillad mikrofonen for denne side i browserens webstedsindstillinger, og prøv igen.';
+ const sentBeforeDenial=sent.length, peersBeforeDenial=peers.length;
+ for (const name of ['NotAllowedError','PermissionDeniedError']) {
+   permissionError=name;
+   assert.equal(await micStart(),false);
+   assert.equal(micHint.textContent,deniedAction);
+   assert.equal(capStream,null);assert.equal(micOn,false);assert.equal(livePeer,null);
+   assert.equal(sent.length,sentBeforeDenial,'denied capture cannot wake or signal a new session');
+   assert.equal(peers.length,peersBeforeDenial,'denied capture cannot create a peer');
+ }
+ // Existing context and named-error guidance must retain precedence.
+ window.self={};permissionError='NotAllowedError';
+ assert.equal(await micStart(),false);
+ assert.equal(micHint.textContent,'Talk-mikrofonen understøttes ikke inde i dette Home Assistant-panel. Brug Voice PE; du kan stadig skrive her.');
+ window.self=window.top;
+ for (const [name,message] of [
+   ['SecurityError','Browserens sikkerhedspolitik blokerer mikrofonen. Brug HTTPS eller Voice PE.'],
+   ['NotFoundError','Ingen mikrofon blev fundet på enheden.']
+ ]) {
+   permissionError=name;assert.equal(await micStart(),false);assert.equal(micHint.textContent,message);
+ }
+ permissionError=null;
 console.log('TALK_ASSERTIONS_COMPLETE pending_timers=' + pendingTimers.size);
  assert.equal(pendingTimers.size,0,'browser timers remain after final page-exit assertions');
 })().catch(e=>{console.error(e);process.exitCode=1;});

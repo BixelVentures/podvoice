@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 // Minimal DOM port for actual form events and emitted arguments. Browser layout
 // and native focus behavior remain a separate QA gate.
 class Node extends EventTarget{
- constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes=new Map();this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.textContent='';this.value='';this.checked=false;if(tag!=='host')this.disabled=false;}
+ constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes=new Map();this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.textContent='';this.value='';this.checked=false;this.isConnected=true;this.open=false;if(tag!=='host')this.disabled=false;}
  append(...nodes){this.children.push(...nodes);}
  prepend(...nodes){this.children=this.children.filter(node=>!nodes.includes(node));this.children.unshift(...nodes);}
  replaceChildren(...nodes){this.children=nodes;}
@@ -15,13 +15,61 @@ class Node extends EventTarget{
   return (!tag||node.tagName===tag[0].toUpperCase())&&(!attr||node[attr[1]]===attr[2])&&(!part.includes(':checked')||node.checked);
  });return this.children.flatMap(node=>[...(matches(node)?[node]:[]),...node.querySelectorAll(selector)]);}
  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
+ focus(){document.activeElement=this;}
+ showModal(){this.open=true;}
+ close(){this.open=false;this.dispatchEvent(new Event('close'));}
+ remove(){}
 }
 globalThis.HTMLElement=Node;
 globalThis.document={createElement:tag=>new Node(tag)};
 const {RobotControlPanel}=await import('../../podvoice/gatekeeper/static/podview/robot-control-panel.js');
+const {LiveControlView}=await import('../../podvoice/gatekeeper/static/podview/live-control-view.js');
 const task=()=>({domain:'vacuum',mapName:'Stueetagen',options:[{id:'start-option',label:'Start rengøring',action:'start',argsSchema:{kind:'cleaning',areas:[{id:'area-k',label:'Køkken'},{id:'area-s',label:'Stue'}],repeat:{min:1,max:3}}},{id:'fan-option',label:'Sugestyrke',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'fan-quiet',label:'quiet'},{id:'fan-max',label:'max'}]}}]});
 const device={status:'docked',battery:null,observedAt:1770000000};
 const emit=(node,type)=>node.dispatchEvent(new Event(type,{cancelable:true}));
+// Compose both real owners: liveScene's connected flag is intentionally false,
+// while only the transport and current server offer admit this live task.
+async function livePanelFixture({connected=true,authorized=true}={}){
+ const previousDocument=globalThis.document;
+ globalThis.document={createElement:tag=>tag==='pv-robot-control-panel'?new RobotControlPanel():new Node(tag),getElementById:()=>null,body:new Node('body')};
+ const host=new Node(),target={entityId:'vacuum.actual'};
+ host.querySelector=()=>null;
+ host.state={connected:false,devices:[{...device,id:target.entityId,kind:'vacuum',live:true,stale:false}]};
+ host.liveSnapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:authorized?['vacuum']:[]}};
+ let reads=0,writes=0;
+ host.liveTransport={connected,controlSetup:async()=>{reads++;return {ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'current-task',revision:1,expiresAt:Date.now()/1000+120,options:task().options};},controlAction:async()=>{writes++;throw Error('This regression must never send a robot command');}};
+ const view=new LiveControlView(host);
+ await view.open('vacuum',target,new Node('button'));
+ return {host,view,reads:()=>reads,writes:()=>writes,cleanup(){view.cleanup();globalThis.document=previousDocument;}};
+}
+test('real live task enables admitted robot choices from transport connection despite scene connected=false',async()=>{
+ const f=await livePanelFixture();try{
+  const panel=f.view.robotPanel,room=panel.querySelector('[name=areaIds]');
+  assert.ok(panel instanceof RobotControlPanel);assert.equal(f.host.state.connected,false);assert.equal(f.reads(),1);
+  assert.equal(panel.value.connected,true);assert.equal(panel.observation.data.connected,true);assert.equal(room.disabled,false);
+  assert.equal(panel.cleaningSubmit.disabled,true);emit(room,'click');
+  assert.equal(panel.cleaningSubmit.disabled,false);assert.equal(panel.cleaningSubmit.textContent,'Start i Køkken');
+  f.view.render();assert.equal(f.view.robotPanel,panel);assert.equal(room.checked,true);assert.equal(room.disabled,false);assert.equal(panel.cleaningSubmit.disabled,false);assert.equal(f.writes(),0);
+ }finally{f.cleanup();}
+});
+for(const boundary of ['offline','revoked','pending','setup-pending','spent','stale','missing-task','expired'])test(`real live panel remains closed at ${boundary} despite scene connected=true`,async()=>{
+ const f=await livePanelFixture();try{
+  const panel=f.view.robotPanel,room=panel.querySelector('[name=areaIds]');emit(room,'click');
+  f.host.state.connected=true;
+  if(boundary==='offline')f.host.liveTransport.connected=false;
+  else if(boundary==='revoked')f.host.liveSnapshot.capabilities.controlSetup=[];
+  else if(boundary==='pending')f.view.pending=true;
+  else if(boundary==='setup-pending')f.view.setupPending=true;
+  else if(boundary==='spent')f.view.spent.set(f.view.task.taskId,f.view.task.expiresAt);
+  else if(boundary==='stale')f.host.state.devices[0].stale=true;
+  else if(boundary==='missing-task')f.view.task=null;
+  else f.view.task.expiresAt=Date.now()/1000-1;
+  f.view.render();assert.ok(panel.querySelectorAll('button,input,select').every(node=>node.disabled),boundary);assert.equal(f.writes(),0);
+ }finally{f.cleanup();}
+});
+for(const boundary of ['offline','revoked'])test(`real live panel cannot open without ${boundary==='offline'?'transport connection':'current vacuum authority'}`,async()=>{
+ const f=await livePanelFixture({connected:boundary!=='offline',authorized:boundary!=='revoked'});try{assert.equal(f.view.robotPanel,undefined);assert.equal(f.reads(),0);assert.equal(f.writes(),0);}finally{f.cleanup();}
+});
 test('room and repeat touch selections emit only admitted option and area IDs; observations retain the draft',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device};assert.equal(actions.length,0);
  const root=panel,form=root.querySelector('form'),submit=panel.cleaningSubmit,rooms=form.querySelectorAll('[name=areaIds]');assert.equal(submit.disabled,true);emit(form,'submit');assert.equal(actions.length,0);

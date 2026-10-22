@@ -301,7 +301,6 @@
   .room .live-title { font-size:1.6rem; letter-spacing:-.025em; }
   .room .primary-controls { display:grid; grid-template-columns:1fr 1fr; margin-top:20px; }
   .room .primary-controls button { font-size:.95rem; min-height:48px; }
-  .room .wake-guidance { align-self:center; color:var(--fg-dim); font-size:.88rem; }
   .room-diagnostics { border-top:1px solid var(--border); margin-top:18px; padding-top:4px; }
   .room-diagnostics > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--fg-dim); }
   .room-diagnostics > summary::after { content:" ▸"; margin-left:auto; }
@@ -907,7 +906,7 @@ function roomCard(rm, diagnostic) {
   var ctl = el("div", diagnostic ? "ctl" : "ctl primary-controls");
   var controls = diagnostic ? [["Afspil tone", "test_tone"], ["Test højttaler", "test_speaker"]]
     : [["Stop", "stop"]];
-  if (!diagnostic) ctl.appendChild(el("span", "wake-guidance", "Start med vækkeordet eller knappen på Voice PE."));
+  if (!diagnostic) ctl.appendChild(el("span", "sub", "Start med vækkeordet eller knappen på Voice PE."));
   controls.forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " i " + (diagnostic ? safe(rm, "room", "") : roomDisplayName(rm.room)));
@@ -1949,7 +1948,7 @@ setInterval(function () {
       else if (name === "AbortError") micHint.textContent = "Mikrofonstarten blev afbrudt. Prøv igen.";
       else if (name === "OverconstrainedError") micHint.textContent = "Browseren kunne ikke levere det ønskede lydformat. Brug Voice PE eller en anden browser.";
       else if (framed) micHint.textContent = "Talk-mikrofonen understøttes ikke inde i dette Home Assistant-panel. Brug Voice PE; du kan stadig skrive her.";
-      else micHint.textContent = "Mikrofonen er blokeret. På iPhone: Indstillinger → Apps → Home Assistant → Mikrofon.";
+      else micHint.textContent = "Mikrofonen er blokeret. Tillad mikrofonen for denne side i browserens webstedsindstillinger, og prøv igen.";
       setState("blokeret", "pill-down");
       return false;
     }

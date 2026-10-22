@@ -469,7 +469,7 @@ async function settingsTouchTargets(browser) {
 
         assert.equal(await page.locator('#s_live_alpha').count(),0,'single Live provider has no preference switch');
         assert.equal(await page.locator('.primary-controls button').count(),1);
-        assert.match(await page.locator('.room .wake-guidance').innerText(),/vækkeordet eller knappen på Voice PE/);
+        assert.match(await page.locator('.room .primary-controls .sub').innerText(),/vækkeordet eller knappen på Voice PE/);
         assert.equal(await page.getByRole('button',{name:'Start samtale i Køkken',exact:true}).count(),0);
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),false);
         assert.equal(await page.locator('#activity-section').evaluate(e=>e.open),false);
