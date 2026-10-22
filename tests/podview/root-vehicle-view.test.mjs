@@ -111,6 +111,31 @@ test('lock confirmation is revoked by a revision change or lost connection',()=>
  view.lockButton.dispatchEvent(new Event('click'));view.lockCancel.dispatchEvent(new Event('click'));assert.equal(view.lockConfirm.hidden,true);assert.deepEqual(events,[]);
 });
 
+test('confirmed local lock controls keep Hero and Access consistent without replacing charging status',async()=>{
+ const {vehiclePreviewAction}=await import('../../podvoice/gatekeeper/static/podview/vehicle-model.js');
+ for(const charging of [false,true]){
+  const {root}=fixture();let state=vehicleFixture({charging,controls:true});const view=new VehicleView(root,{onAction:event=>{state=vehiclePreviewAction(state,event);view.render(state);}});view.render(state);
+  const hero=view.hero,status=view.status;
+  for(const locked of [false,true]){
+   const previous=state,revision=state.revision;view.lockButton.dispatchEvent(new Event('click'));assert.strictEqual(state,previous);assert.equal(view.lockConfirm.hidden,false);
+   view.lockConfirm.dispatchEvent(new Event('click'));assert.equal(state.locked,locked);assert.equal(state.revision,revision+1);assert.equal(state.status,charging?'Lader':`Parkeret · ${locked?'Låst':'Ulåst'}`);assert.equal(view.status.textContent,state.status);assert.equal(view.access.status.textContent,locked?'Låst':'Ulåst');assert.equal(view.lockButton.textContent,locked?'Lås op':'Lås bilen');assert.equal(view.hero,hero);assert.equal(view.status,status);
+   const current=state;view.lockConfirm.dispatchEvent(new Event('click'));assert.strictEqual(state,current,'a completed confirmation cannot be replayed');
+  }
+  view.cleanup();
+ }
+});
+
 test('admitted passive readings never infer a car model, year or specific artwork from unadmitted metadata',async()=>{
  const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');const {root}=fixture(),view=new VehicleView(root);view.render(vehicleFixture());const observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_battery'],data:{batteryPercent:61,modelName:'Model 3',modelYear:2025,artwork:VEHICLE_ARTWORK,charging:{},climate:{}}});assert.equal(observed.modelName,undefined);assert.equal(observed.modelYear,undefined);assert.equal(observed.artwork,undefined);view.render(observed);assert.equal(view.model.mode,'observed');assert.equal(view.context.textContent,'Home Assistant');assert.equal(view.batteryValue.textContent,'61 %');assert.equal(view.content.hidden,false);assert.equal(view.figure.hidden,true);assert.equal(view.image.hidden,true);assert.equal(view.image.getAttribute('src'),null);assert.equal(view.heroIcon.hidden,false);assert.doesNotMatch(root.textContent,/Model Y|Model 3|2023|2025/);view.image.dispatchEvent(new Event('load'));assert.equal(view.image.hidden,true);assert.deepEqual(view.model.actions,[]);
+});
+
+test('repeated stale observation projection and actual rendering qualify status once while retaining passive facts',async()=>{
+ const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js'),{root}=fixture(),view=new VehicleView(root);
+ const observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_charge','lock.car'],data:{locked:true,batteryPercent:72,rangeKm:312,charging:{status:'charging',powerKw:11,endsAt:1800000000},climate:{status:'off',temperatureC:19}}}),before=structuredClone(observed);
+ let projected={...observed,stale:true};const hero=view.hero,metrics=[...view.metrics.children];
+ for(let i=0;i<4;i++){
+  projected=vehicleModel(projected);view.render(projected);projected=vehicleModel(view.model);
+  assert.equal(projected.status,'Sidst kendt: Lader');assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.rangeValue.textContent,'312 km');assert.equal(view.powerValue.textContent,'11 kW');assert.equal(view.access.status.textContent,'Låst');assert.deepEqual(projected.actions,[]);assert.equal(view.controlsEnabled,false);assert.equal(view.climateToggle.hidden,true);assert.equal(view.lockControls.hidden,true);assert.strictEqual(view.hero,hero);assert.deepEqual(view.metrics.children,metrics);
+ }
+ assert.deepEqual(structuredClone(observed),before);assert.equal(view.heroIcon.hidden,false);assert.equal(view.figure.hidden,true);view.render(observed);assert.equal(view.status.textContent,'Lader');assert.equal(view.controlsEnabled,false);view.cleanup();
 });

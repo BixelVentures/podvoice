@@ -51,3 +51,13 @@ test('finished native delivery facts survive projection without local stop proof
 test('reconnection leaves a removed read-only empty detail instead of stranding focus on a blank route',()=>{
  for(const kind of ['light','vacuum']){const placeholder={id:`podview-${kind}-empty`,kind,status:'unavailable',live:true,presentationOnly:true,pending:null,timeline:[]},base={...initialScene(),focus:placeholder.id,devices:[placeholder]},snapshot={voice:{},timers:{status:'observed',items:[]},capabilities:{homeRead:[]}};const next=liveScene(base,snapshot);assert.equal(next.focus,'now');assert.equal(next.devices.some(device=>device.id===placeholder.id),false);assert.equal(next.devices.every(device=>!device.pending),true);}
 });
+
+import {homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+test('connection copy uses an explicit cause without turning an empty successful read into denied access',()=>{
+ assert.deepEqual(homeConnectionPresentation({status:'connected'}),{reason:null,detail:''});
+ assert.equal(homeConnectionPresentation({reason:'setup'}).detail,'Tilføj i Home Assistant');
+ assert.equal(homeConnectionPresentation({reason:'unavailable'}).detail,'Home Assistant svarer ikke lige nu');
+ assert.equal(homeConnectionPresentation({status:'connected',blocked:true}).detail,'PodView har ikke adgang – log ind i Home Assistant');
+ assert.equal(homeConnectionPresentation({status:'disconnected'}).reason,'unavailable');
+ assert.equal(homeConnectionPresentation({status:'connected',reason:'invented'}).reason,null);
+});

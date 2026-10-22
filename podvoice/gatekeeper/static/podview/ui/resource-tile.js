@@ -22,7 +22,7 @@ export function updateResourceFacts(node,{facts=[],context=''}={}){
  for(const [id,row]of retained.rows)if(!seen.has(id)){row.node.remove();retained.rows.delete(id);}
  items.forEach((item,index)=>{
   let row=retained.rows.get(item.id);
-  if(!row){const doc=node.ownerDocument||globalThis.document,element=doc.createElement('span'),label=doc.createElement('span'),value=doc.createElement('span');element.className='resource-fact';element.setAttribute('role','listitem');label.className='resource-fact-label';value.className='resource-fact-value';element.append(label,value);row={node:element,label,value};retained.rows.set(item.id,row);}
+  if(!row){const doc=node.ownerDocument||globalThis.document,element=doc.createElement('span'),label=doc.createElement('span'),value=doc.createElement('span');element.className='resource-fact';element.dataset.factId=item.id;element.setAttribute('role','listitem');label.className='resource-fact-label';value.className='resource-fact-value';element.append(label,value);row={node:element,label,value};retained.rows.set(item.id,row);}
   const value=item.value+(item.stale?' · sidst kendt':'');if(row.label.textContent!==item.label)row.label.textContent=item.label;if(row.value.textContent!==value)row.value.textContent=value;if(retained.list.children[index]!==row.node)retained.list.insertBefore(row.node,retained.list.children[index]||null);
  });
  if(retained.list.hidden!==!items.length)retained.list.hidden=!items.length;if(retained.context.textContent!==note)retained.context.textContent=note;if(retained.context.hidden!==!note)retained.context.hidden=!note;return retained;

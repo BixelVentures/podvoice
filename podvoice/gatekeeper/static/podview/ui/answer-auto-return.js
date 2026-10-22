@@ -15,7 +15,8 @@ export function autoReturnCandidate(host){
  }else{
   connected=s.connected===true;
   speaking=['LISTENING','THINKING','AI_SPEAKING'].includes(s.voicePreviewPhase);
-  complete=host.previewStage==='conversation-complete'&&s.voicePreviewPhase==='IDLE'&&answer.exampleOnly===true;
+  const completion=s.localAnswerCompletion;
+  complete=completion?.answerId===answer.id&&completion.revision===answer.revision&&completion.voice==='completed'&&completion.visual==='completed'&&s.voicePreviewPhase==='IDLE'&&answer.exampleOnly===true;
  }
  return {identity,eligible:connected&&complete&&!blocked&&(answer.readStatus||answer.status)==='ready',speaking};
 }

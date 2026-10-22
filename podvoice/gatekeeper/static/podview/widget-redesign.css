@@ -1178,7 +1178,8 @@ body:has(pv-widget-host[data-motion=reduced]) #now-view>:is(#home-weather,#home-
  pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather{grid-column:1/3;grid-row:3/5}
  pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card[data-kind=light]{grid-column:3;grid-row:4;height:100%}
  pv-widget-host[data-view=active] #now-view:not([hidden])>#home-vehicle{grid-column:4;grid-row:4}
- pv-widget-host[data-view=active] #now-view:not([hidden])>:is(#home-music,#home-radio){grid-row:5;grid-column:span 2;height:100%}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#home-music{grid-row:5;grid-column:1/3;height:100%}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#home-radio{grid-row:5;grid-column:3;height:100%}
  pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather[data-weather-phase=day]{background:var(--pv-overview-weather)}
  pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather[data-weather-photo=true]::before{display:none}
  pv-widget-host[data-view=active] #now-view:not([hidden]) [data-overview-priority=unavailable] small::before{content:"";display:inline-block;width:6px;height:6px;margin-inline-end:8px;border-radius:var(--pv-screen-radius-pill);background:currentColor;vertical-align:middle}

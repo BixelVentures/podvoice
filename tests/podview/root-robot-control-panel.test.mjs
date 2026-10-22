@@ -188,10 +188,21 @@ test('transport hierarchy has one current primary command, and observation chang
 
 test('expired task and local-only selection are explicit at the actual form boundary',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:{...task(),expiresAt:Date.now()/1000-1},device};const form=panel.querySelector('form');for(const room of form.querySelectorAll('[name=areaIds]'))room.checked=true;emit(form,'change');emit(form,'submit');assert.deepEqual(actions,[]);assert.ok(panel.querySelectorAll('button').every(button=>button.disabled));
- panel.data={task:task(),device,localOnly:true};const localForm=panel.querySelector('form');assert.equal(panel.cleaningSubmit.textContent,'Start rengøring');assert.equal(panel.observation.data.detail,'Eksempel');assert.ok(!localForm.querySelectorAll('p').some(node=>/Kun lokalt|Gem valg lokalt/.test(node.textContent)));assert.equal(panel.value.localOnly,true);assert.deepEqual(actions,[]);
+ panel.data={task:task(),device,localOnly:true};const localForm=panel.querySelector('form');assert.equal(panel.cleaningSubmit.textContent,'Start rengøring');assert.equal(panel.observation.data.detail,'');assert.equal(panel.value.localOnly,true);assert.ok(!localForm.querySelectorAll('p').some(node=>/Kun lokalt|Gem valg lokalt/.test(node.textContent)));assert.equal(panel.value.localOnly,true);assert.deepEqual(actions,[]);
 });
 
 
 test('status owns the Robot Hero while observed battery, area and duration remain secondary ListRow facts',()=>{
  const at=Date.now()/1000,fact=(key,value,unit)=>({key,value,unit,updatedAt:at,stale:false});const panel=new RobotControlPanel();panel.data={task:task(),device:{...device,live:true,status:'cleaning',battery:76,telemetry:{status:'observed',items:[fact('cleaning_area',23,'m²'),fact('cleaning_time',18,'min'),fact('filter_time_left',40,'h')]}}};assert.equal(panel.observation.data.text,'Rengør');assert.equal(panel.observation.data.value,undefined);assert.match(panel.observation.data.detail,/Batteri 76 %/);assert.match(panel.observation.data.detail,/23 m²/);assert.match(panel.observation.data.detail,/18 min/);const maintenance=panel.care.querySelectorAll('div').find(node=>node.className.includes('robot-care-row'));assert.equal(maintenance.getAttribute('data-kit'),'listrow');panel.observed({...device,status:'docked',battery:76});assert.equal(panel.observation.data.text,'Ved basen');assert.equal(panel.observation.data.value,undefined);
+});
+
+
+test('only the exact pending robot command owns busy state while all commands stay disabled',()=>{
+ const panel=new RobotControlPanel(),offered={domain:'vacuum',options:[{id:'pause-id',action:'pause',label:'Pause',argsSchema:{kind:'none'}},{id:'return-id',action:'return',label:'Til basen',argsSchema:{kind:'none'}},{id:'stop-id',action:'stop',label:'Stop',argsSchema:{kind:'none'}}]};
+ panel.data={task:offered,device:{...device,status:'cleaning',pending:{action:'pause'}},connected:true};let buttons=panel.transportControls.querySelectorAll('button');
+ assert.deepEqual(buttons.map(button=>button.getAttribute('aria-busy')),['true','false','false']);assert(buttons.every(button=>button.disabled));
+ panel.observed({...device,status:'cleaning',pending:true});assert(buttons.every(button=>button.getAttribute('aria-busy')==='false'));
+ panel.observed({...device,status:'cleaning'},{pendingOptionId:'return-id'});assert.deepEqual(buttons.map(button=>button.getAttribute('aria-busy')),['false','true','false']);assert(buttons.every(button=>button.disabled));
+ panel.observed({...device,status:'cleaning'},{pendingOptionId:null});assert(buttons.every(button=>button.getAttribute('aria-busy')==='false'));assert.equal(buttons[0].disabled,false);
+ panel.data={task:task(),device,connected:true,pendingOptionId:'fan-option'};const apply=panel.querySelectorAll('form')[1].querySelectorAll('button').at(-1);assert.equal(apply.getAttribute('aria-busy'),'true');assert.equal(panel.cleaningSubmit.getAttribute('aria-busy'),'false');assert.equal(apply.disabled,true);
 });

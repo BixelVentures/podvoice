@@ -149,3 +149,15 @@ test('overview reads ring and copy before two sibling actions whose native focus
   f.view.render({...state,connected:false,timer:{...timer,status:'paused'}});f.view.renderAccess({connected:false});assert.equal(f.view.nodes.get(`overview:${timer.id}`),card);assert.equal(card.querySelector('.timer-open'),open);assert.equal(card.querySelector('.timer-finish'),finish);assert.match(open.getAttribute('aria-label'),/På pause/);assert.equal(finish.disabled,true);const count=f.dispatched.length;finish.listeners.get('click')();assert.equal(f.dispatched.length,count);open.listeners.get('click')();assert.deepEqual(f.dispatched.at(-1),{type:'show',id:'timers'},'navigation survives loss of command authority');
  }finally{globalThis.document=prior;}
 });
+
+
+test('stale running timer retains its measured dial but exposes the freshness state to the shared detail recipe',()=>{
+ const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
+ try{
+  const state={connected:false,focus:'timers',timer:{...timer,stale:true},timerHistory:[]};f.view.render(state);
+  const card=f.view.nodes.get(`detail:${timer.id}`),count=card.querySelector('.timer-count'),status=card.querySelector('.timer-state');
+  assert.equal(card.dataset.stale,'true');assert.equal(count.textContent,'0:59');assert.match(status.textContent,/sidst kendt/i);assert.equal(status.hidden,false);
+  f.writes.length=0;f.view.render(state);assert.deepEqual(f.writes,[],'identical stale data must not restart the instrument');
+  f.view.render({...state,connected:true,timer:{...timer,stale:false}});assert.equal(card.dataset.stale,'false');assert.equal(card.querySelector('.timer-count'),count);
+ }finally{globalThis.document=prior;}
+});

@@ -2,7 +2,7 @@ import './robot-control-panel.js';
 import {renderRobotHistory} from './live-home-view.js';
 import {controlArgs} from './control-model.js';
 const make=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
-const startId='a'.repeat(24),reuseId='e'.repeat(24),areas=[{id:'b'.repeat(24),label:'Køkken'},{id:'c'.repeat(24),label:'Stue'},{id:'f'.repeat(24),label:'Entré'}];
+const startId='a'.repeat(24),reuseId='e'.repeat(24),areas=[{id:'b'.repeat(24),label:'Køkkenet'},{id:'c'.repeat(24),label:'Stue'},{id:'f'.repeat(24),label:'Entré'}];
 // Local example adapter: no transport, fetch, source credentials or physical effects.
 // The live product's existing panel and history renderer own all presentation.
 export class LocalRobotView{

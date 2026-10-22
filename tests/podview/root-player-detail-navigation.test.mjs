@@ -48,6 +48,13 @@ test('radio cover detail uses the existing station view and never opens an empty
  for(const origin of ['photo','now','music'])for(const playing of [true,false]){const timer={id:'retained',status:'running'},base={...initialScene(),focus:origin,navStack:[],radioStationId:'p1',radioPlaying:playing,timer},calls=[],host={live:false,state:base,openers:new Map(),playerView:{progressVM:{sourceKind:'radio'}},dispatch(event){calls.push(event);this.state=sceneTransition(this.state,event);},focusHeading(){},liveMedia:{loadQueue(){throw Error('Radio has no music queue');}}};open.call(host,'music-detail',{});assert.equal(host.state.focus,'radio');assert.equal(host.state.radioStationId,'p1');assert.equal(host.state.radioPlaying,playing);assert.equal(host.state.timer,timer);assert.equal(host.state.music,base.music);open.call(host,'music-detail',{});assert.equal(calls.length,1);const back=sceneTransition(host.state,{type:'back'});assert.equal(back.focus,'now');assert.equal(back.radioStationId,'p1');}
 });
 
-test('radio Se afspiller focuses the retained transport instead of entering a navigation loop',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),callback=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0],calls=[],run=new Function('$',`return function(){${callback}}`)(id=>{assert.equal(id,'play-pause');return{focus(options){calls.push(options);}};}),host={dispatch(){assert.fail('the right player already exists');}};run.call(host);assert.deepEqual(calls,[{preventScroll:true}]);
+test('retired Radio player shortcut cannot navigate to an empty queue or issue playback',()=>{
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),callback=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0];
+ const calls=[],run=new Function('$',`return function(){${callback}}`)(id=>{assert.equal(id,'play-pause');return {focus:options=>calls.push(options)};});
+ for(const connected of [true,false]){
+  const timer={id:'retained-timer',remaining:48},state={...initialScene(),focus:'radio',radioStationId:'p3',radioPlaying:false,connected,timer};
+  const host={state,dispatch(){assert.fail('Radio must not navigate to an empty music detail');},music(){assert.fail('Radio must not issue playback');},liveMedia:{loadQueue(){assert.fail('Radio has no music queue');}}};
+  run.call(host);assert.equal(host.state,state);assert.equal(host.state.timer,timer);assert.equal(host.state.radioStationId,'p3');assert.equal(host.state.radioPlaying,false);
+ }
+ assert.deepEqual(calls,[{preventScroll:true},{preventScroll:true}]);
 });

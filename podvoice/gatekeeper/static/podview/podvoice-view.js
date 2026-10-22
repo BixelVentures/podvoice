@@ -27,6 +27,12 @@ export function liveTimerHistory(value,now=Date.now()){
 
 // Connection copy describes only admitted screen capabilities, never whether
 // the household owns devices. Retry below rereads the existing HA session.
+// Only explicit setup or a known connection failure chooses recovery copy.
+// An empty successful read does not imply missing permissions or configuration.
+export function homeConnectionPresentation({status,blocked=false,browserOffline=false,reason=null}={}){
+ const known=['setup','unavailable','denied'].includes(reason)?reason:blocked?'denied':browserOffline||status==='disconnected'||status==='offline'?'unavailable':null;
+ return {reason:known,detail:({setup:'Tilføj i Home Assistant',unavailable:'Home Assistant svarer ikke lige nu',denied:'PodView har ikke adgang – log ind i Home Assistant'})[known]||''};
+}
 export function connectionPresentation({status,snapshot,blocked=false,browserOffline=false}={}){
  if(browserOffline)return {state:'offline',text:snapshot?'Ingen netværksforbindelse · viser det seneste.':'Ingen netværksforbindelse. Kontrollér skærmens forbindelse.',retry:false};
  if(status==='connecting')return {state:'connecting',text:snapshot?'Genopretter forbindelsen til hjemmet…':'Forbinder til Home Assistant…',retry:false};

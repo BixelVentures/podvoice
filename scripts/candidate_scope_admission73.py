@@ -106,11 +106,41 @@ TOOLING = TOOLING | frozenset(
 )
 FIELDS = previous.FIELDS
 
-DOMAINS = ("physical_output",)  # Current exact diff classifier result; must match final candidate.
+DOMAINS = ("ha_tools", "physical_output")  # Exact classifier result for combined73.
+
 PRODUCTION = frozenset(
     {
         "podvoice/gatekeeper/__main__.py",
         "podvoice/gatekeeper/constants.py",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/index.html",
+        "podvoice/gatekeeper/static/podview/library-catalog.js",
+        "podvoice/gatekeeper/static/podview/library.bundle.js",
+        "podvoice/gatekeeper/static/podview/live-control-view.js",
+        "podvoice/gatekeeper/static/podview/live-home-view.js",
+        "podvoice/gatekeeper/static/podview/live-music.css",
+        "podvoice/gatekeeper/static/podview/local-robot-view.js",
+        "podvoice/gatekeeper/static/podview/player-view.js",
+        "podvoice/gatekeeper/static/podview/podview.bundle.js",
+        "podvoice/gatekeeper/static/podview/podview.css",
+        "podvoice/gatekeeper/static/podview/podvoice-view.js",
+        "podvoice/gatekeeper/static/podview/preview-scenes.js",
+        "podvoice/gatekeeper/static/podview/radio-view.js",
+        "podvoice/gatekeeper/static/podview/robot-control-panel.js",
+        "podvoice/gatekeeper/static/podview/scene-model.js",
+        "podvoice/gatekeeper/static/podview/timer-view.js",
+        "podvoice/gatekeeper/static/podview/ui-kit.css",
+        "podvoice/gatekeeper/static/podview/ui/answer-auto-return.js",
+        "podvoice/gatekeeper/static/podview/ui/components.css",
+        "podvoice/gatekeeper/static/podview/ui/library/components.js",
+        "podvoice/gatekeeper/static/podview/ui/motion.js",
+        "podvoice/gatekeeper/static/podview/ui/notification-queue.js",
+        "podvoice/gatekeeper/static/podview/ui/resource-tile.js",
+        "podvoice/gatekeeper/static/podview/vehicle-model.js",
+        "podvoice/gatekeeper/static/podview/vehicle-view.js",
+        "podvoice/gatekeeper/static/podview/weather-view.js",
+        "podvoice/gatekeeper/static/podview/widget-redesign.css",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
         "podvoice/gatekeeper/talk.py",
         "podvoice/gatekeeper/thin.py",
         "podvoice/gatekeeper/tools.py",
@@ -123,21 +153,56 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_live_error_admission.py",
         "tests/integration/test_talk_webrtc.py",
         "tests/integration/test_thin_live.py",
-        "tests/integration/test_thin_live_failed_close_cleanup.py",
         "tests/integration/test_thin_live_admission_trace.py",
+        "tests/integration/test_thin_live_failed_close_cleanup.py",
+        "tests/podview/canonical-next-live-media-view-source.test.mjs",
+        "tests/podview/canonical-next-live-media-view.test.mjs",
+        "tests/podview/canonical-next-radio-view.test.mjs",
+        "tests/podview/canonical-next-robot-control-panel.test.mjs",
+        "tests/podview/canonical-next-visual-history.test.mjs",
+        "tests/podview/canonical-next-weather-view.test.mjs",
+        "tests/podview/canonical-packet-first-read-reconciliation.test.mjs",
+        "tests/podview/canonical-packet-robot-control-panel.test.mjs",
+        "tests/podview/canonical-packet-visual-history.test.mjs",
+        "tests/podview/root-answer-auto-return.test.mjs",
+        "tests/podview/root-feedback-duration.test.mjs",
+        "tests/podview/root-first-read-reconciliation.test.mjs",
+        "tests/podview/root-lazy-detail-view.test.mjs",
+        "tests/podview/root-library-catalog.test.mjs",
+        "tests/podview/root-light-controls.test.mjs",
+        "tests/podview/root-light-journey.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/podview/root-local-music-receipt.test.mjs",
+        "tests/podview/root-local-robot-view.test.mjs",
+        "tests/podview/root-native-presentation-components.test.mjs",
+        "tests/podview/root-notification-queue.test.mjs",
+        "tests/podview/root-overview-facts.test.mjs",
+        "tests/podview/root-player-detail-navigation.test.mjs",
+        "tests/podview/root-player-view.test.mjs",
+        "tests/podview/root-podvoice-view.test.mjs",
+        "tests/podview/root-radio-model.test.mjs",
+        "tests/podview/root-radio-view.test.mjs",
+        "tests/podview/root-robot-control-panel.test.mjs",
+        "tests/podview/root-robot-overview-tile.test.mjs",
+        "tests/podview/root-timer-dom-delta.test.mjs",
+        "tests/podview/root-topbar.test.mjs",
+        "tests/podview/root-vehicle-view.test.mjs",
+        "tests/podview/root-visual-history.test.mjs",
+        "tests/podview/root-weather-view.test.mjs",
         "tests/unit/test_candidate_scope_admission72.py",
         "tests/unit/test_candidate_scope_admission73.py",
         "tests/unit/test_podconnect_target_tools.py",
     }
 )
+
 HA_RUNTIME = previous.HA_RUNTIME
 IMMUTABLE = previous.IMMUTABLE | {
     "scripts/candidate_scope_admission72.py": "ba4c54881b55565f830905dd2ec636cd447cbb70cea35065b6672a3ee2afbec3",
     "scripts/podview72-admission-reviewed.json": "4036107f7e1ec032f86958626cf492014fac273514e0136c322d5ce5d192595f",
 }
 REVIEWER = "/root/voice_closure_fix"
-MANIFEST_SHA = "ef688c4b23c16a9f7a241511f351a7cff3f9b882979fdc45607eb5ff06c22212"
-PROFILE_AST = "f12df465b0b79378d3d150335fb2315a6be852573afaca223e36242e4a0b9470"
+MANIFEST_SHA = "f53061f458c76301d0b41142946d1b7216f963cde9d2a606b1358fe1cb569f65"
+PROFILE_AST = "04069f1b99ab6c29672497a3c2c42e186fe808b3341be04e73cde8ea08a4929d"
 
 
 def record_at(root: Path) -> dict | None:

@@ -15,11 +15,12 @@ export function vehicleFixture({charging=false,now=Date.now(),controls=false}={}
 export function vehicleModel(value){
  // No accepted live owner contract exists. Fail closed for every remote shape,
  // even if it happens to contain plausible battery/lock/temperature fields.
- if(isVehicleObservation(value))return value.stale?{...value,status:`Sidst kendt: ${value.status}`} :value;
+ if(isVehicleObservation(value))return value.stale&&!value.status.startsWith('Sidst kendt: ')?{...value,status:`Sidst kendt: ${value.status}`} :value;
  if(value?.kind!=='vehicle'||value.mode!=='fixture')return unconnectedVehicleModel();
  const base=vehicleFixture({charging:value.fixtureCase==='charging',now:Number.isFinite(value.charging?.endsAt)?(value.charging.endsAt-2700)*1000:Date.now(),controls:value.controlsPreview===true});
  if(!base.controlsPreview)return base;
- return {...base,revision:Number.isSafeInteger(value.revision)?value.revision:1,locked:typeof value.locked==='boolean'?value.locked:true,climate:{...base.climate,status:value.climate?.status==='heat'?'heat':'off',targetTemperatureC:Number.isInteger(value.climate?.targetTemperatureC)&&value.climate.targetTemperatureC>=16&&value.climate.targetTemperatureC<=30?value.climate.targetTemperatureC:21},charging:{...base.charging,limitPercent:Number.isInteger(value.charging?.limitPercent)&&value.charging.limitPercent>=50&&value.charging.limitPercent<=100?value.charging.limitPercent:80}};
+ const locked=typeof value.locked==='boolean'?value.locked:true,status=base.charging.status==='charging'?'Lader':`Parkeret · ${locked?'Låst':'Ulåst'}`;
+ return {...base,status,revision:Number.isSafeInteger(value.revision)?value.revision:1,locked,climate:{...base.climate,status:value.climate?.status==='heat'?'heat':'off',targetTemperatureC:Number.isInteger(value.climate?.targetTemperatureC)&&value.climate.targetTemperatureC>=16&&value.climate.targetTemperatureC<=30?value.climate.targetTemperatureC:21},charging:{...base.charging,limitPercent:Number.isInteger(value.charging?.limitPercent)&&value.charging.limitPercent>=50&&value.charging.limitPercent<=100?value.charging.limitPercent:80}};
 }
 
 // Explicit preview control state. Observed HA data never enters this reducer.
@@ -30,5 +31,5 @@ export function vehiclePreviewAction(value,{action,value:amount,confirmed=false,
  if(action==='temperature'&&Number.isInteger(amount)&&amount>=16&&amount<=30)patch={climate:{...model.climate,targetTemperatureC:amount}};
  if(action==='charge-limit'&&Number.isInteger(amount)&&amount>=50&&amount<=100)patch={charging:{...model.charging,limitPercent:amount}};
  if(action==='lock'&&confirmed===true)patch={locked:!model.locked};
- return patch?{...model,...patch,revision:model.revision+1}:value;
+ return patch?vehicleModel({...model,...patch,revision:model.revision+1}):value;
 }
