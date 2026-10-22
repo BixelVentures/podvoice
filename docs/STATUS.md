@@ -3126,3 +3126,30 @@ Before freeze, root inspected normal GreenUI: fresh installed2.0.72/Kører, gitc
 Lead/root holds release. Source owner voice_reply_recovery and adversarial reviewer voice_closure_fix inspect exact manual typed-command/generation/backendresponse correlation before any implementation; no assumption that nextcreated or primary text belongs to latesttyped input. Preserve current inputrevision, backend/sideeffect authority, stale/duplicate/Stop/mic-mode/close-generation fences and native automatic manageddelegation. No blind primary prompt, timeout, backendtext-as-primary-transcript or broad result relay. Required eventual correction must use an actual documented API and bounded verified result, not turn an append ACK into audible proof or execute any action twice. Protocol change needs one final provider preflight on frozen bits, existing approvals within scope, plus focused negative/adapters. No partialrelease or unsupported100percent claim.
 
 22October2026 bounded provider discriminator: root ran exactly one independently reviewed disposable WebSocket probe (script79ed4002, private receipt /private/tmp/pv215-typed-protocol-20261022-a/summary.json). Stock production prompts/NoActions, one synthetic typed factual question, zero PCM input, no home actions. Backend completed with “Danmarks hovedstad er København.” and primary transcript “Kø” + “benhavn.” with output PCM; no commentary was sent. Raw created client_event_id was null (managed delegation present), so the proposed exact-command relay correctly stayed ineligible. This falsifies a blanket missing backend-to-primary-handoff cause; do not implement the speculative relay or infer physical/Green WebRTC acceptance. The prior Green72 wrong answer remains a real FAIL, and its specific cause remains unresolved. Cleanup returned with voice_final=true/backend_usage_complete=true, no worker errors; no retry. HA was verified Stoppet before provider connection, then started once and verified Kører on unchanged2.0.72 by07:38UTC, within the authorized three-minute pause. Existing HA key stayed in memory via one-use form and was not logged/saved; browser reference cleared. Source owner investigates only the remaining specific discrepancy offline. Combined release remains held, no fabricated215 closure.
+
+### Lead acceptance correction22October —#215 bounded software and residual model outcome
+
+Independent adversarial reviewer voice_closure_fix rejects treating the Green72 exact-format imperative as proof that the separately implemented no-text observer or actual-error visibility is broken: the turn produced primary text, so neither observer should fire. It remains a genuine wrong-format/answer-quality FAIL and #215 stays open; it is not silently converted to PASS. Fresh official Live guidance documents primary paraphrasing and the typed backend item/continuation API already used. The one provider discriminator falsified a blanket absent relay. No new commentary, prompt, timeout or private diagnostic subsystem is justified.
+
+Lead removes only the self-imposed requirement to make this isolated old candidate exact-word turn deterministic before delivering otherwise proven repairs. The combined candidate still must pass its required direct-answer/schema provider preflight, exact-source admission, relevant composed software regressions and official CI; an actual failed required candidate gate must not be waived or relabeled. #215 delivery scope is actual-error visibility and truthful bounded missing-TEXT outcome, never a semantic answer ACK. Source chain/regressions and natural voice remain unchanged. Original61 missing-output cause, delayed unrelated primary text limitations and current72 exact-format discrepancy remain explicitly unresolved; future recurrence should capture same-input backend final and primary output through a narrowly authorized observation, not infer content from char count. No all-answers/100percent claim or issue closure. Preparing73metadata/integration is now permitted; no partial publication or installation.
+
+<!-- podvoice73-admission
+{
+  "version": 50,
+  "kind": "podvoice73_live_native_talk_recovery",
+  "reviewer": "/root/voice_closure_fix",
+  "domains": [
+    "physical_output"
+  ],
+  "base_tip": "c9b04906f7f3386ea404fbf5deca9011489936a1",
+  "merge_base": "c9b04906f7f3386ea404fbf5deca9011489936a1",
+  "fingerprint": "3d0964ce6f6e404aae67ce65a05b19de33726b38c743128eae432c73eb66faf2",
+  "regression_fingerprint": "982be94bd5e54b9c70b5f955b0d94e097c147de9eab8d69a52d4e0f1e70fa0cf",
+  "runtime_fingerprint": "0242f2d09e182baf908bf232041c00987f451eb67da1d0c7c4aefd121c5a7ebe",
+  "config_fingerprint": "3b439bd28973097e67a2a5926dee0673fe75ef01ff41217e832ff41ee050f506",
+  "policy_fingerprint": "70b0c24a93abf6f537649f8e30d649a6fdbc7c362dcc6b08a044db7e19b3ea43",
+  "tooling_fingerprint": "e4facfb2cba325070c839629bede0869a7ce97624263d46ac5c4162badfb64f5",
+  "manifest_fingerprint": "2ad1ab3429224796053f3d168158b160b274744be021b2db884c23b63153a092",
+  "rationale": "Independent /root/voice_closure_fix source and admission review22October GO: manifest2ad1ab3429224796053f3d168158b160b274744be021b2db884c23b63153a092 matches 5 production,8 regression,315 runtime,4 config,42 policy,27 tooling pins and200 assets. Retained issue reviews and focused regressions remain applicable. This binds software scope only; final provider preflight, official CI, publication, installation and physical acceptance remain outstanding. Issue215 exact-format observation remains unresolved."
+}
+-->
