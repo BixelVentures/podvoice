@@ -88,6 +88,7 @@ async def setup(monkeypatch):
         "ADMIN_SCHEMA",
         "ADMIN_APPROVE_SCHEMA",
         "ADMIN_REVOKE_IDENTITY_SCHEMA",
+        "ADMIN_PLACEMENT_SCHEMA",
         "ADMIN_RECEIPT_SCHEMA",
     ):
         namespace[key] = object()
@@ -110,7 +111,16 @@ async def setup(monkeypatch):
 
 
 def row(identity="a" * 32, name="Mac", room="kitchen"):
-    return dict(id=identity, name=name, room=room, persistent=True, expiresAt=None, status="active")
+    return dict(
+        id=identity,
+        name=name,
+        room=room,
+        persistent=True,
+        expiresAt=None,
+        status="active",
+        areaId=None,
+        placementRevision=0,
+    )
 
 
 def listed(rows, *, room="kitchen", pending=None):

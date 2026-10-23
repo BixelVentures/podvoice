@@ -84,7 +84,7 @@ async def client_for(sink):
         _streams=0,
         boot_id="boot",
     )
-    bridge.snapshot = lambda room, token: {
+    bridge.snapshot = lambda room, token, *, light_token="": {
         "revision": sink.snapshot(room)["revision"],
         "answers": sink.snapshot(room),
         "roomId": room,
@@ -261,8 +261,8 @@ async def test_wake_uses_fresh_projection_after_read_authority_lost(monkeypatch)
     projection = bridge.snapshot
     allowed = True
 
-    def snapshot(room, token):
-        result = projection(room, token)
+    def snapshot(room, token, *, light_token=""):
+        result = projection(room, token, light_token=light_token)
         if not allowed:
             result["answers"] = {"items": []}
             result["controller"] = False

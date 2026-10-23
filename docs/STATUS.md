@@ -1,3 +1,21 @@
+## Candidate79 first officialCI fixture correction —24October2026
+
+OfficialPR242 head639166ffdf70e2b514bc8aa9182077293625f124/treeab032c75401f969f365ab224a6a9876784cbb148
+failed five legacy fixtures: missing actual placement registration schema symbol,
+old enrolled-row shape, robot data-import module mapping, snapshotlambda keyword
+light_token and locality fakebridge read_lights. Correct only the existing fixture
+contracts; production behavior and all323runtimepins remain exact frozen79.
+NativeHA2026.8.2, build and other successful jobs are retained; failed run remains
+failed. Source-only five-fixture correction, refreshed exact regression inventory/
+policybinding and focused gates are separate from required final officialCI.
+Affected HA/display/locality/SSE34 cases PASS (SSE localhost server rerun once with
+approved loopback permission after sandboxbind failure); robot16 PASS, unchanged
+neighbor16 retained. All15 bound79 checks and actual staged strict79 PASS. New exact
+manifest165803494c442eb6edaa7eec961ea164444a25b57bad07957690d2fdb0a22950;
+Python3.12AST009494c22e14a7e00e81918a57929b04edb2171914d187614c9aeb3d4884f6a1.
+No HA/service/audio/device/provider operations or restart; two-artifact delivery and
+manual controller/freshHA acceptance gaps below remain open.
+
 ## Installeret baseline78 — faktisk levering; historiske78next-actions er supersederet
 
 Root verificerede2.0.78/Kører installeret22:25 den23okt; PR240 merge
@@ -3703,12 +3721,12 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "base_tip": "7742699ea8ca0c9b70498a7c2f63e86b039c3eed",
   "merge_base": "7742699ea8ca0c9b70498a7c2f63e86b039c3eed",
   "fingerprint": "19d75da716c711b365b96615b94d88d6d573d32930f53fe188caccd767da5aee",
-  "regression_fingerprint": "162c62f664b433ec4ae281bc6a577326aa0c7d8764bf26110354e86f454ae190",
+  "regression_fingerprint": "69591e0afd412f943db1e1abbb3b9be430847f40d904cae8f5b0f214097ac9b7",
   "runtime_fingerprint": "636feb1ce412127c73f274f867c29b14bd883e8688f6a7db4e3b913a5cc04667",
   "config_fingerprint": "cd02554719a84e847590af00ab757b7e152ad46b1ade7286e879fe2f0a508396",
-  "policy_fingerprint": "cafb4654dec2e2e1185e48fba7bf21db5502538dd9f47c6a0a784f1013b7c37d",
+  "policy_fingerprint": "511ea3fa3c9c83e7168b1deb27ac2aa70a071de7e8eaec797f114efe920a0c96",
   "tooling_fingerprint": "915a444208bae03ac02fd56ad89a0bf3444c619dbe1525b7f0175c0443c1464a",
-  "manifest_fingerprint": "99ecf46d65036575ef0315f0eff03481643f95ed9e6e7672a5296bc71a0ba000",
-  "rationale": "Independent combined79 SOURCE/SCOPE GO including weatherupdated inventory; immutable7201UI plus fd40weatheroverlay adopted without authoredruntime edits. Lights043bf+086c PIN-only sources and PV241b83b retained SOURCEGO. Prior529UI/319combinedbackend/mypy94 and affected130weathercases/actualbundle/static checks PASS. Dual artifact required: addon2.0.79 does not ship separately installed HAcomponent0.1.6; existing fileinstall then separately authorized HAcore restart/readback required. Tonight no deployment/restart/effects while timerstateunknown. EnrollmentUI excluded; manual namedcontroller setup and freshHAflow remain explicit gap. Actualstaged domains ha_tools/physical_output; sourceadmission never implies installed/provider/physical closure."
+  "manifest_fingerprint": "165803494c442eb6edaa7eec961ea164444a25b57bad07957690d2fdb0a22950",
+  "rationale": "Independent combined79 SOURCE/SCOPE GO including weatherupdated inventory; immutable7201UI plus fd40weatheroverlay adopted without authoredruntime edits. Lights043bf+086c PIN-only sources and PV241b83b retained SOURCEGO. Prior529UI/319combinedbackend/mypy94 and affected130weathercases/actualbundle/static checks PASS. Dual artifact required: addon2.0.79 does not ship separately installed HAcomponent0.1.6; existing fileinstall then separately authorized HAcore restart/readback required. Tonight no deployment/restart/effects while timerstateunknown. EnrollmentUI excluded; manual namedcontroller setup and freshHAflow remain explicit gap. Actualstaged domains ha_tools/physical_output; sourceadmission never implies installed/provider/physical closure. CI242 head639166 rejected five legacy fixtures, not production: missing placement-schema namespace and closed enrolled-row fields, missing robot data-import dependency, snapshot lambda light_token keyword and locality bridge read_lights contract. Only test fixtures corrected; all323 runtime hashes remain frozenab032. NativeHA2026.8.2/build/other passed jobs retained. No new effects or deployment."
 }
 -->

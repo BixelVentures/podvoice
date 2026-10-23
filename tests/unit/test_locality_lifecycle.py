@@ -7,7 +7,7 @@ import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 from unittest.mock import AsyncMock
 
 import httpx
@@ -110,7 +110,12 @@ async def test_real_home_and_frontend_continuity_through_120(clock, monkeypatch,
         _home_revision=0,
         boot_id="inert",
     )
-    request = SimpleNamespace(app={P.BRIDGE: bridge})
+    # Use the real closed absence projection with no lights source or transport.
+    bridge.read_lights = MethodType(
+        P.PodViewBridge.read_lights,
+        SimpleNamespace(light_placement=lambda room, token: {"areaId": "inert-area"}, tools=None),
+    )
+    request = SimpleNamespace(app={P.BRIDGE: bridge}, cookies={}, query={})
     monkeypatch.setattr(P, "_guard", AsyncMock(return_value=None))
     monkeypatch.setattr(P, "_room", lambda *a: "room")
     # Initial lookup completes before first weather; subsequent fast weather reads

@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 const base=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
 let source=readFileSync(new URL('live-control-view.js',base),'utf8');
 // Actual view and actual args/task validator; inert presentation ports, no transport.
-source=source.replace("import {renderPlayerControls} from './player-view.js';",'const renderPlayerControls=()=>{};').replace("from './ui/kit.js'",`from '${new URL('ui/kit.js',base).href}'`).replace("from './control-model.js'",`from '${new URL('control-model.js',base).href}'`).replace("import {observationFresh,roomObservationCurrent,mediaRoomBinding} from './media-observation.js';",'const observationFresh=()=>false,roomObservationCurrent=()=>false,mediaRoomBinding=()=>null;').replace("import './robot-control-panel.js';",'');
+source=source.replace("from './ha-home-observation.js'",`from '${new URL('ha-home-observation.js',base).href}'`).replace("import {renderPlayerControls} from './player-view.js';",'const renderPlayerControls=()=>{};').replace("from './ui/kit.js'",`from '${new URL('ui/kit.js',base).href}'`).replace("from './control-model.js'",`from '${new URL('control-model.js',base).href}'`).replace("import {observationFresh,roomObservationCurrent,mediaRoomBinding} from './media-observation.js';",'const observationFresh=()=>false,roomObservationCurrent=()=>false,mediaRoomBinding=()=>null;').replace("import './robot-control-panel.js';",'');
 const {LiveControlView}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
 class Node extends EventTarget {
  constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.textContent='';this.disabled=false;}

@@ -57,6 +57,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         ADMIN_SCHEMA=object(),
         ADMIN_APPROVE_SCHEMA=object(),
         ADMIN_REVOKE_IDENTITY_SCHEMA=object(),
+        ADMIN_PLACEMENT_SCHEMA=object(),
         ADMIN_RECEIPT_SCHEMA=object(),
         _ADMIN_KEY="podvoice_controller_admin",
     )

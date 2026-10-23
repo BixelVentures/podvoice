@@ -154,6 +154,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/root-overview-media-values.test.mjs",
         "tests/podview/root-podvoice-transport.test.mjs",
         "tests/podview/root-robot-control-renewal.test.mjs",
+        "tests/podview/root-robot-renewal.test.mjs",
         "tests/podview/root-room-media-binding.test.mjs",
         "tests/podview/root-scene-model.test.mjs",
         "tests/podview/root-speaker-output-idle.test.mjs",
@@ -167,8 +168,12 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_candidate_scope_admission79.py",
         "tests/unit/test_dev_cycle.py",
         "tests/unit/test_ha_controller_admin.py",
+        "tests/unit/test_ha_controller_registration.py",
+        "tests/unit/test_ha_display_devices.py",
+        "tests/unit/test_locality_lifecycle.py",
         "tests/unit/test_podview_lights.py",
         "tests/unit/test_podview_lights_tools.py",
+        "tests/unit/test_podview_sse_wake.py",
     }
 )
 
@@ -181,8 +186,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "99ecf46d65036575ef0315f0eff03481643f95ed9e6e7672a5296bc71a0ba000"
-PROFILE_AST = "eb031faae7d6115d34549dca868bda73a5aaa5f4c19442995686cba1a79625b5"
+MANIFEST_SHA = "165803494c442eb6edaa7eec961ea164444a25b57bad07957690d2fdb0a22950"
+PROFILE_AST = "009494c22e14a7e00e81918a57929b04edb2171914d187614c9aeb3d4884f6a1"
 
 
 def record_at(root: Path) -> dict | None:

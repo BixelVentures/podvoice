@@ -130,6 +130,7 @@
     "tests/podview/root-overview-media-values.test.mjs": "00714e322661f18d98f953416ffb3e496dc9af6ec842c1ee2124456bd6986e50",
     "tests/podview/root-podvoice-transport.test.mjs": "465639e4c6a7e0b095959fc59ad6573e38d1e5f157cfa53c8d21d24ccb2f2b4f",
     "tests/podview/root-robot-control-renewal.test.mjs": "97d35721407f7b0ca97a56aed0ba35e4bcfd0de83f2292c9f8f966b99560c24d",
+    "tests/podview/root-robot-renewal.test.mjs": "97d35721407f7b0ca97a56aed0ba35e4bcfd0de83f2292c9f8f966b99560c24d",
     "tests/podview/root-room-media-binding.test.mjs": "49488083b40c851122ca866092a2f5078d5e31aa154a0f60bf0b4cd7b79d8149",
     "tests/podview/root-scene-model.test.mjs": "b7bebce73f662a5b4f70098b655d881973c9957e74c5717f3a16fb51039b7ce1",
     "tests/podview/root-speaker-output-idle.test.mjs": "980bb12e8307811274c1a5fb1a156249e80cbd91d620009f64a55840f154aefb",
@@ -143,8 +144,12 @@
     "tests/unit/test_candidate_scope_admission79.py": "8216e59e2e50647bbc996bcdcd0e6c03e32b5a39a2461c27734f7a3e91f6a7a1",
     "tests/unit/test_dev_cycle.py": "bde5d00736d45c61af29e57defbce736d9c781425236164b2a060eb3dde144f4",
     "tests/unit/test_ha_controller_admin.py": "f2356186febd0e15fa53f038ac06f1b3b8f52f4ad8e3cb18fec0ab4f6587a658",
+    "tests/unit/test_ha_controller_registration.py": "e36d5e9bb1043e78122ef8fb52e3f884ef2059e4cb0a22fd1a43aee4aec71022",
+    "tests/unit/test_ha_display_devices.py": "efeb06d7762712385c14b0a9634f1136a00e858014c29d9de22169386f39d710",
+    "tests/unit/test_locality_lifecycle.py": "914a5717beb1a68d3a19a75eb7975b3b7baec1e2800958dc3f51712cd7d9c02a",
     "tests/unit/test_podview_lights.py": "9e29161ea88d6bf1aa5d6b7a7be2a9c0ed5046f5dfc30304ebb660399185f04b",
-    "tests/unit/test_podview_lights_tools.py": "f8e9f1ea3826e0804c89fae5cebe54cfaf37e4275b0b607a6c527fd1482bb28e"
+    "tests/unit/test_podview_lights_tools.py": "f8e9f1ea3826e0804c89fae5cebe54cfaf37e4275b0b607a6c527fd1482bb28e",
+    "tests/unit/test_podview_sse_wake.py": "98a8ceb54d4416971dc49381990ceb84d834ce99de849b3986bd092021a18980"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "02d98493b9d504f286263cb04a79943f67acd3b9e5804595ac9c68845efdee37",
