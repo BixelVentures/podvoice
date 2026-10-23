@@ -49,7 +49,7 @@ test('pending and disabled cards never dispatch choices; re-enabled selection di
 });
 
 test('bundled theme artwork is not reassigned by unrelated snapshots or a background refresh',()=>{
- const f=surface(),card={...real,fixtureArt:'assets/kitchen.webp',artLabel:'Illustration til Musik til madlavningen'};f.results.render({cards:[card]});const row=f.results.list.children[0],art=row.children[0],src=art.src;let writes=0;Object.defineProperty(art,'src',{get:()=>src,set:()=>{writes++;}});
+ const f=surface(),card={...real,uri:undefined,fixtureArt:'assets/kitchen.webp',artLabel:'Illustration til Musik til madlavningen'};f.results.render({cards:[card]});const row=f.results.list.children[0],art=row.children[0],src=art.src;let writes=0;Object.defineProperty(art,'src',{get:()=>src,set:()=>{writes++;}});
  f.results.render({cards:[{...card,revision:10}],busy:true});f.results.render({cards:[{...card,revision:11}],canChoose:false});f.results.render({cards:[card],pendingId:card.id});assert.equal(writes,0);assert.equal(f.results.list.children[0],row);assert.equal(art.src,'assets/kitchen.webp');
 });
 test('removing a result or disconnecting its owner cancels detached image work before any late completion',()=>{
@@ -57,21 +57,21 @@ test('removing a result or disconnecting its owner cancels detached image work b
  f.results.render({cards:[real]});const second=f.results.list.children[0].children[0];second.artworkRequest={probe:{removeAttribute:()=>{cancelled++;}}};f.results.cleanup();f.results.cleanup();assert.equal(cancelled,2);assert.equal(second.artworkRequest,null);
 });
 
-test('stable fixture row clears old image for URI, owner or explicit artwork generation changes, while revision-only refresh retains it',async()=>{
+test('stable source row clears old cover for URI, account or explicit artwork generation changes while revision-only refresh retains it',async()=>{
  const probes=[];class Probe{constructor(){probes.push(this);}decode(){return Promise.resolve();}removeAttribute(){}}doc.defaultView={Image:Probe};
  const settle=async()=>{for(let i=0;i<5;i++)await Promise.resolve();};
  try{
-  const f=surface(),first={...real,id:'stable-fixture-id',uri:'spotify:playlist:0123456789ABCDEFGHIJKL',fixtureArt:'assets/kitchen.webp',artLabel:'First playlist'};
-  f.host.liveCatalogue={account:'account-one'};f.results.render({cards:[first]});const row=f.results.list.children[0],art=row.children[0];probes[0].onload();await settle();assert.equal(art.src,'assets/kitchen.webp');
-  f.results.render({cards:[{...first,revision:99}],busy:true});assert.equal(art.src,'assets/kitchen.webp');assert.equal(probes.length,1);
-  const second={...first,uri:'spotify:playlist:1123456789ABCDEFGHIJKL',name:'New playlist',fixtureArt:'assets/lake.webp'};f.results.render({cards:[second]});assert.equal(f.results.list.children[0],row);assert.equal(art.src,'assets/icons/music-note-beamed.svg');assert.equal(art.dataset.artworkPending,'true');assert.equal(row.children[1].children[0].textContent,'New playlist');probes[1].onload();await settle();assert.equal(art.src,'assets/lake.webp');
-  f.results.render({cards:[{...second,artworkGeneration:'new-content'}]});assert.equal(art.src,'assets/icons/music-note-beamed.svg');probes[2].onload();await settle();assert.equal(art.src,'assets/lake.webp');
+  const f=surface(),first={...real,id:'stable-fixture-id',uri:'spotify:playlist:0123456789ABCDEFGHIJKL',artwork:{kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/first'},artLabel:'First playlist'};
+  f.host.liveCatalogue={account:'account-one'};f.results.render({cards:[first]});const row=f.results.list.children[0],art=row.children[0];assert.equal(row.children[1].children[0].textContent,first.name);assert.equal(row.disabled,false);assert.equal(art.src,'assets/icons/music-note-beamed.svg');assert.equal(art.loading,'lazy');row.click();assert.deepEqual(f.choices,[first],'actual choice is usable before cover download or decode');probes[0].onload();await settle();assert.equal(art.src,'https://i.scdn.co/image/first');
+  f.results.render({cards:[{...first,revision:99}],busy:true});assert.equal(art.src,'https://i.scdn.co/image/first');assert.equal(probes.length,1);
+  const second={...first,uri:'spotify:playlist:1123456789ABCDEFGHIJKL',name:'New playlist',artwork:{kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/second'}};f.results.render({cards:[second]});assert.equal(f.results.list.children[0],row);assert.equal(art.src,'assets/icons/music-note-beamed.svg');assert.equal(art.dataset.artworkPending,'true');assert.equal(row.children[1].children[0].textContent,'New playlist');probes[1].onload();await settle();assert.equal(art.src,'https://i.scdn.co/image/second');
+  f.results.render({cards:[{...second,artworkGeneration:'new-content'}]});assert.equal(art.src,'assets/icons/music-note-beamed.svg');probes[2].onload();await settle();assert.equal(art.src,'https://i.scdn.co/image/second');
   f.host.liveCatalogue.account='account-two';f.results.render({cards:[{...second,artworkGeneration:'new-content'}]});assert.equal(art.src,'assets/icons/music-note-beamed.svg');assert.equal(art.dataset.artworkPending,'true');assert.equal(probes.length,4);f.results.cleanup();assert.equal(art.dataset.artworkPending,undefined);
  }finally{delete doc.defaultView;}
 });
 test('URI-keyed source replacement removes its old image and late old artwork cannot enter the replacement row',async()=>{
  const probes=[];class Probe{constructor(){probes.push(this);}decode(){return Promise.resolve();}removeAttribute(){}}doc.defaultView={Image:Probe};
  try{
-  const f=surface(),first={...real,fixtureArt:'assets/kitchen.webp',artLabel:'First'},second={...first,id:'different-source-uri',uri:'spotify:track:1123456789ABCDEFGHIJKL',fixtureArt:'assets/lake.webp'};f.results.render({cards:[first]});const old=f.results.list.children[0],late=probes[0].onload;f.results.render({cards:[second]});const next=f.results.list.children[0];assert.notEqual(old,next);assert.equal(old.parentNode,null);assert.equal(next.children[0].src,'assets/icons/music-note-beamed.svg');late();for(let i=0;i<5;i++)await Promise.resolve();assert.equal(next.children[0].src,'assets/icons/music-note-beamed.svg');f.results.cleanup();
+  const f=surface(),first={...real,artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/first'},artLabel:'First'},second={...first,id:'different-source-uri',uri:'spotify:track:1123456789ABCDEFGHIJKL',artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/second'}};f.results.render({cards:[first]});const old=f.results.list.children[0],late=probes[0].onload;f.results.render({cards:[second]});const next=f.results.list.children[0];assert.notEqual(old,next);assert.equal(old.parentNode,null);assert.equal(next.children[0].src,'assets/icons/music-note-beamed.svg');late();for(let i=0;i<5;i++)await Promise.resolve();assert.equal(next.children[0].src,'assets/icons/music-note-beamed.svg');f.results.cleanup();
  }finally{delete doc.defaultView;}
 });

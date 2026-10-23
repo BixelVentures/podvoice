@@ -1,9 +1,9 @@
 ## 2.0.75
 
-- Adopt the reviewed canonical UI21 for shared Small/Medium/Large cards and detail views.
-- Keep unavailable/stale states consistent, retain music context and native progress, and correct speaker heading continuity.
-- Preserve existing robot authority and timer actions while aligning shared Hero roles, room/start placement and timer-dependent Radio layout.
-- Voice, provider, firmware, grants and paid budgets are unchanged. Physical Voice PE/audio acceptance remains separate.
+- Adopt the reviewed canonical UI22 across shared cards, details, Screen and device settings, and Ro.
+- Keep weather wind in hourly detail, preserve robot room and action authority, and return from timer setup only after a matching accepted timer observation.
+- Prefetch only current scoped music targets, show pending feedback immediately, and refresh matching playback once after acceptance while preserving fresh setup, send-once and stale-owner guards.
+- Voice, backend authority, firmware, grants and paid budgets are unchanged. Green installation and physical audio acceptance remain separate.
 
 ## 2.0.74 · source candidate
 

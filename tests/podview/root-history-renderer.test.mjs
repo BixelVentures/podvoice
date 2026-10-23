@@ -193,7 +193,7 @@ test('shared viewport density follows visible content rather than example IDs or
 
 test('weather example disclosure lives in Kilder while current facts and the primary action remain visible',()=>{
  const scene=previewScene('conversation-complete'),answer=scene.answers[0],view=widget();view.update(scene,answer);const visual=view.visualNode;
- assert.equal(visual.weatherCaption.parentNode,visual.sourcePanel);assert.equal(visual.weatherCaption.textContent,'Vejrforløb · forhåndsvisning');assert.equal(visual.body.hidden,false);assert.equal(view.querySelector('.open-weather-answer').hidden,false);assert.equal(view.querySelector('.open-weather-answer').inert,false);assert.ok(visual.list.children.every(row=>row.hidden!==true));
+ assert.equal(visual.weatherCaption,undefined);assert.equal(visual.sources.children[0].textContent,'Kilder');assert.equal(visual.sourceList.children[0].children[0].textContent,'Forhåndsvisning');assert.match(visual.sourceList.children[0].children[1].textContent,/Opdigtet vejrforløb.*Ikke en aktuel vejrudsigt/);assert.deepEqual(answer.content.facts.map(fact=>fact.id),['window','temperature','rain']);assert.equal(visual.body.hidden,false);assert.equal(view.querySelector('.open-weather-answer').hidden,false);assert.equal(view.querySelector('.open-weather-answer').inert,false);assert.ok(visual.list.children.every(row=>row.hidden!==true));
 });
 
 
@@ -239,4 +239,37 @@ test('explicit source disclosure releases a real pointer geometry hold before na
   summary.click();assert.equal(sources.open,open,'native details remains the activation owner');assert.equal(host.motion.geometry.size,0);for(const key of ['height','min-height','max-height'])assert.equal(properties.has(key),false,key);
  }
  assert.equal(properties.get('--pv-answer-retained-body-height').value,'410px');
+});
+
+test('late image events cannot replace pending content or resurrect a failed current image',()=>{
+ const view=document.createElement('pv-sourced-image'),content=imageContent();view.data={state:'ready',content};
+ view.image.complete=true;view.image.naturalWidth=600;view.image.dispatchEvent(new Event('load'));
+ assert.equal(view.image.hidden,false);assert.equal(view.imageError.hidden,true);
+ const next=structuredClone(content);next.image.url='assets/qa-deliberately-missing-answer-image.webp';
+ view.image.complete=false;view.image.naturalWidth=0;view.data={state:'ready',content:next};
+ const caption=view.captionText.textContent,sources=view.sourceList.children[0];
+ view.image.dispatchEvent(new Event('error'));assert.equal(view.imageError.hidden,true);
+ view.image.complete=true;view.image.dispatchEvent(new Event('error'));assert.equal(view.image.hidden,true);assert.equal(view.imageError.hidden,false);
+ view.image.dispatchEvent(new Event('load'));assert.equal(view.image.hidden,true);assert.equal(view.imageError.hidden,false);
+ assert.equal(view.captionText.textContent,caption);assert.equal(view.sourceList.children[0],sources);
+ view.image.naturalWidth=600;view.image.dispatchEvent(new Event('load'));assert.equal(view.image.hidden,false);assert.equal(view.imageError.hidden,true);
+ view.image.dispatchEvent(new Event('error'));assert.equal(view.image.hidden,false);assert.equal(view.imageError.hidden,true);
+});
+
+test('every catalogue answer specimen renders through its retained canonical family',async()=>{
+ const {productLibrary}=await import('../../podvoice/gatekeeper/static/podview/library-catalog.js');let count=0;
+ for(const family of productLibrary.filter(item=>item.id.startsWith('answer-'))){
+  for(const sample of family.states){
+   const scene=previewScene(sample.stage),answer=scene.answers.find(item=>item.id===scene.focus),view=widget();
+   assert.ok(answer,sample.id);view.update(scene,answer);count++;
+   assert.equal(view.dataset.answerFamily,answer.kind,sample.id);
+   assert.equal(view.querySelector('.answer-scroll').dataset.responseZone,'body');
+   assert.equal(view.querySelector('.answer-actions').dataset.responseZone,'actions');
+   assert.equal(view.querySelector('.sources').dataset.responseZone,'metadata');
+   assert.equal(view.querySelector('.retry-answer').hidden,answer.status!=='error',sample.id);
+   const visual=view.visualNode;view.update(scene,answer);assert.equal(view.visualNode,visual,sample.id);
+   assert.equal(view.querySelector('.dismiss').hidden,true,sample.id);
+  }
+ }
+ assert.equal(count,88);
 });

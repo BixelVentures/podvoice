@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {timerTransition} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
 import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
 import {TimerNotice} from '../../podvoice/gatekeeper/static/podview/timer-notice.js';
 import {readFileSync} from 'node:fs';
@@ -160,4 +161,31 @@ test('stale running timer retains its measured dial but exposes the freshness st
   f.writes.length=0;f.view.render(state);assert.deepEqual(f.writes,[],'identical stale data must not restart the instrument');
   f.view.render({...state,connected:true,timer:{...timer,stale:false}});assert.equal(card.dataset.stale,'false');assert.equal(card.querySelector('.timer-count'),count);
  }finally{globalThis.document=prior;}
+});
+
+test('actual recent duration quick-fills a draft without persistent selection, adjusts before explicit submit, and active timer hides draft/history',()=>{
+ const f=fixture(),previous=globalThis.document;globalThis.document={createElement:()=>element('recentChoices',f.writes),getElementById:()=>null};
+ try{
+  f.view.host.live=false;const state={connected:true,focus:'timers',timer:null,timerSerial:0,timerHistory:[{seconds:600},{seconds:180},{seconds:NaN},{seconds:-1},{seconds:86401},{seconds:'60'},{seconds:600}]};f.view.host.state=state;f.view.host.dispatch=event=>{f.dispatched.push(event);f.view.host.state=event.type==='show'?{...f.view.host.state,focus:event.id}:timerTransition(f.view.host.state,event);};f.view.inputs={hours:{value:'0'},minutes:{value:'5'},seconds:{value:'0'}};f.view.detail.querySelector('.timer-recent').selectors.set('div',element('recentItems',f.writes));f.view.render(state);assert.deepEqual(f.view.recentChoices.data.items.map(item=>JSON.parse(item.id)),[600,180]);
+  const choose=key=>f.view.recentChoices.listeners.get('pv-action')({stopPropagation(){},detail:{action_id:'choose',option_id:key}});choose('600');assert.equal(f.view.duration,600);assert.equal(f.view.inputs.minutes.value,10);assert.equal(f.form.querySelector('output').textContent,'10:00');assert.equal(f.view.recentChoices.data.selected,null);assert(f.form.querySelectorAll('[data-minutes]').every(button=>button.getAttribute('aria-pressed')==='false'));assert.deepEqual(f.dispatched,[]);assert.equal(f.view.host.state.timer,null);
+  f.view.fill({seconds:660});assert.equal(f.view.duration,660);assert.equal(f.view.recentChoices.data.selected,null);assert.deepEqual(f.dispatched,[]);
+  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/timer-view.js',import.meta.url),'utf8'),start=source.indexOf("this.form.addEventListener('submit',"),body=source.slice(start,source.indexOf("\n  for(const b",start)),register=new Function('host',body.replace('this.form.addEventListener','this.form.addEventListener'));register.call(f.view,f.view.host);f.form.listeners.get('submit')({preventDefault(){}});assert.equal(f.dispatched.length,2);assert.deepEqual(f.dispatched[1],{type:'show',id:'now'});assert.equal(f.view.host.state.focus,'now');assert.equal(f.dispatched[0].type,'timer-start');assert.equal(f.dispatched[0].seconds,660);f.view.render(f.view.host.state);assert.equal(f.form.hidden,true);assert.equal(f.view.detail.querySelector('.timer-recent').hidden,true);const duration=f.view.duration;choose('180');assert.equal(f.view.duration,duration);assert.equal(f.dispatched.length,2);
+ }finally{globalThis.document=previous;}
+});
+
+
+test('start return token waits for exact owner success and expires on leave, scope change, cleanup or replacement',()=>{
+ const f=fixture();f.view.host.live=false;f.view.host.state={focus:'timers',sessionId:'s',generation:1};f.view.host.liveSnapshot={bootId:'b',roomId:'r'};const token=()=>({sessionId:'s',generation:1,bootId:'b',roomId:'r'});
+ const pending=token();f.view.startNavigation=pending;assert.deepEqual(f.dispatched,[],'pending/rejected/unknown cannot navigate without the owner callback');f.view.completeStartNavigation({ ...pending });assert.deepEqual(f.dispatched,[],'another request identity cannot complete');f.view.completeStartNavigation(pending);assert.deepEqual(f.dispatched,[{type:'show',id:'now'}]);f.view.completeStartNavigation(pending);assert.equal(f.dispatched.length,1);
+ for(const change of [{focus:'music'},{sessionId:'other'},{generation:2}]){f.view.host.state={focus:'timers',sessionId:'s',generation:1,...change};const current=token();f.view.startNavigation=current;f.view.completeStartNavigation(current);assert.equal(f.dispatched.length,1);}
+ f.view.host.state={focus:'timers',sessionId:'s',generation:1};const old=token(),newer=token();f.view.startNavigation=newer;f.view.completeStartNavigation(old);assert.equal(f.view.startNavigation,newer);assert.equal(f.dispatched.length,1);f.view.host.live=true;f.view.host.liveSnapshot={bootId:'changed',roomId:'r'};f.view.completeStartNavigation(newer);assert.equal(f.dispatched.length,1);
+ const cleaned=token();f.view.startNavigation=cleaned;f.view.cleanup();f.view.completeStartNavigation(cleaned);assert.equal(f.dispatched.length,1);
+});
+
+
+test('live start navigation requires the exact current fresh observed timer and leaves playback intact',()=>{
+ const f=fixture(),playback={track:4,room:'Køkkenet'},state={focus:'timers',sessionId:'s',generation:1,music:{playback}};f.view.host.state=state;f.view.host.live=true;
+ const token=()=>({sessionId:'s',generation:1,bootId:'b',roomId:'r',epoch:7}),snapshot=items=>({bootId:'b',roomId:'r',timers:{status:'observed',epoch:7,items}}),fresh={id:'exact',status:'running',stale:false};
+ for(const value of [snapshot([]),snapshot([{...fresh,id:'other'}]),snapshot([{...fresh,stale:true}]),snapshot([{...fresh,status:'done'}]),{...snapshot([fresh]),timers:{...snapshot([fresh]).timers,status:'unavailable'}},{...snapshot([fresh]),timers:{...snapshot([fresh]).timers,epoch:8}}]){f.view.host.liveSnapshot=value;const current=token();f.view.startNavigation=current;f.view.completeStartNavigation(current,'exact');assert.deepEqual(f.dispatched,[]);}
+ f.view.host.liveSnapshot=snapshot([fresh]);const current=token();f.view.startNavigation=current;f.view.completeStartNavigation(current,'exact');assert.deepEqual(f.dispatched,[{type:'show',id:'now'}]);assert.equal(f.view.host.state.music.playback,playback);
 });

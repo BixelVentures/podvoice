@@ -1,3 +1,29 @@
+## Authorized75music tap performance integration —23October2026
+
+Directuser authorizes bothvisualresponse andactualexecution speed, coordinatedwithPodViewUI22 inone75Greeninstall. UIownerPodView implements passivecurrenttargetprefetch andoneaccepted-current-operation playbackrefresh through existingselection/mediaowners. Root ownsreleaseintegration; independent sol61_release75_review reviewsfinalcausal/fence delta, sol61_review74_final maps existingregressions. No competingbackendpatch orblindtimeoutchanges. Immediatevalidtap mustretainselectedcard/artwork andshowpending beforefirstawait; do notsayplayinguntilfreshmatchingnativeobservation. Prefetchisexpiringread-onlyaccount/room/binding/transport-scoped work, neverauthority; warmreuseavoidsextratargetGET butnativefreshsetup/freshcontrols/sendonce remain. Lead23October explicitly supersedes the earlier serialized≤1trailingread proposal: one ordinary poll may remain in flight while one accepted-only superseding passive read starts immediately. Repeated same-owner accepted hooks coalesce on the current refresh job; generation/owner fences reject the older result. Stale/unknown/rejected events never retry effects or mutate the current owner. This is bounded read-only overlap, not serialized-read proof. Testsreuseexistingselection/live-media/expiry harnesses, includeheldoldowner/cleanup/cacheexpiry/duplicateclick/unknown andcold-vs-warmrequestordering. Desiredtap→audibleparitywithvoice remainsphysicalmeasurementrequirement, notinferredfrompendingUI orsourcegraph. UI22/finalscopebindings/officialCI/publication/installpending; current75PRheldunmerged.
+
+## Read-only music-start latency handoff —23October2026
+
+At PodView request, client and backend owners inspected current75source without anyHA/provider/playback/test/action orcodepatch. Collectiontap has3serialbrowserrequests(targetGET,setupPOST,actionsPOST), expiredcardaddsrenewal. Backendnormalsetup+action has4HAreads/effects insequence(controls,freshcontrols,prepare,START), nofixedsleep/debounce.8/35/16s aretimeouts, notmeasuredlatency. Speakerchange postSTARTproof canholdHTTPwithoutprovingaudibleonset. Existingclient snapshot-observation throttle1–8s(default8) andnoaccept-triggeredrefresh canlagvisibleconfirmation; passiveprefetch/oneexistingcurrent-ownerrefresh areboundedclientopportunities only. Freshadmission,UNKNOWNsend-once,noreplay remainrequired. No current75tap-to-audible measuredreceipt found; priorqualitativemobileConnectsuccessandweather/CI timings do not supplybaseline. Exactsource refs and conclusions senttoPodView forUI22; no backendchange authorized/implemented inthishandoff.
+
+## Active75 UI22 immutable adoption —23October2026
+
+Lead/release owner: /root; local adoption/admission preparation: /root/sol61_review74_final. Direct user requests the combined2.0.75/UI22 release and Green QA. Adopt only immutable /private/tmp/podview-ui22-release-20261023, build20261023-unified-ui22, exact200-file map4d22c8d81dd74ca2d1269cbc633be0b58b83a0ededeaa5643023f05576cc87a0. Canonical owner reports1812tests,78syntax checks and individual/holistic local browser review; these are retained owner evidence, not Green or audible acceptance. Existing UI21 packets are superseded for this candidate, with their historical results preserved below.
+
+Observed UI findings and authorized music tap latency work are owned and corrected by PodView. Hypothesis: adopting its exact reviewed assets, causal regression mirrors and component registry preserves current rendering/action owners while providing the approved UI22 changes. Chain: current card/render → passive scoped target prefetch → fresh existing setup and one action → accepted-only current-owner passive playback refresh → truthful matching observed render. Current account/room/binding/transport/generation, stale/in-flight/cleanup and UNKNOWN/no-replay fences remain required. Timer navigation remains correlated to accepted current timer observation. Native voice, backend authority, provider quotas, firmware and playback contracts are non-goals.
+
+Preserve the prior75 CI repairs in four duplicate regression mirrors and the two preview-scenes registry import edges; reconcile with exact canonicalUI22 bytes. Refresh exact production/regression/runtime/config/policy/tooling inventory against published74 base3f50a1c29433ff5f34bb04c8928d23f41c90abe0. All three75review bindings remain blank until an independent reviewer approves the final source and inventory. Reuse unchanged evidence, run affected deterministic Node/admission/static checks in the unsynced clone, and leave final officialCI/merge/publication/installation to root. Rollback boundary is the unmerged75 UI/admission delta; no installed baseline is overwritten by this preparation. PR235 stays unmerged; no75publication, Green installation or physical acceptance is claimed.
+
+Lead contract decision23October: the approved actual UI22 refresh behavior allows one ordinary poll to remain in flight while one accepted-only superseding passive read starts immediately. Repeated same-owner accepted hooks coalesce on that current refresh job; old generation results are rejected. This explicitly supersedes the earlier serialized≤1trailingread proposal. No action retry or authority relaxation is admitted. Canonical tests exercise the bounded overlap, not serialized reads.
+
+Local adoption result: all200 frozen assets match the exactUI22 map;23 changed against reviewedUI21fix1 and30 production files differ from published74 including generated asset metadata. The exact canonical registry retains the prior preview-scenes import repairs. Forty-seven affected adopted Node modules pass1123checks cumulatively, with849unchanged first-run cases reused and274fixture-cohort cases renewed after six stale duplicate dependencies were aligned to canonical helpers; initial27fixture failures are retained. Existing component gate39/39PASS also recomposes both exact bundles and preserves negative ownership gates. Independent source/mirror review is GO pending final exact inventory and bindings. No officialCI, publication, installation or physical acceptance is claimed by these local results.
+
+## Firstofficial75 CI correction and held UI22 delta —23October2026
+
+PR235 firsthead e36e6b49d8a36210aed40ca0f2e683be98d1ac3b run39931136225 ui-browser failed9of2809. Six failures were stale duplicatecanonical-next/packet fixture copies in4files; actualRED reproduced and currentcanonical-equivalentlayout/freshness/identity/authority assertions now102/102PASS. Three were stale componentregistry entries; approvedexact2preview-scenes imports adopted fromcanonicalregistry56ca7e5d; sameunchangedchecker andall39positive/negativegatecasesPASS. No productionpatch resulted from thesefixture/metadata failures. Earlierfailedrunpreserved.
+
+Newdirectuserfeedback viaPodView requestswinddirectionarrow/hourly-onlywindpresentation and sharedMediumrobotstatusspacing.75isnotmerged,publishedorinstalled. HoldsamePR/version75 forboundedUI22packet+review; no interimGreeninstall. Runtime/sourcechecksunchangedoutsideUI; scopebindingswillberefreshedoncefinaldeltaarrives.
+
 ## Final75 candidate checks —23October2026
 
 Independent sol61_release75_review finalPython3.12hashclosure GO, exactadmission PASS. Reuseddurabledevclone with fixed3.12venv: fastnew75admission12/12PASS, Ruff/format6filesPASS, mypy89sourcesPASS. Affectedpublished74fixture, CIpromotionlabel/routes and existingdevrelease-dispatchparametrizationPASS; finalexact75CLI PASS. GitdiffwhitespacecheckPASS. No broadlocalrelease/provider/HA/audio probes. SourcefrozenforoneofficialCI and coordinatedpublication/install; physicalacceptance remainsopen.
@@ -5,7 +31,7 @@ Independent sol61_release75_review finalPython3.12hashclosure GO, exactadmission
 <!-- podview75-admission
 {
   "version": 52,
-  "kind": "podview75_ui21",
+  "kind": "podview75_ui22",
   "reviewer": "/root/sol61_release75_review",
   "domains": [
     "ha_tools",
@@ -13,14 +39,14 @@ Independent sol61_release75_review finalPython3.12hashclosure GO, exactadmission
   ],
   "base_tip": "3f50a1c29433ff5f34bb04c8928d23f41c90abe0",
   "merge_base": "3f50a1c29433ff5f34bb04c8928d23f41c90abe0",
-  "fingerprint": "83680e7445a31aa32a3808237cec2461b5a5c6e3345890cd7d5233dc800f6f85",
-  "regression_fingerprint": "1b5fd8d4e62be26536978a06b4d4f0b38db937b034b9d67bbeb8ec4aa1dd525e",
-  "runtime_fingerprint": "021843a67fbaca99e051bdfa6ab4c0adc0e4590058a4a8b22007c952a2f8bc77",
+  "fingerprint": "f8ef44fe28e02526c3437e0e284634f5125cf0261bb7584ef7242246b4873507",
+  "regression_fingerprint": "d37bd749dc33010047efc64c6cfb2a0c3e8685cb309574efbb6bca9c284ed10d",
+  "runtime_fingerprint": "d00d181409aeec10b1bf408961d1df3e8e84db83a504bbd29279778be44224c3",
   "config_fingerprint": "f23278a30d06eefec87bfa719bef6151d12342a2c665fcda76a822ebc2914aad",
-  "policy_fingerprint": "e88af3ce3e5bf43cc0dd4ca132760cc4fec4dd78df8b93230516f578ef981c70",
-  "tooling_fingerprint": "cc8fd198de38bd4fcdd3cfb2f74c756da4112c90107c42dc143caf588a4916f6",
-  "manifest_fingerprint": "573539b747befd77498e8ac9d3418c5557f1f34099ce0c72411bb0a983cb65a9",
-  "rationale": "Independent sol61_release75_review final51path/source/inventory GO:21production,21regressions,315runtime,4config,46priorpolicy,27tooling; correctedUI21 mapd1ded1b4 exact200; danglingelse blocker closed by minimalbracefix andactualdialogcontainment regression. Canonical1733PASS; adopted316uniquecases with296unchangedreused and20invalidatedrenewed; actualpinnedbundlecomposition byteidentical. Immutable74 preserved; no runtime/provider/firmware/authority changes beyond versionmetadata. Finalbinding/focusedchecks andofficialCI/publication/installation remain separate; physicalVoicePE/audioacceptanceopen."
+  "policy_fingerprint": "0aed42bab8febd8866780bcf8211b90e3acb80c1a6b0bea7b7682b90e7f455d7",
+  "tooling_fingerprint": "96898464cc009ff193367cfb5efdd2d346d099f515e706b40525e180547d1e33",
+  "manifest_fingerprint": "57d291c8e4dc4216ab2a196c4717f71d42603d8633c7a3d2d47cb7e00789836a",
+  "rationale": "Independent UI22 source/inventory GO by /root/sol61_release75_review. Exact200 assets,30production,64regressions,315runtime,4config,46priorpolicy,27tooling verified against frozen map4d22c8d81dd74ca2d1269cbc633be0b58b83a0ededeaa5643023f05576cc87a0. Existing1123adopted/39component and1812canonical results retained; bounded accepted-only passive read overlap explicitly approved. Bindings finalized by root; final hash closure and bound admission precede official CI. No Green or physical acceptance inferred."
 }
 -->
 

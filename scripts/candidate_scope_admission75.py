@@ -19,7 +19,7 @@ strict = previous.strict
 sha = previous.sha
 safe_file = previous.safe_file
 BASE = "3f50a1c29433ff5f34bb04c8928d23f41c90abe0"
-KIND = "podview75_ui21"
+KIND = "podview75_ui22"
 VERSION = 52
 ASSET_COUNT = 200
 MAX_ASSET_TOTAL_BYTES = 34 * 1024 * 1024
@@ -32,8 +32,8 @@ POLICY = previous.POLICY | frozenset({PROFILE, MANIFEST})
 TOOLING = previous.TOOLING
 FIELDS = previous.FIELDS
 
-# Unfrozen UI21: populate only from the final reviewed delta against BASE.
-# Empty inventories and blank bindings deliberately cannot admit this draft.
+# Inventory is derived from immutable UI22 and the exact diff against BASE.
+# Blank review bindings deliberately cannot admit this prepared candidate.
 DOMAINS = ("ha_tools", "physical_output")
 PRODUCTION = frozenset(
     {
@@ -42,44 +42,96 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/library-catalog.js",
         "podvoice/gatekeeper/static/podview/library.bundle.js",
         "podvoice/gatekeeper/static/podview/live-home-view.js",
+        "podvoice/gatekeeper/static/podview/live-media-view.js",
+        "podvoice/gatekeeper/static/podview/live-music-selection-view.js",
+        "podvoice/gatekeeper/static/podview/live-queue-view.js",
+        "podvoice/gatekeeper/static/podview/local-robot-view.js",
         "podvoice/gatekeeper/static/podview/music-results.js",
         "podvoice/gatekeeper/static/podview/player-view.js",
         "podvoice/gatekeeper/static/podview/podview.bundle.js",
         "podvoice/gatekeeper/static/podview/podview.css",
+        "podvoice/gatekeeper/static/podview/podvoice-view.js",
         "podvoice/gatekeeper/static/podview/preview-scenes.js",
         "podvoice/gatekeeper/static/podview/radio-view.js",
         "podvoice/gatekeeper/static/podview/robot-control-panel.js",
         "podvoice/gatekeeper/static/podview/scene-model.js",
         "podvoice/gatekeeper/static/podview/speaker-output-view.js",
+        "podvoice/gatekeeper/static/podview/timer-view.js",
         "podvoice/gatekeeper/static/podview/ui-kit.css",
         "podvoice/gatekeeper/static/podview/ui/library/components.js",
+        "podvoice/gatekeeper/static/podview/ui/library/visual-components.js",
         "podvoice/gatekeeper/static/podview/ui/resource-tile.js",
         "podvoice/gatekeeper/static/podview/vehicle-view.js",
+        "podvoice/gatekeeper/static/podview/voice-surface.js",
         "podvoice/gatekeeper/static/podview/weather-view.js",
+        "podvoice/gatekeeper/static/podview/widget-model.js",
         "podvoice/gatekeeper/static/podview/widget-redesign.css",
         "podvoice/gatekeeper/static/podview/widget-view.js",
     }
 )
 REQUIRED_TESTS = frozenset(
     {
+        "tests/podview/canonical-next-answer-explanation.test.mjs",
+        "tests/podview/canonical-next-collection-selection.test.mjs",
+        "tests/podview/canonical-next-four-music-tabs.test.mjs",
+        "tests/podview/canonical-next-live-media-view.test.mjs",
+        "tests/podview/canonical-next-music-expiry-recovery.test.mjs",
+        "tests/podview/canonical-next-music-selection.test.mjs",
+        "tests/podview/canonical-next-robot-control-panel.test.mjs",
+        "tests/podview/canonical-next-timer-overview.test.mjs",
+        "tests/podview/canonical-next-visual-history.test.mjs",
+        "tests/podview/canonical-next-voice-surface.test.mjs",
+        "tests/podview/canonical-next-weather-view.test.mjs",
+        "tests/podview/canonical-next-widget-loading.test.mjs",
+        "tests/podview/canonical-packet-first-read-reconciliation.test.mjs",
+        "tests/podview/canonical-packet-robot-control-panel.test.mjs",
+        "tests/podview/canonical-packet-shared-music-results.test.mjs",
+        "tests/podview/canonical-packet-visual-history.test.mjs",
+        "tests/podview/helpers/render-owned-album-cover.mjs",
+        "tests/podview/music-expiry-recovery.test.mjs",
+        "tests/podview/music-selection.test.mjs",
+        "tests/podview/root-album-cover.test.mjs",
+        "tests/podview/root-answer-explanation.test.mjs",
+        "tests/podview/root-answer-timer-composition.test.mjs",
+        "tests/podview/root-collection-selection.test.mjs",
         "tests/podview/root-configured-speaker-label.test.mjs",
+        "tests/podview/root-connection-presentation.test.mjs",
         "tests/podview/root-first-read-reconciliation.test.mjs",
+        "tests/podview/root-four-music-tabs.test.mjs",
+        "tests/podview/root-history-renderer.test.mjs",
         "tests/podview/root-library-catalog.test.mjs",
+        "tests/podview/root-light-journey.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/podview/root-live-queue-occurrence.test.mjs",
+        "tests/podview/root-local-robot-view.test.mjs",
+        "tests/podview/root-mood-playlists.test.mjs",
+        "tests/podview/root-music-cache.test.mjs",
+        "tests/podview/root-music-expiry-recovery.test.mjs",
+        "tests/podview/root-music-selection.test.mjs",
         "tests/podview/root-native-presentation-components.test.mjs",
         "tests/podview/root-overview-facts.test.mjs",
         "tests/podview/root-overview-inactive-grid.test.mjs",
         "tests/podview/root-overview-media-cards.test.mjs",
         "tests/podview/root-overview-media-values.test.mjs",
         "tests/podview/root-overview-priorities.test.mjs",
+        "tests/podview/root-player-detail-navigation.test.mjs",
         "tests/podview/root-player-dom-delta.test.mjs",
         "tests/podview/root-preview-scenes.test.mjs",
         "tests/podview/root-radio-view.test.mjs",
         "tests/podview/root-retained-widget-delta.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
         "tests/podview/root-robot-overview-tile.test.mjs",
+        "tests/podview/root-screen-settings.test.mjs",
+        "tests/podview/root-shared-music-results.test.mjs",
         "tests/podview/root-speaker-output-view.test.mjs",
+        "tests/podview/root-timer-dom-delta.test.mjs",
+        "tests/podview/root-timer-overview.test.mjs",
+        "tests/podview/root-topbar.test.mjs",
         "tests/podview/root-vehicle-view.test.mjs",
+        "tests/podview/root-visual-history.test.mjs",
+        "tests/podview/root-voice-surface.test.mjs",
         "tests/podview/root-weather-view.test.mjs",
+        "tests/podview/root-widget-loading.test.mjs",
         "tests/unit/test_candidate_scope_admission74.py",
         "tests/unit/test_candidate_scope_admission75.py",
         "tests/unit/test_dev_cycle.py",
@@ -93,8 +145,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 }
 # Deliberately unbound: no prepared draft may claim final reviewed admission.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "573539b747befd77498e8ac9d3418c5557f1f34099ce0c72411bb0a983cb65a9"
-PROFILE_AST = "2acb357ebea3d4214bff068951d1c707e78dd9fc852dc7500f8edd1a3f45de17"
+MANIFEST_SHA = "57d291c8e4dc4216ab2a196c4717f71d42603d8633c7a3d2d47cb7e00789836a"
+PROFILE_AST = "6d7348ed8c8e2387dcc3024e31c8f31c759f06ae093631f0936b08f6cc9d5acc"
 
 
 def record_at(root: Path) -> dict | None:

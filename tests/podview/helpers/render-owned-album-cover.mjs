@@ -8,6 +8,7 @@ class Element extends EventTarget {
  insertBefore(n,b){n.remove?.();n.parentNode=this;const i=this.children.indexOf(b);this.children.splice(i<0?this.children.length:i,0,n);}
  remove(){if(this.parentNode){this.parentNode.children.splice(this.parentNode.children.indexOf(this),1);this.parentNode=null;}}
  replaceWith(n){const p=this.parentNode;if(p){const i=p.children.indexOf(this);n.remove?.();p.children[i]=n;n.parentNode=p;this.parentNode=null;}}
+ get src(){return this.getAttribute('src')??'';}set src(value){this.setAttribute('src',value);this.complete=false;this.naturalWidth=0;}
  setAttribute(k,v){this.attributes.set(k,String(v));}getAttribute(k){return this.attributes.get(k)??null;}
 }
 const registry=new Map();globalThis.HTMLElement=Element;globalThis.customElements={define:(tag,type)=>registry.set(tag,type)};

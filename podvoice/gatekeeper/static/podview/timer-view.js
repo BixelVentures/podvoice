@@ -18,24 +18,31 @@ export class TimerView {
    <section class="timer-running pv-detail-zone"><h2>Aktuel timer</h2><div class="timer-active-list"></div></section>
    <form class="timer-create pv-card" aria-label="Ny timer"><h2 tabindex="-1">Ny timer</h2>
     <div class="timer-stepper"><button type="button" class="timer-adjust" data-adjust="-60" aria-label="1 minut mindre"><img src="assets/icons/dash.svg" alt=""></button><div class="timer-selected"><output aria-live="polite" aria-label="Valgt tid">5:00</output><span>min : sek</span></div><button type="button" class="timer-adjust" data-adjust="60" aria-label="1 minut mere"><img src="assets/icons/plus.svg" alt=""></button></div>
-    <div class="timer-presets" role="group" aria-label="Faste tider">${[3,5,10,15].map(n=>`<button type="button" data-minutes="${n}" aria-pressed="${n===5}">${n} min</button>`).join('')}</div>
+    <div class="timer-presets" role="group" aria-label="Faste tider">${[3,5,10,15].map(n=>`<button type="button" data-minutes="${n}" aria-pressed="false">${n} min</button>`).join('')}</div>
     <div class="timer-create-footer"><button type="submit" class="timer-start"><img src="assets/icons/play-fill.svg" alt="">Start timer</button></div>
     <div id="timer-exact" hidden><div class="timer-duration"><label>Timer<input name="hours" type="number" inputmode="numeric" min="0" max="24" value="0" required></label><label>Minutter<input name="minutes" type="number" inputmode="numeric" min="0" max="59" value="5" required></label><label>Sekunder<input name="seconds" type="number" inputmode="numeric" min="0" max="59" value="0" required></label></div><p class="timer-validation" role="status" hidden>Vælg mellem 1 sekund og 24 timer.</p></div>
    </form><section class="timer-recent" hidden><h2>Senest brugt</h2><div></div></section>`;
   applyKitComponent(detail.querySelector('.timer-create'),'card');for(const button of detail.querySelectorAll('.timer-presets button'))applyKitComponent(button,'chip');for(const button of detail.querySelectorAll('.timer-adjust,.timer-start'))applyKitComponent(button,'button',{variant:button.classList.contains('timer-start')?'primary':'secondary'});this.form=detail.querySelector('form');this.inputs=this.form.elements;this.duration=300;
   this.form.addEventListener('input',()=>{this.duration=readTimerDuration(this.inputs.hours.value,this.inputs.minutes.value,this.inputs.seconds.value);this.updatePicker();});
-  this.form.addEventListener('submit',e=>{e.preventDefault();if(!this.connected||this.duration===null)return;if(!this.canStart)return;host.dispatch({type:'timer-start',seconds:this.duration,name:'',now:Date.now()});if(host.live)return;const node=this.nodes.get(`detail:${host.state.timer.id}`);node?.querySelector('.timer-finish').focus({preventScroll:true});node?.scrollIntoView({block:'nearest',behavior:'instant'});});
+  this.form.addEventListener('submit',e=>{e.preventDefault();if(!this.connected||this.duration===null||!this.canStart)return;const before=host.state.timer,token={sessionId:host.state.sessionId,generation:host.state.generation,bootId:host.liveSnapshot?.bootId,roomId:host.liveSnapshot?.roomId,epoch:host.liveSnapshot?.timers?.epoch};this.startNavigation=host.state.focus==='timers'?token:null;host.dispatch({type:'timer-start',seconds:this.duration,name:'',now:Date.now()});if(host.live)return;const current=host.state.timer;if(current&&current!==before&&current.status==='running'&&!current.stale)this.completeStartNavigation(token);else this.startNavigation=null;});
   for(const b of detail.querySelectorAll('[data-minutes]'))b.addEventListener('click',()=>{this.fill({seconds:Number(b.dataset.minutes)*60});});
   for(const b of detail.querySelectorAll('[data-adjust]'))b.addEventListener('click',()=>this.fill({seconds:adjustTimerDuration(this.duration??300,Number(b.dataset.adjust))}));
   this.notice=new TimerNotice(host,document.getElementById('timer-alert'),{onElapsed:()=>{this.host.dispatch({type:'show',id:'now'});this.render(this.host.state);this.renderOverviewActivities(this.host.state);}});
   this.updatePicker();
  }
- fill({seconds}){if(this.currentTimer)return;this.duration=seconds;this.inputs.hours.value=Math.floor(seconds/3600);this.inputs.minutes.value=Math.floor(seconds%3600/60);this.inputs.seconds.value=seconds%60;this.updatePicker();}
+ completeStartNavigation(token,timerId){
+  if(!token||this.startNavigation!==token)return;this.startNavigation=null;
+  const host=this.host,s=host.state;if(host.isConnected===false||s.focus!=='timers'||s.sessionId!==token.sessionId||s.generation!==token.generation||host.live&&(host.liveSnapshot?.bootId!==token.bootId||host.liveSnapshot?.roomId!==token.roomId))return;
+  if(host.live){const timers=host.liveSnapshot?.timers,current=timers?.items?.find(timer=>timer.id===timerId);if(timers?.status!=='observed'||timers.epoch!==token.epoch||!current||current.stale||!['running','paused'].includes(current.status))return;}
+  host.dispatch({type:'show',id:'now'});host.focusHeading?.();
+ }
+ fill({seconds}){if(this.currentTimer||!Number.isInteger(seconds)||seconds<1||seconds>86400)return;this.duration=seconds;this.inputs.hours.value=Math.floor(seconds/3600);this.inputs.minutes.value=Math.floor(seconds%3600/60);this.inputs.seconds.value=seconds%60;this.updatePicker();}
  updatePicker(){
   const seconds=this.duration,output=this.form.querySelector('output'),time=seconds===null?'—':timerTime(seconds),unit=this.form.querySelector('.timer-selected>span'),label=seconds>=3600?'timer : min : sek':'min : sek';if(output.textContent!==time)output.textContent=time;if(unit.textContent!==label)unit.textContent=label;
   const selected=this.form.querySelector('.timer-selected'),long=String(seconds>=3600);if(selected&&selected.dataset.long!==long)selected.dataset.long=long;
-  for(const b of this.form.querySelectorAll('[data-minutes]')){const selected=String(Number(b.dataset.minutes)*60===seconds);if(b.getAttribute('aria-pressed')!==selected)b.setAttribute('aria-pressed',selected);}
+  for(const b of this.form.querySelectorAll('[data-minutes]')){const selected='false';if(b.getAttribute('aria-pressed')!==selected)b.setAttribute('aria-pressed',selected);}
   for(const [selector,disabled]of [['[data-adjust="-60"]',!this.connected||this.canDraft===false||seconds===1],['[data-adjust="60"]',!this.connected||this.canDraft===false||seconds===86400],['.timer-start',!this.connected||!this.canStart||seconds===null]]){const button=this.form.querySelector(selector);if(button.disabled!==disabled)button.disabled=disabled;}
+  const selectedRecent=null;if(this.recentChoiceModel&&this.recentChoiceModel.selected!==selectedRecent){this.recentChoiceModel={...this.recentChoiceModel,selected:selectedRecent};this.recentChoices.data=this.recentChoiceModel;}
   const validation=this.form.querySelector('.timer-validation');if(validation.hidden!==(seconds!==null))validation.hidden=seconds!==null;
  }
  card(t,container,key){
@@ -69,16 +76,17 @@ export class TimerView {
   const note=this.detail.querySelector('#timers-live-note');if(note.hidden!==!feedback)note.hidden=!feedback;if(note.textContent!==feedback)note.textContent=feedback;if(note.getAttribute?.('aria-busy')!==busy)note.setAttribute('aria-busy',busy);
  }
  render(s){
+  if(s.focus!=='timers')this.startNavigation=null;
   const projection=timerPresentation(timersFor(s));for(const [key,node]of this.nodes){const hidden=key!==`overview:${projection.current?.id}`&&key!==`detail:${projection.current?.id}`;if(node.hidden!==hidden)node.hidden=hidden;}if(this.overviewList.hidden!==!projection.current)this.overviewList.hidden=!projection.current;if(this.shortcut.hidden!==!!projection.current)this.shortcut.hidden=!!projection.current;
   const current=projection.current;this.currentTimer=current;if(current){const node=this.card(current,this.overviewList,`overview:${current.id}`);if(this.overviewList.children[0]!==node)this.overviewList.insertBefore(node,this.overviewList.children[0]||null);}
   const list=this.detail.querySelector('.timer-active-list');if(current){const node=this.card(current,list,`detail:${current.id}`);if(list.children[0]!==node)list.insertBefore(node,list.children[0]||null);}
   const running=this.detail.querySelector('.timer-running'),runningTitle=running.querySelector?.('h2'),runningLabel=current?.stale?'Senest kendte timer':current?.status==='done'?'Afsluttet timer':current?.status==='paused'?'Timer på pause':'Aktuel timer';if(runningTitle&&runningTitle.textContent!==runningLabel)runningTitle.textContent=runningLabel;if(running.hidden!==!current)running.hidden=!current;const detailHidden=s.focus!=='timers';if(this.detail.hidden!==detailHidden)this.detail.hidden=detailHidden;this.renderAccess(this.host.live?(this.accessModel||{connected:false,canStart:false,canCancel:false}):{connected:s.connected});
   const demoStart=document.getElementById('start-timer');if(demoStart&&demoStart.disabled!==!this.canStart)demoStart.disabled=!this.canStart;
-  const history=s.timerHistory||[],signature=JSON.stringify(history);if(signature!==this.history){
+  const history=(Array.isArray(s.timerHistory)?s.timerHistory:[]).filter(item=>item&&Number.isInteger(item.seconds)&&item.seconds>=1&&item.seconds<=86400),signature=JSON.stringify(history);if(signature!==this.history){
    this.history=signature;const section=this.detail.querySelector('.timer-recent'),recent=section.querySelector('div');
    if(!this.recentChoices){this.recentChoices=document.createElement('pv-choice-list');this.recentChoices.dataset.reuse='true';this.recentChoices.setAttribute('aria-label','Vælg tidligere timer');this.recentChoices.addEventListener('pv-action',event=>{event.stopPropagation();const item=this.recentRecipes.get(event.detail.option_id);if(event.detail.action_id!=='choose'||!item)return;this.fill(item);this.form.scrollIntoView({block:'nearest',behavior:'instant'});const target=this.form.querySelector('.timer-start');if(!target.disabled)target.focus({preventScroll:true});else this.form.querySelector('h2')?.focus({preventScroll:true});});recent.append(this.recentChoices);}
    this.recentRecipes=new Map();for(const item of history){const key=JSON.stringify(item.seconds);if(!this.recentRecipes.has(key))this.recentRecipes.set(key,item);if(this.recentRecipes.size===3)break;}
-   this.recentChoices.data={state:'ready',quietStatus:true,selected:null,items:[...this.recentRecipes].map(([id,item])=>({id,label:`Brug ${timerTime(item.seconds)} igen`,detail:'Justér før start'}))};
+   this.recentChoiceModel={state:'ready',quietStatus:true,selected:null,items:[...this.recentRecipes].map(([id,item])=>({id,label:`Brug ${timerTime(item.seconds)} igen`,detail:'Justér før start'}))};this.recentChoices.data=this.recentChoiceModel;
   }
   const recent=this.detail.querySelector('.timer-recent'),recentHidden=!!current||!history.length;if(recent.hidden!==recentHidden)recent.hidden=recentHidden;
  }
@@ -100,5 +108,5 @@ export class TimerView {
   const timer=timersFor(this.host.state||{}).find(t=>t.status==='done'&&!t.stale&&!t.noticeDismissed)||this.currentTimer;
   this.notice.render(timer,focus,live,feedbackVisible,null,{...this.accessModel,canCancel:this.canCancel});
  }
- cleanup(){this.activityAnimation?.cancel();if(this.activityPointer)this.activityPointer.target.style.transform='';this.activityPointer=null;this.notice?.cleanup();}
+ cleanup(){this.startNavigation=null;this.activityAnimation?.cancel();if(this.activityPointer)this.activityPointer.target.style.transform='';this.activityPointer=null;this.notice?.cleanup();}
 }

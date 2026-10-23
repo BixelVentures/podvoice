@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {voiceStatus} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import { VoiceSurface, voicePresentation } from '../../podvoice/gatekeeper/static/podview/voice-surface.js';
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
@@ -254,7 +255,7 @@ test('phase activity ends on owner exit, settles at ready, and never survives ba
  surface.update(view('s','t','thinking'));assert.equal(mic.cancelled,1);const thinking=surface.markAnimation;assert.equal(surface.icon.src,'assets/icons/chat-circle.svg');assert.equal(surface.label.textContent,'Tænker…');assert(surface.label.textContent.endsWith('…'));assert.equal(surface.label.textContent.match(/…/g).length,1);
  surface.update(view('s','t','responding'));assert.equal(thinking.cancelled,1);const speaking=surface.markAnimation;assert.equal(surface.icon.src,'assets/icons/soundwave.svg');
  doc.hidden=true;doc.dispatchEvent(new Event('visibilitychange'));assert.equal(speaking.cancelled,1);assert.equal(surface.markAnimation,null);doc.hidden=false;doc.dispatchEvent(new Event('visibilitychange'));assert.equal(surface.markAnimation.options.iterations,Infinity);
- surface.update(view('s','t','ready'));assert.equal(surface.markAnimation.options.iterations,1);assert.equal(surface.icon.src,'assets/icons/check2.svg');surface.update(null);assert.equal(surface.markAnimation,null);
+ surface.update(view('s','t','ready'));assert.equal(surface.markAnimation.options.iterations,1);assert.equal(surface.icon.src,'assets/icons/chat-circle.svg');surface.update(null);assert.equal(surface.markAnimation,null);
  surface.update(view('s','t2','thinking'));const active=surface.markAnimation;host.isConnected=false;surface.update(view('s','t2','thinking'));assert.equal(active.cancelled,1);assert.equal(surface.node.hidden,true);assert.equal(surface.markAnimation,null);const count=surface.mark.animations.length;doc.dispatchEvent(new Event('visibilitychange'));assert.equal(surface.mark.animations.length,count);
 }));
 
@@ -290,7 +291,7 @@ test('all voice phases retain one host node and existing activity while its sepa
 
 test('each actual voice phase owns its semantic icon and one static ellipsis only for ongoing activity',()=>withBrowser(()=>{
  const {surface}=fixture();
- const expected=[['LISTENING','Lytter…','mic'],['THINKING','Tænker…','chat-circle'],['AI_SPEAKING','Svarer…','soundwave'],['LOUNGE_WINDOW','Klar til mere','check2'],['CLOSING','Afslutter…','chat-circle'],['UNKNOWN','Venter…','chat-circle']];
+ const expected=[['LISTENING','Lytter…','mic'],['THINKING','Tænker…','chat-circle'],['AI_SPEAKING','Svarer…','soundwave'],['LOUNGE_WINDOW','Spørg videre','chat-circle'],['CLOSING','Afslutter…','chat-circle'],['UNKNOWN','Venter…','chat-circle']];
  for(const [phase,label,icon] of expected){surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase}));
   assert.equal(surface.label.textContent,label);assert.equal(surface.icon.src,`assets/icons/${icon}.svg`);assert.equal(surface.mark.children.length,1);assert.equal(surface.node.querySelector('.voice-copy').children.length,2,'status uses its actual label and existing hidden detail, with no separate dots element');assert.equal((label.match(/…/g)||[]).length,phase==='LOUNGE_WINDOW'?0:1);
   const activity=surface.markAnimation;surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase}));assert.equal(surface.markAnimation,activity);
@@ -322,4 +323,11 @@ test('reduced motion settles the pill inside Ro immediately and disconnect relea
  const media=new EventTarget();media.matches=false;globalThis.matchMedia=()=>media;const {host,surface}=fixture();host.dataset.view='active';host.querySelector=selector=>selector==='#photo-view'?{getBoundingClientRect:()=>({top:40,height:650})}:null;const value=view('s','t','thinking');surface.update(value);host.dataset.view='rest';surface.update(value);const move=surface.positionAnimation;
  media.matches=true;media.dispatchEvent(new Event('change'));assert.equal(move.cancelled,1);assert.equal(surface.positionAnimation,null);assert.equal(surface.node.style.getPropertyValue('--pv-voice-top'),'64px');host.dataset.view='active';surface.update(value);assert.equal(surface.positionAnimation,null);assert.equal(surface.node.style.getPropertyValue('--pv-voice-top'),'16px');
  media.matches=false;host.dataset.view='rest';surface.update(value);const current=surface.positionAnimation;assert.ok(current);host.isConnected=false;surface.update(value);assert.equal(current.cancelled,1);assert.equal(surface.positionAnimation,null);assert.equal(surface.node.hidden,true);assert.equal(surface.node.style.getPropertyValue('--pv-voice-top'),'');
+}));
+
+
+test('continuation window is distinct from actual listening and has no success tick or microphone claim',()=>withBrowser(()=>{
+ const {surface}=fixture(),ready=voicePresentation({active:true,phase:'LOUNGE_WINDOW',sessionId:'s',turnId:'t'}),listening=voicePresentation({active:true,phase:'LISTENING',sessionId:'s',turnId:'t'});
+ assert.equal(ready.label,'Spørg videre');assert.equal(ready.detail,'');assert.equal(voiceStatus('LOUNGE_WINDOW'),ready.label);surface.update(ready);assert.equal(surface.icon.src,'assets/icons/chat-circle.svg');assert.equal(surface.markAnimation.options.iterations,1);
+ surface.update(listening);assert.equal(listening.label,'Lytter…');assert.equal(voiceStatus('LISTENING'),listening.label);assert.equal(surface.icon.src,'assets/icons/mic.svg');surface.cleanup();assert.equal(surface.node.hidden,true);
 }));

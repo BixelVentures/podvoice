@@ -76,3 +76,9 @@ test('fullscreen alarm selects the next unacknowledged native ID across every un
  next.noticeDismissed=true;TimerView.prototype.renderNotice.call(view,'music',true,false);assert.equal(presented[0],other);
  other.status='cancelled';TimerView.prototype.renderNotice.call(view,'music',true,false);assert.equal(presented[0],first,'dismissed fallback is rejected by the notice without changing resource ownership');
 });
+
+test('the actual overview owner hides idle Start whenever its broad timer bar is present',()=>{
+ const finish={disabled:false},view={overview:{dataset:{}},overviewList:{hidden:true},shortcut:{hidden:false},nodes:new Map(),card:()=>({querySelector:()=>finish}),canCancel:true};
+ for(const status of ['running','paused','done'])for(const stale of [false,true]){TimerView.prototype.renderOverviewActivities.call(view,{timer:{id:'actual',status,stale,remaining:60,duration:120},extraTimers:[]});assert.equal(view.overviewList.hidden,false);assert.equal(view.shortcut.hidden,true,'hidden attribute is the canonical idle-shortcut suppression');assert.equal(view.overview.dataset.activityKind,'timer');assert.equal(view.overview.dataset.activityId,'timer:actual');}
+ TimerView.prototype.renderOverviewActivities.call(view,{timer:null,extraTimers:[]});assert.equal(view.overviewList.hidden,true);assert.equal(view.shortcut.hidden,false);assert.equal(view.overview.dataset.activityKind,'empty');
+});

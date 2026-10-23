@@ -167,7 +167,7 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:24px}
 #music-detail .detail-queue{max-height:260px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 #music-detail .detail-queue>h2{position:sticky;top:0;background:var(--pv-surface);z-index:1;padding:0 0 var(--pv-screen-space-2);margin:0}
 
-[data-level=home] .view-nav #show-photo{visibility:hidden;pointer-events:none}.resource-preview:not([data-kind=timer]) .resource-visual svg{display:none}
+[data-level=home] .view-nav #show-photo:not([data-navigation=rest]){visibility:hidden;pointer-events:none}.resource-preview:not([data-kind=timer]) .resource-visual svg{display:none}
 /* Touch timers: choose a duration first; precise entry stays secondary. */
 #now-view #timer-card,#now-view .now-activities:has(:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview):not([hidden])) #timer-card{display:grid;gap:var(--pv-screen-space-3);padding:0;border:0;min-height:0;background:none;margin:0}
 #timer-card[hidden],.timer-panel[hidden]{display:none}
@@ -723,7 +723,7 @@ pv-widget-host #now-view :is(#now-music,#now-empty,#restore-resources,#restore-t
 .result .result-play{transition:transform var(--pv-screen-fast) var(--pv-screen-ease),background-color var(--pv-screen-fast) var(--pv-screen-ease)}
 .result:is(:active,.is-pressed):not(:disabled) .result-play{transform:none}
 .result[data-pending=true] .result-play{animation:music-control-ack 180ms var(--pv-screen-ease) both}
-#music-refresh[data-refresh-state=pending]>img{animation:music-refresh-ack 1.2s linear infinite}
+/* Pending feedback belongs to the shared Button, never a second refresh animation. */
 @keyframes music-control-ack{from{transform:none}to{transform:none}}
 @keyframes music-refresh-ack{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){

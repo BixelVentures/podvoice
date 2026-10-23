@@ -104,3 +104,15 @@ test('resource titles retain full accessible source and responsive short roles b
  }
  const {node}=fixture(),prior=globalThis.document;node.addEventListener=()=>{};globalThis.document={createElement:()=>node};try{createResourceTile(()=>{});assert.match(node.innerHTML,/<span class="resource-title-full"><\/span><span class="resource-title-short" aria-hidden="true"><\/span>/);}finally{globalThis.document=prior;}
 });
+
+test('Light count and status use distinct retained roles across sizes and freshness/pending/unknown changes',()=>{
+ const input={id:'light.actual',kind:'light',live:true,source:'home_assistant_state',status:'mixed',observedLights:[{entityId:'light.one',name:'Loft',state:'on',brightness:128},{entityId:'light.two',name:'Bord',state:'off',brightness:0}]};
+ for(const size of ['s','m','l']){
+  const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:size}};const value=nodes.get('.resource-value'),detail=nodes.get('small'),update=change=>updateResourceTile(node,devicePresentation({...input,...change}));
+  update({});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'tændt');assert.equal(node.dataset.resourceStale,'false');
+  update({stale:true});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Sidst kendt · tændt');assert.equal(node.dataset.resourceStale,'true');assert.doesNotMatch(detail.textContent,/1 af 2/);
+  update({pending:{action:'turn_off'}});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Afventer svar · tændt');assert.equal(node.getAttribute('aria-busy'),'true');
+  update({status:'unknown'});assert.equal(value.hidden,true);assert.equal(value.textContent,'');assert.match(detail.textContent,/ukendt/i);assert.equal(node.dataset.hasOverviewValue,'false');assert.equal(node.getAttribute('aria-busy'),'false');
+  update({});assert.equal(value.hidden,false);assert.equal(detail.textContent,'tændt');assert.equal(nodes.get('.resource-value'),value);assert.equal(nodes.get('small'),detail);assert.equal(node.dataset.target,input.id);assert.equal(resourceOverviewAction(input,{size,live:true,connected:true,canControl:true}),null);
+ }
+});

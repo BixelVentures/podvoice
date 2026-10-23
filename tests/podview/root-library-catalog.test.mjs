@@ -16,7 +16,8 @@ test('product library links only actual local product preview stages with unique
    assert(!states.has(state.id),`duplicate state ${state.id}`);states.add(state.id);
    assert(previewStates.includes(state.stage),`unknown stage ${state.stage}`);
    assert(state.label&&state.description);
-   if(state.open)assert(['#player-detail','#output','#open-history','#home-radio','[data-robot-control]'].includes(state.open),`unexpected automatic action ${state.open}`);
+   if(state.open==='#answer-host details:not([hidden]) > summary'){assert.ok(family.id.startsWith('answer-'));assert.equal(state.stage,`${family.id}-ready`);assert.equal(state.key,'sources');assert.equal(state.selector,'#answer-host');}
+   else if(state.open)assert(['#player-detail','#output','#open-history','#home-radio','[data-robot-control]'].includes(state.open),`unexpected automatic action ${state.open}`);
   }
  }
  assert.equal(libraryStateCount,states.size);
@@ -68,7 +69,7 @@ test('component isolation targets the displayed anatomy and respects intentional
  assert.equal(sample('overlays','timer-detail-running').selector,'#timers-view');
  const noTimer=sample('timer','timer-rest-empty');assert.equal(noTimer.selector,null);assert(noTimer.isolationNote);
  const noConversation=sample('conversation','conversation-overview');assert.equal(noConversation.selector,null);assert(noConversation.isolationNote);
- const dialogs=productLibrary.flatMap(family=>family.states).filter(item=>item.open);
+ const dialogs=productLibrary.flatMap(family=>family.states).filter(item=>item.open&&item.open!=='#answer-host details:not([hidden]) > summary');
  assert(dialogs.every(item=>['#music-detail','#rooms','#history','#radio-view','dialog[aria-labelledby="local-robot-title"][open]'].includes(item.selector)));
 });
 
