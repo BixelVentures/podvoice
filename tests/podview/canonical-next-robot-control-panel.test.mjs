@@ -310,3 +310,29 @@ test('offered Pause and Fortsæt retain their exact labels and opaque actions wi
  }
  const panel=new RobotControlPanel();panel.data={task:{domain:'vacuum',options:[{id:'return-only',label:'Til basen',action:'return',argsSchema:{kind:'none'}}]},device};assert.equal(panel.transportControls.querySelector('img'),null);
 });
+
+test('explicit setup loading explains retained status without inventing controls and clears after completion',()=>{
+ const panel=new RobotControlPanel();panel.data={task:null,device,connected:true,readOnly:false,loading:true};
+ const observation=panel.observation;
+ assert.equal(panel.availabilityNote.textContent,'Henter aktuel betjening…');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.availabilityNote.getAttribute('role'),'status');assert.equal(cleaningForm(panel),null);assert.equal(panel.querySelectorAll('button').length,0);
+ panel.observed(device,{loading:false});assert.equal(panel.observation,observation);assert.equal(panel.availabilityNote.hidden,true);assert.equal(panel.availabilityNote.textContent,'');
+ panel.observed(device,{readOnly:true});assert.equal(panel.availabilityNote.textContent,'Kun status og pleje er tilgængelig.');assert.equal(panel.availabilityNote.hidden,false);
+ panel.data={task:task(),device,connected:true,readOnly:false,loading:false};assert.ok(cleaningForm(panel));assert.equal(panel.availabilityNote,null);
+});
+
+test('setup refresh keeps admitted room controls and user draft rather than replacing widget with loading text',()=>{
+ const panel=new RobotControlPanel();panel.data={task:task(),device,connected:true,readOnly:false};const form=cleaningForm(panel),room=form.querySelectorAll('button').find(n=>n.name==='areaIds');emit(room,'click');assert.equal(room.checked,true);
+ panel.observed(device,{loading:true});panel.disabled=true;assert.equal(cleaningForm(panel),form);assert.equal(room.checked,true);assert.equal(room.disabled,true);assert.equal(panel.availabilityNote,null);
+ panel.observed(device,{loading:false});panel.disabled=false;assert.equal(cleaningForm(panel),form);assert.equal(room.checked,true);
+});
+
+test('failed robot setup closed and reopened mounts a fresh loading hero while the retry remains pending',async()=>{
+ const f=await livePanelFixture();let release;try{
+  f.view.dialog.close();f.host.liveTransport.controlSetup=async()=>{throw Error('setup unavailable');};
+  await f.view.open('vacuum',{entityId:'vacuum.actual'},new Node('button'));
+  assert.match(f.view.note.textContent,/kunne ikke hentes/);const failedPanel=f.view.robotPanel;assert.ok(f.view.body.children.includes(failedPanel));f.view.dialog.close();assert.equal(f.view.body.children.length,0);
+  f.host.liveTransport.controlSetup=()=>new Promise(resolve=>{release=resolve;});const pending=f.view.open('vacuum',{entityId:'vacuum.actual'},new Node('button'));
+  const panel=f.view.robotPanel;assert.ok(panel instanceof RobotControlPanel);assert.notEqual(panel,failedPanel);assert.ok(f.view.body.children.includes(panel));assert.equal(panel.availabilityNote.textContent,'Henter aktuel betjening…');assert.equal(panel.availabilityNote.hidden,false);assert.equal(f.view.body.getAttribute('aria-busy'),'true');assert.equal(cleaningForm(panel),null);
+  release({ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'retry-task',revision:1,expiresAt:Date.now()/1000+120,options:task().options});await pending;assert.ok(cleaningForm(f.view.robotPanel));assert.equal(f.view.body.getAttribute('aria-busy'),'false');assert.equal(f.writes(),0);
+ }finally{f.cleanup();}
+});

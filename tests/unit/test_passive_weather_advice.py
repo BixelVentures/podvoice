@@ -208,7 +208,7 @@ class OwnerTests(unittest.IsolatedAsyncioTestCase):
         for i, result in enumerate(
             [
                 {"summary": "Hi", "evidenceFactIds": ["invented"]},
-                {"summary": "x" * 241, "evidenceFactIds": ["current:temperature"]},
+                {"summary": "x" * 121, "evidenceFactIds": ["current:temperature"]},
                 {"summary": "<b>Hi</b>", "evidenceFactIds": ["current:temperature"]},
                 {**self.provider.result, "extra": "bad"},
             ]
@@ -217,6 +217,51 @@ class OwnerTests(unittest.IsolatedAsyncioTestCase):
             self.request(room="room" + str(i))
             await self.finish()
             self.assertEqual(self.request(room="room" + str(i))["status"], "error")
+
+    async def test_summary_boundary_matches_provider_and_canonical_consumer(self):
+        self.provider.result = {
+            "summary": "x" * 120,
+            "evidenceFactIds": ["current:temperature"],
+        }
+        self.request()
+        await self.finish()
+        self.assertEqual(self.request()["status"], "ready")
+        value = self.owner.read_brief("r0")
+        validate = dict(
+            room="r0",
+            boot_id="boot",
+            source_is_current=weather.observation_is_current,
+            source_token=brief.token,
+            now=self.now,
+        )
+        self.assertIsNotNone(advice.validated_brief(value, **validate))
+        value["summary"] += "x"
+        self.assertIsNone(advice.validated_brief(value, **validate))
+
+    async def test_summary_astral_boundary_matches_browser_utf16_units(self):
+        for index, (summary, expected) in enumerate(
+            [("x" * 118 + "🌧", "ready"), ("x" * 119 + "🌧", "error")]
+        ):
+            with self.subTest(expected=expected):
+                self.provider.result = {
+                    "summary": summary,
+                    "evidenceFactIds": ["current:temperature"],
+                }
+                room = "astral" + str(index)
+                self.request(room=room)
+                await self.finish()
+                self.assertEqual(self.request(room=room)["status"], expected)
+        value = self.owner.read_brief("astral0")
+        validate = dict(
+            room="astral0",
+            boot_id="boot",
+            source_is_current=weather.observation_is_current,
+            source_token=brief.token,
+            now=self.now,
+        )
+        self.assertIsNotNone(advice.validated_brief(value, **validate))
+        value["summary"] = "x" * 119 + "🌧"
+        self.assertIsNone(advice.validated_brief(value, **validate))
 
     async def test_no_allowance_no_facts_unavailable_source_and_timeout_do_not_fake_ai(self):
         self.provider.available = False

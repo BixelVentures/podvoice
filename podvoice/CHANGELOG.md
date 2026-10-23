@@ -1,3 +1,10 @@
+## 2.0.78
+
+- Bevar højttalerrækker ved udløb; vis faktisk adgangsgrund og tilbyd eksplicit frisk læsning/retry.
+- Bevar robotdialogens loading/status ved genåbning og gør det fælles tile-grid læsbart i dialogen.
+- Fjern den godkendte kildenote; behold kilde-/valgidentitet ved musikvariation og fornyelse.
+- Håndhæv vejrrådets eksisterende120-tegnsgrænse ens i server og browser.
+
 ## 2.0.77
 
 - Vis egne kontoplaylister fra den faktiske første Spotify-side med ærlige kilde-/tom-/fejltilstande.

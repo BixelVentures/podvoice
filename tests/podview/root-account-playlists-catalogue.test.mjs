@@ -8,3 +8,8 @@ test('capability changes partition top cache and reject stale top payload under 
 test('malformed or wrong account playlist response cannot replace retained catalogue',()=>{const {view,renders}=setup();view.select('top');view.tracks('top',body(),'account');const cards=view.cards;view.refresh();const wrong=body();wrong.data.config_entry_id='other';view.tracks('top',wrong,'account');assert.equal(view.cards,cards);assert.match(renders.at(-1).status,/Kunne ikke opdatere/);assert.equal(renders.at(-1).canChoose,false);});
 
 test('partial first page reports actual returned count even when provider has more',()=>{const {view,renders}=setup();view.select('top');view.tracks('top',body(4),'account');assert.equal(renders.at(-1).status,'Første side · 4 ejede eller fulgte playlister');assert.doesNotMatch(renders.at(-1).status,/20/);});
+
+test('populated account playlists omit the detached footer note while meaningful empty feedback remains',()=>{
+ const {view,renders}=setup();view.select('top');view.tracks('top',body(),'account');assert.equal(renders.at(-1).sourceSummary,'');
+ view.refresh();view.tracks('top',body(0),'account');assert.match(renders.at(-1).sourceSummary,/Ingen playlister/);assert.doesNotMatch(renders.at(-1).sourceSummary,/Første side|ejede eller fulgte|Dine playlister/);
+});

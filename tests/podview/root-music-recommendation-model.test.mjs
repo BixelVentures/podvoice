@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {musicSourcePage} from '../../podvoice/gatekeeper/static/podview/music-recommendation-model.js';
+import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
+import {collectionCurrent,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
+const track=(index,artist)=>({uri:'spotify:track:'+String(index).padStart(22,'0'),name:'Source '+index,artist,artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/cover'+index}});
+const rows=()=>[track(0,'A'),track(1,'A'),track(2,'A'),track(3,'B'),track(4,'B'),track(5,'C'),track(0,'A')];
+const snapshot=()=>({bootId:'boot',roomId:'room',capabilities:{musicRead:['top','recent','targets'],musicSelection:true},answers:{},voice:{}});
+const wire=(kind='top',tracks=rows())=>({ok:true,data:{config_entry_id:'account',tracks},selection:{requested_limit:20,source_sample_count:tracks.length,returned_count:tracks.length,more_in_sample:false,size_limited:false},candidateSet:{schema:'podview.music-search-context.v1',bootId:'boot',roomId:'room',configEntryId:'account',source:'spotify_web_api',query:kind+':collection',sourceKind:kind,candidateSetId:'a'.repeat(64),revisionScope:'music_selection',sessionId:'touch:session',turnId:'touch:turn',taskId:'touch:task',inputRevision:1,revision:1,items:tracks.map((_,index)=>({id:String(index).padStart(24,'a'),index}))}});
+const catalogue=()=>{const renders=[],host={state:{focus:'music'},isConnected:true,liveSnapshot:snapshot(),liveStatus:'connected',liveTransport:{connected:true},musicResults:{render:vm=>renders.push(vm)}},view=new LiveMusicCatalogueView(host,()=>{});host.liveCatalogue=view;view.updateCapabilities(true,host.liveSnapshot.capabilities.musicRead);view.resetAccount('account');return {host,view,renders,close(){clearTimeout(view.expiryTimer);}};};
+test('each track trio uses distinct exact source artist labels where available and exact URI deduplication',()=>{
+ const tracks=rows(),before=structuredClone(tracks);for(const kind of ['top','recent']){assert.deepEqual(musicSourcePage(tracks,kind),{indices:[0,3,5],offset:0,total:6});assert.deepEqual(musicSourcePage(tracks,kind,3),{indices:[1,4,2],offset:3,total:6});assert.deepEqual(musicSourcePage(tracks,kind,6),{indices:[0,3,5],offset:0,total:6});}assert.deepEqual(tracks,before);assert.equal(tracks[musicSourcePage(tracks,'top').indices[0]],tracks[0]);
+ // Equal covers/titles do not erase distinct source tracks. Exact labels are not
+ // split or case-folded into inferred individual artist relationships.
+ const same=[track(0,'A'),track(1,'A & B'),track(2,'a')];same[1].name=same[0].name;same[1].artwork=same[0].artwork;assert.deepEqual(musicSourcePage(same,'top').indices,[0,1,2]);assert.deepEqual(musicSourcePage([track(0,''),track(1,''),track(2,'A')],'top').indices,[0,1,2]);
+});
+test('playlist and owner-selected mood/feeling order stays intact; no lexical, clock or taste inference',()=>{
+ const tracks=['calm','morning_acoustic','cooking','indie'].map((themeId,index)=>({uri:'spotify:playlist:'+String(index).padStart(22,'0'),name:index?'Real source':'Daily Mix Morning Jazz',artist:'Playliste',themeId}));for(const kind of ['account_playlists','mood','feeling'])assert.deepEqual(musicSourcePage(tracks,kind).indices,[0,1,2]);assert.deepEqual(musicSourcePage(tracks,'account_playlists',3).indices,[3]);
+ for(const [tracks,kind,offset]of [[null,'top',0],[rows(),'search',0],[rows(),'top',1],[rows(),'top',-3],[Array(101).fill(track(0,'A')),'top',0],[[{...track(0,'A'),uri:'https://example.com'}],'top',0],[[{...track(0,'A'),artist:[]}],'top',0]])assert.equal(musicSourcePage(tracks,kind,offset),null);assert.deepEqual(musicSourcePage([],'recent'),{indices:[],offset:0,total:0});
+});
+test('actual catalogue cards and native selection grant use the same diversified source indices in display order',()=>{
+ const f=catalogue();try{const body=wire();f.view.select('top');f.view.tracks('top',body,'account');const entry=f.view.entries.get(f.view.key());assert.deepEqual(f.view.cards.map(row=>row.uri),[0,3,5].map(index=>body.data.tracks[index].uri));assert.deepEqual(entry.source.candidateIds,[0,3,5].map(index=>body.candidateSet.items[index].id));assert.equal(collectionCurrent(entry.source,f.host.liveSnapshot,'account'),true);
+  const target={accountId:'account',kind:'spotify_device',targetId:'speaker'},receipt={ok:true,schema:'podview.music-selection.v1',candidateSetId:entry.source.context.candidateSetId,accountId:'account',target:{kind:'spotify_device',targetId:'speaker'},taskId:'music-selection:'+'b'.repeat(32),revision:1,startVolumePercent:35,expiresIn:60,options:entry.source.tracks.map((row,index)=>({id:String(index).padStart(24,'c'),label:row.name,artist:row.artist}))},offer=selectionOffer(receipt,entry.source,target);assert.ok(offer);assert.equal(selectionCurrent(offer,f.host.liveSnapshot,'account',entry.source),true);
+  f.view.refresh();f.view.tracks('top',wire(),'account');const next=f.view.entries.get(f.view.key());assert.deepEqual(f.view.cards.map(row=>row.uri),[1,4,2].map(index=>body.data.tracks[index].uri));assert.deepEqual(next.source.candidateIds,[1,4,2].map(index=>body.candidateSet.items[index].id));assert.equal(f.view.offset,3);assert.equal(new Set([...entry.cards,...next.cards].map(row=>row.uri)).size,6);
+ }finally{f.close();}
+});
+test('renewal maps frozen diversified cards back to fresh occurrences without reordering or changing metadata',()=>{
+ const f=catalogue();try{const body=wire('top',rows().slice(0,6));f.view.select('top');f.view.tracks('top',body,'account');const entry=f.view.entries.get(f.view.key()),cards=f.view.cards;entry.source.expiresAt=Date.now()-1;f.view.select('top');assert.equal(f.view.pendingRead.reason,'renew');const fresh=wire('top',[...body.data.tracks].reverse());fresh.candidateSet.candidateSetId='d'.repeat(64);f.view.tracks('top',fresh,'account');assert.equal(f.view.cards,cards);assert.deepEqual(entry.source.candidateIds,[5,2,0].map(index=>fresh.candidateSet.items[index].id));assert.equal(f.renders.at(-1).canChoose,true);assert.deepEqual(entry.source.tracks.map(row=>row.uri),cards.map(row=>row.uri));
+ }finally{f.close();}
+});
+test('read-only deduplicated catalogue stays read-only and small unique source never promises extra suggestions',()=>{
+ const f=catalogue();try{const body=wire('recent',[track(0,'A'),track(0,'A'),track(0,'A'),track(0,'A')]);delete body.candidateSet;f.view.select('recent');f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.equal(f.renders.at(-1).canChoose,false);f.view.refresh();f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.match(f.view.status,/Ingen andre sange/);assert.equal(f.view.entries.get(f.view.key()).source,null);
+ }finally{f.close();}
+});
