@@ -118,6 +118,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/root-weather-view.test.mjs",
         "tests/unit/test_candidate_scope_admission75.py",
         "tests/unit/test_candidate_scope_admission76.py",
+        "tests/unit/test_locality_lifecycle.py",
         "tests/unit/test_dev_cycle.py",
         "tests/unit/test_passive_weather_advice.py",
         "tests/unit/test_weather_advice_budget.py",
@@ -133,8 +134,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "4d678ad7f9e9ee36c4837f72c59edd291a7f259e9a47d16fb03c159a03ddeaa5"
-PROFILE_AST = "436ac8fd0051653c3ea7c5e7600d2eb5bbad429863480a0d1b25fcf375c644d3"
+MANIFEST_SHA = "692347a394eb9939d3e4cb41d53835f600c790ddd73b1153553aea1156bbb827"
+PROFILE_AST = "bf58d3b7b9224a1489cd558825431fc97f80b6d2a8ad297ce7dd60ee4dbc262b"
 
 
 def record_at(root: Path) -> dict | None:

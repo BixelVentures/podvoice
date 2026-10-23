@@ -138,6 +138,7 @@
     "tests/unit/test_candidate_scope_admission75.py": "34f15c690e3123261654831fddfa15c6b7992752765f8b4a4c025ab6e1c2b5af",
     "tests/unit/test_candidate_scope_admission76.py": "529b020507ac7f746e6618bb35fea19556bd820f7efee1f8749c836637ffb8e4",
     "tests/unit/test_dev_cycle.py": "b7b0e8b675f8e8e25431cf45d26f5de1a2111fa34c454966a403545f784ac493",
+    "tests/unit/test_locality_lifecycle.py": "9d1275d44c2148804d2efe71551b032f633b7b088537bb50dc27e5b0e4b27c5c",
     "tests/unit/test_passive_weather_advice.py": "47cd2a7753afde2b2b1545453d4361012decc9f55ec2c8cce914a9bfa1a9f0e5",
     "tests/unit/test_weather_advice_budget.py": "0f334655647e12bcda7953fce61ee71e51ad2a872f69bf236c26734747d824fa"
   },

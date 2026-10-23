@@ -3413,12 +3413,12 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "base_tip": "64028590b1a45008bbb0f8e77e6b2fbe81fc9c06",
   "merge_base": "64028590b1a45008bbb0f8e77e6b2fbe81fc9c06",
   "fingerprint": "06f64e7ce09b8f20021331a855095f42548699a6aa44bce0b2f8fdf46b461d41",
-  "regression_fingerprint": "3035f932d7184fbab7e2dbb849877e48f51f7109b4aaa276aafa8747c3f61026",
+  "regression_fingerprint": "72510b5eb77a1cfe4a5fa544f8380454592e3a7d67c0077ca2fa38fc2a2e75fe",
   "runtime_fingerprint": "a4c6dcb0edde3366063039c8946e120c6d53b1d13828d2105d88bc45a07bbd8b",
   "config_fingerprint": "b2249793d916b310d2578eaa7a57714d09cf4f62cb11ad9a412b7759505fc3b4",
-  "policy_fingerprint": "d5c490a7c861c95eabac007ce2ff8f1cdbaae0043c8c994140e685b224d05c15",
+  "policy_fingerprint": "ac5c14e31d39cc3ded87700f006cac114c7622347b2621fb275d8163380129ab",
   "tooling_fingerprint": "327930f8fd99783bd3df0f4ef9e1d1c99bbbbeac2af95583e4f1959f1ba92854",
-  "manifest_fingerprint": "4d678ad7f9e9ee36c4837f72c59edd291a7f259e9a47d16fb03c159a03ddeaa5",
-  "rationale": "Independent exact-composition scope/tooling GO and weather SOURCE GO48ec504d04c37e9252fd5efe690873bb7343b5eb7a5ff6dc55aa185474e5c689. Immutable S06 UI202 map802bed0fa18294a020b7bf77db41260305cdc0f3085fa0e1c73f80db36f3e5a3 adopted without source edits; UI owner reports1856 tests/component gate PASS. Backend54 inert checks retained; actual MockTransport router/provider/durable debit JSON accepted by unchanged canonical UI pending then ready without another POST. Old75 history/strict profile preserved;202 assets independently checked with exact schema/path/hash/duplicate/size fences. Source admission only; official CI, publication, installation and real provider/browser/physical acceptance remain separate. Final tracked classifier includes realtime_semantics from the unchanged explicit provider reasoning:none; all three actual domains are declared without suppressing that flag."
+  "manifest_fingerprint": "692347a394eb9939d3e4cb41d53835f600c790ddd73b1153553aea1156bbb827",
+  "rationale": "Independent exact-composition scope/tooling GO and weather SOURCE GO48ec504d04c37e9252fd5efe690873bb7343b5eb7a5ff6dc55aa185474e5c689. Immutable S06 UI202 map802bed0fa18294a020b7bf77db41260305cdc0f3085fa0e1c73f80db36f3e5a3 adopted without source edits; UI owner reports1856 tests/component gate PASS. Backend54 inert checks retained; actual MockTransport router/provider/durable debit JSON accepted by unchanged canonical UI pending then ready without another POST. Old75 history/strict profile preserved;202 assets independently checked with exact schema/path/hash/duplicate/size fences. Source admission only; official CI, publication, installation and real provider/browser/physical acceptance remain separate. Final tracked classifier includes realtime_semantics from the unchanged explicit provider reasoning:none; all three actual domains are declared without suppressing that flag. Official PR236 CI39976777545 exposed an outdated locality lifecycle fake bridge missing the real constructor weather-source cache field; fixture adds None only. Real production bridge unchanged. All23 direct home/locality affected cases pass; prior passing checks retained."
 }
 -->
