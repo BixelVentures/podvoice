@@ -1,3 +1,10 @@
+## 2.0.75
+
+- Adopt the reviewed canonical UI21 for shared Small/Medium/Large cards and detail views.
+- Keep unavailable/stale states consistent, retain music context and native progress, and correct speaker heading continuity.
+- Preserve existing robot authority and timer actions while aligning shared Hero roles, room/start placement and timer-dependent Radio layout.
+- Voice, provider, firmware, grants and paid budgets are unchanged. Physical Voice PE/audio acceptance remains separate.
+
 ## 2.0.74 · source candidate
 
 - Replace the unsupported legacy browser Start control with physical wake guidance.

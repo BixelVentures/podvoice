@@ -15,7 +15,7 @@ export function renderLiveWeather(host){
   const temperature=Number.isFinite(temp)?weatherTemperature(temp,w.unit):id==='home-weather'?'':hasWeather?'Vejr':'';
   if(id==='home-weather'){
    const value=button.querySelector('.home-temperature'),description=button.querySelector('.home-condition'),forecast=button.querySelector('.home-forecast'),range=model.current?.range||'';
-   if(value&&value.textContent!==temperature)value.textContent=temperature;if(description&&description.textContent!==(condition||model.overviewStatus||''))description.textContent=condition||model.overviewStatus||'';
+   if(value&&value.textContent!==temperature)value.textContent=temperature;const overviewCondition=weatherOverviewDetail(model,{role:'condition'});if(description&&description.textContent!==overviewCondition)description.textContent=overviewCondition;
    renderOverviewForecast(button,model);
   }else{const strong=button.querySelector('strong'),label=id==='header-weather'?(Number.isFinite(temp)?temperature.replace(/°[CF]$/,'°'):'—'):temperature;if(strong&&strong.textContent!==label)strong.textContent=label;}
   const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!hasWeather?(id==='header-weather'?'Vejr ukendt':model.emptyDetail||model.overviewStatus||'Ingen vejrdata'):id==='home-weather'?weatherOverviewDetail(model):model.sourceStale?'Sidst kendt':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;

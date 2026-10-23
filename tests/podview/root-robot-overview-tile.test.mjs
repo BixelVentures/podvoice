@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createResourceTile,updateResourceTile,updateResourceFacts,resourceOverviewAction} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
 import {devicePresentation} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 function fixture(){
  const nodes=new Map();let doc;const make=(tag='span')=>({tagName:tag.toUpperCase(),ownerDocument:doc,children:[],dataset:{},className:'',textContent:'',hidden:false,attributes:new Map(),style:{display:'',values:new Map(),getPropertyValue(k){return this.values.get(k)||'';},setProperty(k,v){this.values.set(k,v);}},getAttribute(k){return this.attributes.get(k)??null;},setAttribute(k,v){this.attributes.set(k,String(v));},removeAttribute(k){this.attributes.delete(k);},append(...children){for(const child of children){child.remove();child.parentNode=this;this.children.push(child);}},insertBefore(child,before){child.remove();const index=this.children.indexOf(before);this.children.splice(index<0?this.children.length:index,0,child);child.parentNode=this;},remove(){if(this.parentNode){const index=this.parentNode.children.indexOf(this);if(index>=0)this.parentNode.children.splice(index,1);this.parentNode=null;}}});
  doc={createElement:make};for(const selector of ['strong','small','.resource-value','.resource-visual img','svg'])nodes.set(selector,make());
@@ -17,11 +18,34 @@ test('pending preserves last observation, waits honestly and replaces feedback o
  const {node,nodes}=fixture();updateResourceTile(node,robot({status:'cleaning',battery:76,pending:{action:'pause'}}));assert.equal(nodes.get('.resource-value').textContent,'Gør rent');assert.equal(nodes.get('small').textContent,'Afventer svar · Batteri 76 %');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(node.getAttribute('aria-busy'),'true');
  updateResourceTile(node,robot({status:'paused',battery:76}));assert.equal(nodes.get('.resource-value').textContent,'På pause');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.getAttribute('aria-busy'),'false');
  updateResourceTile(node,robot({status:'fault'}));assert.equal(nodes.get('.resource-value').textContent,'Kræver hjælp');assert.equal(nodes.get('small').textContent,'Børste blokeret · se enheden');
- updateResourceTile(node,robot({status:'unknown'}));assert.equal(nodes.get('.resource-value').textContent,'Status ukendt');assert.equal(nodes.get('small').textContent,'Udfald ukendt · hent status igen');
+ updateResourceTile(node,robot({status:'unknown'}));assert.equal(nodes.get('.resource-value').textContent,'Ukendt');assert.equal(nodes.get('small').textContent,'Udfald ukendt · hent status igen');
 });
 test('unavailable and stale live observations never invent successful actions or fresh battery',()=>{
  const {node,nodes}=fixture();updateResourceTile(node,robot({live:true,status:'unavailable'}));assert.equal(nodes.get('.resource-value').textContent,'Ikke forbundet');assert.equal(nodes.get('small').hidden,true);
- updateResourceTile(node,robot({live:true,status:'docked',battery:76,stale:true}));assert.equal(nodes.get('.resource-value').textContent,'Ved basen');assert.equal(nodes.get('small').textContent,'Sidst kendt · Batteri 76 %');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 % · sidst kendt');assert.equal(node.dataset.target,'vacuum.stable');
+ updateResourceTile(node,robot({live:true,status:'docked',battery:76,stale:true}));assert.equal(nodes.get('.resource-value').textContent,'Sidst kendt · Ved basen');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 % · sidst kendt');assert.equal(node.dataset.target,'vacuum.stable');
+});
+
+test('actual offline Robot projection visibly qualifies the retained status at every size without granting a command',()=>{
+ const scene=previewScene('robot-detail-offline'),device=scene.devices.find(row=>row.kind==='vacuum'),before=structuredClone(device);
+ assert.equal(scene.connected,false);assert.notEqual(device.stale,true,'fixture transport loss is supplied by the current read connection');
+ for(const size of ['s','m','l']){
+  const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:size}};const online=devicePresentation(device,{connected:true});updateResourceTile(node,online);
+  const value=nodes.get('.resource-value'),battery=node.resourceFacts.rows.get('battery');
+  const projected=devicePresentation(device,{connected:scene.connected});updateResourceTile(node,projected);
+  assert.equal(value.textContent,'Sidst kendt · Gør rent');assert.equal(node.dataset.resourceStale,'true');assert.equal(node.dataset.target,device.id);assert.equal(node.disabled,false);assert.equal(battery.value.textContent,'76 % · sidst kendt');assert.equal(node.resourceFacts.rows.get('battery'),battery);assert.equal(projected.facts.some(row=>['room','progress'].includes(row.id)),false,'old room/progress is not represented as current telemetry');
+  assert.equal(resourceOverviewAction(device,{connected:false,size,canControl:true,actions:[{id:'pause',label:'Pause'}]}),null);
+  const insert=node.resourceFacts.list.insertBefore;node.resourceFacts.list.insertBefore=()=>assert.fail('unchanged presentation cannot reorder retained facts');updateResourceTile(node,structuredClone(projected));node.resourceFacts.list.insertBefore=insert;assert.equal(nodes.get('.resource-value'),value);
+  updateResourceTile(node,online);assert.equal(value.textContent,'Gør rent');assert.equal(node.dataset.resourceStale,'false');assert.equal(node.resourceFacts.rows.get('battery'),battery);
+ }
+ assert.deepEqual(device,before);assert.equal(devicePresentation(device).stale,false);assert.equal(devicePresentation(device,{connected:undefined}).stale,false);
+ const zero=devicePresentation({...device,battery:0,stale:true});assert.equal(zero.stale,true);assert.equal(zero.facts.find(row=>row.id==='battery').value,'0 %');
+});
+
+test('unknown Robot outcome retains its actual recovery role across large-card updates',()=>{
+ const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:'l'}};const input=robot({status:'unknown',battery:76});updateResourceTile(node,input);
+ const value=nodes.get('.resource-value'),recovery=nodes.get('small');assert.equal(value.textContent,'Ukendt');assert.equal(recovery.textContent,'Udfald ukendt · hent status igen');assert.equal(recovery.hidden,false);assert.equal(node.dataset.resourceFeedback,'unknown');
+ updateResourceTile(node,structuredClone(input));assert.equal(nodes.get('small'),recovery);assert.equal(nodes.get('.resource-value'),value);
+ updateResourceTile(node,robot({status:'cleaning',battery:76}));assert.equal(node.dataset.resourceFeedback,'');assert.equal(value.textContent,'Gør rent');
 });
 
 test('M Robot metadata admits only fresh source room/progress/battery and hides unsupported values',()=>{
@@ -67,4 +91,16 @@ test('unconnected placeholder names come from the actual domain and rendered sta
   updateResourceTile(node,{...presentation,target:`empty-${kind}`,detail:'Ikke forbundet'});
   assert.equal(nodes.get('strong').textContent,label);assert.equal(nodes.get(kind==='vacuum'?'.resource-value':'small').textContent,'Ikke forbundet');assert.equal(node.disabled,false);assert.equal(node.getAttribute('aria-label'),null);
  }
+});
+
+test('resource titles retain full accessible source and responsive short roles before size is applied',()=>{
+ for(const [kind,full,short]of [['vacuum','Robotstøvsuger','Robot'],['light','Lys i den lange stue','Lys'],['timer','Pasta til aftensmad','Timer'],['vehicle','Familiebilen','Tesla']]){
+  const {node,nodes}=fixture(),title=nodes.get('strong'),fullTitle=node.ownerDocument.createElement('span'),shortTitle=node.ownerDocument.createElement('span');
+  fullTitle.className='resource-title-full';shortTitle.className='resource-title-short';shortTitle.setAttribute('aria-hidden','true');title.append(fullTitle,shortTitle);title.querySelector=selector=>selector==='.resource-title-full'?fullTitle:selector==='.resource-title-short'?shortTitle:null;
+  const input={target:kind,kind,title:full,status:'unknown',detail:''};updateResourceTile(node,input);
+  assert.equal(fullTitle.textContent,full);assert.equal(fullTitle.getAttribute('aria-hidden'),null);assert.equal(shortTitle.textContent,short);assert.equal(shortTitle.getAttribute('aria-hidden'),'true');
+  for(const size of ['s','m','l']){node.dataset.kitSize=size;updateResourceTile(node,input);assert.deepEqual(title.children,[fullTitle,shortTitle]);assert.equal(fullTitle.textContent,full);assert.equal(shortTitle.textContent,short);}
+  updateResourceTile(node,{...input,title:`${full} opdateret`});assert.equal(fullTitle.textContent,`${full} opdateret`);assert.equal(shortTitle.textContent,short);assert.equal(node.getAttribute('aria-label'),null);
+ }
+ const {node}=fixture(),prior=globalThis.document;node.addEventListener=()=>{};globalThis.document={createElement:()=>node};try{createResourceTile(()=>{});assert.match(node.innerHTML,/<span class="resource-title-full"><\/span><span class="resource-title-short" aria-hidden="true"><\/span>/);}finally{globalThis.document=prior;}
 });

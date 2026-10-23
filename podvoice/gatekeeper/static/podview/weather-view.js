@@ -75,12 +75,17 @@ export function liveWeatherModel(w,{connected=true,reason=null,now=Date.now(),ai
 const retained=new WeakMap(),text=(node,value)=>{const next=typeof value==='string'?value:'';if(node.textContent!==next)node.textContent=next;};
 // The local header, overview, photo and detail share one fixture projection.
 // Live surfaces continue to be populated solely by their observed-data adapter.
-export function weatherOverviewDetail(model){
+export function weatherOverviewDetail(model,{role='detail'}={}){
+ if(role==='condition'){
+  const condition=model.current?.condition||model.overviewStatus||'',hasFacts=!!model.current||!!model.hours?.length||!!model.days?.length;
+  return model.sourceStale&&hasFacts?['Sidst kendt',condition].filter(Boolean).join(' · '):condition;
+ }
  if(!model.current&&!model.hours?.length&&!model.days?.length)return model.emptyDetail||'';
  const range=model.current?.range||'';
- return [range,model.sourceStale?'Sidst kendte vejr':range?'':'Se vejrudsigten'].filter(Boolean).join(' · ');
+ return range||(!model.sourceStale?'Se vejrudsigten':'');
 }
 export function renderOverviewForecast(button,model){
+ const stale=model.sourceStale===true&&(!!model.current||!!model.hours?.length||!!model.days?.length),staleAttribute=String(stale);if(button.getAttribute('data-weather-stale')!==staleAttribute)button.setAttribute('data-weather-stale',staleAttribute);
  const appearance=model.appearance||weatherAppearance(null);for(const [key,value]of [['tone',appearance.tone],['phase',appearance.phase],['photo',String(appearance.photo===true)]])if(button.getAttribute(`data-weather-${key}`)!==value)button.setAttribute(`data-weather-${key}`,value);
  const forecast=button.querySelector('.home-forecast');if(!forecast)return;
  if(!forecast.hourRows){forecast.replaceChildren();forecast.hourRows=new Map();}
@@ -93,7 +98,7 @@ export function renderLocalWeather(doc,model=localWeatherModel(),{detail=true}={
   const button=doc.getElementById(id);if(!button)continue;
   const assign=(selector,value)=>{const node=button.querySelector(selector);if(node)text(node,value);};
   if(id==='home-weather'){
-   assign('.home-temperature',model.current?.temperature||'');assign('.home-condition',model.current?.condition||model.overviewStatus||'');
+   assign('.home-temperature',model.current?.temperature||'');assign('.home-condition',weatherOverviewDetail(model,{role:'condition'}));
    assign('small',weatherOverviewDetail(model));
    renderOverviewForecast(button,model);
   }
@@ -106,7 +111,7 @@ export function renderLocalWeather(doc,model=localWeatherModel(),{detail=true}={
 function build(node){
  const doc=node.ownerDocument||document,make=(tag,cls)=>{const n=doc.createElement(tag);if(cls)n.className=cls;return n;};
  const heading=make('header','response-heading'),intro=make('div'),title=make('h1'),subtitle=make('p'),card=make('div','weather-current'),copy=make('div'),value=make('strong'),description=make('p'),range=make('span'),metadata=make('dl','weather-metadata'),icon=make('img'),summary=make('p','weather-summary'),summaryText=doc.createTextNode(''),hours=make('section','weather-hours'),days=make('section','weather-days'),daysTitle=make('h2'),source=make('footer','weather-source'),sourceCopy=make('p');
- title.id='weather-title';icon.alt='';intro.append(title,subtitle);heading.append(intro);copy.append(value,description,range,metadata,summary);card.append(copy,icon);summary.append(summaryText);hours.tabIndex=0;hours.setAttribute('role','region');days.setAttribute('aria-label','Vejrudsigt for de næste dage');text(daysTitle,'De næste dage');days.append(daysTitle);sourceCopy.id='weather-source-info';source.append(sourceCopy);applyKitTemplate(node,'detail');applyKitComponent(card,'hero',{identity:'weather'});card.setAttribute('data-detail-zone','hero');hours.setAttribute('data-detail-zone','controls');days.setAttribute('data-detail-zone','history');node.replaceChildren(heading,card,hours,days,source);
+ title.id='weather-title';icon.alt='';intro.append(title,subtitle);heading.append(intro);copy.append(value,description,range,metadata,summary);card.append(copy,icon);summary.append(summaryText);hours.tabIndex=0;hours.setAttribute('role','region');days.setAttribute('aria-label','Vejrudsigt for de næste dage');text(daysTitle,'De næste dage');days.append(daysTitle);sourceCopy.id='weather-source-info';source.append(sourceCopy);applyKitTemplate(node,'detail');applyKitComponent(card,'hero',{identity:'weather'});card.setAttribute('data-detail-zone','hero');copy.setAttribute('data-kit-slot','copy');icon.setAttribute('data-kit-slot','icon');description.setAttribute('data-kit-slot','title');range.setAttribute('data-kit-slot','body');hours.setAttribute('data-detail-zone','controls');days.setAttribute('data-detail-zone','history');node.replaceChildren(heading,card,hours,days,source);
  const n={make,title,subtitle,card,value,description,range,metadata,metadataRows:new Map(),icon,summary,summaryText,hours,days,daysTitle,source,sourceCopy,hourRows:new Map(),dayRows:new Map()};retained.set(node,n);return n;
 }
 function artwork(node,file,label=''){if(node.hidden!==!file)node.hidden=!file;if(file){const src=`assets/icons/${file}.svg`;if(node.getAttribute('src')!==src)node.src=src;}if(node.getAttribute('alt')!==label)node.setAttribute('alt',label);}
@@ -118,6 +123,7 @@ export function renderWeather(node,model=localWeatherModel()){
  // CSS owns the decorative right-third image; no new DOM or image truth claim.
  const hasFacts=!!model.current||!!model.hours?.length||!!model.days?.length,metadata=[...(model.sourceStale&&hasFacts?[{id:'freshness',label:'Status',value:'Sidst kendte vejr'}]:[]),...(model.metadata||[])];if(n.metadata.hidden!==!metadata.length)n.metadata.hidden=!metadata.length;rows(n.metadata,n.metadataRows,metadata,()=>{const row=make('div');row.append(make('dt'),make('dd'));return row;},(row,item)=>{text(row.children[0],item.label);text(row.children[1],item.value);});
  const appearance=model.appearance||weatherAppearance(null);for(const surface of [n.card,node.ownerDocument?.getElementById('home-weather')].filter(Boolean)){if(surface.getAttribute('data-weather-tone')!==appearance.tone)surface.setAttribute('data-weather-tone',appearance.tone);if(surface.getAttribute('data-weather-phase')!==appearance.phase)surface.setAttribute('data-weather-phase',appearance.phase);if(surface.getAttribute('data-weather-photo')!==String(appearance.photo===true))surface.setAttribute('data-weather-photo',String(appearance.photo===true));}
+ const message=!!model.connectionReason&&!hasFacts;if(message){if(n.card.getAttribute('data-kit-variant')!=='message')n.card.setAttribute('data-kit-variant','message');}else if(n.card.getAttribute('data-kit-variant')!==null)n.card.removeAttribute('data-kit-variant');if(n.value.hidden!==message)n.value.hidden=message;
  const currentState=model.current?(model.sourceStale?'stale':'current'):'empty';const kitState=model.current?'ready':'empty';if(n.card.getAttribute('data-kit-state')!==kitState)n.card.setAttribute('data-kit-state',kitState);if(n.card.getAttribute('data-weather-state')!==currentState)n.card.setAttribute('data-weather-state',currentState);
  if(model.current){text(n.value,model.current.temperature);text(n.description,model.current.condition);text(n.range,model.current.range);if(n.range.hidden!==(!model.current.range))n.range.hidden=!model.current.range;artwork(n.icon,model.current.icon);}else{text(n.value,'');text(n.description,model.emptyTitle||'Aktuelt vejr ikke tilgængeligt');text(n.range,model.emptyDetail||'');if(n.range.hidden!==!model.emptyDetail)n.range.hidden=!model.emptyDetail;artwork(n.icon,model.emptyIcon);}
  if(n.summary.hidden!==(!model.summary))n.summary.hidden=!model.summary;text(n.summaryText,model.summary);if(model.summaryLabel){if(n.summary.getAttribute('aria-description')!==model.summaryLabel)n.summary.setAttribute('aria-description',model.summaryLabel);if(n.summary.getAttribute('aria-describedby')!=='weather-source-info')n.summary.setAttribute('aria-describedby','weather-source-info');}else{if(n.summary.getAttribute('aria-description')!==null)n.summary.removeAttribute('aria-description');if(n.summary.getAttribute('aria-describedby')!==null)n.summary.removeAttribute('aria-describedby');}

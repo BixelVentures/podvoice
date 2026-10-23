@@ -4,6 +4,8 @@ import {visualFamilies} from './visual-content.js';
 import {FORMATS,initialScene,sceneTransition as step} from './scene-model.js';
 import {vehicleFixture} from './vehicle-model.js';
 import {vehicleObservation} from './ha-home-observation.js';
+import {WEATHER_CHANGE_EXAMPLE} from './weather-view.js';
+import {TRACKS} from './widget-model.js';
 import {localRadioTransition} from './radio-model.js';
 // Deterministic, explicitly documented prototype states; no integrations or requests.
 export const playerPreviewStates=['empty','loading','missing-art','offline','error'].flatMap(state=>['rest','active'].map(mode=>`player-${mode}-${state}`));
@@ -21,7 +23,7 @@ export const conversationPreviewStates=['overview','listening','working','speaki
 export const coexistencePreviewStates=['conversation-visual-timer-finished','conversation-long-timer-finished'];
 export const firstRunPreviewStates=['first-connecting','first-unavailable','first-denied','first-empty'];
 // Additional authored snapshots exercise only fields accepted by existing owners.
-export const libraryDomainPreviewStates=['robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','music-offline','music-unknown','music-long-output','player-queue-empty','player-queue-error','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
+export const libraryDomainPreviewStates=['robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','weather-long','weather-connection-error','music-offline','music-unknown','music-long-output','music-initial-empty','music-long-metadata','player-long-metadata','player-queue-empty','player-queue-error','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
 export const previewStates=[...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name,now=Date.now()){
  if(libraryDomainPreviewStates.includes(name))return libraryDomainPreviewScene(name,now);
@@ -219,6 +221,8 @@ function libraryDomainPreviewScene(name,now){
   const s=devicePreviewScene(initialScene(),'light-detail-on',now),variant=name.slice('light-detail-'.length),selection=({'room-living':'room:living','room-kitchen':'room:kitchen',lamp:'light:living-ceiling',long:'light:living-ceiling'})[variant]||'home';
   return {...s,devices:s.devices.map(d=>d.kind!=='light'?d:{...d,stale:variant==='stale',lightSelectionId:selection,lights:d.lights.map(lamp=>variant==='long'&&lamp.id==='living-ceiling'?{...lamp,name:'Pendlen over det lange spisebord ved vinduerne mod haven',roomName:'Stue og spisestue i den åbne køkkenalrumsløsning'}:lamp)})};
  }
+ if(name==='weather-long')return {...step(initialScene(),{type:'show',id:'weather'}),weatherFixture:{...WEATHER_CHANGE_EXAMPLE,place:'Mårslet og det lange grønne område langs den sydlige del af Aarhus',condition:'Delvist skyet med længere solrige perioder mellem de spredte skyer'}};
+ if(name==='weather-connection-error')return {...previewScene('weather-empty',now),connectionPreview:{status:'disconnected',reason:'unavailable'},connected:false};
  if(name.startsWith('weather-'))return {...previewScene(name==='weather-unconnected'?'first-empty':'weather-stale',now),focus:'weather',connected:false,weatherPreview:name==='weather-unconnected'?'empty':'stale'};
  if(name.startsWith('timer-')){const s=timerPreviewScene(name.replace(/paused$/,'running'),now);return step(s,{type:'timer',id:s.timer.id,action:'pause',now});}
  if(name.startsWith('vehicle-')){
@@ -229,7 +233,14 @@ function libraryDomainPreviewScene(name,now){
  let s=initialScene();
  if(name==='music-unknown')s=step(s,{type:'music',event:{type:'select',id:'smooth-jazz',revision:s.music.revision}});
  if(['music-offline','music-unknown'].includes(name))return step(s,{type:'offline'});
- if(['player-queue-empty','player-queue-error'].includes(name))return {...s,focus:'player',playerPreview:name.endsWith('error')?'error':'empty',music:{...s.music,playback:{...s.music.playback,active:false,playing:false}}};
+ if(name==='music-initial-empty')return {...s,music:{...s.music,previewEmptyCollection:s.music.collection,previewEmptyPage:s.music.suggestionPage||0,playback:{...s.music.playback,active:false,playing:false}}};
+ if(['music-long-metadata','player-long-metadata'].includes(name)){
+  // Authored stress labels retain the fixture IDs, ordering and allowed artwork.
+  // They are typography examples, not factual Spotify metadata or new grants.
+  const previewTracks=TRACKS.map((track,index)=>({...track,title:`En lang sangtitel med plads til både hovedtitel, undertitel og en akustisk koncertversion · ${index+1}`,artist:'Det store orkester fra den åbne stue sammen med gæstemusikerne fra København'}));
+  return {...s,focus:name.startsWith('player')?'player':'music',music:{...s.music,collection:'top',previewTracks}};
+ }
+ if(['player-queue-empty','player-queue-error'].includes(name))return {...s,focus:'player',queuePreview:name.endsWith('error')?'error':'empty'};
  // A long configured destination is real input to the existing local player,
  // media Card metadata and output label. Track/album identity stays unchanged.
  return {...s,focus:name.startsWith('player')?'player':'music',music:{...s.music,playback:{...s.music.playback,room:'Køkken og spisestue med højttalerne ved det lange spisebord'}}};

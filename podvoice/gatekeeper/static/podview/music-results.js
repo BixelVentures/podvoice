@@ -26,7 +26,12 @@ export function localMusicCards(options,revision){
 // Discovery presents only the selected tab. Playback belongs to the retained player.
 export function localDiscoveryCards(state){
  const music=state.music;
- return localMusicCards(resultsFor(music),music.revision).map(card=>({...card,collection:music.collection}));
+ const initiallyEmpty=music.previewEmptyCollection===music.collection&&music.previewEmptyPage===(music.suggestionPage||0);
+ const options=initiallyEmpty?[]:resultsFor(music).map(option=>{
+  const track=['top','recent'].includes(option.collection)?music.previewTracks?.[option.track]:null;
+  return track?{...option,name:track.title,description:track.artist,detail:'Forfattet lang albumtitel · En lang aften med musik og fortællinger fra hele den nordiske kyst'}:option;
+ });
+ return localMusicCards(options,music.revision).map(card=>({...card,collection:music.collection}));
 }
 export function sourceMusicCards(tracks,kind){
  const rows=tracks.slice(0,3),images=naturalThemeArtwork(rows.filter(track=>track.themeTitle).map(track=>kind==='mood'&&generatedMoodArtwork(track.themeArt,track.themeId)||fixtureArtwork(track.themeArt))),used=new Set(),occurrences=new Map();let themedIndex=0;
@@ -80,9 +85,19 @@ export function renderOverviewMediaValues(host){
  const known=vm.active===true&&typeof vm.title==='string'&&vm.title.trim();
  const radio=vm.sourceKind==='radio';
  const artist=known&&!radio&&typeof vm.artist==='string'?vm.artist.trim().replace(/\s+/g,' '):'';
+ const emptyMusic={offline:'Ikke forbundet',error:'Kan ikke hentes','account-selection':'Vælg musikkonto',loading:'Afventer data'}[vm.emptyState]||(host.live&&host.liveTransport?.connected===false?'Ikke forbundet':'Vælg musik');
+ const radioExample=vm.exampleOnly===true||typeof vm.previewLabel==='string'&&/ingen lyd/i.test(vm.previewLabel);
  const values={
-  'home-music':known&&!radio?`${vm.fresh===false?'Sidst kendt':vm.playing?'Spiller':'Senest'}: ${vm.title}${artist?'\n'+artist:''}`:'Ingen seneste afspilning',
-  'home-radio':known&&radio?`${vm.title} · ${vm.playing?'Valgt':'På pause'}`:host.live?'Ikke forbundet':'Ingen station valgt',
+  'home-music':{title:known&&!radio?`${vm.fresh===false?'Sidst kendt · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.fresh===false?'Sidst kendte afspilning':vm.playing?'Afspiller':'På pause'):''},
+  'home-radio':{title:host.live?'Ikke tilgængelig':known&&radio?`${vm.fresh===false&&!radioExample?'Sidst kendt · ':''}${vm.title}`:'Vælg station',secondary:!host.live&&known&&radio?(radioExample?'Ingen lyd':vm.playing?'Afspiller':'På pause'):'',status:''},
  };
- for(const [id,value]of Object.entries(values)){const card=doc.getElementById(id);if(card?.dataset.mediaLayout==='media')continue;const node=card?.querySelector('small');if(node&&node.textContent!==value)node.textContent=value;if(id==='home-music'&&node){const metadata=String(!!artist);if(node.dataset.mediaMetadata!==metadata)node.dataset.mediaMetadata=metadata;}}
+ for(const [id,value]of Object.entries(values)){
+  const card=doc.getElementById(id);if(card?.dataset.mediaLayout==='media'){if(card.getAttribute('aria-description')!==null)card.removeAttribute('aria-description');continue;}const node=card?.querySelector('small');if(!node)continue;
+  let title=node.querySelector('.overview-media-title'),secondary=node.querySelector('.overview-media-artist');
+  if(!title||!secondary){title=make(doc,'span','overview-media-title');secondary=make(doc,'span','overview-media-artist');node.replaceChildren(title,secondary);}
+  if(title.textContent!==value.title)title.textContent=value.title;if(secondary.textContent!==value.secondary)secondary.textContent=value.secondary;
+  if(secondary.hidden!==!value.secondary)secondary.hidden=!value.secondary;
+  if(card.getAttribute('aria-description')!==(value.status||null)){if(value.status)card.setAttribute('aria-description',value.status);else card.removeAttribute('aria-description');}
+  const metadata=String(!!value.secondary);if(node.dataset.mediaMetadata!==metadata)node.dataset.mediaMetadata=metadata;
+ }
 }

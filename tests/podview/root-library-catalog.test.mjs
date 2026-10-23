@@ -165,3 +165,8 @@ test('additional domain coverage is reachable without fabricating unsupported ow
  assert(byId('radio').limitations.some(text=>text.includes('ingen særskilt radiofejl')));
  for(const id of ['vehicle','radio','weather'])assert(!byId(id).states.some(sample=>/^(vehicle|radio|weather)-(fault|pending)$/.test(sample.stage)));
 });
+
+
+test('music initial-empty and metadata fixtures are reachable through canonical product families',()=>{
+ for(const [family,stage]of [['music','music-initial-empty'],['music','music-long-metadata'],['player','player-long-metadata']])assert(productLibrary.find(item=>item.id===family).states.some(item=>item.stage===stage));
+});

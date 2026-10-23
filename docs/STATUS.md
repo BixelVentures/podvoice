@@ -1,3 +1,53 @@
+## Final75 candidate checks —23October2026
+
+Independent sol61_release75_review finalPython3.12hashclosure GO, exactadmission PASS. Reuseddurabledevclone with fixed3.12venv: fastnew75admission12/12PASS, Ruff/format6filesPASS, mypy89sourcesPASS. Affectedpublished74fixture, CIpromotionlabel/routes and existingdevrelease-dispatchparametrizationPASS; finalexact75CLI PASS. GitdiffwhitespacecheckPASS. No broadlocalrelease/provider/HA/audio probes. SourcefrozenforoneofficialCI and coordinatedpublication/install; physicalacceptance remainsopen.
+
+<!-- podview75-admission
+{
+  "version": 52,
+  "kind": "podview75_ui21",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "3f50a1c29433ff5f34bb04c8928d23f41c90abe0",
+  "merge_base": "3f50a1c29433ff5f34bb04c8928d23f41c90abe0",
+  "fingerprint": "83680e7445a31aa32a3808237cec2461b5a5c6e3345890cd7d5233dc800f6f85",
+  "regression_fingerprint": "1b5fd8d4e62be26536978a06b4d4f0b38db937b034b9d67bbeb8ec4aa1dd525e",
+  "runtime_fingerprint": "021843a67fbaca99e051bdfa6ab4c0adc0e4590058a4a8b22007c952a2f8bc77",
+  "config_fingerprint": "f23278a30d06eefec87bfa719bef6151d12342a2c665fcda76a822ebc2914aad",
+  "policy_fingerprint": "e88af3ce3e5bf43cc0dd4ca132760cc4fec4dd78df8b93230516f578ef981c70",
+  "tooling_fingerprint": "cc8fd198de38bd4fcdd3cfb2f74c756da4112c90107c42dc143caf588a4916f6",
+  "manifest_fingerprint": "573539b747befd77498e8ac9d3418c5557f1f34099ce0c72411bb0a983cb65a9",
+  "rationale": "Independent sol61_release75_review final51path/source/inventory GO:21production,21regressions,315runtime,4config,46priorpolicy,27tooling; correctedUI21 mapd1ded1b4 exact200; danglingelse blocker closed by minimalbracefix andactualdialogcontainment regression. Canonical1733PASS; adopted316uniquecases with296unchangedreused and20invalidatedrenewed; actualpinnedbundlecomposition byteidentical. Immutable74 preserved; no runtime/provider/firmware/authority changes beyond versionmetadata. Finalbinding/focusedchecks andofficialCI/publication/installation remain separate; physicalVoicePE/audioacceptanceopen."
+}
+-->
+
+## Corrected UI21 final adoption result —23October2026
+
+Corrected immutablepacket /private/tmp/podview-ui21-release-20261023-fix1, mapd1ded1b4beb894118d7e2e6306d2c8353f0ba8a8efa58ccd8199cffac05e268b, all200samekeys verified. Only correctedcomponentsd582c809 and regeneratedpodviewbundled2415dac differ fromwithdrawnrev2; all198otherbytes unchanged. Independent sol61_release75_review final source/freezeGO; allother19sourcefindings reused. Bothcanonicalbundles recomposed byteidentically with existing pinned esbuild0.28.2 builder in read-onlymode. Canonical1733/1733 PASS report verified;18adoptedexistingrootmodules316uniquecasesPASS:296unchanged retained+20invalidated renewed, including actualmounted dialoglist identity/exactID/denieddisconnect. Runtime/firmware/authority/prompt untouched. Final75inventory21production/21regressions is unbound pendingindependentreview; exactgate/focusedchecks/officialCI/publication/Greeninstall stillpending. WithdrawnpacketsremainNO-GO.
+
+## UI21 revision2 source rejection —23October2026
+
+Independent final reviewer sol61_release75_review found one real blocker in ui/library/components.js: standalone vacuum/light slot if captured the original fallback else, replacing detail-sheet/output-picker items outside the dialog. Current frozenrev2da227 is explicitly WITHDRAWN by PodView. NoGitHub/CI/publication/HAinstall occurred. Canonical owner fixes exactbranch+actualdialogcontainment regression and regenerates frozenbytes. All other19asset/source findings can be reused.18 mirroredregressionmodules passed316cases beforecorrection; these do not disprove the observed ownerbug. Only invalidatedcomponentcohort plus newcausalcase requiresrenewal. CandidateNOTtestready untilfix+independentreview+exactbinding.
+
+## UI21 revision2 adoption —23October2026
+
+Only replacementpacket /private/tmp/podview-ui21-release-20261023-final is adopted. All200 canonical files hashmatch manifest da227ba6c0ebdf5ec54290eade5654bdf586367d7d4cd3c70b61362c42c56a87, exactsame keys asUI20,20 changed files plus generated HAassetmanifest. Canonical1733/1733 tests and componentgate/syntax PASS reported in frozen packet. Exact8source bounded independentGO in packet SOURCE-STRICT-REVIEW covers finalHero/state/layout delta; no frozen source edits authorized. Robot, Timer and music owners/commandguards unchanged. Finalcombined independentreview, exact75bindings, focusedchecks and officialCI/publication/install remain pending.
+
+## Active coordinated UI21 / 2.0.75 delivery —22October2026
+
+23October stop-before-adoption: first UI21 packet manifest aaf669874d3d50efd1b5367b0c8288146a63cbc5319ec69402e4cc5ee4933324 was explicitly withdrawn by PodView after direct user screenshot showed inconsistent disconnected state position/type/colour between Small and Medium robot. No UI assets, GitHub push, CI, publication or installation occurred. Test-adoption agent stopped with no releaseclone test edits. Await corrected exact200 map and bounded source/test review; old packet/approval cannot admit75. Runtime74 remains installed.
+
+Lead: root. Direct user order: collect reviewed PodView UI21, publish and install one combined2.0.75 on Green, then notify readiness for one physical series. Published/installed2.0.74 is base3f50a1c29433ff5f34bb04c8928d23f41c90abe0/tree25b932e68198e365306764a4baf71e1fc603e5c9, runtime rootfs-v1b44aa59309c95ce7d1fefaf0ef27c5e277b72c8a8e0ed0650ad3e5e481109cf8. Its bounded Green flows and physical-offline limits are recorded in PodView docs/release-ha74/GREEN-QA.md. That physical status is not promoted by this UI release.
+
+PodView owns Small/Medium/Large/detail UI review, source changes, canonical tests/Sites and subsequent Green installation. Root exclusively owns combined admission, GitHub upload/CI/merge/publisher. UI21 is not frozen or admitted yet. Hypothesis: exact adoption of the independently reviewed canonical UI fixes the documented presentation/state issues without changing native voice, GPT-Live, tools, firmware, grants, paid budgets, playback or timer owners. Chain: rendered control/state→existing transport and domain capability→unchanged backend effect guard→truthful render; stale/generation/unknown outcomes remain fenced. Non-goals: UI redesign by root, mobile/Frameo/native-web, provider/audio probes, quota resets, robot motion or new runtime abstractions.
+
+Before freeze, verify the full UI asset map and actual changed imports/callers, relevant shipped renderer regressions, unchanged runtime and historical74 admission, formatter/lint and new exact75 bindings. Reuse unchanged provider/runtime evidence. Run final official CI once on the frozen candidate, then publish immutable ARM artifact, read back source/identity and let PodView install once with backup and verify runtime/UI/live flows. Any failed or unknown outcome stays open; no repeated install without observing actual state. Rollback is immutable74 with settings/grants/budgets preserved. This is preparation only, not a PASS, release or installation claim.
+
+Preparation result: actual published74 git objects were reconstructed from GitHub API receipts only after exact object SHA match; isolated checkout HEAD/tree verified. Successor75 profile, regression, prior74 snapshot fixture and existing CI/dev dispatch are prepared with all source inventories and review bindings empty. Implementer sol61_review74_final reports fixed3.12 parse/Ruff lint/format PASS. Independent GPT6.1Sol sol61_release75_review gives source GO for preparation only: historical pins, routes, label75 and fail-closed empty draft verified. No UI21 bytes, candidate manifest, product test, officialCI, provider call, publication or installation has occurred. Final frozen UI21 review and binding remain required.
+
 <!-- podview74-admission
 {
   "version": 51,

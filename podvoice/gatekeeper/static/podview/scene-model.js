@@ -92,7 +92,7 @@ export function deviceOverviewFacts(d,now=Date.now()/1000){
    if(['current_room','clean_percent'].includes(id)&&(!active||stale))continue;
    const timestamp=id==='last_clean_end'||id==='last_clean_start';if(timestamp&&(!Number.isFinite(row.value)||row.value<=0||row.value>now+1))continue;
    const value=timestamp?new Date(row.value*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):robotValue(row);
-   facts.push({id:id==='current_room'?'room':id==='clean_percent'?'progress':id,label,value,stale});
+   facts.push({id:id==='current_room'?'room':id==='clean_percent'?'progress':id,label,value,stale,...(id==='clean_percent'&&!stale&&row.unit==='%'&&Number.isFinite(row.value)&&row.value>=0&&row.value<=100?{meter:{value:row.value,max:100}}:{})});
   }
   if(!facts.some(fact=>fact.id==='battery')&&Number.isFinite(d.battery)&&d.battery>=0&&d.battery<=100)facts.splice(Math.min(3,facts.length),0,{id:'battery',label:'Batteri',value:`${d.battery.toLocaleString('da-DK')} %`,stale:d.stale===true});
   const end=byKey.get('last_clean_end');if(end&&Number.isFinite(end.value)&&end.value>0&&end.value<=now+1)context=[`Senest afsluttet ${new Date(end.value*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`,byKey.get('selected_map')?.value].filter(Boolean).join(' · ');
@@ -100,7 +100,7 @@ export function deviceOverviewFacts(d,now=Date.now()/1000){
   const selection=lightSelection(d),local=selection&&d.exampleOnly===true&&!d.live,rows=local?d.lights.filter(row=>selection.targetIds.includes(row.id)):d.source==='home_assistant_state'&&Array.isArray(d.observedLights)?d.observedLights:[],stale=d.stale===true||['unknown','fault','unavailable'].includes(d.status);
   if(!rows.length)return {facts,context};const known=rows.filter(row=>local||['on','off'].includes(row.state));
   if(known.length)facts.push({id:'on-count',label:known.length===rows.length?'Tændt':'Bekræftet tændt',value:`${known.filter(row=>local?row.on:row.state==='on').length} af ${rows.length}`,stale});
-  if(local){const rooms=[...new Set(rows.map(row=>row.roomName))];facts.push({id:'rooms',label:rooms.length===1?'Rum':'Rum med lys',value:rooms.join(' · '),stale});}
+  if(local){const rooms=[...new Set(rows.map(row=>row.roomName))];facts.push({id:'rooms',label:'Rum',value:rooms.join(' · '),stale});}
   for(const row of known){const on=local?row.on:row.state==='on',brightness=row.brightness;if(!on||!Number.isFinite(brightness)||brightness<0||brightness>(local?100:255))continue;facts.push({id:`brightness:${row.id||row.entityId}`,label:local?`${row.roomName} · ${row.name}`:row.name,value:`${Math.round(local?brightness:brightness/255*100)} %`,stale});}
   context=selection?.kind==='light'?selection.label:'';
  }
@@ -112,11 +112,12 @@ export function robotDetailMetadata(device,now=Date.now()/1000){
  const facts=deviceOverviewFacts({...device,kind:'vacuum'},now).facts,format=row=>`${row.value}${row.stale?' · sidst kendt':''}`,battery=facts.find(row=>row.id==='battery'),measurements=['cleaning_area','cleaning_time'].map(id=>facts.find(row=>row.id===id)).filter(Boolean).map(format).join(' · '),active=['cleaning','paused'].includes(device?.status);
  return [battery?`Batteri ${format(battery)}`:'',measurements?`${active?'':'Senest: '}${measurements}`:''].filter(Boolean).join(' · ');
 }
-export function devicePresentation(d){
+export function devicePresentation(d,{connected=true}={}){
+ const stale=d.stale===true||connected===false,observed=stale&&!d.stale?{...d,stale:true}:d;
  const selection=lightSelection(d),battery=d.kind==='vacuum'&&!d.presentationOnly&&Number.isFinite(d.battery)&&d.battery>=0&&d.battery<=100?`${d.battery} %`:'';
- const clean=d.kind==='vacuum'&&!d.presentationOnly&&!d.stale&&d.status==='cleaning'&&d.telemetry?.status==='observed'&&Array.isArray(d.telemetry.items)?d.telemetry.items.find(row=>row.key==='clean_percent'):null,now=Date.now()/1000;
+ const clean=d.kind==='vacuum'&&!d.presentationOnly&&!stale&&d.status==='cleaning'&&d.telemetry?.status==='observed'&&Array.isArray(d.telemetry.items)?d.telemetry.items.find(row=>row.key==='clean_percent'):null,now=Date.now()/1000;
  const progress=clean&&clean.unit==='%'&&clean.stale===false&&Number.isFinite(clean.updatedAt)&&clean.updatedAt>=0&&clean.updatedAt<=now+1&&now-clean.updatedAt<=300&&Number.isFinite(clean.value)&&clean.value>=0&&clean.value<=100?clean.value:undefined;
- return {...deviceOverviewFacts(d),id:d.id,kind:d.kind,target:d.presentationOnly?undefined:d.id,title:d.kind==='vacuum'?'Robotstøvsuger':selection?.title||d.name||'Lys',status:d.pending?'pending':selection?.status||d.status,resourceStatus:selection?.status||d.status,detail:deviceLabel(d),value:battery,...(progress!==undefined?{progress}:{}),scope:d.kind==='light'&&d.status==='unavailable'?'Forbind lys i Home Assistant for at se og styre dem her.':(selection?.kind==='light'?d.lights.find(lamp=>selection.targetIds.includes(lamp.id))?.roomName:selection?.label)||(d.kind==='light'?'Hele hjemmet':''),power:selection?.power??(d.status==='on'),disabled:d.presentationOnly===true};
+ return {...deviceOverviewFacts(observed),id:d.id,kind:d.kind,target:d.presentationOnly?undefined:d.id,title:d.kind==='vacuum'?'Robotstøvsuger':selection?.title||d.name||'Lys',status:d.pending?'pending':selection?.status||d.status,resourceStatus:selection?.status||d.status,stale,detail:deviceLabel(observed),value:battery,...(progress!==undefined?{progress}:{}),scope:d.kind==='light'&&d.status==='unavailable'?'Forbind lys i Home Assistant for at se og styre dem her.':(selection?.kind==='light'?d.lights.find(lamp=>selection.targetIds.includes(lamp.id))?.roomName:selection?.label)||(d.kind==='light'?'Hele hjemmet':''),power:selection?.power??(d.status==='on'),disabled:d.presentationOnly===true};
 }
 export function deviceActions(d){if(d.live)return [];if(d.kind==='light'){if(d.stale)return [];const selection=lightSelection(d);if(selection){if(!['on','off','mixed'].includes(selection.status))return [];const off=selection.power;return [{id:off?'turn_off':'turn_on',label:selection.kind==='home'?(off?'Sluk alt lys':'Tænd alt lys'):selection.kind==='room'?`${off?'Sluk':'Tænd'} lys · ${selection.label}`:`${off?'Sluk':'Tænd'} ${selection.label}`}];}return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.scope==='home'?(d.status==='on'?'Sluk alt lys':'Tænd alt lys'):(d.status==='on'?'Sluk lys':'Tænd lys')}]:[];}return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}
 

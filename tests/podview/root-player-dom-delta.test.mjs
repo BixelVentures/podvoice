@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
+import {PlayerView,livePlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
+import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
 
 function fixture(){
  const writes=[],nodes=new Map(),groups=new Map();
@@ -97,4 +98,19 @@ test('queue-only detail omits routine playback caption and retains long-title ro
  const f=fixture(),selected=[];f.view.chooseQueue=item=>selected.push(item);f.view.renderPlayer(active);assert.equal(f.nodes.get('detail-status').textContent,'');
  const long={...queueItem,title:'En meget lang faktisk titel '.repeat(12),artist:'Kildekunstner '.repeat(8),reorderable:true};f.view.renderQueue([long,{...queueItem,id:'other',order:2}]);const queue=f.nodes.get('queue'),first=queue.children[0],second=queue.children[1];assert.equal(first.children[2].children[0].textContent,long.title);assert.equal(first.children[2].children[1].textContent,long.artist);first.dispatchEvent(new Event('click'));assert.equal(selected[0].id,long.id);f.view.renderQueue([{...long},{...queueItem,id:'other',order:2}]);assert.equal(queue.children[0],first);assert.equal(queue.children[1],second);assert.equal(first.dataset.reorderable,undefined);assert.doesNotMatch(first.getAttribute('aria-label'),/Flyt|Alt/);
  f.view.renderPlayer({...active,feedback:{message:'Afspilning kunne ikke bekræftes',pending:false}});assert.equal(f.nodes.get('detail-status').textContent,'Afspilning kunne ikke bekræftes');
+});
+
+
+test('actual configured label owner keeps rendered idle player heading through TTL and passive refresh failure without observed output authority',async()=>{
+ const f=fixture(),originalNow=Date.now,originalTimeout=globalThis.setTimeout,callbacks=[],reads=[];let now=originalNow();Date.now=()=>now;globalThis.setTimeout=fn=>{callbacks.push(fn);return callbacks.length;};
+ f.host.isConnected=true;f.host.liveMedia={account:'account'};f.host.liveSnapshot={bootId:'boot',roomId:'r0',capabilities:{musicRead:['targets']},mediaRoomBindings:[{accountId:'account',bindingId:'a'.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r0',nativeHomepodId:'42'}]};
+ f.host.ownerDocument.getElementById('rooms').append(f.host.ownerDocument.createElement('p'));
+ f.host.liveTransport={connected:true,music:async(...args)=>{reads.push(args);return {ok:true,schema:'podview.speaker-catalogue.v1',bootId:'boot',roomId:'r0',accountId:'account',status:'observed',catalogueId:'c'.repeat(64),retrievedAt:now/1000,source:'podconnect.get_targets',speakers:[{speakerId:'a'.repeat(64),accountId:'account',kind:'configured_alias',nativeRoomId:'r0',homepodId:'42',name:'Køkkenalrum HomePod',availability:'available',default:true,nativeSelected:true,outputSelected:true,selectable:false}],moveAvailable:false,physicalResultVerified:false};}};
+ const outputs=new SpeakerOutputView(f.host),render=()=>f.view.renderPlayer(livePlayerModel(null,true,'ready',f.host.liveSnapshot,outputs.configuredLabel()));f.host.liveMedia.render=render;
+ try{
+  await outputs.refreshConfiguredLabel();render();const output=f.nodes.get('output');assert.equal(f.nodes.get('player-room').textContent,'Køkkenalrum HomePod');
+  now+=30001;callbacks[0]();render();assert.equal(outputs.observedDestination('a'.repeat(64)),false);assert.equal(f.nodes.get('player-room').textContent,'Køkkenalrum HomePod');
+  let reject;f.host.liveTransport.music=(...args)=>{reads.push(args);return new Promise((_,r)=>reject=r);};const pending=outputs.refreshConfiguredLabel();render();assert.equal(f.nodes.get('player-room').textContent,'Køkkenalrum HomePod');reject(Error('network'));await pending;render();
+  assert.equal(f.nodes.get('player-room').textContent,'Køkkenalrum HomePod');assert.equal(f.nodes.get('player-state').textContent,'');assert.equal(f.nodes.get('output'),output);assert.equal(output.getAttribute('aria-label'),'Konfigureret højttaler: Køkkenalrum HomePod');assert.equal(outputs.selectionDestination(),null);assert.deepEqual(reads,[['speakers','account'],['speakers','account']]);
+ }finally{outputs.cleanup();Date.now=originalNow;globalThis.setTimeout=originalTimeout;}
 });
