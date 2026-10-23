@@ -22,3 +22,21 @@ test('later available SSE renews after temporary registry unavailability',()=>ru
 test('structured access denial codes survive generic request',()=>run(async h=>{await h.t.start();h.t.fetch=async()=>({ok:false,status:403,json:async()=>({ok:false,error:'request_denied'})});await assert.rejects(h.t.accessExchange('controller/claim',{requestId:'a'.repeat(32)}),error=>error.code==='request_denied')}));
 
 test('registry lost after successful renewal does not announce or schedule authority',()=>run(async h=>{let reads=0,announced=0;h.t.onControllerRenewed=()=>announced++;h.t.fetch=async url=>({ok:true,status:200,json:async()=>{if(new URL(url).pathname.endsWith('/controller/renew'))return {ok:true,expiresIn:300};const s=snap();if(++reads===2)s.controllerContinuity.available=false;return s;}});await h.t.start();assert.equal(h.t.connected,true);assert.equal(h.t.controllerRenewed,false);assert.equal(announced,0);assert.equal([...h.jobs.values()].some(x=>x.ms===240000),false)}));
+
+test('HA ingress fetch outage automatically recovers read-only network traffic and ignores retired SSE',()=>run(async h=>{
+ let fail=false;
+ h.t.fetch=async(url,init)=>{const path=new URL(url).pathname.split('/api/')[1];h.calls.push({path,method:init.method||'GET'});if(fail)throw new TypeError('Failed to fetch');return {ok:true,status:200,json:async()=>({...snap(),admission:{kind:'ha_ingress',authenticated:true}})};};
+ await h.t.start();const retired=h.streams[0],retained=h.t.snapshot;
+ fail=true;retired.onerror();await h.fire(1000);assert.equal(h.t.connected,false);assert.equal(h.t.snapshot,retained,'failure retains last snapshot without claiming connected');assert.equal(retired.closed,true);
+ fail=false;await h.fire(2000);assert.equal(h.t.connected,true);assert.equal(h.streams.filter(s=>!s.closed).length,1);
+ const current=h.t.snapshot;retired.emit({...snap(),revision:999});assert.equal(h.t.snapshot,current,'retired stream cannot alter the recovered owner');
+ assert(h.calls.every(call=>call.path==='snapshot'&&call.method==='GET'),'HA recovery must not renew legacy cookies or issue effects');
+}));
+
+test('stalled HA snapshot body is aborted at deadline then automatically reacquired',()=>run(async h=>{
+ let stalled=true,signal;
+ h.t.fetch=async(url,init)=>{h.calls.push({path:new URL(url).pathname.split('/api/')[1],method:init.method||'GET'});signal=init.signal;return {ok:true,status:200,json:()=>stalled?new Promise((resolve,reject)=>{init.signal.addEventListener('abort',()=>reject(init.signal.reason),{once:true});}):Promise.resolve({...snap(),admission:{kind:'ha_ingress',authenticated:true}})};};
+ const pending=h.t.start(),rejected=assert.rejects(pending,error=>error.name==='TimeoutError');await h.flush();assert.equal(h.t.connected,false);
+ await h.fire(12000);await rejected;assert.equal(signal.aborted,true);assert.equal(h.t.restartCount,0);
+ stalled=false;await h.fire(1000);assert.equal(h.t.connected,true);assert.equal(h.streams.length,1);assert(h.calls.every(call=>call.path==='snapshot'&&call.method==='GET'));
+}));

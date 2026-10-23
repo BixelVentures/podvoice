@@ -1051,6 +1051,7 @@
       "imports": [
         "dist/music-selection-model.js",
         "dist/music-results.js",
+        "dist/music-recommendation-model.js",
         "dist/spotify-artwork.js"
       ],
       "surface": {
@@ -1218,6 +1219,23 @@
         "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
       ],
       "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority."
+    },
+    "dist/music-recommendation-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:musicSourcePage": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Reviewed existing MusicResults catalogue adapter helper only: bounded presentation ordering of one admitted source, exact original indices shared by cards and collectionSelection; exact source artist labels may diversify track trios and exact URI duplicates retain the first occurrence. Account-playlist and mood/feeling source order is retained. No DOM, renderer, network, profile, inferred affinity, source metadata mutation or command authority. Renewal keeps frozen displayed identities and resolves fresh opaque occurrences through the existing music-selection owner."
     },
     "dist/music-selection-model.js": {
       "status": "active-support",
@@ -2540,7 +2558,8 @@
           "method:selectionDestination": 1
         },
         "roots": [
-          "native:button:pv-row pv-btn"
+          "native:button:pv-row pv-btn",
+          "native:button:speaker-list-refresh pv-button pv-ghost"
         ],
         "registrations": {},
         "customTags": [],

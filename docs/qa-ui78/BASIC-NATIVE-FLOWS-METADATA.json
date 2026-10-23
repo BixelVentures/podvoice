@@ -1,0 +1,36 @@
+{
+  "sourceHashes": {
+    "scripts/basic-flow-diagnostic.mjs": "975274640458634d98ba20d9fbde979db05f0510d5760817c46cbe9781b16bbe",
+    "scripts/live-fixture.mjs": "c36b836f45c2eb9b2bb1d1abce50c2ac1b058b3ee5316070d1769326b8db2045",
+    "tests/basic-flow-diagnostic.test.js": "7286dafd00779ed386c0e804d6deee96dc2ae4551c3661f20f3ea9dd143a4f12",
+    "dist/speaker-output-view.js": "6a9db16020ca31c6280d29ba0473be5ff168deb02907466c903eabf335360e94",
+    "dist/robot-control-panel.js": "2de3f9fb6541b6a0c6b760568b43cb4c9d6cb0b8f3122654b7b57a92b1fff75c",
+    "dist/live-control-view.js": "0dbef613f9a0e8541ecf58ab1a4c87891a4f69dded5ff9527049c0b23fba29bb",
+    "dist/ui/components.css": "0ddb3cb8a4c42aabe230bb9e97c378c8f258cdb6fed0ec79e9cc2bf6800a291e",
+    "dist/ui-kit.css": "8831892647815dfd2d688c00c91d24c65bd58533b8de8fa087af81dc9ca68871",
+    "dist/podview.bundle.js": "8e5e2ea20ec507d8807d81d11fdd81defa6959b8d65bc5093cd8597b8c9748fe",
+    "dist/podview.css": "4ecec55d5825b53784586ed6491c995f92f08643d67fd6a5e9ffd93961f081a1"
+  },
+  "productViewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "outerViewport": {
+    "width": 2006,
+    "height": 1038
+  },
+  "images": {
+    "basic-speakers-ready": "9f9f1d773d938a6030a5343b01faaac767fb5f0e3e9230ffc43ade66252aed8a",
+    "basic-speakers-expired-final": "b8350ca1fe898c666023cf7fdae76c5b84f930c0628d10d7758f2069e248a87d",
+    "basic-speakers-retained-refresh": "2865a1230fa445a442e2a87c2358b6b098f7ab11855766212a3e5dd3d00068c3",
+    "basic-speakers-error-final": "ea6e25fdc4db3c7493399dde8086edc672746a77905b4644ca0467da504692a3",
+    "basic-speakers-recovered-final": "738c68370eafcce6c1ac41c86a90ecc0a4af7ad3fe60b8e7c604781cddeedc8c",
+    "basic-top-first": "d359f935e03a9f00485657a10b68f7d226ec1a7b2106fa96a1dc3a782b3210ec",
+    "basic-top-second": "f595f72f38b38c89f35432ca339ff7da734e55636da3b818738e3e2cf7c4c01e",
+    "basic-robot-reopen-pending": "8f9d145e04d0972cf6eb6d600550879eaab52109a836978827ed13519254f2d3",
+    "basic-robot-corrected-rooms": "8cf954ee6ca07bb4141210bf53d19869c81ada1a0f3ee875946a6c4acf5f5556",
+    "basic-robot-corrected-footer": "9c36a9c5e25e095b75aa14a22f7c81366666a26e66e65dd426649383b62dbd16",
+    "basic-robot-library-corrected": "2781ef6cfc49fa4af7883e4ff96fa26dc490191b31df6809f57e53ee8ddfe6a4"
+  },
+  "scope": "authored local native HTTP; no effects/provider/physical acceptance"
+}

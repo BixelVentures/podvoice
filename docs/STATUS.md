@@ -1,3 +1,75 @@
+## Planlagt build78 — eksisterende HA-forløb og højttalervælger, før implementation
+
+Lead root; PodView ejer UI-pakken; integration weather_backend_integration. Brugeren
+prioriterer alle allerede konfigurerede HA-forløb; nye features er udskudt.
+Stærkeste direkte evidens: root observerede faktisk Green77 den23okt21:43–21:48.
+Både HA-yderskal og PodView viste kortvarig disconnect; én normal reload genoprettede
+forbindelsen. Ingen kildekodefejl er bevist. Første Stemning-læsning fejlede generisk;
+én eksplicit retry gav tre kort efter4986ms, reason model_timeout fallback. Dette er
+observerede udfald, ikke bevis for løst recovery eller ændret model-/timeoutbehov.
+Højttalerlisten mister rækker ved30s capability-udløb og kræver genåbning. Svend/Frida
+er synlige, men disabled: faktisk Supervisor-policy giver kun move_existing_session
+og max0, mens Kitchen har fuld play-adgang og max35. Eksisterende multi-alias-kode
+understøtter forløbet; den dokumenterede grænse er konfigurationsautorisation,
+ikke en påvist native-adapterfejl.
+
+Kæde: konfigureret konto/rum/aliaspolicy → frisk native controls/targets-observation →
+server-ejet kortlivet capability → højttalervælger → eksplicit aktuel handling →
+policy/current-generation-validering → faktisk observation. Nabo-fejlveje: udløbet
+capability med synlige men ikke autoriserede rækker, reconnect/stale cache, konto-/rum-/
+owner-skift, eksplicit refresh efter udløb, policy uden play-scope og unknown outcome.
+Invarianter: bevarede rækker giver aldrig gammel autoritet; kun frisk serverejet
+capability kan udføre handling; disabled-reason skal svare til faktisk policy.
+Voice/lifecycle, vacuum og øvrige eksisterende policies bevares.
+
+Falsificerbar hypotese: UI rydder observerede rækker sammen med udløbet autoritet;
+mindste UI-rettelse kan bevare observation, vise ærlig disabled-reason og tilbyde én
+ny eksplicit læsning uden implicit retry/sideeffekt. PodView implementerer dette og
+godkendt note-fjernelse i én immutable successor; pakken er modtaget og eksakt adopteret, som registreret nedenfor.
+Root har forberedt, IKKE GEMT, udvidelse til play_track/play_context og max35 for de
+andre aliaser; Kitchen alene forbliver default:true, øvrige default:false. Dette er
+materielt udvidet hjemmeadgang og afventer menneskelig godkendelse. Ingen agent må
+udlede tilladelse af den klargjorte formular eller ændre native kode for at omgå den.
+
+Planlagt regression: faktisk UI expiry → rækker bevaret men handling disabled →
+ærlig grund → eksplicit fresh-read → kun ny capability kan vælges; konto/rum/epoch-
+skift og revoked/unknown-resultat skal fortsat lukkes. Root ejer faktisk policy-
+validering og relevante allerede-konfigurerede HA-softwareforløb efter godkendelse;
+source-tests kan ikke bevise fysisk højttalerlyd. Genbrug uændrede77checks; kun
+konkret ændrede adapters/bundle/static og næste exact78admission kontrolleres.
+Rollback: kun ny UI-delta, hvis dens kausale softwaregate fejler; ingen policyreset,
+kvotefornyelse eller ændring af77 installeret baseline. Disconnect-/Stemning-årsag
+står fortsat uafklaret; ingen spekulativ runtimepatch eller timeout-tuning.
+
+Status planlagt build78; versionstrio/changelog og strict78-successor er forberedt,
+og root har autoriseret binding efter uafhængigt corrected SOURCE/SCOPE GO fra
+/root/sol61_release75_review. Manifestd574ac689d1cbce82335f3ff99d2d87e245aa19fa229fd477e16c9d2abf284bc,
+fast Python3.12ASTca61e5f67bacd5b10badd56a1857c22adc809dd57eceb843479a2a9ad732a56e.
+Actual staged strict78 PASS med11produktion/17regressioner/321runtime/4config/52policy/
+44exactpinnedtooling og ha_tools/physical_output; officialCI/publicering/installation
+afventes af root. Immutable finalUI
+/private/tmp/podview-ui78-basic-final-20261023 er adopteret med203eksakte runtimeassets;
+BASIC-FLOW-SOURCE-PINS SHA c3129ec3cbdc689a51000e3c24b57a199e776b05d42dd4a00c846d529b575798.
+Autoritativ tests/scripts-addendum SOURCE-PINS
+ d6eccd19fb2f88b7e1ae925432e4f4ec03f39bc9fbcecec187922d315d495151 er
+hashverificeret; UI-ejer1926/gate og uafhængigt runtime/QA/addendumGO bevares.
+13 påvirkede testmirrors er portet med kun imports/asset-relative fixturemapping;
+326beståede cases bevares; den ene fejl var fixturepath dist/assets i repo-layout,
+rettet kun i test/QA-script og derefter tre artwork-adaptercases PASS.
+Weather120-tofilers uafhængige SOURCEGO bevares: advice
+0b00119994ab09c80753cca8739a306a9ea58fb5dff54697f56bd1f99b23669c,
+test6ffedff9155e0d7e6f7b6bdc9663bf0e1c6913e12e2d36f3379e1468f112c225.
+Fuld mypy92, syv ændrede Python-filers Ruff/formatter og fokuseret weather/historisk77/
+ny78prebind/devdispatch består. Final78 14/14 og historisk77 14/14 bound-checks PASS på
+samme endelige kandidat efter binding; tidligere uændrede checks genbruges.
+203assetchecker, faktisk63-module entry graph/bundle og changedJSsyntax kontrolleres
+på samme kilde. Ingen Lights/Frameo/newfeatures, policyændring eller ny liveprøve. Denne
+isolerede post er eneste nye kandidatstatus; frozen77 er uændret. Ingen HA-, policy-,
+provider-, merge- eller installationshandling udført i integrationen. Næste handling:
+afslut den konkrete kausale softwaregate og exact-tree-review før bind/freeze;
+roots eventuelle hjemmeadgangsbeslutning forbliver særskilt. Base actual77main a537077…/tree
+0318c65e1103e57e5810eb68dff8079132cdaef6; fysisk og softwareaccept arves ikke af78.
+
 ## Planlagt build77 — samlet kontoplaylister og kanonisk UI, før freeze
 
 Lead root; READ-ejer weather_backend_integration; PodConnect ejer native kontoobservation,
@@ -3502,5 +3574,28 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "tooling_fingerprint": "867428fc15c44ee5844432dcc0339e0cec2cc1e29dc940d8df9f266a0e17332c",
   "manifest_fingerprint": "357d19d343fa3422bdd99d8b5958e95562543b2df1f389060a8bae6c639461a1",
   "rationale": "Independent exact77 composition scope/manifest GO and backend whole-chain SOURCE GO; immutable complete UI202 map7469c8fd3c20f0ade9eb4048981fa734adee15ff2986ce1b3a07868862b13a81 adopted without authored runtime edits. UIowner1901/componentgate and independent source/visual GO retained. Root71 inert HTTP/selection checks, selection20, read73 retained; fullmypy92, changedPythonlint/format, historical76all14, changedJSsyntax16, final adapters and actualbundle composition PASS. Actual staged domains ha_tools/physical_output; unchanged weather reasoning outside diff. One planned77 candidate; no live provider, HA, publication, installation or physical acceptance implied. Installed76 identity remains separately recorded."
+}
+-->
+
+
+<!-- podview78-admission
+{
+  "version": 55,
+  "kind": "podview78_basic_flows",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "a537077b0ecb31a9def0759cf5a5c44873f0ec85",
+  "merge_base": "a537077b0ecb31a9def0759cf5a5c44873f0ec85",
+  "fingerprint": "6ff823473ec62c56646e1c1a70eefc1e933c9f028ef439877ec58f88050905a3",
+  "regression_fingerprint": "eae880f6fc89b007fd4b8ad77143030e2868219c5588948dc560ee2e27684f7f",
+  "runtime_fingerprint": "1551f6bf0f62f724e689537c4cc9540fca8bfea9d5166cc10772d5b5aa444466",
+  "config_fingerprint": "13252519870b23d488e035824076adecacb632170a9fda35dc8a463fb6ec0d36",
+  "policy_fingerprint": "a2a166d40aef5518e8c236bf1c2e9f079b6a2c71e77bde36b57423e60560defc",
+  "tooling_fingerprint": "131f894e0a23ce29b8a08ace342bac511d47f3bbe99d734c56cb738925936982",
+  "manifest_fingerprint": "d574ac689d1cbce82335f3ff99d2d87e245aa19fa229fd477e16c9d2abf284bc",
+  "rationale": "Independent exact78 scope/manifest GO and preserved weather120 two-file SOURCE GO. Immutable canonical203asset UI packet c3129ec3cbdc689a51000e3c24b57a199e776b05d42dd4a00c846d529b575798 and sourceaddendum d6eccd19fb2f88b7e1ae925432e4f4ec03f39bc9fbcecec187922d315d495151 adopted without authored runtime edits. UIowner1926/componentgate and independent runtime/QA/addendum review retained. Changed mirrors and concrete relative-fixture adapter checks PASS; actualbundle entry PASS; fullmypy92, changedPythonlint/format, JSsyntax, historical77 and immutablepins PASS. Actual staged domains ha_tools/physical_output. No Lights/Frameo/newfeatures/policychange, live provider/HA or physical acceptance; root owns final CI/publication/installation."
 }
 -->
