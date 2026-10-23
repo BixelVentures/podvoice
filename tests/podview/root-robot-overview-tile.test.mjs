@@ -73,15 +73,15 @@ test('shared factual Card rows retain stable source identity, ignore missing dat
 
 test('compact Light uses the complete admitted count and status without inventing unavailable or partial readings',()=>{
  const {node,nodes}=fixture(),lights=[{entityId:'light.one',name:'Loft',state:'on'},{entityId:'light.two',name:'Bord',state:'off'}],input={id:'light.home',kind:'light',live:true,source:'home_assistant_state',status:'mixed',observedLights:lights};
- updateResourceTile(node,devicePresentation(input));assert.equal(nodes.get('.resource-value').textContent,'1 af 2');assert.equal(nodes.get('.resource-value').hidden,false);assert.equal(nodes.get('small').textContent,'tændt');assert.equal(node.dataset.hasOverviewValue,'true');
- updateResourceTile(node,devicePresentation({...input,stale:true}));assert.equal(nodes.get('.resource-value').textContent,'1 af 2');assert.equal(nodes.get('small').textContent,'Sidst kendt · tændt');
+ updateResourceTile(node,devicePresentation(input));assert.equal(nodes.get('.resource-value').textContent,'1 af 2');assert.equal(nodes.get('.resource-value').hidden,false);assert.equal(nodes.get('small').textContent,'Tændt');assert.equal(node.dataset.hasOverviewValue,'true');
+ updateResourceTile(node,devicePresentation({...input,stale:true}));assert.equal(nodes.get('.resource-value').textContent,'1 af 2');assert.equal(nodes.get('small').textContent,'Sidst kendt · Tændt');
  updateResourceTile(node,devicePresentation({...input,observedLights:[lights[0],{...lights[1],state:'unknown'}]}));assert.equal(nodes.get('.resource-value').hidden,true);assert.equal(node.dataset.hasOverviewValue,'false');assert.equal(node.resourceFacts.items.find(row=>row.id==='on-count').label,'Bekræftet tændt');
  updateResourceTile(node,devicePresentation({kind:'light',live:true,status:'unavailable'}));assert.equal(nodes.get('.resource-value').hidden,true);assert.equal(nodes.get('.resource-value').textContent,'');assert.equal(node.disabled,true,'no missing navigation target is invented');
 });
 
 
-test('M Robot keeps one readable status and battery/context line while richer source facts remain retained for L',()=>{
- const {node,nodes}=fixture(),now=Date.now()/1000,fact=(key,value,unit)=>({key,value,unit,updatedAt:now,retrievedAt:now,stale:false}),model=robot({battery:76,telemetry:{status:'observed',items:[fact('cleaning_area',12.5,'m²'),fact('cleaning_time',10,'min'),fact('cleaning_mode','vac_and_mop',null)]}});node.overviewShell={dataset:{kitSize:'m'}};updateResourceTile(node,model);assert.equal(nodes.get('.resource-value').textContent,'Ved basen');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.doesNotMatch(nodes.get('small').textContent,/Seneste|12,5|10 min|Støvsugning/);const rows=[...node.resourceFacts.rows.values()];assert.ok(node.resourceFacts.items.some(item=>item.id==='cleaning_mode'));node.overviewShell.dataset.kitSize='l';updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');assert.deepEqual([...node.resourceFacts.rows.values()],rows);node.overviewShell.dataset.kitSize='s';updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');delete node.overviewShell;node.parentNode={id:'resource-rail'};updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');
+test('S M L Robot retain one status and identical inline battery while Large may add distinct facts',()=>{
+ const {node,nodes}=fixture(),now=Date.now()/1000,fact=(key,value,unit)=>({key,value,unit,updatedAt:now,retrievedAt:now,stale:false}),model=robot({battery:76,telemetry:{status:'observed',items:[fact('cleaning_area',12.5,'m²'),fact('cleaning_time',10,'min'),fact('cleaning_mode','vac_and_mop',null)]}});node.overviewShell={dataset:{kitSize:'m'}};updateResourceTile(node,model);assert.equal(nodes.get('.resource-value').textContent,'Ved basen');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.doesNotMatch(nodes.get('small').textContent,/Seneste|12,5|10 min|Støvsugning/);const rows=[...node.resourceFacts.rows.values()];assert.ok(node.resourceFacts.items.some(item=>item.id==='cleaning_mode'));node.overviewShell.dataset.kitSize='l';updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.deepEqual([...node.resourceFacts.rows.values()],rows);node.overviewShell.dataset.kitSize='s';updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'Batteri 76 %');delete node.overviewShell;node.parentNode={id:'resource-rail'};updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'');
 });
 
 
@@ -109,10 +109,19 @@ test('Light count and status use distinct retained roles across sizes and freshn
  const input={id:'light.actual',kind:'light',live:true,source:'home_assistant_state',status:'mixed',observedLights:[{entityId:'light.one',name:'Loft',state:'on',brightness:128},{entityId:'light.two',name:'Bord',state:'off',brightness:0}]};
  for(const size of ['s','m','l']){
   const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:size}};const value=nodes.get('.resource-value'),detail=nodes.get('small'),update=change=>updateResourceTile(node,devicePresentation({...input,...change}));
-  update({});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'tændt');assert.equal(node.dataset.resourceStale,'false');
-  update({stale:true});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Sidst kendt · tændt');assert.equal(node.dataset.resourceStale,'true');assert.doesNotMatch(detail.textContent,/1 af 2/);
-  update({pending:{action:'turn_off'}});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Afventer svar · tændt');assert.equal(node.getAttribute('aria-busy'),'true');
+  update({});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Tændt');assert.equal(node.dataset.resourceStale,'false');
+  update({stale:true});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Sidst kendt · Tændt');assert.equal(node.dataset.resourceStale,'true');assert.doesNotMatch(detail.textContent,/1 af 2/);
+  update({pending:{action:'turn_off'}});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Afventer svar · Tændt');assert.equal(node.getAttribute('aria-busy'),'true');
   update({status:'unknown'});assert.equal(value.hidden,true);assert.equal(value.textContent,'');assert.match(detail.textContent,/ukendt/i);assert.equal(node.dataset.hasOverviewValue,'false');assert.equal(node.getAttribute('aria-busy'),'false');
-  update({});assert.equal(value.hidden,false);assert.equal(detail.textContent,'tændt');assert.equal(nodes.get('.resource-value'),value);assert.equal(nodes.get('small'),detail);assert.equal(node.dataset.target,input.id);assert.equal(resourceOverviewAction(input,{size,live:true,connected:true,canControl:true}),null);
+  update({});assert.equal(value.hidden,false);assert.equal(detail.textContent,'Tændt');assert.equal(nodes.get('.resource-value'),value);assert.equal(nodes.get('small'),detail);assert.equal(node.dataset.target,input.id);assert.equal(resourceOverviewAction(input,{size,live:true,connected:true,canControl:true}),null);
  }
+});
+
+test('Large limits distinct extra facts to four without dropping retained source rows or duplicating its core',()=>{
+ const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:'l'}};
+ const facts=[['battery','Batteri','76 %'],['area','Seneste areal','12,5 m²'],['duration','Seneste varighed','10 min'],['mode','Tilstand','Støvsugning og gulvvask'],['map','Kort','Stueetagen'],['finished','Senest afsluttet','22. okt.']].map(([id,label,value])=>({id,label,value}));
+ const model={kind:'vacuum',title:'Robotstøvsuger',status:'docked',resourceStatus:'docked',value:'76 %',facts};
+ updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.resourceFacts.items.length,6);
+ assert.deepEqual([...node.resourceFacts.rows].filter(([,row])=>!row.node.hidden).map(([id])=>id),['area','duration','mode','map']);
+ const retained=node.resourceFacts.rows.get('finished').node;node.overviewShell.dataset.kitSize='m';updateResourceTile(node,model);assert.equal(retained.hidden,false);assert.equal(node.resourceFacts.rows.get('finished').node,retained);
 });

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {liveScene} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
 import {cleanupWeather} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
 function fixture(current=null){const status={hidden:true,textContent:'',setAttribute(){}},finish={hidden:false,disabled:false},form={hidden:true,elements:[{}],setAttribute(){}};return {currentTimer:current,form,connected:false,canStart:false,detail:{querySelector:()=>status},nodes:new Map([['detail:actual',{querySelector:()=>finish,querySelectorAll:()=>[]}]]),updatePicker(){},status,finish};}
@@ -25,16 +27,16 @@ test('actual adapter distinguishes active observation wait from unknown outcome 
 });
 
 const timerOwnerSource=readFileSync(process.env.TIMER_OWNER_SOURCE||new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
-function timerOwner({items=[{id:'exact',status:'finished',physicalStopped:false,physicalDrained:false}],result={ok:true,outcome:'accepted'},held=false}={}){
+function timerOwner({items=[{id:'exact',status:'finished',physicalStopped:false,physicalDrained:false}],result={ok:true,outcome:'accepted'},held=false,actualScene=false}={}){
  let now=1000,counter=0;const resolvers=[];const scheduled=new Map(),calls=[],messages=[];
- const snapshot=(overrides={})=>({bootId:'boot',roomId:'kitchen',revision:10,timers:{status:'observed',epoch:'epoch',items},capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel']},...overrides});
+ const snapshot=(overrides={})=>({bootId:'boot',roomId:'kitchen',revision:10,voice:{sessionId:'timer-session'},timers:{status:'observed',epoch:'epoch',items},capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel']},...overrides});
  const begin=timerOwnerSource.indexOf(' connectPodVoice(){'),end=timerOwnerSource.indexOf(' renderVoice(){',begin),send=timerOwnerSource.indexOf(' async sendLiveTimer(request){'),sendEnd=timerOwnerSource.indexOf(' async loadLiveHome(){',send),reconcile=timerOwnerSource.indexOf(' suspendLiveTimer(){')>=0?timerOwnerSource.indexOf(' suspendLiveTimer(){'):timerOwnerSource.indexOf(' reconcileLiveTimer(snapshot){'),cleanup=timerOwnerSource.indexOf(' cleanup(){'),cleanupEnd=timerOwnerSource.indexOf(' dispatch(event){',cleanup);
  assert.ok(begin>=0&&end>begin&&send>=0&&sendEnd>send);
  class Transport{constructor(options){this.options=options;this.connected=true;}start(){return Promise.resolve();}close(){}action(request){calls.push(request);return held?new Promise(done=>{resolvers.push(done);}):Promise.resolve(result);}}
  const lightCleanup=timerOwnerSource.indexOf(' closeLightDetail('),lightCleanupEnd=timerOwnerSource.indexOf(' toggleLightOption(',lightCleanup);assert.ok(lightCleanup>=0&&lightCleanupEnd>lightCleanup);
  const methods=timerOwnerSource.slice(cleanup,cleanupEnd)+timerOwnerSource.slice(lightCleanup,lightCleanupEnd)+timerOwnerSource.slice(begin,end)+(reconcile>=0?timerOwnerSource.slice(reconcile,send):'')+timerOwnerSource.slice(send,sendEnd);
- const Host=new Function('cleanupWeather','$','PodVoiceTransport','liveScene','location','setTimeout','clearTimeout','Date','crypto',`return class {${methods}}`)(cleanupWeather,()=>null,Transport,(state)=>state,{search:''},(fn,delay)=>{const id=++counter;scheduled.set(id,{fn,at:now+delay});return id;},id=>scheduled.delete(id),{now:()=>now},{randomUUID:()=>`inert-request-${calls.length+1}`});
- const host=new Host();Object.assign(host,{isConnected:true,state:{devices:[],extraTimers:[],focus:'timers'},liveSnapshot:snapshot(),render(){},renderLive(){},showFeedback:text=>messages.push(text),invalidateLiveMusic(){}});host.connectPodVoice();host.liveStatus='connected';
+ const Host=new Function('cleanupWeather','$','PodVoiceTransport','liveScene','location','setTimeout','clearTimeout','Date','crypto',`return class {${methods}}`)(cleanupWeather,()=>null,Transport,actualScene?liveScene:(state)=>state,{search:''},(fn,delay)=>{const id=++counter;scheduled.set(id,{fn,at:now+delay});return id;},id=>scheduled.delete(id),{now:()=>now},{randomUUID:()=>`inert-request-${calls.length+1}`});
+ const host=new Host();Object.assign(host,{isConnected:true,state:actualScene?{...initialScene(),focus:'timers'}:{devices:[],extraTimers:[],focus:'timers'},liveSnapshot:snapshot(),render(){},renderLive(){},showFeedback:text=>messages.push(text),invalidateLiveMusic(){}});if(actualScene){host.state=liveScene(host.state,host.liveSnapshot);host.live=true;host.dispatch=event=>{host.state=sceneTransition(host.state,event);};}host.connectPodVoice();host.liveStatus='connected';
  return {host,calls,messages,snapshot,settle:(value,index=0)=>resolvers[index](value),observe:value=>host.liveTransport.options.onSnapshot(value),advance:ms=>{now+=ms;for(const [id,timer]of [...scheduled])if(timer.at<=now){scheduled.delete(id);timer.fn();}},scheduled};
 }
 const cancelExact={action:'timer.cancel',args:{timer_id:'exact'}},startOne={action:'timer.start',args:{seconds:10,name:'Exact'}};
@@ -158,4 +160,15 @@ test('retained UNKNOWN Start explains disabled empty form after independent obse
  const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end)),view=fixture();view.renderAccess=TimerView.prototype.renderAccess;t.host.timerView=view;
  render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.status.hidden,false);assert.equal(view.status.textContent,'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.');assert.equal(t.host.liveActionFeedback,'');assert.equal(t.host.liveTimerFences.length,1);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
  t.observe(t.snapshot({timers:{status:'observed',epoch:'new-authoritative-epoch',items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.canStart,true);assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');
+});
+
+
+test('actual TimerView return consumes fresh liveScene and snapshot in both receipt-first and snapshot-first orders',async()=>{
+ for(const order of ['receipt-first','snapshot-first']){
+  const t=timerOwner({items:[],held:true,actualScene:true}),view=Object.assign(Object.create(TimerView.prototype),{host:t.host}),token={sessionId:t.host.state.sessionId,generation:t.host.state.generation,bootId:'boot',roomId:'kitchen',epoch:'epoch'};view.startNavigation=token;t.host.timerView=view;let returns=0;t.host.focusHeading=()=>{returns++;assert.equal(t.host.state.timer?.id,'native-exact','navigation sees the adopted timer scene');assert.equal(t.host.liveSnapshot.timers.items[0].id,'native-exact','navigation sees the authoritative snapshot');};
+  const music=t.host.state.music,pending=t.host.sendLiveTimer(startOne),observed=t.snapshot({revision:11,timers:{status:'observed',epoch:'epoch',items:[{id:'native-exact',name:'Exact',secondsLeft:10,status:'running'}]}});
+  assert.equal(t.host.state.focus,'timers');if(order==='snapshot-first'){t.observe(observed);assert.equal(t.host.state.focus,'timers');}
+  t.settle({ok:true,outcome:'accepted',timerId:'native-exact'});await pending;if(order==='receipt-first'){assert.equal(t.host.state.focus,'timers','accepted receipt alone cannot navigate');t.observe(observed);}
+  assert.equal(t.host.state.focus,'now',order);assert.equal(t.host.state.timer.id,'native-exact');assert.equal(t.host.state.timer.status,'running');assert.equal(returns,1);assert.equal(t.host.state.music.playback.room,music.playback.room);assert.equal(t.calls.length,1);
+ }
 });

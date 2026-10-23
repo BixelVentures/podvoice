@@ -35,7 +35,7 @@
 .pv-chip,.pv-segment,.pv-btn{box-sizing:border-box;min-width:0;max-width:100%;min-height:var(--pv-hit);border:0;border-radius:var(--pv-r-pill);padding:0 var(--pv-s3);font:var(--pv-t-body);font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1);background:var(--pv-surface-2);color:var(--pv-ink)}
 /* Plain action labels use a line box, so text-overflow can paint its ellipsis.
    Rich Tile/ListRow status anatomy keeps its own rows and wrapping rules. */
-button:is(.pv-chip,.pv-segment,.pv-btn):not([hidden]):not(:has(*)){display:block!important;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis}
+button:is(.pv-chip,.pv-segment,.pv-btn):not([hidden]):not(:has(*)):not(.resource-direct-action){display:block!important;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis}
 button:is(.pv-chip,.pv-segment,.pv-btn)>:is(span,strong):not(:has(*)):not(.pv-meta,.light-state,.timer-state,.kit-meta,[role=status]){min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-btn{padding:0 var(--pv-s4);font:var(--pv-t-label)}
 .pv-btn.--primary,.pv-btn.pv-primary{background:var(--pv-ink);color:var(--pv-on-dark)}
@@ -77,7 +77,7 @@ pv-robot-control-panel .pv-suggestions{padding:var(--pv-s3);border-radius:var(--
 pv-robot-control-panel :is(.summary,.pv-meta){font:var(--pv-t-body)}
 pv-robot-control-panel .pv-actions.transport>.stop{background:var(--pv-surface-2);color:var(--pv-ink)}
 /* Vehicle: access and combined climate lead; charging stays content-sized. */
-pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero:not([data-kit-variant=message]){padding:var(--pv-s3)!important;gap:var(--pv-s3);background:var(--pv-tesla);min-height:var(--pv-detail-min);box-shadow:var(--pv-shadow)}
+pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero:not([data-kit-variant=message]){padding:var(--pv-s4)!important;gap:var(--pv-s3);background:var(--pv-tesla);min-height:var(--pv-detail-min);box-shadow:var(--pv-shadow)}
 pv-widget-host #vehicle-view .vehicle-control-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s2);align-items:stretch}
 pv-widget-host #vehicle-view .vehicle-control-tiles>:is(section,label){display:flex;flex-direction:column;gap:var(--pv-s2);padding:var(--pv-s3);background:var(--pv-surface);min-width:0;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
 pv-widget-host #vehicle-view .vehicle-control-tiles .vehicle-detail-values{display:block;margin:0}
@@ -177,8 +177,6 @@ pv-widget-host[data-view=active][data-voice-phase] .view-nav .header-activity>#o
 pv-widget-host #radio-view .radio-station-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2)}
 pv-widget-host #radio-view .radio-station-tiles>button{min-height:177px;padding:var(--pv-s3);background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
 /* Speaker selection is a left-column dialog; the player stays legible. */
-pv-widget-host>:is(#rooms,#light-detail){position:fixed;inset:auto;margin:0;left:calc(24px + (100vw - 64px)*9/26);top:50%;transform:translate(-50%,-50%);width:min(520px,calc((100vw - 64px)*9/13 - 48px));max-height:calc(100dvh - 64px);padding:var(--pv-s4);background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow);backdrop-filter:none;color:var(--pv-ink)}
-pv-widget-host>:is(#rooms,#light-detail)::backdrop{background:linear-gradient(to right,var(--pv-scrim) 0 calc(24px + (100vw - 64px)*9/13),transparent calc(24px + (100vw - 64px)*9/13) 100%)}
 /* Dialog anatomy is shared by actual retained dialogs and kit specimens. */
 .pv-kit-dialog:not(dialog):not([data-kit-variant=toast]),dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]){display:grid;gap:var(--pv-s2)}
 .pv-kit-dialog>form{display:grid;gap:var(--pv-s2);padding:0;margin:0;min-width:0}
@@ -192,16 +190,16 @@ pv-widget-host>:is(#rooms,#light-detail)::backdrop{background:linear-gradient(to
 .pv-kit-dialog[data-kit-variant=toast]>.pv-dialog-content{display:block;font:var(--pv-t-body);margin:0;padding:0}
 /* Immediate speaker selection has no invented confirmation footer. */
 #room-options,.pv-kit-dialog .pv-dialog-content:has(>.pv-kit-listrow){display:grid;gap:var(--pv-s2);margin:0;padding:0}
-#room-options>button,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow{
+#room-options>button,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow{
  display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr) max-content;
  align-items:center;justify-content:stretch;min-height:96px;width:100%;
  gap:var(--pv-s2);padding:var(--pv-s2);text-align:left;
 }
-#room-options>button>img,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow>img{display:block;width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;margin:0;object-fit:contain}
-#room-options>button>span:first-of-type,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow>span:first-of-type{display:grid;gap:var(--pv-s1);min-width:0;margin:0;padding:0}
-#room-options>button strong,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow strong{font:var(--pv-t-label);line-height:var(--pv-leading-widget);margin:0;min-width:0;overflow-wrap:anywhere}
-#room-options>button small,#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow :is(small,.target-status){font:var(--pv-t-meta);line-height:var(--pv-leading-meta);margin:0}
-#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>.pv-kit-listrow>.target-status{max-width:96px;text-align:right;white-space:normal}
+#room-options>button>img,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>img{display:block;width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;margin:0;object-fit:contain}
+#room-options>button>span:first-of-type,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>span:first-of-type{display:grid;gap:var(--pv-s1);min-width:0;margin:0;padding:0}
+#room-options>button strong,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow strong{font:var(--pv-t-label);line-height:var(--pv-leading-widget);margin:0;min-width:0;overflow-wrap:anywhere}
+#room-options>button small,#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow :is(small,.target-status){font:var(--pv-t-meta);line-height:var(--pv-leading-meta);margin:0}
+#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>.target-status{max-width:96px;text-align:right;white-space:normal}
 
 /* Native target and visible history pill share the same48px geometry. */
 pv-widget-host .view-nav #open-history.header-history{--pv-history-surface:var(--pv-surface-2);position:relative;box-sizing:border-box;height:48px;min-height:48px;max-height:48px;border-radius:var(--pv-r-pill);background:transparent;color:var(--pv-ink);box-shadow:none;isolation:isolate}
@@ -228,7 +226,7 @@ pv-widget-host .view-nav #open-history.header-history:focus-visible{outline:2px 
  pv-widget-host[data-topbar=true][data-view=active] .view-nav #header-title-action{margin-inline:0;padding-inline:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 }
 @media(max-width:480px){pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title:has(>#header-title-action){display:none}}
-@media(max-width:759px){.vehicle-control-tiles,pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:1fr}pv-robot-control-panel .choices.pv-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host>:is(#rooms,#light-detail){left:50%;width:calc(100vw - 48px)}}
+@media(max-width:759px){.vehicle-control-tiles,pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:1fr}pv-robot-control-panel .choices.pv-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(prefers-reduced-motion:reduce){:root{--pv-d-fast:120ms;--pv-d-move:120ms}:is(button,a[href],summary,[role=button]):is(.pv-card,.pv-hero,.pv-tile,.pv-btn):is(:active,.is-pressed):not([disabled],[aria-disabled=true],[data-touch-cancelled=true]):not(:has(:is(button,a[href],summary,input,select,textarea,[role=button],[role=slider]):is(:active,.is-pressed))){transform:none;scale:1;filter:none;transition:none}}
 /* Output selection and title/artist navigation share their existing native
    Button owners. Each target reserves64px; no child extends over a neighbour. */
@@ -519,7 +517,6 @@ pv-widget-host #device-view pv-vacuum-widget.pv-kit-hero .pv-meta{font:var(--pv-
 .pv-comparison-tile{display:flex;flex-direction:column;gap:var(--pv-s2);padding:var(--pv-s3)}
 .pv-comparison-tile>div{font:var(--pv-t-body);width:100%}
 .pv-comparison-tile>div::before{content:attr(data-label);display:block;font:var(--pv-t-meta);color:var(--pv-ink-3);margin-bottom:var(--pv-s1)}
-.pv-table-choice,.pv-check{min-height:var(--pv-hit-min)!important}
 #timer-alert:is([open],:focus){background:var(--pv-dark);color:var(--pv-on-dark);outline:none}
 #timer-alert :is(#timer-alert-dismiss,#timer-alert-add){width:200px;min-height:96px;border-radius:var(--pv-r-pill);font:var(--pv-t-label);background:var(--pv-on-dark);color:var(--pv-dark)}
 #timer-alert #timer-alert-add{background:var(--pv-ink-2);color:var(--pv-on-dark)}
@@ -795,7 +792,7 @@ pv-widget-host[data-view=active] .frame>.responses:has(>#answer-host:not([hidden
 #answer-host>pv-answer.answer-widget:has(>.answer-content>:is(.sources,.answer-source-menu)[open]:not([hidden])) .answer-scroll>*{flex-shrink:0}
 
 /* Short responses fit with their real action dock; long responses keep natural scrollable sections. */
-#answer-host>pv-answer.answer-widget[data-answer-extent=short]{padding:var(--pv-s3);gap:var(--pv-s2)}
+#answer-host>pv-answer.answer-widget[data-answer-extent=short]{padding:var(--pv-s4);gap:var(--pv-s2)}
 #answer-host>pv-answer.answer-widget[data-answer-extent=short] :is(.answer-content,.answer-scroll,.pv-visual-body){gap:var(--pv-s2)}
 #answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-visual-body{min-height:0}
 #answer-host>pv-answer.answer-widget[data-answer-extent=short] .pv-visual-item[data-answer-role=primary][data-value-kind=numeric]{min-height:160px;padding:var(--pv-s3)}
@@ -934,6 +931,7 @@ pv-widget-host[data-view=rest] .frame::before,pv-widget-host[data-view=rest] .fr
 /* One top origin for every composed left pane, shared with the retained player. */
 pv-widget-host[data-view=active] .responses>:is(#answer-host,#music-detail,#weather-view,#device-view,#vehicle-view,#radio-view,#timers-view,#music-response,#history):not([hidden]){margin-block-start:0;padding-block-start:0;align-self:stretch;width:100%}
 pv-widget-host[data-view=active] .responses>#music-detail:not([hidden]){padding:var(--pv-s3);height:100%}
+pv-widget-host[data-view=active] .responses>#answer-host:not([hidden]){padding-inline:var(--pv-s2);box-sizing:border-box}
 /* Weather uses the same detail template: only its existing Hero is toned. */
 pv-widget-host[data-view=active] .responses>#weather-view.weather-view:not([hidden]){margin-block-start:0;margin-inline:0;width:100%;padding:0 var(--pv-s2) var(--pv-s1);box-sizing:border-box;background:transparent;box-shadow:none;border-radius:0}
 pv-widget-host[data-topbar=true] .responses>#history>header{display:none}
@@ -1116,7 +1114,7 @@ pv-widget-host #radio-view .radio-station-tiles>.pv-content{padding:0;background
 /* Empty and selected Radio keep the same Hero slots. A placeholder glyph
    occupies its reserved cover frame; decoding cannot change the row height. */
 pv-widget-host #radio-view .radio-hero .radio-hero-art{padding:var(--pv-s3)}
-pv-widget-host #radio-view .radio-open-player[hidden]{display:flex!important;visibility:hidden;pointer-events:none}
+pv-widget-host #radio-view .radio-open-player[hidden]{display:none!important;visibility:hidden;pointer-events:none}
 pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true]{background:var(--pv-surface-2)!important;color:var(--pv-ink)!important;border-color:transparent;box-shadow:var(--pv-shadow)}
 pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button:is(:disabled,[aria-disabled=true]){opacity:1;filter:none}
 pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:4px}
@@ -1418,7 +1416,7 @@ pv-widget-host .pv-kit-tile[data-kit-variant=compact]>span{min-width:0;white-spa
 /* Card content roles: one scale per semantic role, never one-off domain type. */
 :root{--pv-card-art-m:96px;--pv-card-art-l:160px;--pv-card-action-width:calc(2 * var(--pv-hit))}
 pv-widget-host #now-view>.resource-card>.resource-direct-action{width:var(--pv-card-action-width);min-width:var(--pv-card-action-width);height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);border-radius:var(--pv-r-pill);font:var(--pv-t-label);background:var(--pv-surface);color:var(--pv-ink)}
-pv-widget-host #now-view .resource-fact.pv-kit-listrow[data-kit-variant=read-only]{min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+pv-widget-host #now-view .resource-fact.pv-kit-listrow[data-kit-variant=read-only]{min-height:0;gap:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 pv-widget-host #now-view .resource-fact-label{color:var(--pv-ink-3)}
 pv-widget-host #now-view .resource-fact-value{color:var(--pv-ink)}
 pv-widget-host #now-view .resource-fact-meter{display:block;grid-column:1/-1;width:100%;height:4px;appearance:none;border:0;border-radius:var(--pv-r-pill);overflow:hidden;background:var(--pv-line);accent-color:var(--pv-ink)}
@@ -1428,7 +1426,7 @@ pv-widget-host #now-view .resource-fact:has(>.resource-fact-meter:not([hidden]))
 pv-widget-host #now-view .resource-fact:has(>.resource-fact-meter:not([hidden]))>.resource-fact-value{grid-column:2;grid-row:1;font:var(--pv-t-meta)!important;text-align:right}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card,.resource-preview):is([data-kit-size=m],[data-kit-size=l]) :is(.resource-value,.resource-label>small){color:var(--pv-ink-2)}
 pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-card[data-kit-size=l]:has(>.resource-direct-action:not([hidden]))>.resource-preview>:is(.resource-facts,.resource-context){padding-inline-end:0}
-pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]>.resource-facts>.resource-fact:not([data-fact-id=battery],[data-fact-id=room],[data-fact-id=progress]){display:none!important}
+/* Large adds admitted facts; the common inline core below suppresses duplicates. */
 pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=light]>.resource-facts{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:48px!important;gap:var(--pv-s1)!important}
 pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=light] .resource-fact:is([data-fact-id=rooms],[data-fact-id=on-count]){display:none!important}
 pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=light] .resource-fact{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:48px!important;border-bottom:1px solid var(--pv-line)!important}
@@ -1586,8 +1584,8 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not(
    ready/stale/pending/error/unavailable states. Width changes; role y does not. */
 :root{--pv-card-primary-y:72px;--pv-card-secondary-y:106px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media]):not([hidden]){position:relative;display:block!important;--pv-card-status-y:var(--pv-card-primary-y)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):not([data-media-layout=media])>:is(.resource-label,span)>.resource-value:not([hidden]){display:block!important;position:absolute!important;inset:var(--pv-card-primary-y) var(--pv-s3) auto var(--pv-s3)!important;grid-area:auto!important;align-self:start!important;box-sizing:border-box!important;min-width:0!important;width:auto!important;min-height:0!important;height:26px!important;max-height:26px!important;margin:0!important;padding:0!important;font:var(--pv-t-label)!important;line-height:26px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(.resource-label,span)>small:not([hidden]){position:absolute!important;inset:var(--pv-card-status-y) var(--pv-s3) auto var(--pv-s3)!important;grid-area:auto!important;min-height:0!important;height:24px!important;max-height:24px!important;margin:0!important;padding:0!important;font:var(--pv-card-status-font,var(--pv-t-body))!important;line-height:var(--pv-card-status-leading,24px)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important;color:var(--pv-card-secondary-ink,var(--pv-ink-2))!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):not([data-media-layout=media])>:is(.resource-label,span)>.resource-value:not([hidden]){display:block!important;position:absolute!important;inset:var(--pv-card-primary-y) var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;grid-area:auto!important;align-self:start!important;box-sizing:border-box!important;min-width:0!important;width:auto!important;min-height:0!important;height:26px!important;max-height:26px!important;margin:0!important;padding:0!important;font:var(--pv-t-label)!important;line-height:26px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(.resource-label,span)>small:not([hidden]){position:absolute!important;inset:var(--pv-card-status-y) var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;grid-area:auto!important;width:auto!important;max-width:calc(100% - var(--pv-s3) - var(--pv-card-copy-right,var(--pv-s3)))!important;justify-self:stretch!important;box-sizing:border-box!important;min-height:0!important;height:var(--pv-card-status-leading,24px)!important;max-height:var(--pv-card-status-leading,24px)!important;margin:0!important;padding:0!important;font:var(--pv-card-status-font,var(--pv-t-body))!important;line-height:var(--pv-card-status-leading,24px)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important;color:var(--pv-card-secondary-ink,var(--pv-ink-2))!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):has(>span>.resource-value:not([hidden]))>:is(.resource-label,span)>small:not([hidden]){top:var(--pv-card-secondary-y)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=compact]:not([data-kit-size=l])>span>small:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card:not([data-kit-size=l])>#open-timers>span>small:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;height:26px!important;max-height:26px!important}
 
@@ -1621,14 +1619,6 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data
 /* Entry copy uses the same semibold role on Radio and idle Timer. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-radio[data-media-layout=compact],#timer-card>#open-timers)>span>small:not([hidden]){font:var(--pv-card-status-font,var(--pv-t-label))!important;line-height:var(--pv-card-status-leading,26px)!important}
 
-/* Screen/device is a content recipe inside the shared Dialog. Sections use
-   existing type/space tokens and never alter the dialog or button family. */
-pv-widget-host #quick-sheet #screen-settings-content{display:grid;gap:var(--pv-s3);min-width:0}
-pv-widget-host #quick-sheet #screen-settings-content>section{display:grid;gap:var(--pv-s1);min-width:0}
-pv-widget-host #quick-sheet #screen-settings-content h3{margin:0;font:var(--pv-t-label);color:var(--pv-ink)}
-pv-widget-host #quick-sheet #screen-settings-content p{margin:0;font:var(--pv-t-body);color:var(--pv-ink-2);overflow-wrap:anywhere}
-pv-widget-host #quick-sheet #screen-settings-content button{width:100%;justify-content:flex-start;text-align:left}
-
 /* The same compact reading roles retain a separate secondary slot for entry
    guidance. A larger width cannot place guidance on top of its primary text. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=m] #open-timers>.resource-context:not([hidden]){position:absolute;inset:var(--pv-card-secondary-y) var(--pv-s3) auto var(--pv-s3);grid-area:auto!important;max-height:40px;margin:0;padding:0}
@@ -1636,9 +1626,9 @@ pv-widget-host[data-topbar=true] .view-nav #show-photo[data-navigation=rest] .re
 /* L keeps the same semantic reading cluster as S/M. Only scale and the lower
    factual budget change; the source primary value never becomes a hidden fact. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media]){position:relative;display:block!important;column-gap:var(--pv-s2)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context))>.resource-value:not([hidden]){display:block!important;position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;margin:0!important;padding:0!important;max-width:calc(100% - 48px)!important;height:34px;max-height:34px;font:var(--pv-t-title)!important;line-height:34px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-label>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:114px var(--pv-s3) auto var(--pv-s3)!important;height:24px;max-height:24px!important;font:var(--pv-t-body)!important;line-height:24px!important;margin:0!important;white-space:nowrap!important;color:var(--pv-ink-2)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-facts:not([hidden]){position:absolute!important;inset:170px var(--pv-s3) var(--pv-s3)!important;grid-area:auto!important;align-content:start}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>.resource-value:not([hidden]){display:block!important;position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;margin:0!important;padding:0!important;max-width:calc(100% - 48px)!important;height:34px;max-height:34px;font:var(--pv-t-title)!important;line-height:34px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-label>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:106px var(--pv-s3) auto var(--pv-s3)!important;height:24px;max-height:24px!important;font:var(--pv-t-body)!important;line-height:24px!important;margin:0!important;white-space:nowrap!important;color:var(--pv-ink-2)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-facts=true]>.resource-facts:not([hidden]){position:absolute!important;inset:170px var(--pv-s3) var(--pv-s3)!important;grid-area:auto!important;align-content:start}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=light] .resource-fact[data-fact-id=on-count]{display:none!important}
 /* Card entry roles use the same weight in every empty domain. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-radio[data-media-layout=compact],#timer-card>#open-timers)>span>small:not([hidden]){font:var(--pv-card-status-font,var(--pv-t-label))!important;line-height:var(--pv-card-status-leading,26px)!important}
@@ -1649,28 +1639,144 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-radio[data-me
 /* Existing InlineStatus anatomy keeps its state glyph and readable headline. */
 #answer-host>pv-answer.answer-widget .answer-status.pv-component[data-state] .pv-copy:not([hidden]){position:relative;min-height:48px;padding:0 0 0 64px;border:0;border-radius:0;background:transparent;font:var(--pv-t-title);line-height:34px}
 #answer-host>pv-answer.answer-widget .answer-status.pv-component[data-state] .pv-copy:not([hidden])::before{content:'';display:block;position:absolute;left:0;top:0;width:48px;height:48px;background:var(--pv-state-icon) center/contain no-repeat}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context)){display:contents!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual)){display:contents!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(img:first-child,.resource-visual){position:absolute;inset:var(--pv-s3) auto auto var(--pv-s3);grid-area:auto}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context))>strong{position:absolute;inset:27px var(--pv-s3) auto 72px;grid-area:auto;margin:0;padding:0;line-height:26px}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>strong{position:absolute;inset:27px var(--pv-s3) auto 72px;grid-area:auto;margin:0;padding:0;line-height:26px}
 #music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy small:not(:empty){display:block;margin-top:var(--pv-s1);font:var(--pv-t-meta);line-height:20px;color:var(--pv-ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 pv-widget-host #now-view :is(#home-radio[data-media-layout=compact],#timer-card>#open-timers){--pv-card-status-font:var(--pv-t-label);--pv-card-status-leading:26px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-label>small:not([hidden]){color:var(--pv-ink-2)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])>.resource-facts{color:var(--pv-ink-2)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l])[data-kit-state=unavailable]>:is(.resource-label,span:not(.resource-facts):not(.resource-context))>:is(.resource-value,small):not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;max-height:48px!important;height:auto!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-title)!important;line-height:34px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l])[data-kit-state=unavailable]>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>:is(.resource-value,small):not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;max-height:48px!important;height:auto!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-label)!important;line-height:26px!important}
 /* An absent measurement has one neutral primary status in every size. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty){position:relative;display:block!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span{display:contents!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span>strong{position:absolute;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3);display:block!important;min-height:0!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span>strong{position:absolute;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3);width:auto!important;display:block!important;min-height:0!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty) .home-condition{position:static;display:block;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
-pv-widget-host #now-view :is(#home-radio[data-kit-size=l][data-media-layout=compact],#timer-card[data-kit-size=l]>#open-timers){--pv-card-status-font:var(--pv-t-title);--pv-card-status-leading:34px}
+pv-widget-host #now-view :is(#home-radio[data-kit-size=l][data-media-layout=compact],#timer-card[data-kit-size=l]>#open-timers){--pv-card-status-font:var(--pv-t-label);--pv-card-status-leading:26px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers{position:relative;display:block}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){position:absolute;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3);height:34px;max-height:34px;font:var(--pv-t-title)!important;line-height:34px!important;margin:0;padding:0}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>.resource-context:not([hidden]){position:absolute;grid-area:auto!important;inset:114px var(--pv-s3) auto var(--pv-s3);height:auto;max-height:40px;margin:0;padding:0}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context)>.resource-value:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-value)!important;line-height:44px!important;height:44px!important;max-height:44px!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context)>small{position:absolute!important;grid-area:auto!important;inset:124px var(--pv-s3) auto var(--pv-s3)!important;height:24px!important;max-height:24px!important;margin:0!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){position:absolute;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3);height:26px;max-height:26px;font:var(--pv-t-label)!important;line-height:26px!important;margin:0;padding:0}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>.resource-context:not([hidden]){position:absolute;grid-area:auto!important;inset:106px var(--pv-s3) auto var(--pv-s3);height:auto;max-height:40px;margin:0;padding:0}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context):not(.resource-visual)>.resource-value:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-value)!important;line-height:44px!important;height:44px!important;max-height:44px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context):not(.resource-visual)>small{position:absolute!important;grid-area:auto!important;inset:124px var(--pv-s3) auto var(--pv-s3)!important;height:24px!important;max-height:24px!important;margin:0!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>.resource-facts:not([hidden]){display:grid!important;position:absolute!important;grid-area:auto!important;inset:210px var(--pv-s3) var(--pv-s3)!important;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:48px;gap:var(--pv-s2);margin:0!important;padding:0!important;align-content:start}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span:not(.resource-facts):not(.resource-context){display:contents!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span:not(.resource-facts):not(.resource-context):not(.resource-visual){display:contents!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>img:first-child{position:absolute;grid-area:auto!important;inset:var(--pv-s3) auto auto var(--pv-s3);width:var(--pv-icon-m);height:var(--pv-icon-m)}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>strong{position:absolute;grid-area:auto!important;inset:27px var(--pv-s3) auto 72px;margin:0;padding:0;line-height:26px}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){height:34px!important;min-height:34px!important;max-height:34px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){height:26px!important;min-height:26px!important;max-height:26px!important}
+
+/* Shared S/M command zone: status never enters the offered action hit area. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-card:is(:not([data-kit-size]),[data-kit-size=m]):has(>.resource-direct-action:not([hidden]))>.resource-preview:not([data-kit-size=l])>.resource-label>:is(.resource-value,small):not([hidden]){right:calc(var(--pv-s3) + var(--pv-card-action-width) + var(--pv-s2))!important;width:auto!important;padding-inline-end:0!important;text-align:start!important}
+
+pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-card:is(:not([data-kit-size]),[data-kit-size=m]):has(>.resource-direct-action:not([hidden]))>.resource-preview:not([data-kit-size=l]){--pv-card-copy-right:calc(var(--pv-s3) + var(--pv-card-action-width) + var(--pv-s2))}
+/* Missing-weather state retains the same header anchors as measured weather. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>img:first-child{position:absolute!important;inset:var(--pv-s3) auto auto var(--pv-s3)!important;width:32px!important;height:32px!important;margin:0!important;grid-area:auto!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)::after{position:absolute!important;inset:27px var(--pv-s3) auto 72px!important;height:26px!important;margin:0!important;grid-area:auto!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span>small:not([hidden]){position:absolute!important;inset:106px var(--pv-s3) auto var(--pv-s3)!important;width:auto!important;max-height:48px!important;margin:0!important;font:var(--pv-t-body)!important;line-height:24px!important}
+
+/* Compact introductory message: an existing Hero density, not a second detail surface. */
+pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:not([hidden]){min-height:96px!important;padding:16px!important;grid-template-columns:32px minmax(0,1fr)!important}
+pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:not([hidden]) [data-kit-slot=icon]{width:32px!important;height:32px!important}
+pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:not([hidden]) [data-kit-slot=title]{font:var(--pv-t-label)!important;line-height:26px!important}
+pv-widget-host #weather-view .weather-wind-direction{order:-1}
+
+pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:not([hidden]){padding-block:20px!important;row-gap:4px!important}
+
+/* Every empty/unknown Large resource keeps the same primary-status anchor. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media]):not([data-has-overview-value=true]):not(:has(>.resource-label>.resource-value:not([hidden])))>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;width:auto!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
+
+/* Canonical action icon in the existing fixed overview Button. */
+pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=pause]::before,pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{content:'';width:20px;height:20px;flex:0 0 20px;background:currentColor;mask:url(assets/icons/pause-fill.svg) center/contain no-repeat;-webkit-mask:url(assets/icons/pause-fill.svg) center/contain no-repeat}
+pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{mask-image:url(assets/icons/play-fill.svg);-webkit-mask-image:url(assets/icons/play-fill.svg)}
+/* Detail actions use semantic neutral Button roles, independent of the resource identity. */
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *){--pv-tint:var(--pv-surface);--pv-tint-strong:var(--pv-surface-2);--pv-tint-ink:var(--pv-ink);--pv-button-tint:var(--pv-surface-2);background:var(--pv-action-secondary-bg,var(--pv-surface-2))!important;color:var(--pv-action-secondary-ink,var(--pv-ink))!important;white-space:normal!important;text-overflow:clip!important;overflow-wrap:break-word}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *)[data-kit-variant=primary]{background:var(--pv-action-primary-bg,var(--pv-ink))!important;color:var(--pv-action-primary-ink,var(--pv-on-dark))!important}
+pv-widget-host .responses :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) .pv-kit.pv-kit-button:not(.pv-kit-tile):not(.pv-kit-chip):not(.pv-kit-listrow):not(pv-choice-list *):is([data-kit-variant=destructive],[data-action-id=stop]){background:var(--pv-screen-danger-surface)!important;color:var(--pv-screen-danger)!important}
+
+pv-widget-host #vehicle-view .vehicle-lock-controls>.pv-kit-button[data-kit-variant=primary]{grid-column:1/-1;min-height:var(--pv-hit);height:auto;white-space:normal!important;text-overflow:clip!important}
+
+pv-widget-host #now-view>.resource-card>.resource-direct-action{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1);padding-inline:var(--pv-s2)}
+pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id]::before{display:block}
+
+pv-widget-host #now-view>.resource-card>.resource-direct-action{flex-direction:row!important;flex-wrap:nowrap!important}
+
+/* Detail navigation has one semantic hit area containing both arrow and title. */
+pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title:has(>#header-title-action){display:block;flex:1;min-width:0;overflow:visible}
+pv-widget-host[data-topbar=true][data-view=active] .view-nav #header-title-action{display:flex;align-items:center;justify-content:flex-start;gap:var(--pv-s2);width:100%;max-width:100%;height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s2);margin:0;background:transparent;text-align:left;white-space:nowrap;flex-direction:row}
+pv-widget-host .view-nav #header-title-action>.topbar-back-icon{display:block;position:static;width:32px;height:32px;flex:0 0 32px;margin:0;transform:none}
+pv-widget-host .view-nav #header-title-action>.topbar-title-copy{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Radio's ChoiceList presents selectable Tiles, not secondary action buttons. */
+pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button{background:var(--pv-surface)!important;color:var(--pv-ink)!important}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true]{background:var(--pv-surface)!important;border-color:var(--pv-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-ink)}
+
+/* One verbal Card core across S/M/L; Large expands information, not the grammar. */
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-radio[data-kit-size=l],#timer-card[data-kit-size=l]>#open-timers):not([data-media-layout=media])>.resource-label>.resource-value:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;height:26px!important;max-height:26px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card>.resource-preview,.resource-preview[data-kit-size],#home-vehicle)[data-kind=vacuum]>.resource-label>small:not([hidden]){display:block!important;position:absolute!important;inset:106px var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;width:auto!important;max-width:calc(100% - var(--pv-s3) - var(--pv-card-copy-right,var(--pv-s3)))!important;height:24px!important;max-height:24px!important;min-height:0!important;margin:0!important;padding:0!important;font:var(--pv-t-body)!important;line-height:24px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;justify-self:stretch!important;text-align:start!important;color:var(--pv-ink-2)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]>.resource-facts{position:absolute!important;inset:170px var(--pv-s3) var(--pv-s3)!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(44px,auto)!important;gap:var(--pv-s3)!important;align-content:start!important;margin:0!important;padding:0!important}
+pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]>.resource-facts>.resource-fact:is([data-fact-id=battery],[data-fact-id=room]){display:none!important}
+
+pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]>.resource-facts>.resource-fact{height:auto;align-content:start;grid-template-rows:20px auto}
+pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum] .resource-fact-value{height:auto!important;max-height:none!important;line-height:24px!important;white-space:normal!important;overflow:visible!important}
+
+/* Read-only facts protect the value; a long label yields before the number. */
+pv-widget-host #now-view .resource-fact.pv-kit-listrow[data-kit-variant=read-only]>.resource-fact-value{flex:0 0 auto}
+pv-widget-host #now-view .resource-fact.pv-kit-listrow[data-kit-variant=read-only]>.resource-fact-label{flex:1 1 auto;min-width:0}
+
+/* Medium command aligns to the combined primary/secondary text group. */
+pv-widget-host #now-view>.resource-card:not([data-kit-size=l])>.resource-direct-action{top:calc((var(--pv-card-primary-y) + var(--pv-card-secondary-y) + 24px - var(--pv-hit)) / 2);bottom:auto}
+pv-widget-host[data-view=active] #now-view #timer-card>#open-timers>span>small:not([hidden]){height:26px!important;max-height:26px!important}
+pv-widget-host[data-view=active] #now-view #timer-card>#open-timers>.resource-context:not([hidden]){font:var(--pv-t-body)!important;line-height:24px!important;max-height:48px!important}
+
+/* Button contrast follows its containing surface, not a device identity. */
+:root{--pv-action-primary-bg:var(--pv-ink);--pv-action-primary-ink:var(--pv-on-dark);--pv-action-secondary-bg:var(--pv-surface-2);--pv-action-secondary-ink:var(--pv-ink)}
+:is(.pv-kit-hero,.pv-kit-card)[data-kit-tone=dark]{--pv-action-primary-bg:var(--pv-on-dark);--pv-action-primary-ink:var(--pv-ink);--pv-action-secondary-bg:var(--pv-ink-2);--pv-action-secondary-ink:var(--pv-on-dark)}
+
+/* Detail Hero: situation owns the title; model metadata belongs to its image. */
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state=ready]>.vehicle-status{font:var(--pv-t-title);margin:0}
+pv-widget-host #vehicle-view .vehicle-artwork{height:auto;min-height:160px;grid-template-rows:minmax(0,160px) auto;gap:var(--pv-s1);align-content:center}
+pv-widget-host #vehicle-view .vehicle-artwork>.vehicle-context{position:static;inset:auto;margin:0;text-align:center;font-size:15px;line-height:20px;font-weight:400;color:var(--pv-tesla-ink)}
+
+/* Canonical settings anatomy: copy/control rows are distinct from speaker selection. */
+.pv-kit-dialog:not([data-kit-variant=toast]){width:min(520px,calc(100vw - 2 * var(--pv-s4)));max-height:calc(100dvh - 2 * var(--pv-s4));overflow:auto}
+.pv-kit-listrow[data-kit-variant=settings],.pv-kit-dialog .pv-kit-listrow[data-kit-variant=read-only],.pv-kit-listrow[data-kit-variant=disclosure]{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--pv-s2);min-height:var(--pv-hit);width:100%;padding:var(--pv-s2) 0;background:transparent;border-radius:0}
+.pv-kit-listrow[data-kit-variant=settings]>span{display:grid;gap:var(--pv-s1);min-width:0}
+.pv-kit-listrow[data-kit-variant=settings] strong{font:var(--pv-t-label)}
+.pv-kit-listrow[data-kit-variant=settings] small{font:var(--pv-t-meta);color:var(--pv-ink-2)}
+.pv-kit-toggle[data-kit-variant=settings]{display:flex;align-items:center;justify-content:center;min-width:96px;min-height:var(--pv-hit);width:auto;padding:0 var(--pv-s2);border-radius:var(--pv-r-s);background:var(--pv-surface-2);color:var(--pv-ink);font:var(--pv-t-body);box-shadow:inset 0 0 0 1px var(--pv-line)}
+.pv-kit-toggle[data-kit-variant=settings][aria-checked=true]{background:var(--pv-surface-2);color:var(--pv-ink);box-shadow:inset 0 0 0 2px var(--pv-ink)}
+summary.pv-kit-listrow[data-kit-variant=disclosure]{list-style:none;cursor:pointer;border-top:1px solid var(--pv-line);font:var(--pv-t-body)}
+summary.pv-kit-listrow[data-kit-variant=disclosure]::-webkit-details-marker{display:none}
+summary.pv-kit-listrow[data-kit-variant=disclosure]>img{width:var(--pv-icon-s);height:var(--pv-icon-s);transition:transform var(--pv-fast,200ms) var(--pv-ease)}
+details[open]>summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transform:rotate(180deg)}
+#quick-sheet.pv-kit-dialog #screen-settings-content{display:grid;gap:var(--pv-s2);min-width:0}
+#quick-sheet.pv-kit-dialog .screen-device-brightness{display:grid;gap:var(--pv-s1)}
+#quick-sheet.pv-kit-dialog .screen-device-label{display:flex;align-items:baseline;justify-content:space-between;gap:var(--pv-s2);font:var(--pv-t-label)}
+#quick-sheet.pv-kit-dialog .screen-device-label output{font:var(--pv-t-body);font-variant-numeric:tabular-nums;color:var(--pv-ink-2)}
+#quick-sheet.pv-kit-dialog #screen-device-brightness{width:100%;min-width:0}
+#quick-sheet.pv-kit-dialog .screen-device-network{display:grid;gap:0}
+#quick-sheet.pv-kit-dialog .screen-device-network>.pv-kit-listrow{font:var(--pv-t-body);gap:var(--pv-s2)}
+#quick-sheet.pv-kit-dialog .screen-device-network>.pv-kit-listrow>span:last-child{text-align:right;color:var(--pv-ink-2)}
+#quick-sheet.pv-kit-dialog .screen-explanation{font:var(--pv-t-meta);color:var(--pv-ink-2);margin:0}
+#quick-sheet.pv-kit-dialog #screen-device-info{padding-top:var(--pv-s2)}
+@media(prefers-reduced-motion:reduce){summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transition:none}}
+
+/* Full-screen modality: Dialog is centered in the viewport, not a content column. */
+dialog.pv-kit-dialog:modal{width:min(520px,calc(100vw - 2 * var(--pv-s4)));inset:0;margin:auto;transform:none}
+dialog.pv-kit-dialog:modal::backdrop{inset:0;background:var(--pv-scrim)}
+
+/* Robot uses the same Button hit area and decorative Icon anatomy. */
+pv-widget-host pv-robot-control-panel .pv-suggestions>button.pv-kit-button{height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);font:var(--pv-t-body);font-weight:600}
+pv-widget-host pv-robot-control-panel .pv-controls>button.pv-kit-button:has(>.pv-kit-icon){display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1)}
+pv-widget-host pv-robot-control-panel button.pv-kit-button>.pv-kit-icon{width:var(--pv-icon-s);height:var(--pv-icon-s);flex:none}
+pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=primary]>.pv-kit-icon{filter:invert(1)}
+
+/* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
+.pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:linear-gradient(100deg,var(--pv-line) 20%,var(--pv-surface) 45%,var(--pv-line) 70%);background-size:220% 100%;animation:pv-advice-pending 1200ms linear 8;pointer-events:none}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before{top:4px;width:92%}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation:pv-advice-ready var(--pv-fast,200ms) var(--pv-ease,cubic-bezier(.2,0,0,1)) both}
+@keyframes pv-advice-pending{from{background-position:180% 0}to{background-position:-40% 0}}
+@keyframes pv-advice-ready{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{animation:none}.pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation-duration:120ms}}

@@ -439,6 +439,26 @@ async def run(cfg: Config) -> None:
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
     tools.podview_weather_city = cfg.podview_weather_city
+    from .podview_weather_advice import MODEL, FastWeatherAdviceProvider
+    from .podview_weather_budget import WeatherAllowance as WeatherAdviceAllowance
+    from .provider_budget import PROVIDER_BUDGET
+
+    weather_allowance = (
+        WeatherAdviceAllowance.provision(settings_path.parent / "podview-weather-budget.json")
+        if not cfg.settings_source_untrusted and cfg.openai_api_key
+        else None
+    )
+    tools.podview_weather_provider = (
+        FastWeatherAdviceProvider(
+            ha_client,
+            cfg.openai_api_key,
+            model=MODEL,
+            allowance=weather_allowance,
+            budget=PROVIDER_BUDGET,
+        )
+        if weather_allowance is not None
+        else None
+    )
     from .podview_enrichment import configured_robot_recipe_selector
     from .podview_mood import configured_mood_selector
     from .podview_mood_setup import setup_mood_budget

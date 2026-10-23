@@ -5,6 +5,7 @@ import {createKitComponent,applyKitComponent} from '../../podvoice/gatekeeper/st
 import {productLibrary,libraryCategories,libraryStateCount} from '../../podvoice/gatekeeper/static/podview/library-catalog.js';
 import {previewStates,previewScene,answerPreviewStatuses} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 import {FORMATS} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {scrollEdgeState} from '../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js';
 
 test('product library links only actual local product preview stages with unique identities',()=>{
  const families=new Set(),states=new Set();
@@ -17,7 +18,7 @@ test('product library links only actual local product preview stages with unique
    assert(previewStates.includes(state.stage),`unknown stage ${state.stage}`);
    assert(state.label&&state.description);
    if(state.open==='#answer-host details:not([hidden]) > summary'){assert.ok(family.id.startsWith('answer-'));assert.equal(state.stage,`${family.id}-ready`);assert.equal(state.key,'sources');assert.equal(state.selector,'#answer-host');}
-   else if(state.open)assert(['#player-detail','#output','#open-history','#home-radio','[data-robot-control]'].includes(state.open),`unexpected automatic action ${state.open}`);
+   else if(state.open)assert(['#player-detail','#output','#header-ro','#open-history','#home-radio','[data-robot-control]'].includes(state.open),`unexpected automatic action ${state.open}`);
   }
  }
  assert.equal(libraryStateCount,states.size);
@@ -70,7 +71,7 @@ test('component isolation targets the displayed anatomy and respects intentional
  const noTimer=sample('timer','timer-rest-empty');assert.equal(noTimer.selector,null);assert(noTimer.isolationNote);
  const noConversation=sample('conversation','conversation-overview');assert.equal(noConversation.selector,null);assert(noConversation.isolationNote);
  const dialogs=productLibrary.flatMap(family=>family.states).filter(item=>item.open&&item.open!=='#answer-host details:not([hidden]) > summary');
- assert(dialogs.every(item=>['#music-detail','#rooms','#history','#radio-view','dialog[aria-labelledby="local-robot-title"][open]'].includes(item.selector)));
+ assert(dialogs.every(item=>['#music-detail','#rooms','#quick-sheet','#history','#radio-view','dialog[aria-labelledby="local-robot-title"][open]'].includes(item.selector)));
 });
 
 test('published component library omits surveys while the original decisions remain archived',async()=>{
@@ -140,12 +141,25 @@ test('initial widget staging records settled geometry and restores real navigati
  const node=tag=>({tagName:tag.toUpperCase(),children:[],dataset:{},style:{},isConnected:true,append(...children){for(const child of children){child.parentElement=this;this.children.push(child);}}});
  const widget=node('button');widget.getBoundingClientRect=()=>{boxReads++;events.push('measure:'+transform);return {x:24+transform,y:108,width:414,height:177};};
  const host={dataset:{motion:'system'},state:{focus:'robot-detail'},motion:{animations:new Map(),cancel(){events.push('cancel');transform=0;this.animations.clear();},releaseGeometry(animate){assert.equal(animate,false);events.push('release');}},dispatch(event){events.push('dispatch:'+this.dataset.motion);if(this.dataset.motion!=='reduced')transform=16;this.state.focus=event.id;},render(){events.push('render:'+this.dataset.motion);if(this.dataset.motion!=='reduced')transform=16;}};
- const childDoc={querySelector:selector=>selector==='pv-widget-host'?host:selector==='.responses'?{scrollTop:0}:widget},win={customElements:{whenDefined:()=>({then:callback=>callback()})},requestAnimationFrame:callback=>{raf.set(++serial,callback);return serial;},cancelAnimationFrame:id=>raf.delete(id),MutationObserver:class{constructor(callback){observers.push(callback);}observe(){}disconnect(){}}},doc={createElement:tag=>{const item=node(tag);if(tag==='iframe'){item.contentDocument=childDoc;item.contentWindow=win;}return item;}},target=node('section');
+ const childDoc={querySelector:selector=>selector==='pv-widget-host'?host:selector==='.responses'?{scrollTop:0,clientTop:0,clientHeight:704,scrollHeight:704,getBoundingClientRect:()=>({top:80,bottom:784})}:widget},win={customElements:{whenDefined:()=>({then:callback=>callback()})},requestAnimationFrame:callback=>{raf.set(++serial,callback);return serial;},cancelAnimationFrame:id=>raf.delete(id),MutationObserver:class{constructor(callback){observers.push(callback);}observe(){}disconnect(){}}},doc={createElement:tag=>{const item=node(tag);if(tag==='iframe'){item.contentDocument=childDoc;item.contentWindow=win;}return item;}},target=node('section');
  const render=new Function('document','selected','state','$','widgetSizes','resize','urlFor','widgetSizeTargets','applyTouchInspection','applyMotion','framing','fit','sizePreviewCleanup',`return (${renderSource});`)(doc,{id:'robot',name:'Robot'},{stage:'robot-detail-docked',label:'Ved basen'},()=>target,[{id:'m',label:'Medium',width:414,height:177}],{observe(){}},sample=>'/?stage='+sample.stage,{robot:'[data-kind=vacuum]'},()=>{},()=>{events.push('restore');host.dataset.motion='system';},framing,viewport=>events.push(framing.has(viewport.children[0])?'crop':'full'),cleanup);
  render();const example=target.children[2].children[0],frame=example.children[1].children[0];frame.onload();assert.equal(host.dataset.motion,'reduced');assert.ok(events.includes('dispatch:reduced'));assert.ok(events.includes('render:reduced'));const flush=()=>{const [id,callback]=raf.entries().next().value;raf.delete(id);callback();};flush();assert.equal(framing.get(frame).x,24);assert.equal(host.dataset.motion,'system');assert.ok(events.indexOf('measure:0')<events.indexOf('restore'));
  host.state.focus='robot-detail';observers[0]();flush();assert.equal(example.dataset.expanded,'true');assert.equal(host.dataset.motion,'system');const before=boxReads,cancelCount=events.filter(event=>event==='cancel').length;let finish;const finished=new Promise(resolve=>finish=resolve);host.motion.animations.set(widget,{finished});transform=16;host.state.focus='now';observers[0]();assert.equal(raf.size,0);assert.equal(boxReads,before);transform=0;host.motion.animations.clear();finish();await finished;await Promise.resolve();await Promise.resolve();assert.equal(raf.size,1);flush();assert.equal(framing.get(frame).x,24);assert.equal(events.filter(event=>event==='cancel').length,cancelCount);assert.equal(example.dataset.expanded,'false');assert.equal(host.dataset.motion,'system');cleanup.get(frame)();assert.doesNotMatch(renderSource,/setTimeout|setInterval/);
 });
 
+
+test('size framing exposes the actual widget inside its product scroll owner before crop and clears its real end fade',()=>{
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function renderWidgetSizePreviews('),end=source.indexOf('function navigation(',start),renderSource=source.slice(start,end).trim();
+ for(const family of ['radio','robot','weather','vehicle'])for(const [size,height]of [['s',177],['m',177],['l',370]]){
+  const events=[],raf=[],framing=new WeakMap(),node=tag=>({tagName:tag.toUpperCase(),children:[],dataset:{},isConnected:true,append(...children){for(const child of children){child.parentElement=this;this.children.push(child);}}});
+  const feed={scrollTop:0,clientTop:0,clientHeight:704,scrollHeight:916,getBoundingClientRect:()=>({top:80,bottom:784})},widget=node('button');widget.getBoundingClientRect=()=>{events.push('measure');return {x:40,y:626-feed.scrollTop,top:626-feed.scrollTop,bottom:626-feed.scrollTop+height,width:size==='s'?199:414,height};};
+  const host={dataset:{},state:{focus:'now'},motion:{cancel(){},releaseGeometry(){}},dispatch(){},render(){},scrollEdges:{measure(actual){assert.equal(actual,feed);events.push('edges');feed.dataset={scrollEdge:scrollEdgeState({position:feed.scrollTop,viewport:feed.clientHeight,content:feed.scrollHeight,threshold:8})};}}};
+  const childDoc={querySelector:selector=>selector==='pv-widget-host'?host:selector==='.responses'?feed:widget},win={customElements:{whenDefined:()=>({then:callback=>callback()})},requestAnimationFrame:callback=>{raf.push(callback);return raf.length;},cancelAnimationFrame(){},MutationObserver:class{constructor(callback){this.callback=callback;}observe(){}disconnect(){}}},doc={createElement:tag=>{const item=node(tag);if(tag==='iframe'){item.contentDocument=childDoc;item.contentWindow=win;}return item;}},target=node('section');
+  const render=new Function('document','selected','state','$','widgetSizes','resize','urlFor','widgetSizeTargets','applyTouchInspection','applyMotion','framing','fit','sizePreviewCleanup',`return (${renderSource});`)(doc,{id:family,name:family},{stage:family+'-ready',label:'Aktuel'},()=>target,[{id:size,label:size,width:size==='s'?199:414,height}],{observe(){}},sample=>'/?stage='+sample.stage,{[family]:'#actual-widget'},()=>{},()=>{},framing,viewport=>{events.push('crop');const box=framing.get(viewport.children[0]);assert.ok(box.y>=80);assert.ok(box.y+box.height<=784);},new WeakMap());
+  render();const frame=target.children[2].children[0].children[1].children[0];frame.onload();raf.shift()();
+  assert.equal(feed.scrollTop,Math.max(0,626+height-784),`${family}/${size}`);assert.equal(framing.get(frame).height,height);assert.equal(widget.dataset.kitSize,size);assert.ok(events.indexOf('edges')<events.lastIndexOf('measure'));assert.ok(events.lastIndexOf('measure')<events.indexOf('crop'));if(size==='l')assert.equal(feed.dataset.scrollEdge,'start');
+ }
+});
 
 test('conversation navigation exposes ten actual answer owners and preserves their existing IDs',()=>{
  const conversation=productLibrary.find(item=>item.id==='conversation');
@@ -170,4 +184,8 @@ test('additional domain coverage is reachable without fabricating unsupported ow
 
 test('music initial-empty and metadata fixtures are reachable through canonical product families',()=>{
  for(const [family,stage]of [['music','music-initial-empty'],['music','music-long-metadata'],['player','player-long-metadata']])assert(productLibrary.find(item=>item.id===family).states.some(item=>item.stage===stage));
+});
+
+test('silent dismissed Timer and explicit local screen example reuse actual product owners',()=>{
+ const timer=productLibrary.find(family=>family.id==='timer').states.find(item=>item.stage==='timer-overview-dismissed');assert.equal(timer.selector,'#timer-card');const screen=productLibrary.find(family=>family.id==='overlays').states.find(item=>item.stage==='screen-device-ready');assert.equal(screen.open,'#header-ro');assert.equal(screen.selector,'#quick-sheet');
 });

@@ -103,7 +103,11 @@
         "html:button:detail-back",
         "html:button:header-time",
         "html:div:player-empty-art",
-        "html:div:player-empty-copy"
+        "html:div:player-empty-copy",
+        "html:div:screen-device-label",
+        "html:div:screen-device-network",
+        "html:section:screen-device-brightness",
+        "html:div:screen-device-dimming"
       ],
       "customTags": [
         "pv-activity-timeline",
@@ -898,8 +902,16 @@
         },
         "definitions": {
           "arrow:$": 1,
+          "class:LiveWeatherAdvice": 1,
           "function:renderLiveWeather": 1,
-          "function:renderRobotHistory": 1
+          "function:renderRobotHistory": 1,
+          "method:cleanup": 1,
+          "method:context": 1,
+          "method:current": 1,
+          "method:invalidate": 1,
+          "method:poll": 1,
+          "method:start": 1,
+          "method:sync": 1
         },
         "roots": [
           "factory:section:'device-history robot-recent pv-component'"
@@ -987,28 +999,29 @@
           "method:constructor": 1,
           "method:context": 1,
           "method:current": 1,
+          "method:destinationCurrent": 1,
           "method:expireCollection": 1,
+          "method:feedbackScope": 1,
           "method:invalidate": 1,
           "method:leave": 1,
+          "method:observePlayback": 1,
           "method:onSnapshot": 1,
           "method:openConfirm": 1,
           "method:openSearch": 1,
           "method:ownerChanged": 1,
+          "method:pendingPlayer": 1,
+          "method:prefetchTargets": 1,
+          "method:readTargets": 1,
           "method:render": 1,
+          "method:restoreRecoveryFocus": 1,
+          "method:resultCurrent": 1,
           "method:search": 1,
           "method:send": 1,
           "method:setAccount": 1,
           "method:setup": 1,
           "method:showTargets": 1,
           "method:showTracks": 1,
-          "method:restoreRecoveryFocus": 1,
-          "method:observePlayback": 1,
-          "method:feedbackScope": 1,
-          "method:resultCurrent": 1,
-          "method:destinationCurrent": 1,
-          "method:targetReadScope": 1,
-          "method:readTargets": 1,
-          "method:prefetchTargets": 1
+          "method:targetReadScope": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1182,7 +1195,9 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:finish": 1,
           "arrow:make": 1,
+          "arrow:ready": 1,
           "arrow:text": 1,
           "class:MusicResults": 1,
           "function:fixtureArtwork": 1,
@@ -1191,6 +1206,7 @@
           "function:naturalThemeArtwork": 1,
           "function:renderOverviewMediaValues": 1,
           "function:sourceMusicCards": 1,
+          "method:captureContent": 1,
           "method:create": 1
         },
         "roots": [],
@@ -2393,6 +2409,8 @@
           "arrow:cancel": 1,
           "arrow:commit": 1,
           "arrow:current": 2,
+          "arrow:fixture": 1,
+          "arrow:outside": 1,
           "arrow:paint": 1,
           "arrow:result": 1,
           "arrow:send": 1,
@@ -2401,6 +2419,7 @@
           "method:alignOverview": 1,
           "method:applyConversationPreview": 1,
           "method:build": 1,
+          "method:buildScreenSettings": 1,
           "method:cleanup": 1,
           "method:closeLightDetail": 1,
           "method:connectGestures": 1,
@@ -2427,6 +2446,8 @@
           "method:renderLightDetail": 1,
           "method:renderLive": 1,
           "method:renderOverviewAction": 1,
+          "method:renderOverviewFacts": 1,
+          "method:renderOverviewMediaCards": 1,
           "method:renderResourceRail": 1,
           "method:renderScreenSettings": 1,
           "method:renderTopbar": 1,
@@ -2440,11 +2461,7 @@
           "method:scheduleReceipt": 1,
           "method:scheduleTick": 1,
           "method:sendLiveTimer": 1,
-          "method:suspendLiveTimer": 1,
-          "method:toggleScreenMotion": 1,
-          "method:renderOverviewFacts": 1,
-          "method:renderOverviewMediaCards": 1,
-          "arrow:outside": 1
+          "method:suspendLiveTimer": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2484,7 +2501,7 @@
       "reviewedTopbar": "Direct user topbar brief: same registered header on overview/detail/answer; title mirrors canonical scene, one Back and minute-only clock transition. UI22 direct user Screen decision: clock opens the existing canonical Screen and device Dialog; its retained Ro Button opens the preserved Ro composition.",
       "reviewedScreenSettings": {
         "date": "2026-10-23",
-        "scope": "Explicitly human-approved Screen and device composition reuses quick-sheet's native Dialog with applyKitDialog content/header/description/close slots and existing Button variants. openScreenSettings/renderScreenSettings/toggleScreenMotion only open the retained dialog, report honest local network/home/build state and change screen-local motion preference. The one html:div:pv-dialog-content signature is the canonical dialog content slot; no new family, backend setting, integration or household command authority."
+        "scope": "Direct user 23 October approval: redesign the existing quick-sheet Dialog with canonical Slider, Toggle and read-only ListRow. Brightness and automatic dimming are interactive only in the explicitly labelled local screen-device-ready specimen. Unbound hardware remains disabled and unknown. The four screen-device wrapper signatures compose existing slots, not a new component family. No Ro or motion preference, hardware bridge or household command authority. User visual rejection reopens UI: settings and read-only ListRow variants are separated from the speaker icon-grid. Trailing settings Toggle uses the existing primitive in neutral Tile form; native disclosure contains network/build secondary facts. Dialog uses canonical520px/32px. No new component family. Later direct user override: native modals cover the full viewport and are centered in the full viewport; left-only placement is rejected. Toast positioning remains its separate existing contract."
       }
     },
     "dist/speaker-output-view.js": {
@@ -2717,15 +2734,15 @@
           "arrow:addClasses": 1,
           "arrow:attribute": 1,
           "arrow:data": 1,
+          "arrow:paintSliderInput": 1,
           "arrow:recipe": 1,
           "function:applyKitComponent": 1,
+          "function:applyKitDialog": 1,
           "function:applyKitTemplate": 1,
           "function:createKitComponent": 1,
-          "function:createKitTemplate": 1,
-          "function:applyKitDialog": 1,
           "function:createKitDialog": 1,
-          "function:syncKitSlider": 1,
-          "arrow:paintSliderInput": 1
+          "function:createKitTemplate": 1,
+          "function:syncKitSlider": 1
         },
         "roots": [],
         "registrations": {},

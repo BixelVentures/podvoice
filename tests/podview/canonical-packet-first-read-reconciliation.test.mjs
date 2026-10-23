@@ -1,7 +1,7 @@
-import {homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts,robotDetailMetadata} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {homeConnectionPresentation,liveScene} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {initialScene,deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts,robotDetailMetadata} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 const suspendCode=source.slice(source.indexOf(' suspendLiveTimer(){'),source.indexOf('\n reconcileLiveTimer('));
 const suspendLiveTimer=new Function(`return ({${suspendCode}}).suspendLiveTimer`)();
@@ -30,8 +30,8 @@ test('snapshot access denial clears home data immediately; a disconnected networ
  for(const denied of [true,false]){const h=homeHost();h.liveTransport.recoveryBlocked=denied;h.invalidateLiveMusic=()=>{};h.suspendLiveTimer=suspendLiveTimer;h.state.extraTimers=[];connection.call(h,'disconnected');assert.equal(h.state.liveWeather===null,denied);assert.equal(h.state.devices.some(d=>d.id===h.robot.id),!denied);assert.equal(h.renders,1);}
 });
 test('first accepted changed boot or room clears previous home display before new passive read',()=>{
- const start=source.indexOf('if(this.liveSnapshot&&(this.liveSnapshot.bootId!==snapshot.bootId'),end=source.indexOf('this.reconcileLiveTimer(snapshot);',start),boundary=new Function('snapshot',source.slice(start,end));
- for(const key of ['bootId','roomId']){const h=homeHost();h.invalidateLiveMusic=()=>{};boundary.call(h,{...h.liveSnapshot,[key]:'new'});assert.equal(h.state.liveWeather,null);assert.deepEqual(h.state.devices,[h.light]);assert.equal(h.state.focus,'now');assert.equal(h.liveHomeGeneration,1);}
+ const start=source.indexOf('if(this.liveSnapshot&&(this.liveSnapshot.bootId!==snapshot.bootId'),end=source.indexOf('this.reconcileLiveTimer(snapshot);',start),boundary=new Function('liveScene',`return function(snapshot){${source.slice(start,end)}}`)(liveScene);
+ for(const key of ['bootId','roomId']){const h=homeHost();h.state={...initialScene(),...h.state};h.invalidateLiveMusic=()=>{};const snapshot={...h.liveSnapshot,[key]:'new',voice:{sessionId:'current'},timers:{status:'observed',epoch:'epoch',items:[]}};boundary.call(h,snapshot);assert.equal(h.liveSnapshot,snapshot,'current scope is adopted before reconciliation');assert.equal(h.state.liveWeather,null);assert.equal(h.state.devices.some(device=>device.id===h.robot.id),false,'old private device is removed before new passive read');assert.equal(h.state.devices.length,1);assert.equal(h.state.devices[0].id,'podvoice-light-unconfigured','actual liveScene keeps only canonical honest empty navigation');assert.equal(h.state.focus,'now');assert.equal(h.liveHomeGeneration,1);}
 });
 
 

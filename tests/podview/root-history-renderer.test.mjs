@@ -273,3 +273,27 @@ test('every catalogue answer specimen renders through its retained canonical fam
  }
  assert.equal(count,88);
 });
+
+
+test('retained step navigation binds Next to the canonical primary Button and emits only current owner context',()=>{
+ const guide=document.createElement('pv-step-guide'),steps=['Find papir.','Fold papiret.','Giv flyet vinger.'],events=[];guide.addEventListener('pv-action',event=>events.push(event.detail));guide.data={steps,index:0,connected:true,state:'ready',context:{sessionId:'session',taskId:'guide-task',revision:1}};const next=guide.next,back=guide.back,finish=guide.finish;assert.equal(next.getAttribute('data-kit'),'button');assert.equal(next.getAttribute('data-kit-variant'),'primary');assert.equal(next.textContent,'Næste trin');assert.equal(back.disabled,true);next.click();assert.deepEqual(events,[{type:'action.requested',session_id:'session',task_id:'guide-task',revision:1,resource_id:null,action_id:'step',option_id:'next',value:undefined}]);
+ const previous=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:true});try{guide.data={steps,index:1,connected:true,state:'ready',context:{sessionId:'session',taskId:'guide-task',revision:2}};assert.equal(guide.next,next);assert.equal(guide.back,back);assert.equal(guide.progress.value,2);assert.equal(guide.titleNode.textContent,steps[1]);assert.equal(next.getAttribute('data-kit-variant'),'primary');back.click();assert.equal(events.at(-1).revision,2);assert.equal(events.at(-1).option_id,'back');guide.data={steps,index:2,connected:true,state:'ready',context:{sessionId:'session',taskId:'guide-task',revision:3}};assert.equal(guide.next,next);assert.equal(next.hidden,true);assert.equal(guide.finish,finish);assert.equal(finish.hidden,false);finish.click();assert.equal(events.at(-1).action_id,'finish');assert.equal(events.at(-1).revision,3);guide.data={steps,index:1,connected:false,state:'ready',context:{sessionId:'session',taskId:'guide-task',revision:4}};const count=events.length;next.click();back.click();assert.equal(events.length,count);guide.data={readOnly:true,stepItems:[{id:'source-step',text:'Bevaret instruktion.'}],connected:false,state:'ready'};assert.equal(guide.actions.hidden,true);assert.equal(guide.outline.children[0].textContent,'Bevaret instruktion.');assert.equal(guide.next,next);}finally{globalThis.matchMedia=previous;}
+});
+
+test('completed guide visibly confirms finish, blocks repeated finish and restores retained navigation for readback',()=>{
+ const guide=document.createElement('pv-step-guide'),steps=['Find papir.','Fold papiret.'],events=[];
+ guide.addEventListener('pv-action',event=>events.push(event.detail));
+ guide.data={steps,index:1,connected:true,state:'ready',context:{sessionId:'session',taskId:'finished-guide',revision:1}};
+ const meta=guide.meta,finish=guide.finish,next=guide.next,back=guide.back,title=guide.titleNode;
+ finish.click();assert.equal(events.length,1);assert.equal(events[0].action_id,'finish');
+ guide.data={steps,index:1,connected:true,state:'complete',context:{sessionId:'session',taskId:'finished-guide',revision:2}};
+ assert.equal(guide.meta,meta);assert.equal(meta.textContent,'Alle trin er gennemgået');assert.equal(guide.finish,finish);assert.equal(finish.textContent,'Afsluttet');assert.equal(finish.disabled,true);assert.equal(finish.hidden,false);assert.equal(guide.titleNode,title);assert.equal(title.textContent,steps[1]);assert.equal(guide.progress.value,2);
+ finish.click();finish.dispatchEvent(new Event('click'));assert.equal(events.length,1);
+ back.click();assert.equal(events.length,2);assert.equal(events.at(-1).option_id,'back');assert.equal(events.at(-1).revision,2);
+ const previous=globalThis.matchMedia;globalThis.matchMedia=()=>({matches:true});try{
+  guide.data={steps,index:0,connected:true,state:'ready',context:{sessionId:'session',taskId:'finished-guide',revision:3}};
+  assert.equal(guide.meta,meta);assert.equal(meta.textContent,'Trin 1 af 2');assert.equal(guide.next,next);assert.equal(next.hidden,false);assert.equal(next.disabled,false);assert.equal(guide.finish,finish);assert.equal(finish.textContent,'Færdig');assert.equal(finish.hidden,true);assert.equal(guide.titleNode,title);assert.equal(title.textContent,steps[0]);next.click();assert.equal(events.at(-1).revision,3);
+  guide.data={steps,index:1,connected:true,state:'ready',context:{sessionId:'session',taskId:'finished-guide',revision:4}};
+  assert.equal(finish.hidden,false);assert.equal(finish.disabled,false);assert.equal(finish.textContent,'Færdig');
+ }finally{globalThis.matchMedia=previous;}
+});

@@ -193,7 +193,6 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:24px}
 /* A compact light glyph has breathing room inside the shared circular badge. */
 .resource-preview[data-kind=light] .resource-visual>img{width:32px!important;height:32px!important}
 
-#device-detail .pv-component[data-component=light-widget] .pv-instrument>img{width:64px!important;height:64px!important}
 .resource-preview[data-progress-known=false] .resource-dial-progress{visibility:hidden}
 
 /* Stable activity anatomy and an explicit route back to the resting screen. */
