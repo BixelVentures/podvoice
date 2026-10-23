@@ -14,6 +14,7 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 MODEL = "gpt-6-luna"  # Existing backend model ID, not a measured latency promise.
 SCHEMA = "podview.passive-weather-advice.v1"
@@ -253,7 +254,8 @@ class WeatherAdviceOwner:
             source_token,
         )
         self.clock, self.deadline = clock, deadline
-        self.records, self.closed = {}, False
+        self.records: dict[tuple[str, str, str], dict[str, Any]] = {}
+        self.closed = False
 
     def binding(self, boot_id, room_id, weather):
         if (

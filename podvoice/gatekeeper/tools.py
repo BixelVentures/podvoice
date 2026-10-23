@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -322,9 +322,15 @@ def _mood_clock_payload(data):
     return data
 
 
+if TYPE_CHECKING:
+    from .podview_weather_advice import FastWeatherAdviceProvider
+
+
 class ToolRouter:
     """Local tools + HA-MCP tools behind the ToolBridgeLike surface
     (``declarations()`` / ``dispatch()``) the engines and console already use."""
+
+    podview_weather_provider: FastWeatherAdviceProvider | None
 
     def __init__(
         self,

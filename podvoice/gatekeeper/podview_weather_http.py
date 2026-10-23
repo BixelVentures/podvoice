@@ -67,7 +67,8 @@ async def weather_advice(request):
         return _error("weather_advice_unavailable", 503)
     weather = copy.deepcopy(cached[2].get("weather"))
     binding = tools.podview_weather_binding()
-    provider = owner.provider
+    advice_owner = owner
+    provider = advice_owner.provider
     provider_binding = (
         (provider._key, provider.model, provider.allowance, provider.budget)
         if hasattr(provider, "_key")
@@ -89,7 +90,7 @@ async def weather_advice(request):
             and bridge.sessions.get(room) is session
             and session is not None
             and getattr(tools, "podview_weather_advice", None) is owner
-            and owner.provider is provider
+            and advice_owner.provider is provider
             and (
                 provider_binding is None
                 or provider_binding

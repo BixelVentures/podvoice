@@ -43,6 +43,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/podview_weather_brief.py",
         "podvoice/gatekeeper/podview_weather_budget.py",
         "podvoice/gatekeeper/podview_weather_http.py",
+        "podvoice/gatekeeper/tools.py",
         "podvoice/gatekeeper/static/podview/answer-widget.js",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/podview/assets/icons/README.md",
@@ -134,8 +135,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "692347a394eb9939d3e4cb41d53835f600c790ddd73b1153553aea1156bbb827"
-PROFILE_AST = "bf58d3b7b9224a1489cd558825431fc97f80b6d2a8ad297ce7dd60ee4dbc262b"
+MANIFEST_SHA = "5d3f031b21d14ea680afbc3ad1f2e409b0c5b05c08a34c8dc418b8a0a9656b2d"
+PROFILE_AST = "49143df2734ee01f87de6b3be00a6081e43ac649e4408fb1d6453f3094d196ee"
 
 
 def record_at(root: Path) -> dict | None:
