@@ -32,6 +32,14 @@ export function updateResourceFacts(node,{facts=[],context=''}={}){
  });
  if(retained.list.hidden!==!items.length)retained.list.hidden=!items.length;if(retained.context.textContent!==note)retained.context.textContent=note;if(retained.context.hidden!==!note)retained.context.hidden=!note;return retained;
 }
+// Large facts share the existing two-column footprint. A full-row native
+// meter occupies two cells; only the actually rendered direct action reserves
+// the lower row. Every source row remains retained for the other sizes.
+export function applyResourceFactBudget(node){
+ const facts=node.resourceFacts;if(!facts)return;const size=node.overviewShell?.dataset.kitSize||node.dataset.kitSize,large=size==='l',limit=node.overviewAction&&!node.overviewAction.hidden?2:4;let cells=0,visible=0;
+ for(const item of facts.items){const row=facts.rows.get(item.id)?.node;if(!row)continue;const duplicate=node.dataset.kind==='vacuum'&&['battery','room'].includes(item.id)||node.dataset.kind==='light'&&node.dataset.hasOverviewValue==='true'&&item.id==='on-count',cost=item.meter?2:1,start=cost===2&&cells%2?cells+1:cells,hidden=large&&(duplicate||start+cost>limit);if(!hidden){visible++;if(large)cells=start+cost;}if(row.hidden!==hidden)row.hidden=hidden;}
+ const hidden=!visible;if(facts.list.hidden!==hidden)facts.list.hidden=hidden;
+}
 export function createResourceTile(open){
  const b=document.createElement('button');b.type='button';b.className='resource-preview';applyKitComponent(b,'tile');
  b.innerHTML='<span class="resource-visual" aria-hidden="true"><svg viewBox="0 0 80 80"><circle class="resource-dial-track" cx="40" cy="40" r="34"/><circle class="resource-dial-progress" cx="40" cy="40" r="34" pathLength="100"/></svg><img alt=""></span><span class="resource-label"><span class="resource-value"></span><strong><span class="resource-title-full"></span><span class="resource-title-short" aria-hidden="true"></span></strong><small></small></span><img class="resource-chevron" src="assets/icons/chevron-right.svg" alt="">';
@@ -73,9 +81,7 @@ export function updateResourceTile(b,r){
  const size=b.overviewShell?.dataset.kitSize||b.dataset.kitSize,overviewRobot=vacuum&&b.parentNode?.id!=='resource-rail',lightStatus=lightCount?[pending?'Afventer svar':'',lightCount.stale||r.stale===true?'Sidst kendt':'',Number(lightCount.value.split(' ')[0])?'Tændt':'Slukket'].filter(Boolean).join(' · '):visibleDetail;
  const batteryFact=facts?.items.find(item=>item.id==='battery'),roomFact=facts?.items.find(item=>item.id==='room'),mediumBattery=knownBattery||(batteryFact?`Batteri ${batteryFact.value}${batteryFact.stale&&!stale?' · sidst kendt':''}`:''),mediumContext=context||roomFact?.value||'';
  const secondaryDetail=vacuum?(overviewRobot?[robotFeedback,...(unknownOutcome?[]:[mediumBattery,mediumContext])]:[robotFeedback,factIds.has('room')?'':context,factIds.has('progress')?'':knownProgress,factIds.has('battery')?'':knownBattery]).filter(Boolean).join(' · '):r.kind==='light'?lightStatus:pending?visibleDetail:lightStatus;if(detail.textContent!==secondaryDetail)detail.textContent=secondaryDetail;const detailHidden=!secondaryDetail;if(detail.hidden!==detailHidden)detail.hidden=detailHidden;
- // A Large overview has at most four distinct extra facts. Retain the source
- // rows for other sizes, but never repeat the core battery/room/count roles.
- if(facts){let extraCount=0;for(const item of facts.items){const row=facts.rows.get(item.id)?.node;if(!row)continue;const duplicate=vacuum&&['battery','room'].includes(item.id)||!!lightCount&&item.id==='on-count',hidden=size==='l'&&(duplicate||extraCount>=4);if(size==='l'&&!duplicate)extraCount++;if(row.hidden!==hidden)row.hidden=hidden;}const hidden=!facts.items.length||size==='l'&&!facts.items.some(item=>!facts.rows.get(item.id)?.node.hidden);if(facts.list.hidden!==hidden)facts.list.hidden=hidden;}
+
  const value=b.querySelector('.resource-value'),dialValue=timer?reading:vacuum?[stale&&robotStatus!=='unavailable'?'Sidst kendt':'',robotLabel].filter(Boolean).join(' · '):lightCount?.value||'';if(value.textContent!==dialValue)value.textContent=dialValue;const valueHidden=!timer&&!vacuum&&!lightCount;if(value.hidden!==valueHidden)value.hidden=valueHidden;
  const hasValue=String(!!lightCount);if(r.kind==='light'&&b.dataset.hasOverviewValue!==hasValue)b.dataset.hasOverviewValue=hasValue;
  const icon=b.querySelector('.resource-visual img');if(icon.hidden)icon.hidden=false;
@@ -88,6 +94,7 @@ export function updateResourceTile(b,r){
  if(b.style.getPropertyValue('--remaining')!==remaining)b.style.setProperty('--remaining',remaining);
  // Use the rendered value, title and detail in their actual DOM order.
  if(b.getAttribute('aria-label')!==null)b.removeAttribute('aria-label');
+ applyResourceFactBudget(b);
 }
 
 

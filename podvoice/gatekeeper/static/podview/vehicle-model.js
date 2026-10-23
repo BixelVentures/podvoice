@@ -1,6 +1,6 @@
 import {isVehicleObservation} from './ha-home-observation.js';
-// Tesla is a read-only UI extension. No Tesla owner is connected yet: no live
-// snapshot, Spotify player or nearby device may supply a vehicle state here.
+// Tesla admits the closed passive HA observation below, never command authority.
+// Spotify/player data and arbitrary live-shaped objects cannot supply vehicle state.
 export const VEHICLE_ARTWORK='assets/vehicle-gray-model-y-2023.webp';
 
 export function unconnectedVehicleModel(){
@@ -13,8 +13,8 @@ export function vehicleFixture({charging=false,now=Date.now(),controls=false}={}
 }
 
 export function vehicleModel(value){
- // No accepted live owner contract exists. Fail closed for every remote shape,
- // even if it happens to contain plausible battery/lock/temperature fields.
+ // Only the admitted passive HA shape is accepted. Other remote shapes fail
+ // closed even when they contain plausible battery/lock/temperature fields.
  if(isVehicleObservation(value))return value.stale&&!value.status.startsWith('Sidst kendt: ')?{...value,status:`Sidst kendt: ${value.status}`} :value;
  if(value?.kind!=='vehicle'||value.mode!=='fixture')return unconnectedVehicleModel();
  const base=vehicleFixture({charging:value.fixtureCase==='charging',now:Number.isFinite(value.charging?.endsAt)?(value.charging.endsAt-2700)*1000:Date.now(),controls:value.controlsPreview===true});
@@ -32,4 +32,13 @@ export function vehiclePreviewAction(value,{action,value:amount,confirmed=false,
  if(action==='charge-limit'&&Number.isInteger(amount)&&amount>=50&&amount<=100)patch={charging:{...model.charging,limitPercent:amount}};
  if(action==='lock'&&confirmed===true)patch={locked:!model.locked};
  return patch?vehicleModel({...model,...patch,revision:model.revision+1}):value;
+}
+
+// A finite display acknowledgement of a new passive source observation, never
+// simulated charging progress. Both existing vehicle surfaces use this predicate.
+export function vehicleChargeUpdate(previous,model,{connected=false,scope='',sourceScope='',readGranted=false,visible=true,suppress=false}={}){
+ const percent=model?.batteryPercent,status=model?.charging?.status,observedAt=model?.observedAt;
+ const eligible=connected===true&&readGranted===true&&typeof scope==='string'&&scope.length>0&&scope===sourceScope&&visible===true&&isVehicleObservation(model)&&model.stale!==true&&Number.isFinite(observedAt)&&Number.isFinite(percent)&&percent>=0&&percent<=100;
+ const sameScope=previous?.scope===scope,retain= sameScope&&Number.isFinite(previous?.observedAt)&&(!Number.isFinite(observedAt)||observedAt<=previous.observedAt);
+ return {scope,eligible,observedAt:retain?previous.observedAt:observedAt,percent:retain?previous.percent:percent,status:retain?previous.status:status,cancel:!eligible||status!=='charging'||!sameScope,cue:!suppress&&eligible&&previous?.eligible===true&&sameScope&&observedAt>previous.observedAt&&status==='charging'&&(previous.status!=='charging'||percent!==previous.percent)};
 }

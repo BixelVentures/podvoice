@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createResourceTile,updateResourceTile,updateResourceFacts,resourceOverviewAction} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
+import {createResourceTile,updateResourceTile,updateResourceFacts,resourceOverviewAction,applyResourceFactBudget} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
 import {devicePresentation} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 function fixture(){
@@ -124,4 +124,17 @@ test('Large limits distinct extra facts to four without dropping retained source
  updateResourceTile(node,model);assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.resourceFacts.items.length,6);
  assert.deepEqual([...node.resourceFacts.rows].filter(([,row])=>!row.node.hidden).map(([id])=>id),['area','duration','mode','map']);
  const retained=node.resourceFacts.rows.get('finished').node;node.overviewShell.dataset.kitSize='m';updateResourceTile(node,model);assert.equal(retained.hidden,false);assert.equal(node.resourceFacts.rows.get('finished').node,retained);
+});
+
+test('Large fact budget counts native meter spans, aligns full rows and restores retained source rows for S and M',()=>{
+ const {node}=fixture();node.overviewShell={dataset:{kitSize:'l'}};
+ const input={kind:'vacuum',title:'Robotstøvsuger',status:'cleaning',target:'robot',facts:[{id:'battery',label:'Batteri',value:'76 %'},{id:'progress',label:'Fremskridt',value:'38 %',meter:{value:38,max:100}},{id:'area',label:'Areal',value:'12,5 m²'},{id:'duration',label:'Tid',value:'10 min'},{id:'mode',label:'Tilstand',value:'Støvsugning og gulvvask'},{id:'map',label:'Kort',value:'Stueplan'}]};
+ const shown=()=>node.resourceFacts.list.children.filter(row=>!row.hidden).map(row=>row.dataset.factId);updateResourceTile(node,input);const rows=new Map(node.resourceFacts.rows),meter=rows.get('progress').meter;
+ assert.deepEqual(shown(),['progress','area','duration'],'one full-row meter plus two cells consumes exactly two grid rows');
+ node.overviewAction={hidden:false,disabled:false};applyResourceFactBudget(node);assert.deepEqual(shown(),['progress'],'the actual visible direct action reserves the second grid row');node.overviewAction.disabled=true;applyResourceFactBudget(node);assert.deepEqual(shown(),['progress'],'pending disabled action still reserves its row');
+ let writes=0;for(const row of rows.values()){let hidden=row.node.hidden;Object.defineProperty(row.node,'hidden',{get:()=>hidden,set:value=>{writes++;hidden=value;}});}applyResourceFactBudget(node);updateResourceTile(node,input);assert.equal(writes,0,'an unchanged budget performs no visibility writes');
+ node.overviewAction.hidden=true;applyResourceFactBudget(node);assert.deepEqual(shown(),['progress','area','duration']);
+ for(const size of ['s','m']){node.overviewShell.dataset.kitSize=size;updateResourceTile(node,input);assert.equal(shown().length,6);for(const [id,row]of rows)assert.equal(node.resourceFacts.rows.get(id),row);assert.equal(node.resourceFacts.rows.get('progress').meter,meter);}
+ node.overviewShell.dataset.kitSize='l';updateResourceTile(node,input);assert.deepEqual(shown(),['progress','area','duration']);
+ const ordered={...input,facts:[input.facts[2],input.facts[1],input.facts[3],input.facts[4]]};updateResourceTile(node,ordered);assert.deepEqual(shown(),['area','progress'],'a meter after an odd single cell begins the next row rather than creating a third');node.overviewAction.hidden=false;applyResourceFactBudget(node);assert.deepEqual(shown(),['area','duration'],'an over-budget full-row meter is retained hidden while a later single cell can use the remaining first row');assert.equal(node.resourceFacts.rows.get('progress').meter,meter);
 });

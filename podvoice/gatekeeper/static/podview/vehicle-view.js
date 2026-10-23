@@ -1,4 +1,4 @@
-import {vehicleModel,VEHICLE_ARTWORK} from './vehicle-model.js';
+import {vehicleModel,vehicleChargeUpdate,VEHICLE_ARTWORK} from './vehicle-model.js';
 import {applyKitComponent,createKitComponent,applyKitTemplate} from './ui/kit.js';
 const assign=(node,value)=>{const text=String(value??'');if(node.textContent!==text)node.textContent=text;};
 
@@ -36,7 +36,7 @@ export class VehicleView{
   this.history=make('section','device-history vehicle-history pv-history');this.history.dataset.detailZone='history';this.historyTitle=make('h2','pv-section-header','Seneste hændelser');this.timeline=make('pv-activity-timeline');this.empty=make('p','robot-history-note','Ingen hændelser at vise endnu.');this.history.append(this.historyTitle,this.timeline,this.empty);
   root.classList.add('vehicle-view');root.append(this.heading,this.hero,this.secondary,this.history);this.render();
  }
- render(value,{connected=true,connectionDetail=null}={}){
+ render(value,{connected=true,connectionDetail=null,chargeContext}={}){
   this.connected=connected;
   const model=vehicleModel(value);this.model=model;this.root.dataset.vehicleMode=model.mode;this.root.dataset.example=String(model.mode==='fixture');this.hero.dataset.kitState=model.mode==='unconnected'?'unavailable':'ready';const message=model.mode==='unconnected';if(message){if(this.hero.getAttribute('data-kit-variant')!=='message')this.hero.setAttribute('data-kit-variant','message');}else if(this.hero.getAttribute('data-kit-variant')!==null)this.hero.removeAttribute('data-kit-variant');
   // The passive HA contract admits no vehicle model/year or artwork metadata.
@@ -45,7 +45,9 @@ export class VehicleView{
   assign(this.title,model.title);assign(this.context,model.context);assign(this.status,model.status==='Lader'?'Bilen lader':model.status);assign(this.connectionNote,connectionDetail||'Tilføj i Home Assistant');this.connectionNote.hidden=model.mode!=='unconnected';this.content.hidden=model.mode==='unconnected';
   assign(this.batteryValue,model.batteryPercent===null?'—':`${model.batteryPercent} %`);this.batteryGroup.hidden=model.batteryPercent===null;assign(this.rangeValue,model.rangeKm===null?'—':`${model.rangeKm} km`);this.rangeGroup.hidden=model.rangeKm===null;
   const known=model.batteryPercent!==null;this.rail.dataset.known=String(known);this.rail.hidden=!known;this.meter.hidden=!known;this.rail.setAttribute('aria-label',known?`Batteri ${model.batteryPercent} procent`:'Batteriniveau ukendt');
-  if(known)this.meter.value=model.batteryPercent;else this.meter.removeAttribute('value');
+  if(known){if(this.meter.value!==model.batteryPercent)this.meter.value=model.batteryPercent;}else this.meter.removeAttribute('value');
+  const charge=vehicleChargeUpdate(this.chargePresentation,model,chargeContext),motion=this.root.closest?.('pv-widget-host')?.motion;this.chargePresentation=charge;
+  if(charge.cancel||charge.cue){this.chargeAnimation?.cancel();this.chargeAnimation=null;}if(charge.cue)this.chargeAnimation=motion?.animate(this.meter,[{opacity:.65},{opacity:1}],120)||null;
   const disconnected=model.mode==='unconnected';this.measurements.hidden=disconnected;this.secondary.hidden=disconnected;this.history.hidden=disconnected||!model.history.length;this.next.hidden=true;const climate=disconnected?'Kræver tilslutning':({off:'Slukket',heat:'Varmer',cool:'Køler',auto:'Automatisk',heat_cool:'Varme/køling',fan_only:'Ventilation',dry:'Affugtning'})[model.climate.status]||'Ukendt';assign(this.climate.status,climate);
   // Read-only details show admitted observations, never a catalogue of promised controls.
   const power=Number.isFinite(model.charging.powerKw)?`${model.charging.powerKw.toLocaleString('da-DK')} kW`:null,endsAt=model.charging.status==='charging'&&Number.isFinite(model.charging.endsAt)?new Date(model.charging.endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}):null;
@@ -74,5 +76,5 @@ export class VehicleView{
   this.temperatureDown.disabled=!this.controlsEnabled||m.climate.targetTemperatureC<=16;this.temperatureUp.disabled=!this.controlsEnabled||m.climate.targetTemperatureC>=30;this.climateToggle.disabled=!this.controlsEnabled;
   const confirm=this.controlsEnabled&&this.confirmRevision===m.revision;this.lockButton.hidden=confirm;this.lockConfirm.hidden=!confirm;this.lockCancel.hidden=!confirm;assign(this.lockButton,m.locked?'Lås op':'Lås bilen');assign(this.lockConfirm,m.locked?'Bekræft oplåsning':'Bekræft låsning');this.lockButton.disabled=!this.controlsEnabled;this.lockConfirm.disabled=!this.controlsEnabled;this.lockCancel.disabled=!this.controlsEnabled;
  }
- cleanup(){for(const [node,event,fn]of this.controlListeners)node.removeEventListener(event,fn);this.next.removeEventListener('click',this.onNext);this.image.removeEventListener('error',this.onImageError);this.image.removeEventListener('load',this.onImageLoad);}
+ cleanup(){this.chargeAnimation?.cancel();this.chargeAnimation=null;this.chargePresentation=null;for(const [node,event,fn]of this.controlListeners)node.removeEventListener(event,fn);this.next.removeEventListener('click',this.onNext);this.image.removeEventListener('error',this.onImageError);this.image.removeEventListener('load',this.onImageLoad);}
 }

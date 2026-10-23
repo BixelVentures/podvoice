@@ -22,6 +22,27 @@ export function searchSample(body,account,query,snapshot){
  return {tracks,context};
 }
 
+// Account-library reads use their own closed native schema. "Playliste" is a UI
+// type, never a creator claim; opaque occurrences still require a fresh offer.
+export function accountPlaylistsSample(body,account,snapshot,requestedAt=Date.now()){
+ const exact=(value,keys)=>!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
+ const outer=['ok','data',...(Object.hasOwn(body||{},'candidateSet')?['candidateSet']:[])],data=body?.data;
+ if(!exact(body,outer)||body.ok!==true||!exact(data,['ok','schema','config_entry_id','owner_epoch','source','coverage','limit','returned_count','source_has_more','playlists'])||data.ok!==true||data.schema!=='podconnect.user_playlists.v1'||!text(account,1024)||data.config_entry_id!==account||!text(data.owner_epoch,128)||data.source!=='spotify_web_api'||data.coverage!=='first_page'||data.limit!==20||typeof data.source_has_more!=='boolean'||!Array.isArray(data.playlists)||data.playlists.length>20||!integer(data.returned_count,0,20)||data.returned_count!==data.playlists.length||!text(snapshot?.bootId,1024)||!text(snapshot?.roomId,1024)||!snapshot.capabilities?.musicRead?.includes('account_playlists')||!Number.isFinite(requestedAt)||requestedAt>Date.now()||requestedAt+60000<=Date.now())return null;
+ const tracks=[],uris=new Set();for(const row of data.playlists){
+  if(!exact(row,['uri','name',...(Object.hasOwn(row||{},'artwork')?['artwork']:[])])||!PLAYLIST.test(row.uri)||uris.has(row.uri)||!text(row.name,256)||!row.name.trim())return null;
+  const artwork=Object.hasOwn(row,'artwork')?spotifyArtwork(row.artwork,row.uri):null;if(Object.hasOwn(row,'artwork')&&!artwork)return null;
+  uris.add(row.uri);tracks.push({uri:row.uri,name:row.name,artist:'Playliste',artwork});
+ }
+ const source={tracks,sourceKind:'account_playlists',ownerEpoch:data.owner_epoch,coverage:'first_page',sourceHasMore:data.source_has_more,expiresAt:requestedAt+60000,context:null,items:[]};
+ if(!Object.hasOwn(body,'candidateSet'))return source;
+ const c=body.candidateSet,keys=['schema','bootId','roomId','configEntryId','source','query','revisionScope','sessionId','turnId','taskId','inputRevision','revision','candidateSetId','sourceKind','items'];
+ if(!tracks.length||!exact(c,keys)||c.schema!=='podview.music-search-context.v1'||c.source!=='spotify_web_api'||c.sourceKind!=='account_playlists'||c.query!=='account_playlists:collection'||!HEX64.test(c.candidateSetId)||!['music_selection','answer_task'].includes(c.revisionScope)||!integer(c.revision,0,Number.MAX_SAFE_INTEGER)||!integer(c.inputRevision,0,Number.MAX_SAFE_INTEGER)||['bootId','roomId','configEntryId','sessionId','turnId','taskId'].some(key=>!text(c[key],1024))||!Array.isArray(c.items)||c.items.length!==tracks.length)return null;
+ const ids=new Set(),indices=new Set(),items=[];for(const row of c.items){if(!exact(row,['id','index'])||!OPTION.test(row.id)||ids.has(row.id)||!integer(row.index,0,tracks.length-1)||indices.has(row.index))return null;ids.add(row.id);indices.add(row.index);items.push({id:row.id,index:row.index});}
+ const scopeCurrent=c.bootId===snapshot.bootId&&c.roomId===snapshot.roomId&&c.configEntryId===account&&snapshot.capabilities.musicSelection===true&&(c.revisionScope==='music_selection'||['sessionId','turnId','taskId','inputRevision','revision'].every(key=>snapshot.answers?.[key]===c[key])&&snapshot.voice?.sessionId===c.sessionId);
+ if(!scopeCurrent)return source;
+ return {...source,items,context:{schema:c.schema,bootId:c.bootId,roomId:c.roomId,configEntryId:c.configEntryId,source:c.source,query:c.query,sourceKind:c.sourceKind,revisionScope:c.revisionScope,sessionId:c.sessionId,turnId:c.turnId,taskId:c.taskId,inputRevision:c.inputRevision,revision:c.revision,candidateSetId:c.candidateSetId}};
+}
+
 // Collection occurrence IDs are opaque source references, never play authority.
 export function collectionSample(body,account,kind,snapshot,requestedAt=Date.now()){
  const data=body?.data,context=body?.candidateSet,selection=body?.selection,themes=themesFor(kind),playlist=playlistKind(kind);
@@ -32,7 +53,8 @@ export function collectionSample(body,account,kind,snapshot,requestedAt=Date.now
  return {tracks,context:{schema:context.schema,bootId:context.bootId,roomId:context.roomId,configEntryId:account,source:context.source,query:context.query,revisionScope:context.revisionScope,sessionId:context.sessionId,turnId:context.turnId,taskId:context.taskId,inputRevision:context.inputRevision,revision:context.revision,candidateSetId:context.candidateSetId},items,sourceKind:kind,expiresAt:requestedAt+60000};
 }
 export function collectionCurrent(source,snapshot,account){
- const c=source?.context;if(!c||!['top','recent','liked','mood','feeling'].includes(source.sourceKind)||!Number.isFinite(source.expiresAt)||source.expiresAt<=Date.now()||c.bootId!==snapshot?.bootId||c.roomId!==snapshot?.roomId||c.configEntryId!==account||snapshot?.capabilities?.musicSelection!==true||!snapshot.capabilities.musicRead?.includes(source.sourceKind))return false;
+ const c=source?.context,accountPlaylists=source?.sourceKind==='account_playlists';if(!c||!(['top','recent','liked','mood','feeling'].includes(source.sourceKind)||accountPlaylists)||!Number.isFinite(source.expiresAt)||source.expiresAt<=Date.now()||c.bootId!==snapshot?.bootId||c.roomId!==snapshot?.roomId||c.configEntryId!==account||snapshot?.capabilities?.musicSelection!==true||!snapshot.capabilities.musicRead?.includes(source.sourceKind))return false;
+ if(accountPlaylists&&(!text(source.ownerEpoch,128)||source.coverage!=='first_page'||typeof source.sourceHasMore!=='boolean'||c.sourceKind!=='account_playlists'||c.query!=='account_playlists:collection'))return false;
  return c.revisionScope==='answer_task'?['sessionId','turnId','taskId','inputRevision','revision'].every(key=>snapshot.answers?.[key]===c[key])&&snapshot.voice?.sessionId===c.sessionId:c.revisionScope==='music_selection';
 }
 export function collectionSelection(source,indices){

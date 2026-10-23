@@ -250,3 +250,11 @@ test('an artwork crossfade waits for current decode and a replacement cancels st
 test('refresh slot reuse cannot carry previous account or room content into a new scope',()=>{
  const f=retainedResultSurface(),cards=resultCards();f.host.liveCatalogue={account:'one'};f.host.liveSnapshot={bootId:'boot',roomId:'kitchen'};f.view.render({cards});const old=[...f.nodes.get('result-list').children];f.view.render({cards,busy:true});f.host.liveCatalogue.account='two';f.view.render({cards:cards.map(card=>({...card,id:'different-'+card.id}))});assert.equal(f.nodes.get('result-list').children.some(row=>old.includes(row)),false);assert.equal(f.view.contentTransitions.size,0);f.view.cleanup();
 });
+
+test('account source provenance uses the existing reserved footer without displacing cards or hiding errors',()=>{
+ const f=retainedResultSurface(),cards=sourceMusicCards([{uri:'spotify:playlist:0123456789ABCDEFGHIJKL',name:'Authored playlist',artist:'Playliste'}],'account_playlists'),summary='Dine playlister · Første side · 4 ejede eller fulgte playlister';
+ f.view.render({cards,collection:'top',sourceSummary:summary});const row=[...f.view.rows.values()][0],footer=f.view.empty;assert.equal(footer.hidden,false);assert.equal(footer.textContent,summary);
+ f.view.render({cards,collection:'top',sourceSummary:summary,busy:true});assert.equal(footer.hidden,true);assert.equal([...f.view.rows.values()][0],row);
+ f.view.render({cards,collection:'top',sourceSummary:summary,status:'Kunne ikke opdatere · viser seneste udvalg.'});assert.equal(footer.hidden,false);assert.match(footer.textContent,/Kunne ikke hente/);assert.equal(footer.dataset.refreshOutcome,'error');assert.equal([...f.view.rows.values()][0],row);
+ f.view.render({cards,collection:'top'});assert.equal(footer.hidden,true);f.view.cleanup();
+});

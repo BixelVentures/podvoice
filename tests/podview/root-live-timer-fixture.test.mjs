@@ -1,30 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fixtureServer} from '../../scripts/live-fixture.mjs';
+import {Readable} from 'node:stream';
+import {fixtureRequest} from '../../scripts/live-fixture.mjs';
+const request=(endpoint,body)=>new Promise((resolve,reject)=>{
+ const req=Readable.from(body?[JSON.stringify(body)]:[]);req.url='/view/api/'+endpoint;
+ let text='',status=200;const res={setHeader(){},writeHead(value){status=value;},end(value=''){text+=value;resolve({status,body:text?JSON.parse(text):null});}};
+ fixtureRequest(req,res).catch(reject);
+});
+const action=room=>({bootId:'test-only',roomId:room,taskId:'timers:fixture-timer-epoch',revision:1,requestId:crypto.randomUUID(),action:'timer.start',args:{seconds:300,name:''}});
+test('inert actual fixture handler retains pair gate, UNKNOWN and authoritative scope changes',async()=>{
+ const denied=await request('actions?room=timer-unknown',action('timer-unknown'));assert.equal(denied.status,409);
+ await request('pair');
+ const unknown=action('timer-unknown'),reply=await request('actions?room=timer-unknown',unknown);
+ assert.deepEqual(reply.body,{ok:false,requestId:unknown.requestId,outcome:'unknown',retryAllowed:false});
+ assert.deepEqual((await request('snapshot?room=timer-unknown')).body.timers.items,[]);
+ const waiting=await request('actions?room=timer-no-observation',action('timer-no-observation'));
+ assert.equal(waiting.body.outcome,'accepted');assert.ok(waiting.body.timerId);assert.deepEqual((await request('snapshot?room=timer-no-observation')).body.timers.items,[]);
+ await Promise.all(['timer-boot-change','timer-room-change','timer-epoch-change'].map(async room=>{
+  const receipt=(await request('actions?room='+room,action(room))).body;
+  await new Promise(resolve=>setTimeout(resolve,1550));const observed=(await request('snapshot?room='+room)).body;
+  assert.equal(observed.timers.items[0].id,receipt.timerId,'same ID alone cannot establish old operation scope');
+  assert.equal(observed.bootId,room==='timer-boot-change'?'fixture-next-boot':'test-only');
+  assert.equal(observed.roomId,room==='timer-room-change'?'fixture-other-room':room);
+  assert.equal(observed.timers.epoch,room==='timer-epoch-change'?'fixture-next-epoch':'fixture-timer-epoch');
+  assert.equal((await request('actions?room='+room,{...action(room),action:'timer.cancel',args:{timer_id:receipt.timerId}})).status,409,'old owner request remains fenced');
+ }));
+});
 
-test('loopback timer fixture preserves admission and proves both exact-ID arrival orders',async()=>{
- await new Promise(resolve=>fixtureServer.listen(0,'127.0.0.1',resolve));
- const base=`http://127.0.0.1:${fixtureServer.address().port}/view/api/`;
- const controllers=[];
- try{
-  const request=(room,body)=>fetch(base+'actions?room='+room,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const body=(room,revision=1)=>({bootId:'test-only',roomId:room,taskId:'timers:fixture-timer-epoch',revision,requestId:crypto.randomUUID(),action:'timer.start',args:{seconds:180,name:''}});
-  assert.equal((await request('timer-receipt-first',body('timer-receipt-first'))).status,409,'new cases retain existing pair gate');
-  assert.equal((await fetch(base+'pair',{method:'POST'})).status,200);
-  for(const room of ['timer-receipt-first','timer-snapshot-first']){
-   const abort=new AbortController();controllers.push(abort);
-   const events=await fetch(base+'events?room='+room,{signal:abort.signal}),reader=events.body.getReader();
-   let buffer='',seenResolve;const seen=new Promise(resolve=>seenResolve=resolve),order=[];
-   const pump=(async()=>{try{while(true){const {value,done}=await reader.read();if(done)return;buffer+=new TextDecoder().decode(value);let end;while((end=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);const data=JSON.parse(frame.match(/data: (.*)/)[1]);if(data.timers.items.length){order.push('snapshot');seenResolve(data);return;}}}}catch(error){if(!abort.signal.aborted)throw error;}})();
-   const receipt=await request(room,body(room)).then(response=>response.json()).then(value=>{order.push('receipt');return value;});
-   const observed=await seen;
-   assert.deepEqual(order,room==='timer-receipt-first'?['receipt','snapshot']:['snapshot','receipt']);
-   assert.equal(receipt.retryAllowed,false);assert.equal(receipt.outcome,'accepted');
-   assert.equal(observed.timers.items[0].id,receipt.timerId,'receipt ID is exactly the observed native ID');
-   const stale=body(room,1);stale.action='timer.cancel';stale.args={timer_id:receipt.timerId};assert.equal((await request(room,stale)).status,409,'stale revision cannot cancel');
-   const cancel={...stale,revision:observed.revision,requestId:crypto.randomUUID()};assert.equal((await request(room,cancel)).status,200);
-   const cleaned=await fetch(base+'snapshot?room='+room).then(response=>response.json());assert.deepEqual(cleaned.timers.items,[],'exact timer removed without waiting for expiry');
-   abort.abort();await pump;
-  }
- }finally{controllers.forEach(controller=>controller.abort());fixtureServer.closeAllConnections();await new Promise(resolve=>fixtureServer.close(resolve));}
+test('transport-timeout handler commits no timer and leaves response open until client abort',async()=>{
+ await request('pair');const req=Readable.from([JSON.stringify(action('timer-transport-timeout'))]);req.url='/view/api/actions?room=timer-transport-timeout';
+ let ended=false;const res={setHeader(){},on(){},end(){ended=true;},writeHead(){}};
+ await fixtureRequest(req,res);assert.equal(ended,false,'actual handler sends no receipt or response body');
+ assert.deepEqual((await request('snapshot?room=timer-transport-timeout')).body.timers.items,[],'no optimistic timer is committed');
 });

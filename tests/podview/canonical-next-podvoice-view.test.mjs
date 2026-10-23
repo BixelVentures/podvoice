@@ -44,3 +44,28 @@ test('finished native delivery facts survive projection without local stop proof
  const stopped=liveScene(projected,{...snap,timers:{...snap.timers,items:[{...snap.timers.items[0],alertState:'stopped',physicalStopped:true}]}});assert.equal(stopped.timer.physicalStopped,true);assert.equal(projected.timer.physicalStopped,false);
  const malformed=liveScene(projected,{...snap,timers:{...snap.timers,items:[{...snap.timers.items[0],physicalStopped:'true',physicalDrained:1,alertState:'invented'}]}});assert.equal(malformed.timer.physicalStopped,null);assert.equal(malformed.timer.physicalDrained,null);assert.equal(malformed.timer.alertState,null);
 });
+
+
+test('reconnection leaves a removed read-only empty detail instead of stranding focus on a blank route',()=>{
+ for(const kind of ['light','vacuum']){const placeholder={id:`podview-${kind}-empty`,kind,status:'unavailable',live:true,presentationOnly:true,pending:null,timeline:[]},base={...initialScene(),focus:placeholder.id,devices:[placeholder]},snapshot={voice:{},timers:{status:'observed',items:[]},capabilities:{homeRead:[]}};const next=liveScene(base,snapshot);assert.equal(next.focus,'now');assert.equal(next.devices.some(device=>device.id===placeholder.id),false);assert.equal(next.devices.every(device=>!device.pending),true);}
+});
+
+import {homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+test('connection copy uses an explicit cause without turning an empty successful read into denied access',()=>{
+ assert.deepEqual(homeConnectionPresentation({status:'connected'}),{reason:null,detail:''});
+ assert.equal(homeConnectionPresentation({reason:'setup'}).detail,'Tilføj i Home Assistant');
+ assert.equal(homeConnectionPresentation({reason:'unavailable'}).detail,'Home Assistant svarer ikke lige nu');
+ assert.equal(homeConnectionPresentation({status:'connected',blocked:true}).detail,'PodView har ikke adgang – log ind i Home Assistant');
+ assert.equal(homeConnectionPresentation({status:'disconnected'}).reason,'unavailable');
+ assert.equal(homeConnectionPresentation({status:'connected',reason:'invented'}).reason,null);
+});
+
+test('live read-only player and radio routes open without granting local media or household actions',async()=>{
+ const {sceneTransition}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),snapshot={bootId:'boot',voice:{sessionId:'session'},timers:{status:'observed',items:[{id:'actual-timer',name:'Te',secondsLeft:120,status:'running'}]},capabilities:{musicRead:['playback','queue'],homeRead:[],timerActions:[]}},state=liveScene({...initialScene(),focus:'now'},snapshot),music=state.music,timer=state.timer;
+ for(const id of ['player','radio']){
+  const event={type:'show',id};assert.equal(liveLocalEvent(event,state),true,`${id} is navigation to an existing read-only owner`);const next=liveLocalEvent(event,state)?sceneTransition(state,event):state;assert.equal(next.focus,id);assert.equal(next.connected,false);assert.equal(next.music,music);assert.equal(next.timer,timer);assert.equal(next.sessionId,state.sessionId);assert.equal(next.music.playback.active,false);assert.equal(next.music.playback.playing,false);
+ }
+ assert.equal(liveLocalEvent({type:'show',id:'invented-route'},state),false);
+ for(const event of [{type:'music',event:{type:'play'}},{type:'radio-select',stationId:'p3'},{type:'vehicle-control',action:'climate'},{type:'device-action',action:'turn_on'},{type:'timer-start',seconds:60,name:'Te'},{type:'timer',id:timer.id,action:'cancel'},{type:'request',kind:'concise'},{type:'queue-select',optionId:'invented'}])assert.equal(liveLocalEvent(event,state),false,event.type);
+ assert.equal(liveTimerRequest(snapshot,true,{type:'timer',id:timer.id,action:'cancel'}),null,'opening either route cannot manufacture a native action capability');
+});

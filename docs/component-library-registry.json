@@ -1233,6 +1233,7 @@
           "arrow:identity": 1,
           "arrow:integer": 1,
           "arrow:text": 1,
+          "function:accountPlaylistsSample": 1,
           "function:collectionCurrent": 1,
           "function:collectionSample": 1,
           "function:collectionSelection": 1,
@@ -1982,7 +1983,8 @@
           "function:createResourceTile": 1,
           "function:updateResourceTile": 1,
           "function:resourceOverviewAction": 1,
-          "function:updateResourceFacts": 1
+          "function:updateResourceFacts": 1,
+          "function:applyResourceFactBudget": 1
         },
         "roots": [
           "native:button:resource-preview"

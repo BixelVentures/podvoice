@@ -970,12 +970,16 @@ body #playback-status.action-feedback{min-height:var(--pv-hit);box-sizing:border
 /* TopBar owns detail titles. Empty duplicate headers cannot create vertical drift. */
 pv-widget-host[data-topbar=true] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view)>.response-heading{display:none}
 
+/* Feedback belongs inside its existing Card/Hero; it never precedes the surface. */
+.pv-kit.pv-kit-card>[data-kit-slot=feedback],.pv-kit.pv-kit-hero>[data-kit-slot=feedback]{min-width:0;margin:0;font:var(--pv-t-body);color:inherit;align-self:center}
+pv-widget-host #timers-view #timers-live-note{grid-column:1/-1;grid-row:4;min-width:0;margin:0;font:var(--pv-t-body);color:inherit;text-align:center}
+pv-widget-host #timers-view .timer-running #timers-live-note{grid-row:3}
 /* Canonical Timer detail. Legacy setup/running recipes are removed from other layers. */
 pv-widget-host #timers-view{--pv-timer-setup-size:200px;--pv-timer-running-size:280px;background:transparent;box-shadow:none;border:0;border-radius:0;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:var(--pv-s3);width:100%;min-width:0;box-sizing:border-box;padding-block:0}
 pv-widget-host #timers-view>.response-heading,pv-widget-host #timers-view .timer-running>h2,pv-widget-host #timers-view .timer-create>h2{display:none}
 pv-widget-host #timers-view :is(.timer-create,.timer-running){width:100%;max-width:none;min-width:0;flex:none;margin:0;box-sizing:border-box}
 pv-widget-host #timers-view :is(.timer-create,.timer-running .timer-panel){width:100%;max-width:none;min-width:0;min-height:528px;padding:var(--pv-s4);box-sizing:border-box;background:var(--pv-dark);color:var(--pv-on-dark);border:0;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
-pv-widget-host #timers-view .timer-create:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--pv-timer-setup-size) 64px 64px;align-content:center;justify-items:stretch;gap:var(--pv-s3)}
+pv-widget-host #timers-view .timer-create:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--pv-timer-setup-size) 64px 64px minmax(48px,auto);align-content:center;justify-items:stretch;gap:var(--pv-s3)}
 pv-widget-host #timers-view .timer-stepper{grid-column:1;grid-row:1;display:grid;grid-template-columns:64px minmax(0,var(--pv-timer-setup-size)) 64px;grid-template-rows:var(--pv-timer-setup-size);justify-content:center;align-items:center;width:100%;min-width:0;height:var(--pv-timer-setup-size);margin:0;gap:var(--pv-s3)}
 pv-widget-host #timers-view .timer-stepper>.timer-adjust{position:static;grid-column:auto;grid-row:1;display:grid;place-items:center;justify-self:center;width:64px;height:64px;min-width:64px;min-height:64px;margin:0;padding:var(--pv-s2);border:0;border-radius:var(--pv-r-pill);background:var(--pv-ink-2);color:var(--pv-on-dark)}
 pv-widget-host #timers-view .timer-stepper>.timer-adjust>img{width:32px;height:32px;filter:brightness(0) invert(1)}
@@ -992,7 +996,7 @@ pv-widget-host #timers-view .timer-start>img{width:24px;height:24px;filter:none}
 pv-widget-host #timers-view #timer-exact[hidden]{display:none}
 pv-widget-host #timers-view .timer-validation{font:var(--pv-t-meta);color:var(--pv-danger)}
 pv-widget-host #timers-view .timer-running .timer-active-list{display:block;width:100%;margin:0;padding:0}
-pv-widget-host #timers-view .timer-running .timer-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:var(--pv-timer-running-size) 64px;align-content:center;align-items:center;gap:var(--pv-s3)}
+pv-widget-host #timers-view .timer-running .timer-panel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:var(--pv-timer-running-size) 64px minmax(48px,auto);align-content:center;align-items:center;gap:var(--pv-s3)}
 pv-widget-host #timers-view .timer-running .timer-open{grid-column:1/-1;grid-row:1;display:grid;place-items:center;width:100%;min-width:0;min-height:0;margin:0;padding:0;background:transparent}
 pv-widget-host #timers-view .timer-running .timer-instrument{grid-column:1;grid-row:1;justify-self:center;width:var(--pv-timer-running-size);height:var(--pv-timer-running-size)}
 pv-widget-host #timers-view .timer-running .timer-count{max-width:100%;font:var(--pv-t-hero);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.035em;color:var(--pv-on-dark)}
@@ -1572,8 +1576,8 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:not([data
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:not([data-kit-size=s]):not([data-kit-size=m]) .home-forecast{align-self:end}
 /* Quiet primary copy is the same20/26 semibold role in S and M. Numeric
    magnification is reserved for actual weather measurements, not a lamp count. */
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview,.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):not(#home-weather)>.resource-label>.resource-value:not([hidden]),
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle:not([data-kit-size=l])>span>.resource-value:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;letter-spacing:normal;max-height:52px}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview,.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):not(#home-weather):not([data-kit-state=unavailable])>.resource-label>.resource-value:not([hidden]),
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle:not([data-kit-size=l]):not([data-kit-state=unavailable])>span>.resource-value:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;letter-spacing:normal;max-height:52px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview,.resource-preview[data-kit-size=s])[data-has-overview-value=true]{grid-template-rows:32px minmax(26px,1fr) 24px!important}
 /* Kilder expansion is indicated by its disclosure chevron. Pointer focus has
    no decorative outline; keyboard focus retains the shared visible ring. */
@@ -1711,7 +1715,7 @@ pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button{backgrou
 pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true]{background:var(--pv-surface)!important;border-color:var(--pv-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-ink)}
 
 /* One verbal Card core across S/M/L; Large expands information, not the grammar. */
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-radio[data-kit-size=l],#timer-card[data-kit-size=l]>#open-timers):not([data-media-layout=media])>.resource-label>.resource-value:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;height:26px!important;max-height:26px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-radio[data-kit-size=l],#timer-card[data-kit-size=l]>#open-timers):not([data-media-layout=media]):not([data-kit-state=unavailable])>.resource-label>.resource-value:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;height:26px!important;max-height:26px!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card>.resource-preview,.resource-preview[data-kit-size],#home-vehicle)[data-kind=vacuum]>.resource-label>small:not([hidden]){display:block!important;position:absolute!important;inset:106px var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;width:auto!important;max-width:calc(100% - var(--pv-s3) - var(--pv-card-copy-right,var(--pv-s3)))!important;height:24px!important;max-height:24px!important;min-height:0!important;margin:0!important;padding:0!important;font:var(--pv-t-body)!important;line-height:24px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;justify-self:stretch!important;text-align:start!important;color:var(--pv-ink-2)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]>.resource-facts{position:absolute!important;inset:170px var(--pv-s3) var(--pv-s3)!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(44px,auto)!important;gap:var(--pv-s3)!important;align-content:start!important;margin:0!important;padding:0!important}
 pv-widget-host #now-view :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=vacuum]>.resource-facts>.resource-fact:is([data-fact-id=battery],[data-fact-id=room]){display:none!important}
@@ -1734,6 +1738,7 @@ pv-widget-host[data-view=active] #now-view #timer-card>#open-timers>.resource-co
 
 /* Detail Hero: situation owns the title; model metadata belongs to its image. */
 pv-widget-host #vehicle-view .vehicle-hero[data-kit-state=ready]>.vehicle-status{font:var(--pv-t-title);margin:0}
+pv-widget-host #vehicle-view .vehicle-hero[data-kit-state=ready]>.pv-kit-icon{display:none}
 pv-widget-host #vehicle-view .vehicle-artwork{height:auto;min-height:160px;grid-template-rows:minmax(0,160px) auto;gap:var(--pv-s1);align-content:center}
 pv-widget-host #vehicle-view .vehicle-artwork>.vehicle-context{position:static;inset:auto;margin:0;text-align:center;font-size:15px;line-height:20px;font-weight:400;color:var(--pv-tesla-ink)}
 

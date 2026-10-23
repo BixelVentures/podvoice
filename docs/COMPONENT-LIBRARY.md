@@ -1,3 +1,11 @@
+## Kontobundne playlister ·23 oktober2026
+
+Den eksisterende fane `top`/For dig kan bruge den faktisk tilbudte læsekilde `account_playlists`. Den beholder de samme tre musikkort og deres cover-, tekst- og kontrolroller. Overskriften er da “Dine playlister”; kilden er første side med højst20 ejede eller fulgte playlister, ikke en påstand om fuld bibliotekslæsning eller personlige anbefalinger. Uden denne capability bevares den ærlige Topsange-kilde. Kildeidentiteten indgår særskilt i cache, request og valg; fanens interne ID giver ingen kilde- eller afspilningsmyndighed.
+
+Kildebetegnelsen “Dine playlister”, det faktiske antal/første side og en tom kilde vises i MusicResults-ejerens eksisterende reserverede statusfelt til venstre for “Andre forslag”. Fejl bruger samme felt og har forrang; ventetid beholder pladsen. Der tilføjes ingen overskriftsrække, og øvrige musikfaners støjreduktion bevares.
+
+Native DTO `podconnect.user_playlists.v1` giver det faktiske playlistnavn og eventuelt det validerede Spotify-cover. “Playliste” er kun typebetegnelse, aldrig opfundet kunstner eller ejer. Manglende kandidatmyndighed viser læsbart indhold med de eksisterende deaktiverede Play-kontroller. Et senere valg bruger eksisterende setup-/confirm-ejer med nye opaque kilde-ID'er, samme konto/rum og den friske serverkontrols ejer-epoch. Ingen ekstra bekræftelsesmodal, AI-overførsel, ny kortfamilie eller opdigtet Daily Mix/daylist.
+
 ## Hjem-navigation · seneste direkte brugerbeslutning23 oktober
 
 Brugeren har valgt Hjem med husikon til enhedens passive grundvisning. Den sekundære overbliksknap bruger Hjem, tilgængeligt navn Gå hjem og det fælles officielle Phosphor Regular house-ikon. Ikon24px, label17/24, trykhøjde48px,16px vandret padding og8px gap følger eksisterende TopBar-variant. Ro, Billedramme og Foto/image-square er afvist som navigation. Eksisterende #show-photo, photo/rest-IDs og aktiviteternes identitet ændres ikke; et tryk skifter visning, musik og timere fortsætter. Hele grundvisningen fører tilbage til Lige nu. Tidligere Foto-tekst nedenfor er historik, ikke gældende navngivning.
@@ -26,6 +34,10 @@ Gælder **hver gang** der ændres UI i PodView: komponenter, størrelser, tilsta
 - Kliktest kontrollerer funktion og udføres som særskilt kontrol. Kliktest, komponentgate, syntaks og beståede tests er **aldrig tilstrækkeligt visuelt bevis** og må ikke alene lukke et UI-feedbackpunkt.
 - Før et UI-punkt meldes færdigt: registrér faktisk bibliotek-/produktreference, inspiceret billedbevis, plugin-reviewets fund/udfald og konkrete rester i den aktuelle feedbackmatrix. Skeln mellem funktionelt kontrolleret, visuelt gennemgået og brugeraccepteret. Genåbn ved ny brugerfeedback.
 
+## Feedback i Card og Hero ·23 oktober
+
+Card/Hero kan have den eksisterende feedbackrolle som direkte `data-kit-slot=feedback`-barn:17/24 tekst, arvet kontrast og ingen egen kortflade. Timer reserverer48px i samme formular-/instrumentgrid, så afventning og ukendt udfald ikke flytter fladen under playerens topanker. Den samme statusnode flyttes til det aktuelle synlige timerkort eller udkast; den bliver ikke i et skjult gammelt kort. Ukendt udfald bevarer udkast/observeret timer og blokerer automatisk genafsendelse. Det er vedvarende feedback i den eksisterende flade, ikke en ny toast eller en fejlpanel-familie.
+
 ## Asynkront vejrråd i Hero ·23 oktober
 
 Vejrrådet bruger Heroens eksisterende body-slot med tre reserverede tekstlinjer (72px). Før forespørgsel reserveres plads uden at påstå indlæsning. Mens en faktisk forespørgsel afventes, vises en diskret gradient-placeholder i samme felt; ingen synlig loading-sætning. Kun pending har aria-busy. Gradientbevægelsen er afgrænset til otte gennemløb og er statisk ved reduceret bevægelse. Den færdige tekst toner hurtigt ind; Hero, prognose og betjening bevares. Passive AI-råd er højst120 tegn og skal bygge på den aktuelle kildebundne prognose. Bibliotekets forfattede tilstandsprøver er tydeligt adskilt fra faktisk modelgenerering; de beviser ikke providerforbindelsen.
@@ -40,7 +52,7 @@ Eksisterende Hero/Card angiver `data-kit-tone=dark`. Button beholder samme prim�
 
 ## Large-fakta23 oktober kl.14.31
 
-Højst fire ekstra oplysninger i2×2-grid. Ingen tredje række. Kerneroller som batteri/rum/tændtantal gentages ikke i ekstra fakta. Der er24px mellem de to faktarækker; ukendte værdier udfyldes ikke. Resterende oplysninger hører til detaljesiden.
+Højst fire faktaceller i2×2-grid. Ingen tredje række. En måler, der spænder over begge kolonner, bruger to celler og starter på en ny række. Når kortets faktisk tilbudte overblikshandling er synlig, også deaktiveret under pending, begrænses fakta til to celler på én række, så den faste handlingsfooter har fri plads. Den eksisterende ejer `applyResourceFactBudget` anvender budgettet efter den faktiske action-policy; domænestatus alene bestemmer det ikke. Kerneroller som batteri/rum/tændtantal gentages ikke i ekstra fakta. Der er24px mellem to faktarækker; ukendte værdier udfyldes ikke. Resterende oplysninger hører til detaljesiden. Kilderækker bevares ved størrelsesskift.
 
 ## Radio-valg23 oktober kl.14.18
 
@@ -397,6 +409,10 @@ Brugerens seneste konkrete kit afløser tidligere tokenlister og begrebsmæssige
 - Spacing8/16/24/32/40; radius16/24/999; nul er en strukturel nulstilling. Border, illustrationers datakoordinater, viewport-/gridmål og faktiske billeder er ikke spacingtokens.
 - Én kortskygge:0 1px 2px rgba(27,29,28,.06),0 8px 24px rgba(27,29,28,.06). Scrim rgba(27,29,28,.32).
 - Motion: cubic-bezier(.2,0,0,1); press90ms; fast200ms; move280ms. Retur240ms er bevaret som besluttet navigationstilstand. Reduceret bevægelse120ms opacity med settle≤150ms. Ingen konstant aktivitet uden formål.
+- Bibliotekets bevægelseskontrol binder direkte til den eksisterende `pv-widget-host[data-motion]` og annullerer ejerens igangværende bevægelse, når præferencen skifter. Den er et inspektionsværktøj, ikke en produktindstilling. Gentagne uændrede valg genstarter ingen bevægelse; normal tilstand gendanner de samme hændelsesbårne cues.
+- Bilens ladeopdatering bruger samme eksisterende120ms opacity-kvittering på batteriets bladnode i overblik og detalje. Tallet og meteret får straks den faktisk observerede værdi; ingen optælling eller simuleret ladning. Kun en nyere, frisk observation i aktuelt læsescope kan udløse kvitteringen. Første visning, genåbning, uændrede værdier og genetableret forbindelse er statiske; skjult, stale/offline, skiftet ejer og reduceret bevægelse stopper eller undertrykker den. Ingen konstant ladeanimation.
+- Bilens kendte Hero har ingen løs dekorativ bil-ikonblok under målingerne. Faktisk artwork beholder illustrationsrollen; forbindelses-Heroen beholder sit fælles message-ikon. Manglende bilbillede udfyldes ikke med opdigtet artwork eller ekstra metadata.
+- Lokalt sangvalg bevarer aktuel lydstyrke og valgt output gennem pending og kvittering. Startværdien35% gælder initialiseringen; en senere kvittering må ikke rulle brugerens nyere lydstyrke tilbage. Live afspilning følger fortsat den aktuelle ejerobservation.
 - Primære hitområder64px; sekundære48px. Ikoner outline, stroke2,24/32/48; instrumenter og illustrationer er særskilt mærket og er ikke ikoner.
 
 ### De tolv komponenter
@@ -501,6 +517,8 @@ Den eksisterende `VoiceSurface` ejer én fast 224 px samtaleplads: 64 px trykfla
 Kun en faktisk aktiv samtalefase har vedvarende ikonbevægelse: mikrofonens rolige åndedræt under lytning, tankesymbolets bløde lys under arbejde og lydkurvens amplitude mens ejeren angiver AI_SPEAKING. Det er tilstandsvisning, ikke et målt mikrofonniveau eller fysisk lydbevis. Klar/afslutning har én kort landing. Samme session/turn/fase bevarer den eksisterende animation; berigelse og identiske opdateringer genstarter den ikke. Faseskift, inaktivitet, baggrund, reduceret bevægelse og disconnect rydder aktiviteten. Reduceret bevægelse bruger statiske ikoner.
 
 `NotificationQueue` er fortsat eneste beskedejer. `SceneMotion.feedback` giver én stille ankomst, indholdsændring eller udgang; gentagen uændret tekst genstarter intet. Den faktiske tekst bevares til udgangen er færdig. Offline/fejl står stille efter ankomst. Ingen af disse effekter ændrer navigation eller spillerens Ro-overgang. Browser- og fysisk accept registreres separat.
+
+En ny eksplicit og gyldig køhandling er en ny hændelse, også når fejlteksten bliver den samme. `LiveQueueView` nulstiller kun sin egen feedbackkilde ved starten af den validerede handling eller en udtrykkelig kølæsning med feedback. Redraw, passive reads og genbrug af en brugt handling nulstiller intet. Ukendt udfald gentages ikke automatisk; kendt sang og kø bevares.
 
 Når samtalen bliver inaktiv, toner samme statusflade ud over 120 ms i både Ro og aktiv visning. Den bliver straks inert og skjult for hjælpeteknologier, mens den oprindelige Svar-knap beholder klik- og fokusansvaret under udgangen. Gentagne inaktive opdateringer starter ikke udgangen igen; efter afslutning er status skjult og animationsejeren frigivet.
 
