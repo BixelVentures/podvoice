@@ -1,0 +1,5 @@
+6461687ab8f3a7ad3fb352cb13462c77d5f8d5c4cc6f73c407e98af66b0a6766  docs/qa-ui22/screenshots/weather-library-pending-final.jpg
+2b466588e415059d425e884d8ff2cf1b9293a1ba1088e1da4ccf64f3794324d6  docs/qa-ui22/screenshots/weather-library-ready-final.jpg
+5f09f1022cb29f73fa3b2a82bbfc3cd85cd9c35d8eb3db0c8828d4df5f955938  docs/qa-ui22/screenshots/weather-ready-final.jpg
+a1436fa1a3757ff3cbb039cd1f5002b2576d8710b59dee702899b1aa00a5d5b7  docs/qa-ui22/screenshots/weather-reopen-final.jpg
+20ba92e408d5bc462d7a07e6fece8b9fcb51c90c395dab9f7309cfeec350b80e  docs/qa-ui22/screenshots/weather-requesting-final.jpg

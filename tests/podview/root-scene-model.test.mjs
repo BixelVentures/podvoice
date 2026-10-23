@@ -46,3 +46,34 @@ test('recovery clears obsolete connectivity copy without discarding an UNKNOWN a
  let offline=step(initialScene(),{type:'offline'});assert.equal(offline.music.message,'Sidst kendte afspilning');const playback=offline.music.playback,recovered=step(offline,{type:'snapshot',generation:offline.generation});assert.equal(recovered.music.message,'');assert.equal(recovered.music.playback,playback);
  const pending=step(initialScene(),{type:'music',event:{type:'select',id:'italian-favorites',revision:1}});offline=step(pending,{type:'offline'});assert.match(offline.music.message,/Udfald ukendt/);const receipt=offline.music.message;assert.equal(step(offline,{type:'snapshot',generation:offline.generation}).music.message,receipt);
 });
+
+test('scoped live lights present the observed room and an honest known-empty state',async()=>{
+ const {devicePresentation,lightChoices}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),now=Date.now()/1000;
+ const d={id:'podview-ha-lights',kind:'light',live:true,source:'home_assistant_state',scope:'ha_area',name:'Lys',status:'empty',lightScope:{areaId:'kitchen',areaName:'Køkkenalrum',bindingId:'a'.repeat(64),placementRevision:2,isOwnArea:true},lightSourceEpoch:'b'.repeat(64),lightObservation:{status:'observed',complete:true},observedLights:[]};
+ const p=devicePresentation(d);assert.equal(p.title,'Lys · Køkkenalrum');assert.equal(p.scope,'Køkkenalrum');assert.equal(p.detail,'Ingen lys i rummet');assert.deepEqual(p.facts,[]);assert.deepEqual(deviceActions(d),[]);
+ const unavailable=devicePresentation({...d,status:'unavailable',lightObservation:{status:'unavailable',complete:false}});assert.equal(unavailable.scope,'Køkkenalrum');assert.equal(unavailable.detail,'Ikke forbundet');
+ const unbound=devicePresentation({...d,status:'unavailable',lightScope:null,lightObservation:{status:'unbound',complete:false}});assert.doesNotMatch(unbound.scope,/Hele hjemmet/);assert.match(unbound.scope,/Home Assistant/);
+ const catalogue={status:'observed',source:'home_assistant_area_registry',sourceEpoch:d.lightSourceEpoch,observedAt:now,validUntil:now+15,bindingId:d.lightScope.bindingId,placementRevision:2,ownAreaId:'kitchen',selectedAreaId:'hall',items:[{areaId:'kitchen',areaName:'Køkkenalrum'},{areaId:'hall',areaName:'Gang'}]};
+ const choices=lightChoices(d,catalogue);assert.deepEqual(choices.rooms.items.map(row=>[row.id,row.label]),[['kitchen','Køkkenalrum'],['hall','Gang']]);assert.equal(choices.rooms.selected,'kitchen','a requested catalogue area cannot mark itself observed');assert.equal(choices.rooms.connected,true);assert.deepEqual(choices.lamps.items,[]);assert.doesNotMatch(JSON.stringify(choices),/Hele hjemmet/);
+});
+
+test('scoped live partial-unknown counts stay qualified and never grant local actions',async()=>{
+ const {devicePresentation,lightChoices}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+ const rows=[{entityId:'light.ceiling',areaId:'kitchen',name:'Loft',state:'on',brightness:128,supportsBrightness:true},{entityId:'light.table',areaId:'kitchen',name:'Bord',state:'off',brightness:null,supportsBrightness:false},{entityId:'light.corner',areaId:'kitchen',name:'Hjørne',state:'unknown',brightness:255,supportsBrightness:true}];
+ const d={id:'podview-ha-lights',kind:'light',live:true,source:'home_assistant_state',scope:'ha_area',status:'unknown',lightScope:{areaId:'kitchen',areaName:'Køkkenalrum'},lightObservation:{status:'observed',complete:true},observedLights:rows};
+ const p=devicePresentation(d);assert.equal(p.detail,'1 af 3 bekræftet tændt · 1 ukendt');assert.equal(deviceLabel(d),p.detail);assert.equal(p.stale,false);assert.deepEqual(p.facts.find(row=>row.id==='on-count'),{id:'on-count',label:'Bekræftet tændt',value:'1 af 3',stale:false});assert.deepEqual(p.facts.filter(row=>row.id.startsWith('brightness:')).map(row=>row.value),['50 %']);assert.deepEqual(deviceActions(d),[]);
+ assert.match(devicePresentation(d,{connected:false}).detail,/^Sidst kendt:/);assert.ok(devicePresentation(d,{connected:false}).facts.every(row=>row.stale));
+ const expired={...d,validUntil:Date.now()/1000-1};assert.equal(devicePresentation(expired).stale,true);assert.match(deviceLabel(expired),/^Sidst kendt:/);assert.ok(devicePresentation(expired).facts.every(row=>row.stale));
+ const choices=lightChoices(d);assert.deepEqual(choices.lamps.items.map(row=>row.id),rows.map(row=>row.entityId));assert.deepEqual(choices.lamps.items.map(row=>row.status),['on','off','unknown']);
+ const state={...initialScene(),focus:d.id,devices:[{...d,revision:1}]};for(const action of ['turn_on','turn_off'])assert.equal(step(state,{type:'device-action',...binding(state,state.devices[0]),action}),state);assert.equal(step(state,{type:'light-select',...binding(state,state.devices[0]),optionId:'hall'}),state);
+ assert.equal(deviceLabel({...d,observedLights:rows.map(row=>({...row,state:'unknown'}))}),'Lysstatus ukendt · 3 ukendte');
+});
+
+test('scoped light room catalogue expiry or identity mismatch retains names but disables navigation',async()=>{
+ const {lightChoices}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),now=Date.now()/1000;
+ const d={kind:'light',live:true,scope:'ha_area',lightSourceEpoch:'b'.repeat(64),lightScope:{areaId:'kitchen',areaName:'Køkkenalrum',bindingId:'a'.repeat(64),placementRevision:2},observedLights:[]};
+ const catalogue={status:'observed',source:'home_assistant_area_registry',sourceEpoch:d.lightSourceEpoch,observedAt:now,validUntil:now+15,bindingId:d.lightScope.bindingId,placementRevision:2,ownAreaId:'kitchen',selectedAreaId:'kitchen',items:[{areaId:'kitchen',areaName:'Køkkenalrum'},{areaId:'hall',areaName:'Gang'}]};
+ const before=structuredClone(catalogue);
+ for(const patch of [{validUntil:now},{observedAt:now+10},{sourceEpoch:'c'.repeat(64)},{bindingId:'c'.repeat(64)},{placementRevision:3},{items:[{areaId:'kitchen',areaName:'Andet navn'}]},{status:'unavailable'}]){const choices=lightChoices(d,{...catalogue,...patch});assert.equal(choices.rooms.connected,false,JSON.stringify(patch));assert.equal(choices.rooms.items[0].id,'kitchen');}
+ assert.equal(lightChoices({...d,pending:{operation:1}},catalogue).rooms.connected,false);assert.equal(lightChoices(d,{...catalogue,items:[{areaId:'hall',areaName:'Gang'}]}).rooms.selected,null);assert.deepEqual(catalogue,before);
+});

@@ -12,6 +12,7 @@ import pytest
 from integration.test_podview_music import Rig, timestamp
 from multidict import MultiDict
 
+from gatekeeper import podview_music
 from gatekeeper.podview import BRIDGE, _music
 from gatekeeper.podview_room_media import binding, scope_targets
 
@@ -78,6 +79,8 @@ async def room_rig():
         rig.calls.append((req.method, req.url.path, json.loads(req.content)))
         if rig.proof_hook:
             await rig.proof_hook()
+        if getattr(rig, "proof_error", None) is not None:
+            return httpx.Response(200, json={"service_response": rig.proof_error})
         return httpx.Response(
             200,
             json={
@@ -477,3 +480,198 @@ async def test_queued_room_read_rechecks_owner_before_any_transport(room_rig):
     redacted(await second)
     assert len(rig.calls) == 2
     assert not rig.bridge._room_playback_lock.locked()
+
+
+def claim_missing():
+    return {
+        "ok": False,
+        "error_kind": "room_transport_unavailable",
+        "retry_allowed": False,
+        "reason": "claim_unavailable",
+    }
+
+
+async def test_actual_paused_account_metadata_survives_only_missing_executable_claim(room_rig):
+    rig = room_rig
+    rig.values["playback"]["playback"]["state"] = "paused"
+    rig.proof_error = claim_missing()
+    rig.values["playback"]["playback"]["item"]["uri"] = "spotify:track:" + "A" * 22
+    original_stamp = rig.values["playback"]["observation"]["observed_at"]
+    body = await read(rig)
+    assert body["status"] == "account_observed", (body, rig.calls)
+    assert set(body) == {
+        "ok",
+        "schema",
+        "bootId",
+        "roomId",
+        "configEntryId",
+        "binding",
+        "status",
+        "data",
+    }
+    playback = body["data"]["playback"]
+    assert playback["state"] == "paused"
+    assert playback["item"] == {
+        "type": "track",
+        "uri": "spotify:track:" + "A" * 22,
+        "name": "Song",
+        "artists": ["Artist"],
+        "duration_ms": 123000,
+    }
+    assert playback["target"] == {
+        "kind": "spotify_device",
+        "target_id": "device-one",
+        "name": "Kitchen",
+    }
+    assert body["binding"] == binding(rig.bridge, "kitchen", "account-alpha")
+    assert body["data"]["observation"]["observed_at"] == original_stamp
+    assert "SECRET" not in json.dumps(body) and "secret.invalid" not in json.dumps(body)
+    assert body["data"]["physical_result_verified"] is False
+    assert not {"room_proof_valid_until", "native", "route", "actions"} & set(body["data"])
+    assert (
+        rig.bridge._grants == {} and rig.bridge.controls.tasks == {} and not rig.bridge._music_busy
+    )
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
+        "get_playback_snapshot",
+        "get_room_playback_controls",
+        "get_playback_snapshot",
+    ]
+
+    # Display classification is not an executable Resume offer.
+    blocked = await rig.bridge.controls.music.setup_room(
+        "account-alpha", "device-one", "r0", "42", lambda: True
+    )
+    assert blocked["ok"] is False and blocked["provider_request_accepted"] is False
+    assert not {"actions", "native", "route"} & set(blocked)
+    assert rig.bridge.controls.tasks == {} and rig.bridge._grants == {}
+    assert all(call[1].rsplit("/", 1)[-1].startswith("get_") for call in rig.calls)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "extra",
+        "missing",
+        "retry",
+        "retry_integer",
+        "ok_integer",
+        "reason",
+        "kind",
+        "reason_null",
+    ],
+)
+async def test_account_only_display_requires_exact_closed_claim_absence(room_rig, change):
+    rig = room_rig
+    value = claim_missing()
+    if change == "extra":
+        value["native"] = rig.native
+    elif change == "missing":
+        del value["retry_allowed"]
+    elif change == "retry":
+        value["retry_allowed"] = True
+    elif change == "retry_integer":
+        value["retry_allowed"] = 0
+    elif change == "ok_integer":
+        value["ok"] = 0
+    elif change == "reason":
+        value["reason"] = "receiver_unavailable"
+    elif change == "kind":
+        value["error_kind"] = "unavailable"
+    else:
+        value["reason"] = None
+    rig.proof_error = value
+    redacted(await read(rig))
+    assert len(rig.calls) == 2
+
+
+@pytest.mark.parametrize("change", ["epoch", "poll", "target", "item", "stamp", "account"])
+async def test_account_fallback_rechecks_same_source_after_claim_await(room_rig, change):
+    rig = room_rig
+    rig.proof_error = claim_missing()
+
+    async def replace_source():
+        source = rig.values["playback"]
+        if change == "epoch":
+            source["owner_epoch"] = "c" * 32
+        elif change == "poll":
+            source["poll_sequence"] += 1
+        elif change == "target":
+            source["playback"]["target"]["target_id"] = "other-engine"
+        elif change == "item":
+            source["playback"]["item"]["name"] = "PRIVATE_FOREIGN_SONG"
+        elif change == "stamp":
+            source["observation"]["observed_at"] = timestamp(-1)
+        else:
+            source["config_entry_id"] = "account-other"
+
+    rig.proof_hook = replace_source
+    redacted(await read(rig))
+    assert len(rig.calls) == 3
+
+
+@pytest.mark.parametrize("change", ["policy", "tools", "session", "bridge", "native_scope", "boot"])
+async def test_account_fallback_rechecks_local_owner_after_second_read(room_rig, change):
+    rig = room_rig
+    rig.proof_error = claim_missing()
+    count = 0
+
+    async def replace_owner():
+        nonlocal count
+        count += 1
+        if count != 2:
+            return
+        if change == "policy":
+            rig.bridge.controls.policy = copy.deepcopy(rig.bridge.controls.policy)
+        elif change == "tools":
+            rig.bridge.tools = object()
+        elif change == "session":
+            rig.bridge.sessions["kitchen"] = object()
+        elif change == "bridge":
+            rig.app[BRIDGE] = object()
+        elif change == "boot":
+            rig.bridge.boot_id = "restarted"
+        else:
+            rig.bridge.controls.policy["music"][0]["nativeHomepodId"] = "43"
+
+    rig.hook = replace_owner
+    redacted(await read(rig))
+    assert count == 2 and not rig.bridge._room_playback_lock.locked()
+
+
+async def test_account_fallback_does_not_renew_original_source_expiry(room_rig, monkeypatch):
+    rig = room_rig
+    rig.proof_error = claim_missing()
+    clock = SimpleNamespace(now=time.time())
+    monkeypatch.setattr(podview_music, "time", SimpleNamespace(time=lambda: clock.now))
+
+    async def expire_original():
+        clock.now += 16
+
+    rig.proof_hook = expire_original
+    redacted(await read(rig))
+    assert len(rig.calls) == 3
+
+
+async def test_cancel_account_recheck_propagates_without_grant_effect_or_retry(room_rig):
+    rig = room_rig
+    rig.proof_error = claim_missing()
+    count = 0
+    entered = asyncio.Event()
+
+    async def hold_second_read():
+        nonlocal count
+        count += 1
+        if count == 2:
+            entered.set()
+            await asyncio.Event().wait()
+
+    rig.hook = hold_second_read
+    task = asyncio.create_task(read(rig))
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert count == 2 and len(rig.calls) == 3
+    assert not rig.bridge._room_playback_lock.locked()
+    assert not rig.bridge._music_busy
+    assert rig.bridge.controls.tasks == {} and rig.bridge._grants == {}

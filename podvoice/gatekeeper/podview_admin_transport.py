@@ -42,13 +42,24 @@ def _command(raw: bytes) -> dict:
         expected.add("request_id")
     elif action == "revoke_identity":
         expected.add("identity")
+    elif action == "placement":
+        expected.update(("identity", "area_id", "expected_revision"))
     if (
         not isinstance(value, dict)
         or set(value) != expected
         or type(value["schema"]) is not int
         or value["schema"] != 1
         or action
-        not in ("provision", "revoke", "recover", "list", "prepare", "approve", "revoke_identity")
+        not in (
+            "provision",
+            "revoke",
+            "recover",
+            "list",
+            "prepare",
+            "approve",
+            "revoke_identity",
+            "placement",
+        )
         or not isinstance(value["room"], str)
         or not 1 <= len(value["room"]) <= 160
         or not isinstance(value["nonce"], str)
@@ -77,6 +88,20 @@ def _command(raw: bytes) -> dict:
             and (
                 not isinstance(value["identity"], str)
                 or re.fullmatch(r"[a-f0-9]{32}", value["identity"]) is None
+            )
+        )
+        or (
+            action == "placement"
+            and (
+                (
+                    value["area_id"] is not None
+                    and (
+                        type(value["area_id"]) is not str
+                        or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value["area_id"]) is None
+                    )
+                )
+                or type(value["expected_revision"]) is not int
+                or not 0 <= value["expected_revision"] <= 2147483647
             )
         )
     ):
@@ -117,6 +142,76 @@ class AdminStdinTransport:
             self._listening = False
         for task in self._tasks:
             task.cancel()
+
+    async def _placement(self, command, row, registry):
+        state = self.state
+        if state is None:
+            raise ValueError("placement owner unavailable")
+        room, identity = command["room"], command["identity"]
+        binding = self.bridge.controller_owner(room)
+        pin = self.bridge.controller_pin(room)
+        tools = self.bridge.tools
+
+        def current():
+            if (
+                not row["enabled"]
+                or not self.bridge._controller_enabled
+                or self.bridge.controls.policy.get("roomId") != room
+                or self.bridge._controller_registry is not registry
+                or self.bridge.tools is not tools
+                or not self.bridge.controller_owner_current(room, binding)
+                or self.bridge.controller_pin(room) != pin
+                or row["pin"] != pin
+                or time.time() >= command["expires"]
+            ):
+                raise ValueError("placement owner changed")
+            value = registry.placement(identity, room, pin)
+            if value["placementRevision"] != command["expected_revision"]:
+                raise ValueError("placement changed")
+
+        async def areas():
+            current()
+            async with asyncio.timeout(5):
+                rows = await tools.podview_lights_areas()
+            current()
+            if (
+                type(rows) is not list
+                or len(rows) > 1024
+                or any(
+                    type(item) is not dict
+                    or set(item) != {"areaId", "areaName"}
+                    or type(item["areaId"]) is not str
+                    or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", item["areaId"]) is None
+                    or type(item["areaName"]) is not str
+                    or not 1 <= len(item["areaName"]) <= 160
+                    for item in rows
+                )
+            ):
+                raise ValueError("invalid area source")
+            ids = {item["areaId"] for item in rows}
+            if len(ids) != len(rows) or (
+                command["area_id"] is not None and command["area_id"] not in ids
+            ):
+                raise ValueError("area unavailable")
+            return ids
+
+        await areas()
+        await asyncio.to_thread(
+            state.accept_profile_command, room, pin, command["nonce"], command["expires"]
+        )
+        current()
+        valid_ids = await areas()
+        # No await between current profile/area validation and CAS in the sole registry owner.
+        placed = registry.set_placement(
+            identity,
+            room,
+            pin,
+            area_id=command["area_id"],
+            expected_revision=command["expected_revision"],
+            valid_area_ids=valid_ids,
+            administrator=True,
+        )
+        return {"ok": True, "room": room, "identity": identity, **placed}
 
     def _readable(self):
         try:
@@ -267,7 +362,9 @@ class AdminStdinTransport:
                     ):
                         raise ValueError("profile owner unavailable")
                     registry = self.bridge._controller_registry
-                    if command["action"] == "revoke_identity":
+                    if command["action"] == "placement":
+                        result = await self._placement(command, row, registry)
+                    elif command["action"] == "revoke_identity":
                         active = registry.list_enrollments(room, row["pin"])
                         if not any(
                             item["id"] == command["identity"] and item["status"] == "active"
@@ -397,7 +494,7 @@ class AdminStdinTransport:
                             )
                             result = {"room": room, **approved}
                 outcome = "committed"
-            except (OSError, ValueError, TypeError, KeyError):
+            except (OSError, ValueError, TypeError, KeyError, AttributeError, TimeoutError):
                 _LOG.warning(_REJECTED)
             command["_result"] = result
             await self._receipt(command, outcome)

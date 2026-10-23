@@ -33,6 +33,12 @@ def duration(value: object) -> int:
     return value
 
 
+def placement_revision(value: object) -> int:
+    if type(value) is not int or not 0 <= value <= 2147483647:
+        raise vol.Invalid("placement revision must be a nonnegative integer")
+    return value
+
+
 def endpoint_identity(value: dict) -> dict:
     """Do not turn an arbitrary name into a claim of a physical device."""
     if value["kind"] == "voice_pe" and not re.fullmatch(
@@ -82,11 +88,26 @@ ADMIN_APPROVE_SCHEMA = ADMIN_SCHEMA.extend({vol.Required("request_id"): vol.Matc
 ADMIN_REVOKE_IDENTITY_SCHEMA = ADMIN_SCHEMA.extend(
     {vol.Required("identity"): vol.Match(r"[a-f0-9]{32}")}
 )
+ADMIN_PLACEMENT_SCHEMA = ADMIN_REVOKE_IDENTITY_SCHEMA.extend(
+    {
+        vol.Required("area_id"): vol.Any(None, vol.Match(r"^[A-Za-z0-9_-]{1,128}$")),
+        vol.Required("expected_revision"): placement_revision,
+    }
+)
 ADMIN_RECEIPT_SCHEMA = vol.Schema(
     {
         vol.Required("nonce"): vol.Match(r"[a-f0-9]{32}"),
         vol.Required("action"): vol.In(
-            ("provision", "revoke", "recover", "list", "prepare", "approve", "revoke_identity")
+            (
+                "provision",
+                "revoke",
+                "recover",
+                "list",
+                "prepare",
+                "approve",
+                "revoke_identity",
+                "placement",
+            )
         ),
         vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160)),
         vol.Required("outcome"): vol.In(("committed", "unavailable")),
@@ -130,6 +151,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "controller_revoke_identity",
         "controller_revoke",
         "controller_recover",
+        "controller_placement",
         "controller_receipt",
     ):
         hass.services.async_remove(DOMAIN, service)
@@ -224,6 +246,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def controller_recover(call: ServiceCall) -> dict:
         return await admin.request(call, "recover")
 
+    async def controller_placement(call: ServiceCall) -> dict:
+        return await admin.request(call, "placement")
+
     hass.services.async_register(
         DOMAIN,
         "timer_status",
@@ -271,6 +296,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "controller_recover",
         controller_recover,
         schema=ADMIN_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "controller_placement",
+        controller_placement,
+        schema=ADMIN_PLACEMENT_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

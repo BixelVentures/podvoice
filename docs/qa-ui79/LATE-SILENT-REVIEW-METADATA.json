@@ -1,0 +1,88 @@
+{
+  "sourceHashes": {
+    "scripts/lights-flow-fixture.mjs": "5d22f5d193cb6b9a67d02663853ac40d153df9c136d6e4869c675b784515f5b3",
+    "scripts/account-observed-fixture.mjs": "10a35dd28a44ced24df66d50bcee3a4a8d69091b52eb15afd48b7003b96a104b",
+    "scripts/live-fixture.mjs": "c4bdba2c598139df6cd2eb0fa1ea245a812dba1d230573b01a848eeb42eeeecc",
+    "tests/lights-flow-fixture.test.js": "2f38d71207fed176b450a91bea34560ac269aea1c855dc019b9e4d096c9eac70",
+    "tests/account-observed-fixture.test.js": "a0c9b2be78fe2378552098e1744b3bb1ce011cadf57fa8925e17aab8c684acd7",
+    "dist/widget-view.js": "2f1a158f495f47eb78897f94ea9dc25e0f211c20c22591fc43559c85ea07e331",
+    "dist/live-control-view.js": "9dae67d08283ff46b953d94869b2e362d991201e4332f2ba2301e1dd3141470b",
+    "dist/control-model.js": "bf1b0f9240673bfd9a973f6ae7044519f8c12550cae1408f83fca72cef5d04cb",
+    "dist/ha-home-observation.js": "8b94520a4750f4a99048cbe98ab2ec0ca43ae64840afe6683f45136470720c5a",
+    "dist/home-model.js": "e2dd728cc0d9cc3fe19533e4be5a20afa572abdb80d19fb6ac13e41cce16ce6b",
+    "dist/media-observation.js": "e7a9130bb0df984e6dc46e0419abc492a91f01c17dd733daa56a45e4826dfdb2",
+    "dist/player-view.js": "ab90ba6de72dfa3a2adc68c34fe5eef7e767477ccb35748c343d6993bd77a465",
+    "dist/music-results.js": "2a2100e7aadea9f242954a696e66fa246c6b8ae15a7eb61f87f425bd105fe88c",
+    "dist/speaker-output-view.js": "803cb680c60baa51f0d985de93efd7bbbcf188adb26e8da4522df03a915734e0",
+    "dist/ui/components.css": "0ddb3cb8a4c42aabe230bb9e97c378c8f258cdb6fed0ec79e9cc2bf6800a291e",
+    "dist/ui-kit.css": "8831892647815dfd2d688c00c91d24c65bd58533b8de8fa087af81dc9ca68871",
+    "dist/library.css": "3e71ec7da7d02935aefff531c6c07680e533660ab5eaf4a52a64863cd0c0fa7e",
+    "dist/podview.bundle.js": "ac89ed55189ded1412f5a59741ca5448165c995fab870f2dbd7cad7788013ad3",
+    "dist/podview.css": "ce9625c3859e47e29c45d29d802805778e539be9cd81a7ddfc7c3fd5bb545b66"
+  },
+  "productFrame": {
+    "width": 1280,
+    "height": 800,
+    "method": "actual iframe at0,0 clipped; no viewport override"
+  },
+  "libraryOuter": {
+    "width": 2006,
+    "height": 1038,
+    "method": "library authored1280preview scaled in outer page"
+  },
+  "images": {
+    "lights-own": {
+      "sha256": "16afe6bb9094e903edd07e2a223f355ac0951d6565198d3907ae0c2ba91c6b64",
+      "nativeProductFrame": true
+    },
+    "lights-other": {
+      "sha256": "384f2248cb0f75fb2a8b073d1b48e35898481912d84a2c321452dc99999bf32a",
+      "nativeProductFrame": true
+    },
+    "lights-empty": {
+      "sha256": "c06c56ebf489b4b4b68b89852a31e5ee7ccd27b75c98dfff2b6435a85e2489b4",
+      "nativeProductFrame": true
+    },
+    "lights-passive-final": {
+      "sha256": "0e4a43a1ce2b7b21600ae078ea8fc0987dfeef3414761181484b94b4540c005a",
+      "nativeProductFrame": true
+    },
+    "lights-offered-final32": {
+      "sha256": "7fede299970ee22dc6e3c61bd838b184a44baa1f8c6f2a3b46b9760d25a44509",
+      "nativeProductFrame": true
+    },
+    "lights-ttl": {
+      "sha256": "16c184ccb13520be98d9304eccfae1ea963e384c9c6e9458efd3cca92ce63b1f",
+      "nativeProductFrame": true
+    },
+    "lights-library-final": {
+      "sha256": "367026cfdc58ccbbd97b08d7d67f89f2a052e04bacd43207d9aa35baca657c0a",
+      "nativeProductFrame": false
+    },
+    "lights-library-passive-final": {
+      "sha256": "6a1a99e34c93346554a33617db5ca4b50834a309d3078b400503d837a23e3aa5",
+      "nativeProductFrame": false
+    },
+    "idle-output-persistent-final": {
+      "sha256": "8f4f621bc5c4667227826d21b35058105fad8c0c93312f9ece8555174dcb5cd2",
+      "nativeProductFrame": true
+    },
+    "account-observed-overview-final": {
+      "sha256": "3c16a73b70226f2fc090822589bae0f0cdeb0b5d8799554d1ff1db3a995cf6f0",
+      "nativeProductFrame": true
+    },
+    "account-observed-detail": {
+      "sha256": "3bf0156d9eb303d5dddb7983c94d48837d1c0e718100996018853de4669f27c7",
+      "nativeProductFrame": true
+    },
+    "account-observed-library-reference": {
+      "sha256": "b7ff910bc6b7bacf7e52fb475ca63d0b9ebd02443371d349164ac6c92b454d93",
+      "nativeProductFrame": false
+    },
+    "robot-shared-controls-final": {
+      "sha256": "3b83ccccee3895c6534b5fa8f2f7659943e7444d324c4e7701f93c0f3fe0de2e",
+      "nativeProductFrame": false
+    }
+  },
+  "scope": "local authored native protocol; no provider/HA/audio/timer/effect acceptance"
+}

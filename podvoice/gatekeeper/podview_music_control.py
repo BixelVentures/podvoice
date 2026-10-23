@@ -1199,6 +1199,17 @@ class MusicControlFacade:
                 )
             if not self._current(binding, current):
                 return _failure("owner_replaced")
+            if (
+                isinstance(result, dict)
+                and set(result) == {"ok", "error_kind", "retry_allowed", "reason"}
+                and result["ok"] is False
+                and result["error_kind"] == "room_transport_unavailable"
+                and result["retry_allowed"] is False
+                and result["reason"] == "claim_unavailable"
+            ):
+                # Only this closed absence permits account-only display. Foreign,
+                # malformed or stale route proofs remain generic unavailability.
+                return _failure("claim_unavailable")
             return {"ok": True, "data": _room_observation(result, account, target, room, homepod)}
         except Exception:
             return _failure("unavailable")

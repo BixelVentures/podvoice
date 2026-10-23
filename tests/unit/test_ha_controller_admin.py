@@ -31,6 +31,7 @@ def module(monkeypatch, client):
     add("homeassistant.components.hassio.handler", get_supervisor_client=lambda _: client)
     add("homeassistant.core", HomeAssistant=object, ServiceCall=object)
     add("homeassistant.exceptions", HomeAssistantError=HomeAssistantError)
+    add("homeassistant.helpers", area_registry=SimpleNamespace(async_get=lambda hass: hass.areas))
     path = Path(__file__).resolve().parents[2] / "custom_components/podvoice/controller_admin.py"
     spec = importlib.util.spec_from_file_location("pv175_controller_admin", path)
     result = importlib.util.module_from_spec(spec)
@@ -102,6 +103,9 @@ def rig(monkeypatch):
         auth=SimpleNamespace(async_get_user=lambda _: asyncio.sleep(0, result=admin)),
         data={"supervisor_user": supervisor},
         config_entries=entries,
+        areas=SimpleNamespace(
+            async_get_area=lambda area: SimpleNamespace(id=area) if area == "kitchen_area" else None
+        ),
     )
     return api, api.ControllerAdmin(hass, entry), admin, supervisor, writes, entries
 
@@ -272,3 +276,178 @@ async def test_explicit_recovery_sends_once_and_requires_machine_receipt(monkeyp
     await owner.receipt(call("supervisor", **reply))
     assert await asyncio.wait_for(task, 1) == {"ok": True, "room": "kitchen"}
     assert len(writes) == 1
+
+
+def enrollment(*, revision=0, area=None):
+    return {
+        "id": "a" * 32,
+        "name": "Screen",
+        "room": "kitchen",
+        "persistent": True,
+        "expiresAt": None,
+        "status": "active",
+        "areaId": area,
+        "placementRevision": revision,
+    }
+
+
+async def test_placement_exact_profile_revision_and_area_receipt_send_once(monkeypatch):
+    _, owner, _, _, writes, _ = rig(monkeypatch)
+    task = asyncio.create_task(
+        owner.request(
+            call("human", identity="a" * 32, area_id="kitchen_area", expected_revision=0),
+            "placement",
+        )
+    )
+    try:
+        listing = await next_write(writes, 1)
+        assert listing["action"] == "list"
+        await owner.receipt(
+            call(
+                "supervisor",
+                **receipt(
+                    listing,
+                    {"ok": True, "room": "kitchen", "pending": [], "enrolled": [enrollment()]},
+                ),
+            )
+        )
+        placed = await next_write(writes, 2)
+        assert {k: placed[k] for k in ("action", "identity", "area_id", "expected_revision")} == {
+            "action": "placement",
+            "identity": "a" * 32,
+            "area_id": "kitchen_area",
+            "expected_revision": 0,
+        }
+        result = {
+            "ok": True,
+            "room": "kitchen",
+            "identity": "a" * 32,
+            "areaId": "kitchen_area",
+            "placementRevision": 1,
+            "bindingId": "b" * 64,
+        }
+        await owner.receipt(call("supervisor", **receipt(placed, result)))
+        assert await task == result
+        assert len(writes) == 2
+    finally:
+        task.cancel()
+
+
+@pytest.mark.parametrize("change", ["admin", "area", "revision", "profile"])
+async def test_placement_stale_admin_area_profile_and_revision_never_write(monkeypatch, change):
+    api, owner, admin, _, writes, _ = rig(monkeypatch)
+    task = asyncio.create_task(
+        owner.request(
+            call("human", identity="a" * 32, area_id="kitchen_area", expected_revision=0),
+            "placement",
+        )
+    )
+    try:
+        listing = await next_write(writes, 1)
+        if change == "admin":
+            admin.is_admin = False
+        elif change == "area":
+            owner.hass.areas.async_get_area = lambda _: None
+        rows = (
+            [] if change == "profile" else [enrollment(revision=1 if change == "revision" else 0)]
+        )
+        await owner.receipt(
+            call(
+                "supervisor",
+                **receipt(
+                    listing, {"ok": True, "room": "kitchen", "pending": [], "enrolled": rows}
+                ),
+            )
+        )
+        with pytest.raises(api.HomeAssistantError):
+            await task
+        assert len(writes) == 1
+    finally:
+        task.cancel()
+
+
+async def test_placement_unknown_ack_never_retries(
+    monkeypatch,
+):
+    api, owner, _, _, _, _ = rig(monkeypatch)
+    actions = []
+
+    async def exchange(call, action, **fields):
+        actions.append(action)
+        if action == "list":
+            return {"ok": True, "room": "kitchen", "pending": [], "enrolled": [enrollment()]}
+        raise api.HomeAssistantError("administrator outcome unknown")
+
+    owner._exchange = exchange
+    with pytest.raises(api.HomeAssistantError, match="outcome unknown"):
+        await owner.request(
+            call("human", identity="a" * 32, area_id="kitchen_area", expected_revision=0),
+            "placement",
+        )
+    assert actions == ["list", "placement"]
+
+
+@pytest.mark.parametrize(
+    "delta",
+    [
+        {"bindingId": "bad"},
+        {"placementRevision": True},
+        {"areaId": "name with spaces"},
+        {"isOwnArea": True},
+    ],
+)
+def test_placement_receipt_is_closed_and_never_accepts_browser_scope(monkeypatch, delta):
+    api, _, _, _, _, _ = rig(monkeypatch)
+    good = {
+        "ok": True,
+        "room": "kitchen",
+        "identity": "a" * 32,
+        "areaId": "kitchen_area",
+        "placementRevision": 1,
+        "bindingId": "b" * 64,
+    }
+    assert api._valid_result("placement", "kitchen", good)
+    assert not api._valid_result("placement", "kitchen", {**good, **delta})
+
+
+@pytest.mark.parametrize("change", ["admin", "area"])
+async def test_admin_or_area_removed_while_placement_ack_is_pending_is_not_claimed(
+    monkeypatch, change
+):
+    api, owner, admin, _, writes, _ = rig(monkeypatch)
+    task = asyncio.create_task(
+        owner.request(
+            call("human", identity="a" * 32, area_id="kitchen_area", expected_revision=0),
+            "placement",
+        )
+    )
+    try:
+        listing = await next_write(writes, 1)
+        await owner.receipt(
+            call(
+                "supervisor",
+                **receipt(
+                    listing,
+                    {"ok": True, "room": "kitchen", "pending": [], "enrolled": [enrollment()]},
+                ),
+            )
+        )
+        placed = await next_write(writes, 2)
+        if change == "admin":
+            admin.is_active = False
+        else:
+            owner.hass.areas.async_get_area = lambda _: None
+        result = {
+            "ok": True,
+            "room": "kitchen",
+            "identity": "a" * 32,
+            "areaId": "kitchen_area",
+            "placementRevision": 1,
+            "bindingId": "b" * 64,
+        }
+        await owner.receipt(call("supervisor", **receipt(placed, result)))
+        with pytest.raises(api.HomeAssistantError):
+            await task
+        assert len(writes) == 2
+    finally:
+        task.cancel()

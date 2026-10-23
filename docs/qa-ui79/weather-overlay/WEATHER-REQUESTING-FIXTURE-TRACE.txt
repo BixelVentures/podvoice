@@ -1,0 +1,5 @@
+Authored weather home weather-advice-deferred read=1 status=idle posts=0
+Authored weather POST weather-advice-deferred count=1 held=4000
+Authored weather receipt weather-advice-deferred pending
+Authored weather home weather-advice-deferred read=2 status=ready posts=1
+Authored weather home weather-advice-deferred read=3 status=ready posts=1

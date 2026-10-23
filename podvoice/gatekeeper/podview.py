@@ -19,9 +19,11 @@ from contextvars import ContextVar
 from pathlib import Path
 from urllib.parse import urlencode
 
+import httpx
 from aiohttp import web
 
 from . import (
+    podview_lights,
     podview_music,
     podview_robot,
     podview_room_media,
@@ -306,6 +308,7 @@ class PodViewBridge:
         self._music_profile_generation: dict[str, int] = {}
         self._home_busy = False
         self._home_cache: dict[str, tuple] = {}
+        self._lights_cache: dict[tuple, dict] = {}
         self._home_revision = 0
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""
@@ -565,6 +568,162 @@ class PodViewBridge:
             and owner.snapshots.get(room, {}).get("epoch") == epoch
             and owner.bindings.get(room) == binding
         )
+
+    def light_placement(self, room: str, token: str) -> dict | None:
+        """A named controller's saved placement, never HA-user or session inference."""
+        try:
+            if not self._grant_current(room, token):
+                return None
+            slot = self._grant_slot(room, token)
+            if slot is None:
+                return None
+            identity = self._controller_grants.get(slot)
+            registry = self._controller_registry
+            if not identity or registry is None:
+                return None
+            return {
+                "identity": identity,
+                **registry.placement(identity, room, self.controller_pin(room)),
+            }
+        except (OSError, ValueError, TypeError, KeyError):
+            return None
+
+    async def read_lights(
+        self, room: str, token: str, areaId=None, *, cache=False, include_catalogue=False
+    ) -> dict:
+        """Read one exact area and optionally publish its same-owner area catalogue.
+
+        Catalogue/placement describe the authenticated screen, not a second light
+        observation. Browsing another area never moves its saved own placement.
+        """
+        unavailable = podview_lights._absent("unavailable", None)
+        catalogue = None
+        public_placement = None
+
+        def deliver(value):
+            if not include_catalogue:
+                return value
+            status = "unbound" if value["status"] == "unbound" else "unavailable"
+            return {
+                "lights": value,
+                "lightAreas": copy.deepcopy(catalogue)
+                if catalogue is not None
+                else {
+                    "status": status,
+                    "source": "home_assistant_area_registry",
+                    "sourceEpoch": None,
+                    "observedAt": None,
+                    "validUntil": None,
+                    "bindingId": None,
+                    "placementRevision": None,
+                    "ownAreaId": None,
+                    "selectedAreaId": None,
+                    "items": [],
+                },
+                "lightPlacement": copy.deepcopy(public_placement)
+                if public_placement is not None
+                else {
+                    "status": status,
+                    "areaId": None,
+                    "areaName": None,
+                    "bindingId": None,
+                    "placementRevision": None,
+                },
+            }
+
+        placement = self.light_placement(room, token)
+        if not placement or placement["areaId"] is None:
+            return deliver(podview_lights._absent("unbound", None))
+        tools = self.tools
+        if not tools or not getattr(tools, "podview_lights_available", lambda: False)():
+            return deliver(unavailable)
+        selected = placement["areaId"] if areaId is None else areaId
+        if not isinstance(selected, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", selected):
+            return deliver(unavailable)
+        binding = tools.podview_lights_binding()
+        source_epoch = hashlib.sha256(repr(binding).encode()).hexdigest()
+        scope = podview_lights.LightsScope(
+            selected,
+            placement["bindingId"],
+            placement["placementRevision"],
+            selected == placement["areaId"],
+        )
+
+        def current():
+            return (
+                tools is self.tools
+                and binding == tools.podview_lights_binding()
+                and tools.podview_lights_available()
+                and placement == self.light_placement(room, token)
+            )
+
+        key = (room, placement["identity"], placement["bindingId"], selected, source_epoch)
+        try:
+            async with asyncio.timeout(2):
+                areas = await tools.podview_lights_areas()
+                if not current():
+                    return deliver(unavailable)
+                own = next((a for a in areas if a["areaId"] == placement["areaId"]), None)
+                if own is None:
+                    return deliver(podview_lights._absent("unbound", None))
+                selected_area = next((a for a in areas if a["areaId"] == selected), None)
+                observed_at = time.time()
+                catalogue = {
+                    "status": "observed",
+                    "source": "home_assistant_area_registry",
+                    "sourceEpoch": source_epoch,
+                    "observedAt": observed_at,
+                    "validUntil": observed_at + podview_lights.SOURCE_TTL,
+                    "bindingId": placement["bindingId"],
+                    "placementRevision": placement["placementRevision"],
+                    "ownAreaId": own["areaId"],
+                    "selectedAreaId": selected_area["areaId"] if selected_area else None,
+                    "items": copy.deepcopy(areas),
+                }
+                public_placement = {
+                    "status": "bound",
+                    "areaId": own["areaId"],
+                    "areaName": own["areaName"],
+                    "bindingId": placement["bindingId"],
+                    "placementRevision": placement["placementRevision"],
+                }
+                if selected_area is None:
+                    return deliver(unavailable)
+                if cache:
+                    retained = podview_lights.current_area_lights(
+                        self._lights_cache.get(key), scope=scope, source_epoch=source_epoch
+                    )
+                    if (
+                        retained is not None
+                        and retained["scope"]["areaName"] == selected_area["areaName"]
+                    ):
+                        return deliver(retained)
+                result = await tools.podview_lights_read(scope, current=current)
+                if not current():
+                    catalogue = public_placement = None
+                    return deliver(unavailable)
+                result = podview_lights.current_area_lights(
+                    result, scope=scope, source_epoch=source_epoch
+                )
+                if result is None:
+                    return deliver(unavailable)
+                # At most own + one browsed area per controller; source timestamps
+                # never renew on cache hit. Retired controllers cannot grow memory.
+                for old in list(self._lights_cache):
+                    if old[:2] == key[:2] and (
+                        old[2] != key[2]
+                        or old[4] != key[4]
+                        or (old[3] != placement["areaId"] and old != key)
+                    ):
+                        del self._lights_cache[old]
+                self._lights_cache[key] = copy.deepcopy(result)
+                while len(self._lights_cache) > 128:
+                    del self._lights_cache[next(iter(self._lights_cache))]
+                return deliver(result)
+        except (TimeoutError, OSError, ValueError, TypeError, KeyError, httpx.HTTPError):
+            if not current():
+                catalogue = public_placement = None
+            return deliver(unavailable)
 
     def controller_owner(self, room: str) -> tuple:
         session = self.sessions.get(room)
@@ -1279,7 +1438,7 @@ class PodViewBridge:
         result["status"] = "observed"
         return result
 
-    def snapshot(self, room: str, token: str = "") -> dict:
+    def snapshot(self, room: str, token: str = "", *, light_token: str = "") -> dict:
         session = self.sessions[room]
         active = bool(getattr(session, "_active", False))
         state = getattr(getattr(session, "sm", None), "state", None)
@@ -1386,6 +1545,7 @@ class PodViewBridge:
                     for kind, method in (
                         ("vacuum", "podview_home_available"),
                         ("weather", "podview_weather_available"),
+                        ("light", "podview_lights_available"),
                     )
                     if getattr(self.tools, method, lambda: False)()
                 ],
@@ -1412,7 +1572,17 @@ class PodViewBridge:
         # Authorization is per connection, not part of the shared resource revision.
         if fresh and self._grant_current(room, token):
             result["capabilities"]["timerActions"] = ["timer.start", "timer.cancel"]
-        result["capabilities"]["controlSetup"] = self.controls.domains(room, token)
+        domains = self.controls.domains(room, token)
+        # HA ingress keeps its actor for every existing domain. Light commands
+        # additionally require the actual enrolled screen cookie, never a read
+        # observation, ingress user, room label or unrelated controller grant.
+        light_source = getattr(self.tools, "podview_lights_available", lambda: False)()
+        if not light_source:
+            domains = [domain for domain in domains if domain != "light"]
+        elif light_token and light_token != token and self.light_placement(room, light_token):
+            if "light" in self.controls.domains(room, light_token) and "light" not in domains:
+                domains = [*domains, "light"]
+        result["capabilities"]["controlSetup"] = domains
         result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
         result["capabilities"]["queueSelection"] = bool(self.queue.rules(room, token))
         robot_suggestions = self.controls.robot_suggestions(room, token)
@@ -1553,7 +1723,15 @@ async def _control(request: web.Request) -> web.Response:
         return _error("invalid_control", 400)
     owner = request.app[BRIDGE].controls
     handler = owner.setup if request.path.endswith("/setup") else owner.action
-    result = await handler(body, _request_token(request, body.get("roomId")))
+    # Light placement belongs to the enrolled screen, not the ingress HA actor.
+    task = owner.tasks.get(body.get("taskId")) if isinstance(body.get("taskId"), str) else None
+    light = body.get("domain") == "light" or (task is not None and task["domain"] == "light")
+    token = (
+        request.cookies.get(_PAIR_COOKIE, "")
+        if light
+        else _request_token(request, body.get("roomId"))
+    )
+    result = await handler(body, token)
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
@@ -1599,7 +1777,11 @@ async def _snapshot(request: web.Request) -> web.Response:
             {"ok": False, "error": "room_required", "rooms": list(bridge.sessions)}, status=409
         )
     return web.json_response(
-        bridge.snapshot(room, _request_token(request, room)),
+        bridge.snapshot(
+            room,
+            _request_token(request, room),
+            light_token=request.cookies.get(_PAIR_COOKIE, ""),
+        ),
         headers={"Cache-Control": "no-store"},
     )
 
@@ -1637,7 +1819,11 @@ async def _events(request: web.Request) -> web.StreamResponse:
             # write/wait remains set and cannot be lost between projection and wait.
             if wake is not None:
                 wake.clear()
-            snap = bridge.snapshot(room, _request_token(request, room))
+            snap = bridge.snapshot(
+                room,
+                _request_token(request, room),
+                light_token=request.cookies.get(_PAIR_COOKIE, ""),
+            )
             payload = f"event: snapshot\nid: {bridge.boot_id}:{snap['revision']}\ndata: {json.dumps(snap)}\n\n"
             await asyncio.wait_for(response.write(payload.encode()), timeout=5)
             if wake is None:
@@ -3137,7 +3323,17 @@ async def _home(request: web.Request) -> web.Response:
         and podview_weather.observation_is_current(cached[2].get("weather"))
         and (bridge._weather_source_cache is None or time.time() < bridge._weather_source_cache[3])
     ):
-        return web.json_response(cached[2], headers={"Cache-Control": "no-store"})
+        result = {
+            **cached[2],
+            **await bridge.read_lights(
+                room,
+                request.cookies.get(_PAIR_COOKIE, ""),
+                request.query.get("lightArea"),
+                cache=True,
+                include_catalogue=True,
+            ),
+        }
+        return web.json_response(result, headers={"Cache-Control": "no-store"})
     if bridge._home_busy:
         return _error("home_busy", 429)
     bridge._home_busy = True
@@ -3226,6 +3422,16 @@ async def _home(request: web.Request) -> web.Response:
         "weatherAdvice": capability(bridge, room, weather),
     }
     bridge._home_cache[room] = time.monotonic(), binding, result
+    result = {
+        **result,
+        **await bridge.read_lights(
+            room,
+            request.cookies.get(_PAIR_COOKIE, ""),
+            request.query.get("lightArea"),
+            cache=True,
+            include_catalogue=True,
+        ),
+    }
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 

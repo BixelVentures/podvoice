@@ -7,6 +7,49 @@ export function lightsObservation(v){
  const seen=new Set(),items=[];for(const row of v.items){if(!/^light\.[a-z0-9_]+$/.test(row?.entityId)||seen.has(row.entityId)||!['on','off','unknown','unavailable'].includes(row.state))return null;seen.add(row.entityId);items.push({entityId:row.entityId,name:typeof row.name==='string'?row.name.slice(0,120):'Lys',state:row.state,brightness:finite(row.brightness,0,255)});}
  return {source:v.source,observedAt:v.observedAt,items};
 }
+// Legacy lightsObservation above is for authored examples only. Live consumers
+// admit the closed controller/HA-area projection below and join its catalogue.
+const lightExact=(value,keys)=>!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
+const lightText=(value,max)=>typeof value==='string'&&value.length>0&&value.length<=max&&value===value.trim()&&!/[\p{C}\p{Z}]/u.test(value.replaceAll(' ',''));
+const lightAreaId=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(value);
+const lightHash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
+const lightRevision=value=>Number.isSafeInteger(value)&&value>=0;
+const lightTime=(v,now)=>Number.isFinite(now)&&finite(v.observedAt)!==null&&finite(v.validUntil)!==null&&v.validUntil===v.observedAt+15&&v.observedAt*1000<=now&&now<v.validUntil*1000;
+export function lightAreasObservation(v,now=Date.now()){
+ const keys=['status','source','sourceEpoch','observedAt','validUntil','bindingId','placementRevision','ownAreaId','selectedAreaId','items'];
+ if(!lightExact(v,keys)||!['observed','unavailable','unbound'].includes(v.status)||v.source!=='home_assistant_area_registry'||!Array.isArray(v.items))return null;
+ if(v.status!=='observed')return v.items.length===0&&keys.filter(key=>!['status','source','items'].includes(key)).every(key=>v[key]===null)?{...v,items:[]}:null;
+ if(!lightHash(v.sourceEpoch)||!lightHash(v.bindingId)||!lightRevision(v.placementRevision)||!lightTime(v,now)||!lightAreaId(v.ownAreaId)||!(v.selectedAreaId===null||lightAreaId(v.selectedAreaId))||v.items.length<1||v.items.length>64)return null;
+ const seen=new Set(),items=[];for(const row of v.items){if(!lightExact(row,['areaId','areaName'])||!lightAreaId(row.areaId)||seen.has(row.areaId)||!lightText(row.areaName,160))return null;seen.add(row.areaId);items.push({...row});}
+ if(!seen.has(v.ownAreaId)||v.selectedAreaId!==null&&!seen.has(v.selectedAreaId))return null;
+ return {...v,items};
+}
+export function lightPlacementObservation(v,areas=null){
+ const keys=['status','areaId','areaName','bindingId','placementRevision'];
+ if(!lightExact(v,keys)||!['bound','unavailable','unbound'].includes(v.status))return null;
+ if(v.status!=='bound')return keys.filter(key=>key!=='status').every(key=>v[key]===null)&&(!areas||areas.status===v.status)?{...v}:null;
+ if(!lightAreaId(v.areaId)||!lightText(v.areaName,160)||!lightHash(v.bindingId)||!lightRevision(v.placementRevision))return null;
+ if(areas&&(areas.status!=='observed'||v.areaId!==areas.ownAreaId||v.areaName!==areas.items.find(row=>row.areaId===v.areaId)?.areaName||v.bindingId!==areas.bindingId||v.placementRevision!==areas.placementRevision))return null;
+ return {...v};
+}
+export function scopedLightsObservation(v,{now=Date.now(),areas=null,placement=null}={}){
+ const keys=['status','source','sourceEpoch','observedAt','validUntil','scope','complete','items','countUnit'];
+ if(!lightExact(v,keys)||!['observed','unavailable','unbound'].includes(v.status)||v.source!=='home_assistant_state'||v.countUnit!=='light_entities'||!Array.isArray(v.items))return null;
+ if(v.status!=='observed')return (v.sourceEpoch===null||lightText(v.sourceEpoch,256))&&v.observedAt===null&&v.validUntil===null&&v.scope===null&&v.complete===false&&v.items.length===0?{...v,items:[]}:null;
+ const scope=v.scope;
+ if(!lightText(v.sourceEpoch,256)||v.complete!==true||!lightTime(v,now)||v.items.length>64||!lightExact(scope,['kind','areaId','areaName','bindingId','placementRevision','isOwnArea'])||scope.kind!=='ha_area'||!lightAreaId(scope.areaId)||!lightText(scope.areaName,160)||!lightText(scope.bindingId,256)||!lightRevision(scope.placementRevision)||typeof scope.isOwnArea!=='boolean')return null;
+ if(areas&&(areas.status!=='observed'||!lightTime(areas,now)||v.sourceEpoch!==areas.sourceEpoch||scope.areaId!==areas.selectedAreaId||scope.areaName!==areas.items.find(row=>row.areaId===scope.areaId)?.areaName||scope.bindingId!==areas.bindingId||scope.placementRevision!==areas.placementRevision||scope.isOwnArea!==(scope.areaId===areas.ownAreaId)))return null;
+ if(placement&&(placement.status!=='bound'||scope.bindingId!==placement.bindingId||scope.placementRevision!==placement.placementRevision||scope.isOwnArea!==(scope.areaId===placement.areaId)||scope.isOwnArea&&scope.areaName!==placement.areaName))return null;
+ const seen=new Set(),items=[];for(const row of v.items){if(!lightExact(row,['entityId','areaId','name','state','brightness','supportsBrightness'])||typeof row.entityId!=='string'||!/^light\.[a-z0-9_]+$/.test(row.entityId)||seen.has(row.entityId)||row.areaId!==scope.areaId||!lightText(row.name,160)||!['on','off','unknown','unavailable'].includes(row.state)||typeof row.supportsBrightness!=='boolean'||!(row.brightness===null||Number.isInteger(row.brightness)&&row.brightness>=0&&row.brightness<=255))return null;seen.add(row.entityId);items.push({...row});}
+ return {...v,scope:{...scope},items};
+}
+export function scopedLightSummary(v,now=Date.now()){
+ const value=scopedLightsObservation(v,{now});
+ if(!value)return {status:v?.status==='observed'?'stale':'unavailable',onCount:null,knownCount:null,unknownCount:null,totalCount:null,countUnit:'light_entities'};
+ if(value.status!=='observed')return {status:value.status,onCount:null,knownCount:null,unknownCount:null,totalCount:null,countUnit:value.countUnit};
+ const totalCount=value.items.length,onCount=value.items.filter(row=>row.state==='on').length,knownCount=value.items.filter(row=>['on','off'].includes(row.state)).length,unknownCount=totalCount-knownCount,status=!totalCount?'empty':unknownCount?'unknown':onCount===totalCount?'on':onCount===0?'off':'mixed';
+ return {status,onCount,knownCount,unknownCount,totalCount,countUnit:value.countUnit};
+}
 export function vehicleObservation(v){
  if(v?.status!=='observed'||v.source!=='home_assistant_state'||finite(v.observedAt)===null||!Array.isArray(v.entityIds)||!v.entityIds.length||v.entityIds.length>8||new Set(v.entityIds).size!==v.entityIds.length||v.entityIds.some(id=>!/^(sensor|binary_sensor|climate|lock)\.[a-z0-9_]+$/.test(id))||!v.data)return null;
  const d=v.data,charging=['charging','complete','stopped','disconnected','starting'].includes(d.charging?.status)?d.charging.status:null;

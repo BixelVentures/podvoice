@@ -670,7 +670,7 @@ async def test_passive_home_projects_cleaning_without_touching_voice_tickets():
         app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
         async with TestClient(TestServer(app)) as client:
             snap = await (await client.get("/view/api/snapshot")).json()
-            assert snap["capabilities"]["homeRead"] == ["vacuum"]
+            assert snap["capabilities"]["homeRead"] == ["vacuum", "light"]
             first = await (await client.get("/view/api/home")).json()
             second = await (await client.get("/view/api/home")).json()
             assert first == second
@@ -815,7 +815,7 @@ async def test_passive_home_does_not_advertise_closed_transport():
     )
     session, _ = owner()
     bridge = PodViewBridge({"kitchen": session}, tools=tools)
-    assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == ["vacuum"]
+    assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == ["vacuum", "light"]
     await http.aclose()
     assert bridge.snapshot("kitchen")["capabilities"]["homeRead"] == []
 

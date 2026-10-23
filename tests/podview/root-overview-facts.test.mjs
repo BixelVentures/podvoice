@@ -68,3 +68,11 @@ test('Robot progress meter preserves validated observed percent and disappears w
  for(const staleRobot of [{...robot,stale:true},{...robot,telemetry:{...observed,items:observed.items.map(row=>({...row,stale:true}))}},{...robot,telemetry:{...observed,items:observed.items.map(row=>({...row,updatedAt:now-301}))}},{...robot,telemetry:{...observed,items:[]}}])assert.equal(deviceOverviewFacts(staleRobot,now).facts.some(row=>row.meter),false);
  const local=previewScene('light-overview-on'),lights=local.devices.find(row=>row.kind==='light'),facts=deviceOverviewFacts(lights,now).facts;assert.equal(facts.find(row=>row.id==='rooms').label,'Rum');assert(facts.filter(row=>row.id.startsWith('brightness:')).every(row=>Number.parseInt(row.value)>0));
 });
+
+test('account-only overview facts distinguish provider player from confirmed physical speaker without refreshing position',()=>{
+ for(const playing of [false,true]){
+  const vm={active:true,title:'Observed song',artist:'Observed artist',target:'Provider target',readOnly:true,fresh:false,positionFresh:false,playing,progressMs:20000,durationMs:60000},before=structuredClone(vm),f=projection({live:true,vm}),shown=f.calls.get('home-music');
+  assert.equal(shown.context,`${playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`);assert.deepEqual(shown.facts.find(row=>row.id==='room'),{id:'room',label:'Kontospiller',value:'Provider target',stale:false});assert.equal(shown.facts.find(row=>row.id==='artist').stale,false);assert.equal(shown.facts.find(row=>row.id==='duration').stale,false);assert.equal(shown.facts.find(row=>row.id==='remaining').stale,true);assert.equal(shown.facts.some(row=>row.meter),false);
+  f.render.call(f.host,vehicleFixture({charging:true}));assert.deepEqual(f.calls.get('home-music'),shown);assert.deepEqual(vm,before);
+ }
+});

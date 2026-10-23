@@ -289,7 +289,10 @@ async def _confirm_destination(
         return False
 
 
-def envelope(bridge, room, account, scope, source=None):
+def envelope(bridge, room, account, scope, source=None, *, account_observed=False):
+    status = "unavailable"
+    if source is not None:
+        status = "account_observed" if account_observed else "observed"
     return {
         "ok": True,
         "schema": "podview.room-playback.v1",
@@ -297,7 +300,7 @@ def envelope(bridge, room, account, scope, source=None):
         "roomId": room,
         "configEntryId": account,
         "binding": scope,
-        "status": "observed" if source is not None else "unavailable",
+        "status": status,
         "data": source,
     }
 
@@ -358,6 +361,45 @@ async def read_playback(bridge, room, account, owner_binding):
                     scope["nativeHomepodId"],
                     current,
                 )
+                if (
+                    observed.get("ok") is False
+                    and observed.get("error_kind") == "claim_unavailable"
+                ):
+                    # This failure carries no Control owner/poll identity. Re-read
+                    # the passive cache to close that boundary without renewing
+                    # the original observation or minting any room/action proof.
+                    latest_raw = await tools.podview_read("playback", account)
+                    if not current():
+                        return empty()
+                    latest_closed = podview_music.project_owner(
+                        "playback",
+                        latest_raw.get("data") if latest_raw.get("ok") else latest_raw,
+                        account,
+                    )
+                    latest = latest_closed.get("data") if latest_closed.get("ok") else None
+                    if (
+                        not isinstance(latest, dict)
+                        or latest["owner_epoch"] != source["owner_epoch"]
+                        or latest["poll_sequence"] != source["poll_sequence"]
+                        or latest["playback"] != source["playback"]
+                        or latest["observation"]["observed_at"]
+                        != source["observation"]["observed_at"]
+                    ):
+                        return empty()
+                    checked = podview_music.project_owner("playback", source, account)
+                    if not current() or not checked.get("ok"):
+                        return empty()
+                    return web.json_response(
+                        envelope(
+                            bridge,
+                            room,
+                            account,
+                            scope,
+                            copy.deepcopy(checked["data"]),
+                            account_observed=True,
+                        ),
+                        headers={"Cache-Control": "no-store"},
+                    )
                 data = observed.get("data") if observed.get("ok") else None
                 if not isinstance(data, dict):
                     return empty()

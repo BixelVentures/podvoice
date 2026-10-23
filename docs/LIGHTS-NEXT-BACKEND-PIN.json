@@ -1,0 +1,15 @@
+{
+  "status": "BACKEND_SCOPE_FROZEN_CLIENT_INTEGRATION_PENDING",
+  "version": "unassigned",
+  "baselineDraftPacket": "043bf6219a14b3a011fdcb0d68d97d8460f6b1fd3701c952c637e947ddd70ae0",
+  "packetSha256": "086c2b3bde11d6aadd769d17a1384a0b8f5132fb8091becb02ea2633f655590f",
+  "files": {
+    "podvoice/gatekeeper/podview.py": "9d0f3ef0d955a4314c286919ea875ddd9b95a43af48ae8aa19cdbb0c83267a66",
+    "podvoice/gatekeeper/tools.py": "0ccc887d53a02d034f9c1f2f0fb33d20df66d89444d0dc2b48609089fbac5cee",
+    "tests/integration/test_podview_lights_admission.py": "172d994b4ad4da48ddc4507ff58a6678595ba7304eb91f856ee0d5456f35a425",
+    "tests/integration/test_podview_lights_bridge.py": "1ba971ceff370b75bcad4b5680487e283f0f9f65ecda415e3eb2dda3c03c354a",
+    "tests/integration/test_podview_lights_catalogue.py": "dc266a0e3313b9a023021067208f9681e672357f06b06398a8d5c0281f582399"
+  },
+  "tests": "344 affected tests passed in0.73s; Ruff/format/syntax/mypy2 PASS; prior556 unchangedbaseline evidence retained",
+  "review": "bounded independent source GO on additive catalogue/placement and cookie-only light admission; not physical acceptance"
+}

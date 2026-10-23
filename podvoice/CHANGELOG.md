@@ -1,3 +1,13 @@
+## 2.0.79
+
+- Lys kræver to matchende leverancer: add-on2.0.79 og separat PodVoice HAkomponent0.1.6. Add-on-opdatering alene installerer ikke custom_components.
+- HAkomponenten leveres via den eksisterende filinstallation med særskilt HAcore-genstart og readback; ingen genstart foretages med ukendt timerstatus.
+
+- Vis frisk account-only paused musikmetadata read-only uden at påstå fysisk rumafspilning eller give kommandoadgang.
+- Bevar valgt næstehøjttaler adskilt fra faktisk output.
+- Bind lysvisning og opaque controlsetup til gemt controllerplacering, faktisk HAarea og aktuel policy.
+- Saml den kanoniske quietUI og520px/32px native controldialog.
+
 ## 2.0.78
 
 - Bevar højttalerrækker ved udløb; vis faktisk adgangsgrund og tilbyd eksplicit frisk læsning/retry.

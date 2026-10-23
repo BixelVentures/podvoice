@@ -29,13 +29,24 @@ export function mediaRoomBinding(snapshot,account){
 const sameRoomBinding=(a,b)=>!!a&&!!b&&Object.keys(a).sort().join(',')==='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'&&Object.keys(b).sort().join(',')==='accountId,bindingId,nativeHomepodId,nativeRoomId,roomId,targetId'&&['accountId','targetId','nativeRoomId','nativeHomepodId','roomId','bindingId'].every(key=>a[key]===b[key]);
 // Display custody only. Never use this predicate to admit a read, offer or action.
 export function roomObservationBound(playback,snapshot,account=playback?.config_entry_id){return !!(playback?.roomBound===true&&playback.config_entry_id===account&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,account))&&playback.target?.id===playback.roomBinding.targetId);}
+// Only the explicit server account_observed projection can hold this read scope.
+// Configured native names bind custody; they are never a physical route proof.
+export function accountObservationBound(playback,snapshot,account=playback?.config_entry_id){return !!(snapshot?.capabilities?.musicRead?.includes('playback')===true&&playback?.accountObserved===true&&playback.readOnly===true&&playback.roomBound===false&&playback.config_entry_id===account&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,account))&&playback.target?.id===playback.roomBinding.targetId);}
 const playbackReadable=snapshot=>!Array.isArray(snapshot?.capabilities?.musicRead)||snapshot.capabilities.musicRead.includes('playback');
 export function roomObservationCurrent(playback,snapshot){return roomObservationBound(playback,snapshot)&&observationFresh(playback);}
-export function roomObservationDisplay(playback,snapshot,account=playback?.config_entry_id){return playbackReadable(snapshot)&&roomObservationBound(playback,snapshot,account)&&(observationFresh(playback)||playback.displayRetained===true);}
+export function roomObservationDisplay(playback,snapshot,account=playback?.config_entry_id){return playbackReadable(snapshot)&&(roomObservationBound(playback,snapshot,account)&&(observationFresh(playback)||playback.displayRetained===true)||accountObservationBound(playback,snapshot,account)&&observationFresh(playback));}
 export function roomPlaybackObservation(body,account,snapshot,previous){
  if(body?.ok!==true||body.schema!=='podview.room-playback.v1'||Object.keys(body).sort().join(',')!=='binding,bootId,configEntryId,data,ok,roomId,schema,status'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.configEntryId!==account)throw Error('invalid_room_playback');
  const bound=mediaRoomBinding(snapshot,account);
  if(body.status==='unavailable'){if(body.data!==null)throw Error('unredacted_room_playback');return null;}
+ if(body.status==='account_observed'){
+  const exact=(value,keys)=>!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key)),data=body.data;
+  if(!sameRoomBinding(body.binding,bound)||!exact(data,['ok','schema','config_entry_id','owner_epoch','poll_sequence','observation','playback','physical_result_verified'])||!exact(data.observation,['status','source','observed_at','age_ms','max_age_ms'])||!exact(data.playback,['state','target','item','progress_ms','provider_changed_at_ms','shuffle','repeat'])||!exact(data.playback.target,['kind','target_id','name'])||!exact(data.playback.item,['type','uri','name','artists','duration_ms',...(Object.hasOwn(data.playback.item||{},'artwork')?['artwork']:[])]))throw Error('invalid_account_playback');
+  if(!(data.playback.shuffle===null||typeof data.playback.shuffle==='boolean')||![null,'off','track','context'].includes(data.playback.repeat)||['progress_ms','provider_changed_at_ms'].some(key=>data.playback[key]!==null&&(!Number.isSafeInteger(data.playback[key])||data.playback[key]<0))||data.playback.item.duration_ms!==null&&(!Number.isSafeInteger(data.playback.item.duration_ms)||data.playback.item.duration_ms<0))throw Error('invalid_account_playback');
+  const observed=playbackObservation(data,account,previous);
+  if(!['playing','paused'].includes(observed.state)||!observed.item||!spotifyItemUrl(observed.item.uri)||observed.target?.id!==bound.targetId||observed.expiresAt<=Date.now())throw Error('unbound_account_playback');
+  return {...observed,accountObserved:true,readOnly:true,roomBound:false,bootId:body.bootId,roomId:body.roomId,roomBinding:{...bound}};
+ }
  if(body.status!=='observed'||!sameRoomBinding(body.binding,bound))throw Error('room_binding_changed');
  const observed=playbackObservation(body.data,account,previous),until=body.data?.room_proof_valid_until;
  if(!['playing','paused'].includes(observed.state)||observed.target?.id!==bound.targetId||!Number.isFinite(until)||until*1000<=Date.now())throw Error('unbound_room_playback');
