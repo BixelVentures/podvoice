@@ -80,26 +80,49 @@ class MusicSelection:
         }
         if not _closed_context(context) or not isinstance(data, dict):
             return None
-        tracks = data.get("tracks")
-        if kind not in {"search", "recent", "top", "liked", "mood", "feeling"}:
+        tracks = data.get("playlists" if kind == "account_playlists" else "tracks")
+        if kind not in {"search", "recent", "top", "liked", "mood", "feeling", "account_playlists"}:
             return None
-        maximum = 3 if kind in {"search", "mood", "feeling"} else 50
+        maximum = (
+            20
+            if kind == "account_playlists"
+            else 3
+            if kind in {"search", "mood", "feeling"}
+            else 50
+        )
         if not isinstance(tracks, list) or not 1 <= len(tracks) <= maximum:
+            return None
+        if kind == "account_playlists" and (
+            data.get("ok") is not True
+            or data.get("schema") != "podconnect.user_playlists.v1"
+            or data.get("config_entry_id") != context["configEntryId"]
+            or data.get("source") != "spotify_web_api"
+            or data.get("coverage") != "first_page"
+            or type(data.get("limit")) is not int
+            or data["limit"] != 20
+            or type(data.get("returned_count")) is not int
+            or data["returned_count"] != len(tracks)
+            or type(data.get("source_has_more")) is not bool
+            or not isinstance(data.get("owner_epoch"), str)
+            or not 1 <= len(data["owner_epoch"]) <= 128
+        ):
             return None
         if any(
             not isinstance(row, dict)
             or not isinstance(row.get("uri"), str)
             or re.fullmatch(
                 r"spotify:playlist:[A-Za-z0-9]{22}"
-                if kind in {"mood", "feeling"}
+                if kind in {"mood", "feeling", "account_playlists"}
                 else r"spotify:track:[A-Za-z0-9]{22}",
                 row.get("uri", ""),
             )
             is None
             or not isinstance(row.get("name"), str)
             or not 1 <= len(row["name"]) <= 256
-            or not isinstance(row.get("artist"), str)
-            or not 1 <= len(row["artist"]) <= 512
+            or (
+                kind != "account_playlists"
+                and (not isinstance(row.get("artist"), str) or not 1 <= len(row["artist"]) <= 512)
+            )
             for row in tracks
         ):
             return None
@@ -110,6 +133,7 @@ class MusicSelection:
             "context": copy.deepcopy(context),
             "tracks": copy.deepcopy(tracks),
             "kind": kind,
+            "catalogueOwnerEpoch": data["owner_epoch"] if kind == "account_playlists" else None,
             "scope": scope,
             "itemIds": {secrets.token_hex(12): index for index in range(len(tracks))}
             if kind != "search"
@@ -192,7 +216,16 @@ class MusicSelection:
             or controls.get("target", {}).get("target_id") != target
         ):
             return None
-        action = "play_context" if source["kind"] in {"mood", "feeling"} else "play_track"
+        if (
+            source["kind"] == "account_playlists"
+            and controls.get("owner_epoch") != source["catalogueOwnerEpoch"]
+        ):
+            return None
+        action = (
+            "play_context"
+            if source["kind"] in {"mood", "feeling", "account_playlists"}
+            else "play_track"
+        )
         start = controls.get("start_offer")
         if (
             action not in controls.get("actions", [])
@@ -219,7 +252,12 @@ class MusicSelection:
             return None
         task_id = "music-selection:" + secrets.token_hex(16)
         options = [
-            {"id": secrets.token_hex(12), "label": row["name"], "artist": row["artist"]}
+            {
+                "id": secrets.token_hex(12),
+                "label": row["name"],
+                # This is a type label; the account catalogue supplies no creator.
+                "artist": "Playliste" if source["kind"] == "account_playlists" else row["artist"],
+            }
             for row in tracks
         ]
         task = {

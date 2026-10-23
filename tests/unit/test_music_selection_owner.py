@@ -279,6 +279,189 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         offer = self.offer(observed_controls=controls)
         self.assertIsNone(offer)
 
+    def account_playlist_offer(self, **change):
+        self.context = {**CONTEXT, "query": "account_playlists:collection"}
+        data = {
+            "ok": True,
+            "schema": "podconnect.user_playlists.v1",
+            "config_entry_id": "account",
+            "owner_epoch": "epoch",
+            "source": "spotify_web_api",
+            "coverage": "first_page",
+            "limit": 20,
+            "returned_count": 1,
+            "source_has_more": True,
+            "playlists": [{"uri": "spotify:playlist:" + "P" * 22, "name": "My playlist"}],
+        }
+        self.identifier = self.broker.register(
+            self.context, data, self.binding, kind="account_playlists"
+        )
+        self.assertIsNotNone(self.identifier)
+        self.playlist_data = data
+        self.playlist_controls = {**CONTROLS, "actions": ["play_context"]}
+        candidate = self.broker.candidate_set(self.identifier)
+        self.playlist_candidate = candidate
+        return self.offer(
+            observed_controls=self.playlist_controls,
+            candidate_ids=[candidate["items"][0]["id"]],
+            **change,
+        )
+
+    async def execute_account_playlist(self, offer, **change):
+        async def fresh():
+            return copy.deepcopy(self.playlist_controls)
+
+        args = {"fresh_controls": fresh, **change}
+        return await self.execute(offer, **args)
+
+    async def test_account_playlist_read_then_fresh_context_offer_sends_exact_uri_once(self):
+        offer = self.account_playlist_offer()
+        self.assertEqual(self.playlist_candidate["sourceKind"], "account_playlists")
+        self.assertNotIn("uri", str(offer))
+        self.assertEqual(offer["options"][0]["artist"], "Playliste")
+        self.assertEqual(self.broker.tasks[offer["taskId"]]["action"], "play_context")
+        result = await self.execute_account_playlist(offer)
+        self.assertEqual(result["outcome"], "accepted")
+        self.assertEqual(self.sent[0][1], self.playlist_data["playlists"][0]["uri"])
+        self.assertEqual(await self.execute_account_playlist(offer), result)
+        self.assertEqual(
+            (await self.execute_account_playlist(offer, request_id="another"))["outcome"],
+            "rejected",
+        )
+        self.assertEqual(len(self.sent), 1)
+
+    def test_account_playlist_catalogue_is_read_only_and_binds_native_epoch(self):
+        self.account_playlist_offer()
+        self.broker.tasks.clear()
+        candidate = self.broker.candidate_set(self.identifier)
+        self.assertEqual(self.broker.tasks, {})
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.broker.receipts, {})
+        self.assertEqual(len(candidate["items"]), 1)
+        for controls in (
+            {**self.playlist_controls, "owner_epoch": "PC-restarted"},
+            {**self.playlist_controls, "actions": ["play_track"]},
+            {**self.playlist_controls, "config_entry_id": "another-account"},
+            {**self.playlist_controls, "target": {"kind": "spotify_device", "target_id": "other"}},
+        ):
+            with self.subTest(controls=controls):
+                self.assertIsNone(
+                    self.offer(
+                        candidate_ids=[candidate["items"][0]["id"]], observed_controls=controls
+                    )
+                )
+
+    def test_account_playlist_registration_rejects_wrong_catalogue_provenance(self):
+        self.account_playlist_offer()
+        for field, value in (
+            ("schema", "podconnect.top_tracks.v1"),
+            ("config_entry_id", "another-account"),
+            ("source", "synthetic"),
+            ("owner_epoch", ""),
+            ("coverage", "complete"),
+            ("limit", 50),
+            ("returned_count", 2),
+            ("source_has_more", 1),
+            ("playlists", [{"uri": URI, "name": "track"}]),
+            ("playlists", [{"uri": "spotify:playlist:" + "P" * 22}]),
+            ("playlists", []),
+        ):
+            with self.subTest(field=field, value=value):
+                data = {**self.playlist_data, field: value}
+                self.assertIsNone(
+                    self.broker.register(self.context, data, self.binding, kind="account_playlists")
+                )
+
+    async def test_account_playlist_stale_context_and_native_destination_never_send(self):
+        for field, value in (
+            ("bootId", "other-boot"),
+            ("roomId", "other-room"),
+            ("sessionId", "other-session"),
+            ("turnId", "other-turn"),
+            ("taskId", "other-task"),
+            ("inputRevision", 2),
+            ("revision", 3),
+            ("configEntryId", "other-account"),
+            ("query", "top:collection"),
+        ):
+            offer = self.account_playlist_offer()
+            with self.subTest(field=field):
+                changed = {**self.context, field: value}
+                self.assertIsNone(
+                    self.offer(
+                        context=changed,
+                        observed_controls=self.playlist_controls,
+                        candidate_ids=[self.playlist_candidate["items"][0]["id"]],
+                    )
+                )
+                self.assertEqual(
+                    (await self.execute_account_playlist(offer, context=changed))["outcome"],
+                    "rejected",
+                )
+        for field, value in (
+            ("owner_epoch", "PC-restarted"),
+            ("config_entry_id", "other-account"),
+            ("room_id", "other-native-room"),
+            ("homepod_id", "other-homepod"),
+            ("target", {"kind": "spotify_device", "target_id": "other-device"}),
+            ("actions", ["play_track"]),
+        ):
+            offer = self.account_playlist_offer()
+
+            async def fresh(field=field, value=value):
+                return {**self.playlist_controls, field: value}
+
+            with self.subTest(field=field):
+                self.assertEqual(
+                    (await self.execute_account_playlist(offer, fresh_controls=fresh))["outcome"],
+                    "rejected",
+                )
+        self.assertEqual(self.sent, [])
+
+    async def test_account_playlist_wait_cancel_and_replacement_cannot_dispatch(self):
+        for mode in ("cancel", "new_catalogue", "new_context", "new_owner"):
+            offer = self.account_playlist_offer()
+            entered, release = asyncio.Event(), asyncio.Event()
+
+            async def held(entered=entered, release=release):
+                entered.set()
+                await release.wait()
+                return copy.deepcopy(self.playlist_controls)
+
+            pending = asyncio.create_task(self.execute_account_playlist(offer, fresh_controls=held))
+            await asyncio.wait_for(entered.wait(), timeout=2)
+            if mode == "cancel":
+                pending.cancel()
+            elif mode == "new_catalogue":
+                self.broker.register(
+                    self.context, self.playlist_data, self.binding, kind="account_playlists"
+                )
+            elif mode == "new_context":
+                self.context["inputRevision"] += 1
+            else:
+                self.live = False
+            release.set()
+            with self.subTest(mode=mode):
+                self.assertEqual((await pending)["outcome"], "rejected")
+                self.assertEqual(self.sent, [])
+            self.live = True
+
+    async def test_account_playlist_unknown_never_replays(self):
+        offer = self.account_playlist_offer()
+        calls = []
+
+        async def unknown(_controls, uri, _ceiling, current):
+            self.assertTrue(current())
+            self.assertEqual(uri, self.playlist_data["playlists"][0]["uri"])
+            calls.append(uri)
+            raise TimeoutError
+
+        result = await self.execute_account_playlist(offer, send_once=unknown)
+        self.assertEqual(result["outcome"], "unknown")
+        self.assertEqual(await self.execute_account_playlist(offer), result)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.sent, [])
+
 
 if __name__ == "__main__":
     unittest.main()

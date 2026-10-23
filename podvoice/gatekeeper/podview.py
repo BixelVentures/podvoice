@@ -105,6 +105,9 @@ def _music_public(
 ) -> dict:
     """Display contract is closed even when owner/provider contracts retain extra fields."""
     unavailable = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
+    if kind == "account_playlists":
+        raw = value.get("data") if isinstance(value, dict) and value.get("ok") is True else value
+        return podview_music.project_account_playlists(raw, account)
     if kind in podview_music.SERVICES:
         if not isinstance(value, dict):
             return unavailable
@@ -2014,7 +2017,9 @@ def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, to
         or not bridge.controls.selection_allowed(
             room,
             token,
-            "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track",
+            "play_context"
+            if source.get("kind") in {"mood", "feeling", "account_playlists"}
+            else "play_track",
         )
         or context.get("roomId") != room
         or context.get("bootId") != bridge.boot_id
@@ -2200,7 +2205,22 @@ async def _music(request: web.Request) -> web.Response:
         )
     if kind in {"mood", "feeling"}:
         return await _mood_music(request, bridge, room, kind=kind)
-    if kind not in {"targets", "recent", "top", "liked", "playback", "queue", "search"}:
+    if kind == "account_playlists" and (
+        set(request.query) - {"kind", "account", "room"}
+        or any(len(request.query.getall(key, [])) != 1 for key in request.query)
+        or len(request.query.getall("account", [])) != 1
+    ):
+        return _error("invalid_account", 400)
+    if kind not in {
+        "targets",
+        "recent",
+        "top",
+        "liked",
+        "playback",
+        "queue",
+        "search",
+        "account_playlists",
+    }:
         return _error("unsupported_read", 400)
     account = request.query.get("account")
     query = None
@@ -2214,14 +2234,14 @@ async def _music(request: web.Request) -> web.Response:
             return _error("invalid_query", 400)
     elif "query" in request.query:
         return _error("invalid_query", 400)
-    library_kinds = {"recent", "top", "liked"}
+    library_kinds = {"recent", "top", "liked", "account_playlists"}
     if (
         account is not None
         and (
             kind not in {"targets", "playback", "queue", "search", *library_kinds}
             or not 1 <= len(account) <= 1024
         )
-    ) or (kind in podview_music.SERVICES and account is None):
+    ) or ((kind in podview_music.SERVICES or kind == "account_playlists") and account is None):
         return _error("invalid_account", 400)
     if kind not in tools.podview_music_reads():
         bridge._music_cache.clear()
@@ -2235,11 +2255,12 @@ async def _music(request: web.Request) -> web.Response:
         )
     binding = _music_binding(bridge, room)
     token = _request_token(request, room)
+    selection_action = "play_context" if kind == "account_playlists" else "play_track"
     selection_requested = bool(
         kind in {"search", *library_kinds}
         and account is not None
         and bridge._grant_current(room, token)
-        and bridge.controls.selection_allowed(room, token)
+        and bridge.controls.selection_allowed(room, token, selection_action)
     )
     if selection_requested and bridge.music_selection.busy(room):
         return _error("music_busy", 429)
@@ -2272,7 +2293,7 @@ async def _music(request: web.Request) -> web.Response:
     if cached:
         result = (
             _music_public(kind, cached[2], account, query)
-            if kind in podview_music.SERVICES
+            if kind in podview_music.SERVICES or kind == "account_playlists"
             else cached[2]
         )
         if kind == "search" and result.get("ok") and search_context is not None:
@@ -2311,7 +2332,8 @@ async def _music(request: web.Request) -> web.Response:
     finally:
         bridge._music_busy = False
     if (
-        bridge.tools is not tools
+        (kind == "account_playlists" and request.app.get(BRIDGE) is not bridge)
+        or bridge.tools is not tools
         or room not in bridge.sessions
         or binding != _music_binding(bridge, room)
         or kind not in tools.podview_music_reads()
@@ -2334,7 +2356,7 @@ async def _music(request: web.Request) -> web.Response:
                         bridge._music_source_current(token, source_generation)
                         and bridge._grant_for_token(room, token) is selection_grant
                         and bridge._grant_current(room, token)
-                        and bridge.controls.selection_allowed(room, token)
+                        and bridge.controls.selection_allowed(room, token, selection_action)
                         and binding == _music_binding(bridge, room)
                         and current_context
                         == _music_search_context(bridge, room, account, context_query, token)
@@ -2789,7 +2811,9 @@ async def _music_selection(request: web.Request) -> web.Response:
         if bridge.music_selection.selected_tracks(source, body.get("candidateIds")) is None:
             return _error("invalid_candidate_ids", 400)
         selection_action = (
-            "play_context" if source.get("kind") in {"mood", "feeling"} else "play_track"
+            "play_context"
+            if source.get("kind") in {"mood", "feeling", "account_playlists"}
+            else "play_track"
         )
         scope = podview_room_media.binding(bridge, room, target["accountId"])
         destination = None

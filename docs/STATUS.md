@@ -1,3 +1,45 @@
+## Planlagt build77 — private kontoplaylister, isoleret READ-draft
+
+Lead root; READ-ejer weather_backend_integration; PodConnect ejer native kontoobservation,
+selection-ejer ejer kildebundet capability, root ejer HTTP/cache/samlet levering.
+Observeret produktgab: PodView har søgning/mood/feeling, men ingen sand første side af
+brugerens egne Spotify-playlister. Hypotese: eksisterende response-only native
+get_user_playlists kan projekteres lukket og konto-/epoch-bundet uden ny AI, scope eller
+playback-autoritet. Kæde: godkendt konto/rum → server read → eksisterende HA/PC-ejer →
+første side max20 → lukket DTO → aktuel cache → udvælgelse under eksisterende ejerfences.
+Invarianter: HA/PodConnect ejer data; account/owner/generation kontrolleres før og efter
+await; stale GET skaber ingen capability; ingen opdigtet Daily Mix/daylist.8s timeout
+og256KiB envelope bevares; uændret voice/lifecycle og76UI. Nabo-fejlveje: forkert konto,
+owner restart, langsomt svar efter konfig-/room-/generation-skift, malformed/oversize,
+private billeder/metadata og ændret kilde før selection. Inerte tests dækker transport,
+strict projektion, konto/binding-revocation og read-advertising; root dækker samlet
+rum/cache/selection. Rollback kun denne READ-delta; ingen budgetreset eller UIændring.
+Status planlagt build; ingen livekald, release, installation eller fysisk accept.
+READ-resultat: eksakt native DTO podconnect.user_playlists.v1, coverage first_page,
+source_has_more bool, fast20 og lukket projection er implementeret.73 inerte tests
+(new READ + eksisterende music transport/ingress + artwork) PASS; fuld mypy92
+kilder og Ruff/formatter PASS. Ingen rigtig HA/Spotify/provider kaldt. Root ejer
+fortsat rum/session/cache/current-generation og owner_epoch-kobling til playback
+før selection; READ-resultat alene er ingen afspilningsautoritet.
+Samlet backend source-resultat: root rapporterer71 berørte inerte HTTP/selection-
+forløb PASS via faktisk TestClient med inert transport; selection-ejer20 checks og
+READ-ejer73 checks bevares. Fuld mypy92 kilder og relevante Ruff/formatter PASS.
+Uafhængig weather_backend_review har givet whole-chain SOURCE GO uden blockers.
+PV#237 følger samlet levering.77 er fortsat et backend source-draft uden UI,
+versionsændring eller admission77-binding; root samler først én PR, når UI og den
+separate PodConnect-pakke er klar. Ingen backend-draft-livekald eller installation.
+Installeret baseline76, verificeret af root23okt17:45:17 dansk tid: HAUI2.0.76/
+Kører; startup git5b753604c703e90f7fd5c63ea3ccd219ab814670 og
+rootfs-v1:28daf671f8d6e9bbf6d9699633fd4a6f5460874fa4e4bc4c2e3b84d0bb742632.
+OCI ARM manifest sha256:79ec65abadc464e0b78213a661386a8263a840ad45e29554da3a92c24972ff50;
+index ac71dd6545fd3ce99c46a0560593795adf4ccc00e8f94431dd10e59d2c26bddb.
+Root verificerede303 source-/202S06-filhashes i /private/tmp/pv76-OCI-PUBLISHED.json;
+MCP assist connected/r0ready og Voice PE connected17:45:21. Wake detector, faktisk
+GPT-vejr og ny native lyd har ikke fysisk/provider-accept; Speakers43 er installeret
+uden bekræftet lydprøve.76-identiteten beviser ikke77-kontoplaylisterne.
+Base frozen76 tree3494bc9a0a2e316568d867aefc362425b0d5ca9c; faktisk main-parent
+5b753604c703e90f7fd5c63ea3ccd219ab814670.76export er uændret.
+
 ## Planlagt build76 — samlet UI/vejr, source-bundet; officiel CI afventer
 
 Root ejer udgivelsen; weather_backend_integration ejer den isolerede samling.
