@@ -11,6 +11,21 @@ attachPressedState(document);
 // Button/Chip primitives as specimens, while the existing shell keeps its density.
 for(const button of document.querySelectorAll('[data-library-level],#single-view,#compare-view,#isolate-component,#preview-motion,#touch-areas,#sizes-view'))applyKitComponent(button,'chip');
 for(const id of ['focus-preview','flow-start','flow-next','reset-example'])applyKitComponent($(id),'button',{variant:'secondary'});
+// Documentation-only control forwards the existing local fault events. It never
+// mutates a host state or grants playback/integration authority.
+const radioConnectionPreview=document.createElement('button');
+radioConnectionPreview.id='radio-connection-preview';radioConnectionPreview.type='button';radioConnectionPreview.hidden=true;
+applyKitComponent(radioConnectionPreview,'button',{variant:'secondary'});
+radioConnectionPreview.textContent='Afbryd forbindelsen · lokalt';
+$('reset-example').after(radioConnectionPreview);
+function radioPreviewConnection(frame,activate=false){
+ const doc=frame?.contentDocument,host=doc?.querySelector('pv-widget-host');
+ if(!doc||doc.location?.origin!==location.origin||doc.location?.pathname!=='/'||host?.live!==false||host.dataset.mode!=='demo')return null;
+ if(typeof host.dispatch!=='function'||!host.state||typeof host.state.connected!=='boolean')return null;
+ if(activate)host.dispatch(host.state.connected?{type:'offline'}:{type:'snapshot',generation:host.state.generation});
+ return (host.state.connected?'Afbryd forbindelsen':'Genopret forbindelsen')+' · lokalt';
+}
+radioConnectionPreview.addEventListener('click',()=>{if(radioConnectionPreview.hidden)return;const label=radioPreviewConnection($('product-preview'),true);if(label)radioConnectionPreview.textContent=label;});
 // Twelve public kit recipes group existing owners; catalog entries are specimens,
 // never a second primitive inventory or a second renderer.
 const families={card:['music','player','weather'],hero:['composition','timer'],tile:['composition'],chip:['music','robot','answer-choices'],button:['player','timer','robot'],slider:['player','lights'],toggle:['lights'],listrow:['radio','music','player','answer-checklist'],sectionheader:['music','weather','robot'],topbar:['composition','weather','robot'],dialog:['overlays','player','timer','voice'],icon:['player','composition','music']};
@@ -86,6 +101,7 @@ function frameSetup(frame,sample){
   frame.contentWindow.customElements.whenDefined('pv-widget-host').then(()=>{
    if(!frame.isConnected||frame.contentDocument!==doc)return;
    applyMotion(frame);
+   if(frame.id==='product-preview'){const label=radioPreviewConnection(frame);radioConnectionPreview.disabled=!label;if(label)radioConnectionPreview.textContent=label;}
    if(frame.id==='product-preview'&&pendingFlow){pendingFlow=false;advanceFlow();}
    if(sample.open){const button=doc.querySelector(sample.open);if(button&&!button.disabled)button.click();}
   });
@@ -118,7 +134,13 @@ function renderWidgetSizePreviews(){
      queued=null;if(!frame.isConnected||frame.contentDocument!==doc)return;if(staging)host.motion?.cancel();
      const detail=host.state.focus!=='now';example.dataset.expanded=String(detail);
      if(detail){delete host.dataset.libraryWidgetSizes;framing.delete(frame);measurement.textContent='Samme klikforløb · brug Tilbage i produktet';}
-     else{host.dataset.libraryWidgetSizes='true';const feed=doc.querySelector('.responses');if(feed?.scrollTop)feed.scrollTop=0;const box=widget.getBoundingClientRect();framing.set(frame,{x:box.x,y:box.y,width:box.width,height:box.height});measurement.textContent=`Renderet ${Math.round(box.width)} × ${Math.round(box.height)} px · ${sample.label}`;}
+     else{
+      host.dataset.libraryWidgetSizes='true';const feed=doc.querySelector('.responses');
+      // Crop only after the real product scroll owner exposes the whole widget.
+      // Translating its iframe cannot undo clipping or a genuine scroll-edge fade.
+      if(feed){const box=widget.getBoundingClientRect(),bounds=feed.getBoundingClientRect(),top=bounds.top+feed.clientTop,bottom=top+feed.clientHeight,delta=box.height>feed.clientHeight?box.top-top:box.bottom>bottom?box.bottom-bottom:box.top<top?box.top-top:0;if(delta)feed.scrollTop=Math.max(0,Math.min(feed.scrollHeight-feed.clientHeight,feed.scrollTop+delta));host.scrollEdges?.measure(feed);}
+      const box=widget.getBoundingClientRect();framing.set(frame,{x:box.x,y:box.y,width:box.width,height:box.height});measurement.textContent=`Renderet ${Math.round(box.width)} × ${Math.round(box.height)} px · ${sample.label}`;
+     }
      fit(viewport);if(staging){staging=false;applyMotion(frame);}
     };
     const schedule=()=>{
@@ -151,6 +173,7 @@ function navigation(){
  for(const button of document.querySelectorAll('[data-library-level]'))button.setAttribute('aria-pressed',String(button.dataset.libraryLevel===level));
 }
 function render(){
+ radioConnectionPreview.hidden=!(level==='screens'&&selected.id==='radio'&&!compare&&!sizeCompare);radioConnectionPreview.disabled=true;
  clearWidgetSizePreviews();
  const sizeAvailable=level==='screens'&&hasWidgetSizes(selected.id);sizeCompare=sizeCompare&&sizeAvailable;$('sizes-view').hidden=!sizeAvailable;$('sizes-view').setAttribute('aria-pressed',String(sizeCompare));$('widget-size-previews').hidden=!sizeCompare;
  const standalone=level==='components'||level==='templates';

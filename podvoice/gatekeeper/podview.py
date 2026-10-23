@@ -256,6 +256,17 @@ class PodViewBridge:
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
         self.boot_id = secrets.token_hex(16)
+        self._weather_source_cache = None
+        provider = getattr(tools, "podview_weather_provider", None)
+        if provider is not None:
+            from .podview_weather_advice import WeatherAdviceOwner
+
+            tools.podview_weather_advice = WeatherAdviceOwner(
+                provider,
+                boot_id=self.boot_id,
+                source_is_current=podview_weather.observation_is_current,
+                source_token=podview_weather_brief.token,
+            )
         receipt_owner = getattr(tools, "podview_receipts", None)
         if receipt_owner is not None and hasattr(receipt_owner, "bind_history_boot"):
             receipt_owner.bind_history_boot(self.boot_id)
@@ -3100,6 +3111,7 @@ async def _home(request: web.Request) -> web.Response:
         and cached[1] == binding
         and time.monotonic() - cached[0] < 5
         and podview_weather.observation_is_current(cached[2].get("weather"))
+        and (bridge._weather_source_cache is None or time.time() < bridge._weather_source_cache[3])
     ):
         return web.json_response(cached[2], headers={"Cache-Control": "no-store"})
     if bridge._home_busy:
@@ -3108,8 +3120,41 @@ async def _home(request: web.Request) -> web.Response:
 
     async def read_domain(method, unavailable):
         try:
+            if (
+                method == "podview_weather_read"
+                and getattr(tools, "podview_weather_advice", None) is not None
+            ):
+                source = bridge._weather_source_cache
+                if (
+                    source
+                    and source[1] == binding[2]
+                    and time.monotonic() - source[0] < 900
+                    and time.time() < source[3]
+                    and podview_weather.observation_is_current(source[2])
+                ):
+                    return copy.deepcopy(source[2])
             read = getattr(tools, method, None)
-            return await asyncio.wait_for(read(), timeout=8) if read else unavailable
+            result = await asyncio.wait_for(read(), timeout=8) if read else unavailable
+            if (
+                method == "podview_weather_read"
+                and getattr(tools, "podview_weather_advice", None) is not None
+                and binding[2] == binding_now()[2]
+                and podview_weather.observation_is_current(result)
+            ):
+                try:
+                    source_binding, _ = tools.podview_weather_advice.binding(
+                        bridge.boot_id, room, result
+                    )
+                    deadline = source_binding["validUntil"]
+                    bridge._weather_source_cache = (
+                        time.monotonic(),
+                        binding[2],
+                        copy.deepcopy(result),
+                        deadline,
+                    )
+                except (ValueError, TypeError, KeyError):
+                    bridge._weather_source_cache = None
+            return result
         except Exception:
             return unavailable
 
@@ -3131,6 +3176,9 @@ async def _home(request: web.Request) -> web.Response:
             and getattr(tools, "podview_weather_available", lambda: False)()
         ):
             weather = {"status": "unavailable", "data": None}
+        passive = getattr(tools, "podview_weather_advice", None)
+        if passive is not None:
+            passive.observe(room, weather)
         # Read the same exact owner again after awaits. A Stop/new input/source
         # revocation may not keep an earlier brief alive through the home cache.
         brief = podview_weather_brief.read_brief(tools, room, bridge.sessions.get(room))
@@ -3141,6 +3189,8 @@ async def _home(request: web.Request) -> web.Response:
     finally:
         bridge._home_busy = False
     bridge._home_revision += 1
+    from .podview_weather_http import capability
+
     result = {
         "schema": "podview.home.v1",
         "bootId": bridge.boot_id,
@@ -3149,6 +3199,7 @@ async def _home(request: web.Request) -> web.Response:
         "observedAt": time.time(),
         "vacuum": vacuum,
         "weather": weather,
+        "weatherAdvice": capability(bridge, room, weather),
     }
     bridge._home_cache[room] = time.monotonic(), binding, result
     return web.json_response(result, headers={"Cache-Control": "no-store"})
@@ -3241,8 +3292,12 @@ def mount(
     app[BRIDGE] = bridge
     app.middlewares.append(_ha_request_scope)
     from .podview_queue import queue_http
+    from .podview_weather_http import weather_advice
 
     async def close_receipts(_app):
+        weather_owner = getattr(tools, "podview_weather_advice", None)
+        if weather_owner is not None:
+            await weather_owner.close()
         theme_art = getattr(tools, "podview_theme_art", None)
         if theme_art is not None:
             await theme_art.aclose()
@@ -3274,6 +3329,7 @@ def mount(
             web.post("/view/api/music/selection/setup", _music_selection),
             web.post("/view/api/music/selection/actions", _music_selection),
             web.get("/view/api/home", _home),
+            web.post("/view/api/weather-advice", weather_advice),
             web.get("/view/api/answers", _answers),
             web.get("/view/api/sources/{receipt_id}", _answers),
             web.get("/view/theme-art/{theme}/{digest}.webp", _theme_art_asset),

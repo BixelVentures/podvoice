@@ -13,10 +13,10 @@ export const headerPreviewPhases={listening:'LISTENING',thinking:'THINKING',spea
 export const devicePreviewStatuses={light:['off','on','mixed','pending','unknown','fault','unavailable'],robot:['docked','cleaning','paused','docking','stopped','pending','unknown','fault']};
 export const devicePreviewStates=Object.entries(devicePreviewStatuses).flatMap(([kind,statuses])=>statuses.flatMap(status=>['detail','overview','rest'].map(layer=>`${kind}-${layer}-${status}`)));
 export const deviceOfflinePreviewStates=['robot','light'].flatMap(kind=>['detail','overview','rest'].map(layer=>`${kind}-${layer}-offline`));
-export const timerPreviewStates=['detail','overview','rest'].flatMap(layer=>['empty','running','finished','multiple','stale'].map(state=>`timer-${layer}-${state}`));
+export const timerPreviewStates=['detail','overview','rest'].flatMap(layer=>['empty','running','finished','multiple','stale'].map(state=>`timer-${layer}-${state}`)).concat(['timer-overview-dismissed']);
 export const musicPreviewStates=['mood','feeling','top','recent','paused','refreshing','refresh-error','refresh-empty'].map(state=>`music-${state}`);
 export const radioPreviewStates=['ready','selected','paused','offline'].map(state=>`radio-${state}`);
-export const weatherPreviewStates=['ready','empty','stale'].map(state=>`weather-${state}`);
+export const weatherPreviewStates=[...['ready','empty','stale'].map(state=>`weather-${state}`),'weather-wind-known',...['idle','pending','ready','error'].map(state=>`weather-advice-${state}`)];
 export const answerPreviewStatuses=['ready','waiting','partial','empty','error','offline','interrupted'];
 export const answerPreviewStates=FORMATS.flatMap(format=>answerPreviewStatuses.map(state=>`answer-${format}-${state}`)).concat([...visualFamilies.map(format=>`answer-${format}-long`),'answer-sourced-image-image-failure','answer-simple-diagram-image-failure','answer-steps-complete','answer-checklist-complete']);
 export const conversationPreviewStates=['overview','listening','working','speaking','visual','late','complete','interrupted','followup','long','resume','timer-finished','offline','reconnecting','reconnected','visual-error'].map(state=>`conversation-${state}`);
@@ -24,8 +24,9 @@ export const coexistencePreviewStates=['conversation-visual-timer-finished','con
 export const firstRunPreviewStates=['first-connecting','first-unavailable','first-denied','first-empty'];
 // Additional authored snapshots exercise only fields accepted by existing owners.
 export const libraryDomainPreviewStates=['robot-detail-many-rooms','robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','weather-long','weather-connection-error','music-offline','music-unknown','music-long-output','music-initial-empty','music-long-metadata','music-cover-states','player-long-metadata','player-queue-empty','player-queue-error','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
-export const previewStates=[...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
+export const previewStates=[...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'screen-device-ready','visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name,now=Date.now()){
+ if(name==='screen-device-ready')return step(initialScene(),{type:'show',id:'now'});
  if(libraryDomainPreviewStates.includes(name))return libraryDomainPreviewScene(name,now);
  if(firstRunPreviewStates.includes(name)){const connectionPreview=name==='first-empty'?{status:'connected',reason:'setup',snapshot:{capabilities:{homeRead:[],musicRead:[],timerActions:[],answerRead:false}}}:{status:name==='first-connecting'?'connecting':'disconnected',blocked:name==='first-denied'};const scene=initialScene();return {...scene,music:{...scene.music,playback:{...scene.music.playback,active:false,playing:false}},focus:'now',connected:false,weatherPreview:'empty',connectionPreview,devices:[],timer:null,extraTimers:[],answers:[]};}
  if(coexistencePreviewStates.includes(name)){
@@ -48,6 +49,8 @@ export function previewScene(name,now=Date.now()){
  if(timerPreviewStates.includes(name))return timerPreviewScene(name,now);
  if(musicPreviewStates.includes(name))return musicPreviewScene(name);
  if(radioPreviewStates.includes(name))return radioPreviewScene(name);
+ if(name==='weather-wind-known')return {...step(initialScene(),{type:'show',id:'weather'}),weatherPreview:'ready',weatherFixture:{...WEATHER_CHANGE_EXAMPLE,hours:WEATHER_CHANGE_EXAMPLE.hours.map((hour,index)=>({...hour,wind_bearing:[0,45,90,135,180,225,270,315,360,null,null,null][index]}))}};
+ if(name.startsWith('weather-advice-')&&weatherPreviewStates.includes(name))return {...step(initialScene(),{type:'show',id:'weather'}),weatherPreview:'ready',weatherFixture:{...WEATHER_CHANGE_EXAMPLE,advicePreview:name.slice('weather-advice-'.length)}};
  if(weatherPreviewStates.includes(name))return {...step(initialScene(),{type:'show',id:'weather'}),weatherPreview:name.slice('weather-'.length)};
  if(answerPreviewStates.includes(name))return answerPreviewScene(name);
  if(name==='activities-combined')return {...devicePreviewScene(timerPreviewScene('timer-overview-running',now),'robot-overview-cleaning'),vehicle:vehicleFixture({charging:true,now,controls:true})};
@@ -135,7 +138,8 @@ function timerPreviewScene(name,now){
  if(status==='empty')return s;
  s=step(s,{type:'timer-start',name:'',seconds:600,now:now-78000});
  s=step(s,{type:'tick',now});
- if(status==='finished')s=step(s,{type:'tick',now:s.timer.deadline});
+ if(['finished','dismissed'].includes(status))s=step(s,{type:'tick',now:s.timer.deadline});
+ if(status==='dismissed')s=step(s,{type:'timer-notice-dismiss',id:s.timer.id});
  if(status==='stale')s={...step(s,{type:'offline'}),timer:{...s.timer,stale:true,deadline:null}};
  // Keep the legacy stage URL, but obey the product's single-timer contract.
  if(status==='multiple')s={...s,timerHistory:[{seconds:180},{seconds:300},{seconds:600}]};

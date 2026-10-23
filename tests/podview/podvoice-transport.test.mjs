@@ -45,3 +45,16 @@ test('pairing retains authority only in HttpOnly cookie and reopens snapshot str
  transport.close();
  assert.equal(JSON.stringify(transport).includes('x'.repeat(43)),false);
 });
+
+test('weather advice uses one exact same-origin source-bound POST with no client forecast or retries',async()=>{
+ const calls=[],binding={bootId:snap().bootId,roomId:'kitchen',weatherKey:'a'.repeat(64),availability:'available'},dto={schema:'podview.passive-weather-advice.v1'};
+ const t=new PodVoiceTransport({url:'https://ha.example/prefix/view/',fetch:async(url,init)=>{calls.push({url:new URL(url),init});return {ok:true,status:200,json:async()=>dto};}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{homeRead:['weather']}};t.controller=new AbortController();
+ try{assert.deepEqual(await t.weatherAdvice(binding),dto);assert.equal(calls.length,1);assert.equal(calls[0].url.origin,'https://ha.example');assert.equal(calls[0].url.pathname,'/prefix/view/api/weather-advice');assert.equal(calls[0].url.search,'?room=kitchen');assert.equal(calls[0].init.method,'POST');assert.equal(calls[0].init.headers['X-PodView-Request'],'1');assert.deepEqual(JSON.parse(calls[0].init.body),{bootId:snap().bootId,roomId:'kitchen',weatherKey:'a'.repeat(64)});
+ for(const change of [{roomId:'other'},{bootId:'new'},{weatherKey:'invalid'},{availability:'unavailable'}])await assert.rejects(t.weatherAdvice({...binding,...change}));assert.equal(calls.length,1);
+ }finally{t.close();}
+});
+test('weather admission failures and owner replacement never retry or admit a late result',async()=>{
+ const binding={bootId:snap().bootId,roomId:'kitchen',weatherKey:'a'.repeat(64),availability:'available'};
+ for(const status of [401,403,409,503]){let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:false,status,json:async()=>({error:'weather_advice_unavailable'})};}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{homeRead:['weather']}};try{await assert.rejects(t.weatherAdvice(binding),error=>{assert.equal(error.code,status===409?'stale_weather_binding':[401,403].includes(status)?'read_access_denied':undefined);return true;});assert.equal(calls,1);}finally{t.close();}}
+ let resolve;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:()=>new Promise(r=>resolve=r)});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{homeRead:['weather']}};const pending=t.weatherAdvice(binding);t.snapshot={...t.snapshot,bootId:'new'};resolve({ok:true,status:200,json:async()=>({})});await assert.rejects(pending,{name:'AbortError'});t.close();
+});

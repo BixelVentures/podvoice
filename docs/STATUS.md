@@ -1,3 +1,85 @@
+## Planlagt build76 — samlet UI/vejr, source-bundet; officiel CI afventer
+
+Root ejer udgivelsen; weather_backend_integration ejer den isolerede samling.
+Base er actual main64028590b1a45008bbb0f8e77e6b2fbe81fc9c06/tree
+c6a0c76a28aeeaae5fdf0abf4c89ad40152d480c. Den uændrede kanoniske S06 UI-pakke
+/private/tmp/podview-ui76-s06-final-20261023 har202runtimefiler, kort802bed0fa18294a020b7bf77db41260305cdc0f3085fa0e1c73f80db36f3e5a3 og kildepins
+e1d09b5f55f89fbadd742a889e02583d33442c4a38e098bc630c0333746809f9. PodView ejer
+alle UI-bytes; ingen visuel produktkode er ændret i integrationen. UI-ejer rapporterer
+1856 fulde tests/komponentgate og lokale visuelle klik-/retentionsbeviser på10
+registrerede svarformater. Hjem/house, Lights48, Answer32/16 og de senere S06
+kontrast-, sammenlignings-, StepGuide- og forfattede vejrrettelser er med. Det er
+lokalt UI-bevis, ikke installeret browser-, provider-, lyd- eller fysisk accept.
+
+Observeret stoplinje før rettelsen: faktisk inert ToolRouter/Hjem/POST/FastProvider/
+WeatherAllowance producerede et ready-råd efter vedvarende debit, men capability
+blev unavailable+ready under cooldown. Den uændrede UI-parser afviste kombinationen;
+konstant-available stubfixture havde skjult fejlen. Lead godkendte mindste rettelse:
+eksakt aktuelt pending/ready-task forbliver læsbart uafhængigt af næste generations
+kvote, mens idle fortsat kræver kvote. Den oprindelige current-closure bevarer kilde,
+adgang, boot, konfiguration, udløb og ingen retry/rebinding. Ny permanent regression
+med faktisk allowance/provider-adapter er GREEN for pending/ready, send-once,
+kildeskift under cooldown, afvist ekstra POST og adgangstab. Faktisk MockTransport-
+JSON fra den samlede backend accepteres af den uændrede kanoniske UI som pending og
+ready med samme summary og nul ekstra browser-POSTs. Ingen rigtig provider kaldt.
+
+Uafhængigt backend SOURCE GO7ef8640a6c193a0d675edc098fb6211d95652c9c68cfb855a53a4c7d14c529b7 er bevaret bortset fra den særskilt SOURCE GO-reviewede
+capability/testdelta48ec504d04c37e9252fd5efe690873bb7343b5eb7a5ff6dc55aa185474e5c689.
+Backend54 fokuserede inerte checks er grønne/bevaret. Ændrede UI-testporte blev
+kontrolleret kausalt; endelige S06-porte62PASS og aktuel komponent-/bundle-
+rekompositionPASS genbruger uændrede resultater.15 ændrede Python-filer og6 ændrede
+UI-modulers syntaks er kontrolleret. Det historiske75-profil og dets publicerede
+fixture er bevaret;76 binder faktisk37produktion/43regressioner/320runtime/4config/
+48policy/27tooling,202eksakte assets, ingen uvedkommende paths og de uændrede
+klassificerede domæner ha_tools/physical_output/realtime_semantics. Lead modtog final scoped GO fra
+/root/sol61_release75_review og autoriserede kun disse bits. Python3.12-bindingen
+herunder passerer strict76;14/14 fokuserede positive/mutationstests passerer.
+
+Source-admission og lokal integration er afsluttet. Officiel CI, GitHub-publicering,
+Green-installation, faktisk provider-/browser- og fysisk accept af76 afventer root.
+Ingen GitHub-, rigtig provider-, HA- eller Green-operation er udført i denne
+pakkeopgave. Kandidaten er planlagt build, ikke installeret eller fysisk accepteret.
+
+## Planned76 passive weather AI integration —23October2026
+
+Lead root; backend implementer weather_backend_integration; independent reviewer
+weather_backend_review. Observed source gap: isolated producer has no trusted POST,
+startup purpose allowance or server binding; current GET only reads weather.
+Hypothesis: compose the existing producer behind authenticated exact source/room/boot
+POST and separate bounded weather allowance, retaining voice brief priority.
+Chain: existing HA weather read → current source cache → read-only capability →
+explicit POST → server budget/model → pending/result → exact-source projection.
+Invariants: HA remains weather truth; server owns authorization/budget; stale source,
+boot, grants, config, shutdown cannot publish; native/Talk lifecycle unchanged.
+Non-goals: UI implementation, audio, provider calls, HA/Green/network operations,
+release/version change. Focused inert tests cover GET no send, POST dedup/stale,
+revocation/late completion, source cadence and allowance separation. Rollback removes
+only this integration; no physical baseline is inherited. Status planned build;
+not test ready, not released/installed and no physical/provider acceptance.
+
+Actual isolated implementation: authenticated exact-body POST and unpaid home
+capability, shared client/key/model, server-owned maximum900s observation cadence, stale
+source/access/boot/config suppression, explicit source invalidation and shutdown
+close; existing voice-bound advice retains priority. New passive retrieval times
+are UNIX seconds; the existing voice DTO is unchanged. Provider generation targets
+70-120 Danish characters with structured max120; passive DTO compatibility stays240.
+Separate recurring weather allowance is globally durable one attempt/rolling900s,
+max96/UTC calendar day with no restart refill/refund. Availability hints are memory
+only; the authoritative reserve runs off-loop. Existing shared provider admission
+and capacity precede that debit; the lease is held through bounded2s reservation,
+then current source/config is rechecked before send. Known busy never debits; late
+revocation/unknown worker charge never retries or sends stale work.
+Retained focused inert checks:53PASS, formatter/lint clean for9 Python files.
+Six existing socket-backed home regressions were blocked before route execution by
+sandbox socket.bind PermissionError; they remain unpassed, not product failures.
+No provider/HA/network/release operation occurred. Root policy aligns source cache maximum900s with recurring900s admission and
+max96/UTC day. The retained source-cache deadline is captured once from the exact
+binding (retrieval+900s or earlier forecast boundary); neither reuse nor the short
+home cache can extend it. Refresh/expiry still invalidate old advice, and failure or
+source revocation remains honestly unavailable. No old advice is rebound to newer evidence. Combined
+UI integration, exact-tree scope binding, final review, CI, publication, installation
+and provider/browser/physical evidence remain open; candidate is not test ready.
+
 ## Authorized75music tap performance integration —23October2026
 
 Directuser authorizes bothvisualresponse andactualexecution speed, coordinatedwithPodViewUI22 inone75Greeninstall. UIownerPodView implements passivecurrenttargetprefetch andoneaccepted-current-operation playbackrefresh through existingselection/mediaowners. Root ownsreleaseintegration; independent sol61_release75_review reviewsfinalcausal/fence delta, sol61_review74_final maps existingregressions. No competingbackendpatch orblindtimeoutchanges. Immediatevalidtap mustretainselectedcard/artwork andshowpending beforefirstawait; do notsayplayinguntilfreshmatchingnativeobservation. Prefetchisexpiringread-onlyaccount/room/binding/transport-scoped work, neverauthority; warmreuseavoidsextratargetGET butnativefreshsetup/freshcontrols/sendonce remain. Lead23October explicitly supersedes the earlier serialized≤1trailingread proposal: one ordinary poll may remain in flight while one accepted-only superseding passive read starts immediately. Repeated same-owner accepted hooks coalesce on the current refresh job; generation/owner fences reject the older result. Stale/unknown/rejected events never retry effects or mutate the current owner. This is bounded read-only overlap, not serialized-read proof. Testsreuseexistingselection/live-media/expiry harnesses, includeheldoldowner/cleanup/cacheexpiry/duplicateclick/unknown andcold-vs-warmrequestordering. Desiredtap→audibleparitywithvoice remainsphysicalmeasurementrequirement, notinferredfrompendingUI orsourcegraph. UI22/finalscopebindings/officialCI/publication/installpending; current75PRheldunmerged.
@@ -3316,3 +3398,27 @@ UI20 exact admission PASS and all12 admission regressions PASS on fixed Python3.
 
 ### Candidate74 first official CI correction
 Run39766397959 rejected stale workflow display version73 and live_status focus expectations for removed Start. Corrected label74 and three expected Stop strings; source GO from independent sol61_review74_final. No production or runtime bytes changed. Exact admission PASS and25 promotion/admission tests PASS. Corrected live_status Chromium PASS with cleanup_complete true; receipt /Users/madsbachandersen/.cache/podvoice-dev/browser-proof/pv74-ci-live-status-20261022/receipt.json. Required final official CI remains pending; prior failed run stays failed.
+
+
+<!-- podview76-admission
+{
+  "version": 53,
+  "kind": "podview76_ui_weather",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "base_tip": "64028590b1a45008bbb0f8e77e6b2fbe81fc9c06",
+  "merge_base": "64028590b1a45008bbb0f8e77e6b2fbe81fc9c06",
+  "fingerprint": "06f64e7ce09b8f20021331a855095f42548699a6aa44bce0b2f8fdf46b461d41",
+  "regression_fingerprint": "3035f932d7184fbab7e2dbb849877e48f51f7109b4aaa276aafa8747c3f61026",
+  "runtime_fingerprint": "a4c6dcb0edde3366063039c8946e120c6d53b1d13828d2105d88bc45a07bbd8b",
+  "config_fingerprint": "b2249793d916b310d2578eaa7a57714d09cf4f62cb11ad9a412b7759505fc3b4",
+  "policy_fingerprint": "d5c490a7c861c95eabac007ce2ff8f1cdbaae0043c8c994140e685b224d05c15",
+  "tooling_fingerprint": "327930f8fd99783bd3df0f4ef9e1d1c99bbbbeac2af95583e4f1959f1ba92854",
+  "manifest_fingerprint": "4d678ad7f9e9ee36c4837f72c59edd291a7f259e9a47d16fb03c159a03ddeaa5",
+  "rationale": "Independent exact-composition scope/tooling GO and weather SOURCE GO48ec504d04c37e9252fd5efe690873bb7343b5eb7a5ff6dc55aa185474e5c689. Immutable S06 UI202 map802bed0fa18294a020b7bf77db41260305cdc0f3085fa0e1c73f80db36f3e5a3 adopted without source edits; UI owner reports1856 tests/component gate PASS. Backend54 inert checks retained; actual MockTransport router/provider/durable debit JSON accepted by unchanged canonical UI pending then ready without another POST. Old75 history/strict profile preserved;202 assets independently checked with exact schema/path/hash/duplicate/size fences. Source admission only; official CI, publication, installation and real provider/browser/physical acceptance remain separate. Final tracked classifier includes realtime_semantics from the unchanged explicit provider reasoning:none; all three actual domains are declared without suppressing that flag."
+}
+-->

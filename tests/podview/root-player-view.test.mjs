@@ -5,7 +5,8 @@ import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {PlayerView,localPlayerModel,localControlModel,localQueueModel,livePlayerModel,liveQueueModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
 import {previewScene,playerPreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {TRACKS} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
 import {PageLifecycle} from '../../podvoice/gatekeeper/static/podview/ui/page-lifecycle.js';
 class Node extends EventTarget{
  constructor(tag='div'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={getPropertyValue(key){return this[key]||'';},setProperty(key,value){this[key]=value;}};this.attributes=new Map();this.hidden=false;this.disabled=false;this.textContent='';this.className='';this.classList={add:x=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),x])].join(' ');},remove:x=>{this.className=this.className.split(' ').filter(c=>c!==x).join(' ');},contains:x=>this.className.split(' ').includes(x)};}
@@ -358,4 +359,9 @@ test('open player detail and fixed empty player share honest source states throu
  f.view.renderPlayer(active);assert.equal(f.nodes.get('track').getAttribute('aria-label'),null);
  assert.equal(f.nodes.get('track').getAttribute('aria-description'),'Åbn afspiller');
  assert.equal(f.nodes.get('track-name').textContent,active.title);assert.equal(f.nodes.get('track-artist').textContent,active.artist);
+});
+
+test('a chosen local song is shown while starting without borrowing prior track position or playing status',()=>{
+ const state=initialScene();state.music.pending={id:'chosen',track:1,room:'Stuen',operation:2};const vm=localPlayerModel(state),controls=localControlModel(state);
+ assert.equal(vm.title,TRACKS[1].title);assert.equal(vm.active,true);assert.equal(vm.loading,true);assert.equal(vm.playing,false);assert.equal(vm.fresh,false);assert.equal(vm.progressMs,null);assert.equal(vm.canSeek,false);assert.equal(vm.feedback.message,'Starter afspilning…');assert.equal(controls.blocked,true);assert.equal(controls.canVolume,false);assert.equal(state.music.playback.track,0,'presentation does not fabricate observed playback');
 });

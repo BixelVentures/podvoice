@@ -189,3 +189,14 @@ test('live start navigation requires the exact current fresh observed timer and 
  for(const value of [snapshot([]),snapshot([{...fresh,id:'other'}]),snapshot([{...fresh,stale:true}]),snapshot([{...fresh,status:'done'}]),{...snapshot([fresh]),timers:{...snapshot([fresh]).timers,status:'unavailable'}},{...snapshot([fresh]),timers:{...snapshot([fresh]).timers,epoch:8}}]){f.view.host.liveSnapshot=value;const current=token();f.view.startNavigation=current;f.view.completeStartNavigation(current,'exact');assert.deepEqual(f.dispatched,[]);}
  f.view.host.liveSnapshot=snapshot([fresh]);const current=token();f.view.startNavigation=current;f.view.completeStartNavigation(current,'exact');assert.deepEqual(f.dispatched,[{type:'show',id:'now'}]);assert.equal(f.view.host.state.music.playback,playback);
 });
+
+test('dismissed finished timer retains exact activity and actions without a floating Timer label or native name',()=>{
+ const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
+ try{
+  f.view.overview={dataset:{}};const base={connected:true,focus:'now',timer:{...timer,name:'Pasta',status:'running'},timerHistory:[]};f.view.host.state=base;f.view.render(base);const overview=f.view.nodes.get(`overview:${timer.id}`),detail=f.view.nodes.get(`detail:${timer.id}`),title=overview.querySelector('.timer-copy strong');assert.equal(title.textContent,'Timer');assert.equal(title.hidden,false);assert.equal(overview.dataset.kitTone,'dark');assert.equal(detail.dataset.kitTone,'dark');
+  const done={...base,timer:{...base.timer,status:'done',remaining:0,noticeDismissed:true,physicalDrained:true}};f.view.host.state=done;f.view.render(done);f.view.renderOverviewActivities(done);assert.equal(f.view.nodes.get(`overview:${timer.id}`),overview);assert.equal(title.hidden,true);assert.equal(title.textContent,'');assert.equal(overview.querySelector('.timer-count').textContent,'Tiden er gået');assert.equal(overview.hidden,false);assert.equal(overview.dataset.timerId,timer.id);assert.equal(overview.querySelector('.timer-finish').textContent,'Færdig');assert.doesNotMatch(overview.querySelector('.timer-open').getAttribute('aria-label'),/Pasta/);assert.equal(f.view.shortcut.hidden,true);assert.deepEqual(f.dispatched,[],'dismissed alarm does not remove the finished activity');
+  overview.querySelector('.timer-finish').listeners.get('click')();assert.deepEqual(f.dispatched,[{type:'timer',id:timer.id,action:'cancel'}]);
+  f.view.render(base);assert.equal(title.textContent,'Timer');assert.equal(title.hidden,false);assert.equal(f.view.nodes.get(`detail:${timer.id}`),detail);
+  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/timer-view.js',import.meta.url),'utf8');assert.match(source,/<form class="timer-create pv-card" data-kit-tone="dark"/);assert.match(source,/seconds:this\.duration,name:''/);assert.doesNotMatch(source,/<input[^>]*name="name"/);
+ }finally{globalThis.document=prior;}
+});

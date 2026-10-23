@@ -1,3 +1,11 @@
+## 2.0.76
+
+- Integrér den samlede kanoniske PodView UI76-pakke med fælles kontroller,
+  modal-overlay, musikvalg, timer-rækkefølge og vejrvisning.
+- Tilføj eksplicit, serverbundet passiv AI-vejrvej med separat vedvarende budget;
+  almindelige Hjem-opslag starter aldrig AI-generering.
+- Bevar kilde-/rum-/boot-grænser, stemmebaserede vejrråds prioritet og oprydning.
+
 ## 2.0.75
 
 - Adopt the reviewed canonical UI22 across shared cards, details, Screen and device settings, and Ro.

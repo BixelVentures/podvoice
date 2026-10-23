@@ -170,7 +170,8 @@ test('radio and vehicle catalog states stay local and never invent connected veh
  assert.equal(previewScene('radio-paused').radioPlaying,false);
  assert.equal(previewScene('radio-offline').connected,false);
  const vehicle=previewScene('vehicle-unconnected');assert.equal(vehicle.focus,'vehicle');assert.equal(vehicle.vehicle,undefined);
- for(const name of weatherPreviewStates){const scene=previewScene(name);assert.equal(scene.focus,'weather');assert.equal(scene.weatherPreview,name.slice(8));assert.equal(scene.liveWeather,undefined);}
+ for(const name of weatherPreviewStates){const scene=previewScene(name);assert.equal(scene.focus,'weather');assert.equal(scene.weatherPreview,name.startsWith('weather-advice-')||name==='weather-wind-known'?'ready':name.slice(8));assert.equal(scene.liveWeather,undefined);if(name.startsWith('weather-advice-'))assert.equal(scene.weatherFixture.advicePreview,name.slice('weather-advice-'.length));}
+ assert.deepEqual(previewScene('weather-wind-known').weatherFixture.hours.map(hour=>hour.wind_bearing),[0,45,90,135,180,225,270,315,360,null,null,null]);
 });
 
 test('device offline previews retain observed state while blocking model actions',()=>{
@@ -315,4 +316,9 @@ test('walking answer gives distinct decision facts without claiming live weather
  assert.equal(answer.content.facts[0].value,'Gå nu');assert.equal(answer.content.facts[2].value,'Regn om tre timer');
  assert.match(answer.content.sources[0].scope,/Ikke en aktuel vejrudsigt/);
  assert.deepEqual(validateVisualContent('fact-card',answer.content),answer.content);
+});
+
+test('silent dismissed timer is an actual completed timer and dismissal event before first render',async()=>{
+ const scene=previewScene('timer-overview-dismissed'),finished=previewScene('timer-overview-finished');assert(previewStates.includes('timer-overview-dismissed'));assert.equal(scene.focus,'now');assert.equal(scene.timer.status,'done');assert.equal(scene.timer.remaining,0);assert.equal(scene.timer.noticeDismissed,true);assert.equal(scene.timer.id,finished.timer.id);assert.equal(scene.timer.ownerBootId,undefined);const {TimerNotice}=await import('../../podvoice/gatekeeper/static/podview/timer-notice.js');let hidden=false;TimerNotice.prototype.render.call({disposed:false,hide(){hidden=true;},startAudio(){assert.fail('dismissed fixture must not start audio');}},scene.timer,'now',false);assert.equal(hidden,true);assert.deepEqual(scene.music,finished.music);const cleared=sceneTransition(scene,{type:'timer',id:scene.timer.id,action:'cancel'});assert.equal(cleared.timer.status,'cancelled');assert.equal(scene.timer.status,'done');
+ const screen=previewScene('screen-device-ready');assert(previewStates.includes('screen-device-ready'));assert.equal(screen.focus,'now');assert.equal(screen.timer,null);assert.equal(screen.music.playback.active,true);assert.equal(screen.connectionPreview,undefined);assert.equal(screen.screenDevice,undefined,'the actual screen owner authors its explicitly local example; no native capability is injected');
 });

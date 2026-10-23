@@ -136,6 +136,15 @@ export class PodVoiceTransport {
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   const response=await this.request(this.endpoint('home'),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
  }
+ async weatherAdvice(binding,{signal}={}){
+  const snapshot=this.snapshot,generation=this.generation;
+  if(!this.connected||!snapshot?.capabilities.homeRead?.includes('weather')||binding?.availability!=='available'||binding.bootId!==snapshot.bootId||binding.roomId!==snapshot.roomId||!/^[a-f0-9]{64}$/.test(binding.weatherKey||''))throw Error('weather_advice_unavailable');
+  const url=new URL('weather-advice',this.base);url.searchParams.set('room',snapshot.roomId);
+  const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:snapshot.bootId,roomId:snapshot.roomId,weatherKey:binding.weatherKey})},6000,signal||this.controller?.signal);
+  if(this.closed||!this.connected||generation!==this.generation||this.snapshot?.bootId!==snapshot.bootId||this.snapshot?.roomId!==snapshot.roomId||!this.snapshot.capabilities.homeRead?.includes('weather'))throw new DOMException('Weather owner changed','AbortError');
+  if(!response.ok){const error=Error('weather_advice_unavailable');if(response.status===409)error.code='stale_weather_binding';else if([401,403].includes(response.status))error.code='read_access_denied';throw error;}
+  return response.json();
+ }
  async controlSetup(domain,target,recipeId){if(!this.connected||!this.snapshot.capabilities.controlSetup?.includes(domain))throw Error('control_not_paired');const s=this.snapshot,url=new URL('control/setup',this.base);const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,domain,target,...(recipeId?{recipeId}:{})})});if(!response.ok)throw Error('control_setup_denied');return response.json();}
  async controlAction(task,optionId,args){
   const unknown=requestId=>({ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false});

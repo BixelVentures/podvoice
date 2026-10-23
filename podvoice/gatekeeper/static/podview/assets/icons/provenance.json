@@ -164,6 +164,16 @@
     "chat-circle.svg": {
       "source": "package/assets/regular/chat-circle.svg",
       "sha256": "09e36aa820a39bbc8cffe705ad84c836d1e5733f83dc1d2212a965fdacdf4a67"
+    },
+    "image-square.svg": {
+      "source": "https://github.com/phosphor-icons/core/blob/main/assets/regular/image-square.svg",
+      "sha256": "73f5b6aa22a49ad093908151e8f606dd7c797a192cfb96b00c6519d45dffe936",
+      "sourceOverride": "Official upstream Regular SVG fetched via GitHub connector; not asserted as extracted from the package archive."
+    },
+    "house.svg": {
+      "source": "https://github.com/phosphor-icons/core/blob/main/assets/regular/house.svg",
+      "sha256": "180e9259e99e23da197b59b19394d006d6a5d33e384cc2b9c8381cb0214a5716",
+      "sourceOverride": "Unmodified official upstream Regular SVG fetched23 October2026; not extracted from the pinned package archive."
     }
   },
   "exceptions": {

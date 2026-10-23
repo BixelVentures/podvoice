@@ -1,4 +1,111 @@
+## Hjem-navigation · seneste direkte brugerbeslutning23 oktober
+
+Brugeren har valgt Hjem med husikon til enhedens passive grundvisning. Den sekundære overbliksknap bruger Hjem, tilgængeligt navn Gå hjem og det fælles officielle Phosphor Regular house-ikon. Ikon24px, label17/24, trykhøjde48px,16px vandret padding og8px gap følger eksisterende TopBar-variant. Ro, Billedramme og Foto/image-square er afvist som navigation. Eksisterende #show-photo, photo/rest-IDs og aktiviteternes identitet ændres ikke; et tryk skifter visning, musik og timere fortsætter. Hele grundvisningen fører tilbage til Lige nu. Tidligere Foto-tekst nedenfor er historik, ikke gældende navngivning.
+
+## Modal: fuldskærms-overlay og centrering · senere direkte brugerbeslutning23 oktober
+
+En modal dækker hele viewporten med ét sammenhængende overlay og centreres vandret/lodret i hele viewporten. Den afgrænses ikke til venstre indholdskolonne. Dialogens indhold følger fortsat520px bredde (tilpasset faktisk viewport),32px padding og kittets tekst-/kontrolroller. Dette gælder alle eksisterende native modal-dialoger, herunder Skærm og enhed, højttalervalg og lampedetalje. Tidligere venstreafgrænset modalplacering/scrim er afvist og erstattet. Toast er en anden variant med sin egen eksisterende placeringsregel; den må ikke arve modalens overlay eller centrering.
+
+## Tidligere Foto-navigation · afvist og erstattet23 oktober
+
+Den eksisterende fototilstand hedder Foto i brugergrænsefladen. Overblikkets sekundære knap viser Foto med det fælles Phosphor Regular image-square-ikon og tilgængeligt navn Vis foto. Måneikonet er forbeholdt reel nat/søvn-semantik; Ro er ikke produktlabel. Senere brugerfeedback afviser også Billedramme som for langt i denne knap; Foto er den gældende korte tekst. Eksisterende #show-photo, photo/rest-tilstande, navigation og bevægelse bevares. Et tryk ændrer visningen; musik, timer og hjemmets aktiviteter fortsætter. Hele billedfladen fører tilbage til Lige nu.
+
+## Indstillinger i Dialog ·23 oktober, visuel korrektion
+
+Dialog følger520px bredde,32px padding og16px grundafstand. Titel28/34, indstillingstitler20/26, værdier17/24 og hjælp15/20. Settings-varianten af den eksisterende ListRow har tekst/hjælp til venstre og64px Toggle-betjening til højre. Settings-Toggle bruger neutral Tile-flade med tydelig valgt kant og Til/Fra; den arver ikke Chips' sorte valgflade eller primær Buttons hierarki. Read-only-rækker har label/værdi i to kolonner; højttalervælgerens ikon/titel/status-grid gælder dens knaprækker. Sekundær forbindelses-/buildinformation kan ligge i eksisterende native disclosure med24px chevron og64px trykflade. Disse er varianter af eksisterende ejere, ikke en separat indstillingskomponent.
+
+## Obligatorisk visuelt UI-kit-review · direkte brugerbeslutning23 oktober2026
+
+Gælder **hver gang** der ændres UI i PodView: komponenter, størrelser, tilstande, modaler, detaljesider og sammensætninger. Dette er en del af designsystemets kvalitets- og afleveringskontrakt, ikke en valgfri QA-aktivitet.
+
+**Hovedregel:** Brug altid det eksisterende designsystem/UI-kit. Hvis det ikke dækker behovet, ret eller udvid den kanoniske kit-ejer og dens dokumenterede regler, så bibliotek og produkt deler løsningen. Ingen lokal engangsrettelse eller parallel styling. Brug altid UI-review via Product Design og Impeccable som del af leverancen; funktion/kliktest er kun én mindre del af den samlede kvalitetssikring. Reglen gælder også små ændringer og fejlrettelser.
+
+- Brug Product Design og Impeccable til at gennemgå det faktisk renderede resultat mod det kanoniske UI-kit. Kontrollér hierarki, spacing, padding, højder, typografi, alignment, komponentvalg, farver/kontrast samt bevægelse og relevante tilstande i sammenhæng.
+- Vurdér både bibliotek og produkt ved de relevante faktiske viewport-/komponentmål. Inspicér screenshots visuelt; DOM-mål understøtter vurderingen, men erstatter den ikke.
+- Ret de samlede visuelle fund i de eksisterende kit-ejere og fælles tokens. Ingen lokal specialkomponent som genvej.
+- Kliktest kontrollerer funktion og udføres som særskilt kontrol. Kliktest, komponentgate, syntaks og beståede tests er **aldrig tilstrækkeligt visuelt bevis** og må ikke alene lukke et UI-feedbackpunkt.
+- Før et UI-punkt meldes færdigt: registrér faktisk bibliotek-/produktreference, inspiceret billedbevis, plugin-reviewets fund/udfald og konkrete rester i den aktuelle feedbackmatrix. Skeln mellem funktionelt kontrolleret, visuelt gennemgået og brugeraccepteret. Genåbn ved ny brugerfeedback.
+
+## Asynkront vejrråd i Hero ·23 oktober
+
+Vejrrådet bruger Heroens eksisterende body-slot med tre reserverede tekstlinjer (72px). Før forespørgsel reserveres plads uden at påstå indlæsning. Mens en faktisk forespørgsel afventes, vises en diskret gradient-placeholder i samme felt; ingen synlig loading-sætning. Kun pending har aria-busy. Gradientbevægelsen er afgrænset til otte gennemløb og er statisk ved reduceret bevægelse. Den færdige tekst toner hurtigt ind; Hero, prognose og betjening bevares. Passive AI-råd er højst120 tegn og skal bygge på den aktuelle kildebundne prognose. Bibliotekets forfattede tilstandsprøver er tydeligt adskilt fra faktisk modelgenerering; de beviser ikke providerforbindelsen.
+
+## Hero-roller · direkte brugerfeedback23 oktober
+
+Navigationen identificerer detaljen (fx Tesla). Heroens titel beskriver den aktuelle situation, hvor det giver mening (fx Bilen lader); en separat status må ikke gentage samme besked. Fakta beholder deres egne label/værdi-roller. Model og årgang hører som lille billedtekst under det relevante billede, ikke som konkurrerende titel øverst til højre. Vis kun metadata, som ejeren faktisk leverer; et bilbillede eller Model Y/2023 fra lokal fixture må ikke lække ind i passive live-observationer. Message-varianten ved manglende forbindelse bevarer sin eksisterende fælles anatomi.
+
+## Button på mørk flade ·23 oktober
+
+Eksisterende Hero/Card angiver `data-kit-tone=dark`. Button beholder samme primær/sekundær roller og mål, men bruger fladens semantiske kontrasttokens. På mørkt: primær lys med mørk tekst; sekundær mørkere neutral med lys tekst. På lyst: primær mørk med lys tekst; sekundær lys neutral med mørk tekst. Farver arves fra faktisk fladekontekst, aldrig fra domænenavn. Destruktiv rolle beholder sin særskilte semantik. Ingen ny knapfamilie.
+
+## Large-fakta23 oktober kl.14.31
+
+Højst fire ekstra oplysninger i2×2-grid. Ingen tredje række. Kerneroller som batteri/rum/tændtantal gentages ikke i ekstra fakta. Der er24px mellem de to faktarækker; ukendte værdier udfyldes ikke. Resterende oplysninger hører til detaljesiden.
+
+## Radio-valg23 oktober kl.14.18
+
+Stationens Tile beholder hvid baggrund både valgt og ikke valgt. Valg kommunikeres af den fælles mørke kant og teksten “Valgt”; ingen ekstra baggrundsfarveændring. aria-pressed og faktisk valg-ID bevares.
+
+## S/M/L samme kerne ·direkte korrektion23 oktober kl.14.03
+
+Størrelse ændrer plads og mængde, ikke oplysningens grammatik. Verbal hovedstatus20/26 ved24/72, sekundær17/24 ved24/106 i alle tre størrelser. Robot viser fx “Ved basen” → “Batteri76%” som samme inline metadata i S/M/L. Large må tilføje andre kildebekræftede fakta fra170px; batteri/rum må ikke gentages som større faktablock. Domænernes ægte måleroller (vejrtemperatur, batteriprocent, nedtælling) bevarer deres definerede måletypografi. Ingen større verbal status alene fordi kortet er større.
+
+## Direkte knapregel23 oktober kl.13.50
+
+Detaljers handlingsknapper bruger generiske semantiske farver, ikke domænefarve. Primær/bekræftelse: mørk neutral med lys tekst. Sekundær/Annuller: lys neutral med mørk tekst. Destruktiv: fælles farefarve. Valgmarkering bevares med samme neutrale kontrast og kant. Handlingsnavne må ikke ellipses; brug læsbare fulde labels og ombrydning inden for den faste trykflade. Robot-overblikkets Pause/Fortsæt bruger eksisterende pause-/playikon.
+
+## Kompakt introduktion i detalje ·23 oktober
+
+Eksisterende Hero.message har en kompakt tæthed (`data-kit-density=compact`) til korte introduktioner foran valgmuligheder: minimum96px,16px padding,32px ikon,20/26 titel og17/24 brødtekst. Radio bruger denne tæthed, så fem stationer kan være synlige ved1280×720. Længere fejlbeskeder må vokse naturligt. Skjulte handlinger optager ingen plads. Dette ændrer ikke øvrige Hero.message-fladers standardhøjde.
+
+## Direkte rettelser23 oktober kl.13.42
+
+- Lys: den separate statuslinje bruger “Tændt”/“Slukket” med stort begyndelsesbogstav, også under “2 af4”. Dette erstatter tidligere argument om en sammenhængende sætning.
+- S/M med tilbudt overblikshandling: primær og sekundær tekst bevarer24px venstreanker; begge slutter mindst16px før knappens128px zone. Pending må ikke gå ind under knappen. Ingen fuld kortbredde på absolut placerede tekstroller.
+- Valgt højttaler: “Valgt”; andre kendte tilgængelige: “Klar”. Manglende tilgængelighed bevares ærligt.
+
+## Direkte kontraktpræcisering23okt · Card S/M og Topbar
+
+Layout er bindende på tværs af domæner og states. Card177px: indvendig24px; ikon32px ved(24,24); titel vedx72; hovedrolle ved(24,72),20/26semibold; undertekst ved(24,106),17/24regular. En utilgængelig tilstand bruger hovedankeret til sin ærlige status. Ingen domæneadapter bestemmer egen lodret placering. Domæneaccent gælder kun hovedrollen; undertekst er neutral. Ekstra fakta har separat zone; de må ikke skubbe læseklyngen. Large bruger samme roller men sin særskilte læse-/faktazone; Vejr bevarer målerollen og en topforankret klynge. Musik med cover er den registrerede medievariant.
+
+Topbar-titelknappen er indholdsafgrænset med16px indvendig luft. Ur åbner den eksisterende Dialog-opskrift Skærm og enhed. Ro er en særskilt eksisterende Button med måneikon/label, ikke detaljens Tilbage. Ingen hardwarekontrol eller Wi-Fi-fakta uden kildeejet kapabilitet.
+
+Statuslinjer begynder med stort på tværs af størrelser: “Tændt”, “Slukket” og “Ved basen”, også når en separat hovedværdi viser “2 af 4”. Handlingslabels begynder med stort, fx “Tænd”.
+
 # PodView · det eneste komponentbibliotek
+
+## Størrelser og detaljer · direkte brugerbeslutning 22. oktober 2026
+
+Den samlede Small-retning er godkendt efter renderet kontaktark. Samme princip gælder Medium, Large og alle detaljesider: tydelig identitet, vigtigste faktiske værdi/status først og indhold tilpasset pladsen. Alle bruger de eksisterende kitdele, registrerede ejere og samme tokens; størrelse er en variant, ikke en ny renderer. Bibliotek og produkt kalder samme ejere. Ingen særskilte skærmrettelser eller parallelle kit.
+
+- Small bruger korte visuelle domænenavne: Robot, Vejr, Musik, Lys, Tesla, Radio, Timer. Det fulde ressourcekildenavn forbliver tilgængeligt; det skal ikke klemmes til »Robotst…«. Denne beslutning erstatter den ældre Small-titelregel nedenfor.
+- Ikon/header har reserveret rolle; værdi/status og eventuelle metadata ligger separat. Musik beholder faktisk sang og kunstner i to linjer. Vejr viser temperatur og tilstand. Robot viser status; batteri er ikke hovedværdi. Lys og Tesla viser kun faktisk kendte værdier. Ukendt, forældet og manglende forbindelse må aldrig ligne en frisk måling.
+- **Typografi og farve, præciseret 22. oktober:** Roligere fælles størrelser og vægte pr. semantisk tekstrolle. Verbal status er ikke et stort måltal. Domænets eksisterende identitetsfarve må fremhæve hovedværdi/status via samme kit-token; sekundær tekst og metadata er neutrale. Farve må aldrig medføre en anden størrelse, vægt eller placering. Mørk Timer bevares. Groks tal og forslag er reviewinput, ikke bindende beslutninger.
+- Medium/Large bevarer samme identitet og prioriteter med nyttige kendte metadata/prognose. Detaljer bruger samme TopBar, Hero, Tile, Chip, Button, Slider, ListRow og Dialog med domænets egne nødvendige roller. Ingen universel Hero-højde eller opfundne kapabiliteter følger af sammenhængen.
+
+### Direkte præciseringer · 23. oktober 2026
+
+- **Card unavailable:** statusrollen er ens i S/M og domæner:17/24 vægt400, neutral `--pv-ink-2`, venstrestillet ved hovedankeret (24,72) i177px kortet. Dette erstatter den tidligere nederste statuszone. Aktiv status-/målingstypografi genbruges ikke i denne tilstand. Ikke forbundet siger det samme i Robot, Lys og Tesla.
+- **Radio ved bred timer:** TimerView ejer, om timeren bruger baren. Radio bruger automatisk M dér og S uden bred timer; eksisterende Card mediestørrelse genbruges. Eksplicitte biblioteksstørrelser har forrang. Dette erstatter ældre Radio-altid-S/faste-størrelser-reglen for netop Radio; øvrige widgets beholder deres mål.
+- **Hero variant `message`:** samme kanoniske layout i Radio-intro og enheders/Vejrs forbindelsesvisning. Ejeren binder eksisterende noder til `data-kit-slot=icon|copy|title|body`; kittet bestemmer layoutet.48px ikon,32px padding,16px kolonneafstand,8px mellem hovedtekst28/34 vægt600 og hjælpetekst17/24 vægt400. Gruppen centreres i mindst200px; lang tekst må øge højden. Ingen redundant domænelabel. Identitetsfarve og faktisk årsagstekst bevares. Skjulte Heroes forbliver skjult; normal gendannelse fjerner message-varianten og genbruger noderne.
+- **TopBar/Svar:** den senere slanke opskrift har48px synlig pille og tilsvarende faktisk trykflade. Hover/tryk ejer hele pillen. Tastaturens focus-visible bevares.
+- **Detaljeprognose:** fast timecelle med tid15/20, ikon32, temperatur20/26 semibold, regn/vind15/20 dæmpet. Vindlabel og retning står samlet på én linje; kendt fuld beskrivelse bevares ved afkortning. Dagsrækker følger faste dato/ikon/lav/bar/høj-kolonner. Kilde er15/20 dæmpet. Kun faktisk anbefaling bruger `--pv-t-advice`17/24 semibold; ikke vilkårlig sidste tekstlinje. VejrL-overblikkets godkendte opskrift ændres ikke.
+- Musik og Radio beholder samme varme neutrale flade; ingen ny fast identitetsfarve er vedtaget.
+
+### Card-kontrakt for S/M/L
+
+Størrelserne bruger én Card-anatomi med reserveret header, hovedindhold, sekundær kontekst og eventuel handling. Padding er 24, headerikon 32, headerlabel 20/26 vægt 600. M verbal status er 20/26 vægt 600; L verbal status er 28/34 vægt 600. Faktiske numeriske målinger kan bruge 28/34 i M og 40/44 i L; vejrets godkendte L-temperatur beholder 64/64. Disse er tekstroller, ikke en automatisk forstørrelse af alle ord. Kunstner/tilstand er 17/24 vægt 400, metadata 15/20 vægt 400. Godkendt Small-anatomi bevares.
+
+- Hovedstatus kan bruge eksisterende domæneaccent; headers er neutrale, sekundær tekst og metadata neutrale. Ingen logoafledt neonflade eller opacity på kendt artwork.
+- Mediekortets titel, kunstner og afspilningstilstand er én venstrestillet gruppe. M artwork er 96; L 160. Afspilningslinjen er læsende og bruger samme faktiske position/varighed som playeren. Ingen ny seek-handling.
+- Device-kortets nuværende status er primær. M Robot har én eventuel aktuel Pause/Fortsæt i en reserveret 128×64-zone. L viser højst rum, batteri og faktisk kildeleveret fremdrift. Lys bruger faktiske tændte lampers kendte lysstyrke som læsende ListRows; M højst to. Tesla viser kendt batteri, én status og kildebundne fakta; ingen gentaget status i løs bundtekst.
+- Tom Musik/Radio/Timer bruger samme header- og indgangsrolle. Ingen ekstra navigationschevron, opdigtet historik eller pladsfyld. Timer beholder mørk flade.
+
+### Delt tilstandskontrakt
+
+Ready viser faktiske oplysninger. Empty er en ærlig indgang uden opdigtet værdi. Unknown viser Ukendt/— og ingen ny kommando. Pending bevarer indhold og kun den allerede tilbudte handling afventer. Error forklarer faktisk fejl/recovery. Offline bevarer læsbar navigation og kendt indhold uden fjernkommando. Stale mærker sidst kendt information og må ikke vise frisk fremdrift. Samme rolle, dataidentitet og ydre mål bevares i S/M/L; kun størrelsens informationsbudget varierer. N/A er korrekt for ikke-understøttede domænetilstande. Live Lys, DR-radio og Tesla er fortsat TBD; bibliotekseksempler giver ikke livekapabilitet.
+
+Bevis: [Small, alle syv](qa-ui21/SMALL-ALL-SEVEN.png). Medium/Large er kontrolleret i [M](qa-ui21/MEDIUM-COLOUR.png) og [L](qa-ui21/LARGE-COLOUR.png), detaljer i [otte sider](qa-ui21/DETAILS-ALL-EIGHT.png). Renderkontrol er ikke fysisk accept eller en påstand om færdig installation.
 
 ## Tværgående sammenhæng · v42 · 22. oktober 2026
 
@@ -109,7 +216,7 @@ Den direkte beslutningsoversigt er [USER-DECISIONS-2026-10-16.md](USER-DECISIONS
 | Behov | Den eneste produkt-renderer | Godkendt anatomi og variant |
 |---|---|---|
 | Skærm og navigation | `dist/index.html`, `WidgetHost` i `dist/widget-view.js` | Eksisterende billedramme, overblik, svar-/detaljeflade og player. Headerhistorik genbruger `#open-history`, `#history`, `#retained` og `pv-answer`. |
-| Musikforslag | `MusicResults` i `dist/music-results.js` | Den samme `button.result` med billede, tekst, feedback og play. Fire faner: Stemning, Humør, Topsange, Senest. Live og lokale data bruger den samme instans. |
+| Musikforslag | `MusicResults` i `dist/music-results.js` | Den samme `button.result` med billede, tekst, feedback og play. Fire faner: Stemning, Humør, For dig, Senest. Live og lokale data bruger den samme instans. |
 | Afspiller og kø | `PlayerView` og `renderPlayerControls` i `dist/player-view.js`, eksisterende markup i `dist/index.html` | Player, detalje, transport, lydstyrke, rumvalg og `queue-track` med rækkefølge/billede/tekst/play. En anden live-player er ikke en variant. |
 | Vejr | `renderWeather` i `dist/weather-view.js` | Overskrift, aktuelt vejr, eksisterende time-/dagsrækker, ét råd og kilde. `localWeatherModel` og `liveWeatherModel` leverer samme model. Nye datafelter bliver i de eksisterende rækker. |
 | Timer | `TimerView` i `dist/timer-view.js` | Eksisterende urskive, tid/tekst, handlinger, formular og tidligere tider. Overblik og detaljer er samme familie med forskellig tæthed. Skjul er ikke annullér. |
@@ -235,7 +342,7 @@ Dette er krav til den eksisterende implementation, **ikke 120 beståede tests**.
 | **4. Ikoner Q031–040** · eksisterende ikonroller/resource-tile | Play/Pause matcher faktisk status og navn; Stop/Base skelnes; outputikon er ens i alle playersammenhænge; vejrikon følger periode/dag/nat; ikonknapper har tilgængelige navne; ens roller har optisk ens vægt; stemningskunst ligner ikke et falsk cover; robotillustration ligner ikke et opdigtet livekort; ukendte svarsymboler forklares; alle assets har proveniens. | 2, 4, 11, 18, 20, 22, 25, 26, 28, 29 |
 | **5. Flader Q041–050** · surface/line/radius-tokens | Peer-widgets deler radius; indre hjørner passer i ydre; modalens dybde bevarer kontrast; skygge angiver lag uden at alle kort konkurrerer; køseparation har ingen dobbeltkant; valgt/hover/fokus skelnes; cover/fallback deler geometri; fokus klippes ikke; peer-flader deler tokens; Ro har ingen utilsigtet søm eller stræk. | 2, 6, 9–12, 18 |
 | **6. Geometri Q051–060** · spacing/hit-tokens/touch-intent | Mål lige mellemrum; primære trykflader mindst 48×48px; trykflader overlapper ikke; modal har sikker indre afstand; tre hele kølinjer uden klippet fjerde; kø scroller selvstændigt; vigtig landskabsfunktion kræver ikke sidescroll; drag annullerer tap; rumtekst og valgmarkør bevarer touchareal; hovedopgave/akut timer identificeres på tre sekunder ved 2m. | 2, 3, 9–11, 20, 27 |
-| **7. Musikvalg Q061–070** · MusicResults/assetmapping | Fire aftalte faner; Stemning har tre faktiske playlists; Humør har egen playlisttype; Topsange/Senest har tre tracks; tilbage bevarer kort/fane; reload starter Stemning; mål AI-valgenes tid og relevans; stemningskunst matcher og har proveniens; trackcover er faktisk eller ærligt fallback; voice/touch vælger samme option trods forsinkede svar. | 12–18 |
+| **7. Musikvalg Q061–070** · MusicResults/assetmapping | Fire aftalte faner; Stemning har tre faktiske playlists; Humør har egen playlisttype; For dig/Senest har tre tracks fra de eksisterende kilder; tilbage bevarer kort/fane; reload starter Stemning; mål AI-valgenes tid og relevans; stemningskunst matcher og har proveniens; trackcover er faktisk eller ærligt fallback; voice/touch vælger samme option trods forsinkede svar. | 12–18 |
 | **8. Player Q071–080** · PlayerView/SpeakerOutputView | Tom Ro har musik-CTA; alle fem playerstates bevarer anatomi; faktiske PodConnect-mål uden Tesla; outputændring er eksplicit; første Play starter én gang; hurtige tryk kan ikke udføre forældet intent; aftalt startvolumen 35% matcher provider; naturlig slutning fortsætter én gang og manuel stop gør ikke; kø matcher afspilning; luk detalje bevarer track/output. | 7–10, 19–24 |
 | **9. Feedback Q081–090** · domænestates/beskedroller | Loading bevarer widget; nyt svar bevarer nyttigt gammelt indhold indtil klar; accepteret/startet/bekræftet skelnes; gammel robot/vejrstatus kvalificeres; vejrets kilde/tid er tilgængelig; pending-handling er identificerbar og uden dubletter; svarretry bevarer spørgsmål; online-status genbekræftes; timer har én færdigmelding; hændelser viser udfald og faktisk tid. | 8, 11, 17, 22, 25–28, 30 |
 | **10. Motion/input Q091–100** · SceneMotion/VoiceSurface/gestures | Overgang bevarer objektidentitet; reduced motion bevarer feedback; disconnect rydder aktiviteter; ingen uønsket evighedsbevægelse; fokusorden og dialogretur fungerer; fokus skelnes fra valg; voice bevarer option/opgave; touch/voice afklarer konkurrerende intent; trykfeedback er hurtig men success afventer udfald; tokenstyret overgang kan afbrydes uden strandet lag. | 11, 13, 22, 26, 29 |
@@ -306,7 +413,7 @@ Brugerens seneste konkrete kit afløser tidligere tokenlister og begrebsmæssige
 | ListRow `.pv-row` |64h, gap16; ikon32/cover48, titel17/600, meta15, kontrol/håndtag | Kø, hændelser, historik og kildevalg |
 | SectionHeader `.pv-section` | Titel20/600 og valgfri48h handling; margin-top32/bottom16 | Eksisterende sektionsoverskrifter |
 | TopBar/DetailHeader `.pv-topbar`, `.pv-dhead` | Global80h, detailheader96 når den eksisterende komposition kræver det; én64hit tilbage; titel28 | WidgetHost/index og eksisterende detaljeheader |
-| Dialog/Toast `.pv-dialog`, `.pv-toast` | Dialog520 bred/padding32; scrim kun venstre. Toast64h, nederst venstre, højst én | Eksisterende native dialoger/showFeedback/TimerNotice |
+| Dialog/Toast `.pv-dialog`, `.pv-toast` | Dialog520 bred/padding32; fuldt viewport-overlay og centrering. Toast64h, nederst venstre, højst én | Eksisterende native dialoger/showFeedback/TimerNotice |
 | Icon `.pv-icon` | Outline stroke2, round caps,24/32/48 currentColor | Eksisterende bundne SVG-assets og ikonprojektioner |
 
 ### Button: ejerbundne tilstande
@@ -344,6 +451,8 @@ Formatets indhold bestemmer det visuelle felt: numeriske fakta har én64px hoved
 Venter bevarer den samme anatomi og eventuelt tidligere indhold. Afbrudt, fejl og offline bevarer faktisk modtaget indhold; en særskilt statusstribe og eksisterende retry forklarer tilstanden. Hele svaret farves ikke som en fejl. Der opfindes hverken data, kilder, handlinger eller livekvitteringer. Denne opskrift er en implementeret lokal revision, ikke brugerens visuelle slutaccept.
 
 ### Svar: færdigt viewportforløb
+
+StepGuides eksisterende primære Næste trin-Button bruger den semantiske kit-variant, så tekstkontrasten bevares også ved hover. Sammenligningsknapper følger64px-reglen uden en ældre48px-override. En faktisk afsluttet lokal trinopgave vises i samme felt som “Alle trin er gennemgået” og “Afsluttet”; afslutningsknappen er deaktiveret, mens indhold, kilder og noder bevares ved genåbning. Dette er kvittering for den lokale opgave, ikke bevis for en ekstern handling. Live- og historiske svar følger fortsat deres eksisterende read-only-/ejerkontrakt.
 
 Ved1280×800 skal et kort svar kunne aflæses og dets eksisterende primære handling kunne trykkes uden en afskåret bundknap. Den samme `response-canvas`-ejer vælger `answerExtent=short/long` ud fra synligt indhold: over650 teksttegn i konklusion, faktarækker/instruktioner og billedtekst eller over6 rækker giver lang form. Kilde-URLer, receipts, eksempel-IDer og skjulte metadata indgår ikke. Det er en tæthedsregel, ikke garanti udledt af et testantal; browseren skal måle slutfladen.
 
@@ -504,3 +613,7 @@ Lokale færdige svar-fixturer bruger samme returregel som produktet: bundet svar
 
 
 v41 topanker: Den eksisterende desktop-komposition bruger samme --pv-topbar-content-gap for både fyldt .player.pv-card og #player-empty i alle tomme/fejl-/offline-tilstande. Begge starter ved y96, mens venstre scrollkant/headerdivider fortsat er y80. Dette er en præcisering af den fælles kompositionsregel, ingen ny variant eller mobil-/Ro-ændring.
+
+### Musikfanen For dig · brugerbeslutning 23. oktober 2026
+
+Synlige faner er Stemning, Humør, For dig og Senest. For dig bevarer collection-ID `top`, kontobinding, cache og handlingskontrakt. Den nuværende topsangskilde beskrives som **Dine topsange** i eksisterende metadata. Personlige Spotify-mixes, daylist og Discover Weekly må ikke påstås tilsluttet eller erstattes med omdøbte søgeresultater; lokale bibliotekskort forbliver eksempeldata. En fremtidig kilde kræver faktisk ejerudbudt indhold og myndighed.
