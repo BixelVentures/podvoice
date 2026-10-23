@@ -1,0 +1,41 @@
+{
+  "status": "FROZEN_DRAFT_NOT_RELEASE_READY",
+  "version": "unassigned",
+  "baselinePublishedRevision": "a537077b0ecb31a9def0759cf5a5c44873f0ec85",
+  "baselineGitHead": "5b753604c703e90f7fd5c63ea3ccd219ab814670",
+  "packetSha256": "043bf6219a14b3a011fdcb0d68d97d8460f6b1fd3701c952c637e947ddd70ae0",
+  "files": {
+    "custom_components/podvoice/__init__.py": "02d98493b9d504f286263cb04a79943f67acd3b9e5804595ac9c68845efdee37",
+    "custom_components/podvoice/config_flow.py": "b1af4370371d18ef0879e1933304808bd97cf93583027a78523f2deae7883ffd",
+    "custom_components/podvoice/controller_admin.py": "92622fc5166fd60656d5316ebec056bd331ef6ab9ed2ab663d0d8d012d7489d7",
+    "custom_components/podvoice/strings.json": "5b70eb65937a6dd1dd916daaf82e84178a7005129d09d2a4837b5858885dfa52",
+    "custom_components/podvoice/translations/da.json": "01bbd812568207e45f2e5b11307ceaea3f1c36c023f561677b5ae91f6959435c",
+    "custom_components/podvoice/translations/en.json": "5b70eb65937a6dd1dd916daaf82e84178a7005129d09d2a4837b5858885dfa52",
+    "podvoice/gatekeeper/podview.py": "18148c9d8ebd337051c9fbeba220bb2294b1611771cfe1c68276e0a40b83e5f4",
+    "podvoice/gatekeeper/podview_admin_transport.py": "a095797a0edd0f40e78005d171d4cc2d333a079a7c7e14fc4460bf7e88ca6e15",
+    "podvoice/gatekeeper/podview_continuity.py": "0ce251e8d0eb11f7d623c9dd21baeab0d3d8bd8a6890d93188ebc5ddbf4e5e01",
+    "podvoice/gatekeeper/podview_controls.py": "3108357a793604afbd3cb37dad50fbac240832819c8e8494f91b9618a59dcb3e",
+    "podvoice/gatekeeper/podview_light_control.py": "6066c35766c1b2550f6ffbaaffaa1c2b4a1db222b413e4736219dd79d3a29d2e",
+    "podvoice/gatekeeper/podview_lights.py": "c6cb09b34cecfcf0b403cbc1658f970e2af41d6c5924228002c433d380479adb",
+    "podvoice/gatekeeper/tools.py": "a9d8d250579435cc287db95dba76ec8b55f582985075d931ec0ccf1bdc7362bd",
+    "tests/ha_framework/test_controller_admin_services.py": "79e5dd39b1702b56c99678cbe7b7e9a0f8773e54b19743079937e5161b10e53d",
+    "tests/integration/test_podview_admin_placement.py": "ccc0ffd6b836204181a91baefffd48de4c60c90a2f045f5257d5981ebec40bfd",
+    "tests/integration/test_podview_bridge.py": "397e9180c525396a40a9937875db1116f221c25f1794a257c713c56bad69c143",
+    "tests/integration/test_podview_controller_continuity.py": "b5ba6bd844417abde143135019680de3704de5aa79d989e083ff7f256904bdac",
+    "tests/integration/test_podview_controller_placement.py": "d22d82c46ed3b82713ed1d98ccf82de768bc27c18ae3586d7a3e610aa51dd2bb",
+    "tests/integration/test_podview_light_controls.py": "1b971b0edfcf4cb726c4ec27cc6f789fb814e0c9a13cffc34c8ed4b2b9ed6b9c",
+    "tests/integration/test_podview_lights_bridge.py": "900ad69f7df6686ac28537382ce509bb15d254146586d0d054cb0f5c196374cb",
+    "tests/unit/test_ha_controller_admin.py": "f2356186febd0e15fa53f038ac06f1b3b8f52f4ad8e3cb18fec0ab4f6587a658",
+    "tests/unit/test_podview_lights.py": "9e29161ea88d6bf1aa5d6b7a7be2a9c0ed5046f5dfc30304ebb660399185f04b",
+    "tests/unit/test_podview_lights_tools.py": "f8e9f1ea3826e0804c89fae5cebe54cfaf37e4275b0b607a6c527fd1482bb28e"
+  },
+  "tests": "556 passed in 2.18s; fixed Python3.12; inert HTTP/MockTransport only",
+  "limits": [
+    "canonical frontend scope DTO admission, real area picker, Ro rule and controls not implemented",
+    "lightAreas catalogue not exposed by /home",
+    "native HA framework test requires pinned CI container; not run locally",
+    "scripts/dev fast rejects /private/tmp candidate; durable final gate required",
+    "independent whole-chain review/CI and actual visual/local/live/physical acceptance remain",
+    "no version/release/deploy/HA effect or policy activation"
+  ]
+}

@@ -90,3 +90,12 @@ test('native Slider fill follows its actual bounded value on owner refresh and i
  slider.value='65';slider.dispatchEvent(new Event('input'));assert.equal(slider.style.getPropertyValue('--pv-slider-progress'),'75%');assert.equal(actions,0);
  slider.value='100';assert.equal(syncKitSlider(slider),100);slider.value='0';assert.equal(syncKitSlider(slider),0);assert.equal(actions,0);
 });
+
+
+test('canonical native control dialog keeps 520px frame and 32px kit padding including narrow viewport rule',()=>{
+ const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui/library/library.css',import.meta.url),'utf8');
+ const rule=css.match(/dialog\.pv-component\{([^}]+)\}/)[1];
+ assert.match(rule,/width:min\(520px,calc\(100vw - 32px\)\)/);assert.match(rule,/padding:var\(--pv-s4\)/);assert.match(rule,/margin:auto/);assert.match(rule,/overflow:auto/);
+ const narrow=css.match(/@media\(max-width:520px\)\{dialog\.pv-component\{([^}]+)\}/)[1];assert.match(narrow,/padding:var\(--pv-s4\)/);assert.doesNotMatch(narrow,/--pv-s3/);
+ const kit=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');assert.match(kit,/--pv-s4:32px/);
+});

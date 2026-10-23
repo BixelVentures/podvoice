@@ -9,6 +9,7 @@ import json
 import secrets
 import time
 
+from . import podview_light_control as lights
 from . import podview_speakers, robot_settings
 from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
@@ -42,7 +43,10 @@ def policy(value: str) -> dict:
         if len(value) > 8192:
             return {}
         data = json.loads(value)
-        if not isinstance(data, dict) or set(data) != {"roomId", "music", "vacuum"}:
+        if not isinstance(data, dict) or set(data) not in (
+            {"roomId", "music", "vacuum"},
+            {"roomId", "music", "vacuum", "light"},
+        ):
             return {}
         if not isinstance(data["roomId"], str) or not 1 <= len(data["roomId"]) <= 160:
             return {}
@@ -111,6 +115,25 @@ def policy(value: str) -> dict:
                         return {}
                 if domain == "vacuum" and not row["entityId"].startswith("vacuum."):
                     return {}
+        light_rules = data.get("light", [])
+        if not isinstance(light_rules, list) or len(light_rules) > 16:
+            return {}
+        seen_areas = set()
+        for row in light_rules:
+            if (
+                not isinstance(row, dict)
+                or set(row) != {"areaId", "actions"}
+                or not isinstance(row["areaId"], str)
+                or not 1 <= len(row["areaId"]) <= 128
+                or any(char in row["areaId"] for char in "*?\\/ ")
+                or row["areaId"] in seen_areas
+                or not isinstance(row["actions"], list)
+                or not row["actions"]
+                or any(not isinstance(a, str) or a not in lights.ACTIONS for a in row["actions"])
+                or len(set(row["actions"])) != len(row["actions"])
+            ):
+                return {}
+            seen_areas.add(row["areaId"])
         accounts = {row["accountId"] for row in data["music"]}
         for account in accounts:
             primary = [
@@ -207,6 +230,18 @@ class TouchControls:
         owner = getattr(self.bridge.tools, "_device_control", None)
         if self.policy["vacuum"] and owner is not None and owner.available:
             result.append("vacuum")
+        if self.policy.get("light"):
+            try:
+                lights.placement(self.bridge, room, token)
+                available = self.bridge.tools.podview_lights_actions()
+                if any(
+                    lights.ACTIONS[a] in available
+                    for r in self.policy["light"]
+                    for a in r["actions"]
+                ):
+                    result.append("light")
+            except (AttributeError, TypeError, ValueError):
+                pass
         return result
 
     def selection_allowed(self, room: str, token: str, action: str | None = None) -> bool:
@@ -245,7 +280,9 @@ class TouchControls:
             hashlib.sha256(
                 json.dumps(self.policy, sort_keys=True, allow_nan=False).encode()
             ).digest(),
-            self.music.binding()
+            self.bridge.tools.podview_lights_binding()
+            if domain == "light"
+            else self.music.binding()
             if domain == "music"
             else (
                 owner,
@@ -286,6 +323,7 @@ class TouchControls:
             and time.monotonic() < task["deadline"]
             and domain_current
             and task["binding"] == self._binding(task["room"], task["domain"])
+            and (task["domain"] != "light" or self._light_current(task, token))
             and (
                 "move_grant" not in task
                 or (
@@ -308,6 +346,33 @@ class TouchControls:
                 )
             )
         )
+
+    def _light_current(self, task: dict, token: str) -> bool:
+        try:
+            return bool(
+                lights.placement(self.bridge, task["room"], token) == task["light_placement"]
+                and self.bridge.boot_id == task["light_boot"]
+                and self._move_revision(task["room"]) == task["light_revision"]
+                and self.bridge._grant_for_token(task["room"], token) is task["light_grant"]
+            )
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return False
+
+    async def _light_read(self, task: dict, token: str, current):
+        if not current():
+            raise ValueError("stale light task")
+        data = await self.bridge.read_lights(task["room"], token, areaId=task["target"]["areaId"])
+        if not current():
+            raise ValueError("stale light read")
+        entities = lights.observation(data, task["light_placement"], task["target"]["areaId"])
+        selected = lights.targets(entities, task["target"])
+        if "light_source" in task and (
+            data["sourceEpoch"] != task["light_source"]["sourceEpoch"]
+            or tuple(sorted(entities)) != task["light_entities"]
+            or selected != task["light_targets"]
+        ):
+            raise ValueError("changed light source or targets")
+        return data, entities, selected
 
     @staticmethod
     def _move_rule_identity(rule: dict) -> tuple:
@@ -389,7 +454,7 @@ class TouchControls:
         room, domain, target = body["roomId"], body["domain"], body["target"]
         if (
             not isinstance(room, str)
-            or domain not in ("music", "vacuum")
+            or domain not in ("music", "vacuum", "light")
             or not isinstance(target, dict)
             or body["bootId"] != self.bridge.boot_id
         ):
@@ -435,6 +500,14 @@ class TouchControls:
                     and any(a != "move_existing_session" for a in r["actions"])
                 ]
                 rule = matches[0] if len(matches) == 1 else {}
+        elif domain == "light":
+            if (
+                set(target) not in ({"areaId"}, {"areaId", "entityId"})
+                or "recipeId" in body
+                or any(not isinstance(value, str) or not value for value in target.values())
+            ):
+                return failure("invalid_target")
+            rule = next((r for r in self.policy["light"] if r["areaId"] == target["areaId"]), {})
         else:
             if set(target) != {"entityId"} or (
                 "recipeId" in body
@@ -477,6 +550,15 @@ class TouchControls:
             "target": target,
             "rule": rule,
         }
+        if domain == "light":
+            task.update(
+                target=copy.deepcopy(target),
+                light_boot=self.bridge.boot_id,
+                light_placement=lights.placement(self.bridge, room, token),
+                light_revision=self._move_revision(room),
+                light_grant=self.bridge._grant_for_token(room, token),
+                owner=("podview:" + self.bridge.boot_id, task_id),
+            )
         if domain == "music" and moving:
             task.update(
                 move_grant=self.bridge._grant_for_token(room, token),
@@ -616,6 +698,47 @@ class TouchControls:
                                 )
                     if not public_options:
                         return failure("setup_unavailable")
+                elif domain == "light":
+                    data, entities, selected = await self._light_read(task, token, current)
+                    task.update(
+                        light_source=copy.deepcopy(data),
+                        light_entities=tuple(sorted(entities)),
+                        light_targets=selected,
+                    )
+                    task["deadline"] = min(
+                        task["deadline"],
+                        time.monotonic() + max(0, data["validUntil"] - time.time()),
+                    )
+                    public_options = []
+                    available = self.bridge.tools.podview_lights_actions()
+                    for action in rule["actions"]:
+                        if lights.ACTIONS[action] not in available or (
+                            action == "brightness"
+                            and not all(entities[e]["supportsBrightness"] for e in selected)
+                        ):
+                            continue
+                        oid = secrets.token_hex(12)
+                        schema = (
+                            {"kind": "percent", "min": 0, "max": 100}
+                            if action == "brightness"
+                            else {"kind": "none"}
+                        )
+                        task["options"][oid] = {"action": action, "schema": schema}
+                        public_options.append(
+                            {
+                                "id": oid,
+                                "label": lights.LABELS[action],
+                                "action": action,
+                                "argsSchema": schema,
+                            }
+                        )
+                    if not public_options:
+                        return failure("setup_unavailable")
+                    setup = {
+                        "areaId": target["areaId"],
+                        "entityIds": list(selected),
+                        "scope": copy.deepcopy(data["scope"]),
+                    }
                 else:
                     device = self.bridge.tools._device_control
                     task["owner"] = ("podview:" + self.bridge.boot_id, task_id)
@@ -1062,6 +1185,59 @@ class TouchControls:
                             self.bridge._music_move_fence.discard(
                                 (task["room"], task["target"]["accountId"])
                             )
+                elif task["domain"] == "light":
+                    try:
+                        data, entities, selected = await self._light_read(task, token, current)
+                        task["deadline"] = min(
+                            task["deadline"],
+                            time.monotonic() + max(0, data["validUntil"] - time.time()),
+                        )
+                    except (ValueError, TypeError, KeyError):
+                        outcome = "rejected"
+                    else:
+                        if lights.ACTIONS[
+                            option["action"]
+                        ] not in self.bridge.tools.podview_lights_actions() or (
+                            option["action"] == "brightness"
+                            and not all(entities[e]["supportsBrightness"] for e in selected)
+                        ):
+                            outcome = "rejected"
+                        else:
+
+                            async def preflight():
+                                # The router invokes this after exact-target preparation
+                                # and before each send. Placement alone cannot retain
+                                # area authority when registry membership changes.
+                                try:
+                                    fresh, rows, targets = await self._light_read(
+                                        task, token, current
+                                    )
+                                    task["deadline"] = min(
+                                        task["deadline"],
+                                        time.monotonic()
+                                        + max(0, fresh["validUntil"] - time.time()),
+                                    )
+                                    return bool(
+                                        current()
+                                        and lights.ACTIONS[option["action"]]
+                                        in self.bridge.tools.podview_lights_actions()
+                                        and (
+                                            option["action"] != "brightness"
+                                            or all(rows[e]["supportsBrightness"] for e in targets)
+                                        )
+                                    )
+                                except Exception:
+                                    return False
+
+                            result = await self.bridge.tools.podview_lights_execute(
+                                preflight=preflight,
+                                entity_ids=selected,
+                                action=option["action"],
+                                percent=args.get("percent"),
+                                current=current,
+                                execution_context=ExecutionContext(*task["owner"]),
+                            )
+                            outcome = result.get("outcome", "unknown") if current() else "unknown"
                 elif option.get("native") is True:
                     outcome = await task["vacuum_transport"].execute(
                         task["vacuum_transport_offer"], option["action"], current

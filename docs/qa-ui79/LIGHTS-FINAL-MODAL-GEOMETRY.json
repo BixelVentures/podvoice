@@ -1,0 +1,77 @@
+{
+  "buttons": [
+    {
+      "rect": {
+        "bottom": 134.5,
+        "height": 64,
+        "left": 804,
+        "right": 868,
+        "top": 70.5,
+        "width": 64,
+        "x": 804,
+        "y": 70.5
+      },
+      "text": "Luk"
+    },
+    {
+      "rect": {
+        "bottom": 320.5,
+        "height": 64,
+        "left": 412,
+        "right": 868,
+        "top": 256.5,
+        "width": 456,
+        "x": 412,
+        "y": 256.5
+      },
+      "text": "Tænd"
+    },
+    {
+      "rect": {
+        "bottom": 449.5,
+        "height": 64,
+        "left": 412,
+        "right": 868,
+        "top": 385.5,
+        "width": 456,
+        "x": 412,
+        "y": 385.5
+      },
+      "text": "Sluk"
+    },
+    {
+      "rect": {
+        "bottom": 705.5,
+        "height": 64,
+        "left": 412,
+        "right": 868,
+        "top": 641.5,
+        "width": 456,
+        "x": 412,
+        "y": 641.5
+      },
+      "text": "Indstil lysstyrke"
+    }
+  ],
+  "header": {
+    "bottom": 151.5,
+    "height": 81,
+    "left": 412,
+    "right": 868,
+    "top": 70.5,
+    "width": 456,
+    "x": 412,
+    "y": 70.5
+  },
+  "padding": "32px",
+  "rect": {
+    "bottom": 761.5,
+    "height": 723,
+    "left": 380,
+    "right": 900,
+    "top": 38.5,
+    "width": 520,
+    "x": 380,
+    "y": 38.5
+  }
+}

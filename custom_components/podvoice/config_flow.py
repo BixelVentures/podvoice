@@ -9,6 +9,8 @@ from homeassistant.components.http.const import KEY_HASS_USER
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.core import Context, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import selector
 from homeassistant.helpers.http import current_request
 
 from . import DOMAIN, ENDPOINT_SCHEMA
@@ -43,6 +45,7 @@ class PodVoiceOptionsFlow(OptionsFlow):
         self._selected_endpoint: dict | None = None
         self._submitted = False
         self._choices: dict[str, str] = {}
+        self._profiles: dict[str, dict] = {}
 
     def _rooms(self) -> dict[str, str]:
         return {
@@ -135,6 +138,8 @@ class PodVoiceOptionsFlow(OptionsFlow):
             if choice not in self._choices:
                 return self.async_abort(reason="request_unconfirmed")
             self._action, _, self._target = choice.partition(":")
+            if self._action == "placement":
+                return await self.async_step_placement()
             return await self.async_step_confirm()
         try:
             result = await self._service("list", {})
@@ -166,6 +171,9 @@ class PodVoiceOptionsFlow(OptionsFlow):
                 and isinstance(row.get("name"), str)
             ):
                 choices[f"revoke_identity:{row['id']}"] = f"Fjern {row['name'][:80]}"
+                if type(row.get("placementRevision")) is int and row["placementRevision"] >= 0:
+                    self._profiles[row["id"]] = dict(row)
+                    choices[f"placement:{row['id']}"] = f"PodViews rum · {row['name'][:80]}"
         choices["revoke:"] = "Nødluk hele rummet"
         choices["recover:"] = "Gendan skærmadgang · fjern alle tidligere skærme"
         self._choices = choices
@@ -173,6 +181,75 @@ class PodVoiceOptionsFlow(OptionsFlow):
             step_id="manage",
             data_schema=vol.Schema({vol.Required("action"): vol.In(choices)}),
             description_placeholders={"room": self._rooms()[self._room]},
+        )
+
+    async def async_step_placement(self, user_input: dict | None = None) -> dict:
+        if (
+            await self._principal() is None
+            or self._room not in self._rooms()
+            or self._physical_endpoint(self._room) != self._selected_endpoint
+            or self._action != "placement"
+            or self._target not in self._profiles
+        ):
+            return self.async_abort(reason="admin_required")
+        if self._submitted:
+            return self.async_abort(reason="request_finished")
+        profile = self._profiles[self._target]
+        areas = ar.async_get(self.hass)
+        if user_input is not None:
+            clear = user_input.get("clear") is True
+            area = None if clear else user_input.get("area_id")
+            if not clear and (not isinstance(area, str) or areas.async_get_area(area) is None):
+                return self.async_show_form(
+                    step_id="placement",
+                    data_schema=self._placement_schema(profile),
+                    errors={"base": "area_required"},
+                    description_placeholders={"profile": profile["name"]},
+                )
+            if current_request.get().method != "POST":
+                return self.async_abort(reason="admin_required")
+            self._submitted = True
+            try:
+                result = await self._service(
+                    "placement",
+                    {
+                        "identity": self._target,
+                        "area_id": area,
+                        "expected_revision": profile["placementRevision"],
+                    },
+                )
+            except HomeAssistantError:
+                return self.async_abort(reason="request_unconfirmed")
+            if (
+                result.get("ok") is not True
+                or result.get("identity") != self._target
+                or result.get("areaId") != area
+            ):
+                return self.async_abort(reason="request_unconfirmed")
+            return self.async_show_form(
+                step_id="done",
+                data_schema=vol.Schema({}),
+                description_placeholders={"room": self._rooms()[self._room]},
+            )
+        return self.async_show_form(
+            step_id="placement",
+            data_schema=self._placement_schema(profile),
+            description_placeholders={"profile": profile["name"]},
+        )
+
+    def _placement_schema(self, profile):
+        # Optional selector plus an explicit clear flag: omission never means all-home.
+        current = profile.get("areaId")
+        field = (
+            vol.Optional("area_id", default=current)
+            if current is not None and ar.async_get(self.hass).async_get_area(current) is not None
+            else vol.Optional("area_id")
+        )
+        return vol.Schema(
+            {
+                field: selector.AreaSelector(),
+                vol.Required("clear", default=False): bool,
+            }
         )
 
     async def async_step_confirm(self, user_input: dict | None = None) -> dict:

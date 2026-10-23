@@ -248,6 +248,8 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             "persistent": True,
             "expiresAt": None,
             "status": "active",
+            "areaId": None,
+            "placementRevision": 0,
         }
         await self.receipt(
             command,
@@ -280,7 +282,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(after is None or entry.entry_id not in after.config_entries)
         self.assertEqual(set(self.hass.data["podvoice"].devices.values()), original)
 
-    async def test_http_flow_lists_and_approves_without_pairing_code(self):
+    async def options_http(self):
         entry = self.hass.config_entries.async_entries("podvoice")[0]
         self.hass.http = HomeAssistantHTTP(
             self.hass, None, None, None, ["127.0.0.1"], 0, [], "modern"
@@ -309,6 +311,10 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             async with client.post(path, json=data, headers=headers) as response:
                 return response.status, await response.json()
 
+        return entry, base, post
+
+    async def test_http_flow_lists_and_approves_without_pairing_code(self):
+        entry, base, post = await self.options_http()
         status, begin = await post(base, {"handler": entry.entry_id})
         self.assertEqual((status, begin["step_id"]), (200, "init"))
         path = f"{base}/{begin['flow_id']}"
@@ -361,6 +367,66 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((status, body["step_id"]), (200, "done"))
         self.assertNotIn("code", str(body).lower())
         self.assertNotIn(REQUEST_ID, repr(entry.as_dict()))
+
+    async def test_http_native_area_selector_sets_and_explicitly_clears_exact_profile(self):
+        from homeassistant.helpers import area_registry as ar
+
+        entry, base, post = await self.options_http()
+        area = ar.async_get(self.hass).async_create("Kitchen placement fixture")
+        current_area = None
+        revision = 0
+        for clear in (False, True):
+            status, begin = await post(base, {"handler": entry.entry_id})
+            self.assertEqual((status, begin["step_id"]), (200, "init"))
+            path = f"{base}/{begin['flow_id']}"
+            listing = asyncio.create_task(post(path, {"room": ROOM}))
+            self.addAsyncCleanup(self.cancel_task, listing)
+            offset = len(self.writes)
+            command = await self.next_write(offset + 1)
+            row = {
+                "id": REQUEST_ID,
+                "name": "iPad",
+                "room": ROOM,
+                "persistent": True,
+                "expiresAt": None,
+                "status": "active",
+                "areaId": current_area,
+                "placementRevision": revision,
+            }
+            rows = {"ok": True, "room": ROOM, "pending": [], "enrolled": [row]}
+            await self.receipt(command, Context(user_id=self.supervisor.id), rows)
+            self.assertEqual((await listing)[1]["step_id"], "manage")
+            status, form = await post(path, {"action": f"placement:{REQUEST_ID}"})
+            self.assertEqual((status, form["step_id"]), (200, "placement"))
+            selector = next(field for field in form["data_schema"] if field["name"] == "area_id")
+            self.assertIn("area", selector["selector"])
+            submitted = asyncio.create_task(post(path, {"area_id": area.id, "clear": clear}))
+            self.addAsyncCleanup(self.cancel_task, submitted)
+            check = await self.next_write(offset + 2)
+            self.assertEqual(check["action"], "list")
+            await self.receipt(check, Context(user_id=self.supervisor.id), rows)
+            placed = await self.next_write(offset + 3)
+            self.assertEqual(placed["action"], "placement")
+            self.assertEqual(placed["identity"], REQUEST_ID)
+            self.assertEqual(placed["expected_revision"], revision)
+            current_area = None if clear else area.id
+            revision += 1
+            self.assertEqual(placed["area_id"], current_area)
+            await self.receipt(
+                placed,
+                Context(user_id=self.supervisor.id),
+                {
+                    "ok": True,
+                    "room": ROOM,
+                    "identity": REQUEST_ID,
+                    "areaId": current_area,
+                    "placementRevision": revision,
+                    "bindingId": "b" * 64,
+                },
+            )
+            self.assertEqual((await submitted)[1]["step_id"], "done")
+            self.assertEqual((await post(path, {}))[1]["type"], "create_entry")
+            self.assertNotIn(REQUEST_ID, repr(entry.as_dict()))
 
 
 if __name__ == "__main__":

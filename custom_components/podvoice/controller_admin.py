@@ -15,6 +15,7 @@ from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
 from homeassistant.components.hassio.handler import get_supervisor_client
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import area_registry as ar
 
 ADDON = "23375871_podvoice"  # This installation's reviewed Supervisor identity.
 
@@ -59,7 +60,17 @@ def _valid_result(action, room, value):
             and len(enrolled) <= 2
             and all(
                 type(row) is dict
-                and set(row) == {"id", "name", "room", "persistent", "expiresAt", "status"}
+                and set(row)
+                == {
+                    "id",
+                    "name",
+                    "room",
+                    "persistent",
+                    "expiresAt",
+                    "status",
+                    "areaId",
+                    "placementRevision",
+                }
                 and type(row["id"]) is str
                 and re.fullmatch(r"[a-f0-9]{32}", row["id"]) is not None
                 and type(row["name"]) is str
@@ -68,6 +79,9 @@ def _valid_result(action, room, value):
                 and type(row["persistent"]) is bool
                 and (row["expiresAt"] is None or type(row["expiresAt"]) in (int, float))
                 and row["status"] == "active"
+                and (row["areaId"] is None or _area_id(row["areaId"]))
+                and type(row["placementRevision"]) is int
+                and row["placementRevision"] >= 0
                 for row in enrolled
             )
         )
@@ -97,7 +111,23 @@ def _valid_result(action, room, value):
             and type(value["identity"]) is str
             and re.fullmatch(r"[a-f0-9]{32}", value["identity"]) is not None
         )
+    if action == "placement":
+        return (
+            set(value) == {"ok", "room", "identity", "areaId", "placementRevision", "bindingId"}
+            and value["ok"] is True
+            and type(value["identity"]) is str
+            and re.fullmatch(r"[a-f0-9]{32}", value["identity"]) is not None
+            and (value["areaId"] is None or _area_id(value["areaId"]))
+            and type(value["placementRevision"]) is int
+            and value["placementRevision"] >= 0
+            and type(value["bindingId"]) is str
+            and re.fullmatch(r"[a-f0-9]{64}", value["bindingId"]) is not None
+        )
     return action in ("revoke", "recover") and set(value) == {"ok", "room"} and value["ok"] is True
+
+
+def _area_id(value):
+    return type(value) is str and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value) is not None
 
 
 class ControllerAdmin:
@@ -124,6 +154,13 @@ class ControllerAdmin:
             ]
             if len(rooms) != 1:
                 raise HomeAssistantError("current PodVoice room required")
+        # A selector value remains valid only while that exact registry ID exists.
+        if "area_id" in call.data:
+            area = call.data["area_id"]
+            if area is not None and (
+                not _area_id(area) or ar.async_get(self.hass).async_get_area(area) is None
+            ):
+                raise HomeAssistantError("current Home Assistant area required")
 
     async def _exchange(self, call: ServiceCall, action: str, **fields) -> dict:
         client = get_supervisor_client(self.hass)
@@ -173,6 +210,29 @@ class ControllerAdmin:
         await self._current_admin(call)
         room = call.data["room"]
         async with self._lock:
+            if action == "placement":
+                identity = call.data["identity"]
+                revision = call.data["expected_revision"]
+                rows = await self._exchange(call, "list")
+                matches = [row for row in rows["enrolled"] if row["id"] == identity]
+                if len(matches) != 1 or matches[0]["placementRevision"] != revision:
+                    raise HomeAssistantError("current browser profile required")
+                next_revision = revision + (matches[0]["areaId"] != call.data["area_id"])
+                await self._current_admin(call)
+                result = await self._exchange(
+                    call,
+                    action,
+                    identity=identity,
+                    area_id=call.data["area_id"],
+                    expected_revision=revision,
+                )
+                if (
+                    result["identity"] != identity
+                    or result["areaId"] != call.data["area_id"]
+                    or result["placementRevision"] != next_revision
+                ):
+                    raise HomeAssistantError("administrator response invalid")
+                return result
             if action == "approve":
                 request_id = call.data["request_id"]
                 prepared = await self._exchange(call, "prepare", request_id=request_id)

@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id),make=(tag,cls,text)=>{const node=documen
 // One lazy request per server-admitted source binding. Completion is read only
 // through the existing home projection; navigation never replays a paid POST.
 export class LiveWeatherAdvice {
- constructor(host,{now=()=>Date.now(),setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout,visible=()=>globalThis.document?.hidden!==true}={}){this.host=host;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.visible=visible;this.attempts=new Map();this.generation=0;}
+ constructor(host,{now=()=>Date.now(),setTimer=globalThis.setTimeout.bind(globalThis),clearTimer=globalThis.clearTimeout.bind(globalThis),visible=()=>globalThis.document?.hidden!==true}={}){this.host=host;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.visible=visible;this.attempts=new Map();this.generation=0;}
  context(){
   const h=this.host,s=h.liveSnapshot,w=h.state.liveWeather;
   if(!h.live||!h.isConnected||h.state.focus!=='weather'||!this.visible()||!h.liveTransport?.connected||h.liveTransport.recoveryBlocked||!s?.capabilities?.homeRead?.includes('weather')||h.state.homeScope!==JSON.stringify([s.bootId,s.roomId]))return null;
@@ -25,7 +25,7 @@ export class LiveWeatherAdvice {
   if(!entry&&!context.voiceCurrent&&cap.status==='idle'&&this.attempts.size<32){entry={until:cap.validUntil*1000,source:context.source,deadline:this.now()+10000,polls:0,status:'sending',advice:null};this.attempts.set(context.key,entry);this.start(context,entry);}
   if(entry&&entry.source!==context.source)return {context:cap,status:'unavailable'};
   if(projected&&entry?.advice?.requestId&&projected.requestId!==entry.advice.requestId)return {context:cap,status:'unavailable'};
-  const advice=['error','unavailable'].includes(cap.status)?null:projected||entry?.advice,status=['error','unavailable'].includes(cap.status)?cap.status:advice?.status||(['pending','ready'].includes(cap.status)?cap.status:entry?.status==='sending'?null:entry?.status||null);
+  const advice=['error','unavailable'].includes(cap.status)?null:projected||entry?.advice,status=['error','unavailable'].includes(cap.status)?cap.status:advice?.status||(['pending','ready'].includes(cap.status)?cap.status:entry?.status==='sending'?'requesting':entry?.status||null);
   if(status!=='pending'){this.clearTimer(this.timer);this.timer=null;}
   if(entry?.refreshNeeded){entry.refreshNeeded=false;this.poll(context,entry);}
   if(status==='pending'){

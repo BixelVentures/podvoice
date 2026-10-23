@@ -25,10 +25,19 @@
       "done": {
         "title": "Change confirmed",
         "description": "Access in **{room}** has been updated."
+      },
+      "placement": {
+        "title": "PodView room",
+        "description": "Choose the current Home Assistant area for **{profile}**, or clear the binding. This does not move the conversation or music.",
+        "data": {
+          "area_id": "PodView room",
+          "clear": "Clear room binding"
+        }
       }
     },
     "error": {
-      "confirmation_required": "Approve before continuing."
+      "confirmation_required": "Approve before continuing.",
+      "area_required": "Choose an existing area, or explicitly clear the binding."
     },
     "abort": {
       "admin_required": "An active Home Assistant administrator must open and complete this flow.",

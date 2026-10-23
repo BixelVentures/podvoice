@@ -390,14 +390,14 @@ test('passive advice pending and ready retain the existing summary, Hero, foreca
  const empty=renderWeather(node,{...model,summary:'',summaryState:null,summaryLabel:''});assert.equal(empty.summary,summary);assert.equal(summary.hidden,true);assert.equal(summary.getAttribute('data-advice-state'),'none');assert.equal(summary.getAttribute('aria-description'),null);
 });
 
-test('admitted idle and sending reserve the actual summary role before pending without claiming activity',()=>{
+test('idle reserves the summary and dispatched requesting uses the same pending visual role',()=>{
  const {node}=fixture(),weather=projected(),cap={schema:'podview.weather-advice-capability.v1',bootId:'boot',roomId:'room',weatherKey:'a'.repeat(64),source:weather.source,sourceRetrievedAt:Date.parse(weather.retrievedAt)/1000,availability:'available',status:'idle',validUntil:now/1000+60};
  const idleModel=liveWeatherModel(weather,{now,passiveContext:cap,passiveStatus:null}),n=renderWeather(node,idleModel),summary=n.summary,hour=n.hours.children[0],card=n.card,children=node.children.length;
  assert.equal(idleModel.summaryState,'idle');assert.equal(idleModel.summary,'');assert.equal(idleModel.summaryLabel,'');assert.equal(summary.hidden,false);assert.equal(summary.getAttribute('data-advice-state'),'idle');assert.equal(summary.getAttribute('aria-busy'),'false');assert.equal(summary.getAttribute('aria-description'),null);
- for(const status of ['pending','ready']){
-  const receipt={schema:'podview.passive-weather-advice.v1',bootId:cap.bootId,roomId:cap.roomId,weatherKey:cap.weatherKey,requestId:'b'.repeat(32),source:weather.source,sourceRetrievedAt:cap.sourceRetrievedAt,validUntil:cap.validUntil,status,summaryKind:'ai_advice',summary:status==='ready'?'Tag en jakke med – skyerne bliver hængende.':null,evidenceFactIds:status==='ready'?['current:temperature']:[]};
+ for(const status of ['requesting','pending','ready']){
+  const receipt=status==='requesting'?null:{schema:'podview.passive-weather-advice.v1',bootId:cap.bootId,roomId:cap.roomId,weatherKey:cap.weatherKey,requestId:'b'.repeat(32),source:weather.source,sourceRetrievedAt:cap.sourceRetrievedAt,validUntil:cap.validUntil,status,summaryKind:'ai_advice',summary:status==='ready'?'Tag en jakke med – skyerne bliver hængende.':null,evidenceFactIds:status==='ready'?['current:temperature']:[]};
   const model=liveWeatherModel(weather,{now,passiveContext:cap,passiveAdvice:receipt,passiveStatus:status}),updated=renderWeather(node,model);
-  assert.equal(updated.summary,summary);assert.equal(summary.hidden,false);assert.equal(updated.card,card);assert.equal(updated.hours.children[0],hour);assert.equal(node.children.length,children);assert.equal(summary.getAttribute('data-advice-state'),status);assert.equal(summary.getAttribute('aria-busy'),String(status==='pending'));
+  assert.equal(updated.summary,summary);assert.equal(summary.hidden,false);assert.equal(updated.card,card);assert.equal(updated.hours.children[0],hour);assert.equal(node.children.length,children);assert.equal(summary.getAttribute('data-advice-state'),status==='requesting'?'pending':status);assert.equal(summary.getAttribute('aria-busy'),String(['requesting','pending'].includes(status)));
  }
 });
 

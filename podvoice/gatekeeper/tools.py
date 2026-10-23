@@ -17,9 +17,10 @@ import hashlib
 import json
 import logging
 import math
+import re
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
@@ -31,7 +32,7 @@ from jsonschema.exceptions import SchemaError
 
 from . import constants as C
 from . import podconnect_targets as playback_targets
-from . import podview_music
+from . import podview_lights, podview_music
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -1096,6 +1097,7 @@ class ToolRouter:
         approval_token: str | None = None,
         expected_declaration_sha256: str | None = None,
         execution_guard: Callable[[], bool] | None = None,
+        execution_preflight: Callable[[], Awaitable[bool]] | None = None,
         timer_endpoint: str = "",
         completed_call_id: str = "",
     ) -> dict:
@@ -1110,6 +1112,7 @@ class ToolRouter:
                 approval_token=approval_token,
                 expected_declaration_sha256=expected_declaration_sha256,
                 execution_guard=execution_guard,
+                execution_preflight=execution_preflight,
                 timer_endpoint=timer_endpoint,
                 completed_call_id=completed_call_id,
             )
@@ -1123,6 +1126,7 @@ class ToolRouter:
         approval_token: str | None = None,
         expected_declaration_sha256: str | None = None,
         execution_guard: Callable[[], bool] | None = None,
+        execution_preflight: Callable[[], Awaitable[bool]] | None = None,
         timer_endpoint: str = "",
         completed_call_id: str = "",
     ) -> dict:
@@ -1215,6 +1219,17 @@ class ToolRouter:
             if prepared.error is not None:
                 self._log_tool(name, prepared.error, dispatch_args)
                 return prepared.error
+            # Optional caller-owned source check runs AFTER target-resolution
+            # awaits while the same declaration lease is still held. It never
+            # grants permission; normal policy and current guard still run.
+            if execution_preflight is not None:
+                try:
+                    async with asyncio.timeout(2):
+                        valid = await execution_preflight()
+                except (TimeoutError, ValueError, TypeError, KeyError, httpx.HTTPError):
+                    valid = False
+                if valid is not True:
+                    return self._stale_execution()
             if execution_guard is not None and not execution_guard():
                 return self._stale_execution()
             dispatch_args = prepared.args
@@ -2047,6 +2062,184 @@ class ToolRouter:
                 "error_kind": "unknown_outcome",
                 "error": "Playback target service outcome is unknown; no retry was sent",
             }
+
+    def podview_lights_available(self) -> bool:
+        return bool(self._token and self._client is not None and not self._client.is_closed)
+
+    def podview_lights_binding(self) -> tuple:
+        return (
+            self._client,
+            hashlib.sha256(self._token.encode()).digest(),
+            getattr(self, "_mcp_epoch", None),
+            self._discovery.generation,
+        )
+
+    async def _podview_lights_json(self, template: str, current=lambda: True):
+        client = self._client
+        if client is None or not self.podview_lights_available() or not current():
+            raise ValueError("lights source unavailable")
+        binding = self.podview_lights_binding()
+        payload = bytearray()
+        async with asyncio.timeout(2):
+            async with client.stream(
+                "POST",
+                f"{C.SUPERVISOR_CORE_API}/template",
+                headers={"Authorization": f"Bearer {self._token}"},
+                json={"template": template},
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if len(payload) + len(chunk) > podview_lights.MAX_BYTES:
+                        raise ValueError("lights source too large")
+                    payload.extend(chunk)
+                    if binding != self.podview_lights_binding() or not current():
+                        raise ValueError("lights source changed")
+        if binding != self.podview_lights_binding() or not current():
+            raise ValueError("lights source changed")
+        value = json.loads(payload)
+        return json.loads(value) if isinstance(value, str) else value
+
+    async def podview_lights_areas(self) -> list[dict]:
+        value = await self._podview_lights_json(
+            "{% set ns=namespace(rows=[]) %}{% for a in areas() %}"
+            "{% set ns.rows=ns.rows+[{'areaId':a,'areaName':area_name(a)}] %}"
+            "{% endfor %}{{ ns.rows|tojson }}"
+        )
+        if not isinstance(value, list) or len(value) > 64:
+            raise ValueError("invalid lights areas")
+        seen = set()
+        for row in value:
+            if (
+                not isinstance(row, dict)
+                or set(row) != {"areaId", "areaName"}
+                or any(
+                    not isinstance(row[k], str)
+                    or not 1 <= len(row[k]) <= n
+                    or not row[k].isprintable()
+                    or row[k] != row[k].strip()
+                    for k, n in (("areaId", 128), ("areaName", 160))
+                )
+                or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", row["areaId"]) is None
+                or row["areaId"] in seen
+            ):
+                raise ValueError("invalid lights area")
+            seen.add(row["areaId"])
+        return value
+
+    async def podview_lights_read(self, scope, current=lambda: True) -> dict:
+        binding = self.podview_lights_binding()
+        source_epoch = hashlib.sha256(repr(binding).encode()).hexdigest()
+
+        def valid():
+            return current() and binding == self.podview_lights_binding()
+
+        async def area(area_id):
+            encoded = json.dumps(area_id, ensure_ascii=False)
+            return await self._podview_lights_json(
+                "{% set a=" + encoded + " %}{% if a in areas() %}"
+                "{{ {'areaId':a,'areaName':area_name(a),'entityIds':"
+                "area_entities(a)|select('match','^light[.]')|list}|tojson }}"
+                "{% else %}null{% endif %}",
+                valid,
+            )
+
+        async def states(entity_ids):
+            encoded = json.dumps(entity_ids)
+            return await self._podview_lights_json(
+                "{% set ns=namespace(rows=[]) %}{% for eid in " + encoded + " %}"
+                "{% set s=states[eid] %}{% if s is not none %}"
+                "{% set ns.rows=ns.rows+[{'entity_id':eid,'state':s.state,"
+                "'attributes':dict(s.attributes)}] %}{% endif %}{% endfor %}"
+                "{{ ns.rows|tojson }}",
+                valid,
+            )
+
+        return await podview_lights.read_area_lights(
+            scope=scope,
+            source_epoch=source_epoch,
+            read_area=area,
+            read_states=states,
+            current=valid,
+        )
+
+    def podview_lights_actions(self) -> list[str]:
+        declarations = {row.get("name"): row for row in self.declarations()}
+        actions = []
+        for action, name in (
+            ("light.turn_on", "HassTurnOn"),
+            ("light.turn_off", "HassTurnOff"),
+            ("light.set_brightness", "HassLightSet"),
+        ):
+            schema = declarations.get(name, {}).get("parameters", {})
+            props = schema.get("properties", {})
+            supplied = {"name", "brightness"} if name == "HassLightSet" else {"name"}
+            if (
+                not isinstance(props, dict)
+                or props.get("name", {}).get("type") != "string"
+                or not isinstance(schema.get("required", []), list)
+                or not set(schema.get("required", [])) <= supplied
+            ):
+                continue
+            if name == "HassLightSet" and props.get("brightness", {}).get("type") not in {
+                "number",
+                "integer",
+            }:
+                continue
+            samples = (
+                [{"name": "light.podview", "brightness": value} for value in (0, 50, 100)]
+                if name == "HassLightSet"
+                else [{"name": "light.podview"}]
+            )
+            try:
+                validator = Draft202012Validator(schema)
+                if not all(validator.is_valid(sample) for sample in samples):
+                    continue
+            except (SchemaError, TypeError, ValueError):
+                continue
+            actions.append(action)
+        return actions
+
+    async def podview_lights_execute(
+        self, *, entity_ids, action, percent, current, execution_context, preflight=None
+    ) -> dict:
+        mapping = {
+            "turn_on": ("light.turn_on", "HassTurnOn"),
+            "turn_off": ("light.turn_off", "HassTurnOff"),
+            "brightness": ("light.set_brightness", "HassLightSet"),
+        }
+        target = mapping.get(action)
+        if (
+            target is None
+            or not callable(preflight)
+            or target[0] not in self.podview_lights_actions()
+            or not isinstance(entity_ids, (list, tuple))
+            or not 1 <= len(entity_ids) <= 64
+            or len(set(entity_ids)) != len(entity_ids)
+            or any(
+                not isinstance(eid, str) or not re.fullmatch(r"light\.[a-z0-9_]+", eid)
+                for eid in entity_ids
+            )
+            or (action == "brightness" and (type(percent) is not int or not 0 <= percent <= 100))
+            or (action != "brightness" and percent is not None)
+            or not current()
+        ):
+            return {"outcome": "rejected"}
+        for entity_id in entity_ids:
+            if not current():
+                return {"outcome": "unknown"}
+            args = {"name": entity_id}
+            if action == "brightness":
+                args["brightness"] = percent
+            result = await self.dispatch(
+                target[1],
+                args,
+                execution_context=execution_context,
+                execution_guard=current,
+                execution_preflight=preflight,
+            )
+            if not current() or result.get("ok") is not True:
+                return {"outcome": "unknown"}
+        return {"outcome": "accepted"}
 
     def podview_home_available(self) -> bool:
         owner = self._device_control

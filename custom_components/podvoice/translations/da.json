@@ -25,10 +25,19 @@
       "done": {
         "title": "Ændringen er bekræftet",
         "description": "Adgangen i **{room}** er opdateret."
+      },
+      "placement": {
+        "title": "PodViews rum",
+        "description": "Vælg det aktuelle Home Assistant-område for **{profile}**, eller ryd tilknytningen. Dette flytter ikke samtale eller musik.",
+        "data": {
+          "area_id": "PodViews rum",
+          "clear": "Ryd rumtilknytning"
+        }
       }
     },
     "error": {
-      "confirmation_required": "Godkend, før du fortsætter."
+      "confirmation_required": "Godkend, før du fortsætter.",
+      "area_required": "Vælg et eksisterende område, eller vælg at rydde tilknytningen."
     },
     "abort": {
       "admin_required": "En aktiv Home Assistant-administrator skal åbne og gennemføre denne opsætning.",

@@ -215,7 +215,7 @@ pv-robot-control-panel>.pv-component .pv-button.start{min-height:56px}
 
 /* Native dialog/form recipe: control, provenance and music search share the
    existing component, button, content and actions primitives. */
-dialog.pv-component{box-sizing:border-box;width:min(680px,calc(100vw - 32px));max-height:calc(100dvh - 48px);margin:auto;padding:var(--pv-s3);border:0;border-radius:var(--pv-resource-radius);background:var(--pv-screen-surface);color:var(--pv-screen-ink);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--pv-screen-outline) transparent}
+dialog.pv-component{box-sizing:border-box;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 48px);margin:auto;padding:var(--pv-s4);border:0;border-radius:var(--pv-resource-radius);background:var(--pv-screen-surface);color:var(--pv-screen-ink);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--pv-screen-outline) transparent}
 dialog.pv-component:not([open]){display:none}
 dialog.pv-component [hidden]{display:none!important}
 dialog.pv-component::backdrop{background:var(--pv-screen-photo-scrim)}
@@ -227,10 +227,11 @@ dialog.pv-component .dialog-close{display:grid;place-items:center;flex:none;min-
 dialog.pv-component .pv-content{min-width:0}
 dialog.pv-component>.pv-content>section.pv-content{padding:var(--pv-s3) 0;border-top:1px solid var(--pv-screen-line)}
 dialog.pv-component .pv-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--pv-s2);margin:16px 0}
-dialog.pv-component .pv-button{min-height:var(--pv-hit-min);border-radius:var(--pv-hit-radius);font-size:var(--pv-type-caption);line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+dialog.pv-component .pv-button{min-height:var(--pv-hit-min);border-radius:var(--pv-hit-radius);font-size:var(--pv-type-body);line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+dialog.pv-component .pv-button[data-kit-variant=primary]{min-height:var(--pv-hit-primary)}
 dialog.pv-component form.pv-content{display:grid;gap:var(--pv-s2)}
 dialog.pv-component form.pv-content>.pv-actions{margin:0}
-dialog.pv-component form.pv-content>.pv-button{justify-self:start}
+dialog.pv-component form.pv-content>.pv-button{justify-self:stretch}
 dialog.pv-component input:not([type=checkbox]):not([type=radio]):not([type=range]),dialog.pv-component select{display:block;width:100%;min-width:0;min-height:52px;margin:0;padding:var(--pv-s2) var(--pv-s2);border:1px solid var(--pv-screen-outline);border-radius:var(--pv-screen-radius-field);background:var(--pv-screen-surface);color:var(--pv-screen-ink);font:inherit;font-size:var(--pv-type-body);line-height:1.3}
 dialog.pv-component input[type=search]{flex:1 1 240px;width:auto}
 dialog.pv-component input::placeholder{color:var(--pv-screen-muted);opacity:1}
@@ -248,7 +249,7 @@ dialog.pv-component dl>div{padding:var(--pv-s2) 0;border-top:1px solid var(--pv-
 dialog.pv-component dt{font-size:var(--pv-type-caption);line-height:1.4;color:var(--pv-screen-muted)}
 dialog.pv-component dd{margin:8px 0;font-size:var(--pv-type-label);line-height:1.3;font-variant-numeric:tabular-nums}
 dialog.pv-component dl>div>p{font-size:var(--pv-type-caption);line-height:1.45;color:var(--pv-screen-muted);margin:0}
-@media(max-width:520px){dialog.pv-component{padding:var(--pv-s3);max-height:calc(100dvh - 24px)}dialog.pv-component h2{font-size:var(--pv-type-label)}dialog.pv-component form.pv-actions>input[type=search]{flex-basis:100%;width:100%}dialog.pv-component form.pv-actions>.pv-button{flex:1}dialog.pv-component .pv-actions>label{flex:1 1 100%}}
+@media(max-width:520px){dialog.pv-component{padding:var(--pv-s4);max-height:calc(100dvh - 24px)}dialog.pv-component h2{font-size:var(--pv-type-label)}dialog.pv-component form.pv-actions>input[type=search]{flex-basis:100%;width:100%}dialog.pv-component form.pv-actions>.pv-button{flex:1}dialog.pv-component .pv-actions>label{flex:1 1 100%}}
 
 /* Robot adapter: keep the existing map and select-all in one header row. */
 pv-robot-control-panel .device-history{padding-top:0!important}

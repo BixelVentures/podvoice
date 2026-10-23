@@ -46,7 +46,7 @@ export class PodVoiceTransport {
   if (this.closed || value?.schema !== 'podview.snapshot.v1' || typeof value.bootId !== 'string' || !Number.isInteger(value.revision) || value.revision < 1 || typeof value.roomId !== 'string' || !value.voice || !value.timers || !value.capabilities) return false;
   if (!['observed','unavailable'].includes(value.timers.status)||!Array.isArray(value.timers.items)||!Array.isArray(value.capabilities.musicRead)||!Array.isArray(value.capabilities.timerActions)) return false;
   if(value.capabilities.homeRead!==undefined&&(!Array.isArray(value.capabilities.homeRead)||value.capabilities.homeRead.some(x=>!['vacuum','weather','light','vehicle'].includes(x))))return false;
-  if(value.capabilities.controlSetup!==undefined&&(!Array.isArray(value.capabilities.controlSetup)||value.capabilities.controlSetup.some(x=>!['music','vacuum'].includes(x))))return false;
+  if(value.capabilities.controlSetup!==undefined&&(!Array.isArray(value.capabilities.controlSetup)||value.capabilities.controlSetup.some(x=>!['music','vacuum','light'].includes(x))))return false;
   if((value.answerHistoryRevision!==undefined||value.answerHistoryRemovalRevision!==undefined||value.answerHistoryReceiptIds!==undefined)&&(!Number.isSafeInteger(value.answerHistoryRevision)||value.answerHistoryRevision<0||!Number.isSafeInteger(value.answerHistoryRemovalRevision)||value.answerHistoryRemovalRevision<0||value.answerHistoryRemovalRevision>value.answerHistoryRevision||!Array.isArray(value.answerHistoryReceiptIds)||value.answerHistoryReceiptIds.length>20||value.answerHistoryReceiptIds.some(id=>typeof id!=='string'||!/^[a-f0-9]{32}$/.test(id))||new Set(value.answerHistoryReceiptIds).size!==value.answerHistoryReceiptIds.length))return false;
   if(value.capabilities.answerRead!==undefined&&typeof value.capabilities.answerRead!=='boolean')return false;
   if(value.capabilities.musicSelection!==undefined&&typeof value.capabilities.musicSelection!=='boolean')return false;
@@ -132,9 +132,10 @@ export class PodVoiceTransport {
  }
  disconnected() { this.connected = false; this.onConnection('disconnected');this.scheduleRecovery(); }
  async request(url,options,ms,signal=this.controller?.signal){const generation=this.generation,read=!options?.method||options.method==='GET';const result=await requestWithin(async(target,init)=>{const response=await this.fetch(target,init);let body;try{body=await response.json();}catch(error){if([401,403].includes(response.status))body={error:"transport_access_denied"};else{if(read&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}}return {ok:response.ok,status:response.status,json:async()=>body};},url,options,signal,ms);if(read&&(this.closed||generation!==this.generation))throw new DOMException('Read owner changed','AbortError');return result;}
- async home(){
+ async home({lightArea}={}){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
-  const response=await this.request(this.endpoint('home'),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
+  if(lightArea!==undefined&&(!this.snapshot.capabilities.homeRead.includes('light')||typeof lightArea!=='string'||!lightArea||lightArea.length>128||/[\u0000-\u001f\u007f]/u.test(lightArea)))throw new Error('light_area_unavailable');
+  const response=await this.request(this.endpoint('home',lightArea===undefined?{}:{lightArea}),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
  }
  async weatherAdvice(binding,{signal}={}){
   const snapshot=this.snapshot,generation=this.generation;

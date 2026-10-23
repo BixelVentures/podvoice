@@ -17,3 +17,8 @@ test('idle output accessible name always includes its visible heading across con
   assert.equal(s.output.disabled,!value.canOutput);
  }
 });
+
+test('idle next destination replaces configured display with explicit nonplaying intent in the same retained header',()=>{
+ const s=surface(),identity=s.output.listenerIdentity;placeOutputHeader(s.view,{active:false,canOutput:true,configuredTarget:'Køkkenalrum HomePod',nextDestinationLabel:'Svend’s HomePod'});assert.equal(s.room.textContent,'Næste afspilning: Svend’s HomePod');assert.equal(s.state.textContent,'');assert.equal(s.output.getAttribute('aria-label'),'Næste afspilning: Svend’s HomePod');assert.equal(s.output.listenerIdentity,identity);assert.equal(s.copy.children[0],s.output);assert.equal(s.output.disabled,false);
+ placeOutputHeader(s.view,{active:false,canOutput:true,configuredTarget:'Køkkenalrum HomePod'});assert.equal(s.room.textContent,'Køkkenalrum HomePod');assert.equal(s.output.getAttribute('aria-label'),'Konfigureret højttaler: Køkkenalrum HomePod');
+});

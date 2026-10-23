@@ -1,3 +1,111 @@
+## Candidate79 first officialCI fixture correction —24October2026
+
+OfficialPR242 head639166ffdf70e2b514bc8aa9182077293625f124/treeab032c75401f969f365ab224a6a9876784cbb148
+failed five legacy fixtures: missing actual placement registration schema symbol,
+old enrolled-row shape, robot data-import module mapping, snapshotlambda keyword
+light_token and locality fakebridge read_lights. Correct only the existing fixture
+contracts; production behavior and all323runtimepins remain exact frozen79.
+NativeHA2026.8.2, build and other successful jobs are retained; failed run remains
+failed. Source-only five-fixture correction, refreshed exact regression inventory/
+policybinding and focused gates are separate from required final officialCI.
+Affected HA/display/locality/SSE34 cases PASS (SSE localhost server rerun once with
+approved loopback permission after sandboxbind failure); robot16 PASS, unchanged
+neighbor16 retained. All15 bound79 checks and actual staged strict79 PASS. New exact
+manifest165803494c442eb6edaa7eec961ea164444a25b57bad07957690d2fdb0a22950;
+Python3.12AST009494c22e14a7e00e81918a57929b04edb2171914d187614c9aeb3d4884f6a1.
+No HA/service/audio/device/provider operations or restart; two-artifact delivery and
+manual controller/freshHA acceptance gaps below remain open.
+
+## Installeret baseline78 — faktisk levering; historiske78next-actions er supersederet
+
+Root verificerede2.0.78/Kører installeret22:25 den23okt; PR240 merge
+7742699ea8ca0c9b70498a7c2f63e86b039c3eed/treebea5ebfe0c2d5ef0ffd4949db933c2695612f5f3.
+OfficialPRCI40017613133 og mainpublisher40018369494 SUCCESS; offentlig ARM304source/
+203UIhashes PASS. Fuld startupgit/rootfs-link er ikke bevaret/aflæst; den opfindes ikke.
+Udvidet højttalerpolicy blev eksplicit godkendt, gemt og persisted-readback verificeret;
+alle tre targets quiet-testet. Faktisk30s udløb bevarer tre disabled rækker; eksplicit
+refresh genåbner dem. Svend/Frida local nextdestination, timerform uden Start, robot
+freshloading→otte rum og genåbning uden execute samt History-navigation er verificeret.
+Brugeren rapporterede første faktiske lyd; entrypoint/højttaler er ukendt. Det er én
+fysisk succes, ikke alle musikflows/golden chain. Vejrrådets faktiske unavailable-årsag
+står åben; ingen ny betalt prøve. Receipt /private/tmp/pv78-delivery-20261023.json.
+
+## Planlagt build79 — samlet quiet playback/lys/UI, sourceintegration
+
+Lead root; integration weather_backend_integration; PodView ejer authoredUI. Ingen
+GitHub/publicering, HA/device/audio/provider-effekter i denne draft. Base er præcis
+installeret78/treebea5, ikke dirtyhistoriskeHEADs. Inputs: immutable NEXT203UI7201c9…;
+PV#241 exactbackendpatchb83b806ef39036c4584276413435fbf0a4e3738126cb1c664374c62bfb1d6b5b
+med101focused/sourceGO; pinnedlights23files043bf… plus additive5files086c… med
+556/344ændringsafgrænsede inerte receipts og sourceGO. UI-ejer1993/gate63 og lokale
+quietProductDesign/Impeccable-evidenser bevares, ikke husholdnings-/provideraccept.
+Observeret hul: faktisk freshpaused clouditem for korrektkonto/engine blev skjult ved
+roomcontrols claim_unavailable. Hypotese: separat account_observed-projektion kan
+vise frisk kontometadata read-only uden roomproof/seek/queue/commands. Bindingscustody
+er ingen afspilningsautoritet; roomobserved-path bevares. Lys: savedcontroller→aktuel
+HAarea/source→egenplacering/andetområde-detail→opaquecontrolsetup→eksaktpolicy/entity.
+Placement og observation giver ikke effektrettighed; source/revision/cookie/epoch skal
+være aktuelt før og efterawait. Persistent nextspeakerintent er særskilt fra output.
+Naboraces: expired/stale/foreign account, controller/placering/area-rename/delete,
+revokedpolicy, late read/cache, commandunknown og duplicateaction; alle failclosed.
+Ingen lokalAI/taste, ingen native/C/Voice-lifecycleændring eller implicit effekt.
+Plan: verificér alle inputpins; merge kun autoritative paths på78; kortlæg konflikter;
+port authoredfixtures relativt; målrettede causal/nativeHA-adapterchecks plus statics,
+actualscope og uafhængigt combinedreview før binding. Version79 er kun kandidat.
+Rollback er source-delta; ingen policy-/controller-/budgetreset. NativeHA-CI, senere
+installeret softwareflow og fysisk lamper/lyd er selvstændige åbne gates. I aften ingen
+audio/provider/devicekald. Historiske statusposter nedenfor bevares som historik.
+
+Faktisk sammensat kilderesultat: alle lightsPIN-listede23+5filhashes og #241receiptpins
+samt203runtime/201authoredsourcehashes er verificeret. Ingen overlappende backend-
+produktionspaths mellem lights og #241;78weather120 er bevaret. To testportkonflikter
+var authored nye assertions og blev sammenflettet med eksisterende relative fixtures;
+ingen authoredUI-runtime er ændret.25berørte UI-testmirrors529/529 PASS;319fælles
+inerte playback/light-ingress/katalog/placement/control-cases PASS via faktisk lokal
+TestClient og HTTPMockTransport. Ingen household/provider/lyd. Fullmypy94sources,
+31ændredePythonfiler lint/format,42JS/MJSsyntax og faktisk entrygraph/bundlekomposition
+PASS. Historisk78all14, ny79prebind6 og devdispatchchecks PASS;9nye boundmutationcases
+venter bevidst på uafhængigtGO/binding. Tidligere1993UI/101#241/556+344lights-receipts
+bevares kun for deres uændrede scope. NativeHAframeworkCI og senere faktisk installation/
+konfigaktivering/fysiske lamper/lyd er fortsat åbne; denne pakke er ingen effektaccept.
+
+Leveringsstoplinje fundet i uafhængigt review: add-on Dockerfile kopierer kun
+gatekeeper; custom_components følger ikke med add-on79. Root autoriserede kun
+metadatarettelse HAkomponent0.1.5→0.1.6 og strict79metadata/pins, ingen ny adfærd.
+Lys kræver både add-on2.0.79 OG separat de eksakt reviewede PodVoice0.1.6component-
+bytes via den normale eksisterende filinstallationsvej, derefter særskilt HAcore-
+genstart og versions-/kontraktreadback. Komponentversion alene beviser ikke installeret
+kode. Ingen ny deployautomation/framework. I aften ingen installation/genstart;
+timerstatus er ukendt, så der er ingen restartautorisation. Add-on79 alene må aldrig
+rapporteres som leveret placement/admin/lys-kontrakt. Root har autoriseret binding efter uafhængigt exactcombinedGO;
+fysisk/installeret/softwareaccept står fortsat særskilt og åbent.
+
+Reviewed weatheroverlay adopteret på7201base: WEATHER-REQUESTING-PINS
+fd40fc2181b7a5ec4bafacaceb82e1ffa4898cdd1b97f1c6006ef7efded64a64.
+UI-ejer fandt faktisk native Illegal invocation ved ubundet defaulttimerreceiver;
+kun defaulttimerne bindes til globalThis. Intern requesting-ventetid vises med den
+eksisterende gradient; polling viser fortsat faktisk serverpending, aldrig opdigtet
+wirestatus/autoritet. Fireeksakte runtimefiler (toowners+togenererede bundles) og
+syvkilde/docsfiler er hashverificeret;203fulde runtimehashes matcher overlayforventning.
+UI-ejer1998/gate63/syntax og reviewednativeproof bevares; ingen betaltkald/retry eller
+autorisationsændring. Nye authoredfixtureports kontrolleres alene. De130påvirkede weather-portcases PASS; faktisk entrygraph/bundle1PASS med38uændrede
+cases genbrugt. Overlaypins/full203manifest/syntax/change_scope PASS. Lead har fravalgt
+ufærdig ingressenrollment i79: den må ikke forsinke denne afgrænsede kandidat. Første
+controller skal derfor navngives/enrolles manuelt via det eksisterende admin/setup-
+flow og bagefter bevise friskHA/placement-read; automatisk request/claim/renewUI er
+ikke leveret. Ingen authrelax eller authorityfallback. Sourcegap står særskilt åbent.
+Uafhængig weatheropdateret exactscopeGO er modtaget; root autoriserede én finalbind
+på disse bits. FixedPython3.12AST eb031faae7d6115d34549dca868bda73a5aaa5f4c19442995686cba1a79625b5;
+manifest99ecf46d65036575ef0315f0eff03481643f95ed9e6e7672a5296bc71a0ba000.
+Actualstagedstrict79 PASS; final15new79 og14historical78cases PASS efterbinding (29/29).
+
+Strict79succession er forberedt med faktisk34production/45regression/323runtime/
+4config/54policy/86exacttooling,203assets og actualstaged ha_tools/physical_output.
+Allemanifesthashes, immutable78/ældreprofiler, exact203checker og change_scope_matches
+PASS. Manifest 99ecf46d65036575ef0315f0eff03481643f95ed9e6e7672a5296bc71a0ba000;
+Finalreviewbinding er udført under /root/sol61_release75_review efter leadGO;
+sourceadmission er ikke officielCI/publicering/installation eller fysisk accept.
+
 ## Planlagt build78 — eksisterende HA-forløb og højttalervælger, før implementation
 
 Lead root; PodView ejer UI-pakken; integration weather_backend_integration. Brugeren
@@ -3597,5 +3705,28 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "tooling_fingerprint": "131f894e0a23ce29b8a08ace342bac511d47f3bbe99d734c56cb738925936982",
   "manifest_fingerprint": "d574ac689d1cbce82335f3ff99d2d87e245aa19fa229fd477e16c9d2abf284bc",
   "rationale": "Independent exact78 scope/manifest GO and preserved weather120 two-file SOURCE GO. Immutable canonical203asset UI packet c3129ec3cbdc689a51000e3c24b57a199e776b05d42dd4a00c846d529b575798 and sourceaddendum d6eccd19fb2f88b7e1ae925432e4f4ec03f39bc9fbcecec187922d315d495151 adopted without authored runtime edits. UIowner1926/componentgate and independent runtime/QA/addendum review retained. Changed mirrors and concrete relative-fixture adapter checks PASS; actualbundle entry PASS; fullmypy92, changedPythonlint/format, JSsyntax, historical77 and immutablepins PASS. Actual staged domains ha_tools/physical_output. No Lights/Frameo/newfeatures/policychange, live provider/HA or physical acceptance; root owns final CI/publication/installation."
+}
+-->
+
+
+<!-- podview79-admission
+{
+  "version": 56,
+  "kind": "podview79_quiet_lights_playback",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "7742699ea8ca0c9b70498a7c2f63e86b039c3eed",
+  "merge_base": "7742699ea8ca0c9b70498a7c2f63e86b039c3eed",
+  "fingerprint": "19d75da716c711b365b96615b94d88d6d573d32930f53fe188caccd767da5aee",
+  "regression_fingerprint": "69591e0afd412f943db1e1abbb3b9be430847f40d904cae8f5b0f214097ac9b7",
+  "runtime_fingerprint": "636feb1ce412127c73f274f867c29b14bd883e8688f6a7db4e3b913a5cc04667",
+  "config_fingerprint": "cd02554719a84e847590af00ab757b7e152ad46b1ade7286e879fe2f0a508396",
+  "policy_fingerprint": "511ea3fa3c9c83e7168b1deb27ac2aa70a071de7e8eaec797f114efe920a0c96",
+  "tooling_fingerprint": "915a444208bae03ac02fd56ad89a0bf3444c619dbe1525b7f0175c0443c1464a",
+  "manifest_fingerprint": "165803494c442eb6edaa7eec961ea164444a25b57bad07957690d2fdb0a22950",
+  "rationale": "Independent combined79 SOURCE/SCOPE GO including weatherupdated inventory; immutable7201UI plus fd40weatheroverlay adopted without authoredruntime edits. Lights043bf+086c PIN-only sources and PV241b83b retained SOURCEGO. Prior529UI/319combinedbackend/mypy94 and affected130weathercases/actualbundle/static checks PASS. Dual artifact required: addon2.0.79 does not ship separately installed HAcomponent0.1.6; existing fileinstall then separately authorized HAcore restart/readback required. Tonight no deployment/restart/effects while timerstateunknown. EnrollmentUI excluded; manual namedcontroller setup and freshHAflow remain explicit gap. Actualstaged domains ha_tools/physical_output; sourceadmission never implies installed/provider/physical closure. CI242 head639166 rejected five legacy fixtures, not production: missing placement-schema namespace and closed enrolled-row fields, missing robot data-import dependency, snapshot lambda light_token keyword and locality bridge read_lights contract. Only test fixtures corrected; all323 runtime hashes remain frozenab032. NativeHA2026.8.2/build/other passed jobs retained. No new effects or deployment."
 }
 -->

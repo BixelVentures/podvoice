@@ -105,7 +105,7 @@ export function renderOverviewMediaValues(host){
  const emptyMusic={offline:'Ikke forbundet',error:'Kan ikke hentes','account-selection':'Vælg musikkonto',loading:'Afventer data'}[vm.emptyState]||(host.live&&host.liveTransport?.connected===false?'Ikke forbundet':'Vælg musik');
  const radioExample=vm.exampleOnly===true||typeof vm.previewLabel==='string'&&/ingen lyd/i.test(vm.previewLabel);
  const values={
-  'home-music':{title:known&&!radio?`${vm.fresh===false?'Sidst kendt · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.fresh===false?'Sidst kendte afspilning':vm.playing?'Afspiller':'På pause'):''},
+  'home-music':{title:known&&!radio?`${vm.fresh===false&&!vm.readOnly?'Sidst kendt · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.readOnly?`${vm.playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`:vm.fresh===false?'Sidst kendte afspilning':vm.playing?'Afspiller':'På pause'):''},
   'home-radio':{title:host.live?'Ikke tilgængelig':known&&radio?`${vm.fresh===false&&!radioExample?'Sidst kendt · ':''}${vm.title}`:'Vælg station',secondary:!host.live&&known&&radio?(radioExample?'Ingen lyd':vm.playing?'Afspiller':'På pause'):'',status:''},
  };
  for(const [id,value]of Object.entries(values)){

@@ -46,6 +46,18 @@ test('pairing retains authority only in HttpOnly cookie and reopens snapshot str
  assert.equal(JSON.stringify(transport).includes('x'.repeat(43)),false);
 });
 
+test('scoped light detail reads stay same-origin GETs and cannot widen capability',async()=>{
+ const calls=[],t=new PodVoiceTransport({url:'https://ha.example/prefix/view/',room:'kitchen',fetch:async(url,init)=>{calls.push({url:new URL(url),init});return {ok:true,status:200,json:async()=>({schema:'podview.home.v1'})};}});
+ t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{homeRead:['light']}};
+ try{await t.home({lightArea:'room_a'});assert.equal(calls.length,1);assert.equal(calls[0].url.origin,'https://ha.example');assert.equal(calls[0].url.pathname,'/prefix/view/api/home');assert.equal(calls[0].url.searchParams.get('lightArea'),'room_a');assert.equal(calls[0].url.searchParams.get('room'),'kitchen');assert.equal(calls[0].init.method,undefined);assert.equal(calls[0].init.body,undefined);
+  for(const lightArea of ['',null,'a'.repeat(129),'room\nother'])await assert.rejects(()=>t.home({lightArea}));
+  t.snapshot.capabilities.homeRead=['weather'];await assert.rejects(()=>t.home({lightArea:'room_a'}));assert.equal(calls.length,1);
+ }finally{t.close();}
+});
+test('scoped light read cannot publish after transport owner replacement',async()=>{
+ let resolve;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:()=>new Promise(r=>resolve=r)});t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{homeRead:['light']}};
+ try{const read=t.home({lightArea:'room_a'});t.generation++;resolve({ok:true,status:200,json:async()=>({lights:{scope:{areaId:'room_a'}}})});await assert.rejects(read,{name:'AbortError'});}finally{t.close();}
+});
 test('weather advice uses one exact same-origin source-bound POST with no client forecast or retries',async()=>{
  const calls=[],binding={bootId:snap().bootId,roomId:'kitchen',weatherKey:'a'.repeat(64),availability:'available'},dto={schema:'podview.passive-weather-advice.v1'};
  const t=new PodVoiceTransport({url:'https://ha.example/prefix/view/',fetch:async(url,init)=>{calls.push({url:new URL(url),init});return {ok:true,status:200,json:async()=>dto};}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{homeRead:['weather']}};t.controller=new AbortController();

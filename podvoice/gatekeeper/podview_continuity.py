@@ -13,6 +13,9 @@ import stat
 import time
 from pathlib import Path
 
+_AREA_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
+_PLACEMENT_MAX = 2**53 - 1
+
 
 class ContinuityDenied(ValueError):
     pass
@@ -75,7 +78,7 @@ class ControllerRegistry:
             fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW)
         except FileNotFoundError:
             if create:
-                return {"schema": 2, "generation": self.generation, "highWater": now, "records": {}}
+                return {"schema": 3, "generation": self.generation, "highWater": now, "records": {}}
             raise ContinuityDenied("missing registry") from None
         with os.fdopen(fd, "r") as stream:
             info = os.fstat(stream.fileno())
@@ -86,7 +89,7 @@ class ControllerRegistry:
             not isinstance(data, dict)
             or set(data) != {"schema", "generation", "highWater", "records"}
             or type(data["schema"]) is not int
-            or data["schema"] not in (1, 2)
+            or data["schema"] not in (1, 2, 3)
             or data["generation"] != self.generation
             or type(data["highWater"]) not in (float, int)
             or not math.isfinite(data["highWater"])
@@ -96,6 +99,7 @@ class ControllerRegistry:
         ):
             raise ContinuityDenied("invalid registry or clock")
         legacy = data["schema"] == 1
+        unplaced = data["schema"] in (1, 2)
         for key, row in data["records"].items():
             if (
                 not re.fullmatch(r"[a-f0-9]{32}", key)
@@ -114,6 +118,7 @@ class ControllerRegistry:
                         "name",
                         "persistent",
                     }
+                    | (set() if unplaced else {"areaId", "placementRevision"})
                 )
                 or not isinstance(row["room"], str)
                 or not 1 <= len(row["room"]) <= 160
@@ -151,8 +156,17 @@ class ControllerRegistry:
                 )
             ):
                 raise ContinuityDenied("invalid registry record")
-        if legacy:
-            data["schema"] = 2  # A later mutation persists the exact legacy authority.
+            if unplaced:
+                row.update(areaId=None, placementRevision=0)
+            elif (
+                (row["areaId"] is not None and not self._valid_area(row["areaId"]))
+                or type(row["placementRevision"]) is not int
+                or not 0 <= row["placementRevision"] <= _PLACEMENT_MAX
+                or (row["areaId"] is not None and row["placementRevision"] == 0)
+            ):
+                raise ContinuityDenied("invalid placement record")
+        if unplaced:
+            data["schema"] = 3  # A later mutation persists the exact legacy authority.
         return data
 
     def _write(self, data):
@@ -226,6 +240,8 @@ class ControllerRegistry:
                 "revoked": False,
                 "name": name,
                 "persistent": persistent,
+                "areaId": None,
+                "placementRevision": 0,
             }
             self._write(data)
             return token, identity, data["records"][identity]["expiresAt"]
@@ -277,6 +293,99 @@ class ControllerRegistry:
         finally:
             os.close(fd)
 
+    @staticmethod
+    def _valid_area(value):
+        return isinstance(value, str) and _AREA_ID.fullmatch(value) is not None
+
+    @staticmethod
+    def _placement_scope(identity, room, pin):
+        if (
+            not isinstance(identity, str)
+            or re.fullmatch(r"[a-f0-9]{32}", identity) is None
+            or not isinstance(room, str)
+            or not 1 <= len(room) <= 160
+            or not isinstance(pin, str)
+            or re.fullmatch(r"[a-f0-9]{64}", pin) is None
+        ):
+            raise ContinuityDenied("invalid placement scope")
+
+    def _placement(self, identity, row):
+        # The digest is a secret high-entropy record owner, not a browser identifier.
+        # Legacy reads derive the same opaque binding without mutating the file.
+        binding = hashlib.sha256(
+            json.dumps(
+                [
+                    "podview.placement.v1",
+                    self.generation,
+                    identity,
+                    row["digest"],
+                    row["room"],
+                    row["pin"],
+                    row["placementRevision"],
+                    row["areaId"],
+                ],
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        return {
+            "areaId": row["areaId"],
+            "placementRevision": row["placementRevision"],
+            "bindingId": binding,
+        }
+
+    def placement(self, identity: str, room: str, pin: str) -> dict:
+        """Internal current-profile read; identity/pin and record secrets stay server-side."""
+        self._placement_scope(identity, room, pin)
+        fd = self._open()
+        try:
+            return self._placement(identity, self._row(self._load(), identity, room, pin))
+        finally:
+            os.close(fd)
+
+    def set_placement(
+        self,
+        identity: str,
+        room: str,
+        pin: str,
+        *,
+        area_id: str | None,
+        expected_revision: int,
+        valid_area_ids: list[str] | tuple[str, ...] | set[str] | frozenset[str],
+        administrator: bool,
+    ) -> dict:
+        """Trusted admin adapter only: fresh HA registry IDs, then atomic compare-and-set.
+
+        The adapter authenticates the current HA administrator and revalidates its
+        HA area snapshot after awaits. Neither a browser label nor placement grants
+        command authority. None explicitly clears; an identical setting is a no-op.
+        """
+        self._placement_scope(identity, room, pin)
+        if (
+            administrator is not True
+            or type(expected_revision) is not int
+            or not 0 <= expected_revision <= _PLACEMENT_MAX
+            or (area_id is not None and not self._valid_area(area_id))
+            or type(valid_area_ids) not in (list, tuple, set, frozenset)
+            or len(valid_area_ids) > 1024
+            or any(not self._valid_area(area) for area in valid_area_ids)
+            or (area_id is not None and area_id not in valid_area_ids)
+        ):
+            raise ContinuityDenied("invalid administrator placement")
+        fd = self._open()
+        try:
+            data = self._load()
+            row = self._row(data, identity, room, pin)
+            if row["placementRevision"] != expected_revision:
+                raise ContinuityDenied("stale placement revision")
+            if row["areaId"] != area_id:
+                if expected_revision == _PLACEMENT_MAX:
+                    raise ContinuityDenied("placement revision exhausted")
+                row.update(areaId=area_id, placementRevision=expected_revision + 1)
+                self._write(data)
+            return self._placement(identity, row)
+        finally:
+            os.close(fd)
+
     def revoke(self, identity: str | None = None, *, room: str | None = None):
         """Administrator file tool only; not mounted as a viewer HTTP endpoint."""
         if identity is not None and (
@@ -320,6 +429,8 @@ class ControllerRegistry:
                     "room": room,
                     "persistent": row["persistent"],
                     "expiresAt": row["expiresAt"],
+                    "areaId": row["areaId"],
+                    "placementRevision": row["placementRevision"],
                     "status": "revoked"
                     if row["revoked"]
                     else "stale"

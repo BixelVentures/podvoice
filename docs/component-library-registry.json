@@ -671,7 +671,10 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:choices": 1,
+          "arrow:clock": 1,
+          "arrow:exact": 1,
           "arrow:fail": 1,
+          "arrow:numberGrid": 1,
           "arrow:text": 1,
           "function:controlArgs": 1,
           "function:controlTask": 1
@@ -738,13 +741,15 @@
           "function:applyHome": 1,
           "function:historyObservation": 1,
           "function:orderHomeDevices": 1,
+          "function:scopedLightDevice": 1,
           "function:validateHome": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
-      }
+      },
+      "compositionScope": "Reviewed existing passive scene projector: scopedLightDevice preserves a validated light observation and factual counts; applyHome admits only the configured own area into overview. Explicitly browsed areas stay with the existing detail owner. No DOM or control grants."
     },
     "dist/ingress-kiosk.js": {
       "status": "active-support",
@@ -824,7 +829,8 @@
         "dist/control-model.js",
         "dist/media-observation.js",
         "dist/robot-control-panel.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/ha-home-observation.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -835,29 +841,30 @@
           "class:LiveControlView": 1,
           "method:allowed": 1,
           "method:buildOptions": 1,
+          "method:canRefreshRobot": 1,
           "method:cleanup": 1,
+          "method:clearRobotRefresh": 1,
           "method:constructor": 1,
+          "method:expireTask": 1,
           "method:invalidate": 1,
+          "method:invalidateMusic": 1,
+          "method:moveSpeaker": 1,
           "method:musicContext": 1,
           "method:musicCurrent": 1,
           "method:open": 1,
+          "method:openLight": 1,
           "method:openMusic": 1,
           "method:openRobot": 1,
           "method:prepareMusic": 1,
           "method:pruneSpent": 1,
           "method:receiptText": 1,
+          "method:refreshRobot": 1,
           "method:remember": 1,
           "method:render": 1,
           "method:renderMusicControls": 1,
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
-          "method:send": 1,
-          "method:moveSpeaker": 1,
-          "method:invalidateMusic": 1,
-          "method:canRefreshRobot": 1,
-          "method:clearRobotRefresh": 1,
-          "method:expireTask": 1,
-          "method:refreshRobot": 1
+          "method:send": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -877,7 +884,7 @@
         ],
         "dom": true
       },
-      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added. Reviewed44 renewal helpers only: explicit refresh reuses the registered pv-button pv-ghost anatomy; fresh task still requires server admission, no automatic effects or new family.",
+      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added. Reviewed44 renewal helpers only: explicit refresh reuses the registered pv-button pv-ghost anatomy; fresh task still requires server admission, no automatic effects or new family. Reviewed scoped HA lights: openLight joins the existing native control Dialog/Button/Slider forms to a current closed HA-area observation; exact scope, source epoch, entity membership, transport, boot/room and conversation ownership must still match the fresh opaque task before a single explicit send. No new family or observation-derived command authority.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes",
       "reviewedRobotDetailComposition": {
         "date": "2026-10-20",
@@ -1139,18 +1146,28 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:exact": 1,
           "arrow:item": 1,
           "arrow:observationFresh": 1,
+          "arrow:playbackReadable": 1,
+          "arrow:sameRoomBinding": 1,
           "arrow:timestamp": 1,
           "arrow:txt": 1,
+          "function:accountObservationBound": 1,
+          "function:mediaRoomBinding": 1,
           "function:playbackObservation": 1,
-          "function:queueObservation": 1
+          "function:queueObservation": 1,
+          "function:roomObservationBound": 1,
+          "function:roomObservationCurrent": 1,
+          "function:roomObservationDisplay": 1,
+          "function:roomPlaybackObservation": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
-      }
+      },
+      "compositionScope": "Reviewed DOM-free media observation validators and display-custody predicates. Explicit account_observed server envelopes admit only fresh configured-account/target metadata as readOnly:true, roomBound:false. Exact closed DTO, owner, poll/freshness and binding checks remain; roomObservationBound/current still require separate room proof. No DOM, queue/seek/control grants, room inference or new family."
     },
     "dist/music-fixture.js": {
       "status": "active-support",
@@ -2412,7 +2429,8 @@
         "dist/ui/answer-auto-return.js",
         "dist/ui/pressed-state.js",
         "dist/ui/kit.js",
-        "dist/ui/notification-queue.js"
+        "dist/ui/notification-queue.js",
+        "dist/ha-home-observation.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2428,7 +2446,7 @@
           "arrow:$": 1,
           "arrow:cancel": 1,
           "arrow:commit": 1,
-          "arrow:current": 2,
+          "arrow:current": 3,
           "arrow:fixture": 1,
           "arrow:outside": 1,
           "arrow:paint": 1,
@@ -2445,26 +2463,32 @@
           "method:connectGestures": 1,
           "method:connectPodVoice": 1,
           "method:connectedCallback": 1,
+          "method:currentLightDevice": 1,
           "method:customize": 1,
           "method:disconnectedCallback": 1,
           "method:dispatch": 1,
           "method:focusHeading": 1,
           "method:invalidateLiveMusic": 1,
+          "method:lightAreaContext": 1,
           "method:liveMusicAccountChanged": 1,
           "method:loadLiveHome": 1,
           "method:loadLiveMusic": 1,
           "method:music": 1,
           "method:open": 1,
           "method:openLightDetail": 1,
+          "method:openLiveLightControl": 1,
           "method:openOverviewRobot": 1,
           "method:openScreenSettings": 1,
+          "method:readLightArea": 1,
           "method:reconcileLiveTimer": 1,
+          "method:refreshLightArea": 1,
           "method:render": 1,
           "method:renderConnectionNotice": 1,
           "method:renderHeaderTitle": 1,
           "method:renderLightAdjustments": 1,
           "method:renderLightDetail": 1,
           "method:renderLive": 1,
+          "method:renderLiveLightControl": 1,
           "method:renderOverviewAction": 1,
           "method:renderOverviewFacts": 1,
           "method:renderOverviewMediaCards": 1,
@@ -2481,7 +2505,8 @@
           "method:scheduleReceipt": 1,
           "method:scheduleTick": 1,
           "method:sendLiveTimer": 1,
-          "method:suspendLiveTimer": 1
+          "method:suspendLiveTimer": 1,
+          "method:syncLightArea": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2493,7 +2518,9 @@
           "native:div:light-adjustments",
           "native:div:light-brightness",
           "native:div:light-scenes",
-          "native:div:resource-card"
+          "native:div:resource-card",
+          "native:button:light-control-open",
+          "native:button:light-control-refresh"
         ],
         "registrations": {
           "'pv-widget-host'": 1
@@ -2522,7 +2549,8 @@
       "reviewedScreenSettings": {
         "date": "2026-10-23",
         "scope": "Direct user 23 October approval: redesign the existing quick-sheet Dialog with canonical Slider, Toggle and read-only ListRow. Brightness and automatic dimming are interactive only in the explicitly labelled local screen-device-ready specimen. Unbound hardware remains disabled and unknown. The four screen-device wrapper signatures compose existing slots, not a new component family. No Ro or motion preference, hardware bridge or household command authority. User visual rejection reopens UI: settings and read-only ListRow variants are separated from the speaker icon-grid. Trailing settings Toggle uses the existing primitive in neutral Tile form; native disclosure contains network/build secondary facts. Dialog uses canonical520px/32px. No new component family. Later direct user override: native modals cover the full viewport and are centered in the full viewport; left-only placement is rejected. Toast positioning remains its separate existing contract."
-      }
+      },
+      "reviewedScopedLightComposition": "NEXT scoped light integration: seven existing WidgetHost helpers and one additional current callback retain the admitted own-area overview while explicitly browsing actual catalogue IDs in the existing detail. Only canonical Button instances light-control-open and light-control-refresh are added; existing lamp Tile/Dialog/Slider/Toggle recipes stay with the same owner. Transport/read capability, catalogue identity, generation and expiry fence reads; exact fresh native light tasks own effects. No new family, backend authority, optimistic status or automatic effect retry."
     },
     "dist/speaker-output-view.js": {
       "status": "approved-renderer",
@@ -2536,26 +2564,27 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:catalogueCurrent": 1,
           "arrow:current": 2,
           "arrow:fields": 1,
           "arrow:hex": 1,
           "arrow:text": 1,
           "class:SpeakerOutputView": 1,
+          "function:configuredSpeakerLabel": 1,
           "function:speakerCatalogue": 1,
           "method:armExpiry": 1,
           "method:cleanup": 1,
+          "method:clearLabel": 1,
+          "method:configuredLabel": 1,
           "method:constructor": 1,
           "method:context": 1,
           "method:invalidate": 1,
-          "method:open": 1,
-          "method:sync": 1,
-          "arrow:catalogueCurrent": 1,
-          "method:clearLabel": 1,
-          "method:configuredLabel": 1,
-          "method:refreshConfiguredLabel": 1,
-          "function:configuredSpeakerLabel": 1,
+          "method:nextDestinationLabel": 1,
           "method:observedDestination": 1,
-          "method:selectionDestination": 1
+          "method:open": 1,
+          "method:refreshConfiguredLabel": 1,
+          "method:selectionDestination": 1,
+          "method:sync": 1
         },
         "roots": [
           "native:button:pv-row pv-btn",
@@ -2680,14 +2709,25 @@
         "definitions": {
           "arrow:finite": 1,
           "arrow:isVehicleObservation": 1,
+          "arrow:lightAreaId": 1,
+          "arrow:lightExact": 1,
+          "arrow:lightHash": 1,
+          "arrow:lightRevision": 1,
+          "arrow:lightText": 1,
+          "arrow:lightTime": 1,
+          "function:lightAreasObservation": 1,
+          "function:lightPlacementObservation": 1,
           "function:lightsObservation": 1,
+          "function:scopedLightSummary": 1,
+          "function:scopedLightsObservation": 1,
           "function:vehicleObservation": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
-      }
+      },
+      "compositionScope": "Reviewed DOM-free closed HA-area catalogue, placement and light observation validators plus read-only summary. Exact source/binding/revision/area joins, 15-second freshness and actual entity membership; missing/unknown rows never confer command authority."
     },
     "dist/ui/pressed-state.js": {
       "status": "active-support",

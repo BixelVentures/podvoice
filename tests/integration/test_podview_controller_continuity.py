@@ -185,6 +185,8 @@ def test_two_profiles_reject_third_without_eviction_and_revoke_individually(tmp_
             "room": "kitchen",
             "persistent": False,
             "expiresAt": mac_expiry,
+            "areaId": None,
+            "placementRevision": 0,
             "status": "active",
         },
         {
@@ -193,6 +195,8 @@ def test_two_profiles_reject_third_without_eviction_and_revoke_individually(tmp_
             "room": "kitchen",
             "persistent": True,
             "expiresAt": None,
+            "areaId": None,
+            "placementRevision": 0,
             "status": "active",
         },
     ]
@@ -267,16 +271,20 @@ def test_legacy_schema_migrates_without_extending_expiry_or_inferring_persistenc
     stored["schema"] = 1
     stored["records"][identity].pop("name")
     stored["records"][identity].pop("persistent")
+    stored["records"][identity].pop("areaId")
+    stored["records"][identity].pop("placementRevision")
     registry.path.write_text(json.dumps(stored))
     assert registry.validate(legacy, "kitchen", "e" * 64) == (identity, expiry)
     assert json.loads(registry.path.read_text())["schema"] == 1
     registry.validate(legacy, "kitchen", "e" * 64, renew=True)
     migrated = json.loads(registry.path.read_text())
-    assert migrated["schema"] == 2
+    assert migrated["schema"] == 3
     assert migrated["records"][identity] == {
         **stored["records"][identity],
         "name": "",
         "persistent": False,
+        "areaId": None,
+        "placementRevision": 0,
     }
     assert registry.validate(legacy, "kitchen", "e" * 64) == (identity, expiry)
 
