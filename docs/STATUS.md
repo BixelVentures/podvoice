@@ -18,6 +18,10 @@ Lead contract decision23October: the approved actual UI22 refresh behavior allow
 
 Local adoption result: all200 frozen assets match the exactUI22 map;23 changed against reviewedUI21fix1 and30 production files differ from published74 including generated asset metadata. The exact canonical registry retains the prior preview-scenes import repairs. Forty-seven affected adopted Node modules pass1123checks cumulatively, with849unchanged first-run cases reused and274fixture-cohort cases renewed after six stale duplicate dependencies were aligned to canonical helpers; initial27fixture failures are retained. Existing component gate39/39PASS also recomposes both exact bundles and preserves negative ownership gates. Independent source/mirror review is GO pending final exact inventory and bindings. No officialCI, publication, installation or physical acceptance is claimed by these local results.
 
+Actual final UI22 CI39945293318 remaining-test-shards1 job120386464008 stopped after479PASS at the Python→Node owned-album-cover integration. The helper CLI dispatched synthetic error/load events while its src setter still exposed complete=false and naturalWidth=0. UI22 correctly rejects incomplete/stale decode events; the ordinary Node album-cover regression already supplied terminal image facts, so it did not exercise this stale CLI branch. Independent read-only reviewer confirms a fixture-only cause. Repair only the CLI adapter: completed failure has complete=true/width0; late load with zero decoded width remains hidden, then completed load has complete=true/positivewidth. Preserve original image URL/alt/caption/Spotify credit, owner-source receipt/provenance, allowedActions=[] and the Python exactoneHArequest/noextraSDKrequest assertions. No production bytes change. The failed official run remains FAIL; candidate is not test-ready until this affected integration module, independent fixture review, refreshed helper pin and final bindings pass. Existing unrelated source/test results are retained; no broad local release or provider probe is authorized.
+
+Focused result: the entire affected integration module passed3/3 parametrized normal-library flows (recently_played/top_tracks/liked) in the existing durable clone with fixed Python3.12 and Node24.19. Error→hidden, late zero-width load→still hidden and completed positive-width decode→visible all execute through the actual Python→Node CLI. Ruff/format/mypy focused stages and diff whitespace pass. Manifest comparison against the pushed UI22 payload proves only this helper regression hash changed; production/runtime/config/policy/tooling manifests are byte-equivalent. Independent fixture GO and final review bindings remain required before the next officialCI; failed39945293318 is not relabeled.
+
 ## Firstofficial75 CI correction and held UI22 delta —23October2026
 
 PR235 firsthead e36e6b49d8a36210aed40ca0f2e683be98d1ac3b run39931136225 ui-browser failed9of2809. Six failures were stale duplicatecanonical-next/packet fixture copies in4files; actualRED reproduced and currentcanonical-equivalentlayout/freshness/identity/authority assertions now102/102PASS. Three were stale componentregistry entries; approvedexact2preview-scenes imports adopted fromcanonicalregistry56ca7e5d; sameunchangedchecker andall39positive/negativegatecasesPASS. No productionpatch resulted from thesefixture/metadata failures. Earlierfailedrunpreserved.
@@ -40,13 +44,13 @@ Independent sol61_release75_review finalPython3.12hashclosure GO, exactadmission
   "base_tip": "3f50a1c29433ff5f34bb04c8928d23f41c90abe0",
   "merge_base": "3f50a1c29433ff5f34bb04c8928d23f41c90abe0",
   "fingerprint": "f8ef44fe28e02526c3437e0e284634f5125cf0261bb7584ef7242246b4873507",
-  "regression_fingerprint": "d37bd749dc33010047efc64c6cfb2a0c3e8685cb309574efbb6bca9c284ed10d",
+  "regression_fingerprint": "eaf813e29ee19e53c4fa9466a9ebc0d4fff4ac73c73794aae0155f0dc48c418d",
   "runtime_fingerprint": "d00d181409aeec10b1bf408961d1df3e8e84db83a504bbd29279778be44224c3",
   "config_fingerprint": "f23278a30d06eefec87bfa719bef6151d12342a2c665fcda76a822ebc2914aad",
-  "policy_fingerprint": "0aed42bab8febd8866780bcf8211b90e3acb80c1a6b0bea7b7682b90e7f455d7",
+  "policy_fingerprint": "c1949704289edefc27e4d20ecfe5c9c1332c93d50276685bdcabc061fa4a538e",
   "tooling_fingerprint": "96898464cc009ff193367cfb5efdd2d346d099f515e706b40525e180547d1e33",
-  "manifest_fingerprint": "57d291c8e4dc4216ab2a196c4717f71d42603d8633c7a3d2d47cb7e00789836a",
-  "rationale": "Independent UI22 source/inventory GO by /root/sol61_release75_review. Exact200 assets,30production,64regressions,315runtime,4config,46priorpolicy,27tooling verified against frozen map4d22c8d81dd74ca2d1269cbc633be0b58b83a0ededeaa5643023f05576cc87a0. Existing1123adopted/39component and1812canonical results retained; bounded accepted-only passive read overlap explicitly approved. Bindings finalized by root; final hash closure and bound admission precede official CI. No Green or physical acceptance inferred."
+  "manifest_fingerprint": "8458873f2ae66191e566fccc67e6fe53a711da4c4295d9c27f0da62ac30a82bc",
+  "rationale": "Independent UI22 source/inventory GO; final fixture-only review GO on helper596038f01376e513387de5c55c2ba7971c150e745aa16e8791482e20642cf324. FailedCI39945293318 retained; actual Python-to-Node album-cover integration3/3PASS after terminal/stale/successfuldecode browserstates are faithfully represented. Strict source/receipt/provenance/noextra-request assertions preserved. Only helper regression pin changed from prior reviewed manifest; production200assets and all runtime/config/tooling pins unchanged. Root finalbindings; officialCI/publication/Green/physical acceptance remain pending."
 }
 -->
 

@@ -104,7 +104,7 @@
     "tests/podview/canonical-packet-robot-control-panel.test.mjs": "415f09ff8ba0c7b3cca1078bd6573f7647cbf3fb233112ef6652cba35754422c",
     "tests/podview/canonical-packet-shared-music-results.test.mjs": "e9c16ea48bf57e1a9bf7efb89910870c150075bde841f0676ca7a7e38eaf7fdf",
     "tests/podview/canonical-packet-visual-history.test.mjs": "35aa43b96fee2ef00aa7ed9b513b4ed4c1be936c2a564597ca5d8c27c10a0f1a",
-    "tests/podview/helpers/render-owned-album-cover.mjs": "024f7751aa239867f77584980c0d76bebcfc3f3d4bd9f2ec2a26780397f82860",
+    "tests/podview/helpers/render-owned-album-cover.mjs": "596038f01376e513387de5c55c2ba7971c150e745aa16e8791482e20642cf324",
     "tests/podview/music-expiry-recovery.test.mjs": "ffbbea56c000ff96ec5bf7a926d16877eb31f431ee38e307c26e3644c06a1e4d",
     "tests/podview/music-selection.test.mjs": "0c377933bf3ed4a0488edda41d4ebcf4f3529c99909457352b3cf6923f8c8ecb",
     "tests/podview/root-album-cover.test.mjs": "cf3c502ccee60941fe4fadcef12738ace47c6ab7f26dd98d30227c896e7cf610",

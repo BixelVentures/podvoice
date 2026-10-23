@@ -145,8 +145,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 }
 # Deliberately unbound: no prepared draft may claim final reviewed admission.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "57d291c8e4dc4216ab2a196c4717f71d42603d8633c7a3d2d47cb7e00789836a"
-PROFILE_AST = "6d7348ed8c8e2387dcc3024e31c8f31c759f06ae093631f0936b08f6cc9d5acc"
+MANIFEST_SHA = "8458873f2ae66191e566fccc67e6fe53a711da4c4295d9c27f0da62ac30a82bc"
+PROFILE_AST = "ec7a7df6e5319a98cf22cb157a6bf524ab0c54942896c069bdd23765eaba7af9"
 
 
 def record_at(root: Path) -> dict | None:
