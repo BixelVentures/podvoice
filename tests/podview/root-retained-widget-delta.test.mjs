@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {updateResourceTile} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
+import {updateResourceTile,updateResourceFacts} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
 
 // Deliberately counts even a redundant property/attribute write. This is a
 // deterministic DOM adapter test, not a browser MutationObserver or device QA.
@@ -36,6 +36,20 @@ class RetainedNode extends EventTarget {
 const documentFixture={baseURI:'https://podview.test/view/',activeElement:null,createElement:tag=>new RetainedNode(tag),createTextNode:value=>{const node=new RetainedNode('#text');node.nodeValue=value;return node;}};
 const clean=()=>{mutations=[];};
 const clone=value=>JSON.parse(JSON.stringify(value));
+
+test('source-owned fact meters retain native determinate progress and suppress stale or invalid values without effects',()=>{
+ const card=new RetainedNode('button');card.ownerDocument=documentFixture;let effects=0;card.addEventListener('click',()=>effects++);
+ const input={facts:[{id:'elapsed',label:'Afspillet',value:'1:24 af 3:00',meter:{value:84,max:180}}]};updateResourceFacts(card,input);
+ const row=card.resourceFacts.rows.get('elapsed'),{label,value,meter}=row;assert.equal(row.node.getAttribute('role'),'listitem');assert.equal(row.node.getAttribute('data-kit'),'listrow');assert.equal(row.node.getAttribute('data-kit-variant'),'read-only');assert.equal(meter.tagName,'PROGRESS');assert.equal(meter.className,'resource-fact-meter');assert.equal(meter.getAttribute('value'),'84');assert.equal(meter.getAttribute('max'),'180');assert.equal(meter.getAttribute('aria-label'),'Afspillet');assert.equal(meter.hidden,false);assert.equal(value.textContent,'1:24 af 3:00');
+ clean();for(let n=0;n<5;n++)updateResourceFacts(card,clone(input));assert.equal(mutations.length,0);
+ updateResourceFacts(card,{facts:[{...input.facts[0],meter:{value:0,max:180}}]});assert.deepEqual(mutations.map(change=>[change.node,change.key,change.value]),[[meter,'attr:value','0']]);assert.equal(row.label,label);assert.equal(row.value,value);
+ for(const bad of [{value:-1,max:180},{value:181,max:180},{value:84,max:0},{value:84,max:-1},{value:NaN,max:180},{value:Infinity,max:180},{value:84,max:Infinity},{value:'84',max:180},{value:84,max:'180'},null,undefined]){
+  updateResourceFacts(card,{facts:[{...input.facts[0],meter:bad}]});assert.equal(meter.hidden,true);assert.equal(meter.getAttribute('value'),null);assert.equal(meter.getAttribute('max'),null);assert.equal(card.resourceFacts.rows.get('elapsed'),row);assert.deepEqual(row.node.children,[label,value,meter]);
+ }
+ clean();updateResourceFacts(card,{facts:[{...input.facts[0],meter:{value:999,max:180}}]});assert.equal(mutations.length,0,'equally invalid input does not restart or rewrite the retained row');
+ updateResourceFacts(card,input);updateResourceFacts(card,{facts:[{...input.facts[0],stale:true}]});assert.equal(meter.hidden,true);assert.equal(meter.getAttribute('value'),null);assert.equal(value.textContent,'1:24 af 3:00 · sidst kendt');assert.equal(card.resourceFacts.items[0].meter,undefined);
+ updateResourceFacts(card,{facts:[{...input.facts[0],meter:{value:180,max:180}}]});assert.equal(meter.hidden,false);assert.equal(meter.getAttribute('value'),'180');assert.equal(card.resourceFacts.rows.get('elapsed').meter,meter);assert.equal(value.textContent,'1:24 af 3:00','copy remains source-owned and is not synthesized from the meter');assert.equal(effects,0);
+});
 
 test('resource tile repeats write nothing; one changed detail touches only its text and accessible label',()=>{
  const tile=new RetainedNode('button'),visual=new RetainedNode('span'),icon=new RetainedNode('img'),value=new RetainedNode('span'),dial=new RetainedNode('svg'),title=new RetainedNode('strong'),detail=new RetainedNode('small');visual.className='resource-visual';value.className='resource-value';visual.append(dial,icon);const label=new RetainedNode('span');label.className='resource-label';label.append(value,title,detail);tile.append(visual,label);

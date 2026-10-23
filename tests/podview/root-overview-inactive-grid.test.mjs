@@ -36,18 +36,18 @@ test('the inactive recipe remains fenced by shortcut visibility while active tim
  assert(active.length>0);assert(active.every(r=>r.body['grid-column']==='1/-1'));
 });
 
-test('direct commands reserve a footer outside the full header and leave two readable status lines in S and M',()=>{
- const action=find(legacy,'#now-view>.resource-card>.resource-direct-action');
+test('direct commands use canonical kit dimensions, reserve M/L content space and remain absent in S',()=>{
+ const placement=find(legacy,'#now-view>.resource-card>.resource-direct-action');
+ const action=find(kit,'pv-widget-host #now-view>.resource-card>.resource-direct-action');
  const owner='pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card:has(>.resource-direct-action:not([hidden]))>.resource-preview';
  const card=find(kit,owner),status=find(kit,owner+' .resource-label>small'),reserve=find(kit,owner+' .resource-label>:is(small,.resource-value)');
  const tokens=Object.fromEntries([...kit.matchAll(/(--pv-(?:s[1-5]|hit|icon-m)):(\d+)px/g)].map(([,key,value])=>[key,Number(value)]));
- const px=value=>{const token=value.match(/^var\((--[^)]+)\)$/);return token?tokens[token[1]]:Number.parseFloat(value);};
- const hit=px(action.width),inset=px(action.right),gap=tokens['--pv-s2'],header=tokens['--pv-icon-m'];
- assert.equal(action.top,'auto');assert.equal(action.bottom,action.right);assert(hit>=64);assert.equal(px(action.height),hit);assert.equal(card['grid-template-rows'],'var(--pv-icon-m) minmax(0,1fr) var(--pv-hit)');
- assert.equal(reserve['padding-inline-end'],'calc(var(--pv-hit) + var(--pv-s2))');assert.equal(status['white-space'],undefined);assert.equal(reserve['white-space'],'normal');assert(px(status['max-height'])>=2*px(status['line-height']));
- // Actual shared S177px row, at least192px wide; M retains the same anatomy.
- for(const width of [192,408]){const textWidth=width-2*inset-hit-gap;assert(textWidth>=64,`${width}px card leaves ${textWidth}px status width`);const footerTop=177-inset-hit,headerBottom=inset+header;assert(footerTop>=headerBottom+gap);const textRight=width-inset-hit-gap,actionLeft=width-inset-hit;assert(textRight+gap<=actionLeft);}
- assert(!rules(kit).some(rule=>rule.selector.includes('resource-card:has(>.resource-direct-action')&&rule.selector.endsWith('.resource-label>strong')&&rule.body['padding-inline-end']),'visible command must not take title space');
+ assert.match(kit,/--pv-card-action-width:calc\(2 \* var\(--pv-hit\)\)/);assert.equal(action.width,'var(--pv-card-action-width)');assert.equal(action['min-width'],action.width);assert.equal(action.height,'var(--pv-hit)');assert.equal(action['min-height'],action.height);
+ assert.equal(placement.top,'auto');assert.equal(placement.bottom,placement.right);assert.equal(placement.right,'var(--pv-s3)');assert.equal(card['grid-template-rows'],'var(--pv-icon-m) minmax(0,1fr) var(--pv-hit)');
+ assert.equal(reserve['padding-inline-end'],'calc(var(--pv-card-action-width) + var(--pv-s2))');assert.equal(reserve['white-space'],'normal');assert.equal(status['line-height'],'24px');assert.equal(status['max-height'],'48px');
+ const small=find(kit,'pv-widget-host[data-view=active] #now-view [data-kit-size=s]>.resource-direct-action');assert.equal(small.display,'none!important');assert.equal(small['pointer-events'],'none');
+ const inset=tokens['--pv-s3'],hit=tokens['--pv-hit'],width=414,commandWidth=2*hit,gap=tokens['--pv-s2'],textWidth=width-2*inset-commandWidth-gap;assert(hit>=64);assert(textWidth>=128);assert(177-inset-hit>=inset+tokens['--pv-icon-m']+gap);const textRight=width-inset-commandWidth-gap,actionLeft=width-inset-commandWidth;assert(textRight+gap<=actionLeft);
+ assert(!rules(kit).some(rule=>rule.selector.includes('resource-card:has(>.resource-direct-action')&&rule.selector.endsWith('.resource-label>strong')&&rule.body['padding-inline-end']),'command must not take the title role');
 });
 
 test('explicit S M L footprints share one grid and keep status density within their actual inner height',()=>{

@@ -63,10 +63,12 @@ export const productLibrary=[
   state('conversation','header-waiting','Status ukendt','Ingen sikker tale- eller lyttetilstand kan udledes.'),
   ...FORMATS.map(format=>state('conversation',`answer-${format}-ready`,`Svarformat · ${answerNames[format]}`,answerDescriptions[format],{answerFormat:format}))
  ]},
- {id:'music',name:'Musikvalg',category:'Musik',description:'De fire aftalte musikfaner med genkendelige valg og bevarede billeder.',usage:'Stemning, Humør, Topsange og Senest bruger samme musikområde.',interaction:'Skift fane, vælg musik, og prøv Andre forslag. Valgene er lokale og spiller ikke lyd.',limitations:['Musikudvalget er eksempeldata, ikke en læsning af din Spotify-konto.'],states:[
-  ...[['mood','Stemning'],['feeling','Humør'],['top','Topsange'],['recent','Senest']].map(([stage,label])=>state('music',`music-${stage}`,label,'Fanevalg bevarer den faste player og bruger samme musikkomponent.')),
+ {id:'music',name:'Musikvalg',category:'Musik',description:'De fire aftalte musikfaner med genkendelige valg og bevarede billeder.',usage:'Stemning, Humør, For dig og Senest bruger samme musikområde.',interaction:'Skift fane, vælg musik, og prøv Andre forslag. Valgene er lokale og spiller ikke lyd.',limitations:['Musikudvalget er eksempeldata, ikke en læsning af din Spotify-konto.','For dig viser den eksisterende topsangskilde; personlige mixes, daylist og Discover Weekly er ikke tilsluttet.'],states:[
+  ...[['mood','Stemning'],['feeling','Humør'],['top','For dig'],['recent','Senest']].map(([stage,label])=>state('music',`music-${stage}`,label,'Fanevalg bevarer den faste player og bruger samme musikkomponent.')),
   state('music','music-refreshing','Nye forslag afventer','Eksisterende forslag bevares, mens en opdatering afventer.'),
   state('music','music-refresh-error','Opdatering fejlede','Tidligere forslag bevares. Ingen falsk succes.'),
+  state('music','music-initial-empty','Ingen musik endnu','Første tomme udvalg uden tidligere forslag eller aktiv afspilning. Ingen tom refresh forklædes som førstegangsindhold.'),
+  state('music','music-long-metadata','Lange titler og kunstnernavne','Forfattede typografieksempler i de eksisterende sang-, kunstner- og albumtekstroller. Samme lokale ID’er, cover og klikforløb.'),
   state('music','music-refresh-empty','Ingen nye forslag','Det tomme opdateringsresultat erstatter ikke brugbare tidligere valg.'),
   state('music','pending','Afspilning afventer','Det valgte nummer er endnu ikke en observeret afspilning.'),
   state('music','music-offline','Forbindelse mangler','Musikfaner og tidligere valg kan stadig læses; ingen ny afspilning.'),
@@ -78,13 +80,16 @@ export const productLibrary=[
   state('player','music-paused','På pause','Samme cover og destination, ændret transporttilstand.'),
   ...['active','rest'].flatMap(mode=>[['empty','Ingen afspilning'],['loading','Første indlæsning'],['missing-art','Omslag mangler'],['offline','Sidst kendt afspilning'],['error','Fejl']].map(([status,label])=>state('player',`player-${mode}-${status}`,`${mode==='active'?'Stor':'Ro'} · ${label}`,'Den eksisterende player bevarer sin egen anatomi; ingen separat loadingflade.'))),
   state('player','conversation-overview','Udvidet player og kø','Detaljer åbner som et roligt lag over den samme skærm.',{open:'#player-detail',key:'player'}),
-  state('player','player-queue-empty','Tom kø','Den faktiske kødetalje uden en aktiv afspilning eller opdigtede numre.'),
-  state('player','player-queue-error','Afspilningsfejl og tom kø','Playerens eksisterende fejltilstand og ærlig tom kø; ingen falsk køkvittering.'),
+  state('player','player-queue-empty','Tom kø','Den kendte aktive sang bevares i playeren, mens køen er tom.'),
+  state('player','player-queue-error','Køfejl med kendt sang','Køen kunne ikke hentes. Den kendte aktive sang, cover og destination bevares; ingen falsk køkvittering.'),
+  state('player','player-long-metadata','Lange sang- og køtitler','Forfattede lange titler og kunstnernavne i den samme player og kø. Navigation bevarer samme sang og køidentiteter.'),
   state('player','player-long-output','Langt højttalernavn','Lang destinationslabel med samme sang, cover og kø.'),
   state('player','conversation-overview','Skift højttaler','Den eksisterende højttalervælger. Et eksplicit valg ændrer det lokale output.',{open:'#output',key:'output'})
  ]},
  {id:'weather',name:'Vejr',category:'Hjem',description:'Kompakt overblik og en fotofri detalje med de relevante timer.',usage:'Vejret fylder lidt i overblikket. Et spørgsmål kan give et større, fokuseret vejrsvar.',interaction:'Åbn vejret fra kortet eller headeren; scroll gennem prognosen og læs kilden.',limitations:['Vejrdata er et fast lokalt eksempel, ikke dagens vejrudsigt. Tilstandene beviser ikke en aktuel kildeforbindelse.','Vejrejeren har ingen selvstændig kommando-pending eller providerfejltilstand. Tom kilde og sidst kendt prognose vises ærligt.'],states:[
   state('weather','conversation-overview','Overblikskort','Lille vejrværdi og kort kontekst i overblikket.'),
+  state('weather','weather-long','Langt sted og vejrtekst','Forfattede lange labels i den eksisterende lokale vejrmodel; timepunkter, enheder og eksempelmarkering bevares.'),
+  state('weather','weather-connection-error','Vejrforbindelsen fejlede','Eksisterende ærlig Home Assistant-forbindelsesfejl uden opfundet prognose eller providerfejltilstand.'),
   state('weather','weather-ready','Vejrdetalje','Fotofri prognose med timer, vind og kilde.'),
   state('weather','weather-empty','Ingen vejrdata','Den samme vejrdetalje uden et leveret kildegrundlag.'),
   state('weather','weather-stale','Sidst kendte vejrdata','Forældet prognose bevares og kvalificeres; der opfindes ingen opdatering.'),
@@ -97,6 +102,7 @@ export const productLibrary=[
   ,...['overview','detail','rest'].map(layer=>state('timer',`timer-${layer}-paused`,`Timer på pause · ${{overview:'overblik',detail:'detalje',rest:'Ro'}[layer]}`,'Samme lokale timer på pause; annullér eller afslut før ny varighed.'))
  ]},
  {id:'robot',name:'Robotstøvsuger',category:'Hjem',description:'Én genkendelig robot med status, betjening og fælles hændelseshistorik.',usage:'Ved basen er sekundært. Aktivitet og fejl kan få mere vægt; ingen opdigtet kortvisning.',interaction:'Åbn Betjen robot, vælg områder og gentagelser, eller genbrug et lokalt historikvalg.',limitations:['Start og statusændringer er lokale eksempler. Robotten bevæger sig ikke.','En accepteret start er ikke dokumentation for en afsluttet rengøring.'],states:[
+  state('robot','robot-detail-many-rooms','9 rum · 2 kort · indstillinger','Forfattet lokalt eksempel: ni rum på Stueplan og et andet kort. Anvend Kort eller Rengøringstype for at udskifte de tilbudte valg; ingen Home Assistant-enhed betjenes.'),
   ...devicePreviewStatuses.robot.map(status=>state('robot',`robot-detail-${status}`,deviceNames[status],deviceRules[status])),
   state('robot','robot-overview-docked','Overblik · ved basen','Sekundært kort i det fælles overblik.'),
   state('robot','robot-overview-cleaning','Overblik · rengør','Aktiv status i samme kortanatomi.'),
@@ -109,7 +115,7 @@ export const productLibrary=[
   ...devicePreviewStatuses.light.map(status=>state('lights',`light-detail-${status}`,deviceNames[status],deviceRules[status])),
   state('lights','light-overview-unavailable','Overblik · ikke tilgængeligt','Rolig og ærlig indgang uden påstand om tændt lys.'),
   state('lights','light-overview-on','Overblik · tændt','Samme kortfamilie som de øvrige enheder.'),
-  state('lights','light-rest-on','Ro · tændt','Kompakt ressource med samme observerede tilstand.'),
+  state('lights','light-rest-on','Ro · rum ikke tilknyttet','Ingen lysressource før PodViews eget HA-rum er eksplicit tilknyttet.'),
   state('lights','light-detail-offline','Forbindelse mangler','Sidst kendt lysstatus bliver; fjernbetjening afventer forbindelse.'),
   ...[['empty','Ingen lysdata','Manglende opsætning; ingen spøgelseslamper eller scener.'],['stale','Sidst kendt lysstatus','Kendte lamper bliver stående uden aktive kommandoer.'],['long','Langt lampe- og rumnavn','Samme lampe valgt med lange labels; prøv også S/M/L.'],['room-living','Rum · Stuen','Eksisterende rumvalg med stuens to lamper.'],['room-kitchen','Rum · Køkkenet','Eksisterende rumvalg med dæmpbar lampe og kontakt.'],['lamp','Lampe · Loftlys','Eksisterende lampevalg med lysstyrke og tænd/sluk; ingen ny farvedialog.']].map(([status,label,description])=>state('lights',`light-detail-${status}`,label,description))
  ]},
@@ -131,7 +137,9 @@ export const productLibrary=[
  ]},
  ...FORMATS.map(format=>({id:`answer-${format}`,name:answerNames[format],category:'Visuelle svar',description:answerDescriptions[format],usage:'Ét afgrænset svar med tydeligt hierarki og plads til indhold. Playeren bliver til højre.',interaction:format==='steps'?'Gå frem og tilbage mellem trinene. Åbn kilder og vend tilbage uden at stoppe musik.':format==='checklist'?'Markér punkter og se, at resten af indholdet bevares.':format==='choices'||format==='comparison'?'Vælg en mulighed og følg den videre i samme opgave.':'Prøv kilder, scroll og lukning. At skjule svaret stopper ikke andre ressourcer.',limitations:['Indholdet er lokalt eksempelmateriale. Det dokumenterer rendering, ikke PodVoices livelevering af dette format.'],states:[
   ...answerPreviewStatuses.map(status=>state(`answer-${format}`,`answer-${format}-${status}`,...answerStates[status])),
-  ...(format==='fact-card'?[state('answer-fact-card','answer-fact-card-long','Langt svar','Længere indhold kan scrolle; højreplayeren beholder sin placering.')]:[]),
+  ...(['fact-card','sourced-image','answer-timeline','simple-diagram'].includes(format)?[state(`answer-${format}`,`answer-${format}-long`,'Langt svar','Længere konklusion, forklaring og billedtekst i samme renderer. Prøv Vis mere og scroll; playeren bevares.')]:[]),
+  state(`answer-${format}`,`answer-${format}-ready`,'Åbne kilder','Åbn og luk det eksisterende kildegrundlag uden at miste svaret.',{open:'#answer-host details:not([hidden]) > summary',key:'sources'}),
+  ...(['sourced-image','simple-diagram'].includes(format)?[state(`answer-${format}`,`answer-${format}-image-failure`,'Billede kunne ikke hentes','Bevidst manglende lokal billedfil. Forklaring, alternativ tekst og kilde bevares; ingen netværkskilde simuleres.')]:[]),
   ...(['steps','checklist'].includes(format)?[state(`answer-${format}`,`answer-${format}-complete`,'Gennemført','Gennemført vejledning eller liste bevares, indtil brugeren forlader den.')]:[])
  ]})),
  {id:'history',name:'Svarhistorik',category:'Detaljer',description:'Tidligere svar vises som en overskuelig liste med spørgsmål og kort uddrag.',usage:'Historikken åbner i venstre område, mens musikplayeren er tilgængelig.',interaction:'Vælg et spørgsmål, åbn svaret, og gå tilbage til samme sted i historikken.',limitations:['Eksemplerne er lokale. Den nuværende backendhistorik er ikke varig familiehukommelse eller en fuld transskription.'],states:[
@@ -154,7 +162,7 @@ for(const family of productLibrary){
  family.selector=family.id.startsWith('answer-')?'#answer-host':familySelectors[family.id];
  for(const item of family.states){
   item.selector=family.selector??null;
-  if(item.open)item.selector=item.open==='#player-detail'?'#music-detail':item.open==='#output'?'#rooms':item.open==='#open-history'?'#history':item.open==='#home-radio'?'#radio-view':'dialog[aria-labelledby="local-robot-title"][open]';
+  if(item.open)item.selector=family.id.startsWith('answer-')?'#answer-host':item.open==='#player-detail'?'#music-detail':item.open==='#output'?'#rooms':item.open==='#open-history'?'#history':item.open==='#home-radio'?'#radio-view':'dialog[aria-labelledby="local-robot-title"][open]';
   else if(family.id==='composition')item.isolationNote='Kompositionen vurderes som en hel skærm; vælg en widget i listen for at se den alene.';
   else if(family.id==='conversation'){
    if(item.answerFormat)item.selector='#answer-host';

@@ -1,3 +1,10 @@
+## 2.0.75
+
+- Adopt the reviewed canonical UI22 across shared cards, details, Screen and device settings, and Ro.
+- Keep weather wind in hourly detail, preserve robot room and action authority, and return from timer setup only after a matching accepted timer observation.
+- Prefetch only current scoped music targets, show pending feedback immediately, and refresh matching playback once after acceptance while preserving fresh setup, send-once and stale-owner guards.
+- Voice, backend authority, firmware, grants and paid budgets are unchanged. Green installation and physical audio acceptance remain separate.
+
 ## 2.0.74 · source candidate
 
 - Replace the unsupported legacy browser Start control with physical wake guidance.

@@ -167,7 +167,7 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:24px}
 #music-detail .detail-queue{max-height:260px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 #music-detail .detail-queue>h2{position:sticky;top:0;background:var(--pv-surface);z-index:1;padding:0 0 var(--pv-screen-space-2);margin:0}
 
-[data-level=home] .view-nav #show-photo{visibility:hidden;pointer-events:none}.resource-preview:not([data-kind=timer]) .resource-visual svg{display:none}
+[data-level=home] .view-nav #show-photo:not([data-navigation=rest]){visibility:hidden;pointer-events:none}.resource-preview:not([data-kind=timer]) .resource-visual svg{display:none}
 /* Touch timers: choose a duration first; precise entry stays secondary. */
 #now-view #timer-card,#now-view .now-activities:has(:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview):not([hidden])) #timer-card{display:grid;gap:var(--pv-screen-space-3);padding:0;border:0;min-height:0;background:none;margin:0}
 #timer-card[hidden],.timer-panel[hidden]{display:none}
@@ -723,7 +723,7 @@ pv-widget-host #now-view :is(#now-music,#now-empty,#restore-resources,#restore-t
 .result .result-play{transition:transform var(--pv-screen-fast) var(--pv-screen-ease),background-color var(--pv-screen-fast) var(--pv-screen-ease)}
 .result:is(:active,.is-pressed):not(:disabled) .result-play{transform:none}
 .result[data-pending=true] .result-play{animation:music-control-ack 180ms var(--pv-screen-ease) both}
-#music-refresh[data-refresh-state=pending]>img{animation:music-refresh-ack 1.2s linear infinite}
+/* Pending feedback belongs to the shared Button, never a second refresh animation. */
 @keyframes music-control-ack{from{transform:none}to{transform:none}}
 @keyframes music-refresh-ack{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){
@@ -1164,7 +1164,7 @@ pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#queue,#device-detail
 /* Retained device actions are siblings, never nested interactive controls. */
 #now-view>.resource-card{position:relative;min-width:0;border-radius:var(--pv-screen-radius);overflow:hidden}
 #now-view>.resource-card>.resource-preview{width:100%;height:100%;border-radius:inherit}
-#now-view>.resource-card>.resource-direct-action{position:absolute;right:var(--pv-s3);bottom:var(--pv-s3);top:auto;width:var(--pv-hit);height:var(--pv-hit);min-width:var(--pv-hit);min-height:var(--pv-hit);flex-shrink:0;padding:0;border-radius:var(--pv-screen-radius);background:var(--pv-screen-surface);color:var(--pv-screen-ink);font-size:var(--pv-type-body);font-weight:var(--pv-weight-semibold)}
+#now-view>.resource-card>.resource-direct-action{position:absolute;right:var(--pv-s3);bottom:var(--pv-s3);top:auto}
 #now-view>.resource-card>.resource-direct-action[hidden]{display:none}
 /* Connection feedback preserves the retained cards and ends when the connection resolves. */
 body:has(.connection-note[data-state=connecting]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card){position:relative;isolation:isolate}
@@ -1182,7 +1182,7 @@ body:has(pv-widget-host[data-motion=reduced]) #now-view>:is(#home-weather,#home-
  pv-widget-host[data-view=active] #now-view:not([hidden])>#home-radio{grid-row:5;grid-column:3;height:100%}
  pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather[data-weather-phase=day]{background:var(--pv-overview-weather)}
  pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather[data-weather-photo=true]::before{display:none}
- pv-widget-host[data-view=active] #now-view:not([hidden]) [data-overview-priority=unavailable] small::before{content:"";display:inline-block;width:6px;height:6px;margin-inline-end:8px;border-radius:var(--pv-screen-radius-pill);background:currentColor;vertical-align:middle}
+ pv-widget-host[data-view=active] #now-view:not([hidden]) [data-overview-priority=unavailable] small::before{content:none}
  pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview[data-kind=light][data-overview-priority=unavailable]{--pv-device-surface:var(--pv-light)}
  pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-overview-priority=unavailable]{--pv-overview-vehicle:var(--pv-vehicle-surface);color:var(--pv-screen-ink)}
  pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card:has(>.timer-active-list:not([hidden])>.timer-panel:not([hidden])),

@@ -35,3 +35,26 @@ test('Back from an answer sends the same running timer to the actual overview ba
  // Ro keeps its established supporting rail; hiding a visual answer never cancels its timer.
  f.host.state={...returned,focus:'photo'};f.host.renderRail();assert.equal(f.rail.hidden,false);assert.equal(f.tile.hidden,false);assert.equal(f.updates[0].id,timer.id);assert.deepEqual(f.actions,[]);
 });
+
+test('Ro shows only running or finished timers and preserves paused timers outside its activity row',()=>{
+ for(const status of ['running','done','paused']){
+  const state=previewScene('conversation-followup',100000);state.focus='photo';state.devices=[];state.timer={...state.timer,status};const timer=state.timer,music=state.music,f=fixture(state);
+  f.host.renderRail();assert.equal(f.rail.hidden,status==='paused',status);assert.equal(f.tile.hidden,status==='paused',status);assert.deepEqual(f.updates.map(row=>row.id),status==='paused'?[]:[timer.id]);assert.equal(f.host.state.timer,timer);assert.equal(f.host.state.music,music);assert.deepEqual(f.actions,[]);
+ }
+});
+
+test('Ro robot activity leaves unknown and inactive states quiet and retains the same tile across pending and completion',()=>{
+ const state=previewScene('conversation-followup',100000);state.focus='photo';state.timer={...state.timer,status:'cancelled'};state.devices=[{id:'robot',kind:'vacuum',status:'cleaning',timeline:[]}];const f=fixture(state),music=state.music;
+ f.host.renderRail();const node=f.host.resourceButtons.get('robot');assert.ok(node);assert.equal(f.rail.hidden,false);
+ for(const status of ['paused','docking','fault']){state.devices=[{...state.devices[0],status}];f.host.renderRail();assert.equal(f.rail.hidden,false,status);assert.equal(f.host.resourceButtons.get('robot'),node);}
+ for(const status of ['docked','stopped','unknown','unavailable']){state.devices=[{...state.devices[0],status,pending:null}];f.host.renderRail();assert.equal(f.rail.hidden,true,status);assert.equal(node.hidden,true);}
+ state.devices=[{...state.devices[0],status:'docked',pending:{operation:1}}];f.host.renderRail();assert.equal(f.rail.hidden,false);assert.equal(node.hidden,false);assert.equal(f.host.resourceButtons.get('robot'),node);f.host.renderRail();assert.equal(f.rail.children.filter(row=>row===node).length,1);assert.deepEqual(f.actions,[]);assert.equal(state.music,music);
+});
+
+test('unbound live and local lights never enter Ro through on-state, fault, pending or a matching room/speaker label',()=>{
+ const state=previewScene('conversation-followup',100000);state.focus='photo';state.timer={...state.timer,status:'cancelled'};state.devices=[];const f=fixture(state),retained={hidden:false,dataset:{}};f.host.resourceButtons.set('lights',retained);
+ for(const live of [false,true])for(const status of ['on','mixed','off','unknown','fault'])for(const pending of [null,{operation:1}]){
+  const light={id:'lights',kind:'light',live,exampleOnly:!live,status,pending,scope:'home',name:'Køkkenet',roomId:'r0',roomName:'Køkkenet',lightSelectionId:'room:kitchen',lights:[{id:'kitchen-lamp',roomId:'kitchen',roomName:'Køkkenet',name:'Lampe',on:true}],observedLights:[{entityId:'light.kitchen_lamp',name:'Lampe',state:'on'}],timeline:[]};state.devices=[light];f.host.live=live;f.host.liveSnapshot={roomId:'r0',mediaRoomBindings:[{nativeRoomId:'r0',name:'Køkkenet'}]};f.host.renderRail();assert.equal(f.rail.hidden,true,`${live}/${status}/${!!pending}`);assert.equal(retained.hidden,true);assert.equal(state.devices[0],light);
+ }
+ assert.deepEqual(f.updates,[]);assert.deepEqual(f.actions,[]);
+});

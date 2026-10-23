@@ -14,7 +14,7 @@ test('player detail returns to overview from every origin without altering music
 });
 
 test('actual player opener navigates once, keeps opener and only reads live queue',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n scheduleClock(){')).trim();
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim();
  const open=new Function('$','document',`return function ${method}`)(()=>{throw Error('Player must not open a modal');},{}),calls=[],opener={};
  const host={state:{focus:'now'},live:true,openers:new Map(),dispatch(event){calls.push(event);this.state.focus=event.id;},focusHeading(){calls.push('focus');},liveMedia:{loadQueue(){calls.push('queue-read');}}};
  open.call(host,'music-detail',opener);open.call(host,'music-detail',opener);
@@ -44,7 +44,7 @@ test('Ro player cover/title open details, but pause and its bubbling click never
 });
 
 test('radio cover detail uses the existing station view and never opens an empty music queue',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n scheduleClock(){')).trim(),open=new Function('$','document',`return function ${method}`)(()=>{throw Error('Radio must not open a dialog');},{});
+ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim(),open=new Function('$','document',`return function ${method}`)(()=>{throw Error('Radio must not open a dialog');},{});
  for(const origin of ['photo','now','music'])for(const playing of [true,false]){const timer={id:'retained',status:'running'},base={...initialScene(),focus:origin,navStack:[],radioStationId:'p1',radioPlaying:playing,timer},calls=[],host={live:false,state:base,openers:new Map(),playerView:{progressVM:{sourceKind:'radio'}},dispatch(event){calls.push(event);this.state=sceneTransition(this.state,event);},focusHeading(){},liveMedia:{loadQueue(){throw Error('Radio has no music queue');}}};open.call(host,'music-detail',{});assert.equal(host.state.focus,'radio');assert.equal(host.state.radioStationId,'p1');assert.equal(host.state.radioPlaying,playing);assert.equal(host.state.timer,timer);assert.equal(host.state.music,base.music);open.call(host,'music-detail',{});assert.equal(calls.length,1);const back=sceneTransition(host.state,{type:'back'});assert.equal(back.focus,'now');assert.equal(back.radioStationId,'p1');}
 });
 

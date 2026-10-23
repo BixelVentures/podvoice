@@ -79,6 +79,7 @@
         "html:div:now-activities",
         "html:div:now-empty",
         "html:div:now-playing-detail",
+        "html:div:pv-dialog-content",
         "html:div:refinements",
         "html:div:resource-rail",
         "html:div:result-inner",
@@ -942,7 +943,9 @@
           "method:setAccount": 1,
           "method:clearRoom": 1,
           "method:canChooseAccount": 1,
-          "method:focusAccountChoice": 1
+          "method:focusAccountChoice": 1,
+          "method:captureAcceptedPlayRefresh": 1,
+          "arrow:owner": 1
         },
         "roots": [],
         "registrations": {},
@@ -955,7 +958,11 @@
         "this\\.host\\.playerView\\.renderQueue\\s*\\(",
         "this\\.host\\.playerView\\.renderPlayer\\s*\\(",
         "this\\.host\\.playerView\\.renderControls\\s*\\("
-      ]
+      ],
+      "reviewedUI22": {
+        "date": "2026-10-23",
+        "scope": "Reviewed captureAcceptedPlayRefresh and refresh's owner predicate: one passive playback reread after a current accepted Play, fenced by transport/account/boot/room/binding/provider/voice/session/task/inputRevision and read capability. Coalesces same-owner reads and supersedes an earlier poll without changing ordinary polling or granting actions. No DOM, imports or family added."
+      }
     },
     "dist/live-music-selection-view.js": {
       "status": "approved-composition",
@@ -998,7 +1005,10 @@
           "method:observePlayback": 1,
           "method:feedbackScope": 1,
           "method:resultCurrent": 1,
-          "method:destinationCurrent": 1
+          "method:destinationCurrent": 1,
+          "method:targetReadScope": 1,
+          "method:readTargets": 1,
+          "method:prefetchTargets": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1016,7 +1026,11 @@
         "musicResults\\.render\\s*\\("
       ],
       "compositionScope": "Reviewed54 direct human decision18Oct: one explicit Play uses exact server-bound room target, no destination chooser or confirmation. Existing search form and MusicResults anatomy retained. observePlayback is a non-DOM lifecycle method settling accepted feedback only from fresh matching observed playback; feedback uses existing PlayerView status, never optimistic playing or automatic replay. Existing authority, expiry, focus and navigation fences retained. Reviewed21Oct pendingCurrent keeps the exact chosen card identity during setup/action only while source object and feedback scope still match; this scanner declaration is the bounded pending predicate beside the existing card mapper. No roots, imports, family or broader authority added.",
-      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; direct18Oct human instruction: no confirmation; visual feedback only in existing right music widget"
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; direct18Oct human instruction: no confirmation; visual feedback only in existing right music widget",
+      "reviewedUI22": {
+        "date": "2026-10-23",
+        "scope": "Reviewed targetReadScope/readTargets/prefetchTargets: passive account target metadata only, exact current music/account/boot/room/binding/provider/voice/session/task/inputRevision/capability/transport scope, in-flight deduplication and at most ten seconds bounded by source timestamp and request start. Actual Play retains fresh setup and one commit; no prefetched offer or cached action grant. Leave/account/owner/cleanup reject late results. Accepted-only playback refresh uses the existing LiveMediaView helper. No DOM, imports or family added."
+      }
     },
     "dist/live-music-view.js": {
       "status": "active-support",
@@ -1375,7 +1389,9 @@
         "dist/visual-examples.js",
         "dist/radio-model.js",
         "dist/vehicle-model.js",
-        "dist/ha-home-observation.js"
+        "dist/ha-home-observation.js",
+        "dist/widget-model.js",
+        "dist/weather-view.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1699,7 +1715,8 @@
           "method:render": 1,
           "method:renderNotice": 1,
           "method:renderOverviewActivities": 1,
-          "method:updatePicker": 1
+          "method:updatePicker": 1,
+          "method:completeStartNavigation": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -1726,7 +1743,11 @@
         ],
         "dom": true
       },
-      "reviewedActivitySelection": "Direct user authorization: existing current resource slot combines active timers and robot activity using registered resource-preview and choice-list, manual selection, stable IDs, no grid reorder."
+      "reviewedActivitySelection": "Direct user authorization: existing current resource slot combines active timers and robot activity using registered resource-preview and choice-list, manual selection, stable IDs, no grid reorder.",
+      "reviewedUI22": {
+        "date": "2026-10-23",
+        "scope": "Reviewed completeStartNavigation: returns from the existing Timer detail to overview only after a current local start or a correlated accepted live timer ID appears in the same observed epoch/boot/room/session/generation. Navigation/focus only; existing timer owner, anatomy and command admission remain."
+      }
     },
     "dist/ui/gestures.js": {
       "status": "active-support",
@@ -2397,6 +2418,7 @@
           "method:open": 1,
           "method:openLightDetail": 1,
           "method:openOverviewRobot": 1,
+          "method:openScreenSettings": 1,
           "method:reconcileLiveTimer": 1,
           "method:render": 1,
           "method:renderConnectionNotice": 1,
@@ -2406,6 +2428,7 @@
           "method:renderLive": 1,
           "method:renderOverviewAction": 1,
           "method:renderResourceRail": 1,
+          "method:renderScreenSettings": 1,
           "method:renderTopbar": 1,
           "method:renderTopbarClock": 1,
           "method:renderTopbarScroll": 1,
@@ -2418,6 +2441,7 @@
           "method:scheduleTick": 1,
           "method:sendLiveTimer": 1,
           "method:suspendLiveTimer": 1,
+          "method:toggleScreenMotion": 1,
           "method:renderOverviewFacts": 1,
           "method:renderOverviewMediaCards": 1,
           "arrow:outside": 1
@@ -2457,7 +2481,11 @@
         "scope": "Explicitly approved first-run connection copy and inline read-only retry inside existing connection-note. Reuses text-control; transport snapshot reread only, no account wizard or mutation replay.",
         "newComponentFamilies": false
       },
-      "reviewedTopbar": "Direct user topbar brief: same registered header on overview/detail/answer; title mirrors canonical scene, one Back, minute-only clock transition and clock to Ro; preserved Ro composition."
+      "reviewedTopbar": "Direct user topbar brief: same registered header on overview/detail/answer; title mirrors canonical scene, one Back and minute-only clock transition. UI22 direct user Screen decision: clock opens the existing canonical Screen and device Dialog; its retained Ro Button opens the preserved Ro composition.",
+      "reviewedScreenSettings": {
+        "date": "2026-10-23",
+        "scope": "Explicitly human-approved Screen and device composition reuses quick-sheet's native Dialog with applyKitDialog content/header/description/close slots and existing Button variants. openScreenSettings/renderScreenSettings/toggleScreenMotion only open the retained dialog, report honest local network/home/build state and change screen-local motion preference. The one html:div:pv-dialog-content signature is the canonical dialog content slot; no new family, backend setting, integration or household command authority."
+      }
     },
     "dist/speaker-output-view.js": {
       "status": "approved-renderer",

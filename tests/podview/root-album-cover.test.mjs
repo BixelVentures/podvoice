@@ -8,7 +8,7 @@ const content=()=>({summary:'Omslaget til nummeret',sources:[{id:'source',kind:'
 test('same sourced-image anatomy shows album cover with honest Spotify attribution and keeps source on image failure',()=>{
  const c=content(),before=structuredClone(c),clean=validate('sourced-image',c,{ownerReceiptIds:[receipt]});assert.deepEqual(clean,c);
  const visual=renderAlbumCover(c,receipt);assert.equal(visual.body.hidden,false);assert.equal(visual.credit.textContent,'Omslag · Spotify');assert.equal(visual.image.src,url);
- visual.image.dispatchEvent(new Event('error'));assert.equal(visual.image.hidden,true);assert.equal(visual.imageError.hidden,false);assert.equal(visual.captionText.textContent,'Source song');assert.equal(visual.credit.textContent,'Omslag · Spotify');assert.equal(visual.sourceList.children.length,1);assert.deepEqual(c,before);
+ visual.image.complete=true;visual.image.naturalWidth=0;visual.image.dispatchEvent(new Event('error'));assert.equal(visual.image.hidden,true);assert.equal(visual.imageError.hidden,false);assert.equal(visual.captionText.textContent,'Source song');assert.equal(visual.credit.textContent,'Omslag · Spotify');assert.equal(visual.sourceList.children.length,1);assert.deepEqual(c,before);
 });
 test('album-cover images reuse strict existing Spotify host/path identity',()=>{
  for(const bad of ['https://foreign.invalid/image/id','https://127.0.0.1/image/id','http://i.scdn.co/image/id','https://user@i.scdn.co/image/id','https://i.scdn.co:443/image/id','https://i.scdn.co/image/id?x=1','https://i.scdn.co/image/../id','https://i.scdn.co/image/id#x','https://I.SCDN.CO/image/id','assets/bicycle-drivetrain-illustration.webp']){

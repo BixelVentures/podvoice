@@ -1,5 +1,5 @@
 // Display-only conversation surface. PodVoice remains the sole speech owner.
-const phases={LISTENING:['listening','Lytter…','Tal bare'],THINKING:['thinking','Tænker…','Et øjeblik'],AI_SPEAKING:['responding','Svarer…',''],LOUNGE_WINDOW:['ready','Klar til mere','Du kan spørge videre'],CLOSING:['closing','Afslutter…',''],UNKNOWN:['waiting','Venter…','']};
+const phases={LISTENING:['listening','Lytter…','Tal bare'],THINKING:['thinking','Tænker…','Et øjeblik'],AI_SPEAKING:['responding','Svarer…',''],LOUNGE_WINDOW:['ready','Spørg videre',''],CLOSING:['closing','Afslutter…',''],UNKNOWN:['waiting','Venter…','']};
 export function voicePresentation(voice,connected=true,visualPending=null){
  if(!connected||voice?.active!==true||!phases[voice.phase])return null;
  // Visual enrichment has its own lifecycle. It cannot replay a speech-phase
@@ -50,7 +50,7 @@ export class VoiceSurface{
  update(value){
   if(!this.host.isConnected){this.cleanup();return;}this.attach();this.position(value);if(this.reduced){this.cancelAnimations();if(!this.value)this.node.hidden=true;}if(value?.key===this.value?.key)return;const wasVisible=!this.node.hidden,serial=++this.serial;this.value=value;this.cancelAnimations(!value);
   if(!value){delete this.node.dataset.phase;if(!wasVisible)return;this.node.inert=true;this.node.setAttribute('aria-hidden','true');this.animation=this.animate(this.node,[{opacity:1},{opacity:0}],120);if(!this.animation){this.node.hidden=true;return;}const animation=this.animation;animation.finished.catch(()=>{}).then(()=>{if(serial===this.serial&&!this.value)this.node.hidden=true;if(this.animation===animation)this.animation=null;});return;}
-  this.node.hidden=false;this.node.inert=false;this.node.removeAttribute('aria-hidden');this.node.dataset.phase=value.phase;const icon={listening:'mic',thinking:'chat-circle',responding:'soundwave',ready:'check2',closing:'chat-circle',waiting:'chat-circle'}[value.phase]||'chat-circle';const source=`assets/icons/${icon}.svg`;if(this.icon.getAttribute('src')!==source)this.icon.src=source;this.label.textContent=value.label;this.detail.textContent=value.detail;this.detail.hidden=!value.detail;
+  this.node.hidden=false;this.node.inert=false;this.node.removeAttribute('aria-hidden');this.node.dataset.phase=value.phase;const icon={listening:'mic',thinking:'chat-circle',responding:'soundwave',ready:'chat-circle',closing:'chat-circle',waiting:'chat-circle'}[value.phase]||'chat-circle';const source=`assets/icons/${icon}.svg`;if(this.icon.getAttribute('src')!==source)this.icon.src=source;this.label.textContent=value.label;this.detail.textContent=value.detail;this.detail.hidden=!value.detail;
   if(!wasVisible)this.animation=this.animate(this.node,[{opacity:0},{opacity:1}],120);
   else this.copyAnimation=this.animate(this.node.querySelector('.voice-copy'),[{opacity:.45},{opacity:1}],120);
   // Only the semantic mark carries ongoing activity. Screen positioning has

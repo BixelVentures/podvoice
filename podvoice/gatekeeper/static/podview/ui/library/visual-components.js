@@ -27,8 +27,8 @@ class VisualComponent extends HTMLElement {
    this.caption=make('figcaption');this.captionText=make('p');this.credit=make('span','pv-image-credit');this.caption.append(this.captionText,this.credit);
    this.figure.append(this.image,this.imageError,this.caption);this.body.append(this.figure);
    if(this.family==='simple-diagram'){this.figure.classList.add('pv-diagram-image');this.figure.hidden=true;this.list=make('ol','pv-visual-list');this.body.append(this.list);}
-   this.image.addEventListener('error',()=>{this.image.hidden=true;this.imageError.hidden=false;});
-   this.image.addEventListener('load',()=>{if(this.data.historical===true&&this.image.getAttribute('src')!=='assets/bicycle-drivetrain-illustration.webp')return;this.image.hidden=false;this.imageError.hidden=true;});
+   this.image.addEventListener('error',()=>{if(!this.image.getAttribute('src')||this.image.complete!==true||this.image.naturalWidth>0)return;this.image.hidden=true;this.imageError.hidden=false;});
+   this.image.addEventListener('load',()=>{if(this.image.complete!==true||!(this.image.naturalWidth>0))return;if(this.data.historical===true&&this.image.getAttribute('src')!=='assets/bicycle-drivetrain-illustration.webp')return;this.image.hidden=false;this.imageError.hidden=true;});
   }else{this.list=make(this.family==='fact-card'?'dl':'ol','pv-visual-list');this.body.append(this.list);}
   this.sources=make('details','pv-visual-sources');const sourceToggle=make('summary',undefined,'Kilder');sourceToggle.setAttribute('aria-label','Kilder og grundlag');sourceToggle.title='Kilder og grundlag';this.sources.append(sourceToggle);this.sourcePanel=make('div','pv-visual-source-panel');this.sourcePanel.dataset.responseZone='metadata';this.sourceList=make('ul');this.sourcePanel.append(this.sourceList);this.sources.append(this.sourcePanel);this.sourceNodes=new Map();this.sources.dataset.responseZone='metadata';this.append(this.note,this.body,this.sources);
   this.sources.addEventListener('keydown',event=>{if(event.key==='Escape'&&this.sources.open){event.stopPropagation();this.sources.open=false;sourceToggle.focus({preventScroll:true});}});

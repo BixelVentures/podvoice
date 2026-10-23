@@ -4,6 +4,8 @@ import {visualFamilies} from './visual-content.js';
 import {FORMATS,initialScene,sceneTransition as step} from './scene-model.js';
 import {vehicleFixture} from './vehicle-model.js';
 import {vehicleObservation} from './ha-home-observation.js';
+import {WEATHER_CHANGE_EXAMPLE} from './weather-view.js';
+import {TRACKS} from './widget-model.js';
 import {localRadioTransition} from './radio-model.js';
 // Deterministic, explicitly documented prototype states; no integrations or requests.
 export const playerPreviewStates=['empty','loading','missing-art','offline','error'].flatMap(state=>['rest','active'].map(mode=>`player-${mode}-${state}`));
@@ -16,12 +18,12 @@ export const musicPreviewStates=['mood','feeling','top','recent','paused','refre
 export const radioPreviewStates=['ready','selected','paused','offline'].map(state=>`radio-${state}`);
 export const weatherPreviewStates=['ready','empty','stale'].map(state=>`weather-${state}`);
 export const answerPreviewStatuses=['ready','waiting','partial','empty','error','offline','interrupted'];
-export const answerPreviewStates=FORMATS.flatMap(format=>answerPreviewStatuses.map(state=>`answer-${format}-${state}`)).concat(['answer-fact-card-long','answer-steps-complete','answer-checklist-complete']);
+export const answerPreviewStates=FORMATS.flatMap(format=>answerPreviewStatuses.map(state=>`answer-${format}-${state}`)).concat([...visualFamilies.map(format=>`answer-${format}-long`),'answer-sourced-image-image-failure','answer-simple-diagram-image-failure','answer-steps-complete','answer-checklist-complete']);
 export const conversationPreviewStates=['overview','listening','working','speaking','visual','late','complete','interrupted','followup','long','resume','timer-finished','offline','reconnecting','reconnected','visual-error'].map(state=>`conversation-${state}`);
 export const coexistencePreviewStates=['conversation-visual-timer-finished','conversation-long-timer-finished'];
 export const firstRunPreviewStates=['first-connecting','first-unavailable','first-denied','first-empty'];
 // Additional authored snapshots exercise only fields accepted by existing owners.
-export const libraryDomainPreviewStates=['robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','music-offline','music-unknown','music-long-output','player-queue-empty','player-queue-error','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
+export const libraryDomainPreviewStates=['robot-detail-many-rooms','robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','weather-long','weather-connection-error','music-offline','music-unknown','music-long-output','music-initial-empty','music-long-metadata','music-cover-states','player-long-metadata','player-queue-empty','player-queue-error','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
 export const previewStates=[...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 export function previewScene(name,now=Date.now()){
  if(libraryDomainPreviewStates.includes(name))return libraryDomainPreviewScene(name,now);
@@ -39,7 +41,7 @@ export function previewScene(name,now=Date.now()){
   if(['conversation-long','conversation-resume'].includes(name)){const long=answerPreviewScene('answer-fact-card-long').answers[0];s={...s,answers:s.answers.map(answer=>({...answer,title:long.title,weatherPresentation:undefined,content:long.content}))};}
   if(name==='conversation-timer-finished')s=step(s,{type:'tick',now:s.timer.deadline});
   if(['conversation-offline','conversation-reconnecting'].includes(name))s=step(s,{type:'offline'});
-  if(name==='conversation-reconnecting')s={...s,notice:'Genopretter forbindelsen…'};
+  if(['conversation-offline','conversation-reconnecting'].includes(name))s={...s,connectionPreview:{status:name==='conversation-reconnecting'?'connecting':'disconnected',snapshot:{}},notice:name==='conversation-reconnecting'?'Genopretter forbindelsen…':'Forbindelsen er afbrudt · viser det seneste.'};
   if(name==='conversation-visual-error')s={...s,notice:'Det nye visuelle svar kunne ikke vises. Det tidligere svar bliver stående.'};
   return s;
  }
@@ -101,10 +103,9 @@ function conversationPreviewScene(name,now){
  const content=validateVisualContent('fact-card',{
   summary:'Ja, den næste time ser bedst ud.',
   facts:[
-   {id:'temperature',label:'Nu',value:'15°',detail:'Let skyet',sourceId:'example'},
-   {id:'hour-plus-1',label:new Intl.DateTimeFormat('da-DK',{timeZone:'Europe/Copenhagen',hour:'2-digit',hourCycle:'h23'}).format(new Date(now+1*3600000)),value:'15°',detail:'Let skyet',sourceId:'example'},
-   {id:'hour-plus-2',label:new Intl.DateTimeFormat('da-DK',{timeZone:'Europe/Copenhagen',hour:'2-digit',hourCycle:'h23'}).format(new Date(now+2*3600000)),value:'16°',detail:'Skyet',sourceId:'example'},
-   {id:'hour-plus-3',label:new Intl.DateTimeFormat('da-DK',{timeZone:'Europe/Copenhagen',hour:'2-digit',hourCycle:'h23'}).format(new Date(now+3*3600000)),value:'15°',detail:'Regn',sourceId:'example'}
+   {id:'window',label:'Bedste tidspunkt',value:'Gå nu',detail:'Den næste time er tør i dette vejrforløb.',sourceId:'example'},
+   {id:'temperature',label:'Temperatur nu',value:'15°',detail:'Let skyet. Tag en let jakke med.',sourceId:'example'},
+   {id:'rain',label:'Senere på turen',value:'Regn om tre timer',detail:'Vælg en kort tur, hvis I vil være hjemme inden regnen.',sourceId:'example'}
   ],
   sources:[{id:'example',label:'Forhåndsvisning',url:'example-sources.html',scope:'Opdigtet vejrforløb til UI-vurdering. Ikke en aktuel vejrudsigt, et live spørgsmål eller en PodVoice-kvittering.'}]
  });
@@ -169,7 +170,7 @@ function answerPreviewScene(name){
   const actions=format==='checklist'?['paper','colors','glue']:['next','next','next','finish'];
   for(const optionId of actions){const current=s.answers[0];s=step(s,{type:'answer-action',sessionId:s.sessionId,taskId:answer.id,revision:current.revision,action:format==='checklist'?'check':optionId==='finish'?'finish':'step',optionId});}
  }
- if(status==='long')s={...s,answers:s.answers.map(answer=>({...answer,title:'En rolig tur med tid til pauser',content:validateVisualContent('fact-card',{
+ if(status==='long'&&format==='fact-card')s={...s,answers:s.answers.map(answer=>({...answer,title:'En rolig tur med tid til pauser',content:validateVisualContent('fact-card',{
   summary:'Planlæg en kort rundtur med plads til pauser. Lad børnene vælge noget at kigge efter, og aftal en nem vej hjem, hvis nogen bliver trætte.',
   facts:[
    ['route','Rute','En kort sløjfe','Vælg en tur, der ender samme sted som den begynder. Det gør det nemt at forkorte turen, hvis I får lyst til at vende hjem.'],
@@ -181,7 +182,9 @@ function answerPreviewScene(name){
   ].map(([id,label,value,detail])=>({id,label,value,detail,sourceId:'example'})),
   sources:[{id:'example',label:'PodView · forhåndsvisning',url:'example-sources.html',scope:'Illustrativt indhold til prøve af langt svar og scroll. Ingen aktuel rute, vejrudsigt eller personlig anbefaling.'}]
  })}))};
- if(['ready','long','complete'].includes(status)){const answer=s.answers[0];s={...s,voicePreviewPhase:'IDLE',localAnswerCompletion:{answerId:answer.id,revision:answer.revision,voice:'completed',visual:'completed'}};}
+ if(status==='long'&&format!=='fact-card')s={...s,answers:s.answers.map(answer=>{const content=structuredClone(answer.content);content.summary+=' Tag dig tid til at læse forklaringen og se de enkelte dele i sammenhæng. Du kan åbne grundlaget nedenunder og vende tilbage til svaret uden at miste resten af indholdet.';for(const row of content.events||content.nodes||[])row.detail+=' Læs denne del før næste trin. Forklaringen er ikke en observation fra hjemmet.';if(content.image)content.image.caption+=' Se spejlingen i vandet og de rolige farver langs bjergene. Illustrationen giver plads til at studere motivet; den dokumenterer ikke en virkelig tur eller et bestemt sted.';return {...answer,exampleOnly:true,content:validateVisualContent(format,content)};})};
+ if(status==='image-failure')s={...s,answers:s.answers.map(answer=>{const content=structuredClone(answer.content);const image=content.image||content.illustration;image.url='assets/qa-deliberately-missing-answer-image.webp';return {...answer,exampleOnly:true,content:validateVisualContent(format,content)};})};
+ if(['ready','long','complete','image-failure'].includes(status)){const answer=s.answers[0];s={...s,voicePreviewPhase:'IDLE',localAnswerCompletion:{answerId:answer.id,revision:answer.revision,voice:'completed',visual:'completed'}};}
  return s;
 }
 
@@ -210,6 +213,14 @@ function devicePreviewScene(s,name,now=Date.now()){
 // Catalog snapshots have no transport, credentials or new effect authority.
 // Missing owner states (e.g. Tesla command pending) are deliberately not staged.
 function libraryDomainPreviewScene(name,now){
+ if(name==='robot-detail-many-rooms'){
+  // Authored library inputs, not discovered household capabilities. Each explicit
+  // local map/mode choice replaces the entire offered task, like the live owner.
+  const s=devicePreviewScene(initialScene(),'robot-detail-docked',now),opaque=n=>n.toString(16).padStart(24,'0'),maps=[{id:opaque(100),label:'Stueplan',names:['Stue','Køkken','Spisestue','Entré','Kontor','Bryggers','Gang','Gæsteværelse','Toilet']},{id:opaque(200),label:'1. sal',names:['Soveværelse','Børneværelse','Repos','Badeværelse']}],modes=[{id:opaque(301),label:'Støvsugning',key:'vacuum'},{id:opaque(302),label:'Gulvvask',key:'mop'},{id:opaque(303),label:'Støvsugning og gulvvask',key:'both'}],offers={};
+  const choice=(id,label,choices)=>({id:opaque(id),label,action:'set_option',argsSchema:{kind:'choice',choices}});
+  for(const [index,map]of maps.entries())for(const mode of modes){const key=`${index}-${mode.key}`,areas=map.names.map((label,n)=>({id:opaque(1000+index*100+n),label}));offers[key]={mapName:map.label,options:[{id:'a'.repeat(24),action:'start',label:'Start rengøring',argsSchema:{kind:'cleaning',areas,repeat:{min:1,max:3}}},choice(401,'Kort',maps.map(({id,label})=>({id,label}))),choice(402,'Rengøringstype',modes.map(({id,label})=>({id,label}))),...(mode.key!=='mop'?[choice(403,'Sugestyrke',[{id:opaque(501),label:'Stille'},{id:opaque(502),label:'Balanceret'},{id:opaque(503),label:'Maksimal'}])]:[]),...(mode.key!=='vacuum'?[choice(404,'Vandmængde',[{id:opaque(601),label:'Lav'},{id:opaque(602),label:'Mellem'},{id:opaque(603),label:'Høj'}]),choice(405,'Moppetilstand',[{id:opaque(701),label:'Standard'},{id:opaque(702),label:'Grundig'}])]:[])],replacements:Object.fromEntries([...maps.map((row,n)=>[row.id,`${n}-${mode.key}`]),...modes.map(row=>[row.id,`${index}-${row.key}`])])};}
+  return {...s,robotControlFixture:{exampleOnly:true,initialKey:'0-both',offers},devices:s.devices.map(d=>d.kind!=='vacuum'?d:{...d,exampleOnly:true,telemetry:undefined})};
+ }
  if(['robot-detail-empty','light-detail-empty'].includes(name))return step(previewScene('first-empty',now),{type:'show',id:name.startsWith('robot')?'podview-vacuum-empty':'podview-light-empty'});
  if(name.startsWith('robot-detail-')){
   const s=devicePreviewScene(initialScene(),'robot-detail-cleaning',now),status=name.slice('robot-detail-'.length),at=now/1000;
@@ -219,6 +230,8 @@ function libraryDomainPreviewScene(name,now){
   const s=devicePreviewScene(initialScene(),'light-detail-on',now),variant=name.slice('light-detail-'.length),selection=({'room-living':'room:living','room-kitchen':'room:kitchen',lamp:'light:living-ceiling',long:'light:living-ceiling'})[variant]||'home';
   return {...s,devices:s.devices.map(d=>d.kind!=='light'?d:{...d,stale:variant==='stale',lightSelectionId:selection,lights:d.lights.map(lamp=>variant==='long'&&lamp.id==='living-ceiling'?{...lamp,name:'Pendlen over det lange spisebord ved vinduerne mod haven',roomName:'Stue og spisestue i den åbne køkkenalrumsløsning'}:lamp)})};
  }
+ if(name==='weather-long')return {...step(initialScene(),{type:'show',id:'weather'}),weatherFixture:{...WEATHER_CHANGE_EXAMPLE,place:'Mårslet og det lange grønne område langs den sydlige del af Aarhus',condition:'Delvist skyet med længere solrige perioder mellem de spredte skyer'}};
+ if(name==='weather-connection-error')return {...previewScene('weather-empty',now),connectionPreview:{status:'disconnected',reason:'unavailable'},connected:false};
  if(name.startsWith('weather-'))return {...previewScene(name==='weather-unconnected'?'first-empty':'weather-stale',now),focus:'weather',connected:false,weatherPreview:name==='weather-unconnected'?'empty':'stale'};
  if(name.startsWith('timer-')){const s=timerPreviewScene(name.replace(/paused$/,'running'),now);return step(s,{type:'timer',id:s.timer.id,action:'pause',now});}
  if(name.startsWith('vehicle-')){
@@ -229,7 +242,20 @@ function libraryDomainPreviewScene(name,now){
  let s=initialScene();
  if(name==='music-unknown')s=step(s,{type:'music',event:{type:'select',id:'smooth-jazz',revision:s.music.revision}});
  if(['music-offline','music-unknown'].includes(name))return step(s,{type:'offline'});
- if(['player-queue-empty','player-queue-error'].includes(name))return {...s,focus:'player',playerPreview:name.endsWith('error')?'error':'empty',music:{...s.music,playback:{...s.music.playback,active:false,playing:false}}};
+ if(name==='music-initial-empty')return {...s,music:{...s.music,previewEmptyCollection:s.music.collection,previewEmptyPage:s.music.suggestionPage||0,playback:{...s.music.playback,active:false,playing:false}}};
+ if(name==='music-cover-states'){
+  // Authored local image-state test, retaining the existing real track identities.
+  // No playlist-cover mapping, provider failure claim or live source is invented.
+  const previewTracks=TRACKS.map((track,index)=>({...track,art:index===1?null:index===2?'qa-unavailable-cover.svg':track.art,detail:index===1?'Lokalt billedtest · omslag mangler':index===2?'Lokalt billedtest · fil kan ikke indlæses':'Lokalt billedtest · kendt Spotify-omslag'}));
+  return {...s,focus:'music',music:{...s.music,collection:'top',previewTracks}};
+ }
+ if(['music-long-metadata','player-long-metadata'].includes(name)){
+  // Authored stress labels retain the fixture IDs, ordering and allowed artwork.
+  // They are typography examples, not factual Spotify metadata or new grants.
+  const previewTracks=TRACKS.map((track,index)=>({...track,title:`En lang sangtitel med plads til både hovedtitel, undertitel og en akustisk koncertversion · ${index+1}`,artist:'Det store orkester fra den åbne stue sammen med gæstemusikerne fra København'}));
+  return {...s,focus:name.startsWith('player')?'player':'music',music:{...s.music,collection:'top',previewTracks}};
+ }
+ if(['player-queue-empty','player-queue-error'].includes(name))return {...s,focus:'player',queuePreview:name.endsWith('error')?'error':'empty'};
  // A long configured destination is real input to the existing local player,
  // media Card metadata and output label. Track/album identity stays unchanged.
  return {...s,focus:name.startsWith('player')?'player':'music',music:{...s.music,playback:{...s.music.playback,room:'Køkken og spisestue med højttalerne ved det lange spisebord'}}};

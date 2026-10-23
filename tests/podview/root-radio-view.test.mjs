@@ -141,3 +141,10 @@ test('first-denied, connected denial and live-unsupported Radio all disable actu
   view.render({live:false,connected:true});const buttons=view.list.querySelectorAll('button');assert.deepEqual(buttons,retained);assert.ok(buttons.every(button=>button.disabled===false));buttons[0].click();buttons[0].click();assert.deepEqual(calls,['p3']);assert.equal(view.list.data.selected,'p3');view.destroy();
  }finally{Object.assign(globalThis,previous);}
 });
+
+test('Radio intro uses the same retained Hero message roles across selection and denied recovery without extra authority',()=>{
+ const {view,calls}=fixture();view.render({live:false,connected:true});const hero=view.hero,copy=hero.children[1],list=view.list,payload=list.data;
+ assert.equal(hero.dataset.kitVariant,'message');assert.equal(view.stationArt.dataset.kitSlot,'icon');assert.equal(copy.dataset.kitSlot,'copy');assert.equal(view.stationTitle.dataset.kitSlot,'title');assert.equal(view.stationStatus.dataset.kitSlot,'body');view.render({live:false,connected:true});assert.equal(list.data,payload);
+ view.render({live:false,connected:false,blocked:true});assert.equal(view.hero,hero);assert.equal(view.hero.dataset.kitVariant,'message');assert.match(view.stationStatus.textContent,/Adgang afvist/);assert.equal(view.list.data.connected,false);assert.deepEqual(calls,[]);
+ view.render({live:false,connected:true,stationId:'p3'});assert.equal(view.hero,hero);assert.equal(hero.children[1],copy);assert.equal(view.stationTitle.textContent,'Vælg radiostation');assert.equal(view.list.data.selected,'p3');assert.deepEqual(calls,[]);
+});

@@ -4,6 +4,12 @@ import {previewScene as createPreviewScene,previewStates,timerPreviewStates,musi
 import {sceneTransition,deviceActions} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 const previewNow=Date.parse('2026-10-20T09:10:00Z');
 const previewScene=name=>createPreviewScene(name,previewNow);
+test('authored cover-state stage retains actual track choices while clearly labeling known, missing and failed local images',async()=>{
+ const {localDiscoveryCards}=await import('../../podvoice/gatekeeper/static/podview/music-results.js'),{resultsFor,TRACKS}=await import('../../podvoice/gatekeeper/static/podview/widget-model.js');const state=previewScene('music-cover-states'),cards=localDiscoveryCards(state);
+ assert.ok(previewStates.includes('music-cover-states'));assert.deepEqual(state,previewScene('music-cover-states'));assert.equal(state.music.collection,'top');assert.equal(state.focus,'music');assert.deepEqual(cards.map(card=>card.id),resultsFor(state.music).map(option=>option.id));assert.deepEqual(cards.map(card=>card.name),TRACKS.slice(0,3).map(track=>track.title));assert.equal(cards[0].fixtureArt,TRACKS[0].art);assert.equal(cards[1].fixtureArt,null);assert.equal(cards[2].fixtureArt,'assets/qa-unavailable-cover.svg');assert.ok(cards.every(card=>card.artworkRole==='cover'&&card.detail.startsWith('Lokalt billedtest · ')));assert.equal(state.music.pending,null);
+ for(const card of cards){const selected=sceneTransition(state,{type:'music',event:{type:'select',id:card.id,revision:state.music.revision}});assert.equal(selected.music.pending.id,card.id);assert.equal(selected.music.playback,state.music.playback,'image fixture never starts playback');}
+ const away=sceneTransition(sceneTransition(state,{type:'show',id:'now'}),{type:'show',id:'music'});assert.deepEqual(localDiscoveryCards(away),cards);assert.equal(away.music.playback,state.music.playback);assert.equal(previewScene('music-top').music.previewTracks,undefined,'image failure is not seeded into ordinary fixtures');
+});
 test('state previews retain resources independently of answer and connection status',()=>{
  for(const name of ['waiting','partial','ready','empty','error','offline','connecting','ended']){
   const s=previewScene(name);assert.equal(s.timer.status,'running',name);assert.equal(s.timer.remaining,60,name);assert.equal(s.music.playback.track,0,name);
@@ -132,7 +138,7 @@ test('finished timer coexists with short and scroll-length visual answers withou
   assert.equal(scene.voicePreviewPhase,'AI_SPEAKING');
   assert.deepEqual(validateVisualContent(answer.kind,answer.content),answer.content);
  }
- assert.equal(previewScene('conversation-visual-timer-finished').answers[0].content.facts.length,4);
+ assert.equal(previewScene('conversation-visual-timer-finished').answers[0].content.facts.length,3);
  assert.equal(previewScene('conversation-long-timer-finished').answers[0].content.facts.length,6);
 });
 
@@ -188,14 +194,15 @@ test('all ten answer families expose canonical lifecycle examples without live a
 });
 
 
-test('local weather answer hours follow Copenhagen review time across afternoon and midnight',()=>{
- for(const [time,labels] of [
+test('local weather decision uses relative periods across afternoon and midnight',()=>{
+ for(const [time] of [
   ['2026-10-20T11:37:00Z',['14','15','16']],
   ['2026-10-20T21:37:00Z',['00','01','02']],
   ['2026-12-20T12:37:00Z',['14','15','16']]
  ]){
   const answer=createPreviewScene('conversation-visual',Date.parse(time)).answers[0];
-  assert.deepEqual(answer.content.facts.slice(1).map(fact=>fact.label),labels);
+  assert.equal(answer.content.facts[2].value,'Regn om tre timer');
+  assert.equal(answer.content.facts[0].value,'Gå nu');
   assert.equal(answer.content.summary,'Ja, den næste time ser bedst ud.');
   assert.equal(answer.exampleOnly,true);assert.match(answer.content.sources[0].scope,/Opdigtet vejrforløb/);
   assert.deepEqual(createPreviewScene('conversation-followup',Date.parse(time)).answers[0].title,'Og hvis vi venter et par timer?');
@@ -203,6 +210,12 @@ test('local weather answer hours follow Copenhagen review time across afternoon 
 });
 
 test('on and mixed light fixtures restore a nonzero preview dimmer level for every lit dimmable lamp',()=>{for(const name of ['light-detail-on','light-detail-mixed']){const s=previewScene(name),light=s.devices.find(d=>d.kind==='light');assert.ok(light.lights.filter(l=>l.on&&l.dimmable).every(l=>l.brightness>0));assert.equal(light.lights.find(l=>l.id==='kitchen-counter').dimmable,false);}});
+
+test('many-room robot stage authors only public task offers and closed map/mode replacements',async()=>{
+ const {controlTask}=await import('../../podvoice/gatekeeper/static/podview/control-model.js'),scene=previewScene('robot-detail-many-rooms'),fixture=scene.robotControlFixture,robot=scene.devices.find(d=>d.kind==='vacuum');assert.equal(scene.focus,robot.id);assert.equal(robot.status,'docked');assert.equal(robot.exampleOnly,true);assert.equal(robot.live,undefined);assert.equal(fixture.exampleOnly,true);assert.equal(Object.keys(fixture.offers).length,6);assert.equal(fixture.offers[fixture.initialKey].mapName,'Stueplan');assert.equal(fixture.offers[fixture.initialKey].options[0].argsSchema.areas.length,9);
+ for(const offer of Object.values(fixture.offers)){const task=controlTask({ok:true,schema:'podview.control.v1',domain:'vacuum',bootId:'preview',roomId:'preview',taskId:'preview-task',revision:1,expiresAt:Date.now()/1000+60,setup:{mapName:offer.mapName},options:offer.options},{bootId:'preview',roomId:'preview'},'vacuum');assert.equal(task.options.length,offer.options.length);assert.equal(task.mapName,offer.mapName);const choices=offer.options.flatMap(option=>option.argsSchema.choices||[]);for(const [choiceId,next]of Object.entries(offer.replacements)){assert(choices.some(choice=>choice.id===choiceId));assert(fixture.offers[next]);}}
+ const ground=fixture.offers['0-both'].options[0].argsSchema.areas,upstairs=fixture.offers['1-both'].options[0].argsSchema.areas;assert.equal(upstairs.length,4);assert(!upstairs.some(area=>ground.some(prior=>prior.id===area.id)));assert.equal(fixture.offers['0-vacuum'].options.some(option=>option.label==='Vandmængde'),false);assert.equal(fixture.offers['0-mop'].options.some(option=>option.label==='Sugestyrke'),false);assert.equal(previewScene('robot-detail-docked').robotControlFixture,undefined);
+});
 
 
 test('new library domain snapshots carry genuine owner input and no live action rights',async()=>{
@@ -221,7 +234,85 @@ test('new library domain snapshots carry genuine owner input and no live action 
  for(const layer of ['detail','overview','rest'])assert.equal(previewScene(`timer-${layer}-paused`).timer.status,'paused');
  assert.equal(previewScene('music-offline').connected,false);const unknown=previewScene('music-unknown');assert.equal(unknown.music.pending,null);assert.match(unknown.music.message,/Udfald ukendt/);
  for(const variant of ['unknown','stale']){const model=vehicleModel(previewScene(`vehicle-${variant}`).vehicle);assert.equal(model.exampleOnly,true);assert.deepEqual(model.actions,[]);assert.match(model.context,/Lokalt eksempel/);assert.equal(model.modelName,undefined);if(variant==='unknown'){assert.equal(model.batteryPercent,null);assert.equal(model.status,'Status ukendt');}else{assert.equal(model.batteryPercent,72);assert.match(model.status,/Sidst kendt/);}}
- const emptyQueue=previewScene('player-queue-empty');assert.equal(emptyQueue.focus,'player');assert.equal(emptyQueue.music.playback.active,false);assert.equal(emptyQueue.playerPreview,'empty');assert.equal(previewScene('player-queue-error').playerPreview,'error');
+ const emptyQueue=previewScene('player-queue-empty');assert.equal(emptyQueue.focus,'player');assert.equal(emptyQueue.music.playback.active,true);assert.equal(emptyQueue.queuePreview,'empty');assert.equal(previewScene('player-queue-error').queuePreview,'error');
  for(const stage of ['player-long-output','music-long-output'])assert(previewScene(stage).music.playback.room.length>45);
  assert.equal(previewScene('weather-unconnected').weatherPreview,'empty');assert.equal(previewScene('weather-offline').weatherPreview,'stale');
+});
+
+
+test('music specimens supply actual long renderer inputs and a distinct initial empty result',async()=>{
+ const {localPlayerModel,localQueueModel}=await import('../../podvoice/gatekeeper/static/podview/player-view.js');
+ const {localDiscoveryCards}=await import('../../podvoice/gatekeeper/static/podview/music-results.js');
+ const {TRACKS}=await import('../../podvoice/gatekeeper/static/podview/widget-model.js');
+ const empty=previewScene('music-initial-empty');assert.deepEqual(localDiscoveryCards(empty),[]);assert.equal(empty.music.playback.active,false);assert.equal(empty.music.refreshStatus,'');
+ const refresh=previewScene('music-refresh-empty');assert.equal(localDiscoveryCards(refresh).length,3);assert.equal(refresh.music.playback.active,true);assert.equal(refresh.music.refreshStatus,'empty');
+ for(const stage of ['music-long-metadata','player-long-metadata']){
+  const state=previewScene(stage),vm=localPlayerModel(state),queue=localQueueModel(state),cards=localDiscoveryCards(state);
+  assert(vm.title.length>80);assert(vm.artist.length>70);assert.equal(cards[0].name,vm.title);assert.equal(queue[0].title,vm.title);assert.equal(cards[0].description,vm.artist);assert.deepEqual(queue.map(item=>item.id),TRACKS.map(item=>item.id));
+  const navigated=sceneTransition(sceneTransition(state,{type:'show',id:'now'}),{type:'show',id:'player'});assert.equal(localPlayerModel(navigated).title,vm.title);assert.deepEqual(localQueueModel(navigated).map(item=>item.id),queue.map(item=>item.id));
+  const selected=sceneTransition(state,{type:'music',event:{type:'queue-select',id:queue[1].id,revision:state.music.revision}});assert.equal(localPlayerModel(selected).title,queue[1].title);assert.equal(localQueueModel(selected)[0].id,queue[1].id);
+  const offline=sceneTransition(state,{type:'offline'});assert.equal(localPlayerModel(offline).canOutput,false);assert.equal(localQueueModel(offline).every(item=>!item.selectable),true);
+ }
+ for(const stage of ['player-queue-empty','player-queue-error']){const state=previewScene(stage),vm=localPlayerModel(state);assert.equal(vm.active,true);assert.equal(vm.title,TRACKS[0].title);assert.equal(vm.playing,true);assert.deepEqual(localQueueModel(state),[]);}
+});
+
+
+test('weather stress and connection failure use supported passive owner inputs',async()=>{
+ const {localWeatherModel,liveWeatherModel,WEATHER_CHANGE_EXAMPLE}=await import('../../podvoice/gatekeeper/static/podview/weather-view.js');
+ const {homeConnectionPresentation}=await import('../../podvoice/gatekeeper/static/podview/podvoice-view.js');
+ const long=previewScene('weather-long'),model=localWeatherModel(long.weatherFixture);assert(model.title.length>60);assert(model.current.condition.length>60);assert.equal(model.source,'Eksempeldata');assert.deepEqual(long.weatherFixture.hours,WEATHER_CHANGE_EXAMPLE.hours);assert.deepEqual(long.weatherFixture.days,WEATHER_CHANGE_EXAMPLE.days);
+ const failure=previewScene('weather-connection-error');assert.equal(failure.weatherPreview,'empty');const empty=liveWeatherModel(null,{reason:homeConnectionPresentation(failure.connectionPreview).reason});assert.equal(empty.current,null);assert.deepEqual(empty.hours,[]);assert.match(empty.emptyDetail,/svarer ikke/);assert.equal(empty.connectionReason,'unavailable');
+});
+
+
+test('metadata fixtures follow reducer-admitted Senest and refreshed options rather than stale top IDs',async()=>{
+ const {localDiscoveryCards}=await import('../../podvoice/gatekeeper/static/podview/music-results.js');
+ const {resultsFor}=await import('../../podvoice/gatekeeper/static/podview/widget-model.js');
+ let state=sceneTransition(previewScene('music-long-metadata'),{type:'music',event:{type:'collection',value:'recent'}});
+ const verifySelectable=scene=>{const cards=localDiscoveryCards(scene);assert.deepEqual(cards.map(card=>card.id),resultsFor(scene.music).map(option=>option.id));for(const card of cards){assert(card.id.startsWith('recent:'));assert(card.name.length>80);const selected=sceneTransition(scene,{type:'music',event:{type:'select',id:card.id,revision:scene.music.revision}});assert.equal(selected.music.pending?.id,card.id);}};
+ verifySelectable(state);state=sceneTransition(state,{type:'music',event:{type:'refresh',revision:state.music.revision}});state=sceneTransition(state,{type:'music',event:{type:'refresh-result',...state.music.refreshPending,status:'ready'}});assert.equal(state.music.suggestionPage,1);verifySelectable(state);
+ let empty=previewScene('music-initial-empty');assert.deepEqual(localDiscoveryCards(empty),[]);empty=sceneTransition(empty,{type:'music',event:{type:'refresh',revision:empty.music.revision}});assert.deepEqual(localDiscoveryCards(empty),[]);empty=sceneTransition(empty,{type:'music',event:{type:'refresh-result',...empty.music.refreshPending,status:'empty'}});assert.deepEqual(localDiscoveryCards(empty),[]);
+ let recovered=previewScene('music-initial-empty');recovered=sceneTransition(recovered,{type:'music',event:{type:'refresh',revision:recovered.music.revision}});recovered=sceneTransition(recovered,{type:'music',event:{type:'refresh-result',...recovered.music.refreshPending,status:'ready'}});assert.equal(localDiscoveryCards(recovered).length,3);assert.equal(recovered.music.playback.active,false);
+});
+
+test('visual answer long and failed-image specimens remain validated local content',()=>{
+ for(const format of ['fact-card','sourced-image','answer-timeline','simple-diagram']){
+  const stage=`answer-${format}-long`,scene=previewScene(stage),answer=scene.answers[0];
+  assert.ok(answerPreviewStates.includes(stage));assert.equal(answer.live,undefined);
+  assert.deepEqual(validateVisualContent(format,answer.content),answer.content);
+  assert.ok(answer.content.summary.length>100);
+ }
+ for(const format of ['sourced-image','simple-diagram']){
+  const answer=previewScene(`answer-${format}-image-failure`).answers[0],content=answer.content;
+  assert.equal(answer.exampleOnly,true);assert.equal(answer.status,'ready');
+  assert.equal((content.image||content.illustration).url,'assets/qa-deliberately-missing-answer-image.webp');
+  assert.ok((content.image||content.illustration).caption);assert.ok(content.sources.length);
+  assert.deepEqual(validateVisualContent(format,content),content);
+ }
+});
+
+test('answer back and history selection retain all ten answer identities without replaying actions',()=>{
+ for(const format of ['concise','choices','comparison','chart','steps','checklist','fact-card','sourced-image','answer-timeline','simple-diagram']){
+  let scene=previewScene(`answer-${format}-ready`);
+  if(format==='checklist'||format==='steps'){
+   const answer=scene.answers[0];scene=sceneTransition(scene,{type:'answer-action',sessionId:scene.sessionId,taskId:answer.id,revision:answer.revision,action:format==='checklist'?'check':'step',optionId:format==='checklist'?'paper':'next'});
+  }
+  const retained=scene.answers,music=scene.music,timer=scene.timer,answer=retained[0];
+  scene=sceneTransition(scene,{type:'back'});assert.equal(scene.focus,'now');assert.equal(scene.answers,retained);
+  // History selection uses the existing show event and the retained stable ID.
+  scene=sceneTransition(scene,{type:'show',id:answer.id});
+  assert.equal(scene.focus,answer.id);assert.equal(scene.answers,retained);assert.equal(scene.answers[0],answer);
+  assert.equal(scene.music,music);assert.equal(scene.timer,timer);assert.equal(scene.pendingAnswer,null);
+ }
+});
+
+test('walking answer gives distinct decision facts without claiming live weather',()=>{
+ const answer=previewScene('conversation-visual').answers[0];
+ assert.equal(answer.title,'Skal vi gå en tur?');assert.equal(answer.exampleOnly,true);assert.equal(answer.live,undefined);
+ assert.equal(answer.content.facts.length,3);
+ assert.deepEqual(answer.content.facts.map(fact=>fact.id),['window','temperature','rain']);
+ assert.equal(answer.content.facts.filter(fact=>/°/.test(fact.value)).length,1);
+ assert.equal(answer.content.facts[0].value,'Gå nu');assert.equal(answer.content.facts[2].value,'Regn om tre timer');
+ assert.match(answer.content.sources[0].scope,/Ikke en aktuel vejrudsigt/);
+ assert.deepEqual(validateVisualContent('fact-card',answer.content),answer.content);
 });

@@ -1,14 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {renderOverviewMediaValues} from '../../podvoice/gatekeeper/static/podview/music-results.js';
-const view=(vm,live=false)=>{const nodes={'home-music':{textContent:'',dataset:{}},'home-radio':{textContent:'',dataset:{}}};renderOverviewMediaValues({live,playerView:{progressVM:vm},ownerDocument:{getElementById:id=>({dataset:{},querySelector:()=>nodes[id]})}});return Object.fromEntries(Object.entries(nodes).map(([id,node])=>[id,node.textContent]));};
-test('overview uses admitted media and labels stale observation honestly',()=>{assert.equal(view({active:true,title:'Heartless',playing:true,fresh:true})['home-music'],'Spiller: Heartless');assert.equal(view({active:true,title:'Heartless',playing:true,fresh:false},true)['home-music'],'Sidst kendt: Heartless');assert.equal(view({active:false,title:'Fixture'},true)['home-music'],'Ingen seneste afspilning');});
-test('radio is separate from music and no default station is invented',()=>{const actual=view({active:true,title:'P3',playing:false,sourceKind:'radio'});assert.equal(actual['home-radio'],'P3 · På pause');assert.equal(actual['home-music'],'Ingen seneste afspilning');assert.equal(view({},true)['home-radio'],'Ikke forbundet');});
+class Node {
+ constructor(){this.dataset={};this.children=[];this.attrs=new Map();this.textContent='';this.hidden=false;}
+ querySelector(selector){return this.children.find(node=>'.'+node.className===selector)||null;}
+ replaceChildren(...children){this.children=children;}
+ getAttribute(key){return this.attrs.get(key)??null;}
+ setAttribute(key,value){this.attrs.set(key,value);}
+ removeAttribute(key){this.attrs.delete(key);}
+}
+function fixture(vm,live=false){const nodes=Object.fromEntries(['home-music','home-radio'].map(id=>[id,new Node()])),cards=Object.fromEntries(Object.entries(nodes).map(([id,node])=>{const card=new Node();card.querySelector=()=>node;return [id,card];})),host={live,playerView:{progressVM:vm},ownerDocument:{createElement:()=>new Node(),getElementById:id=>cards[id]}};return {nodes,cards,host,render(){renderOverviewMediaValues(host);}};}
+const lines=node=>node.children.map(item=>item.textContent);
+test('compact music gives real title and artist separate roles, with visible freshness and accessible playback status',()=>{
+ const f=fixture({active:true,title:'Heartless',artist:'Kanye West',playing:true,fresh:true});f.render();const node=f.nodes['home-music'];assert.deepEqual(lines(node),['Heartless','Kanye West']);assert.deepEqual(node.children.map(item=>item.className),['overview-media-title','overview-media-artist']);assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Afspiller');assert.equal(f.cards['home-music'].getAttribute('aria-label'),null);
+ const children=[...node.children];f.render();assert.equal(node.children[0],children[0]);assert.equal(node.children[1],children[1]);
+ f.host.playerView.progressVM={...f.host.playerView.progressVM,fresh:false};f.render();assert.deepEqual(lines(node),['Sidst kendt · Heartless','Kanye West']);assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Sidst kendte afspilning');
+ f.host.playerView.progressVM={active:false,title:'Old title',artist:'Old artist'};f.render();assert.deepEqual(lines(node),['Vælg musik','']);assert.equal(node.children[1].hidden,true);assert.equal(node.dataset.mediaMetadata,'false');assert.equal(f.cards['home-music'].getAttribute('aria-description'),null);
+});
+test('radio retains station and status without inventing a default or music identity',()=>{
+ const f=fixture({active:true,title:'P3',playing:false,fresh:true,sourceKind:'radio'},false);f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','På pause']);assert.deepEqual(lines(f.nodes['home-music']),['Vælg musik','']);f.host.playerView.progressVM={};f.host.live=true;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);
+});
+test('absent artist clears the secondary line and full media layout keeps its existing owner',()=>{
+ const f=fixture({active:true,title:'Long real title',artist:'Artist',playing:false});f.render();for(const artist of [null,undefined,0,{},'','   ']){f.host.playerView.progressVM.artist=artist;f.render();assert.deepEqual(lines(f.nodes['home-music']),['Long real title','']);assert.equal(f.nodes['home-music'].children[1].hidden,true);}
+ assert.equal(f.cards['home-music'].getAttribute('aria-description'),'På pause');f.cards['home-music'].dataset.mediaLayout='media';f.nodes['home-music'].replaceChildren();f.render();assert.equal(f.nodes['home-music'].children.length,0);assert.equal(f.cards['home-music'].getAttribute('aria-description'),null);f.cards['home-music'].dataset.mediaLayout='compact';f.render();assert.equal(f.cards['home-music'].getAttribute('aria-description'),'På pause');
+});
 
-test('M Music adds only the known source artist in its optional second line and clears it honestly',()=>{
- for(const live of [false,true]){assert.equal(view({active:true,title:'Heartless',artist:'Kanye West',playing:true,fresh:true},live)['home-music'],'Spiller: Heartless\nKanye West');assert.equal(view({active:true,title:'Heartless',artist:'Kanye West',playing:false,fresh:false},live)['home-music'],'Sidst kendt: Heartless\nKanye West');
-  for(const artist of [null,undefined,0,{},'','   '])assert.equal(view({active:true,title:'Heartless',artist,playing:true},live)['home-music'],'Spiller: Heartless');
-  assert.equal(view({active:false,title:'Heartless',artist:'Kanye West'},live)['home-music'],'Ingen seneste afspilning');assert.equal(view({active:true,title:'P3',artist:'DR',sourceKind:'radio'},live)['home-music'],'Ingen seneste afspilning');
- }
- const node={textContent:'',dataset:{}},host={playerView:{progressVM:{active:true,title:'Heartless',artist:'Kanye West',playing:true}},ownerDocument:{getElementById:id=>id==='home-music'?{dataset:{},querySelector:()=>node}:null}};renderOverviewMediaValues(host);assert.equal(node.dataset.mediaMetadata,'true');let writes=0;const old=node.textContent;Object.defineProperty(node,'textContent',{get:()=>old,set:()=>writes++});renderOverviewMediaValues(host);assert.equal(writes,0);delete host.playerView.progressVM.artist;renderOverviewMediaValues(host);assert.equal(node.dataset.mediaMetadata,'false');
+
+test('all compact size roles use actual empty read state and transport fallback without new authority',()=>{
+ const cases=[['offline','Ikke forbundet'],['error','Kan ikke hentes'],['account-selection','Vælg musikkonto'],['loading','Afventer data'],['unconfirmed','Vælg musik'],[undefined,'Vælg musik']];
+ for(const size of ['s','m','l'])for(const [emptyState,copy]of cases){const f=fixture({active:false,emptyState},true);f.cards['home-music'].dataset={kitSize:size,mediaLayout:'compact'};f.render();assert.deepEqual(lines(f.nodes['home-music']),[copy,'']);assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);assert.equal(f.cards['home-music'].getAttribute('aria-label'),null);}
+ const f=fixture({active:false},true);f.host.liveTransport={connected:false};f.render();assert.equal(lines(f.nodes['home-music'])[0],'Ikke forbundet');f.host.playerView.progressVM.emptyState='loading';f.render();assert.equal(lines(f.nodes['home-music'])[0],'Afventer data');f.host.playerView.progressVM.emptyState='account-selection';f.render();assert.equal(lines(f.nodes['home-music'])[0],'Vælg musikkonto');
+});
+test('local radio distinguishes silent example, observed playback and last known station',()=>{
+ const f=fixture({active:true,title:'P3',sourceKind:'radio',playing:true,fresh:false,exampleOnly:true});f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Ingen lyd']);delete f.host.playerView.progressVM.exampleOnly;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Sidst kendt · P3','Afspiller']);f.host.playerView.progressVM.fresh=true;f.host.playerView.progressVM.previewLabel='Radio · ingen lyd';f.host.playerView.progressVM.fresh=false;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Ingen lyd']);delete f.host.playerView.progressVM.previewLabel;f.host.playerView.progressVM.fresh=false;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Sidst kendt · P3','Afspiller']);f.host.live=true;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);
 });

@@ -1,12 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 import {initialWidgetState,widgetTransition,resultsFor} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
 import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 const body=(prefix='Actual',account='account')=>({ok:true,data:{config_entry_id:account,tracks:Array.from({length:9},(_,index)=>({name:`${prefix} ${index}`,artist:'Source artist',uri:`spotify:track:${String(index).padStart(22,'0')}`,artwork:{kind:'album_cover',provider:'spotify',url:`https://i.scdn.co/image/${prefix}${index}`}}))}});
 const content=cards=>cards.map(({id,name,description,artwork})=>({id,name,description,artwork}));
 function fixture(){const reads=[],renders=[],host={state:{focus:'music'},liveStatus:'connected',liveSnapshot:{bootId:'boot',roomId:'room'},liveTransport:{connected:true},musicResults:{render:vm=>renders.push(vm)}};const view=new LiveMusicCatalogueView(host,kind=>reads.push(kind));view.updateCapabilities(true,['top','recent','recent']);view.resetAccount('account');return {view,host,reads,renders};}
+function overviewMusicClick(host){
+ const binding=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8').split('\n').find(line=>line.includes("$('home-music').addEventListener('click'"));
+ assert.ok(binding,'exercise the actual WidgetHost overview entry binding');let click;
+ new Function('$',binding).call(host,id=>{assert.equal(id,'home-music');return {addEventListener(type,handler){assert.equal(type,'click');click=handler;}};});
+ return ()=>click();
+}
+test('actual overview music entry defaults to Stemning and reopens every last local tab without changing playback or fixtures',()=>{
+ const host={live:false,state:initialScene(),focusCount:0,dispatch(event){this.state=sceneTransition(this.state,event);},music(event){this.dispatch({type:'music',event});},focusHeading(){this.focusCount++;}},click=overviewMusicClick(host);
+ host.dispatch({type:'show',id:'now'});click();assert.equal(host.state.music.collection,'mood');
+ for(const collection of ['feeling','top','recent','mood']){
+  host.music({type:'collection',value:collection});const music=host.state.music,options=resultsFor(music),playback=music.playback;
+  for(const focus of ['now','photo']){host.dispatch({type:'show',id:focus});click();assert.equal(host.state.focus,'music');assert.equal(host.state.music,music);assert.deepEqual(resultsFor(host.state.music),options);assert.equal(host.state.music.playback,playback);assert.equal(host.state.music.pending,null);}
+ }
+ for(const stage of ['top','recent']){host.state=previewScene(stage);const music=host.state.music;host.dispatch({type:'show',id:'now'});click();assert.equal(host.state.music,music,'explicit library fixture remains deterministic');}
+ assert.ok(host.focusCount>0);
+});
+test('actual overview music entry retains live tab and exact cached cards without read, renewal or selection on reopen',()=>{
+ const f=fixture();Object.assign(f.host,{live:true,liveCatalogue:f.view,dispatch(event){this.state={...this.state,focus:event.id};if(event.id==='music')f.view.open();},music(event){assert.equal(event.type,'collection');f.view.select(event.value);},focusHeading(){}});const click=overviewMusicClick(f.host);
+ for(const collection of ['top','recent']){
+  f.view.select(collection);f.view.tracks(collection,body(collection),'account');const cards=f.view.cards,entry=f.view.entries.get(f.view.key()),reads=f.reads.length;
+  for(const focus of ['now','photo']){f.host.state.focus=focus;click();assert.equal(f.view.selected,collection);assert.equal(f.view.cards,cards);assert.equal(f.view.entries.get(f.view.key()),entry);assert.equal(f.reads.length,reads);assert.equal(f.view.pendingRead,null);}
+ }
+ f.view.refresh();const request=f.view.pendingRead,reads=f.reads.length;f.host.state.focus='now';click();assert.equal(f.view.selected,'recent');assert.equal(f.view.pendingRead,request);assert.equal(f.reads.length,reads,'reopen does not replace an in-flight explicit refresh');
+ f.view.failure('recent');f.host.state.focus='now';click();assert.equal(f.reads.length,reads,'failed refresh never silently retries');
+ f.view.resetAccount('other');assert.equal(f.view.selected,'mood');assert.deepEqual(f.view.cards,[],'another account never inherits the previous collection content');f.host.state.focus='now';click();assert.equal(f.view.selected,'mood');assert.deepEqual(f.view.cards,[]);assert.equal(f.reads.length,reads);
+});
 test('live tabs and scene reopen retain exact per-collection IDs/order/art and never reread after first admission',()=>{const f=fixture();f.view.select('top');f.view.tracks('top',body('Top'),'account');f.view.refresh();f.view.tracks('top',body('Top'),'account');const top=content(f.view.cards);f.view.select('recent');assert.deepEqual(f.view.cards,[]);f.view.tracks('recent',body('Recent'),'account');const liked=content(f.view.cards);const count=f.reads.length;for(let i=0;i<3;i++){f.host.state.focus='photo';f.view.render();f.host.state.focus='music';f.view.select('top');assert.deepEqual(content(f.view.cards),top);f.view.select('recent');assert.deepEqual(content(f.view.cards),liked);}assert.equal(f.reads.length,count);assert.equal(f.renders.at(-1).canChoose,false);});
 test('unsolicited repeated samples cannot replace frozen choices; explicit refresh alone admits new source content',()=>{const f=fixture();f.view.select('top');f.view.tracks('top',body('First'),'account');const before=content(f.view.cards);f.view.tracks('top',body('Silent'),'account');assert.deepEqual(content(f.view.cards),before);f.view.select('top');assert.deepEqual(content(f.view.cards),before);assert.equal(f.reads.length,1);f.view.refresh();assert.deepEqual(content(f.view.cards),before);f.view.tracks('top',body('Explicit'),'account');assert.notDeepEqual(content(f.view.cards),before);assert.equal(f.reads.length,2);});
 test('same-account owner invalidation and read-capability revoke/restore keep content while allowing no source writes',()=>{const f=fixture();f.view.select('top');f.view.tracks('top',body(),'account');const frozen=content(f.view.cards),reads=f.reads.length;f.view.offline('Owner changed');f.view.resetAccount('account');f.view.updateCapabilities(true,[]);f.view.updateCapabilities(true,['top','recent','recent']);assert.deepEqual(content(f.view.cards),frozen);assert.equal(f.view.selected,'top');assert.equal(f.reads.length,reads);assert.equal(f.renders.at(-1).canChoose,false);f.view.select('recent');f.view.tracks('recent',body('Recent'),'account');f.view.select('top');assert.deepEqual(content(f.view.cards),frozen);});

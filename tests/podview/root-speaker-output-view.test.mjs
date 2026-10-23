@@ -59,3 +59,22 @@ test('whole-row selection follows observed output, never a requested or default 
   view.validUntil=Date.now()-1;view.sync();assert.equal(current.getAttribute('aria-pressed'),'false');assert.equal(requested.getAttribute('aria-pressed'),'false');
  }finally{view.cleanup();}
 });
+
+function configuredSurface(){const f=surface();f.host.liveSnapshot.mediaRoomBindings=[{accountId:'account',bindingId:'a'.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r0',nativeHomepodId:'42'}];return f;}
+test('configured display name survives actual catalogue TTL, pending refresh and transient error without retaining observed destination authority',async()=>{
+ const f=configuredSurface(),originalNow=Date.now,originalTimeout=globalThis.setTimeout,callbacks=[],calls=[];let now=originalNow();Date.now=()=>now;globalThis.setTimeout=fn=>{callbacks.push(fn);return callbacks.length;};
+ try{
+  f.host.liveTransport.music=async(...args)=>{calls.push(args);return payload();};await f.view.refreshConfiguredLabel();assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');assert.equal(f.view.observedDestination('a'.repeat(64)),true);
+  now+=30001;callbacks[0]();assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');assert.equal(f.view.observedDestination('a'.repeat(64)),false);
+  let reject;f.host.liveTransport.music=(...args)=>{calls.push(args);return new Promise((_,r)=>reject=r);};const pending=f.view.refreshConfiguredLabel();assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');reject(Error('network unavailable'));await pending;assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');assert.equal(f.view.observedDestination('a'.repeat(64)),false);
+  assert.deepEqual(calls,[['speakers','account'],['speakers','account']]);assert.equal(f.view.selectionDestination(),null);
+ }finally{f.view.cleanup();Date.now=originalNow;globalThis.setTimeout=originalTimeout;}
+});
+for(const change of ['account','room','boot','nativeRoom','nativeHomepod','binding','transport','readAccess','disconnect'])test(`configured display custody is cleared on ${change} and cannot revive without fresh validation`,async()=>{
+ const f=configuredSurface();try{await f.view.refreshConfiguredLabel();assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');const original=f.host.liveSnapshot,transport=f.host.liveTransport,account=f.host.liveMedia.account;f.host.liveSnapshot=structuredClone(original);
+  if(change==='account')f.host.liveMedia.account='other';if(change==='room')f.host.liveSnapshot.roomId='other';if(change==='boot')f.host.liveSnapshot.bootId='other';if(change==='nativeRoom')f.host.liveSnapshot.mediaRoomBindings[0].nativeRoomId='other';if(change==='nativeHomepod')f.host.liveSnapshot.mediaRoomBindings[0].nativeHomepodId='43';if(change==='binding')f.host.liveSnapshot.mediaRoomBindings=[];if(change==='transport')f.host.liveTransport={...transport};if(change==='readAccess')f.host.liveSnapshot.capabilities.musicRead=[];if(change==='disconnect')f.host.liveTransport={...transport,connected:false};
+  assert.equal(f.view.configuredLabel(),'');f.host.liveSnapshot=original;f.host.liveTransport=transport;f.host.liveMedia.account=account;assert.equal(f.view.configuredLabel(),'');
+ }finally{f.view.cleanup();}
+});
+test('same binding revisions preserve configured display while malformed or denied refresh clears it',async()=>{const f=configuredSurface();try{await f.view.refreshConfiguredLabel();f.host.liveSnapshot.inputRevision=2;f.view.sync();assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');f.host.liveTransport.music=async()=>({...payload(),ok:false});await f.view.refreshConfiguredLabel();assert.equal(f.view.configuredLabel(),'');assert.equal(f.view.labelValue,null);}finally{f.view.cleanup();}});
+test('explicit read denial clears remembered configured name rather than treating it as transient',async()=>{const f=configuredSurface();try{await f.view.refreshConfiguredLabel();assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');f.view.labelRetryAt=0;f.host.liveTransport.music=async()=>{throw Object.assign(Error('forbidden'),{code:'read_access_denied'});};await f.view.refreshConfiguredLabel();assert.equal(f.view.configuredLabel(),'');assert.equal(f.view.observedDestination('a'.repeat(64)),false);}finally{f.view.cleanup();}});

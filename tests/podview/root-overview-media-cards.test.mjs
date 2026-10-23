@@ -16,8 +16,8 @@ function fixture({live=false,vm=localPlayerModel(initialScene()),state=initialSc
  const cards=new Map();for(const id of ['home-music','home-radio','home-vehicle']){
   const attrs=new Map(),classes=new Set(),image={ownerDocument:doc,dataset:{},alt:'',classList:{contains:x=>classes.has(x),add:x=>classes.add(x),remove:x=>classes.delete(x)},getAttribute:k=>attrs.get(k)??null,set src(v){writes.push(v);attrs.set('src',v);},get src(){return attrs.get('src');},addEventListener(){}};
   image.src=`assets/icons/${id==='home-radio'?'boombox':id==='home-vehicle'?'car-front':'music-note-beamed'}.svg`;
-  const heading={textContent:id==='home-music'?'Find musik':id==='home-radio'?'Radio':'Tesla'},small={textContent:'',hidden:false,dataset:{}},label={querySelector:()=>label.value||null,append:value=>label.value=value};
-  const card={ownerDocument:doc,dataset:id==='home-radio'?{kitSize:radioSize}:{},image,heading,small,label,querySelector:selector=>selector===':scope>img:first-child'?image:selector==='strong'?heading:selector==='small'?small:selector===':scope>span'?label:null};cards.set(id,card);
+  const heading={textContent:id==='home-music'?'Find musik':id==='home-radio'?'Radio':'Tesla'},small={textContent:'',hidden:false,dataset:{},children:[],querySelector(selector){return this.children.find(node=>'.'+node.className===selector)||null;},replaceChildren(...children){this.children=children;}},label={querySelector:()=>label.value||null,append:value=>label.value=value};
+  const card={getAttribute:key=>attrs.get(key)??null,setAttribute:(key,value)=>attrs.set(key,value),removeAttribute:key=>attrs.delete(key),ownerDocument:doc,dataset:id==='home-radio'?{kitSize:radioSize}:{},image,heading,small,label,querySelector:selector=>selector===':scope>img:first-child'?image:selector==='strong'?heading:selector==='small'?small:selector===':scope>span'?label:null};cards.set(id,card);
  }
  const render=new Function('$','spotifyArtwork','spotifyItemUrl','renderRetainedArtwork','cancelArtwork','fixtureArtwork','radioStation','projectVehicle',`return function ${method}`)(id=>cards.get(id),spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,fixtureArtwork,radioStation,vehicleModel);
  doc.getElementById=id=>cards.get(id);const host={live,state,liveTransport:live?{connected:state.connected}:undefined,ownerDocument:doc,playerView:{progressVM:vm}};return {cards,host,probes,writes,render:vehicle=>render.call(host,vehicle??vehicleFixture({charging:true}))};
@@ -28,7 +28,7 @@ test('M music retains source-owned cover/title/artist and decodes once across un
  f.probes[0].onload();await flush();assert.equal(image.src,fixtureArtwork(f.host.playerView.progressVM.fixtureArt));assert.match(image.alt,/Albumomslag/);const before=f.writes.length;f.render();f.render();assert.equal(f.probes.length,1);assert.equal(f.writes.length,before);assert.strictEqual(card.image,image);
 });
 test('M radio only uses its selected known station logo; empty and unmatched rows keep the station icon',async()=>{
- const state={...initialScene(),radioStationId:'p3'},vm=localRadioPlayerModel('p3',{}, {playing:true}),f=fixture({state,vm}),card=f.cards.get('home-radio');f.render();assert.equal(card.heading.textContent,'P3');assert.equal(card.small.textContent,'Direkte radio');assert.equal(f.probes[0].src,'assets/radio-p3.svg');f.probes[0].onload();await flush();assert.equal(card.image.src,'assets/radio-p3.svg');
+ const state={...initialScene(),radioStationId:'p3'},vm=localRadioPlayerModel('p3',{}, {playing:true}),f=fixture({state,vm}),card=f.cards.get('home-radio');f.render();assert.equal(card.heading.textContent,'P3');assert.equal(card.small.textContent,'Ingen lyd');assert.equal(f.probes[0].src,'assets/radio-p3.svg');f.probes[0].onload();await flush();assert.equal(card.image.src,'assets/radio-p3.svg');
  f.host.playerView.progressVM={...vm,title:'Unknown station',fixtureArt:'assets/radio-p1.svg'};f.render();assert.equal(card.image.src,'assets/icons/boombox.svg');assert.equal(f.probes.length,1);const before=f.writes.length;f.render();assert.equal(f.writes.length,before);
  f.host.playerView.progressVM={active:false};f.render();assert.equal(card.heading.textContent,'Radio');assert.equal(card.small.textContent,'Vælg station');assert.equal(card.image.dataset.displayedArtwork,undefined);
 });
@@ -37,17 +37,17 @@ test('live artwork admission ignores local paths and arbitrary URLs, and clearin
  f.host.playerView.progressVM={...vm,uri:'spotify:track:unbound',artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,0,'valid CDN path never grants an invalid source identity');
  f.host.playerView.progressVM={...vm,artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,1);const late=f.probes[0].onload;f.host.playerView.progressVM={active:false};f.render();assert.equal(f.probes[0].src,null);late();await flush();assert.equal(f.cards.get('home-music').image.src,'assets/icons/music-note-beamed.svg');assert.equal(f.cards.get('home-music').heading.textContent,'Find musik');
 });
-test('S Tesla promotes actual bounded battery while empty, invalid and M states keep their honest roles',()=>{
+test('S M L Tesla promote the same valid observed battery and omit unknown or invalid readings',()=>{
  const f=fixture(),card=f.cards.get('home-vehicle');f.render();const value=card.label.value;assert.equal(value.textContent,'72%');assert.equal(value.hidden,false);assert.equal(card.dataset.hasOverviewValue,'true');
  for(const batteryPercent of [null,NaN,-1,101,'72']){f.render({...vehicleFixture({charging:true}),batteryPercent});assert.equal(value.hidden,true);assert.equal(value.textContent,'');}
- f.render(vehicleModel(null));assert.equal(value.hidden,true);f.render({...vehicleFixture(),batteryPercent:0});assert.equal(value.textContent,'0%');assert.equal(value.hidden,false);card.dataset.kitSize='m';f.render();assert.equal(value.hidden,true);assert.strictEqual(card.label.value,value);
+ f.render(vehicleModel(null));assert.equal(value.hidden,true);f.render({...vehicleFixture(),batteryPercent:0});assert.equal(value.textContent,'0%');assert.equal(value.hidden,false);for(const size of ['s','m','l']){card.dataset.kitSize=size;f.render({...vehicleFixture(),batteryPercent:0});assert.equal(value.hidden,false);assert.equal(value.textContent,'0%');assert.strictEqual(card.label.value,value);for(const batteryPercent of [null,NaN,-1,101,'72']){f.render({...vehicleFixture(),batteryPercent});assert.equal(value.hidden,true);assert.equal(value.textContent,'');}}
 });
 
 test('full media and compact projections have one copy writer across empty/known updates and M to S changes',()=>{
  for(const vm of [{active:false},{active:true,title:'Actual song',artist:'Actual artist',playing:true,fresh:true}]){
   const f=fixture({live:true,vm}),card=f.cards.get('home-music');let mutations=0,text=card.small.textContent;Object.defineProperty(card.small,'textContent',{get:()=>text,set:value=>{mutations++;text=value;}});
   const update=()=>{f.render();renderOverviewMediaValues(f.host);};update();const before=mutations;update();update();assert.equal(mutations,before,'M copy cannot alternate with compact metadata');assert.equal(text,vm.active?'Actual artist':'Vælg musik');
-  card.dataset.kitSize='s';update();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(text,vm.active?'Spiller: Actual song\nActual artist':'Ingen seneste afspilning');const compactBefore=mutations;update();assert.equal(mutations,compactBefore);
+  card.dataset.kitSize='s';update();assert.equal(card.dataset.mediaLayout,'compact');assert.deepEqual(card.small.children.map(node=>node.textContent),vm.active?['Actual song','Actual artist']:['Vælg musik','']);const compactBefore=mutations;update();assert.equal(mutations,compactBefore);
  }
 });
 
@@ -66,3 +66,14 @@ test('full media and compact projections have one copy writer across empty/known
  f.host.liveTransport.connected=false;f.render();assert.equal(card.heading.textContent,'Retained song');assert.equal(card.small.textContent,'Retained artist');
  assert.equal(f.probes.length,0,'no invented art or provider call');
  });
+
+test('automatic radio size reuses retained selected station, artwork and destination while explicit size wins',async()=>{
+ const state={...initialScene(),radioStationId:'p3'},vm=localRadioPlayerModel('p3',{target:'Stuen'}, {playing:true}),f=fixture({state,vm}),card=f.cards.get('home-radio');delete card.dataset.kitSize;
+ card.dataset.overviewSize='s';f.render();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(card.image.src,'assets/icons/boombox.svg');const image=card.image;
+ card.dataset.overviewSize='m';f.render();assert.equal(card.dataset.mediaLayout,'media');assert.equal(card.heading.textContent,'P3');assert.equal(card.small.textContent,'Ingen lyd');f.probes[0].onload();await flush();assert.equal(card.image.src,'assets/radio-p3.svg');assert.strictEqual(card.image,image);const before=f.writes.length;f.render();assert.equal(f.writes.length,before);
+ card.dataset.kitSize='s';f.render();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(card.image.src,'assets/icons/boombox.svg');delete card.dataset.kitSize;f.render();assert.equal(card.dataset.mediaLayout,'media');assert.equal(f.host.state.radioStationId,'p3');assert.equal(f.host.playerView.progressVM.target,vm.target);
+ card.dataset.overviewSize='s';f.render();assert.equal(card.dataset.mediaLayout,'compact');assert.equal(f.host.state.radioStationId,'p3');
+});
+test('Tesla Card unavailable state reflects the actual model mode and identical render does not rewrite it',()=>{
+ const f=fixture(),card=f.cards.get('home-vehicle');let changes=0;card.dataset=new Proxy({}, {set(target,key,value){if(key==='kitState')changes++;target[key]=value;return true;}});f.render(vehicleModel(null));assert.equal(card.dataset.kitState,'unavailable');assert.equal(changes,1);f.render(vehicleModel(null));assert.equal(changes,1);f.render(vehicleFixture({charging:true}));assert.equal(card.dataset.kitState,'ready');assert.equal(changes,2);
+});

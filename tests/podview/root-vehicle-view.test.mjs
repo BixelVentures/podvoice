@@ -139,3 +139,11 @@ test('repeated stale observation projection and actual rendering qualify status 
  }
  assert.deepEqual(structuredClone(observed),before);assert.equal(view.heroIcon.hidden,false);assert.equal(view.figure.hidden,true);view.render(observed);assert.equal(view.status.textContent,'Lader');assert.equal(view.controlsEnabled,false);view.cleanup();
 });
+
+test('unconnected Tesla reuses shared message slots and returns to passive observed facts without granting actions',async()=>{
+ const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
+ const {root}=fixture(),actions=[],view=new VehicleView(root,{onAction:event=>actions.push(event)}),refs=[view.hero,view.heroIcon,view.status,view.connectionNote];
+ view.render(null,{connectionDetail:'Home Assistant svarer ikke lige nu'});assert.equal(view.hero.getAttribute('data-kit-variant'),'message');assert.equal(view.heroIcon.dataset.kitSlot,'icon');assert.equal(view.status.dataset.kitSlot,'title');assert.equal(view.connectionNote.dataset.kitSlot,'body');assert.equal(view.status.textContent,'Ikke forbundet');assert.equal(view.context.hidden,true);assert.equal(view.connectionNote.textContent,'Home Assistant svarer ikke lige nu');assert.equal(view.controlsEnabled,false);
+ const before=view.hero.children.slice();view.render(null,{connectionDetail:'Home Assistant svarer ikke lige nu'});assert.deepEqual(view.hero.children,before);
+ view.render(vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_battery'],data:{batteryPercent:60,charging:{},climate:{}}}));assert.equal(view.hero.getAttribute('data-kit-variant'),null);assert.equal(view.context.hidden,false);assert.deepEqual([view.hero,view.heroIcon,view.status,view.connectionNote],refs);assert.equal(view.controlsEnabled,false);assert.deepEqual(actions,[]);
+});

@@ -1,3 +1,4 @@
+import {NotificationQueue} from '../../podvoice/gatekeeper/static/podview/ui/notification-queue.js';
 import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import {bindRoom,boundPlayback} from './canonical-room-fixture.mjs';
 import test from 'node:test';
@@ -122,3 +123,117 @@ for(const reason of ['unavailable','expired','binding-change'])for(const domain 
   f.host.liveTransport.connected=false;controls.invalidate(undefined,false);assert.equal(controls.task,null);assert.ok(controls.generation>generation);
  }finally{f.restore();}
 });
+
+test('selection feedback is passed to canonical player and accepted observations notify its owner before render',async()=>{
+ const f=domSurface();try{f.view.account='first';const feedback={message:'Afventer afspilning i rummet.',pending:true},seen=[];f.host.liveSelection={feedback,observePlayback(next){seen.push(next);this.feedback=null;}};
+ f.view.render();assert.equal(f.host.playerView.emptyCopy.textContent,feedback.message);assert.equal(f.nodes.get('player-empty').getAttribute('aria-busy'),'true');
+ await f.view.refresh();assert.equal(seen.length,1);assert.equal(seen[0],f.view.playback);assert.equal(f.nodes.get('player-state').textContent,'Spiller på');assert.equal(f.host.dataset.selectionFeedback,'false');
+ }finally{f.restore();}
+});
+test('unavailable or late foreign-room reads never notify selection playback confirmation',async()=>{
+ for(const kind of ['unavailable','late']){const f=surface();try{f.view.account='first';let observed=0;f.host.liveSelection={observePlayback(){observed++;}};const hold=deferred();f.host.liveTransport.music=()=>hold.promise;const reading=f.view.refresh();if(kind==='late')f.host.liveSnapshot.roomId='foreign';hold.resolve(kind==='unavailable'?{...payload('first'),status:'unavailable',data:null}:payload('first'));await reading;assert.equal(observed,0,kind);}finally{f.restore();}}
+});
+
+test('actual HTTP temporary failures retain exact player/cover/queue read-only and clear on denial or explicit unavailable',async()=>{
+ const {PodVoiceTransport}=await import('../../podvoice/gatekeeper/static/podview/podvoice-transport.js');
+ for(const status of [408,429,500,503,599,401,403,404,200]){
+  const f=domSurface();try{
+   f.view.account='first';f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:1,expiresAt:Date.now()+10000,state:'playing',item:{name:'Actual song',artists:['Artist'],uri:'spotify:track:0123456789ABCDEFGHIJKL',artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/cover'}},target:{name:'Actual speaker'}},'first');
+   const key=JSON.stringify(['boot','r0','first',f.view.playback.roomBinding.bindingId,'epoch','device',null,null,null,null,null]);
+   f.view.queueControls.retained={key,items:[{id:'occurrence',title:'Queued song',artist:'Artist',order:1,uri:'spotify:track:0123456789ABCDEFGHIJKL',artwork:null}]};
+   f.view.render();const row=f.nodes.get('queue').children[0],cover=f.nodes.get('cover'),coverSrc=cover.src;
+   f.nodes.get('queue').scrollTop=72;f.doc.getElementById('music-detail').hidden=false;
+   let calls=0;const transport=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:status===200,status,json:async()=>status===200?{...payload('first'),status:'unavailable',data:null}:{ok:false,error:'source_unavailable'}};}});
+   transport.closed=false;transport.connected=true;transport.controller=new AbortController();transport.snapshot=f.host.liveSnapshot;f.host.liveTransport=transport;
+   await f.view.refresh();
+   const retained=[408,429,500,503,599].includes(status);
+   assert.equal(calls,1,`${status}: no retry`);assert.equal(!!f.view.playback,retained,`${status}: display retention`);
+   assert.equal(f.nodes.get('output').disabled,!retained);assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.view.queueControls.offer,null);
+   if(retained){assert.equal(f.nodes.get('track-name').textContent,'Actual song');assert.equal(f.nodes.get('player-state').textContent,'Status kunne ikke hentes');assert.equal(f.nodes.get('cover'),cover);assert.equal(cover.src,coverSrc);assert.equal(f.nodes.get('queue').children[0],row);assert.equal(f.nodes.get('queue').scrollTop,72);assert.equal(f.nodes.get('music-detail').hidden,false);assert.equal(row.disabled,true);row.click();assert.deepEqual(f.selected,[]);}
+   else{assert.equal(f.nodes.get('track-name').textContent,'');assert.equal(f.view.queueControls.retained,null);}
+   transport.close();
+  }finally{f.restore();}
+ }
+});
+
+test('aged but fresh playback schedules its next ordinary read before actual source expiry without extending evidence',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=surface();try{
+  f.view.account='first';let reads=0;f.host.liveTransport.music=async()=>{reads++;const response=payload('first');response.data.poll_sequence=reads;response.data.observation.age_ms=reads===1?9757:0;response.data.observation.observed_at=new Date(clock-response.data.observation.age_ms).toISOString();response.data.room_proof_valid_until=clock/1000+30;return response;};
+  await f.view.refresh();const expiry=f.view.playback.expiresAt;assert.equal(expiry,clock+5243);assert.equal(f.view.refreshInterval,2621);
+  clock+=2000;await f.view.refresh();assert.equal(reads,1);assert.equal(f.view.playback.expiresAt,expiry);
+  clock+=1000;await f.view.refresh();assert.equal(reads,2);assert.ok(clock<expiry);assert.equal(f.view.playback.poll_sequence,2);assert.equal(f.view.playback.expiresAt,clock+15000);
+  assert.equal(f.view.refreshInterval,7500);assert.equal(f.view.pending,false);
+ }finally{f.restore();Date.now=previousNow;}
+});
+
+test('temporary playback refresh failure returns to the bounded ordinary cadence without extending stale data',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=surface();try{
+  f.view.account='first';f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:1,expiresAt:clock+1000,state:'playing',item:{name:'Song',artists:['Artist']},target:{name:'Speaker'}},'first');f.view.refreshInterval=1000;let reads=0;
+  f.host.liveTransport.music=async()=>{reads++;throw Object.assign(Error('source busy'),{code:'read_transient'});};
+  await f.view.refresh();const expiry=f.view.playback.expiresAt;assert.equal(f.view.refreshInterval,8000);assert.equal(f.view.playback.stale,true);
+  for(let i=0;i<7;i++){clock+=1000;await f.view.refresh();}assert.equal(reads,1);assert.equal(f.view.playback.expiresAt,expiry);
+  clock+=1000;await f.view.refresh();assert.equal(reads,2);assert.equal(f.view.playback.expiresAt,expiry);
+ }finally{f.restore();Date.now=previousNow;}
+});
+
+test('ordinary background reads keep established empty copy and output model while only genuine first scope uses placeholder',async()=>{
+ for(const terminal of ['unavailable','error']){
+  const f=domSurface();try{
+   f.view.account='first';f.host.liveTransport.music=async()=>{if(terminal==='error')throw Object.assign(Error('busy'),{code:'read_transient'});return {...payload('first'),status:'unavailable',data:null};};
+   await f.view.refresh();const copy=f.host.playerView.emptyCopy,before={text:copy.textContent,hidden:copy.hidden,state:f.nodes.get('player-empty').dataset.state,output:f.nodes.get('output').disabled,room:f.nodes.get('player-room').textContent};
+   assert.equal(before.hidden,false);const hold=deferred();f.host.liveTransport.music=()=>hold.promise;f.view.lastRead=0;
+   const pending=f.view.refresh();assert.equal(f.view.pending,true);assert.equal(f.view.readState,terminal);assert.equal(f.host.playerView.emptyCopy,copy);
+   assert.deepEqual({text:copy.textContent,hidden:copy.hidden,state:f.nodes.get('player-empty').dataset.state,output:f.nodes.get('output').disabled,room:f.nodes.get('player-room').textContent},before);
+   hold.resolve({...payload('first'),status:'unavailable',data:null});await pending;
+  }finally{f.restore();}
+ }
+ const f=domSurface();try{
+  f.view.account='first';const hold=deferred();f.host.liveTransport.music=()=>hold.promise;const pending=f.view.refresh();
+  assert.equal(f.view.readState,'loading');assert.equal(f.host.playerView.emptyCopy.hidden,false);assert.equal(f.nodes.get('output').disabled,true);
+  hold.resolve({...payload('first'),status:'unavailable',data:null});await pending;
+  f.host.liveSnapshot={...f.host.liveSnapshot,roomId:'new-room'};const second=deferred();f.host.liveTransport.music=()=>second.promise;const next=f.view.refresh();
+  assert.equal(f.view.readState,'loading');assert.equal(f.host.playerView.emptyCopy.hidden,false);second.resolve({ok:false});await next;
+ }finally{f.restore();}
+});
+
+test('background ready playback never becomes loading and actual access denial still clears it',async()=>{
+ const f=domSurface();try{
+  f.view.account='first';f.host.liveTransport.music=async()=>payload('first');await f.view.refresh();
+  const title=f.nodes.get('track-name').textContent,cover=f.nodes.get('cover'),room=f.nodes.get('player-room').textContent;
+  let reject;f.host.liveTransport.music=()=>new Promise((_,fail)=>{reject=fail;});f.view.lastRead=0;const pending=f.view.refresh();
+  assert.equal(f.view.readState,'ready');assert.equal(f.nodes.get('track-name').textContent,title);assert.equal(f.nodes.get('cover'),cover);assert.equal(f.nodes.get('player-room').textContent,room);assert.equal(f.host.querySelector('.player').getAttribute('aria-busy'),'false');
+  reject(Object.assign(Error('denied'),{code:'read_access_denied'}));await pending;assert.equal(f.view.playback,null);assert.equal(f.nodes.get('track-name').textContent,'');
+ }finally{f.restore();}
+});
+
+test('read revocation and actual snapshot access denial reset established background scope',async()=>{
+ for(const denial of ['capability','authenticated-read']){const f=surface();try{
+  f.view.account='first';await f.view.refresh();assert.ok(f.view.establishedReadScope);
+  if(denial==='capability'){f.host.liveSnapshot.capabilities.musicRead=['targets'];await f.view.refresh();}
+  else{f.host.liveTransport.recoveryBlocked=true;f.view.invalidate();}
+  assert.equal(f.view.establishedReadScope,null);assert.equal(f.view.playback,null);
+ }finally{f.restore();}}
+});
+
+// The old selected-content request stays UNKNOWN; a fresh native observation and
+// an independent parsed control task describe the current room, not that request.
+import {controlTask} from '../../podvoice/gatekeeper/static/podview/control-model.js';
+test('fresh current observed playback owns its label while original UNKNOWN remains a receipt and independent transport stays enabled',()=>{for(const state of ['playing','paused']){const f=domSurface();try{f.view.account='first';f.view.readState='ready';const now=Date.now(),uri='spotify:track:0123456789ABCDEFGHIJKL',feedback={message:'Udfaldet er ukendt · handlingen gentages ikke.',outcome:'unknown',pending:false,awaitingObservation:false,accountId:'first',targetId:'device',uri:'spotify:playlist:0123456789ABCDEFGHIJKL',requestedAt:now-1000};f.host.liveSelection={feedback,collectionEntry:{actionDispatched:true,selectionSpent:true}};f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:2,observedAt:new Date(now).toISOString(),expiresAt:now+10000,state,item:{uri,name:'Actual song',artists:['Artist']},target:{name:'Actual speaker'}},'first');f.host.liveSnapshot.capabilities.controlSetup=['music'];f.host.state={devices:[]};f.host.setAttribute=()=>{};const receipts=[];f.host.showFeedback=(message,pending)=>receipts.push({message,pending});const controls=Object.create(LiveControlView.prototype);Object.assign(controls,{host:f.host,spent:new Map(),musicStatus:new DOMNode(),musicDetailStatus:new DOMNode(),musicButton:{},musicFence:null});f.host.liveControls=controls;controls.render=()=>controls.renderMusicControls();const context=controls.musicContext(),task=controlTask({ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'r0',domain:'music',taskId:'fresh-independent',revision:1,expiresAt:now/1000+20,options:['pause','resume','next','previous'].map(action=>({id:'fresh-'+action,action,label:action,argsSchema:{kind:'none'}})),setup:{volume:null}},f.host.liveSnapshot,'music');controls.musicOffer={context,task};f.view.render();assert.equal(f.nodes.get('play-pause').disabled,false,'independent native controls remain enabled');assert.equal(f.nodes.get('previous').disabled,false);assert.equal(f.nodes.get('next').disabled,false);assert.equal(f.nodes.get('volume').disabled,true,'unsupported volume is still disabled');assert.equal(f.nodes.get('player-state').textContent,state==='playing'?'Spiller på':'');assert.equal(f.host.liveSelection.feedback,feedback);assert.equal(feedback.outcome,'unknown');assert.equal(f.host.liveSelection.collectionEntry.actionDispatched,true);assert.equal(f.host.liveSelection.collectionEntry.selectionSpent,true);assert.deepEqual(receipts,[{message:feedback.message,pending:false}]);f.view.render();assert.equal(receipts.length,1,'no repeated receipt toast from background renders');assert.equal(controls.musicOffer.task,task);}finally{f.restore();}}});
+
+test('old, foreign, pending or unconfirmed observations never replace UNKNOWN result feedback',()=>{for(const kind of ['stale','expired','old-time','wrong-account','wrong-target','different-track','missing-item','not-ready','offline','pending','accepted','rejected']){const f=domSurface();try{f.view.account='first';f.view.readState='ready';const now=Date.now(),uri='spotify:track:0123456789ABCDEFGHIJKL',feedback={message:'Udfaldet er ukendt · handlingen gentages ikke.',outcome:'unknown',pending:false,awaitingObservation:false,accountId:'first',targetId:'device',uri,requestedAt:now-1000};f.host.liveSelection={feedback};f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:2,observedAt:new Date(now).toISOString(),expiresAt:now+10000,state:'playing',item:{uri,name:'Actual song',artists:['Artist']},target:{name:'Actual speaker'}},'first');if(kind==='stale')f.view.playback.stale=true;if(kind==='expired')f.view.playback.expiresAt=now-1;if(kind==='old-time')f.view.playback.observedAt=new Date(now-2000).toISOString();if(kind==='wrong-account')feedback.accountId='foreign';if(kind==='wrong-target')feedback.targetId='other';if(kind==='different-track')feedback.uri='spotify:track:1111111111111111111111';if(kind==='missing-item')f.view.playback.item=null;if(kind==='not-ready')f.view.readState='error';if(kind==='offline')f.host.liveTransport.connected=false;if(kind==='pending')feedback.pending=true;if(kind==='accepted')feedback.outcome='accepted';if(kind==='rejected')feedback.outcome='rejected';const receipts=[];f.host.showFeedback=message=>receipts.push(message);let vm;const render=f.host.playerView.renderPlayer.bind(f.host.playerView);f.host.playerView.renderPlayer=value=>{vm=value;render(value);};f.view.render();assert.equal(vm.feedback,feedback,kind);assert.equal(f.host.liveSelection.feedback,feedback,kind);assert.deepEqual(receipts,[],kind);}finally{f.restore();}}});
+
+test('current observation receipt feedback does not overwrite a newer existing operation message',()=>{const f=domSurface();try{f.view.account='first';f.view.readState='ready';const now=Date.now(),uri='spotify:track:0123456789ABCDEFGHIJKL';f.host.liveSelection={feedback:{message:'Udfaldet er ukendt · handlingen gentages ikke.',outcome:'unknown',pending:false,accountId:'first',targetId:'device',uri,requestedAt:now-1000}};f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:2,observedAt:new Date(now).toISOString(),expiresAt:now+10000,state:'playing',item:{uri,name:'Actual song',artists:['Artist']},target:{name:'Actual speaker'}},'first');const receipts=[];f.host.feedbackMessage='Nyere handling modtaget';f.host.showFeedback=message=>receipts.push(message);f.view.render();assert.equal(f.nodes.get('player-state').textContent,'Spiller på');assert.deepEqual(receipts,[]);assert.equal(f.host.liveSelection.feedback.outcome,'unknown');}finally{f.restore();}});
+
+import {readFileSync} from 'node:fs';
+test('same UNKNOWN receipt is not surfaced again after transient stale state and a newer result clears',()=>{const f=domSurface();try{f.view.account='first';f.view.readState='ready';const now=Date.now(),uri='spotify:track:0123456789ABCDEFGHIJKL',feedback={message:'Udfaldet er ukendt · handlingen gentages ikke.',outcome:'unknown',pending:false,accountId:'first',targetId:'device',uri,requestedAt:now-1000};f.host.liveSelection={feedback,collectionEntry:{actionDispatched:true,selectionSpent:true}};f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:2,observedAt:new Date(now).toISOString(),expiresAt:now+10000,state:'playing',item:{uri,name:'Actual song',artists:['Artist']},target:{name:'Actual speaker'}},'first');const widgetSource=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),body=widgetSource.match(/ showFeedback\(message,pending,options=\{\}\)\{([^\n]+)\}/)[1],shown=[],actual=new Function('$','NotificationQueue','applyKitComponent','document',`return function(message,pending,options={}){${body}}`)(id=>f.doc.getElementById(id),class extends NotificationQueue{constructor(render){super(render,{setTimer:()=>1,clearTimer:()=>{}});}},()=>{},{createTextNode:()=>new DOMNode('#text')});f.host.showFeedback=function(message,pending){const previous=this.feedbackMessage;actual.call(this,message,pending);if(message&&previous!==this.feedbackMessage)shown.push(message);};f.view.render();f.view.playback.stale=true;f.view.render();f.host.showFeedback('Nyere handling modtaget',true);f.host.showFeedback('',false);f.view.playback.stale=false;f.view.render();assert.equal(shown.filter(message=>message===feedback.message).length,1);assert.equal(f.nodes.get('player-state').textContent,'Spiller på');assert.equal(f.host.liveSelection.feedback,feedback);assert.equal(feedback.outcome,'unknown');assert.equal(f.host.liveSelection.collectionEntry.selectionSpent,true);f.host.liveSelection.feedback=null;f.view.render();assert.equal(f.view.selectionReceiptFeedback,null);const replacement={...feedback,requestedAt:now-500};f.host.liveSelection.feedback=replacement;f.view.render();assert.equal(f.view.selectionReceiptFeedback,replacement);assert.equal(shown.filter(message=>message===feedback.message).length,2,'new actual receipt may be surfaced once');}finally{f.restore();}});
+
+
+test('UNKNOWN for a chosen destination cannot be relabeled by current old-room playback on the same Spotify engine',()=>{const f=domSurface();try{f.view.account='first';f.view.readState='ready';const now=Date.now(),uri='spotify:track:0123456789ABCDEFGHIJKL',feedback={message:'Unknown chosen room',outcome:'unknown',pending:false,accountId:'first',targetId:'device',destination:{speakerId:'d'.repeat(64),name:'Frida'},uri,requestedAt:now-1000};let confirmed=false;f.host.liveOutputs={configuredLabel:()=>'',observedDestination:id=>confirmed&&id===feedback.destination.speakerId};f.host.liveSelection={feedback};f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:2,observedAt:new Date(now).toISOString(),expiresAt:now+10000,state:'playing',item:{uri,name:'Actual song',artists:['Artist']},target:{name:'Kitchen'}},'first');const receipts=[];f.host.showFeedback=message=>receipts.push(message);f.view.render();assert.equal(f.nodes.get('player-state').textContent,feedback.message);assert.deepEqual(receipts,[]);confirmed=true;f.view.render();assert.equal(f.nodes.get('player-state').textContent,'Spiller på');assert.deepEqual(receipts,[feedback.message]);assert.equal(f.host.liveSelection.feedback,feedback);assert.equal(feedback.outcome,'unknown');}finally{f.restore();}});
+
+test('account CTA requires actual validated choices and current read access, then focuses the canonical list',()=>{const f=surface();try{f.view.readState='account-selection';f.view.accounts.data={items:[{id:'first',label:'First'},{id:'second',label:'Second'}]};let focused=false;f.view.accounts.setAttribute=()=>{};f.view.accounts.focus=()=>{focused=true;};assert.equal(f.view.canChooseAccount,true);assert.equal(f.view.focusAccountChoice(),true);assert.equal(focused,true);assert.equal(f.view.accounts.hidden,false);f.host.liveTransport.connected=false;assert.equal(f.view.canChooseAccount,false);f.host.liveTransport.connected=true;f.host.liveSnapshot.capabilities.musicRead=['playback'];assert.equal(f.view.canChooseAccount,false);f.host.liveSnapshot.capabilities.musicRead=['targets','playback'];f.view.accounts.data.items=[];assert.equal(f.view.canChooseAccount,false);}finally{f.restore();}});
+
+test('accepted play hook bypasses ordinary poll throttle once and coalesces concurrent accepted reads',async()=>{const f=surface();try{f.view.account='first';f.view.lastRead=Date.now();const first=f.view.captureAcceptedPlayRefresh(),second=f.view.captureAcceptedPlayRefresh(),hold=deferred();f.host.liveTransport.music=(...args)=>{f.calls.push(args);return hold.promise;};const a=first(),b=second();assert.equal(a,b);assert.equal(first(),a);assert.deepEqual(f.calls,[['playback','first']]);hold.resolve(payload('first'));await a;assert.equal(f.view.playback.item.name,'Actual song');await f.view.refresh();assert.equal(f.calls.length,1);}finally{f.restore();}});
+for(const change of ['account','boot','room','binding','provider','voice','session','task','revision','transport','disconnect','capability'])test(`captured accepted play refresh suppresses changed ${change} scope`,async()=>{const f=surface();try{f.view.account='first';const accepted=f.view.captureAcceptedPlayRefresh();if(change==='account')f.view.account='second';if(change==='boot')f.host.liveSnapshot.bootId='other';if(change==='room')f.host.liveSnapshot.roomId='other';if(change==='binding')f.host.liveSnapshot.mediaRoomBindings=[];if(change==='provider')f.host.liveSnapshot.providerGeneration=2;if(change==='voice')f.host.liveSnapshot.voice={sessionId:'other'};if(change==='session')f.host.liveSnapshot.sessionId='other';if(change==='task')f.host.liveSnapshot.taskId='other';if(change==='revision')f.host.liveSnapshot.inputRevision=2;if(change==='transport')f.host.liveTransport={...f.host.liveTransport};if(change==='disconnect')f.host.liveTransport.connected=false;if(change==='capability')f.host.liveSnapshot.capabilities.musicRead=[];await accepted();assert.deepEqual(f.calls,[]);}finally{f.restore();}});
+test('post acceptance read fences an already pending old poll and never lets its late completion overwrite fresh playback',async()=>{const f=surface();try{f.view.account='first';const old=deferred(),fresh=deferred();let reads=0;f.host.liveTransport.music=()=>++reads===1?old.promise:fresh.promise;const poll=f.view.refresh(),accepted=f.view.captureAcceptedPlayRefresh(),reading=accepted();assert.equal(reads,2);const next=payload('first');next.data.playback.item.name='After accepted play';fresh.resolve(next);await reading;assert.equal(f.view.playback.item.name,'After accepted play');old.resolve(payload('first'));await poll;assert.equal(f.view.playback.item.name,'After accepted play');assert.equal(f.view.pending,false);}finally{f.restore();}});
+test('capturing a potential accepted hook alone performs no read or effect',()=>{const f=surface();try{f.view.account='first';f.view.captureAcceptedPlayRefresh();assert.deepEqual(f.calls,[]);assert.equal(f.view.pending,false);}finally{f.restore();}});
+for(const change of ['account','boot','provider','session','transport'])test(`accepted playback response cannot publish after in-flight ${change} change`,async()=>{const f=surface();try{f.view.account='first';const hold=deferred();f.host.liveTransport.music=()=>hold.promise;const reading=f.view.captureAcceptedPlayRefresh()();if(change==='account')f.view.account='other';if(change==='boot')f.host.liveSnapshot.bootId='other';if(change==='provider')f.host.liveSnapshot.providerGeneration=2;if(change==='session')f.host.liveSnapshot.sessionId='other';if(change==='transport')f.host.liveTransport={...f.host.liveTransport};hold.resolve(payload('first'));await reading;assert.equal(f.view.playback,undefined);}finally{f.restore();}});
