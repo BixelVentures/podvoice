@@ -61,3 +61,13 @@ test('connection copy uses an explicit cause without turning an empty successful
  assert.equal(homeConnectionPresentation({status:'disconnected'}).reason,'unavailable');
  assert.equal(homeConnectionPresentation({status:'connected',reason:'invented'}).reason,null);
 });
+
+test('live read-only player and radio routes open without granting local media or household actions',async()=>{
+ const {sceneTransition}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),snapshot={bootId:'boot',voice:{sessionId:'session'},timers:{status:'observed',items:[{id:'actual-timer',name:'Te',secondsLeft:120,status:'running'}]},capabilities:{musicRead:['playback','queue'],homeRead:[],timerActions:[]}},state=liveScene({...initialScene(),focus:'now'},snapshot),music=state.music,timer=state.timer;
+ for(const id of ['player','radio']){
+  const event={type:'show',id};assert.equal(liveLocalEvent(event,state),true,`${id} is navigation to an existing read-only owner`);const next=liveLocalEvent(event,state)?sceneTransition(state,event):state;assert.equal(next.focus,id);assert.equal(next.connected,false);assert.equal(next.music,music);assert.equal(next.timer,timer);assert.equal(next.sessionId,state.sessionId);assert.equal(next.music.playback.active,false);assert.equal(next.music.playback.playing,false);
+ }
+ assert.equal(liveLocalEvent({type:'show',id:'invented-route'},state),false);
+ for(const event of [{type:'music',event:{type:'play'}},{type:'radio-select',stationId:'p3'},{type:'vehicle-control',action:'climate'},{type:'device-action',action:'turn_on'},{type:'timer-start',seconds:60,name:'Te'},{type:'timer',id:timer.id,action:'cancel'},{type:'request',kind:'concise'},{type:'queue-select',optionId:'invented'}])assert.equal(liveLocalEvent(event,state),false,event.type);
+ assert.equal(liveTimerRequest(snapshot,true,{type:'timer',id:timer.id,action:'cancel'}),null,'opening either route cannot manufacture a native action capability');
+});

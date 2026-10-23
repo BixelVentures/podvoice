@@ -29,6 +29,14 @@ test('existing visual snapshot joins the continuous flow without duplicate answe
  assert.equal(view.applyConversationPreview('conversation-followup'),true);const revised=view.state.answers[0];assert.equal(revised.revision,first.revision+1);view.applyConversationPreview('conversation-followup');assert.equal(view.state.answers[0].revision,revised.revision);
  view.applyConversationPreview('conversation-overview');assert.equal(view.state.focus,'now');assert.equal(view.state.answers[0].id,first.id);
 });
+
+test('interactive reconnect projects the same connection phase as its authored scene and clears it after recovery',()=>{
+ const view=host('conversation-visual'),music=view.state.music,answerId=view.state.answers[0].id;
+ assert.equal(view.applyConversationPreview('conversation-offline'),true);assert.equal(view.state.connected,false);assert.equal(view.state.connectionPreview.status,'disconnected');
+ assert.equal(view.applyConversationPreview('conversation-reconnecting'),true);assert.equal(view.state.connected,false);assert.equal(view.state.connectionPreview.status,'connecting');
+ assert.equal(view.applyConversationPreview('conversation-reconnected'),true);assert.equal(view.state.connected,true);assert.equal(view.state.connectionPreview,null);
+ assert.deepEqual(view.state.music.playback,music.playback);assert.ok(view.state.answers.some(answer=>answer.id===answerId));
+});
 test('manual conversation steps never steal an open detail dialog or operate on a live/detached host',()=>{
  for(const patch of [{live:true},{live:undefined},{isConnected:false},{dialogOpen:true}]){const view=Object.assign(host(),patch),state=view.state;assert.equal(view.applyConversationPreview('conversation-visual'),false);assert.equal(view.state,state);assert.equal(view.renderCount,0);assert.deepEqual(view.scheduled,[]);}
  const view=host(),state=view.state;for(const stage of ['visual','weather',null,'conversation-invented'])assert.equal(view.applyConversationPreview(stage),false);assert.equal(view.state,state);

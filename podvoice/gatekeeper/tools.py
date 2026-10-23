@@ -2314,6 +2314,7 @@ class ToolRouter:
             "liked": "liked",
             **podview_music.SERVICES,
             "playlist_search": "search_playlists",
+            "account_playlists": "get_user_playlists",
         }
         reads = [
             kind for kind, name in names.items() if kind != "playlist_search" and name in services
@@ -2351,12 +2352,15 @@ class ToolRouter:
                 "liked",
                 "search",
                 "playlist_search",
+                "account_playlists",
             }
             or not isinstance(account, str)
             or not 1 <= len(account) <= 1024
         ):
             return {"ok": False, "error_kind": "invalid_account"}
-        if (kind in podview_music.SERVICES or kind == "playlist_search") and account is None:
+        if (
+            kind in podview_music.SERVICES or kind in {"playlist_search", "account_playlists"}
+        ) and account is None:
             return {"ok": False, "error_kind": "invalid_account"}
         if (
             not ({"mood", "feeling"} & set(self.podview_music_reads()))
@@ -2371,6 +2375,7 @@ class ToolRouter:
             "liked": "liked",
             **podview_music.SERVICES,
             "playlist_search": "search_playlists",
+            "account_playlists": "get_user_playlists",
         }
         selected = (
             playback_targets.service("podconnect_get_targets", self._discovery.podconnect_services)
@@ -2378,7 +2383,7 @@ class ToolRouter:
             else names[kind]
         )
         args: dict[str, Any] = {"config_entry_id": account} if account else {}
-        if kind == "queue":
+        if kind in {"queue", "account_playlists"}:
             args["limit"] = 20
         elif kind in {"search", "playlist_search"}:
             args.update(query=query, limit=3)
@@ -2407,6 +2412,8 @@ class ToolRouter:
             return podview_music.unavailable()
         payload = json.loads(raw)
         data = payload.get("service_response") if isinstance(payload, dict) else None
+        if kind == "account_playlists":
+            return podview_music.project_account_playlists(data, account)
         if kind == "playlist_search":
             return podview_music.project_playlists(data, account, query)
         if kind in podview_music.SERVICES:

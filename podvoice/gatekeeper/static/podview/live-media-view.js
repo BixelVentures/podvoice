@@ -50,13 +50,13 @@ export class LiveMediaView{
   }
   const native=this.queueControls.model(this.account,this.playback);
   if(native){
-   const status=native.status,empty=status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den sidst kendte kø.':status==='error'?'Køen kunne ikke hentes.':status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
-   this.host.playerView.renderQueue(native.items,{status,empty});return;
+   const status=native.status,empty=status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den sidst kendte kø.':status==='error'?(this.queueControls.errorKind==='choice'?'Køvalget blev afvist.':'Køen kunne ikke hentes.'):status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
+   this.host.playerView.renderQueue(native.items,{status,empty,errorKind:native.errorKind});return;
   }
   const admitted=snapshot?.capabilities?.queueSelection===true,connected=!!this.host.liveTransport?.connected,current=roomObservationCurrent(this.playback,snapshot);
   const status=admitted&&connected&&current?this.queueControls.status:'unavailable';
-  const empty=!admitted?'Køen er ikke tilgængelig med den aktuelle adgang.':!connected?'Forbindelsen mangler for køen.':!current?'Køen kunne ikke bekræftes for rummet.':status==='error'?'Køen kunne ikke hentes.':status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
-  this.host.playerView.renderQueue([],{status,empty});
+  const empty=!admitted?'Køen er ikke tilgængelig med den aktuelle adgang.':!connected?'Forbindelsen mangler for køen.':!current?'Køen kunne ikke bekræftes for rummet.':status==='error'?(this.queueControls.errorKind==='choice'?'Køvalget blev afvist.':'Køen kunne ikke hentes.'):status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
+  this.host.playerView.renderQueue([],{status,empty,errorKind:this.queueControls.errorKind});
  }
 
  render(){

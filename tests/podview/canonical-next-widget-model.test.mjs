@@ -44,7 +44,7 @@ test('other suggestions keep playback and invalidate previous card bindings with
  }
 });
 
-test('mock start volume comes from its simulated owner receipt, while browsing and pause retain manual volume',()=>{
+test('local selection receipt preserves current manual volume and target while browsing and pause stay unchanged',()=>{
  let s=step(initialWidgetState(),{type:'volume',value:64});
  s=step(s,{type:'refresh',revision:s.revision});assert.equal(s.playback.volume,64);
  s=step(s,{type:'refresh-result',...s.refreshPending,status:'ready'});
@@ -52,7 +52,10 @@ test('mock start volume comes from its simulated owner receipt, while browsing a
  const pending=step(s,{type:'select',id:resultsFor(s)[0].id,revision:s.revision});
  assert.equal(pending.playback.volume,64);
  const done=step(pending,{type:'receipt',operation:pending.operation});
- assert.equal(done.playback.volume,35);
+ assert.equal(done.playback.volume,64);
+ assert.equal(done.playback.targetId,s.playback.targetId);
+ assert.equal(done.playback.accountId,s.playback.accountId);
+ assert.equal(done.playback.kind,s.playback.kind);
 });
 
 
@@ -65,4 +68,35 @@ test('pending selection and room transfer preserve playback without generic wait
   assert.equal(step(pending,{type:'receipt',operation:pending.operation-1}),pending);
   assert.equal(step(pending,{type:'receipt',operation:pending.operation}).pending,null);
  }
+});
+
+test('idle output selection configures next playback without inventing playback or a transfer receipt',()=>{
+ const initial=initialWidgetState(),idle={...initial,playback:{...initial.playback,active:false,playing:false}},target={type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:idle.revision};
+ const selected=step(idle,target);assert.equal(selected.playback.room,'Køkkenet');assert.equal(selected.playback.targetId,'kitchen');assert.equal(selected.playback.active,false);assert.equal(selected.playback.playing,false);assert.equal(selected.pending,null);assert.equal(selected.operation,idle.operation);assert.equal(step(selected,target),selected);
+ const play=step(selected,{type:'select',id:'smooth-jazz',revision:selected.revision});assert.equal(play.pending.targetId,'kitchen');assert.equal(play.playback.active,false);const receipt=step(play,{type:'receipt',operation:play.operation});assert.equal(receipt.playback.room,'Køkkenet');assert.equal(receipt.playback.active,true);
+ for(const invalid of [{revision:0},{targetId:'office',kind:'spotify_device'},{accountId:'other'}])assert.equal(step(idle,{...target,...invalid}),idle);
+ assert.equal(step(play,{...target,targetId:'living-room'}),play,'pending play cannot silently redirect its chosen output');
+});
+
+
+test('local seek retains paused state, room and volume and rejects stale or unbounded gestures',()=>{
+ const paused=step(initialWidgetState(),{type:'toggle'}),request={type:'seek',positionMs:121000,trackId:TRACKS[paused.playback.track].id,operation:paused.operation};
+ const selected=step(paused,request);assert.equal(selected.playback.progressMs,121000);assert.equal(selected.playback.playing,false);assert.equal(selected.playback.room,paused.playback.room);assert.equal(selected.playback.volume,paused.playback.volume);
+ for(const patch of [{positionMs:-1},{positionMs:180001},{positionMs:NaN},{positionMs:1.5},{trackId:'old'},{operation:paused.operation-1}])assert.equal(step(paused,{...request,...patch}),paused);
+ const changed=step(paused,{type:'skip',delta:1});assert.equal(changed.playback.progressMs,0);assert.equal(step(changed,request),changed);
+ const target=step(selected,{type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:selected.revision});assert.equal(step(target,{...request,operation:target.operation}),target);const moved=step(target,{type:'receipt',operation:target.operation});assert.equal(moved.playback.progressMs,121000);assert.equal(moved.playback.playing,false);
+ const pending=step(selected,{type:'select',id:resultsFor(selected)[0].id,revision:selected.revision});const fresh=step(pending,{type:'receipt',operation:pending.operation});assert.equal(fresh.playback.progressMs,0);
+});
+
+
+test('correlated local receipts cannot roll back newer volume, including after room selection',()=>{
+ let s=step(initialWidgetState(),{type:'volume',value:36});
+ s=step(s,{type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:s.revision});
+ s=step(s,{type:'receipt',operation:s.operation});
+ s=step(s,{type:'select',id:resultsFor(s)[0].id,revision:s.revision});
+ assert.equal(s.pending.volume,36);assert.equal(s.pending.targetId,'kitchen');
+ const obsolete=s.operation-1;s=step(s,{type:'volume',value:37});
+ assert.equal(step(s,{type:'receipt',operation:obsolete}),s);
+ const done=step(s,{type:'receipt',operation:s.operation});
+ assert.equal(done.playback.volume,37);assert.equal(done.playback.targetId,'kitchen');assert.equal(done.playback.room,'Køkkenet');assert.equal(done.pending,null);
 });

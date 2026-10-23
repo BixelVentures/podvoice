@@ -352,3 +352,82 @@ def project_playlists(value, account, query):
         }
     except (ValueError, TypeError):
         return unavailable("malformed_response")
+
+
+def project_account_playlists(value: Any, account: str | None) -> dict:
+    """First-page account library evidence, never search or synthetic recommendations."""
+    try:
+        _text(account)
+        if not isinstance(value, dict):
+            raise ValueError("invalid library")
+        if value.get("ok") is not True:
+            error = value.get("error_kind")
+            return unavailable(
+                error if isinstance(error, str) and error in _ERRORS else "unavailable"
+            )
+        if (
+            set(value)
+            != {
+                "ok",
+                "schema",
+                "config_entry_id",
+                "owner_epoch",
+                "source",
+                "coverage",
+                "limit",
+                "returned_count",
+                "source_has_more",
+                "playlists",
+            }
+            or value["schema"] != "podconnect.user_playlists.v1"
+            or value["config_entry_id"] != account
+            or value["source"] != "spotify_web_api"
+            or value["coverage"] != "first_page"
+            or type(value["limit"]) is not int
+            or value["limit"] != 20
+            or type(value["source_has_more"]) is not bool
+        ):
+            raise ValueError("invalid library provenance")
+        epoch = _text(value["owner_epoch"], 128)
+        rows = value["playlists"]
+        if (
+            not isinstance(rows, list)
+            or len(rows) > 20
+            or type(value["returned_count"]) is not int
+            or value["returned_count"] != len(rows)
+        ):
+            raise ValueError("invalid library count")
+        playlists = []
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict) or set(row) - {"uri", "name", "artwork"}:
+                raise ValueError("invalid library row")
+            uri = _text(row.get("uri"), 64)
+            if re.fullmatch(r"spotify:playlist:[A-Za-z0-9]{22}", uri) is None or uri in seen:
+                raise ValueError("invalid playlist identity")
+            seen.add(uri)
+            playlist: dict[str, Any] = {"uri": uri, "name": _text(row.get("name"), 256)}
+            artwork = _artwork(row.get("artwork"), kind="playlist_cover")
+            if artwork is not None:
+                playlist["artwork"] = artwork
+            playlists.append(playlist)
+        result = {
+            "ok": True,
+            "data": {
+                "ok": True,
+                "schema": "podconnect.user_playlists.v1",
+                "config_entry_id": account,
+                "owner_epoch": epoch,
+                "source": "spotify_web_api",
+                "coverage": "first_page",
+                "limit": 20,
+                "returned_count": len(playlists),
+                "source_has_more": value["source_has_more"],
+                "playlists": playlists,
+            },
+        }
+        if len(json.dumps(result, allow_nan=False).encode()) > 65536:
+            raise ValueError("library exceeds budget")
+        return result
+    except (ValueError, TypeError, KeyError, OverflowError):
+        return unavailable("malformed_response")

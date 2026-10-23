@@ -1,3 +1,62 @@
+## Planlagt build77 — samlet kontoplaylister og kanonisk UI, før freeze
+
+Lead root; READ-ejer weather_backend_integration; PodConnect ejer native kontoobservation,
+selection-ejer ejer kildebundet capability, root ejer HTTP/cache/samlet levering.
+Observeret produktgab: PodView har søgning/mood/feeling, men ingen sand første side af
+brugerens egne Spotify-playlister. Hypotese: eksisterende response-only native
+get_user_playlists kan projekteres lukket og konto-/epoch-bundet uden ny AI, scope eller
+playback-autoritet. Kæde: godkendt konto/rum → server read → eksisterende HA/PC-ejer →
+første side max20 → lukket DTO → aktuel cache → udvælgelse under eksisterende ejerfences.
+Invarianter: HA/PodConnect ejer data; account/owner/generation kontrolleres før og efter
+await; stale GET skaber ingen capability; ingen opdigtet Daily Mix/daylist.8s timeout
+og256KiB envelope bevares; uændret voice/lifecycle og76UI. Nabo-fejlveje: forkert konto,
+owner restart, langsomt svar efter konfig-/room-/generation-skift, malformed/oversize,
+private billeder/metadata og ændret kilde før selection. Inerte tests dækker transport,
+strict projektion, konto/binding-revocation og read-advertising; root dækker samlet
+rum/cache/selection. Rollback kun denne READ-delta; ingen budgetreset eller UIændring.
+Status planlagt build; ingen livekald, release, installation eller fysisk accept.
+READ-resultat: eksakt native DTO podconnect.user_playlists.v1, coverage first_page,
+source_has_more bool, fast20 og lukket projection er implementeret.73 inerte tests
+(new READ + eksisterende music transport/ingress + artwork) PASS; fuld mypy92
+kilder og Ruff/formatter PASS. Ingen rigtig HA/Spotify/provider kaldt. Root ejer
+fortsat rum/session/cache/current-generation og owner_epoch-kobling til playback
+før selection; READ-resultat alene er ingen afspilningsautoritet.
+Samlet backend source-resultat: root rapporterer71 berørte inerte HTTP/selection-
+forløb PASS via faktisk TestClient med inert transport; selection-ejer20 checks og
+READ-ejer73 checks bevares. Fuld mypy92 kilder og relevante Ruff/formatter PASS.
+Uafhængig weather_backend_review har givet whole-chain SOURCE GO uden blockers.
+PV#237 følger samlet levering.77 er nu samlet med den uændrede immutable202-asset UI-pakke
+/private/tmp/podview-ui-next-playlists-20261023-final; map
+7469c8fd3c20f0ade9eb4048981fa734adee15ff2986ce1b3a07868862b13a81 og SOURCE
+cc7d99027eb5b83edb19cbb581254daae2f121d79bc4278385f045636e7ac5ec.
+UI-ejer1901 tests/komponentgate og uafhængig UI/sourceGO bevares; ingen authored UI-
+bytes er ændret.37 ændrede testmirrors er portet med eksisterende relative imports/
+fixture-kontrakter;761 beståede cases bevares,43 tilfælde i fem konkret ugyldiggjorte
+adapterfiler passerer efter fixture-only rettelse. Faktisk entry graph/bundle-
+rekomposition PASS. Fuld mypy92 og12 ændrede Python-filers Ruff/formatter PASS.
+Versions-trio77/changelog og strict77-successor er forberedt; immutable76profile og
+ældre profiler er bevaret. Actual staged classifier kræver kun ha_tools og
+physical_output; unchanged weather reasoning:none ligger uden for76→77diff.
+Inventory23 production/43 regressions/320 runtime/4config/50policy/27tooling er
+reviewet; lead autoriserede final77binding efter uafhængigt exact-treeGO fra
+/root/sol61_release75_review. Manifest357d19d343fa3422bdd99d8b5958e95562543b2df1f389060a8bae6c639461a1;
+Python3.12AST47abdcdeef146ee1d5197b887ecf35c94b05652c89ccc32a5b4d13abc361206e.
+Actual staged strict77 PASS; officiel finalCI/publicering/installation afventer root. Historisk76gate14/14 PASS efter eksakt actual06312commitobject blev gendannet;
+16 ændrede runtimeJS-modulers syntax PASS. Ingen runtimepatch for manglende objects. Root samler énPR
+med separat PodConnectControl0.10.20, når source/CIgates er færdige. Ingen livekald
+eller77installation.
+Installeret baseline76, verificeret af root23okt17:45:17 dansk tid: HAUI2.0.76/
+Kører; startup git5b753604c703e90f7fd5c63ea3ccd219ab814670 og
+rootfs-v1:28daf671f8d6e9bbf6d9699633fd4a6f5460874fa4e4bc4c2e3b84d0bb742632.
+OCI ARM manifest sha256:79ec65abadc464e0b78213a661386a8263a840ad45e29554da3a92c24972ff50;
+index ac71dd6545fd3ce99c46a0560593795adf4ccc00e8f94431dd10e59d2c26bddb.
+Root verificerede303 source-/202S06-filhashes i /private/tmp/pv76-OCI-PUBLISHED.json;
+MCP assist connected/r0ready og Voice PE connected17:45:21. Wake detector, faktisk
+GPT-vejr og ny native lyd har ikke fysisk/provider-accept; Speakers43 er installeret
+uden bekræftet lydprøve.76-identiteten beviser ikke77-kontoplaylisterne.
+Base frozen76 tree3494bc9a0a2e316568d867aefc362425b0d5ca9c; faktisk main-parent
+5b753604c703e90f7fd5c63ea3ccd219ab814670.76export er uændret.
+
 ## Planlagt build76 — samlet UI/vejr, source-bundet; officiel CI afventer
 
 Root ejer udgivelsen; weather_backend_integration ejer den isolerede samling.
@@ -3420,5 +3479,28 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "tooling_fingerprint": "327930f8fd99783bd3df0f4ef9e1d1c99bbbbeac2af95583e4f1959f1ba92854",
   "manifest_fingerprint": "5d3f031b21d14ea680afbc3ad1f2e409b0c5b05c08a34c8dc418b8a0a9656b2d",
   "rationale": "Independent exact-composition scope/tooling GO and weather SOURCE GO48ec504d04c37e9252fd5efe690873bb7343b5eb7a5ff6dc55aa185474e5c689. Immutable S06 UI202 map802bed0fa18294a020b7bf77db41260305cdc0f3085fa0e1c73f80db36f3e5a3 adopted without source edits; UI owner reports1856 tests/component gate PASS. Backend54 inert checks retained; actual MockTransport router/provider/durable debit JSON accepted by unchanged canonical UI pending then ready without another POST. Old75 history/strict profile preserved;202 assets independently checked with exact schema/path/hash/duplicate/size fences. Source admission only; official CI, publication, installation and real provider/browser/physical acceptance remain separate. Final tracked classifier includes realtime_semantics from the unchanged explicit provider reasoning:none; all three actual domains are declared without suppressing that flag. Official PR236 CI39976777545 exposed an outdated locality lifecycle fake bridge missing the real constructor weather-source cache field; fixture adds None only. Real production bridge unchanged. All23 direct home/locality affected cases pass; prior passing checks retained. Corrected CI lint exposed three missing type contracts; explicit records shape, nonnullable captured advice owner, and TYPE_CHECKING-only ToolRouter provider declaration correct them without runtime behavior change. Full mypy gatekeeper92 files PASS; prior successful shards/UI/build/HA retained."
+}
+-->
+
+
+<!-- podview77-admission
+{
+  "version": 54,
+  "kind": "podview77_account_playlists",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "5b753604c703e90f7fd5c63ea3ccd219ab814670",
+  "merge_base": "5b753604c703e90f7fd5c63ea3ccd219ab814670",
+  "fingerprint": "f441f6890c2b3c1a29bd6dfc40786ae83f095b5156c906aee2bddc717fcaf8ee",
+  "regression_fingerprint": "db8e111cd94aa98b163103118423dfa2e5022c67baa0473846fa93990c573f46",
+  "runtime_fingerprint": "b4ea438bf834d633adf769ec249f22a95e51bacc3cb4576a007bae5c916b7d68",
+  "config_fingerprint": "9ffa154ccc874f2e3be2a43c8bb478fb97c01a7e4bf695bbb50a30cda185d8f5",
+  "policy_fingerprint": "35f24d9e2597b3120c9185a9dae80d19cd7f3d4e2c3c63d7d381bfa82b788156",
+  "tooling_fingerprint": "867428fc15c44ee5844432dcc0339e0cec2cc1e29dc940d8df9f266a0e17332c",
+  "manifest_fingerprint": "357d19d343fa3422bdd99d8b5958e95562543b2df1f389060a8bae6c639461a1",
+  "rationale": "Independent exact77 composition scope/manifest GO and backend whole-chain SOURCE GO; immutable complete UI202 map7469c8fd3c20f0ade9eb4048981fa734adee15ff2986ce1b3a07868862b13a81 adopted without authored runtime edits. UIowner1901/componentgate and independent source/visual GO retained. Root71 inert HTTP/selection checks, selection20, read73 retained; fullmypy92, changedPythonlint/format, historical76all14, changedJSsyntax16, final adapters and actualbundle composition PASS. Actual staged domains ha_tools/physical_output; unchanged weather reasoning outside diff. One planned77 candidate; no live provider, HA, publication, installation or physical acceptance implied. Installed76 identity remains separately recorded."
 }
 -->

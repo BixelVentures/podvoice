@@ -1,3 +1,9 @@
+## 2.0.77
+
+- Vis egne kontoplaylister fra den faktiske første Spotify-side med ærlige kilde-/tom-/fejltilstande.
+- Bind valg til frisk konto, rum, owner epoch og eksisterende engangscapability; behold afspiller og kort ved læsefejl.
+- Opdatér den fælles PodView-komponentpakke uden ny AI-rangering eller musikadgang.
+
 ## 2.0.76
 
 - Integrér den samlede kanoniske PodView UI76-pakke med fælles kontroller,

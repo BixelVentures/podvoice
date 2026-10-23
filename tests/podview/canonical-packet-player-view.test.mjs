@@ -67,7 +67,7 @@ test('empty music entry is absent only while its destination is already visible,
 
 // Discovery is a read/navigation affordance, independent of playback proof.
 test('admitted catalogue discovery remains actionable through playback loading, error and stale observations',()=>{
- for(const kind of ['mood','feeling','top','recent','search'])for(const status of ['loading','error','unavailable','account-selection','ready']){
+ for(const kind of ['mood','feeling','top','recent','search','account_playlists'])for(const status of ['loading','error','unavailable','ready']){
   const snapshot={bootId:'boot',roomId:'room',capabilities:{musicRead:[kind]}},f=surface({live:true});f.host.state={focus:'now'};
   const vm=livePlayerModel(null,true,status,snapshot,'Køkkenalrum');f.doc.getElementById('empty-find-music').disabled=false;f.view.renderPlayer(vm);
   assert.equal(vm.canDiscover,true,kind+' '+status);assert.equal(f.nodes.get('empty-find-music').disabled,status==='account-selection');assert.equal(f.nodes.get('empty-find-music').hidden,false);assert.equal(vm.active,false);assert.equal(vm.playing,false);assert.equal(vm.canOutput,false);assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);
@@ -88,7 +88,7 @@ test('actual live host and final player agree on home and empty discovery throug
  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),code=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n suspendLiveTimer(')).trim();
  const render=new Function('$','renderLiveWeather','renderRobotHistory','connectionPresentation',`return function ${code}`)(id=>f.doc.getElementById(id),()=>{},()=>{},connectionPresentation);
  Object.assign(f.host,{renderConnectionNotice(){},liveStatus:'connected',liveSnapshot:{capabilities:{musicRead:['targets'],timerActions:[]},timers:{status:'unavailable'}},renderVoice(){},timerView:{renderAccess(){}},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}},liveMedia:{render(){f.view.renderPlayer(livePlayerModel(null,f.host.liveStatus==='connected','error',f.host.liveSnapshot));}}});
- for(const [read,connected,allowed]of [[['targets'],true,false],[['playback','queue'],true,false],[['mood'],true,true],[['search'],true,true],[[],true,false],[['mood'],false,false]]){
+ for(const [read,connected,allowed]of [[['targets'],true,false],[['playback','queue'],true,false],[['mood'],true,true],[['search'],true,true],[['account_playlists'],true,true],[[],true,false],[['mood'],false,false]]){
   f.host.liveSnapshot.capabilities.musicRead=read;f.host.liveStatus=connected?'connected':'disconnected';render.call(f.host);assert.equal(f.doc.getElementById('home-music').disabled,!allowed);assert.equal(f.doc.getElementById('empty-find-music').disabled,!allowed);assert.equal(f.doc.getElementById('play-pause').disabled,true);assert.equal(f.host.querySelector('.player').hidden,true);
  }
 });
