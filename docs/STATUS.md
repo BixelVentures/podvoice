@@ -3948,10 +3948,10 @@ operation, installation or physical acceptance is implied by this source receipt
   "regression_fingerprint": "263d53b94d76bb1a5c1a6e4bbd74484584b81c1138ce460fc0acdea4873dbfc3",
   "runtime_fingerprint": "19aac7783ae2652ed2425917572da0d8f6edd0b1e92576507e3e2cea9d6eac33",
   "config_fingerprint": "e7b1a501013144d896863d299cbacb401fc9619bb027478521864245b972fa26",
-  "policy_fingerprint": "9cc677f25558d7d0348e17a12dd04b54b2910e1581f0eeed4b16c6667866330d",
-  "tooling_fingerprint": "4070af37b2bb9e8224498c4678ba30f6907415b1da6749612389c972412e1419",
-  "manifest_fingerprint": "5afa36f556a1e37d75868d6796d0b13b0cfe7a7136df14acdc263646bdb499d1",
-  "rationale": "Lead authorized binding after independent /root/weather_backend_review SOURCE/SCOPE GO on exact unbound tree cc80d4f0d737b4e78a5165137ae63e1ada9916fa and immutable c699923715359a5edc1468f7cfc8c9582f7b0a78c600c2bd2939f19d59dd4cd7 UI. Only four UI runtime files plus exact manifest and version/admission/fixtures/docs change from installed80; no backend behavior or service effects. UI2119+mapped588+component39 and historical/dev190 results retained; official CI, publication, installation and physical acceptance remain separate."
+  "policy_fingerprint": "68a37fe82f5777bfe3d5629755e8ffb2c41ff680911f71dc59c6f77b8056d9cc",
+  "tooling_fingerprint": "eab6ed6a9bced5d162a88a7f5d93c8f70f6d975145e7283ab06d4b953fe3a151",
+  "manifest_fingerprint": "6326700859ed1ad6ed48788404e35920c83056d30143458a7e726b32da0978cc",
+  "rationale": "Lead authorized binding after independent /root/weather_backend_review SOURCE/SCOPE GO on exact unbound tree cc80d4f0d737b4e78a5165137ae63e1ada9916fa and immutable c699923715359a5edc1468f7cfc8c9582f7b0a78c600c2bd2939f19d59dd4cd7 UI. Only four UI runtime files plus exact manifest and version/admission/fixtures/docs change from installed80; no backend behavior or service effects. UI2119+mapped588+component39 and historical/dev190 results retained; official CI, publication, installation and physical acceptance remain separate. Official CI40083091617 remains FAILED on its actual strict34-80 label versus81dispatch mismatch; lead-authorized metadata-only label correction to strict34-81 updates only workflow and required policy/manifest/AST fingerprints. Unchanged production/UI/source reviews retained; required automatic successor CI remains separate."
 }
 -->
 
@@ -3964,3 +3964,10 @@ admission/dispatch/historical fixtures lint+format PASS. Prior190/UI588/componen
 and owner2119 results are reused. Source is frozen for root's incremental GitHub
 publication against installed80 main7c1481/tree0da; no provider/HA/physical action
 or official CI was performed by integration.
+
+81 official CI40083091617 FAILED unit8: existing test_ci_promotion detected workflow
+label strict34-80 versus highest exact dispatch81.200 cases passed before failure;
+unit aggregator failed only because that shard failed. Root authorized one metadata
+label correction; all existing promotion regression cases now PASS. Required policy
+manifest/AST/record fingerprints refreshed; no test weakening or runtime/UI change.
+Prior passed jobs remain evidence, not a green finalCI; successor automaticCI required.
