@@ -1,3 +1,14 @@
+## 2.0.83
+
+- Adopt the reviewed music-remote UI: immediate feedback, accepted-read observation,
+  owner-safe singleflight, truthful volume display and retained speaker labels.
+- Keep optional volume reads from blocking transport controls; presentation expiry
+  cannot revoke an already admitted exact operation, while authority leases remain.
+- Confirm accepted START destinations through bounded passive observations; retain
+  UNKNOWN/no replay, exact owner/route checks and no sound claim.
+- Speakers 0.26.51, timer/voice/firmware and provider budgets stay unchanged. No install
+  or household effects are authorized tonight; selected-content audio remains unaccepted.
+
 ## 2.0.82
 
 - Adopt reviewed nonmusic UI changes for current timer access, named-controller

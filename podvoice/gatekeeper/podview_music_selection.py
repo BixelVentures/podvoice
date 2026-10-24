@@ -405,10 +405,12 @@ class MusicSelection:
         if previous is not None:
             return copy.deepcopy(previous[1]) if previous[0] == fingerprint else failure
 
+        admitted = False
+
         def active() -> bool:
             return bool(
                 current()
-                and time.monotonic() < task["deadline"]
+                and (admitted or time.monotonic() < task["deadline"])
                 and self.tasks.get(task_id) is task
                 and self.sources.get(task["candidateSetId"]) is source
                 and context == task["context"]
@@ -433,6 +435,7 @@ class MusicSelection:
         # The first accepted action consumes all choices before any await. A lost
         # HTTP response can return the cached unknown receipt but never repeat play.
         task["consumed"] = True
+        admitted = True  # Presentation expiry cannot revoke this exact admitted operation.
         unknown = {
             "ok": False,
             "outcome": "unknown",

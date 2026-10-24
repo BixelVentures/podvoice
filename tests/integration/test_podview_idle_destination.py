@@ -361,3 +361,148 @@ async def test_cancellation_during_actual_post_start_proof_keeps_uncertainty_fen
     assert not bridge._music_destinations
     assert not bridge.music_selection.inflight and not bridge.controls.busy
     assert bridge.controls.music.execute_track.await_count == 1
+
+
+@pytest.mark.parametrize("first", ["idle", "old_poll", "owner_changed", "grant_revoked"])
+async def test_accepted_start_waits_only_for_fresh_passive_destination_facts(
+    destination_rig, monkeypatch, first
+):
+    rig, bridge, native, speaker, _, _ = destination_rig
+    original_read = bridge.tools.podview_read
+    accepted, reads, sends = False, 0, 0
+
+    async def read(kind, account, *args, **kwargs):
+        nonlocal reads
+        result = await original_read(kind, account, *args, **kwargs)
+        if accepted and kind == "playback":
+            reads += 1
+            if reads == 1:
+                result = copy.deepcopy(result)
+                if first == "idle":
+                    result["data"]["playback"] = {
+                        "state": "no_active_playback",
+                        "target": None,
+                        "item": None,
+                    }
+                elif first == "old_poll":
+                    result["data"]["poll_sequence"] = 3
+                elif first == "owner_changed":
+                    result["data"]["owner_epoch"] = "e" * 32
+                else:
+                    bridge._grants.clear()
+        return result
+
+    async def send(*_args):
+        nonlocal accepted, sends
+        accepted, sends = True, sends + 1
+        for row in native["targets"][:2]:
+            row["binding"]["room_id"] = "r1"
+        native["targets"][2]["selected"] = False
+        native["targets"][3]["selected"] = True
+        return {
+            "outcome": "accepted",
+            "accepted_selected_content": True,
+            "observe_after_poll_sequence": 4,
+        }
+
+    monkeypatch.setattr(bridge.tools, "podview_read", read)
+    bridge.controls.music.execute_track.side_effect = send
+    async with TestClient(TestServer(rig.app)) as client:
+        offer = await (await setup(client, bridge, speaker["speakerId"])).json()
+        body = action(bridge, offer)
+        result = await (
+            await client.post(
+                "/view/api/music/selection/actions",
+                headers=HEADERS,
+                json=body,
+            )
+        ).json()
+        assert result["physicalResultVerified"] is False
+        assert sends == 1
+        if first in {"idle", "old_poll"}:
+            assert bridge._music_destinations[("kitchen", "account-alpha")]["room"] == "r1"
+            assert not bridge._music_move_fence
+            assert reads == 2
+            await client.post("/view/api/music/selection/actions", headers=HEADERS, json=body)
+            assert sends == 1 and reads == 2
+        else:
+            assert not bridge._music_destinations
+            assert reads == 1
+            assert bridge._music_move_fence
+
+
+async def test_cancellation_during_passive_retry_joins_read_and_keeps_uncertainty_fence(
+    destination_rig,
+):
+    rig, bridge, native, speaker, _, _ = destination_rig
+    entered, retired = asyncio.Event(), asyncio.Event()
+    reads = 0
+    original_read = bridge.tools.podview_read
+
+    async def send(*_args):
+        for row in native["targets"][:2]:
+            row["binding"]["room_id"] = "r1"
+        native["targets"][2]["selected"] = False
+        native["targets"][3]["selected"] = True
+        return {"outcome": "accepted", "accepted_selected_content": True}
+
+    async def held_read(kind, account, *args, **kwargs):
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            result = await original_read(kind, account, *args, **kwargs)
+            result["data"]["playback"] = {
+                "state": "no_active_playback",
+                "target": None,
+                "item": None,
+            }
+            return result
+        entered.set()
+        try:
+            await asyncio.Future()
+        finally:
+            retired.set()
+
+    bridge.controls.music.execute_track.side_effect = send
+    async with TestClient(TestServer(rig.app)) as client:
+        offer = await (await setup(client, bridge, speaker["speakerId"])).json()
+    task = bridge.music_selection.tasks[offer["taskId"]]
+    source = bridge.music_selection.sources[task["candidateSetId"]]
+    controls = bridge.controls.music.setup_track.return_value["data"]
+
+    async def fresh():
+        return controls
+
+    async def send_once(observed, uri, ceiling, current):
+        return await podview_room_media.execute_selected_destination(
+            bridge, "kitchen", task, observed, uri, ceiling, current
+        )
+
+    bridge.tools.podview_read = held_read
+    pending = asyncio.create_task(
+        bridge.music_selection.execute(
+            task_id=task["id"],
+            revision=offer["revision"],
+            option_id=offer["options"][0]["id"],
+            request_id="cancel-proof",
+            confirmed_volume=35,
+            context=source["context"],
+            owner_binding=source["binding"],
+            authority=task["authority"],
+            current=lambda: True,
+            fresh_controls=fresh,
+            send_once=send_once,
+            effect_busy=bridge.controls.busy,
+        )
+    )
+    await asyncio.wait_for(entered.wait(), 1)
+    assert bridge.music_selection.busy("kitchen") and "kitchen" in bridge.controls.busy
+    pending.cancel()
+    result = await pending
+    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+    assert bridge._music_move_fence == {("kitchen", "account-alpha")}
+    assert not bridge._music_destinations
+    assert not bridge.music_selection.inflight and not bridge.controls.busy
+    assert bridge.controls.music.execute_track.await_count == 1
+
+    assert retired.is_set() and reads == 2
