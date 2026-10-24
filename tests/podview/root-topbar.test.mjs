@@ -74,3 +74,17 @@ test('home titles remain plain while detail and history titles keep Back, indepe
 
 
 test('initial markup preserves the focusable heading and only the separate Hjem control',()=>{const html=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');assert.match(html,/<h1 id="header-title" class="header-title" tabindex="-1">Lige nu<\/h1>/);assert.match(html,/<button id="show-photo" type="button" aria-label="Gå hjem" data-navigation="rest"><img src="assets\/icons\/house.svg" alt=""><span class="rest-label">Hjem<\/span><\/button>/);assert.equal((source.match(/addEventListener\('click',this.headerBackAction\)/g)||[]).length,1);assert.doesNotMatch(source,/back\.click\(\)/,'detail Back invokes the shared owner directly, never a second hidden target');});
+
+test('current navigation shell is committed before a failing domain render without swallowing the error',()=>{
+ const f=fixture(),failure=new Error('authored light projection failure'),timer={id:'kept',remaining:42},music={playback:{active:true}};
+ const renderCode=source.slice(source.indexOf(' render(){'),source.lastIndexOf('\n}\ncustomElements.define'));
+ const render=Function(`return ({${renderCode}}).render`)();
+ let titleAction;
+ f.host.renderHeaderTitle=(title,canGoBack)=>{titleAction={title,canGoBack};};
+ f.host.state.timer=timer;f.host.state.music=music;f.host.renderTopbar();assert.deepEqual(titleAction,{title:'Lige nu',canGoBack:false});
+ f.host.state.focus='radio';f.host.state.connected=false;f.host.syncLightArea=()=>{throw failure;};
+ assert.throws(()=>render.call(f.host),error=>error===failure);
+ assert.equal(f.host.dataset.level,'detail');assert.equal(f.host.dataset.view,'active');
+ assert.deepEqual(titleAction,{title:'Radio',canGoBack:true});
+ assert.equal(f.host.state.timer,timer);assert.equal(f.host.state.music,music);assert.equal(f.host.state.focus,'radio');
+});

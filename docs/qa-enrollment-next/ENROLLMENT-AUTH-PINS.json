@@ -1,0 +1,27 @@
+{
+  "status": "AUTH_SOURCE_FROZEN_UI_REVIEW_SEPARATE",
+  "baselineManifestSha256": "7201c9fef40dfbea4b612f0fc80194774fd553ca225bb3226fd3c9b9be0bd6ac",
+  "packetSha256": "3095a3a9f9a7a010e76b996ef48fdc562190fff95bc45a32502c7d1a7c4b66b7",
+  "files": {
+    "dist/podvoice-transport.js": "5608fcd1b2c528f3e931a1ea1079d4ed3fb6e497f444c26060383e0a3c950c59",
+    "dist/setup.js": "27f8e152d0bec355132aa35f46eef06ce3e1251172d184ae4fc9aedda01d2b97",
+    "docs/COMPONENT-LIBRARY.md": "7470ee32b5ed260e1b3139e9398f69aaffc38621bcfd9c44264307760a87ed32",
+    "docs/PODVIEW-CONTRACT.md": "99f16e6bc8d8981c3ddb99a0c8548fc326a12696f9aa2c950ddf6bdd6ad11344",
+    "docs/RADIO-LOGO-SOURCES.json": "f5a4d97dd785425d7bd6f090695122ad6e7d70d8e3200ac7b369fd9628474fc0",
+    "docs/USER-DESIGN-ANSWERS-2026-10-20.json": "8ef248809292ec8000cfba05fecd8c33dca7b6b96944096cbd7b9cd5b350bf90",
+    "tests/named-controller-enrollment.test.js": "7216d9d16e86dd9fc1cfaca9a10167bea2d26dd57ac0c361c9bcf74d25a088a1"
+  },
+  "tests": {
+    "full": 2026,
+    "failed": 0,
+    "componentGate": 63,
+    "syntax": "PASS"
+  },
+  "limits": [
+    "no current Mac cookie inspected",
+    "no actual HA/provider/effect/networkcalls",
+    "fixture proof does not replace native HA/framework/currentadmin validation",
+    "HTML/CSS and visible Screen entry owned by other agents; separate review/pins",
+    "no79release/deploy/install claim"
+  ]
+}

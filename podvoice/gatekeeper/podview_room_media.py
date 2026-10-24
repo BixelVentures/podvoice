@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import time
+from datetime import datetime
 
 from aiohttp import web
 
@@ -289,149 +290,158 @@ async def _confirm_destination(
         return False
 
 
-def envelope(bridge, room, account, scope, source=None, *, account_observed=False):
-    status = "unavailable"
-    if source is not None:
-        status = "account_observed" if account_observed else "observed"
+def envelope(
+    bridge,
+    room,
+    account,
+    actual=None,
+    source=None,
+    *,
+    status="unavailable",
+    reason="account_unavailable",
+):
     return {
         "ok": True,
-        "schema": "podview.room-playback.v1",
+        "schema": "podview.room-playback.v2",
         "bootId": bridge.boot_id,
         "roomId": room,
         "configEntryId": account,
-        "binding": scope,
         "status": status,
+        "reason": reason,
+        "binding": actual,
         "data": source,
     }
 
 
-async def read_playback(bridge, room, account, owner_binding):
-    scope = binding(bridge, room, account)
+async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda: True):
+    """Admit one Control-owned actual output; never consult DEFAULT/NEXT intent."""
+    tools, controls, boot = bridge.tools, bridge.controls, bridge.boot_id
+    policy, session = controls.policy, bridge.sessions.get(room)
+    owner, music = owner_binding(), controls.music
+    policy_bytes = json.dumps(policy, sort_keys=True)
 
-    def empty():
-        return web.json_response(
-            envelope(bridge, room, account, scope), headers={"Cache-Control": "no-store"}
-        )
-
-    if scope is None:
-        return empty()
-    tools, controls, policy = bridge.tools, bridge.controls, bridge.controls.policy
-    owner, music, boot = owner_binding(), bridge.controls.music, bridge.boot_id
-
-    def current():
+    def retained():
         return (
-            bridge.tools is tools
-            and bridge.boot_id == boot
+            current()
+            and session is not None
+            and bridge.sessions.get(room) is session
+            and bridge.tools is tools
             and bridge.controls is controls
-            and controls.policy is policy
             and controls.music is music
+            and controls.policy is policy
+            and json.dumps(policy, sort_keys=True) == policy_bytes
+            and bridge.boot_id == boot
             and owner_binding() == owner
-            and binding(bridge, room, account) == scope
         )
 
-    lock = getattr(bridge, "_room_playback_lock", None)
-    if lock is None:
-        lock = bridge._room_playback_lock = asyncio.Lock()
+    def result(
+        status="unavailable", reason="account_unavailable", data=None, actual=None, rule=None
+    ):
+        return {
+            "status": status,
+            "reason": reason,
+            "data": data,
+            "binding": actual,
+            "rule": rule,
+            "current": retained,
+        }
+
+    if not retained() or policy.get("roomId") != room:
+        return result(reason="owner_changed")
     try:
-        # Existing owner-read budget covers this aggregate; no global timeout change.
-        async with asyncio.timeout(8):
-            async with lock:
-                if not current():
-                    return empty()
-                raw = await tools.podview_read("playback", account)
-                if not current():
-                    return empty()
-                closed = podview_music.project_owner(
-                    "playback", raw.get("data") if raw.get("ok") else raw, account
-                )
-                source = closed.get("data") if closed.get("ok") else None
-                if not isinstance(source, dict):
-                    return empty()
-                target = source.get("playback", {}).get("target")
-                if (
-                    not isinstance(target, dict)
-                    or target.get("target_id") != scope["targetId"]
-                    or source["playback"].get("state") not in {"playing", "paused"}
-                ):
-                    return empty()  # Never let a foreign account observation reach this room.
-                observed = await music.observe_room(
-                    account,
-                    scope["targetId"],
-                    scope["nativeRoomId"],
-                    scope["nativeHomepodId"],
-                    current,
-                )
-                if (
-                    observed.get("ok") is False
-                    and observed.get("error_kind") == "claim_unavailable"
-                ):
-                    # This failure carries no Control owner/poll identity. Re-read
-                    # the passive cache to close that boundary without renewing
-                    # the original observation or minting any room/action proof.
-                    latest_raw = await tools.podview_read("playback", account)
-                    if not current():
-                        return empty()
-                    latest_closed = podview_music.project_owner(
-                        "playback",
-                        latest_raw.get("data") if latest_raw.get("ok") else latest_raw,
-                        account,
-                    )
-                    latest = latest_closed.get("data") if latest_closed.get("ok") else None
-                    if (
-                        not isinstance(latest, dict)
-                        or latest["owner_epoch"] != source["owner_epoch"]
-                        or latest["poll_sequence"] != source["poll_sequence"]
-                        or latest["playback"] != source["playback"]
-                        or latest["observation"]["observed_at"]
-                        != source["observation"]["observed_at"]
-                    ):
-                        return empty()
-                    checked = podview_music.project_owner("playback", source, account)
-                    if not current() or not checked.get("ok"):
-                        return empty()
-                    return web.json_response(
-                        envelope(
-                            bridge,
-                            room,
-                            account,
-                            scope,
-                            copy.deepcopy(checked["data"]),
-                            account_observed=True,
-                        ),
-                        headers={"Cache-Control": "no-store"},
-                    )
-                data = observed.get("data") if observed.get("ok") else None
-                if not isinstance(data, dict):
-                    return empty()
-                native = data.get("native")
-                route = data.get("route")
-                if (
-                    not current()
-                    or not isinstance(native, dict)
-                    or not isinstance(route, dict)
-                    or native.get("room_id") != scope["nativeRoomId"]
-                    or native.get("homepod_id") != scope["nativeHomepodId"]
-                    or native.get("target_id") != scope["targetId"]
-                    or route.get("device_id") != scope["nativeHomepodId"]
-                    or data.get("owner_epoch") != source["owner_epoch"]
-                    or data.get("poll_sequence") != source["poll_sequence"]
-                    or type(data.get("valid_until")) not in (int, float)
-                    or data["valid_until"] <= time.time()
-                ):
-                    return empty()
-                # observe_room has already closed the current native room/route owner.
-                # Re-project after the await so original account observation expiry cannot renew.
-                checked = podview_music.project_owner("playback", source, account)
-                if not current() or not checked.get("ok"):
-                    return empty()
-                safe = copy.deepcopy(checked["data"])
-                safe["room_proof_valid_until"] = data["valid_until"]
-                return web.json_response(
-                    envelope(bridge, room, account, scope, safe),
-                    headers={"Cache-Control": "no-store"},
-                )
+        raw = await tools.podview_read("playback", account, include_output=True)
+        if not retained():
+            return result(reason="owner_changed")
+        if not raw.get("ok"):
+            return result(
+                reason="stale_observation"
+                if raw.get("error_kind") == "stale"
+                else "account_unavailable"
+            )
+        aggregate = raw.get("data")
+        checked = podview_music.project_playback_output(aggregate, account)
+        if not checked.get("ok"):
+            return result(
+                reason="stale_observation"
+                if checked.get("error_kind") == "stale"
+                else "account_unavailable"
+            )
+        aggregate = checked["data"]
+        source = {key: copy.deepcopy(value) for key, value in aggregate.items() if key != "output"}
+        source["schema"] = "podconnect.playback.v1"
+        if source["playback"]["state"] == "no_active_playback":
+            return result("idle", None, source)
+        output = aggregate["output"]
+        if output["status"] != "observed":
+            return result("account_observed", output["reason"], source)
+        identity = output["binding"]
+        observation = source["observation"]
+        source_until = (
+            datetime.fromisoformat(observation["observed_at"]).timestamp()
+            + observation["max_age_ms"] / 1000
+        )
+        until = min(
+            identity["valid_until"],
+            source_until,
+            time.time() + (observation["max_age_ms"] - observation["age_ms"]) / 1000,
+        )
+        if until <= time.time():
+            return result("account_observed", "route_unavailable", source)
+        matches = [
+            rule
+            for rule in policy.get("music", [])
+            if rule.get("accountId") == account
+            and rule.get("targetId") == identity["target_id"]
+            and rule.get("nativeRoomId") == identity["native_room_id"]
+            and rule.get("nativeHomepodId") == identity["homepod_id"]
+        ]
+        if len(matches) != 1:
+            return result("account_observed", "output_not_admitted", source)
+        actual = {
+            "roomId": room,
+            "accountId": account,
+            "targetId": identity["target_id"],
+            "nativeRoomId": identity["native_room_id"],
+            "nativeHomepodId": identity["homepod_id"],
+            "bindingId": identity["binding_id"],
+            "validUntil": until,
+        }
+        return result("observed", None, source, actual, matches[0])
     except Exception:
-        return empty()
+        return result(reason="account_unavailable" if retained() else "owner_changed")
+
+
+async def read_playback(bridge, room, account, owner_binding):
+    resolved = await resolve_actual(bridge, room, account, owner_binding)
+    return web.json_response(
+        envelope(
+            bridge,
+            room,
+            account,
+            resolved["binding"],
+            resolved["data"],
+            status=resolved["status"],
+            reason=resolved["reason"],
+        ),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def expected_actual(bridge, room, account, expected, current):
+    """Fresh exact destination revalidation before an offer or guarded dispatch."""
+    if not isinstance(expected, str) or len(expected) != 64:
+        return None
+    resolved = await resolve_actual(
+        bridge, room, account, bridge.tools.podview_music_binding, current=current
+    )
+    actual = resolved["binding"]
+    if (
+        resolved["status"] != "observed"
+        or actual["bindingId"] != expected
+        or not resolved["current"]()
+    ):
+        return None
+    return resolved
 
 
 def scope_targets(result, bridge, room, account):

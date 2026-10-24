@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from integration.test_podview_bridge import owner
-from integration.test_podview_room_move_caller import configuration
+from integration.test_podview_room_move_caller import configuration, install_actual_playback
 from unit.test_device_control import Rig
 from unit.test_podview_speakers import payload
 
@@ -57,6 +57,7 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
         controller_generation="c" * 64,
         controller_store=tmp_path / "controllers" / "registry.json" if profiled else None,
     )
+    install_actual_playback(rig)
     if profiled:
         registry = bridge._controller_registry
         registry.initialize()
@@ -117,7 +118,7 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
         move = AsyncMock(return_value={"outcome": "accepted", "accepted_room_move": True})
 
     bridge.controls.move = Move()
-    rig.router.podview_music_reads = lambda: ["targets"]
+    rig.router.podview_music_reads = lambda: ["targets", "playback"]
     proof = AsyncMock(return_value=True)
     monkeypatch.setattr(podview_room_media, "confirm_move_destination", proof)
 
@@ -271,6 +272,7 @@ async def test_fresh_wake_move_without_prior_answer_uses_exact_later_turn_token(
     bridge = PodViewBridge(
         {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
     )
+    install_actual_playback(rig)
     bridge.grant_timer_control("kitchen")
     source = payload()
     source["targets"][-1]["target_id"] = "speaker"

@@ -17,6 +17,7 @@ from integration.test_podview_queue_occurrence import (
     queue_service_reply,
     staged,
 )
+from integration.test_podview_room_move_caller import ACTUAL_BINDING, actual_playback
 
 from gatekeeper.podview import BRIDGE, PodViewBridge
 from gatekeeper.podview_continuity import ContinuityDenied
@@ -26,6 +27,7 @@ from gatekeeper.podview_queue import ACTION
 @pytest.fixture
 async def composed(tmp_path):
     media = Rig()
+    media.values["playback"] = actual_playback("account-alpha", "device-one", "native-room", "7")
     media.router._discovery = replace(
         media.router._discovery,
         podconnect_services=media.router._discovery.podconnect_services
@@ -66,6 +68,7 @@ async def composed(tmp_path):
         "roomId": "kitchen",
         "accountId": "account-alpha",
         "targetId": "device-one",
+        "expectedBindingId": ACTUAL_BINDING,
     }
     yield bridge, credential, grant, body
     await media.client.aclose()

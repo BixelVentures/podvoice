@@ -322,6 +322,8 @@ class TouchControls:
             secrets.compare_digest(task["token"], token)
             and time.monotonic() < task["deadline"]
             and domain_current
+            and ("actual_current" not in task or task["actual_current"]())
+            and ("actual_binding" not in task or task["actual_binding"]["validUntil"] > time.time())
             and task["binding"] == self._binding(task["room"], task["domain"])
             and (task["domain"] != "light" or self._light_current(task, token))
             and (
@@ -424,15 +426,8 @@ class TouchControls:
         )
 
     def _move_source_scope(self, task: dict) -> tuple | None:
-        from .podview_room_media import binding
-
-        scope = binding(self.bridge, task["room"], task["target"]["accountId"])
-        if scope is None:
-            return None
-        return (
-            scope["targetId"],
-            scope["bindingId"],
-        )
+        scope = task.get("actual_binding")
+        return (scope["targetId"], scope["bindingId"]) if scope is not None else None
 
     def _retire_receipts(self) -> None:
         # Temporary owner unavailability is not terminal: retain those replay fences.
@@ -469,37 +464,37 @@ class TouchControls:
             if (
                 set(target)
                 != (
-                    {"accountId", "kind", "targetId", "speakerId"}
+                    {"accountId", "kind", "targetId", "speakerId", "expectedBindingId"}
                     if moving
-                    else {"accountId", "kind", "targetId"}
+                    else {"accountId", "kind", "targetId", "expectedBindingId"}
                 )
                 or target["kind"] != "spotify_device"
                 or "recipeId" in body
             ):
                 return failure("invalid_target")
+            from .podview_room_media import expected_actual
+
+            gate = self._binding(room, domain)
+            resolved = await expected_actual(
+                self.bridge,
+                room,
+                target["accountId"],
+                target["expectedBindingId"],
+                lambda: (
+                    self.bridge._grant_current(room, token) and gate == self._binding(room, domain)
+                ),
+            )
+            if resolved is None or resolved["binding"]["targetId"] != target["targetId"]:
+                return failure("target_not_granted")
+            if room in self.busy:
+                return failure("busy")
+            source_scope = resolved["binding"]
             if moving:
                 if not isinstance(target["speakerId"], str) or len(target["speakerId"]) != 64:
                     return failure("invalid_target")
-                from .podview_room_media import binding
-
-                source_scope = binding(self.bridge, room, target["accountId"])
-                if source_scope is None or source_scope["targetId"] != target["targetId"]:
-                    return failure("target_not_granted")
-                rule = {}  # Resolved from a fresh configured-alias catalogue below.
+                rule = {}  # Destination remains a fresh explicitly chosen alias.
             else:
-                from .podview_room_media import binding
-
-                scope = binding(self.bridge, room, target["accountId"])
-                matches = [
-                    r
-                    for r in self.policy[domain]
-                    if (r["accountId"], r["targetId"]) == (target["accountId"], target["targetId"])
-                    and scope is not None
-                    and (r.get("nativeRoomId"), r.get("nativeHomepodId"))
-                    == (scope["nativeRoomId"], scope["nativeHomepodId"])
-                    and any(a != "move_existing_session" for a in r["actions"])
-                ]
-                rule = matches[0] if len(matches) == 1 else {}
+                rule = resolved["rule"]
         elif domain == "light":
             if (
                 set(target) not in ({"areaId"}, {"areaId", "entityId"})
@@ -550,6 +545,12 @@ class TouchControls:
             "target": target,
             "rule": rule,
         }
+        if domain == "music":
+            task.update(actual_binding=resolved["binding"], actual_current=resolved["current"])
+            task["deadline"] = min(
+                task["deadline"],
+                time.monotonic() + max(0, resolved["binding"]["validUntil"] - time.time()),
+            )
         if domain == "light":
             task.update(
                 target=copy.deepcopy(target),
@@ -838,6 +839,11 @@ class TouchControls:
                 "domain": domain,
                 "options": public_options,
                 "setup": setup,
+                **(
+                    {"expectedBindingId": task["actual_binding"]["bindingId"]}
+                    if domain == "music"
+                    else {}
+                ),
             }
         except Exception:
             return failure("setup_unavailable")
@@ -1133,6 +1139,26 @@ class TouchControls:
             return failure("busy")
         if len(self.receipts) >= 1024:
             return failure("request_capacity")
+        if task["domain"] == "music":
+            from .podview_room_media import expected_actual
+
+            resolved = await expected_actual(
+                self.bridge,
+                task["room"],
+                task["target"]["accountId"],
+                task["actual_binding"]["bindingId"],
+                lambda: self._current(task, token),
+            )
+            if resolved is None:
+                return failure("stale_action")
+            if key in self.receipts:
+                previous, receipt = self.receipts[key][:2]
+                return (
+                    copy.deepcopy(receipt) if previous == fingerprint else failure("request_reused")
+                )
+            if task["consumed"] or task["room"] in self.busy or not self._current(task, token):
+                return failure("stale_action")
+            task["actual_binding"] = resolved["binding"]
         receipt = {
             "ok": False,
             "requestId": body["requestId"],

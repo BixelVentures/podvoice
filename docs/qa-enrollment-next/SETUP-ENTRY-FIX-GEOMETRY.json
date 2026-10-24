@@ -1,0 +1,13 @@
+{
+  "buttonDecoration": "none",
+  "buttonHeight": 64,
+  "columnGap": "16px",
+  "dialogPadding": "32px",
+  "dialogWidth": 520,
+  "infoButtonGap": 16,
+  "labelValueGap": 16,
+  "viewport": [
+    2006,
+    1038
+  ]
+}

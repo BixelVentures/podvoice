@@ -1,1 +1,13 @@
-body{margin:0;background:var(--pv-screen-surface,#f5f5f2);color:var(--pv-screen-ink,#172322);font-family:Arial,Helvetica,sans-serif}main{max-width:520px;margin:0 auto;padding:clamp(24px,6vw,64px)}a{color:inherit;display:inline-flex;min-height:48px;align-items:center}h1{font-size:clamp(32px,5vw,48px);line-height:1.1;margin:32px 0 16px}p{font-size:18px;line-height:1.45}form{display:grid;gap:12px;margin-top:32px}label{font-size:17px;font-weight:600}input,button{font:inherit;min-height:52px;border-radius:12px;padding:10px 14px}input{border:1px solid #879995;background:white}button{border:0;background:var(--pv-screen-action,#274f4b);color:white;cursor:pointer}button:disabled{opacity:.5;cursor:default}a:focus-visible,input:focus-visible,button:focus-visible{outline:3px solid #147fe0;outline-offset:3px}
+/* Setup composes the canonical Card, Button and native form-field roles. */
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:var(--pv-s4) var(--pv-s2);background:var(--pv-bg);color:var(--pv-ink);font:var(--pv-t-body)}
+main.pv-card{width:min(520px,100%);padding:var(--pv-s4);gap:var(--pv-s3)}
+h1{margin:0;font:var(--pv-t-title)}
+p{margin:0;font:var(--pv-t-body);overflow-wrap:anywhere}
+form{display:grid;gap:var(--pv-s2);margin:0;min-width:0}
+label{font:var(--pv-t-body);font-weight:var(--pv-weight-semibold)}
+.setup-back{align-self:flex-start}
+.setup-back img{width:var(--pv-icon-s);height:var(--pv-icon-s)}
+#approval-actions:not([hidden]){display:grid}
+#pair-status:empty{display:none}
+a:focus-visible{outline:2px solid var(--pv-ink);outline-offset:4px}

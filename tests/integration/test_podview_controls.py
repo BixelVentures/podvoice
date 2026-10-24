@@ -15,6 +15,7 @@ from integration.test_cleaning_journal import bind
 from integration.test_ha_timer_flow import build as build_ha_timers
 from integration.test_podview_bridge import owner
 from integration.test_podview_music import Rig as MusicReadRig
+from integration.test_podview_music import payload as playback_payload
 from integration.test_podview_music_control import Rig as MusicRig
 from integration.test_podview_music_control import content_owner, room_owner
 from unit.test_device_control import MAP, MODE, ROBOT, Rig
@@ -23,7 +24,35 @@ from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE, PodViewBridge
 from gatekeeper.podview_controls import TouchControls, policy
+from gatekeeper.podview_music import project_owner
 from gatekeeper.web import create_app
+
+ACTUAL_BINDING_ID = "b" * 64
+
+
+def actual_playback_response(request, *, target="speaker", homepod="42"):
+    """Explicit Control aggregate fixture, independent of PodView policy/defaults."""
+    assert json.loads(request.content) == {"config_entry_id": "account", "include_output": True}
+    source = playback_payload("playback", "account")
+    source["playback"]["target"]["target_id"] = target
+    projected = project_owner("playback", source, "account")
+    assert projected["ok"]
+    value = {
+        **projected["data"],
+        "schema": "podconnect.playback.v2",
+        "output": {
+            "status": "observed",
+            "reason": None,
+            "binding": {
+                "target_id": target,
+                "native_room_id": "native-room",
+                "homepod_id": homepod,
+                "binding_id": ACTUAL_BINDING_ID,
+                "valid_until": time.time() + 5,
+            },
+        },
+    }
+    return httpx.Response(200, json={"service_response": value})
 
 
 def config():
@@ -48,7 +77,12 @@ def setup_body(bridge, domain="vacuum", **extra):
         "domain": domain,
         "target": {"entityId": ROBOT}
         if domain == "vacuum"
-        else {"accountId": "account", "kind": "spotify_device", "targetId": "speaker"},
+        else {
+            "accountId": "account",
+            "kind": "spotify_device",
+            "targetId": "speaker",
+            "expectedBindingId": ACTUAL_BINDING_ID,
+        },
         **extra,
     }
 
@@ -64,14 +98,30 @@ def action_body(offer, option, args=None):
 @pytest.fixture
 async def fixture(tmp_path):
     rig = Rig()
+    original_client = rig.client
+
+    async def routed(request):
+        if request.url.path.endswith("/get_playback_snapshot"):
+            if getattr(rig, "playback_hook", None) is not None:
+                await rig.playback_hook()
+            return actual_playback_response(request)
+        return await rig.request(request)
+
+    rig.client = httpx.AsyncClient(transport=httpx.MockTransport(routed))
     bind(rig, tmp_path / "history.json")
+    rig.router._client = rig.client
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=rig.router._discovery.podconnect_services | {"get_playback_snapshot"},
+    )
     session, _ = owner()
     configured = config()
-    configured["music"][0].update(nativeRoomId="native-room", nativeHomepodId="homepod-id")
+    configured["music"][0].update(nativeRoomId="native-room", nativeHomepodId="42")
     bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(configured))
     token = bridge.grant_timer_control("kitchen")
     yield rig, bridge, token
     await rig.client.aclose()
+    await original_client.aclose()
 
 
 @pytest.fixture
@@ -95,6 +145,19 @@ async def offline_direct(tmp_path):
     bind(robot, tmp_path / "cleaning-journal.json")
     music = MusicRig()
     room_owner(music)
+    original_music_client = music.client
+
+    async def routed_music(request):
+        if request.url.path.endswith("/get_playback_snapshot"):
+            return actual_playback_response(request, target="device", homepod="42")
+        return await music.handle(request)
+
+    music.client = httpx.AsyncClient(transport=httpx.MockTransport(routed_music))
+    music.tools._client = music.client
+    music.tools._discovery = replace(
+        music.tools._discovery,
+        podconnect_services=music.tools._discovery.podconnect_services | {"get_playback_snapshot"},
+    )
     music.tools._device_control = robot.router._device_control
     session, _ = owner()
     session._active = False
@@ -133,6 +196,7 @@ async def offline_direct(tmp_path):
     await timer_client.aclose()
     await robot.client.aclose()
     await music.client.aclose()
+    await original_music_client.aclose()
 
 
 @pytest.mark.parametrize(
@@ -336,10 +400,11 @@ async def test_pairing_scope_target_and_stale_setup_fail_closed(fixture):
 
 
 async def test_music_single_send_ceiling_unknown_and_delayed_owner(fixture):
-    _, bridge, token = fixture
+    rig, bridge, token = fixture
 
     class Music:
         room_available = True
+        room_start_available = False
 
         def binding(self):
             return (self,)
@@ -359,13 +424,30 @@ async def test_music_single_send_ceiling_unknown_and_delayed_owner(fixture):
     music = bridge.controls.music = Music()
     music.tools = bridge.tools
     offer = await bridge.controls.setup(setup_body(bridge, "music"), token)
+    assert offer["ok"], offer
     assert {o["action"] for o in offer["options"]} == {"pause"}
     command = action_body(offer, offer["options"][0], {"percent": 41})
     assert (await bridge.controls.action(command, token))["error"] == "invalid_arguments"
     command["args"] = {}
-    one, two = await asyncio.gather(
-        bridge.controls.action(command, token), bridge.controls.action(command, token)
-    )
+    # Both callers await actual-output revalidation before either can consume the
+    # task. The receipt/current/busy fence must still permit only one send.
+    entered, ready, release = 0, asyncio.Event(), asyncio.Event()
+
+    async def held_output():
+        nonlocal entered
+        entered += 1
+        if entered == 2:
+            ready.set()
+        await release.wait()
+
+    rig.playback_hook = held_output
+    calls = [asyncio.create_task(bridge.controls.action(command, token)) for _ in range(2)]
+    try:
+        await asyncio.wait_for(ready.wait(), 2)
+    finally:
+        release.set()
+    one, two = await asyncio.gather(*calls)
+    rig.playback_hook = None
     assert one == two and one["outcome"] == "unknown"
     assert music.execute_room.await_count == 1
     assert (await bridge.controls.action({**command, "requestId": "fresh"}, token))[
@@ -386,6 +468,7 @@ async def test_room_volume_uses_same_task_ceiling_and_duplicate_receipt(fixture)
     class Music:
         room_available = False
         volume_available = True
+        room_start_available = False
 
         def binding(self):
             return (self,)
@@ -395,7 +478,7 @@ async def test_room_volume_uses_same_task_ceiling_and_duplicate_receipt(fixture)
                 "account",
                 "speaker",
                 "native-room",
-                "homepod-id",
+                "42",
             )
             return {
                 "ok": True,
@@ -440,6 +523,7 @@ async def test_audio_and_volume_options_share_one_consumed_touch_task(fixture):
     class Music:
         room_available = True
         volume_available = True
+        room_start_available = False
 
         def binding(self):
             return (self,)
@@ -489,6 +573,7 @@ async def test_volume_only_missing_exact_owner_cannot_publish_empty_setup(fixtur
     class Music:
         room_available = False
         volume_available = True
+        room_start_available = False
 
         def binding(self):
             return (self,)
@@ -836,7 +921,12 @@ async def test_offline_cold_registered_ha_owner_runs_same_music_robot_and_timer_
         "genuine-fixture-device",
     )
 
-    music_target = {"accountId": "account", "kind": "spotify_device", "targetId": "device"}
+    music_target = {
+        "accountId": "account",
+        "kind": "spotify_device",
+        "targetId": "device",
+        "expectedBindingId": ACTUAL_BINDING_ID,
+    }
     music_body = {
         "bootId": bridge.boot_id,
         "roomId": "kitchen",
@@ -985,6 +1075,8 @@ async def test_offline_registered_owner_starts_selected_music_once_without_voice
     async def selected_music_transport(request):
         if request.url.path.endswith("/search_tracks"):
             return await reader.request(request)
+        if request.url.path.endswith("/get_playback_snapshot"):
+            return actual_playback_response(request, target="device", homepod="42")
         return await music.handle(request)
 
     music.client = httpx.AsyncClient(transport=httpx.MockTransport(selected_music_transport))

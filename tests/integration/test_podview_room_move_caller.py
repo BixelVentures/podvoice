@@ -2,18 +2,63 @@
 
 import json
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from integration.test_podview_bridge import owner
 from integration.test_podview_controls import action_body
+from integration.test_podview_music import payload as playback_payload
 from unit.test_device_control import Rig
 from unit.test_podview_speakers import payload
 
 from gatekeeper import podview_room_media, podview_speakers
 from gatekeeper.podview import PodViewBridge
 from gatekeeper.podview_controls import policy
+from gatekeeper.podview_music import project_owner
+
+ACTUAL_BINDING = "b" * 64
+
+
+def actual_playback(account="account", target="speaker", room="r0", homepod="42"):
+    """Control observation supplied independently of the room's DEFAULT/NEXT intent."""
+    raw = playback_payload("playback", account)
+    raw["playback"]["target"]["target_id"] = target
+    value = project_owner("playback", raw, account)["data"]
+    value["schema"] = "podconnect.playback.v2"
+    value["output"] = {
+        "status": "observed",
+        "reason": None,
+        "binding": {
+            "target_id": target,
+            "native_room_id": room,
+            "homepod_id": homepod,
+            "binding_id": ACTUAL_BINDING,
+            "valid_until": time.time() + 4,
+        },
+    }
+    return value
+
+
+def install_actual_playback(rig):
+    """Use the real passive router with an inert Control aggregate response."""
+    value = actual_playback()
+    original = rig.request
+
+    async def request(req):
+        if req.url.path == "/core/api/services/podconnect/get_playback_snapshot":
+            assert json.loads(req.content) == {"config_entry_id": "account", "include_output": True}
+            return httpx.Response(200, json={"service_response": value})
+        return await original(req)
+
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=rig.router._discovery.podconnect_services | {"get_playback_snapshot"},
+    )
+    rig.client._transport = httpx.MockTransport(request)
+    return value
 
 
 def configuration():
@@ -75,6 +120,7 @@ async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
     bridge = PodViewBridge(
         {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
     )
+    install_actual_playback(rig)
     token = bridge.grant_timer_control("kitchen")
     source = payload()
     source["targets"][-1]["target_id"] = "speaker"
@@ -122,6 +168,7 @@ async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
             "kind": "spotify_device",
             "targetId": "speaker",
             "speakerId": destination["speakerId"],
+            "expectedBindingId": ACTUAL_BINDING,
         },
     }
     bridge.controls.policy["music"][1]["targetId"] = "foreign-engine"
@@ -130,6 +177,7 @@ async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
     bridge.controls.policy["music"][1]["targetId"] = "speaker"
     setup = await bridge.controls.setup(body, token)
     assert setup["ok"], setup
+    assert setup["expectedBindingId"] == ACTUAL_BINDING
     assert setup["options"] == [
         {
             "id": "move:" + destination["speakerId"],
@@ -164,6 +212,7 @@ async def test_unknown_move_keeps_all_other_music_effects_closed(monkeypatch):
     bridge = PodViewBridge(
         {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
     )
+    install_actual_playback(rig)
     token = bridge.grant_timer_control("kitchen")
     source = payload()
     source["targets"][-1]["target_id"] = "speaker"
@@ -191,6 +240,7 @@ async def test_unknown_move_keeps_all_other_music_effects_closed(monkeypatch):
             "kind": "spotify_device",
             "targetId": "speaker",
             "speakerId": destination["speakerId"],
+            "expectedBindingId": ACTUAL_BINDING,
         },
     }
     setup = await bridge.controls.setup(body, token)
@@ -199,6 +249,62 @@ async def test_unknown_move_keeps_all_other_music_effects_closed(monkeypatch):
     assert result["outcome"] == "unknown" and result["retryAllowed"] is False
     assert bridge._music_move_fence == {("kitchen", "account")}
     assert "music" not in bridge.controls.domains("kitchen", token)
+    await rig.client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_changed_actual_binding_rejects_move_before_staging_without_rewriting_intent(
+    monkeypatch,
+):
+    rig = Rig()
+    session, _ = owner()
+    bridge = PodViewBridge(
+        {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
+    )
+    actual = install_actual_playback(rig)
+    token = bridge.grant_timer_control("kitchen")
+    source = payload()
+    source["targets"][-1]["target_id"] = "speaker"
+    monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=source))
+    destination = podview_speakers.project(
+        source, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
+    )["speakers"][1]
+
+    class Move:
+        available = True
+
+        def binding(self):
+            return rig.router.podview_music_binding()
+
+        setup = AsyncMock()
+        move = AsyncMock()
+
+    bridge.controls.move = Move()
+    setup = await bridge.controls.setup(
+        {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "domain": "music",
+            "target": {
+                "accountId": "account",
+                "kind": "spotify_device",
+                "targetId": "speaker",
+                "speakerId": destination["speakerId"],
+                "expectedBindingId": ACTUAL_BINDING,
+            },
+        },
+        token,
+    )
+    assert setup["ok"], setup
+    configured = json.dumps(bridge.controls.policy, sort_keys=True)
+    intent = dict(bridge._music_destinations)
+    actual["output"]["binding"].update(native_room_id="r1", homepod_id="43", binding_id="c" * 64)
+    result = await bridge.controls.action(action_body(setup, setup["options"][0]), token)
+    assert result["ok"] is False and result["error"] == "stale_action"
+    bridge.controls.move.setup.assert_not_awaited()
+    bridge.controls.move.move.assert_not_awaited()
+    assert json.dumps(bridge.controls.policy, sort_keys=True) == configured
+    assert bridge._music_destinations == intent
     await rig.client.aclose()
 
 

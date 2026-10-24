@@ -3,16 +3,27 @@ const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admissio
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
 export class PodVoiceTransport {
- constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto} = {}) {
+ constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage} = {}) {
   const page = new URL(url);
   if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
   this.base = new URL(`${prefix}api/`, page.origin);
   this.room = room; this.fetch = fetch; this.EventSource = EventSource;
   this.locks=locks;this.BroadcastChannel=BroadcastChannel;this.crypto=crypto;this.cookieScope=page.origin+prefix;this.requireLocalRenewal=/\/setup(?:\.html)?$/.test(page.pathname);this.peerSeen=new Map();this.peerSequence=0;this.coordinationMode=locks?.request?'serialized':'read-hints-only';
+  this.screenEnrollment=screenEnrollment===true&&this.requireLocalRenewal;
+  try{this.namedIntentStorage=namedIntentStorage===undefined?globalThis.localStorage:namedIntentStorage;}catch{this.namedIntentStorage=null;}
+  this.namedIntentKey='podview.named-screen.intent.v1:'+this.cookieScope;
+  this.namedControllerRenewed=false;this.namedLaneWanted=false;this.namedRenewalDenied=false;this.namedRenewalUnconfirmed=false;
   this.onSnapshot = onSnapshot; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
   this.controllerRenewalOwner={}; this.snapshot = null; this.connected = false; this.closed = true; this.generation = 0;
  }
+ // A public intent hint can request validation only. The HttpOnly cookie,
+ // registry/pin and server response remain the sole profile authority.
+ namedIntent(room){
+  try{const v=JSON.parse(this.namedIntentStorage?.getItem(this.namedIntentKey)||'null');return !!v&&Object.keys(v).sort().join(',')==='cookieScope,roomId,version'&&v.version===1&&v.cookieScope===this.cookieScope&&v.roomId===room;}catch{return false;}
+ }
+ rememberNamedIntent(room){try{this.namedIntentStorage?.setItem(this.namedIntentKey,JSON.stringify({version:1,cookieScope:this.cookieScope,roomId:room}));}catch{/* Optional non-secret intent; never a credential. */}this.namedIntentStored=this.namedIntent(room);}
+ forgetNamedIntent(){this.namedLaneWanted=false;this.namedControllerRenewed=false;this.namedIntentStored=false;this.namedRenewAt=null;clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;try{this.namedIntentStorage?.removeItem(this.namedIntentKey);}catch{/* Denial still closes the in-memory lane. */}}
  async coordinate(){
   if(this.coordinatorPromise)return this.coordinatorPromise;
   const epoch=this.coordinatorEpoch||0;
@@ -20,11 +31,11 @@ export class PodVoiceTransport {
   return this.coordinatorPromise;
  }
  receiveControllerNotice(value){
-  if(this.closed||haIngress(this.snapshot)||this.recoveryBlocked||!value||Object.keys(value).sort().join(',')!=='sender,sequence,type,version'||value.version!==1||value.type!=='controller-cookie-changed'||typeof value.sender!=='string'||!value.sender||value.sender.length>64||value.sender===this.peerId||!Number.isSafeInteger(value.sequence)||value.sequence<1)return;
+  if(this.closed||haIngress(this.snapshot)&&!this.namedLaneWanted||this.recoveryBlocked||!value||Object.keys(value).sort().join(',')!=='sender,sequence,type,version'||value.version!==1||value.type!=='controller-cookie-changed'||typeof value.sender!=='string'||!value.sender||value.sender.length>64||value.sender===this.peerId||!Number.isSafeInteger(value.sequence)||value.sequence<1)return;
   const seen=this.peerSeen.get(value.sender)||0;if(value.sequence<=seen||!this.peerSeen.has(value.sender)&&this.peerSeen.size>=32)return;this.peerSeen.set(value.sender,value.sequence);this.peerRevision=(this.peerRevision||0)+1;this.peerReadPending=true;this.schedulePeerRead();
  }
  schedulePeerRead(){
-  if(this.closed||haIngress(this.snapshot)||this.recoveryBlocked||!this.peerReadPending||this.restartCount||this.peerReadTimer)return;
+  if(this.closed||haIngress(this.snapshot)&&!this.namedLaneWanted||this.recoveryBlocked||!this.peerReadPending||this.restartCount||this.peerReadTimer)return;
   this.peerReadTimer=setTimeout(()=>{this.peerReadTimer=null;if(this.closed||this.recoveryBlocked||this.restartCount)return;this.peerReadPending=false;this.peerReadAt=Date.now();this.restart(false,false).catch(()=>{});},Math.max(50,1000-(Date.now()-(this.peerReadAt||0))));
  }
  async renewController(room,generation,coalesce=false,peerRevision=0){
@@ -59,6 +70,11 @@ export class PodVoiceTransport {
   if (this.room && value.roomId !== this.room) return false;
   if (this.snapshot?.bootId === value.bootId && this.snapshot.revision > value.revision) return false;
   if(this.snapshot?.bootId===value.bootId&&this.snapshot.roomId===value.roomId&&value.answerHistoryRevision!==undefined&&(this.snapshot.answerHistoryRevision>value.answerHistoryRevision||this.snapshot.answerHistoryRemovalRevision>value.answerHistoryRemovalRevision))return false;
+  if(normalHA&&this.namedControllerRenewed===true&&(
+   this.snapshot&&(this.snapshot.bootId!==value.bootId||this.snapshot.roomId!==value.roomId)
+   ||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available!==true)){
+   this.namedRenewalDenied=true;this.forgetNamedIntent();this.namedLaneWanted=false;
+  }
   const writable=!!(value.capabilities.timerActions.length||value.capabilities.musicActions?.length||value.capabilities.controlSetup?.length||value.capabilities.musicSelection===true||value.capabilities.queueSelection===true);
   if(!normalHA&&this.lastWritableProjection===true&&!writable&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){this.controllerRenewed=false;this.cookieReadAuthority=false;this.recoveryReadOnly=false;}
   this.lastWritableProjection=writable;
@@ -66,17 +82,24 @@ export class PodVoiceTransport {
    this.controllerRenewed=false;this.cookieReadAuthority=false;this.controllerRenewAt=null;clearTimeout(this.recoveryTimer);this.recoveryTimer=null;clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;
   }
   if(!normalHA&&(this.controllerRenewalDenied||value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
+  if(normalHA&&(this.namedRenewalDenied||this.namedLaneWanted&&this.namedRenewalUnconfirmed))value={...value,capabilities:{...value.capabilities,controlSetup:value.capabilities.controlSetup?.filter(domain=>domain!=='light')}};
   if(normalHA){
    this.normalHAMode=true;
+  }
+  if(normalHA&&!this.namedLaneWanted){
    this.controllerRenewRetryAt=null;this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;this.coordinatorName=null;
    if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
   }
   this.room = value.roomId; this.snapshot = value; this.connected = true;
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
-  this.onConnection('connected'); this.onSnapshot(value);clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);return true;
+  clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);
+  const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
- async start() {this.controllerRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
+ // Presentation observers may report their own error; they cannot turn a valid
+ // server read into a transport failure or prevent the next heartbeat.
+ notify(name,...args){try{this[name](...args);}catch(error){try{if(typeof globalThis.reportError==='function')globalThis.reportError(error);else console.error('PodView presentation observer:',error);}catch{/* Reporting must not revoke the accepted read. */}}}
+ async start() {this.controllerRenewalDenied=false;if(this.screenEnrollment)this.namedRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
  scheduleRecovery(){
   if(this.closed||this.recoveryBlocked||this.recoveryTimer)return;
   const generation=this.generation,attempt=this.recoveryAttempt||0;
@@ -92,7 +115,7 @@ export class PodVoiceTransport {
   const peerRevision=this.peerRevision||0,renewAt=this.controllerRenewAt;this.close(false); this.closed = false;this.recoveryAttempt=attempt;this.recoveryReadOnly=!renew;this.controllerRenewAt=renew?null:renewAt;
   const generation = this.generation;
   this.controller = new AbortController();
-  this.onConnection('connecting');
+  this.notify('onConnection','connecting');
   try {
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
    let value = await response.json();
@@ -100,27 +123,39 @@ export class PodVoiceTransport {
    if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
    const normalHA=haIngress(value);
-   if(!normalHA){await this.coordinate();if(generation!==this.generation||this.closed)return;}
+   const boot=value.bootId,room=value.roomId;
+   const named=normalHA&&!this.namedRenewalDenied&&(this.screenEnrollment||this.namedIntent(room));
+   this.namedLaneWanted=named;
+   if(!normalHA||named){await this.coordinate();if(generation!==this.generation||this.closed)return;}
    let renewed=false;
-   if(!normalHA&&renew&&response.ok&&value?.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){
+   if((!normalHA||named)&&renew&&response.ok&&value?.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){
     try{
      const renewal=await this.renewController(value.roomId,generation,coalesce,peerRevision);if(!renewal)return;
      if(renewal.coalesced){renew=false;this.recoveryReadOnly=true;this.controllerRenewAt=renewAt;this.controllerRenewRetryAt=Date.now()+30000;this.peerReadPending=false;}
-     else{const result=await renewal.json();if(generation!==this.generation)return;if([401,403].includes(renewal.status)){this.controllerRenewalDenied=true;this.recoveryReadOnly=true;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;throw Error('controller_renewal_denied');}renewed=renewal.ok&&result.ok===true&&result.expiresIn===300;}
-     if(renewed||renewal.coalesced){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();if(generation!==this.generation)return;if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}if(renewed)renewed=response.ok;}
+     else{const result=await renewal.json();if(generation!==this.generation||this.closed)return;if([401,403].includes(renewal.status)&&named){this.namedRenewalDenied=true;this.forgetNamedIntent();throw Error('named_controller_renewal_denied');}if([401,403].includes(renewal.status)){this.controllerRenewalDenied=true;this.recoveryReadOnly=true;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;throw Error('controller_renewal_denied');}renewed=renewal.ok&&result.ok===true&&result.expiresIn===300;
+      if(named){const keys=Object.keys(result).sort().join(',');renewed=renewed&&keys==='controllerExpiresAt,expiresIn,ok'&&(result.controllerExpiresAt===null||typeof result.controllerExpiresAt==='number'&&Number.isFinite(result.controllerExpiresAt)&&result.controllerExpiresAt>Date.now()/1000);}
+     }
+     if(renewed||renewal.coalesced){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();if(generation!==this.generation)return;if([401,403].includes(response.status)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}if(renewed)renewed=response.ok;if(named&&(value.bootId!==boot||value.roomId!==room||!haIngress(value))){renewed=false;this.forgetNamedIntent();throw Error('named_controller_owner_changed');}}
     }catch{if(generation!==this.generation)return;}
 
    }
    if(generation!==this.generation)return;
    if(this.recoveryBlocked)throw Error('transport_access_denied');
-   this.controllerRenewed=renewed;this.cookieReadAuthority=!normalHA&&!this.controllerRenewalDenied&&!renew&&response.ok;
+   this.namedRenewalUnconfirmed=named&&renew&&!renewed;
+   this.controllerRenewed=!normalHA&&renewed;this.namedControllerRenewed=named&&renewed;this.cookieReadAuthority=!normalHA&&!this.controllerRenewalDenied&&!renew&&response.ok;
    if(!haIngress(value)&&(this.controllerRenewalDenied||value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
-   if (!response.ok || !this.accept(value)) throw new Error(value.error || 'invalid_snapshot');
+   if (!response.ok || !this.accept(value)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}throw new Error(value.error || 'invalid_snapshot');}
    if(generation!==this.generation||this.closed)return;
-   if(this.controllerRenewed===true)this.onControllerRenewed({owner:this.controllerRenewalOwner,generation});
+   if(this.namedControllerRenewed===true)this.rememberNamedIntent(room);
+   if(this.controllerRenewed===true||this.namedControllerRenewed===true)this.notify('onControllerRenewed',{owner:this.controllerRenewalOwner,generation});
    if(generation!==this.generation||this.closed)return;
    if(this.controllerRenewed===true){this.controllerRenewAt=Date.now()+240000;this.controllerRenewRetryAt=null;}
    if(!normalHA&&(this.controllerRenewAt||this.controllerRenewRetryAt)&&value.controllerContinuity?.available!==false)this.controllerRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},Math.max(0,Math.max(this.controllerRenewAt||0,this.controllerRenewRetryAt||0)-Date.now()));
+   if(named&&!this.namedRenewalDenied){
+    const at=Date.now()+(renewed?240000:30000);
+    this.namedRenewAt=at;
+    if(renewed||!this.screenEnrollment&&this.namedIntent(room))this.namedRenewTimer=setTimeout(()=>{if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},Math.max(0,at-Date.now()));
+   }
    this.stream = new this.EventSource(this.endpoint('events'), {withCredentials:false});
    this.stream.addEventListener('snapshot', event => {
     if (generation !== this.generation) return;
@@ -130,7 +165,7 @@ export class PodVoiceTransport {
    if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
- disconnected() { this.connected = false; this.onConnection('disconnected');this.scheduleRecovery(); }
+ disconnected() { this.connected = false; this.notify('onConnection','disconnected');this.scheduleRecovery(); }
  async request(url,options,ms,signal=this.controller?.signal){const generation=this.generation,read=!options?.method||options.method==='GET';const result=await requestWithin(async(target,init)=>{const response=await this.fetch(target,init);let body;try{body=await response.json();}catch(error){if([401,403].includes(response.status))body={error:"transport_access_denied"};else{if(read&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}}return {ok:response.ok,status:response.status,json:async()=>body};},url,options,signal,ms);if(read&&(this.closed||generation!==this.generation))throw new DOMException('Read owner changed','AbortError');return result;}
  async home({lightArea}={}){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
@@ -146,7 +181,7 @@ export class PodVoiceTransport {
   if(!response.ok){const error=Error('weather_advice_unavailable');if(response.status===409)error.code='stale_weather_binding';else if([401,403].includes(response.status))error.code='read_access_denied';throw error;}
   return response.json();
  }
- async controlSetup(domain,target,recipeId){if(!this.connected||!this.snapshot.capabilities.controlSetup?.includes(domain))throw Error('control_not_paired');const s=this.snapshot,url=new URL('control/setup',this.base);const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,domain,target,...(recipeId?{recipeId}:{})})});if(!response.ok)throw Error('control_setup_denied');return response.json();}
+ async controlSetup(domain,target,recipeId){if(domain==='music'&&(!target||typeof target!=='object'||Array.isArray(target)||!['accountId,expectedBindingId,kind,targetId','accountId,expectedBindingId,kind,speakerId,targetId'].includes(Object.keys(target).sort().join(','))||target.kind!=='spotify_device'||typeof target.accountId!=='string'||!target.accountId||target.accountId.length>128||typeof target.targetId!=='string'||!target.targetId||target.targetId.length>1024||typeof target.expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(target.expectedBindingId)||target.speakerId!==undefined&&(typeof target.speakerId!=='string'||!/^[a-f0-9]{64}$/.test(target.speakerId))))throw Error('invalid_music_target');if(!this.connected||!this.snapshot.capabilities.controlSetup?.includes(domain))throw Error('control_not_paired');const s=this.snapshot,url=new URL('control/setup',this.base);const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,domain,target,...(recipeId?{recipeId}:{})})});if(!response.ok)throw Error('control_setup_denied');const body=await response.json();if(domain==='music'&&body?.expectedBindingId!==target.expectedBindingId)throw Error('music_binding_changed');return body;}
  async controlAction(task,optionId,args){
   const unknown=requestId=>({ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false});
   if(!this.connected||this.snapshot.bootId!==task.bootId||this.snapshot.roomId!==task.roomId||!this.snapshot.capabilities.controlSetup?.includes(task.domain))return {ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};
@@ -165,7 +200,7 @@ export class PodVoiceTransport {
   const body = await response.json(); if (!response.ok || !body.ok){const error=new Error(body.error || 'music_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}
   return body;
  }
- async queueOffer(accountId,targetId){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||typeof targetId!=='string'||!targetId)throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId})},16000);const body=await response.json();if(!response.ok||body.ok!==true)throw Error('queue_offer_unavailable');return body;}
+ async queueOffer(accountId,targetId,expectedBindingId){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||accountId.length>128||typeof targetId!=='string'||!targetId||targetId.length>1024||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId))throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId})},16000);const body=await response.json();if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId)throw Error('queue_offer_unavailable');return body;}
  async queueAction(task,optionId){const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false},s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId||!task.items?.some(row=>row.id===optionId))return rejected;const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};try{const response=await this.request(new URL('music/queue/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId})});const body=await response.json();if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;return body;}catch{return unknown;}}
  async musicSelectionSetup(candidateSetId,target,candidateIds){
   const s=this.snapshot;
@@ -186,15 +221,15 @@ export class PodVoiceTransport {
   }catch{return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};}
  }
  async accessRequest(name) {
-  if(haIngress(this.snapshot)||!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof name!=='string'||name!==name.trim()||!name||name.length>48||/[\u0000-\u001f\u007f]/u.test(name))throw Error('access_unavailable');
+  if(haIngress(this.snapshot)&&!this.screenEnrollment||!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof name!=='string'||name!==name.trim()||!name||name.length>48||/[\u0000-\u001f\u007f]/u.test(name))throw Error('access_unavailable');
   return this.accessExchange('controller/request',{name});
  }
  async accessClaim(requestId) {
-  if(haIngress(this.snapshot)||!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof requestId!=='string'||!/^[a-f0-9]{32}$/.test(requestId))throw Error('access_unavailable');
+  if(haIngress(this.snapshot)&&!this.screenEnrollment||!this.connected||this.snapshot?.controllerContinuity?.available!==true||typeof requestId!=='string'||!/^[a-f0-9]{32}$/.test(requestId))throw Error('access_unavailable');
   return this.accessExchange('controller/claim',{requestId});
  }
  async accessExchange(path,args) {
-  if(haIngress(this.snapshot))throw Error('access_unavailable');
+  if(haIngress(this.snapshot)&&!this.screenEnrollment||!['controller/request','controller/claim'].includes(path))throw Error('access_unavailable');
   const {bootId,roomId}=this.snapshot,generation=this.generation;
   const response=await this.request(this.endpoint(path),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId,roomId,...args})});
   const body=await response.json();
@@ -235,6 +270,7 @@ export class PodVoiceTransport {
  close(disposeCoordinator=true) {
   if(disposeCoordinator){this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;const channel=this.peerChannel;this.peerChannel=null;if(channel){channel.onmessage=null;if(!this.renewHttpPending)channel.close();}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;}
   clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;
+  clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;this.namedControllerRenewed=false;
   clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;this.controllerRenewed=false;this.cookieReadAuthority=false;
   this.generation++; this.closed = true; this.connected = false;
   clearTimeout(this.freshnessTimer);this.controller?.abort(); this.stream?.close(); this.stream = null;

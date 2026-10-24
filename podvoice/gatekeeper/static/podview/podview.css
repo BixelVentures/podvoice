@@ -568,7 +568,7 @@ body{padding:var(--pv-s3) var(--pv-s3) var(--pv-s2)}pv-widget-host{display:block
 #weather-view .weather-hours small.weather-hour-wind{font-size:var(--pv-type-caption);line-height:1.3;color:var(--pv-weather-ink);white-space:nowrap;margin-top:-12px}
 @media(min-width:760px) and (max-height:640px){#weather-view .weather-hours small.weather-hour-wind{margin-top:-8px}}
 
-/* Source: ui/library/library.css · SHA256 5307cfc605182e3e72e8c195e933f06da173211d3b6bc0d0880db63a83f0dd4a */
+/* Source: ui/library/library.css · SHA256 2ffde655da9326e9afe0df661753c24c19c356b56606554afff43998d86adb89 */
 /* All library styling is scoped; shared selected-screen tokens live in components.css. */
 .pv-component{display:block;color:var(--pv-screen-ink);font-family:var(--pv-font);--pv-ease:var(--pv-screen-ease)}.pv-component *{box-sizing:border-box}.pv-component .pv-content{min-width:0}.pv-component h2,.pv-component h3{margin:0 0 8px;font-weight:var(--pv-weight-semibold);letter-spacing:-.03em}.pv-component h2{font-size:var(--pv-type-title);line-height:1.12}.pv-component h3{font-size:var(--pv-type-label);line-height:1.2}.pv-component p{margin:0 0 14px;line-height:1.4}.pv-component .pv-meta{font-size:var(--pv-type-caption);color:var(--pv-screen-muted);line-height:1.45}.pv-component .pv-button{font:inherit;color:var(--pv-screen-ink);min-width:48px;min-height:48px;padding:var(--pv-screen-space-3) var(--pv-screen-space-5);border:0;border-radius:var(--pv-r-l);background:var(--pv-screen-control);cursor:pointer;touch-action:manipulation;transition:background-color var(--pv-screen-fast) var(--pv-screen-ease),color var(--pv-screen-fast) var(--pv-screen-ease),transform var(--pv-screen-fast) var(--pv-screen-ease)}.pv-component .pv-button:hover:not(:disabled){background:var(--pv-screen-hover)}.pv-component .pv-button:active:not(:disabled){scale:var(--pv-press-scale)}.pv-component .pv-button:disabled{opacity:.55;cursor:default}.pv-component .pv-button[aria-pressed=true],.pv-component .pv-primary,.pv-component .pv-button[data-tone=primary]{background:var(--pv-screen-selection);color:var(--pv-screen-action-ink)}.pv-component .pv-button[data-tone=danger]{color:var(--pv-screen-danger);background:var(--pv-screen-danger-surface)}.pv-component .pv-button:focus-visible,.pv-component input:focus-visible,.pv-component a:focus-visible{outline:3px solid var(--pv-screen-accent);outline-offset:3px}.pv-component .pv-ghost{background:transparent;color:var(--pv-screen-muted)}.pv-component .pv-copy{font-size:var(--pv-type-label);font-weight:var(--pv-weight-regular);line-height:1.45;max-width:60ch}.pv-component .pv-list{display:grid;gap:var(--pv-s1);list-style:none;padding:0;margin:0}.pv-component .pv-list button{text-align:left;width:100%;border-radius:var(--pv-r-s)}.pv-component .pv-list li{padding:var(--pv-s2) var(--pv-s1);border-bottom:1px solid var(--pv-screen-line);line-height:1.4}.pv-component li[aria-current=true]{color:var(--pv-screen-action-ink);font-weight:var(--pv-weight-semibold)}.pv-component .pv-list small{display:block;color:var(--pv-screen-muted);font-size:var(--pv-type-caption);margin-top:6px}.pv-component a{color:var(--pv-screen-action-ink);display:inline-block;min-height:48px;line-height:1.4;padding:var(--pv-s2) 0}.pv-component .pv-actions{display:flex;gap:var(--pv-s1);flex-wrap:wrap}.pv-component .pv-table{border-collapse:collapse;width:100%;text-align:left;font-size:var(--pv-type-body)}.pv-component caption{text-align:left;color:var(--pv-screen-muted);font-size:var(--pv-type-caption);padding-bottom:var(--pv-s2)}.pv-component th{color:var(--pv-screen-muted);font-size:var(--pv-type-caption);font-weight:var(--pv-weight-regular)}.pv-component th,.pv-component td{border-bottom:1px solid var(--pv-screen-line);padding:var(--pv-s2) var(--pv-s1);line-height:1.35}.pv-component .pv-chart-row{display:grid;grid-template-columns:minmax(100px,1fr) 2fr auto;gap:var(--pv-s2);align-items:center;padding:var(--pv-s1) 0}.pv-component meter{width:100%;height:26px;accent-color:var(--pv-screen-accent)}.pv-component output{color:var(--pv-screen-muted);font-size:var(--pv-type-caption);font-variant-numeric:tabular-nums}.pv-component input[type=range]{width:100%;height:48px;accent-color:var(--pv-screen-accent);cursor:pointer}.pv-component .pv-step{font-size:var(--pv-type-title);line-height:1.25;letter-spacing:-.025em;min-height:110px;max-width:26ch}.pv-component .pv-resource-value{font-size:var(--pv-type-label);font-weight:var(--pv-weight-medium)}.pv-component .pv-check::before{content:'○';display:inline-block;width:28px;color:var(--pv-screen-muted)}.pv-component .pv-check[aria-pressed=true]::before{content:'✓';color:var(--pv-screen-action-ink)}.pv-component .pv-round{padding:0;min-width:48px;width:48px;height:48px;border-radius:var(--pv-screen-radius-pill);display:grid;place-items:center}.pv-component .pv-round img{width:var(--pv-icon-s);height:var(--pv-icon-s)}.pv-component .pv-transport{display:flex;justify-content:space-between;gap:var(--pv-s2);max-width:250px}.pv-component .pv-transport .pv-round:nth-child(2){width:58px;height:58px;background:var(--pv-on-dark)}.pv-component .pv-music-row{display:flex;gap:var(--pv-s2);align-items:center;padding:var(--pv-s2);border-radius:var(--pv-r-l);background:var(--pv-on-dark);transition:background var(--pv-screen-motion)}.pv-component .pv-music-row[data-selected=true]{background:var(--pv-screen-selection)}.pv-component .pv-music-row>img{width:64px;height:64px;object-fit:cover;border-radius:var(--pv-r-s)}.pv-component .pv-music-row>div{flex:1;min-width:0}.pv-component .pv-music-row h3{font-size:var(--pv-type-body)}.pv-component .pv-music-row p{margin:0}.pv-component .pv-sheet{border:0;border-radius:var(--pv-screen-radius);background:var(--pv-screen-surface);color:var(--pv-screen-ink);padding:var(--pv-s4);width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow-y:auto}.pv-component .pv-sheet::backdrop{background:color-mix(in srgb,var(--pv-ink) 33.333%,transparent)}.pv-component .pv-sheet>.pv-button{margin:0 0 16px}.pv-component .pv-disclosure{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows var(--pv-screen-motion) var(--pv-ease),opacity var(--pv-screen-motion) var(--pv-ease)}.pv-component .pv-disclosure.pv-collapsed{grid-template-rows:0fr;opacity:0}.pv-component .pv-frame-inner{overflow:hidden;min-height:0;font-size:var(--pv-type-label);line-height:1.4}.pv-component[data-state=error] .pv-copy,.pv-component[data-state=error] .pv-meta{color:var(--pv-screen-danger)}.pv-component[data-state=offline] .pv-state-note{color:var(--pv-screen-muted)}.pv-component[data-state=pending] .pv-resource-value{color:inherit}pv-follow-up-choices .pv-list{display:flex;flex-wrap:wrap}pv-follow-up-choices .pv-list button{width:auto}pv-timer-widget .pv-resource-value{font-size:var(--pv-type-display);font-variant-numeric:tabular-nums}
 @media(prefers-reduced-motion:reduce){.pv-component *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
@@ -803,7 +803,7 @@ dialog.pv-component .pv-button[data-kit-variant=primary]{min-height:var(--pv-hit
 dialog.pv-component form.pv-content{display:grid;gap:var(--pv-s2)}
 dialog.pv-component form.pv-content>.pv-actions{margin:0}
 dialog.pv-component form.pv-content>.pv-button{justify-self:stretch}
-dialog.pv-component input:not([type=checkbox]):not([type=radio]):not([type=range]),dialog.pv-component select{display:block;width:100%;min-width:0;min-height:52px;margin:0;padding:var(--pv-s2) var(--pv-s2);border:1px solid var(--pv-screen-outline);border-radius:var(--pv-screen-radius-field);background:var(--pv-screen-surface);color:var(--pv-screen-ink);font:inherit;font-size:var(--pv-type-body);line-height:1.3}
+.pv-form-field,dialog.pv-component input:not([type=checkbox]):not([type=radio]):not([type=range]),dialog.pv-component select{display:block;width:100%;min-width:0;min-height:52px;margin:0;padding:var(--pv-s2) var(--pv-s2);border:1px solid var(--pv-screen-outline);border-radius:var(--pv-screen-radius-field);background:var(--pv-screen-surface);color:var(--pv-screen-ink);font:inherit;font-size:var(--pv-type-body);line-height:1.3}
 dialog.pv-component input[type=search]{flex:1 1 240px;width:auto}
 dialog.pv-component input::placeholder{color:var(--pv-screen-muted);opacity:1}
 dialog.pv-component label{font-size:var(--pv-type-caption);line-height:1.4;min-width:0;overflow-wrap:anywhere}
@@ -910,6 +910,9 @@ pv-widget-host[data-library-widget-sizes=true]>.voice-surface{visibility:hidden!
 /* Inspection keeps the area visible after an actual pointer focus; it still
    distinguishes keyboard focus and the existing active/pressed feedback. */
 html[data-library-touch-areas=true] :is(button,a[href],summary,[role=button])[data-pv-pointer-focus=true]:focus:not(:focus-visible):not(:active):not(.is-pressed){outline:2px dashed var(--pv-weather-ink)!important;outline-offset:-2px!important}
+
+/* Existing native field, primary touch variant for standalone setup forms. */
+.pv-form-field{min-height:var(--pv-hit-primary);font:var(--pv-t-body)}
 
 /* Source: frame-layout.css · SHA256 93ee5719fb8009b4b6d1bce6f5142f8b2d6fbe4316f642f35a203ff36214b5c7 */
 /* A frame has a finite canvas. Only the focused content may scroll.
@@ -2560,7 +2563,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 8831892647815dfd2d688c00c91d24c65bd58533b8de8fa087af81dc9ca68871 */
+/* Source: ui-kit.css · SHA256 bc312139117fc819d5da652c02ad6d44a9962358d7ee80906a9b2d3d7d903d97 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#A2402F;--pv-danger-tint:#F6E7E4;
@@ -2600,7 +2603,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
    Rich Tile/ListRow status anatomy keeps its own rows and wrapping rules. */
 button:is(.pv-chip,.pv-segment,.pv-btn):not([hidden]):not(:has(*)):not(.resource-direct-action){display:block!important;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis}
 button:is(.pv-chip,.pv-segment,.pv-btn)>:is(span,strong):not(:has(*)):not(.pv-meta,.light-state,.timer-state,.kit-meta,[role=status]){min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pv-btn{padding:0 var(--pv-s4);font:var(--pv-t-label)}
+.pv-btn{padding:0 var(--pv-s4);font:var(--pv-t-label);text-decoration:none}
 .pv-btn.--primary,.pv-btn.pv-primary{background:var(--pv-ink);color:var(--pv-on-dark)}
 .pv-btn.--icon{width:var(--pv-hit);padding:0;flex:none}
 .pv-chip[aria-pressed=true],.pv-segment[aria-pressed=true]{background:var(--pv-ink);color:var(--pv-on-dark)}
@@ -2722,7 +2725,18 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather .home-for
 /* Svar uses its approved48px silhouette for touch, press and keyboard focus.
    The fixed VoiceSurface and80px TopBar retain their approved geometry. */
 pv-widget-host[data-view=active] .view-nav>.header-left{position:static}
-@media(min-width:760px){pv-widget-host[data-topbar=true][data-view=active] .view-nav>.header-left{max-width:calc((100% - 224px)/2 - var(--pv-s3))}pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title{flex:1;min-width:0}}
+/* Equal outer slots reserve the centered224px activity surface. Context may
+   shrink inside its own slot; full status text remains in the accessible name. */
+@media(min-width:760px){
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav>:is(.header-left,.header-context){max-width:calc((100% - 224px)/2 - var(--pv-s3));min-width:0}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title{flex:1;min-width:0}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-context .header-weather{flex:0 1 160px;min-width:var(--pv-hit)}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-context .header-time{flex:0 1 auto;min-width:104px;grid-template-columns:minmax(0,1fr)}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav :is(.header-weather>span,.header-date-line){min-width:0;max-width:100%}
+ /* Empty weather hides its icon honestly; text must not fall into the32px icon track. */
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-weather:has(>img[hidden])>span{grid-column:1/-1}
+ pv-widget-host[data-topbar=true][data-view=active] .view-nav :is(.header-weather small,#header-date){min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+}
 pv-widget-host[data-view=active] .view-nav .header-left>.header-activity{
  position:absolute;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);
  translate:none;display:grid;grid-template-columns:1fr;justify-content:center;align-items:center;
@@ -2795,16 +2809,16 @@ pv-widget-host .view-nav #open-history.header-history:focus-visible{outline:2px 
    Button owners. Each target reserves64px; no child extends over a neighbour. */
 pv-widget-host .player>.output,pv-widget-host .player>.track{height:var(--pv-hit);min-height:var(--pv-hit)}
 @media(min-width:760px){
- pv-widget-host[data-view=active] .player.pv-card{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-s1);padding:var(--pv-s3);height:100%;overflow:hidden;grid-template-rows:var(--pv-hit) minmax(0,1fr) var(--pv-hit) var(--pv-hit) var(--pv-hit) var(--pv-hit)}
+ pv-widget-host[data-view=active] .player.pv-card{display:grid;container-type:inline-size;grid-template-columns:minmax(0,1fr);gap:var(--pv-s1);padding:var(--pv-s3);height:100%;overflow:hidden;grid-template-rows:var(--pv-hit) minmax(0,1fr) var(--pv-hit) var(--pv-hit) var(--pv-hit) var(--pv-hit)}
  pv-widget-host[data-view=active] .player.pv-card>.output{
   grid-row:1;display:flex;justify-content:space-between;align-items:center;
   width:100%;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;border-radius:0;background:transparent;gap:var(--pv-s1);
  }
  pv-widget-host[data-view=active] .player.pv-card>.output h2{width:100%;height:48px;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:20px 28px;align-items:center;gap:0;margin:0;font:var(--pv-t-body);text-align:center}
- pv-widget-host[data-view=active] .player.pv-card>.output #player-state{grid-column:1;grid-row:1;justify-self:center;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
- pv-widget-host[data-view=active] .player.pv-card>.output .output-room{grid-column:1;grid-row:2;align-self:center;justify-self:center;margin:0}
+ pv-widget-host[data-view=active] .player.pv-card>.output #player-state{grid-column:1;grid-row:1;justify-self:center;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] .player.pv-card>.output .output-room{grid-column:1;grid-row:2;align-self:center;justify-self:center;min-width:0;max-width:100%;margin:0}
  pv-widget-host[data-view=active] .player.pv-card>.cover-button{
-  grid-row:2;display:block;min-height:0;min-width:0;height:100%;width:auto;max-width:100%;
+  grid-row:2;display:block;min-height:0;min-width:0;height:min(100%,100cqi,326px);width:auto;max-width:100%;
   max-height:326px;aspect-ratio:1/1;align-self:center;justify-self:center;padding:0;margin:0;
  }
  pv-widget-host[data-view=active] .player.pv-card>.cover-button>.cover{display:block;width:100%;height:100%;max-width:100%;max-height:100%;aspect-ratio:1/1;object-fit:cover}
@@ -2838,7 +2852,7 @@ pv-widget-host .player #detail-seek:disabled{opacity:.45;cursor:not-allowed}
    their actual height. No auto-size image may paint across another grid row. */
 @media(min-width:760px) and (max-height:680px){
  pv-widget-host[data-view=active] .player.pv-card{grid-template-rows:var(--pv-hit) minmax(0,1fr) var(--pv-hit) var(--pv-hit) var(--pv-hit) var(--pv-hit);gap:var(--pv-s1);padding:var(--pv-s3);min-height:0;overflow:hidden}
- pv-widget-host[data-view=active] .player.pv-card>.cover-button{grid-row:2;width:auto;height:100%;max-width:min(100%,220px);max-height:220px;min-height:0;min-width:0;aspect-ratio:1;align-self:center;justify-self:center;margin:0;padding:0}
+ pv-widget-host[data-view=active] .player.pv-card>.cover-button{grid-row:2;width:auto;height:min(100%,100cqi,220px);max-width:min(100%,220px);max-height:220px;min-height:0;min-width:0;aspect-ratio:1;align-self:center;justify-self:center;margin:0;padding:0}
  pv-widget-host[data-view=active] .player.pv-card>.cover-button>.cover{width:100%;height:100%;max-width:100%;max-height:100%;aspect-ratio:1;object-fit:cover}
  pv-widget-host[data-view=active] .player.pv-card>.track{height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;overflow:hidden}
  pv-widget-host[data-view=active] .player.pv-card>.player-progress,pv-widget-host[data-view=active] .player.pv-card>.player-progress:has(#detail-seek:not([hidden])){height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;min-width:0;align-self:center}
@@ -3843,6 +3857,7 @@ pv-widget-host[data-view=active] #now-view [data-kit-size=s]>:is(.resource-facts
 /* End factual Card content. */
 /* Speaker selection reads as one compact icon/name/chevron group. */
 pv-widget-host #output .output-room{align-items:center;gap:var(--pv-s1)}
+pv-widget-host #output .output-room>#player-room{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 pv-widget-host #output .output-room::after{margin-left:0;align-self:center}
 /* The header ends at 80px. Its 16px content inset belongs inside the left
    viewport, so scrolled cards reach the divider while the player stays put. */
@@ -4323,10 +4338,11 @@ details[open]>summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transform:
 #quick-sheet.pv-kit-dialog .screen-device-label output{font:var(--pv-t-body);font-variant-numeric:tabular-nums;color:var(--pv-ink-2)}
 #quick-sheet.pv-kit-dialog #screen-device-brightness{width:100%;min-width:0}
 #quick-sheet.pv-kit-dialog .screen-device-network{display:grid;gap:0}
-#quick-sheet.pv-kit-dialog .screen-device-network>.pv-kit-listrow{font:var(--pv-t-body);gap:var(--pv-s2)}
-#quick-sheet.pv-kit-dialog .screen-device-network>.pv-kit-listrow>span:last-child{text-align:right;color:var(--pv-ink-2)}
+#quick-sheet.pv-kit-dialog .screen-device-network>.pv-kit-listrow{grid-template-columns:max-content minmax(0,1fr);align-items:start;font:var(--pv-t-body);gap:var(--pv-s2)}
+#quick-sheet.pv-kit-dialog .screen-device-network>.pv-kit-listrow>span:last-child{min-width:0;overflow-wrap:anywhere;text-align:right;color:var(--pv-ink-2)}
 #quick-sheet.pv-kit-dialog .screen-explanation{font:var(--pv-t-meta);color:var(--pv-ink-2);margin:0}
 #quick-sheet.pv-kit-dialog #screen-device-info{padding-top:var(--pv-s2)}
+#quick-sheet.pv-kit-dialog #screen-device-more>.pv-kit-button{margin-top:var(--pv-s2)}
 @media(prefers-reduced-motion:reduce){summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transition:none}}
 
 /* Full-screen modality: Dialog is centered in the viewport, not a content column. */

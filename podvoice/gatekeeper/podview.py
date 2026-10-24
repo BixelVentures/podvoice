@@ -1038,8 +1038,7 @@ class PodViewBridge:
             or (room, task["account"]) in self._music_move_fence
         ):
             return False
-        source = podview_room_media.binding(self, room, task["account"])
-        if source != task["source"]:
+        if not task["source_current"]() or task["source"]["validUntil"] <= time.time():
             return False
         snapshot = self.snapshot(room)
         answer, voice = snapshot.get("answers", {}), snapshot.get("voice", {})
@@ -1068,14 +1067,22 @@ class PodViewBridge:
         )
         if grant is None or not self.controls.move.available or not current():
             return {"ok": False, "error_kind": "move_unavailable"}
-        sources = podview_room_media.room_bindings(self, room)
+        accounts = {row["accountId"] for row in self.controls.policy.get("music", [])}
         if account_id is not None:
-            sources = [source for source in sources if source["accountId"] == account_id]
-        if len(sources) != 1 or "music" not in self.controls.domains(
-            room, grant["token"] if isinstance(grant, dict) else grant[0]
-        ):
+            accounts &= {account_id}
+        token = grant["token"] if isinstance(grant, dict) else grant[0]
+        if len(accounts) != 1 or "music" not in self.controls.domains(room, token):
             return {"ok": False, "error_kind": "move_unavailable"}
-        source = sources[0]
+        resolved = await podview_room_media.resolve_actual(
+            self,
+            room,
+            next(iter(accounts)),
+            self.tools.podview_music_binding,
+            current=lambda: current() and self._grant_current(room, token),
+        )
+        if resolved["status"] != "observed" or not resolved["current"]():
+            return {"ok": False, "error_kind": "move_unavailable"}
+        source = resolved["binding"]
         snapshot = self.snapshot(room)
         answer = snapshot.get("answers", {})
         answer_keys = ("sessionId", "turnId", "taskId", "inputRevision", "revision")
@@ -1091,6 +1098,7 @@ class PodViewBridge:
             "policy": self.controls.policy,
             "move_binding": self.controls.move.binding(),
             "source": source,
+            "source_current": resolved["current"],
             "answer": {key: answer[key] for key in answer_keys} if complete_answer else None,
             "proposal_turn": getattr(context, "turn_id", None),
             "account": source["accountId"],
@@ -1142,6 +1150,7 @@ class PodViewBridge:
                             "kind": "spotify_device",
                             "targetId": source["targetId"],
                             "speakerId": destination["speakerId"],
+                            "expectedBindingId": source["bindingId"],
                         },
                     },
                     task["token"],
@@ -3467,8 +3476,15 @@ async def _assets(request: web.Request) -> web.StreamResponse:
     scope = _HA_REQUEST.get()
     if name == "setup.html" and scope and scope["active"] and scope["user"]:
         room = request.query.get("room")
-        query = "?" + urlencode({"room": room}) if room in request.app[BRIDGE].sessions else ""
-        raise web.HTTPFound("./" + query, headers={"Cache-Control": "no-store"})
+        explicit_enrollment = (
+            len(request.query) == 2
+            and set(request.query) == {"enrollment", "room"}
+            and request.query.get("enrollment") == "1"
+            and room in request.app[BRIDGE].sessions
+        )
+        if not explicit_enrollment:
+            query = "?" + urlencode({"room": room}) if room in request.app[BRIDGE].sessions else ""
+            raise web.HTTPFound("./" + query, headers={"Cache-Control": "no-store"})
     if not root or not root.is_dir():
         return _error("view_assets_not_packaged", 503)
     target = (root / name).resolve()

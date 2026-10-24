@@ -351,7 +351,7 @@ async def test_ingress_contract_preserves_freshness_duplicates_and_has_no_contro
         for _ in range(2):
             response = await client.get("/view/api/music?kind=playback&account=account-alpha")
             public = await response.json()
-            assert public["schema"] == "podview.room-playback.v1"
+            assert public["schema"] == "podview.room-playback.v2"
             assert public["status"] == "unavailable" and public["data"] is None
         assert rig.calls == []  # No room binding: do not read account-wide playback.
         for _ in range(2):

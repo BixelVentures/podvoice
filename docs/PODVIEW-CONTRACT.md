@@ -1,3 +1,56 @@
+# Samlet servicearkitektur ·24. oktober2026 · produktmål under implementering
+
+Denne direkte brugerbeslutning styrer det videre arbejde og supersederer antagelsen om, at PodView kun skal følge sin konfigurerede standardhøjttaler. De historiske wireafsnit nedenfor beskriver tidligere kildekandidater, ikke et afsluttet samlet musikforløb. Ingen ny wireform eller ekstra myndighed er indført alene ved denne dokumentation.
+
+| Ejer | Ansvar | PodViews rolle |
+| --- | --- | --- |
+| HA | Faktiske hjemmedata og eksisterende adgang | Vis kildeleveret state; brug eksisterende optagne handlinger |
+| PodConnect | Spotify-konto, faktisk item/playing/paused/progress og providerobservation | Projekter den faktiske observation; start ikke en alternativ afspilningsmotor |
+| PodSpeakers | Optagne native højttalere og faktisk route/session/lifecycle | Vis faktisk output fra ejerens identiteter, ikke fra standardnavn eller ønsket destination |
+| Eksisterende HA/PodVoice-bridge | Autentificeret transport, lukket projektion og aktuelle actiontilbud | Ingen selvstændig musiktruth; før handling til dens eksisterende serviceejer |
+| PodView | Kanonisk UI-kit, lokal navigation og præsentation | Send eksplicit betjening, vis ejerens resultat og genopret læsning uden effekt-replay |
+
+De fire uafhængige forhold er: transport til Green; providerens aktuelle observation; den faktiske lydrute; aktuelle betjeningsmuligheder. Ingen af dem må omskrives til en anden. At mangle frisk kommandomyndighed skjuler ikke i sig selv en lovligt optaget observation. At have en sangtitel eller en accepteret kommando beviser ikke startet native lyd. Et Spotify-device-ID alene identificerer ikke nødvendigvis den native PodSpeakers-højttaler, når flere native rum bruger samme Connect-device.
+
+Samlet observation skal dannes af de eksisterende serviceejere ud fra faktisk providerstate, præcis optaget roster og faktisk native route. Standard/konfigureret output og næste valgte destination forbliver adskilt fra observeret aktuelt output. Frontend må ikke løse dette ved navnematch, bredere grants eller ved at mærke rå kontodata som rumbekræftet. Den endelige lukkede projektion og source-owned årsager afstemmes med backendens eksisterende ejere før implementering.
+
+Accept kræver sammenhængende forløb: start fra PodView; start fra Spotify-appen; ændret sang; pause/fortsæt; skift mellem optagne native højttalere; ingen aktiv afspilning; providerudfald; Green-transportudfald og automatisk recovery; serviceejerens genstart. Hvert forløb skal bevare navigation og urelaterede aktiviteter og slutte i faktisk observeret state. Lokal simulation, source-/kliktests, renderreview, udgivelse, installation og fysisk lydaccept registreres hver for sig.
+
+De foreløbige recovery-rettelser er komponentkandidater i denne samlede model, ikke en afsluttet levering.
+
+## Samlet playback-kontrakt v2 ·24. oktober2026 · kildekandidat
+
+Dette afsnit erstatter kun den historiske v1-kandidats binding til konfigureret output. Installeret Green78 og Sites52 er ikke dokumentation for denne nye kontrakt. Den samme eksisterende playback-læser anvendes; ingen ny klientmotor eller endpoint indføres.
+
+`podview.room-playback.v2` har præcis ni rodfelter: `ok,schema,bootId,roomId,configEntryId,status,reason,binding,data`. `data` er den uændrede lukkede ottefelts `podconnect.playback.v1`-observation; native routeproof må ikke indsættes i dette DTO. `binding` er faktisk optaget output med `roomId,accountId,targetId,nativeRoomId,nativeHomepodId,bindingId,validUntil`. `validUntil` er UNIX-sekunder; UI konverterer til millisekunder én gang. Bindingens roomId er anmodende PodView-rum, native-identiteterne er den faktisk observerede rute.
+
+| status | data | binding | reason |
+| --- | --- | --- | --- |
+| observed | frisk playing/paused | faktisk native binding | null |
+| account_observed | frisk playing/paused | null | route_unavailable / ambiguous_output / output_not_admitted / owner_changed |
+| idle | frisk no_active_playback | null | null |
+| unavailable | null | null | account_unavailable / stale_observation / owner_changed |
+
+PodConnects eksisterende `get_playback_snapshot(include_output:true)` ejer den samlede serviceobservation; eksisterende v1-kald uden flag ændres ikke. Bridge validerer/projekterer den faktiske optagne rute. Samme fælles faktiske resolver bruges til observation, kontrol og kø; passive læsninger afhænger ikke af et eksekverbart kontroltilbud. Default/NEXT-data forbliver hos deres eksisterende ejere og ændrer ikke aktuelt output. Native visningsnavne formateres kun fra præcise optagne katalog-identiteter; et navn er ikke routeproof.
+
+Musik-`controlSetup.target` har `accountId,kind,targetId,expectedBindingId`, også for MOVE-kilden. Musik-`podview.control.v1`-tilbud ekkoer obligatorisk `expectedBindingId` på roden; andre domæners tilbud ændres ikke. Køtilbuddets input og `podview.queue-offer.v1`-svar har samme obligatoriske rodfelt. Uoverensstemmelse eller manglende ekko afvises før betjening. Feltet er ingen grant; backend skal genvalidere faktisk rute og præcis allerede tilladt policy. Eksekvering beholder eksisterende opaque task/option/revision-body. Ingen ny seek eller effekt-replay.
+
+Metadatafriskhed, native bindingsfrist og aktuelle tilbud er separate. En udløbet rute ophæver betjening uden at opfinde transporttab eller fjerne stadig frisk kontometadata. `unavailable` kan bevare samme boot/rum/kontos sidst kendte visning read-only; `idle` rydder aktiv afspilning; `owner_changed` rydder gammel ejerhistorik. Ændret faktisk binding ophæver gamle kontrol-/køtilbud. Ændret standard eller NEXT alene gør ikke det aktuelle nummer til en anden højttaler. Almindelig automatisk transportrecovery bevarer navigation; renderfejl må ikke klassificeres som netværksfejl.
+
+Kilde-/fixturetest, visuelt UI-kit-review, samlet servicekonformitet, udgivelse, installation og fysisk Connect/lydaccept registreres hver for sig. Ingen af disse softwareændringer beviser lyd på en højttaler.
+
+---
+
+# NEXT source contract · explicit named-screen enrollment ·23 October2026
+
+Normal authenticated HA ingress retains its existing actor and capabilities; it does not automatically enroll a browser, adopt a profile or re-pin an old grant. The existing user-opened `setup.html?room=…` page opts into named-screen enrollment using the existing request → HA-administrator approval of exact name/match signal → proof-cookie claim → profile-cookie renewal routes. Legacy code pairing remains forbidden in HA mode. No new endpoint or weaker server check is introduced.
+
+A connected claim alone is insufficient. The setup owner requires a closed successful renewal receipt and a fresh valid snapshot with the same boot, room and transport generation before `namedControllerRenewed` becomes usable. The original HA actor remains authoritative for other domains. The existing setup Button then says “Åbn PodView”; its status directs the user to HA **Konfigurér → PodViews rum · exact named screen → AreaSelector**. A saved placement is not light-effect authority. Policy/pin changes require current manual reapproval; no automatic replacement of an occupied profile slot occurs.
+
+Only after confirmed renewal may a public intent marker record version, full cookie scope and room in optional browser storage. It contains no credential or capability and can authorize only a future validation attempt against the existing HttpOnly profile cookie. Default HA without this marker remains unchanged. Current intent renews the existing cookie at240s under the existing cookie-scope lock; peer notices only prompt reads/coalescing and never prove enrollment. Explicit setup cannot coalesce its required local proof. Authoritative renewal denial clears the named lane/marker and light admission while preserving valid HA-actor capabilities. Late generation/boot/room/source results cannot publish proof. Unknown request/claim is not automatically repeated, and no setup/navigation action commands a light.
+
+This separate source overlay is not installation, proof of a current Mac cookie, live HA acceptance or physical lamp acceptance. Storage failure is reported in the existing setup status; it does not create an alternative authority path.
+
 # NEXT successor · weather advice request-inflight presentation ·23 October2026
 
 The separate working successor to the immutable7201 packet closes a presentation gap while the existing weather-advice POST is awaiting its first response. `LiveWeatherAdvice.sync` exposes internal `requesting`; `liveWeatherModel` maps it to the existing pending summary role with the same reserved Hero slot, gradient and aria-busy. Before dispatch the idle slot remains quiet. Ready advice, a real failure or an unavailable response keeps its existing meaning; no AI result is invented.

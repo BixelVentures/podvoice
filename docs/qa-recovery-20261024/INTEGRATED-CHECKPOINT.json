@@ -1,0 +1,34 @@
+{
+  "changedRuntime": [
+    "dist/control-model.js",
+    "dist/live-control-view.js",
+    "dist/live-media-view.js",
+    "dist/live-queue-view.js",
+    "dist/media-observation.js",
+    "dist/player-view.js",
+    "dist/podview.bundle.js",
+    "dist/podview.css",
+    "dist/podvoice-transport.js",
+    "dist/speaker-output-view.js",
+    "dist/ui-kit.css",
+    "dist/widget-view.js"
+  ],
+  "syntax": "PASS all changed JS modules/bundles",
+  "finalFullSuite": {
+    "pass": 2097,
+    "fail": 0,
+    "receipt": "TESTS.log",
+    "componentGate": "PASS63"
+  },
+  "rootPersonallyInspected": [
+    "docs/qa-ui22/screenshots/media-v2-final-stale-980.jpg",
+    "docs/qa-ui22/screenshots/media-v2-final-output-1280.jpg",
+    "docs/qa-ui22/screenshots/media-v2-library-paused.jpg",
+    "docs/qa-ui22/screenshots/media-v2-library-stale.jpg",
+    "docs/qa-ui22/screenshots/media-v2-final-alias-fixed-1280.jpg",
+    "docs/qa-ui22/screenshots/media-v2-final-alias-fixed-980.jpg"
+  ],
+  "notInstalled": true,
+  "rejectedBeforeImage": "docs/qa-ui22/screenshots/media-v2-final-account-1280.jpg (long provider alias overlap; subsequent same-role ellipsis fix awaits confirmation)",
+  "visualReview": "PASS bounded passive product1280/980 plus canonical library paused/stale; Product Design + Impeccable; see MEDIA-V2-BROWSER-20261024.md"
+}

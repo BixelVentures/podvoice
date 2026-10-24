@@ -366,3 +366,11 @@ test('a chosen local song is shown while starting without borrowing prior track 
  const state=initialScene();state.music.pending={id:'chosen',track:1,room:'Stuen',operation:2};const vm=localPlayerModel(state),controls=localControlModel(state);
  assert.equal(vm.title,TRACKS[1].title);assert.equal(vm.active,true);assert.equal(vm.loading,true);assert.equal(vm.playing,false);assert.equal(vm.fresh,false);assert.equal(vm.progressMs,null);assert.equal(vm.canSeek,false);assert.equal(vm.feedback.message,'Starter afspilning…');assert.equal(controls.blocked,true);assert.equal(controls.canVolume,false);assert.equal(state.music.playback.track,0,'presentation does not fabricate observed playback');
 });
+
+test('retained readonly player DOM qualifies both playing and paused metadata while fresh unconfirmed metadata stays current',()=>{
+ for(const playing of [true,false]){
+  const f=surface(),vm={active:true,readOnly:true,playing,fresh:false,title:'Retained song',artist:'Retained artist',target:'Account player',canOutput:false};f.view.renderPlayer(vm);
+  assert.match(f.nodes.get('player-state').textContent,/^Sidst kendt ·/);assert.match(f.nodes.get('detail-status').textContent,/^Sidst kendte kontostatus ·/);assert.match(f.nodes.get('player-state').textContent,playing?/afspiller/:/på pause/);assert.equal(f.nodes.get('track-name').textContent,'Retained song');
+  f.view.renderPlayer({...vm,fresh:true});assert.equal(f.nodes.get('player-state').textContent,`${playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`);assert.equal(f.nodes.get('detail-status').textContent.startsWith('Sidst kendt'),false);
+ }
+});

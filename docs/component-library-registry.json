@@ -2572,6 +2572,7 @@
           "class:SpeakerOutputView": 1,
           "function:configuredSpeakerLabel": 1,
           "function:speakerCatalogue": 1,
+          "method:actualLabel": 1,
           "method:armExpiry": 1,
           "method:cleanup": 1,
           "method:clearLabel": 1,
@@ -2594,7 +2595,7 @@
         "customTags": [],
         "dom": true
       },
-      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family."
+      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent."
     },
     "dist/local-robot-view.js": {
       "status": "approved-composition",
