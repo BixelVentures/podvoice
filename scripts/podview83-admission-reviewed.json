@@ -29,6 +29,7 @@
     "tests/podview/canonical-packet-player-view.test.mjs": "9bf16e9a9c9ea7fbb737ff7eed9284db22129d1e7bbb91f6d7003e94babad0f6",
     "tests/podview/root-collection-selection.test.mjs": "a003e917a19f801f6b92d7650c46d354571e4adeb5bb251b3bd0414e1e39b41f",
     "tests/podview/root-live-media-view.test.mjs": "f7e55e365731b78b78df3aa642c5e4a919145a1e5a2a3f6720fb1fbd38dd8dcd",
+    "tests/podview/root-named-controller-enrollment.test.mjs": "dfcb3a03f49e84dc7429397607c553e15e64e3b807f57e4891fe82faceeed1f6",
     "tests/podview/root-native-music-controls.test.mjs": "3183bb26a5cd72c2253b855849fe200d19cf26018f646beceff8d02d75fcac36",
     "tests/podview/root-player-view.test.mjs": "495f4fa587ac922b7f5de5059e7ef9a0fb2e464d70364348f8a9fc78850b52c9",
     "tests/podview/root-room-media-binding.test.mjs": "430379c29f6e77eb1a9ec1f23bebd6e548dbd42d33b5f2c0030cd074ae4eff9b",

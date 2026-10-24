@@ -221,7 +221,9 @@ test('linked setup stops claiming successful linkage when current named proof be
 });
 
 for(const failure of ['network','503-json','503-html','200-html'])test(`post-renew ${failure} retains verified HA reads without named proof and automatically validates the existing profile again`,async()=>{
- const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,jobs=new Map();let serial=0,reads=0,announced=0;
+ // This exact retry scheduler owns its clock as well as its fake timers.
+ const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,previousNow=Date.now,clockNow=previousNow(),jobs=new Map();let serial=0,reads=0,announced=0;
+ Date.now=()=>clockNow;
  globalThis.setTimeout=(callback,ms)=>{jobs.set(++serial,{callback,ms});return serial;};globalThis.clearTimeout=id=>jobs.delete(id);
  const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{
   if(path==='controller/renew')return reply(renewal());
@@ -233,7 +235,7 @@ for(const failure of ['network','503-json','503-html','200-html'])test(`post-ren
   assert.deepEqual(h.transport.snapshot.admission,admission);assert.deepEqual(h.transport.snapshot.capabilities,{...snapshot().capabilities,controlSetup:['music','vacuum']});
   const retry=[...jobs.entries()].find(([,job])=>job.ms===30000);assert.ok(retry,'existing named-profile validation retry remains armed');jobs.delete(retry[0]);retry[1].callback();await new Promise(resolve=>previousSet(resolve,0));
   assert.equal(h.transport.connected,true);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(announced,1);assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);assert.equal(h.store.getItem(h.key),saved);assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)),'recovery never enrolls or sends effects');
- }finally{h.transport.close();globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+ }finally{h.transport.close();globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;Date.now=previousNow;}
 });
 
 test('a post-renew snapshot cannot downgrade an initially authenticated HA connection into legacy admission',async()=>{
