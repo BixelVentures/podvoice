@@ -2205,7 +2205,9 @@ def _selection_binding_current(bridge: PodViewBridge, source: dict, room: str) -
     return observed == expected
 
 
-def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, token: str) -> bool:
+def _selection_source_current(
+    bridge: PodViewBridge, source: dict, room: str, token: str, *, fresh: bool = True
+) -> bool:
     context = source["context"]
     if (
         not bridge._grant_current(room, token)
@@ -2231,7 +2233,7 @@ def _selection_source_current(bridge: PodViewBridge, source: dict, room: str, to
         saved = bridge._touch_music_contexts.get(key)
         return bool(
             saved is not None
-            and time.monotonic() < min(source["deadline"], saved[0])
+            and (not fresh or time.monotonic() < min(source["deadline"], saved[0]))
             and all(
                 saved[1].get(key) == context.get(key)
                 for key in ("sessionId", "turnId", "taskId", "inputRevision", "revision")
@@ -2965,8 +2967,8 @@ async def _music_selection(request: web.Request) -> web.Response:
     ):
         return _error("music_selection_not_paired", 403)
 
-    def source_current(source: dict) -> bool:
-        return _selection_source_current(bridge, source, room, token)
+    def source_current(source: dict, *, fresh: bool = True) -> bool:
+        return _selection_source_current(bridge, source, room, token, fresh=fresh)
 
     def exact_rule_current(
         account: str,
@@ -3136,13 +3138,13 @@ async def _music_selection(request: web.Request) -> web.Response:
     if task is None or task["context"]["roomId"] != room:
         return _error("stale_music_selection")
     source = bridge.music_selection.sources.get(task["candidateSetId"])
-    if source is None or not source_current(source):
+    if source is None or not source_current(source, fresh=not task["consumed"]):
         return _error("stale_music_selection")
     grant = task["authority"][-1]
 
     def action_current() -> bool:
         return bool(
-            source_current(source)
+            source_current(source, fresh=not task["consumed"])
             and exact_rule_current(
                 task["account"],
                 task["target"],

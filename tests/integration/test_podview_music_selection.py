@@ -669,3 +669,160 @@ async def test_real_controls_get_facade_and_route_preserve_only_current_account_
     )
     assert "SECRET" not in str(result)
     assert not facade.execute_track.await_count
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "display_expiry",
+        "policy",
+        "owner",
+        "provider_binding",
+        "source",
+        "grant_expired",
+        "provider_expired",
+    ],
+)
+async def test_admitted_selection_retains_only_presentation_freshness_exemption(rig, change):
+    bridge, facade = rig.app[BRIDGE], rig.app[BRIDGE].controls.music
+    async with TestClient(TestServer(rig.app)) as client:
+        headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+        search = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=jazz",
+                headers={"Cookie": "podview_control=grant"},
+            )
+        ).json()
+        offer = await (
+            await client.post(
+                "/view/api/music/selection/setup",
+                headers=headers,
+                json={
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "candidateSetId": search["candidateSet"]["candidateSetId"],
+                    "target": {
+                        "accountId": "account-alpha",
+                        "kind": "spotify_device",
+                        "targetId": "device-one",
+                    },
+                },
+            )
+        ).json()
+        observed = dict(facade.setup_track.return_value["data"])
+        observed.pop("valid_until")
+        observed["observation"] = {
+            "status": "fresh",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "age_ms": 0,
+            "max_age_ms": 15000,
+            "source": "podconnect_coordinator",
+        }
+        calls = []
+
+        async def owner_service(_client, _token, service, request):
+            calls.append((service, request))
+            if service == "get_room_content_controls":
+                return observed
+            if service == "prepare_room_selected_content":
+                if change == "display_expiry":
+                    task = bridge.music_selection.tasks[offer["taskId"]]
+                    task["deadline"] = 0
+                    source = bridge.music_selection.sources[task["candidateSetId"]]
+                    source["deadline"] = 0
+                    for key, (_, context) in list(bridge._touch_music_contexts.items()):
+                        bridge._touch_music_contexts[key] = (0, context)
+                elif change == "grant_expired":
+                    bridge._grant_current = lambda *_: False
+                elif change == "provider_binding":
+                    rig.router.podview_music_binding = lambda: ("replacement",)
+                elif change == "source":
+                    task = bridge.music_selection.tasks[offer["taskId"]]
+                    source = bridge.music_selection.sources[task["candidateSetId"]]
+                    bridge.music_selection.sources[task["candidateSetId"]] = dict(source)
+                elif change == "policy":
+                    bridge.controls.policy["music"] = []
+                elif change == "owner":
+                    bridge.sessions["kitchen"] = object()
+                return {
+                    "ok": change != "provider_expired",
+                    "schema": "podconnect.room_content_preparation.v1",
+                    "config_entry_id": request["config_entry_id"],
+                    "owner_epoch": request["owner_epoch"],
+                    "request_id": request["request_id"],
+                    "command_sequence": request["command_sequence"],
+                    "action": request["action"],
+                    "target": {"kind": "spotify_device", "target_id": request["target_id"]},
+                    "room_id": request["room_id"],
+                    "homepod_id": request["homepod_id"],
+                    "state": "expired" if change == "provider_expired" else "staged",
+                    "retry_allowed": False,
+                    "physical_result_verified": False,
+                }
+            if service == "start_room_selected_content":
+                assert change == "display_expiry"
+                return {
+                    "schema": "podconnect.command.v1",
+                    **{
+                        key: request[key]
+                        for key in (
+                            "config_entry_id",
+                            "owner_epoch",
+                            "request_id",
+                            "command_sequence",
+                            "action",
+                        )
+                    },
+                    "target": {"kind": "spotify_device", "target_id": request["target_id"]},
+                    "ok": True,
+                    "retry_allowed": False,
+                    "physical_result_verified": False,
+                    "outcome": "accepted",
+                    "provider_request_accepted": False,
+                    "accepted_selected_content": True,
+                    "start_operation_id": "d" * 32,
+                    "start_volume_percent": 35,
+                    "room_id": request["room_id"],
+                    "homepod_id": request["homepod_id"],
+                }
+            assert service == "cancel_room_content_preparation"
+            return {"ok": True}
+
+        del facade.setup_track
+        del facade.execute_track
+        facade._read = owner_service
+        action = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "taskId": offer["taskId"],
+            "revision": offer["revision"],
+            "requestId": "revoke-during-stage",
+            "optionId": offer["options"][0]["id"],
+            "confirmedVolumePercent": 35,
+        }
+        result = await (
+            await client.post("/view/api/music/selection/actions", headers=headers, json=action)
+        ).json()
+        assert result["ok"] is (change == "display_expiry"), result
+        assert result["retryAllowed"] is False
+        assert result["physicalResultVerified"] is False
+        expected = ["get_room_content_controls", "prepare_room_selected_content"]
+        if change == "display_expiry":
+            expected.append("start_room_selected_content")
+            # Same consumed request remains readable after presentation expiry;
+            # neither it nor a distinct request may dispatch again.
+            cached = await (
+                await client.post("/view/api/music/selection/actions", headers=headers, json=action)
+            ).json()
+            assert cached == result
+            distinct = await (
+                await client.post(
+                    "/view/api/music/selection/actions",
+                    headers=headers,
+                    json={**action, "requestId": "distinct-after-consumption"},
+                )
+            ).json()
+            assert not distinct["ok"]
+        elif change != "provider_expired":
+            expected.append("cancel_room_content_preparation")
+        assert [service for service, _ in calls] == expected

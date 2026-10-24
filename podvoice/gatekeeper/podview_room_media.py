@@ -200,22 +200,34 @@ async def _confirm_destination(
         return False
     try:
         async with asyncio.timeout(8):
-            raw = await bridge.tools.podview_read("playback", account)
-            if not current():
-                return False
-            checked = podview_music.project_owner(
-                "playback", raw.get("data") if raw.get("ok") else raw, account
-            )
-            source = checked.get("data") if checked.get("ok") else None
-            if (
-                not isinstance(source, dict)
-                or source.get("owner_epoch") != wire["owner_epoch"]
-                or source.get("poll_sequence", 0)
-                < max(wire["poll_sequence"], result.get("observe_after_poll_sequence", 0))
-                or source.get("playback", {}).get("state") not in {"playing", "paused"}
-                or source["playback"].get("target", {}).get("target_id") != engine
-            ):
-                return False
+            while True:
+                if not current():
+                    return False
+                raw = await bridge.tools.podview_read("playback", account)
+                if not current():
+                    return False
+                checked = podview_music.project_owner(
+                    "playback", raw.get("data") if raw.get("ok") else raw, account
+                )
+                source = checked.get("data") if checked.get("ok") else None
+                if not isinstance(source, dict) or source.get("owner_epoch") != wire["owner_epoch"]:
+                    return False
+                playback = source.get("playback", {})
+                state = playback.get("state")
+                if state in {"playing", "paused"}:
+                    if playback.get("target", {}).get("target_id") != engine:
+                        return False
+                    if source.get("poll_sequence", 0) >= max(
+                        wire["poll_sequence"], result.get("observe_after_poll_sequence", 0)
+                    ):
+                        break
+                elif state != "no_active_playback":
+                    return False
+                if result.get("accepted_selected_content") is not True:
+                    return False  # Preserve the existing MOVE proof behavior.
+                # An accepted command is not a fresh observation. Re-read only
+                # passive cached facts inside the existing total proof budget.
+                await asyncio.sleep(0.1)
             data = await podview_speakers.read_service(bridge.tools, account)
             if not current():
                 return False

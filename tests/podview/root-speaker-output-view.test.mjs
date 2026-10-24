@@ -126,7 +126,7 @@ test('expired actual proof and withdrawn playback read cannot be repaired by a f
  const f=configuredSurface();try{actualPlayback(f);await f.view.refreshConfiguredLabel();assert.equal(f.view.observedDestination('b'.repeat(64)),true);f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;assert.equal(playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account'),null);assert.equal(f.view.observedDestination('b'.repeat(64)),false);assert.equal(f.view.actualLabel(playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account')),'');actualPlayback(f);f.host.liveSnapshot.capabilities.musicRead=['targets'];assert.equal(f.view.observedDestination('b'.repeat(64)),false);assert.equal(f.view.configuredLabel(),'Køkkenalrum HomePod');}finally{f.view.cleanup();}
 });
 
-for(const changed of ['expired','malformed','account','transport','disconnect'])test(`actual output label does not survive ${changed} catalogue context`,async()=>{
+for(const changed of ['malformed','account','transport','disconnect'])test(`actual output label does not survive ${changed} catalogue context`,async()=>{
  const f=configuredSurface();try{const binding=actualPlayback(f);await f.view.refreshConfiguredLabel();assert.equal(f.view.actualLabel(binding),'Soveværelse');if(changed==='expired')f.view.labelValue.retrievedAt-=31;if(changed==='malformed')f.view.labelValue.extra=true;if(changed==='account')f.host.liveMedia.account='other';if(changed==='transport')f.host.liveTransport={...f.host.liveTransport};if(changed==='disconnect')f.host.liveTransport.connected=false;assert.equal(f.view.actualLabel(binding),'');assert.equal(f.view.observedDestination('b'.repeat(64)),false);}finally{f.view.cleanup();}
 });
 
@@ -140,4 +140,16 @@ test('actual nondefault native output wins contradictory roster flags and only b
 
 test('provider metadata expiry before native route expiry revokes current badge and pressed state but retains genuine last-known custody',async()=>{
  const f=configuredSurface();try{actualPlayback(f);await f.view.open();await f.view.refreshConfiguredLabel();const [defaultRow,actual]=f.ids['room-options'].children;assert.equal(actual.getAttribute('aria-pressed'),'true');assert.equal(actual.children[2].textContent,'Aktuelt output');f.host.liveMedia.playback.expiresAt=Date.now()-1;assert.notEqual(playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account'),null);f.view.sync();assert.equal(f.view.observedDestination('b'.repeat(64)),false);assert.equal(actual.getAttribute('aria-pressed'),'false');assert.equal(actual.children[2].textContent,'Sidst kendte output');assert.equal(defaultRow.getAttribute('aria-pressed'),'false');assert.equal(defaultRow.children[2].textContent,'Standardrum');assert.equal(f.view.actualLabel(playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account')),'Soveværelse');}finally{f.view.cleanup();}
+});
+
+test('explicit next choice captures native identity independently of later catalogue expiry',async()=>{
+ const f=idleStartSurface();try{await f.view.open();const row=f.ids['room-options'].children[1];row.listeners.click();const expected={accountId:row.speakerRow.accountId,nativeRoomId:row.speakerRow.nativeRoomId,nativeHomepodId:row.speakerRow.homepodId};assert.deepEqual(f.view.selectionWitness(),expected);assert.equal(Object.isFrozen(f.view.selectionWitness()),true);f.view.labelValue=null;f.view.validUntil=Date.now()-1;assert.deepEqual(f.view.selectionWitness(),expected);f.host.liveTransport.connected=false;assert.throws(()=>f.view.selectionWitness(),/expired/);}finally{f.view.cleanup();}
+});
+
+
+test('expired or failed catalogue retains exact validated actual alias as display only',async()=>{
+ const f=configuredSurface();try{const binding=actualPlayback(f);await f.view.refreshConfiguredLabel();assert.equal(f.view.actualLabel(binding),'Soveværelse');f.view.labelValue.retrievedAt-=31;assert.equal(f.view.actualLabel(binding),'Soveværelse');assert.equal(f.view.observedDestination('b'.repeat(64)),false);f.view.labelValue=null;assert.equal(f.view.actualLabel(binding),'Soveværelse');assert.equal(f.view.actualLabel({...binding,nativeHomepodId:'999'}),'');assert.equal(f.view.actualLabel(binding),'');}finally{f.view.cleanup();}
+});
+for(const change of ['boot','room','provider','authority'])test('retained actual alias clears on '+change,async()=>{
+ const f=configuredSurface();try{const binding=actualPlayback(f);await f.view.refreshConfiguredLabel();assert.equal(f.view.actualLabel(binding),'Soveværelse');f.view.labelValue=null;if(change==='boot')f.host.liveSnapshot.bootId='new';if(change==='room')f.host.liveSnapshot.roomId='new';if(change==='provider')f.host.liveSnapshot.providerGeneration=99;if(change==='authority')f.host.liveSnapshot.capabilities.musicRead=[];assert.equal(f.view.actualLabel(binding),'');}finally{f.view.cleanup();}
 });

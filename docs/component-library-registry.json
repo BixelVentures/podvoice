@@ -851,6 +851,7 @@
           "method:moveSpeaker": 1,
           "method:musicContext": 1,
           "method:musicCurrent": 1,
+          "method:musicVolumeMeasurement": 1,
           "method:open": 1,
           "method:openLight": 1,
           "method:openMusic": 1,
@@ -890,6 +891,9 @@
         "date": "2026-10-20",
         "scope": "User robot detail v27: relocate existing control entry below hero within existing device-history anatomy; local configured room IDs use existing choice-list and open existing confirmation form. No map geometry or new control authority.",
         "newComponentFamilies": false
+      },
+      "reviewedUI24MusicMeasurement": {
+        "scope": "musicVolumeMeasurement retains only a previously admitted setup volume for exact boot/room/provider/account/owner epoch/actual native binding and transport. Display custody survives offer expiry without creating an option or extending a grant; selected pending, idle, unbound or revoked identity clears it. roomObservationBound is imported through the already registered media-observation edge. No DOM roots or family added."
       }
     },
     "dist/live-home-view.js": {
@@ -950,7 +954,7 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:$": 1,
-          "arrow:current": 1,
+          "arrow:current": 2,
           "class:LiveMediaView": 1,
           "method:constructor": 1,
           "method:invalidate": 1,
@@ -964,7 +968,12 @@
           "method:canChooseAccount": 1,
           "method:focusAccountChoice": 1,
           "method:captureAcceptedPlayRefresh": 1,
-          "arrow:owner": 1
+          "arrow:owner": 1,
+          "arrow:matched": 1,
+          "arrow:read": 1,
+          "arrow:readKey": 1,
+          "arrow:reconcile": 1,
+          "arrow:scope": 1
         },
         "roots": [],
         "registrations": {},
@@ -981,6 +990,9 @@
       "reviewedUI22": {
         "date": "2026-10-23",
         "scope": "Reviewed captureAcceptedPlayRefresh and refresh's owner predicate: one passive playback reread after a current accepted Play, fenced by transport/account/boot/room/binding/provider/voice/session/task/inputRevision and read capability. Coalesces same-owner reads and supersedes an earlier poll without changing ordinary polling or granting actions. No DOM, imports or family added."
+      },
+      "reviewedUI24AcceptedObservation": {
+        "scope": "Supersedes the earlier one-read implementation: captureAcceptedPlayRefresh uses nested scope/current/matched/reconcile/read helpers for at most eight seconds of passive accepted-only observation. readKey and exact active-read custody serialize the same owner while a replacement account/provider/transport may read immediately; old completion cannot clear new pending state. Matching uses original observation freshness and captured actual native destination, never a refreshed catalogue grant. UNKNOWN receipt presentation reuses LiveMusicSelectionView.destinationObserved and never changes its outcome. No action retry, TTL extension, imports, DOM roots or family added."
       }
     },
     "dist/live-music-selection-view.js": {
@@ -1007,6 +1019,7 @@
           "method:context": 1,
           "method:current": 1,
           "method:destinationCurrent": 1,
+          "method:destinationObserved": 1,
           "method:expireCollection": 1,
           "method:feedbackScope": 1,
           "method:invalidate": 1,
@@ -1050,6 +1063,9 @@
       "reviewedUI22": {
         "date": "2026-10-23",
         "scope": "Reviewed targetReadScope/readTargets/prefetchTargets: passive account target metadata only, exact current music/account/boot/room/binding/provider/voice/session/task/inputRevision/capability/transport scope, in-flight deduplication and at most ten seconds bounded by source timestamp and request start. Actual Play retains fresh setup and one commit; no prefetched offer or cached action grant. Leave/account/owner/cleanup reject late results. Accepted-only playback refresh uses the existing LiveMediaView helper. No DOM, imports or family added."
+      },
+      "reviewedUI24NativeComparison": {
+        "scope": "destinationObserved compares a captured account/native-room/homepod witness against current playbackBinding through the existing media-observation import edge. Both configured default and explicit NEXT may supply comparison metadata; neither supplies an effect grant. The existing player shows selected pending metadata immediately, then releases it on matched or finite unconfirmed completion. No new renderer, DOM roots, network action or family."
       }
     },
     "dist/live-music-view.js": {
@@ -2586,6 +2602,7 @@
           "method:open": 1,
           "method:refreshConfiguredLabel": 1,
           "method:selectionDestination": 1,
+          "method:selectionWitness": 1,
           "method:sync": 1
         },
         "roots": [
@@ -2596,7 +2613,7 @@
         "customTags": [],
         "dom": true
       },
-      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent."
+      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent. Reviewed selectionWitness only freezes the already validated NEXT account/native-room/homepod identity for later comparison after catalogue expiry; fresh setup and server authority remain mandatory. No additional import edge or markup."
     },
     "dist/local-robot-view.js": {
       "status": "approved-composition",

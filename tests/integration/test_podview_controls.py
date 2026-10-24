@@ -1215,3 +1215,38 @@ async def test_executable_native_transport_keeps_original_short_deadline(
     assert task["deadline"] == task["vacuum_transport_offer"]["deadline"]
     assert 0 < offer["expiresAt"] - podview_controls.time.time() <= 15
     assert not rig.writes
+
+
+async def test_optional_volume_read_cannot_hold_available_transport_offer(fixture):
+    _, bridge, token = fixture
+    volume_entered, volume_cancelled = asyncio.Event(), asyncio.Event()
+
+    class Music:
+        room_available = True
+        volume_available = True
+        room_start_available = False
+
+        def binding(self):
+            return (self,)
+
+        async def setup_room(self, account, target, room, homepod, current):
+            await volume_entered.wait()
+            return {
+                "ok": True,
+                "data": {"actions": ["pause"], "valid_until": time.time() + 15},
+            }
+
+        async def setup_volume(self, account, target, room, homepod, current):
+            volume_entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                volume_cancelled.set()
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    offer = await asyncio.wait_for(bridge.controls.setup(setup_body(bridge, "music"), token), 1)
+    assert offer["ok"], offer
+    assert [row["action"] for row in offer["options"]] == ["pause"]
+    assert volume_cancelled.is_set()
+    assert "kitchen" not in bridge.controls.busy

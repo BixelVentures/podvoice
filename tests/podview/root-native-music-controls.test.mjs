@@ -296,3 +296,52 @@ for(const reason of ['withdrawn-option','unknown-volume','spent-task'])test(`pre
   assert.equal(await f.view.musicIntent(reason==='unknown-volume'?'volume':'pause',reason==='unknown-volume'?{percent:20}:{}),false);assert.equal(f.writes.length,0);assert.equal(f.view.musicIntentPending,false);assert.equal(f.view.musicFence.outcome,'unavailable');assert.match(f.view.musicStatus.textContent,/kunne ikke hentes/);assert.equal(messages.at(-1).pending,false);assert.equal(messages.some(value=>value.message==='Afventer svar…'&&value.pending),true);
  }finally{f.restore();}
 });
+
+
+test('known volume survives offer expiry and held refresh without retaining an executable grant',async()=>{
+ const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=fixture();try{
+  actualOutput(f);f.host.liveTransport.controlSetup=async()=>({...f.offer(['pause','volume'],35),expiresAt:clock/1000+3});
+  await f.view.prepareMusic();const input=f.nodes.get('volume');assert.equal(input.value,'35');assert.equal(input.disabled,false);
+  clock+=3001;f.view.renderMusicControls();assert.equal(input.value,'35');assert.equal(f.nodes.get('volume-value').textContent,'35 %');assert.equal(input.disabled,true);assert.equal(await f.view.musicIntent('volume',{percent:30}),false);
+  const hold=deferred();f.host.liveTransport.controlSetup=()=>hold.promise;f.host.liveMedia.playback.poll_sequence++;const refresh=f.view.prepareMusic();f.view.renderMusicControls();assert.equal(input.value,'35');assert.equal(input.disabled,true);
+  hold.resolve(f.offer(['pause','volume'],35));await refresh;assert.equal(input.value,'35');assert.equal(input.disabled,false);assert.equal(f.writes.length,0);
+ }finally{f.restore();Date.now=previousNow;}
+});
+for(const change of ['binding','output','account','epoch','boot','room','permission','transport','selected','idle','unbound','disconnect-cleanup'])test(`retained volume clears after actual ${change} custody replacement`,async()=>{
+ const f=fixture();try{
+  actualOutput(f);f.host.liveTransport.controlSetup=async()=>f.offer(['volume'],35);await f.view.prepareMusic();f.view.musicOffer.task.expiresAt=Date.now()/1000-1;
+  const p=f.host.liveMedia.playback;
+  if(change==='binding')p.roomBinding.bindingId='d'.repeat(64);
+  if(change==='output'){p.target.id='different';p.roomBinding.targetId='different';}
+  if(change==='account')p.config_entry_id='other';
+  if(change==='epoch')p.owner_epoch='other';
+  if(change==='boot')f.host.liveSnapshot.bootId='other';
+  if(change==='room')f.host.liveSnapshot.roomId='other';
+  if(change==='permission')f.host.liveSnapshot.capabilities.controlSetup=[];
+  if(change==='transport')f.host.liveTransport={...f.host.liveTransport};
+  if(change==='selected')f.host.liveSelection={pendingPlayer:()=>({target:'new intended output'})};
+  if(change==='idle')p.state='no_active_playback';
+  if(change==='unbound')Object.assign(p,{observationStatus:'account_observed',roomBound:false,roomBinding:null,readOnly:true});
+  if(change==='disconnect-cleanup')f.view.cleanup();
+  f.view.renderMusicControls();assert.equal(f.nodes.get('volume-value').textContent,'—');assert.equal(f.nodes.get('volume').value,'50');assert.equal(f.nodes.get('volume').disabled,true);assert.equal(await f.view.musicIntent('volume',{percent:30}),false);assert.equal(f.writes.length,0);
+ }finally{f.restore();}
+});
+test('same output playback changes and temporary disconnect keep only the last known measurement',async()=>{
+ const f=fixture();try{
+  actualOutput(f);f.host.liveTransport.controlSetup=async()=>f.offer(['volume'],35);await f.view.prepareMusic();f.view.musicOffer=null;
+  Object.assign(f.host.liveMedia.playback,{state:'paused',item:{uri:'spotify:track:0123456789ABCDEFGHIJKM'},poll_sequence:2,stale:true});f.host.liveTransport.connected=false;f.view.renderMusicControls();
+  assert.equal(f.nodes.get('volume-value').textContent,'35 %');assert.equal(f.nodes.get('volume').disabled,true);assert.equal(await f.view.musicIntent('volume',{percent:30}),false);assert.equal(f.writes.length,0);
+ }finally{f.restore();}
+});
+test('fresh unknown measurement supersedes retained volume rather than fabricating zero',async()=>{
+ const f=fixture();try{await f.view.prepareMusic();f.view.musicOffer.task.volume=null;f.view.renderMusicControls();assert.equal(f.nodes.get('volume-value').textContent,'—');assert.equal(f.nodes.get('volume').value,'50');assert.equal(f.nodes.get('volume').disabled,true);}finally{f.restore();}
+});
+
+test('accepted control observation follows the immutable clicked action and item without manufacturing playback state',async()=>{
+ const f=fixture();try{
+  let expected,followed=0;f.host.liveMedia.captureAcceptedPlayRefresh=value=>{expected=value;return ()=>{followed++;};};
+  await f.view.prepareMusic();const itemUri=f.host.liveMedia.playback.item.uri,before=structuredClone(f.host.liveMedia.playback),start=Date.now();
+  assert.equal(await f.view.musicIntent('pause'),true);await new Promise(done=>setImmediate(done));
+  assert.equal(Object.isFrozen(expected),true);assert.deepEqual(expected,{kind:'control',action:'pause',requestedAt:expected.requestedAt,itemUri});assert.ok(expected.requestedAt>=start&&expected.requestedAt<=Date.now());assert.equal(followed,1);assert.deepEqual(f.host.liveMedia.playback,before);
+ }finally{f.restore();}
+});

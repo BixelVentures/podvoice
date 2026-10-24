@@ -1,3 +1,96 @@
+## Active 2.0.83 composition — PodView selected-content service lifecycle, 24 October 2026
+
+Lead /root; server owner weather_backend_integration; frontend PodView; Native owner
+separate. Installed PodVoice 2.0.82 and Speakers 0.26.51 are verified RUNNING after the host reboot. Their frozen baseline remains unchanged. Human reports
+mobile Connect playback works while PodView selected-content Play waits 8–12 s without
+sound. This is a field failure, not proof of the responsible server or Native boundary.
+Exact source base is published82 tree4921f4d9683126cdf5adf086869e7026a3adb757.
+
+Causal source map: browser setup/action -> guarded server fresh owner/controls read ->
+selected metadata prepare (up to 35 s) -> commit 16 s -> output proof 8 s -> truthful receipt.
+Setup additionally resolves actual binding then reads transport and optional volume
+sequentially; slow optional volume can hide an already-valid transport offer. Catalogue
+and display-task expiry are reused in operation/proof current checks. Server does not
+prove acoustic playback. Hypothesis for bounded first fix: independent volume reads
+must not delay or revoke available transport controls. Regression holds optional read,
+expects current transport before release, cancels unused read, preserves volume-only
+and completed combined offers plus owner/grant revocation. No deadline widening,
+replay, fake playing, new authority/endpoint, JS, Native/manager/Control or device action.
+Actual bounded first result: held optional-volume regression is RED on sequential
+source and GREEN after concurrent independent reads with unused optional cancellation/
+join. Full existing controls module passes 54 cases after local sandbox loopback
+restriction was isolated (no product patch for EPERM). Four focused option/single-send
+cases pass; Ruff/format and source-file mypy pass. Existing completed combined offers
+and volume-only path remain intact; no new read deadline or action authority.
+Further selected-content admission/proof changes require exact causal regression and
+lead agreement. Existing tests/venv only; independent review before freeze. This is
+source-only work, no version/release/install or physical acceptance.
+
+Lead agrees to separate presentation catalogue/task expiry from an already admitted
+operation only. Admission must be fresh before consumption; exact request/context/URI,
+destination/volume, source/task identity, controller grant/revocation, session/boot,
+policy/tools and provider staged/commit leases remain fenced. Expired presentation
+must not mint authority or dispatch again. Planned regression expires display facts
+during preparation, while grant/owner/policy replacement still aborts before commit;
+provider expiry remains rejected. Accepted-receipt passive confirmation uses only the
+existing bounded 8 s cached-read path with poll floor and exact route; mismatch fails
+immediately and observed output never claims sound. No new API or operation registry.
+Actual second result: exact unchanged 2.0.82 rejects the admitted operation in the new display-expiry
+regression; draft permits one admitted commit and returns the identical cached receipt
+on a late duplicate, while a distinct request cannot resend. Eight focused cases cover
+that expiry, grant revocation/expiry, policy/session/provider-binding/source replacement
+and expired preparation. The existing three selection/facade/destination modules pass
+175 cases; all current controls tests pass 54 cases. Existing provider preoffer/staged
+expired-state refusals pass; no new claim of an elapsed real provider 5 s trial.
+Ruff/format and mypy of the three changed source files pass. Independent optional-read
+review found no blocker; independent TTL audit found no hard-authority bypass.
+Passive proof polling is not included in this bounded source packet. The accepted /
+UNKNOWN / rejected receipt schema is unchanged and no uncertain dispatch is upgraded.
+Separate second source delta: the accepted START proof now re-reads only passive
+cached playback facts when the first same-owner observation is idle or below the
+receipt poll floor. The original total 8 s budget, strict current/fresh source/route
+checks and one action remain unchanged; owner/grant mismatch fails immediately.
+MOVE retains its existing proof behavior. Exact joined destination facts are not
+acoustic proof and no playing state is fabricated. Regression is RED on the first
+packet's immediate-idle path, then GREEN for idle/old-poll→fresh proof; owner/grant
+negatives and a cancelled held read preserve UNKNOWN/fence and join cleanup. The
+existing destination module passes 24 cases, with final five selected START cases
+rechecked after preserving MOVE behavior. Source statics/mypy pass.
+
+Separate fixture-only disconnect evidence: actual inert aiohttp request cancellation
+while preparation is held does not cancel the default server handler. Releasing with
+current authority performs one commit; revocation performs zero commits and exact
+preparation cancellation. Repeating the same request reads its cached receipt, not a
+second send. Both cases pass; no timeout setting changed. Combined phase bounds may
+exceed the browser's 12 s (destination/read 8 s each, prepare 35 s, commit 16 s, proof
+8 s, plus possible exact cancellation). Client UNKNOWN is not evidence of no action.
+The server receipt contract is unchanged; no new registry/API/background effect owner.
+No new physical test is requested tonight.
+
+
+Exact frontend composition now adopts frozen MUSIC-REMOTE packet09331cc5095de5d3ce914eac470ec2ca7e8242d930977d08f952c2f4044e7d4d.
+All 493 runtime/source/evidence pins verify before copy; six of 203 runtime assets
+change, with 197 (including library/styles) unchanged. Thirteen existing test mirrors
+update through their incumbent adapters; the historical truncated live-source mirror
+stays intact and latest root/canonical mirrors cover the new assertions. Fourteen
+focused mirrors pass 880 cases. An actual inert guarded backend search/setup/action
+JSON flow is accepted by the exact adopted UI model, preserving accepted/no-replay/
+physical-false semantics. Authored source/full 2186 and rendered review are retained,
+not repeated. This is frozen source composition only: no version/admission/release
+binding, remote write, installation, restart or physical effect. Installed 82/51 is
+preserved; selected-content audio acceptance remains open.
+
+Release preparation is authorized for one PodVoice 2.0.83 successor over exact main
+8884c78573384c436bfa0287c135d584fd929ce8/tree4921f4d9683126cdf5adf086869e7026a3adb757.
+Independent source-composition GO binds tree371fa046b5c03c1ae8d50d6f9fe75198a46e7446
+and receipt58ca529fb6649932c5df4ef75ad8bfb7ec605f70ddc3a7dbff9a2b594b46d20b.
+Only version/changelog, existing exact-tree admission/dispatch and historical-preserving
+fixture metadata may now change. Existing runtime/UI/test reviews and focused results
+are retained; only invalidated metadata/scope/binding checks run. The prior source
+composition receipt remains immutable. Independent prebind review and exact binding
+are pending; source-only tonight, no GitHub write, publication, installation, restart,
+audio or other household action by packaging. Green 82/51 remains the physical baseline.
+
 ## Active82 composition — current nonmusic UI,24 October2026
 
 Lead/release owner /root; UI owner PodView; packaging weather_backend_integration.
@@ -4010,5 +4103,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "61eaf90044f77094f6942846f0b69febcffa0ad62ee59e59f9f03cc0d748174b",
   "manifest_fingerprint": "b8008af9444b7e2cfdccc87f931543fd053c1ca3f601ec930ec1b498ac5c4f42",
   "rationale": "Independent exact UI-only82 scope/source GO; immutable704330 packet and10 authoredmirrors preserve published81 voice/timer/backend/firmware. Focused324 UI and189 tool/dispatch cases plus15 historical81 pass; final bound checks required. Root owns officialCI/publication/install and physical acceptance, no provider/device effects."
+}
+-->
+
+<!-- podview83-admission
+{
+  "version": 60,
+  "kind": "podview83_music_service",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "8884c78573384c436bfa0287c135d584fd929ce8",
+  "merge_base": "8884c78573384c436bfa0287c135d584fd929ce8",
+  "fingerprint": "e7bb2a3fef4d2954672b5a27f1a662e61dd42bf9b21b287f3cc4569b74fa3169",
+  "regression_fingerprint": "fac058993de9ac52262221da39cf91cd79fe5f8be5617331d0004ee4e226e9d0",
+  "runtime_fingerprint": "dcc46ea1361506135eb985b7405bf79aa038426f83c47d85ecf53e33dde12f02",
+  "config_fingerprint": "dfb9497696e1f3f04e752c4b8c2d3baf2dd65f37058ea300c7e146259fe0b2cd",
+  "policy_fingerprint": "9de8a26494e3158964f13e3f375fdfc932dfce73a22189c8f75b89f44885e4ed",
+  "tooling_fingerprint": "a12fee57aa4750b695efaf5375145a8b844c679fb34da166ae3e8356d850d729",
+  "manifest_fingerprint": "d59af16824f51350590c9031001d1aae4126a870c15953f0abd932c89f9831f2",
+  "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config, prior source/bound evidence and the first transport-clock correction. The next official run found a separate existing named-controller fake-timer helper using real Date.now for exact30000ms. One four-case block now owns/restores Date.now; assertions and production deadlines are unchanged. Reviewed patchf9c477/afterdfcb3a03 and pinned Node24 forced4 plus whole-module42 passes retained; static243-module audit found no further demonstrated same-class issue. Non-CI-equivalent Node20 diagnostic remains failed and is not pass evidence. Only this regression pin and required policy/AST/record bindings change; no runtime or household effects. New automatic official CI required on this head."
 }
 -->

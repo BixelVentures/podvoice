@@ -642,6 +642,7 @@ class TouchControls:
                             }
                         )
                     else:
+                        reads = []
                         for actions, available, read, slot in (
                             (
                                 {"pause", "resume", "next", "previous"},
@@ -662,13 +663,40 @@ class TouchControls:
                                 or read is None
                             ):
                                 continue
-                            offered = await read(
-                                target["accountId"],
-                                target["targetId"],
-                                rule["nativeRoomId"],
-                                rule["nativeHomepodId"],
-                                current,
+                            pending = asyncio.create_task(
+                                read(
+                                    target["accountId"],
+                                    target["targetId"],
+                                    rule["nativeRoomId"],
+                                    rule["nativeHomepodId"],
+                                    current,
+                                )
                             )
+                            reads.append((actions, slot, pending))
+                        offered_reads = []
+                        transport_ready = False
+                        try:
+                            for actions, slot, pending in reads:
+                                # Volume is optional when a current transport offer
+                                # already exists. Never hold that offer for this read.
+                                if (
+                                    slot == "volume_offered"
+                                    and transport_ready
+                                    and not pending.done()
+                                ):
+                                    continue
+                                offered = await pending
+                                offered_reads.append((actions, slot, offered))
+                                if slot == "offered":
+                                    transport_ready = offered.get("ok") is True and bool(
+                                        set(offered["data"]["actions"]) & set(rule["actions"])
+                                    )
+                        finally:
+                            for _, _, pending in reads:
+                                if not pending.done():
+                                    pending.cancel()
+                            await asyncio.gather(*(row[2] for row in reads), return_exceptions=True)
+                        for actions, slot, offered in offered_reads:
                             if offered.get("ok") is not True or not current():
                                 continue
                             task[slot] = offered["data"]
