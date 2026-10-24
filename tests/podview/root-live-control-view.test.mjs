@@ -140,7 +140,7 @@ test('kit-bound admitted volume form preserves schema and native submit authorit
  const f=fixture();try{
   const requests=[];f.view.send=(id,args)=>requests.push({id,args});f.view.domain='music';f.view.task={domain:'music',volume:23,options:[{id:'volume-opaque',action:'volume',label:'Lydstyrke',argsSchema:{kind:'percent',min:0,max:45}}]};f.view.buildOptions();
   const form=f.view.body.querySelectorAll('form')[0],range=form.querySelectorAll('input')[0],submit=form.querySelectorAll('button')[0];
-  assert.equal(f.view.dialog.getAttribute('data-kit'),'dialog');assert.equal(range.getAttribute('data-kit'),'slider');assert.equal(range.value,'23');assert.equal(range.max,'45');assert.equal(range.type,'range');assert.equal(submit.type,'submit');assert.equal(submit.getAttribute('data-kit-variant'),'primary');assert.deepEqual(requests,[]);
+  assert.equal(f.view.dialog.getAttribute('data-kit'),'dialog');assert.equal(range.getAttribute('data-kit'),'slider');assert.equal(range.value,'23');assert.equal(range.max,'100');assert.equal(f.view.task.options[0].argsSchema.max,45);assert.equal(range.type,'range');assert.equal(submit.type,'submit');assert.equal(submit.getAttribute('data-kit-variant'),'primary');assert.deepEqual(requests,[]);
   form.elements={percent:range};range.value='31';form.dispatchEvent(new Event('submit',{cancelable:true}));assert.deepEqual(requests,[{id:'volume-opaque',args:{percent:31}}]);
   const close=f.view.dialog.children[0].children[1];assert.equal(close.getAttribute('data-kit'),'button');const serial=f.view.opening;close.dispatchEvent(new Event('click'));assert.equal(f.view.opening,serial+1);assert.deepEqual(f.view.body.children,[]);assert.equal(requests.length,1);
  }finally{f.view.cleanup();}

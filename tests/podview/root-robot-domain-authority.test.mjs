@@ -5,7 +5,7 @@ import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-con
 // Minimal DOM port: exercise the shipped view's constructor, render and async
 // handlers. Real browser focus/layout remains a separate QA gate.
 class Node extends EventTarget {
- constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.textContent='';}
+ constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.isConnected=true;this.open=false;this.textContent='';}
  append(...nodes){this.children.push(...nodes);}
  after(node){this.sibling=node;}
  setAttribute(name,value){this[name]=String(value);}

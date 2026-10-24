@@ -1,3 +1,12 @@
+## 2.0.81
+
+- Keep music controls under one renderer; avoid briefly disabling or resetting valid controls during playback updates.
+- Show volume on the absolute 0–100 scale while preserving the existing server-authorized limit.
+- Refresh music observation before the current output binding expires; show pending feedback immediately and refresh after accepted commands without replaying them.
+- Advance the displayed track position from the current backend observation only while it remains fresh.
+
+Combined with the separately versioned Speakers correction for ordinary Connect pause acknowledgement and competing transport feedback. Installation and actual HomePod audio acceptance are recorded separately in STATUS.
+
 ## 2.0.80
 
 - Vis frisk Spotify-kontometadata, også når faktisk output ikke kan bevises; hold faktisk højttaler adskilt fra konfigureret standard og næste valg.
