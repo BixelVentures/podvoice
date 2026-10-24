@@ -25,6 +25,7 @@
     "tests/podview/canonical-next-player-view-source.test.mjs": "a9902d631d2ffc4216218f939828424c916866b1de0abfbd2afc7096e2a7ce78",
     "tests/podview/canonical-next-player-view.test.mjs": "00776b02a34abbd7b5176d997c389d7fb4d36995b1f5057bbe71eb4c44be4fc5",
     "tests/podview/canonical-next-room-media-binding.test.mjs": "430379c29f6e77eb1a9ec1f23bebd6e548dbd42d33b5f2c0030cd074ae4eff9b",
+    "tests/podview/canonical-next-transport-recovery.test.mjs": "a2395c08f5aa214c7a422473d3a7f5bb88cb5d8dbab31f325f4d41b6a3f83c60",
     "tests/podview/canonical-packet-player-view.test.mjs": "9bf16e9a9c9ea7fbb737ff7eed9284db22129d1e7bbb91f6d7003e94babad0f6",
     "tests/podview/root-collection-selection.test.mjs": "a003e917a19f801f6b92d7650c46d354571e4adeb5bb251b3bd0414e1e39b41f",
     "tests/podview/root-live-media-view.test.mjs": "f7e55e365731b78b78df3aa642c5e4a919145a1e5a2a3f6720fb1fbd38dd8dcd",
@@ -32,6 +33,8 @@
     "tests/podview/root-player-view.test.mjs": "495f4fa587ac922b7f5de5059e7ef9a0fb2e464d70364348f8a9fc78850b52c9",
     "tests/podview/root-room-media-binding.test.mjs": "430379c29f6e77eb1a9ec1f23bebd6e548dbd42d33b5f2c0030cd074ae4eff9b",
     "tests/podview/root-speaker-output-view.test.mjs": "41cffdd915500c764a5023b0f97903ee798e6564aeb3e4ab8f3e2f161afcfac3",
+    "tests/podview/root-transport-recovery.test.mjs": "a2395c08f5aa214c7a422473d3a7f5bb88cb5d8dbab31f325f4d41b6a3f83c60",
+    "tests/podview/transport-recovery.test.mjs": "a404af0b7c9e77ad663db49ac19de21d1b6eb94b0da4bf95500b382b201b995b",
     "tests/unit/test_candidate_scope_admission82.py": "da11310124fd06973a7f2725e062d9fa30014b239751d40bd319d644d1f00639",
     "tests/unit/test_candidate_scope_admission83.py": "780ce7688b5f1ac2da9e5e27b0898c1e7273da75b38997044e634a40e62175d6",
     "tests/unit/test_dev_cycle.py": "a0b5d72cba02d1bb5854066791c796d896dc41c4333733b9f179652327796d7c"

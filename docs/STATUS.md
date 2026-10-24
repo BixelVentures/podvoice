@@ -4118,12 +4118,12 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "base_tip": "8884c78573384c436bfa0287c135d584fd929ce8",
   "merge_base": "8884c78573384c436bfa0287c135d584fd929ce8",
   "fingerprint": "e7bb2a3fef4d2954672b5a27f1a662e61dd42bf9b21b287f3cc4569b74fa3169",
-  "regression_fingerprint": "5a14fdf8094cd8f781da4d9eee3d3c578e0dbac59ab991d6389992729af698e9",
+  "regression_fingerprint": "f5712a2e5da4aaa1c2f8bbec3a9c6f45ce64bc2091290ba49d857a8a3da37dc4",
   "runtime_fingerprint": "dcc46ea1361506135eb985b7405bf79aa038426f83c47d85ecf53e33dde12f02",
   "config_fingerprint": "dfb9497696e1f3f04e752c4b8c2d3baf2dd65f37058ea300c7e146259fe0b2cd",
-  "policy_fingerprint": "ae7bcf3233f982071daf762bff2a7a35d8ef8283fd47455244ad2cdf88a919af",
+  "policy_fingerprint": "41f2d92e226ba89aa2414907335961d993658bf3b5b5acec810cb9c7d8aecc3a",
   "tooling_fingerprint": "a12fee57aa4750b695efaf5375145a8b844c679fb34da166ae3e8356d850d729",
-  "manifest_fingerprint": "ce5e78e8347df83ea2a50426c7ce5d0947cc5adb8bfe125006c8c37cf2c1b37c",
-  "rationale": "Independent exact83 source/scope GO on reviewed music-remote packet09331cc and four bounded server owners. Exact runtime/UI/test source reviews and focused results retained; metadata/historical scope checks pass. Hard authority/provider leases, UNKNOWN/no replay and physical-false receipts preserved. No install/household actions tonight; root owns official delivery and physical acceptance."
+  "manifest_fingerprint": "a1cd84669180c7de8355bc1432cd82cc48141ea6448767bd3ecff92121897dc4",
+  "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config and prior source/bound evidence. Official CI40134390888 remains failed solely on an existing transport fixture real-clock boundary. Three existing helpers now own and restore Date.now while manually firing timers; all assertions and production deadlines are unchanged. Reviewed patch9fe1 and 64 forced-clock passes retained. Exact regression inventory and required policy/AST/record bindings refreshed; no runtime, release version, provider or household effects. New automatic official CI is required on the successor head."
 }
 -->

@@ -76,26 +76,29 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     {
-        "tests/podview/root-player-view.test.mjs",
-        "tests/podview/root-live-media-view.test.mjs",
-        "tests/podview/root-collection-selection.test.mjs",
-        "tests/podview/root-native-music-controls.test.mjs",
         "tests/integration/test_podview_controls.py",
-        "tests/podview/canonical-next-room-media-binding.test.mjs",
-        "tests/podview/canonical-next-live-media-view.test.mjs",
-        "tests/podview/canonical-next-player-view-source.test.mjs",
-        "tests/unit/test_dev_cycle.py",
-        "tests/podview/canonical-packet-player-view.test.mjs",
         "tests/podview/root-room-media-binding.test.mjs",
-        "tests/podview/canonical-next-native-music-controls.test.mjs",
-        "tests/integration/test_podview_idle_destination.py",
-        "tests/unit/test_candidate_scope_admission83.py",
+        "tests/podview/canonical-next-live-media-view.test.mjs",
+        "tests/podview/canonical-next-room-media-binding.test.mjs",
         "tests/unit/test_candidate_scope_admission82.py",
+        "tests/podview/canonical-next-collection-selection.test.mjs",
         "tests/podview/canonical-next-player-view.test.mjs",
+        "tests/podview/canonical-packet-player-view.test.mjs",
+        "tests/podview/canonical-next-player-view-source.test.mjs",
+        "tests/podview/root-native-music-controls.test.mjs",
+        "tests/podview/canonical-next-transport-recovery.test.mjs",
+        "tests/podview/canonical-next-native-music-controls.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission83.py",
+        "tests/podview/transport-recovery.test.mjs",
+        "tests/integration/test_podview_music_disconnect.py",
+        "tests/podview/root-collection-selection.test.mjs",
+        "tests/unit/test_dev_cycle.py",
+        "tests/podview/root-player-view.test.mjs",
+        "tests/podview/root-transport-recovery.test.mjs",
+        "tests/integration/test_podview_idle_destination.py",
         "tests/integration/test_podview_music_selection.py",
         "tests/podview/root-speaker-output-view.test.mjs",
-        "tests/integration/test_podview_music_disconnect.py",
-        "tests/podview/canonical-next-collection-selection.test.mjs",
     }
 )
 
@@ -107,8 +110,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "ce5e78e8347df83ea2a50426c7ce5d0947cc5adb8bfe125006c8c37cf2c1b37c"
-PROFILE_AST = "edf8090c9a1e68fe24651e57d0aca670695dd4e91d015bb5381114604c1ef030"
+MANIFEST_SHA = "a1cd84669180c7de8355bc1432cd82cc48141ea6448767bd3ecff92121897dc4"
+PROFILE_AST = "f2a35215a785cbb3a704b5069c641b7083a3b07438e3da9d60c6ad8d090acc8d"
 
 
 def record_at(root: Path) -> dict | None:
