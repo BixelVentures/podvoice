@@ -11,14 +11,16 @@ export class SetupFlow {
   if(this.closed)return;
   const pending=['requesting','pending','finishing'].includes(this.phase);
   const available=this.transport.connected&&this.transport.snapshot?.controllerContinuity?.available===true;
-  this.render({status,disabled:pending||this.phase==='unknown'||!available,nameDisabled:pending,button:this.phase==='pending'?'Afventer godkendelse':'Bed om adgang',pending:this.phase==='pending'});
+  this.render({status,disabled:pending||this.phase==='unknown'||!available,nameDisabled:pending||this.phase==='linked',button:this.phase==='linked'?'Åbn PodView':this.phase==='pending'?'Afventer godkendelse':'Bed om adgang',pending:this.phase==='pending',adminVisible:this.phase==='pending'||this.phase==='linked'});
  }
  connection(state) {
   if(this.closed)return;
   if(state==='connected'){
+   if(this.transport.namedControllerRenewed===true&&this.phase!=='finishing'){this.linked();return;}
+   if(this.phase==='linked'&&this.transport.namedControllerRenewed!==true){this.phase=this.transport.namedRenewalDenied===true?'error':'unknown';this.update(this.transport.namedRenewalDenied===true?'Skærmadgangen skal godkendes igen. Fjern om nødvendigt den gamle skærm under Konfigurér i Home Assistant, og bed om adgang igen.':'Skærmadgangen kunne ikke bekræftes. Åbn siden igen for at kontrollere forbindelsen.');return;}
    if(this.transport.controllerRenewed===true&&this.phase!=='finishing'){this.open();return;}
    if(this.phase==='connecting'||this.phase==='offline'){
-    this.phase='ready';this.update(this.transport.snapshot?.controllerContinuity?.available===true?'':'PodView er ikke klar til tilknytning. Prøv igen senere.');
+    this.phase='ready';this.update(this.transport.namedRenewalDenied===true?'Skærmadgangen skal godkendes igen. Fjern om nødvendigt den gamle skærm under Konfigurér i Home Assistant, og bed om adgang igen.':this.transport.snapshot?.controllerContinuity?.available===true?'':'PodView er ikke klar til tilknytning. Prøv igen senere.');
     if(this.transport.snapshot?.controllerContinuity?.available===true)this.resume();
    }
   }else if(state==='disconnected'){
@@ -37,9 +39,10 @@ export class SetupFlow {
  waiting() {this.update(`Vælg Konfigurér i Home Assistant, og godkend “${this.request.name}” med mærket ${this.request.matchSignal}.`);}
  async start() {
   this.update();
-  try{await this.transport.start();}catch{if(!this.closed)this.connection('disconnected');}
+  try{await this.transport.start();if(!this.closed&&this.transport.namedControllerRenewed===true)this.linked();}catch{if(!this.closed)this.connection('disconnected');}
  }
  async submit(name) {
+  if(this.phase==='linked'){if(this.transport.namedControllerRenewed===true)this.open();else this.fail({});return;}
   if(this.closed||!['ready','error'].includes(this.phase)||!this.transport.connected)return;
   name=typeof name==='string'?name.trim():'';
   if(!name||name.length>48||/[\u0000-\u001f\u007f]/u.test(name)){this.update('Skriv et navn på højst 48 tegn.');return;}
@@ -67,6 +70,7 @@ export class SetupFlow {
     this.phase='finishing';this.update();
     await this.transport.start();
     if(this.closed||sequence!==this.sequence)return;
+    if(this.transport.namedControllerRenewed===true){this.linked();return;}
     if(this.transport.controllerRenewed!==true)throw Error('access_not_confirmed');
     this.open();return;
    }
@@ -83,6 +87,7 @@ export class SetupFlow {
   const copy={controller_limit:'To enheder er allerede tilknyttet. Fjern én i Home Assistant først.',request_expired:'Anmodningen udløb. Bed om adgang igen.',request_denied:'Anmodningen blev afvist. Du kan bede om adgang igen.'};
   this.update(copy[error?.code]||'Adgangen kunne ikke bekræftes. Åbn siden igen for at kontrollere forbindelsen.');
  }
+ linked() {if(this.closed)return;this.cancel(this.timer);this.timer=null;this.forget();this.phase='linked';this.update(this.transport.namedIntentStored===false?'Skærmen er tilknyttet nu, men browseren kan ikke huske skærmvalget. Åbn denne side igen for at bekræfte adgangen. Vælg “PodViews rum” under Konfigurér i Home Assistant.':'Skærmen er tilknyttet. Vælg “PodViews rum” for denne skærm under Konfigurér i Home Assistant. Et gemt rum giver ikke i sig selv lysbetjening.');}
  open() {if(this.closed)return;const room=this.transport.snapshot?.roomId;this.forget();this.close();this.navigate('./'+(room?'?'+new URLSearchParams({room}).toString():''));}
  close() {if(this.closed)return;this.closed=true;this.sequence++;this.cancel(this.timer);this.timer=null;this.transport.close();}
 }
@@ -94,9 +99,9 @@ if(typeof document!=='undefined'){
   field.value=/iPad/.test(navigator.userAgent)||/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1?'iPad':/Mac/.test(navigator.platform||navigator.userAgent)?'Mac':'PodView-skærm';
   let flow;
   try{
-   const transport=new PodVoiceTransport({room:new URLSearchParams(location.search).get('room')||undefined,onConnection:state=>flow?.connection(state)});
+   const transport=new PodVoiceTransport({screenEnrollment:true,room:new URLSearchParams(location.search).get('room')||undefined,onConnection:state=>flow?.connection(state)});
    const storageKey='podview.access.pending.v1';
-   flow=new SetupFlow({transport,render:view=>{submit.disabled=view.disabled;submit.textContent=view.button;field.disabled=view.nameDisabled;status.textContent=view.status;if(approval)approval.hidden=!view.pending;if(back&&transport.snapshot?.roomId)back.href='./?'+new URLSearchParams({room:transport.snapshot.roomId}).toString();},navigate:url=>location.replace(url),load:()=>{try{return JSON.parse(sessionStorage.getItem(storageKey));}catch{return null;}},save:value=>{try{sessionStorage.setItem(storageKey,JSON.stringify(value));}catch{/* Current tab can still complete setup. */}},forget:()=>{try{sessionStorage.removeItem(storageKey);}catch{/* Storage is not authority. */}}});
+   flow=new SetupFlow({transport,render:view=>{submit.disabled=view.disabled;submit.textContent=view.button;field.disabled=view.nameDisabled;status.textContent=view.status;if(approval)approval.hidden=!view.adminVisible;if(back&&transport.snapshot?.roomId)back.href='./?'+new URLSearchParams({room:transport.snapshot.roomId}).toString();},navigate:url=>location.replace(url),load:()=>{try{return JSON.parse(sessionStorage.getItem(storageKey));}catch{return null;}},save:value=>{try{sessionStorage.setItem(storageKey,JSON.stringify(value));}catch{/* Current tab can still complete setup. */}},forget:()=>{try{sessionStorage.removeItem(storageKey);}catch{/* Storage is not authority. */}}});
    form.addEventListener('submit',event=>{event.preventDefault();flow.submit(field.value);});
    window.addEventListener('pagehide',()=>flow.close(),{once:true});
    flow.start();

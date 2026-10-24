@@ -9,7 +9,7 @@ function fixture(){
  const notifications=new NotificationQueue(item=>renders.push(item),{setTimer(callback){const id=++clock;timers.set(id,callback);return id;},clearTimer:id=>timers.delete(id)});
  const host={isConnected:true,liveSnapshot:{bootId:'boot',roomId:'kitchen',voice:{sessionId:'session'},capabilities:{queueSelection:true,musicRead:['queue']}},liveTransport:{connected:true},liveMedia:{account:'account',renderQueue(){},refresh:async()=>{}},showFeedback(message,pending,options){notifications.update(options.source,message,{pending});}};
  host.liveMedia.playback=boundPlayback(host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:4,target:{id:'device'},expiresAt:Date.now()+15000});
- host.liveTransport.queueOffer=async()=>{const offer={ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'kitchen',accountId:'account',targetId:'device',taskId:'queue:'+(++serial).toString(16).padStart(32,'0'),revision:1,expiresInMs:8000,ownerEpoch:'epoch',pollSequence:4,truncated:false,items:[{id:serial.toString(16).padStart(24,'0'),title:'Known queued song',artist:'Artist',uri:'spotify:track:'+'0'.repeat(22),artwork:null,order:1}]};reads.push(offer);return offer;};
+ host.liveTransport.queueOffer=async()=>{const offer={ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'kitchen',accountId:'account',targetId:'device',expectedBindingId:'a'.repeat(64),taskId:'queue:'+(++serial).toString(16).padStart(32,'0'),revision:1,expiresInMs:8000,ownerEpoch:'epoch',pollSequence:4,truncated:false,items:[{id:serial.toString(16).padStart(24,'0'),title:'Known queued song',artist:'Artist',uri:'spotify:track:'+'0'.repeat(22),artwork:null,order:1}]};reads.push(offer);return offer;};
  host.liveTransport.queueAction=async(offer,id)=>{actions.push({taskId:offer.taskId,id});return {outcome:'unknown'};};
  const view=new LiveQueueView(host);return {host,view,notifications,renders,actions,reads,close(){view.invalidate(true);notifications.cleanup();}};
 }
@@ -29,5 +29,61 @@ test('only a fresh explicit notified queue read rearms its own failure, not pass
   await f.view.load('account',f.host.liveMedia.playback,{notify:true});const message=f.notifications.current.message;f.notifications.dismiss();const quiet=f.renders.length;await f.view.load('account',f.host.liveMedia.playback);f.view.redraw();assert.equal(f.renders.length,quiet);assert.equal(f.notifications.current,null);
   f.notifications.update('connection','Offline',{priority:true});await f.view.load('account',f.host.liveMedia.playback,{notify:true});assert.equal(reads,3);assert.equal(f.notifications.current.source,'connection');assert.equal(f.notifications.pending.length,1);f.notifications.dismiss();assert.equal(f.notifications.current?.message,message);assert.equal(f.renders.filter(item=>item?.message===message).length,2);
   const visible=f.notifications.current;f.host.liveSnapshot.capabilities.queueSelection=false;await f.view.load('account',f.host.liveMedia.playback,{notify:true});assert.equal(f.notifications.current,visible,'an unoffered read cannot clear the actual queue notice');assert.equal(reads,3);
+ }finally{f.close();}
+});
+
+function actualQueueOutput(f){
+ const p=f.host.liveMedia.playback;f.host.liveSnapshot.capabilities.musicRead=['playback','queue'];
+ const binding={roomId:'kitchen',accountId:'account',targetId:'actual-device',nativeRoomId:'actual-room',nativeHomepodId:'77',bindingId:'c'.repeat(64),validUntil:Date.now()/1000+15};
+ Object.assign(p,{projectionVersion:2,observationStatus:'observed',roomBound:true,readOnly:false,target:{id:binding.targetId},roomBinding:binding});return binding;
+}
+test('queue read uses actual non-default binding and target; an offer cannot silently echo the configured default',async()=>{
+ const f=fixture();try{
+  const configured=structuredClone(f.host.liveSnapshot.mediaRoomBindings),binding=actualQueueOutput(f),read=f.host.liveTransport.queueOffer,requests=[];
+  f.host.liveTransport.queueOffer=async(...args)=>{requests.push(args);return {...await read(),targetId:binding.targetId,expectedBindingId:binding.bindingId};};
+  assert.equal(await f.view.load('account',f.host.liveMedia.playback),true);assert.deepEqual(requests,[['account','actual-device',binding.bindingId]]);assert.equal(f.view.offer.expectedBindingId,binding.bindingId);assert.equal(f.view.model('account',f.host.liveMedia.playback).items[0].selectable,true);
+  f.host.liveTransport.queueOffer=async()=>({...await read(),targetId:binding.targetId});assert.equal(await f.view.load('account',f.host.liveMedia.playback),false);assert.equal(f.view.offer,null);assert.deepEqual(f.host.liveSnapshot.mediaRoomBindings,configured);assert.equal(f.actions.length,0);
+ }finally{f.close();}
+});
+test('queue metadata without actual route, expired binding and late binding replacement never admit an offer',async()=>{
+ for(const change of ['account','expired','replacement']){const f=fixture();try{
+  const binding=actualQueueOutput(f),read=f.host.liveTransport.queueOffer;
+  if(change==='account')Object.assign(f.host.liveMedia.playback,{observationStatus:'account_observed',accountObserved:true,roomBound:false,readOnly:true,roomBinding:null});
+  if(change==='expired')binding.validUntil=Date.now()/1000-1;
+  if(change!=='replacement'){assert.equal(await f.view.load('account',f.host.liveMedia.playback),false);assert.equal(f.reads.length,0);}
+  else{let finish;f.host.liveTransport.queueOffer=()=>new Promise(resolve=>finish=resolve);const waiting=f.view.load('account',f.host.liveMedia.playback);f.host.liveMedia.playback={...f.host.liveMedia.playback,roomBinding:{...binding,bindingId:'d'.repeat(64)}};finish({...await read(),targetId:binding.targetId,expectedBindingId:binding.bindingId});assert.equal(await waiting,false);}
+  assert.equal(f.view.offer,null);assert.equal(f.actions.length,0);
+ }finally{f.close();}}
+});
+
+test('a foreign account parameter cannot borrow an otherwise current actual output for a queue read',async()=>{
+ const f=fixture();try{actualQueueOutput(f);assert.equal(await f.view.load('foreign-account',f.host.liveMedia.playback),false);assert.equal(f.reads.length,0);assert.equal(f.actions.length,0);}finally{f.close();}
+});
+
+test('late accepted refresh for source A cannot clear or duplicate the pending queue read for replacement B',async()=>{
+ const f=fixture();let finishRefresh,finishB,enteredRefresh;
+ const refreshStarted=new Promise(resolve=>enteredRefresh=resolve);
+ try{
+  const a=actualQueueOutput(f),read=f.host.liveTransport.queueOffer;
+  f.host.liveTransport.queueOffer=async()=>({...await read(),targetId:a.targetId,expectedBindingId:a.bindingId});
+  await f.view.load('account',f.host.liveMedia.playback);const first=f.view.offer;
+  f.host.liveTransport.queueAction=async()=>({outcome:'accepted'});
+  f.host.liveMedia.refresh=()=>{enteredRefresh();return new Promise(resolve=>finishRefresh=resolve);};
+  const choosing=f.view.choose(first.items[0]);await refreshStarted;
+  const b={...a,bindingId:'d'.repeat(64),targetId:'replacement-device'};
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,target:{id:b.targetId},roomBinding:b};f.view.invalidate();
+  let readsB=0;f.host.liveTransport.queueOffer=()=>{readsB++;return new Promise(resolve=>finishB=resolve);};
+  const loadingB=f.view.load('account',f.host.liveMedia.playback),generationB=f.view.generation;
+  assert.equal(f.view.pending,true);finishRefresh();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(readsB,1,'old accepted continuation must not request a second B offer');assert.equal(f.view.generation,generationB);assert.equal(f.view.pending,true,'B retains its pending ownership');await choosing;
+  const offerB={...await read(),targetId:b.targetId,expectedBindingId:b.bindingId};finishB(offerB);assert.equal(await loadingB,true);assert.equal(f.view.offer.taskId,offerB.taskId);assert.equal(f.view.pending,false);
+ }finally{finishRefresh?.();f.close();}
+});
+
+test('accepted queue choice with unchanged source still refreshes and obtains one fresh offer',async()=>{
+ const f=fixture();try{
+  let refreshes=0;f.host.liveTransport.queueAction=async()=>({outcome:'accepted'});f.host.liveMedia.refresh=async()=>{refreshes++;};
+  await f.view.load('account',f.host.liveMedia.playback);const first=f.view.offer;await f.view.choose(first.items[0]);
+  assert.equal(refreshes,1);assert.equal(f.reads.length,2);assert.notEqual(f.view.offer.taskId,first.taskId);assert.equal(f.view.status,'ready');assert.equal(f.view.pending,false);
  }finally{f.close();}
 });

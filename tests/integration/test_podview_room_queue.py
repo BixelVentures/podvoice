@@ -9,6 +9,7 @@ import pytest
 from integration.test_podview_music_selection import rig as rig
 from integration.test_podview_queue_occurrence import accepted, action
 from integration.test_podview_queue_occurrence import source as legacy_source
+from integration.test_podview_room_move_caller import ACTUAL_BINDING, actual_playback
 
 from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_queue import ACTION
@@ -83,6 +84,7 @@ def staged(request):
 
 def prepare(rig):
     bridge = rig.app[BRIDGE]
+    rig.values["playback"] = actual_playback("account-alpha", "device-one", "native-room", "7")
     rig.router._discovery = replace(
         rig.router._discovery,
         podconnect_services=rig.router._discovery.podconnect_services | SERVICES,
@@ -102,7 +104,11 @@ def prepare(rig):
 
     bridge.controls.music._read = AsyncMock(side_effect=read)
     request = dict(
-        bootId=bridge.boot_id, roomId="kitchen", accountId="account-alpha", targetId="device-one"
+        bootId=bridge.boot_id,
+        roomId="kitchen",
+        accountId="account-alpha",
+        targetId="device-one",
+        expectedBindingId=ACTUAL_BINDING,
     )
     return bridge, request
 
@@ -111,6 +117,7 @@ async def test_exact_duplicate_occurrence_stages_then_commits_once_without_brows
     bridge, request = prepare(rig)
     offer = await bridge.queue.offer(request, "grant")
     assert offer["ok"] and offer["items"][0]["uri"] == offer["items"][1]["uri"]
+    assert offer["expectedBindingId"] == ACTUAL_BINDING
     assert "native" not in offer and "route" not in offer and "writer_proof" not in offer
     body = action(offer)
     result = await bridge.queue.action(body, "grant")
@@ -127,6 +134,10 @@ async def test_exact_duplicate_occurrence_stages_then_commits_once_without_brows
     assert "uri" not in preparation["args"] and "position" not in preparation["args"]
     assert commit == {**preparation, "prepare_id": "f" * 32}
     assert "volume_percent" not in commit and "start_volume" not in commit
+    assert rig.calls and all(
+        call[2] == {"config_entry_id": "account-alpha", "include_output": True}
+        for call in rig.calls
+    )
 
 
 async def test_queue_read_matches_actual_registered_control_identity_schema(rig):
@@ -232,3 +243,29 @@ async def test_partial_or_legacy_service_stack_cannot_offer_queue_actions(rig, m
     assert not bridge.queue.available
     assert not (await bridge.queue.offer(request, "grant"))["ok"]
     bridge.controls.music._read.assert_not_awaited()
+
+
+@pytest.mark.parametrize("phase", ["offer", "action"])
+async def test_changed_actual_output_rejects_previous_binding_without_rewriting_intent(rig, phase):
+    bridge, request = prepare(rig)
+    rule = bridge.controls.policy["music"][0]
+    rule["default"] = True
+    bridge.controls.policy["music"].append(
+        {**rule, "nativeRoomId": "other-room", "nativeHomepodId": "8", "default": False}
+    )
+    configured = copy.deepcopy(bridge.controls.policy)
+    intent = copy.deepcopy(bridge._music_destinations)
+    offer = await bridge.queue.offer(request, "grant") if phase == "action" else None
+    rig.values["playback"]["output"]["binding"].update(
+        native_room_id="other-room", homepod_id="8", binding_id="c" * 64
+    )
+    if phase == "offer":
+        assert not (await bridge.queue.offer(request, "grant"))["ok"]
+        bridge.controls.music._read.assert_not_awaited()
+    else:
+        assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "rejected"
+        assert [call.args[2] for call in bridge.controls.music._read.await_args_list] == [
+            "get_room_queue_controls"
+        ]
+    assert bridge.controls.policy == configured
+    assert bridge._music_destinations == intent

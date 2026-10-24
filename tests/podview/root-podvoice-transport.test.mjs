@@ -56,3 +56,25 @@ test('weather admission failures and owner replacement never retry or admit a la
  for(const status of [401,403,409,503]){let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:false,status,json:async()=>({error:'weather_advice_unavailable'})};}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{homeRead:['weather']}};try{await assert.rejects(t.weatherAdvice(binding),error=>{assert.equal(error.code,status===409?'stale_weather_binding':[401,403].includes(status)?'read_access_denied':undefined);return true;});assert.equal(calls,1);}finally{t.close();}}
  let resolve;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:()=>new Promise(r=>resolve=r)});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{homeRead:['weather']}};const pending=t.weatherAdvice(binding);t.snapshot={...t.snapshot,bootId:'new'};resolve({ok:true,status:200,json:async()=>({})});await assert.rejects(pending,{name:'AbortError'});t.close();
 });
+
+test('music setup and queue offer carry one exact actual-binding precondition while effect bodies remain opaque',async()=>{
+ const calls=[],id='c'.repeat(64),target={accountId:'account',kind:'spotify_device',targetId:'actual-device',expectedBindingId:id};
+ const t=new PodVoiceTransport({url:'https://ha.example/ingress/opaque/view/',fetch:async(url,init)=>{const body=JSON.parse(init.body);calls.push({url:new URL(url),init,body});return {ok:true,status:200,json:async()=>({ok:true,expectedBindingId:body.target?.expectedBindingId??body.expectedBindingId})};}});
+ t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{controlSetup:['music'],queueSelection:true}};
+ try{
+  await t.controlSetup('music',target);await t.controlSetup('music',{...target,speakerId:'b'.repeat(64)});await t.queueOffer('account','actual-device',id);
+  assert.deepEqual(calls[0].body,{bootId:'test',roomId:'kitchen',domain:'music',target});assert.deepEqual(calls[1].body.target,{...target,speakerId:'b'.repeat(64)});
+  assert.deepEqual(calls[2].body,{bootId:'test',roomId:'kitchen',accountId:'account',targetId:'actual-device',expectedBindingId:id});
+  for(const call of calls){assert.equal(call.url.origin,'https://ha.example');assert(call.url.pathname.startsWith('/ingress/opaque/view/api/'));assert.equal(call.init.credentials,'same-origin');assert.equal(call.init.headers['X-PodView-Request'],'1');}
+  for(const invalid of [undefined,null,'a'.repeat(63),'A'.repeat(64)]){await assert.rejects(()=>t.controlSetup('music',{...target,expectedBindingId:invalid}));await assert.rejects(()=>t.queueOffer('account','actual-device',invalid));}
+  await assert.rejects(()=>t.controlSetup('music',{...target,grant:true}));assert.equal(calls.length,3,'invalid expectations never reach the server');
+ }finally{t.close();}
+});
+
+test('music and queue transport reject absent or mismatched offer echoes without replaying a request',async()=>{
+ for(const echo of [undefined,null,'d'.repeat(64)]){
+  let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:true,status:200,json:async()=>({ok:true,expectedBindingId:echo})};}});
+  t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{controlSetup:['music'],queueSelection:true}};
+  try{await assert.rejects(()=>t.controlSetup('music',{accountId:'account',kind:'spotify_device',targetId:'actual-device',expectedBindingId:'c'.repeat(64)}));await assert.rejects(()=>t.queueOffer('account','actual-device','c'.repeat(64)));assert.equal(calls,2);}finally{t.close();}
+ }
+});

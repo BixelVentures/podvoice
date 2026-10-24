@@ -5,21 +5,23 @@
  <meta name="viewport" content="width=device-width,initial-scale=1">
  <title>PodView · Forbind denne enhed</title>
  <link rel="stylesheet" href="ui/components.css">
+ <link rel="stylesheet" href="ui/library/library.css">
+ <link rel="stylesheet" href="ui-kit.css">
  <link rel="stylesheet" href="setup.css">
  <script type="module" src="setup.js"></script>
 </head>
 <body>
- <main>
-  <a href="./">← Til PodView</a>
+ <main class="pv-kit pv-kit-card pv-card" data-kit="card" data-kit-identity="neutral">
+  <a class="setup-back pv-kit pv-kit-button pv-btn" data-kit="button" data-kit-variant="secondary" href="./"><img src="assets/icons/arrow-left.svg" alt="">Til PodView</a>
   <h1>Forbind PodView</h1>
   <p>Godkend denne enhed én gang i Home Assistant. Så husker PodView den.</p>
   <form id="pair-form">
    <label for="device-name">Enhedens navn</label>
-   <input id="device-name" name="name" type="text" autocomplete="off" maxlength="48" required>
-   <button id="pair-submit" type="submit" disabled>Bed om adgang</button>
+   <input class="pv-kit pv-form-field" id="device-name" name="name" type="text" autocomplete="off" maxlength="48" required>
+   <button class="pv-kit pv-kit-button pv-btn" data-kit="button" data-kit-variant="primary" id="pair-submit" type="submit" disabled>Bed om adgang</button>
   </form>
   <p id="pair-status" role="status" aria-live="polite"></p>
-  <span id="approval-actions" hidden><a href="/config/integrations/integration/podvoice" target="_blank" rel="noopener">Åbn Home Assistant</a></span>
+  <span id="approval-actions" hidden><a class="pv-kit pv-kit-button pv-btn" data-kit="button" data-kit-variant="secondary" href="/config/integrations/integration/podvoice" target="_blank" rel="noopener">Åbn Home Assistant</a></span>
  </main>
 </body>
 </html>

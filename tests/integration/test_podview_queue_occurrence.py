@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music_selection import rig as rig
+from integration.test_podview_room_move_caller import ACTUAL_BINDING, actual_playback
 
 from gatekeeper.podview import _PAIR_COOKIE, BRIDGE
 from gatekeeper.podview_queue import ACTION, project
@@ -146,6 +147,7 @@ async def queue_service_reply(_client, _token, service, request):
 
 def prepare(rig):
     bridge = rig.app[BRIDGE]
+    rig.values["playback"] = actual_playback("account-alpha", "device-one", "native-room", "7")
     rig.router._discovery = replace(
         rig.router._discovery,
         podconnect_services=rig.router._discovery.podconnect_services | SERVICES,
@@ -160,6 +162,7 @@ def prepare(rig):
         "roomId": "kitchen",
         "accountId": "account-alpha",
         "targetId": "device-one",
+        "expectedBindingId": ACTUAL_BINDING,
     }
     return bridge, request
 
@@ -193,6 +196,7 @@ async def test_repeated_uri_exact_occurrence_once(rig):
     bridge, request = prepare(rig)
     offer = await bridge.queue.offer(request, "grant")
     assert offer["ok"] and offer["items"][0]["uri"] == offer["items"][1]["uri"]
+    assert offer["expectedBindingId"] == ACTUAL_BINDING
     read = bridge.controls.music._read
     assert read.await_args.args[-1] == {
         "config_entry_id": "account-alpha",

@@ -2524,9 +2524,16 @@ class ToolRouter:
         return reads
 
     async def podview_read(
-        self, kind: str, account: str | None = None, query: str | None = None
+        self,
+        kind: str,
+        account: str | None = None,
+        query: str | None = None,
+        *,
+        include_output: bool = False,
     ) -> dict:
         """Passive service transport: never refresh discovery or voice declarations."""
+        if include_output and kind != "playback":
+            return {"ok": False, "error_kind": "invalid_query"}
         if kind in {"search", "playlist_search"}:
             try:
                 query = podview_music.normalize_search_query(query)
@@ -2576,6 +2583,8 @@ class ToolRouter:
             else names[kind]
         )
         args: dict[str, Any] = {"config_entry_id": account} if account else {}
+        if include_output:
+            args["include_output"] = True
         if kind in {"queue", "account_playlists"}:
             args["limit"] = 20
         elif kind in {"search", "playlist_search"}:
@@ -2609,6 +2618,8 @@ class ToolRouter:
             return podview_music.project_account_playlists(data, account)
         if kind == "playlist_search":
             return podview_music.project_playlists(data, account, query)
+        if include_output:
+            return podview_music.project_playback_output(data, account)
         if kind in podview_music.SERVICES:
             return podview_music.project_owner(kind, data, account, query=query)
         if kind in {"recent", "top", "liked"}:

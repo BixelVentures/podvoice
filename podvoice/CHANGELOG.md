@@ -1,3 +1,10 @@
+## 2.0.80
+
+- Vis frisk Spotify-kontometadata, også når faktisk output ikke kan bevises; hold faktisk højttaler adskilt fra konfigureret standard og næste valg.
+- Bind musik-, kø- og MOVE-kontroller til Controls aktuelle outputidentitet med frisk kontrol før afsendelse; bevar de eksisterende engangskommandoer.
+- Åbn eksplicit named-screen-opsætning fra Skærm med eksisterende anmodning, administratorgodkendelse og navngiven binding.
+- Saml de reviewede spiller-, navigations- og forbindelsestilstande i den fælles UI-pakke. HAkomponent0.1.6 bevares som separat leverance.
+
 ## 2.0.79
 
 - Lys kræver to matchende leverancer: add-on2.0.79 og separat PodVoice HAkomponent0.1.6. Add-on-opdatering alene installerer ikke custom_components.

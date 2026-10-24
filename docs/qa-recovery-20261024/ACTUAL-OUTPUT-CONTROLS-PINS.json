@@ -1,0 +1,46 @@
+{
+  "scope": "source-only scoped control/queue/output closure, no release or physical claim",
+  "focusedTests": {
+    "pass": 294,
+    "fail": 0,
+    "receipt": "/private/tmp/pv-recovery-actual-binding-final.log"
+  },
+  "componentGate": "PASS63",
+  "files": {
+    "dist/live-control-view.js": "c4e4c82e33b01a5ebb2ae5011199d93cc38220e8787ce560196567bf87ae4fbd",
+    "dist/live-queue-view.js": "0ca291df6e48b1d709a2896fa5f789e47c301a5be209c33f2281a1a70492c15a",
+    "dist/speaker-output-view.js": "170c698a53860a5a891145fce722b35df318d709c8df0b3e5c0d0f206bbbfe12",
+    "dist/podvoice-transport.js": "0c045c62ad9a5f746d8a79a2b36a8e1dcbda2bcfaf10fe97bcb505a9fbfdd2b3",
+    "dist/control-model.js": "60fff418458c9e955c0bd81f8b3e5eeddebb9cf9f1ba5631617d239274e8d7ed",
+    "docs/component-library-registry.json": "06e4e800ae325232c022dc674fe25263e6bdb95360fe5b78bbf006b00a2aa847",
+    "tests/native-music-controls.test.js": "fc92fe086b6689cbf797da919f77239bc0700ea39ba9e63757e64fb820a9b3f4",
+    "tests/live-queue-view.test.js": "aefe6fa09e02ebf9e79eeb71e9488da82b8f24ed4e49ff2c64ef565e2b5aa192",
+    "tests/live-queue-occurrence.test.js": "b3e3e3814dc911a0c565af44f0dd7e5126d8a612dea64a1610a8c367ec8767d0",
+    "tests/podvoice-transport.test.js": "076fae3d0a041bc2364f251af1749bb774508e8027088ab7fb91fe10f9dd9fcf",
+    "tests/control-model.test.js": "7931854f0118885e623eb3f62a4406c6effc34bac1842bcbe4890c9426c55c15",
+    "tests/speaker-output-view.test.js": "b05020ef7204cc18cd879541fbef113a72b07ba5485f80811304c06613603c87",
+    "tests/configured-speaker-label.test.js": "a7a17fbccdf8dfd1f558233b49a57563e2dabe50b1ea82c5de8072003c815cb8",
+    "tests/transport-recovery.test.js": "ded6f4593471b32e9d812eb3af5abe6b3d9e01db3d7cd821e073a4b7f9e7855a",
+    "tests/robot-control-renewal.test.js": "1d5a4eb4b8000bb68362873f6e5275719006138f922c65230a95d51e2d3f4240"
+  },
+  "testLoaderFollowup": {
+    "pass": 16,
+    "fail": 0,
+    "receipt": "/private/tmp/pv-recovery-robot-loader.log",
+    "scope": "Resolve real media observation owner for existing data-URI Robot view test; production unchanged"
+  },
+  "queueAwaitFollowup": {
+    "pass": 19,
+    "fail": 0,
+    "receipt": "/private/tmp/pv-recovery-queue-refresh-green.log",
+    "redReceipt": "/private/tmp/pv-recovery-queue-refresh-red.log",
+    "scope": "After an accepted choice awaits refresh, recheck generation, current media owner and original scope before touching pending state or loading another offer. Normal accepted refresh remains covered."
+  },
+  "controlDisplayFollowup": {
+    "pass": 124,
+    "fail": 0,
+    "receipt": "/private/tmp/pv-recovery-control-label-green.log",
+    "redReceipt": "/private/tmp/pv-recovery-control-label-red.log",
+    "scope": "Disabled control labels follow validated displayed playing/paused observation independently of command grant; effect-toggle and existing task gates unchanged."
+  }
+}

@@ -40,3 +40,55 @@ test('stalled HA snapshot body is aborted at deadline then automatically reacqui
  await h.fire(12000);await rejected;assert.equal(signal.aborted,true);assert.equal(h.t.restartCount,0);
  stalled=false;await h.fire(1000);assert.equal(h.t.connected,true);assert.equal(h.streams.length,1);assert(h.calls.every(call=>call.path==='snapshot'&&call.method==='GET'));
 }));
+
+test('valid SSE remains connected when a presentation observer fails and the next snapshot is still delivered',()=>run(async h=>{
+ await h.t.start();
+ const errors=[],reported=globalThis.reportError,delivered=[];
+ globalThis.reportError=error=>errors.push(error);
+ const failure=Error('authored presentation failure');
+ h.t.onSnapshot=value=>{delivered.push(value.revision);if(value.revision===2)throw failure;};
+ try{
+  h.streams[0].emit({...snap(),revision:2});
+  assert.equal(h.t.connected,true,'a valid source projection is not a Green outage');
+  assert.equal(h.t.snapshot.revision,2);
+  assert.deepEqual(errors,[failure],'render error stays observable');
+  assert.equal([...h.jobs.values()].some(job=>job.ms===1000),false,'no network recovery for presentation failure');
+  assert.equal([...h.jobs.values()].filter(job=>job.ms===6000).length,1,'accepted heartbeat remains armed');
+  h.streams[0].emit({...snap(),revision:3});
+  assert.deepEqual(delivered,[2,3]);assert.equal(h.streams.length,1);
+ }finally{globalThis.reportError=reported;}
+}));
+
+test('initial connection observer failure cannot reject a valid read or suppress snapshot delivery',()=>run(async h=>{
+ const errors=[],reported=globalThis.reportError,delivered=[];
+ globalThis.reportError=error=>errors.push(error);
+ const failure=Error('authored connection presentation failure');
+ h.t.onConnection=status=>{if(status==='connected')throw failure;};
+ h.t.onSnapshot=value=>delivered.push(value);
+ try{
+  await h.t.start();
+  assert.equal(h.t.connected,true);assert.equal(h.streams.length,1);
+  assert.deepEqual(delivered,[h.t.snapshot]);assert.deepEqual(errors,[failure]);
+  assert.equal([...h.jobs.values()].some(job=>job.ms===1000),false);
+ }finally{globalThis.reportError=reported;}
+}));
+
+test('real stream failure still reacquires a read even when its disconnected observer throws',()=>run(async h=>{
+ await h.t.start();const reported=globalThis.reportError,errors=[];
+ globalThis.reportError=error=>errors.push(error);
+ const failure=Error('authored offline presentation failure');
+ h.t.onConnection=status=>{if(status==='disconnected')throw failure;};
+ try{
+  h.streams[0].onerror();assert.equal(h.t.connected,false);assert.deepEqual(errors,[failure]);
+  await h.fire(1000);assert.equal(h.t.connected,true);assert.equal(h.streams[0].closed,true);
+  assert.equal(h.streams.filter(stream=>!stream.closed).length,1);
+  assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)),'recovery never sends effects');
+ }finally{globalThis.reportError=reported;}
+}));
+
+test('a newer snapshot accepted during connection delivery cannot be followed by the older observer projection',()=>run(async h=>{
+ const delivered=[];let nested=false;
+ h.t.onConnection=status=>{if(status==='connected'&&!nested){nested=true;assert.equal(h.t.accept({...snap(),revision:2}),true);}};
+ h.t.onSnapshot=value=>delivered.push(value.revision);
+ await h.t.start();assert.equal(h.t.snapshot.revision,2);assert.deepEqual(delivered,[2]);assert.equal(h.t.connected,true);
+}));

@@ -209,6 +209,8 @@ class QueueBroker:
                 and secrets.compare_digest(task["token"], token)
                 and task["binding"] == self.binding(task["room"], token)
                 and task["rule"] in self.rules(task["room"], token)
+                and task["actual_current"]()
+                and task["actual_binding"]["validUntil"] > time.time()
             )
         except Exception:
             return False
@@ -225,7 +227,7 @@ class QueueBroker:
         self.retire()
         if (
             not isinstance(body, dict)
-            or set(body) != {"bootId", "roomId", "accountId", "targetId"}
+            or set(body) != {"bootId", "roomId", "accountId", "targetId", "expectedBindingId"}
             or body["bootId"] != self.bridge.boot_id
         ):
             return {"ok": False, "error": "invalid_queue_offer", "retryAllowed": False}
@@ -235,30 +237,42 @@ class QueueBroker:
             or room not in self.bridge.sessions
         ):
             return {"ok": False, "error": "invalid_queue_target", "retryAllowed": False}
-        from .podview_room_media import binding
+        from .podview_room_media import expected_actual
 
-        scope = binding(self.bridge, room, account)
+        gate = self.binding(room, token)[:-1]
+        resolved = await expected_actual(
+            self.bridge,
+            room,
+            account,
+            body["expectedBindingId"],
+            lambda: gate == self.binding(room, token)[:-1] and bool(self.rules(room, token)),
+        )
+        scope = resolved["binding"] if resolved is not None else None
         matches = [
             r
             for r in self.rules(room, token)
-            if scope is not None
-            and r["accountId"] == account
-            and r["targetId"] == target
-            and (r["nativeRoomId"], r["nativeHomepodId"])
-            == (scope["nativeRoomId"], scope["nativeHomepodId"])
+            if resolved is not None
+            and r == resolved["rule"]
+            and scope is not None
+            and scope["targetId"] == target
         ]
         rule = matches[0] if len(matches) == 1 else None
         if rule is None or room in self.bridge.controls.busy or len(self.receipts) >= 1024:
             return {"ok": False, "error": "queue_not_paired", "retryAllowed": False}
+        assert resolved is not None and scope is not None
         generation_key = (room, token)
         self.generation[generation_key] = self.generation.get(generation_key, 0) + 1
         task = {
             "room": room,
             "token": token,
             "rule": dict(rule),
-            "deadline": time.monotonic() + 16,
+            "deadline": min(
+                time.monotonic() + 16, time.monotonic() + max(0, scope["validUntil"] - time.time())
+            ),
             "binding": self.binding(room, token),
             "consumed": False,
+            "actual_binding": scope,
+            "actual_current": resolved["current"],
         }
         facade = self.bridge.controls.music
         self.bridge.controls.busy.add(room)
@@ -314,6 +328,7 @@ class QueueBroker:
                 "roomId": room,
                 "accountId": account,
                 "targetId": target,
+                "expectedBindingId": scope["bindingId"],
                 "taskId": task_id,
                 "revision": 1,
                 "expiresInMs": source["deadline_ms"],
@@ -372,6 +387,27 @@ class QueueBroker:
             or not any(r["option_id"] == body["optionId"] for r in task["source"]["items"])
         ):
             return rejected
+        from .podview_room_media import expected_actual
+
+        resolved = await expected_actual(
+            self.bridge,
+            task["room"],
+            task["rule"]["accountId"],
+            task["actual_binding"]["bindingId"],
+            lambda: self.current(task, token),
+        )
+        if resolved is None:
+            return rejected
+        if key in self.receipts:
+            old_fp, result = self.receipts[key][:2]
+            return dict(result) if old_fp == fingerprint else rejected
+        if (
+            task["consumed"]
+            or task["room"] in self.bridge.controls.busy
+            or not self.current(task, token)
+        ):
+            return rejected
+        task["actual_binding"] = resolved["binding"]
         unknown = {**rejected, "outcome": "unknown"}
         if len(self.receipts) >= 1024:
             return rejected

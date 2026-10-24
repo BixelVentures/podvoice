@@ -1,0 +1,11 @@
+# Explicit enrollment NEXT — final3 combined source packet
+
+**Use final3 only.** Manifest `ENROLLMENT-COMBINED-PINS.json` SHA256 `e69bd8768243c1880d7b80664c1dddb02ef20f0fc2aafcaf9fbfba1b8493a8b4`. Previous final03cc and final2d6bcc packets remain byte-for-byte unchanged, including their runtime/source/evidence inventories. Current packet contains203 runtime files and209 source files; its production runtime is identical to final2. It retains exact fd40 Weather owners and library bundle, with9 intentional runtime deltas against fd40.
+
+The retained full combined **2037/2037 PASS**, component gate63 and changed-module syntax receipt is `TESTS.log`. It predates only the QA-only iframe wrapper/test and documentation update. Current affected wrapper/setup-access tests **21/21 PASS** and syntax PASS are in `QA-TESTS.log`; no new full-suite run is claimed. Those three source-only deltas are pinned explicitly. Both unchanged historical JSON test dependencies are included in the209-source closure.
+
+Actual target-size proof is `screenshots/setup-entry-1280-top.jpg` and `screenshots/setup-entry-1280-scrolled.jpg`, with `SETUP-ENTRY-1280-GEOMETRY.json` and the updated `ENROLLMENT-SETUP-UI.md`. Quality and root personally inspected the1280×800 fixed iframe: centered520×736 modal at380,32,32px padding, natural single-container scroll94px, entry64px high at412,672 with32px bottom inset;16px gaps, readable wrapping, no underline/collision. Shared browser viewport was not resized. Earlier2006px screenshots remain historical; actual Setup ready/pending/linked were1280×800.
+
+The historical auth subset receipt is preserved unchanged, with the separate403 cleanup addendum. No automatic enrollment, repinning, actor fallback, capability grant or effect was added. Ordinary HA actor behavior remains separate from explicit server-confirmed named-controller proof. Current Mac cookie, actual HA administrator/placement, policy, provider, light effects, installation and physical acceptance remain unverified. No publish/install occurred. Root owns final inspection/integration and separately authorized publication/release work.
+
+To reproduce source, flatten `source/` beside `dist/` in a new workspace with the pinned node dependencies. Do not modify any frozen packet.

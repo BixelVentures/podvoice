@@ -431,3 +431,111 @@ def project_account_playlists(value: Any, account: str | None) -> dict:
         return result
     except (ValueError, TypeError, KeyError, OverflowError):
         return unavailable("malformed_response")
+
+
+def project_playback_output(value: Any, account: str | None) -> dict:
+    """Validate Control's aggregate without interpreting or renewing its facts."""
+    import copy
+    import math
+
+    metadata_keys = {
+        "ok",
+        "schema",
+        "config_entry_id",
+        "owner_epoch",
+        "poll_sequence",
+        "observation",
+        "playback",
+        "physical_result_verified",
+    }
+    try:
+        if not isinstance(value, dict) or set(value) != metadata_keys | {"output"}:
+            raise ValueError("invalid aggregate")
+        if value["schema"] != "podconnect.playback.v2":
+            raise ValueError("invalid aggregate schema")
+        metadata = {key: copy.deepcopy(value[key]) for key in metadata_keys}
+        metadata["schema"] = "podconnect.playback.v1"
+        if set(metadata["observation"]) != {
+            "status",
+            "source",
+            "observed_at",
+            "age_ms",
+            "max_age_ms",
+        }:
+            raise ValueError("invalid observation")
+        playback = metadata["playback"]
+        keys = {"state", "target", "item"}
+        if playback.get("state") != "no_active_playback":
+            keys |= {"progress_ms", "provider_changed_at_ms", "shuffle", "repeat"}
+        if set(playback) != keys:
+            raise ValueError("invalid playback")
+        observation = metadata["observation"]
+        stamp = datetime.fromisoformat(observation["observed_at"])
+        maximum, age = observation["max_age_ms"], observation["age_ms"]
+        if (
+            stamp.tzinfo is None
+            or type(maximum) is not int
+            or type(age) is not int
+            or not 0 < maximum <= 15000
+            or age < 0
+        ):
+            raise ValueError("invalid observation freshness")
+        if age > maximum or stamp.timestamp() + maximum / 1000 < time.time():
+            return unavailable("stale")
+        checked = project_owner("playback", metadata, account)
+        if not checked.get("ok"):
+            return checked
+        if metadata != checked["data"]:
+            raise ValueError("noncanonical metadata")
+        output = value["output"]
+        if not isinstance(output, dict) or set(output) != {"status", "reason", "binding"}:
+            raise ValueError("invalid output")
+        if output["status"] == "unavailable":
+            if output["binding"] is not None or output["reason"] not in {
+                "route_unavailable",
+                "ambiguous_output",
+                "owner_changed",
+            }:
+                raise ValueError("invalid absent output")
+        elif output["status"] == "observed":
+            actual = output["binding"]
+            if (
+                output["reason"] is not None
+                or not isinstance(actual, dict)
+                or set(actual)
+                != {"target_id", "native_room_id", "homepod_id", "binding_id", "valid_until"}
+            ):
+                raise ValueError("invalid actual output")
+            for key in ("target_id", "native_room_id", "homepod_id"):
+                _text(actual[key])
+            if (
+                not isinstance(actual["binding_id"], str)
+                or re.fullmatch(r"[a-f0-9]{64}", actual["binding_id"]) is None
+            ):
+                raise ValueError("invalid output identity")
+            if (
+                re.fullmatch(r"0|[1-9][0-9]{0,19}", actual["homepod_id"]) is None
+                or int(actual["homepod_id"]) >= 2**64
+            ):
+                raise ValueError("invalid output device")
+            until = actual["valid_until"]
+            if (
+                type(until) not in (int, float)
+                or not math.isfinite(until)
+                or until > time.time() + 5
+            ):
+                raise ValueError("invalid output expiry")
+            if playback.get("target", {}).get("target_id") != actual["target_id"]:
+                raise ValueError("foreign output target")
+        else:
+            raise ValueError("invalid output status")
+        return {
+            "ok": True,
+            "data": {
+                **metadata,
+                "schema": "podconnect.playback.v2",
+                "output": copy.deepcopy(output),
+            },
+        }
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return unavailable("malformed_response")

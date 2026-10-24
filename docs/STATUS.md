@@ -1,3 +1,144 @@
+## Planned NEXT80 — service-owned playback observation and actual output
+
+Lead root authorizes this isolated source-only change; integration owns PV only.
+Observed source failure: fresh Control account metadata is hidden by a failed room
+command-proof join except exact claim_unavailable; configured/NEXT destination can
+also differ from actual externally selected output. Control owns the positive
+account/Native/C join; PV must never infer actual output from targetId/default/name.
+Hypothesis: independent metadata plus one service-owned actual binding, admitted
+against one current policy rule, fixes both observation and command destination
+without moving ownership into browser or granting new actions.
+
+Closed model: existing room-playback endpoint v2 has exactly ok/schema/bootId/roomId/
+configEntryId/status/reason/binding/data. Data is the existing eight-field canonical
+PC playback v1 projection with unchanged metadata values, no route-proof field.
+Binding is actual-only six-field descriptor plus validUntil, or null. Observed
+requires fresh metadata and admitted positive current output; account_observed keeps
+fresh playing/paused metadata without command authority; idle means fresh account
+no_active_playback, never physical release; unavailable has null data and binding.
+Configured DEFAULT and NEXT remain existing separate intent. Control extends existing
+get_playback_snapshot(include_output=true); no new endpoint or duplicate Native reads.
+One PV resolver validates aggregate/account/boot/room/policy/expiry and is reused by
+observation, control setup and queue offers/dispatch with expectedBindingId. Existing
+opaque command grants and Native/C prepare/commit/current fences remain mandatory.
+
+Affected chain: Control poll owner/epoch -> Native receiver/alias -> C current output
+join -> PV exact policy admission -> closed UI observation; separate explicit action
+-> fresh resolver -> existing offer -> fresh resolver -> guarded dispatch. Test late
+owner/policy/output changes, foreign/ambiguous/unadmitted output, idle, actionless
+observation, start/external change/pause/reconnect/restart. Rollback only this PV
+projection/adapter delta. No UI/C/Control/manager edits by this owner; no seek, grants,
+provider/audio/HA/device calls or deployment. Enrollment source remains preserved.
+Actual source implementation now uses one shared resolver for room playback, music
+control/MOVE/volume setup and action, queue offer/action, and the existing voice MOVE
+caller. Voice caller was a concrete remaining DEFAULT join and now consumes the same
+actual aggregate; START selection/default/NEXT intent is unchanged. Control supplies
+SHA64 identity and bounded UNIXseconds expiry; PV copies canonical metadata unchanged,
+rejects malformed/foreign identities, admits exactly one existing policy rule and
+caps output expiry at original account freshness. Root9-key v2 envelope and required
+expectedBindingId on music-control offer root / queue-offer root are implemented;
+input control target / queue root carries that ID, opaque execution remains unchanged.
+Async revalidation repeats replay/consumed/busy checks before dispatch consumption;
+retained setup owner closure avoids recursive action callbacks and owned MOVE fence
+self-invalidation. No new command permission or inferred output is introduced.
+
+Verified so far:29 new causal ingress/resolver cases PASS; full gatekeeper mypy94,
+six production files + causal-test lint/format PASS.92 affected existing music and
+HA HTTP cases PASS with inert localhost transports after explicit fixture schema/
+aggregate/expectedID adapters; successful auth/no-cookie/replay/unknown boundaries
+retained. Parallel queue/MOVE/voice owner verifies36 affected cases PASS; expanded occurrence/
+controller boundary21 cases PASS (one inert loopback case needed sandbox escalation,
+not a product patch). Controls fixture53 cases PASS plus strengthened held-read
+concurrency separately PASS. Six shared fixture files lint/format PASS. All changed
+caller adapters retain original authority/replay/unknown/race assertions and use the
+real ToolRouter aggregate transport, not a resolver bypass. Independent adversarial
+consumer SOURCE GO received for exact six-production-file patch
+bb780d2eab7f2784195900bf5bde143568dc72234e35219f0a8e022375f85e06,
+source pins82f0ad96f7fd30eabe2e82f73132b1b090cced132e9ac3fb824f89caad59d724.
+Producer Control v2 has separate source acceptance owned by root; the previously
+reported error-path post-await owner/freshness finding is not bypassed by PV.
+Frozen UI packet5d8baff20571f6bb9f3f7fd3abcd576d5896c6b47be7686e033493fa4f6bc916
+is now exactly adopted:203 runtime hashes and244 authored source hashes verified,
+12 runtime changes from retained final3+marker.25 existing canonical test mirrors
+mapped with three-way preservation of local adapters; no Python test overwritten.
+Three local QA scripts and32 normative/evidence docs adopted. The nullable metadata
+UI mismatch is closed in the frozen packet: real backend JSON to actual adopted
+parser passes observed/account_observed/nulltarget/nullitem/idle/unavailable6cases.
+
+Targeted UI adapter run796/797 PASS; sole existing mirror bootId sentinel mismatch
+corrected and invalidated casePASS. Actual component graph/recomposition39 cases
+PASS (63active modules/both bundles). Additional caller trace kept29 source-mirror
+cases and54 unaffected neighbor cases PASS; two historical fixture adapters needed
+expectedID forwarding and an actual data-module URL, their22 cases PASS. These are
+fixture mappings only; all203 runtime bytes and reviewed6 Python source hashes remain
+unchanged. UI owner's2097 full tests/gate/render evidence retained, not repeated.
+Scope classifier reports exactly ha_tools/physical_output; reviewed79 coupling is
+correctly stale for this unbound successor, not a passing80 admission claim.
+Final controls fixture20464884e9e36205577bcf18fba7a2806eeaaa62cfba4c3a731011fd1121c573
+changes only the synthetic homepod-id sentinel to numeric42; five invalidated cases
+PASS. Decimal uint64 output validation was already inside the reviewed six-source
+pins, never a later production change. Root-assigned release-metadata owner prepares
+unbound80 profile/version metadata separately; final inventory/review/binding remain.
+No version/freeze/binding/release or physical readiness claimed. Independent review
+and full shared-chain aggregate acceptance remain pending; no HA/provider/device
+calls or sound were performed by this source work. Lead separately relayed a human
+report of audible speaker sound in one simple test; this is limited field evidence,
+not a NEXT80 installation or general lifecycle/route/reconnect acceptance.
+
+## Planlagt NEXT80 — eksplicit named-screen enrollment; source-only implementation
+
+Refs #175: eksplicit request→adminapproval→namedbinding/setupreachability. #184 er
+særskilt policy/nativepinrecovery og løses/påstås ikke af denne kandidat.
+Lead root; integration weather_backend_integration; PodView ejer immutableUI og
+independent authreviewer vurderer proofscope. Ingen ny version/binding/release/HA-
+effekt er autoriseret her. Base faktisk published79 dbd6949dcddce6487f04d89d4ef051213e6f4d35/
+treeeaa3cc53d2ae8044000077e96145b65112f6fbdb; frozen79 og inputpakker er uændrede.
+Direkte kildebevis: actual79 _assets sender authenticatedHA GETsetup.html tilbage
+med302, mens ny Screenentry eksplicit åbner setup.html. Eksisterende tre gamle
+HA-bookmarkregressioner beviser redirectadfærden. Hypotese: kun manglende eksplicit
+asset-navigation blocker adgang til den allerede eksisterende request/claim/renew-
+kæde; API-kontrakterne passer uden nye myndighedsregler.
+
+Kæde: eksisterende HAguard/socketpeer/CSRF → GETsetup.html?enrollment=1&room=valid →
+HTML uden SetCookie/authority → eksplicit request/proofcookie → menneskelig admin-
+godkendelse/match → claim → serverrenew → namedcookie → frisk snapshot/placement/read.
+Lead/reviewer kræver at gamle HAsetupbookmarks stadig302. Kun nøjagtigt én marker
+medværdi1 og ét faktisk konfigureret rum gør HTML-undtagelsen aktiv; marker er aldrig
+cookie/proof/grant. Forkerte/duplicate/ukendteparametre må ikke aktivere undtagelsen.
+HAactor forbliver særskilt fra namedproof, ingen automatisk enrollment/repin/capability,
+null/unknown/revoked/latecookieepoch lukker fortsat. SourceUI403cleanup lukker peer-
+lane, ikke øvrig HAmyndighed. Alle effekt-/POST-/pathtraversalfences bevares.
+
+Mindste plan: ét afgrænset _assets-predikat under uændret guard; udvid eksisterende
+HTTPfixture med validmarked200/noSetCookie/nogrant, gamle3redirects, malformed/duplicate/
+invalidroom, forged/crosssite/traversal. Genbrug inert request→approve→claim→renew-
+regression i eksisterendeowner og modsatte unauthed/navigationcases. Adopter kun
+immutablefinal3/marker-successor under nye reviewpins; fd40weather og194uændredeassets
+skal bevares; ingen UIarbejdstræbytes. Rollback kun denne assets/UI-delta, aldrig
+policy/grant/cookie-store-reset. Backend/sourceGO før evt. version80/freezebinding.
+Ingen HA/provider/cookie-inspektion/installation/restart/device/audio-effekter udføres.
+
+Faktisk implementation: kun _assets får exact2query-predikat enrollment=1 +aktuelt
+configuredroom; gamle3HAbookmarks beholder302. Ny actualHTTP-test varRED302førfix,
+GREEN200efterfix. Ingen SetCookie/grant/request skabes af HTML; faktisk inertHA
+request→pending→adminapproval→claim→renew bruger uændrede closedkontrakter og nul
+effektkald.28route/navigation/guardcases,3request/claim-chaincases og8targetedguard/
+traversalcases PASS (overlap genbruges, ikke et nyt samlet suiteantal). Mangel påHAuser,
+forgedpeer/user, cross-/samesite, forkert/duplicatemarker/rum, extraquery og traversal
+bevarer gammelguard/redirect/404. Fullmypy94 og toPython-filers lint/format PASS.
+
+Final3e69bd…/203runtime+209source er hashverificeret og eksaktadopteret med kun
+repo-relativefixtureimports. Reviewed marker26fa9370dd489011194e69eb99048b2528c4977bbf63a79e36fc6f1f59c50e3d
+ændrer kun widget-view+genbyggetpodviewbundle og én authored screen-settingstest.
+Alle203runtimehashes matcher overlay;194uændrede79assets og fd40weatherowners/
+librarybundle bevares.171affectedsetup/auth/ordinaryHA/peer/legacy UIcases PASS;
+ingen nye moduleimportspecifiers i transport/setup/widget, alle data-importfixture-
+kaldesteder er søgt og kræver ingen nye mappings. Aktuel bundlegraphkomposition og
+changedJSsyntax PASS. Version er stadig2.0.79: ingen80bump/admission/freezebinding
+før sourceGO. Actual79objects dbd/835/639 er hashverificeret i denne nye klon.
+Manuel namedcontroller/freshHA og komponent0.1.6s separateinstallation/restartreadback
+forbliver eksterne acceptgates, ikke antaget af kildetests.
+
 ## Candidate79 first officialCI fixture correction —24October2026
 
 OfficialPR242 head639166ffdf70e2b514bc8aa9182077293625f124/treeab032c75401f969f365ab224a6a9876784cbb148
@@ -3728,5 +3869,28 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "tooling_fingerprint": "915a444208bae03ac02fd56ad89a0bf3444c619dbe1525b7f0175c0443c1464a",
   "manifest_fingerprint": "165803494c442eb6edaa7eec961ea164444a25b57bad07957690d2fdb0a22950",
   "rationale": "Independent combined79 SOURCE/SCOPE GO including weatherupdated inventory; immutable7201UI plus fd40weatheroverlay adopted without authoredruntime edits. Lights043bf+086c PIN-only sources and PV241b83b retained SOURCEGO. Prior529UI/319combinedbackend/mypy94 and affected130weathercases/actualbundle/static checks PASS. Dual artifact required: addon2.0.79 does not ship separately installed HAcomponent0.1.6; existing fileinstall then separately authorized HAcore restart/readback required. Tonight no deployment/restart/effects while timerstateunknown. EnrollmentUI excluded; manual namedcontroller setup and freshHAflow remain explicit gap. Actualstaged domains ha_tools/physical_output; sourceadmission never implies installed/provider/physical closure. CI242 head639166 rejected five legacy fixtures, not production: missing placement-schema namespace and closed enrolled-row fields, missing robot data-import dependency, snapshot lambda light_token keyword and locality bridge read_lights contract. Only test fixtures corrected; all323 runtime hashes remain frozenab032. NativeHA2026.8.2/build/other passed jobs retained. No new effects or deployment."
+}
+-->
+
+
+<!-- podview80-admission
+{
+  "version": 57,
+  "kind": "podview80_actual_output_enrollment",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "dbd6949dcddce6487f04d89d4ef051213e6f4d35",
+  "merge_base": "dbd6949dcddce6487f04d89d4ef051213e6f4d35",
+  "fingerprint": "9562aa08ff386ee7deb950d1ecd73f6c7eacc8a4687dc02b9f8628417e89e6d2",
+  "regression_fingerprint": "9e1d64a7817c800cdab2aee4c0c4340c0ae86f72dd77f20d67b7f5941749eb9e",
+  "runtime_fingerprint": "b2e857a19e24f35f24c7ac3c5e9e38cd895677085a657714992b350f87e3a585",
+  "config_fingerprint": "b915ada114f583d4651710b743e4cc5f992dc09c9326f28579bed59fb1564324",
+  "policy_fingerprint": "7bfbabeda2eaaab59f30204828055901c638c72b31692c21e178a0bb635b3479",
+  "tooling_fingerprint": "73033316f9f59378d8a1a7e4ca944e7f94c1ee2d78a0ed89595c94ee74489e8f",
+  "manifest_fingerprint": "387a63d839012ee777d1e3b63aa1f879248ac8e1aeffe8be04e437a9e4eac45c",
+  "rationale": "Independent /root/sol61_release75_review exact387a manifest and tooling SOURCE GO; root authorizes final80 binding. Published79dbd is the exact base. Frozen UI203/source244 packet5d8b and consumer six-production SOURCE GO are preserved; real aggregate playback, current actual-output binding, queue/MOVE/touch/voice and named-screen enrollment retain existing authority and send-once fences. Focused consumer/UI/static evidence is recorded above; historical79 snapshot uses local Git object copy to preserve all mutation assertions without nested temporary alternates. HAcomponent0.1.6 remains separate and unchanged. Official CI, immutable publication, installation, producer compatibility and full physical acceptance remain separate; the one human-reported audible trial is not a complete function-matrix result."
 }
 -->

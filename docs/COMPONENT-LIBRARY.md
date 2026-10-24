@@ -1,3 +1,23 @@
+## Aktuel kandidat · faktisk afspilning og read-only recovery ·24 oktober2026
+
+Samme eksisterende PlayerView, LiveMediaView, LiveControlView, LiveQueueView og SpeakerOutputView bruges i produkt og bibliotek. Ingen ny komponentfamilie. Den samlede lukkede v2-servicekontrakt står i [PODVIEW-CONTRACT](PODVIEW-CONTRACT.md); historiske v1-afsnit nedenfor er ikke v2-reglen.
+
+- Aktuelt output er den faktiske native binding, adskilt fra konfigureret standard og næste ønskede afspilning. Navne formateres kun ved præcis optaget katalogidentitet. Standard/NEXT må aldrig erstatte aktuelt output.
+- Frisk kontometadata uden bekræftet rute bruger den eksisterende kontostatus/højttaler-ikke-bekræftet rolle og ingen aktuelle transport-/køkommandoer. Udløbet rute er ikke det samme som Green-tab.
+- Midlertidigt læse-/transportudfald beholder optaget cover, sang, kunstner, navigation og ærlig sidst-kendt status; kontometadata må heller ikke ligne live state efter udløb. Frisk idle rydder aktiv afspilning. Ejer-/rum-/adgangsskift må ikke genindføre gammel visning eller tilbud.
+- Aktuel outputmarkering og aria-pressed i den eksisterende ListRow følger præcis frisk native binding, ikke katalogets selected-hint. En tidligere faktisk markering kan kun bevares med sidst-kendt tekst, uden pressed/effektmyndighed.
+- Aktuelle kommandoer kræver egne friske servertilbud med samme forventede binding. Ingen automatisk effekt-replay, optimistisk lydpåstand eller ny seek. Layout, coverramme, tekst- og kontrolmål forbliver kittets eksisterende roller.
+- TopBar beholder sit64px kontrolanker og symmetriske titel-/kontekstkolonner;980px må tekst krympe/trunkeres med bevaret tilgængelig label, så Svar ikke overlapper vejr/tid. Navigationens pil+title er ét touchmål og etableres før fejlbarligt domæneindhold.
+
+Kandidatstatus: samlet funktionelt/visuelt review og serviceintegration under udførelse; ikke installeret eller fysisk accepteret.
+
+<!-- NEXT explicit named-screen enrollment: same existing owners/anatomy, no new family. -->
+Den eksisterende SetupFlow beholder formular, navnefelt, status og Button. Det native setupfelt bruger den fælles `.pv-form-field`-variant: mindst64px højde med kittets body-typografi og genbrugt feltstyling i `ui/library/library.css`. Varianten ændrer ikke almindelige inputfelter i Dialog og er ingen ny komponentfamilie.
+
+Et link, der er dekoreret som Button, følger samme knapanatomi uden understregning. Skærmens read-only ListRow bevarer16px mellem label og værdi. Ved vellykket eksplicit skærmtilmelding bruger den eksisterende Button teksten “Åbn PodView” sammen med det eksisterende HA-administrationslink.
+
+Transportens navngivne profilforløb er ikke-visuelt og giver ingen capabilities fra browserlagring. Normal HA-adgang bevares. Se enrollment-afsnittet i PODVIEW-CONTRACT.md; kilde-/kliktest er ikke renderet eller faktisk enhedsaccept.
+
 ## NEXT · kontostatus er ikke bekræftet rumoutput ·23 oktober2026
 
 Den næste kildekandidat optager den eksplicitte serverstatus `account_observed` i eksisterende `podview.room-playback.v1`. Dette er kildekontrakt, ikke installeret78, fysisk lydbevis eller gennemført native integrations-/renderaccept. Den eksisterende PlayerView beholder cover, titel, kunstner og faktisk playing/paused-status i samme anatomi. Statusrollen siger “Afspiller · højttaler ikke bekræftet” eller “På pause · højttaler ikke bekræftet”; detaljen kvalificerer det som Kontostatus. Et konfigureret målnavn er læsekontekst, aldrig bevis for fysisk output.

@@ -1,0 +1,115 @@
+TAP version 13
+# Subtest: actual SetupFlow + native transport require explicit authored approval, validated renewal and a fresh HA snapshot before linked
+ok 1 - actual SetupFlow + native transport require explicit authored approval, validated renewal and a fresh HA snapshot before linked
+  ---
+  duration_ms: 31.281291
+  ...
+# Subtest: request, claim and renew are closed native contracts with HttpOnly path-scoped fake cookies and no replay
+ok 2 - request, claim and renew are closed native contracts with HttpOnly path-scoped fake cookies and no replay
+  ---
+  duration_ms: 9.271167
+  ...
+# Subtest: foreign scope, extra fields, paths, headers and every product effect are denied without creating an approval
+ok 3 - foreign scope, extra fields, paths, headers and every product effect are denied without creating an approval
+  ---
+  duration_ms: 8.793584
+  ...
+# Subtest: QA frame loads the unchanged canonical product at an exact native viewport without scripts or enrollment writes
+ok 4 - QA frame loads the unchanged canonical product at an exact native viewport without scripts or enrollment writes
+  ---
+  duration_ms: 2.57825
+  ...
+# Subtest: new continuity metadata and original bounded metadata remain closed schemas
+ok 5 - new continuity metadata and original bounded metadata remain closed schemas
+  ---
+  duration_ms: 1.545875
+  ...
+# Subtest: access request sends exact owner context once and never a copied credential
+ok 6 - access request sends exact owner context once and never a copied credential
+  ---
+  duration_ms: 0.67075
+  ...
+# Subtest: invalid labels and request IDs cannot issue requests
+ok 7 - invalid labels and request IDs cannot issue requests
+  ---
+  duration_ms: 0.296459
+  ...
+# Subtest: request response admits only the frozen non-secret receipt
+ok 8 - request response admits only the frozen non-secret receipt
+  ---
+  duration_ms: 0.729083
+  ...
+# Subtest: claim does not treat pending, malformed or extra data as approval
+ok 9 - claim does not treat pending, malformed or extra data as approval
+  ---
+  duration_ms: 0.449583
+  ...
+# Subtest: changed owner after request rejects a late successful response
+ok 10 - changed owner after request rejects a late successful response
+  ---
+  duration_ms: 0.217792
+  ...
+# Subtest: single request becomes bounded pending; repeated submit never creates another
+ok 11 - single request becomes bounded pending; repeated submit never creates another
+  ---
+  duration_ms: 0.382667
+  ...
+# Subtest: actual renewed authority is required before automatic navigation
+ok 12 - actual renewed authority is required before automatic navigation
+  ---
+  duration_ms: 0.178416
+  ...
+# Subtest: already remembered browser opens without asking or polling
+ok 13 - already remembered browser opens without asking or polling
+  ---
+  duration_ms: 0.099167
+  ...
+# Subtest: timeout never creates new access request and later response cannot extend it
+ok 14 - timeout never creates new access request and later response cannot extend it
+  ---
+  duration_ms: 0.114416
+  ...
+# Subtest: unknown network result stops; no silent request or claim replay
+ok 15 - unknown network result stops; no silent request or claim replay
+  ---
+  duration_ms: 0.078791
+  ...
+# Subtest: pagehide and disconnect invalidate late results without navigation
+ok 16 - pagehide and disconnect invalidate late results without navigation
+  ---
+  duration_ms: 0.086542
+  ...
+# Subtest: disconnect and repeated reconnect cannot silently turn an unknown pending into a new request
+ok 17 - disconnect and repeated reconnect cannot silently turn an unknown pending into a new request
+  ---
+  duration_ms: 0.091292
+  ...
+# Subtest: return from HA resumes only the public original request and deadline
+ok 18 - return from HA resumes only the public original request and deadline
+  ---
+  duration_ms: 0.178625
+  ...
+# Subtest: stale or forged saved context cannot claim or create new authority
+ok 19 - stale or forged saved context cannot claim or create new authority
+  ---
+  duration_ms: 0.146041
+  ...
+# Subtest: unknown or interrupted consuming claim is never replayed after reload
+ok 20 - unknown or interrupted consuming claim is never replayed after reload
+  ---
+  duration_ms: 0.191125
+  ...
+# Subtest: known pending receipt restores only its shorter original waiting deadline
+ok 21 - known pending receipt restores only its shorter original waiting deadline
+  ---
+  duration_ms: 0.092416
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 91.925417
