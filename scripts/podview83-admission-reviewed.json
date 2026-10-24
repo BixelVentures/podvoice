@@ -38,6 +38,7 @@
     "tests/podview/transport-recovery.test.mjs": "a404af0b7c9e77ad663db49ac19de21d1b6eb94b0da4bf95500b382b201b995b",
     "tests/unit/test_candidate_scope_admission82.py": "da11310124fd06973a7f2725e062d9fa30014b239751d40bd319d644d1f00639",
     "tests/unit/test_candidate_scope_admission83.py": "0d16c2f9476a3f574834b1066ce79616b68294f4f25bdaabdf8e4b49f82e1f1d",
+    "tests/unit/test_ci_promotion.py": "45a38fc5bee68e74f7040e33d249ffb48b8d8d36725b8ca809a4544c43e95707",
     "tests/unit/test_dev_cycle.py": "a0b5d72cba02d1bb5854066791c796d896dc41c4333733b9f179652327796d7c"
   },
   "runtime": {

@@ -80,6 +80,7 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_music_disconnect.py",
         "tests/podview/transport-recovery.test.mjs",
         "tests/unit/test_dev_cycle.py",
+        "tests/unit/test_ci_promotion.py",
         "tests/podview/root-player-view.test.mjs",
         "tests/podview/root-speaker-output-view.test.mjs",
         "tests/podview/canonical-next-player-view.test.mjs",
@@ -111,8 +112,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "9c94fe0c6737412be5c4856bafffd0b71ea1b2d51ef107e4ef0e6a1da761c610"
-PROFILE_AST = "aaf81f42d2e1d40c0cd793bbbd552de839cf75752a2d1122606d6b6cf7b74bbe"
+MANIFEST_SHA = "1a276ac1ee2b22d76f7e2043f233428863e0a74c6c17b03fc14679836707e4f9"
+PROFILE_AST = "35efb497e80ab6bdea7bfec275d4c17513e6196aee320cb6c9b8a3b410812930"
 
 
 def record_at(root: Path) -> dict | None:
