@@ -13,7 +13,7 @@ import hashlib
 from functools import lru_cache
 from pathlib import Path
 
-__version__ = "2.0.80"
+__version__ = "2.0.81"
 
 _ARTIFACT_SUFFIXES = frozenset({".html", ".json", ".py"})
 _BUILT_ARTIFACT_IDENTITY = Path("/app/runtime-artifact.sha256")

@@ -1,3 +1,13 @@
+## Active lead decision — one music owner and truthful controls, 24 October 2026
+
+Lead/root integrates the PodView-owned UI correction into planned2.0.81 with planned Speakers0.26.45; installed Green remains2.0.80/0.26.44/Control0.10.21. Direct field evidence: ordinary Connect route accepted at11:01:56 with Native/C35%, followed by bound pause confirmation409 and legacy repeated generic pause500; later Kitchen Kanye playback paused after a brief audible user attempt. Exact first pause origin remains unclassified. Both actual Native and C remain35%; the reported full slider is separately explained by policy max35 being rendered as visual100%, not proven physical100%.
+
+PodView is a reader and command client, never a second playback/volume authority. The active Native session owns logical play/pause and position; the actual selected C output owns physical volume and routing. Existing services must preserve their owner/route/freshness fences. UI pending is not acknowledgement; backend/provider acceptance is not acoustic proof. No new engine, protocol, grant, arbitrary fallback, optimistic success or automatic action replay is allowed.
+
+Causal software work: remove transient competing UI control rendering, keep absolute volume display distinct from allowed command maximum, refresh before the original binding deadline, and update display position only from fresh observation. Independently, Speakers must acknowledge the exact ordinary bound pause without granting START-only resource retention and suppress generic PCM-state feedback that competes with Native timeline ownership. Regression and independent review are required against the composed shipped candidate. No voice prompt/firmware/Realtime changes are planned; no new provider evaluation is needed for this UI-only PodVoice diff.
+
+Known gates: source integration, exact-tree admission, official final CI, immutable publication, installed identity readback and actual music/pause/resume/speaker-switch/reconnect remain pending. Further automated audio is on hold while the field regression is repaired. The incomplete first cycle is not a PASS; yesterday mobile sound is not this candidate's acceptance. Rollback boundary is the combined UI/manager/C successor diff, with the installed artifact untouched until the new reviewed candidate is published.
+
 ## Planned NEXT80 — service-owned playback observation and actual output
 
 Lead root authorizes this isolated source-only change; integration owns PV only.
@@ -3894,3 +3904,63 @@ Run39766397959 rejected stale workflow display version73 and live_status focus e
   "rationale": "Independent /root/sol61_release75_review exact387a manifest and tooling SOURCE GO; root authorizes final80 binding. Published79dbd is the exact base. Frozen UI203/source244 packet5d8b and consumer six-production SOURCE GO are preserved; real aggregate playback, current actual-output binding, queue/MOVE/touch/voice and named-screen enrollment retain existing authority and send-once fences. Focused consumer/UI/static evidence is recorded above; historical79 snapshot uses local Git object copy to preserve all mutation assertions without nested temporary alternates. HAcomponent0.1.6 remains separate and unchanged. Official CI, immutable publication, installation, producer compatibility and full physical acceptance remain separate; the one human-reported audible trial is not a complete function-matrix result."
 }
 -->
+
+### Integration receipt81 — frozen player incident UI,24 October2026
+
+Root draft `/private/tmp/pv81-combined-20261024` is anchored to exact signed installed80
+main7c1481f6682df89526081932c05d9bb5d83324f3/tree0da7955bb72a70cf53c91fbe7a57d5d1c2ce890c;
+raw commit and actual407343c parent were locally hashverified from GitHub metadata,
+without Git network or edits to installed/frozen80. The original staged80 tree matched
+exact0da before root's81 version/change post and this adoption.
+
+Immutable PLAYER-INCIDENT-PINS c699923715359a5edc1468f7cfc8c9582f7b0a78c600c2bd2939f19d59dd4cd7
+verified all203runtime,254source and4evidence hashes. Exactly live-control-view.js,
+live-media-view.js,player-view.js and rebuiltpodview.bundle.js differ from installed80;
+derived assetmanifest was regenerated. Ten existing test mirrors adopted via three-way
+preservation of repo-relative imports/fixture adapters,12 authored docs and one local
+QA fixture script mapped. No backend behavior or Python integration fixture changed.
+UI owner's2119 full cases,gate63 and independent/render reviews are retained.
+
+Actual mapped UI checks588/588PASS; existing shared component graph and both bundle
+recompositions39/39PASS; local QA script syntaxPASS; changed Python admission/dispatch
+formatter/lintPASS; diff whitespacePASS. Existing esbuild dependency symlink was reused
+when this fresh draft initially lacked it; that environment failure caused no source
+patch. Historical80/new81/dev focused checks190PASS with9 expected unbound81 skips.
+All original80 profiles remain immutable. Prepared81 exact inventory is5production,
+13regressions,323runtime,4config,58policy,163tooling; actual classifier domains are
+ha_tools/physical_output. Config,203asset hashes and exact source/change scope pass.
+REVIEWER/MANIFEST_SHA/PROFILE_AST remain blank until independent source/scope review
+and root authorization. No official CI, GitHub mutation, Green/provider/audio/device
+operation, installation or physical acceptance is implied by this source receipt.
+
+<!-- podview81-admission
+{
+  "version": 58,
+  "kind": "podview81_player_incident",
+  "reviewer": "/root/weather_backend_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "7c1481f6682df89526081932c05d9bb5d83324f3",
+  "merge_base": "7c1481f6682df89526081932c05d9bb5d83324f3",
+  "fingerprint": "256da9b3065e0c70743b858e06016b17d47d2a7c162663b546729d6a97ef752e",
+  "regression_fingerprint": "263d53b94d76bb1a5c1a6e4bbd74484584b81c1138ce460fc0acdea4873dbfc3",
+  "runtime_fingerprint": "19aac7783ae2652ed2425917572da0d8f6edd0b1e92576507e3e2cea9d6eac33",
+  "config_fingerprint": "e7b1a501013144d896863d299cbacb401fc9619bb027478521864245b972fa26",
+  "policy_fingerprint": "9cc677f25558d7d0348e17a12dd04b54b2910e1581f0eeed4b16c6667866330d",
+  "tooling_fingerprint": "4070af37b2bb9e8224498c4678ba30f6907415b1da6749612389c972412e1419",
+  "manifest_fingerprint": "5afa36f556a1e37d75868d6796d0b13b0cfe7a7136df14acdc263646bdb499d1",
+  "rationale": "Lead authorized binding after independent /root/weather_backend_review SOURCE/SCOPE GO on exact unbound tree cc80d4f0d737b4e78a5165137ae63e1ada9916fa and immutable c699923715359a5edc1468f7cfc8c9582f7b0a78c600c2bd2939f19d59dd4cd7 UI. Only four UI runtime files plus exact manifest and version/admission/fixtures/docs change from installed80; no backend behavior or service effects. UI2119+mapped588+component39 and historical/dev190 results retained; official CI, publication, installation and physical acceptance remain separate."
+}
+-->
+
+81 final binding receipt: lead authorized existing profile/manifest/record after
+independent `/root/weather_backend_review` PREBIND SOURCE/SCOPE GO on unboundtree
+cc80d4f0d737b4e78a5165137ae63e1ada9916fa. Binding changes only reviewer,manifestSHA,
+canonical Python3.12 AST and existing admission record fingerprints. Bound81 strict
+actual staged admission PASS; all15 newly bound81 focused cases PASS; changed
+admission/dispatch/historical fixtures lint+format PASS. Prior190/UI588/component39
+and owner2119 results are reused. Source is frozen for root's incremental GitHub
+publication against installed80 main7c1481/tree0da; no provider/HA/physical action
+or official CI was performed by integration.

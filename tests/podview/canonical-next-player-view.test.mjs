@@ -374,3 +374,36 @@ test('retained readonly player DOM qualifies both playing and paused metadata wh
   f.view.renderPlayer({...vm,fresh:true});assert.equal(f.nodes.get('player-state').textContent,`${playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`);assert.equal(f.nodes.get('detail-status').textContent.startsWith('Sidst kendt'),false);
  }
 });
+
+test('live display progress advances once per second from real observation without mutating source or granting seek',t=>{
+ let now=200000,id=0;const timers=new Map();t.mock.method(Date,'now',()=>now);t.mock.method(globalThis,'setTimeout',(fn,ms)=>{timers.set(++id,{fn,at:now+ms});return id;});t.mock.method(globalThis,'clearTimeout',id=>timers.delete(id));
+ const tick=ms=>{now+=ms;for(const [id,job]of [...timers])if(job.at<=now){timers.delete(id);job.fn();}};
+ const f=surface({live:true}),s={bootId:'boot',roomId:'room'},p=boundPlayback(s,{owner_epoch:'epoch',poll_sequence:1,observedAt:new Date(now-1000).toISOString(),expiresAt:now+5000,state:'playing',progressMs:10000,item:{name:'Real song',artists:['Artist'],duration_ms:60000,uri:item.uri},target:{name:'Real output'}}),vm=livePlayerModel(p,true,'ready',s),original=structuredClone(p);f.view.renderPlayer(vm);
+ assert.equal(f.nodes.get('player-elapsed').textContent,'0:11');assert.equal(timers.size,1);const timer=[...timers.keys()][0];f.view.renderPlayer({...vm});assert.equal([...timers.keys()][0],timer,'unchanged render does not postpone tick');
+ tick(1000);assert.equal(f.nodes.get('player-elapsed').textContent,'0:12');assert.equal(f.nodes.get('detail-elapsed').textContent,'0:12');assert.match(f.nodes.get('player-progress-meter').getAttribute('aria-label'),/Beregnet position/);assert.equal(f.view.progressVM.progressMs,10000);assert.deepEqual(p,original);assert.equal(vm.canSeek,false);assert.equal(f.view.seekControl,undefined);
+ tick(4000);assert.equal(f.nodes.get('player-progress').dataset.stale,'true');assert.equal(timers.size,0);const stopped=f.nodes.get('player-elapsed').textContent;tick(5000);assert.equal(f.nodes.get('player-elapsed').textContent,stopped);
+ f.view.cleanup();
+});
+test('live progress source corrections, pause, ownership changes and disconnect stop or replace only the display clock',t=>{
+ let now=300000,id=0;const timers=new Map();t.mock.method(Date,'now',()=>now);t.mock.method(globalThis,'setTimeout',(fn,ms)=>{timers.set(++id,fn);return id;});t.mock.method(globalThis,'clearTimeout',id=>timers.delete(id));
+ const f=surface({live:true}),vm={active:true,playing:true,fresh:true,positionFresh:true,canSeek:false,title:'Song',artist:'Artist',progressMs:10000,durationMs:60000,positionAnchor:{key:'owner1:track1:poll1',observedAt:now,expiresAt:now+10000}};
+ f.view.renderPlayer(vm);const old=[...timers.values()][0];now+=1000;f.view.renderPlayer({...vm,progressMs:4000,positionAnchor:{...vm.positionAnchor,key:'owner1:track1:poll2',observedAt:now}});assert.equal(f.nodes.get('player-elapsed').textContent,'0:04');old();assert.equal(f.nodes.get('player-elapsed').textContent,'0:04','superseded callback cannot overwrite corrected source');
+ f.view.renderPlayer({...vm,playing:false,progressMs:4500});assert.equal(timers.size,0);assert.equal(f.nodes.get('player-elapsed').textContent,'0:04');
+ f.view.renderPlayer({...vm,positionAnchor:{...vm.positionAnchor,key:'owner2:track2:poll1',observedAt:now},progressMs:2000});assert.equal(timers.size,1);assert.equal(f.nodes.get('player-elapsed').textContent,'0:02');
+ f.view.renderPlayer({...vm,fresh:false,positionFresh:false});assert.equal(timers.size,0);
+ f.view.renderPlayer(vm);f.host.isConnected=false;const [pendingId,pendingCallback]=[...timers][0];timers.delete(pendingId);pendingCallback();assert.equal(f.view.progressClockKey,null);f.host.isConnected=true;f.view.renderPlayer(vm);f.view.cleanup();assert.equal(timers.size,0);assert.equal(f.view.progressVM,null);
+});
+
+test('actual volume stays on absolute percent scale when policy permits only up to35 percent',()=>{
+ const f=surface({live:true});f.view.renderControls({volume:35,canVolume:true,blocked:false,min:0,max:35});
+ for(const id of ['volume','detail-volume']){const input=f.nodes.get(id);assert.equal(input.value,'35');assert.equal(input.min,'0');assert.equal(input.max,'100');assert.equal(input.style.getPropertyValue('--pv-slider-progress'),'35%');assert.equal(input.dataset.actionMax,'35');assert.equal(input.dataset.actionMin,'0');assert.equal(input.getAttribute('aria-valuetext'),'35 %');}
+ f.view.renderControls({volume:20,canVolume:true,min:10,max:35});assert.equal(f.nodes.get('volume').style.getPropertyValue('--pv-slider-progress'),'20%');assert.equal(f.nodes.get('volume').dataset.actionMin,'10');
+});
+test('expired progress keeps last computed position stale until an actual correction, pause or owner change',t=>{
+ let now=400000,id=0;const timers=new Map();t.mock.method(Date,'now',()=>now);t.mock.method(globalThis,'setTimeout',(fn,ms)=>{timers.set(++id,fn);return id;});t.mock.method(globalThis,'clearTimeout',id=>timers.delete(id));
+ const f=surface({live:true}),vm={active:true,playing:true,fresh:true,positionFresh:true,progressMs:10000,durationMs:60000,positionAnchor:{key:'owner:poll1',observedAt:now,expiresAt:now+2000}};
+ f.view.renderPlayer(vm);now+=2000;const [timer,callback]=[...timers][0];timers.delete(timer);callback();assert.equal(f.nodes.get('player-elapsed').textContent,'0:12');
+ f.view.renderPlayer({...vm,fresh:false,positionFresh:false});assert.equal(f.nodes.get('player-elapsed').textContent,'0:12');assert.equal(f.nodes.get('player-progress').dataset.stale,'true');assert.match(f.nodes.get('player-progress-meter').getAttribute('aria-label'),/Sidst kendte position/);assert.equal(timers.size,0);
+ f.view.renderPlayer({...vm,playing:false,fresh:false,positionFresh:false,progressMs:11000});assert.equal(f.nodes.get('player-elapsed').textContent,'0:11','pause observation corrects the estimate');
+ f.view.renderPlayer({...vm,positionAnchor:{key:'new-owner:poll1',observedAt:now,expiresAt:now+2000},progressMs:2000});assert.equal(f.nodes.get('player-elapsed').textContent,'0:02');f.view.cleanup();assert.equal(f.view.progressDisplay,null);
+});

@@ -1349,7 +1349,8 @@
           "method:syncVolumeMute": 1,
           "method:toggleVolumeMute": 1,
           "method:updateCoverTone": 1,
-          "method:resume": 1
+          "method:resume": 1,
+          "method:renderLiveProgress": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"

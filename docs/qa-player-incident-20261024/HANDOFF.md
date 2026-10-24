@@ -1,0 +1,9 @@
+# Player incident successor ·24 October2026
+
+Frozen UI source successor to installed80/5d8. NOT RELEASED, NOT INSTALLED, NOT PHYSICALLY ACCEPTED. Sole v2.X release owner integrates this packet with the causal Native/manager fixes into planned PV81/Speakers45; Control21 unchanged unless its owner changes source.
+
+Only4 runtime files change: PlayerView display-only second clock and absolute0–100 volume scale; LiveMedia single control owner and read cadence bounded by original metadata/actual binding expiry; LiveControl immediate pending, observed volume separate from command limits, explicit gesture bounds and accepted-only one passive read; generated bundle. No new family, seek, provider state, effect replay, volume correction or grants.
+
+Full npm test and component gate63 PASS2119/2119. Initial13 failures were the same test DOM stub lacking dataset; repaired stub only, assertions retained; initial log preserved. JS syntax PASS. Independent source review GO; actual Product Design/Impeccable1280/980 product and canonical library review complete, exact screenshots in source/docs/qa-ui22/screenshots and UI-REVIEW.md. Root personally inspected ready/pending/stale/unknown and library paused/stale evidence. Screenshot samples do not prove exact1Hz or every-frame flicker; causal source tests cover cadence/repaint.
+
+Green remains failed acceptance: reported short Kanye start then pause, Native/manager pause feedback bug, volume-control C500, and HA/SSE interruption cause still open at freeze. Backend owns those causes. All automatic physical tests held pending integrated repair. After installation, require three complete real music→output change→reconnect cycles, exact same-process/version receipts and human acoustic confirmation; none yet PASS. No frozen predecessor bytes changed.
