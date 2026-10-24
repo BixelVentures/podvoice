@@ -40,6 +40,11 @@ def test_83_dispatch_preserves_earlier_routes():
         in workflow
     )
     assert f'"{admission.BASE}": "scripts/candidate_scope_admission83.py"' in local
+    assert (
+        'elif [ "$candidate_base" = "9fd3aa3f660baaea1e4dbaf71455853ee2c84e26" ]; then\n'
+        "            python3 scripts/candidate_scope_admission83.py --base "
+        '"8884c78573384c436bfa0287c135d584fd929ce8"' in workflow
+    )
     assert 'python3 scripts/candidate_scope_admission74.py --base "$candidate_base"' in workflow
     assert (
         '"0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3": "scripts/candidate_scope_admission71.py"'

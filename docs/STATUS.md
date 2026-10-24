@@ -4118,12 +4118,12 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "base_tip": "8884c78573384c436bfa0287c135d584fd929ce8",
   "merge_base": "8884c78573384c436bfa0287c135d584fd929ce8",
   "fingerprint": "e7bb2a3fef4d2954672b5a27f1a662e61dd42bf9b21b287f3cc4569b74fa3169",
-  "regression_fingerprint": "fac058993de9ac52262221da39cf91cd79fe5f8be5617331d0004ee4e226e9d0",
+  "regression_fingerprint": "0a99943dbbb2e337b315e7f6d9bf5058ba69bcc23a69399daf838fbdefbbe65e",
   "runtime_fingerprint": "dcc46ea1361506135eb985b7405bf79aa038426f83c47d85ecf53e33dde12f02",
   "config_fingerprint": "dfb9497696e1f3f04e752c4b8c2d3baf2dd65f37058ea300c7e146259fe0b2cd",
-  "policy_fingerprint": "9de8a26494e3158964f13e3f375fdfc932dfce73a22189c8f75b89f44885e4ed",
-  "tooling_fingerprint": "a12fee57aa4750b695efaf5375145a8b844c679fb34da166ae3e8356d850d729",
-  "manifest_fingerprint": "d59af16824f51350590c9031001d1aae4126a870c15953f0abd932c89f9831f2",
-  "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config, prior source/bound evidence and the first transport-clock correction. The next official run found a separate existing named-controller fake-timer helper using real Date.now for exact30000ms. One four-case block now owns/restores Date.now; assertions and production deadlines are unchanged. Reviewed patchf9c477/afterdfcb3a03 and pinned Node24 forced4 plus whole-module42 passes retained; static243-module audit found no further demonstrated same-class issue. Non-CI-equivalent Node20 diagnostic remains failed and is not pass evidence. Only this regression pin and required policy/AST/record bindings change; no runtime or household effects. New automatic official CI required on this head."
+  "policy_fingerprint": "c45dbbb1f79c882c1a1798673e82521dc9938c3828039aed0406c779ca700de8",
+  "tooling_fingerprint": "eb2dd95407c9e9251c0ec1a5ba6cedc71613c9c90d1ee4661609360a28813745",
+  "manifest_fingerprint": "9c94fe0c6737412be5c4856bafffd0b71ea1b2d51ef107e4ef0e6a1da761c610",
+  "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config and prior source/bound evidence. Main CI40136523665 found an existing observation fixture using real new Date() while confirmationClock owns Date.now and timers. Only the two current live-media fixture timestamps now explicitly use Date.now; assertions and product deadlines are unchanged. Deterministic constructor +20 ms boundary reproduces both epoch failures, then pinned Node24 passes both complete affected modules (198 cases). Historical source mirror lacks these cases and remains unchanged. The exact merged-main9fd workflow continuation invokes the existing83 validator against original BASE8884; no generic dispatch, bypass or authority expansion. Only these regression/policy pins and required AST/record binding change; no runtime or household effects. New automatic official CI required on this head."
 }
 -->

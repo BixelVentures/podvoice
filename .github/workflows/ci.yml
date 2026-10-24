@@ -71,6 +71,8 @@ jobs:
           candidate_base="${CI_DIFF_BASE:-729668ffa45067bfb75fd6928ccac9f9beaf5576}"
           if [ "$candidate_base" = "8884c78573384c436bfa0287c135d584fd929ce8" ]; then
             python3 scripts/candidate_scope_admission83.py --base "$candidate_base"
+          elif [ "$candidate_base" = "9fd3aa3f660baaea1e4dbaf71455853ee2c84e26" ]; then
+            python3 scripts/candidate_scope_admission83.py --base "8884c78573384c436bfa0287c135d584fd929ce8"
           elif [ "$candidate_base" = "ae3ea766485914e98bfc8a883301978971e103b7" ]; then
             python3 scripts/candidate_scope_admission82.py --base "$candidate_base"
           elif [ "$candidate_base" = "7c1481f6682df89526081932c05d9bb5d83324f3" ]; then

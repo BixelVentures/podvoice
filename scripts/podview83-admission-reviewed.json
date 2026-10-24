@@ -20,7 +20,7 @@
     "tests/integration/test_podview_music_disconnect.py": "b120868adc05790268f50c56b477299b2affb9a67971cb335bb6da5b92ce1a4c",
     "tests/integration/test_podview_music_selection.py": "f15d79730bbf88d9338aa3bce59b942822ada14f66cffcf81aa48419ec56180d",
     "tests/podview/canonical-next-collection-selection.test.mjs": "bca30802d1442de96d062a2c123f025123fbc2ca3abf28461e7005e329766188",
-    "tests/podview/canonical-next-live-media-view.test.mjs": "7453d10d82b4a24ec4fcc49ad9474e2bcb54a6becaea872758cc42dbfb46453b",
+    "tests/podview/canonical-next-live-media-view.test.mjs": "c816225fdae505259efc29d9be0760d2a2436703beab6e97e9e3c4b5126883bc",
     "tests/podview/canonical-next-native-music-controls.test.mjs": "ba69c04fc5bf6637af929c283551713583b2d79b418f0eda4fc22ee7c8fe110c",
     "tests/podview/canonical-next-player-view-source.test.mjs": "a9902d631d2ffc4216218f939828424c916866b1de0abfbd2afc7096e2a7ce78",
     "tests/podview/canonical-next-player-view.test.mjs": "00776b02a34abbd7b5176d997c389d7fb4d36995b1f5057bbe71eb4c44be4fc5",
@@ -28,7 +28,7 @@
     "tests/podview/canonical-next-transport-recovery.test.mjs": "a2395c08f5aa214c7a422473d3a7f5bb88cb5d8dbab31f325f4d41b6a3f83c60",
     "tests/podview/canonical-packet-player-view.test.mjs": "9bf16e9a9c9ea7fbb737ff7eed9284db22129d1e7bbb91f6d7003e94babad0f6",
     "tests/podview/root-collection-selection.test.mjs": "a003e917a19f801f6b92d7650c46d354571e4adeb5bb251b3bd0414e1e39b41f",
-    "tests/podview/root-live-media-view.test.mjs": "f7e55e365731b78b78df3aa642c5e4a919145a1e5a2a3f6720fb1fbd38dd8dcd",
+    "tests/podview/root-live-media-view.test.mjs": "339467cfce4c45a7a8c9041a9419e62226b740c1f08fc2959533a5a66d9ecef0",
     "tests/podview/root-named-controller-enrollment.test.mjs": "dfcb3a03f49e84dc7429397607c553e15e64e3b807f57e4891fe82faceeed1f6",
     "tests/podview/root-native-music-controls.test.mjs": "3183bb26a5cd72c2253b855849fe200d19cf26018f646beceff8d02d75fcac36",
     "tests/podview/root-player-view.test.mjs": "495f4fa587ac922b7f5de5059e7ef9a0fb2e464d70364348f8a9fc78850b52c9",
@@ -37,7 +37,7 @@
     "tests/podview/root-transport-recovery.test.mjs": "a2395c08f5aa214c7a422473d3a7f5bb88cb5d8dbab31f325f4d41b6a3f83c60",
     "tests/podview/transport-recovery.test.mjs": "a404af0b7c9e77ad663db49ac19de21d1b6eb94b0da4bf95500b382b201b995b",
     "tests/unit/test_candidate_scope_admission82.py": "da11310124fd06973a7f2725e062d9fa30014b239751d40bd319d644d1f00639",
-    "tests/unit/test_candidate_scope_admission83.py": "780ce7688b5f1ac2da9e5e27b0898c1e7273da75b38997044e634a40e62175d6",
+    "tests/unit/test_candidate_scope_admission83.py": "0d16c2f9476a3f574834b1066ce79616b68294f4f25bdaabdf8e4b49f82e1f1d",
     "tests/unit/test_dev_cycle.py": "a0b5d72cba02d1bb5854066791c796d896dc41c4333733b9f179652327796d7c"
   },
   "runtime": {
@@ -372,7 +372,7 @@
     "pyproject.toml": "6eb6c372c09bd55f2aa6a828ede194315aba926ebb58694af1e3e255993e8896"
   },
   "policy": {
-    ".github/workflows/ci.yml": "d340ab9ddb2df5691593471a0c0202cb8a61476c6d6bf76ff66ac15cc5fe8ac6",
+    ".github/workflows/ci.yml": "00879fbb66529b9de68df77f05ed39e7b69ba95faf4f794230164605948369a0",
     "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
     "scripts/candidate_scope_admission55.py": "27bcff315821d51484026279cbe78574e5ff04a2601cb1ba7417621dd34d2869",
@@ -436,7 +436,7 @@
     "scripts/podvoice73-admission-reviewed.json": "f53061f458c76301d0b41142946d1b7216f963cde9d2a606b1358fe1cb569f65"
   },
   "tooling": {
-    ".github/workflows/ci.yml": "d340ab9ddb2df5691593471a0c0202cb8a61476c6d6bf76ff66ac15cc5fe8ac6",
+    ".github/workflows/ci.yml": "00879fbb66529b9de68df77f05ed39e7b69ba95faf4f794230164605948369a0",
     ".gitignore": "59fefbd55eb97763c5e82d9c5fc428f02b553138907a1d3501ab8eaaf16e7b21",
     "AGENTS.md": "c451ba9702c2ca9b92e89fdc5f98f6bf3337757b860bb647be1d6e5dc8885bdb",
     "CLAUDE.md": "ae8fd9ee7093a80647592372719a956f6d938a04838dee845bb22ccb5beb5a7c",

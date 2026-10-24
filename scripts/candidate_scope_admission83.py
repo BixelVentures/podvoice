@@ -111,8 +111,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/sol61_release75_review"
-MANIFEST_SHA = "d59af16824f51350590c9031001d1aae4126a870c15953f0abd932c89f9831f2"
-PROFILE_AST = "a1177be0e833d571c1f5d8299a06e2d76c5e2d09e510896e27b1759c3abfbdc1"
+MANIFEST_SHA = "9c94fe0c6737412be5c4856bafffd0b71ea1b2d51ef107e4ef0e6a1da761c610"
+PROFILE_AST = "aaf81f42d2e1d40c0cd793bbbd552de839cf75752a2d1122606d6b6cf7b74bbe"
 
 
 def record_at(root: Path) -> dict | None:
