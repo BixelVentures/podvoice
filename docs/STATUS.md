@@ -4118,12 +4118,12 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "base_tip": "8884c78573384c436bfa0287c135d584fd929ce8",
   "merge_base": "8884c78573384c436bfa0287c135d584fd929ce8",
   "fingerprint": "e7bb2a3fef4d2954672b5a27f1a662e61dd42bf9b21b287f3cc4569b74fa3169",
-  "regression_fingerprint": "fac058993de9ac52262221da39cf91cd79fe5f8be5617331d0004ee4e226e9d0",
+  "regression_fingerprint": "3de41714188d165b66a59f144aba946995aa19ec16e56d4beccddabc62a4ef05",
   "runtime_fingerprint": "dcc46ea1361506135eb985b7405bf79aa038426f83c47d85ecf53e33dde12f02",
   "config_fingerprint": "dfb9497696e1f3f04e752c4b8c2d3baf2dd65f37058ea300c7e146259fe0b2cd",
-  "policy_fingerprint": "9de8a26494e3158964f13e3f375fdfc932dfce73a22189c8f75b89f44885e4ed",
-  "tooling_fingerprint": "a12fee57aa4750b695efaf5375145a8b844c679fb34da166ae3e8356d850d729",
-  "manifest_fingerprint": "d59af16824f51350590c9031001d1aae4126a870c15953f0abd932c89f9831f2",
-  "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config, prior source/bound evidence and the first transport-clock correction. The next official run found a separate existing named-controller fake-timer helper using real Date.now for exact30000ms. One four-case block now owns/restores Date.now; assertions and production deadlines are unchanged. Reviewed patchf9c477/afterdfcb3a03 and pinned Node24 forced4 plus whole-module42 passes retained; static243-module audit found no further demonstrated same-class issue. Non-CI-equivalent Node20 diagnostic remains failed and is not pass evidence. Only this regression pin and required policy/AST/record bindings change; no runtime or household effects. New automatic official CI required on this head."
+  "policy_fingerprint": "1e71623e72d43985dfc6d3170bc0268d4e46e19ac90324f187531426fceb7d26",
+  "tooling_fingerprint": "eb2dd95407c9e9251c0ec1a5ba6cedc71613c9c90d1ee4661609360a28813745",
+  "manifest_fingerprint": "1a276ac1ee2b22d76f7e2043f233428863e0a74c6c17b03fc14679836707e4f9",
+  "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config and prior source/bound evidence, including the observation-clock correction. Repair CI40137097184 found the existing promotion workflow inventory test did not recognize the approved exact merged-main9fd continuation. The test now validates exactly that full9fd-to83/original8884 block, removes only it from its local standard-route inventory, and preserves all incumbent ordered commands, conditions, uniqueness and label assertions. Three negative cases reject unknown continuation base, wrong original base and wrong profile. Full affected promotion module16PASS; only this new regression pin, REQUIRED_TESTS24-to25 and required AST/record bindings change. No workflow, production or household effects. New automatic official CI required on this head."
 }
 -->

@@ -8,6 +8,7 @@ import subprocess
 import sys
 from copy import deepcopy
 
+import pytest
 from scripts.ci_promotion import (
     ADMISSION_NAME,
     ROUTE,
@@ -294,8 +295,37 @@ def test_workflow_evaluation_failure_falls_back_to_normal_ci() -> None:
     assert "needs.promotion.outputs.reuse != 'true'" in workflow
 
 
+KNOWN_CONTINUATION = (
+    '          elif [ "$candidate_base" = "9fd3aa3f660baaea1e4dbaf71455853ee2c84e26" ]; then\n'
+    "            python3 scripts/candidate_scope_admission83.py --base "
+    '"8884c78573384c436bfa0287c135d584fd929ce8"\n'
+)
+
+
+def _without_known_continuation(workflow: str) -> str:
+    assert workflow.count(KNOWN_CONTINUATION) == 1, "Expected one exact reviewed continuation"
+    return workflow.replace(KNOWN_CONTINUATION, "", 1)
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [
+        ("9fd3aa3f660baaea1e4dbaf71455853ee2c84e26", "0" * 40),
+        ("8884c78573384c436bfa0287c135d584fd929ce8", "0" * 40),
+        ("admission83.py", "admission82.py"),
+    ],
+)
+def test_actual_workflow_rejects_unreviewed_continuation(old: str, new: str) -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    with pytest.raises(AssertionError, match="one exact reviewed continuation"):
+        _without_known_continuation(
+            workflow.replace(KNOWN_CONTINUATION, KNOWN_CONTINUATION.replace(old, new))
+        )
+
+
 def test_actual_workflow_label_matches_highest_admission_dispatch() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    workflow = _without_known_continuation(workflow)
     name = admission_step_name(workflow)
     assert name is not None, "Admission label must retain the recognized exact format"
     label = ADMISSION_NAME.fullmatch(name)
