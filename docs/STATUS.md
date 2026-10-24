@@ -1,3 +1,22 @@
+## Active82 composition — current nonmusic UI,24 October2026
+
+Lead/release owner /root; UI owner PodView; packaging weather_backend_integration.
+Exact installed81 baseline ae3ea766485914e98bfc8a883301978971e103b7/tree1359cbaeb18d2a8a04e150c88e0e59aedfe78bb1.
+Adopt only immutable packet704330cff2deea2f5178559b42609a7cd823ae9e4714ca8599f6101621911c0e:
+seven runtime assets plus manifest and six authored tests mapped to ten existing
+mirrors; preserve the independent transport adapter. Existing endpoints/auth/grants,
+voice/timer backend, firmware, model/budget and music controls are non-goals.
+
+Hypothesis: exact reviewed consumer changes retain timer access/renewal/recovery and
+weather current-source identity without introducing authority or hiding unavailable
+states. Owner2135UI+63component/syntax/browser evidence retained. Changed ten mirrors
+plus incumbent transport adapter pass324cases. Installed81 timer backend audit passes
+existing native/end-to-end modules and ten paired cancel/identity cases; no runtime
+fix is justified. These software facts do not prove physical timer/voice/audio/LED or
+second wake. Rollback is only successor UI/metadata diff. Independent exact scope review
+and binding pending; no official CI/publication/install or device/provider action.
+Root owns one combined delivery after Connect51 review; candidate unbound/not ready.
+
 ## Active lead decision — one music owner and truthful controls, 24 October 2026
 
 Lead/root integrates the PodView-owned UI correction into planned2.0.81 with planned Speakers0.26.45; installed Green remains2.0.80/0.26.44/Control0.10.21. Direct field evidence: ordinary Connect route accepted at11:01:56 with Native/C35%, followed by bound pause confirmation409 and legacy repeated generic pause500; later Kitchen Kanye playback paused after a brief audible user attempt. Exact first pause origin remains unclassified. Both actual Native and C remain35%; the reported full slider is separately explained by policy max35 being rendered as visual100%, not proven physical100%.
@@ -3971,3 +3990,25 @@ unit aggregator failed only because that shard failed. Root authorized one metad
 label correction; all existing promotion regression cases now PASS. Required policy
 manifest/AST/record fingerprints refreshed; no test weakening or runtime/UI change.
 Prior passed jobs remain evidence, not a green finalCI; successor automaticCI required.
+
+<!-- podview82-admission
+{
+  "version": 59,
+  "kind": "podview82_nonmusic",
+  "reviewer": "/root/sol61_release75_review",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "ae3ea766485914e98bfc8a883301978971e103b7",
+  "merge_base": "ae3ea766485914e98bfc8a883301978971e103b7",
+  "fingerprint": "4905730416135f50cee13611ff0c42846e1d9497c27df6fb20f65f6a891c9ab7",
+  "regression_fingerprint": "6ff3a519c02698dc1b74c1b41f10b13acef1085f4a4df31259cf984a37f2f223",
+  "runtime_fingerprint": "c7780e31c528fa76c909e2940bafc5bad1653fb5dd2c2b7e0ce2eb86d3799daf",
+  "config_fingerprint": "8d3b510554a45e32157b4ca484677df7b814cea33f5a95febab47e803581ed83",
+  "policy_fingerprint": "efbeb39b456054cd96aa311400749e4cbc95224fe1e4b2d8f2263d706749878e",
+  "tooling_fingerprint": "61eaf90044f77094f6942846f0b69febcffa0ad62ee59e59f9f03cc0d748174b",
+  "manifest_fingerprint": "b8008af9444b7e2cfdccc87f931543fd053c1ca3f601ec930ec1b498ac5c4f42",
+  "rationale": "Independent exact UI-only82 scope/source GO; immutable704330 packet and10 authoredmirrors preserve published81 voice/timer/backend/firmware. Focused324 UI and189 tool/dispatch cases plus15 historical81 pass; final bound checks required. Root owns officialCI/publication/install and physical acceptance, no provider/device effects."
+}
+-->

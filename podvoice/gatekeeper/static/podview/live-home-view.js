@@ -25,7 +25,7 @@ export class LiveWeatherAdvice {
   if(!entry&&!context.voiceCurrent&&cap.status==='idle'&&this.attempts.size<32){entry={until:cap.validUntil*1000,source:context.source,deadline:this.now()+10000,polls:0,status:'sending',advice:null};this.attempts.set(context.key,entry);this.start(context,entry);}
   if(entry&&entry.source!==context.source)return {context:cap,status:'unavailable'};
   if(projected&&entry?.advice?.requestId&&projected.requestId!==entry.advice.requestId)return {context:cap,status:'unavailable'};
-  const advice=['error','unavailable'].includes(cap.status)?null:projected||entry?.advice,status=['error','unavailable'].includes(cap.status)?cap.status:advice?.status||(['pending','ready'].includes(cap.status)?cap.status:entry?.status==='sending'?'requesting':entry?.status||null);
+  const advice=['error','unavailable'].includes(cap.status)?null:projected||entry?.advice,status=['error','unavailable'].includes(cap.status)?cap.status:cap.status==='ready'&&advice?.status!=='ready'?'unavailable':advice?.status||(cap.status==='pending'?cap.status:entry?.status==='sending'?'requesting':entry?.status||null);
   if(status!=='pending'){this.clearTimer(this.timer);this.timer=null;}
   if(entry?.refreshNeeded){entry.refreshNeeded=false;this.poll(context,entry);}
   if(status==='pending'){

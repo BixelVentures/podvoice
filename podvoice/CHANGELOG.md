@@ -1,3 +1,10 @@
+## 2.0.82
+
+- Adopt reviewed nonmusic UI changes for current timer access, named-controller
+  renewal, transport recovery and weather presentation tied to current facts.
+- Voice/timer backend, firmware, music authority, provider quotas and HA component
+  remain unchanged. Physical acceptance and actual AI availability remain separate.
+
 ## 2.0.81
 
 - Keep music controls under one renderer; avoid briefly disabling or resetting valid controls during playback updates.

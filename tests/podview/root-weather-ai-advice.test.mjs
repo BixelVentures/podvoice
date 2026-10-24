@@ -49,3 +49,12 @@ test('final passive wire uses numeric Unix times and home requires a retained ta
  // The existing voice receipt remains the independent, unchanged string contract.
  assert.equal(typeof weather.aiAdvice.sourceRetrievedAt,'string');assert.equal(liveWeatherModel(weather,{now,aiContext:context}).summary,source.aiAdvice.summary);
 });
+
+test('live AI recommendation never substitutes legacy rule prose when passive capability is absent or rejected',()=>{
+ const source=raw();delete source.aiAdvice;source.forecast[0].temperature=12;source.forecast[0].datetime=new Date(now+600000).toISOString();source.advice={id:'advice:'+'d'.repeat(32),ruleVersion:'next-hour-clothing-v1',source:source.source,retrievedAt:source.retrievedAt,periodTime:source.forecast[0].datetime,evidence:[{field:'temperature',value:12,unit:'°C',normalizedValue:12,normalizedUnit:'°C'}],kind:'practical_guidance',scope:'next_hourly_period',summary:'Regelbaseret eksempel.',children:'Tag en jakke med.',validUntil:now/1000+60};
+ const weather=weatherObservation(source);assert.ok(weather.advice,'source facts can still carry the legacy typed annotation');
+ for(const passiveContext of [null,weatherAdviceCapability({...capability(source),weatherKey:'malformed'},weather,scope,now)]){const model=liveWeatherModel(weather,{now,passiveContext});assert.equal(model.summary,'');assert.equal(model.summaryLabel,'');assert.equal(model.adviceUntil,null);assert.equal(model.current.temperature,'14°');assert.equal(model.hours[0].temperature,'12°');assert.equal(model.hours[0].rain,'0 mm');}
+});
+test('voice advice source retrieval must match the current weather even when the conversation and provider remain unchanged',()=>{
+ const source=raw();source.retrievedAt=new Date(now-1000).toISOString();const weather=weatherObservation(source);assert.equal(weather.aiAdvice,null);const model=liveWeatherModel(weather,{now,aiContext:context});assert.equal(model.summary,'');assert.equal(model.current.temperature,'14°');assert.equal(model.hours[0].rain,'0 mm');
+});

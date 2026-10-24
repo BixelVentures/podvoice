@@ -81,7 +81,7 @@ export function weatherAdvice(advice,weather,now=Date.now()){
 export function weatherAiAdvice(value,weather,now=Date.now()){
  const keys=['schema','receiptId','weatherReceiptId','roomId','sessionId','turnId','taskId','inputRevision','providerGeneration','summary','summaryKind','evidenceFactIds','validUntil','source','sourceRetrievedAt'];
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(key=>!Object.hasOwn(value,key))||value.schema!=='podview.weather-advice.v1'||value.summaryKind!=='ai_advice'||value.source!==weather?.source||typeof value.summary!=='string'||!value.summary.trim()||value.summary.length>240||!Number.isFinite(value.validUntil)||value.validUntil*1000<=now||!['receiptId','weatherReceiptId','roomId','sessionId','turnId','taskId'].every(key=>typeof value[key]==='string'&&value[key].length>0&&value[key].length<=160)||!['inputRevision','providerGeneration'].every(key=>Number.isInteger(value[key])&&value[key]>=0)||!Array.isArray(value.evidenceFactIds)||value.evidenceFactIds.length<1||value.evidenceFactIds.length>12||value.evidenceFactIds.some(id=>typeof id!=='string'||!id.length||id.length>160)||new Set(value.evidenceFactIds).size!==value.evidenceFactIds.length)return null;
- const retrieved=Date.parse(value.sourceRetrievedAt);if(!Number.isFinite(retrieved)||retrieved>now||value.validUntil*1000>retrieved+900000)return null;
+ const retrieved=Date.parse(value.sourceRetrievedAt);if(!Number.isFinite(retrieved)||retrieved!==Date.parse(weather?.retrievedAt)||retrieved>now||value.validUntil*1000>retrieved+900000)return null;
  return {...value,evidenceFactIds:[...value.evidenceFactIds]};
 }
 

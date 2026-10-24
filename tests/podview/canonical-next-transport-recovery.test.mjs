@@ -92,3 +92,10 @@ test('a newer snapshot accepted during connection delivery cannot be followed by
  h.t.onSnapshot=value=>delivered.push(value.revision);
  await h.t.start();assert.equal(h.t.snapshot.revision,2);assert.deepEqual(delivered,[2]);assert.equal(h.t.connected,true);
 }));
+
+for(const failure of ['network','503'])test(`legacy post-renew ${failure} cannot reuse the first snapshot as proof and recovers with reads plus existing renewal only`,()=>run(async h=>{
+ let reads=0;
+ h.t.fetch=async(url,init)=>{const path=new URL(url).pathname.split('/api/')[1];h.calls.push({path,method:init.method||'GET'});if(path==='controller/renew')return {ok:true,status:200,json:async()=>({ok:true,expiresIn:300})};if(++reads===2){if(failure==='network')throw new TypeError('inert read outage');return {ok:false,status:503,json:async()=>({ok:false,error:'unavailable'})};}return {ok:true,status:200,json:async()=>snap()};};
+ await h.t.start();assert.equal(h.t.connected,true);assert.equal(h.t.controllerRenewed,false);assert.deepEqual(h.t.snapshot.capabilities.controlSetup,[]);assert.deepEqual(h.t.snapshot.capabilities.timerActions,[]);
+ await h.fire(1000);assert.equal(h.t.connected,true);assert.equal(h.t.controllerRenewed,true);assert.deepEqual(h.t.snapshot.capabilities.controlSetup,['vacuum']);assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)));assert.equal(h.streams.filter(stream=>!stream.closed).length,1);
+}));

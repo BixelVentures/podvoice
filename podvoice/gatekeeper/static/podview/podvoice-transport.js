@@ -53,8 +53,8 @@ export class PodVoiceTransport {
   for (const [key,value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(key,value);
   return url;
  }
- accept(value) {
-  if (this.closed || value?.schema !== 'podview.snapshot.v1' || typeof value.bootId !== 'string' || !Number.isInteger(value.revision) || value.revision < 1 || typeof value.roomId !== 'string' || !value.voice || !value.timers || !value.capabilities) return false;
+ accept(value,readAt=Date.now()) {
+  if (Date.now()-readAt>=6000||this.closed || value?.schema !== 'podview.snapshot.v1' || typeof value.bootId !== 'string' || !Number.isInteger(value.revision) || value.revision < 1 || typeof value.roomId !== 'string' || !value.voice || !value.timers || !value.capabilities) return false;
   if (!['observed','unavailable'].includes(value.timers.status)||!Array.isArray(value.timers.items)||!Array.isArray(value.capabilities.musicRead)||!Array.isArray(value.capabilities.timerActions)) return false;
   if(value.capabilities.homeRead!==undefined&&(!Array.isArray(value.capabilities.homeRead)||value.capabilities.homeRead.some(x=>!['vacuum','weather','light','vehicle'].includes(x))))return false;
   if(value.capabilities.controlSetup!==undefined&&(!Array.isArray(value.capabilities.controlSetup)||value.capabilities.controlSetup.some(x=>!['music','vacuum','light'].includes(x))))return false;
@@ -93,7 +93,7 @@ export class PodVoiceTransport {
   this.room = value.roomId; this.snapshot = value; this.connected = true;
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
-  clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},6000);
+  clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
   const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
  // Presentation observers may report their own error; they cannot turn a valid
@@ -118,7 +118,7 @@ export class PodVoiceTransport {
   this.notify('onConnection','connecting');
   try {
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
-   let value = await response.json();
+   let value = await response.json(),readAt=Date.now();
    if (generation !== this.generation) return;
    if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
@@ -135,16 +135,29 @@ export class PodVoiceTransport {
      else{const result=await renewal.json();if(generation!==this.generation||this.closed)return;if([401,403].includes(renewal.status)&&named){this.namedRenewalDenied=true;this.forgetNamedIntent();throw Error('named_controller_renewal_denied');}if([401,403].includes(renewal.status)){this.controllerRenewalDenied=true;this.recoveryReadOnly=true;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;throw Error('controller_renewal_denied');}renewed=renewal.ok&&result.ok===true&&result.expiresIn===300;
       if(named){const keys=Object.keys(result).sort().join(',');renewed=renewed&&keys==='controllerExpiresAt,expiresIn,ok'&&(result.controllerExpiresAt===null||typeof result.controllerExpiresAt==='number'&&Number.isFinite(result.controllerExpiresAt)&&result.controllerExpiresAt>Date.now()/1000);}
      }
-     if(renewed||renewal.coalesced){response=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'});value=await response.json();if(generation!==this.generation)return;if([401,403].includes(response.status)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}if(renewed)renewed=response.ok;if(named&&(value.bootId!==boot||value.roomId!==room||!haIngress(value))){renewed=false;this.forgetNamedIntent();throw Error('named_controller_owner_changed');}}
+     if(renewed||renewal.coalesced){
+      // A renewal receipt is not the mandatory post-renew read. Keep the
+      // independently verified first projection if that read fails transiently,
+      // but do not publish named proof or its light authority from it.
+      const confirmed=renewed;renewed=false;
+      const freshResponse=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'}),freshValue=await freshResponse.json();if(generation!==this.generation)return;
+      if([401,403].includes(freshResponse.status)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}
+      if(!freshResponse.ok)throw Error('post_renew_read_unavailable');
+      response=freshResponse;value=freshValue;readAt=Date.now();
+      if(named&&(value.bootId!==boot||value.roomId!==room||!haIngress(value))){this.namedRenewalDenied=true;this.forgetNamedIntent();throw Error('named_controller_owner_changed');}
+      renewed=confirmed;
+     }
     }catch{if(generation!==this.generation)return;}
 
    }
    if(generation!==this.generation)return;
    if(this.recoveryBlocked)throw Error('transport_access_denied');
+   if(normalHA&&!haIngress(value))throw Error('invalid_admission');
+   if(Date.now()-readAt>=6000)throw Error('snapshot_expired');
    this.namedRenewalUnconfirmed=named&&renew&&!renewed;
    this.controllerRenewed=!normalHA&&renewed;this.namedControllerRenewed=named&&renewed;this.cookieReadAuthority=!normalHA&&!this.controllerRenewalDenied&&!renew&&response.ok;
    if(!haIngress(value)&&(this.controllerRenewalDenied||value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
-   if (!response.ok || !this.accept(value)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}throw new Error(value.error || 'invalid_snapshot');}
+   if (!response.ok || !this.accept(value,readAt)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}throw new Error(value.error || 'invalid_snapshot');}
    if(generation!==this.generation||this.closed)return;
    if(this.namedControllerRenewed===true)this.rememberNamedIntent(room);
    if(this.controllerRenewed===true||this.namedControllerRenewed===true)this.notify('onControllerRenewed',{owner:this.controllerRenewalOwner,generation});

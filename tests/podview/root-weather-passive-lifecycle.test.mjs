@@ -49,3 +49,9 @@ test('default browser timers retain the native global receiver through requestin
   h.deferred[0].resolve(h.dto());await h.settle();assert.equal(owner.sync().status,'pending');assert.equal(timers.size,1);const [id,timer]=[...timers][0];assert.equal(timer.delay,1000);timers.delete(id);h.host.onRead=()=>{h.host.state.weatherAdvice={...h.cap,status:'ready'};h.host.state.liveWeather={...h.host.state.liveWeather,passiveAdvice:h.dto('ready')};};await timer.callback();assert.equal(h.host.reads,1);assert.equal(owner.sync().status,'ready');assert.equal(timers.size,0);assert.equal(h.calls.length,1);assert.ok(receivers.includes('set'));assert.ok(receivers.includes('clear'));owner.cleanup();assert.equal(timers.size,0);
  }finally{owner?.cleanup();globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
 });
+
+test('ready capability without a valid completion receipt stays honest and cannot leave a blank ready claim or replay generation',async()=>{
+ for(const receipt of [null,{invalid:true}]){
+  const h=rig();h.host.state.focus='weather';h.host.state.weatherAdvice={...h.cap,status:'ready'};h.host.state.liveWeather={...h.host.state.liveWeather,passiveAdvice:receipt};const model=h.model();assert.equal(model.summaryState,'unavailable');assert.equal(model.summary,'Vejrrådet er ikke tilgængeligt lige nu.');assert.equal(model.current.temperature,'12°');assert.equal(h.calls.length,0);assert.equal(h.timers.size,0);h.owner.sync();assert.equal(h.calls.length,0);h.owner.cleanup();
+ }
+});

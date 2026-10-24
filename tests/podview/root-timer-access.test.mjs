@@ -172,3 +172,11 @@ test('actual TimerView return consumes fresh liveScene and snapshot in both rece
   assert.equal(t.host.state.focus,'now',order);assert.equal(t.host.state.timer.id,'native-exact');assert.equal(t.host.state.timer.status,'running');assert.equal(returns,1);assert.equal(t.host.state.music.playback.room,music.playback.room);assert.equal(t.calls.length,1);
  }
 });
+
+test('fresh scoped removal resolves parked UNKNOWN cancellation after independent cancellation without replay',async()=>{
+ const t=timerOwner({items:[{id:'exact'},{id:'other'}],result:{ok:false,outcome:'unknown'}});await t.host.sendLiveTimer(cancelExact);await t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'other'}});assert.equal(t.host.liveTimerFences.length,1);
+ t.observe(t.snapshot({revision:11,timers:{status:'unavailable',epoch:null,items:[]}}));assert.equal(t.host.liveTimerFences.length,1,'unavailable is not removal');
+ t.observe(t.snapshot({revision:12,timers:{status:'observed',epoch:'epoch',items:[{id:'exact'},{id:'other'}]}}));assert.equal(t.host.liveTimerFences.length,1,'unrelated newer status does not clear cancellation');
+ t.observe(t.snapshot({revision:13,timers:{status:'observed',epoch:'epoch',items:[]}}));assert.equal(t.host.liveTimerAction,null);assert.equal(t.host.liveTimerFences.length,0,'exact disappearance resolves both independent cancellation fences');assert.equal(t.calls.length,2,'no effect is replayed');
+ await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,3,'a new explicit Start is permitted after exact cancellation removal');
+});
