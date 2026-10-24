@@ -219,3 +219,59 @@ test('linked setup stops claiming successful linkage when current named proof be
   }finally{flow.close();h.transport.close();}
  }
 });
+
+for(const failure of ['network','503-json','503-html','200-html'])test(`post-renew ${failure} retains verified HA reads without named proof and automatically validates the existing profile again`,async()=>{
+ const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,jobs=new Map();let serial=0,reads=0,announced=0;
+ globalThis.setTimeout=(callback,ms)=>{jobs.set(++serial,{callback,ms});return serial;};globalThis.clearTimeout=id=>jobs.delete(id);
+ const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{
+  if(path==='controller/renew')return reply(renewal());
+  if(++reads===2){if(failure==='network')throw new TypeError('inert fetch outage');if(failure.endsWith('html'))return {ok:failure==='200-html',status:failure==='200-html'?200:503,json:async()=>{throw new SyntaxError('inert HTML');}};return reply({ok:false,error:'unavailable'},503);}
+  return reply(snapshot());
+ }}),saved=JSON.stringify(intent());h.store.setItem(h.key,saved);h.transport.onControllerRenewed=()=>announced++;
+ try{
+  await h.transport.start().catch(()=>{});assert.equal(h.transport.connected,true,'the independently verified first HA read remains available');assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.controllerRenewed,false);assert.equal(h.transport.namedRenewalUnconfirmed,true);assert.equal(h.transport.namedRenewalDenied,false);assert.equal(announced,0);assert.equal(h.store.getItem(h.key),saved);
+  assert.deepEqual(h.transport.snapshot.admission,admission);assert.deepEqual(h.transport.snapshot.capabilities,{...snapshot().capabilities,controlSetup:['music','vacuum']});
+  const retry=[...jobs.entries()].find(([,job])=>job.ms===30000);assert.ok(retry,'existing named-profile validation retry remains armed');jobs.delete(retry[0]);retry[1].callback();await new Promise(resolve=>previousSet(resolve,0));
+  assert.equal(h.transport.connected,true);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(announced,1);assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);assert.equal(h.store.getItem(h.key),saved);assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)),'recovery never enrolls or sends effects');
+ }finally{h.transport.close();globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+});
+
+test('a post-renew snapshot cannot downgrade an initially authenticated HA connection into legacy admission',async()=>{
+ let reads=0,announced=0;const delivered=[];
+ const h=rig({handler:path=>{if(path==='controller/renew')return reply(renewal());const value=snapshot();if(++reads===2)delete value.admission;return reply(value);}});h.transport.onSnapshot=value=>delivered.push(value);h.transport.onControllerRenewed=()=>announced++;
+ try{await h.transport.start().catch(()=>{});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.controllerRenewed,false);assert.equal(h.transport.connected,false);assert.equal(announced,0);assert.equal(delivered.some(value=>!value.admission),false);assert.equal(h.store.getItem(h.key),null);}finally{h.transport.close();}
+});
+
+test('post-renew read denial remains terminal and cannot become a transient profile retry',async()=>{
+ let reads=0,announced=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>path==='controller/renew'?reply(renewal()):reply(snapshot(),++reads===2?403:200)});h.store.setItem(h.key,JSON.stringify(intent()));h.transport.onControllerRenewed=()=>announced++;
+ try{await assert.rejects(()=>h.transport.start());assert.equal(h.transport.connected,false);assert.equal(h.transport.recoveryBlocked,true);assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,true);assert.equal(h.store.getItem(h.key),null);assert.equal(announced,0);assert.equal(h.transport.recoveryTimer??null,null);assert.equal(h.transport.namedRenewTimer??null,null);}finally{h.transport.close();}
+});
+
+for(const status of [401,403])test(`native HTML ${status} after renewal remains an authoritative denial through the request decoder`,async()=>{
+ let reads=0,announced=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{
+  if(path==='controller/renew')return reply(renewal());
+  if(++reads===2)return {ok:false,status,json:async()=>{throw new SyntaxError('inert HTML denial');}};
+  return reply(snapshot());
+ }});h.store.setItem(h.key,JSON.stringify(intent()));h.transport.onControllerRenewed=()=>announced++;
+ try{
+  await assert.rejects(()=>h.transport.start(),/transport_access_denied/);
+  assert.equal(h.transport.connected,false);assert.equal(h.transport.recoveryBlocked,true);
+  assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,true);
+  assert.equal(h.store.getItem(h.key),null);assert.equal(announced,0);
+  assert.equal(h.transport.recoveryTimer??null,null);assert.equal(h.transport.namedRenewTimer??null,null);
+  assert.deepEqual(h.calls.map(call=>call.path),['snapshot','controller/renew','snapshot']);
+ }finally{h.transport.close();}
+});
+
+for(const delay of [5000,6001])test(`a failed post-renew read after ${delay}ms cannot restart the first snapshot freshness window`,async()=>{
+ const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,previousNow=Date.now,jobs=new Map();let serial=0,reads=0,now=previousNow();
+ globalThis.setTimeout=(callback,ms)=>{jobs.set(++serial,{callback,ms});return serial;};globalThis.clearTimeout=id=>jobs.delete(id);Date.now=()=>now;
+ const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew')return reply(renewal());if(++reads===2){now+=delay;throw new TypeError('inert delayed read failure');}return reply(snapshot());}}),saved=JSON.stringify(intent());h.store.setItem(h.key,saved);
+ const fire=async ms=>{const entry=[...jobs.entries()].find(([,job])=>job.ms===ms);assert.ok(entry,`scheduled ${ms}ms`);jobs.delete(entry[0]);now+=ms;entry[1].callback();await new Promise(resolve=>previousSet(resolve,0));};
+ try{
+  await h.transport.start().catch(()=>{});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,false);assert.equal(h.store.getItem(h.key),saved);
+  if(delay===5000){assert.equal(h.transport.connected,true);assert.equal([...jobs.values()].some(job=>job.ms===6000),false,'the old projection has only one second left');await fire(1000);assert.equal(h.transport.connected,false);}
+  else{assert.equal(h.transport.connected,false);assert.equal(h.transport.snapshot,null,'expired initial data is not admitted as a new heartbeat');}
+  await fire(1000);assert.equal(h.transport.connected,true);assert.equal(h.transport.namedControllerRenewed,true);assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)));
+ }finally{h.transport.close();Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+});

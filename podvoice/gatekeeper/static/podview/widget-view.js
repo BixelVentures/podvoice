@@ -213,8 +213,11 @@ class WidgetHost extends HTMLElement {
   if(this.liveTimerAction){this.liveActionPending=false;this.liveTimerAction.outcome??='unknown';this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}
  }
  reconcileLiveTimer(snapshot){
-  const operation=this.liveTimerAction;if(!operation)return;
   const connected=this.liveStatus==='connected'&&this.liveTransport?.connected;
+  // Independent cancellations can leave older UNKNOWN operations parked. The
+  // same exact scoped removal proof resolves those too; never infer a Start.
+  if(connected&&snapshot?.timers?.status==='observed')this.liveTimerFences=(this.liveTimerFences||[]).filter(operation=>!(operation.action==='timer.cancel'&&snapshot!==operation.snapshot&&snapshot.bootId===operation.bootId&&snapshot.roomId===operation.roomId&&snapshot.timers.epoch===operation.epoch&&!snapshot.timers.items.some(timer=>timer.id===operation.timerId)));
+  const operation=this.liveTimerAction;if(!operation)return;
   // New authoritative owners retire the old scope, without claiming completion.
   if(connected&&snapshot!==operation.snapshot&&(snapshot?.bootId!==operation.bootId||snapshot?.roomId!==operation.roomId||snapshot?.timers?.status==='observed'&&snapshot.timers.epoch!==operation.epoch)){
    clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;this.liveActionPending=false;this.liveActionFeedback='';return;
