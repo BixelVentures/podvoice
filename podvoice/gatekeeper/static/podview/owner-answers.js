@@ -70,3 +70,14 @@ export function historicalAnswers(value,snapshot,now=Date.now()){
   return {id:'receipt:'+row.receiptId,receiptId:row.receiptId,kind:row.family,title:row.title,observedAt:row.observedAt,content,provenance:{kind:row.provenance.kind},status:'ready',live:true,historical:true,presentation:true,ownerReceiptIds:[row.receiptId],allowedActions:[],readContext:null,readConnected:false,readStatus:'ready',displaySuggested:false,hidden:false};
  });return {revision:value.revision,removalRevision:value.removalRevision,items};
 }
+
+// Saved transcript segments are whole source text, separate from answer receipts
+// and current action authority. Server ordering is retained without synthesis.
+export function transcriptHistory(value,snapshot){
+ const exact=(object,keys)=>!!object&&typeof object==='object'&&!Array.isArray(object)&&Object.keys(object).length===keys.length&&keys.every(key=>Object.hasOwn(object,key));
+ if(!exact(value,['schema','roomId','bootId','items'])||value.schema!=='podview.transcript-history.v1'||typeof value.roomId!=='string'||!value.roomId||typeof value.bootId!=='string'||!value.bootId||value.roomId!==snapshot?.roomId||value.bootId!==snapshot?.bootId||snapshot?.capabilities?.answerRead!==true||!Array.isArray(value.items)||value.items.length>20||new TextEncoder().encode(JSON.stringify(value)).byteLength>65536)throw Error('invalid_transcript_history');
+ const seen=new Set(),items=value.items.map(row=>{
+  if(!exact(row,['segmentId','sessionId','generation','ts','endTs','text','fragmentCount'])||!receipt(row.segmentId)||seen.has(row.segmentId)||typeof row.sessionId!=='string'||[...row.sessionId].length<1||[...row.sessionId].length>256||!Number.isSafeInteger(row.generation)||row.generation<0||!Number.isSafeInteger(row.fragmentCount)||row.fragmentCount<1||!Number.isFinite(row.ts)||!Number.isFinite(row.endTs)||row.ts<0||row.endTs<row.ts||typeof row.text!=='string'||!row.text.trim())throw Error('invalid_transcript_segment');
+  seen.add(row.segmentId);return {...row};
+ });return {items};
+}

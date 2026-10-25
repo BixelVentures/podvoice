@@ -410,3 +410,79 @@ async def test_actual_multi_fact_final_publishes_before_optional_selection_in_sa
         release.set()
         await store.aclose()
         await session.aclose()
+
+
+@pytest.mark.parametrize("family", ["sourced-image", "simple-diagram"])
+async def test_owned_bicycle_receipt_reaches_actual_live_and_history_consumers(family):
+    from gatekeeper.hub import StatusHub
+    from gatekeeper.podview import BRIDGE
+    from gatekeeper.web import create_app
+
+    session, sdk, _, tools, _ = build()
+    store = tools.podview_receipts = VisualReceiptOwner()
+    await session.start()
+    try:
+        await session.wake()
+        await session.submit_text(
+            "Hvordan virker cyklens kæde og pedaler?", command_id="bike-input"
+        )
+        payload = message(family)
+        payload["presentation"]["content"] = {
+            **payload["presentation"]["content"],
+            "ownedImage": "bicycle_drivetrain",
+        }
+        app = create_app(StatusHub(), {session.room: session}, tools=tools)
+        await emit(sdk, created(), assistant_item(json.dumps(payload)), terminal())
+        await until(lambda: bool(store.snapshot(session.room, session)["items"]))
+        snapshot = app[BRIDGE].snapshot(session.room)
+        history = {
+            "schema": "podview.answer-history.v1",
+            "bootId": snapshot["bootId"],
+            "roomId": session.room,
+            **store.history(session.room, session),
+        }
+        # Execute the shipped consumers against actual backend receipts, not JS fixtures.
+        module = (
+            Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/owner-answers.js"
+        ).as_uri()
+        script = """
+import assert from 'node:assert/strict';
+const {ownedAnswers,historicalAnswers}=await import(process.argv[1]);
+let raw='';for await(const chunk of process.stdin)raw+=chunk;
+const p=JSON.parse(raw);
+for(const answer of [ownedAnswers(p.answers,p.snapshot,0,p.now).items[0],
+                     historicalAnswers(p.history,p.snapshot,p.now).items[0]]){
+ const image=answer.content.image||answer.content.illustration;
+ assert.equal(image.url,'assets/bicycle-drivetrain-illustration.webp');
+ assert.equal(image.kind,'illustration');assert.deepEqual(answer.allowedActions,[]);
+}
+for(const url of ['assets/bicycle-drivetrain-illustration.png','https://unowned.invalid/image.webp']){
+ for(const [source,consume] of [[p.answers,v=>ownedAnswers(v,p.snapshot,0,p.now)],
+                                [p.history,v=>historicalAnswers(v,p.snapshot,p.now)]]){
+  const bad=structuredClone(source),content=bad.items[0].content;
+  (content.image||content.illustration).url=url;
+  assert.throws(()=>consume(bad));
+ }
+}
+process.stdout.write('live/history admitted');
+"""
+        rendered = await asyncio.to_thread(
+            subprocess.run,
+            ["node", "--input-type=module", "--eval", script, module],
+            input=json.dumps(
+                {
+                    "answers": store.snapshot(session.room, session),
+                    "snapshot": snapshot,
+                    "history": history,
+                    "now": time.time() * 1000,
+                }
+            ),
+            text=True,
+            capture_output=True,
+            timeout=10,
+        )
+        assert rendered.returncode == 0, rendered.stderr
+        assert rendered.stdout == "live/history admitted"
+        assert not tools.calls
+    finally:
+        await session.aclose()

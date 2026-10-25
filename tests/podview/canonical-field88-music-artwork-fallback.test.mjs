@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {MusicResults,sourceMusicCards} from '../../podvoice/gatekeeper/static/podview/music-results.js';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {MUSIC_THEMES} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
+import {MUSIC_THEMES,moodPreview} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
 
 const ai='theme-art/cooking/'+'a'.repeat(64)+'.webp';
 const cover={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/actual'};
@@ -37,7 +37,7 @@ test('every failed admitted stage ends as the honest note without paid generatio
  const f=surface(),row=source({themeArt:ai,artwork:cover}),image=f.render(row);for(let i=0;i<3;i++)f.probes[i].onerror(new Event('error'));assert.equal(image.src,'assets/icons/music-note-beamed.svg');for(let i=0;i<3;i++)f.render(row);assert.equal(f.probes.length,3);assert.equal(f.records.length,3);assert.equal(image.dataset.artworkPending,undefined);f.view.cleanup();
 });
 
-test('static paths are admitted only for their exact canonical theme and only in mood results',()=>{
+test('static paths are admitted only for their exact canonical theme and collection',()=>{
  const f=surface();for(const themeArt of ['assets/lake.webp','assets/../kitchen.webp','https://foreign.invalid/kitchen.webp','assets/kitchen.webp?x=1']){const row=source({themeArt});assert.equal(sourceMusicCards([row],'mood')[0].themeArt,undefined);f.render(row);}assert.equal(f.probes.length,0);const feeling=sourceMusicCards([source({themeArt:'assets/kitchen.webp'})],'feeling');assert.equal(feeling[0].themeArt,undefined);f.view.render({cards:feeling,collection:'feeling'});assert.equal(f.probes.length,0);f.view.cleanup();
 });
 
@@ -66,4 +66,33 @@ test('successful same-URI same-URL explicit catalogue refresh retains decoded ar
 
 test('explicit retry of failed AI retains the already accepted static illustration until a real replacement decodes',async()=>{
  const f=surface(),cold=source({themeArt:MUSIC_THEMES.cooking[1]}),image=f.render(cold);await f.succeed(f.probes[0]);const accepted=image.src;let cards=sourceMusicCards([source({themeArt:ai})],'mood').map(card=>({...card,artworkRetryGeneration:1}));f.view.render({cards});assert.equal(image.src,accepted);f.probes[1].onerror(new Event('error'));assert.equal(image.src,accepted);f.view.render({cards});assert.equal(f.probes.length,2);cards=cards.map(card=>({...card,artworkRetryGeneration:2}));f.view.render({cards});assert.equal(f.probes.length,3);assert.equal(f.probes[2].src,ai);assert.equal(image.src,accepted,'an explicit retry never replaces the accepted picture with a note');await f.succeed(f.probes[2]);assert.equal(image.src,ai);f.view.cleanup();
+});
+
+
+const feelingThemes=[['energy','Mere energi','assets/indie.webp'],['calm','Helt ned i tempo','assets/lake.webp'],['familiar','Noget velkendt','assets/italian.webp'],['sing','Syng med','assets/indie.webp'],['soft','Bløde toner','assets/lake.webp'],['bright','Et lyst øjeblik','assets/kitchen.webp']];
+const feelingSnapshot={bootId:'boot',roomId:'room',voice:{},capabilities:{musicRead:['feeling']}};
+function feelingBody(themes=feelingThemes.slice(0,3),suffix='webp'){return {ok:true,schema:'podview.feeling-preview.v1',preview:{bootId:'boot',roomId:'room',configEntryId:'one',ownerEpoch:'epoch',source:'spotify_web_api',voiceSessionId:null,voiceTurnId:null,readOnly:true,expiresIn:60},data:{config_entry_id:'one',owner_epoch:'epoch',source:'spotify_web_api',tracks:themes.map(([themeId,themeTitle,themeArt],index)=>({uri:'spotify:playlist:'+String(index).padStart(22,'0'),name:'Actual playlist '+index,artist:themeTitle,themeId,themeTitle,themeArt:themeArt.replace(/\.webp$/,'.'+suffix)}))}};}
+function feelingCards(body){const admitted=moodPreview(body,'one',feelingSnapshot,Date.now(),'feeling');assert.ok(admitted,'closed source validator admits canonical feeling metadata');return sourceMusicCards(admitted.tracks,'feeling');}
+
+test('all six backend feeling static illustrations survive validation, source projection and actual shared rendering',async()=>{
+ for(const suffix of ['png','webp'])for(const offset of [0,3]){const f=surface(),themes=feelingThemes.slice(offset,offset+3),cards=feelingCards(feelingBody(themes,suffix));assert.deepEqual(cards.map(card=>card.themeArt),themes.map(theme=>theme[2]));f.view.render({cards,collection:'feeling'});assert.deepEqual(f.probes.map(probe=>probe.src),themes.map(theme=>theme[2]));for(const probe of [...f.probes])await f.succeed(probe);const images=[...f.view.rows.values()].map(row=>row.children[0]);assert.deepEqual(images.map(image=>image.src),themes.map(theme=>theme[2]));assert.ok(images.every(image=>image.alt.startsWith('Illustration til ')&&!/AI|genereret/i.test(image.alt)));f.view.render({cards,collection:'feeling'});assert.equal(f.probes.length,3);f.view.cleanup();}
+});
+
+test('feeling keeps actual Spotify cover first and uses its exact supplied static illustration only after resource failure',async()=>{
+ const f=surface(),body=feelingBody();body.data.tracks[0].artwork=cover;const cards=feelingCards(body);assert.deepEqual(cards[0].sourceArtwork,cover);assert.equal(cards[0].themeArt,'assets/indie.webp');f.view.render({cards:cards.slice(0,1),collection:'feeling'});assert.deepEqual(f.probes.map(probe=>probe.src),[cover.url]);f.probes[0].onerror(new Event('error'));assert.deepEqual(f.probes.map(probe=>probe.src),[cover.url,'assets/indie.webp']);await f.succeed(f.probes[1]);const image=[...f.view.rows.values()][0].children[0];assert.equal(image.src,'assets/indie.webp');assert.equal(image.classList.contains('spotify-artwork'),false);f.view.render({cards:cards.slice(0,1),collection:'feeling'});assert.equal(f.probes.length,2);assert.equal(cards[0].uri,body.data.tracks[0].uri);assert.equal(cards[0].sourceArtist,body.data.tracks[0].artist);f.view.cleanup();
+});
+
+test('feeling rejects mismatched static assets for every ID and never accepts generated mood paths or mood-only IDs',()=>{
+ for(const [themeId,themeTitle,themeArt]of feelingThemes){for(const wrong of [themeArt==='assets/indie.webp'?'assets/lake.webp':'assets/indie.webp','theme-art/'+themeId+'/'+'a'.repeat(64)+'.webp',themeArt+'?v=1','https://foreign.invalid/'+themeArt]){const body=feelingBody(),row=body.data.tracks[0];Object.assign(row,{themeId,themeTitle,artist:themeTitle,themeArt:wrong});assert.equal(moodPreview(body,'one',feelingSnapshot,Date.now(),'feeling'),null);const card=sourceMusicCards([row],'feeling')[0];assert.equal(card.themeArt,undefined);const f=surface();f.view.render({cards:[{...card,themeArt:wrong,artworkRole:'editorial'}],collection:'feeling'});assert.equal(f.probes.length,0,'renderer independently rejects injected cross-kind or foreign art');f.view.cleanup();}}
+ const row=source({themeArt:'assets/kitchen.webp'});assert.equal(sourceMusicCards([row],'feeling')[0].themeArt,undefined);const body=feelingBody();body.data.tracks[0]=row;assert.equal(moodPreview(body,'one',feelingSnapshot,Date.now(),'feeling'),null);
+});
+
+test('feeling artwork preserves accepted decode cache and cancels late fallback after account replacement',async()=>{
+ const f=surface(),cards=feelingCards(feelingBody()).slice(0,1);f.view.render({cards,collection:'feeling'});await f.succeed(f.probes[0]);const image=[...f.view.rows.values()][0].children[0],accepted=image.src;f.view.render({cards:cards.map(card=>({...card,artworkRetryGeneration:2})),collection:'feeling'});assert.equal(image.src,accepted);assert.equal(f.probes.length,1);const replacement=cards.map(card=>({...card,artwork:cover}));f.view.render({cards:replacement,collection:'feeling'});const late=f.probes[1].onerror;f.host.liveCatalogue.account='two';f.view.render({cards:replacement,collection:'feeling'});const count=f.probes.length;late(new Event('error'));assert.equal(f.probes.length,count);assert.deepEqual(f.records,[]);f.view.cleanup();
+});
+
+
+// Retain the incumbent root mood-only rejection case alongside canonical collection coverage.
+test('static paths are admitted only for their exact canonical theme and only in mood results',()=>{
+ const f=surface();for(const themeArt of ['assets/lake.webp','assets/../kitchen.webp','https://foreign.invalid/kitchen.webp','assets/kitchen.webp?x=1']){const row=source({themeArt});assert.equal(sourceMusicCards([row],'mood')[0].themeArt,undefined);f.render(row);}assert.equal(f.probes.length,0);const feeling=sourceMusicCards([source({themeArt:'assets/kitchen.webp'})],'feeling');assert.equal(feeling[0].themeArt,undefined);f.view.render({cards:feeling,collection:'feeling'});assert.equal(f.probes.length,0);f.view.cleanup();
 });

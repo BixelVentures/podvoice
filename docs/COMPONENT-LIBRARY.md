@@ -1,3 +1,11 @@
+Historikkens eksisterende ListRows bliver i én lodret, ikke-ombrydende kolonne med lodret scroll. Tekstforhåndsvisningen viser højst to linjer; den oprindelige tekst bevares hel i den eksisterende detaljes disclosure. Lange udskrifter må ikke skabe en skjult vandret kolonne.
+
+## Samtaleudskrift i eksisterende svarhistorik ·25. oktober2026
+
+LiveAnswerView læser særskilt `history=segments`, kun ved eksplicit åbning af Svar og med én igangværende læsning. Validerede hele talesegmenter bevarer serverrækkefølge og tekst. Eksisterende rige visuelle kvitteringer står først og ændres ikke til tekstudskrifter. Udskriftens separate læsetilstand bruger den eksisterende inline-status; midlertidige fejl bevarer kendt tekst, en ny gyldig læsning erstatter samlingen, og rum/boot/adgang/transportejerskift rydder den.
+
+WidgetHost viser udskriften med den eksisterende ListRow: “Samtaleudskrift”, tekstuddrag og registreret tidspunkt. AnswerWidget bruger eksisterende concise-answer og dens “Vis mere” til hele teksten, med “Registreret tale fra PodVoice” og “Kan være ufuldstændig”. Segmentet er ikke en afsluttet visuel kvittering, brugerforespørgsel eller ny kilde; ingen source/retry/valg-/effektmyndighed tilføjes. Navigation tilbage til historikken er bevaret. Ingen ny komponentfamilie, anatomi, CSS eller motionsvariant.
+
 ## Musikbetjening og async indhold ·25. oktober2026
 
 Eksisterende LiveControlView ejer én afgrænset eksplicit musikintention på tværs af transport, volumen, MOVE, kø og sangvalg. Et passivt visningstilbud er kun kendskab til mulige handlinger, aldrig eksekverbar myndighed eller grund til at låse normal betjening under læsning. Hver faktisk afsendelse kræver frisk ejerbundet setup og præcis option/binding/revision én gang. Søskendetilbud ugyldiggøres ved ny effekt; den eksisterende ControlCommandOwner er fortsat serverens atomiske ejer.

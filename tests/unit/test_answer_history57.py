@@ -255,3 +255,188 @@ async def test_append_keeps_removal_epoch_but_eviction_and_exact_revoke_advance_
     revoked = sink.history("kitchen", owner)
     assert revoked["removalRevision"] == 2 and len(revoked["items"]) == 19
     assert sink.history("kitchen", object())["removalRevision"] == 3
+
+
+def transcript_request(
+    bridge, query="?room=kitchen&history=segments", *, headers=None, remote="127.0.0.1"
+):
+    request = make_mocked_request("GET", "/view/api/answers" + query, headers=headers or {})
+    request._cache["remote"] = remote
+    request.app[BRIDGE] = bridge
+    return request
+
+
+async def test_saved_live_transcript_segments_are_read_without_completed_answer(tmp_path):
+    import json
+
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+
+    history = History(tmp_path / "history.jsonl")
+    hub = StatusHub(history=history)
+    for room, direction, text, ts, session, generation in [
+        ("kitchen", "out", "Hello", 1, "first", 1),
+        ("kitchen", "out", " there", 2, "first", 1),
+        ("kitchen", "in", "Stop", 3, "first", 1),
+        ("kitchen", "out", "Okay", 4, "first", 1),
+        ("kitchen", "out", "Reconnect", 5, "first", 2),
+        ("other", "out", "Foreign room", 6, "first", 2),
+        ("talk", "out", "Talk text", 7, "first", 2),
+        ("kitchen", "out", "Next wake", 8, "second", 1),
+    ]:
+        hub.transcript_fragment(
+            room, direction, text, ts=ts, session=session, generation=generation
+        )
+    history.append("kitchen", "out", "Legacy turn", ts=9, session="second")
+    restored = History(tmp_path / "history.jsonl")
+    owner = object()
+    sink = selected_store()
+    bridge = SimpleNamespace(
+        history=restored,
+        tools=SimpleNamespace(podview_receipts=sink),
+        sessions={"kitchen": owner},
+        boot_id="boot",
+    )
+    before = await _answers(transcript_request(bridge, "?room=kitchen&history=1"))
+    assert json.loads(before.text)["items"] == []
+    response = await _answers(transcript_request(bridge))
+    assert response.status == 200
+    result = json.loads(response.text)
+    assert set(result) == {"schema", "roomId", "bootId", "items"}
+    assert result["schema"] == "podview.transcript-history.v1"
+    assert result["roomId"] == "kitchen" and result["bootId"] == "boot"
+    assert response.headers["Cache-Control"] == "no-store"
+    rows = result["items"]
+    assert [row["text"] for row in rows] == ["Next wake", "Reconnect", "Okay", "Hello there"]
+    assert [row["sessionId"] for row in rows] == ["second", "first", "first", "first"]
+    assert [row["generation"] for row in rows] == [1, 2, 1, 1]
+    assert rows[-1]["ts"] == 1 and rows[-1]["endTs"] == 2
+    assert rows[-1]["fragmentCount"] == 2
+    saved = {
+        row["segment_id"]
+        for conv in restored.conversations(room="kitchen")
+        for row in conv["turns"]
+        if row.get("kind") == "segment"
+    }
+    assert all(row["segmentId"] in saved for row in rows)
+    assert all(
+        set(row) == {"segmentId", "sessionId", "generation", "ts", "endTs", "text", "fragmentCount"}
+        for row in rows
+    )
+    assert sink.history("kitchen", owner)["items"] == []
+    assert sink.snapshot("kitchen", owner)["items"] == []
+    restored.clear(room="kitchen")
+    assert json.loads((await _answers(transcript_request(bridge))).text)["items"] == []
+
+
+def saved_transcript_bridge(tmp_path):
+    from gatekeeper.history import History
+
+    history = History(tmp_path / "history.jsonl")
+    history.append_fragment("kitchen", "out", "Saved words", session="session", generation=1, ts=1)
+    return SimpleNamespace(
+        history=history,
+        tools=SimpleNamespace(podview_receipts=selected_store()),
+        sessions={"kitchen": object()},
+        boot_id="boot",
+    )
+
+
+async def test_transcript_projection_receives_the_existing_app_history_instance(tmp_path):
+    import json
+
+    from gatekeeper.hub import StatusHub
+    from gatekeeper.web import create_app
+
+    saved = saved_transcript_bridge(tmp_path)
+    app = create_app(
+        StatusHub(history=saved.history), saved.sessions, tools=saved.tools, history=saved.history
+    )
+    assert app[BRIDGE].history is saved.history
+    response = await _answers(transcript_request(app[BRIDGE]))
+    assert json.loads(response.text)["items"][0]["text"] == "Saved words"
+
+
+async def test_transcript_projection_bounds_whole_rows_and_actual_utf8_bytes(tmp_path):
+    import json
+
+    bridge = saved_transcript_bridge(tmp_path)
+    bridge.history.clear()
+    for generation in range(25):
+        bridge.history.append_fragment(
+            "kitchen", "out", str(generation), session="s", generation=generation, ts=generation
+        )
+    result = json.loads((await _answers(transcript_request(bridge))).text)
+    assert [row["text"] for row in result["items"]] == [str(n) for n in range(24, 4, -1)]
+    bridge.history.clear()
+    text = "🚲" * 4000
+    for generation in range(6):
+        bridge.history.append_fragment(
+            "kitchen", "out", text, session="s", generation=generation, ts=generation
+        )
+    response = await _answers(transcript_request(bridge))
+    rows = json.loads(response.text)["items"]
+    assert len(response.body) <= 65536 and len(rows) == 4
+    assert all(row["text"] == text for row in rows)
+    bridge.history.clear()
+    bridge.history.append_fragment("kitchen", "out", "x" * 70000, session="s", generation=1, ts=1)
+    assert json.loads((await _answers(transcript_request(bridge))).text)["items"] == []
+    bridge.history.append_fragment(
+        "kitchen", "out", "Older small segment", session="s", generation=0, ts=0
+    )
+    response = await _answers(transcript_request(bridge))
+    assert len(response.body) <= 65536
+    assert [row["text"] for row in json.loads(response.text)["items"]] == ["Older small segment"]
+
+
+@pytest.mark.parametrize(
+    "query,headers,remote",
+    [
+        ("?room=other&history=segments", {}, "127.0.0.1"),
+        ("?room=kitchen&room=kitchen&history=segments", {}, "127.0.0.1"),
+        ("?room=kitchen&history=segments&history=segments", {}, "127.0.0.1"),
+        ("?room=kitchen&history=segments&extra=1", {}, "127.0.0.1"),
+        ("?room=kitchen&history=segment", {}, "127.0.0.1"),
+        ("?room=kitchen&history=segments", {"Sec-Fetch-Site": "cross-site"}, "127.0.0.1"),
+        ("?room=kitchen&history=segments", {}, "192.0.2.1"),
+        ("?room=kitchen&history=segments", {}, "172.30.32.2"),
+    ],
+)
+async def test_transcript_projection_keeps_existing_read_admission(
+    tmp_path, query, headers, remote
+):
+    bridge = saved_transcript_bridge(tmp_path)
+    response = await _answers(transcript_request(bridge, query, headers=headers, remote=remote))
+    assert response.status >= 400
+    assert "Saved words" not in response.text
+
+
+async def test_transcript_projection_does_not_expose_talk_or_without_answer_read(tmp_path):
+    bridge = saved_transcript_bridge(tmp_path)
+    bridge.sessions["talk"] = object()
+    bridge.history.append_fragment("talk", "out", "Talk only", session="talk", generation=1, ts=2)
+    response = await _answers(transcript_request(bridge, "?room=talk&history=segments"))
+    assert response.status == 404 and "Talk only" not in response.text
+    bridge.tools.podview_receipts = None
+    assert (await _answers(transcript_request(bridge))).status == 404
+
+
+@pytest.mark.parametrize("replacement", ["owner", "boot", "bridge"])
+async def test_transcript_projection_rejects_replaced_read_owner(tmp_path, replacement):
+    bridge = saved_transcript_bridge(tmp_path)
+    request = transcript_request(bridge)
+    original = bridge.history.conversations
+
+    def replace(*args, **kwargs):
+        result = original(*args, **kwargs)
+        if replacement == "owner":
+            bridge.sessions["kitchen"] = object()
+        elif replacement == "boot":
+            bridge.boot_id = "replacement"
+        else:
+            request.app[BRIDGE] = object()
+        return result
+
+    bridge.history.conversations = replace
+    response = await _answers(request)
+    assert response.status == 404 and "Saved words" not in response.text

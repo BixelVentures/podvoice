@@ -11,8 +11,8 @@ export class LiveControlView{
   this.musicButton=make('button','Betjen musik','text-control');this.musicButton.type='button';this.musicButton.addEventListener('click',()=>this.openMusic(this.musicButton));
   this.musicStatus=make('p');this.musicStatus.hidden=true;this.musicDetailStatus=this.musicStatus;
   for(const id of ['volume','detail-volume']){const input=document.getElementById(id);if(!input)continue;input.addEventListener('pointerdown',()=>{this.musicVolumeGesture=input;});input.addEventListener('input',()=>{
-   const context=this.musicContext(),offer=this.currentVolumeOffer(context)||(this.volumeIntentOffer?.context.key===context?.key?this.volumeIntentOffer:this.musicIntentOffer),options=offer?.task.options.filter(option=>option.action==='volume')||[],option=options.length===1?options[0]:null;
-   if(input.disabled||!context||offer?.context.key!==context.key||offer.transport&&offer.transport!==this.host.liveTransport||!option)return;
+   const context=this.musicContext(),offer=this.currentVolumeOffer(context)||(this.volumeIntentOffer?.context.presentationKey===context?.presentationKey?this.volumeIntentOffer:this.musicIntentOffer),options=offer?.task.options.filter(option=>option.action==='volume')||[],option=options.length===1?options[0]:null;
+   if(input.disabled||!context||offer?.context.presentationKey!==context.presentationKey||offer.transport&&offer.transport!==this.host.liveTransport||!option)return;
    const attempted=Number(input.value);if(!Number.isInteger(attempted))return;const legal=Math.max(option.argsSchema.min,Math.min(option.argsSchema.max,attempted));
    if(legal!==attempted){input.value=String(legal);this.host.showFeedback?.(`Højst ${option.argsSchema.max} %`,false,{source:'music-volume'});}
    input.setAttribute('aria-valuetext',`${legal} %`);const output=document.getElementById(id==='volume'?'volume-value':'detail-volume-value');if(output)output.textContent=`${legal} %`;syncKitSlider(input);
@@ -24,7 +24,10 @@ export class LiveControlView{
   if(this.domain==='light'&&this.lightContext&&!this.lightContext.current()){this.lightContext=null;this.invalidate('Lysenes adgang eller område er ændret · hent betjeningen igen.',false);}
   const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
   if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
-  this.authority=authority;const musicAuthority=this.musicContext()?.key??null;if(this.musicAuthority!==undefined&&this.musicAuthority!==musicAuthority)this.invalidateMusic('Musikken er ændret · hent betjeningen igen.',false);this.musicAuthority=musicAuthority;
+  this.authority=authority;const musicContext=this.musicContext(),musicAuthority=musicContext?.key??null,presentationAuthority=musicContext?.presentationKey??null;
+  const samePresentation=!!musicContext&&this.musicPresentationAuthority===presentationAuthority&&this.musicPresentationTransport===this.host.liveTransport;
+  if(this.musicAuthority!==undefined&&(this.musicAuthority!==musicAuthority||this.musicPresentationAuthority!==presentationAuthority||this.musicPresentationTransport!==this.host.liveTransport))this.invalidateMusic('Musikken er ændret · hent betjeningen igen.',false,samePresentation);
+  this.musicAuthority=musicAuthority;this.musicPresentationAuthority=presentationAuthority;this.musicPresentationTransport=this.host.liveTransport;
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();
   const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!roomObservationCurrent(p,snapshot);this.musicButton.disabled=this.pending||this.setupPending||this.musicIntentPending;this.robotButton.hidden=!d?.live;this.robotButton.disabled=!!(this.pending||this.setupPending||this.musicIntentPending);const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
   const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.append(make('h2','Rum og rengøring'),this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
@@ -42,10 +45,14 @@ export class LiveControlView{
   const s=this.host.liveSnapshot,target=JSON.stringify(this.target),row=[...this.receipts.values()].reverse().find(r=>r.bootId===s?.bootId&&r.roomId===s?.roomId&&r.domain===this.domain&&JSON.stringify(r.target)===target);
   const visible=row&&row.outcome!=='pending';this.receiptNote.hidden=!visible;this.receiptNote.textContent=visible?`${row.label}: ${this.receiptText(row)}`:'';
  }
- invalidateMusic(message='Musikken er ændret · hent betjeningen igen.',render=true){
+ invalidateMusic(message='Musikken er ændret · hent betjeningen igen.',render=true,preservePresentation=false){
   if(this.musicDeferred){this.musicDeferred=null;this.host.showFeedback?.('Det ventende valg blev ikke sendt.',false,{source:'music-intent'});}
   // Music observations cannot revoke a different domain's task or async owner.
-  this.musicGeneration=(this.musicGeneration||0)+1;this.musicOffer=null;this.musicIntentOffer=null;this.volumeIntentOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.musicRead=null;this.musicReadPending=false;this.volumeOffer=null;this.volumeAttempt=null;this.volumeRead=null;clearTimeout(this.volumeExpiryTimer);clearTimeout(this.musicExpiryTimer);
+  // Only a fresh same-owner URI/state reconciliation may retain these hints.
+  // Strip every task/option ID and expiry: the projection cannot be executed.
+  const presentationKey=preservePresentation?this.musicContext()?.presentationKey:null;
+  for(const key of ['musicIntentOffer','volumeIntentOffer']){const prior=this[key];this[key]=typeof presentationKey==='string'&&prior?.context.presentationKey===presentationKey&&prior.transport===this.host.liveTransport?{context:{presentationKey:prior.context.presentationKey},transport:prior.transport,task:{options:prior.task.options.map(option=>({action:option.action,argsSchema:{...option.argsSchema}}))}}:null;}
+  this.musicGeneration=(this.musicGeneration||0)+1;this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.musicRead=null;this.musicReadPending=false;this.volumeOffer=null;this.volumeAttempt=null;this.volumeRead=null;clearTimeout(this.volumeExpiryTimer);clearTimeout(this.musicExpiryTimer);
   const operation=this.activeOperation;
   if(this.pending&&operation?.domain==='music'){this.remember(operation,'unknown');if(this.musicFence)this.musicFence={...this.musicFence,outcome:'unknown'};}
   else if(this.musicFence?.outcome!=='unknown')this.musicFence=null;
@@ -54,7 +61,7 @@ export class LiveControlView{
  }
  invalidate(message='Forbindelsen mangler · hent betjeningen igen.',render=true){
   if(this.musicDeferred){this.musicDeferred=null;this.host.showFeedback?.('Det ventende valg blev ikke sendt.',false,{source:'music-intent'});}
-  this.clearRobotRefresh();this.musicGeneration=(this.musicGeneration||0)+1;this.generation++;this.opening++;this.body.setAttribute('aria-busy','false');this.task=null;this.robotSuggestion=null;this.musicOffer=null;this.musicIntentOffer=null;this.volumeIntentOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.musicRead=null;this.musicReadPending=false;this.volumeOffer=null;this.volumeAttempt=null;this.volumeRead=null;clearTimeout(this.volumeExpiryTimer);clearTimeout(this.musicExpiryTimer);clearTimeout(this.expiryTimer);
+  this.musicPresentationAuthority=null;this.musicPresentationTransport=null;this.clearRobotRefresh();this.musicGeneration=(this.musicGeneration||0)+1;this.generation++;this.opening++;this.body.setAttribute('aria-busy','false');this.task=null;this.robotSuggestion=null;this.musicOffer=null;this.musicIntentOffer=null;this.volumeIntentOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.musicRead=null;this.musicReadPending=false;this.volumeOffer=null;this.volumeAttempt=null;this.volumeRead=null;clearTimeout(this.volumeExpiryTimer);clearTimeout(this.musicExpiryTimer);clearTimeout(this.expiryTimer);
   if(this.pending&&this.musicFence)this.musicFence={...this.musicFence,outcome:'unknown'};
   if(this.pending&&this.activeOperation){this.remember(this.activeOperation,'unknown');this.note.textContent='Forbindelsen blev afbrudt · handlingen gentages ikke.';}else if(this.dialog.open)this.note.textContent=message;
   for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();
@@ -65,15 +72,16 @@ export class LiveControlView{
   const binding=playbackBinding(p,s,p.config_entry_id);if(!binding)return null;
   const target={accountId:p.config_entry_id,kind:'spotify_device',targetId:p.target.id,expectedBindingId:binding.bindingId};
   const key=JSON.stringify([s.bootId,s.roomId,p.config_entry_id,p.owner_epoch,p.target.id,p.item?.uri??null,p.state,binding.bindingId,binding.nativeRoomId,binding.nativeHomepodId,binding.targetId]);
-  return {key,target,binding,pollSequence:p.poll_sequence,bootId:s.bootId,roomId:s.roomId};
+  const presentationKey=JSON.stringify([s.bootId,s.roomId,s.providerGeneration??null,this.host.liveTransport.generation??null,p.config_entry_id,p.owner_epoch,p.target.id,binding.bindingId,binding.nativeRoomId,binding.nativeHomepodId,binding.targetId]);
+  return {key,presentationKey,target,binding,pollSequence:p.poll_sequence,bootId:s.bootId,roomId:s.roomId};
  }
  // A measured value is display custody, never an executable control grant.
  musicVolumeMeasurement(context,offer){
   const p=this.host.liveMedia?.playback,s=this.host.liveSnapshot,transport=this.host.liveTransport,binding=p?.roomBinding;
   const bound=!this.suspending&&this.host.isConnected&&s?.capabilities?.controlSetup?.includes('music')&&roomObservationBound(p,s,this.host.liveMedia?.account??p?.config_entry_id)&&['playing','paused'].includes(p?.state)&&!this.host.liveSelection?.pendingPlayer?.();
-  const key=bound?JSON.stringify([s.bootId,s.roomId,s.providerGeneration??null,p.config_entry_id,p.owner_epoch,p.target.id,binding.bindingId,binding.nativeRoomId,binding.nativeHomepodId,binding.targetId]):null;
+  const key=bound?JSON.stringify([s.bootId,s.roomId,s.providerGeneration??null,transport?.generation??null,p.config_entry_id,p.owner_epoch,p.target.id,binding.bindingId,binding.nativeRoomId,binding.nativeHomepodId,binding.targetId]):null;
   if(!key||this.musicMeasurement?.key!==key||this.musicMeasurement?.transport!==transport)this.musicMeasurement=null;
-  if(key&&context&&offer?.context.key===context.key&&offer.task.expectedBindingId===binding.bindingId&&offer.task.expiresAt*1000>Date.now()){
+  if(key&&context&&offer?.context.key===context.key&&offer.context.presentationKey===context.presentationKey&&offer.task.expectedBindingId===binding.bindingId&&offer.task.expiresAt*1000>Date.now()){
    this.musicMeasurement=Number.isInteger(offer.task.volume)?{key,transport,volume:offer.task.volume}:null;
   }
   return this.musicMeasurement?.volume??null;
@@ -143,12 +151,12 @@ export class LiveControlView{
   const context=this.musicContext(),offer=this.musicOffer,owner=this.host.liveTransport;
   // Retained action knowledge makes explicit intent usable during passive reads.
   // It is never executable: every click still obtains a fresh server task below.
-  const intentOffer=context&&this.musicIntentOffer?.context.key===context.key&&this.musicIntentOffer.transport===owner?this.musicIntentOffer:null;
+  const intentOffer=context&&this.musicIntentOffer?.context.presentationKey===context.presentationKey&&this.musicIntentOffer.transport===owner?this.musicIntentOffer:null;
   const options=intentOffer?.task.options??[],blocked=!context||this.musicFence?.key===context?.key&&this.musicFence?.outcome==='unknown';
   const has=action=>options.filter(option=>option.action===action).length===1,toggle=context&&this.host.liveMedia.playback.state==='playing'?'pause':'resume';
   const playback=this.host.liveMedia?.playback,displayPlaying=roomObservationDisplay(playback,this.host.liveSnapshot,this.host.liveMedia?.account)&&playback.state==='playing';
   const transport=has(toggle)||has('next')||has('previous');
-  const volumeOffer=this.currentVolumeOffer(context),volumeIntent=context&&this.volumeIntentOffer?.context.key===context.key&&this.volumeIntentOffer.transport===owner?this.volumeIntentOffer:intentOffer;
+  const volumeOffer=this.currentVolumeOffer(context),volumeIntent=context&&this.volumeIntentOffer?.context.presentationKey===context.presentationKey&&this.volumeIntentOffer.transport===owner?this.volumeIntentOffer:intentOffer;
   const volumes=volumeIntent?.task.options.filter(option=>option.action==='volume')??[],volume=volumes.length===1?volumes[0]:null,actualVolume=this.musicVolumeMeasurement(context,volumeOffer??(offer?.task.options.some(option=>option.action==='volume')?offer:null));
   const canVolume=!!volume&&Number.isInteger(actualVolume)&&actualVolume>=0&&actualVolume<=100,volumeBlocked=blocked;
   // Closed diagnostic state only: never contributes to command admission.
@@ -190,8 +198,8 @@ export class LiveControlView{
  // True means the explicit intent was admitted (possibly retained), not that playback changed.
  async musicIntent(action,input={}){
   this.pruneSpent();
-  const context=this.musicContext(),owner=this.host.liveTransport,offered=action==='volume'&&this.volumeIntentOffer?.context.key===context?.key?this.volumeIntentOffer:this.musicIntentOffer;
-  if(!context||this.musicFence?.key===context.key&&this.musicFence?.outcome==='unknown'||!offered||offered.transport!==owner||offered.context.key!==context.key||offered.task.options.filter(o=>o.action===action).length!==1||!['pause','resume','next','previous','volume'].includes(action))return false;
+  const context=this.musicContext(),owner=this.host.liveTransport,offered=action==='volume'&&this.volumeIntentOffer?.context.presentationKey===context?.presentationKey?this.volumeIntentOffer:this.musicIntentOffer;
+  if(!context||this.musicFence?.key===context.key&&this.musicFence?.outcome==='unknown'||!offered||offered.transport!==owner||offered.context.presentationKey!==context.presentationKey||offered.task.options.filter(o=>o.action===action).length!==1||!['pause','resume','next','previous','volume'].includes(action))return false;
   if((action==='pause'&&this.host.liveMedia.playback.state!=='playing')||(action==='resume'&&this.host.liveMedia.playback.state!=='paused'))return false;
   if(action==='volume'&&!Number.isInteger(this.musicVolumeMeasurement(context,this.currentVolumeOffer(context))))return false;
   if(action==='volume'&&(!Number.isInteger(input.percent)||input.percent<0||input.percent>100))return false;
@@ -204,7 +212,7 @@ export class LiveControlView{
   // response cannot replace the newly issued task or revive consumed siblings.
   const intentToken=this.beginMusicIntent();if(!intentToken)return false;
   const refreshAccepted=this.host.liveMedia?.captureAcceptedPlayRefresh?.(Object.freeze({kind:'control',action,requestedAt:Date.now(),itemUri:this.host.liveMedia.playback.item?.uri}));
-  this.musicIntentPending=true;this.spent.set(offered.task.taskId,offered.task.expiresAt);this.musicFence={...context,outcome:'preparing'};this.renderMusicControls();const generation=this.generation,musicGeneration=this.musicGeneration||0,transport=this.host.liveTransport,transportGeneration=transport.generation;let operation=null,sent=false;const diagnosticAt=Date.now(),diagnosticStage=action==='volume'?'volume_setup':'control_setup';let diagnosticCode='failure';transport.recordDiagnostic?.(diagnosticStage,{code:'start'});
+  this.musicIntentPending=true;if(typeof offered.task.taskId==='string'&&Number.isFinite(offered.task.expiresAt))this.spent.set(offered.task.taskId,offered.task.expiresAt);this.musicFence={...context,outcome:'preparing'};this.renderMusicControls();const generation=this.generation,musicGeneration=this.musicGeneration||0,transport=this.host.liveTransport,transportGeneration=transport.generation;let operation=null,sent=false;const diagnosticAt=Date.now(),diagnosticStage=action==='volume'?'volume_setup':'control_setup';let diagnosticCode='failure';transport.recordDiagnostic?.(diagnosticStage,{code:'start'});
   try{
    // Each explicit click obtains a fresh native offer; no stored visual option
    // becomes authority for a changed account/track/owner or old permission.

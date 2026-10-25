@@ -6,6 +6,8 @@ const THEMES={morning_acoustic:['En rolig morgen','assets/morning-acoustic.webp'
 // One shared canonical owner for backend-authored mood illustration defaults.
 export {THEMES as MUSIC_THEMES};
 const FEELINGS={energy:['Mere energi','assets/indie.webp'],calm:['Helt ned i tempo','assets/lake.webp'],familiar:['Noget velkendt','assets/italian.webp'],sing:['Syng med','assets/indie.webp'],soft:['Bløde toner','assets/lake.webp'],bright:['Et lyst øjeblik','assets/kitchen.webp']};
+// The feeling collection shares this existing closed static-art owner.
+export {FEELINGS as MUSIC_FEELINGS};
 const playlistKind=kind=>['mood','feeling'].includes(kind);
 const themesFor=kind=>kind==='feeling'?FEELINGS:THEMES;
 const HEX64=/^[a-f0-9]{64}$/;

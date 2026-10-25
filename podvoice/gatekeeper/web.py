@@ -415,6 +415,7 @@ def create_app(
         sessions,
         tools,
         assets=_STATIC / "podview",
+        history=history,
         control_policy=podview_control_policy,
         pairing_room=podview_pairing_room,
         pairing_sha256=podview_pairing_sha256,

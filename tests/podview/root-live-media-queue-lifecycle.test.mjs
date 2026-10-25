@@ -37,3 +37,13 @@ for(const terminal of [false,true])test(`same binding readmission after observed
  assert.equal(f.reads.length,terminal?1:2);
  if(!terminal)assert.equal(f.media.queueControls.status,'ready');
  }finally{f.close();}});
+
+for(const explicit of [false,true])test(`held control intent does not latch an unstarted ${explicit?'explicit':'automatic'} queue read`,async()=>{const f=rig();try{
+ let effects=0;f.host.liveTransport.queueAction=async()=>{effects++;throw Error('unexpected effect');};
+ f.host.liveControls={musicIntentPending:true,render(){},invalidateMusic(){}};
+ await f.refresh();if(explicit)await f.media.loadQueue();
+ assert.equal(f.reads.length,0);assert.ok(f.media.queueReadKey==null,'unstarted read has no attempted key');
+ const context=JSON.stringify(f.host.liveSnapshot);f.host.liveControls.musicIntentPending=false;
+ await f.refresh();assert.equal(JSON.stringify(f.host.liveSnapshot),context);assert.equal(f.reads.length,1);assert.equal(f.media.queueControls.status,'ready');
+ await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,0);
+ }finally{f.close();}});
