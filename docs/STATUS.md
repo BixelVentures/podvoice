@@ -1,3 +1,59 @@
+## Diagnostic-only90 source freeze — scoped software gates complete
+
+Independent SOURCE+PREBIND GO verifies exact19effective paths:5production,
+5regressions,324runtime,4config,76policy,184tooling; actual89base5a9bb2b2 and
+immutable89 profile/manifest pins retained. All203assets exactly match canonical
+F05packet. Other318runtime bytes unchanged; the sole additional runtime metadata
+change is version89->90. Voice/prompt/Thin/SDK/audio/lifecycle/probetooling and the
+three product docs are byteidentical89. ExistingF05canonical2477,44causal, backend39,
+paired realroute->JS->durableACK/store/admin proof, root44import and assetderivation
+reviews are retained. Only affected admission89/90/dev fixtures72 pass; formatter,
+lint and diffcheck pass. No broad local gate/provider/household effect repeated.
+
+Source/config/tests/docs freeze here; only exact admission review bindings and
+export construction remain before one officialCI. Scoped source review is not
+fullvoice/provider/physical approval. PV153 and currentHomePod audible/reconnect
+remain open. Runtime supplies better diagnostic reasons, not a fabricated repair.
+Final binding and public-image/install readback must still complete before this
+90diagnostic update is described as delivered. Installed89 remains baseline now.
+
+## Active diagnostic-only90 delivery decision
+
+Lead/release owner /root; canonical UI owner PodView. Baseline is actual89 merge
+5a9bb2b2da735399a1069f529ca4ace572779efb/treefd0f3a76c3ab4d27367ca3a262fa67efcfa0127e.
+Installed89 is running after the bounded provider probe; no physical effect was
+started. Full F17 experimental routing/source is retained on separate WIP branch
+codex/podvoice90-control-visual-wip and is NOT adopted by this candidate.
+
+Direct defect: existing HTTP200 closed setup refusal is misclassified as binding
+failure, then generic view failure; existing collector rejects the8 finite reasons.
+This loses the actual failure cause; it does not establish the underlying field
+setup/audio cause. Hypothesis: preserve ONLY the actual closed backend error token
+through existing transport/view telemetry, durable store and admin read. Same
+execution, scope, current binding, UNKNOWN, pending/retry and effect fences remain.
+
+Chain: real setup failure -> exact3key envelope -> current JS/view failure metadata
+-> existing bounded scoped upload -> durable ACK/store -> existing HA-admin read.
+Only8 finite enum values admitted; no schema/fields/rawtext/arguments/URLs/keys.
+Invalid/unknown/extra-field failures remain closed. No permission, command, action
+or newobserver/storage service. Native/Talk/Thin/provider/prompt/lifecycle/audio/
+VAD/timeouts and all current cache implementations remain byteidentical89.
+
+Gates: reuse frozenF05canonical2477+44causal/source+packet reviews, backend39 cases
+and paired realroute->actualJS->upload/store/admin proof. Root44importadaptation
+and203assetderivation review already pass. Current source pair is exact same bytes.
+Perform independent diagnostic-only source/scope review, normal exacttree admission,
+one officialCI, one merge/publication/install/readback, then passive existing-state
+cause observation only. No newprovider preflight applies to unchanged provider
+semantics. No release readiness claim for unresolvedPV153/voice or HomePod sound.
+Rollback omits this isolated diagnostic delta; no authority or data migration.
+
+Existing provider preamble/shortack before backendaccept remains In Progress153;
+actual spokencompletion for F17 is not accepted. These baseline issues are not
+reclassified as fixed by this observational repair. No F17prompt/probetooling or
+newcachechange is bundled. No music/alarm/robot/effects or newaccess is authorized
+by this candidate. Preserve private Greenlogs/history/provideroutputs outside repo.
+
 ##89 sole final amendment — suppressed queue read
 
 Lead /root. Direct inert source reproduction: LiveMedia latches queueReadKey before
@@ -5033,5 +5089,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "cb4afb3a23656775a2a1c921bd00758b8ab2a08b0aadba679e87f75e153353f9",
   "manifest_fingerprint": "9408b3564da1cda54dcf7eaa62e19d7866150922d26e2af5fa797ddef365659e",
   "rationale": "Independent exact-tree prebind review by /root/sol61_review74_final approved the frozen PodView89 source and 203 canonical assets against actual published88 base ba10807df5c297881c360bd0510eb599b3d348aa. The 20 production paths, 17 regressions, 324 runtime files, four config paths, 74 policy paths and 184 tooling paths are byte-pinned; historical admissions remain immutable. Focused causal source, UI, history, weather and F06 checks passed on the recorded candidate. This record admits only source and test scope. Official CI, publication, installation and field/physical acceptance remain separate gates."
+}
+-->
+
+<!-- podview90-admission
+{
+  "version": 67,
+  "kind": "podview90_controller_diagnostics_only",
+  "reviewer": "/root/sol61_review74_final",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "5a9bb2b2da735399a1069f529ca4ace572779efb",
+  "merge_base": "5a9bb2b2da735399a1069f529ca4ace572779efb",
+  "fingerprint": "99c440490ff5d0e88c4162d2bdc183472b2979f11ebde7c69dd237233ac8687f",
+  "regression_fingerprint": "ec05d1887567a160f257f72bcaed8a242e5d131c4628e8555a5ca502309003ee",
+  "runtime_fingerprint": "380f23810f59935e6cd4c64f497603075422a48ffd664d7dbed0b85a1836c8bd",
+  "config_fingerprint": "6859dc528540b13fe26e67918ea5254f24dc63fc7a3b6fbb717976682a1a7e20",
+  "policy_fingerprint": "39a2e4e8a9bf159666393bce93ed3a81c94749b336b4e1ec6566795983b52fff",
+  "tooling_fingerprint": "d137a745cd0afb88eda72f6e5f08fd35bf61a607374dd2ee951d2721c4cfcb3a",
+  "manifest_fingerprint": "07aa4927fb5b660d7e8c816ee1a676b17e50be66eb6f31d16c2ce94409e08cc5",
+  "rationale": "Diagnostic-only PodView90 exact-tree review; F17 semantic prompt excluded and provider close remains unaccepted."
 }
 -->
