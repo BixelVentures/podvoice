@@ -1183,3 +1183,208 @@ async def test_selected_setup_exact_account_claim_refusal_stays_pre_effect(rig, 
     assert len(rig.calls) == 1 and rig.calls[0][1].endswith("get_room_content_controls")
     assert not rig.tools._refresh_podconnect_services.await_count
     assert "SECRET" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        None,
+        "early",
+        "preparation",
+        "timeout",
+        "cancelled",
+        "commit_timeout",
+        "commit_cancelled",
+        "receipt",
+    ],
+)
+async def test_selected_start_content_free_phase_diagnostics_preserve_receipt(rig, caplog, failure):
+    import hashlib
+    import logging
+
+    content_owner(rig)
+    offer = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    original_read = rig.facade._read
+
+    async def read(client, token, service, args):
+        if service == "prepare_room_selected_content":
+            if failure == "timeout":
+                raise TimeoutError("SECRET account native-room spotify:track:private")
+            if failure == "cancelled":
+                raise asyncio.CancelledError("SECRET account native-room spotify:track:private")
+        if service == "start_room_selected_content":
+            if failure == "commit_timeout":
+                raise TimeoutError("SECRET account native-room spotify:track:private")
+            if failure == "commit_cancelled":
+                raise asyncio.CancelledError("SECRET account native-room spotify:track:private")
+        return await original_read(client, token, service, args)
+
+    rig.facade._read = read
+    if failure == "preparation":
+        rig.mutate_preparation = lambda value: value.update(
+            ok=False, state="rejected", error_kind="SECRET"
+        )
+    if failure == "receipt":
+        rig.mutate_receipt = lambda value: value.update(homepod_id="foreign-SECRET")
+    uri = "spotify:track:" + "A" * 22
+    with caplog.at_level(logging.INFO, logger="podvoice.music_start"):
+        result = await rig.facade.execute_track(
+            offer["data"], "invalid-SECRET" if failure == "early" else uri, 40, lambda: True
+        )
+    records = [r for r in caplog.records if r.name == "podvoice.music_start"]
+    expected_markers = (
+        ["selected_start_receipt"]
+        if failure == "early"
+        else [
+            "selected_start_prepare",
+            *(
+                ["selected_start_commit"]
+                if failure in {None, "receipt", "commit_timeout", "commit_cancelled"}
+                else []
+            ),
+            "selected_start_receipt",
+        ]
+    )
+    assert [r.getMessage().split()[0] for r in records] == expected_markers
+    text = "\n".join(r.getMessage() for r in records)
+    for secret in [
+        "SECRET",
+        "account",
+        "native-room",
+        "foreign-SECRET",
+        uri,
+        "server-only",
+        "a" * 32,
+    ]:
+        assert secret not in text
+    request_id = "a" * 32 + ":3"
+    ref = hashlib.sha256(request_id.encode()).hexdigest()[:16]
+    assert all(
+        f"request_ref={ref if failure != 'early' else 'none'}" in r.getMessage() for r in records
+    )
+    if failure is None:
+        assert result == {
+            "schema": "podconnect.command.v1",
+            "config_entry_id": "account",
+            "owner_epoch": "a" * 32,
+            "request_id": request_id,
+            "command_sequence": 3,
+            "action": "play_track",
+            "target": {"kind": "spotify_device", "target_id": "device"},
+            "ok": True,
+            "outcome": "accepted",
+            "provider_request_accepted": False,
+            "retry_allowed": False,
+            "physical_result_verified": False,
+            "accepted_selected_content": True,
+            "start_operation_id": "d" * 32,
+            "start_volume_percent": 35,
+            "room_id": "native-room",
+            "homepod_id": "42",
+            "observe_after_poll_sequence": 7,
+        }
+        assert len(rig.calls) == 3
+        assert "accepted=True" in text and "poll_floor=7" in text
+    else:
+        expected = module._failure(
+            "invalid_arguments" if failure == "early" else "unavailable",
+            possible_send=failure in {"receipt", "commit_timeout", "commit_cancelled"},
+            identity=None
+            if failure == "early"
+            else {
+                "schema": "podconnect.command.v1",
+                "config_entry_id": "account",
+                "owner_epoch": "a" * 32,
+                "request_id": request_id,
+                "command_sequence": 3,
+                "action": "play_track",
+                "target": {"kind": "spotify_device", "target_id": "device"},
+            },
+        )
+        assert result == expected
+
+
+@pytest.mark.parametrize(
+    "service,budget",
+    [
+        ("prepare_room_selected_content", 35),
+        ("start_room_selected_content", 16),
+        ("control_room_playback", 20),
+        ("control_room_volume", 20),
+        ("get_room_content_controls", 8),
+        ("cancel_room_content_preparation", 8),
+        ("prepare_room_queue", 8),
+    ],
+)
+async def test_service_http_timeout_matches_existing_owner_budget(rig, service, budget):
+    observed = []
+
+    async def respond(request):
+        observed.append(request.extensions["timeout"])
+        return httpx.Response(200, json={"service_response": {"ok": True}})
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(8, connect=3), transport=httpx.MockTransport(respond)
+    ) as client:
+        assert await rig.facade._read(client, "server-only", service, {}) == {"ok": True}
+        assert client.timeout == httpx.Timeout(8, connect=3)
+    assert observed == [{"connect": 3, "read": budget, "write": budget, "pool": budget}]
+
+
+async def test_valid_nine_second_prepare_uses_approved_budget_and_commits_once(rig):
+    content_owner(rig)
+    rig.client.timeout = httpx.Timeout(8, connect=3)
+    requests = []
+
+    async def respond(request):
+        service = request.url.path.rsplit("/", 1)[-1]
+        requests.append(service)
+        if service == "prepare_room_selected_content" and request.extensions["timeout"]["read"] < 9:
+            raise httpx.ReadTimeout("inert nine-second response exceeds passed read timeout")
+        return await rig.handle(request)
+
+    rig.client._transport = httpx.MockTransport(respond)
+    offer = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    result = await rig.facade.execute_track(
+        offer["data"], "spotify:track:" + "A" * 22, 40, lambda: True
+    )
+    assert result["outcome"] == "accepted" and result["accepted_selected_content"] is True
+    assert requests == [
+        "get_room_content_controls",
+        "prepare_room_selected_content",
+        "start_room_selected_content",
+    ]
+
+
+async def test_long_budget_prepare_cancellation_keeps_zero_commit_and_exact_cancel(rig):
+    content_owner(rig)
+    rig.client.timeout = httpx.Timeout(8, connect=3)
+    entered, cancelled, requests = asyncio.Event(), asyncio.Event(), []
+
+    async def respond(request):
+        service = request.url.path.rsplit("/", 1)[-1]
+        requests.append(service)
+        if service == "prepare_room_selected_content":
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        return await rig.handle(request)
+
+    rig.client._transport = httpx.MockTransport(respond)
+    offer = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    task = asyncio.create_task(
+        rig.facade.execute_track(offer["data"], "spotify:track:" + "A" * 22, 40, lambda: True)
+    )
+    await entered.wait()
+    task.cancel()
+    result = await task
+    assert cancelled.is_set()
+    assert result["outcome"] == "rejected" and result["retry_allowed"] is False
+    assert requests == [
+        "get_room_content_controls",
+        "prepare_room_selected_content",
+        "cancel_room_content_preparation",
+    ]
+    assert rig.client.timeout == httpx.Timeout(8, connect=3)
