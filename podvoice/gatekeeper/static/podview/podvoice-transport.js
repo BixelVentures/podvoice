@@ -15,7 +15,7 @@ export class PodVoiceTransport {
   this.namedIntentKey='podview.named-screen.intent.v1:'+this.cookieScope;
   this.namedControllerRenewed=false;this.namedLaneWanted=false;this.namedRenewalDenied=false;this.namedRenewalUnconfirmed=false;
   this.onSnapshot = onSnapshot; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
-  this.controllerRenewalOwner={}; this.snapshot = null; this.connected = false; this.closed = true; this.generation = 0;
+  this.controllerRenewalOwner={}; this.snapshot = null; this.acceptedReadAt = null; this.connected = false; this.closed = true; this.generation = 0;
  }
  // A public intent hint can request validation only. The HttpOnly cookie,
  // registry/pin and server response remain the sole profile authority.
@@ -90,7 +90,7 @@ export class PodVoiceTransport {
    this.controllerRenewRetryAt=null;this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;this.coordinatorName=null;
    if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
   }
-  this.room = value.roomId; this.snapshot = value; this.connected = true;
+  this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
@@ -285,7 +285,7 @@ export class PodVoiceTransport {
   clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;
   clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;this.namedControllerRenewed=false;
   clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;this.controllerRenewed=false;this.cookieReadAuthority=false;
-  this.generation++; this.closed = true; this.connected = false;
+  this.generation++; this.closed = true; this.connected = false; this.acceptedReadAt = null;
   clearTimeout(this.freshnessTimer);this.controller?.abort(); this.stream?.close(); this.stream = null;
  }
 }

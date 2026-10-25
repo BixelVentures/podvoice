@@ -1,3 +1,12 @@
+## 2.0.86
+
+- Recover passive music reads after browser visibility or transport recovery while
+  preserving current read ownership, accepted stamps and command UNKNOWN fences.
+- Keep resumed reads within the existing screen lifecycle; no backend, voice,
+  firmware or command-authority change is included.
+- Native browser wake and the original Green SSE failure remain unproven; this
+  software recovery change does not establish physical playback or field acceptance.
+
 ## 2.0.85
 
 - Preserve an exact admitted control receipt when only its original presentation

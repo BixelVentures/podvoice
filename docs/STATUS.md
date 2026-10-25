@@ -1,3 +1,36 @@
+## Active PV86 — browser read/wake recovery, 25 October 2026
+
+Lead /root; UI owner PodView; packaging /root/sol61_release75_review; independent
+exact-tree review /root/sol61_review74_final. User authorizes one combined2.0.86
+release/install over actual85main1945c899f067d46e9dd3b5d031c880573a102e0c/tree0a57b4b7d10672e8b7eaf752b68bc9d85dff1834.
+The immutable UI handoff e107e0c4fe47cb98896d9a49fbce46708e971c500546b23dacb0caf0b400deb3
+contains203 runtime assets: four changed,199 unchanged. Reproduced software failure
+and causal recovery concern browser visibility/transport read ownership and accepted
+read stamps. Chain: screen lifecycle/visibility → current passive read custody →
+transport completion → accepted observation → music presentation. Adopt only the four
+source-reviewed UI assets and regenerate the existing asset manifest. Retain every
+command UNKNOWN/replay, owner/route/session and action-admission boundary; no backend,
+voice, timer backend, firmware, provider or speaker change is planned. The rollback
+boundary is the immutable85 source. Existing2237 UI cases and63 component gates are
+retained on the exact handoff; only changed mirrors, metadata and static checks run
+locally before the mandatory official CI on the frozen candidate.
+
+Native browser wake is NOT PROVEN and the original Green SSE field cause remains
+UNRESOLVED. Saved09:23:50.855CET evidence shows one mood_result publish success in2506ms
+and three search200 responses, while the original09:17 window is missing. Existing
+SSE cleanup/read budgets provide no causal backend defect; early400/403/429 routes
+before mood_result logging cannot resolve that old generic failure retrospectively.
+No speculative backend patch or new diagnostic is added. Voice PE currently offline
+and zero sessions is a physical evidence gap, not a software change. Packaging does
+not claim browser/device wake, audio, physical acceptance, publication or installation.
+Root owns GitHub, official CI and delivery; this draft performs no household effects.
+Independent /root/sol61_review74_final exact PREBIND GO is complete. The incumbent
+reviewer/manifest/Python3.12AST fields now bind this exact source and inventory.
+Affected72 UI cases, historical85 all15, new dev dispatch and highest CI label pass;
+new86 prebind checks pass with nine expected binding-dependent skips. Final bound
+checks now pass: all15 bound86 cases, strict actual staged admission and changed-file
+statics. Official CI remains separate; no field acceptance is inferred.
+
 ## Active PV193 — post-dispatch receipt ownership, 25 October 2026
 
 Lead /root; backend owner weather_backend_integration; independent reviewer
@@ -4334,5 +4367,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "2cb4b09106602d6232a91aafe6647df62c29674d99991246dcb9e4165b85b675",
   "manifest_fingerprint": "cbd75a97ae24bc651c5fc726f85f2d63507ed64ce4cbd869d014e8523957809d",
   "rationale": "Independent /root/sol61_review74_final PREBIND GO on treea127e70ba5da38e463d32f15940d6e18d82614d3/profiledc79aa6f/manifestfc17fe36/Python3.12AST4ab2a12c, exact3production/6regression/323runtime/4config/66policy/184tooling and203unchangedUI. Retain weather_backend_review source/caller/hashGO on frozen193 packet16f23603 (STATUS-only successor of reviewed8d89eeb7). Actual unchanged classifier unclassified_runtime is bound honestly, never relabeled or weakened. Permit only exact admitted completion ownership after dispatch; pre-POST clocks, original grants/leases, session/boot/tools/policy/account and exact backend owner guards remain. No retry, latest-owner adoption, current-route/acoustic claim, UI or voice/firmware change. Root owns officialCI/publication/installation and physical acceptance. After initial exact-scope GO, correct only four new85 fixture references to the existing renamed assets_match85 checker and refresh its sole regression pin/derived bindings under root authorization. All original asset assertions remain; no production/profile-logic/inventory change. Retain unchanged bound cases and renew the two affected checker tests."
+}
+-->
+
+<!-- podview86-admission
+{
+  "version": 63,
+  "kind": "podview86_read_wake_recovery",
+  "reviewer": "/root/sol61_review74_final",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "1945c899f067d46e9dd3b5d031c880573a102e0c",
+  "merge_base": "1945c899f067d46e9dd3b5d031c880573a102e0c",
+  "fingerprint": "083bc3a7f62bd925c737c715c84f8321cb00d9bdd594c5b86694ecd655e837e7",
+  "regression_fingerprint": "ee9048d677740d90b4eb92b8c0dc650177fba9611c3c828a0858d6c2b59adec0",
+  "runtime_fingerprint": "34983869ef17fccd7ddf90e81f6deee762410ee5603411f1d14cf746b8f86bd8",
+  "config_fingerprint": "9970a33dd91a3c8a9c636c8cceeb68c3c8acde19307f25824489242a9bfa6339",
+  "policy_fingerprint": "b61db18b8a80a5f2d717b8fc865cc6252c08c15a32324720633776fae3ad5871",
+  "tooling_fingerprint": "66232291c6214b6442e818ac774824d98ae80f8cdd6216854f1fe40dfa49249e",
+  "manifest_fingerprint": "d2d52de15476f9b09762f531c1d7e518df49a62f71b86444b77d0c00ef6cce5f",
+  "rationale": "Independent /root/sol61_review74_final PREBIND GO binds exact86 read/wake source, all203 frozen e107 handoff UI hashes (four changed/199 unchanged), two direct test mirrors, immutable85 and all historical policy, actual ha_tools/physical_output classifier, version-only2.0.86 trio and separate HA0.1.6 unchanged. Preserve command UNKNOWN/no-replay/current owner/route/session/action admission. Retain2237 owner UI/63 component and72 affected adapter passes; metadata/historical85/dev dispatch/static checks pass. No backend/VoicePE/firmware/provider change; native browser wake and original Green SSE cause remain unproven/unresolved. Official CI/publication/install root-owned; no household or physical acceptance claim."
 }
 -->
