@@ -1,5 +1,5 @@
 import {vehiclePreviewAction} from './vehicle-model.js';
-import {robotRoom,robotValue} from './robot-observation.js';
+import {robotRoom,robotValue,robotActivity,robotExperience} from './robot-observation.js';
 import {visualExamples} from './visual-examples.js';
 import {visualFamilies,validateVisualContent} from './visual-content.js';
 import {timerTransition} from './timer-model.js';
@@ -81,6 +81,7 @@ export function sceneTransition(s,e){
 export const visibleActivities=a=>ACTIVITIES.filter(x=>a.filter==='all'||(a.filter==='quick'?x.minutes<=20:x.materials===1));
 
 export const deviceLabel=d=>{
+ if(d.kind==='vacuum'){const experience=robotExperience(d),activity=robotActivity(d);if(experience.issues.length)return experience.issues[0].title;if(activity)return (d.stale?'Sidst kendt: ':'')+activity;}
  if(d.kind==='light'&&d.live===true&&d.scope==='ha_area'){
   const rows=Array.isArray(d.observedLights)?d.observedLights:[],observed=d.lightObservation?.status==='observed'&&d.lightObservation.complete===true&&['on','off','mixed','unknown','empty'].includes(d.status),known=rows.filter(row=>['on','off'].includes(row.state)),on=known.filter(row=>row.state==='on').length,unknown=rows.length-known.length;
   const detail=observed?rows.length===0?'Ingen lys i rummet':unknown?`${known.length?`${on} af ${rows.length} bekræftet tændt`:'Lysstatus ukendt'} · ${unknown} ${unknown===1?'ukendt':'ukendte'}`:`${on} af ${rows.length} tændt`:({unknown:'Lysstatus ukendt',fault:'Lysstatus kunne ikke hentes',unavailable:'Ikke forbundet'})[d.status]||'Lysstatus ukendt';
@@ -124,7 +125,7 @@ export function devicePresentation(d,{connected=true}={}){
  const selection=lightSelection(d),room=d.kind==='light'&&d.live===true&&d.scope==='ha_area'&&typeof d.lightScope?.areaName==='string'?d.lightScope.areaName:'',battery=d.kind==='vacuum'&&!d.presentationOnly&&Number.isFinite(d.battery)&&d.battery>=0&&d.battery<=100?`${d.battery} %`:'';
  const clean=d.kind==='vacuum'&&!d.presentationOnly&&!stale&&d.status==='cleaning'&&d.telemetry?.status==='observed'&&Array.isArray(d.telemetry.items)?d.telemetry.items.find(row=>row.key==='clean_percent'):null,now=Date.now()/1000;
  const progress=clean&&clean.unit==='%'&&clean.stale===false&&Number.isFinite(clean.updatedAt)&&clean.updatedAt>=0&&clean.updatedAt<=now+1&&now-clean.updatedAt<=300&&Number.isFinite(clean.value)&&clean.value>=0&&clean.value<=100?clean.value:undefined;
- return {...deviceOverviewFacts(observed),id:d.id,kind:d.kind,target:d.presentationOnly?undefined:d.id,title:d.kind==='vacuum'?'Robotstøvsuger':selection?.title||(room?`Lys · ${room}`:d.name||'Lys'),status:d.pending?'pending':selection?.status||d.status,resourceStatus:selection?.status||d.status,stale,detail:deviceLabel(observed),value:battery,...(progress!==undefined?{progress}:{}),scope:room|| (d.kind==='light'&&d.status==='unavailable'?'Forbind lys i Home Assistant for at se og styre dem her.':(selection?.kind==='light'?d.lights.find(lamp=>selection.targetIds.includes(lamp.id))?.roomName:selection?.label)||(d.kind==='light'?(d.live?'':'Hele hjemmet'):'')),power:selection?.power??(d.status==='on'),disabled:d.presentationOnly===true};
+ return {...deviceOverviewFacts(observed),id:d.id,kind:d.kind,target:d.presentationOnly?undefined:d.id,title:d.kind==='vacuum'?'Robotstøvsuger':selection?.title||(room?`Lys · ${room}`:d.name||'Lys'),status:d.pending?'pending':selection?.status||d.status,resourceStatus:selection?.status||d.status,...(d.kind==='vacuum'&&(robotActivity(observed)||robotExperience(observed).issues.length)?{displayState:deviceLabel(observed)}:{}),stale,detail:deviceLabel(observed),value:battery,...(progress!==undefined?{progress}:{}),scope:room|| (d.kind==='light'&&d.status==='unavailable'?'Forbind lys i Home Assistant for at se og styre dem her.':(selection?.kind==='light'?d.lights.find(lamp=>selection.targetIds.includes(lamp.id))?.roomName:selection?.label)||(d.kind==='light'?(d.live?'':'Hele hjemmet'):'')),power:selection?.power??(d.status==='on'),disabled:d.presentationOnly===true};
 }
 export function deviceActions(d){if(d.live)return [];if(d.kind==='light'){if(d.stale)return [];const selection=lightSelection(d);if(selection){if(!['on','off','mixed'].includes(selection.status))return [];const off=selection.power;return [{id:off?'turn_off':'turn_on',label:selection.kind==='home'?(off?'Sluk alt lys':'Tænd alt lys'):selection.kind==='room'?`${off?'Sluk':'Tænd'} lys · ${selection.label}`:`${off?'Sluk':'Tænd'} ${selection.label}`}];}return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.scope==='home'?(d.status==='on'?'Sluk alt lys':'Tænd alt lys'):(d.status==='on'?'Sluk lys':'Tænd lys')}]:[];}return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}
 
@@ -157,7 +158,7 @@ export function overviewPriorities({timers=[],devices=[],mediaActive=false}={}){
  // never order: timer, weather/robot, lights/vehicle, music/radio.
  const cards=[{id:'timer-card',priority:activeTimer?'active':'useful'},{id:'home-weather',priority:'useful'}];
  const deviceCards=devices.filter(device=>!device.hidden).map(device=>{
-  const unavailable=device.presentationOnly===true||['unavailable','unknown'].includes(device.status),active=!!device.pending||(device.kind==='vacuum'&&['cleaning','paused','docking','fault'].includes(device.status));
+  const unavailable=device.presentationOnly===true||['unavailable','unknown'].includes(device.status),active=!!device.pending||(device.kind==='vacuum'&&(['cleaning','paused','docking','fault'].includes(device.status)||robotExperience(device).issues.length>0||/moppe|støvbeholder/.test(robotExperience(device).activity||'')));
   return {id:device.id,kind:device.kind,priority:active?'active':unavailable?'unavailable':'useful'};
  });
  cards.push(...deviceCards.filter(device=>device.kind==='vacuum'),...deviceCards.filter(device=>device.kind!=='vacuum'),{id:'home-vehicle',priority:'unavailable'},{id:'home-music',priority:mediaActive?'secondary':'useful'},{id:'home-radio',priority:'secondary'});

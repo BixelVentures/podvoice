@@ -23,6 +23,7 @@ import {renderLiveWeather,renderRobotHistory} from './live-home-view.js';
 import {validateHome,applyHome,scopedLightDevice} from './home-model.js';
 import {lightAreasObservation,scopedLightsObservation} from './ha-home-observation.js';
 import {SceneMotion} from './ui/motion.js';
+import {robotExperience} from './robot-observation.js';
 import {RobotMotion} from './ui/robot-motion.js';
 import {PodVoiceTransport} from './podvoice-transport.js';
 import {liveScene,liveLocalEvent,liveTimerRequest,unconfiguredLight,connectionPresentation,homeConnectionPresentation} from './podvoice-view.js';
@@ -452,16 +453,17 @@ class WidgetHost extends HTMLElement {
   if(!['vacuum','light'].includes(d.kind))return;
   let shell=row.overviewShell;if(!shell){shell=document.createElement('div');shell.className='resource-card';row.parentNode.insertBefore(shell,row);shell.append(row);const action=document.createElement('button');action.type='button';action.className='resource-direct-action';applyKitComponent(action,'button',{variant:'secondary'});shell.append(action);row.overviewShell=shell;row.overviewAction=action;action.addEventListener('click',()=>{
    const current=this.state.devices.find(device=>device.id===row.dataset.target),controls=this.live?this.liveControls:this.localRobot;
-   const canControl=current?.kind==='light'||!!controls?.allowed('vacuum')&&!controls.pending&&!controls.setupPending&&!controls.musicIntentPending;
-   const choice=resourceOverviewAction(current,{connected:this.state.connected,live:this.live,actions:current?deviceActions(current):[],canControl,size:row.overviewShell?.dataset.kitSize||row.dataset.kitSize});
+   const canControl=current?.kind==='light'||!!controls?.allowed('vacuum')&&(this.live||!controls.pending&&!controls.setupPending&&!controls.musicIntentPending);
+   const choice=resourceOverviewAction(current,{connected:this.live?!!this.liveTransport?.connected:this.state.connected,live:this.live,actions:current?deviceActions(current):[],canControl,liveAction:this.live?controls?.robotOverviewAction?.(current):null,size:row.overviewShell?.dataset.kitSize||row.dataset.kitSize});
    if(action.hidden||action.disabled||!choice||choice.disabled)return;
-   this.dispatch({type:'device-action',sessionId:this.state.sessionId,taskId:current.id,revision:current.revision,action:choice.id});
+   if(this.live)void controls?.robotOverviewIntent?.(current.id,choice.id);else this.dispatch({type:'device-action',sessionId:this.state.sessionId,taskId:current.id,revision:current.revision,action:choice.id});
   });}
-  const controls=this.live?this.liveControls:this.localRobot,canControl=d.kind==='light'||!!controls?.allowed('vacuum')&&!controls.pending&&!controls.setupPending&&!controls.musicIntentPending;
-  const choice=resourceOverviewAction(d,{connected:this.state.connected,live:this.live,actions:deviceActions(d),canControl,size:row.overviewShell?.dataset.kitSize||row.dataset.kitSize}),action=row.overviewAction,label=choice?.label||'',aria=choice?.ariaLabel||'',hidden=!choice,disabled=!choice||choice.disabled;
+  const controls=this.live?this.liveControls:this.localRobot,canControl=d.kind==='light'||!!controls?.allowed('vacuum')&&(this.live||!controls.pending&&!controls.setupPending&&!controls.musicIntentPending);
+  const choice=resourceOverviewAction(d,{connected:this.live?!!this.liveTransport?.connected:this.state.connected,live:this.live,actions:deviceActions(d),canControl,liveAction:this.live?controls?.robotOverviewAction?.(d):null,size:row.overviewShell?.dataset.kitSize||row.dataset.kitSize}),action=row.overviewAction,label=choice?.label||'',aria=choice?.ariaLabel||'',hidden=!choice,disabled=!choice||choice.disabled;
   if(action.dataset.actionId!==(choice?.id||''))action.dataset.actionId=choice?.id||'';if(action.textContent!==label)action.textContent=label;if(action.hidden!==hidden)action.hidden=hidden;if(action.disabled!==disabled)action.disabled=disabled;if(action.getAttribute('aria-label')!==aria)action.setAttribute('aria-label',aria);
   for(const [key,value]of [['kind',d.kind],['status',row.dataset.status],['resourceStatus',row.dataset.resourceStatus]])if(shell.dataset[key]!==value)shell.dataset[key]=value;for(const key of ['hidden','inert'])if(shell[key]!==row[key])shell[key]=row[key];
   applyResourceFactBudget(row);
+  if(this.live&&!row.hidden&&!shell.hidden&&shell.dataset.kitSize!=='s')void controls?.prepareRobotOverview?.(d);
  }
  openOverviewRobot(id,opener){
   const d=this.state.devices.find(device=>device.id===id&&device.kind==='vacuum'),controls=this.live?this.liveControls:this.localRobot;
@@ -533,7 +535,8 @@ class WidgetHost extends HTMLElement {
    // Only the admitted own-area observation may reach the passive rail.
    // A browsed detail or audio destination never changes this source binding.
    const placement=s.lightPlacement,areas=s.lightAreas,ownLight=this.live===true&&d.kind==='light'&&d.live===true&&d.source==='home_assistant_state'&&d.scope==='ha_area'&&d.lightScope?.isOwnArea===true&&!d.stale&&d.validUntil*1000>Date.now()&&areas?.status==='observed'&&areas.validUntil*1000>Date.now()&&placement?.status==='bound'&&d.lightScope.areaId===placement.areaId&&d.lightScope.bindingId===placement.bindingId&&d.lightScope.placementRevision===placement.placementRevision&&d.lightSourceEpoch===areas.sourceEpoch;
-   const visible=d.kind==='vacuum'&&(!!d.pending||['cleaning','paused','docking','fault'].includes(d.status))||ownLight&&(!!d.pending||d.status==='fault'||d.observedLights?.some(row=>row.state==='on'));
+   const robotWork=d.kind==='vacuum'&&['Vasker moppe','På vej til moppevask','Tømmer støvbeholder','Tørrer moppe'].includes(robotExperience(d).activity);
+   const visible=d.kind==='vacuum'&&(!!d.pending||robotWork||['cleaning','paused','docking','fault'].includes(d.status))||ownLight&&(!!d.pending||d.status==='fault'||d.observedLights?.some(row=>row.state==='on'));
    if(visible)resources.push(presentation);
   }
   if($('resource-rail').hidden!==!!((s.focus!=='photo'&&!answerFocused)||!resources.length))$('resource-rail').hidden=(s.focus!=='photo'&&!answerFocused)||!resources.length;

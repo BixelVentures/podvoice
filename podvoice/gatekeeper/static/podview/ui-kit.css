@@ -319,7 +319,7 @@ pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{width:100%;g
 @media(min-width:760px){
  pv-widget-host[data-view=active] .frame>.responses{height:100%;min-height:0;overflow:hidden}
  pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]){height:100%;max-height:100%;min-height:0;flex:1 1 0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;scroll-padding:var(--pv-s3)}
- pv-widget-host[data-view=active] #device-view>[data-robot-rooms=true]{flex:0 0 auto;min-height:0}
+ pv-widget-host[data-view=active] #device-view>[data-robot-rooms=true]{flex:0 0 auto;min-height:min-content;height:auto;max-height:none;overflow:visible}
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;grid-row:auto}
 pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"])::before{opacity:1}
@@ -1156,6 +1156,11 @@ input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-webkit-s
 input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-moz-range-track{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-track)}
 input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-moz-range-progress{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-ink)}
 input.pv-kit.pv-kit-slider:not([aria-orientation=vertical]):not(.--v)::-moz-range-thumb{width:var(--pv-volume-thumb-size,24px);height:var(--pv-volume-thumb-size,24px);border:0;border-radius:var(--pv-r-pill);background:var(--pv-slider-ink)}
+/* Unknown is a Slider state, never an invented midpoint. Preserve its native
+   hit geometry while neutralising the rail and withholding the value thumb. */
+input.pv-kit.pv-kit-slider[data-kit-value-known=false]:not([aria-orientation=vertical]):not(.--v){--pv-slider-ink:var(--pv-slider-track)}
+input.pv-kit.pv-kit-slider[data-kit-value-known=false]:not([aria-orientation=vertical]):not(.--v)::-webkit-slider-thumb{opacity:0}
+input.pv-kit.pv-kit-slider[data-kit-value-known=false]:not([aria-orientation=vertical]):not(.--v)::-moz-range-thumb{opacity:0}
 /* A station/status change consumes its reserved two-line S-card footer only. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio>span>small{height:48px;min-height:48px;max-height:48px;line-height:24px;overflow:hidden;overflow-wrap:normal;white-space:normal}
 
@@ -1317,6 +1322,10 @@ pv-widget-host #vehicle-view .vehicle-metrics>.vehicle-metric>dd{margin:0;paddin
 pv-widget-host #device-view pv-robot-control-panel>.robot-control-panel>.device-history{margin:0;padding:0!important;min-height:0;max-height:none;overflow:visible;background:transparent;border:0;box-shadow:none}
 pv-widget-host #device-view:has(>pv-robot-control-panel:not([hidden]),>[data-robot-rooms=true]:not([hidden])){padding-block-start:0}
 pv-widget-host #device-view>:is(pv-robot-control-panel,[data-robot-rooms=true]):not([hidden]){margin-block:0;padding-block-start:0}
+/* Inline controls contribute their complete intrinsic height to the shared
+   detail scroller. Local panel and live content wrapper obey the same flow. */
+pv-widget-host #device-view [data-robot-rooms=true]>:is(pv-robot-control-panel,.pv-content),pv-widget-host #device-view pv-robot-control-panel>.robot-control-panel{flex:0 0 auto;min-height:min-content;height:auto;max-height:none;overflow:visible}
+pv-widget-host #device-view pv-robot-control-panel>.robot-control-panel>:not([hidden]){flex-shrink:0}
 pv-widget-host pv-robot-control-panel>.robot-control-panel>pv-vacuum-widget.pv-kit-hero{margin-block:0}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport{display:flex;flex-wrap:wrap;gap:var(--pv-s2);margin:var(--pv-s3) 0 0 calc(var(--pv-icon-l) + var(--pv-s3));padding:0;border:0}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:empty{display:none}
@@ -1807,3 +1816,70 @@ pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=prim
 @keyframes pv-advice-pending{from{background-position:180% 0}to{background-position:-40% 0}}
 @keyframes pv-advice-ready{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{animation:none}.pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation-duration:120ms}}
+
+/* Existing primitives: compact status Hero, retained ListRow disclosure and native
+   single-choice Chip composition. These roles share one owner in every consumer. */
+.pv-kit-hero[data-kit-variant=compact]{min-height:0;padding:var(--pv-s3);gap:var(--pv-s2);justify-content:flex-start;align-items:stretch}
+.pv-kit-disclosure{min-width:0}
+.pv-kit-disclosure>.pv-kit-listrow{width:100%;justify-content:space-between;gap:var(--pv-s2);padding:var(--pv-s2) 0;background:transparent;border-radius:0;border-top:1px solid var(--pv-line);white-space:normal;text-align:left}
+.pv-kit-disclosure>.pv-kit-listrow>span{display:grid;gap:var(--pv-s1);min-width:0}
+.pv-kit-disclosure>.pv-kit-listrow strong{font:var(--pv-t-label)}
+.pv-kit-disclosure>.pv-kit-listrow small{font:var(--pv-t-body);color:var(--pv-ink-2)}
+.pv-kit-disclosure>.pv-kit-listrow:not(:has(>img))::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);flex:none;background:currentColor;mask:url(assets/icons/chevron-down.svg) center/contain no-repeat;-webkit-mask:url(assets/icons/chevron-down.svg) center/contain no-repeat;transition:transform var(--pv-d-fast) var(--pv-ease)}
+.pv-kit-disclosure>.pv-kit-listrow:not(:has(>img))[aria-expanded=true]::after{transform:rotate(180deg)}
+.pv-kit-disclosure>div{display:grid;gap:var(--pv-s3);padding-top:var(--pv-s2);min-width:0}
+.pv-kit-choice-group{border:0;margin:0;padding:0;min-width:0}
+.pv-kit-choice-group>legend{padding:0;margin-bottom:var(--pv-s1);font:var(--pv-t-body);font-weight:600}
+.pv-kit-choice-options{display:flex;flex-wrap:wrap;gap:var(--pv-s1);min-width:0}
+.pv-kit-choice-label{position:relative;flex:1 1 64px;min-width:0;min-height:var(--pv-hit);padding:var(--pv-s1) var(--pv-s2);cursor:pointer;white-space:normal;text-align:center}
+.pv-kit-choice-label>input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:inherit}
+.pv-kit-choice-label>span{min-width:0;white-space:normal;overflow-wrap:normal}
+.pv-kit-choice-label:has(input:checked){background:var(--pv-ink);color:var(--pv-on-dark)}
+.pv-kit-choice-label:has(input:focus-visible){outline:2px solid var(--pv-ink);outline-offset:4px}
+.pv-kit-choice-label:has(input:is(:disabled,[aria-disabled=true])){cursor:default;opacity:.56}
+/* Action labels carry their complete meaning. Existing compact metadata may
+   ellipsize, but actions and disclosure descriptions wrap within their hit area. */
+button.pv-kit.pv-kit-button:not([data-kit-variant=icon]):not([data-kit-variant=quiet]),.pv-kit-disclosure>.pv-kit-listrow{white-space:normal!important;overflow:visible!important;text-overflow:clip;line-height:var(--pv-leading-body);height:auto;padding-block:var(--pv-s2)}
+button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong),.pv-kit-disclosure>.pv-kit-listrow :is(span,strong,small){white-space:normal!important;overflow:visible!important;text-overflow:clip;max-height:none}
+/* Standalone library/study context uses the actual resource owner, same sized
+   Card anatomy and offered command rules as #now-view. No study widget paint. */
+.pv-kit-overview{min-width:0}
+.pv-kit-overview .resource-card{position:relative;box-sizing:border-box;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
+.pv-kit-overview .resource-card[data-kit-size=m]{--pv-card-size-width:min(var(--pv-card-m-width),100%);--pv-card-size-height:var(--pv-card-row-height)}
+.pv-kit-overview .resource-preview{border:0;text-align:left;cursor:pointer}
+.pv-kit-overview .resource-preview .resource-visual{width:var(--pv-icon-m);height:var(--pv-icon-m)}
+.pv-kit-overview .resource-preview .resource-visual>img{width:100%;height:100%;object-fit:contain}
+.pv-kit-overview .resource-preview .resource-visual>svg,.pv-kit-overview .resource-chevron,.pv-kit-overview .resource-title-short{display:none}
+.pv-kit-overview .resource-preview .resource-title-full{display:inline}
+.pv-kit-overview .resource-card>.resource-direct-action{position:absolute;right:var(--pv-s3);width:var(--pv-card-action-width,128px);min-height:var(--pv-hit);z-index:1}
+@media(prefers-reduced-motion:reduce){.pv-kit-disclosure>.pv-kit-listrow:not(:has(>img))::after{transition:none}}
+
+/* Quiet is an existing Button role used by navigation and study review tools. */
+.pv-kit.pv-kit-button[data-kit-variant=quiet]{background:transparent;color:var(--pv-ink)}
+.pv-kit-topbar .pv-kit-button[data-kit-variant=quiet]{padding-inline:0}
+.pv-kit-topbar>.pv-kit-button[data-kit-variant=quiet]:nth-child(2){background:var(--pv-surface-2)}
+.pv-kit-overview :is([hidden],.resource-title-short){display:none!important}
+
+/* Standalone canonical M resource composition. #now-view selectors above remain
+   verbatim: library/review consumers opt into the same resource roles here. */
+.pv-kit-overview .resource-card[data-kit-size=m]{box-sizing:border-box;position:relative;width:min(var(--pv-card-m-width),100%);min-width:0;max-width:100%;height:var(--pv-card-row-height);min-height:var(--pv-card-row-height);max-height:var(--pv-card-row-height);padding:0;overflow:hidden;align-self:start;justify-self:start}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview{box-sizing:border-box;position:relative;display:block;width:100%;height:100%;min-height:0;max-height:none;padding:var(--pv-s3);border-radius:var(--pv-r-l);text-align:left;--pv-card-copy-right:var(--pv-s3)}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview>.resource-label{display:contents}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview>.resource-visual{position:absolute;left:var(--pv-s3);top:var(--pv-s3);width:var(--pv-icon-m);height:var(--pv-icon-m);display:grid;place-items:center}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview>.resource-visual>img{width:var(--pv-icon-m);height:var(--pv-icon-m);max-width:var(--pv-icon-m);max-height:var(--pv-icon-m);padding:0;object-fit:contain}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview>.resource-label>strong{position:absolute;left:calc(var(--pv-s3) + var(--pv-icon-m) + var(--pv-s2));right:var(--pv-s3);top:27px;display:block;margin:0;padding:0;font:var(--pv-t-label);line-height:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview>.resource-label>.resource-value:not([hidden]){position:absolute;inset:var(--pv-card-primary-y) var(--pv-card-copy-right) auto var(--pv-s3);display:block;margin:0;padding:0;min-height:0;height:26px;max-height:26px;font:var(--pv-t-label);line-height:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview>.resource-label>small:not([hidden]){position:absolute;inset:var(--pv-card-secondary-y) var(--pv-card-copy-right) auto var(--pv-s3);display:block;margin:0;padding:0;min-height:0;height:24px;max-height:24px;font:var(--pv-t-body);line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--pv-ink-2)}
+.pv-kit-overview .resource-card[data-kit-size=m]:has(>.resource-direct-action:not([hidden]))>.resource-preview{--pv-card-copy-right:calc(var(--pv-s3) + var(--pv-card-action-width) + var(--pv-s2))}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-direct-action{position:absolute;right:var(--pv-s3);top:calc((var(--pv-card-primary-y) + var(--pv-card-secondary-y) + 24px - var(--pv-hit)) / 2);width:var(--pv-card-action-width);min-width:var(--pv-card-action-width);height:var(--pv-hit);min-height:var(--pv-hit);display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1);padding:0 var(--pv-s2);border-radius:var(--pv-r-pill);font:var(--pv-t-label);background:var(--pv-surface);color:var(--pv-ink)}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-direct-action[data-action-id=pause]::before,.pv-kit-overview .resource-card[data-kit-size=m]>.resource-direct-action[data-action-id=resume]::before{content:'';width:20px;height:20px;flex:0 0 20px;background:currentColor;mask:url(assets/icons/pause-fill.svg) center/contain no-repeat;-webkit-mask:url(assets/icons/pause-fill.svg) center/contain no-repeat}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-direct-action[data-action-id=resume]::before{mask-image:url(assets/icons/play-fill.svg);-webkit-mask-image:url(assets/icons/play-fill.svg)}
+.pv-kit-overview .resource-card[data-kit-size=m]>.resource-preview[data-kit-state=unavailable]>.resource-label>.resource-value:not([hidden]){height:auto;max-height:48px;font:var(--pv-t-body);line-height:24px;white-space:normal;color:var(--pv-ink-2)}
+
+.pv-kit-disclosure>.pv-kit-listrow>img{width:var(--pv-icon-s);height:var(--pv-icon-s);flex:none;transition:transform var(--pv-d-fast) var(--pv-ease)}
+.pv-kit-disclosure>.pv-kit-listrow[aria-expanded=true]>img{transform:rotate(180deg)}
+@media(prefers-reduced-motion:reduce){.pv-kit-disclosure>.pv-kit-listrow>img{transition:none}}
+
+/* Confirmed Chip selection in the compact Robot composition. Uses the same
+   neutral selected recipe as shared Segmented; observation owns aria-pressed. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-kit-chip[aria-pressed=true]{background:var(--pv-ink)!important;color:var(--pv-on-dark)!important;box-shadow:none}

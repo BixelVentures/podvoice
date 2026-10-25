@@ -80,6 +80,22 @@ Before freeze require compatible current-version terminalization or forward reco
 Reviewed source results are recorded below; no combined release, Green installation,
 provider or physical GO is implied by those scoped results.
 
+### Reviewed source checkpoint published — work branch only
+
+The31-file reviewed PV source checkpoint is now pushed through the GitHub plugin to
+codex/podvoice91-single-owner, commit04529400788e1406f33c33da33eafe160709fe66,
+treec41a323f06e20c4ca9965a6467d5f581d79d5208, parent exact90main65fe801a8bb587ba42518ce4dbb04ee39b59fd76.
+Remote branch readback matches; a separate temporary Git index reconstructed the
+entire tree from the exact captured file bytes and matched GitHub's tree SHA.
+No PR, version bump, official CI, release, installation or physical effects were
+triggered. This checkpoint preserves completed source work; later timer/component,
+Native/C/manager, context parity and canonical UI increments are not silently part
+of it. Local source remains an integration draft, not a newly installed baseline.
+
+### Canonical UI combined source integrated — not released
+
+Root applied the single frozen PodView D2 runtime.patch4d4453925daab1f390ef62b94a9dad10ec1253ad10af80f423892e765c9449df after verifying all21base hashes. All21final changed hashes and all203runtime manifest hashes match the immutable canonical package; manifest5b21aeced078220eae9c82428f956d43178c3146fc8d08897c11887551b9fa48. Existing scoped UI tests/source/visual reviews are retained, not rerun on unchanged bytes. Backend composition, PC70/PC13/provider gates, publication, Green installation and physical acceptance remain open. Receipt: /private/tmp/pv91-canonical-ui-integration-receipt-20261025.json.
+
 ### Active91 current integration boundary
 
 Implemented and independently reviewed source: ordinary idle no-extra-dwell,
@@ -87,9 +103,9 @@ semantic-END no-new-quiet admission, bounded diagnostic retention, same-key pass
 read coalescing, Control/PV readonly v3 with actual-volume/policy separation, passive
 visual archive plus one-pass IO, five HA Native transport/volume commands, HA exact
 track/playlist RoomContent caller, and dependent Native/PV opaque queue resolution.
-Robot backend is exact canonical source; canonical UI owner is composing robot,
-NEXT91, readonly v3 and queue consumer deltas in its isolated draft. No assets are
-adopted before their final source/consumer/render review.
+Robot backend is exact canonical source; the final canonical UI robot/NEXT91/v3/queue
+payload is now integrated and all203runtimepins independently reverified by PodView.
+Its source/consumer/render review is retained; full backend composition remains open.
 
 PC70 durable cleanup/reconnect and its combined Native/C/manager packet remain under
 causal validation. The queue patch must hunk-merge into the resulting Native source.
@@ -99,6 +115,30 @@ shuffle/repeat, other advertised Native content/library/source parity, ordinary
 nonvisual answer production and actual provider gates remain explicit work. Final
 same-tree scope binding, official CI/publication, one compatible Green install and
 later authorized physical acceptance have not happened in this phase.
+
+### Current Green read-only observation and PC70 review stop
+
+25October21:32 local: HA browser reloaded once and live service reads resumed; actual add-on info says running2.0.89. Current log still reports Voice PE address discovery unavailable. No stop/restart/key access/provider call or house effect performed. This does not reverify Speakers/Control/component versions.
+
+Independent source review found outputLoop holds the output lock while SwitchingAudioSource.Read holds its source mutex across decoder Read. A proposed post-ACK retire callback may wait behind that Read; cancellation after callback cannot prove progress. Existing retiring check occurs before raw Read, leaving a late-EOF promotion case to examine. Lead holds the proposed worker-phase implementation until the exact blocked-read/EOF ordering is proved and corrected at the existing owner. This is not a new observed Green cause or a runtime patch based on timeout alone.
+
+### Voice PE read-only connection restored
+
+25October21:38:43 local live log confirms Voice PE connected, firmware contract OK on ESPHome2026.6.2 and installed capability marker podvoice_build_113114_livetimeroutput1; firmware confirms hey_chat_hey_jarvis. Ignored stale empty wake-rearm ACK is logged separately and is not a successful correlated rearm proof. No audio, timer, wake action, firmware flash, settings change or provider call was triggered. Installed PodVoice remains2.0.89; candidate91 is not installed.
+
+### PC70 refined release owner — smallest correction authorized
+
+The blocked-read finding exposed an unnecessary premise in the proposed worker-phase solution: manual release retires a captured AppPlayer/registered FIFO writer, not a song. Actual secondary EOF promotion changes no FIFO FD, worker startEpoch, open_generation, App or session. Generic transportOfferCurrent additionally binds Primary/Tracks/QueueRevision/observational generation and therefore can strand same-owner cleanup.
+
+Lead and independent reviewer authorize a release-specific post-consumption owner predicate, retaining exact App/session/intent/alias/process/config/C-route/writer/custody and accepted failure witness. New writer admission passes withNewOutput/queueWriterBusyLocked and is fenced by consumed manualRelease; App replacement joins old.Close. Existing post-durable-C read interruption plus joined captured Close is reused. No new active-read CAS, output-stamp store or retire phase is authorized. Required causal cases: held worker Pause and same-writer track progress complete cleanup; actual replacement App/writer/FD/epoch/route/intent rejects; no replay or Close before durable ACK. Native implementation/review is still pending; this is a decision, not a result.
+
+### Timer cancellation and firmware Stop — independently reviewed source
+
+HA component cancel-fence patchc554e22a0f6c7c9ab60a559d4c606776936d87729a573d2277121e533bdf2e06 has independent SOURCE GO. Successful Core cancel marks the exact endpoint/timer acknowledged before a delayed same-epoch finished callback can revive it; failed/UNKNOWN cancel remains unchanged. The injected callback ordering reproduced RED then21focused GREEN. Existing externally created Core-timer acknowledgement retention is not globally bounded; no unsafe eviction was introduced. Component activation/version readback remain separate from the add-on image.
+
+Firmware Stop-join patchaec245263d9526c679dcfb47aabd5593352f799b17269500a5a48e055b556a17 has independent SOURCE GO. A physical button press during the same-owner STOPPING retains privacy/context cancellation but joins the existing drain/deadline instead of reissuing Stop/flush and extending it. Five existing C++ harnesses and the reverse-order regression passed. No firmware artifact build, flash or physical proof yet.
+
+PC70 manager8a3fa496b2f21b0a1767339b86dd0b705796ddf32cbe264507fa575cb1fc910f and C24808edae62aa636cd7cc280586307b427228c09dc17cd9f80c7cd93ab7f806b have independent scoped SOURCE GO; combined Native worker/MOVE gates still block freeze. Actual worker Pause during consumed release is a concrete RED: its generic generation invalidation strands post-ACK cleanup. It must be resolved at the existing owner without dropping truthful status or accepting foreign/stale writers.
 
 ### Read-only playback v3 and HA transport — reviewed integration increments
 
@@ -122,9 +162,9 @@ of configured SpeakersClient means legacy behavior, not transient Native failure
 Seek/shuffle/repeat/content/library/source selection are explicit remaining ingress
 work; this five-operation result does not claim full HA parity or audible output.
 
-Canonical UI owner is now preparing robot+NEXT91+reviewed-v3 composition off the shared
-candidate. Its review found robot-only revocation globally invalidating music custody;
-that independent UI delta is being fixed before adoption. No shared assets copied yet.
+Canonical UI composition is integrated. The reviewed payload includes domain isolation
+for robot-only revocation, which previously invalidated music custody. No Green
+installation or full backend/physical acceptance is inferred.
 
 ### Queue reconciliation and history IO — reviewed source results
 

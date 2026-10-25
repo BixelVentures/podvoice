@@ -56,7 +56,7 @@ export function updateResourceTile(b,r){
  if(b.dataset.resourceStatus!==(r.resourceStatus||r.status||''))b.dataset.resourceStatus=r.resourceStatus||r.status||'';
  const observedState=r.resourceStatus||r.status,kitState=r.status==='pending'?'pending':observedState==='unavailable'?'unavailable':r.stale===true?'stale':observedState==='unknown'?'unknown':['fault','error'].includes(observedState)?'error':'ready';if(b.dataset.kitState!==kitState)b.dataset.kitState=kitState;
  const facts=updateResourceFacts(b,r),factIds=new Set(facts?.items.map(item=>item.id)||[]);
- const pending=r.status==='pending',busy=String(pending);
+ const pending=r.status==='pending'||r.pending===true,busy=String(pending);
  if(b.getAttribute('aria-busy')!==busy)b.setAttribute('aria-busy',busy);
  const timer=r.kind==='timer',done=timer&&r.status==='done',reading=done?'Tiden er gået':String(r.value??''),timerDetail=timer?(r.displayState||(r.stale||r.status!=='running'||!Number.isFinite(r.deadline)?timerStateLabel(r):`Slutter ${new Date(r.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}`)):r.detail,rawDetail=done&&timerDetail===reading?'':String(timerDetail??'');
  // Device telemetry belongs beside its status, never on top of the family icon.
@@ -67,7 +67,7 @@ export function updateResourceTile(b,r){
  // CSS chooses the visible role; the full source title owns the accessible name.
  const fullTitle=title.querySelector?.('.resource-title-full')||title,shortTitle=title.querySelector?.('.resource-title-short'),fullText=String(r.title??''),shortText=({vacuum:'Robot',light:'Lys',timer:'Timer',vehicle:'Tesla'})[r.kind]||fullText;
  if(fullTitle.textContent!==fullText)fullTitle.textContent=fullText;if(shortTitle&&shortTitle.textContent!==shortText)shortTitle.textContent=shortText;
- const vacuum=r.kind==='vacuum',robotStatus=r.resourceStatus||r.status,robotLabel=({cleaning:'Gør rent',paused:'På pause',docking:'På vej til basen',returning:'På vej til basen',docked:'Ved basen',stopped:'Stoppet',complete:'Rengøring afsluttet',fault:'Kræver hjælp',error:'Kræver hjælp',unknown:'Ukendt',unavailable:'Ikke forbundet'})[robotStatus]||'Ukendt';
+ const vacuum=r.kind==='vacuum',robotStatus=r.resourceStatus||r.status,robotLabel=(typeof r.displayState==='string'&&r.displayState.trim()?r.displayState.trim().slice(0,160):null)||({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',returning:'På vej til basen',docked:'Ved basen',stopped:'Stoppet',complete:'Rengøring afsluttet',fault:'Kræver hjælp',error:'Kræver hjælp',unknown:'Ukendt',unavailable:'Ikke forbundet'})[robotStatus]||'Ukendt';
  const knownBattery=vacuum&&/^\d+(?:[.,]\d+)? %$/.test(reading)&&Number(reading.slice(0,-2).replace(',','.'))>=0&&Number(reading.slice(0,-2).replace(',','.'))<=100?`Batteri ${reading}`:'';
  const stale=vacuum&&(/^Sidst kendt/.test(rawDetail)||r.stale===true),fault=vacuum&&['fault','error'].includes(robotStatus),context=vacuum&&rawDetail.startsWith('Rengør · ')?rawDetail.slice('Rengør · '.length):'';
  const knownProgress=vacuum&&!stale&&robotStatus==='cleaning'&&Number.isFinite(r.progress)&&r.progress>=0&&r.progress<=100?`${r.progress.toLocaleString('da-DK',{maximumFractionDigits:1})} % færdig`:'';
@@ -80,9 +80,10 @@ export function updateResourceTile(b,r){
  const lightCount=r.kind==='light'&&['on','off','mixed'].includes(observedState)?facts?.items.find(item=>item.id==='on-count'&&item.label==='Tændt'&&/^\d+ af \d+$/.test(item.value)):null;
  const size=b.overviewShell?.dataset.kitSize||b.dataset.kitSize,overviewRobot=vacuum&&b.parentNode?.id!=='resource-rail',lightStatus=lightCount?[pending?'Afventer svar':'',lightCount.stale||r.stale===true?'Sidst kendt':'',Number(lightCount.value.split(' ')[0])?'Tændt':'Slukket'].filter(Boolean).join(' · '):visibleDetail;
  const batteryFact=facts?.items.find(item=>item.id==='battery'),roomFact=facts?.items.find(item=>item.id==='room'),mediumBattery=knownBattery||(batteryFact?`Batteri ${batteryFact.value}${batteryFact.stale&&!stale?' · sidst kendt':''}`:''),mediumContext=context||roomFact?.value||'';
- const secondaryDetail=vacuum?(overviewRobot?[robotFeedback,...(unknownOutcome?[]:[mediumBattery,mediumContext])]:[robotFeedback,factIds.has('room')?'':context,factIds.has('progress')?'':knownProgress,factIds.has('battery')?'':knownBattery]).filter(Boolean).join(' · '):r.kind==='light'?lightStatus:pending?visibleDetail:lightStatus;if(detail.textContent!==secondaryDetail)detail.textContent=secondaryDetail;const detailHidden=!secondaryDetail;if(detail.hidden!==detailHidden)detail.hidden=detailHidden;
+ const customRobotDetail=typeof r.displayState==='string'&&r.displayState.trim()&&rawDetail.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')!==robotLabel.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')?rawDetail:'',distinctRobotFeedback=robotFeedback.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')===robotLabel.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')?'':robotFeedback;
+ const secondaryDetail=vacuum?(customRobotDetail?[customRobotDetail]:overviewRobot?[distinctRobotFeedback,...(unknownOutcome?[]:[mediumBattery,mediumContext])]:[distinctRobotFeedback,factIds.has('room')?'':context,factIds.has('progress')?'':knownProgress,factIds.has('battery')?'':knownBattery]).filter(Boolean).join(' · '):r.kind==='light'?lightStatus:pending?visibleDetail:lightStatus;if(detail.textContent!==secondaryDetail)detail.textContent=secondaryDetail;const detailHidden=!secondaryDetail;if(detail.hidden!==detailHidden)detail.hidden=detailHidden;
 
- const value=b.querySelector('.resource-value'),dialValue=timer?reading:vacuum?[stale&&robotStatus!=='unavailable'?'Sidst kendt':'',robotLabel].filter(Boolean).join(' · '):lightCount?.value||'';if(value.textContent!==dialValue)value.textContent=dialValue;const valueHidden=!timer&&!vacuum&&!lightCount;if(value.hidden!==valueHidden)value.hidden=valueHidden;
+ const value=b.querySelector('.resource-value'),dialValue=timer?reading:vacuum?[stale&&robotStatus!=='unavailable'&&!robotLabel.startsWith('Sidst kendt')?'Sidst kendt':'',robotLabel].filter(Boolean).join(' · '):lightCount?.value||'';if(value.textContent!==dialValue)value.textContent=dialValue;const valueHidden=!timer&&!vacuum&&!lightCount;if(value.hidden!==valueHidden)value.hidden=valueHidden;
  const hasValue=String(!!lightCount);if(r.kind==='light'&&b.dataset.hasOverviewValue!==hasValue)b.dataset.hasOverviewValue=hasValue;
  const icon=b.querySelector('.resource-visual img');if(icon.hidden)icon.hidden=false;
  const source=`assets/icons/${timer?'timer':r.kind==='vacuum'?'vacuum':r.kind==='vehicle'?'car-front':'lightbulb'}.svg`;
@@ -101,12 +102,13 @@ export function updateResourceTile(b,r){
 // The kit decides whether a resource overview may expose an actual command.
 // Whole-card navigation already opens detail; it never needs a duplicate CTA.
 // The domain supplies admitted actions. This policy never invents live authority.
-export function resourceOverviewAction(resource,{connected=false,live=false,actions=[],canControl=false,size}={}){
+export function resourceOverviewAction(resource,{connected=false,live=false,actions=[],canControl=false,size,liveAction=null}={}){
  // S cards keep one whole-tile navigation target. Only the existing M Robot
  // can expose its already admitted Pause/Continue command in the overview.
- if(!resource||resource.kind!=='vacuum'||size==='s'||!connected||live||resource.live||!canControl||resource.presentationOnly||resource.stale)return null;
+ if(!resource||resource.kind!=='vacuum'||size==='s'||!connected||!canControl||resource.presentationOnly||resource.stale)return null;
  const id=({cleaning:'pause',paused:'resume'})[resource.status];
- const admitted=id&&actions.find(action=>action.id===id);if(!admitted)return null;
+ const isLive=live||resource.live;
+ const admitted=isLive?(liveAction?.id===id&&liveAction.resourceId===resource.id&&liveAction.status===resource.status&&liveAction.revision===resource.revision?liveAction:null):id&&actions.find(action=>action.id===id);if(!admitted)return null;
  const label=({pause:'Pause',resume:'Fortsæt',turn_on:'Tænd',turn_off:'Sluk'})[id];
- return {id,label,ariaLabel:admitted.label||label,disabled:!!resource.pending};
+ return {id,label,ariaLabel:admitted.label||label,disabled:!!resource.pending||!!admitted.disabled};
 }

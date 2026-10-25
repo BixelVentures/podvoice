@@ -82,3 +82,27 @@ export function createKitDialog({document=globalThis.document,title='',descripti
  node.dialogParts={header,heading,description:copy,content,close:closeButton};node.append(header);if(description)node.append(copy);node.append(content);
  applyKitDialog(node,{header,description:description?copy:null,content,close:closeButton,variant});return node;
 }
+
+/** ListRow disclosure composition. Domain content and effects remain with owner. */
+export function createKitDisclosure({document=globalThis.document,id,title,description='',expanded=false,onToggle,iconSrc}={}){
+ if(!id)throw new TypeError('Disclosure needs a stable id');
+ const node=document.createElement('section'),trigger=createKitComponent('listrow',{document,label:title}),copy=document.createElement('span'),heading=document.createElement('strong'),detail=document.createElement('small'),panel=document.createElement('div');
+ node.className='pv-kit-disclosure';trigger.type='button';trigger.id=id+'-trigger';panel.id=id+'-panel';heading.textContent=title;detail.textContent=description;copy.append(heading,detail);trigger.append(copy);node.append(trigger,panel);trigger.setAttribute('aria-controls',panel.id);panel.setAttribute('aria-labelledby',trigger.id);
+ if(iconSrc){const icon=createKitComponent('icon',{document,tag:'img'});icon.src=iconSrc;icon.alt='';trigger.append(icon);}
+ const setExpanded=value=>{expanded=!!value;if(!expanded&&panel.contains?.(document.activeElement))trigger.focus?.();attribute(trigger,'aria-expanded',expanded);panel.hidden=!expanded;};
+ const setDescription=value=>{detail.textContent=value||'';detail.hidden=!value;};
+ trigger.addEventListener('click',()=>{setExpanded(!expanded);onToggle?.(expanded);});setExpanded(expanded);setDescription(description);
+ return {node,trigger,panel,setExpanded,setDescription};
+}
+
+/** Native single-choice inputs use existing Chip visuals and native arrow keys. */
+export function createKitChoiceGroup({document=globalThis.document,id,label,choices=[],value,onChange}={}){
+ if(!id)throw new TypeError('Choice group needs a stable id');
+ const node=document.createElement('fieldset'),legend=document.createElement('legend'),row=document.createElement('div'),inputs=[];
+ node.className='pv-kit-choice-group';legend.textContent=label;row.className='pv-kit-choice-options';node.append(legend,row);let selected=value,blocked=false;
+ const setValue=next=>{selected=next;for(const input of inputs)if(input.checked!==(input.value===String(next)))input.checked=input.value===String(next);};
+ for(const choice of choices){const item=typeof choice==='string'?{value:choice,label:choice}:choice,option=createKitComponent('chip',{document,tag:'label'}),input=document.createElement('input'),text=document.createElement('span');input.type='radio';input.name=id;input.value=String(item.value);input.id=id+'-'+inputs.length;text.textContent=item.label;option.classList?.add('pv-kit-choice-label');option.append(input,text);row.append(option);inputs.push(input);input.addEventListener('change',()=>{if(blocked||input.disabled){setValue(selected);return;}if(input.checked){selected=input.value;onChange?.(selected);}});}
+ const setDisabled=value=>{blocked=!!value;attribute(node,'aria-disabled',blocked);for(const input of inputs)attribute(input,'aria-disabled',blocked);};
+ const setChoiceDisabled=(choice,disabled)=>{const input=inputs.find(item=>item.value===String(choice));if(input)input.disabled=!!disabled;};
+ setValue(value);return {node,inputs,setValue,setDisabled,setChoiceDisabled};
+}

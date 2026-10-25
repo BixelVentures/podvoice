@@ -157,10 +157,13 @@ class PodVoiceReply : public Component {
   bool button_stop_latched() const { return button_stop_latched_; }
   void stop_from_button() {
     if (button_stop_latched_) return;
+    const bool already_stopping = state_.phase == ReplyState::STOPPING;
     button_stop_latched_ = true;
     context_.stop_from_button(); request_context_();
     state_.cancel(state_.token, false);
     state_.blocked = true;
+    // Join this reply's existing drain without restarting its fence or deadline.
+    if (already_stopping) return;
     stop_();
   }
   bool ready_to_rearm() const {

@@ -1,9 +1,9 @@
 // Optional closed read contract. Values cannot enable controls or imply physical proof.
-const groups={duration:['cleaning_time','total_cleaning_time','main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left','mop_drying_remaining_time'],area:['cleaning_area','total_cleaning_area'],percent:['battery','clean_percent','volume'],timestamp:['last_clean_start','last_clean_end'],text:['current_room','status','vacuum_error','dock_error','mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'],bool:['battery_charging','in_cleaning','water_shortage','mop_attached','water_box_attached','dirty_box_full','clean_box_empty','mop_drying_status','child_lock','dnd_switch','mop_drying'],clock:['dnd_start_time','dnd_end_time'],count:['total_cleaning_count']};
+const groups={duration:['cleaning_time','total_cleaning_time','main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left','mop_drying_remaining_time'],area:['cleaning_area','total_cleaning_area'],percent:['battery','clean_percent','volume'],timestamp:['last_clean_start','last_clean_end'],text:['current_room','status','vacuum_error','dock_error','mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'],bool:['battery_charging','in_cleaning','water_shortage','mop_attached','water_box_attached','dirty_box_full','clean_box_empty','mop_drying_status','child_lock','dnd_switch','mop_drying','mop_washing','dust_emptying'],clock:['dnd_start_time','dnd_end_time'],count:['total_cleaning_count']};
 const kinds=new Map(Object.entries(groups).flatMap(([kind,keys])=>keys.map(key=>[key,kind]))),entities=/^(sensor|binary_sensor|select|switch|number|time)\.[a-z0-9_]+$/;
-const labels={main_brush_time_left:'Hovedbørste',side_brush_time_left:'Sidebørste',filter_time_left:'Filter',sensor_time_left:'Sensorer',cleaning_brush_time_left:'Dockbørste',strainer_time_left:'Dockfilter',mop_drying_remaining_time:'Tørring tilbage',total_cleaning_area:'Samlet areal',total_cleaning_time:'Samlet tid',total_cleaning_count:'Rengøringer i alt',clean_box_empty:'Rent vand mangler',dirty_box_full:'Snavset vandbeholder fuld',water_shortage:'Vandmangel',mop_drying_status:'Moppetørring',mop_drying:'Moppetørring',battery:'Batteri',mop_attached:'Moppe monteret',water_box_attached:'Vandbeholder monteret',battery_charging:'Oplader',child_lock:'Børnelås',dnd_switch:'Forstyr ikke',dnd_start_time:'Forstyr ikke fra',dnd_end_time:'Forstyr ikke til',volume:'Robotens lydstyrke',mop_intensity:'Moppeintensitet',mop_mode:'Moppetilstand',cleaning_mode:'Rengøringstilstand',selected_map:'Valgt kort',dust_collection_mode:'Tømningstilstand',vacuum_error:'Robotfejl',dock_error:'Dockfejl'};
+const labels={main_brush_time_left:'Hovedbørste',side_brush_time_left:'Sidebørste',filter_time_left:'Filter',sensor_time_left:'Sensorer',cleaning_brush_time_left:'Dockbørste',strainer_time_left:'Dockfilter',mop_drying_remaining_time:'Tørring tilbage',total_cleaning_area:'Samlet areal',total_cleaning_time:'Samlet tid',total_cleaning_count:'Rengøringer i alt',clean_box_empty:'Rent vand mangler',dirty_box_full:'Snavset vandbeholder fuld',water_shortage:'Vandmangel',mop_drying_status:'Moppetørring',mop_drying:'Moppetørring',mop_washing:'Moppevask',dust_emptying:'Tømning af støvbeholder',battery:'Batteri',mop_attached:'Moppe monteret',water_box_attached:'Vandbeholder monteret',battery_charging:'Oplader',child_lock:'Børnelås',dnd_switch:'Forstyr ikke',dnd_start_time:'Forstyr ikke fra',dnd_end_time:'Forstyr ikke til',volume:'Robotens lydstyrke',mop_intensity:'Moppeintensitet',mop_mode:'Moppetilstand',cleaning_mode:'Rengøringstilstand',selected_map:'Valgt kort',dust_collection_mode:'Tømningstilstand',vacuum_error:'Robotfejl',dock_error:'Dockfejl'};
 const careKeys=new Set(['main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left']);
-const detailGroups={maintenance:['main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left','total_cleaning_area','total_cleaning_time','total_cleaning_count','vacuum_error'],dock:['mop_drying_remaining_time','clean_box_empty','dirty_box_full','water_shortage','mop_drying_status','mop_drying','battery','mop_attached','water_box_attached','battery_charging','dock_error'],settings:['child_lock','dnd_switch','dnd_start_time','dnd_end_time','volume','mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode']};
+const detailGroups={maintenance:['main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left','cleaning_brush_time_left','strainer_time_left','total_cleaning_area','total_cleaning_time','total_cleaning_count','vacuum_error'],dock:['mop_drying_remaining_time','clean_box_empty','dirty_box_full','water_shortage','mop_drying_status','mop_drying','mop_washing','dust_emptying','battery','mop_attached','water_box_attached','battery_charging','dock_error'],settings:['child_lock','dnd_switch','dnd_start_time','dnd_end_time','volume','mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode']};
 const detailGroup=new Map(Object.entries(detailGroups).flatMap(([group,keys])=>keys.map(key=>[key,group])));
 const unavailable=()=>({status:'unavailable',items:[]});
 export function robotRoom(device,now=Date.now()/1000){
@@ -17,7 +17,7 @@ export function robotObservation(value,entityId){
   if(!kind||!entities.test(row.entityId)||keys.has(row.key)||seen.has(row.entityId)||!Number.isFinite(row.updatedAt)||!Number.isFinite(row.retrievedAt)||row.updatedAt<0||row.updatedAt>row.retrievedAt+1||row.retrievedAt<0||row.retrievedAt>Date.now()/1000+1||typeof row.stale!=='boolean')return unavailable();
   if(['duration','area','percent','timestamp','count'].includes(kind)&&(!Number.isFinite(v)||Math.abs(v)>1e12))return unavailable();
   if(kind==='duration'&&!['s','min','h'].includes(u)||kind==='area'&&(u!=='m²'||v<0)||kind==='percent'&&(u!=='%'||v<0||v>100)||kind==='count'&&(u!==null||v<0||!Number.isInteger(v))||kind==='timestamp'&&(u!==null||v<0||v>row.retrievedAt+1)||kind==='bool'&&(typeof v!=='boolean'||u!==null)||['text','clock'].includes(kind)&&(typeof v!=='string'||!v||v.length>120||u!==null)||kind==='clock'&&!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v))return unavailable();
-  const domain=row.entityId.split('.')[0],expected=['child_lock','dnd_switch','mop_drying'].includes(row.key)?'switch':kind==='bool'?'binary_sensor':row.key==='volume'?'number':kind==='clock'?'time':['mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'].includes(row.key)?'select':'sensor';if(expected!==domain)return unavailable();
+  const domain=row.entityId.split('.')[0],expected=['child_lock','dnd_switch','mop_drying','mop_washing','dust_emptying'].includes(row.key)?'switch':kind==='bool'?'binary_sensor':row.key==='volume'?'number':kind==='clock'?'time':['mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'].includes(row.key)?'select':'sensor';if(expected!==domain)return unavailable();
   keys.add(row.key);seen.add(row.entityId);items.push({key:row.key,entityId:row.entityId,value:v,unit:u,updatedAt:row.updatedAt,retrievedAt:row.retrievedAt,stale:row.retrievedAt-row.updatedAt>300});
  }return {status:'observed',items};
 }
@@ -43,3 +43,74 @@ export function robotValue(row){
  if(careKeys.has(row.key)&&['s','min','h'].includes(row.unit)){const magnitude=Math.abs(row.value),amount=row.unit==='s'?magnitude/60:magnitude,unit=row.unit==='h'?(amount===1?'time':'timer'):'min';return `${number(amount)} ${unit} ${row.value<0?'over interval':'tilbage'}`;}
  if(row.unit==='s')return `${number(row.value/60)} min`;if(row.unit==='min'||row.unit==='h')return `${number(row.value)} ${row.unit==='h'?'timer':'min'}`;if(row.unit==='m²')return `${number(row.value)} m²`;if(row.unit==='%')return `${number(row.value)} %`;return number(row.value);
 }
+
+// Display/recovery vocabulary only; raw observations and the closed wire keys above are unchanged.
+// Error names: https://python-roborock.readthedocs.io/en/latest/error.html
+// Q Revo care: https://support.roborock.com/hc/en-us/article_attachments/48579140713497
+// Brush/charging: Roborock support articles 360035369172 and 360035369312.
+const recovery={
+ vacuum_error:{
+  lidar_blocked:['Lasersensoren er blokeret','Fjern genstande, der blokerer lasersensoren.'],
+  bumper_stuck:['Kofangeren sidder fast','Fjern genstande omkring kofangeren, og kontrollér at den kan bevæge sig.'],
+  wheels_suspended:['Hjulene mangler gulvkontakt','Placér robotten på et plant gulv væk fra kanter.'],
+  cliff_sensor_error:['Kontrollér faldsensorerne','Rengør faldsensorerne med en blød, tør klud, og flyt robotten væk fra kanter.'],
+  main_brush_jammed:['Hovedbørsten sidder fast','Sluk robotten før du fjerner hår og genstande fra hovedbørsten, dens ender og holderne.'],
+  side_brush_jammed:['Sidebørsten sidder fast','Sluk robotten, og fjern det, der blokerer sidebørsten.'],
+  wheels_jammed:['Et hjul sidder fast','Sluk robotten, og fjern genstande omkring hjulene.'],
+  robot_trapped:['Robotten sidder fast','Fjern forhindringer omkring robotten.'],
+  no_dustbin:['Kontrollér støvbeholderen','Kontrollér, at støvbeholder og filter er monteret korrekt.'],
+  low_battery:['Batteriet er lavt','Lad robotten oplade, før du starter rengøring.'],
+  charging_error:['Kan ikke oplade','Kontrollér basens strøm og placering. Rengør robot og bases ladekontakter med en tør klud.'],
+  battery_error:['Robotten melder batterifejl','Se den konkrete fejl i Roborock-appen. Kontakt support, hvis fejlen fortsætter.'],
+  wall_sensor_dirty:['Vægsensoren skal rengøres','Tør vægsensoren af med en blød, tør klud.'],
+  robot_tilted:['Robotten står skævt','Placér robotten på et plant gulv.'],
+  return_to_dock_fail:['Kan ikke finde tilbage til basen','Kontrollér, at vejen til basen er fri, og at basen ikke er flyttet.'],
+  filter_blocked:['Filteret er blokeret','Kontrollér og rengør filteret efter modellens vejledning. Et vasket filter skal være helt tørt før brug.']
+ },
+ dock_error:{
+  duct_blockage:['Tømningskanalen er blokeret','Afbryd strømmen til basen før du kontrollerer støvpose, beholdere og tilgængelige luftkanaler.'],
+  water_empty:['Rent vand mangler','Fyld beholderen med rent vand, og sæt den korrekt på plads.'],
+  waste_water_tank_full:['Snavset vandbeholder er fuld','Tøm beholderen med snavset vand, og sæt den korrekt på plads.'],
+  dirty_tank_latch_open:['Vandbeholderen er ikke lukket','Luk beholderens låg og lås, og kontrollér at beholderen sidder korrekt.'],
+  no_dustbin:['Kontrollér basens støvbeholder','Kontrollér støvpose og dæksel på basen.'],
+  cleaning_tank_full_or_blocked:['Vaskebakken skal kontrolleres','Kontrollér og rengør den aftagelige vaskebakke og dens filter efter modellens vejledning.']
+ }
+};
+const errorNumbers={vacuum_error:{1:'lidar_blocked',2:'bumper_stuck',3:'wheels_suspended',4:'cliff_sensor_error',5:'main_brush_jammed',6:'side_brush_jammed',7:'wheels_jammed',8:'robot_trapped',9:'no_dustbin',12:'low_battery',13:'charging_error',14:'battery_error',15:'wall_sensor_dirty',16:'robot_tilted',23:'return_to_dock_fail',29:'filter_blocked'},dock_error:{34:'duct_blockage',38:'water_empty',39:'waste_water_tank_full',44:'dirty_tank_latch_open',46:'no_dustbin',53:'cleaning_tank_full_or_blocked'}};
+const activityLabels={washing_the_mop:'Vasker moppe',washing_mop:'Vasker moppe',going_to_wash_the_mop:'På vej til moppevask',going_to_wash_mop:'På vej til moppevask',emptying_the_bin:'Tømmer støvbeholder',emptying_dustbin:'Tømmer støvbeholder',drying_the_mop:'Tørrer moppe',drying_mop:'Tørrer moppe'};
+const waterRecovery={clean_box_empty:['Rent vand mangler','Fyld beholderen med rent vand, og sæt den korrekt på plads.'],dirty_box_full:['Snavset vandbeholder er fuld','Tøm beholderen med snavset vand, og sæt den korrekt på plads.'],water_shortage:['Robotten mangler vand','Kontrollér beholderen med rent vand og dens placering.']};
+// One bounded projection for Hero, overview and Ro. Neither in_cleaning nor a dock
+// state proves task identity, automatic resumption, completion, or command authority.
+export function robotExperience(device,now=Date.now()/1000){
+ const stale=!!device?.stale||['unavailable','unknown'].includes(device?.status),rows=device?.telemetry?.status==='observed'?device.telemetry.items||[]:[];
+ const fresh=row=>!stale&&row&&!row.stale&&Number.isFinite(row.updatedAt)&&row.updatedAt<=now+1&&now-row.updatedAt<=300;
+ const get=key=>{const row=rows.find(value=>value.key===key);return fresh(row)?row:null;},value=key=>get(key)?.value;
+ const issues=[];
+ for(const key of ['vacuum_error','dock_error']){const row=get(key);if(!row||typeof row.value!=='string'||['none','no_error','ok','0'].includes(row.value.toLowerCase()))continue;
+  const raw=row.value,normal=raw.toLowerCase(),code=Object.hasOwn(errorNumbers[key],normal)?errorNumbers[key][normal]:normal,known=Object.hasOwn(recovery[key],code)?recovery[key][code]:null;
+  issues.push({key,title:known?.[0]||(key==='dock_error'?'Basen melder en fejl':'Robotten melder en fejl'),help:known?.[1]||'Se den konkrete fejl i Roborock-appen eller modellens vejledning.',raw,severity:'attention'});
+ }
+ for(const [key,copy] of Object.entries(waterRecovery))if(value(key)===true&&!issues.some(issue=>issue.title===copy[0]))issues.push({key,title:copy[0],help:copy[1],raw:true,severity:'attention'});
+ const maintenance=rows.filter(row=>careKeys.has(row.key)&&fresh(row)&&row.value<=0).map(row=>({key:row.key,title:`${labels[row.key]} skal vedligeholdes`,help:'Rengør eller udskift efter modellens vejledning. Nulstil først intervallet, når vedligeholdelsen er udført.',value:robotValue(row),severity:'reminder'}));
+ const jobActive=typeof value('in_cleaning')==='boolean'?value('in_cleaning'):null,charging=typeof value('battery_charging')==='boolean'?value('battery_charging'):null,battery=typeof value('battery')==='number'?value('battery'):null;
+ // dnd_switch is the enabled schedule, not proof that DND is active right now.
+ const dnd={enabled:typeof value('dnd_switch')==='boolean'?value('dnd_switch'):null,start:value('dnd_start_time')??null,end:value('dnd_end_time')??null};
+ let activity=null;
+ if(!stale&&!['fault','error','unavailable','unknown'].includes(device?.status)&&device?.telemetry?.status==='observed'){
+  const status=value('status'),operations=[['mop_washing','Vasker moppe'],['dust_emptying','Tømmer støvbeholder'],['mop_drying','Tørrer moppe']].filter(([key])=>value(key)===true);
+  if(value('mop_drying_status')===true&&!operations.some(([key])=>key==='mop_drying'))operations.push(['mop_drying_status','Tørrer moppe']);
+  // A specific fresh robot status can resolve disagreeing switch reports. Without
+  // it there is no invented washing/emptying/drying priority or charging fallback.
+  if(typeof status==='string'&&Object.hasOwn(activityLabels,status))activity=activityLabels[status];
+  else if(operations.length>1)issues.push({key:'dock_activity_conflict',title:'Basens aktivitet er uklar',help:'Flere aktiviteter meldes aktive. Afvent en ny status, eller kontrollér Roborock-appen.',raw:operations.map(([key])=>key).join(', '),severity:'attention'});
+  else if(operations.length===1)activity=operations[0][1];
+  else if(['docked','stopped'].includes(device?.status)){
+   if(charging===true||status==='charging'&&charging!==false)activity=jobActive===true?'Oplader · turen er ikke afsluttet':'Oplader';
+   else if(status==='charging_complete'&&charging!==true)activity='Opladet';
+  }
+ }
+ return {activity,jobActive,battery,charging,dnd,issues,maintenance,stale};
+}
+// Legacy label consumers explicitly prefix device.stale with “Sidst kendt”. Retain
+// that last observed label while robotExperience exposes current facts strictly.
+export function robotActivity(device,now=Date.now()/1000){return robotExperience(device?.stale?{...device,stale:false}:device,now).activity;}

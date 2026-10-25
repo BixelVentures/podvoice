@@ -90,6 +90,56 @@ def test_multiple_same_name_require_exact_id_and_cannot_cross_device(bridge):
     assert bridge.snapshot("talk")["timers"][0]["id"] == talk["id"]
 
 
+def test_successful_cancel_fences_held_finish_without_crossing_room_or_core_epoch(bridge):
+    created = command(bridge, action="start", seconds=30)
+    held_timer = bridge.manager.timers[created["id"]]
+    held_callback = bridge.manager.handlers["ha-kitchen"]
+    result = command(bridge, "cancel", action="cancel", timer_id=created["id"])
+    assert result["state"] == "cancelled"
+    assert command(bridge, "cancel", action="cancel", timer_id=created["id"]) == result
+    assert (
+        command(bridge, "second-stop", action="cancel", timer_id=created["id"])["error"]
+        == "timer_not_found"
+    )
+    held_timer.seconds_left, held_timer.is_active = 0, False
+    # Inject a held native callback; this does not claim Core emits this ordering.
+    held_callback("finished", held_timer)
+    held_callback("finished", held_timer)
+    assert bridge.snapshot("kitchen")["finished"] == []
+    foreign = SimpleNamespace(**{**vars(held_timer), "device_id": "ha-talk"})
+    held_callback("finished", foreign)
+    assert bridge.snapshot("kitchen")["finished"] == []
+    bridge.manager.handlers["ha-talk"]("finished", foreign)
+    assert bridge.snapshot("talk")["finished"][0]["id"] == created["id"]
+    restarted = TimerBridge(CoreTimers(), {"kitchen": "ha-kitchen"})
+    next_timer = command(restarted, action="start", seconds=30)
+    assert next_timer["id"] == created["id"] and restarted.epoch != bridge.epoch
+    assert not restarted.command(
+        endpoint="kitchen",
+        epoch=bridge.epoch,
+        request_id="old-cancel",
+        action="cancel",
+        timer_id=next_timer["id"],
+    )["ok"]
+    restarted.manager.finish(next_timer["id"])
+    assert restarted.snapshot("kitchen")["finished"][0]["id"] == next_timer["id"]
+
+
+def test_unknown_cancel_does_not_suppress_later_native_finish(bridge, monkeypatch):
+    created = command(bridge, action="start", seconds=30)
+
+    def failed_cancel(timer_id):
+        raise RuntimeError("native cancellation outcome unknown")
+
+    monkeypatch.setattr(bridge.manager, "cancel_timer", failed_cancel)
+    result = command(bridge, "cancel", action="cancel", timer_id=created["id"])
+    assert not result["ok"] and result["error"] == "native_outcome_unknown"
+    bridge.manager.finish(created["id"])
+    row = bridge.snapshot("kitchen")["finished"][0]
+    assert row["id"] == created["id"] and row["alert_state"] == "pending"
+    assert not row["physical_stopped"] and not row["stop_requested"]
+
+
 def test_expiry_survives_client_disconnect_and_stop_is_not_physical_ack(bridge):
     created = command(bridge, action="start", seconds=1)
     timer = bridge.manager.finish(created["id"])
