@@ -6,6 +6,7 @@ ROOT = Path(__file__).parents[2]
 OVERLAY = ROOT / "esphome" / "podvoice.yaml"
 BASE = ROOT / "esphome" / "voice-pe-podvoice-base.yaml"
 REVIEWED_COMPONENT_REF = "1fec384b53af8370caf368ad3a12da8a41a891d5"
+REVIEWED_STOP_COMPONENT_REF = "dcb9fabb4ada6046dac225761634a6671a7ca01c"
 
 
 def test_vendored_base_has_auditable_provenance():
@@ -188,8 +189,9 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert f"ref: {REVIEWED_COMPONENT_REF}" in stop_source
-    assert active.count(f"ref: {REVIEWED_COMPONENT_REF}") == 3
+    assert f"ref: {REVIEWED_STOP_COMPONENT_REF}" in stop_source
+    assert active.count(f"ref: {REVIEWED_STOP_COMPONENT_REF}") == 1
+    assert active.count(f"ref: {REVIEWED_COMPONENT_REF}") == 2
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
     assert f"ref: {REVIEWED_COMPONENT_REF}" in observers
     files = sorted(
@@ -204,7 +206,7 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "0dab4aef24a587d5f1ca4a556aa3060e7b45db3cfabc48aea5bc76145e5ee77b"
+        "3138412f2afd202a0b8bf4b4008d73e436159e70ceb31a8f5bfd0cc1bd06c11b"
     )
 
 
