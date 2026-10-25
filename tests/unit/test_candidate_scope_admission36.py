@@ -123,7 +123,7 @@ def test_36_is_exact_queue_and_admin_delta_from_published_35():
         "scripts/check_podview_admin_stdin.sh"
     }
     assert (
-        admission.sha(admission.safe_file(ROOT, "scripts/check_podview_admin_stdin.sh"))
+        admission.sha(published36_bytes("scripts/check_podview_admin_stdin.sh"))
         == "63e9c696589e7660b99035dcfca5d751814cde8e1f4b6593fa908bdcda576058"
     )
     assert admission.DELETED_PRODUCTION == {}

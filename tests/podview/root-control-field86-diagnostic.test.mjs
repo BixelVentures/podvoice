@@ -88,7 +88,7 @@ test('Pause can dispatch before volume arrives and late volume cannot adopt thro
   f.host.liveTransport.controlSetup=async(d,t,r,filter)=>filter?.requestedAction==='volume'?held.promise:f.offer(['pause'],null);
   await f.view.prepareMusic();const reading=f.view.prepareVolume();
   assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.writes.length,1);
-  held.resolve(f.offer(['volume'],35));await reading;assert.equal(f.view.volumeOffer,undefined);
+  held.resolve(f.offer(['volume'],35));await reading;assert.equal(f.view.volumeOffer,null,'the superseded executable offer stays retired');assert.equal(f.view.volumeIntentOffer,undefined,'the late volume read never established intent knowledge');assert.equal(f.writes.length,1);
  }finally{f.restore();}
 });
 for(const mode of ['failure','foreign binding','UNKNOWN','disconnect','cleanup','new generation'])test(`independent volume read cannot adopt after ${mode}`,async()=>{
@@ -125,7 +125,7 @@ test('fresh independent volume stays usable during expired transport offer and h
  };
  await f.view.prepareVolume();f.advance(1001);
  const renewal=f.view.prepareMusic();f.view.renderMusicControls();
- assert.equal(f.nodes.get('play-pause').disabled,true);
+ assert.equal(f.nodes.get('play-pause').disabled,false,'known Pause remains an explicit intent requiring fresh JIT');assert.equal(f.writes.length,0);
  assert.equal(f.nodes.get('volume').disabled,false,'volume owns independent freshness, not the expired Pause grant');
  assert.equal(f.nodes.get('volume-value').textContent,'35 %');
  assert.equal(await f.view.musicIntent('volume',{percent:30}),true);
@@ -134,7 +134,7 @@ test('fresh independent volume stays usable during expired transport offer and h
  held.resolve(f.offer(['pause'],null));await renewal;
 },1));
 
-test('expired volume retains measured35 disabled while fast Pause offer never read volume',()=>expiryFixture(async f=>{
+test('expired volume retains measured35 and usable intent while only a new JIT may dispatch',()=>expiryFixture(async f=>{
  f.view.musicOffer.task.options=f.view.musicOffer.task.options.filter(o=>o.action!=='volume');
  f.view.musicOffer.task.volume=null;f.view.musicOffer.task.expiresAt=Date.now()/1000+10;
  const held=deferred();let reads=0;
@@ -145,10 +145,10 @@ test('expired volume retains measured35 disabled while fast Pause offer never re
  };
  await f.view.prepareVolume();assert.equal(f.nodes.get('volume-value').textContent,'35 %');
  const expiry=f.callbacks.at(-1);f.advance(1001);expiry();await f.flush();
- assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,true);
+ assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);
  assert.equal(f.nodes.get('volume-value').textContent,'35 %','not reading volume cannot erase its last measured value');
- assert.equal(await f.view.musicIntent('volume',{percent:30}),false,'retained measurement never grants control');
- held.resolve({ok:false});await f.flush();assert.equal(f.nodes.get('volume-value').textContent,'35 %');
+ const intent=f.view.musicIntent('volume',{percent:30});assert.equal(f.writes.length,0,'clickability is not authority while JIT is held');
+ held.resolve({ok:false});assert.equal(await intent,false,'malformed fresh setup cannot dispatch');await f.flush();assert.equal(f.nodes.get('volume-value').textContent,'35 %');
 }));
 
 test('held setup A cannot block new item B or clear its newer pending read on late completion',async()=>{
@@ -183,17 +183,17 @@ test('failed explicit Pause setup retires consumed display grant; only newer sou
  }finally{f.restore();}
 });
 
-test('failed volume-only preparation preserves unused Pause and renews only volume on a newer poll',async()=>{
+test('failed volume preparation retires sibling grants while preserving intents and renews only from newer source',async()=>{
  const f=fixture();let volumeCalls=0,fail=false;
  try{
   f.host.liveTransport.controlSetup=async(d,t,r,filter)=>{if(filter?.requestedAction==='volume'){volumeCalls++;if(fail)throw Error('503');return f.offer(['volume'],35);}return f.offer(['pause'],null);};
   await f.view.prepareMusic();await f.view.prepareVolume();const pause=f.view.musicOffer,attempt=f.view.musicAttempt;
   fail=true;assert.equal(await f.view.musicIntent('volume',{percent:30}),false);
-  assert.equal(f.view.musicOffer,pause);assert.equal(f.view.musicAttempt,attempt);assert.equal(f.view.spent.has(pause.task.taskId),false);
-  assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,true);
+  assert.equal(f.view.musicOffer,null,'global sequence sibling is no longer executable');assert.equal(f.view.musicAttempt,null);assert.equal(f.view.musicIntentOffer.task,pause.task,'only same-owner presentation knowledge survives');assert.equal(f.view.spent.has(pause.task.taskId),false);
+  assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.writes.length,0);
   fail=false;await f.view.prepareVolume();assert.equal(volumeCalls,2,'same poll cannot retry');
-  f.host.liveMedia.playback.poll_sequence++;await f.view.prepareVolume();
-  assert.equal(volumeCalls,3);assert.equal(f.view.musicOffer,pause);assert.equal(f.view.musicFence,null);
+  f.host.liveMedia.playback.poll_sequence++;await f.view.prepareMusic();await f.view.prepareVolume();
+  assert.equal(volumeCalls,3);assert.notEqual(f.view.musicOffer.task.taskId,pause.task.taskId,'fresh siblings use new server tasks');assert.equal(f.view.musicFence,null);
   assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.writes.length,0);
  }finally{f.restore();}
 });

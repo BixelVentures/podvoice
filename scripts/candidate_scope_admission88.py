@@ -90,8 +90,16 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-field88-screen-settings.test.mjs",
         "tests/podview/canonical-next-live-media-view.test.mjs",
         "tests/podview/canonical-next-native-music-controls.test.mjs",
+        "tests/podview/music-control-catalogue-independence.test.mjs",
         "tests/podview/queue-occurrence.test.mjs",
+        "tests/podview/root-control-field86-diagnostic.test.mjs",
+        "tests/podview/root-live-media-view.test.mjs",
         "tests/podview/root-live-queue-occurrence.test.mjs",
+        "tests/podview/root-live-queue-view.test.mjs",
+        "tests/podview/root-native-music-controls.test.mjs",
+        "tests/podview/root-screen-settings.test.mjs",
+        "tests/unit/test_admin_stdin_cleanup.py",
+        "tests/unit/test_candidate_scope_admission36.py",
         "tests/unit/test_candidate_scope_admission87.py",
         "tests/unit/test_candidate_scope_admission88.py",
         "tests/unit/test_client_diagnostics_store.py",
@@ -108,8 +116,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/admission34"
-MANIFEST_SHA = "b4a80c385df75e19be21e306e6d15384d235fded25a0c3b1669947ef82e50f1f"
-PROFILE_AST = "2280b8dbbc21b6334230e9df227266fb53d9c153163207dac753059791b81eaa"
+MANIFEST_SHA = "e749e9a2c3858d0ada1f03a3e9850648564ca73effd5f7bdc2cfd192a33140a6"
+PROFILE_AST = "b9e4cd62f6ab3d06d1dad87a9b4565838278c003af24db5d4f5575c3ef4ec885"
 
 
 def record_at(root: Path) -> dict | None:

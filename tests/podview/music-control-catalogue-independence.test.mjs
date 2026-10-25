@@ -33,15 +33,16 @@ function fixture(){
  return {host,media,selection,controls,catalogue,nodes,reads,writes,catalogueReads,offer,playback,setupCalls:()=>setupCalls,holdSetup:port=>setupPort=port,holdAction:port=>actionPort=port,advance:ms=>clock+=ms,newPoll:nextState=>{poll++;if(nextState)state=nextState;},refreshCatalogue(){catalogue.refresh();catalogue.tracks('top',collection,'account');},async ready(){await media.refresh({immediate:true});await settle();assert.equal(node('play-pause').disabled,false);assert.equal(node('volume').disabled,false);},restore(){host.isConnected=false;host.playerView.cleanup();media.acceptedRefresh?.stop?.('cancelled');controls.cleanup();selection.cleanup();clearTimeout(catalogue.expiryTimer);media.queueControls.invalidate(true);globalThis.document=priorDocument;Date.now=priorNow;}};
 }
 const disabled=f=>{assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);};
+const intentAvailable=f=>{assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);};
 
-test('catalogue refresh alone cannot renew an expired offer; a new playback poll and released setup do',async()=>{
+test('catalogue refresh retains explicit intent but cannot renew an expired offer; a new playback poll and released setup do',async()=>{
  const f=fixture();try{
   await f.ready();const firstTask=f.controls.musicOffer.task.taskId,reads=f.setupCalls(),item=f.media.playback.item.uri;
-  f.advance(3001);f.media.render();disabled(f);assert.equal(f.nodes.get('volume').value,'35');
-  f.refreshCatalogue();await settle();disabled(f);assert.equal(f.setupCalls(),reads);assert.equal(f.media.playback.item.uri,item);assert.equal(f.controls.musicOffer.task.taskId,firstTask);
-  await f.media.refresh({immediate:true});await settle();disabled(f);assert.equal(f.setupCalls(),reads,'same PC poll does not admit another setup');
-  const hold=deferred();f.holdSetup(()=>hold.promise);f.newPoll();await f.media.refresh({immediate:true});disabled(f);assert.equal(f.setupCalls(),reads+1);assert.equal(f.controls.musicReadPending,true);
-  f.refreshCatalogue();await settle();disabled(f);assert.equal(f.setupCalls(),reads+1,'catalogue neither duplicates nor cancels held setup');
+  f.advance(3001);f.media.render();intentAvailable(f);assert.equal(f.nodes.get('volume').value,'35');
+  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.setupCalls(),reads);assert.equal(f.media.playback.item.uri,item);assert.equal(f.controls.musicOffer.task.taskId,firstTask);assert.ok(f.controls.musicOffer.task.expiresAt*1000<=Date.now(),'retained intent is not a renewed executable offer');
+  await f.media.refresh({immediate:true});await settle();intentAvailable(f);assert.equal(f.setupCalls(),reads,'same PC poll does not admit another setup');
+  const hold=deferred();f.holdSetup(()=>hold.promise);f.newPoll();await f.media.refresh({immediate:true});intentAvailable(f);assert.equal(f.setupCalls(),reads+1);assert.equal(f.controls.musicReadPending,true);
+  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.setupCalls(),reads+1,'catalogue neither duplicates nor cancels held setup');
   hold.resolve(f.offer());await settle();assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.notEqual(f.controls.musicOffer.task.taskId,firstTask);assert.deepEqual(f.writes,[]);
  }finally{f.restore();}
 });
@@ -49,14 +50,14 @@ test('catalogue refresh alone cannot renew an expired offer; a new playback poll
 for(const outcome of ['accepted','unknown'])test(`catalogue refresh cannot release a held control or its ${outcome} fence`,async()=>{
  const f=fixture();const setup=deferred(),action=deferred();let intent;try{
   await f.ready();const before=f.setupCalls();f.holdSetup(()=>setup.promise);f.holdAction(()=>action.promise);
-  intent=f.controls.musicIntent('pause');assert.equal(f.controls.musicIntentPending,true);disabled(f);
-  f.refreshCatalogue();await settle();disabled(f);assert.equal(f.controls.musicIntentPending,true);assert.equal(f.setupCalls(),before+1);assert.deepEqual(f.writes,[]);
-  setup.resolve(f.offer());await settle();assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);disabled(f);
-  f.refreshCatalogue();await settle();disabled(f);assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);
+  intent=f.controls.musicIntent('pause');assert.equal(f.controls.musicIntentPending,true);intentAvailable(f);assert.equal(f.host.querySelector('.player .transport').getAttribute('aria-busy'),'true');
+  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.controls.musicIntentPending,true);assert.equal(f.setupCalls(),before+1);assert.deepEqual(f.writes,[]);
+  setup.resolve(f.offer());await settle();assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);intentAvailable(f);
+  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);
   // Observation is a separate source event. The receipt never manufactures it.
   f.holdSetup(null);action.resolve({outcome});await intent;await settle();
   if(outcome==='accepted'){
-   disabled(f);assert.equal(f.controls.musicFence.outcome,'accepted');const calls=f.setupCalls();f.refreshCatalogue();await settle();disabled(f);assert.equal(f.setupCalls(),calls);assert.equal(f.media.playback.state,'playing');
+   intentAvailable(f);assert.equal(f.controls.musicFence.outcome,'accepted');const calls=f.setupCalls();f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.setupCalls(),calls);assert.equal(f.media.playback.state,'playing');
    f.newPoll('paused');await f.media.refresh({immediate:true});await settle();
    assert.equal(f.media.playback.state,'paused');assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.writes.length,1);
   }else{

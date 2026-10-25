@@ -1,3 +1,48 @@
+###88 CI corrections complete in source
+
+The six UI mirror modules retain their unique causal families and pass affected
+checks (145 plus125 cases). The QA cleanup restores invoking-user ownership only
+on its disposable /data before removing the named container, preserves0700 modes
+and outside symlink targets, fails an otherwise-green probe on cleanup failure and
+retains the original failed-probe exit code. Old script reproduced the permission/
+exit-status defect; fixed fake-Docker and actual isolated Linux permission cases
+pass, with shell syntax and Python lint/format. Production runtime and203 UI bytes
+remain identical to the first frozen88 source. Only these invalidated test/tooling
+checks and exact derived metadata need correction; prior successful results remain.
+
+Green activation result: Control0.10.23 was downloaded, one HA Core restart completed
+and reconnected. A fresh read-only native queue response has20 rows and an absolute
+expiry exactly equal to its original source bound (zero overshoot). The unmodified
+DTO passes strict PodVoice projection at explicitly recorded source-age replay time;
+that is not an exact browser capture timestamp or playback/audio acceptance. No
+Play/Pause/volume/alarm/robot effects were issued.
+
+##88 official CI correction — product source unchanged
+
+First PR252 headba1ecbdd CI40204618598 passed scope/promotion, all eight unit
+partitions and aggregate, remaining test partitions and HA framework. UI-browser
+failed23/3886 in six older root integration mirrors after the new JIT/persistent
+affordance contract. Source-specific canonical adapters had passed; those omitted
+mirrors were a delivery gap. Two owners retained their causal assertions while
+updating awaited fresh-offer reads, non-authoritative known-control fixtures, shared
+intent ownership and current settings DOM. Four modules145/145 pass; two modules
+125 cases pass cumulatively. UNKNOWN/no replay, exact owner/session/binding, one
+effect per admitted task and no optimistic volume remain asserted. No runtime
+finding or source patch was justified by these fixture failures.
+
+Build image creation and actual shipped admin-stdin rejection probe passed, then
+the disposable Linux fixture cleanup failed: root-owned private diagnostics0700
+blocked host rm. Repair only the QA cleanup owner handoff before removing the
+container; retain production privacy and the original probe failure status. The
+historical36 hash assertion must read its actual published36 source, preserving
+the original hash, while88 binds the reviewed changed tooling/test bytes.
+
+Candidate remains not release-ready until these precise CI invalidations pass.
+All unchanged software/source review results are retained; no broad local retest,
+provider call or household effect is introduced. Green Control23 download confirmed;
+one authorized HA Core restart was submitted once and reconnection is pending.
+PodVoice remains installed87, Speakers53 unchanged;88 is not installed.
+
 ### Final88 software composition results
 
 Canonical component registry and kit documentation adopted unchanged from the
@@ -4767,12 +4812,12 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "base_tip": "8d08c039b54ec5503b7e1d995b1faecc5213f50f",
   "merge_base": "8d08c039b54ec5503b7e1d995b1faecc5213f50f",
   "fingerprint": "445039737d3453b0bd902b701a9a5321f3e589cecaae3fcdfbebb030bc2b2c1c",
-  "regression_fingerprint": "24a5c53e12c6b82d14363a6fcad22dc0afc2db2090699019c7c91741f2717c63",
+  "regression_fingerprint": "bd3335879e5bbd30b47a067e82fecc3c50c2cf35436bfc966065f6fa9d5cc7d5",
   "runtime_fingerprint": "f3da24e1f7d2ebd8b7710c9234761396ec18709bd8952f9125097447d77e0bed",
   "config_fingerprint": "7e1f7d00a07f0c37f9d40d5ef6b8cbf09747d7b6cecd74564d52c21748d9e819",
-  "policy_fingerprint": "06cc79d739a6ce6b144ca84c0e6c865652593089d0d430ac6c25ed60520411b6",
-  "tooling_fingerprint": "12cc38884f3545c1463d725968f87adb978cc43312b09b6e3253ebb1c913dbe0",
-  "manifest_fingerprint": "b4a80c385df75e19be21e306e6d15384d235fded25a0c3b1669947ef82e50f1f",
-  "rationale": "Independent /root/admission34 PREBIND GO binds the exact combined88 source: model-END native ownership fix with truthful delegation events; exact-room native capability projection; private bounded durable client diagnostics; final203 canonical PodView assets plus whitespace-only overlay, shared JIT intent/UNKNOWN/occurrence protections and reviewed14 CI adapters. Preserve full-duplex GPT-Live, one native lifecycle owner, actual ha_tools/physical_output classifier, all historical policy and version-only2.0.88 trio. Retain source-specific reviews, causal regressions,348 affected canonical adapter cases,20 JIT mirror cases and63-module component gate. Control0.10.23 published separately with72 HA queue cases; native Speakers0.26.53 unchanged. No semantic prompt/schema/tools/provider configuration or new household effect is introduced. Official CI, publication, combined activation and silent live readback remain separate; physical microphone/audio/LED/closure acceptance, actual spoken history and increased visual production remain open."
+  "policy_fingerprint": "5313e1f598b92911734708cd977dfb4e06b4503cce640d9dcb220e921cb39098",
+  "tooling_fingerprint": "a1ce5b3ed86a8e7d7243b817acfd2c5dd4ce47212a1698ba9f94ff38850fe3f0",
+  "manifest_fingerprint": "e749e9a2c3858d0ada1f03a3e9850648564ca73effd5f7bdc2cfd192a33140a6",
+  "rationale": "Independent /root/admission34 PREBIND GO binds the exact combined88 source: model-END native ownership fix with truthful delegation events; exact-room native capability projection; private bounded durable client diagnostics; final203 canonical PodView assets plus whitespace-only overlay, shared JIT intent/UNKNOWN/occurrence protections and reviewed14 CI adapters. Preserve full-duplex GPT-Live, one native lifecycle owner, actual ha_tools/physical_output classifier, all historical policy and version-only2.0.88 trio. Retain source-specific reviews, causal regressions,348 affected canonical adapter cases,20 JIT mirror cases and63-module component gate. Control0.10.23 published separately with72 HA queue cases; native Speakers0.26.53 unchanged. No semantic prompt/schema/tools/provider configuration or new household effect is introduced. Official CI, publication, combined activation and silent live readback remain separate; physical microphone/audio/LED/closure acceptance, actual spoken history and increased visual production remain open. Corrective CI-only PREBIND GO retains all28 production and324 runtime hashes and config4 byte-identical to the first reviewed88 export. Six root UI mirrors are aligned with the reviewed JIT contract while preserving unique causal families; cleanup tooling handles only disposable private mount ownership and preserves probe status, verified in fake-Docker and actual isolated Linux cases. Historical36 source pin now uses its already-existing exact published36 helper and original hash. Only invalidated tests/tooling and derived metadata are renewed; official first-candidate unit/rest/HA successes remain evidence for unchanged bits."
 }
 -->
