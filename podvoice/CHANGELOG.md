@@ -1,3 +1,13 @@
+## 2.0.85
+
+- Preserve an exact admitted control receipt when only its original presentation
+  deadline expires after dispatch; retain grant, session, policy and owner checks.
+- Keep committed MOVE receipt waits under the same ownership boundary. Expiry
+  before any effect POST still blocks dispatch or cancels preparation without commit.
+- No lease extension, retry, latest-owner adoption or UI/voice/firmware change is
+  added. All 203 UI assets remain unchanged; a historical accepted receipt does not
+  establish current output or acoustic playback.
+
 ## 2.0.84
 
 - Keep a different retained music choice usable through a fresh explicit source/setup

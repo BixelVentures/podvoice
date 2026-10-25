@@ -303,18 +303,26 @@ def test_current_loss_while_waiting_cancels_exact_old_owner_once(monkeypatch, ph
     asyncio.run(run())
 
 
-def test_cancelled_caller_never_replays_and_joins_exact_cleanup(monkeypatch):
+@pytest.mark.parametrize("completion", [False, True])
+@pytest.mark.parametrize("phase", ["prepare_room_move_playback", "move_room_playback"])
+def test_cancelled_caller_never_replays_and_joins_exact_cleanup(monkeypatch, completion, phase):
     async def run():
         entered = asyncio.Event()
 
         async def handler(service, _body, _current, _facade):
-            if service == "prepare_room_move_playback":
+            if service == phase:
                 entered.set()
                 await asyncio.Event().wait()
 
         facade, current, calls = build(monkeypatch, handler)
         offer = await facade.setup("account", "same-engine", "r1", "43", lambda: current["value"])
-        task = asyncio.create_task(facade.move(offer, lambda: current["value"]))
+        task = asyncio.create_task(
+            facade.move(
+                offer,
+                lambda: current["value"],
+                receipt_current=(lambda: current["value"]) if completion else None,
+            )
+        )
         await entered.wait()
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -474,5 +482,69 @@ def test_queued_read_rechecks_actual_grant_before_transport_starts(monkeypatch):
                 1,
             )
         assert calls == [] and checks >= 2
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("phase", ["pre", "prepare", "committed", "owner", "binding", "backend"])
+def test_move_strict_admission_and_owned_late_completion(monkeypatch, phase):
+    async def run():
+        from types import SimpleNamespace
+
+        real = move.time
+        elapsed = [0]
+        wall, mono = real.time(), real.monotonic()
+        monkeypatch.setattr(
+            move,
+            "time",
+            SimpleNamespace(time=lambda: wall + elapsed[0], monotonic=lambda: mono + elapsed[0]),
+        )
+
+        async def handler(service, body, current, _facade):
+            if service == "prepare_room_move_playback" and phase == "prepare":
+                elapsed[0] = 6
+            if service == "move_room_playback":
+                elapsed[0] = 6
+                if phase == "owner":
+                    current["value"] = False
+                if phase == "binding":
+                    current["binding"] = ("replacement",)
+                if phase == "backend":
+                    value = receipt(body)
+                    value["owner_epoch"] = "foreign"
+                    return value
+                if phase == "committed":
+                    # The committed response remains pending past a guard poll;
+                    # presentation expiry must not cancel this owned read.
+                    await asyncio.sleep(0.06)
+            return None
+
+        facade, current, calls = build(monkeypatch, handler)
+
+        def strict():
+            return current["value"] and elapsed[0] < 5
+
+        def retained():
+            return current["value"]
+
+        offer = await facade.setup("account", "same-engine", "r1", "43", strict)
+        if phase == "pre":
+            elapsed[0] = 6
+        result = await facade.move(offer, strict, receipt_current=retained)
+        effects = [call[0] for call in calls if call[0] != "get_room_move_controls"]
+        if phase == "committed":
+            assert result["outcome"] == "accepted" and result["accepted_room_move"] is True
+            assert effects == ["prepare_room_move_playback", "move_room_playback"]
+        elif phase == "pre":
+            assert result["outcome"] == "rejected" and effects == []
+        elif phase == "prepare":
+            assert result["outcome"] == "rejected"
+            assert effects == ["prepare_room_move_playback", "cancel_room_move_preparation"]
+        else:
+            assert result["outcome"] == "unknown"
+            assert effects.count("move_room_playback") == 1
+        before = len(calls)
+        assert (await facade.move(offer, strict, receipt_current=retained))["outcome"] == "rejected"
+        assert len(calls) == before
 
     asyncio.run(run())

@@ -345,7 +345,9 @@ class RoomMoveFacade:
         )
         return payload.get("service_response") if isinstance(payload, dict) else None
 
-    async def _guarded_read(self, client, token, service, body, binding, guard, seconds):
+    async def _guarded_read(
+        self, client, token, service, body, binding, guard, seconds, *, completion_guard=None
+    ):
         async def admitted_read():
             if not self.current(binding, guard):
                 raise ValueError("move owner revoked before transport")
@@ -355,7 +357,7 @@ class RoomMoveFacade:
         try:
             async with asyncio.timeout(seconds):
                 while not task.done():
-                    if not self.current(binding, guard):
+                    if not self.current(binding, completion_guard or guard):
                         raise ValueError("move owner revoked")
                     await asyncio.wait({task}, timeout=0.05)
                 return await task
@@ -434,7 +436,7 @@ class RoomMoveFacade:
         except Exception:  # best-effort exact cleanup never releases an unknown fence
             return
 
-    async def move(self, offer, current):
+    async def move(self, offer, current, *, receipt_current=None):
         if not isinstance(offer, MoveOffer) or self._offers.pop(offer.handle, None) is not offer:
             return _failure()
         try:
@@ -473,6 +475,16 @@ class RoomMoveFacade:
         dispatched = False
         cancel_sent = False
 
+        def admitted():
+            return time.monotonic() < offer.deadline and current()
+
+        def retained():
+            return (
+                (receipt_current or current)()
+                and self._owners.get(wire["config_entry_id"]) == wire["owner_epoch"]
+                and _digest(wire) == offer.fingerprint
+            )
+
         async def cancel_once():
             nonlocal cancel_sent
             if not cancel_sent:
@@ -486,14 +498,14 @@ class RoomMoveFacade:
                 "prepare_room_move_playback",
                 body,
                 offer.binding,
-                current,
+                admitted,
                 8,
             )
             phase = preparation(prepared, body)
             if phase != "staged":
                 await cancel_once()
                 return _failure("unknown" if phase == "unknown" else "rejected")
-            if not self.current(offer.binding, current):
+            if not self.current(offer.binding, admitted):
                 await cancel_once()
                 return _failure()
             # Actual trusted PV task/grant guard is immediately before the sole
@@ -505,11 +517,12 @@ class RoomMoveFacade:
                 "move_room_playback",
                 body,
                 offer.binding,
-                current,
+                admitted,
                 16,
+                completion_guard=retained,
             )
             parsed = completion(result, body)
-            if not self.current(offer.binding, current):
+            if not self.current(offer.binding, retained):
                 await cancel_once()
                 return _failure("unknown")
             return parsed

@@ -992,7 +992,14 @@ class MusicControlFacade:
         except Exception:
             return _failure("unavailable")
 
-    async def execute_room(self, offered: dict, action: str, current: Callable[[], bool]) -> dict:
+    async def execute_room(
+        self,
+        offered: dict,
+        action: str,
+        current: Callable[[], bool],
+        *,
+        receipt_current: Callable[[], bool] | None = None,
+    ) -> dict:
         """Send one bound native AUDIO4 command and retain an unknown possible send."""
         possible_send = False
         identity: dict = {}
@@ -1038,7 +1045,7 @@ class MusicControlFacade:
                     return _failure("owner_replaced", identity=identity)
                 possible_send = True
                 result = await self._read(client, token, "control_room_playback", request)
-            if not self._current(binding, current):
+            if not self._current(binding, receipt_current or current):
                 return _failure("owner_replaced", possible_send=True, identity=identity)
             return _room_receipt(result, identity)
         except (Exception, asyncio.CancelledError):
@@ -1075,7 +1082,12 @@ class MusicControlFacade:
             return _failure("unavailable")
 
     async def execute_volume(
-        self, offered: dict, percent: int, current: Callable[[], bool]
+        self,
+        offered: dict,
+        percent: int,
+        current: Callable[[], bool],
+        *,
+        receipt_current: Callable[[], bool] | None = None,
     ) -> dict:
         possible_send = False
         identity: dict = {}
@@ -1121,7 +1133,7 @@ class MusicControlFacade:
                 result = await self._read(
                     self.tools._client, self.tools._token, "control_room_volume", request
                 )
-            if not self._current(binding, current):
+            if not self._current(binding, receipt_current or current):
                 return _failure("owner_replaced", possible_send=True, identity=identity)
             return _volume_receipt(result, identity)
         except (Exception, asyncio.CancelledError):
