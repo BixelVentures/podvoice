@@ -8,7 +8,9 @@ never discovers services, chooses targets, retries commands or owns provider sec
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import logging
 import math
 import re
 import time
@@ -17,7 +19,11 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any, cast
 
+import httpx
+
 from . import constants as C
+
+_START_LOG = logging.getLogger("podvoice.music_start")
 
 _TIMEOUT_S = 8
 _TRACK_TIMEOUT_S = 16  # Native Control owns a bounded 14-second prepare/commit/send.
@@ -891,12 +897,21 @@ class MusicControlFacade:
             return False
 
     async def _read(self, client: Any, token: str, service: str, args: dict) -> Any:
+        # Match only these existing owner deadlines; never change the shared client.
+        budget = {
+            "prepare_room_selected_content": _PREPARE_TIMEOUT_S,
+            "start_room_selected_content": _TRACK_TIMEOUT_S,
+            "control_room_playback": 20,
+            "control_room_volume": 20,
+        }.get(service)
+        options = {"timeout": httpx.Timeout(budget, connect=3)} if budget is not None else {}
         async with client.stream(
             "POST",
             f"{C.SUPERVISOR_CORE_API}/services/podconnect/{service}?return_response",
             headers={"Authorization": f"Bearer {token}"},
             json=args,
             follow_redirects=False,
+            **options,
         ) as response:
             if response.status_code != 200:
                 raise ValueError("service unavailable")
@@ -1285,13 +1300,56 @@ class MusicControlFacade:
         preparation_sent = False
         identity: dict = {}
         room = homepod = ""
+        started = time.monotonic()
+        phase: str | None = None
+        phase_started = started
+        phase_body: dict | None = None
+        diagnostic_error = "none"
+        final_result: dict = {}
+
+        def finish(result: dict) -> dict:
+            nonlocal final_result
+            final_result = result
+            return result
+
+        def emit(marker: str, at: float, value: dict, state: str, error_class: str) -> None:
+            request_id = identity.get("request_id")
+            request_ref = (
+                hashlib.sha256(request_id.encode()).hexdigest()[:16] if request_id else "none"
+            )
+            poll = value.get("observe_after_poll_sequence")
+            if type(poll) is not int or not 0 <= poll <= 2**53 - 1:
+                poll = None
+            kind = value.get("error_kind")
+            kind = kind if isinstance(kind, str) and kind in _ERRORS else "none"
+            native_match = (
+                bool(room and homepod)
+                and value.get("room_id") == room
+                and value.get("homepod_id") == homepod
+            )
+            _START_LOG.info(
+                "%s request_ref=%s elapsed_ms=%d state=%s error_class=%s error_kind=%s "
+                "accepted=%s native_identity_match=%s poll_floor=%s possible_send=%s prepared=%s",
+                marker,
+                request_ref,
+                max(0, int((time.monotonic() - at) * 1000)),
+                state,
+                error_class,
+                kind,
+                state == "accepted" and value.get("accepted_selected_content") is True,
+                native_match,
+                poll,
+                possible_send,
+                prepared,
+            )
+
         try:
             account = _text(controls.get("config_entry_id"))
             target = _text(controls.get("target", {}).get("target_id"))
             room = _text(controls.get("room_id"), 128)
             homepod = _text(controls.get("homepod_id"), 128)
             if not self.room_start_available:
-                return _failure("unavailable")
+                return finish(_failure("unavailable"))
             value = _content_controls(
                 {k: v for k, v in controls.items() if k != "valid_until"},
                 account,
@@ -1301,13 +1359,13 @@ class MusicControlFacade:
             )
             fixed = controls.get("valid_until")
             if type(fixed) not in (int, float):
-                return _failure("stale")
+                return finish(_failure("stale"))
             fixed = cast(int | float, fixed)
             if not math.isfinite(fixed) or fixed > value["valid_until"] or fixed <= time.time():
-                return _failure("stale")
+                return finish(_failure("stale"))
             action = "play_context" if context else "play_track"
             if value["status"] != "ready" or action not in value["actions"]:
-                return _failure("unsupported_action")
+                return finish(_failure("unsupported_action"))
             if (
                 not isinstance(uri, str)
                 or re.fullmatch(
@@ -1318,9 +1376,9 @@ class MusicControlFacade:
                 )
                 is None
             ):
-                return _failure("invalid_arguments")
+                return finish(_failure("invalid_arguments"))
             if type(max_volume) is not int or not 35 <= max_volume <= 100:
-                return _failure("volume_above_approved_limit")
+                return finish(_failure("volume_above_approved_limit"))
             sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
             identity = {
                 "schema": "podconnect.command.v1",
@@ -1349,36 +1407,69 @@ class MusicControlFacade:
             client, token = self.tools._client, self.tools._token
             async with asyncio.timeout(_PREPARE_TIMEOUT_S):
                 if not self._current(binding, current) or time.time() >= fixed:
-                    return _failure("owner_replaced", identity=identity)
+                    return finish(_failure("owner_replaced", identity=identity))
                 preparation_sent = True
+                phase, phase_started = "selected_start_prepare", time.monotonic()
+                phase_body = None
                 preparation = await self._read(
                     client, token, "prepare_room_selected_content", request
                 )
+            phase_body = preparation if isinstance(preparation, dict) else None
             staged = _preparation_receipt(preparation, identity, room, homepod)
+            emit("selected_start_prepare", phase_started, staged, staged["state"], "none")
+            phase = None
             if staged["state"] != "staged":
-                return _failure(
-                    "unavailable", possible_send=staged["state"] == "unknown", identity=identity
+                return finish(
+                    _failure(
+                        "unavailable", possible_send=staged["state"] == "unknown", identity=identity
+                    )
                 )
             prepared = True
             # The callback owns the actual task, source, revision, option and human
             # grant. Its post-stage check is the last PV admission before commit.
             if not self._current(binding, current):
                 await self._cancel_content_preparation(client, token, request)
-                return _failure("owner_replaced", identity=identity)
+                return finish(_failure("owner_replaced", identity=identity))
             async with asyncio.timeout(_TRACK_TIMEOUT_S):
                 if not self._current(binding, current):
                     await self._cancel_content_preparation(client, token, request)
-                    return _failure("owner_replaced", identity=identity)
+                    return finish(_failure("owner_replaced", identity=identity))
                 possible_send = True
+                phase, phase_started = "selected_start_commit", time.monotonic()
+                phase_body = None
                 result = await self._read(client, token, "start_room_selected_content", request)
+            phase_body = result if isinstance(result, dict) else None
             if not self._current(binding, current):
                 await self._cancel_content_preparation(client, token, request)
-                return _failure("owner_replaced", possible_send=True, identity=identity)
-            return _content_receipt(result, identity, room, homepod)
-        except (Exception, asyncio.CancelledError):
+                return finish(_failure("owner_replaced", possible_send=True, identity=identity))
+            receipt = _content_receipt(result, identity, room, homepod)
+            emit("selected_start_commit", phase_started, receipt, receipt["outcome"], "none")
+            phase = None
+            return finish(receipt)
+        except (Exception, asyncio.CancelledError) as exc:
+            diagnostic_error = (
+                "cancelled"
+                if isinstance(exc, asyncio.CancelledError)
+                else "timeout"
+                if isinstance(exc, TimeoutError)
+                else "invalid_response"
+                if isinstance(exc, ValueError)
+                else "exception"
+            )
             if prepared or preparation_sent:
                 await self._cancel_content_preparation(client, token, request)
-            return _failure("unavailable", possible_send=possible_send, identity=identity)
+            return finish(_failure("unavailable", possible_send=possible_send, identity=identity))
+
+        finally:
+            if phase is not None:
+                emit(phase, phase_started, phase_body or {}, "unvalidated", diagnostic_error)
+            emit(
+                "selected_start_receipt",
+                started,
+                final_result,
+                final_result.get("outcome", "unknown"),
+                diagnostic_error,
+            )
 
     async def _cancel_content_preparation(self, client: Any, token: str, request: dict) -> None:
         """Best-effort retire an exact staged operation without a new sequence."""

@@ -86,8 +86,8 @@ export class LiveControlView{
   if(this.musicOffer?.context.key===context.key&&this.musicOffer.task.expiresAt*1000>Date.now())return;
   if(this.musicAttempt===context.key&&this.musicAttemptPoll===context.pollSequence)return; // One read per fresh source observation; intent fences keep the stable context.
   this.musicOffer=null;this.musicAttempt=context.key;this.musicAttemptPoll=context.pollSequence;this.musicReadPending=true;const generation=this.generation,musicGeneration=this.musicGeneration||0;
-  try{const value=await this.host.liveTransport.controlSetup('music',context.target);if(generation!==this.generation||musicGeneration!==(this.musicGeneration||0)||!this.musicCurrent(context))return;if(value.expectedBindingId!==context.target.expectedBindingId)throw Error('music_binding_changed');const task=controlTask(value,this.host.liveSnapshot,'music');this.musicOffer={task,context};clearTimeout(this.musicExpiryTimer);this.musicExpiryTimer=setTimeout(()=>{this.renderMusicControls();},Math.max(0,task.expiresAt*1000-Date.now()));}
-  catch{}finally{this.musicReadPending=false;if(this.host.isConnected)this.renderMusicControls();}
+  try{const value=await this.host.liveTransport.controlSetup('music',context.target);if(generation!==this.generation||musicGeneration!==(this.musicGeneration||0)||!this.musicCurrent(context))return;if(value.expectedBindingId!==context.target.expectedBindingId)throw Error('music_binding_changed');const task=controlTask(value,this.host.liveSnapshot,'music');this.musicOffer={task,context};if(this.musicFence?.key===context.key&&this.musicFence.readFailure===true)this.musicFence=null;clearTimeout(this.musicExpiryTimer);this.musicExpiryTimer=setTimeout(()=>{this.renderMusicControls();},Math.max(0,task.expiresAt*1000-Date.now()));}
+  catch{if(generation===this.generation&&musicGeneration===(this.musicGeneration||0)&&this.musicCurrent(context))this.musicFence={...context,outcome:'unavailable',readFailure:true};}finally{this.musicReadPending=false;if(this.host.isConnected){if(this.host.liveMedia?.render)this.host.liveMedia.render();else this.renderMusicControls();}}
  }
  renderMusicControls(){
   const context=this.musicContext(),offer=this.musicOffer;
@@ -97,7 +97,7 @@ export class LiveControlView{
   const playback=this.host.liveMedia?.playback,displayPlaying=roomObservationDisplay(playback,this.host.liveSnapshot,this.host.liveMedia?.account)&&playback.state==='playing';
   const transport=has(toggle)||has('next')||has('previous');
   const volumes=options.filter(option=>option.action==='volume'),volume=volumes.length===1?volumes[0]:null,actualVolume=this.musicVolumeMeasurement(context,offer);
-  const canVolume=!!volume&&Number.isInteger(actualVolume)&&actualVolume>=volume.argsSchema.min&&actualVolume<=volume.argsSchema.max;
+  const canVolume=!!volume&&Number.isInteger(actualVolume)&&actualVolume>=0&&actualVolume<=100;
   renderPlayerControls(this.host,{playing:displayPlaying,previous:has('previous'),next:has('next'),toggle:has(toggle),blocked,volume:actualVolume,canVolume,min:volume?.argsSchema.min??0,max:volume?.argsSchema.max??100,gesture:this.musicVolumeGesture});
   const fence=this.musicFence,feedback=fence&&context&&fence.key===context.key?fence.outcome==='preparing'?'Afventer svar…':fence.outcome==='pending'?'Afventer svar…':fence.outcome==='unknown'?'Udfald ukendt · gentages ikke':fence.outcome==='accepted'?'Anmodningen er modtaget':fence.outcome==='rejected'?'Handlingen blev afvist':fence.outcome==='unavailable'?'Betjeningen kunne ikke hentes':fence.outcome==='invalid'?'Kontrollér dit valg':'' : '';
   for(const node of [this.musicStatus,this.musicDetailStatus]){node.hidden=!feedback;node.textContent=feedback;}

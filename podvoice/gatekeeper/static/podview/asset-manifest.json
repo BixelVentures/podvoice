@@ -459,7 +459,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "194bf7bbfe8b7fc48499e8b25d7534b9ec10cc226db6d4f2a4bbf9c99d852f95"
+      "sha256": "bb0cb776ff85150280ca6359f266d24152845ba15b0871356528daabb9fcadef"
     },
     {
       "path": "live-home-view.js",
@@ -467,15 +467,15 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "d3b021ae3784fa82773f1095812aa874863206d332dd6a40072e3c05d044c75e"
+      "sha256": "453d6c37b2ebe57f6c13c9dfa7d47c760d99f378fa6b22fef1effd40049b211d"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "7d0c4864fcf5767a1beb5642d83dd654aa3ea9ef8afb2366197eabf2604642ce"
+      "sha256": "208b21e3dfef2a81e54b88663a365015d92741935605d738bf0872c3a5811d63"
     },
     {
       "path": "live-music-view.js",
-      "sha256": "a9ea0e397c9699c91a01ce51ffc638abda829448a91fbbdcaec3780e96680024"
+      "sha256": "474b29eacf960d539052d2af39013be768204fba8d27752cdef2393cb8b3a60d"
     },
     {
       "path": "live-music.css",
@@ -551,11 +551,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "e140f0e67508c5c3d782fe9e8a963af1324b2c0fc6e42b971ff00b615fc6568f"
+      "sha256": "a1072210b77f3c4adcca496d2a5eaf6990a626ab0847566595978073b5bc0496"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "df4d369d221b1db8ba428f73d90d9b7a2244817095392746166fe9dfc4117363"
+      "sha256": "52bc6997a942b741f7ef7480e113d32a811ad9f795812e057de701468f283734"
     },
     {
       "path": "podview.css",
@@ -803,7 +803,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "b0a5b8170abfe49f955f1b06d450486eaabe7f0773eb9a0bf22e4e2f5f0e1b4d"
+      "sha256": "8aef93dd25f12a17cf0b591fd5bbb76866ccdb230cab059c8f1547c5b5f4a98f"
     },
     {
       "path": "workshop.css",

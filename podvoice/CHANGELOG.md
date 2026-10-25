@@ -1,3 +1,18 @@
+## 2.0.84
+
+- Keep a different retained music choice usable through a fresh explicit source/setup
+  request, while retaining the consumed entry and UNKNOWN/unconfirmed no-replay fence.
+- Preserve control/volume custody independently of catalogue browsing and use the
+  existing explicit music read query contract.
+- Keep authorized lowering available when observed volume is above the action limit;
+  explain failed passive control reads and recover only after a new valid setup.
+- Match selected prepare/commit and room-command HTTP requests to their existing
+  approved outer budgets; keep shared client defaults and three-second connection bound.
+- Add content-free selected START prepare/commit/receipt diagnostics with hashed
+  request correlation; no authority, timeout, receipt or audio behavior change.
+- Actual selected-play HomePod audio remains unaccepted. The reported MAX display
+  is not reproduced or claimed fixed; Native/C delivery and physical proof are separate.
+
 ## 2.0.83
 
 - Adopt the reviewed music-remote UI: immediate feedback, accepted-read observation,

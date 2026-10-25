@@ -258,3 +258,7 @@ test('account source provenance uses the existing reserved footer without displa
  f.view.render({cards,collection:'top',sourceSummary:summary,status:'Kunne ikke opdatere · viser seneste udvalg.'});assert.equal(footer.hidden,false);assert.match(footer.textContent,/Kunne ikke hente/);assert.equal(footer.dataset.refreshOutcome,'error');assert.equal([...f.view.rows.values()][0],row);
  f.view.render({cards,collection:'top'});assert.equal(footer.hidden,true);f.view.cleanup();
 });
+
+test('confirmed consumed catalogue disables its last dispatched retained row while another explicit choice stays usable',()=>{
+ const f=retainedResultSurface();f.host.musicResults=f.view;const catalogue=new LiveMusicCatalogueView(f.host,()=>{});f.host.liveCatalogue=catalogue;catalogue.account='account';catalogue.connected=true;catalogue.selected='top';catalogue.capabilities=['top','targets'];const cards=resultCards(),entry={cards,actionDispatched:true,selectionConfirmed:true,selectionSpent:true,dispatchedCardId:cards[0].id};catalogue.entries.set(catalogue.key(),entry);catalogue.cards=cards;catalogue.canRenewEntry=()=>true;catalogue.render();const first=f.view.rows.get(cards[0].id),second=f.view.rows.get(cards[1].id);assert.equal(first.disabled,true);assert.equal(second.disabled,false);assert.equal(catalogue.cards,cards);assert.equal(catalogue.cards[0],cards[0]);entry.dispatchedCardId=cards[1].id;catalogue.render();assert.equal(f.view.rows.get(cards[0].id),first);assert.equal(first.disabled,false);assert.equal(second.disabled,true);
+});

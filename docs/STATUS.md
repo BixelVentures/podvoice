@@ -1,3 +1,118 @@
+## Active P1 — selected-service HTTP deadline mismatch, 25 October 2026
+
+Lead /root; backend owner weather_backend_integration; independent review required.
+Shared HA client httpx.Timeout(8, connect=3) is inherited by MusicControlFacade._read,
+although existing preparation/commit/room outer budgets are 35/16/20 seconds. A valid
+nine-second preparation is rejected by the inner read budget before its owner deadline.
+Chain: current exact task → HA prepare → staged receipt → current identity check →
+sole commit → receipt/passive proof. Only four long-budget services receive matching
+per-request HTTP timeouts. Connect remains three seconds. Shared/default/cancel/queue
+reads, existing outer cancellation, identity, no replay and #98 diagnostics stay intact.
+Regression inspects HTTPX timeout extensions, models nine-second preparation without
+sleep, and cancels a held prepare to require zero commit and exact cancellation.
+No global increase, provider/device calls, installation, restart or acoustic claim.
+Actual result: unchanged source produces five causal RED cases: four requests carry
+inherited read/write/pool 8 rather than 35/16/20/20, and the inert nine-second response
+model rejects preparation. The scoped override makes all nine new cases pass,
+including three unchanged short-service budgets and held-prepare cancellation with
+zero commit and one exact cancellation. Eight #98 log/privacy/receipt cases also pass.
+HTTPX request extensions are observed directly; no real nine-second provider request
+or field attribution is claimed. Source mypy and changed-file Ruff/format pass.
+Existing START outer deadlines, callback/receipt sequence and diagnostics are unchanged.
+Independent weather_backend_review SOURCE GO confirms only the four bounded HTTP
+overrides change; outer callback, receipt, cancellation and diagnostic methods remain
+identical. The modeled nine-second proof limit is retained. This separate source
+patch was developed without mutating84 prebind; response-expiry is a separate,
+unimplemented finding. Lead now integrates the reviewed timeout patch and immutable
+P1 volume-lowering UI increment into the same 2.0.84 source draft. Old prebind26502bef
+is superseded; final manifest/profile refresh waits for the separately owned P2 packet.
+All 203 runtime hashes match volume handoff84aa3366 (201 unchanged from choice handoff).
+Three affected existing test mirrors pass 230 adapter cases; the incumbent canonical
+DOM adapter and new PlayerView import are both preserved. Existing local fixture
+syntax passes; no live volume/audio action or broad suite is run.
+The final immutable P2 control-read-status packet is now adopted: all 203 runtime
+hashes match handoff25ffc912 (199 unchanged from P1). It explains passive setup read
+failure through the existing status role and recovers only from a current valid read;
+command UNKNOWN fences and actual observation remain separate. Five affected/current-
+media adapter modules pass 441 cases. P1/P2 owner 2215/gate63 and causal348 are reused.
+The existing local fixture and COMPONENT-LIBRARY clarification are adopted; QA images
+and journals stay in the immutable packet, with no release inventory expansion.
+Final source inventory and derived asset/admission manifests are refreshed once here;
+old prebind26502bef is superseded. Independent composition/admission review is next,
+with84 review bindings left empty during that source step. No runtime/provider/household
+actions were performed. Independent /root/music_paging exact PREBIND GO now authorizes
+only the incumbent84 reviewer/manifest/AST and STATUS fingerprints to bind this source.
+Official CI and root delivery remain separate; no physical readiness is claimed.
+Actual final checks: all nine previously unbound84 positive/adversarial cases now
+pass, and strict exact-tree84 admission plus final profile Ruff/format/diff checks
+pass on this bound source. Earlier unaffected checks are retained. Canonical binding
+AST uses Python 3.12.13; the prior mislabeled3.9 prebind hash is superseded without
+source drift. Official CI and combined Native/C readiness remain root delivery gates.
+
+## Active planned 2.0.84 — music choices and #98 diagnostics, 25 October 2026
+
+Lead /root; backend owner weather_backend_integration; PodView owns canonical UI.
+Installed 2.0.83 main 8648a99e5e524c20fca542ca0d62207dfeb904f4 is the base.
+The 25 October physical selected-play attempt advanced account playback metadata but
+had no reported HomePod sound; controls/choices were disabled and MAX volume was
+reported. This is FAILED physical acceptance, not a proven backend/audio cause.
+The immutable PodView packet repairs fresh explicit authority for another retained
+choice, correct existing query routing, and catalogue-independent controls; it retains
+UNKNOWN/unconfirmed no-replay boundaries. Its four runtime files are adopted exactly,
+with 199 other runtime files unchanged. The MAX report is not reproduced by local
+visual evidence and is not claimed fixed. Native/C audio work remains separate.
+No catalogue budget, data-result projection, tools, paging or queue changes are made.
+Lead authorizes planned 2.0.84 preparation on this exact reviewed composition.
+Version metadata now names 2.0.84; exact admission bindings remain closed until
+independent scope review. No release or physical readiness is claimed.
+No household effects, installation, restart or physical acceptance are performed.
+Actual composition result: all 203 runtime hashes match the immutable handoff,
+including 199 unchanged baseline files. Eight mapped modules pass 414 focused adapter
+cases; six mirrors change and two live-media mirrors already contain the authored
+clock correction and remain unchanged. All three-way merges are conflict-free and
+retain PodVoice-specific regressions. The derived asset manifest matches the adopted
+bytes. Reviewed diagnostics production/test hashes remain unchanged; their 135-facade
+and final eight-case evidence is reused. Changed Python Ruff/format and four runtime
+syntax checks pass. Exact source preflight contains 14 expected paths and the existing
+classifier reports ha_tools + physical_output, requiring later reviewed admission;
+no release binding/profile/version or CI dispatch was created during that source-only step.
+Independent weather_backend_review source-composition GO confirms the prior exact
+14-path composition daab243062944288b3d572e37c094173d217da89. Planned 2.0.84 adds only
+version/changelog and incumbent exact-tree admission/dispatch metadata, with published
+2.0.83 historical assertions preserved. Runtime/UI production pins remain identical
+to that reviewed composition. Required metadata/static checks and independent admission
+review remain separate from retained source checks and physical acceptance.
+Actual metadata checks: historical 2.0.83 assertions pass all 15 cases against
+published 8648a99e; new unbound84/dev-dispatch/promotion checks pass 194 cases with
+nine expected bound-candidate skips. Changed metadata/test files pass Ruff/format.
+No unchanged runtime suite is rerun. Independent exact inventory/policy/AST review
+is the next gate; bindings remain blank and the installed83 baseline remains current.
+Installed 2.0.83 has a physical failure: selected-content metadata advances without
+reported HomePod sound. Existing PodVoice logs retain HTTP 200 only; the selected
+START facade strips provider details from its browser receipt and emits no phase log.
+This omission prevents identifying whether prepare, commit or final validation failed.
+The causal chain is selected task → exact current facade → prepare → commit → closed
+receipt → passive output proof. This change adds only three fixed logger markers at
+the existing facade, correlated by SHA256(requestId)[:16], elapsed times, finite status/
+error classes, accepted flag, poll floor and identity-match booleans. No raw account,
+owner, output identity, URI, title, payload, token or exception message is logged.
+No authority, callback, timeout, state, receipt, service or audio behavior changes.
+Focused existing-facade log capture must prove omission RED then content-free logging
+GREEN with identical result and service calls, including rejection and cancellation.
+No release, installation, device action or physical acceptance is claimed.
+
+Actual source result: the existing-facade capture is RED on the unchanged source
+(six missing-marker cases), then GREEN after the logger-only change. The full affected
+facade module passes 135 cases; the final eight focused log cases additionally cover
+commit timeout/cancellation and exact accepted/rejected/UNKNOWN result identity. They
+exclude payload/account/output/URI/token/owner strings from all emitted messages.
+Source mypy and changed-file Ruff/format pass. The three markers retain only hashed
+request correlation, finite classes/states, elapsed times, poll floor and boolean facts.
+No extra provider/current-owner calls, retry, timeout, receipt or authority changes.
+Independent /root/weather_backend_review SOURCE GO confirms the exact logger/test
+bytes, privacy and unchanged early-return, post-await, timeout and cancellation
+behavior; prior 135 + final eight cases are reused. Source-only, unbound, not a release.
+
 ## Active 2.0.83 composition — PodView selected-content service lifecycle, 24 October 2026
 
 Lead /root; server owner weather_backend_integration; frontend PodView; Native owner
@@ -4125,5 +4240,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "eb2dd95407c9e9251c0ec1a5ba6cedc71613c9c90d1ee4661609360a28813745",
   "manifest_fingerprint": "1a276ac1ee2b22d76f7e2043f233428863e0a74c6c17b03fc14679836707e4f9",
   "rationale": "Retain exact reviewed 2.0.83 runtime/UI/config and prior source/bound evidence, including the observation-clock correction. Repair CI40137097184 found the existing promotion workflow inventory test did not recognize the approved exact merged-main9fd continuation. The test now validates exactly that full9fd-to83/original8884 block, removes only it from its local standard-route inventory, and preserves all incumbent ordered commands, conditions, uniqueness and label assertions. Three negative cases reject unknown continuation base, wrong original base and wrong profile. Full affected promotion module16PASS; only this new regression pin, REQUIRED_TESTS24-to25 and required AST/record bindings change. No workflow, production or household effects. New automatic official CI required on this head."
+}
+-->
+
+<!-- podview84-admission
+{
+  "kind": "podview84_music_choices",
+  "manifest_fingerprint": "b4b6bc7e41ef22cb499b2927ba6740a3ebb73801c0c5aabede1b1e1b9598f3c5",
+  "base_tip": "8648a99e5e524c20fca542ca0d62207dfeb904f4",
+  "rationale": "Independent /root/music_paging exact PREBIND GO on tree214d8ef1990c22be9bced11a67345d3cb6b27ae0, full32path inventory,203immutableUIhashes, manifestb4b6bc7e and unchanged profile2703e78c. Canonical Python3.12 unboundASTee1fb404 supersedes the incorrectly labeled Python3.9 AST7988d060; source bytes remain unchanged. Bind only this reviewed2.0.84 composition: fresh explicit music choices, authorized volume lowering/read-status feedback, content-free selectedSTART diagnostics and matching existing per-service HTTP budgets. Preserve all owner/grant/no-replay/UNKNOWN and outer deadline fences, original83 historical admission, exact strict asset and scope checks. Source/static/affected adapters retained; physical no-audio remains unresolved. No household effects or installation; officialCI/release remain root-owned and held for combinedC/Native readiness.",
+  "runtime_fingerprint": "8b245689e274d4fdd58a85904f6f51b286aafea1360168c1a2ea4618266d21a1",
+  "version": 61,
+  "reviewer": "/root/music_paging",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "regression_fingerprint": "1060b187bd52b8b832ef0cee8944548e2dd0e7feb17763c92eaf74ff936a6fbe",
+  "config_fingerprint": "6186a5ed5759de93e542456e3dbff72909b137906a52d7d0215655facf48f921",
+  "policy_fingerprint": "7e1dd4bb5ba84fac1776cfb2f3dda5f80c213e8ab426aa86000f587540cd0bdc",
+  "merge_base": "8648a99e5e524c20fca542ca0d62207dfeb904f4",
+  "tooling_fingerprint": "517baf851136e2069599be9123e0b6064c01abc98824b805bae34d8d14f24bae",
+  "fingerprint": "0f604ef883381a97c4c065896b6b94569c9dc4b1f46b578a9c46422ce7d4838e"
 }
 -->

@@ -1,4 +1,5 @@
 import {installDOMAttributes} from './helpers/dom-attributes.mjs';
+import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
 import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
 import {boundPlayback} from './canonical-room-fixture.mjs';
 import test from 'node:test';
@@ -271,8 +272,36 @@ test('absolute 35 percent display keeps action max35 and visibly clamps a higher
  }finally{f.restore();}
 });
 
-test('observed volume outside a stricter policy remains visible without enabling or broadening that command',async()=>{
- const f=fixture();try{f.host.liveTransport.controlSetup=async()=>{const raw=f.offer(['volume'],40);raw.options[0].argsSchema.max=35;return raw;};await f.view.prepareMusic();f.view.renderMusicControls();assert.equal(f.nodes.get('volume').value,'40');assert.equal(f.nodes.get('volume').getAttribute('aria-valuetext'),'40 %');assert.equal(f.nodes.get('volume').disabled,true);assert.equal(f.nodes.get('volume').dataset.actionMax,'35');assert.equal(await f.view.musicIntent('volume',{percent:40}),false);assert.equal(f.writes.length,0);}finally{f.restore();}
+test('observed100 stays truthful while a current max35 offer enables explicit lowering to35',async()=>{
+ const f=fixture();try{
+  actualOutput(f);f.host.liveTransport.controlSetup=async()=>{const raw=f.offer(['volume'],100);raw.options[0].argsSchema.max=35;return raw;};
+  await f.view.prepareMusic();const input=f.nodes.get('volume');
+  assert.equal(input.value,'100');assert.equal(input.max,'100');assert.equal(input.getAttribute('aria-valuetext'),'100 %');assert.equal(input.dataset.actionMax,'35');assert.equal(input.disabled,false);assert.equal(f.writes.length,0,'known high measurement never causes an implicit lowering');
+  assert.equal(await f.view.musicIntent('volume',{percent:35}),true);assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].args,{percent:35});assert.equal(input.value,'100','accepted request does not replace the observation');assert.equal(f.nodes.get('volume-value').textContent,'100 %');
+ }finally{f.restore();}
+});
+test('observed100 with a max35 offer permits the existing explicit mute action without inventing measured zero',async()=>{
+ const f=fixture();try{
+  actualOutput(f);let measured=100;f.host.live=true;f.host.liveTransport.controlSetup=async()=>{const raw=f.offer(['volume'],measured);raw.options[0].argsSchema.max=35;return raw;};
+  const player=Object.create(PlayerView.prototype);Object.assign(player,{host:f.host,volumeMute:new Node('button'),rows:new Map()});f.host.playerView=player;
+  let intent;f.host.music=event=>{assert.deepEqual(event,{type:'volume',value:0});intent=f.view.musicIntent('volume',{percent:event.value});};
+  await f.view.prepareMusic();assert.equal(player.volumeMute.disabled,false);assert.equal(player.volumeMute.getAttribute('aria-pressed'),'false');assert.equal(f.writes.length,0);
+  player.syncVolumeMute({volume:100,blocked:false,canVolume:true,min:1,max:35});assert.equal(player.volumeMute.disabled,true);player.toggleVolumeMute();assert.equal(intent,undefined,'mute cannot cross an action minimum');f.view.renderMusicControls();assert.equal(player.volumeMute.disabled,false);
+  player.toggleVolumeMute();await intent;assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].args,{percent:0});assert.equal(f.nodes.get('volume').value,'100');assert.equal(player.volumeMute.getAttribute('aria-pressed'),'false','mute follows measured volume, never the requested result');
+  assert.equal(await f.view.musicIntent('volume',{percent:0}),false);assert.equal(f.writes.length,1,'spent offer cannot repeat mute');
+  measured=0;f.host.liveMedia.playback.poll_sequence++;await f.view.prepareMusic();assert.equal(f.nodes.get('volume').value,'0');assert.equal(f.nodes.get('volume').disabled,false);assert.equal(player.volumeMute.getAttribute('aria-pressed'),'true');assert.equal(player.volumeRestore,100);assert.equal(player.volumeMute.disabled,true,'restore100 cannot exceed the fresh35 limit');player.toggleVolumeMute();assert.equal(f.writes.length,1);
+ }finally{f.restore();}
+});
+for(const block of ['stale','expired','unknown','out-of-policy'])test(`high measured volume never bypasses ${block} control admission`,async()=>{
+ const f=fixture();try{
+  actualOutput(f);f.host.liveTransport.controlSetup=async()=>{const raw=f.offer(['volume'],100);raw.options[0].argsSchema.max=35;return raw;};await f.view.prepareMusic();
+  assert.equal(f.nodes.get('volume').disabled,false);
+  if(block==='stale')f.host.liveMedia.playback.stale=true;
+  if(block==='expired')f.view.musicOffer.task.expiresAt=Date.now()/1000-1;
+  if(block==='unknown')f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};
+  f.view.renderMusicControls();if(block!=='out-of-policy')assert.equal(f.nodes.get('volume').disabled,true);
+  assert.equal(await f.view.musicIntent('volume',{percent:block==='out-of-policy'?36:0}),false);assert.equal(f.writes.length,0);assert.equal(f.nodes.get('volume-value').textContent,'100 %');
+ }finally{f.restore();}
 });
 
 for(const ending of ['failure','owner-change'])test(`explicit music intent shows immediate preparing feedback and cleans it after ${ending}`,async()=>{
@@ -345,5 +374,40 @@ test('accepted control observation follows the immutable clicked action and item
   await f.view.prepareMusic();const itemUri=f.host.liveMedia.playback.item.uri,before=structuredClone(f.host.liveMedia.playback),start=Date.now();
   assert.equal(await f.view.musicIntent('pause'),true);await new Promise(done=>setImmediate(done));
   assert.equal(Object.isFrozen(expected),true);assert.deepEqual(expected,{kind:'control',action:'pause',requestedAt:expected.requestedAt,itemUri});assert.ok(expected.requestedAt>=start&&expected.requestedAt<=Date.now());assert.equal(followed,1);assert.deepEqual(f.host.liveMedia.playback,before);
+ }finally{f.restore();}
+});
+
+test('lowering observed100 remains single-flight through held setup and UNKNOWN without replay or optimistic measurement',async()=>{
+ const f=fixture();const held=deferred();let intent;try{
+  actualOutput(f);const offer=()=>{const raw=f.offer(['volume'],100);raw.options[0].argsSchema.max=35;return raw;};f.host.liveTransport.controlSetup=async()=>offer();await f.view.prepareMusic();
+  f.host.liveTransport.controlSetup=()=>held.promise;f.host.liveTransport.controlAction=async(task,id,args)=>{f.writes.push({task,id,args});return {outcome:'unknown'};};
+  intent=f.view.musicIntent('volume',{percent:35});assert.equal(f.nodes.get('volume').disabled,true);assert.equal(f.nodes.get('volume').value,'100');assert.equal(await f.view.musicIntent('volume',{percent:0}),false);assert.equal(f.writes.length,0);
+  held.resolve(offer());await intent;assert.deepEqual(f.writes.map(write=>write.args),[{percent:35}]);assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.nodes.get('volume').value,'100');assert.equal(f.nodes.get('volume').disabled,true);assert.equal(await f.view.musicIntent('volume',{percent:0}),false);assert.equal(f.writes.length,1);
+ }finally{held.resolve(f.offer(['volume'],100));await intent;f.restore();}
+});
+
+for(const failure of ['rejected','invalid'])test(`passive ${failure} setup explains disabled controls and recovers only from a new poll with valid setup`,async()=>{
+ const f=fixture();const held=deferred();try{
+  actualOutput(f);let reads=0;f.host.liveTransport.controlSetup=async()=>{reads++;if(failure==='rejected')throw Error('inert control_setup_denied');return {...f.offer(['pause','volume'],35),expectedBindingId:'d'.repeat(64)};};
+  const playback=structuredClone(f.host.liveMedia.playback);await f.view.prepareMusic();
+  assert.equal(f.view.musicOffer,null);assert.equal(f.view.musicFence.outcome,'unavailable');assert.equal(f.view.musicFence.readFailure,true);assert.equal(f.view.musicStatus.hidden,false);assert.equal(f.view.musicStatus.textContent,'Betjeningen kunne ikke hentes');assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);assert.deepEqual(f.host.liveMedia.playback,playback);assert.equal(f.writes.length,0);
+  await f.view.prepareMusic();assert.equal(reads,1,'failed setup does not repeat on the same source poll');assert.equal(await f.view.musicIntent('pause'),false);
+  f.host.liveMedia.playback.poll_sequence++;f.host.liveTransport.controlSetup=()=>{reads++;return held.promise;};const refresh=f.view.prepareMusic();assert.equal(reads,2);f.view.renderMusicControls();assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.view.musicFence.readFailure,true,'an unaccepted read is not recovery');await f.view.prepareMusic();assert.equal(reads,2);
+  held.resolve(f.offer(['pause','volume'],35));await refresh;assert.equal(f.view.musicFence,null);assert.equal(f.view.musicStatus.hidden,true);assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.writes.length,0);
+ }finally{held.resolve(f.offer(['pause','volume'],35));f.restore();}
+});
+for(const replacement of ['room','music-generation'])test(`late failed passive setup cannot report a failure after ${replacement} replacement`,async()=>{
+ const f=fixture();const held=deferred();try{
+  actualOutput(f);f.host.liveTransport.controlSetup=()=>held.promise;const read=f.view.prepareMusic();
+  if(replacement==='room')f.host.liveSnapshot.roomId='other';else f.view.invalidateMusic(undefined,false);
+  held.resolve({ok:false,error:'inert rejected'});await read;
+  assert.equal(f.view.musicFence??null,null);assert.equal(f.view.musicStatus.hidden,true);assert.equal(f.view.musicOffer,null);assert.equal(f.writes.length,0);
+ }finally{held.resolve({ok:false});f.restore();}
+});
+test('passive setup never replaces an UNKNOWN command fence with read failure or recovery',async()=>{
+ const f=fixture();try{
+  actualOutput(f);await f.view.prepareMusic();f.host.liveTransport.controlAction=async(task,id,args)=>{f.writes.push({task,id,args});return {outcome:'unknown'};};await f.view.musicIntent('pause');
+  const fence=f.view.musicFence,reads=f.reads();f.host.liveMedia.playback.poll_sequence++;f.host.liveTransport.controlSetup=async()=>{throw Error('must not read past unknown');};await f.view.prepareMusic();
+  assert.equal(f.view.musicFence,fence);assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.view.musicFence.readFailure,undefined);assert.equal(f.view.musicStatus.textContent,'Udfald ukendt · gentages ikke');assert.equal(f.reads(),reads);assert.equal(f.writes.length,1);
  }finally{f.restore();}
 });
