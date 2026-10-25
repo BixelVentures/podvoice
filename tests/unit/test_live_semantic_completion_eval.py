@@ -127,7 +127,7 @@ def test_answer_seen_known_complete_answer_does_not_depend_on_punctuation(
     assert module.answer_seen(rows, after_seq, ("fire", "4")) is expected
 
 
-def good_rows(case="completed-side-address"):
+def good_rows(case="completed-side-address", *, opening_backend=False):
     rows = []
 
     def emit(kind, **fields):
@@ -189,6 +189,15 @@ def good_rows(case="completed-side-address"):
             start_ms=index * 1000,
             end_ms=index * 1000 + 200,
         )
+        if index == 0 and opening_backend:
+            emit(
+                "LiveBackendStarted",
+                generation=1,
+                response_id="opening",
+                delegation_id="opening",
+                created_index=1,
+                input_index=1,
+            )
         if index == 0 or name in {"followup", "interrupt_followup", "aside_correction", "resume"}:
             emit(
                 "LiveTranscript",
@@ -1199,3 +1208,126 @@ async def test_backend_text_observer_bounds_utf8_and_total_without_breaking_read
         await live.close()
         evidence.close()
     assert sdk.released
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [None, "foreign", "stale_input", "unfinished", "cleanup_only", "tool", "no_spoken", "misheard"],
+)
+def test_presentation_acceptance_requires_real_completed_current_structure(mutation):
+    raw = json.dumps(
+        {
+            "spoken": "Fold først papiret på midten.",
+            "presentation": {
+                "family": "steps",
+                "title": "Papirflyver",
+                "summary": "Fold en papirflyver.",
+                "origin": "ai_explanation",
+                "sourceCalls": [],
+                "content": {"steps": ["Fold papiret på midten.", "Fold hjørnerne ind."]},
+            },
+        }
+    )
+    rows = [
+        dict(
+            kind="LiveTranscript",
+            seq=0,
+            generation=1,
+            direction="in",
+            text=module.TEXTS["presentation_steps"],
+            input_index=1,
+        ),
+        dict(kind="fixture_finished", seq=1, name="presentation_steps"),
+        dict(kind="LiveBackendStarted", seq=2, generation=1, response_id="r1", delegation_id="d1"),
+        dict(
+            kind="LiveBackendComplete",
+            seq=3,
+            generation=1,
+            response_id="r1",
+            delegation_id="d1",
+            status="completed",
+            tool_call_count=0,
+            final_message=raw,
+        ),
+        dict(
+            kind="presentation_receipt",
+            seq=4,
+            response_id="r1",
+            delegation_id="d1",
+            input_index=1,
+            item={
+                "schema": "podview.presentation.v1",
+                "providerGeneration": 1,
+                "turnId": "live:1:r1",
+                "taskId": "answer:d1",
+                "family": "steps",
+                "provenance": {"kind": "ai_explanation"},
+                "allowedActions": [],
+                "content": {
+                    "steps": [{"text": "Fold papiret på midten."}, {"text": "Fold hjørnerne ind."}]
+                },
+            },
+        ),
+        dict(
+            kind="LiveTranscript",
+            seq=5,
+            generation=1,
+            direction="out",
+            text="Fold først papiret på midten.",
+        ),
+    ]
+    if mutation == "foreign":
+        rows[4]["response_id"] = "other"
+    elif mutation == "stale_input":
+        rows[4]["input_index"] = 0
+    elif mutation == "unfinished":
+        rows[3]["status"] = "incomplete"
+    elif mutation == "cleanup_only":
+        rows.insert(4, dict(kind="observation_finished", seq=4))
+    elif mutation == "tool":
+        rows.append(dict(kind="LiveToolBatch", seq=6, calls=[]))
+    elif mutation == "no_spoken":
+        rows.pop()
+    elif mutation == "misheard":
+        rows[0]["text"] = "Et andet spørgsmål."
+    result = module.assess(
+        "presentation-steps", rows, clean=True, usage_complete=True, stayed_open=True
+    )
+    assert result["verdict"] == ("OBSERVED_PASS" if mutation is None else "FAIL")
+    assert result["audio_completion"] == "UNKNOWN" and not result["physical_or_browser_proof"]
+
+
+@pytest.mark.asyncio
+async def test_presentation_case_exports_exact_candidate_without_provider(synthetic_fixtures):
+    manifest, fixtures = synthetic_fixtures
+    binding = await module.export_startup_binding(
+        "baseline", manifest, fixtures, case="presentation-steps"
+    )
+    assert binding["source_sha256"] == module.source_identity()
+    assert binding["variant"] == "baseline"
+
+
+@pytest.mark.parametrize("opening_backend", [False, True])
+def test_explicit_close_control_requires_math_without_opening_backend(opening_backend):
+    rows = good_rows("explicit-close", opening_backend=opening_backend)
+    result = assess(rows, "explicit-close")
+    assert result["verdict"] == ("FAIL" if opening_backend else "OBSERVED_PASS")
+    assert result["direct_routing_preserved"] is (not opening_backend)
+
+
+@pytest.mark.parametrize("replacement", [None, "3", "bevar"])
+def test_recorded_synthetic_whitespace_deltas_join_without_dropping_boundaries(replacement):
+    # Literal input deltas from the single actual F17 explicit-close recording;
+    # whitespace is provider data, not a completed turn or an inferred separator.
+    texts = [" Hvad er", " ", "2", " plus", " ", "2", " Afslut", " samtalen"]
+    rows = [dict(kind="LiveTranscript", generation=1, direction="in", text=text) for text in texts]
+    if replacement == "3":
+        rows[2]["text"] = "3"
+    elif replacement == "bevar":
+        rows[6]["text"] = " Bevar"
+    expected = module.fixture_transcript(
+        "".join(module.TEXTS[name] for name in module.CASES["explicit-close"])
+    )
+    actual = module.fixture_transcript(module.fixture_input_text(rows))
+    assert (actual == expected) is (replacement is None)
+    assert module.fixture_input_text(rows) == "".join(row["text"] for row in rows)

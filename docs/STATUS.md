@@ -1,3 +1,207 @@
+### Final bounded investigation checkpoint —90 remains unapproved WIP
+
+PV153 has been corrected from Ready forQA to In Progress on GitHub using actual
+candidate90 provider counterexamples. The installed89 baseline is running. The
+probe joining bug now preserves literal whitespace; a separate offline supplement
+recognizes exact known synthetic input, while original executed tooling/bindings/
+reports are archived unchanged and UNKNOWN/nonzero preaccept status remains.
+Only the fixture helper+two recognition callsites changed;13 targeted cases and
+independent source review pass. No repeat provider call or runtime patch followed.
+
+Native admission source audit proves same-generation precompletion PCM can play;
+the existing work-pending helper is global and cannot attribute audio to current
+input/delegation. Talk receives direct WebRTC media, and its existing capture-hold
+stops input, so that is not a full-duplex-safe output solution. Blind global muting,
+holding/replaying untagged audio or keyword filtering is rejected as an unproved
+patch. Current OpenAI live prompting/session/server-controls documentation confirms
+prompt-owned backchannel behavior and no output completion/timing on raw output
+chunks; strict preplay screening requires separate application segment buffering/
+checks/interruption recovery, with latency cost. No such new architecture is added.
+Sources: https://developers.openai.com/api/docs/guides/live-prompting and
+https://developers.openai.com/api/docs/guides/voice-server-controls?api=live .
+
+Actual steps receipt is correct but its probe stopped at receipt before meaningful
+spoken completion; no completed spoken-answer claim. Root retains the current
+release HOLD while resolving this provider/output decision. WIP source backup may
+be pushed to a branch without PR/officialCI/release; blank admission approval pins
+are intentional and must not be misrepresented as release approval. No private
+Green logs, keys, rawhouseholdhistory or localprovideroutputs belong in that export.
+
+## Provider gate90 — held after actual bounded comparison
+
+Root ran the independently reviewed2case incumbent operator once using private
+one-use in-memory credential transfer. No key output/files; receiver closed before
+STOPPED. Provider deadline120seconds, firstfailure/UNKNOWN stops batch. Installed89
+was stopped once and restarted once; Kører readback confirmed within86seconds of
+stop request. No household audio, alarm, robot, controller grant or physical test.
+
+Actual candidate presentation-steps OBSERVED_PASS: recognized synthetic task,
+one actual backend response,0 domain/toolcalls, same-current structured receipt,
+complete usage and clean shutdown. Actual explicit-close UNKNOWN: opening math
+answered directly (direct_routing_preserved=true), one accepted end_conversation,
+current receipt settlement and natural Thin teardown/rearm observed, but input
+recognition false and preaccept output triggers required audio/semantic review.
+Do not promote functional chain to complete input/semantic/physical acceptance.
+No repeat call, speculative runtime patch or release. Existing saved synthetic
+trace/audio is being inspected offline first. Model visual frequency, comparative
+latency, actual native audio/LED and fieldHomePod outcome remain unmeasured.
+Candidate held until this exact uncertainty is explained/reviewed. Production89
+is restored and unchanged; public delivery89 remains valid, not new90 acceptance.
+
+## Active PC58 investigation — exact shipped53 retirement chain
+
+Lead /root; causal fixture owner weather_backend_review; independent production
+identity mapping native_idle_owner. Passive current53 log shows RTSP peer close
+then retire409 during external transfer; this does not prove failed playback or
+audibility. Source shows non2xx same-pending retirement leaves custody UNKNOWN;
+the exact failed C predicate is not logged. No speculative production patch.
+
+Identity audit disproved equality of older pc53-rtp-output fixture directories to
+shipped53: Native controls predate directPause and C misses finalMOVEclock/output
+restoration. Old test results retain their actual source scope. Correct production
+inputs are final C c-production-replay in pc87-attention-restoration packet and
+Native native35-ci-replay in pc52-metadata-integration, bound to source44e14d95564abd81ca104bc0b3dbf0377d69b6ff;
+existing53 OCI subtreebc2e28953eb546b5804629b381b4abdc906bf073 is unchanged.
+Existing isolated peerclose fixture is being corrected to those exact production
+files before one offline causal run. No Green/provider/audio or new runner.
+Only a reproduced violated invariant can justify a product delta; timeout, stale
+fixture or compiler setup cannot. CurrentHomePod audible/reconnect remains open.
+
+### PC58 bounded causal discriminator result
+
+Exact current53 production Native162 files and C209 files were verified before the
+existing wire fixture ran. Public selected START emitted125 authenticated RTP packets
+to the private synthetic peer. Actual RTSP peerclose then normal stop-retirement
+received real C409 before mutation, retaining current UNKNOWN/freshwriter refusal.
+Actual old AppPlayer.Close and existing closed-prior retirement then received C200
+with durable retired terminal/drained contexts/fresh reader, clearing only old
+custody and admitting a fresh writer. Native0/C0. No permanent stranding was
+reproduced; no product patch is justified by this sequence. Transfer-away used the
+shipped beginStopRetirement seam, not an external Dealer packet. Fresh admission is
+not a second full authenticated START and the peer is not a HomePod. Actual field
+predicate, Close execution and audible output remain unknown. Existing fixture
+nilDealer setup failure was retained and corrected only in the test dependency.
+Result packet59dd49d165977b2d36debc5aff4f934ff2c9cc6195790f4787188cae09a37475.
+
+## Active successor F17 — substantive visual response routing
+
+Lead /root; source owner voice_close87. Actual89 remains installed and unchanged.
+Direct code evidence: primary prompt excludes stable knowledge from delegation;
+primary transcript fragments cannot create VisualReceiptOwner artifacts. Only a
+completed current backend delegation enters Thin._offer_completed_presentation.
+This is a proven policy/path exclusion, not a measured frequency or latency claim.
+
+Hypothesis: route a substantive reusable explanation, comparison or multi-step
+answer as the original task through the existing one backend delegation; request
+appropriate existing presentation structure there. Preserve direct short facts,
+math, clarification, acknowledgments and current command/domain routes. Keep the
+ban on a second delegation solely for drawing. No new selector/tool/schema/wire,
+no transcript promotion and no lifecycle/provider event change. This deliberately
+uses the existing backend path for substantive knowledge; its latency cost cannot
+be assumed zero and requires a bounded actual candidate provider comparison.
+
+Affected invariants: GPT-Live owns meaning/routing; Thin owns generation/current
+input/playback; only completed same-generation backend artifacts may be offered;
+server execution policy retains all authority. Chain: actual user input -> primary
+model original-task delegation -> existing backend structured response -> completed
+SDK event -> Thin current-generation offer -> existing consumer. Preserve stale,
+interrupted, duplicate and malformed rejection and both native/Talk ownership.
+
+Smallest candidate: two existing prompt/presentation policy files and narrowly
+aligned documentation/tests only. Causal regression reuses existing SDK->Thin->JS
+harness, not a new test system. Static/focused tests then independent adversarial
+prompt/ownership review and existing SafeEval/provider gates on exact candidate.
+Rollback omits this isolated routing delta; do not ship if semantic close, tools,
+short direct routing or current-input authority regresses. No Green/effects or
+provider calls in implementation; no release until those gates are actually met.
+
+### F17 implemented source result — provider gate remains open
+
+Three policy clauses in live_prompt.py and podview_presentation.py now route a
+substantive reusable explanation/comparison/steps as the original backend task;
+short facts, math, clarification, acknowledgments and command domains retain their
+existing routing. No extra presentation-only delegation, runtime, SDK, JS or schema
+change. Three authoritative docs narrowly align this exception. Existing units78,
+actual injected SDK->Thin->current/history->shippedJS cases34 and one existing
+probe startup-adaptation case pass, including retained negative/image guards.
+Formatter/lint/mypy pass. Exact owned patch6dca5d67ab773aaf3411a02901c62a5f7bcab804f57e1aed52ab51071a9b671b
+is source-frozen for independent review. These are deterministic/injected checks;
+actual model routing, latency and useful generated artifacts remain mandatory
+provider acceptance. No release readiness or physical claim follows.
+
+Existing persisted Live history contains transcript fragments but no durable
+response completion identity. Whole-session grouping cannot truthfully reconstruct
+completed historical answers. Keep truthful fragment labels; do not fabricate
+completion or expose private content. F17 supports future accepted visual receipts,
+not repair of missing past completion metadata.
+
+### PV219 bounded software verification
+
+Six existing focused cases on byte-identical89 source pass: exact SDK3.13.0 mute/
+unmute client_event_id ACK matching, readiness failclosed, stale/opposite/foreign
+ACK rejection, waiter close, Talk revision race and native mic path. No code defect
+found, no runtime edits. Actual deployed Live muted and unmuted event capture is
+still unverified and cannot be inferred from injected fixtures. No provider/key/
+Green/effects were used. This removes deterministic implementation uncertainty,
+not live-provider acceptance.
+
+## Active successor F05/F20 — preserve existing closed setup failure reason
+
+Lead /root; backend owner fault_diagnostics87; canonical frontend owned by PodView.
+Installed89 and its frozen source remain unchanged. Direct causal evidence: actual
+_control/TouchControls.setup returns HTTP200 exact three-key failed envelope
+{ok:false,error:<closed token>,retryAllowed:false}. Current transport checks missing
+success binding before this failure and the view records generic failure. Existing
+collector rejects all eight existing backend tokens. Eight real transport/view cases
+and eight collector admission cases reproduce the loss; no control action occurred.
+This explains diagnostic loss, not the underlying field setup refusal or audio.
+
+Chain: real setup failure -> current transport/view -> bounded automatic telemetry
+POST -> existing durable store/admin read. Preserve source failure, exact current
+owner/route, existing unavailable/UNKNOWN/effect fences, no retries or household
+commands, same six-key outer telemetry schema and existing row fields. The only new
+admission is code enum values busy,scope_not_paired,target_not_granted,stale_setup,
+setup_capacity,setup_unavailable,invalid_setup,invalid_target. Recognize only exact
+three-key failed envelope before success binding checks; invalid/malformed/unknown
+bodies retain existing invalid_dto/stale_binding diagnostic classification and stay closed. No arbitrary exception/prompt/URL/key/raw arguments.
+
+Smallest backend delta: add these eight finite codes to incumbent collector enum,
+with existing unit tests; frontend paired transport/view maps same code only. Gates:
+actual backend -> actual final JS failure -> same telemetry upload/store/admin DTO,
+all eight tokens retained, wrong/extra/malformed rejected, no offer or command and
+no identity/retry change. Focused lint/format and independent scoped source review.
+Rollback omits this isolated paired diagnostic delta. No new provider calls, Green
+requests, audio, observer subsystem or source-policy framework. No release until
+paired source tests and review pass; actual89 remains the installed baseline.
+
+### F05/F20 verified software result
+
+Paired backend39 focused checks, frontend44 causal cases and canonical2477 checks
+pass on frozen paired source. Independent backend and frontend source reviews have
+no findings; final frontend packet integrity audit verifies all203 asset hashes.
+Root adopted exactly3 runtime UI assets and regenerated incumbent203-file manifest.
+Actual composed route -> JS -> scoped telemetry POST -> durable ACK/store -> admin
+read retains all8 finite reasons among32 rows with zero offers, commands, grants
+or action receipts. One reason exercises actual setup rejection; other7 use the
+existing failure factory through the actual route, not7 cause-branch tests.
+This proves diagnostic preservation only, not the original field setup/audio cause.
+No provider, household effect or Green request was used. Candidate is not released.
+
+### Current installed baseline89
+
+PodVoice2.0.89 main5a9bb2b2da735399a1069f529ca4ace572779efb is published and installed
+on Green. Actual runtime rootfs-v1c931cd3eea8132361f4aa4510d952df62f711a0c1e404bc05b12f8f74b7b68b2
+matches the public OCI artifact readback. Official PR CI40213219335 and main image
+publisher40213792750 passed. Silent canonical overview, persisted transcript list/
+detail and music Stemning->Humør navigation loaded without reload. The3Humør
+fallback images rendered; AI-Stemning provider-cover acceptance is not implied.
+Persisted fragments are truthfully labelled potentially incomplete and are not
+completed visual receipts. Existing admin diagnostics store/read shows89 metadata.
+No fresh audio, alarm, robot or physical VoicePE acceptance occurred. Initial
+VoicePE status has no observed timestamp and says not checked, not proven offline.
+Remaining currentHomePod audio/reconnect, voice lifecycle/Stop/LED and broaderF17
+routing remain open. Older baseline/freeze notes below retain their historical date.
+
 ##89 sole final amendment — suppressed queue read
 
 Lead /root. Direct inert source reproduction: LiveMedia latches queueReadKey before

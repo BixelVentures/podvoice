@@ -37,6 +37,7 @@ MAX_BACKEND_RESPONSES = 4
 VARIANTS = ("baseline", "implicit")
 TEXTS = {
     "math": "Hvad er to plus to?",
+    "presentation_steps": "Forklar trin for trin, hvordan jeg folder en papirflyver, så jeg kan bruge vejledningen igen.",
     "long_count": "Tæl langsomt fra en til tyve, et tal ad gangen.",
     "timer_10s": "Sæt en timer på 10 sekunder.",
     "side_address": "Peter, nu taler jeg med dig. Hvad skal vi have til aftensmad?",
@@ -51,6 +52,7 @@ TEXTS = {
     "polite_followup": "Tak, og hvad er tre plus tre?",
 }
 CASES = {
+    "presentation-steps": ("presentation_steps",),
     "completed-side-address": ("math", "side_address"),
     "real-followup": ("math", "followup"),
     "brief-aside-correction": ("math", "aside_correction"),
@@ -567,6 +569,15 @@ def transcripts(rows, direction):
     ]
 
 
+def fixture_input_text(rows):
+    """Join literal controlled input deltas, retaining provider whitespace."""
+    return "".join(
+        r["text"]
+        for r in rows
+        if r["kind"] == "LiveTranscript" and r["generation"] == 1 and r["direction"] == "in"
+    )
+
+
 def answer_seen(rows, after_seq, endings):
     """Fixture pacing only: a transcript endpoint is never acoustic output completion."""
     output = [r for r in transcripts(rows, "out") if r["seq"] > after_seq]
@@ -765,13 +776,76 @@ def lifecycle_projection(timeline):
     ]
 
 
+def assess_presentation(rows, *, clean, usage_complete):
+    """Actual completed backend/Thin receipt; transcript timing is not an audio ACK."""
+    inputs, outputs = transcripts(rows, "in"), transcripts(rows, "out")
+    recognized = fixture_transcript(fixture_input_text(rows)) == fixture_transcript(
+        TEXTS["presentation_steps"]
+    )
+    started = [r for r in rows if r["kind"] == "LiveBackendStarted"]
+    completed = [r for r in rows if r["kind"] == "LiveBackendComplete"]
+    receipts = [r for r in rows if r["kind"] == "presentation_receipt"]
+    calls = [r for r in rows if r["kind"] in {"LiveToolBatch", "tool_results_request"}]
+    finished = [r for r in rows if r["kind"] == "fixture_finished"]
+    valid = False
+    if len(started) == len(completed) == len(receipts) == 1 and inputs and finished:
+        begin, done, observed = started[0], completed[0], receipts[0]
+        from gatekeeper.podview_presentation import final_message
+
+        item = observed["item"]
+        parsed = final_message(done.get("final_message", ""))
+        presentation = parsed.get("presentation") if parsed else None
+        valid = bool(
+            isinstance(presentation, dict)
+            and presentation.get("family") == "steps"
+            and presentation.get("origin") == "ai_explanation"
+            and presentation.get("sourceCalls") == []
+            and presentation["content"].get("steps")
+            == [row.get("text") for row in item.get("content", {}).get("steps", [])]
+            and begin["generation"] == done["generation"] == item.get("providerGeneration") == 1
+            and begin["response_id"] == done["response_id"] == observed["response_id"]
+            and begin["delegation_id"] == done["delegation_id"] == observed["delegation_id"]
+            and begin["seq"] < done["seq"] < observed["seq"]
+            and done["status"] == "completed"
+            and done["tool_call_count"] == 0
+            and observed["input_index"] == inputs[-1]["input_index"]
+            and item.get("taskId") == "answer:" + done["delegation_id"]
+            and item.get("turnId") == "live:1:" + done["response_id"]
+            and item.get("schema") == "podview.presentation.v1"
+            and item.get("family") == "steps"
+            and item.get("provenance") == {"kind": "ai_explanation"}
+            and item.get("allowedActions") == []
+            and 2 <= len(item.get("content", {}).get("steps", [])) <= 8
+            and finished[0]["name"] == "presentation_steps"
+        )
+    return dict(
+        verdict="OBSERVED_PASS"
+        if clean and usage_complete and recognized and outputs and valid and not calls
+        else "FAIL"
+        if clean and usage_complete
+        else "UNKNOWN",
+        recognized=recognized,
+        structured_receipt_observed=valid,
+        backend_responses=len(started),
+        domain_or_tool_calls=len(calls),
+        clean_shutdown=clean,
+        usage_complete=usage_complete,
+        audio_completion="UNKNOWN",
+        physical_or_browser_proof=False,
+        model_visual_frequency="UNMEASURED",
+        latency_comparison="UNMEASURED",
+    )
+
+
 def assess(case, rows, *, clean, usage_complete, stayed_open):
     # Post-observation cleanup can produce results; those never count for this trial.
     cutoff = next((i for i, r in enumerate(rows) if r["kind"] == "observation_finished"), len(rows))
     rows = rows[:cutoff]
+    if case == "presentation-steps":
+        return assess_presentation(rows, clean=clean, usage_complete=usage_complete)
     inputs, outputs = transcripts(rows, "in"), transcripts(rows, "out")
     expected = "".join(TEXTS[name] for name in CASES[case])
-    actual_input = "".join(r["text"] for r in inputs)
+    actual_input = fixture_input_text(rows)
     if case == "timer-10s":
         # Only the known timer fixture allows the spoken orthography of ten.
         actual_input = re.sub(r"\bti\b", "10", actual_input, flags=re.IGNORECASE)
@@ -1130,8 +1204,22 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             )
         elif stayed_open and not negative_window_complete:
             verdict = "UNKNOWN"
+    direct_routing_preserved = bool(
+        len(starts) >= 2
+        and not any(
+            r["kind"] in {"LiveBackendStarted", "LiveToolBatch"} and r["seq"] < starts[1]["seq"]
+            for r in rows
+        )
+    )
+    if case == "explicit-close" and not direct_routing_preserved and verdict == "OBSERVED_PASS":
+        verdict = "FAIL"
     return dict(
         verdict=verdict,
+        **(
+            {"direct_routing_preserved": direct_routing_preserved}
+            if case == "explicit-close"
+            else {}
+        ),
         recognized=recognized,
         timing_valid=timing,
         fixtures_complete=fixtures_complete,
@@ -1236,6 +1324,11 @@ async def evaluate(
     # 25 s fallback is not the shipped four-second conversation policy.
     app_config = Config(podconnect_base_url="", podconnect_token="", voicepe_noise_psk="", rooms=())
     tools = TimerProbeTools(evidence) if case == "timer-10s" else NoActions(evidence)
+    presentation_store = None
+    if case == "presentation-steps":
+        from gatekeeper.podview_receipts import VisualReceiptOwner
+
+        presentation_store = tools.podview_receipts = VisualReceiptOwner()
     streams = rig.LiveAudioStreams()
     capture = rig.SyntheticCapture(evidence, streams)
     live = OneLive(
@@ -1325,6 +1418,29 @@ async def evaluate(
             capture.play_fixture(names[0], fixtures[names[0]])
             while session._active:
                 now = rig.time.monotonic()
+                if presentation_store is not None:
+                    items = presentation_store.snapshot(session.room, session)["items"]
+                    if items and not any(
+                        r["kind"] == "presentation_receipt" for r in evidence.rows
+                    ):
+                        item = items[0]
+                        response_id = next(
+                            (
+                                identity
+                                for identity in session._live_backend_orders
+                                if item["turnId"]
+                                == f"live:{live._connection_generation}:{identity}"
+                            ),
+                            None,
+                        )
+                        if response_id is not None:
+                            evidence.emit(
+                                "presentation_receipt",
+                                item=item,
+                                response_id=response_id,
+                                delegation_id=session._live_backend_delegations[response_id],
+                                input_index=live.input_sequence,
+                            )
                 finished = [
                     r
                     for r in evidence.rows
@@ -1360,6 +1476,7 @@ async def evaluate(
                 elif (
                     case != "interrupt-active-output"
                     and stage == 0
+                    and len(names) > 1
                     and capture.clip is None
                     and answer_seen(evidence.rows, -1, ("fire", "4"))
                 ):
@@ -1381,6 +1498,10 @@ async def evaluate(
                     capture.play_fixture(names[stage], fixtures[names[stage]])
                 if (
                     case not in POSITIVE_CASES
+                    and (
+                        presentation_store is None
+                        or bool(presentation_store.snapshot(session.room, session)["items"])
+                    )
                     and stage == len(names) - 1
                     and capture.clip is None
                     and since_finished >= rig.NEGATIVE_OBSERVATION_S
@@ -1444,6 +1565,9 @@ async def evaluate(
             not in {"observation_deadline", "thin_session_ended", "negative_observation_complete"}
         ):
             report["verdict"] = "UNKNOWN"
+        if case == "pure-thanks" and any(r["kind"] == "LiveBackendStarted" for r in evidence.rows):
+            report["verdict"] = "FAIL" if report["verdict"] != "UNKNOWN" else "UNKNOWN"
+            report["direct_routing_preserved"] = False
         report.update(
             case=case,
             variant=variant,

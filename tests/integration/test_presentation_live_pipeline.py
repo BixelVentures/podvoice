@@ -412,13 +412,22 @@ async def test_actual_multi_fact_final_publishes_before_optional_selection_in_sa
         await session.aclose()
 
 
-@pytest.mark.parametrize("family", ["sourced-image", "simple-diagram"])
-async def test_owned_bicycle_receipt_reaches_actual_live_and_history_consumers(family):
+@pytest.mark.parametrize(
+    "family", ["sourced-image", "simple-diagram", "concise", "comparison", "steps"]
+)
+async def test_completed_structured_answer_reaches_actual_live_and_history_consumers(family):
     from gatekeeper.hub import StatusHub
+    from gatekeeper.live_prompt import live_instructions
     from gatekeeper.podview import BRIDGE
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
     from gatekeeper.web import create_app
 
     session, sdk, _, tools, _ = build()
+    # Bind the actual candidate's startup policy, rather than the builder's short
+    # fake voice prompt. Injected completions prove the adapter/consumer path only.
+    session.live_brain.instructions, session.live_brain.backend_instructions = live_instructions(
+        SYSTEM_PROMPT_DA
+    )
     store = tools.podview_receipts = VisualReceiptOwner()
     await session.start()
     try:
@@ -426,11 +435,21 @@ async def test_owned_bicycle_receipt_reaches_actual_live_and_history_consumers(f
         await session.submit_text(
             "Hvordan virker cyklens kæde og pedaler?", command_id="bike-input"
         )
+        config = sdk.session.start.await_args.kwargs["session"]
+        assert "som den oprindelige opgave én gang til backend" in config["instructions"]
+        assert "et kort, sikkert faktasvar" in config["instructions"]
+        assert (
+            "vælg en passende visning til en substantiel forklaring"
+            in config["delegation"]["responses"]["instructions"]
+        )
+        creates = sdk.response.create.await_count
         payload = message(family)
-        payload["presentation"]["content"] = {
-            **payload["presentation"]["content"],
-            "ownedImage": "bicycle_drivetrain",
-        }
+        with_image = family in {"sourced-image", "simple-diagram"}
+        if with_image:
+            payload["presentation"]["content"] = {
+                **payload["presentation"]["content"],
+                "ownedImage": "bicycle_drivetrain",
+            }
         app = create_app(StatusHub(), {session.room: session}, tools=tools)
         await emit(sdk, created(), assistant_item(json.dumps(payload)), terminal())
         await until(lambda: bool(store.snapshot(session.room, session)["items"]))
@@ -452,11 +471,14 @@ let raw='';for await(const chunk of process.stdin)raw+=chunk;
 const p=JSON.parse(raw);
 for(const answer of [ownedAnswers(p.answers,p.snapshot,0,p.now).items[0],
                      historicalAnswers(p.history,p.snapshot,p.now).items[0]]){
+ assert.equal(answer.kind,p.family);assert.deepEqual(answer.allowedActions,[]);
  const image=answer.content.image||answer.content.illustration;
- assert.equal(image.url,'assets/bicycle-drivetrain-illustration.webp');
- assert.equal(image.kind,'illustration');assert.deepEqual(answer.allowedActions,[]);
+ if(p.withImage){
+  assert.equal(image.url,'assets/bicycle-drivetrain-illustration.webp');
+  assert.equal(image.kind,'illustration');
+ }else assert.equal(image,undefined);
 }
-for(const url of ['assets/bicycle-drivetrain-illustration.png','https://unowned.invalid/image.webp']){
+if(p.withImage)for(const url of ['assets/bicycle-drivetrain-illustration.png','https://unowned.invalid/image.webp']){
  for(const [source,consume] of [[p.answers,v=>ownedAnswers(v,p.snapshot,0,p.now)],
                                 [p.history,v=>historicalAnswers(v,p.snapshot,p.now)]]){
   const bad=structuredClone(source),content=bad.items[0].content;
@@ -475,6 +497,8 @@ process.stdout.write('live/history admitted');
                     "snapshot": snapshot,
                     "history": history,
                     "now": time.time() * 1000,
+                    "family": family,
+                    "withImage": with_image,
                 }
             ),
             text=True,
@@ -483,6 +507,7 @@ process.stdout.write('live/history admitted');
         )
         assert rendered.returncode == 0, rendered.stderr
         assert rendered.stdout == "live/history admitted"
-        assert not tools.calls
+        assert sdk.response.create.await_count == creates
+        assert not tools.calls and store._selector is None
     finally:
         await session.aclose()

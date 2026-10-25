@@ -1,12 +1,31 @@
 """The PodView89 successor stays closed until exact source review binds it."""
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 from scripts import candidate_scope_admission89 as admission
 
 ROOT = Path(__file__).resolve().parents[2]
+
+PUBLISHED_89 = "5a9bb2b2da735399a1069f529ca4ace572779efb"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def published_89_source_root(tmp_path_factory):
+    """Run immutable89 assertions against its published tree, not a successor."""
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published89-source") / "repo"
+    # Copy local objects so nested mutation clones do not inherit temporary alternates.
+    subprocess.run(["git", "clone", "--quiet", "--no-local", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED_89], cwd=target, check=True)
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root
 
 
 def test_89_uses_exact_published_88_parent_and_historical_pins():

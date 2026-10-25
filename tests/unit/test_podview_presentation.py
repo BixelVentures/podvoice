@@ -494,6 +494,14 @@ def test_backend_instructions_reserve_visuals_for_semantic_added_value_without_a
     assert "kommando-kvittering" in BACKEND_PRESENTATION_INSTRUCTIONS
     assert "konkret visuel merværdi" in BACKEND_PRESENTATION_INSTRUCTIONS
     assert "Ingen ekstra modelrunde" in BACKEND_PRESENTATION_INSTRUCTIONS
+    assert (
+        "vælg en passende visning til en substantiel forklaring"
+        in BACKEND_PRESENTATION_INSTRUCTIONS
+    )
+    assert (
+        "med nyttig genlæsningsværdi i dit NORMALE sidste assistantresultat"
+        in BACKEND_PRESENTATION_INSTRUCTIONS
+    )
 
 
 @pytest.mark.parametrize("failure", ["missing", "tampered"])

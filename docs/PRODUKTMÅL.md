@@ -94,9 +94,15 @@ diagnostikadapter. De tæller ikke som GPT-Live-produktionsbevis.
   må ikke omdøbes til et provider-interrupt-ACK.
 - GPT-Live har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
-- GPT-Live bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
-  én respons, og kun en handling eller et opslag bruger et nødvendigt værktøj. Et
-  obligatorisk fortsættelsesværktøj eller en tvungen ekstra svarrespons er forbudt.
+- GPT-Live bruger automatisk værktøjsvalg: korte faktasvar, enkel matematik og
+  nødvendig opklaring besvares direkte i én respons. En substantiel forklaring,
+  sammenligning eller trinvis vejledning med nyttig genlæsningsværdi bruger én
+  eksisterende backenddelegation for selve opgaven og dens passende præsentation;
+  ingen ekstra delegation alene for at tegne. Kun en handling eller et opslag bruger
+  et nødvendigt domæneværktøj. Et obligatorisk fortsættelsesværktøj eller en tvungen
+  ekstra svarrespons for direkte svar er forbudt. Ændret routing kræver den fokuserede
+  faktiske GPT-Live-prøve nedenfor; latenstilføjelsen for substantielle svar må ikke antages nul
+  uden måling, og korte direkte svar samt eksisterende kommandoveje skal bevares.
 - Der findes ingen frase-, keyword- eller ASR-aliasliste, som afgør samtalehensigten.
 - “Klar”, “Kig FCK seneste kamp”, uklart input og almindelig høflighed kan ikke lukke,
   medmindre GPT-Live på den samme tur eksplicit beslutter, at brugeren afslutter.

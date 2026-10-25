@@ -1,3 +1,13 @@
+## 2.0.90
+
+- Preserve exact closed music/volume setup refusal reasons through the existing
+  browser diagnostics, durable store and administrator read without changing
+  execution authorization, retries or unknown-outcome safeguards.
+- Route substantive reusable explanations, comparisons and steps through the
+  existing backend task so its final result can offer a relevant visual answer;
+  keep short facts, acknowledgments and existing command routing unchanged.
+- Physical voice, timer, LED and HomePod sound acceptance remains separate.
+
 ## 2.0.89
 
 - Keep known music controls available during ordinary song/state refreshes while
