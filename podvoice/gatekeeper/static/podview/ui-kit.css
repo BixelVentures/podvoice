@@ -246,10 +246,10 @@ pv-widget-host .player>.output,pv-widget-host .player>.track{height:var(--pv-hit
  pv-widget-host[data-view=active] .player.pv-card{display:grid;container-type:inline-size;grid-template-columns:minmax(0,1fr);gap:var(--pv-s1);padding:var(--pv-s3);height:100%;overflow:hidden;grid-template-rows:var(--pv-hit) minmax(0,1fr) var(--pv-hit) var(--pv-hit) var(--pv-hit) var(--pv-hit)}
  pv-widget-host[data-view=active] .player.pv-card>.output{
   grid-row:1;display:flex;justify-content:space-between;align-items:center;
-  width:100%;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;border-radius:0;background:transparent;gap:var(--pv-s1);
+  width:100%;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0!important;border-radius:0;background:transparent;gap:var(--pv-s1);
  }
- pv-widget-host[data-view=active] .player.pv-card>.output h2{width:100%;height:48px;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:20px 28px;align-items:center;gap:0;margin:0;font:var(--pv-t-body);text-align:center}
- pv-widget-host[data-view=active] .player.pv-card>.output #player-state{grid-column:1;grid-row:1;justify-self:center;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] .player.pv-card>.output h2{width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:20px 28px;align-items:center;align-content:center;gap:var(--pv-s1);margin:0;font:var(--pv-t-body);text-align:center}
+ pv-widget-host[data-view=active] .player.pv-card>.output #player-state{grid-column:1;grid-row:1;justify-self:center;min-width:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-height:20px}
  pv-widget-host[data-view=active] .player.pv-card>.output .output-room{grid-column:1;grid-row:2;align-self:center;justify-self:center;min-width:0;max-width:100%;margin:0}
  pv-widget-host[data-view=active] .player.pv-card>.cover-button{
   grid-row:2;display:block;min-height:0;min-width:0;height:min(100%,100cqi,326px);width:auto;max-width:100%;
@@ -626,8 +626,8 @@ pv-widget-host[data-view=rest][data-night=true] .photo-time{color:var(--pv-clock
 /* Timer overview: retained content, then cancel and detail in native tab order. */
 pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero{display:grid;grid-template-columns:64px minmax(0,1fr) max-content 64px;align-items:center;gap:var(--pv-s2);min-height:112px;height:auto;padding:var(--pv-s2) var(--pv-s3)}
 pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-instrument{grid-column:1;grid-row:1}
-pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy{grid-column:2;grid-row:1;grid-template-columns:max-content minmax(0,1fr);grid-template-rows:26px 20px;column-gap:var(--pv-s3);row-gap:4px;align-content:center;align-items:center;min-height:64px}
-pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){margin:0;padding:0;align-self:center;min-height:0}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy{grid-column:2;grid-row:1;grid-template-columns:max-content minmax(0,1fr);grid-template-rows:26px 20px;column-gap:var(--pv-s3);row-gap:4px;align-content:center;align-items:center;min-width:0;min-height:64px}
+pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){margin:0;padding:0;align-self:center;min-height:0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>.timer-count{align-self:center}
 pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open{position:static;display:grid;place-items:center;place-content:center;grid-template-columns:none;grid-column:4;grid-row:1;width:var(--pv-hit);min-width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0;gap:0;justify-self:end;align-self:center;background:var(--pv-timer-control);color:var(--pv-on-dark);border-radius:var(--pv-r-pill)}
 pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open>.timer-chevron{width:var(--pv-icon-s);height:var(--pv-icon-s);padding:0;background:none;border-radius:0;filter:invert(1)}
@@ -641,6 +641,11 @@ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-pane
  pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-copy>.timer-state{grid-column:1;grid-row:3}
  pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-finish{grid-column:2;grid-row:2}
  pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open{grid-column:3;grid-row:2}
+}
+/* Long-hour overview keeps both metadata rows readable at the narrower product width. */
+@media(min-width:760px) and (max-width:1100px){
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero:has(>.timer-instrument[data-long=true])>.timer-copy{column-gap:var(--pv-s2)}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero:has(>.timer-instrument[data-long=true])>.timer-copy>.timer-count{font:var(--pv-t-value);line-height:44px;white-space:nowrap}
 }
 /* Native controls inherit kit ink instead of platform black. */
 input[type=range],.pv-slider{color:var(--pv-ink)}

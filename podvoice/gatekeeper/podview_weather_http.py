@@ -30,7 +30,7 @@ def capability(bridge, room, weather):
         result.update(binding)
         wire = owner.request(bridge.boot_id, room, weather, current=lambda: True)
         can_start = owner.provider.available
-        # A durable debit closes NEXT-generation admission, not the exact
+        # Provider admission can close without revoking the exact
         # already-admitted task's pending/ready read capability.
         retained = wire["requestId"] is not None and wire["status"] in {"pending", "ready"}
         result["status"] = "idle" if wire["requestId"] is None and can_start else wire["status"]

@@ -43,6 +43,12 @@ _EVENTS = {
     "teardown_step_timeout",
     "playback_started",
     "playback_finished",
+    "failure",
+    "live_idle_preclose_started",
+    "live_idle_preclose_visible",
+    "live_idle_preclose_cancelled",
+    "live_idle_preclose_elapsed",
+    "live_idle_preclose_failed",
 }
 _REASONS = {
     "sequence_gap",
@@ -80,6 +86,91 @@ _REASONS = {
     "unknown_or_stale_input",
     "input_observation_discontinuity",
     "missing_stale_or_changed_owner",
+    "input_currency_changed",
+    "backend_settled",
+    "capture_readmission",
+}
+_PRECLOSE_EVENTS = {
+    "live_idle_preclose_started",
+    "live_idle_preclose_visible",
+    "live_idle_preclose_cancelled",
+    "live_idle_preclose_elapsed",
+    "live_idle_preclose_failed",
+}
+_PRECLOSE_CANCEL_REASONS = {
+    "native-output",
+    "native-quiet-invalidated",
+    "new-backend-work",
+    "new-input",
+    "new-output",
+    "owner-changed",
+    "semantic-end",
+    "transport-close",
+    "typed-input",
+    "cancel-failed",
+}
+_FAILURE_KINDS = {"capacity", "connection", "device", "diagnostic"}
+_PRECLOSE_FAILURE_CLASSES = {"RuntimeError", "TimeoutError", "ConnectionError", "OSError"}
+_CLOSE_REASONS = {
+    "stop",
+    "stop-word",
+    "model-close",
+    "model-close-silent",
+    "idle-fallback",
+    "app-idle-timeout",
+    "max_duration",
+    "shutdown",
+    "attention-lease-retired",
+    "live-audio-contract",
+    "live-batch-replay",
+    "live-browser-drain-unconfirmed",
+    "live-close-boundary-unproven",
+    "live-close-browser-fence-unconfirmed",
+    "live-close-buffer-overflow",
+    "live-close-guard-unmeasured",
+    "live-close-output-quiet-unconfirmed",
+    "live-close-preservation-failed",
+    "live-close-source-unavailable",
+    "live-close-unknown",
+    "live-confirmation-before-capture",
+    "live-confirmation-rotation-failed",
+    "live-context-unconfirmed",
+    "live-drain-failed",
+    "live-duplicate-audio-path",
+    "live-finalization-failed",
+    "live-firmware-unavailable",
+    "live-idle-closing-cancel-failed",
+    "live-idle-visible-boundary-unconfirmed",
+    "live-output-cancelled",
+    "live-playback-overlap",
+    "live-playback-start-failed",
+    "live-provider-closed",
+    "live-terminal-settlement-failed",
+    "live-text-failed",
+    "live-tool-failed",
+    "live-unexpected-playback-finish",
+    "playback-fault",
+    "playback-overlap",
+    "stop-context-fault",
+    "stop-context-unconfirmed",
+    "voicepe-link-lost",
+    *(f"error:{kind}" for kind in _FAILURE_KINDS),
+    *(
+        f"live-output-{kind}"
+        for kind in (
+            "provider_fault",
+            "invalid_pcm",
+            "buffer_overflow",
+            "producer_stalled",
+            "http_disconnect",
+            "http_write_timeout",
+            "http_cancelled",
+            "http_incomplete",
+            "server_shutdown",
+            "conversation-close",
+            "confirmation-rotation",
+        )
+    ),
 }
 _TEARDOWN_EVENTS = {"teardown_step_failed", "teardown_step_timeout"}
 _TEARDOWN_STEPS = {
@@ -88,6 +179,7 @@ _TEARDOWN_STEPS = {
     "heartbeat-stop",
     "live-opening-settle",
     "live-rotation-io-settle",
+    "live-idle-preclose-settle",
     "orphan-silence",
     "provider-close",
     "silence-after-error",
@@ -179,17 +271,34 @@ def content_free_manifest(manifest: dict) -> dict:
                 key == "reason" and event["event"] in _TEARDOWN_EVENTS and value == "total-deadline"
             ):
                 clean[key] = value
+            elif key == "reason" and isinstance(value, str) and value in _CLOSE_REASONS:
+                clean[key] = value
             elif (
                 key == "reason"
+                and event["event"] == "live_idle_preclose_cancelled"
                 and isinstance(value, str)
-                and value
-                in {
-                    "stop",
-                    "stop-word",
-                    "model-close",
-                    "model-close-silent",
-                    "idle-fallback",
-                }
+                and value in _PRECLOSE_CANCEL_REASONS
+            ):
+                clean[key] = value
+            elif (
+                key == "kind"
+                and event["event"] == "failure"
+                and isinstance(value, str)
+                and value in _FAILURE_KINDS
+            ):
+                clean[key] = value
+            elif (
+                key == "cause"
+                and event["event"] == "live_idle_preclose_failed"
+                and isinstance(value, str)
+                and value in _PRECLOSE_FAILURE_CLASSES
+            ):
+                clean[key] = value
+            elif (
+                event["event"] in _PRECLOSE_EVENTS
+                and key in {"token", "native_token", "led_tx_sequence"}
+                and type(value) is int
+                and 0 <= value < 2**64
             ):
                 clean[key] = value
             elif key in {

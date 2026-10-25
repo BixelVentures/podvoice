@@ -45,7 +45,25 @@ export class TimerView {
   const selectedRecent=null;if(this.recentChoiceModel&&this.recentChoiceModel.selected!==selectedRecent){this.recentChoiceModel={...this.recentChoiceModel,selected:selectedRecent};this.recentChoices.data=this.recentChoiceModel;}
   const validation=this.form.querySelector('.timer-validation');if(validation.hidden!==(seconds!==null))validation.hidden=seconds!==null;
  }
+ // This is a display anchor, never a native deadline, completion or grant.
+ // Repeated SSE copies of the same cached source count retain its original anchor.
+ presentationTimer(t){
+  const stop=()=>{clearTimeout(this.presentationTick);this.presentationTick=null;},host=this.host,s=host.liveSnapshot,transport=host.liveTransport;
+  if(!host.live||!t?.ownerBootId||s?.bootId!==t.ownerBootId||typeof s.roomId!=='string'||s.timers?.epoch===undefined||s.timers.epoch===null||!Number.isFinite(t.remaining)||t.remaining<0){stop();this.presentationAnchor=null;return t;}
+  const now=this.presentationNow?.()??globalThis.performance?.now?.()??Date.now(),key=JSON.stringify([s.bootId,s.roomId,s.timers.epoch,t.id]);let anchor=this.presentationAnchor;
+  if(!anchor||anchor.key!==key||anchor.status!==t.status||anchor.sourceRemaining!==t.remaining){stop();anchor=this.presentationAnchor={key,status:t.status,sourceRemaining:t.remaining,at:now,displayed:t.remaining,advancing:false};}
+  const item=s.timers.items?.find(row=>row.id===t.id),sourceCurrent=s.timers.status==='observed'&&item?.status===t.status&&item.secondsLeft===t.remaining,age=Date.now()-transport?.acceptedReadAt,ready=host.isConnected!==false&&host.browserOffline!==true&&host.liveStatus==='connected'&&transport?.connected===true&&transport.recoveryBlocked!==true&&Number.isFinite(transport.acceptedReadAt)&&age>=0&&age<6000&&this.connected!==false&&!t.stale&&sourceCurrent&&t.status==='running';
+  if(!ready){stop();anchor.advancing=false;return anchor.displayed===t.remaining?t:{...t,remaining:anchor.displayed};}
+  if(!anchor.advancing){anchor.at=now;anchor.displayed=t.remaining;anchor.advancing=true;}
+  const elapsed=Math.max(0,now-anchor.at);anchor.displayed=Math.max(0,Math.ceil(anchor.sourceRemaining-elapsed/1000));
+  if(anchor.displayed>0&&!this.presentationTick){
+   const delay=Math.max(1,Math.ceil(1000-elapsed%1000));
+   this.presentationTick=setTimeout(()=>{this.presentationTick=null;if(host.isConnected===false){this.presentationAnchor=null;return;}const current=timerPresentation(timersFor(host.state||{})).current;if(!current){this.presentationAnchor=null;return;}for(const slot of ['overview','detail']){const card=this.nodes.get(`${slot}:${current.id}`);if(card&&!card.hidden)this.card(current,card.parentNode,`${slot}:${current.id}`);}host.renderResourceRail?.();},delay);
+  }else if(anchor.displayed===0)stop();
+  return anchor.displayed===t.remaining?t:{...t,remaining:anchor.displayed};
+ }
  card(t,container,key){
+  t=this.presentationTimer(t);
   let node=this.nodes.get(key);if(!node){
    node=document.createElement('article');node.className='timer-panel pv-hero';node.dataset.kitTone='dark';applyKitComponent(node,'hero',{identity:'neutral'});const overview=key.startsWith('overview:');
    const instrument=`<span class="timer-instrument" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="timer-track" cx="60" cy="60" r="54"/><circle class="timer-progress" cx="60" cy="60" r="54" pathLength="100"/></svg>${overview?'<img class="timer-icon" src="assets/icons/timer.svg" alt="">':'<span class="timer-count"></span>'}</span>`,copy=`<span class="timer-copy">${overview?'<span class="timer-count"></span>':''}<strong></strong><span class="timer-state"></span></span>`;
@@ -65,7 +83,7 @@ export class TimerView {
   const finish=node.querySelector('.timer-finish'),finishLabel=timerFinishLabel(t),finishAria=`${finishLabel} timer`;if(finish.textContent!==finishLabel)finish.textContent=finishLabel;if(finish.getAttribute('aria-label')!==finishAria)finish.setAttribute('aria-label',finishAria);return node;
  }
  renderAccess({connected,canStart=connected,canCancel=connected,pending=false,waiting=pending,awaitingObservation=false,allowIndependentCancel=false,cancelBlockedIds=[],feedback=''}={}){
-  this.accessModel={connected,canStart,canCancel,pending,waiting,awaitingObservation,allowIndependentCancel,cancelBlockedIds,feedback};const blocked=pending||awaitingObservation;this.connected=connected===true;this.canStart=this.connected&&canStart===true&&!this.currentTimer&&!blocked;this.canCancel=this.connected&&canCancel===true&&!pending&&(!awaitingObservation||allowIndependentCancel);
+  this.accessModel={connected,canStart,canCancel,pending,waiting,awaitingObservation,allowIndependentCancel,cancelBlockedIds,feedback};const blocked=pending||awaitingObservation;this.connected=connected===true;this.canStart=this.connected&&canStart===true&&!this.currentTimer&&!blocked;this.canCancel=this.connected&&canCancel===true&&!pending&&(!awaitingObservation||allowIndependentCancel);if(this.host?.live&&!this.connected){clearTimeout(this.presentationTick);this.presentationTick=null;if(this.presentationAnchor)this.presentationAnchor.advancing=false;}
   // Visibility belongs to timer content, never to controller authority. A
   // disabled draft is still the same draft; it is not an observed timer.
   this.canDraft=this.connected&&!blocked&&!this.currentTimer;const formHidden=!!this.currentTimer,busy=String(waiting);if(this.form.hidden!==formHidden)this.form.hidden=formHidden;if(this.form.getAttribute?.('aria-busy')!==busy)this.form.setAttribute('aria-busy',busy);
@@ -80,7 +98,7 @@ export class TimerView {
  render(s){
   if(s.focus!=='timers')this.startNavigation=null;
   const projection=timerPresentation(timersFor(s));for(const [key,node]of this.nodes){const hidden=key!==`overview:${projection.current?.id}`&&key!==`detail:${projection.current?.id}`;if(node.hidden!==hidden)node.hidden=hidden;}if(this.overviewList.hidden!==!projection.current)this.overviewList.hidden=!projection.current;if(this.shortcut.hidden!==!!projection.current)this.shortcut.hidden=!!projection.current;
-  const current=projection.current;this.currentTimer=current;if(current){const node=this.card(current,this.overviewList,`overview:${current.id}`);if(this.overviewList.children[0]!==node)this.overviewList.insertBefore(node,this.overviewList.children[0]||null);}
+  const current=projection.current;this.currentTimer=current;if(!current){clearTimeout(this.presentationTick);this.presentationTick=null;this.presentationAnchor=null;}if(current){const node=this.card(current,this.overviewList,`overview:${current.id}`);if(this.overviewList.children[0]!==node)this.overviewList.insertBefore(node,this.overviewList.children[0]||null);}
   const list=this.detail.querySelector('.timer-active-list');if(current){const node=this.card(current,list,`detail:${current.id}`);if(list.children[0]!==node)list.insertBefore(node,list.children[0]||null);}
   const running=this.detail.querySelector('.timer-running'),runningTitle=running.querySelector?.('h2'),runningLabel=current?.stale?'Senest kendte timer':current?.status==='done'?'Afsluttet timer':current?.status==='paused'?'Timer på pause':'Aktuel timer';if(runningTitle&&runningTitle.textContent!==runningLabel)runningTitle.textContent=runningLabel;if(running.hidden!==!current)running.hidden=!current;const detailHidden=s.focus!=='timers';if(this.detail.hidden!==detailHidden)this.detail.hidden=detailHidden;this.renderAccess(this.host.live?(this.accessModel||{connected:false,canStart:false,canCancel:false}):{connected:s.connected});
   const demoStart=document.getElementById('start-timer');if(demoStart&&demoStart.disabled!==!this.canStart)demoStart.disabled=!this.canStart;
@@ -94,7 +112,7 @@ export class TimerView {
  }
  renderOverviewActivities(s){
   // The top overview slot belongs only to Timer. Other resources keep their fixed cards.
-  const current=timerPresentation(timersFor(s).filter(timer=>!timer.hidden)).current;
+  const current=timerPresentation(timersFor(s).filter(timer=>!timer.hidden)).current;if(!current){clearTimeout(this.presentationTick);this.presentationTick=null;this.presentationAnchor=null;}
   const selected=current?{id:`timer:${current.id}`,kind:'timer',resource:current}:null;
   this.overviewActivities=selected?[selected]:[];this.overviewSelectedId=selected?.id||null;
   for(const [node,hidden] of [[this.overviewList,!selected],[this.shortcut,!!selected]])if(node.hidden!==hidden)node.hidden=hidden;
@@ -110,5 +128,5 @@ export class TimerView {
   const timer=timersFor(this.host.state||{}).find(t=>t.status==='done'&&!t.stale&&!t.noticeDismissed)||this.currentTimer;
   this.notice.render(timer,focus,live,feedbackVisible,null,{...this.accessModel,canCancel:this.canCancel});
  }
- cleanup(){this.startNavigation=null;this.activityAnimation?.cancel();if(this.activityPointer)this.activityPointer.target.style.transform='';this.activityPointer=null;this.notice?.cleanup();}
+ cleanup(){clearTimeout(this.presentationTick);this.presentationTick=null;this.presentationAnchor=null;this.startNavigation=null;this.activityAnimation?.cancel();if(this.activityPointer)this.activityPointer.target.style.transform='';this.activityPointer=null;this.notice?.cleanup();}
 }

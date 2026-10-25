@@ -510,7 +510,7 @@ class WidgetHost extends HTMLElement {
  }
  renderResourceRail(){
   const s=this.state, resources=[],answerFocused=s.answers?.some(answer=>answer.id===s.focus&&!answer.hidden);
-  if(!answerFocused)for(const t of timerPresentation(timersFor(s)).visible.filter(timer=>['running','done'].includes(timer.status)))resources.push({id:t.id,kind:'timer',status:t.status,remaining:t.remaining,duration:t.duration,deadline:t.deadline,stale:t.stale,displayState:t.displayState,target:'timers',title:'Timer',detail:timerStateLabel(t),value:timerTime(t.remaining)});
+  if(!answerFocused)for(const source of timerPresentation(timersFor(s)).visible.filter(timer=>['running','done'].includes(timer.status))){const t=this.timerView?.presentationTimer?.(source)||source;resources.push({id:t.id,kind:'timer',status:t.status,remaining:t.remaining,duration:t.duration,deadline:t.deadline,stale:t.stale,displayState:t.displayState,target:'timers',title:'Timer',detail:timerStateLabel(t),value:timerTime(t.remaining)});}
   for(const d of s.devices){
    if(d.hidden)continue;const presentation=devicePresentation(d,{connected:this.live?!!this.liveTransport?.connected:s.connected});
    // Only the admitted own-area observation may reach the passive rail.

@@ -447,7 +447,14 @@ class TouchControls:
         }
 
     async def setup(self, body: dict, token: str) -> dict:
-        if set(body) - {"bootId", "roomId", "domain", "target", "recipeId"} or not {
+        if set(body) - {
+            "bootId",
+            "roomId",
+            "domain",
+            "target",
+            "recipeId",
+            "requestedAction",
+        } or not {
             "bootId",
             "roomId",
             "domain",
@@ -460,6 +467,10 @@ class TouchControls:
             or domain not in ("music", "vacuum", "light")
             or not isinstance(target, dict)
             or body["bootId"] != self.bridge.boot_id
+        ):
+            return failure("invalid_setup")
+        if "requestedAction" in body and (
+            body["requestedAction"] != "volume" or domain != "music" or "speakerId" in target
         ):
             return failure("invalid_setup")
         if domain not in self.domains(room, token):
@@ -667,6 +678,10 @@ class TouchControls:
                         ):
                             if (
                                 not available
+                                or (
+                                    body.get("requestedAction") == "volume"
+                                    and slot != "volume_offered"
+                                )
                                 or not actions.intersection(rule["actions"])
                                 or read is None
                             ):

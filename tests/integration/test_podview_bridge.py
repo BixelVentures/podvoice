@@ -1,7 +1,9 @@
 """Real ingress route and owner-bound bridge regressions; no physical claims."""
 
 import asyncio
+import hashlib
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -9,6 +11,7 @@ import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
+from gatekeeper import __version__, podview
 from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE, PodViewBridge, _trusted
@@ -128,16 +131,160 @@ async def test_exact_pairing_revision_and_duplicate_requests_run_at_most_once():
     assert (await bridge.action(body, token))["error"] == "control_not_paired"
 
 
-async def test_unknown_outcome_is_fenced_and_never_retried():
+@pytest.mark.parametrize("request_id", ["request-1", "\ud800"])
+async def test_unknown_outcome_is_fenced_and_never_retried(caplog, request_id):
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
     session, timers = owner()
-    timers.command.side_effect = TimeoutError()
+    timers.command.side_effect = TimeoutError("PRIVATE_timer_exception")
     bridge = PodViewBridge({"kitchen": session})
     token = bridge.grant_timer_control("kitchen")
     body = envelope(bridge)
+    body["requestId"] = request_id
     result = await bridge.action(body, token)
     assert result["outcome"] == "unknown" and result["retryAllowed"] is False
     assert await bridge.action(body, token) == result
     assert timers.command.await_count == 1
+    records = [r.getMessage() for r in caplog.records if r.name == "podvoice.podview"]
+    assert len(records) == 1
+    assert (
+        "stage=timer_dispatch code=dispatch_failed error_class=timeout http_status=none"
+        in records[0]
+    )
+    assert (
+        "request_ref="
+        + hashlib.sha256(body["requestId"].encode(errors="surrogatepass")).hexdigest()[:16]
+        in records[0]
+    )
+    assert "PRIVATE" not in caplog.text and body["requestId"] not in caplog.text
+    assert f"version={__version__}" in records[0]
+    assert all(r.exc_info is None for r in caplog.records if r.name == "podvoice.podview")
+
+
+async def test_timer_diagnostic_handler_failure_preserves_unknown_receipt(monkeypatch):
+    session, timers = owner()
+    timers.command.side_effect = ValueError("PRIVATE_timer_error")
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+
+    def broken_handler(*args):
+        raise RuntimeError("PRIVATE_log_handler")
+
+    monkeypatch.setattr(podview._LOG, "warning", broken_handler)
+    result = await bridge.action(body, token)
+    assert result == {
+        "ok": False,
+        "requestId": body["requestId"],
+        "outcome": "unknown",
+        "retryAllowed": False,
+    }
+    assert await bridge.action(body, token) == result
+    assert timers.command.await_count == 1
+
+
+async def test_timer_dispatch_cancellation_still_propagates_and_fences_replay(caplog):
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
+    session, timers = owner()
+    entered = asyncio.Event()
+
+    async def held(*args, **kwargs):
+        entered.set()
+        await asyncio.Event().wait()
+
+    timers.command.side_effect = held
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = envelope(bridge)
+    pending = asyncio.create_task(bridge.action(body, token))
+    await entered.wait()
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    result = await bridge.action(body, token)
+    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+    assert timers.command.await_count == 1
+    assert not [r for r in caplog.records if r.name == "podvoice.podview"]
+
+
+@pytest.mark.parametrize("failure", ["timeout", "http", "invalid", "transport", "exception"])
+async def test_music_read_terminal_failure_logs_cause_without_content(caplog, failure):
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
+    private = "PRIVATE_music_account_query_token"
+    error = {
+        "timeout": TimeoutError(private),
+        "http": httpx.HTTPStatusError(
+            private,
+            request=httpx.Request("GET", "https://private.invalid/" + private),
+            response=httpx.Response(429, text=private),
+        ),
+        "invalid": ValueError(private),
+        "transport": httpx.ConnectError(private),
+        "exception": RuntimeError(private),
+    }[failure]
+    session, _ = owner()
+    tools = SimpleNamespace(
+        declarations=lambda: [{"name": "podconnect_liked"}],
+        podview_music_reads=lambda: ["liked"],
+        podview_music_binding=lambda: (),
+        podview_read=AsyncMock(side_effect=error),
+    )
+    app = create_app(StatusHub(), {"kitchen": session}, tools=tools)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/view/api/music?kind=liked")
+        assert response.status == 200
+        assert await response.json() == {
+            "ok": False,
+            "error": "music_unavailable",
+            "retryAllowed": False,
+        }
+        assert tools.podview_read.await_count == 1 and not app[BRIDGE]._music_busy
+    records = [r.getMessage() for r in caplog.records if r.name == "podvoice.podview"]
+    assert len(records) == 1
+    kind, status = {
+        "timeout": ("timeout", "none"),
+        "http": ("http", "429"),
+        "invalid": ("invalid_response", "none"),
+        "transport": ("transport", "none"),
+        "exception": ("exception", "none"),
+    }[failure]
+    assert (
+        f"stage=music_read code=read_failed error_class={kind} http_status={status}" in records[0]
+    )
+    assert private not in caplog.text and "https://" not in caplog.text
+
+
+@pytest.mark.parametrize("domain", ["home", "weather"])
+async def test_home_domain_failure_logs_exact_stage_without_disabling_other_domain(caplog, domain):
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
+    private = "PRIVATE_home_weather_exception"
+    weather = {"status": "observed", "data": {"source": "admitted_weather", "current": None}}
+    tools = SimpleNamespace(
+        podview_home_available=lambda: False,
+        podview_home_binding=lambda: None,
+        podview_home_read=AsyncMock(return_value={"status": "unavailable", "items": []}),
+        podview_weather_available=lambda: True,
+        podview_weather_binding=lambda: "owner",
+        podview_weather_read=AsyncMock(return_value=weather),
+    )
+    getattr(tools, "podview_" + domain + "_read").side_effect = TimeoutError(private)
+    session, _ = owner()
+    app = create_app(StatusHub(), {"kitchen": session}, tools=tools)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/view/api/home")
+        assert response.status == 200
+        result = await response.json()
+        assert result["vacuum"] == {"status": "unavailable", "items": []}
+        assert result["weather"] == (
+            weather if domain == "home" else {"status": "unavailable", "data": None}
+        )
+        assert not app[BRIDGE]._home_busy
+    assert tools.podview_home_read.await_count == tools.podview_weather_read.await_count == 1
+    records = [r.getMessage() for r in caplog.records if r.name == "podvoice.podview"]
+    assert len(records) == 1
+    assert (
+        f"stage={domain}_read code=read_failed error_class=timeout http_status=none" in records[0]
+    )
+    assert private not in caplog.text
 
 
 async def test_music_facade_is_bounded_cached_and_error_details_redacted():

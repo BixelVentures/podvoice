@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -182,7 +183,8 @@ async def test_notification_during_write_is_not_lost(monkeypatch):
     assert not sink._subscribers
 
 
-async def test_heartbeat_still_projects_fresh_revocation(monkeypatch):
+async def test_heartbeat_still_projects_fresh_revocation(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
     clock = HeldHeartbeat()
     monkeypatch.setattr(podview, "asyncio", clock)
     sink = VisualReceiptOwner()
@@ -195,15 +197,18 @@ async def test_heartbeat_still_projects_fresh_revocation(monkeypatch):
         sink._rooms.clear()  # No publication: heartbeat must still observe revocation.
         clock.release.set()
         assert not (await asyncio.wait_for(frame(response), 0.3))["answers"]["items"]
+        assert not [r for r in caplog.records if r.name == "podvoice.podview"]
     finally:
         await client.close()
 
 
-async def test_write_fault_cleanup(monkeypatch):
+@pytest.mark.parametrize("error", [ConnectionResetError, TimeoutError])
+async def test_write_fault_cleanup(monkeypatch, caplog, error):
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
     sink = VisualReceiptOwner()
 
     async def fail(*args):
-        raise ConnectionResetError
+        raise error("PRIVATE_sse_payload_token")
 
     monkeypatch.setattr(web.StreamResponse, "write", fail)
     client, bridge = await client_for(sink)
@@ -213,6 +218,11 @@ async def test_write_fault_cleanup(monkeypatch):
         assert bridge._streams == 0 and not sink._subscribers
     finally:
         await client.close()
+    records = [r.getMessage() for r in caplog.records if r.name == "podvoice.podview"]
+    assert len(records) == 1
+    kind = "disconnected" if error is ConnectionResetError else "timeout"
+    assert f"stage=sse_write code=stream_failed error_class={kind} http_status=none" in records[0]
+    assert "PRIVATE" not in caplog.text
 
 
 async def test_loop_thread_dispatch_and_broken_observer_do_not_change_acceptance():

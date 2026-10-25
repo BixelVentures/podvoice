@@ -65,14 +65,19 @@ export class LiveMediaView{
    }
    if(next.projectionVersion===2&&next.observationStatus==='idle'){this.clearRoom();this.readState='idle';this.render();return;}
    const previousBinding=playbackBinding(this.playback,snap,account),nextBinding=playbackBinding(next,snap,account),ownerChanged=this.playback&&next.owner_epoch!==this.playback.owner_epoch;
-   if(ownerChanged||previousBinding?.bindingId!==nextBinding?.bindingId){this.queue=null;this.queueControls.invalidate(true);$('queue').replaceChildren();this.rows.clear();this.host.liveControls?.invalidateMusic(undefined,false);if(ownerChanged)this.host.liveMusicAccountChanged?.(account);}
+   if(ownerChanged||previousBinding?.bindingId!==nextBinding?.bindingId){this.queueReadKey=null;this.queue=null;this.queueControls.invalidate(true);$('queue').replaceChildren();this.rows.clear();this.host.liveControls?.invalidateMusic(undefined,false);if(ownerChanged)this.host.liveMusicAccountChanged?.(account);}
    const actualLabel=nextBinding?host.liveOutputs?.actualLabel?.(nextBinding)||'':'';
-   if(actualLabel)next.actualTargetLabel=actualLabel;this.playback=next;const refreshUntil=nextBinding?.validUntil===undefined?next.expiresAt:Math.min(next.expiresAt,nextBinding.validUntil*1000);this.refreshInterval=Math.max(1000,Math.min(8000,Math.floor((refreshUntil-Date.now())/2)));this.readState='ready';host.liveSelection?.observePlayback?.(next);this.render();
+   if(actualLabel)next.actualTargetLabel=actualLabel;this.playback=next;const refreshUntil=nextBinding?.validUntil===undefined?next.expiresAt:Math.min(next.expiresAt,nextBinding.validUntil*1000);this.refreshInterval=Math.max(1000,Math.min(8000,Math.floor((refreshUntil-Date.now())/2)));this.readState='ready';host.liveSelection?.observePlayback?.(next);this.render();void this.loadQueue({automatic:true});
   }catch(error){if(current()){if(!playbackResponse&&(error?.code==='read_transient'||error instanceof TypeError||['AbortError','TimeoutError'].includes(error?.name))&&(roomObservationBound(this.playback,this.host.liveSnapshot,this.account)||accountObservationBound(this.playback,this.host.liveSnapshot,this.account))){this.playback={...this.playback,stale:true,displayRetained:true};this.queueControls.invalidate(false);}else this.clearRoom();this.establishedReadScope=JSON.stringify([bindingScope,this.account]);this.readState='error';this.render();}}finally{try{if(generation===this.generation&&this.activeRead===readJob){this.pending=false;if(this.readState==='loading')this.readState='unavailable';this.establishedReadScope=JSON.stringify([bindingScope,this.account]);if(this.host.isConnected)this.render();}}finally{if(this.activeRead===readJob)this.activeRead=null;readJob.resolve();}}
  }
- async loadQueue(){
+ async loadQueue({automatic=false}={}){
+  const host=this.host,p=this.playback,queue=this.queueControls,feedback=host.liveSelection?.feedback;
+  if(automatic&&(host.state?.focus!=='player'||queue.pending||queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed(this.account,p)))return;
+  const snapshot=host.liveSnapshot,key=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.account,p?.roomBinding?.bindingId,p?.owner_epoch,p?.target?.id,snapshot?.providerGeneration,snapshot?.voice?.sessionId,snapshot?.voice?.turnId,snapshot?.answers?.taskId,snapshot?.answers?.inputRevision,snapshot?.answers?.revision,snapshot?.sessionId,snapshot?.taskId,snapshot?.inputRevision]);
+  if(automatic&&this.queueReadKey===key&&this.queueReadTransport===host.liveTransport)return;
   if(!roomObservationCurrent(this.playback,this.host.liveSnapshot)||!this.host.liveTransport?.connected){this.queueControls.invalidate(!roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account));this.renderQueue();return;}
-  await this.queueControls.load(this.account,this.playback,{notify:true});
+  this.queueReadKey=key;this.queueReadTransport=host.liveTransport;
+  await this.queueControls.load(this.account,this.playback,{notify:!automatic});
  }
 
  renderQueue(){

@@ -1,3 +1,129 @@
+## Active PV87 — incomplete close, fault diagnostics and useful visual answers
+
+Lead /root. Private field evidence is retained locally; no private runtime logs,
+conversation text, device identifiers or household configuration are published here.
+The observed failure chain is Stop → incomplete original attention restoration →
+teardown timeout → blocked rearm. The source also projected successful closure despite
+incomplete teardown. The separate real C regression is tracked by the Speakers53
+source decision. Do not bypass restoration, increase timeouts, delete custody or
+claim that a restart fixes the cause.
+
+Voice owner implemented truthful CLOSING until the existing teardown retry completes,
+then IDLE under the existing epoch/lock guards. No change to release ownership,
+deadlines, retry schedule or actual rearm. Finite diagnostic retention now preserves
+known close/preclose/failure/teardown causes while excluding arbitrary text. Causal
+RED→GREEN,26 focused native/Talk/retention cases, format/lint/mypy and independent
+adversarial SOURCE GO are recorded in the private delivery evidence.
+
+The route owner instrumented existing terminal catches for timer dispatch, SSE write,
+music and home/weather reads. Records contain finite stage/code/error class/validated
+status, package version and hashed existing timer request IDs; no payload, URL, raw
+exception, traceback, audio or key. Responses, cancellation, UNKNOWN/replay fences,
+cleanup and dispatch counts remain unchanged. Eight missing-marker RED cases and a
+review-found valid surrogate-ID regression now pass;71 affected cases cumulatively
+pass with formatting/lint/mypy. Independent source review GO binds the final patch
+345cfa4cc152c267cca5ea8daf83b31f877d684593fcf1fefe032e106a1da024.
+Broader suppressed-cause boundaries remain open; this is not universal logging proof.
+
+The human requests visual answers whenever useful. Ordinary Live fragments lack a
+truthful completed-response identity and must not become fabricated history. Existing
+completed delegated assistant answers already use canonical artifact receipts/history.
+The reviewed two-sentence useful-visual preference is retained as source patch
+a277191e9e07e74c28c93d739fc771ab7e232e3e820641a5e915bd03439cf32d outside
+this candidate.56 unit+28 inert pipeline cases passed, but the existing actual
+GPT-Live probe does not cover the new positive presentation outcome. To avoid blocking
+the concrete restoration repair on a new provider-test adapter, the three prompt/test
+paths are restored exactly to the86 baseline for this release. No version is agreed
+for that preference yet; it is not deployed, and ordinary-Live completed history is
+not claimed. Existing accepted visual artifact/history behavior remains unchanged.
+
+Automated/semantic closure remains separately open. Existing recordings distinguish
+ongoing speech from one preclose cancellation with a short native activity pulse;
+that pulse is not yet classified as speech/background/noise. No speculative VAD,
+gain, semantic-fence or timeout patch is included. The existing negative interruption,
+stale/generation, complete-teardown and adapter guards remain required.
+
+Release owner /root integrates the exact PodView87 handoff, reviewed backend changes,
+one official frozen-candidate CI and combined installation. Physical accept remains
+separate; source-only results are not deployed or acoustic/visible-LED proof. Rollback
+boundary is installed86. No household action or new provider call is part of this
+source preparation.
+
+## Active PV87 — music control setup ownership, 25 October 2026
+
+Lead /root; backend implementation owner weather_backend_integration; UI owner
+PodView in its separate canonical source. This isolated SOURCE draft starts from
+actual merged main c5c34a2efb4fba70d186d735baa6a3d58dbf00b5/treec241bfb14ba3186f31ba2656352681822be8931a,
+read from public Git without reconstructed ancestry. Private field observations are
+retained locally; the source candidate does not claim actual device audibility,
+controls, reconnection, volume, queue or native browser wake acceptance. The original
+Green/SSE field cause remains unresolved.
+
+The concrete software counterexample is optional volume setup being discarded when
+healthy transport setup completes first (transport50ms, volume100ms). Hypothesis:
+fast transport completion starves a still healthy volume offer. Chain: current actual
+output → exact control scope → parallel transport/optional-volume setup reads →
+current offered option → fresh guarded POST → exact receipt → new observation.
+Review at least the actual-output admission and post-receipt refresh neighbors.
+The minimal fix must retain the existing rule that hung volume cannot block transport,
+exact five-second freshness, current grant/session/route ownership, cancellation/join,
+task exception handling and at most one effect POST. Missing, stale or replaced
+volume must remain unavailable; do not always-enable controls, invent current state,
+renew authority from presentation, retry UNKNOWN or adopt a newer owner.
+
+Planned causal regressions use the existing inert controls/adapter fixtures: healthy
+50ms/100ms ordering, missing volume, expired freshness, owner/session/route replacement,
+hung volume, cancellation/join, duplicate effect prevention and the PodConnect
+post-refresh counterexample. Reuse unchanged passed checks; source lint/format and
+independent adversarial review cover the exact changed owner boundary before freeze.
+UI expiry renewal, artwork, copy and motion are separately owned by PodView and are
+not implemented in this backend draft. Voice, timer backend, firmware, Native/C,
+provider contracts and all currently installed/frozen release artifacts are non-goals.
+Rollback boundary is the exact installed86 source; no deployed behavior changes here.
+
+Current status: source draft prepared; no version agreed, no implementation or new
+test result claimed yet. Next action: backend owner reproduces and fixes the bounded
+optional-volume ownership failure in the existing controls source, then records exact
+results and remaining uncertainties in this same post. Lead owns integration, review,
+release and installation. No audio, household effect, live provider call, device action,
+install, restart, version/profile binding or release packaging is authorized by this
+source-preparation step. Installation waits for full combined scope review.
+
+### Agreed volume-only setup contract
+
+Lead and canonical PodView owner agree on optional root requestedAction:"volume"
+on the existing control/setup endpoint, valid only for music non-MOVE setup. Default
+transport setup stays unchanged and must never wait for hung volume. The explicit
+volume-only setup resolves fresh actual output and creates its own exact task/offer,
+returning only volume with actual setup.volume under all original admission guards
+and expiry. UI keeps separate transport and volume offers; it never borrows one
+channel task as authority for the other and revalidates before the sole action POST.
+Unknown selectors and nonmusic/MOVE use reject. No new endpoint, broker, cache, TTL
+extension, automatic action or command replay. The retained healthy-volume ordering
+RED explains the old combined setup omission; the corrective public regression must
+exercise the newly agreed explicit-volume request, preserving the existing default
+hung-volume test. Source/data response schema is unchanged.
+
+### Additional explicit weather decision — remove local generation quota
+
+The human now explicitly asks to drop the local weather-advice 96/day allowance and
+900-second generation cooldown, retaining exact-source cache/singleflight, current
+boot/session/room/weatherKey ownership, cancellation and the real provider/token
+budget/error boundaries. This is separate from the 900-second weather-evidence
+freshness limit, which must remain unchanged. Source currently names gpt-6-luna with
+reasoning none and max_output_tokens256; verify the actual configured model and
+request construction before changing it. Do not invent a new model or promise measured
+latency. The human12:24 report is weather data present but advice unavailable; no
+quota attribution is established from the captured12:25+ logs.
+
+Weather backend owner weather_backend_review; independent reviewer admission34.
+Use existing inert provider/HTTP tests for distinct fresh weather requests no longer
+blocked by local cooldown/quota, identical-source coalescing, original freshness and
+ownership expiry, cancellation and upstream failures. No paid retry/generation, new
+logger/broker or device effect. Rollback remains installed86. This authorized bounded
+weather change is an exception to the earlier provider-contract non-goal, not a voice
+Realtime/prompt or shared rate-limit change. Lead owns integration before freeze.
+
 ## Active PV86 — browser read/wake recovery, 25 October 2026
 
 Lead /root; UI owner PodView; packaging /root/sol61_release75_review; independent
@@ -4389,5 +4515,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "66232291c6214b6442e818ac774824d98ae80f8cdd6216854f1fe40dfa49249e",
   "manifest_fingerprint": "d2d52de15476f9b09762f531c1d7e518df49a62f71b86444b77d0c00ef6cce5f",
   "rationale": "Independent /root/sol61_review74_final PREBIND GO binds exact86 read/wake source, all203 frozen e107 handoff UI hashes (four changed/199 unchanged), two direct test mirrors, immutable85 and all historical policy, actual ha_tools/physical_output classifier, version-only2.0.86 trio and separate HA0.1.6 unchanged. Preserve command UNKNOWN/no-replay/current owner/route/session/action admission. Retain2237 owner UI/63 component and72 affected adapter passes; metadata/historical85/dev dispatch/static checks pass. No backend/VoicePE/firmware/provider change; native browser wake and original Green SSE cause remain unproven/unresolved. Official CI/publication/install root-owned; no household or physical acceptance claim."
+}
+-->
+
+<!-- podview87-admission
+{
+  "version": 64,
+  "kind": "podview87_music_controls",
+  "reviewer": "/root/admission34",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "c5c34a2efb4fba70d186d735baa6a3d58dbf00b5",
+  "merge_base": "c5c34a2efb4fba70d186d735baa6a3d58dbf00b5",
+  "fingerprint": "996a1b337c1d86f7d944e7dfa9ae182f318c2aab6d6427446368ef45bbb637d5",
+  "regression_fingerprint": "ec83ab79ed16313f5cfa020a4c649368d92a5800682ca0d95148e6264e427f3d",
+  "runtime_fingerprint": "85f0224ab3ba4658f5333ad5b3b63c26a7f219aed8a5a99445632da7e5b00cc6",
+  "config_fingerprint": "e401a4e247e17bc0bb90595ee37f6ab5d8ac494773dc8ea54e031390b8a5a158",
+  "policy_fingerprint": "ff225a5ddf23bbac5f183dd3a57a36cb8de7b210ae277cb4d550382c85391830",
+  "tooling_fingerprint": "756b77d59318d4455ccb536c48ff3edd56d36bcc5325f420c788683cb4e00eff",
+  "manifest_fingerprint": "b2a7a30ecfa44776bdbbe7cbbc9b3252a3c05212db5dd86f2a18f6892aac4041",
+  "rationale": "Root-authorized binding after independent /root/admission34 whole-composition PREBIND GO on exact44path candidate:19production/16regression/323runtime/4config/70priorpolicy/184tooling and203 canonical UI assets (11 changed/192 unchanged). Preserve reviewed volume-only task/offer authority, weather source/provider guards, content-free route/voice failure diagnostics, truthful incomplete-close projection, all original owner/TTL/cancel/UNKNOWN/no-replay boundaries and immutable86. Two-sentence visual preference and its two owned tests are restored exactly to publishedc5base and excluded. Existing focused source/UI/static results retained; actual203asset checker renewed after final manifest. Official CI/publication/installation and physical music/voice/reconnect acceptance remain separate and root-owned; no field-cause or household-effect claim."
 }
 -->
