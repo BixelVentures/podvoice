@@ -8,8 +8,19 @@ import threading
 import pytest
 
 from gatekeeper import podview_client_diagnostics as module
+from gatekeeper.podview_controls import failure
 
 UUID = "01234567-0123-4567-89ab-0123456789ab"
+SETUP_REASONS = (
+    "busy",
+    "scope_not_paired",
+    "target_not_granted",
+    "stale_setup",
+    "setup_capacity",
+    "setup_unavailable",
+    "invalid_setup",
+    "invalid_target",
+)
 
 
 def value(index=0, **changes):
@@ -26,6 +37,37 @@ def value(index=0, **changes):
 
 def parsed(index=0, **changes):
     return module.parse_batch(json.dumps(value(index, **changes)).encode())
+
+
+@pytest.mark.parametrize("reason", SETUP_REASONS)
+@pytest.mark.parametrize("stage", ["control_setup", "volume_setup"])
+async def test_setup_failure_code_survives_existing_store_and_read(store, reason, stage):
+    owner, _ = store
+    source = failure(reason)
+    assert source == {"ok": False, "error": reason, "retryAllowed": False}
+    row = {
+        "stage": stage,
+        "code": source["error"],
+        "seq": 1,
+        "ageMs": 0,
+        "endpoint": "control/setup",
+        "httpStatus": 200,
+        "current": stage == "volume_setup",
+        "durationMs": 179,
+    }
+    batch = parsed(records=[row])
+    assert (await owner.append(batch, "principal", lambda: True))["stored"] is True
+    result = await owner.read(batch.room, 0, lambda: True)
+    assert result["records"][0]["row"] == row
+
+
+@pytest.mark.parametrize("reason", SETUP_REASONS)
+def test_setup_failure_code_does_not_admit_unknown_or_private_variants(reason):
+    with pytest.raises(module.DiagnosticFailure) as error:
+        parsed(
+            records=[{"stage": "control_setup", "code": reason + "_PRIVATE", "seq": 1, "ageMs": 0}]
+        )
+    assert error.value.status == 400 and "PRIVATE" not in str(error.value)
 
 
 @pytest.fixture

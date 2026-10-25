@@ -1,3 +1,12 @@
+## 2.0.90
+
+- Preserve exact closed music/volume setup refusal reasons through the existing
+  browser diagnostics, durable store and administrator read.
+- Keep execution authorization, retries, current bindings and unknown-outcome
+  safeguards unchanged; add no household commands or permissions.
+- Voice, GPT-Live prompts, audio and lifecycle remain unchanged from 2.0.89.
+  This diagnostic repair does not establish audible HomePod or voice acceptance.
+
 ## 2.0.89
 
 - Keep known music controls available during ordinary song/state refreshes while
