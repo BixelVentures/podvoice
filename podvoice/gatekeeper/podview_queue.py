@@ -202,6 +202,18 @@ class QueueBroker:
             self.generation.get((room, token), 0),
         )
 
+    def presented_current(self, task, token):
+        """A retained display reference grants no old native lease or admission."""
+        try:
+            return bool(
+                task["room"] in self.bridge.sessions
+                and secrets.compare_digest(task["token"], token)
+                and task["binding"] == self.binding(task["room"], token)
+                and task["rule"] in self.rules(task["room"], token)
+            )
+        except Exception:
+            return False
+
     def current(self, task, token):
         try:
             return bool(
@@ -313,7 +325,7 @@ class QueueBroker:
                 k: t
                 for k, t in self.tasks.items()
                 if (t["room"], t["token"]) != (room, token)
-                and (self.bridge._ha_task_retained(t) or self.current(t, t["token"]))
+                and (self.bridge._ha_task_retained(t) or self.presented_current(t, t["token"]))
             }
             if len(self.tasks) >= 64:
                 raise ValueError("queue capacity")
@@ -374,85 +386,133 @@ class QueueBroker:
         ):
             return rejected
         task = self.tasks.get(body["taskId"])
-        if task is None or task["room"] != body["roomId"] or not self.current(task, token):
+        if (
+            task is None
+            or task["room"] != body["roomId"]
+            or not self.presented_current(task, token)
+        ):
             return rejected
         key = (task["room"], token, body["requestId"])
         fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).digest()
         if key in self.receipts:
             old_fp, result = self.receipts[key][:2]
             return dict(result) if old_fp == fingerprint else rejected
-        if (
-            task["consumed"]
-            or task["room"] in self.bridge.controls.busy
-            or not any(r["option_id"] == body["optionId"] for r in task["source"]["items"])
-        ):
+        shown = next(
+            (r for r in task["source"]["items"] if r["option_id"] == body["optionId"]), None
+        )
+        if task["consumed"] or task["room"] in self.bridge.controls.busy or shown is None:
+            return rejected
+        if len(self.receipts) >= 1024:
             return rejected
         from .podview_room_media import expected_actual
 
-        resolved = await expected_actual(
-            self.bridge,
-            task["room"],
-            task["rule"]["accountId"],
-            task["actual_binding"]["bindingId"],
-            lambda: self.current(task, token),
-        )
-        if resolved is None:
-            return rejected
-        if key in self.receipts:
-            old_fp, result = self.receipts[key][:2]
-            return dict(result) if old_fp == fingerprint else rejected
-        if (
-            task["consumed"]
-            or task["room"] in self.bridge.controls.busy
-            or not self.current(task, token)
-        ):
-            return rejected
-        task["actual_binding"] = resolved["binding"]
-        unknown = {**rejected, "outcome": "unknown"}
-        if len(self.receipts) >= 1024:
-            return rejected
+        # Claim this click before the first await. A retained display may outlive
+        # its old offer, but consumed/UNKNOWN intent never starts another attempt.
         task["consumed"] = True
-        self.receipts[key] = fingerprint, unknown, task["deadline"]
-        source = task["source"]
-        sequence, epoch = source["next_command_sequence"], source["owner_epoch"]
-        identity = {
-            "schema": "podconnect.command.v1",
-            "config_entry_id": source["config_entry_id"],
-            "owner_epoch": epoch,
-            "request_id": f"{epoch}:{sequence}",
-            "command_sequence": sequence,
-            "action": ACTION,
-            "target": {"kind": "spotify_device", "target_id": source["target"]["target_id"]},
-        }
-        args = {
-            "observation_id": source["queue"]["observation_id"],
-            "session_id": source["queue"]["session_id"],
-            "queue_revision": source["queue"]["queue_revision"],
-            "occurrence_id": body["optionId"],
-        }
-        request = {
-            "config_entry_id": source["config_entry_id"],
-            "kind": "spotify_device",
-            "target_id": source["target"]["target_id"],
-            "owner_epoch": epoch,
-            "expected_poll_sequence": source["poll_sequence"],
-            "request_id": identity["request_id"],
-            "command_sequence": sequence,
-            "action": ACTION,
-            "args": args,
-            "purpose": PURPOSE,
-            "room_id": task["rule"]["nativeRoomId"],
-            "homepod_id": task["rule"]["nativeHomepodId"],
-            "native": copy.deepcopy(source["native"]),
-            "route": copy.deepcopy(source["route"]),
-        }
+        unknown = {**rejected, "outcome": "unknown"}
+        self.receipts[key] = fingerprint, unknown, time.monotonic() + 8
         self.bridge.controls.busy.add(task["room"])
         sent = False
         try:
             async with asyncio.timeout(8):
+                resolved = await expected_actual(
+                    self.bridge,
+                    task["room"],
+                    task["rule"]["accountId"],
+                    task["actual_binding"]["bindingId"],
+                    lambda: self.presented_current(task, token),
+                )
+                if resolved is None or not self.presented_current(task, token):
+                    raise ValueError("stale queue presentation owner")
+                rule, old_source = task["rule"], task["source"]
+                value = await self.bridge.controls.music._read(
+                    self.bridge.tools._client,
+                    self.bridge.tools._token,
+                    "get_room_queue_controls",
+                    {
+                        "config_entry_id": rule["accountId"],
+                        "kind": "spotify_device",
+                        "target_id": rule["targetId"],
+                        "room_id": rule["nativeRoomId"],
+                        "homepod_id": rule["nativeHomepodId"],
+                    },
+                )
+                if not self.presented_current(task, token) or not resolved["current"]():
+                    raise ValueError("queue owner changed during resolution")
+                source = project(
+                    value,
+                    rule["accountId"],
+                    rule["targetId"],
+                    room=rule["nativeRoomId"],
+                    homepod=rule["nativeHomepodId"],
+                )
+                selected = next(
+                    (r for r in source["items"] if r["option_id"] == body["optionId"]), None
+                )
+                if (
+                    selected is None
+                    or source["queue"]["queue_revision"] != old_source["queue"]["queue_revision"]
+                    or source["native"] != old_source["native"]
+                    or source["route"] != old_source["route"]
+                    or source["owner_epoch"] != old_source["owner_epoch"]
+                    or source["poll_sequence"] < old_source["poll_sequence"]
+                    or source["queue"]["observation_id"] == old_source["queue"]["observation_id"]
+                    or selected["index"] != shown["index"]
+                    or selected["uri"] != shown["uri"]
+                    or ACTION not in source["actions"]
+                    or source["deadline_ms"] <= 0
+                ):
+                    raise ValueError("shown queue occurrence no longer current")
+                # Fresh authority is transient. Never renew the shown reference's
+                # ID/deadline/source or map a URI/index to a different opaque ID.
+                task = {
+                    **task,
+                    "source": source,
+                    "actual_binding": resolved["binding"],
+                    "actual_current": resolved["current"],
+                    "deadline": min(
+                        time.monotonic() + source["deadline_ms"] / 1000,
+                        time.monotonic() + max(0, resolved["binding"]["validUntil"] - time.time()),
+                    ),
+                }
+                self.receipts[key] = fingerprint, unknown, task["deadline"]
                 if not self.current(task, token):
-                    self.receipts[key] = fingerprint, rejected, task["deadline"]
-                    return rejected
+                    raise ValueError("fresh queue admission unavailable")
+                sequence, epoch = source["next_command_sequence"], source["owner_epoch"]
+                identity = {
+                    "schema": "podconnect.command.v1",
+                    "config_entry_id": source["config_entry_id"],
+                    "owner_epoch": epoch,
+                    "request_id": f"{epoch}:{sequence}",
+                    "command_sequence": sequence,
+                    "action": ACTION,
+                    "target": {
+                        "kind": "spotify_device",
+                        "target_id": source["target"]["target_id"],
+                    },
+                }
+                args = {
+                    "observation_id": source["queue"]["observation_id"],
+                    "session_id": source["queue"]["session_id"],
+                    "queue_revision": source["queue"]["queue_revision"],
+                    "occurrence_id": body["optionId"],
+                }
+                request = {
+                    "config_entry_id": source["config_entry_id"],
+                    "kind": "spotify_device",
+                    "target_id": source["target"]["target_id"],
+                    "owner_epoch": epoch,
+                    "expected_poll_sequence": source["poll_sequence"],
+                    "request_id": identity["request_id"],
+                    "command_sequence": sequence,
+                    "action": ACTION,
+                    "args": args,
+                    "purpose": PURPOSE,
+                    "room_id": task["rule"]["nativeRoomId"],
+                    "homepod_id": task["rule"]["nativeHomepodId"],
+                    "native": copy.deepcopy(source["native"]),
+                    "route": copy.deepcopy(source["route"]),
+                }
                 prepared_started = time.monotonic()
                 prepared = await self.bridge.controls.music._read(
                     self.bridge.tools._client,

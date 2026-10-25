@@ -15,8 +15,11 @@ import json
 import logging
 import os
 import pathlib
+import tempfile
+import threading
 import time
 import uuid
+from contextlib import suppress
 
 _LOG = logging.getLogger("podvoice.history")
 
@@ -26,6 +29,9 @@ GAP_S = 300.0  # a > 5 min idle gap (or a room change) starts a new conversation
 _TRIM_EVERY = 250  # only rewrite the file to enforce the cap every N appends
 
 TALK_ROOM = "talk"  # pseudo-room id for the Talk console
+MAX_VISUAL_BYTES = 4 * 1024 * 1024
+MAX_VISUAL_ROOMS = 12
+MAX_VISUAL_ITEMS = 20
 
 
 def _resolve(path: pathlib.Path | None) -> pathlib.Path:
@@ -88,6 +94,175 @@ class History:
         self._gap = gap_s
         self._since_trim = 0
         self._segments = TranscriptSegments()
+        self._io_lock = threading.RLock()
+        self.visual_revision = 0
+        self.visual_saved = True
+
+    def _visual_records(self) -> list[dict]:
+        return self._partition_visual(self._lines())[0]
+
+    def _partition_visual(self, lines: list[str]) -> tuple[list[dict], list[str]]:
+        """Typed passive snapshots never enter the legacy conversation reader."""
+        from .podview_receipts import validated_archive_display
+
+        result: list[dict] = []
+        counts: dict[str, int] = {}
+        seen: set[tuple[str, str]] = set()
+        size = 0
+        legacy = []
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except (ValueError, TypeError, RecursionError):
+                legacy.append(line)
+                continue
+            if not (isinstance(row, dict) and row.get("kind") == "visual_snapshot.v1"):
+                legacy.append(line)
+                continue
+            try:
+                if (
+                    len(line.encode("utf-8")) > 67584
+                    or type(row) is not dict
+                    or set(row) != {"kind", "room", "session", "epoch", "display"}
+                    or row["kind"] != "visual_snapshot.v1"
+                    or type(row["room"]) is not str
+                    or not 0 < len(row["room"]) <= 160
+                    or type(row["session"]) is not str
+                    or not 0 < len(row["session"]) <= 256
+                    or type(row["epoch"]) not in (int, float)
+                    or not 0 <= row["epoch"] < float("inf")
+                    or validated_archive_display(row["display"]) is None
+                ):
+                    continue
+                key = (row["room"], row["display"]["receiptId"])
+                if key in seen or counts.get(row["room"], 0) >= MAX_VISUAL_ITEMS:
+                    continue
+                if row["room"] not in counts and len(counts) >= MAX_VISUAL_ROOMS:
+                    continue
+                encoded = json.dumps(row, ensure_ascii=False, allow_nan=False)
+                if size + len(encoded.encode("utf-8")) > MAX_VISUAL_BYTES:
+                    continue
+            except (ValueError, TypeError, KeyError, OverflowError, RecursionError):
+                continue
+            result.append(row)
+            seen.add(key)
+            counts[row["room"]] = counts.get(row["room"], 0) + 1
+            size += len(encoded.encode("utf-8"))
+        return result, legacy
+
+    def visual_snapshots(self, room: str | None = None) -> list[dict]:
+        return [row for row in self._visual_records() if room is None or row["room"] == room]
+
+    def _replace_visual(self, rows: list[dict], legacy: list[str]) -> bool:
+        # Preserve legacy lines verbatim. New snapshots replace only their own type.
+        return self._rewrite(
+            [json.dumps(row, ensure_ascii=False, allow_nan=False) for row in rows] + legacy
+        )
+
+    def _rewrite(self, lines: list[str]) -> bool:
+        temporary = None
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self._path.parent, delete=False
+            ) as stream:
+                temporary = pathlib.Path(stream.name)
+                stream.write("".join(line + "\n" for line in lines))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self._path)
+            temporary = None
+            directory = os.open(self._path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+            self.visual_revision += 1
+            self.visual_saved = True
+            return True
+        except OSError as exc:
+            self.visual_saved = False
+            _LOG.warning("history snapshot not saved: %s", type(exc).__name__)
+            return False
+        finally:
+            if temporary is not None:
+                with suppress(OSError):
+                    temporary.unlink(missing_ok=True)
+
+    def save_visual_snapshot(self, room: str, session: str, epoch: float, display: dict) -> bool:
+        """Persist a validated display copy, without a live receipt or renewed lease."""
+        from .podview_receipts import validated_archive_display
+
+        clean = validated_archive_display(display)
+        if (
+            clean is None
+            or type(room) is not str
+            or not 0 < len(room) <= 160
+            or type(session) is not str
+            or not 0 < len(session) <= 256
+            or type(epoch) not in (int, float)
+            or not 0 <= epoch < float("inf")
+        ):
+            return False
+        with self._io_lock:
+            lines = self._storage_lines()
+            if lines is None:
+                return False
+            rows, legacy = self._partition_visual(lines)
+            existing = next(
+                (
+                    r
+                    for r in rows
+                    if r["room"] == room and r["display"]["receiptId"] == clean["receiptId"]
+                ),
+                None,
+            )
+            if existing is not None and (existing["session"], existing["epoch"]) != (
+                session,
+                epoch,
+            ):
+                return False
+            if existing is not None and existing["display"] == clean:
+                return True
+            row = dict(
+                kind="visual_snapshot.v1", room=room, session=session, epoch=epoch, display=clean
+            )
+            rows = [row] + [r for r in rows if r is not existing]
+            counts: dict[str, int] = {}
+            bounded = []
+            size = 0
+            for value in rows:
+                count = counts.get(value["room"], 0)
+                encoded_size = len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+                if count >= MAX_VISUAL_ITEMS or (not count and len(counts) >= MAX_VISUAL_ROOMS):
+                    continue
+                if size + encoded_size > MAX_VISUAL_BYTES:
+                    continue
+                bounded.append(value)
+                counts[value["room"]] = count + 1
+                size += encoded_size
+            if not bounded or bounded[0] is not row:
+                self.visual_saved = False
+                return False
+            return self._replace_visual(bounded, legacy)
+
+    def remove_visual_snapshots(
+        self, room: str, *, session: str | None = None, epoch: float | None = None
+    ) -> bool:
+        with self._io_lock:
+            lines = self._storage_lines()
+            if lines is None:
+                return False
+            rows, legacy = self._partition_visual(lines)
+            kept = [
+                row
+                for row in rows
+                if not (
+                    row["room"] == room
+                    and (session is None or (row["session"], row["epoch"]) == (session, epoch))
+                )
+            ]
+            return len(rows) == len(kept) or self._replace_visual(kept, legacy)
 
     # ------------------------------------------------------------------ write
     def append(
@@ -138,6 +313,10 @@ class History:
         return rec
 
     def _write(self, rec: dict) -> None:
+        with self._io_lock:
+            self._write_unlocked(rec)
+
+    def _write_unlocked(self, rec: dict) -> None:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             with self._path.open("a", encoding="utf-8") as f:
@@ -152,21 +331,26 @@ class History:
 
     def _trim(self) -> None:
         # Compact adjacent fragments before retention: a token is not a turn.
+        if self._storage_lines() is None:
+            return
         records = self._records(sort=False)
-        try:
-            self._path.write_text(
-                "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records[-self._max :]),
-                encoding="utf-8",
-            )
-        except OSError as e:
-            _LOG.warning("history trim failed: %s", e)
+        self._rewrite(
+            [json.dumps(row, ensure_ascii=False) for row in self._visual_records()]
+            + [json.dumps(row, ensure_ascii=False) for row in records[-self._max :]]
+        )
 
     # ------------------------------------------------------------------ read
     def _lines(self) -> list[str]:
+        return self._storage_lines() or []
+
+    def _storage_lines(self) -> list[str] | None:
         try:
             return self._path.read_text(encoding="utf-8").splitlines()
-        except OSError:
+        except FileNotFoundError:
             return []
+        except (OSError, UnicodeError):
+            self.visual_saved = False
+            return None
 
     def _records(self, *, sort: bool = True) -> list[dict]:
         out: list[dict] = []
@@ -178,7 +362,11 @@ class History:
                 rec = json.loads(ln)
             except ValueError:
                 continue  # skip a corrupt line rather than fail the whole read
-            if isinstance(rec, dict) and rec.get("text"):
+            if (
+                isinstance(rec, dict)
+                and rec.get("kind") != "visual_snapshot.v1"
+                and rec.get("text")
+            ):
                 previous = out[-1] if out else None
                 if (
                     previous
@@ -269,19 +457,21 @@ class History:
         """Distinct room ids that have history (for the History tab's room filter)."""
         return sorted({str(r["room"]) for r in self._records() if r.get("room")})
 
-    def clear(self, room: str | None = None) -> None:
+    def clear(self, room: str | None = None) -> bool:
         """Delete all history, or just one room's turns."""
-        self._segments.boundary()
-        if room is None:
-            try:
-                self._path.unlink()
-            except OSError:
-                pass
-            return
-        kept = [r for r in self._records() if r.get("room") != room]
-        try:
-            self._path.write_text(
-                "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in kept), encoding="utf-8"
-            )
-        except OSError as e:
-            _LOG.warning("history clear failed: %s", e)
+        with self._io_lock:
+            self._segments.boundary()
+            if room is None:
+                return self._rewrite([])
+            kept = []
+            lines = self._storage_lines()
+            if lines is None:
+                return False
+            for line in lines:
+                try:
+                    value = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(value, dict) and value.get("room") != room:
+                    kept.append(line)
+            return self._rewrite(kept)

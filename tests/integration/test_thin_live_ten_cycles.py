@@ -118,41 +118,16 @@ async def semantic_end(session, sdk, cycle, *, webrtc=False, native_context=None
         e["event_id"] for e in reversed(sdk.wire) if e["type"] == "response.create"
     )
     if not webrtc:
-        link, clock = native_context
-        # The native quiet owner uses the configured provider timeout, not this
-        # fixture's compressed 0.2-second startup/transport-fault budget. Restore
-        # that budget before physical drain, teardown and the next SDK startup.
+        # Keep the existing fault budget for actual settlement and physical
+        # drain. Semantic END does not earn another native followup window.
         provider_timeout = session.brain.timeout_s
         session.brain.timeout_s = 15.0
+        receipt = session._live_end_receipt
         try:
             await emit(sdk, continuation, terminal(f"end-continuation-{cycle}"))
-            await observed(
-                lambda: (
-                    session._live_end_window.reset_reason == "backend_settled"
-                    and session._live_end_receipt.done()
-                )
-            )
-            assert not session._live_provider_closed.is_set()
-            assert not session._live_quiet_ready(semantic=True)
-            # Fresh current-owner native coverage begins only after backend
-            # settlement reset; older output or quiet cannot authorize closing.
-            quiet_base = clock[0]
-            # Include the next full native report beyond the threshold: a
-            # fractional host base can represent exactly 25s as 24.999999999999943.
-            # Keep the shipped strict comparison and every native proof field.
-            for index in range(math.ceil(session.idle_timeout_s * 10) + 2):
-                native_sample(session, link, clock, quiet_base, index)
-            assert session._live_quiet_ready(semantic=True), session._live_end_window.diagnostics(
-                owner=session._live_quiet_owner(), now=clock[0], idle_s=session.idle_timeout_s
-            )
-            # Keep simulating the existing native reporting cadence while the
-            # unchanged close owner resumes; one stale row is not fresh quiet.
-            async with asyncio.timeout(WAIT_S):
-                while not session._live_provider_closed.is_set():
-                    await asyncio.sleep(0.1)
-                    if not session._live_provider_closed.is_set():
-                        index += 1
-                        native_sample(session, link, clock, quiet_base, index, historical=False)
+            await observed(session._live_provider_closed.is_set)
+            assert receipt.done() and not receipt.cancelled() and receipt.result() is True
+            assert session._active and session._live_finalizing
         finally:
             session.brain.timeout_s = provider_timeout
         return
@@ -551,6 +526,8 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
 
                 timeout_cycle = native and cycle > 5
                 if timeout_cycle:
+                    if cycle == 6:
+                        install_led(link, hold_ack=True)
                     preclose_events = []
                     interrupted_preclose = []
                     recovered_quiet = []
@@ -629,11 +606,13 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                                 if (
                                     interrupt
                                     and not interrupted
-                                    and session._live_idle_preclose_deadline is not None
+                                    and link.begin_live_closing.await_count == 1
+                                    and not link.release_led_ack.is_set()
                                 ):
                                     interrupted.append(session._live_idle_preclose_token)
-                                    # Lose a real report during the visible
-                                    # phase. Do not forge a timestamp or backfill.
+                                    # Lose a real report while the actual LED ACK
+                                    # is pending. No timestamp or report is backfilled.
+                                    assert session._live_idle_preclose_deadline is None
                                     await asyncio.sleep(
                                         session._live_idle_window.freshness_s + 0.05
                                     )
@@ -644,6 +623,8 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                                 row = native_sample(
                                     session, link, clock, quiet_base, index, historical=False
                                 )
+                                if interrupted and not link.release_led_ack.is_set():
+                                    link.release_led_ack.set()
                                 last_sent[0] = index
                                 if prior is not None:
                                     last_gaps[:] = [
@@ -682,12 +663,11 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                                     # backfill missing source intervals in a burst.
                                     next_report_at = loop.time() + 0.1
 
-                    # Only historical fixture intervals were skipped. During
-                    # the unchanged real two-second preclose, fresh simulated
-                    # rows arrive while the test monotonic clock keeps advancing.
+                    # Historical intervals alone were skipped. Fresh reports
+                    # continue across the actual pending ACK and close-owner join.
                     producer = asyncio.create_task(fresh_native_until_closed())
                     try:
-                        await observed(lambda: session._live_idle_preclose_deadline is not None)
+                        await observed(lambda: link.begin_live_closing.await_count >= 1)
                         await asyncio.wait_for(producer, native_close_observation_s)
                         assert session._live_provider_closed.is_set()
                         if cycle == 6:
@@ -710,7 +690,7 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                                 and fields["token"] != interrupted_preclose[0]
                             ]
                             assert visible and sdk.close_requested_at is not None
-                            assert sdk.close_requested_at - visible[-1] >= LIVE_IDLE_PRECLOSE_S
+                            assert sdk.close_requested_at >= visible[-1]
                     except TimeoutError as exc:
                         window = session._live_idle_window
                         preclose = session._live_idle_preclose_task

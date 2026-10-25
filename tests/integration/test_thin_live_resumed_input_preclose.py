@@ -3,7 +3,7 @@
 This is a mechanical resumed-input preservation assertion, never an ASR intent
 classifier. Queued-current input is also plain RED, held before Thin dequeue while
 SDK parsing continues; queued-whitespace and ordinary quiet are positive controls.
-Current4s settings/default path and unchanged2s visible preclose are
+Current4s settings/default path and the actual pending native LED ACK are
 composed with the installed Live SDK and real native activity acceptance. Native
 PCM/VAD/playback/LED signals below are simulated, never room or firmware proof.
 No runtime patch, deadline tuning or fabricated provider speech/turn/drain event.
@@ -148,7 +148,7 @@ async def test_resumed_current_input_revokes_old_preclose_before_provider_cutoff
             "time",
             SimpleNamespace(monotonic=lambda: clock[0]),
         )
-        install_led(link)  # Existing explicitly simulated native LED TX metadata.
+        install_led(link, hold_ack=True)  # Hold only the actual pending native LED ACK.
         patch.setattr(link, "accepts_activity", native.accepts_activity)
         native.on_activity = link.on_activity  # Replaced after Thin wake binds callback.
 
@@ -296,63 +296,55 @@ async def test_resumed_current_input_revokes_old_preclose_before_provider_cutoff
 
             async def native_resume_then_pause():
                 nonlocal last_forwarded
-                started = admitted_deadline = None
-                fragment_due = iter((0.4, 0.9, 1.4, 1.9))
-                next_fragment = next(fragment_due, None)
                 index = 42
                 async with asyncio.timeout(WAIT_S + thin_module.LIVE_IDLE_PRECLOSE_S):
-                    while (
-                        admitted_deadline is None
-                        or asyncio.get_running_loop().time()
-                        < admitted_deadline + 2 * thin_module.HEARTBEAT_S
-                    ):
+                    while link.begin_live_closing.await_count == 0:
                         await asyncio.sleep(0.1)
                         index += 1
-                        # Maintain fresh source observations even while the real
-                        # heartbeat/LED owner has not yet admitted preclose.
-                        if started is None:
-                            deliver(index)
-                            deadline = session._live_idle_preclose_deadline
-                            if deadline is None:
-                                continue
-                            admitted_deadline = deadline
-                            started = deadline - thin_module.LIVE_IDLE_PRECLOSE_S
-                            continue
-                        elapsed = asyncio.get_running_loop().time() - started
-                        active = 0.35 <= elapsed < 1.65
-                        # Always maintain fresh output consumption. For the stale
-                        # control, current row stays quiet and old active input is
-                        # rejected by the actual native context-generation gate.
+                        deliver(index)
+                    old_task = session._live_idle_preclose_task
+                    assert old_task is not None and not old_task.done()
+                    assert session._live_idle_preclose_deadline is None
+                    assert not link.release_led_ack.is_set()
+                    # Four actual source/SDK inputs and a short quiet pause race
+                    # the pending ACK, rather than a removed post-ACK dwell.
+                    for sample in range(6):
+                        await asyncio.sleep(0.1)
+                        index += 1
+                        active = sample < 4
                         row = deliver(index, state="active" if current and active else "quiet")
                         if not current and active:
                             deliver(index, state="active", stale=True)
-                        if next_fragment is not None and elapsed >= next_fragment:
-                            if not cutoff:
-                                frame = packet(row, stale=not current)
-                                await forward(frame, accepted=current)
-                                if current:
-                                    last_forwarded = frame
-                                    revision = session._live_input_revision
-                                    await emit(sdk, transcript("fixture fragment"))
-                                    await observed(
-                                        lambda revision=revision: (
-                                            session._live_input_revision > revision
-                                        )
+                        if active and not cutoff:
+                            frame = packet(row, stale=not current)
+                            await forward(frame, accepted=current)
+                            if current:
+                                last_forwarded = frame
+                                revision = session._live_input_revision
+                                await emit(sdk, transcript("fixture fragment"))
+                                await observed(
+                                    lambda revision=revision: (
+                                        session._live_input_revision > revision
                                     )
-                                else:
-                                    revision = session._live_input_revision
-                                    await session._on_live_event(
-                                        LiveTranscript(
-                                            "in",
-                                            "fixture fragment",
-                                            0,
-                                            100,
-                                            generation - 1,
-                                            input_index=1,
-                                        )
+                                )
+                            else:
+                                revision = session._live_input_revision
+                                await session._on_live_event(
+                                    LiveTranscript(
+                                        "in",
+                                        "fixture fragment",
+                                        0,
+                                        100,
+                                        generation - 1,
+                                        input_index=1,
                                     )
-                                    assert session._live_input_revision == revision
-                            next_fragment = next(fragment_due, None)
+                                )
+                                assert session._live_input_revision == revision
+                    link.release_led_ack.set()
+                    if current:
+                        await observed(old_task.done)
+                    else:
+                        await observed(lambda: bool(cutoff))
 
             async def queued_input_at_old_deadline():
                 nonlocal last_forwarded, pending_input
@@ -360,16 +352,18 @@ async def test_resumed_current_input_revokes_old_preclose_before_provider_cutoff
                 index = 42
                 async with asyncio.timeout(WAIT_S + thin_module.LIVE_IDLE_PRECLOSE_S):
                     # Keep actual native consumption fresh until the original owner is visible.
-                    while session._live_idle_preclose_deadline is None:
+                    while link.begin_live_closing.await_count == 0:
                         await asyncio.sleep(0.1)
                         index += 1
                         deliver(index)
-                    old_deadline = session._live_idle_preclose_deadline
+                    assert session._live_idle_preclose_deadline is None
+                    assert not link.release_led_ack.is_set()
+                    old_deadline = link.begin_live_closing.call_args.kwargs["deadline"]
                     old_token = session._live_idle_preclose_token
                     preclose_owner = {
                         "task": session._live_idle_preclose_task,
                         "token": old_token,
-                        "deadline": old_deadline,
+                        "deadline": None,
                         "output_revision": session._live_close_output_revision,
                         "quiet_owner": session._live_idle_window.proof_owner,
                     }
@@ -429,12 +423,10 @@ async def test_resumed_current_input_revokes_old_preclose_before_provider_cutoff
                         assert session.brain.input_sequence == pending_input.input_index
                         assert session._live_input_revision == pending_thin_revision
                         assert not cutoff and asyncio.get_running_loop().time() < old_deadline
-                    # Let the SAME original deadline elapse while only Thin consumption is held.
-                    # The SDK reader, mic pump, native observations and real timers still run.
-                    while (
-                        asyncio.get_running_loop().time()
-                        < old_deadline + 2 * thin_module.HEARTBEAT_S
-                    ):
+                    # Release the actual ACK while Thin consumption remains held.
+                    # SDK parsing/currentness must still prevent an obsolete close.
+                    link.release_led_ack.set()
+                    while not preclose_owner["task"].done() and not cutoff:
                         await asyncio.sleep(0.1)
                         index += 1
                         deliver(index)
@@ -591,7 +583,7 @@ async def test_current_native_active_without_sdk_delta_revokes_old_preclose(monk
             "time",
             SimpleNamespace(monotonic=lambda: clock[0]),
         )
-        install_led(link)  # Existing explicitly simulated native LED TX metadata.
+        install_led(link, hold_ack=True)  # Hold only the actual pending native LED ACK.
         patch.setattr(link, "accepts_activity", native.accepts_activity)
         native.on_activity = link.on_activity  # Replaced after Thin wake binds callback.
 
@@ -746,24 +738,21 @@ async def test_current_native_active_without_sdk_delta_revokes_old_preclose(monk
                 nonlocal last_forwarded, preclose_owner, input_index_before, input_revision_before
                 nonlocal last_active_at, first_quiet_after_active_at
                 started = old_deadline = previous_input = None
-                frame_due = iter((0.4, 0.9, 1.4, 1.9))
+                frame_due = iter((0.1, 0.2, 0.3, 0.4))
                 next_frame = next(frame_due, None)
                 index = 42
                 async with asyncio.timeout(WAIT_S + thin_module.LIVE_IDLE_PRECLOSE_S):
-                    while (
-                        old_deadline is None
-                        or asyncio.get_running_loop().time()
-                        < old_deadline + 2 * thin_module.HEARTBEAT_S
-                    ):
+                    while old_deadline is None or asyncio.get_running_loop().time() < started + 0.7:
                         await asyncio.sleep(0.1)
                         index += 1
                         if started is None:
                             deliver(index)
-                            deadline = session._live_idle_preclose_deadline
-                            if deadline is None:
+                            if link.begin_live_closing.await_count == 0:
                                 continue
-                            old_deadline = deadline
-                            started = old_deadline - thin_module.LIVE_IDLE_PRECLOSE_S
+                            assert session._live_idle_preclose_deadline is None
+                            assert not link.release_led_ack.is_set()
+                            old_deadline = link.begin_live_closing.call_args.kwargs["deadline"]
+                            started = asyncio.get_running_loop().time()
                             preclose_owner = {
                                 "task": session._live_idle_preclose_task,
                                 "token": session._live_idle_preclose_token,
@@ -780,7 +769,7 @@ async def test_current_native_active_without_sdk_delta_revokes_old_preclose(monk
                             previous_input = native._activity_latest["input"]
                             continue
                         elapsed = asyncio.get_running_loop().time() - started
-                        active = 0.35 <= elapsed < 1.65
+                        active = elapsed < 0.45
                         row = deliver(index, state="active" if active else "quiet")
                         actual = native._activity_latest
                         assert native.accepts_activity(actual)
@@ -815,6 +804,8 @@ async def test_current_native_active_without_sdk_delta_revokes_old_preclose(monk
                             isinstance(ev, LiveTranscript) and ev.direction == "in"
                             for ev in session.brain._queue._queue
                         )
+                    link.release_led_ack.set()
+                    await observed(preclose_owner["task"].done)
                     assert active_samples and last_forwarded is not None
                     assert first_quiet_after_active_at is not None
                     assert 0 < old_deadline - first_quiet_after_active_at < session.idle_timeout_s

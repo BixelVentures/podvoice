@@ -4918,10 +4918,11 @@ class ThinSession:
         input_currency: tuple,
         quiet_serial: int,
     ) -> None:
-        """Give the open Live session two seconds after the native LED TX ACK.
+        """Close after admitted native quiet and its actual LED TX ACK.
 
         This is transport inactivity only. It does not classify room speech or
         invent a model decision; the existing finalizer retains provider/drain ownership.
+        The ACK budget bounds a device fault, not another followup window.
         """
         task = asyncio.current_task()
         native_started = False
@@ -5011,9 +5012,9 @@ class ThinSession:
                 or not 0 <= boundary["tx_us"] < 2**32
             ):
                 raise RuntimeError("native_closing_led_ack_invalid")
-            self._live_idle_preclose_deadline = (
-                asyncio.get_running_loop().time() + LIVE_IDLE_PRECLOSE_S
-            )
+            # Four seconds of native quiet already admitted this owner. Record
+            # the actual ACK boundary without adding another timed quiet period.
+            self._live_idle_preclose_deadline = asyncio.get_running_loop().time()
             self._trace_event(
                 "live_idle_preclose_visible",
                 token=token,
@@ -5157,9 +5158,9 @@ class ThinSession:
     ) -> None:
         """Semantic END settles backend work, then drains the provider and speaker.
 
-        Native END starts a fresh bounded output/work quiet period after backend
-        settlement. It does not prove that future primary speech cannot arrive.
-        Keep receiving until session.closed, then await the exact physical tail.
+        Native END waits for known output/work after backend settlement, without
+        opening another followup window. This is not primary speech completion:
+        keep receiving until session.closed, then await the exact physical tail.
         """
         if self._live_close_judge is not None:
             await self._run_live_closing_attempt(epoch, receipt=receipt)
@@ -5172,8 +5173,9 @@ class ThinSession:
             brain = self.brain
             generation = brain._connection_generation
             deadline = time.monotonic() + self.idle_timeout_s + brain.timeout_s
-            # Earlier native silence belonged to an unfinished backend. Only new
-            # observations may admit this settled owner's provider-close edge.
+            # Keep the settlement boundary observable; it is no new followup
+            # permission. Known work, receipt currency and physical drain retain
+            # their existing owners.
             self._live_end_window.reset("backend_settled")
             while True:
                 if (
@@ -5194,7 +5196,7 @@ class ThinSession:
                 if time.monotonic() >= deadline:
                     self._request_close("live-close-output-quiet-unconfirmed", error_kind="device")
                     return
-                if self._live_quiet_ready(semantic=True):
+                if self._live_quiet_work_clear(semantic=True):
                     break
                 await asyncio.sleep(HEARTBEAT_S)
         await self._finalize_live_conversation(epoch, reason="model-close", receipt=receipt)

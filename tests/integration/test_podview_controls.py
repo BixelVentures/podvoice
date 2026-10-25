@@ -302,6 +302,8 @@ async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_m
     result = await bridge.controls.action(action, token)
     assert result["outcome"] == "accepted", result
     assert rig.writes == [
+        ("services/select/select_option", {"entity_id": MODE, "option": "vacuum_and_mop"}),
+        ("services/vacuum/set_fan_speed", {"entity_id": ROBOT, "fan_speed": "balanced"}),
         (
             "services/vacuum/send_command",
             {
@@ -309,7 +311,7 @@ async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_m
                 "command": "app_segment_clean",
                 "params": [{"segments": [17], "repeat": 3}],
             },
-        )
+        ),
     ]
 
 
@@ -736,7 +738,13 @@ async def test_active_vacuum_exact_native_service_and_duplicate_once(
     assert not owner._display_tickets
     offer = await bridge.controls.setup(setup_body(bridge), token)
     assert offer["ok"] and offer["setup"] == {"mapName": None}, offer
-    assert [r["action"] for r in offer["options"]] == [action]
+    assert [r["action"] for r in offer["options"] if r["action"] != "set_option"] == [action]
+    assert all(r["action"] in {action, "set_option"} for r in offer["options"])
+    assert all(
+        r.get("settingKey") in {"cleaning_mode", "mop_intensity", "mop_mode", "suction"}
+        for r in offer["options"]
+        if r["action"] == "set_option"
+    )
     assert not owner._display_tickets and not owner._tickets
     body = action_body(offer, offer["options"][0])
     result = await bridge.controls.action(body, token)

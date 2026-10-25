@@ -20,7 +20,9 @@ from gatekeeper.openai_live import _load_live_sdk
 
 
 @pytest.mark.asyncio
-async def test_native_active_retires_old_preclose_and_earns_full_new_four_plus_two(monkeypatch):
+async def test_native_active_retires_old_preclose_and_earns_four_seconds_then_native_ack(
+    monkeypatch,
+):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     producer = None
@@ -50,13 +52,13 @@ async def test_native_active_retires_old_preclose_and_earns_full_new_four_plus_t
                     deliver(session, link, clock, index)
 
             producer = asyncio.create_task(source(), name="idle-full-period-native-source")
-            await observed(lambda: session._live_idle_preclose_deadline is not None)
+            await observed(lambda: link.begin_live_closing.await_count == 2)
             new = session._live_idle_preclose_task
-            deadline = session._live_idle_preclose_deadline
             assert new is not old and session._live_idle_preclose_token > old_token
-            assert deadline - asyncio.get_running_loop().time() > 1.8
+            assert session._live_idle_preclose_deadline is None
+            assert sdk.session.close.await_count == 0
+            link.release_led_ack.set()
             await observed(lambda: sdk.session.close.await_count == 1)
-            assert asyncio.get_running_loop().time() >= deadline
             assert session._goodbye is new and old.done()
             assert session._active and link.rearm_calls == 0
             lease = session._playback_lease
@@ -153,6 +155,7 @@ async def test_old_led_ack_cannot_sync_or_repaint_replacement_idle_permission(mo
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     entered, release = asyncio.Event(), asyncio.Event()
+    new_entered, new_release = asyncio.Event(), asyncio.Event()
     old = None
     records = []
     try:
@@ -175,6 +178,10 @@ async def test_old_led_ack_cannot_sync_or_repaint_replacement_idle_permission(mo
                         await release.wait()
                     except asyncio.CancelledError:
                         await release.wait()
+                else:
+                    records.append(("new_enter", token, asyncio.current_task(), None))
+                    new_entered.set()
+                    await new_release.wait()
                 ack = await original_begin(token, deadline=deadline)
                 records.append(
                     (
@@ -196,25 +203,24 @@ async def test_old_led_ack_cannot_sync_or_repaint_replacement_idle_permission(mo
             assert not session._live_quiet_ready()
             for index in range(43, 84):
                 deliver(session, link, clock, index)
-            await observed(lambda: session._live_idle_preclose_deadline is not None)
+            await asyncio.wait_for(new_entered.wait(), 2)
             new = session._live_idle_preclose_task
             new_owner = session._live_idle_window.proof_owner
             new_serial = session._live_idle_window.reset_count
             new_deadline = session._live_idle_preclose_deadline
             assert new is not old and not new.done()
             assert old is not None and not old.done()
-            assert [row[0] for row in records] == ["old_enter", "new_ack_return"]
+            assert new_deadline is None
+            assert [row[0] for row in records] == ["old_enter", "new_enter"]
             old_native_token, new_native_token = records[0][1], records[1][1]
             assert old_native_token != new_native_token
             assert records[0][2] is old and records[1][2] is new
-            assert records[1][3]["phase"] == "led_tx_done"
-            assert records[1][3]["token"] == new_native_token
             records.append(("new_admitted", new_native_token, new, new_deadline))
             release.set()
             await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
             assert [row[0] for row in records] == [
                 "old_enter",
-                "new_ack_return",
+                "new_enter",
                 "new_admitted",
                 "old_ack_return",
             ]
@@ -228,8 +234,11 @@ async def test_old_led_ack_cannot_sync_or_repaint_replacement_idle_permission(mo
             assert session._live_idle_window.reset_count == new_serial
             assert session._active and not session._transport_closing
             assert sdk.session.close.await_count == 0
+            new_release.set()
+            await observed(lambda: sdk.session.close.await_count == 1)
     finally:
         release.set()
+        new_release.set()
         if old is not None:
             await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
         await session.aclose()

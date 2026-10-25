@@ -539,3 +539,95 @@ def project_playback_output(value: Any, account: str | None) -> dict:
         }
     except (ValueError, TypeError, KeyError, AttributeError):
         return unavailable("malformed_response")
+
+
+def project_playback_controls(value: Any, account: str | None) -> dict:
+    """Closed opt-in Control v3 facts; no offers, effects or inferred settlement."""
+    import copy
+    import math
+
+    try:
+        if not isinstance(value, dict) or value.get("schema") != "podconnect.playback.v3":
+            raise ValueError("invalid controls aggregate")
+        legacy = {key: copy.deepcopy(item) for key, item in value.items() if key != "controls"}
+        legacy["schema"] = "podconnect.playback.v2"
+        checked = project_playback_output(legacy, account)
+        if not checked.get("ok"):
+            return checked
+        controls = value["controls"]
+        if not isinstance(controls, dict) or set(controls) != {
+            "status",
+            "reason",
+            "binding_id",
+            "valid_until",
+            "supported_actions",
+            "volume",
+        }:
+            raise ValueError("invalid controls shape")
+        output = checked["data"]["output"]
+        if controls["status"] == "unavailable":
+            if (
+                output["status"] != "unavailable"
+                or controls["reason"] != output["reason"]
+                or controls["binding_id"] is not None
+                or controls["valid_until"] is not None
+                or controls["supported_actions"] != []
+                or controls["volume"] is not None
+            ):
+                raise ValueError("invalid unavailable controls")
+        elif controls["status"] == "observed":
+            if output["status"] != "observed":
+                raise ValueError("controls without actual output")
+            actual = output["binding"]
+            until = controls["valid_until"]
+            observation = checked["data"]["observation"]
+            source_until = (
+                datetime.fromisoformat(observation["observed_at"]).timestamp()
+                + observation["max_age_ms"] / 1000
+            )
+            if (
+                controls["binding_id"] != actual["binding_id"]
+                or type(until) not in (int, float)
+                or not math.isfinite(until)
+                or until != actual["valid_until"]
+                or until > source_until
+            ):
+                raise ValueError("foreign or renewed controls")
+            if until <= time.time():
+                return unavailable("stale")
+            actions = controls["supported_actions"]
+            if (
+                not isinstance(actions, list)
+                or any(
+                    not isinstance(action, str)
+                    or action not in {"pause", "resume", "next", "previous", "volume"}
+                    for action in actions
+                )
+                or len(actions) != len(set(actions))
+            ):
+                raise ValueError("invalid observed actions")
+            volume = controls["volume"]
+            if controls["reason"] == "volume_unavailable":
+                if volume is not None or "volume" in actions:
+                    raise ValueError("unavailable volume is not a measurement")
+            elif controls["reason"] is None:
+                if (
+                    not isinstance(volume, dict)
+                    or set(volume) != {"base_percent", "effective_percent"}
+                    or any(type(v) is not int or not 0 <= v <= 100 for v in volume.values())
+                ):
+                    raise ValueError("invalid actual volume")
+            else:
+                raise ValueError("invalid partial controls reason")
+        else:
+            raise ValueError("invalid controls status")
+        result = {
+            **checked["data"],
+            "schema": "podconnect.playback.v3",
+            "controls": copy.deepcopy(controls),
+        }
+        if len(json.dumps(result, allow_nan=False).encode()) > 65536:
+            raise ValueError("controls aggregate exceeds budget")
+        return {"ok": True, "data": result}
+    except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
+        return unavailable("malformed_response")

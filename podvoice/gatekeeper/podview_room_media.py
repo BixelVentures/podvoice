@@ -325,7 +325,9 @@ def envelope(
     }
 
 
-async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda: True):
+async def resolve_actual(
+    bridge, room, account, owner_binding, *, current=lambda: True, include_controls=False
+):
     """Admit one Control-owned actual output; never consult DEFAULT/NEXT intent."""
     tools, controls, boot = bridge.tools, bridge.controls, bridge.boot_id
     policy, session = controls.policy, bridge.sessions.get(room)
@@ -347,9 +349,14 @@ async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda
         )
 
     def result(
-        status="unavailable", reason="account_unavailable", data=None, actual=None, rule=None
+        status="unavailable",
+        reason="account_unavailable",
+        data=None,
+        actual=None,
+        rule=None,
+        source_controls=None,
     ):
-        return {
+        value = {
             "status": status,
             "reason": reason,
             "data": data,
@@ -357,11 +364,18 @@ async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda
             "rule": rule,
             "current": retained,
         }
+        if include_controls:
+            value["controls"] = source_controls
+        return value
 
     if not retained() or policy.get("roomId") != room:
         return result(reason="owner_changed")
     try:
-        raw = await tools.podview_read("playback", account, include_output=True)
+        raw = await (
+            tools.podview_read("playback", account, include_output=True, include_controls=True)
+            if include_controls
+            else tools.podview_read("playback", account, include_output=True)
+        )
         if not retained():
             return result(reason="owner_changed")
         if not raw.get("ok"):
@@ -371,7 +385,11 @@ async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda
                 else "account_unavailable"
             )
         aggregate = raw.get("data")
-        checked = podview_music.project_playback_output(aggregate, account)
+        checked = (
+            podview_music.project_playback_controls(aggregate, account)
+            if include_controls
+            else podview_music.project_playback_output(aggregate, account)
+        )
         if not checked.get("ok"):
             return result(
                 reason="stale_observation"
@@ -379,7 +397,11 @@ async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda
                 else "account_unavailable"
             )
         aggregate = checked["data"]
-        source = {key: copy.deepcopy(value) for key, value in aggregate.items() if key != "output"}
+        source = {
+            key: copy.deepcopy(value)
+            for key, value in aggregate.items()
+            if key not in {"output", "controls"}
+        }
         source["schema"] = "podconnect.playback.v1"
         if source["playback"]["state"] == "no_active_playback":
             return result("idle", None, source)
@@ -418,25 +440,71 @@ async def resolve_actual(bridge, room, account, owner_binding, *, current=lambda
             "bindingId": identity["binding_id"],
             "validUntil": until,
         }
-        return result("observed", None, source, actual, matches[0])
+        return result("observed", None, source, actual, matches[0], aggregate.get("controls"))
     except Exception:
         return result(reason="account_unavailable" if retained() else "owner_changed")
 
 
-async def read_playback(bridge, room, account, owner_binding):
-    resolved = await resolve_actual(bridge, room, account, owner_binding)
-    return web.json_response(
-        envelope(
-            bridge,
-            room,
-            account,
-            resolved["binding"],
-            resolved["data"],
-            status=resolved["status"],
-            reason=resolved["reason"],
-        ),
-        headers={"Cache-Control": "no-store"},
+async def read_playback(bridge, room, account, owner_binding, *, include_controls=False, token=""):
+    grant = (
+        bridge._grant_for_token(room, token)
+        if include_controls and isinstance(token, str)
+        else None
     )
+    granted_before = bool(grant is not None and bridge._grant_current(room, token))
+    resolved = await (
+        resolve_actual(bridge, room, account, owner_binding, include_controls=True)
+        if include_controls
+        else resolve_actual(bridge, room, account, owner_binding)
+    )
+    body = envelope(
+        bridge,
+        room,
+        account,
+        resolved["binding"],
+        resolved["data"],
+        status=resolved["status"],
+        reason=resolved["reason"],
+    )
+    if include_controls:
+        body["schema"] = "podview.room-playback.v3"
+        body["permissions"] = {"actions": [], "maxVolume": None}
+        body["controls"] = {
+            "status": "unavailable",
+            "reason": resolved["reason"] or "control_not_granted",
+            "binding_id": None,
+            "valid_until": None,
+            "supported_actions": [],
+            "volume": None,
+        }
+        rule = resolved["rule"]
+        source_controls = resolved["controls"]
+        if (
+            resolved["status"] == "observed"
+            and resolved["current"]()
+            and granted_before
+            and bridge._grant_for_token(room, token) is grant
+            and bridge._grant_current(room, token)
+            and bridge.controls.music.tools is bridge.tools
+            and isinstance(rule, dict)
+            and isinstance(rule.get("actions"), list)
+            and all(isinstance(action, str) for action in rule["actions"])
+            and type(rule.get("maxVolume")) is int
+            and 0 <= rule["maxVolume"] <= 100
+            and isinstance(source_controls, dict)
+        ):
+            scoped = copy.deepcopy(source_controls)
+            actions = [
+                action for action in scoped["supported_actions"] if action in rule["actions"]
+            ]
+            scoped["supported_actions"] = actions
+            scoped["valid_until"] = min(scoped["valid_until"], resolved["binding"]["validUntil"])
+            body["controls"] = scoped
+            body["permissions"] = {
+                "actions": actions.copy(),
+                "maxVolume": rule["maxVolume"] if "volume" in actions else None,
+            }
+    return web.json_response(body, headers={"Cache-Control": "no-store"})
 
 
 async def expected_actual(bridge, room, account, expected, current):

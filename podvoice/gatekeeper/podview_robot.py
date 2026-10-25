@@ -52,7 +52,10 @@ FIELDS = {
             "dust_collection_mode",
         )
     },
-    **{k: ("switch", "bool") for k in ("child_lock", "dnd_switch", "mop_drying")},
+    **{
+        k: ("switch", "bool")
+        for k in ("child_lock", "dnd_switch", "mop_drying", "mop_washing", "dust_emptying")
+    },
     "volume": ("number", "percent"),
     **{k: ("time", "clock") for k in ("dnd_start_time", "dnd_end_time")},
 }
@@ -68,6 +71,8 @@ DOCK_FIELDS = frozenset(
         "dust_collection_mode",
         "child_lock",
         "mop_drying",
+        "mop_washing",
+        "dust_emptying",
     }
 )
 _ENTITY = re.compile(r"(?:vacuum|sensor|binary_sensor|select|switch|number|time)\.[a-z0-9_]+\Z")

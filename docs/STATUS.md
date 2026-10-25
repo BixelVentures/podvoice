@@ -1,3 +1,278 @@
+## Active91 — single domain owner, two control surfaces (implementation authorized)
+
+Lead/release owner `/root`; canonical UI and final asset review owned by PodView.
+Human approved D2 and explicitly set it as this thread's active goal on25October.
+The canonical approved plan is `docs/LEAD-PLAN.md`; independent plan reviews97/98/97
+are not source, provider, release or physical GO. All50issues/F01-F23 remain mapped.
+
+Candidate source is the EXACT actual90merge65fe801a8bb587ba42518ce4dbb04ee39b59fd76,
+tree58f550af185e8ab2f325bdba4db680e297a69da1, checked out in the unsynced candidate
+`/private/tmp/pv91-single-owner-integration-20261025`, branchcodex/podvoice91-single-owner.
+The public merge and head commit objects were imported from GitHub-plugin metadata
+and matched their exact Git object hashes, including the merge signature. No stale
+workspace runtime patch is adopted. Installed89/Speakers53/Control23 remains the
+last verified Green baseline;90was not installed by this phase. No effect authorized.
+
+Direct source/causal evidence and falsifiable hypotheses:
+- Touch and selected voice START/MOVE already converge, but generic HAmedia_player
+  HomePod transport/volume directly use SpotifyAPI rather than Control's bound
+  Commands owner. Route only verified Native targets through that existing owner;
+  same auth-adapter differences remain. Hypothesis: shared admission/receipts prevent
+  cross-surface divergent custody; this does NOT establish the HomePod sound cause.
+- Existing exact source reproduces two clients/samehome or targets key200/429/200
+  with one source read and zero effects. Hypothesis: followers can join the read
+  then revalidate their OWN authority and normal scoped cache instead oflocalbusy.
+-512routine diagnostic rows evict recent failure/UNKNOWN/terminal records inside
+  seven days. Hypothesis: positive routine-first bounded eviction preserves critical
+  observations without new storage; protect incoming batch until its durable ACK.
+- Current read DTO lacks actual volume and UI consumes execution offers to learn
+  display affordances; client action matchers and queue URI/index repair compensate
+  for missing service outcomes. Hypothesis: source-owned readonly projection,
+  correlated settlement and exact occurrence resolution permit removal of these
+  UI compensations AFTER causal service->actualJS validation.
+- Actual close path has4squiet plus2spostLEDACK for idle, and fresh4squiet after
+  semanticEND settlement. User requests ordinary4squiet and explicitEND without
+  a new followup window. Candidate reuses finalizer and realclosed/drain; actual
+  provider output/input preservation remains a hard gate, not source-only proof.
+
+Affected chain: touch or physical voice input -> canonical target/actual provider
+intent -> current admission -> single domain command owner -> HA/Native/C effect
+-> exact command settlement + current source read -> surface/LED observation;
+voice physical playback -> one teardown -> exact firmware rearm -> nextwake.
+Timer HAdeadline and robot HAentity remain separate actual domain owners.
+Invariants: full duplex/current input authority; exact owner/generation/route;
+no invented providerACK/physicaldone; one effect/one close/one rearm; UNKNOWNno
+replay; independent controller permissions; genuine source freshness/privacy.
+Non-goals: new motor/broker/globalstore/testplatform, VAD/gain tuning, directAPI
+fallback for unknownNative, unsupported station parameter guesses, houseeffects.
+
+F16 additional bounded decision: actual visual display archive is bridge-lifetime
+only; restart loses admitted useful visual snapshots. Persist only the EXISTING
+validated passive archive projection as typed History records with originalreceiptId,
+time/provenance/content and20/room64KiB bounds, never executable receipts/actions or
+freshTTL. Test realadmission->disk->restart->authorizedhistoricalread->canonicalJS;
+duplicate/malformed/room/clear/revoke/diskfail pluslegacyreader negatives. This does
+NOT produce completed-answer/inputidentity for ordinaryLivefragments; that F16slice
+staysopen pending a truthful producer contract. No transcriptheuristic or invented
+providerdone. Rollback preserves oldrecords; typednewrows mustnotcrashlegacyreader.
+
+Implementation ownership: root owns shared plan/status, integration, API coordination
+and release. Read-coalescing owner owns podview.py only while assigned; diagnostics
+owner owns podview_client_diagnostics.py plus its existing unit fixture. Control
+contract and Native/C release/continuation have separate owners/candidates; only
+reviewed pinned contract packets are passed to PodView. Canonical UI source is never
+implemented independently here. Each shared file has one writer and root hunk-merges.
+
+Planned gates: retain unchanged proofs; focused RED->GREEN plus relevant adapter;
+actual multi-client/source/owner replacement/cancel tests; log count/byte/age/ACK/
+dedupe/gap/restart tests; strict readonly v3+settlement+occurrence JS composition;
+actual HA/MCP/entity and touch concurrency; provider close/muteACK and useful answer
+gates; PC70 journal/upgrade/reboot/downgrade; PC13 successful continuation protocol
+before implementation; canonical final UI/source review; one final officialCI per
+affected repo, one compatible releasebundle/install/activation/readback. Quiet-only
+agent work; physical audio/LED/Stop remains later human acceptance. Unknown and
+failed gates remain open and block their release claims.
+
+Rollback: no production change in this source phase. Do not mutate frozen90 packet.
+Plan covers89/53/23 compatible image/component/options/policy/data backup; newC
+journalpurpose may never be rolled back by deleting UNKNOWN or one-sided oldC.
+Before freeze require compatible current-version terminalization or forward recovery.
+Reviewed source results are recorded below; no combined release, Green installation,
+provider or physical GO is implied by those scoped results.
+
+### Active91 current integration boundary
+
+Implemented and independently reviewed source: ordinary idle no-extra-dwell,
+semantic-END no-new-quiet admission, bounded diagnostic retention, same-key passive
+read coalescing, Control/PV readonly v3 with actual-volume/policy separation, passive
+visual archive plus one-pass IO, five HA Native transport/volume commands, HA exact
+track/playlist RoomContent caller, and dependent Native/PV opaque queue resolution.
+Robot backend is exact canonical source; canonical UI owner is composing robot,
+NEXT91, readonly v3 and queue consumer deltas in its isolated draft. No assets are
+adopted before their final source/consumer/render review.
+
+PC70 durable cleanup/reconnect and its combined Native/C/manager packet remain under
+causal validation. The queue patch must hunk-merge into the resulting Native source.
+Actual PC13 successful two-successor-page station protocol is missing; mandatory
+Gate0 still blocks station implementation and this requested full release. Seek,
+shuffle/repeat, other advertised Native content/library/source parity, ordinary
+nonvisual answer production and actual provider gates remain explicit work. Final
+same-tree scope binding, official CI/publication, one compatible Green install and
+later authorized physical acceptance have not happened in this phase.
+
+### Read-only playback v3 and HA transport — reviewed integration increments
+
+PV adapter a252074d0cc4058a4fb691e681bf559459b04d34a8838c364faca8ff6d299be4
+plus root route838a76fc97756bd2eb024357e65d3881ebca9ce531aced0f6fe634fd5b623d3d
+have independent SOURCE GO. Exact source/identity/deadline/grant joins, strict keys,
+actual measured volume separate from policy ceiling and partial-volume failure are
+reviewed;52 new tests (including14 HTTP) and29 v2 neighbors pass. The unchanged
+actual Control DTO was replayed through PV at its capture clock. PodView received
+reviewed DTO/source pins and may now adopt v3 in its isolated canonical UI batch.
+Existing effect matchers remain until correlated Native settlement exists.
+
+HA entity Play/resume, Pause, Next, Previous and Volume now enter the same existing
+Control command owner for verified Native targets, with no generic fallback on a
+Native failure or UNKNOWN and no optimistic accepted=playing inference. Actual
+registered HA pause first reproduced raw-Spotify bypass RED, then GREEN;11 focused
+actual HA cases pass. Independent review GO binds formatted packet
+4763e3a18149c23032f373712ec397d787a943d16a7f21de6a9256b35795de1e and proves formatter
+AST identity to tested functional bytes. Proven non-Native behavior remains; absence
+of configured SpeakersClient means legacy behavior, not transient Native failure.
+Seek/shuffle/repeat/content/library/source selection are explicit remaining ingress
+work; this five-operation result does not claim full HA parity or audible output.
+
+Canonical UI owner is now preparing robot+NEXT91+reviewed-v3 composition off the shared
+candidate. Its review found robot-only revocation globally invalidating music custody;
+that independent UI delta is being fixed before adoption. No shared assets copied yet.
+
+### Queue reconciliation and history IO — reviewed source results
+
+Dependent Native queue producer70700d7f5256bc7eb9aefb38986c9ee0d456126060bbd096e3267b35c52b8955
+and PV QueueBroker5340258c8955721b7f730828cdf8dbd5b2ae2fe13f095391a004f5ceb272f326
+received independent SOURCE GO. Exact bound List/owner/writer/revision/order proves
+stable presentation row IDs; fresh observation/expiry/proof are always minted.
+QueueBroker retains at most64 read-only shown references, consumes/custodies before
+first await, resolves exact opaque ID/revision against fresh same-owner read, then
+uses existing private preparation/commit. No URI/index remapping becomes authority.
+Native race/vet, PV63focused+1HTTP pass; authenticated Native/C composition remains
+unproven. PodView may now retain shown envelope and remove click-time URI/index
+remap after canonical consumer tests. Native source must hunk-merge with PC70's
+independent room_queue.go writer-current change; never copy the whole older file.
+
+F16 separate single-pass optimizationf7a0f29156eef586c660dcb504c649b7adf81ddec621369acd6dd25b360fec15
+has independent SOURCE GO over reviewed a021 baseline. One storage capture/decode
+per save/remove and one all-room synchronization capture replace repeated scans;
+atomic rewrite/fsync, locks, original IDs, privacy clear/revoke and failure latch stay.
+42 affected units+2 actual SDK/restart/HTTP/JS cases are retained; reviewer5 targeted
+cases pass. Paired synthetic local Mac medians:4MB20.449->9.513ms,64MB200.189->124.190ms.
+This is not Green latency proof; synchronous full legacy-file rewrite cost remains.
+
+### Queue reconciliation — pre-change owner decision
+
+Actual Native53 allocates a new random observation ID and random row occurrence IDs
+on each read; Control forwards them and replaces its old observation. Its internal
+UIDs can duplicate, and List revisions restart at zero, so neither URI order, UID
+nor numerical revision alone proves cross-read occurrence identity. Existing UI
+ordered-URI remapping must not become backend effect authority.
+
+Approved smallest producer increment: in bound observeRoomQueue only, after fresh
+writer and strong-current checks, preserve prior row IDs only for the exact retained
+State/List/player/session/primary/generation pointers, alias, full Native bound owner,
+writer, session/connection/account/room and identical queue revision and ordered
+position/URI/queued/count/truncation. Reuse the existing single offer, no new broker,
+map or provider-ID assumption. ALWAYS mint fresh observation ID, expiry and bound
+writer proof; old expiration is not renewed command authority. New List even with
+same revision/duplicate URIs, source/writer/owner change or consumed nil offer mints
+new IDs; stale old click fails instead of guessing.
+
+Then existing QueueBroker may fresh-read and resolve the shown opaque row ID/revision
+before fresh prepare, only while exact caller/room/route/source stay current. UI
+URI/index matcher removal waits for reviewed producer->Control->PV->canonical JS
+proof. Owner fault_diagnostics87 uses isolated exact53 Native draft and PV91 queue
+files only; PC70 owner files and frozen proof sources remain untouched. Planned
+RED/GREEN: repeated unchanged read fresh observation/stable row ID, new List same
+revision+duplicates, reordered/queued/source/writer, consumed offer, stale click and
+actual fresh private prepare. No provider, audio or household effect is authorized.
+
+### Semantic END — independent SOURCE GO, provider gate open
+
+Semantic-only patch15ef52b4718dc2445deccf63dfc683fc29626e59e7e7833473e1e49e887e782d
+is reviewed independently GO. Relative to reviewed idle baseline440ecb7f, the only
+executable Thin change is native/no-judge post-settlement predicate quiet_ready ->
+quiet_work_clear. The accepted current END no longer earns a fresh4s quiet window.
+Receipt/backend settlement, known work/audio locks, immediate final revalidation,
+actual provider closed, exact playback drain and rearm remain. Causal2RED->2GREEN,
+close33/END19/adapter5 and actual SDK Native10-cycle results are retained.
+Actual provider preservation of spoken completion/newly accepted input across this
+close boundary remains an OPEN release gate; source GO is not provider/physical GO.
+
+### F16 visual snapshot persistence — independent SOURCE GO
+
+Exact five-file patcha0213b6e0a43b50f83b727a38bb12c1e5850954e40317ca30f021d7ba760750a
+received independent adversarial SOURCE GO with no unresolved P1/P2. Original90
+restart loss reproduced, then actual SDK/Thin admission -> disk -> new owner ->
+authorized HTTP history -> shipped JS passed.73 affected units and64 integrations
+are retained; only2 invalidated failure/clear cases were repeated. Reviewer ran6
+additional targeted cases, verified all owned base/current pins and root startup/
+clear hooks; later v3 route delta is separately bound, not silently included in GO.
+
+Strict passive display rows retain original receipt ID/time/provenance, with20/room,
+12rooms,64KiB/item and4MiB visual subset limits. Restore creates no executable receipt,
+source registry, allowed action or lease. Successful clear/revoke fence late refinement;
+IO failure is latched not_saved and cannot reimport privacy-cleared rows. Legacy
+readers remain compatible. Synchronous whole-history scan/rewrite/fsync latency is
+unmeasured; the4MiB bound applies to visual rows, not every legacy file byte.
+Ordinary nonvisual completed-answer production/input identity remains OPEN. This
+is source/inert integration evidence, not publication/installation/provider/physical GO.
+
+### Active91 robot integration boundary — pre-change decision
+
+Root integrates the previously user-ordered canonical robot service packet from
+PodView integration/robot-complete-20261025/candidate.patch, rebasing its exact87
+baseline onto exact90 without replacing routers or client bundles wholesale.
+The patch applies cleanly in a read-only check. It adds explicit dock/settings
+adapters to the existing vacuum owner and leaves the existing dispatch/policy/
+cleaning journal owners in charge; no new grant is activated or robot effect run.
+Falsifiable hypothesis: exact staged service bytes and unchanged neighboring
+owner files compose on90; focused robot/control contracts must prove identities,
+roles, current grant and unknown/failure handling. Inventory identity and final
+canonical client integration remain separate release gates. No cleaning, washing,
+emptying, drying or physical readiness is inferred from source integration.
+Rollback is the uninstalled draft patch; no Green configuration is changed.
+
+Integration result: all10 staged changed/neighbor source hashes exactly match the
+canonical reviewed packet after application to90. Six-file lint and format pass.
+The two affected robot/control fixture modules ran; localhost socket restrictions
+invalidated16 route cases, so only those16 were repeated outside the socket sandbox
+and passed. No runtime patch was made for the environment failure. Private receipt
+/private/tmp/pv91-robot-integration-receipt-20261025.json. Canonical UI merge, actual
+HA identity inventory, final combined review/CI and delivery remain pending.
+
+### Active91 scoped source results — delivery still pending
+
+F19 diagnostic retention is implemented and independently SOURCE-reviewed GO:
+positive routine-first bounded eviction retains failures/UNKNOWN/terminal rows
+preferentially while preserving incoming durable-ACK, dedupe and sequence-gap rules.
+Exact production SHA0c84056c1f3cd441bf0f4d0655d723a5a7fdbd4c6c8426d3f9f06a3cda1eb02b;
+packet /private/tmp/pv91-diagnostic-retention-packet-20261025, owned patch
+3cd493709fdf93c19e69effc4512f84b497efd21b9e4f8a7c3bde43ea80c36c2.
+Focused86 collector+17route cases and static checks pass; bounded retention is not
+permanent retention and cannot restore previously evicted observations.
+
+Ordinary idle close removes only the additional2s after the current native LEDACK;
+the original4squiet, technical ACK timeout, ownership checks, real drain and rearm
+remain. Six-file composed source packet is independently reviewed GO, including
+actual Native/Talk ten-cycle fixtures adapted to hold the real pendingACK boundary.
+Runtime patch5a49d1bd7271f7653846427763ec944bc435fb71e64c0261986b16e1708b31c7;
+fixture patchd8c5aa786be3097e8d4524a7f760a21f1973128dd27678e51906040aa38ee231.
+SemanticEND still has its separate original close path and is NOT fixed by this change.
+No provider or physical close/LED proof is claimed.
+
+Shared home/targets read coalescing has lead independent SOURCE GO on the frozen
+packet6711bc54771d36f4498c3e60cadf79fe0aff11efa9965dc38a8010bb8b4185f1.
+Same boot/source/key followers join one read, shield owner cancellation, then
+revalidate their own authority and unchanged source/cache expiry. Home lights remain
+per-controller projections; owner failure/cancellation completes followers false.
+48 focused cases plus the controller/area refinement and static checks pass.
+The later two-line F16 History-binding hook in the shared file is a separate delta
+requiring the F16 composed review; this GO does not approve that additional hook.
+
+Control24 playback.v3 read-only source is independently reviewed GO on packet
+44fce2add49f0051a6c2c4a0cb5c36b6eea2542a33c1af9aa943cfa88da81be4,
+with29 focused actual HA cases retained. Original5s/source expiry, current owner,
+actual action intersection and base/effective volume are preserved; v1/v2 unchanged.
+Observed capabilities are not executable grants. Settlement remains pending/rejected/
+superseded/unknown with no fabricated confirmation; Native effect echo, PV adapter,
+HA ingress convergence and canonical UI adoption remain unfinished.
+
+PodView has received the frozen Control DTO and explicit instruction to retain its
+proof loops until correlated service settlement exists. F16 snapshot persistence,
+PC70 durable release and their composed reviews remain in progress. PC13 Gate0
+found no actual successful two-page station trace in existing artifacts; the missing
+provider protocol evidence remains a real blocker, not a guessed fallback fix.
+Nothing in this result entry is public-image, Green-installation or physical GO.
+
 ## Diagnostic-only90 source freeze — scoped software gates complete
 
 Independent SOURCE+PREBIND GO verifies exact19effective paths:5production,

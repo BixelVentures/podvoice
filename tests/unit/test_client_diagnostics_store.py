@@ -313,3 +313,171 @@ async def test_startup_retention_is_durable_without_an_http_read(store):
     await restarted.prune()
     assert json.loads(owner.path.read_bytes())["records"] == []
     assert json.loads(owner.path.read_bytes())["batches"] == []
+
+
+@pytest.mark.parametrize(
+    "critical",
+    [
+        {
+            "stage": "request",
+            "code": "http_denied",
+            "endpoint": "control/setup",
+            "httpStatus": 429,
+        },
+        {"stage": "queue_action", "code": "unknown"},
+        {"stage": "control_action", "code": "accepted"},
+    ],
+    ids=["closed-failure", "unknown-command", "accepted-command-terminal"],
+)
+async def test_read_traffic_does_not_evict_recent_failure_or_command_terminal(store, critical):
+    owner, clock = store
+    first = parsed(0, records=[{**critical, "seq": 1, "ageMs": 0}])
+    assert (await owner.append(first, "principal", lambda: True))["stored"]
+    first_received = int(clock[0] * 1000)
+    for index in range(1, 33):
+        clock[0] += 61  # Existing admission rate/dedup windows remain unchanged.
+        rows = [
+            {
+                "stage": "music_read",
+                "code": ("start", "ok", "empty")[(index + seq) % 3],
+                "seq": seq,
+                "ageMs": 0,
+                "endpoint": "music",
+            }
+            for seq in range(1, 17)
+        ]
+        assert (await owner.append(parsed(index, records=rows), "principal", lambda: True))[
+            "stored"
+        ]
+    data = json.loads(owner.path.read_bytes())
+    assert int(clock[0] * 1000) - first_received < module.MAX_AGE_MS
+    assert len(data["records"]) <= module.MAX_RECORDS
+    assert owner.path.stat().st_size <= module.MAX_BYTES
+    assert any(row["serverSeq"] == 1 for row in data["records"]), (
+        "512 ordinary read rows evicted a still-recent failure/command terminal"
+    )
+
+
+@pytest.mark.parametrize(
+    "row,routine",
+    [
+        ({"stage": "request", "code": "ok", "endpoint": "snapshot"}, True),
+        ({"stage": "request", "code": "start", "endpoint": "answers"}, True),
+        ({"stage": "music_read", "code": "empty"}, True),
+        ({"stage": "queue_read", "code": "ok", "endpoint": "music/queue/offer"}, True),
+        ({"stage": "request", "code": "ok"}, False),
+        ({"stage": "request", "code": "ok", "endpoint": "other"}, False),
+        ({"stage": "request", "code": "ok", "endpoint": "control/actions"}, False),
+        ({"stage": "request", "code": "ok", "endpoint": "music/queue/actions"}, False),
+        ({"stage": "request", "code": "ok", "endpoint": "music/selection/actions"}, False),
+        ({"stage": "request", "code": "ok", "endpoint": "actions"}, False),
+        ({"stage": "request", "code": "ok", "endpoint": "control/setup"}, False),
+        ({"stage": "control_action", "code": "accepted"}, False),
+        ({"stage": "queue_action", "code": "ok"}, False),
+        ({"stage": "playback_confirmation", "code": "matched"}, False),
+        ({"stage": "observer", "code": "ok"}, False),
+        ({"stage": "music_read", "code": "unknown"}, False),
+        ({"stage": "music_read", "code": "ok", "current": False}, False),
+        ({"stage": "music_read", "code": "ok", "httpStatus": 429}, False),
+        ({"stage": "music_read", "code": "ok", "endpoint": "control/actions"}, False),
+        ({"stage": "queue_read", "code": "empty", "endpoint": "other"}, False),
+    ],
+)
+def test_routine_retention_requires_positive_read_evidence(row, routine):
+    assert module._routine_read(row) is routine
+
+
+async def test_incoming_rows_get_durable_ack_before_later_priority_eviction(store):
+    owner, clock = store
+    for index in range(32):
+        clock[0] += 61
+        await owner.append(
+            parsed(
+                index,
+                records=[
+                    {"stage": "browser", "code": "error", "seq": seq, "ageMs": 0}
+                    for seq in range(1, 17)
+                ],
+            ),
+            "principal",
+            lambda: True,
+        )
+    clock[0] += 61
+    incoming = parsed(32, records=[{"stage": "music_read", "code": "ok", "seq": 1, "ageMs": 0}])
+    ack = await owner.append(incoming, "principal", lambda: True)
+    assert ack["stored"] and ack["acceptedCount"] == 1
+    data = json.loads(owner.path.read_bytes())
+    assert len(data["records"]) == 512
+    assert data["records"][0]["serverSeq"] == 2
+    assert data["records"][-1]["serverSeq"] == 513  # Actually stored before initial ACK.
+    clock[0] += 61
+    await owner.append(parsed(33), "principal", lambda: True)
+    before = owner.path.read_bytes()
+    data = json.loads(before)
+    assert [row["serverSeq"] for row in data["records"]] == [*range(2, 513), 514]
+    restarted = module.ClientDiagnosticsStore(owner.path, clock=lambda: clock[0])
+    assert await restarted.append(incoming, "principal", lambda: True) == {**ack, "duplicate": True}
+    assert owner.path.read_bytes() == before  # Retry never resurrects an evicted observation.
+    after, seen = 0, []
+    while True:
+        page = await restarted.read("PRIVATE_room", after, lambda: True)
+        seen.extend(row["serverSeq"] for row in page["records"])
+        assert page["nextAfter"] > after
+        after = page["nextAfter"]
+        if not page["hasMore"]:
+            break
+    assert seen == [
+        *range(2, 513),
+        514,
+    ]  # Strict sequence order and intentional gap survive restart.
+
+
+async def test_byte_pressure_evicts_routine_before_recent_failure(store):
+    owner, clock = store
+    await owner.append(parsed(), "principal", lambda: True)
+    for index in range(1, 33):
+        clock[0] += 61
+        await owner.append(
+            parsed(
+                index,
+                uiBuild="b" * 80,
+                records=[
+                    {
+                        "stage": "music_read",
+                        "code": "ok",
+                        "seq": seq,
+                        "ageMs": 0,
+                        "generation": module.MAX_INT,
+                        "localRequestSeq": module.MAX_INT,
+                        "durationMs": 120000,
+                        "count": 64,
+                        "httpStatus": 200,
+                        "current": True,
+                        "pending": False,
+                        "connected": True,
+                        "endpoint": "music",
+                        "kind": "playback",
+                        "requestId": UUID,
+                    }
+                    for seq in range(1, 17)
+                ],
+            ),
+            "principal",
+            lambda: True,
+        )
+    data = json.loads(owner.path.read_bytes())
+    assert len(data["records"]) < module.MAX_RECORDS  # Actual byte limit, not count, evicted rows.
+    assert owner.path.stat().st_size <= module.MAX_BYTES
+    assert data["records"][0]["serverSeq"] == 1
+    assert data["records"][-1]["serverSeq"] == 513
+
+
+async def test_unstorable_protected_incoming_batch_never_gets_ack(store, monkeypatch):
+    owner, _ = store
+    monkeypatch.setattr(
+        module, "MAX_BYTES", 100
+    )  # Inject impossible storage, not a production cap.
+    with pytest.raises(module.DiagnosticFailure) as error:
+        await owner.append(parsed(), "principal", lambda: True)
+    assert error.value.status == 503
+    assert not owner.path.exists()

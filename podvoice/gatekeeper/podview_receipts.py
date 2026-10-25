@@ -11,10 +11,16 @@ import asyncio
 import copy
 import json
 import math
+import re
 import secrets
 import time
 from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
+
+if TYPE_CHECKING:
+    from .history import History
 
 from .podview_enrichment import VisualSelector
 from .podview_weather import MAX_CURRENT_AGE_S, MAX_RETRIEVAL_AGE_S, weather_projection
@@ -22,6 +28,212 @@ from .podview_weather import MAX_CURRENT_AGE_S, MAX_RETRIEVAL_AGE_S, weather_pro
 
 def _text(value: object, maximum: int) -> bool:
     return isinstance(value, str) and 0 < len(value) <= maximum
+
+
+def validated_archive_display(value: object) -> dict | None:
+    """Validate only the passive closed display shape; never restore a receipt lease."""
+
+    def text(value, maximum):
+        return _text(value, maximum) and bool(value.strip())
+
+    try:
+        if (
+            type(value) is not dict
+            or set(value) != {"receiptId", "family", "title", "observedAt", "content", "provenance"}
+            or type(value["receiptId"]) is not str
+            or re.fullmatch(r"[a-f0-9]{32}", value["receiptId"]) is None
+            or not text(value["title"], 160)
+            or type(value["observedAt"]) not in (int, float)
+            or not 0 <= value["observedAt"] <= time.time() + 5
+            or type(value["provenance"]) is not dict
+            or set(value["provenance"]) != {"kind"}
+            or value["provenance"]["kind"]
+            not in {"tool_result", "ha_weather", "owner_sources", "ai_explanation"}
+            or len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode()) > 65536
+        ):
+            return None
+        content, family = value["content"], value["family"]
+        additions = {
+            "concise": set(),
+            "comparison": {"columns", "items"},
+            "choices": {"items"},
+            "chart": {"items", "unit", "unitSingular"},
+            "steps": {"steps"},
+            "checklist": {"items"},
+            "fact-card": {"facts"},
+            "answer-timeline": {"events"},
+            "simple-diagram": {"nodes"},
+            "sourced-image": {"image"},
+        }
+        if family not in additions or type(content) is not dict:
+            return None
+        expected = {"summary", "sources"} | additions[family]
+        if family == "simple-diagram" and "illustration" in content:
+            expected.add("illustration")
+        if set(content) != expected or not text(content["summary"], 600):
+            return None
+        sources = content["sources"]
+        if type(sources) is not list or not 1 <= len(sources) <= 4:
+            return None
+        source_ids = set()
+        ai = value["provenance"]["kind"] == "ai_explanation"
+        for source in sources:
+            if type(source) is not dict or not text(source.get("id"), 80):
+                return None
+            if source["id"] in source_ids or not text(source.get("label"), 120):
+                return None
+            source_ids.add(source["id"])
+            if source.get("kind") == "owner_receipt":
+                if (
+                    set(source) != {"id", "label", "kind", "receiptId", "scope"}
+                    or source["receiptId"] != value["receiptId"]
+                    or source["scope"]
+                    not in ({"tool_result", "conversation_answer"} if ai else {"tool_result"})
+                ):
+                    return None
+            elif (
+                set(source) != {"id", "label", "url", "scope"}
+                or not text(source.get("scope"), 240)
+                or not _archive_link(source.get("url"))
+            ):
+                return None
+
+        def rows(key, maximum, fields):
+            values = content[key]
+            if type(values) is not list or not 1 <= len(values) <= maximum:
+                return False
+            ids = set()
+            for row in values:
+                if type(row) is not dict or set(row) != {"id", *fields}:
+                    return False
+                if not text(row["id"], 80) or row["id"] in ids:
+                    return False
+                ids.add(row["id"])
+                for name, bound in fields.items():
+                    if bound and not text(row[name], bound):
+                        return False
+                if "sourceId" in fields and row["sourceId"] not in source_ids:
+                    return False
+            return True
+
+        if family == "comparison":
+            if not rows("columns", 3, {"label": 80}) or not rows(
+                "items", 6, {"label": 80, "values": 0, "sourceId": 0}
+            ):
+                return None
+            if any(
+                type(row["values"]) is not list
+                or len(row["values"]) != len(content["columns"])
+                or any(not text(v, 80) for v in row["values"])
+                for row in content["items"]
+            ):
+                return None
+        elif family == "chart":
+            if (
+                ai
+                or not text(content["unit"], 24)
+                or not text(content["unitSingular"], 24)
+                or not rows("items", 8, {"label": 80, "value": 0, "sourceId": 0})
+            ):
+                return None
+            if any(
+                type(row["value"]) not in (int, float) or not -1e9 <= row["value"] <= 1e9
+                for row in content["items"]
+            ):
+                return None
+        elif family in {
+            "choices",
+            "checklist",
+            "fact-card",
+            "steps",
+            "answer-timeline",
+            "simple-diagram",
+        }:
+            key, maximum, fields = {
+                "choices": ("items", 6, {"label": 80, "detail": 200, "sourceId": 0}),
+                "checklist": ("items", 12, {"label": 160, "checked": 0, "sourceId": 0}),
+                "fact-card": ("facts", 6, {"label": 80, "value": 80, "detail": 200, "sourceId": 0}),
+                "steps": ("steps", 12, {"text": 300, "sourceId": 0}),
+                "answer-timeline": (
+                    "events",
+                    8,
+                    {"time": 80, "label": 120, "detail": 240, "status": 0, "sourceId": 0},
+                ),
+                "simple-diagram": ("nodes", 5, {"label": 80, "detail": 200, "sourceId": 0}),
+            }[family]
+            if not rows(key, maximum, fields) or (ai and family == "fact-card"):
+                return None
+            if family == "checklist" and any(
+                type(row["checked"]) is not bool or (ai and row["checked"]) for row in content[key]
+            ):
+                return None
+            if family == "answer-timeline" and any(
+                row["status"] not in ({"planned"} if ai else {"planned", "observed"})
+                for row in content[key]
+            ):
+                return None
+        for name in ("image", "illustration"):
+            if name not in content:
+                continue
+            image = content[name]
+            if type(image) is not dict or set(image) != {
+                "url",
+                "alt",
+                "caption",
+                "credit",
+                "kind",
+                "sourceId",
+            }:
+                return None
+            if (
+                not all(
+                    text(image[k], maximum)
+                    for k, maximum in {
+                        "url": 2048,
+                        "alt": 300,
+                        "caption": 300,
+                        "credit": 160,
+                    }.items()
+                )
+                or image["sourceId"] not in source_ids
+            ):
+                return None
+            if image["kind"] not in (
+                {"illustration"}
+                if name == "illustration"
+                else {"photo", "illustration", "album_cover"}
+            ):
+                return None
+            if ai:
+                if (
+                    image["url"] != "assets/bicycle-drivetrain-illustration.webp"
+                    or image["kind"] != "illustration"
+                ):
+                    return None
+            elif not _archive_link(image["url"], image=True):
+                return None
+            if image["kind"] == "album_cover" and (
+                image["credit"] != "Spotify"
+                or re.fullmatch(r"https://i\.scdn\.co/image/[a-f0-9]{40}", image["url"]) is None
+            ):
+                return None
+        return copy.deepcopy(value)
+    except (ValueError, TypeError, KeyError, OverflowError, RecursionError):
+        return None
+
+
+def _archive_link(value, *, image: bool = False) -> bool:
+    if not _text(value, 2048) or re.search(r"[\s\\]", value):
+        return False
+    if not image and value == "example-sources.html":
+        return True
+    parsed = urlsplit(value)
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.hostname)
+        and not parsed.username
+        and not parsed.password
+    )
 
 
 def _weather_result(response: dict) -> dict:
@@ -143,6 +355,9 @@ class VisualReceiptOwner:
         self._closed = False
         self._history: dict[str, dict] = {}
         self._history_boot: str | None = None
+        self._durable_history: History | None = None
+        self._durable_revision = -1
+        self._durable_failed = False
         self._selector: VisualSelector | None = None
         self._selection: asyncio.Task | None = None
         self._research_mode = False
@@ -150,10 +365,100 @@ class VisualReceiptOwner:
         self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
 
     def bind_history_boot(self, boot: str) -> None:
-        """Display memory belongs to this bridge lifetime, never durable storage."""
+        """New bridge revisions reload passive snapshots, never current receipt authority."""
         if self._history_boot != boot:
             self._history.clear()
             self._history_boot = boot
+
+    def bind_history(self, history: History | None) -> None:
+        """Startup-only existing History binding; no second store or public admission."""
+        if self._closed:
+            return
+        if self._durable_history is not history:
+            self._durable_history = history
+            self._durable_revision = -1
+            self._durable_failed = history is not None and not history.visual_saved
+            self._history.clear()
+
+    def history_persistence_status(self) -> str:
+        """Internal result only; the existing closed history wire DTO is unchanged."""
+        if self._durable_history is None:
+            return "disabled"
+        return (
+            "saved"
+            if not self._durable_failed and self._durable_history.visual_saved
+            else "not_saved"
+        )
+
+    def _save_history_display(self, room: str, key: tuple, display: dict) -> None:
+        storage = self._durable_history
+        if storage is not None and not self._durable_failed:
+            self._durable_failed = not storage.save_visual_snapshot(room, key[1], key[2], display)
+            self._sync_history()
+
+    def _remove_history_display(self, room: str, **binding) -> None:
+        storage = self._durable_history
+        if storage is not None and not self._durable_failed:
+            self._durable_failed = not storage.remove_visual_snapshots(room, **binding)
+
+    def _sync_history(self) -> None:
+        storage = self._durable_history
+        if storage is None or self._durable_revision == storage.visual_revision:
+            return
+        rooms: dict[str, list[dict]] = {}
+        for row in storage.visual_snapshots():
+            rooms.setdefault(row["room"], []).append(row)
+        for room, state in self._history.items():
+            rows = rooms.get(room, [])
+            old = {r["display"]["receiptId"]: r for r in state["items"]}
+            items = [
+                {
+                    "binding": old[row["display"]["receiptId"]]["binding"]
+                    if row["display"]["receiptId"] in old
+                    else (None, row["session"], row["epoch"]),
+                    "display": row["display"],
+                }
+                for row in rows
+            ]
+            if self._durable_failed:
+                # A later successful clear may remove memory, never restore failed disk state.
+                items = [
+                    old[row["display"]["receiptId"]]
+                    for row in rows
+                    if row["display"]["receiptId"] in old
+                ]
+            if items != state["items"]:
+                if set(old) - {row["display"]["receiptId"] for row in items}:
+                    state["removalRevision"] += 1
+                state["revision"] += 1
+                state["items"] = items
+                self._notify(room)
+        self._durable_revision = storage.visual_revision
+
+    def _history_state(self, room: str, owner: object) -> dict | None:
+        if self._closed:
+            return None
+        self._sync_history()
+        state = self._history.get(room)
+        if (
+            state is None
+            and self._durable_history is not None
+            and not self._durable_failed
+            and len(self._history) < 12
+        ):
+            rows = self._durable_history.visual_snapshots(room)
+            if rows:
+                state = {
+                    "owner": owner,
+                    "revision": 1,
+                    "removalRevision": 0,
+                    "items": [
+                        {"binding": (None, row["session"], row["epoch"]), "display": row["display"]}
+                        for row in rows
+                    ],
+                }
+                self._history[room] = state
+        return state
 
     def _archive_display(
         self, room_id: str, state: dict, item: dict, *, replace_existing: bool = False
@@ -165,11 +470,35 @@ class VisualReceiptOwner:
             or item.get("displaySuggested") is not True
         ):
             return
+        try:
+            if not state["current"]():
+                return
+        except Exception:
+            return
+        kind = item["provenance"].get("kind")
+        if kind not in {"tool_result", "ha_weather", "owner_sources", "ai_explanation"}:
+            return
+        display = copy.deepcopy(
+            {
+                "receiptId": item["receiptId"],
+                "family": item["family"],
+                "title": item.get("title", "Svar fra PodVoice"),
+                "observedAt": item["observedAt"],
+                "content": item["content"],
+                "provenance": {"kind": kind},
+            }
+        )
+        checked_display = validated_archive_display(display)
+        if checked_display is None:
+            return
+        display = checked_display
         key = state["key"]
-        prior = self._history.get(room_id)
+        prior = self._history_state(room_id, key[0])
         if prior is None and len(self._history) >= 12:
             return
         if prior is None or prior["owner"] is not key[0]:
+            if prior is not None and self._durable_history is not None:
+                self._remove_history_display(room_id)
             prior = {
                 "owner": key[0],
                 "revision": (prior["revision"] if prior else 0) + 1,
@@ -187,30 +516,10 @@ class VisualReceiptOwner:
             replace_existing and (existing is None or existing["binding"] != key[:3])
         ):
             return
-        kind = item["provenance"].get("kind")
-        if kind not in {"tool_result", "ha_weather", "owner_sources", "ai_explanation"}:
-            return
-        display = copy.deepcopy(
-            {
-                "receiptId": item["receiptId"],
-                "family": item["family"],
-                "title": item.get("title", "Svar fra PodVoice"),
-                "observedAt": item["observedAt"],
-                "content": item["content"],
-                "provenance": {"kind": kind},
-            }
-        )
-        try:
-            if (
-                len(json.dumps(display, ensure_ascii=False, allow_nan=False).encode("utf-8"))
-                > 65536
-            ):
-                return
-        except (ValueError, TypeError, OverflowError):
-            return
         if existing is not None:
             existing["display"] = display
             prior["revision"] += 1
+            self._save_history_display(room_id, key, display)
             self._notify(room_id)
             return
         prior["items"].insert(0, {"binding": key[:3], "display": display})
@@ -218,12 +527,15 @@ class VisualReceiptOwner:
             prior["removalRevision"] += 1
         del prior["items"][20:]
         prior["revision"] += 1
+        self._save_history_display(room_id, key, display)
         self._notify(room_id)
 
     def history(self, room_id: str, owner: object, *, include_items: bool = True) -> dict:
         """Inert display only. The HTTP caller must enforce ingress/configured room."""
-        state = self._history.get(room_id)
+        state = self._history_state(room_id, owner)
         if state is not None and state["owner"] is not owner:
+            if self._durable_history is not None:
+                self._remove_history_display(room_id)
             if state["items"]:
                 state["removalRevision"] += 1
             state["items"] = []
@@ -715,17 +1027,23 @@ class VisualReceiptOwner:
 
     def revoke(self, room_id: str, owner: object, session_id: str, epoch: float) -> None:
         """Revoke this exact owner's reads synchronously, including sealed normal-close reads."""
-        history = self._history.get(room_id)
-        if history is not None:
+        history = self._history_state(room_id, owner)
+        if history is not None and history["owner"] is owner:
             before = len(history["items"])
             history["items"] = [
                 r
                 for r in history["items"]
-                if not (r["binding"][0] is owner and r["binding"][1:] == (session_id, epoch))
+                if not (
+                    (r["binding"][0] is None or r["binding"][0] is owner)
+                    and r["binding"][1:] == (session_id, epoch)
+                )
             ]
             if len(history["items"]) != before:
                 history["revision"] += 1
                 history["removalRevision"] += 1
+                if self._durable_history is not None:
+                    self._remove_history_display(room_id, session=session_id, epoch=epoch)
+                    self._sync_history()
                 self._notify(room_id)
         state = self._rooms.get(room_id)
         if (

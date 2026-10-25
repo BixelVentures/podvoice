@@ -289,7 +289,8 @@ async def test_registered_preclose_panel_reads_preserve_exact_owner_after_sdk_ar
                 owner = session._live_idle_preclose_task
                 assert owner is not None and not owner.done()
                 assert owner in session._live_idle_preclose_owners
-                assert session._live_idle_preclose_deadline is not None
+                assert session._live_idle_preclose_deadline is None
+                assert session._panel_status(clock[0])["timer_kind"] == "app_idle_led_admission"
                 assert not session._live_finalizing and not session._transport_closing
                 before = _panel_idle_owner_snapshot(session)
                 queued = await _queued_sdk_input_before_panel_read(session)
