@@ -111,9 +111,11 @@ def test_multidestination_policy_requires_unique_default_and_native_pair():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("revoke_during_read", [False, True])
+@pytest.mark.parametrize(
+    "revoke_during_read,late_receipt", [(False, False), (True, False), (False, True)]
+)
 async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
-    monkeypatch, revoke_during_read
+    monkeypatch, revoke_during_read, late_receipt
 ):
     rig = Rig()
     session, _ = owner()
@@ -188,6 +190,23 @@ async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
     ]
     bridge.controls.move.setup.assert_not_awaited()
     action = action_body(setup, setup["options"][0])
+    if late_receipt:
+
+        async def complete_after_snapshot_expiry(*args, receipt_current):
+            task = bridge.controls.tasks[setup["taskId"]]
+            task["deadline"] = 0
+            task["actual_binding"]["validUntil"] = 0
+            assert not args[1]()
+            assert receipt_current()
+            return {"outcome": "accepted", "accepted_room_move": True}
+
+        bridge.controls.move.move.side_effect = complete_after_snapshot_expiry
+
+        async def confirm_retained(*args):
+            assert args[-1]()
+            return True
+
+        proof.side_effect = confirm_retained
     result = await bridge.controls.action(action, token)
     if revoke_during_read:
         assert result["outcome"] == "rejected" and not bridge._music_move_fence
@@ -198,7 +217,10 @@ async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
     assert result["outcome"] == "accepted"
     bridge.controls.move.setup.assert_awaited_once()
     assert bridge.controls.move.setup.await_args.args[:4] == ("account", "speaker", "r1", "43")
-    assert await bridge.controls.action(action, token) == result
+    if late_receipt:
+        assert (await bridge.controls.action(action, token))["error"] == "stale_action"
+    else:
+        assert await bridge.controls.action(action, token) == result
     bridge.controls.move.move.assert_awaited_once()
     proof.assert_awaited_once()
     assert not bridge._music_move_fence

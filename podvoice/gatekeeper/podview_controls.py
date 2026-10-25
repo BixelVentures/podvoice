@@ -306,7 +306,7 @@ class TouchControls:
         except Exception:
             return ()
 
-    def _current(self, task: dict, token: str) -> bool:
+    def _current(self, task: dict, token: str, *, _receipt_only: bool = False) -> bool:
         domain_current = task["domain"] in self.domains(task["room"], token)
         if task["domain"] == "music" and "move_destination" in task:
             domain_current = bool(
@@ -320,10 +320,14 @@ class TouchControls:
             )
         return bool(
             secrets.compare_digest(task["token"], token)
-            and time.monotonic() < task["deadline"]
+            and (_receipt_only or time.monotonic() < task["deadline"])
             and domain_current
             and ("actual_current" not in task or task["actual_current"]())
-            and ("actual_binding" not in task or task["actual_binding"]["validUntil"] > time.time())
+            and (
+                _receipt_only
+                or "actual_binding" not in task
+                or task["actual_binding"]["validUntil"] > time.time()
+            )
             and task["binding"] == self._binding(task["room"], task["domain"])
             and (task["domain"] != "light" or self._light_current(task, token))
             and (
@@ -348,6 +352,10 @@ class TouchControls:
                 )
             )
         )
+
+    def _receipt_current(self, task: dict, token: str) -> bool:
+        """Original music owners after a send; never an effect-admission guard."""
+        return task["domain"] == "music" and self._current(task, token, _receipt_only=True)
 
     def _light_current(self, task: dict, token: str) -> bool:
         try:
@@ -1201,6 +1209,9 @@ class TouchControls:
         def current():
             return self._current(task, token)
 
+        def receipt_current():
+            return self._receipt_current(task, token)
+
         moving = option["action"] == "move_existing_session"
         move_dispatched = False
         try:
@@ -1215,21 +1226,31 @@ class TouchControls:
                         else:
                             task["move_offer"] = offer
                             move_dispatched = True
-                            result = await self.move.move(offer, current)
+                            result = await self.move.move(
+                                offer, current, receipt_current=receipt_current
+                            )
                     elif option["action"] == "volume":
                         result = await self.music.execute_volume(
-                            task["volume_offered"], args["percent"], current
+                            task["volume_offered"],
+                            args["percent"],
+                            current,
+                            receipt_current=receipt_current,
                         )
                     else:
                         result = await self.music.execute_room(
-                            task["offered"], option["action"], current
+                            task["offered"],
+                            option["action"],
+                            current,
+                            receipt_current=receipt_current,
                         )
                     outcome = result.get("outcome", "unknown")
                     if moving:
                         if outcome == "accepted" and result.get("accepted_room_move") is True:
                             from .podview_room_media import confirm_move_destination
 
-                            if await confirm_move_destination(self.bridge, task, result, current):
+                            if await confirm_move_destination(
+                                self.bridge, task, result, receipt_current
+                            ):
                                 self.bridge._music_move_fence.discard(
                                     (task["room"], task["target"]["accountId"])
                                 )

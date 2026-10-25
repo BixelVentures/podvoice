@@ -1250,3 +1250,73 @@ async def test_optional_volume_read_cannot_hold_available_transport_offer(fixtur
     assert [row["action"] for row in offer["options"]] == ["pause"]
     assert volume_cancelled.is_set()
     assert "kitchen" not in bridge.controls.busy
+
+
+@pytest.mark.parametrize("action", ["next", "volume"])
+@pytest.mark.parametrize("change", ["expiry", "grant", "grant_expiry", "owner"])
+async def test_dispatched_music_receipt_keeps_ownership_after_offer_expiry(
+    offline_direct, action, change
+):
+    """Exact receipts outlive presentation TTL, never a revoked execution owner."""
+    from integration.test_podview_music_control import controls, volume_owner
+
+    _, bridge, _, _, _, _, _, music = offline_direct
+    if action == "volume":
+        music.value = controls()
+        volume_owner(music)
+    bridge.controls.policy["music"][0]["actions"] = [action]
+    token = bridge.grant_timer_control("kitchen")
+    body = setup_body(bridge, "music")
+    body["target"]["targetId"] = "device"
+    offer = await bridge.controls.setup(body, token)
+    assert offer["ok"], offer
+    task = bridge.controls.tasks[offer["taskId"]]
+    command = action_body(offer, offer["options"][0], {"percent": 0} if action == "volume" else {})
+    service = "control_room_volume" if action == "volume" else "control_room_playback"
+
+    async def response_after_boundary():
+        if not music.calls[-1][1].endswith(service):
+            return
+        task["deadline"] = 0
+        task["actual_binding"]["validUntil"] = 0
+        if change == "grant":
+            bridge.revoke("kitchen")
+        elif change == "grant_expiry":
+            slot = bridge._grant_slot("kitchen", token)
+            grant = bridge._grants[slot]
+            bridge._grants[slot] = (*grant[:-1], 0)
+        elif change == "owner":
+            bridge.sessions["kitchen"] = owner()[0]
+
+    music.hook = response_after_boundary
+    result = await bridge.controls.action(command, token)
+    assert result["outcome"] == ("accepted" if change == "expiry" else "unknown")
+    assert result["physicalResultVerified"] is False and result["retryAllowed"] is False
+    assert len([call for call in music.calls if call[1].endswith(service)]) == 1
+    repeated = await bridge.controls.action(command, token)
+    if change == "expiry":
+        # Receipt settlement does not renew the task for another request.
+        assert repeated["error"] == "stale_action"
+    assert len([call for call in music.calls if call[1].endswith(service)]) == 1
+
+
+@pytest.mark.parametrize("action", ["next", "volume"])
+async def test_music_offer_expired_before_dispatch_never_sends(offline_direct, action):
+    from integration.test_podview_music_control import controls, volume_owner
+
+    _, bridge, _, _, _, _, _, music = offline_direct
+    if action == "volume":
+        music.value = controls()
+        volume_owner(music)
+    bridge.controls.policy["music"][0]["actions"] = [action]
+    token = bridge.grant_timer_control("kitchen")
+    body = setup_body(bridge, "music")
+    body["target"]["targetId"] = "device"
+    offer = await bridge.controls.setup(body, token)
+    assert offer["ok"], offer
+    bridge.controls.tasks[offer["taskId"]]["deadline"] = 0
+    command = action_body(offer, offer["options"][0], {"percent": 0} if action == "volume" else {})
+    assert (await bridge.controls.action(command, token))["error"] == "stale_action"
+    assert not any(
+        call[1].endswith(("control_room_volume", "control_room_playback")) for call in music.calls
+    )

@@ -1,3 +1,54 @@
+## Active PV193 — post-dispatch receipt ownership, 25 October 2026
+
+Lead /root; backend owner weather_backend_integration; independent reviewer
+weather_backend_review. Installed PodVoice 2.0.84 and PodConnect 52 are verified running;
+the delivered artifacts remain immutable. The confirmed software defect
+is an exact accepted control response at t6 after dispatch within its original <=5s
+observation lease: unchanged owners are incorrectly reported UNKNOWN. MOVE can also
+cancel a committed wait when the same presentation clock expires. Chain: fresh actual
+output → exact task/grant → strict effect admission → provider prepare/commit → exact
+receipt → existing fresh destination confirmation. Split only private receipt ownership
+from effect admission: before every effect POST retain all clocks and guards; after its
+dispatch omit only task.deadline and actual_binding.validUntil while retaining original
+actual_current, grant expiry/revocation, session/boot/tools/policy/account and exact
+backend receipt owner validation. No latest-owner adoption, lease extension, consumed
+bypass, retry, new receipt/API or acoustic claim. MOVE expiry during preparation still
+cancels exact preparation and commits zero times. Focused counterfactuals cover t6
+accepted response, changed owner/grant/backend receipt UNKNOWN, pre-send expiry and
+prepare expiry zero commit, cancellation/no replay and unchanged other callers.
+No version, UI, frozen84, publication, installation or household effects change.
+
+Source-only results: original controls counterfactual retained 2 failures (late next and
+volume became UNKNOWN); corrected whole controls/facade cases passed 17, with the
+added hard-grant expiry cases passing the affected 10-case selection. MOVE unit cases
+passed 43, existing room/volume facade neighbors 57, and touch/voice MOVE callers 20,
+including expired presentation clocks reaching the existing destination confirmation.
+The completion claim is the historical exact admitted operation, not a guarantee of
+the present output route or audible sound. Future commands still require fresh setup.
+Source lint/format and mypy for the three changed production files pass. Independent
+review by weather_backend_review passed on exact patch 8d89eeb7 and all production,
+caller and evidence pins; the additional four prepare/commit cancellation variants passed.
+No publication or physical acceptance claimed.
+
+Lead authorizes this reviewed seven-path source as a separate planned2.0.85 successor
+of published84main5538e34765d4418f60622446fa1bd32f292d7ff2/treee89ad211dd1008af45090cd20c17315226fafc40.
+Release metadata uses the incumbent exact-tree admission85 only; all203 UI assets,
+voice, timer backend, firmware and HAcomponent0.1.6 remain unchanged. Backend causal,
+caller, cancellation and static evidence is retained on its exact three production
+and three fixture files. Independent /root/sol61_review74_final exact prebinding review is GO. The existing
+reviewer/manifest/Python3.12AST fields now bind this source and complete inventory.
+Actual classifier output remains unclassified_runtime; the classifier is unchanged.
+Official CI, publication, installation and physical acceptance remain root-owned
+and pending. No household/provider effect occurred during packaging.
+Actual packaging checks: strict staged85 admission and changed-file static checks
+pass. All15 historical84 assertions pass against the published5538 snapshot; the
+new exact-base dev dispatch and highest workflow label checks pass. The15 new85
+cases pass cumulatively:13 unchanged passes (including all nine bound positive/
+adversarial cases) are retained, and the two asset checker cases pass after four
+copied fixture references were corrected to assets_match85. Their assertions and
+all production/profile logic remain unchanged. Only the corresponding regression
+pin and derived binding fields were refreshed; no broad runtime/UI check was repeated.
+
 ## Active P1 — selected-service HTTP deadline mismatch, 25 October 2026
 
 Lead /root; backend owner weather_backend_integration; independent review required.
@@ -4262,5 +4313,26 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "merge_base": "8648a99e5e524c20fca542ca0d62207dfeb904f4",
   "tooling_fingerprint": "517baf851136e2069599be9123e0b6064c01abc98824b805bae34d8d14f24bae",
   "fingerprint": "0f604ef883381a97c4c065896b6b94569c9dc4b1f46b578a9c46422ce7d4838e"
+}
+-->
+
+<!-- podview85-admission
+{
+  "version": 62,
+  "kind": "podview85_receipt_ownership",
+  "reviewer": "/root/sol61_review74_final",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "base_tip": "5538e34765d4418f60622446fa1bd32f292d7ff2",
+  "merge_base": "5538e34765d4418f60622446fa1bd32f292d7ff2",
+  "fingerprint": "b8a581c4fb1451c7f39ba3fbe983413aea7daabbef24f2b6c8a72fdd79e2931c",
+  "regression_fingerprint": "8816821149dcefc91ab0e154652b452f5ec69bfca1e3d2b7965737c58a3bae24",
+  "runtime_fingerprint": "fa14f6bca2ac6a2903822921dd9c39df3eb7fa75c3a12cac50eb5eabe78caf54",
+  "config_fingerprint": "676876fc0998ce6d50b920c8c8d59fc7311a75058533b7510a691275cbc1c384",
+  "policy_fingerprint": "a6cbbe6d449f566e21c64d056ca1cdcae05162b87150f50a5706aa7038a6802c",
+  "tooling_fingerprint": "2cb4b09106602d6232a91aafe6647df62c29674d99991246dcb9e4165b85b675",
+  "manifest_fingerprint": "cbd75a97ae24bc651c5fc726f85f2d63507ed64ce4cbd869d014e8523957809d",
+  "rationale": "Independent /root/sol61_review74_final PREBIND GO on treea127e70ba5da38e463d32f15940d6e18d82614d3/profiledc79aa6f/manifestfc17fe36/Python3.12AST4ab2a12c, exact3production/6regression/323runtime/4config/66policy/184tooling and203unchangedUI. Retain weather_backend_review source/caller/hashGO on frozen193 packet16f23603 (STATUS-only successor of reviewed8d89eeb7). Actual unchanged classifier unclassified_runtime is bound honestly, never relabeled or weakened. Permit only exact admitted completion ownership after dispatch; pre-POST clocks, original grants/leases, session/boot/tools/policy/account and exact backend owner guards remain. No retry, latest-owner adoption, current-route/acoustic claim, UI or voice/firmware change. Root owns officialCI/publication/installation and physical acceptance. After initial exact-scope GO, correct only four new85 fixture references to the existing renamed assets_match85 checker and refresh its sole regression pin/derived bindings under root authorization. All original asset assertions remain; no production/profile-logic/inventory change. Retain unchanged bound cases and renew the two affected checker tests."
 }
 -->
