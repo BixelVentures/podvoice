@@ -64,7 +64,11 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_passive_weather_http.py",
         "tests/integration/test_podview_bridge.py",
         "tests/integration/test_podview_controls.py",
+        "tests/integration/test_talk_webrtc.py",
         "tests/integration/test_thin_attention_lease.py",
+        "tests/podview/canonical-next-player-view.test.mjs",
+        "tests/podview/canonical-packet-player-view.test.mjs",
+        "tests/podview/canonical-packet-shared-music-results.test.mjs",
         "tests/podview/root-control-field86-diagnostic.test.mjs",
         "tests/podview/root-live-media-queue-lifecycle.test.mjs",
         "tests/podview/root-player-view.test.mjs",
@@ -88,8 +92,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/admission34"
-MANIFEST_SHA = "b2a7a30ecfa44776bdbbe7cbbc9b3252a3c05212db5dd86f2a18f6892aac4041"
-PROFILE_AST = "5e37ac787bea2870cca730861b397eaf15a3c22b0da20f4e067647c23cdb2ba8"
+MANIFEST_SHA = "2e6ec34daffb87a18b4afd883fbdc8adb49c23f2292a9d9136ce0e377ca65f86"
+PROFILE_AST = "5eb686301a7cdd8b2c0ff45d5356091fee19e78f6ddb875ce9ba750e3450c688"
 
 
 def record_at(root: Path) -> dict | None:

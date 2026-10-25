@@ -865,7 +865,10 @@
           "method:renderMusicControls": 1,
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
-          "method:send": 1
+          "method:send": 1,
+          "arrow:current": 1,
+          "method:currentVolumeOffer": 1,
+          "method:prepareVolume": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1229,7 +1232,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "arrow:finish": 1,
+          "arrow:finish": 2,
           "arrow:make": 1,
           "arrow:ready": 1,
           "arrow:text": 1,
@@ -1241,7 +1244,8 @@
           "function:renderOverviewMediaValues": 1,
           "function:sourceMusicCards": 1,
           "method:captureContent": 1,
-          "method:create": 1
+          "method:create": 1,
+          "method:fadeLoadingContent": 1
         },
         "roots": [],
         "registrations": {},
@@ -1785,7 +1789,9 @@
           "method:renderNotice": 1,
           "method:renderOverviewActivities": 1,
           "method:updatePicker": 1,
-          "method:completeStartNavigation": 1
+          "method:completeStartNavigation": 1,
+          "arrow:stop": 1,
+          "method:presentationTimer": 1
         },
         "roots": [
           "html:button:timer-adjust",

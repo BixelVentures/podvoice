@@ -256,9 +256,18 @@ async def test_actual_provider_error_is_one_talk_system_line_and_next_turn_recov
         assert "private provider error secret" not in str(wire.outgoing)
         assert not session._active and link._live_handshake is None
         assert not [e for e in wire.outgoing if e["type"] == "play"]
-        assert any(e["type"] == "state" and e["state"] == "IDLE" for e in wire.outgoing)
+        # The provider-close edge failed with this reader. Report cleanup as
+        # pending until its existing retry has actually retired the connection.
+        assert session._teardown_incomplete
+        await until(
+            lambda: any(e["type"] == "state" and e["state"] == "CLOSING" for e in wire.outgoing)
+        )
+        assert not any(e["type"] == "state" and e["state"] == "IDLE" for e in wire.outgoing)
         failed_sdk.session.close.assert_awaited_once()
         await until(lambda: not session._teardown_incomplete)
+        await until(
+            lambda: any(e["type"] == "state" and e["state"] == "IDLE" for e in wire.outgoing)
+        )
 
         # A duplicate/retired provider event cannot report into the next turn.
         await session.live_brain._handle(

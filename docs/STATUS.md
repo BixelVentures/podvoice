@@ -4530,12 +4530,12 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "base_tip": "c5c34a2efb4fba70d186d735baa6a3d58dbf00b5",
   "merge_base": "c5c34a2efb4fba70d186d735baa6a3d58dbf00b5",
   "fingerprint": "996a1b337c1d86f7d944e7dfa9ae182f318c2aab6d6427446368ef45bbb637d5",
-  "regression_fingerprint": "ec83ab79ed16313f5cfa020a4c649368d92a5800682ca0d95148e6264e427f3d",
+  "regression_fingerprint": "88c456109a3e39d9534ac18f5270d1a2a70febb394b5a226bf5a06fb7981fd9c",
   "runtime_fingerprint": "85f0224ab3ba4658f5333ad5b3b63c26a7f219aed8a5a99445632da7e5b00cc6",
   "config_fingerprint": "e401a4e247e17bc0bb90595ee37f6ab5d8ac494773dc8ea54e031390b8a5a158",
-  "policy_fingerprint": "ff225a5ddf23bbac5f183dd3a57a36cb8de7b210ae277cb4d550382c85391830",
-  "tooling_fingerprint": "756b77d59318d4455ccb536c48ff3edd56d36bcc5325f420c788683cb4e00eff",
-  "manifest_fingerprint": "b2a7a30ecfa44776bdbbe7cbbc9b3252a3c05212db5dd86f2a18f6892aac4041",
-  "rationale": "Root-authorized binding after independent /root/admission34 whole-composition PREBIND GO on exact44path candidate:19production/16regression/323runtime/4config/70priorpolicy/184tooling and203 canonical UI assets (11 changed/192 unchanged). Preserve reviewed volume-only task/offer authority, weather source/provider guards, content-free route/voice failure diagnostics, truthful incomplete-close projection, all original owner/TTL/cancel/UNKNOWN/no-replay boundaries and immutable86. Two-sentence visual preference and its two owned tests are restored exactly to publishedc5base and excluded. Existing focused source/UI/static results retained; actual203asset checker renewed after final manifest. Official CI/publication/installation and physical music/voice/reconnect acceptance remain separate and root-owned; no field-cause or household-effect claim."
+  "policy_fingerprint": "34c92ad2c276720bac4b8a4681f7c9c1862ad125a9bb91b2c5aa7c32988544ac",
+  "tooling_fingerprint": "7f22c0aff625a9452a20bdb4d35b9cda0e487d10179afe1fd0c895f0e93754c1",
+  "manifest_fingerprint": "2e6ec34daffb87a18b4afd883fbdc8adb49c23f2292a9d9136ce0e377ca65f86",
+  "rationale": "Root-authorized fixture-only rebind after independent /root/admission34 delta PREBIND GO:49paths/19production/20regression/323runtime/4config/70priorpolicy/184tooling. All production, runtime, config and203 UI assets are byte-identical to first frozen87 treef452b27b. Correct only one stale Talk fixture, three old UI mirrors and exact seven reviewed component-registry definitions; preserve all existing assertions and command/owner/cancel/UNKNOWN boundaries. Retain prior source/UI/static/official successful-job evidence. A single3755-case activePVUI run passed3751 with only four sandbox localhost-listen EPERM failures; those same four existing enrollment cases passed when rerun with local loopback allowed. Existing Talk module14, changed mirrors177 and component gate39 PASS. Two-sentence visual prompt preference and its two owned tests remain restored to publishedc5base and excluded. No runtime patch, broad local release, provider/household action, field-fix or physical acceptance claim. Root owns final officialCI/publication/installation."
 }
 -->
