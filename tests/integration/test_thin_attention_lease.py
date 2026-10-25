@@ -516,12 +516,19 @@ async def test_original_release_settles_inline_before_rearm(adapter, boundary, m
             assert releases == [{"room": session.room, **first_lease}]
             if boundary in ("deadline", "permanent_pending", "manager_changed"):
                 assert session.hub.snapshot()["metrics"]["attention_releases"] == 0
+                observed_status = session.hub.snapshot()
+                assert observed_status["rooms"][0]["state"] == "CLOSING"
+                assert not any(
+                    "Samtale slut" in row["text"] or "musikken er tilbage" in row["text"]
+                    for row in observed_status["activity"]
+                )
                 if adapter == "native":
                     assert session.voicepe.rearm_calls == 0
                 # Existing full retry, not a second POST from the polling client.
                 settlement[0] = False
                 allow.set()
                 await until(lambda: not session._teardown_incomplete)
+                await until(lambda: session.hub.snapshot()["rooms"][0]["state"] == "IDLE")
             else:
                 assert not any(
                     kind == "teardown_step_failed" and data.get("step") == "attention-release"

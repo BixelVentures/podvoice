@@ -2378,7 +2378,9 @@ class ThinSession:
             and reason
             in {"stop", "stop-word", "app-idle-timeout", "model-close", "model-close-silent"},
         )
-        if error_kind is not None:
+        if self._teardown_incomplete:
+            self._hub_state("CLOSING", "⚠️ Oprydning afventer — næste wake er blokeret")
+        elif error_kind is not None:
             self._hub_state("IDLE", None)
         else:
             self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
@@ -2924,6 +2926,8 @@ class ThinSession:
                             deadline=time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
                             silence_complete=physical_silence_complete,
                         )
+                        if not self._teardown_incomplete:
+                            self._hub_state("IDLE", None)
                     finally:
                         self._restore_provider_trace_observer()
             if receipt is not None:

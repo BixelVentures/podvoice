@@ -134,7 +134,7 @@ async def test_expired_source_cache_changes_binding_without_paid_refresh(expiry)
     await tools.podview_weather_advice.close()
 
 
-async def test_real_allowance_cooldown_preserves_admitted_pending_and_ready_without_resend(
+async def test_distinct_fresh_weather_can_generate_without_local_quota_or_cooldown(
     tmp_path,
 ):
     import httpx
@@ -190,7 +190,7 @@ async def test_real_allowance_cooldown_preserves_admitted_pending_and_ready_with
         )
         try:
             await asyncio.wait_for(entered.wait(), timeout=3)
-            assert allowance.remaining == 0 and not provider.available
+            assert allowance.remaining > 0 and provider.available
             pending = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
             assert pending["weatherAdvice"]["status"] == "pending"
             assert pending["weatherAdvice"]["availability"] == "available"
@@ -215,15 +215,18 @@ async def test_real_allowance_cooldown_preserves_admitted_pending_and_ready_with
         tools.podview_weather_read.return_value = observation()
         refreshed = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
         assert refreshed["weatherAdvice"]["weatherKey"] != body["weatherKey"]
-        assert refreshed["weatherAdvice"]["status"] == "unavailable"
-        assert refreshed["weatherAdvice"]["availability"] == "unavailable"
+        assert refreshed["weatherAdvice"]["status"] == "idle"
+        assert refreshed["weatherAdvice"]["availability"] == "available"
         assert "passiveAdvice" not in refreshed["weather"]["data"]
         blocked = {key: refreshed["weatherAdvice"][key] for key in body}
         refused = json.loads(
             (await weather_advice(request(app, "POST", "/view/api/weather-advice", blocked))).text
         )
-        assert refused["status"] == "unavailable" and refused["requestId"] is None
-        assert len(calls) == 1
+        assert refused["status"] == "pending" and refused["requestId"] != posted["requestId"]
+        await asyncio.gather(
+            *(record["task"] for record in tools.podview_weather_advice.records.values())
+        )
+        assert len(calls) == 2
         tools.podview_weather_available = lambda: False
         revoked = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
         assert revoked["weatherAdvice"]["availability"] == "unavailable"

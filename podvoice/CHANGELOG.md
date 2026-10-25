@@ -1,3 +1,14 @@
+## 2.0.87
+
+- Read volume through a separate current control offer while keeping transport setup
+  responsive and retaining exact output, owner, expiry and one-use action checks.
+- Remove the local weather-advice generation quota and cooldown; retain source
+  freshness, cache/singleflight, ownership and provider error boundaries.
+- Keep incomplete voice cleanup visibly closing and retain finite content-free
+  failure diagnostics; the underlying attention-release failure remains unresolved.
+- Adopt the canonical 203-asset UI handoff with 11 changed assets. Software changes
+  do not establish field recovery or physical music/voice acceptance.
+
 ## 2.0.86
 
 - Recover passive music reads after browser visibility or transport recovery while

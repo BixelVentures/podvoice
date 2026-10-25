@@ -78,3 +78,25 @@ test('music and queue transport reject absent or mismatched offer echoes without
   try{await assert.rejects(()=>t.controlSetup('music',{accountId:'account',kind:'spotify_device',targetId:'actual-device',expectedBindingId:'c'.repeat(64)}));await assert.rejects(()=>t.queueOffer('account','actual-device','c'.repeat(64)));assert.equal(calls,2);}finally{t.close();}
  }
 });
+
+test('explicit volume-only setup uses the existing endpoint without changing normal transport setup',async()=>{
+ const calls=[],target={accountId:'account',kind:'spotify_device',targetId:'actual-device',expectedBindingId:'c'.repeat(64)};
+ const t=new PodVoiceTransport({url:'https://ha.example/prefix/view/',fetch:async(url,init)=>{const body=JSON.parse(init.body);calls.push({url:new URL(url),body});return {ok:true,status:200,json:async()=>({expectedBindingId:body.target.expectedBindingId})};}});
+ t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{controlSetup:['music']}};
+ try{
+  await t.controlSetup('music',target,undefined,{requestedAction:'volume'});await t.controlSetup('music',target);
+  assert.equal(calls[0].url.pathname,'/prefix/view/api/control/setup');assert.deepEqual(calls[0].body,{bootId:'test',roomId:'kitchen',domain:'music',target,requestedAction:'volume'});
+  assert.deepEqual(calls[1].body,{bootId:'test',roomId:'kitchen',domain:'music',target});
+ }finally{t.close();}
+});
+test('volume setup filter is closed to music volume without recipe or MOVE',async()=>{
+ let calls=0;const target={accountId:'account',kind:'spotify_device',targetId:'actual-device',expectedBindingId:'c'.repeat(64)};
+ const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;throw Error('must not fetch');}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{controlSetup:['music','vacuum']}};
+ try{
+  for(const options of [null,[],{requestedAction:'pause'},{requestedAction:'volume',force:true},{requestedAction:undefined},{unexpected:true}])await assert.rejects(t.controlSetup('music',target,undefined,options),/invalid_setup_request/);
+  await assert.rejects(t.controlSetup('vacuum',target,undefined,{requestedAction:'volume'}),/invalid_setup_request/);
+  await assert.rejects(t.controlSetup('music',target,'recipe',{requestedAction:'volume'}),/invalid_setup_request/);
+  await assert.rejects(t.controlSetup('music',{...target,speakerId:'b'.repeat(64)},undefined,{requestedAction:'volume'}),/invalid_setup_request/);
+  assert.equal(calls,0);
+ }finally{t.close();}
+});

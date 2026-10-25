@@ -1,7 +1,7 @@
 """Passive weather advice candidate; no voice session or default paid activation.
 
 The backend injects its existing weather validator/token function and explicitly
-admitted allowance/provider budget. Reads never start a provider operation.
+admitted shared provider budget. Reads never start a provider operation.
 """
 
 from __future__ import annotations

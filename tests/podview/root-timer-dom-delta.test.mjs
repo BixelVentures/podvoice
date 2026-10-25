@@ -217,3 +217,57 @@ test('one retained feedback slot follows only the visible timer surface across u
   view.host.state=empty;view.render(empty);assert.equal(note.parentNode,f.form);assert.equal(f.form.hidden,false);assert.equal(secondCard.hidden,true);assert.equal(secondCard.children.includes(note),false);assert.equal(note.hidden,true);assert.equal(view.detail.querySelector('#timers-live-note'),note);assert.deepEqual(f.dispatched,[]);
  }finally{globalThis.document=prior;}
 });
+
+function liveClockFixture(){
+ const beforeSet=globalThis.setTimeout,beforeClear=globalThis.clearTimeout,beforeNow=Date.now,jobs=new Map();let serial=0,now=100000;
+ globalThis.setTimeout=(fn,ms)=>{jobs.set(++serial,{fn,at:now+ms,ms});return serial;};globalThis.clearTimeout=id=>jobs.delete(id);Date.now=()=>now;
+ const f=fixture(),priorDocument=globalThis.document;globalThis.document=f.document;f.view.presentationNow=()=>now;
+ Object.assign(f.view.host,{isConnected:true,liveStatus:'connected',liveSnapshot:{bootId:'native-boot',roomId:'kitchen',timers:{status:'observed',epoch:'timer-epoch',items:[]}},liveTransport:{connected:true,acceptedReadAt:now}});
+ const receive=(remaining,status='running',extra={})=>{const native={...timer,remaining,status,deadline:null,...extra};f.view.host.liveSnapshot.timers.items=[{id:native.id,secondsLeft:remaining,status:status==='done'?'finished':status}];f.view.host.liveTransport.acceptedReadAt=now;f.view.host.state={connected:false,focus:'timers',timer:native,timerHistory:[]};f.view.render(f.view.host.state);return native;};
+ return {...f,jobs,receive,get now(){return now;},advance(ms){now+=ms;for(const[id,job]of [...jobs])if(job.at<=now){jobs.delete(id);job.fn();}},restore(){f.view.cleanup();globalThis.document=priorDocument;Date.now=beforeNow;globalThis.setTimeout=beforeSet;globalThis.clearTimeout=beforeClear;}};
+}
+
+test('native Timer displays every second between two-second observations without resetting on duplicate source count',()=>{
+ const f=liveClockFixture();try{const native=f.receive(60),overview=f.view.nodes.get('overview:native-timer'),detail=f.view.nodes.get('detail:native-timer'),finish=detail.querySelector('.timer-finish');finish.focus();f.list.scrollTop=42;assert.equal(detail.querySelector('.timer-count').textContent,'1:00');assert.equal(f.jobs.size,1);assert.equal([...f.jobs.values()][0].ms,1000);
+  f.writes.length=0;f.advance(1000);assert.equal(detail.querySelector('.timer-count').textContent,'0:59');f.receive(60);assert.equal(detail.querySelector('.timer-count').textContent,'0:59','duplicate SSE must not repaint the cached minute');f.advance(1000);f.receive(58);assert.equal(detail.querySelector('.timer-count').textContent,'0:58');assert.equal(overview.querySelector('.timer-count').textContent,'0:58');assert.equal(f.view.nodes.get('detail:native-timer'),detail);assert.equal(f.view.nodes.get('overview:native-timer'),overview);assert.equal(finish.focused,true);assert.equal(f.list.scrollTop,42);assert.equal(f.writes.some(write=>write.endsWith('.disabled')),false);assert.deepEqual(f.dispatched,[]);assert.equal(native.remaining,60);assert.equal(native.deadline,null);
+ }finally{f.restore();}
+});
+
+test('native display zero is not completion, an alarm or a command; only observed finished changes status',()=>{
+ const f=liveClockFixture();try{const native=f.receive(1),card=f.view.nodes.get('detail:native-timer');f.advance(1000);assert.equal(card.querySelector('.timer-count').textContent,'0:00');assert.equal(card.dataset.status,'running');assert.equal(card.querySelector('.timer-finish').textContent,'Annuller');assert.equal(native.status,'running');assert.equal(f.jobs.size,0);assert.deepEqual(f.dispatched,[]);f.receive(0,'done');assert.equal(card.querySelector('.timer-count').textContent,'Tiden er gået');assert.equal(card.dataset.status,'done');assert.equal(card.querySelector('.timer-finish').textContent,'Stop alarm');assert.deepEqual(f.dispatched,[]);}finally{f.restore();}
+});
+
+for(const stop of ['paused','stale','offline','expired-heartbeat'])test(`native presentation clock freezes on ${stop} and cannot create freshness`,()=>{
+ const f=liveClockFixture();try{f.receive(60);f.advance(1000);const card=f.view.nodes.get('detail:native-timer');if(stop==='paused')f.receive(59,'paused');else if(stop==='stale')f.receive(60,'running',{stale:true});else if(stop==='offline'){f.view.host.liveTransport.connected=false;f.view.renderAccess({connected:false});}else f.view.host.liveTransport.acceptedReadAt=f.now-6000;const before=card.querySelector('.timer-count').textContent;f.advance(1000);f.advance(1000);assert.equal(card.querySelector('.timer-count').textContent,before);assert.equal(f.jobs.size,0);assert.deepEqual(f.dispatched,[]);}finally{f.restore();}
+});
+
+test('timer owner replacement and removal retire the old presentation clock; cleanup leaves no callbacks',()=>{
+ const f=liveClockFixture();try{f.receive(60);f.advance(500);f.view.host.liveSnapshot.timers.epoch='replacement';f.receive(60);assert.equal(f.jobs.size,1);assert.equal([...f.jobs.values()][0].ms,1000);f.advance(500);assert.equal(f.view.nodes.get('detail:native-timer').querySelector('.timer-count').textContent,'1:00');f.advance(500);assert.equal(f.view.nodes.get('detail:native-timer').querySelector('.timer-count').textContent,'0:59');f.view.host.liveSnapshot.timers.items=[];f.view.host.state={...f.view.host.state,timer:null};f.view.render(f.view.host.state);assert.equal(f.jobs.size,0);f.receive(30);assert.equal(f.jobs.size,1);f.view.cleanup();assert.equal(f.jobs.size,0);assert.deepEqual(f.dispatched,[]);}finally{f.restore();}
+});
+
+test('delayed native presentation callback derives elapsed time once and keeps the next second boundary',()=>{
+ const f=liveClockFixture();try{f.receive(60);f.advance(3250);const card=f.view.nodes.get('detail:native-timer');assert.equal(card.querySelector('.timer-count').textContent,'0:57');assert.equal(f.jobs.size,1);assert.equal([...f.jobs.values()][0].ms,750);f.advance(750);assert.equal(card.querySelector('.timer-count').textContent,'0:56');assert.equal([...f.jobs.values()][0].ms,1000);assert.equal(f.view.host.state.timer.remaining,60);assert.equal(f.view.host.liveTransport.acceptedReadAt,100000,'display time never renews source freshness');assert.deepEqual(f.dispatched,[]);}finally{f.restore();}
+});
+
+for(const field of ['boot','room','id'])test(`native ${field} replacement cannot inherit the previous countdown anchor`,()=>{
+ const f=liveClockFixture();try{f.receive(60);f.advance(500);const extra={};if(field==='boot'){f.view.host.liveSnapshot.bootId='next-boot';extra.ownerBootId='next-boot';}if(field==='room')f.view.host.liveSnapshot.roomId='next-room';if(field==='id')extra.id='next-timer';f.receive(60,'running',extra);const id=extra.id||'native-timer',card=f.view.nodes.get(`detail:${id}`);assert.equal(card.querySelector('.timer-count').textContent,'1:00');assert.equal(f.jobs.size,1);assert.equal([...f.jobs.values()][0].ms,1000);f.advance(500);assert.equal(card.querySelector('.timer-count').textContent,'1:00');f.advance(500);assert.equal(card.querySelector('.timer-count').textContent,'0:59');assert.deepEqual(f.dispatched,[]);}finally{f.restore();}
+});
+
+test('shared Timer clock also updates the photo mini-rail once without creating another clock or effect',()=>{
+ const f=liveClockFixture();try{const native=f.receive(60),rail=[];f.view.host.renderResourceRail=()=>{rail.push(f.view.presentationTimer(f.view.host.state.timer).remaining);};f.view.presentationTimer(native);f.view.presentationTimer(native);assert.equal(f.jobs.size,1);f.advance(1000);assert.deepEqual(rail,[59]);assert.equal(f.jobs.size,1,'card and rail share the same already scheduled timeout');assert.equal(f.view.nodes.get('detail:native-timer').querySelector('.timer-count').textContent,'0:59');assert.equal(native.remaining,60);assert.deepEqual(f.dispatched,[]);f.view.cleanup();assert.equal(f.jobs.size,0);f.advance(5000);assert.deepEqual(rail,[59]);assert.deepEqual(f.dispatched,[]);}finally{f.restore();}
+});
+
+
+test('long-hour overview retains full time and stable actions while its narrow layout prevents copy-row overlap',()=>{
+ const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
+ try{
+  const long={...timer,remaining:6138,duration:7200,deadline:null},state={connected:true,focus:'now',timer:long,timerHistory:[]};
+  f.view.host.state=state;f.view.render(state);const card=f.view.nodes.get(`overview:${timer.id}`),open=card.querySelector('.timer-open'),finish=card.querySelector('.timer-finish');
+  assert.equal(card.querySelector('.timer-count').textContent,'1:42:18');assert.equal(card.querySelector('.timer-instrument').dataset.long,'true');assert.equal(card.querySelector('.timer-state').textContent,'Tæller ned');assert.match(open.getAttribute('aria-label'),/1:42:18 · Tæller ned/);
+  f.view.render({...state,timer:{...long,remaining:6137}});assert.equal(card.querySelector('.timer-finish'),finish);assert.equal(card.querySelector('.timer-open'),open);assert.deepEqual(f.dispatched,[]);
+  const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),start=css.indexOf('/* Long-hour overview keeps both metadata rows readable at the narrower product width. */'),rule=css.slice(start,css.indexOf('/* Native controls',start));
+  assert.notEqual(start,-1);assert.match(rule,/@media\(min-width:760px\) and \(max-width:1100px\)/);assert.match(rule,/:has\(>\.timer-instrument\[data-long=true\]\)>\.timer-copy>\.timer-count\{font:var\(--pv-t-value\);line-height:44px;white-space:nowrap\}/);
+  const copyRule=css.slice(css.indexOf('.timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){'),css.indexOf('}',css.indexOf('.timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){')));
+  assert.match(copyRule,/min-width:0/);assert.match(copyRule,/white-space:nowrap/);assert.match(copyRule,/overflow:hidden;text-overflow:ellipsis/);
+ }finally{globalThis.document=prior;}
+});

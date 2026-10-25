@@ -10,6 +10,58 @@ from gatekeeper.diagnostic_retention import (
 )
 
 
+def test_native_close_failure_keeps_causal_chain_without_private_strings(tmp_path):
+    save_diagnostics(
+        tmp_path,
+        {
+            "id": "private session",
+            "events": [
+                {"event": "live_idle_preclose_started", "token": 7},
+                {"event": "live_idle_preclose_visible", "token": 7, "led_tx_sequence": 9},
+                {"event": "live_idle_preclose_cancelled", "reason": "new-input"},
+                {"event": "live_idle_preclose_failed", "cause": "RuntimeError"},
+                {
+                    "event": "close_requested",
+                    "reason": "live-close-output-quiet-unconfirmed",
+                    "text": "private transcript",
+                },
+                {"event": "failure", "kind": "device"},
+                {"event": "teardown_step_timeout", "step": "attention-release"},
+                {"event": "teardown_step_timeout", "step": "live-idle-preclose-settle"},
+                {"event": "rearm_blocked_incomplete_teardown"},
+                {"event": "live_idle_preclose_elapsed", "token": 8},
+                {"event": "live_idle_preclose_cancelled", "reason": "private token"},
+                {"event": "live_idle_preclose_failed", "cause": "private exception"},
+                {"event": "close_requested", "reason": "private error"},
+                {"event": "failure", "kind": "private error"},
+                {"event": "button_pressed", "kind": "device", "cause": "RuntimeError"},
+            ],
+        },
+    )
+    saved = next(tmp_path.glob("*.diagnostic")).read_text()
+    rows = json.loads(saved)["events"]
+    assert rows[:10] == [
+        {"event": "live_idle_preclose_started", "token": 7},
+        {"event": "live_idle_preclose_visible", "token": 7, "led_tx_sequence": 9},
+        {"event": "live_idle_preclose_cancelled", "reason": "new-input"},
+        {"event": "live_idle_preclose_failed", "cause": "RuntimeError"},
+        {"event": "close_requested", "reason": "live-close-output-quiet-unconfirmed"},
+        {"event": "failure", "kind": "device"},
+        {"event": "teardown_step_timeout", "step": "attention-release"},
+        {"event": "teardown_step_timeout", "step": "live-idle-preclose-settle"},
+        {"event": "rearm_blocked_incomplete_teardown"},
+        {"event": "live_idle_preclose_elapsed", "token": 8},
+    ]
+    assert rows[10:] == [
+        {"event": "live_idle_preclose_cancelled"},
+        {"event": "live_idle_preclose_failed"},
+        {"event": "close_requested"},
+        {"event": "failure"},
+        {"event": "button_pressed"},
+    ]
+    assert "private" not in saved
+
+
 def test_diagnostic_survives_audio_deletion_without_content(tmp_path):
     manifest = {
         "id": "private/session/name",

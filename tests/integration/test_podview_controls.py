@@ -1320,3 +1320,172 @@ async def test_music_offer_expired_before_dispatch_never_sends(offline_direct, a
     assert not any(
         call[1].endswith(("control_room_volume", "control_room_playback")) for call in music.calls
     )
+
+
+async def test_explicit_volume_read_has_separate_task_and_only_volume(fixture):
+    _, bridge, token = fixture
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    class Music:
+        room_available = True
+        volume_available = True
+        room_start_available = False
+
+        def binding(self):
+            return (self,)
+
+        setup_room = AsyncMock(side_effect=AssertionError("volume must not read transport"))
+
+        async def setup_volume(self, account, target, room, homepod, current):
+            entered.set()
+            await release.wait()
+            assert current()
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["volume"],
+                    "valid_until": time.time() + 4,
+                    "volume_state": {"base_percent": 20},
+                },
+            }
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    body = {**setup_body(bridge, "music"), "requestedAction": "volume"}
+    pending = asyncio.create_task(bridge.controls.setup(body, token))
+    done, _ = await asyncio.wait(
+        {pending, asyncio.create_task(entered.wait())}, return_when=asyncio.FIRST_COMPLETED
+    )
+    if pending in done:
+        assert (await pending)["ok"]  # Old endpoint rejects the explicit selector.
+    release.set()
+    offer = await pending
+    assert offer["ok"], offer
+    assert [row["action"] for row in offer["options"]] == ["volume"]
+    assert offer["setup"]["volume"] == 20
+    assert (
+        bridge.controls.tasks[offer["taskId"]]["volume_offered"]["volume_state"]["base_percent"]
+        == 20
+    )
+    music.setup_room.assert_not_awaited()
+
+
+@pytest.mark.parametrize("selector", [None, "pause", "", [], {"action": "volume"}])
+async def test_volume_selector_is_closed(fixture, selector):
+    rig, bridge, token = fixture
+    body = {**setup_body(bridge, "music"), "requestedAction": selector}
+    assert (await bridge.controls.setup(body, token))["error"] == "invalid_setup"
+    assert not rig.writes
+
+
+@pytest.mark.parametrize("domain", ["vacuum", "light", "music_move"])
+async def test_volume_selector_rejects_other_domains_and_move(fixture, domain):
+    rig, bridge, token = fixture
+    body = setup_body(bridge, "music" if domain == "music_move" else domain)
+    body["requestedAction"] = "volume"
+    if domain == "music_move":
+        body["target"]["speakerId"] = "a" * 64
+    assert (await bridge.controls.setup(body, token))["error"] == "invalid_setup"
+    assert not rig.writes
+
+
+@pytest.mark.parametrize(
+    "boundary", ["grant", "owner", "expiry", "cancel", "capacity", "unavailable"]
+)
+async def test_explicit_volume_retains_setup_boundaries(fixture, boundary):
+    rig, bridge, token = fixture
+    entered, release, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    class Music:
+        room_available = True
+        volume_available = True
+        room_start_available = False
+
+        def binding(self):
+            return (self,)
+
+        setup_room = AsyncMock(side_effect=AssertionError("transport read"))
+
+        async def setup_volume(self, account, target, room, homepod, current):
+            entered.set()
+            try:
+                await release.wait()
+            finally:
+                cancelled.set()
+            return {
+                "ok": boundary != "unavailable",
+                "data": {
+                    "actions": ["volume"],
+                    "valid_until": 0 if boundary == "expiry" else time.time() + 4,
+                    "volume_state": {"base_percent": 20},
+                },
+            }
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    body = {**setup_body(bridge, "music"), "requestedAction": "volume"}
+    if boundary == "capacity":
+        # Exercise the existing task cap; no new volume-specific capacity.
+        bridge.controls.tasks = {str(i): {"token": token} for i in range(64)}
+        bridge.controls._current = lambda *args: True
+        assert (await bridge.controls.setup(body, token))["error"] == "setup_capacity"
+        assert not entered.is_set()
+        return
+    pending = asyncio.create_task(bridge.controls.setup(body, token))
+    await entered.wait()
+    if boundary == "grant":
+        bridge.revoke("kitchen")
+    elif boundary == "owner":
+        bridge.sessions["kitchen"] = owner()[0]
+    elif boundary == "cancel":
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert cancelled.is_set() and "kitchen" not in bridge.controls.busy
+        assert not bridge.controls.tasks and not rig.writes
+        return
+    release.set()
+    assert not (await pending)["ok"]
+    assert not bridge.controls.tasks and not rig.writes
+    assert "kitchen" not in bridge.controls.busy
+    music.setup_room.assert_not_awaited()
+
+
+async def test_explicit_volume_offer_does_not_borrow_transport_authority(offline_direct):
+    from integration.test_podview_music_control import controls, volume_owner
+
+    _, bridge, _, _, _, _, _, music = offline_direct
+    music.value = controls()
+    room_owner(music)
+    room_value = dict(music.value)
+    music.value = controls()
+    volume_owner(music)
+    volume_value = dict(music.value)
+    original_handle = music.handle
+
+    async def handle(request):
+        music.value = (
+            volume_value if request.url.path.endswith("get_room_volume_controls") else room_value
+        )
+        return await original_handle(request)
+
+    music.handle = handle
+    bridge.controls.policy["music"][0]["actions"] = ["next", "volume"]
+    token = bridge.grant_timer_control("kitchen")
+    body = setup_body(bridge, "music")
+    body["target"]["targetId"] = "device"
+    normal = await bridge.controls.setup(body, token)
+    explicit = await bridge.controls.setup({**body, "requestedAction": "volume"}, token)
+    assert normal["ok"] and explicit["ok"]
+    assert normal["taskId"] != explicit["taskId"]
+    assert [row["action"] for row in explicit["options"]] == ["volume"]
+    assert bridge.controls._current(bridge.controls.tasks[normal["taskId"]], token)
+    volume = explicit["options"][0]
+    mixed = action_body(explicit, volume, {"percent": 10})
+    mixed["taskId"] = normal["taskId"]
+    assert (await bridge.controls.action(mixed, token))["error"] == "unknown_option"
+    command = action_body(explicit, volume, {"percent": 10})
+    receipt = await bridge.controls.action(command, token)
+    assert receipt["outcome"] == "accepted"
+    assert await bridge.controls.action(command, token) == receipt
+    assert len([call for call in music.calls if call[1].endswith("control_room_volume")]) == 1

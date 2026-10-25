@@ -302,7 +302,7 @@ test('live mute uses the admitted volume action and forgets restore on account/o
 test('play and pause retain destination and player structure with one fixed destination CSS slot',()=>{
  const f=surface(),vm=localPlayerModel(previewScene('now'));f.view.renderPlayer(vm);const player=f.host.querySelector('.player'),children=[...player.children],output=f.nodes.get('output');
  for(const playing of [false,true,false]){f.view.renderPlayer({...vm,playing});assert.equal(f.nodes.get('player-room').textContent,vm.target);assert.equal(f.nodes.get('output'),output);assert.deepEqual(player.children,children);assert.notEqual(f.nodes.get('player-state').textContent,'På pause');}
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');assert.match(css,/\.player\.pv-card>\.output h2\{[^}]*height:48px;display:grid;grid-template-columns:minmax\(0,1fr\);grid-template-rows:20px 28px/);assert.match(css,/\.player\.pv-card>\.output \.output-room\{grid-column:1;grid-row:2;align-self:center;justify-self:center/);
+ const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');assert.match(css,/\.player\.pv-card>\.output h2\{[^}]*height:100%;display:grid;grid-template-columns:minmax\(0,1fr\);grid-template-rows:20px 28px/);assert.match(css,/grid-template-rows:20px 28px;align-items:center;align-content:center;gap:var\(--pv-s1\)/);assert.match(css,/\.player\.pv-card>\.output \.output-room\{grid-column:1;grid-row:2;align-self:center;justify-self:center/);
 });
 
 

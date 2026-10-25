@@ -11,6 +11,7 @@ import copy
 import hashlib
 import ipaddress
 import json
+import logging
 import os
 import re
 import secrets
@@ -23,6 +24,7 @@ import httpx
 from aiohttp import web
 
 from . import (
+    __version__,
     podview_lights,
     podview_music,
     podview_robot,
@@ -42,6 +44,56 @@ _REVIEWED_MOVE_POLICY_REVISION: str | None = (
 _CONTROLLER_COOKIE = "podview_controller"
 _REQUEST_COOKIE = "podview_controller_request"
 _ALLOWED_PHASES = {"IDLE", "LISTENING", "THINKING", "AI_SPEAKING", "LOUNGE_WINDOW"}
+_LOG = logging.getLogger("podvoice.podview")
+
+
+def _log_terminal_failure(stage, error, *, request_id=None):
+    """Record an existing suppressed failure without content or new runtime ownership."""
+    try:
+        code = {
+            "timer_dispatch": "dispatch_failed",
+            "sse_prepare": "stream_failed",
+            "sse_write": "stream_failed",
+            "music_read": "read_failed",
+            "home_read": "read_failed",
+            "weather_read": "read_failed",
+        }.get(stage, "other")
+        if code == "other":
+            stage = "other"
+        error_class = (
+            "timeout"
+            if isinstance(error, TimeoutError)
+            else "disconnected"
+            if isinstance(error, ConnectionResetError)
+            else "http"
+            if isinstance(error, httpx.HTTPStatusError)
+            else "transport"
+            if isinstance(error, httpx.TransportError)
+            else "invalid_response"
+            if isinstance(error, (ValueError, TypeError, KeyError))
+            else "exception"
+        )
+        raw_status = (
+            error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+        )
+        status = raw_status if type(raw_status) is int and 100 <= raw_status <= 599 else "none"
+        request_ref = (
+            hashlib.sha256(request_id.encode(errors="surrogatepass")).hexdigest()[:16]
+            if isinstance(request_id, str) and 1 <= len(request_id) <= 120
+            else "none"
+        )
+        _LOG.warning(
+            "podview_failure stage=%s code=%s error_class=%s http_status=%s "
+            "request_ref=%s version=%s",
+            stage,
+            code,
+            error_class,
+            status,
+            request_ref,
+            __version__,
+        )
+    except Exception:
+        pass  # Diagnostics cannot replace the existing response or cleanup.
 
 
 def _trusted(remote: str | None) -> bool:
@@ -1713,8 +1765,8 @@ class PodViewBridge:
                 if accepted and action == "timer.start":
                     receipt["timerId"] = timer_id
                 self._receipts[key] = fingerprint, receipt
-            except (TimeoutError, Exception):
-                pass  # no diagnostic/secret exception detail crosses the display boundary
+            except (TimeoutError, Exception) as error:
+                _log_terminal_failure("timer_dispatch", error, request_id=request_id)
             return receipt
 
 
@@ -1815,6 +1867,7 @@ async def _events(request: web.Request) -> web.StreamResponse:
             "X-Accel-Buffering": "no",
         }
     )
+    stage = "sse_prepare"
     try:
         # Subscribe before the first projection; each reader owns its wake.
         if sink is not None:
@@ -1834,6 +1887,7 @@ async def _events(request: web.Request) -> web.StreamResponse:
                 light_token=request.cookies.get(_PAIR_COOKIE, ""),
             )
             payload = f"event: snapshot\nid: {bridge.boot_id}:{snap['revision']}\ndata: {json.dumps(snap)}\n\n"
+            stage = "sse_write"
             await asyncio.wait_for(response.write(payload.encode()), timeout=5)
             if wake is None:
                 await asyncio.sleep(1)
@@ -1842,7 +1896,9 @@ async def _events(request: web.Request) -> web.StreamResponse:
                     await asyncio.wait_for(wake.wait(), timeout=1)
                 except TimeoutError:
                     pass
-    except (ConnectionResetError, TimeoutError, asyncio.CancelledError):
+    except (ConnectionResetError, TimeoutError) as error:
+        _log_terminal_failure(stage, error)
+    except asyncio.CancelledError:
         pass
     finally:
         if wake is not None and sink is not None:
@@ -2524,7 +2580,8 @@ async def _music(request: web.Request) -> web.Response:
         else:
             raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=10)
         result = _music_public(kind, raw, account, query)
-    except Exception:
+    except Exception as error:
+        _log_terminal_failure("music_read", error)
         result = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
     finally:
         bridge._music_busy = False
@@ -3386,7 +3443,10 @@ async def _home(request: web.Request) -> web.Response:
                 except (ValueError, TypeError, KeyError):
                     bridge._weather_source_cache = None
             return result
-        except Exception:
+        except Exception as error:
+            _log_terminal_failure(
+                "weather_read" if method == "podview_weather_read" else "home_read", error
+            )
             return unavailable
 
     try:
