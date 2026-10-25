@@ -63,6 +63,11 @@ async def controls_rig():
     rig.token = rig.bridge.grant_timer_control("kitchen")
     rig.owner_binding = rig.router.podview_music_binding
     rig.aggregate_hook = None
+    rig.expected_args = {
+        "config_entry_id": "account-alpha",
+        "include_output": True,
+        "include_controls": True,
+    }
     old = rig.client
 
     async def receive(request):
@@ -70,11 +75,7 @@ async def controls_rig():
         rig.calls.append((request.method, request.url.path, body))
         assert request.headers["Authorization"] == "Bearer server-only"
         assert request.url.path.endswith("get_playback_snapshot")
-        assert body == {
-            "config_entry_id": "account-alpha",
-            "include_output": True,
-            "include_controls": True,
-        }
+        assert body == rig.expected_args
         if rig.aggregate_hook:
             await rig.aggregate_hook()
         return httpx.Response(200, json={"service_response": copy.deepcopy(rig.value)})
@@ -85,7 +86,7 @@ async def controls_rig():
     await rig.client.aclose()
 
 
-async def read(rig, *, token=None):
+async def read(rig, *, token=None, receipt_request_id=None):
     response = await read_playback(
         rig.bridge,
         "kitchen",
@@ -93,6 +94,7 @@ async def read(rig, *, token=None):
         rig.owner_binding,
         include_controls=True,
         token=rig.token if token is None else token,
+        receipt_request_id=receipt_request_id,
     )
     assert response.headers["Cache-Control"] == "no-store"
     return json.loads(response.body)
@@ -117,6 +119,230 @@ def assert_no_control(body):
         "volume": None,
     }
     assert body["permissions"] == {"actions": [], "maxVolume": None}
+
+
+def retained_room_receipt(rig, *, request_id="pv-action"):
+    """An accepted TouchControls entry carries a private, exact Control identity."""
+    controls, token = rig.bridge.controls, rig.token
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=rig.router._discovery.podconnect_services
+        | {
+            "get_playback_controls",
+            "control_playback",
+            "get_room_playback_controls",
+            "control_room_playback",
+        },
+    )
+    task = {
+        "room": "kitchen",
+        "domain": "music",
+        "token": token,
+        "target": {"accountId": "account-alpha"},
+        "actual_binding": {"bindingId": "b" * 64},
+        "actual_current": lambda: True,
+        "deadline": time.monotonic() + 5,
+    }
+    task["binding"] = controls._binding("kitchen", "music")
+    identity = {
+        "request_id": "a" * 32 + ":1",
+        "command_sequence": 1,
+        "owner_epoch": "a" * 32,
+    }
+    grant = rig.bridge._grant_for_token("kitchen", token)
+    controls.receipts[("kitchen", token, request_id)] = (
+        "fingerprint",
+        {"outcome": "accepted"},
+        task["deadline"],
+        {
+            "task": task,
+            "policy": controls.policy,
+            "music": controls.music,
+            "grant": grant,
+            "binding_id": "b" * 64,
+            "identity": identity,
+        },
+    )
+    return identity
+
+
+async def test_exact_retained_receipt_reads_control_settlement_without_native_prepare_id(
+    controls_rig,
+):
+    rig = controls_rig
+    identity = retained_room_receipt(rig)
+    assert (
+        rig.bridge.controls.settlement_identity("kitchen", rig.token, "pv-action", "account-alpha")
+        == identity
+    )
+    rig.expected_args.update(
+        request_id=identity["request_id"], command_sequence=identity["command_sequence"]
+    )
+    rig.value["settlement"] = {
+        "schema": "podconnect.command_settlement.v1",
+        "status": "confirmed",
+        **identity,
+        "observation": {
+            "source": "native_bound_state",
+            "effect_revision": "12",
+            "prepare_id": "c" * 32,
+        },
+    }
+    body = await read(rig, receipt_request_id="pv-action")
+    assert body["settlement"] == {
+        "requestId": "pv-action",
+        **identity,
+        "status": "confirmed",
+        "effect": {"source": "native_bound_state", "effect_revision": "12"},
+    }
+    assert "prepare_id" not in json.dumps(body)
+    assert body["data"]["schema"] == "podconnect.playback.v1"
+    assert len(rig.calls) == 1 and not any("control_room" in row[1] for row in rig.calls)
+
+
+@pytest.mark.parametrize("status", ["unknown", "pending", "rejected", "superseded"])
+async def test_unconfirmed_control_settlement_never_projects_an_effect(controls_rig, status):
+    rig = controls_rig
+    identity = retained_room_receipt(rig)
+    rig.expected_args.update(
+        request_id=identity["request_id"], command_sequence=identity["command_sequence"]
+    )
+    rig.value["settlement"] = {
+        "schema": "podconnect.command_settlement.v1",
+        "status": status,
+        **identity,
+        "observation": None,
+    }
+    body = await read(rig, receipt_request_id="pv-action")
+    assert body["settlement"]["status"] == status
+    assert body["settlement"]["effect"] is None
+
+
+@pytest.mark.parametrize(
+    "change", ["foreign", "bad_sequence", "missing_prepare", "extra", "aggregate_owner"]
+)
+async def test_foreign_or_malformed_settlement_fails_closed(controls_rig, change):
+    rig = controls_rig
+    identity = retained_room_receipt(rig)
+    rig.expected_args.update(
+        request_id=identity["request_id"], command_sequence=identity["command_sequence"]
+    )
+    value = {
+        "schema": "podconnect.command_settlement.v1",
+        "status": "confirmed",
+        **identity,
+        "observation": {
+            "source": "native_bound_state",
+            "effect_revision": "1",
+            "prepare_id": "c" * 32,
+        },
+    }
+    if change == "foreign":
+        value["request_id"] = "b" * 32 + ":1"
+    elif change == "bad_sequence":
+        value["command_sequence"] = True
+    elif change == "missing_prepare":
+        value["observation"].pop("prepare_id")
+    elif change == "aggregate_owner":
+        rig.value["owner_epoch"] = "b" * 32
+    else:
+        value["unreviewed"] = True
+    rig.value["settlement"] = value
+    body = await read(rig, receipt_request_id="pv-action")
+    assert body["settlement"] is None
+    assert body["status"] == "unavailable"
+
+
+async def test_revoked_receipt_and_replaced_session_never_request_settlement(controls_rig):
+    rig = controls_rig
+    retained_room_receipt(rig)
+    rig.bridge.revoke("kitchen")
+    body = await read(rig, receipt_request_id="pv-action")
+    assert body["settlement"] is None
+    assert "request_id" not in rig.calls[0][2]
+
+
+async def test_replaced_receipt_during_exact_source_read_cannot_publish_settlement(controls_rig):
+    rig = controls_rig
+    identity = retained_room_receipt(rig)
+    rig.expected_args.update(
+        request_id=identity["request_id"], command_sequence=identity["command_sequence"]
+    )
+    rig.value["settlement"] = {
+        "schema": "podconnect.command_settlement.v1",
+        "status": "confirmed",
+        **identity,
+        "observation": {
+            "source": "native_bound_state",
+            "effect_revision": "1",
+            "prepare_id": "c" * 32,
+        },
+    }
+
+    async def replace():
+        key = ("kitchen", rig.token, "pv-action")
+        rig.bridge.controls.receipts[key] = tuple([*rig.bridge.controls.receipts[key]])
+
+    rig.aggregate_hook = replace
+    body = await read(rig, receipt_request_id="pv-action")
+    assert body["settlement"] is None
+    assert body["status"] == "observed"
+
+
+async def test_replaced_room_session_during_settlement_read_cannot_publish(controls_rig):
+    rig = controls_rig
+    identity = retained_room_receipt(rig)
+    rig.expected_args.update(
+        request_id=identity["request_id"], command_sequence=identity["command_sequence"]
+    )
+    rig.value["settlement"] = {
+        "schema": "podconnect.command_settlement.v1",
+        "status": "confirmed",
+        **identity,
+        "observation": {
+            "source": "native_bound_state",
+            "effect_revision": "1",
+            "prepare_id": "c" * 32,
+        },
+    }
+
+    async def replace():
+        rig.bridge.sessions["kitchen"] = object()
+
+    rig.aggregate_hook = replace
+    body = await read(rig, receipt_request_id="pv-action")
+    assert body["settlement"] is None
+    assert body["status"] == "unavailable"
+
+
+async def test_authenticated_http_receipt_selector_uses_server_identity_only(controls_rig):
+    rig = controls_rig
+    identity = retained_room_receipt(rig)
+    rig.expected_args.update(
+        request_id=identity["request_id"], command_sequence=identity["command_sequence"]
+    )
+    rig.value["settlement"] = {
+        "schema": "podconnect.command_settlement.v1",
+        "status": "confirmed",
+        **identity,
+        "observation": {
+            "source": "native_bound_state",
+            "effect_revision": "1",
+            "prepare_id": "c" * 32,
+        },
+    }
+    async with TestClient(TestServer(rig.app)) as client:
+        response = await client.get(
+            "/view/api/music?kind=playback&account=account-alpha&room=kitchen"
+            "&include_controls=1&receipt_request_id=pv-action",
+            headers={"Cookie": f"podview_control={rig.token}"},
+        )
+        assert response.status == 200
+        body = await response.json()
+    assert body["settlement"]["status"] == "confirmed"
+    assert body["settlement"]["effect"]["effect_revision"] == "1"
+    assert "prepare_id" not in json.dumps(body)
+    assert len(rig.calls) == 1
 
 
 @pytest.mark.parametrize("maximum,actual", [(20, 27), (40, 100)])
@@ -446,6 +672,9 @@ async def test_actual_music_http_opt_in_forwards_current_cookie_and_one_ha_read(
         "kind=playback&account=account-alpha&include_controls=1&unexpected=1",
         "kind=playback&account=account-alpha&include_controls=1&token=PRIVATE",
         "kind=playback&account=account-alpha&include_controls=1&command_sequence=1",
+        "kind=playback&account=account-alpha&receipt_request_id=pv-action",
+        "kind=playback&account=account-alpha&include_controls=1&receipt_request_id=",
+        "kind=playback&account=account-alpha&include_controls=1&receipt_request_id=x&receipt_request_id=x",
         "kind=playback&kind=playback&account=account-alpha&include_controls=1",
         "kind=playback&account=account-alpha&account=account-alpha&include_controls=1",
         "kind=playback&account=account-alpha&room=kitchen&room=kitchen&include_controls=1",

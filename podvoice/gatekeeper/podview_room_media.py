@@ -326,7 +326,14 @@ def envelope(
 
 
 async def resolve_actual(
-    bridge, room, account, owner_binding, *, current=lambda: True, include_controls=False
+    bridge,
+    room,
+    account,
+    owner_binding,
+    *,
+    current=lambda: True,
+    include_controls=False,
+    settlement_identity=None,
 ):
     """Admit one Control-owned actual output; never consult DEFAULT/NEXT intent."""
     tools, controls, boot = bridge.tools, bridge.controls, bridge.boot_id
@@ -355,6 +362,7 @@ async def resolve_actual(
         actual=None,
         rule=None,
         source_controls=None,
+        source_settlement=None,
     ):
         value = {
             "status": status,
@@ -366,13 +374,20 @@ async def resolve_actual(
         }
         if include_controls:
             value["controls"] = source_controls
+            value["settlement"] = source_settlement
         return value
 
     if not retained() or policy.get("roomId") != room:
         return result(reason="owner_changed")
     try:
         raw = await (
-            tools.podview_read("playback", account, include_output=True, include_controls=True)
+            tools.podview_read(
+                "playback",
+                account,
+                include_output=True,
+                include_controls=True,
+                settlement_identity=settlement_identity,
+            )
             if include_controls
             else tools.podview_read("playback", account, include_output=True)
         )
@@ -386,7 +401,9 @@ async def resolve_actual(
             )
         aggregate = raw.get("data")
         checked = (
-            podview_music.project_playback_controls(aggregate, account)
+            podview_music.project_playback_controls(
+                aggregate, account, settlement_identity=settlement_identity
+            )
             if include_controls
             else podview_music.project_playback_output(aggregate, account)
         )
@@ -400,7 +417,7 @@ async def resolve_actual(
         source = {
             key: copy.deepcopy(value)
             for key, value in aggregate.items()
-            if key not in {"output", "controls"}
+            if key not in {"output", "controls", "settlement"}
         }
         source["schema"] = "podconnect.playback.v1"
         if source["playback"]["state"] == "no_active_playback":
@@ -440,20 +457,54 @@ async def resolve_actual(
             "bindingId": identity["binding_id"],
             "validUntil": until,
         }
-        return result("observed", None, source, actual, matches[0], aggregate.get("controls"))
+        return result(
+            "observed",
+            None,
+            source,
+            actual,
+            matches[0],
+            aggregate.get("controls"),
+            aggregate.get("settlement"),
+        )
     except Exception:
         return result(reason="account_unavailable" if retained() else "owner_changed")
 
 
-async def read_playback(bridge, room, account, owner_binding, *, include_controls=False, token=""):
+async def read_playback(
+    bridge,
+    room,
+    account,
+    owner_binding,
+    *,
+    include_controls=False,
+    token="",
+    receipt_request_id=None,
+):
     grant = (
         bridge._grant_for_token(room, token)
         if include_controls and isinstance(token, str)
         else None
     )
     granted_before = bool(grant is not None and bridge._grant_current(room, token))
+    controls_owner = bridge.controls
+    receipt_key = (room, token, receipt_request_id)
+    retained_receipt = (
+        controls_owner.receipts.get(receipt_key) if receipt_request_id is not None else None
+    )
+    settlement_identity = (
+        controls_owner.settlement_identity(room, token, receipt_request_id, account)
+        if include_controls and granted_before and receipt_request_id is not None
+        else None
+    )
     resolved = await (
-        resolve_actual(bridge, room, account, owner_binding, include_controls=True)
+        resolve_actual(
+            bridge,
+            room,
+            account,
+            owner_binding,
+            include_controls=True,
+            settlement_identity=settlement_identity,
+        )
         if include_controls
         else resolve_actual(bridge, room, account, owner_binding)
     )
@@ -468,6 +519,8 @@ async def read_playback(bridge, room, account, owner_binding, *, include_control
     )
     if include_controls:
         body["schema"] = "podview.room-playback.v3"
+        if receipt_request_id is not None:
+            body["settlement"] = None
         body["permissions"] = {"actions": [], "maxVolume": None}
         body["controls"] = {
             "status": "unavailable",
@@ -504,6 +557,27 @@ async def read_playback(bridge, room, account, owner_binding, *, include_control
                 "actions": actions.copy(),
                 "maxVolume": rule["maxVolume"] if "volume" in actions else None,
             }
+            if (
+                settlement_identity is not None
+                and bridge.controls is controls_owner
+                and controls_owner.receipts.get(receipt_key) is retained_receipt
+                and controls_owner.settlement_identity(room, token, receipt_request_id, account)
+                == settlement_identity
+                and isinstance(resolved["settlement"], dict)
+                and all(
+                    resolved["settlement"].get(key) == settlement_identity[key]
+                    for key in settlement_identity
+                )
+            ):
+                source_settlement = resolved["settlement"]
+                body["settlement"] = {
+                    "requestId": receipt_request_id,
+                    "request_id": source_settlement["request_id"],
+                    "command_sequence": source_settlement["command_sequence"],
+                    "owner_epoch": source_settlement["owner_epoch"],
+                    "status": source_settlement["status"],
+                    "effect": source_settlement["observation"],
+                }
     return web.json_response(body, headers={"Cache-Control": "no-store"})
 
 

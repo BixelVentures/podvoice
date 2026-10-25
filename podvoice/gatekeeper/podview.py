@@ -2620,13 +2620,18 @@ async def _music(request: web.Request) -> web.Response:
     bridge: PodViewBridge = request.app[BRIDGE]
     kind = request.query.get("kind", "targets")
     include_controls = "include_controls" in request.query
+    receipt_request_id = request.query.get("receipt_request_id")
     if include_controls and (
         kind != "playback"
         or request.query.getall("include_controls", []) != ["1"]
-        or set(request.query) - {"kind", "account", "room", "include_controls"}
+        or set(request.query)
+        - {"kind", "account", "room", "include_controls", "receipt_request_id"}
         or any(len(request.query.getall(key, [])) != 1 for key in request.query)
         or len(request.query.getall("account", [])) != 1
+        or (receipt_request_id is not None and not 1 <= len(receipt_request_id) <= 120)
     ):
+        return _error("invalid_query", 400)
+    if receipt_request_id is not None and not include_controls:
         return _error("invalid_query", 400)
     if kind == "speakers" and (
         set(request.query) - {"kind", "account", "room"}
@@ -2708,6 +2713,7 @@ async def _music(request: web.Request) -> web.Response:
                 lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
                 include_controls=True,
                 token=_request_token(request, room),
+                receipt_request_id=receipt_request_id,
             )
         return await podview_room_media.read_playback(
             bridge,

@@ -1,3 +1,150 @@
+### SelectSource strict idle proof correction before freeze
+
+Source counterexample disproves using default C start/state ready as clean absence:
+START admission may legitimately retire a selected old AirPlay session. No wrong
+candidate is frozen or integrated from that assumption. Lead authorizes only an
+opt-in readonly require_clean_absent flag on the existing C start/state request,
+using its real clean-route/drained/not-busy owner predicates and explicit affirmative
+echo. Default START response/callers stay unchanged; old C ignoring the flag must
+fail closed at Native. No fabricated Native session, selected-flag inference, C
+mutation/token/journal or new API family. C owner traces actual owner boundary and
+proves old ordinary START-ready/retire-capable state cannot satisfy strict idle; clean
+absence can, busy/writer/session/unknown cannot. Native SelectSource owner consumes
+reviewed exact opt-in contract, preserving active/paused MOVE independent of idle.
+Independent source/adapter review required; no household effects. This is the small
+read-side correction to the previously authorized idleproof, not a new control path.
+
+### Native parity unified suffix integrated; HA receipt retention verified
+
+Root mechanically repackaged final independently reviewed Native v2f69081fd into
+one production overlay6d2c2d4c11c55fee4aac0ee8effe3ac25f9b0236653a562d8a4c60543c20f3b4
+and one tests overlay0e3f86624296f1d9e7e6157faad67a8bbc5c1e3f389c91b1243c6e837d9949d4
+at the existing Docker parity slots, avoiding additional runtime paths/patch chains.
+Actual replay from full CI prefix matches all164production+64test/asset pins exactly,
+including preserved CAS/Seek/PCM and final options settlement. C overlays unchanged.
+Receipt /private/tmp/pc54-unified-native-packaging-20261025/RECEIPT.json
+5c86a5b1b56dd2ba93a6eb323fcc19901861901a9685c0e3ae5a0abe87c3a8bb.
+Mechanical packaging review pending; no actualC/provider/physical rerun claimed.
+Combined manager race suite's sole outdated released-paused action-array expectation
+was corrected to current six actions; that one case PASS1.043s, all other prior suite
+results retained. No runtime change for that fixture failure.
+Root HA4tuple retention increment46ae63cbbc2e0b13863d78eb8da4303837a7f3c3e63d9c28bf65c875146d2ab1
+received independent74 GO;14 focused cases, formatter/lint PASS. It preserves original
+authority/expiry, permits neither new effects nor TTL renewal. A distinct executed
+valid-URI fixture export02666098226528613bc6a9e73a6f5cb6367ef3d3485384fe48bb97854459c663
+is with PodView for actual PV DTO->canonicalJS proof; synthetic Control inputs remain
+explicit and do not count as Native/C/provider/physical results.
+
+### HA-lane settlement receipt pruning — direct integration correction
+
+PodView independent review found _retire_receipts only retained three-field HA
+receipts while new accepted settlement receipts have four fields. Root reproduced
+actual accepted next/volume -> unrelated setup -> identity read failure on HA lane,
+while paired lane passes. Initial test attempt lacked actual HA request context and
+is not causal evidence; red-v2 uses the existing _HA_REQUEST active-user context and
+fails both HA cases at missing identity after cleanup. Lead authorizes only len3/4
+retention with unchanged existing receipt expiry and authority checks; no TTL renewal,
+new storage, retry or scope widening. Verify actual repeated request returns original
+receipt and sends only once after setup cleanup, plus existing expiry/revoke/session
+negatives. Independent tiny-diff review before freeze; no household/provider effects.
+
+### START/MOVE settlement — current custody witness, not cached completion
+
+Read-only source mapping finds terminal Control receipts already retain exact opaque
+start_operation_id/move_operation_id and binding, while settlement only handles
+transport/volume. Cached completed manager result alone is insufficient after a
+later Y replaces X. Lead authorizes admission34 isolated minimal existing-owner
+extension: read current Native completed custody for the exact retained operation,
+actual registered writer/source/route and C completed/current witness; relay through
+existing Speakers/manager path without new ledger, command or authority. Recheck
+Control receipt object/sequence/owner/binding after await. X may confirm only while
+that same completed operation owns the actual output; later Y, unknown, evicted,
+cancelled, foreign, expired/inactive or failed custody cannot confirm and never retry.
+Expose only existing source-owned settlement identity to PV, not private custody or
+prepare secrets. Existing transport/volume/default reads unchanged. First prove
+Xcomplete->Ytakeover->Xread negative and current X positive with the existing actual
+custody fixture; then Control retained-receipt integration. Independent adversarial
+review on exact new source before root integration. No provider, audio, C writes,
+policy change or UI code; rollback whole uninstalled extension.
+
+SelectSource refinement from actual source: Spotify playback.device or a null release
+binding is not proof that Native is idle; a paused writer/custody may remain. Root
+authorizes an opt-in readonly idle_only=1 probe on the existing alias/room-switch
+path, reusing the exact strict inactive actor + clean C absence checks. Default GET
+response remains unchanged. The opt-in probe must not mutate alias/route/player,
+create a grant or turn unknown into clean. Native-to-external may transfer only after
+completed existing release or this actual current idle proof with postawait owner/
+account revalidation. Regression injects retained Native ownership while Spotify
+reports external/no playback, plus owner replacement during C read and ordinary
+verified-external idle success. Same isolated owner; no household effects.
+
+### PV settlement consumer v2 source integrated and reviewed
+
+Current seven shared PV files exactly match immutable v2 patchda1d5d989e001643ab81e0622ab8093427dc1d2fb2fcd114cecd587d9e2652bf, pins3dde1912b3409ed6ce9e3bd496914853491c82f00d65ff964309db9b3c645b52 and receipt428542ddc619ea596acb28df1c0da11f2b7fc8741c0334dce3662f4b03c8b447 at /private/tmp/pv91-settlement-consumer-v2-20261025. Independent74 SOURCE/hash GO;71 focused cases/static PASS retained. Root did not reapply: author had already edited shared candidate despite isolated-packet instruction; exact final bytes were verified7/7 and no concurrent source writer conflicted. Raw Native prepareID stays private, current aggregate owner joins exact receipt epoch, postawait ownership guards hold and defaultv3 unchanged. PodView has exact packet for canonical UI consumption and actualJS proof; current UI compensation is not declared removed. Original v1 packet was overwritten during author regeneration and is nonreproducible/superseded; only distinct immutable v2 is credited. No CI, install/provider/household result.
+
+### Options settlement integration finding — narrow causal correction authorized
+
+The composed source reveals a real integration gap: successful shuffle/repeat returns
+from effectRoomOptions before the generic recordRoomEffect branch, so Control's
+exact accepted receipt can never settle confirmed. Scoped packet2f911 remains as
+pre-fix evidence, not final GO. Root authorizes native_idle_owner to stamp the same
+existing operation only at the successful final private actor rejoin AFTER unchanged
+C route verification. Preserve current generation/intent/owner/source/list checks,
+duplicate stamp idempotence and overflow guard atomically; do not call a locking
+helper while already holding aliasMu. No stamp on stale source/route, error or unknown.
+Use existing actual options HTTP commit fixture: accepted must show exact prepareID/
+action stamp; foreign-after/source-after must remain absent. Keep old failing exact
+case and publish distinct immutable increment/pins for independent review. No new
+store, command, authority, provider or household operation. Rollback whole uninstalled
+options/settlement composition; source-only effect confirmation is never audibility.
+
+### Native SelectSource owner parity — active bounded decision
+
+Observed current HA SelectSource bypasses Native custody through raw Spotify transfer,
+including playing/paused Native sessions. Lead authorizes isolated existing-owner
+correction: actual loaded Native selection reuses RoomMove read/prepare/start and
+preserves paused state, list/source/position/manual volume. Idle selection is only
+preferred destination for a subsequent explicit START, not playback or a committed
+C route. Existing alias endpoint may serve that only with actor-atomic inactive,
+no retained session/writer/pending or unknown custody and manager-verified clean C
+absence. If that exact boundary cannot be established, return the explicit remaining
+source failure instead of guessed success or a new broker. Same-target shortcuts
+require actual owner/route or clean-idle agreement. Native-to-external must finish
+existing exact release before the positively identified external transfer; unknown
+classification never falls back. Whole chain: fresh configured alias/account/Native
+identity -> bound offer/current epoch -> one-use dispatch -> actual owner observation;
+late loaded state, stale alias/registry/session, C divergence and lost ACK remain
+nonreplayable unknown/rejected. Existing target and external adapters retained.
+Independent review and causal fixture plus both adapter checks required. No household
+commands/provider calls, new policy, speculative timeout changes or UI implementation.
+Rollback is whole uninstalled delta; installed89/53/23 remains unchanged.
+
+### Control composition in progress — reviewed packets, not installed
+
+Root applied reviewed settlement producer Control e5a480921be2271471c743f887e7af8f2b2f101f1463f87299805082d2f8791d, options a3452e8d9af29a58f9af1ab3a72c2b58a62211b0acf35527a67961135f686870, and episode b610cecd245f91ed543aaa64bfe231c026ec26f0efd9061c248b21369750a4fe plus test-only canonical-ID e99ec6946b3c18bbeff2e94236a322088d3d4c69e502b4fb17a4d0e44340f842 to the unsynced shared PC candidate. Two options fixture context conflicts were joined by retaining settlement optional effect/nil while adding shuffle/repeat capabilities. No production conflict occurred in these three packets. Library ca0bdb96d674edd5b00fdfc511ed410121a00aa1a972eb353862e1dea0ebd1eb received independent SOURCE GO; its partially applied hunk composition is exclusively owned by fault_diagnostics87 until handoff, preserving four exact content actions. Combined static/causal checks and independent composition review remain pending. No CI, public release, installation, credential read, provider call or household effect is credited.
+
+### PV settlement consumer — active bounded implementation
+
+Root authorizes admission34 as sole writer of podview_controls.py, podview.py,
+podview_room_media.py, tools.py and podview_music.py plus their focused fixtures.
+Retain exact Control receipt identity inside the existing room/token/PV-request
+receipt; expose only validated source-owned settlement through existing authenticated
+playback reads. Native prepare IDs stay private. Revalidate receipt/grant/policy,
+room/session/tools after awaits; foreign/stale/UNKNOWN cannot confirm or replay.
+Optional settlement must preserve strict legacy v3 validation and readonly rights.
+Canonical UI remains PodView-owned. Replace action-specific matching/waiting only
+once actual producer-to-consumer composition proves it; ordinary refresh/event reads
+must suffice, not a new eight-second command loop. Current producer confirms only
+its implemented transport/volume effects, never fabricated START/MOVE completion.
+Regression: actual retained command identity -> actual bound read -> PV DTO; exact X,
+later Y, duplicate/stale/session replacement/permission loss/timeout and zero read
+side effects. Independent review required. Rollback is uninstalled consumer delta;
+no household/provider effects or new access. Firmware remains compiled, not flashed.
+
+### PV selected-content peer capability compatibility
+
+New same-owner HA episode/library actions must not break existing PodView track/playlist controls. Current PV _content_controls rejects a source actions array longer than2, even when the existing requested play_track/play_context action is still supported. Root authorizes only an explicit closed SOURCE capability allowlist for already implemented peer play_episode/play_tracks alongside those two. Keep current PV executable action allowlist, URI dispatch, offer identity/TTL, grants and canonical UI unchanged; accepting a declared peer capability is not permission to invoke it. Unknown/duplicate/malformed action arrays still fail closed. Regress actual facade setup from four-action source and prove existing selected-content control remains ready while unsupported PV execute dispatch still sends nothing. Independent scoped review before freeze, no provider/effect.
+
 ## Active91 — single domain owner, two control surfaces (implementation authorized)
 
 Lead/release owner `/root`; canonical UI and final asset review owned by PodView.
@@ -80,6 +227,24 @@ Before freeze require compatible current-version terminalization or forward reco
 Reviewed source results are recorded below; no combined release, Green installation,
 provider or physical GO is implied by those scoped results.
 
+### Firmware metadata final scoped review and settlement producer decision
+
+Reviewed6-file firmware/component metadata checkpoint pushed through GitHub plugin to work branchcodex/podvoice91-single-owner, commit4706b1f1628a16e6ce267c08f991354ad3e51e5a, treef03148b31e7c734cfa39d45138968b1457bf608f, parentdcb9fabb4ada6046dac225761634a6671a7ca01c. All6 bytes captured only after frozen receipt hash checks; no PR/CI/release/install triggered. The external component pin remains dcb9 because that exact public revision already includes the reviewed reply header; this new metadata commit need not self-reference.
+
+Fresh passive Green /health read from the existing authenticated ingress reports installed2.0.89, roomr0 connected:true, stateIDLE, ducked:false, wake_readiness:recovered and wake_word_confirmed:hey_chat_hey_jarvis. Source observed_at1792963278.5660818/freshness0.2s. Services remain openai:degraded, voicepe:degraded, podconnect:up, mcp:up; connection/recovered observation is NOT provider acceptance or full service-health proof. No command, test audio, timer or restart was triggered by this GET. The user has provided power; no further power/test prompt is needed now.
+
+User explicitly changed the night instruction: update the puck TONIGHT as well; real-audio testing remains prohibited. Root will activate LIVE115 only together with the compatible PodVoice candidate, not ahead of it, because installed89 expects LIVE114. Local compile completed SUCCESS in157.61s using ESPHome2026.6.2. Generated reply header SHA matches reviewedc9ef5592 exactly; generated main contains LIVE113115. OTA artifact3,073,184bytes SHA25678297a99e694aca6552758aa195e345934c0edc1e3cacb88dbcedb3e5af29e8a. Private build receipt /private/tmp/pv91-fw-20261025/BUILD-RECEIPT.json SHA11d2f9a2be3dd3c313d3c399f0cbb7e71a2d763a7b8321af9cfe00688d8d7cb0. This is compiler/source identity only; no OTA/install/reboot or physical result yet.
+
+Native SEEK integration is STOP pending baseline correction: its first frozen7file delta was composed onto a mutable olderMOVE base omitting approved35ca PCM-preservation in3otherfiles. Independent review caught this before shared packaging; root's packaged35ca remains unchanged. Recompose only SEEK onto independently pinned7c96195e baseline, preserve old evidence as oldbase, regenerate inventory/binary and rerun only affected actualMOVE composition. Control/manager and C scopedGOs remain valid; no broad gate repeat or runtime redesign from this provenance failure.
+
+Root began local compilation of the independently reviewed LIVE115 source in private0700 build directory using existing ESPHome2026.6.2 environment. First attempt failed definitively before compilation because sandbox DNS could not resolve public github.com; authorized network build resumed once, no flash/reboot or household effects. Build result/artifact identity remains pending. Build secrets remain private local compiler inputs; no values are printed or published.
+
+Independent native_idle_owner SOURCE GO binds frozen metadata patch0a9df4f598ce6e570277e244032a1e4680ad54f85daa91ae554bf64fec9cd16a and receiptbe4cc9d8383797d6f59a9d8214ea1939d363ce6a43126bba2a25aa23dd99e351. All6 current candidate files and reverse-apply match; public source proof matches12MWW plus5reply files (receipt prose count15 is a typo; machine pins cover17). LIVE113115 is the new delivery identity; retained OFF113113 compatibility does not prove the Stop fix. No build/OTA/provider/physical gate is claimed.
+
+A bounded independent source trace confirms the remaining settlement cause: Native has exact accepted operation/prepare identity, but bound state reads expose current identity/actions without the consumed effect identity. Control therefore correctly returns observation:null. Similar item/position/volume is not causality. Lead authorizes an isolated minimal extension inside existing AppPlayer/transport/volume owners: retain the exact successful consumed operation and monotonic effect revision, project only through existing bound state reads, preserve route/owner/source revisions, and join only the matching retained Control receipt. No broker, parallel state store, new command route, guessed confirmation or UI workaround removal.
+
+Affected chain: existing Control intent -> manager -> Native guarded effect -> actor-owned operation stamp -> existing bound state read -> Control exact receipt settlement -> unchanged PV/canonical UI. Regression must show exact X settles only after its actual effect, while failed/UNKNOWN/duplicate/stale X, external mutation, later Y, alias/session replacement and C route/volume mismatch cannot confirm X or replay an effect. Read/echo must not mutate source or renew authority. Implement in isolation after the active seek draft, with one writer and independent source/composed review. Preserve current UI match/wait until actual end-to-end producer proof. Rollback is whole uninstalled draft; existing installed89/53/23 unchanged.
+
 ### Reviewed source checkpoint published — work branch only
 
 The31-file reviewed PV source checkpoint is now pushed through the GitHub plugin to
@@ -95,6 +260,10 @@ of it. Local source remains an integration draft, not a newly installed baseline
 ### Canonical UI combined source integrated — not released
 
 Root applied the single frozen PodView D2 runtime.patch4d4453925daab1f390ef62b94a9dad10ec1253ad10af80f423892e765c9449df after verifying all21base hashes. All21final changed hashes and all203runtime manifest hashes match the immutable canonical package; manifest5b21aeced078220eae9c82428f956d43178c3146fc8d08897c11887551b9fa48. Existing scoped UI tests/source/visual reviews are retained, not rerun on unchanged bytes. Backend composition, PC70/PC13/provider gates, publication, Green installation and physical acceptance remain open. Receipt: /private/tmp/pv91-canonical-ui-integration-receipt-20261025.json.
+
+### Canonical UI and timer source checkpoint published
+
+GitHub work branchcodex/podvoice91-single-owner now points to dcb9fabb4ada6046dac225761634a6671a7ca01c, treecc04ffdeba4b32184e253956b6cd2f1fa28d6c6e, parent04529400788e1406f33c33da33eafe160709fe66. Its26-file increment contains the reviewed canonical UI and timer/component/firmware Stop source plus this decision log as captured before the push. Remote branch readback matches; an independent temporary Git index reconstructed all captured source against actual90 and matched the remote tree. No PR, CI, release, installation or household effect was triggered.
 
 ### Active91 current integration boundary
 
@@ -131,6 +300,44 @@ Independent source review found outputLoop holds the output lock while Switching
 The blocked-read finding exposed an unnecessary premise in the proposed worker-phase solution: manual release retires a captured AppPlayer/registered FIFO writer, not a song. Actual secondary EOF promotion changes no FIFO FD, worker startEpoch, open_generation, App or session. Generic transportOfferCurrent additionally binds Primary/Tracks/QueueRevision/observational generation and therefore can strand same-owner cleanup.
 
 Lead and independent reviewer authorize a release-specific post-consumption owner predicate, retaining exact App/session/intent/alias/process/config/C-route/writer/custody and accepted failure witness. New writer admission passes withNewOutput/queueWriterBusyLocked and is fenced by consumed manualRelease; App replacement joins old.Close. Existing post-durable-C read interruption plus joined captured Close is reused. No new active-read CAS, output-stamp store or retire phase is authorized. Required causal cases: held worker Pause and same-writer track progress complete cleanup; actual replacement App/writer/FD/epoch/route/intent rejects; no replay or Close before durable ACK. Native implementation/review is still pending; this is a decision, not a result.
+
+### MOVE full-FIFO interlock — causal repair authorized
+
+After correcting the inert C fixture to start its genuine playback timer, actual MOVE reached C commit200/gate_closed_reader_ready. One bounded failure stack then proved C stops pb_timer at player_start.inc.c82 while Native File.Write holds its output mutex; MOVE quiesce waits for that same mutex and never emits its barrier. This is a composed software RED, not physical sound evidence. C/Native frozen source GOs retain their local scopes.
+
+Lead authorizes reuse of existing Native controlPending/write-deadline interruption ONLY for authorized MOVE quiesce after C durable ACK. Read-only snapshot/inspect/verify remain noninterfering. Before interruption require current context, worker epoch/phase and immutable captured FIFO/FD; retain exact under-lock fstat/source/owner guards. One existing-style lock waiter retains cleanup ownership if the caller cancels, then clears deadline/pending and broadcasts under the output lock exactly once; no callback, replay, source cancellation or second cleanup platform. A permanently blocked decoder remains UNKNOWN/quarantined, not claimed finite recovery.
+
+Invariants: same captured writer/owner, no foreign output interruption, original C gate/timeline/barrier, UNKNOWN no replay, serialized cancellation. Required causal regression: full FIFO Write RED->GREEN, expired/cancelled admission, cleanup/lost-wake ordering, retained PCM/pause truth, changed writer/epoch negative, unchanged read-only phases; then one actual corrected Native/C MOVE composite. No household effect. Rollback boundary is the separately frozen aa47 Native/24808 C source, never deleting an ambiguous journal. Implementation/review still pending.
+
+### Provider probe preparation — no paid call admitted
+
+The existing actual SDK/Thin semantic probe and fixed Sara fixtures are reusable; current91requires fresh startup bindings. The normal five-case EvalService does not exercise Thin closure, and the existing SDK probe has no prospective dollar cap for server-owned backend delegation. Official model pricing was identified, but counting backend-start events after request initiation is not a prospective bound; the current server-owned schema has no verified input/response/budget limit. Lead stopped a proposed offline-HOLD harness expansion: no new tooling, credentials, pause or paid trial was performed. Before a paid91gate, resolve this exact budget/window boundary using the incumbent probe rather than falsely inherit90 UNKNOWN or a Realtime cost table. This holds the provider claim only; independent source work continues.
+
+### Reviewed Connect source packaged; actual MOVE completed
+
+Root integrated reviewed Nativeaa47ea940c0109d0b8efe765a04e7a924c24bddc604e00fda0a50d8e60385e48 plus final MOVE35ca22c8d97810fd430865f063d73506e10ba962cf593d54d3a0fd34a2b0e1a5 into the existing Speakers Docker patch stack, with exact test patchesfe558/541fab and hash manifests. C24808 plus test33a/timer-fixturea055 are appended after actual53. Independent mechanical packaging GO binds Dockerfilec0c6cd11f9254f982e5d15a9144f2b0f32653bbda63b5d87bdf2dd5bf1de3f2f; no new build/CI/install. New final35ca source GO supersedes withdrawn837: same-owner release cleanup and bounded MOVE quiesce preserve unwritten PCM on switch/resume/abort while original START discard stays.
+
+Actual isolated Native/C run a6bb029f completed genuine MOVE: barrier200 -> route_ready_closed -> open200 -> COMPLETED200. The next failure was the second inert AP2 target fixture missing its advertised encryption capability; strict encrypted-RTP verification stopped before manual release. Lead authorized only that fixture capability correction and the invalidated continuation, no C runtime patch or weakened guard. Whole release/reconnect remains open until continuation passes.
+
+Independent seek work now has an actual registered HA service RED: media_seek(12.345) bypasses Control and writes rawSpotify/me/player/seek. Its smallest typed owner extension must preserve paused START/MOVE custody and later resume; isolated contract design is pending, no shared runtime edit yet.
+
+### Actual MOVE -> manual release software GREEN
+
+Corrected inert target2 encryption discovery now matches its genuine private AP2 session; strict encrypted packet validation remains. Exact Nativea6bb029f/C24808 fixture33a+a055+146d run passes Native0/C0: public MOVE reaches target2 COMPLETED, manual release persists durable gate, joins real captured worker Close, and C independently proves all-writer closure/drain before retired/terminal/contexts_drained true. Same-operation receipt and fresh-writer admission follow. Receipt: /private/tmp/pc70-manual-release-20261025/C-MOVE-COMPOSE-a6bb-GREEN.json. Physical verification remains false.
+
+Root packaged all8patches into the existing build stack; Dockerfile2f95056cabef1d20e9b402b1e09dd77c86a523e7fc1c8cf4b9b8edd317a034b7. Independent clean packaged replay proved all163Native production files plus5changedtests, and scoped16C source pins match reviewed bytes. Separate target2 fixture clean replay matches final ed5d95ccd76477840810ad4e8f16a0fd76ef5e06c4d092a2cd651fc9748c601b. No compile/CI/publication/install or physical effects were started by root packaging. This is scoped Connect software progress, not completion of all50issues or full bundled acceptance.
+
+### Advertised HA seek — isolated typed owner correction authorized
+
+Actual registered HA2026.8.2 media_seek(12.345) produced authenticated rawSpotify PUT and no Control admission in the isolated RED. D2 requires advertised Native parity; a HA-only helper or action-list addition would leave a bypass or break paused START/MOVE custody. Lead authorizes the smallest coordinated extension of existing transport/content owner in an isolated draft: typed position_ms iffseek (including0), duration/finite bounds and digest binding, guarded actual Native seek preserving captured pause/source/writer, C closed action/pause-confirm and retained custody. No new broker or raw fallback.
+
+Chain: registered HA/voice service -> Control current offer/intent -> same Native guarded worker -> existing C custody/confirmation -> observed source. Keep current v3/old UI closed projections compatible; a newly available HA action must not make existing controls DTO fail parsing. Required gates: registered caller through actual owner/worker paused and playing, paused START/MOVE seek then resume, wrong source/expired/duplicate/UNKNOWN/no raw API, actual v3->PV->canonical JS compatibility. New enum/fields must be traced through all wrappers/fixtures before freeze. No physical effects or shared UI edits; root hunk-integrates after independent review.
+
+### Firmware/component delivery identity — metadata change authorized
+
+The local reviewed Stop-join header is not automatically built: external_components still fetches immutable1fec384b. Lead authorizes only the first [podvoice_reply,micro_wake_word] source-group ref to public source checkpointdcb9fabb4ada6046dac225761634a6671a7ca01c, after proving unchanged micro_wake_word bytes. Other mixer/audio refs remain1fec. New live artifact marker113115_livetimeroutput1 and matching VoicePELink LIVE_FIRMWARE_BUILD distinguish corrected firmware from installed113114; base EXPECTED113113 stays unchanged. Changed HA timer component gets patch version0.1.7 rather than silently reusing0.1.6.
+
+This changes delivery identity only; reviewed Stop runtime delta remainsc9ef5592. Required gate: resolved source pins include exact header/mww, focused metadata/firmware contract fixtures and independent review, warm ESPHome2026.6.2 configuration/build, final artifact+provisioning/OTA readback in the coordinated window. No build, flash, key access or household effect is authorized by this metadata step. Voice owner checks whether reboot itself emits audio before any OTA permission/window. Current Green89/firmware113114 remains baseline until actual readback.
 
 ### Timer cancellation and firmware Stop — independently reviewed source
 

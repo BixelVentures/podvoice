@@ -105,6 +105,7 @@ _ROOM_KEYS = frozenset(
     }
 )
 _VOLUME_KEYS = (_ROOM_KEYS - {"volume_supported", "volume_unavailable_reason"}) | {"volume_state"}
+_CONTENT_SOURCE_ACTIONS = frozenset({"play_track", "play_context", "play_episode", "play_tracks"})
 _ACTIONS = frozenset(
     {"pause", "resume", "next", "previous", "volume", "play_track", "play_context"}
 )
@@ -452,8 +453,8 @@ def _content_controls(value: Any, account: str, target: str, room: str, homepod:
     actions = value["actions"]
     if (
         not isinstance(actions, list)
-        or len(actions) > 2
-        or any(action not in {"play_track", "play_context"} for action in actions)
+        or len(actions) > len(_CONTENT_SOURCE_ACTIONS)
+        or any(action not in _CONTENT_SOURCE_ACTIONS for action in actions)
         or len(set(actions)) != len(actions)
         or (value["status"] != "ready" and actions)
     ):

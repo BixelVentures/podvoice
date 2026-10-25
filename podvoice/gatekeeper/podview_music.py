@@ -541,7 +541,13 @@ def project_playback_output(value: Any, account: str | None) -> dict:
         return unavailable("malformed_response")
 
 
-def project_playback_controls(value: Any, account: str | None) -> dict:
+def project_playback_controls(
+    value: Any,
+    account: str | None,
+    *,
+    settlement_identity: dict | None = None,
+    private_settlement: bool = False,
+) -> dict:
     """Closed opt-in Control v3 facts; no offers, effects or inferred settlement."""
     import copy
     import math
@@ -549,7 +555,18 @@ def project_playback_controls(value: Any, account: str | None) -> dict:
     try:
         if not isinstance(value, dict) or value.get("schema") != "podconnect.playback.v3":
             raise ValueError("invalid controls aggregate")
-        legacy = {key: copy.deepcopy(item) for key, item in value.items() if key != "controls"}
+        if settlement_identity is None:
+            if "settlement" in value:
+                raise ValueError("unrequested settlement")
+        elif set(settlement_identity) != {"request_id", "command_sequence", "owner_epoch"} or (
+            "settlement" not in value
+        ):
+            raise ValueError("missing settlement")
+        legacy = {
+            key: copy.deepcopy(item)
+            for key, item in value.items()
+            if key not in {"controls", "settlement"}
+        }
         legacy["schema"] = "podconnect.playback.v2"
         checked = project_playback_output(legacy, account)
         if not checked.get("ok"):
@@ -626,6 +643,63 @@ def project_playback_controls(value: Any, account: str | None) -> dict:
             "schema": "podconnect.playback.v3",
             "controls": copy.deepcopy(controls),
         }
+        if settlement_identity is not None:
+            settlement = value["settlement"]
+            if (
+                not isinstance(settlement, dict)
+                or set(settlement)
+                != {
+                    "schema",
+                    "status",
+                    "request_id",
+                    "command_sequence",
+                    "owner_epoch",
+                    "observation",
+                }
+                or settlement["schema"] != "podconnect.command_settlement.v1"
+                or any(
+                    settlement.get(key) != expected for key, expected in settlement_identity.items()
+                )
+                or settlement["owner_epoch"] != checked["data"]["owner_epoch"]
+                or type(settlement["command_sequence"]) is not int
+                or settlement["status"]
+                not in {"unknown", "pending", "rejected", "superseded", "confirmed"}
+            ):
+                raise ValueError("foreign settlement")
+            observation = settlement["observation"]
+            if settlement["status"] == "confirmed":
+                expected_keys = {"source", "effect_revision"}
+                if private_settlement:
+                    expected_keys.add("prepare_id")
+                if (
+                    not isinstance(observation, dict)
+                    or set(observation) != expected_keys
+                    or observation["source"] != "native_bound_state"
+                    or not isinstance(observation["effect_revision"], str)
+                    or re.fullmatch(r"[1-9][0-9]{0,19}", observation["effect_revision"]) is None
+                    or int(observation["effect_revision"]) >= 2**64
+                    or (
+                        private_settlement
+                        and (
+                            not isinstance(observation["prepare_id"], str)
+                            or re.fullmatch(r"[a-f0-9]{32}", observation["prepare_id"]) is None
+                        )
+                    )
+                ):
+                    raise ValueError("invalid confirmed effect")
+            elif observation is not None:
+                raise ValueError("unconfirmed effect")
+            result["settlement"] = {
+                **{key: settlement[key] for key in settlement if key != "observation"},
+                "observation": (
+                    {
+                        "source": observation["source"],
+                        "effect_revision": observation["effect_revision"],
+                    }
+                    if observation is not None
+                    else None
+                ),
+            }
         if len(json.dumps(result, allow_nan=False).encode()) > 65536:
             raise ValueError("controls aggregate exceeds budget")
         return {"ok": True, "data": result}

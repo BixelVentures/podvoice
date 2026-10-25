@@ -1437,3 +1437,24 @@ async def test_both_room_capabilities_do_not_relax_exact_owner_validation(rig, c
         await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)
     )["ok"]
     assert len(rig.calls) == 1 and rig.calls[0][1].endswith("get_room_playback_controls")
+
+
+@pytest.mark.parametrize("context", [False, True])
+async def test_selected_peer_content_actions_keep_existing_setup(rig, context):
+    content_owner(rig)
+    rig.value["actions"] = ["play_track", "play_context", "play_episode", "play_tracks"]
+    result = await rig.facade.setup_track(
+        "account", "device", "native-room", "42", lambda: True, context=context
+    )
+    assert result["ok"] is True
+    assert result["data"]["actions"] == rig.value["actions"]
+    assert len(rig.calls) == 1
+
+
+@pytest.mark.parametrize("extra", ["play_book", "play_track", True])
+async def test_selected_peer_content_actions_still_reject_unknown_or_duplicate(rig, extra):
+    content_owner(rig)
+    rig.value["actions"] = ["play_track", "play_context", "play_episode", extra]
+    result = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    assert result["ok"] is False
+    assert len(rig.calls) == 1

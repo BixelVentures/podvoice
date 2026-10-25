@@ -469,8 +469,34 @@ class TouchControls:
             key: value
             for key, value in self.receipts.items()
             if self.bridge._authority_retained(key[0], key[1])
-            and (not key[1].startswith("ha:") or (len(value) == 3 and time.monotonic() < value[2]))
+            and (
+                not key[1].startswith("ha:")
+                or (len(value) in (3, 4) and time.monotonic() < value[2])
+            )
         }
+
+    def settlement_identity(
+        self, room: str, token: str, request_id: str, account: str
+    ) -> dict | None:
+        """Resolve a Control identity only from this owner's accepted touch receipt."""
+        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 120:
+            return None
+        entry = self.receipts.get((room, token, request_id))
+        if entry is None or len(entry) != 4 or entry[1].get("outcome") != "accepted":
+            return None
+        retained = entry[3]
+        task = retained["task"]
+        if (
+            task["target"].get("accountId") != account
+            or self.policy is not retained["policy"]
+            or self.music is not retained["music"]
+            or self.bridge._grant_for_token(room, token) is not retained["grant"]
+            or not self._receipt_current(task, token)
+            or task["actual_binding"]["bindingId"] != retained["binding_id"]
+            or self.receipts.get((room, token, request_id)) is not entry
+        ):
+            return None
+        return dict(retained["identity"])
 
     async def setup(self, body: dict, token: str) -> dict:
         if set(body) - {
@@ -1580,7 +1606,38 @@ class TouchControls:
                     if outcome in {"accepted", "rejected", "unknown"}
                     else "unknown",
                 }
-                self.receipts[key] = fingerprint, receipt, task["deadline"]
+                if (
+                    task["domain"] == "music"
+                    and option["action"] in {"pause", "resume", "next", "previous", "volume"}
+                    and receipt["outcome"] == "accepted"
+                    and result.get("schema") == "podconnect.command.v1"
+                    and result.get("config_entry_id") == task["target"]["accountId"]
+                    and result.get("action") == option["action"]
+                    and isinstance(result.get("owner_epoch"), str)
+                    and type(result.get("command_sequence")) is int
+                    and isinstance(result.get("request_id"), str)
+                    and result["request_id"]
+                    == f"{result['owner_epoch']}:{result['command_sequence']}"
+                ):
+                    self.receipts[key] = (
+                        fingerprint,
+                        receipt,
+                        task["deadline"],
+                        {
+                            "task": task,
+                            "policy": self.policy,
+                            "music": self.music,
+                            "grant": self.bridge._grant_for_token(task["room"], token),
+                            "binding_id": task["actual_binding"]["bindingId"],
+                            "identity": {
+                                "request_id": result["request_id"],
+                                "command_sequence": result["command_sequence"],
+                                "owner_epoch": result["owner_epoch"],
+                            },
+                        },
+                    )
+                else:
+                    self.receipts[key] = fingerprint, receipt, task["deadline"]
         except (Exception, asyncio.CancelledError):
             if moving and not move_dispatched:
                 self.bridge._music_move_fence.discard((task["room"], task["target"]["accountId"]))
