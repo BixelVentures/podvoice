@@ -808,7 +808,8 @@
           "method:remember": 1,
           "method:retained": 1,
           "arrow:scoped": 1,
-          "method:refreshHistory": 1
+          "method:refreshHistory": 1,
+          "method:historyPresentation": 1
         },
         "roots": [
           "factory:button:'Luk'"
@@ -868,7 +869,9 @@
           "method:send": 1,
           "arrow:current": 1,
           "method:currentVolumeOffer": 1,
-          "method:prepareVolume": 1
+          "method:prepareVolume": 1,
+          "method:beginMusicIntent": 1,
+          "method:endMusicIntent": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -897,7 +900,8 @@
       },
       "reviewedUI24MusicMeasurement": {
         "scope": "musicVolumeMeasurement retains only a previously admitted setup volume for exact boot/room/provider/account/owner epoch/actual native binding and transport. Display custody survives offer expiry without creating an option or extending a grant; selected pending, idle, unbound or revoked identity clears it. roomObservationBound is imported through the already registered media-observation edge. No DOM roots or family added."
-      }
+      },
+      "reviewedField87Source": "Same controls and native tasks: expired unused offer read-renewal within original freshness; independent volume-only offer through existing setup endpoint, separate volume blocked/measurement custody. No task borrowing, TTL extension or UNKNOWN replay."
     },
     "dist/live-home-view.js": {
       "status": "approved-composition",
@@ -1226,7 +1230,8 @@
       "imports": [
         "dist/spotify-artwork.js",
         "dist/widget-model.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/music-selection-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1255,7 +1260,8 @@
       "requiredCalls": [
         "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
       ],
-      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority."
+      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority.",
+      "reviewedField87Source": "Same existing card anatomy. Preserve closed generated themeArt for mood as editorial illustration, retain exact source identity, remove duplicate generic Spotify caption; one finite content-only loading cue plus existing replacement fade. No new family or action grant. Actual render review is separate."
     },
     "dist/music-recommendation-model.js": {
       "status": "active-support",
@@ -1700,7 +1706,8 @@
           "function:renderSpotifyArtwork": 1,
           "function:spotifyArtwork": 1,
           "function:spotifyItemUrl": 1,
-          "function:spotifyTrackUrl": 1
+          "function:spotifyTrackUrl": 1,
+          "function:recordArtworkDiagnostic": 1
         },
         "roots": [],
         "registrations": {},
@@ -1822,7 +1829,8 @@
       "reviewedUI22": {
         "date": "2026-10-23",
         "scope": "Reviewed completeStartNavigation: returns from the existing Timer detail to overview only after a current local start or a correlated accepted live timer ID appears in the same observed epoch/boot/room/session/generation. Navigation/focus only; existing timer owner, anatomy and command admission remain."
-      }
+      },
+      "reviewedField87Source": "Same Timer card/detail/rail displays derive one-second presentation from unchanged admitted observation without source mutation, automatic finish or alarm. Shared finite clock freezes on stale/offline and cleans up."
     },
     "dist/ui/gestures.js": {
       "status": "active-support",
@@ -2887,6 +2895,9 @@
     }
   ],
   "referenceOnlyFiles": [
+    "dist/robot-study.html",
+    "dist/robot-study.js",
+    "dist/robot-study-inline-review.html",
     "dist/app.js",
     "dist/components.html",
     "dist/example-sources.html",

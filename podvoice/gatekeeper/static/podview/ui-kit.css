@@ -1543,7 +1543,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home
 
 /* Button owns the only pending indicator. A retained leading icon reserves its
    normal slot but is replaced by the pending mark, never animated alongside it. */
-.pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play)>img{visibility:hidden;animation:none!important;transform:none!important}
+.pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer)>img{visibility:hidden;animation:none!important;transform:none!important}
 .pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play)::after{left:var(--pv-s2);right:auto}
 /* The Ro player uses one compact copy group centred beside its icon/chevron,
    with equal geometry for loading, offline and failure messages. */
@@ -1771,7 +1771,11 @@ summary.pv-kit-listrow[data-kit-variant=disclosure]{list-style:none;cursor:point
 summary.pv-kit-listrow[data-kit-variant=disclosure]::-webkit-details-marker{display:none}
 summary.pv-kit-listrow[data-kit-variant=disclosure]>img{width:var(--pv-icon-s);height:var(--pv-icon-s);transition:transform var(--pv-fast,200ms) var(--pv-ease)}
 details[open]>summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transform:rotate(180deg)}
-#quick-sheet.pv-kit-dialog #screen-settings-content{display:grid;gap:var(--pv-s2);min-width:0}
+/* Settings uses the canonical centered modal, with content-sized tracks even
+   when a native dialog implementation stretches its automatic grid height. */
+#quick-sheet.pv-kit-dialog:modal{height:fit-content;min-height:0;align-content:start;grid-auto-rows:max-content}
+#quick-sheet.pv-kit-dialog>.pv-dialog-header{margin:0;padding:0;border:0}
+#quick-sheet.pv-kit-dialog #screen-settings-content{display:grid;gap:var(--pv-s2);min-width:0;align-content:start;grid-auto-rows:max-content}
 #quick-sheet.pv-kit-dialog .screen-device-brightness{display:grid;gap:var(--pv-s1)}
 #quick-sheet.pv-kit-dialog .screen-device-label{display:flex;align-items:baseline;justify-content:space-between;gap:var(--pv-s2);font:var(--pv-t-label)}
 #quick-sheet.pv-kit-dialog .screen-device-label output{font:var(--pv-t-body);font-variant-numeric:tabular-nums;color:var(--pv-ink-2)}

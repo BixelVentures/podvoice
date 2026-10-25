@@ -1,3 +1,14 @@
+## 2.0.88
+
+- Preserve exact current response and input ownership when settling conversation
+  close; retain stale, cancelled and incomplete close guards for Native and Talk.
+- Preserve independently supported pause/resume capabilities for exact-room native
+  controls while keeping generic Spotify phase and all current owner checks.
+- Automatically retain bounded content-free browser diagnostics on Green through
+  existing authentication; diagnostics grant no household action or controller read access.
+- Adopt the reviewed canonical music controls, loading and artwork UI handoff.
+- Software checks do not establish field recovery or physical music/voice acceptance.
+
 ## 2.0.87
 
 - Read volume through a separate current control offer while keeping transport setup

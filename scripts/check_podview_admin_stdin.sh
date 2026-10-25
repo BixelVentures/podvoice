@@ -5,9 +5,25 @@ set -euo pipefail
 image="${1:?pass the exact candidate image tag or digest}"
 name="pv175-stdin-proof-$$"
 test_root="$(mktemp -d)"
+host_uid="$(id -u)"
+host_gid="$(id -g)"
+container_requested=false
 cleanup() {
-  timeout --kill-after=2s 5s docker rm -f "$name" >/dev/null 2>&1 || true
-  rm -rf "$test_root"
+  local probe_status=$?
+  local cleanup_status=0
+  trap - EXIT
+  if [[ "$container_requested" == true ]]; then
+    # Only this disposable bind mount is reclaimed. Preserve private modes and
+    # never dereference a symlink into another container/host path.
+    timeout --kill-after=2s 5s docker exec --user 0:0 "$name" \
+      chown -R -h -- "$host_uid:$host_gid" /data >/dev/null 2>&1 || cleanup_status=1
+    timeout --kill-after=2s 5s docker rm -f "$name" >/dev/null 2>&1 || cleanup_status=1
+  fi
+  rm -rf "$test_root" || cleanup_status=1
+  if (( probe_status != 0 )); then
+    return "$probe_status"
+  fi
+  return "$cleanup_status"
 }
 trap cleanup EXIT
 mkdir "$test_root/data"
@@ -17,6 +33,7 @@ printf 'phase=image_inspect\n'
 image_id="$(timeout --kill-after=2s 5s docker image inspect "$image" --format '{{.Id}}')"
 printf 'image_id=%s\n' "$image_id"
 printf 'phase=container_run\n'
+container_requested=true
 timeout --kill-after=2s 5s docker run -d -i --name "$name" --network none \
   --mount "type=bind,source=$test_root/data,target=/data" \
   "$image" >/dev/null

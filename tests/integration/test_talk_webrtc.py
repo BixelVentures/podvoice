@@ -5,7 +5,7 @@ import asyncio
 import pytest
 from test_talk_stop import Wire
 from test_thin_live import build, emit, until
-from unit.test_openai_live import WebRTCSDK, call, created, terminal
+from unit.test_openai_live import WebRTCSDK, call, created, delegated, terminal
 
 from gatekeeper.talk import BrowserLink, run_talk
 
@@ -653,4 +653,56 @@ async def test_text_mode_upgrade_ack_cannot_overtake_new_disable_intent():
         assert wire.result("stale")["status"] == "rejected"
         assert wire.sdk.session.input_audio.unmute.await_count == old_count
     finally:
+        await finish(wire, task)
+
+
+@pytest.mark.parametrize("new_model_work", [False, True])
+async def test_talk_semantic_end_ignores_raw_fragment_but_new_delegation_retires_close(
+    monkeypatch, new_model_work
+):
+    from test_thin_live_ten_cycles import transcript
+
+    import gatekeeper.thin as thin_module
+
+    wire, link, session, _, _ = setup()
+    task = asyncio.create_task(run_talk(wire, session, link))
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = session._finish_live_conversation
+
+    async def hold_finish(epoch, receipt):
+        entered.set()
+        await release.wait()
+        await original(epoch, receipt)
+
+    monkeypatch.setattr(session, "_finish_live_conversation", hold_finish)
+    monkeypatch.setattr(thin_module, "LIVE_CLOSE_GRACE_S", 0)
+    try:
+        wire.send("text", command_id="typed-first", text="fixture")
+        await until(lambda: wire.result("typed-first") is not None)
+        count = wire.sdk.response.create.await_count
+        await emit(wire.sdk, created(), call(name="end_conversation", arguments="{}"), terminal())
+        await until(lambda: wire.sdk.response.create.await_count == count + 1)
+        await emit(wire.sdk, created("r2"), terminal("r2"))
+        await asyncio.wait_for(entered.wait(), 1)
+        revision = session._live_input_revision
+        await emit(wire.sdk, transcript("raw fragment"))
+        await until(lambda: session._live_input_revision > revision)
+        assert session._ending_conversation
+        if new_model_work:
+            await emit(wire.sdk, delegated())
+            await until(lambda: not session._ending_conversation)
+            assert session.brain._pending_delegations
+        release.set()
+        if new_model_work:
+            await asyncio.sleep(0.05)
+            assert session._active and wire.sdk.session.close.await_count == 0
+            assert session._live_work_pending()
+            wire.send("stop", command_id="stop")
+            await until(lambda: wire.result("stop") is not None)
+        else:
+            await until(lambda: not session._active)
+            assert wire.sdk.session.close.await_count == 1
+            assert session._trace_reason == "live-browser-drain-unconfirmed"
+    finally:
+        release.set()
         await finish(wire, task)

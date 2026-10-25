@@ -760,6 +760,9 @@ async def run(cfg: Config) -> None:
         if private_enabled and private_row is not None
         else (cfg.podview_controller_generation if legacy_admin else ""),
         podview_controller_store=settings_path.parent / "podview-controllers" / "registry.json",
+        podview_client_diagnostics_store=settings_path.parent
+        / "podview-client-diagnostics"
+        / "records.json",
         podview_pairing_room=private_row["room"]
         if private_enabled and private_row is not None
         else (cfg.podview_pairing_room if legacy_admin else ""),

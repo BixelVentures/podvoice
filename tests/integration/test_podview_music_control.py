@@ -1388,3 +1388,52 @@ async def test_long_budget_prepare_cancellation_keeps_zero_commit_and_exact_canc
         "cancel_room_content_preparation",
     ]
     assert rig.client.timeout == httpx.Timeout(8, connect=3)
+
+
+@pytest.mark.parametrize("action", ["pause", "resume", "next", "previous"])
+async def test_control22_exact_room_capabilities_keep_both_transport_phases(rig, action):
+    """Control22 forwards Native capabilities, independent of Spotify phase."""
+    room_owner(rig)
+    rig.value["actions"] = ["pause", "resume", "next", "previous"]
+    offer = await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)
+    assert offer["ok"], offer
+    assert offer["data"]["actions"] == rig.value["actions"]
+    result = await rig.facade.execute_room(offer["data"], action, lambda: True)
+    assert result["outcome"] == "accepted"
+    assert result["physical_result_verified"] is False
+    assert [call[1].rsplit("/", 1)[-1] for call in rig.calls] == [
+        "get_room_playback_controls",
+        "control_room_playback",
+    ]
+    assert rig.calls[-1][3]["action"] == action
+
+
+async def test_generic_spotify_controls_still_reject_both_transport_phases(rig):
+    rig.value["actions"] = ["pause", "resume", "next", "previous"]
+    result = await rig.facade.setup("account", "device", lambda: True)
+    assert not result["ok"]
+    assert len(rig.calls) == 1 and rig.calls[0][1].endswith("get_playback_controls")
+
+
+@pytest.mark.parametrize(
+    "change", ["duplicate", "foreign", "stale", "unknown_action", "malformed", "unready"]
+)
+async def test_both_room_capabilities_do_not_relax_exact_owner_validation(rig, change):
+    room_owner(rig)
+    rig.value["actions"] = ["pause", "resume", "next", "previous"]
+    if change == "duplicate":
+        rig.value["actions"].append("pause")
+    elif change == "foreign":
+        rig.value["native"]["room_id"] = "foreign"
+    elif change == "stale":
+        rig.value["observation"]["age_ms"] = 15001
+    elif change == "unknown_action":
+        rig.value["actions"].append("seek")
+    elif change == "malformed":
+        rig.value["route"]["selection_revision"] = True
+    else:
+        rig.value["status"] = "awaiting_observation"
+    assert not (
+        await rig.facade.setup_room("account", "device", "native-room", "42", lambda: True)
+    )["ok"]
+    assert len(rig.calls) == 1 and rig.calls[0][1].endswith("get_room_playback_controls")

@@ -12,6 +12,7 @@ from gatekeeper.openai_live import (
     LiveAudioChunk,
     LiveBackendComplete,
     LiveBackendStarted,
+    LiveDelegationCreated,
     LiveProtocolError,
     LiveSessionClosed,
     LiveSessionReady,
@@ -237,6 +238,15 @@ def envelope(kind, delegation="d1", **fields):
 
 def created(response_id="r1", delegation="d1"):
     return envelope("response.created", delegation, response={"id": response_id})
+
+
+def delegated(identity="d2", offset=100):
+    return {
+        "type": "session.delegation.created",
+        "event_id": f"event-{identity}",
+        "offset_ms": offset,
+        "delegation": {"type": "delegation", "id": identity, "target": "responses"},
+    }
 
 
 def call(call_id="c1", name="status", arguments='{"room":"kitchen"}', delegation="d1"):
@@ -3064,3 +3074,134 @@ async def test_typed_input_rechecks_audio_mode_after_waiting_for_send_lock():
         await sending
     sdk.response.item.create.assert_not_awaited()
     await session.close()
+
+
+@pytest.mark.asyncio
+async def test_actual_delegation_metadata_owns_gap_without_fabricating_response_or_turn():
+    session, _, _ = provider()
+    await session.connect()
+    await anext(session.events())
+    try:
+        await session._handle(delegated("d1", 100), 1)
+        event = session._queue.get_nowait()
+        assert event == LiveDelegationCreated("d1", 100, 1)
+        deadline = session._pending_delegations["d1"]
+        assert session.backend_sequence == session.input_sequence == 0
+        # Duplicate metadata cannot renew pending work's absolute backend budget.
+        await session._handle(delegated("d1", 200), 1)
+        assert session._pending_delegations == {"d1": deadline}
+        assert session._delegation_offset == 100
+        assert session._queue.empty()
+        await session._handle(created(), 1)
+        assert not session._pending_delegations
+        assert isinstance(session._queue.get_nowait(), LiveBackendStarted)
+        await session._handle(delegated("old", 50), 1)
+        assert session._queue.empty() and not session._pending_delegations
+        assert session._latest_delegation_id == "d1"
+        # Generation filtering precedes correlation, so stale events own nothing.
+        await session._handle(delegated("stale", 500), 0)
+        assert "stale" not in session._seen_delegations
+    finally:
+        await session.close()
+    await session.connect()
+    try:
+        assert not session._pending_delegations and not session._seen_delegations
+        assert session._delegation_offset == -1 and session._latest_delegation_id is None
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_missing_delegated_response_fails_through_existing_receiver_cleanup_budget():
+    session, sdk, _ = provider()
+    session.timeout_s = 0.05
+    await session.connect()
+    await anext(session.events())
+    try:
+        await sdk.incoming.put(delegated())
+        assert isinstance(await anext(session.events()), LiveDelegationCreated)
+        with pytest.raises(LiveProtocolError, match="live_protocol_failure"):
+            await asyncio.wait_for(anext(session.events()), 1)
+        assert session._closed.is_set() and session._close_requested
+        assert session.backend_sequence == 0
+    finally:
+        with pytest.raises(LiveProtocolError, match="live_protocol_failure"):
+            await session.close()
+        assert sdk.released
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("offset", [100, 150])
+async def test_distinct_delegation_equal_ms_or_after_contradictory_duplicate_is_pending(offset):
+    session, _, _ = provider()
+    await session.connect()
+    await anext(session.events())
+    try:
+        await session._handle(delegated("d1", 100), 1)
+        await session._handle(created(), 1)
+        await session._handle(terminal(), 1)
+        await session._handle(delegated("d1", 200), 1)
+        await session._handle(delegated("d2", offset), 1)
+        assert session._pending_delegations.keys() == {"d2"}
+        assert session._latest_delegation_id == "d2"
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "problem", ["client", "negative_offset", "bool_offset", "missing_id", "bad_type"]
+)
+async def test_unusable_delegation_metadata_fails_through_protocol_owner(problem):
+    session, _, _ = provider()
+    await session.connect()
+    event = delegated()
+    if problem == "client":
+        assert session._configuration()["delegation"]["type"] == "responses"
+        event["delegation"]["target"] = "client"
+    elif problem == "negative_offset":
+        event["offset_ms"] = -1
+    elif problem == "bool_offset":
+        event["offset_ms"] = True
+    elif problem == "missing_id":
+        event["delegation"]["id"] = ""
+    else:
+        event["delegation"]["type"] = "other"
+    try:
+        expected = (
+            "unsupported_live_client_delegation"
+            if problem == "client"
+            else "invalid_live_delegation"
+        )
+        with pytest.raises(LiveProtocolError, match=expected):
+            await session._handle(event, 1)
+        assert not session._pending_delegations
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_real_sdk_parses_delegation_metadata_before_response_and_late_identity_is_inert():
+    session, sdk, _ = diagnostic_wire_provider()
+    await session.connect()
+    await anext(session.events())
+    try:
+        await sdk.incoming.put(delegated("d1", 100))
+        event = await asyncio.wait_for(anext(session.events()), 1)
+        assert event == LiveDelegationCreated("d1", 100, 1)
+        await sdk.incoming.put(created())
+        event = await asyncio.wait_for(anext(session.events()), 1)
+        assert isinstance(event, LiveBackendStarted)
+        assert not session._pending_delegations
+        await sdk.incoming.put(delegated("d1", 200))
+        await sdk.incoming.put(created("r2", "d2"))
+        event = await asyncio.wait_for(anext(session.events()), 1)
+        assert isinstance(event, LiveBackendStarted) and event.delegation_id == "d2"
+        await sdk.incoming.put(delegated("d2", 150))
+        # Ordered observation of another actual event proves delayed metadata passed.
+        await sdk.incoming.put({"type": "session.output_audio.delta", "delta": "AAA="})
+        assert isinstance(await asyncio.wait_for(anext(session.events()), 1), LiveAudioChunk)
+        assert not session._pending_delegations
+        assert session._delegation_offset == 150
+    finally:
+        await session.close()

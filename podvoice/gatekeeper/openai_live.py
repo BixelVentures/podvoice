@@ -119,6 +119,7 @@ _DIAGNOSTIC_WIRE_TYPES = frozenset(
         "error",
         "session.started",
         "session.updated",
+        "session.delegation.created",
         "session.output_audio.delta",
         "session.input_transcript.delta",
         "session.output_transcript.delta",
@@ -199,6 +200,15 @@ class LiveTranscript:
 
 
 @dataclass(frozen=True)
+class LiveDelegationCreated:
+    """Actual provider work metadata; not a complete user turn or audio ACK."""
+
+    delegation_id: str
+    offset_ms: int
+    generation: int
+
+
+@dataclass(frozen=True)
 class LiveBackendStarted:
     delegation_id: str
     response_id: str
@@ -247,6 +257,7 @@ LiveEvent = (
     | LiveTransportReady
     | LiveAudioChunk
     | LiveTranscript
+    | LiveDelegationCreated
     | LiveBackendStarted
     | LiveBackendComplete
     | LiveToolBatch
@@ -398,6 +409,11 @@ class OpenAILiveSession:
         self._responses: dict[str, _Response] = {}
         self._batches: dict[str, _Batch] = {}
         self._seen_responses: set[str] = set()
+        self._seen_delegations: set[str] = set()
+        self._latest_delegation_id: str | None = None
+        self._delegation_offset = -1
+        self._delegation_offsets: dict[str, int] = {}
+        self._pending_delegations: dict[str, float] = {}
         self._seen_calls: set[str] = set()
         self._append_waiters: dict[str, asyncio.Future] = {}
         self._continuation_pending = False
@@ -661,6 +677,11 @@ class OpenAILiveSession:
         self._responses.clear()
         self._batches.clear()
         self._seen_responses.clear()
+        self._seen_delegations.clear()
+        self._latest_delegation_id = None
+        self._delegation_offset = -1
+        self._delegation_offsets.clear()
+        self._pending_delegations.clear()
         self._seen_calls.clear()
         self._continuation_pending = False
         self._continuation_inflight = False
@@ -972,14 +993,22 @@ class OpenAILiveSession:
             "live_reader", stage="receive", outcome="started", generation=generation
         )
         try:
-            async for event in incoming():
+            iterator = incoming()
+            while True:
+                # A delegation is real pending work before response.created. Use
+                # the existing backend wait budget; unrelated deltas cannot renew it.
+                deadline = min(self._pending_delegations.values(), default=None)
+                try:
+                    async with asyncio.timeout_at(deadline):
+                        event = await anext(iterator)
+                except StopAsyncIteration:
+                    raise LiveProtocolError("live_socket_without_finalization") from None
                 if generation != self._connection_generation or connection is not self._connection:
                     return
                 self._observe_wire_event(event, generation)
                 await self._handle(event, generation)
                 if self._closed.is_set():
                     return
-            raise LiveProtocolError("live_socket_without_finalization")
         except asyncio.CancelledError:
             self._observe_provider(
                 "live_reader", stage="receive", outcome="cancelled", generation=generation
@@ -1081,6 +1110,8 @@ class OpenAILiveSession:
                 self._input_audio_enabled = kind == "session.input_audio.unmuted"
                 waiting[1].set_result(None)
                 self._ready_webrtc_transport(generation)
+        elif kind == "session.delegation.created":
+            self._delegation_created(event, generation)
         elif kind == "session.output_audio.delta":
             if self.transport == "webrtc":
                 return  # Browser WebRTC owns media; sideband reflection is never a second sink.
@@ -1137,7 +1168,7 @@ class OpenAILiveSession:
                         event["reason"],
                         float(seconds),
                         generation,
-                        len(self._responses) + len(self._batches),
+                        len(self._responses) + len(self._batches) + len(self._pending_delegations),
                     )
                 )
                 self._finalized_generation = generation
@@ -1175,6 +1206,49 @@ class OpenAILiveSession:
                 if type(details.get(key)) is int and details[key] >= 0
             }
         return result
+
+    def _remember_delegation(self, delegation: str) -> bool:
+        if delegation in self._seen_delegations:
+            return False
+        if len(self._seen_delegations) >= 512:
+            raise LiveProtocolError("live_delegation_limit")
+        self._seen_delegations.add(delegation)
+        return True
+
+    def _delegation_created(self, event: dict, generation: int) -> None:
+        delegation = event.get("delegation")
+        offset = event.get("offset_ms")
+        if (
+            not isinstance(delegation, dict)
+            or not isinstance(delegation.get("id"), str)
+            or not delegation["id"]
+            or delegation.get("type") != "delegation"
+            or delegation.get("target") not in {"responses", "client"}
+            or type(offset) is not int
+            or offset < 0
+        ):
+            raise LiveProtocolError("invalid_live_delegation")
+        identity = delegation["id"]
+        known = not self._remember_delegation(identity)
+        if identity in self._delegation_offsets:
+            return  # A duplicate cannot move the timeline or renew work's deadline.
+        self._delegation_offsets[identity] = offset
+        previous_offset = self._delegation_offset
+        self._delegation_offset = max(previous_offset, offset)
+        # response.created may precede this metadata, including END's own
+        # continuation. Neither it nor a duplicate/older timeline event is new work.
+        if known or offset < previous_offset:
+            return
+        if delegation["target"] != "responses":
+            raise LiveProtocolError("unsupported_live_client_delegation")
+        self._latest_delegation_id = identity
+        self._pending_delegations[identity] = asyncio.get_running_loop().time() + self.timeout_s
+        receipt = self._terminal_receipt
+        if receipt is not None and receipt.delegation_id != identity:
+            receipt.completed = False
+            if not receipt.future.done():
+                receipt.future.set_result(False)
+        self._emit(LiveDelegationCreated(identity, offset, generation))
 
     def _backend(self, envelope: dict, generation: int) -> None:
         event = envelope["event"]
@@ -1227,6 +1301,9 @@ class OpenAILiveSession:
                 raise LiveProtocolError("duplicate_or_overlapping_live_response")
             if len(self._seen_responses) >= 512:
                 raise LiveProtocolError("live_response_limit")
+            if self._remember_delegation(delegation):
+                self._latest_delegation_id = delegation
+            self._pending_delegations.pop(delegation, None)
             receipt = self._terminal_receipt
             if receipt is not None and receipt.future.done():
                 receipt.completed = False  # New work permanently retires a settled end intent.
@@ -1443,6 +1520,7 @@ class OpenAILiveSession:
             generation == self._connection_generation
             and not self._close_requested
             and not self._responses
+            and not self._pending_delegations
             and set(self._batches) == {response_id}
             and not self._batches[response_id].submitting
             and self._batches[response_id].admitted
@@ -1703,6 +1781,9 @@ class OpenAILiveSession:
             batch.input_index,
             closure_only=closure_only,
         )
+        # A newer actual delegation before admission cannot be adopted by an old END.
+        if closure_only and batch.event.delegation_id != self._latest_delegation_id:
+            future.set_result(False)
         # The intent belongs to the actual backend's input boundary, not the
         # later registration time after tool awaits or delayed Thin delivery.
         self._settle_terminal_receipt()
@@ -1726,10 +1807,12 @@ class OpenAILiveSession:
             and receipt.completed
             and receipt.closure_only is closure_only
             and (receipt.closure_only or receipt.input_index == self.input_sequence)
+            and (not receipt.closure_only or receipt.delegation_id == self._latest_delegation_id)
             and receipt.generation == self._connection_generation
             and not self._close_requested
             and not self._closed.is_set()
             and not self._responses
+            and not self._pending_delegations
             and not self._batches
             and not self._continuation_pending
             and not self._continuation_inflight
@@ -1764,6 +1847,7 @@ class OpenAILiveSession:
             and not self._close_requested
             and not self._closed.is_set()
             and not self._responses
+            and not self._pending_delegations
             and not self._batches
             and not self._continuation_pending
             and not self._continuation_inflight
@@ -1847,6 +1931,7 @@ class OpenAILiveSession:
             not self._continuation_pending
             or self._continuation_inflight
             or self._responses
+            or self._pending_delegations
             or self._batches
         ):
             self._observe_provider(

@@ -1,14 +1,34 @@
 import {requestWithin} from './request-deadline.js';
+const diagnosticStages=new Set(['request','observer','sse','freshness','connection','control_setup','volume_setup','control_action','music_read','playback_confirmation','queue_read','queue_action','browser','lifecycle','control_state','volume_state','artwork']);
+const diagnosticCodes=new Set(['start','ok','accepted','unknown','rejected','http_denied','http_transient','http_error','invalid_json','timeout','cancelled','network','failure','invalid_dto','stale_binding','superseded','empty','unavailable','matched','unconfirmed','expiry','error','cleanup','disconnected','connecting','connected','unhandled_rejection','read_inflight','intent_pending','spent','unknown_fence','capability_missing','unknown_value','resource_error','decode_error','other']);
+const diagnosticEndpoints=new Set(['snapshot','events','home','answers','actions','pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup','control/actions','music/queue/offer','music/queue/actions','music/selection/setup','music/selection/actions','other']);
+const diagnosticKinds=new Set(['targets','playback','speakers','mood','feeling','top','recent','search','account_playlists','queue','other']);
+const diagnosticQuiet=new Set(['start','ok','connected','connecting','matched','empty','accepted','cleanup','superseded','cancelled']);
+function diagnosticRow(value){
+ if(!value||!diagnosticStages.has(value.stage))return null;
+ const row={stage:value.stage,code:diagnosticCodes.has(value.code)?value.code:'other'};
+ for(const key of ['seq','atMs','generation','localRequestSeq','durationMs','count'])if(Number.isSafeInteger(value[key])&&value[key]>=0&&value[key]<=(key==='durationMs'?120000:key==='count'?64:Number.MAX_SAFE_INTEGER))row[key]=value[key];
+ if(Number.isInteger(value.httpStatus)&&value.httpStatus>=100&&value.httpStatus<=599)row.httpStatus=value.httpStatus;
+ for(const key of ['current','pending','connected','restored'])if(typeof value[key]==='boolean')row[key]=value[key];
+ if(diagnosticEndpoints.has(value.endpoint))row.endpoint=value.endpoint;
+ if(diagnosticKinds.has(value.kind))row.kind=value.kind;
+ if(typeof value.requestId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.requestId))row.requestId=value.requestId.toLowerCase();
+ return Object.freeze(row);
+}
 const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admission.authenticated===true&&Object.keys(value.admission).sort().join(',')==='authenticated,kind';
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
 export class PodVoiceTransport {
- constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage} = {}) {
+ constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild} = {}) {
   const page = new URL(url);
   if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
   this.base = new URL(`${prefix}api/`, page.origin);
   this.room = room; this.fetch = fetch; this.EventSource = EventSource;
+  this.diagnosticBuild=diagnosticBuild===undefined?globalThis.document?.querySelector?.('meta[name="podview-build"]')?.content:diagnosticBuild;this.diagnosticScopes=new WeakMap();this.diagnosticUploadAcked=new Set();this.diagnosticUploadAt=-Infinity;this.diagnosticUploadEpoch=0;
+  this.diagnosticRows=[];this.diagnosticSequence=0;this.diagnosticDropped=0;this.diagnosticRequestSequence=0;this.diagnosticStorageAvailable=false;this.diagnosticPersistAt=-Infinity;this.diagnosticDirty=false;this.diagnosticPersistPending=false;
+  try{this.diagnosticStorage=diagnosticStorage===undefined?globalThis.sessionStorage:diagnosticStorage;const saved=this.diagnosticStorage?.getItem('podview.client-diagnostics.v1');if(typeof saved==='string'&&saved.length<=65536){const value=JSON.parse(saved);if(value?.schema==='podview.client-diagnostics.v1'&&Array.isArray(value.records)&&value.records.length<=128){this.diagnosticRows=value.records.map(diagnosticRow).filter(row=>row&&Number.isSafeInteger(row.seq)&&Number.isSafeInteger(row.atMs)).map((row,index)=>Object.freeze({...row,seq:index+1,restored:true}));this.diagnosticSequence=Math.max(0,...this.diagnosticRows.map(row=>row.seq));}}this.diagnosticStorageAvailable=!!this.diagnosticStorage;}catch{this.diagnosticStorage=null;}
+
   this.locks=locks;this.BroadcastChannel=BroadcastChannel;this.crypto=crypto;this.cookieScope=page.origin+prefix;this.requireLocalRenewal=/\/setup(?:\.html)?$/.test(page.pathname);this.peerSeen=new Map();this.peerSequence=0;this.coordinationMode=locks?.request?'serialized':'read-hints-only';
   this.screenEnrollment=screenEnrollment===true&&this.requireLocalRenewal;
   try{this.namedIntentStorage=namedIntentStorage===undefined?globalThis.localStorage:namedIntentStorage;}catch{this.namedIntentStorage=null;}
@@ -16,6 +36,65 @@ export class PodVoiceTransport {
   this.namedControllerRenewed=false;this.namedLaneWanted=false;this.namedRenewalDenied=false;this.namedRenewalUnconfirmed=false;
   this.onSnapshot = onSnapshot; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
   this.controllerRenewalOwner={}; this.snapshot = null; this.acceptedReadAt = null; this.connected = false; this.closed = true; this.generation = 0;
+ }
+ // Content-free diagnostics never own authority, retries, UI state or dispatch.
+ recordDiagnostic(stage,fields={}){
+  try{
+   const row=diagnosticRow({...fields,stage,seq:++this.diagnosticSequence,atMs:Date.now(),generation:this.generation||0,connected:this.connected===true,restored:false});if(!row)return;
+   const critical=!diagnosticQuiet.has(row.code);
+   if(this.diagnosticRows.length>=128){const quiet=this.diagnosticRows.findIndex(entry=>diagnosticQuiet.has(entry.code));if(quiet<0&&!critical){this.diagnosticDropped++;return;}this.diagnosticRows.splice(quiet<0?0:quiet,1);this.diagnosticDropped++;}
+   this.diagnosticRows.push(row);if(this.diagnosticScope)this.diagnosticScopes.set(row,this.diagnosticScope);this.scheduleDiagnosticUpload();
+   if(critical)this.diagnosticDirty=true;
+   if(this.diagnosticDirty&&this.diagnosticStorage&&!this.diagnosticPersistPending&&Date.now()-this.diagnosticPersistAt>=1000){this.diagnosticPersistPending=true;queueMicrotask(()=>{this.diagnosticPersistPending=false;this.flushDiagnostics();});}
+  }catch{/* Diagnostic failure can never alter an operation or recursively log. */}
+ }
+ flushDiagnostics(){try{if(!this.diagnosticDirty||!this.diagnosticStorage)return false;this.diagnosticPersistAt=Date.now();this.diagnosticStorage.setItem('podview.client-diagnostics.v1',JSON.stringify({schema:'podview.client-diagnostics.v1',records:this.diagnosticRows}));this.diagnosticStorageAvailable=true;this.diagnosticDirty=false;return true;}catch{this.diagnosticStorageAvailable=false;return false;}}
+ diagnostics(){return {schema:'podview.client-diagnostics.v1',capacity:128,dropped:this.diagnosticDropped,storageAvailable:this.diagnosticStorageAvailable,pendingPersistence:this.diagnosticDirty,restoredUntrusted:true,records:this.diagnosticRows.map(row=>({...row}))};}
+ // Telemetry is independent of product requests: never recurse, renew authority or replay commands.
+ syncDiagnosticScope(value){
+  if(!value||typeof value.roomId!=='string'||!value.roomId||typeof value.bootId!=='string'||!/^[a-f0-9]{32}$/.test(value.bootId))return;
+  const scope=JSON.stringify([value.roomId,value.bootId]);
+  if(scope!==this.diagnosticScope){this.stopDiagnosticUpload();this.diagnosticScope=scope;this.diagnosticUploadBatch=null;this.diagnosticUploadAcked.clear();this.diagnosticUploadAt=-Infinity;this.diagnosticUploadStopped=false;}
+  if(this.diagnosticAdmittedGeneration!==this.generation){this.diagnosticAdmittedGeneration=this.generation;this.diagnosticUploadStopped=false;}this.scheduleDiagnosticUpload();
+ }
+ stopDiagnosticUpload(){clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;this.diagnosticUploadEpoch++;this.diagnosticUploadController?.abort();this.diagnosticUploadController=null;}
+ scheduleDiagnosticUpload(){
+  if(this.closed||!this.diagnosticScope||this.diagnosticUploadStopped||this.diagnosticUploadTimer||this.diagnosticUploadController)return;
+  if(!this.diagnosticUploadBatch&&!this.diagnosticRows.some(row=>!row.restored&&this.diagnosticScopes.get(row)===this.diagnosticScope&&!this.diagnosticUploadAcked.has(row.seq)))return;
+  this.diagnosticUploadTimer=setTimeout(()=>{this.diagnosticUploadTimer=null;this.flushDiagnosticUpload().catch(()=>{});},Math.max(1000,10000-(Date.now()-this.diagnosticUploadAt)));
+ }
+ async flushDiagnosticUpload(){
+  clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;
+  if(this.closed||!this.diagnosticScope||this.diagnosticUploadStopped||this.diagnosticUploadController||Date.now()-this.diagnosticUploadAt<10000)return false;
+  const scope=this.diagnosticScope,epoch=this.diagnosticUploadEpoch,now=Date.now();
+  if(!this.diagnosticUploadBatch){
+   const batchId=this.crypto?.randomUUID?.();if(typeof batchId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(batchId))return false;
+   const records=[],seqs=[],[roomId,bootId]=JSON.parse(scope),uiBuild=typeof this.diagnosticBuild==='string'&&/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(this.diagnosticBuild)?this.diagnosticBuild:null;
+   const body={schema:'podview.client-diagnostics.v1',batchId,roomId,bootId,uiBuild,records};
+   for(const entry of this.diagnosticRows){
+    if(entry.restored||this.diagnosticScopes.get(entry)!==scope||this.diagnosticUploadAcked.has(entry.seq))continue;
+    const ageMs=now-entry.atMs;if(!Number.isSafeInteger(ageMs)||ageMs<0||ageMs>604800000)continue;
+    const row={...diagnosticRow(entry),ageMs};delete row.atMs;delete row.restored;
+    records.push(row);if(new TextEncoder().encode(JSON.stringify(body)).length>8192){records.pop();break;}seqs.push(entry.seq);if(records.length===16)break;
+   }
+   if(!records.length)return false;
+   this.diagnosticUploadBatch={batchId,body:JSON.stringify(body),seqs,scope,createdAt:now};
+  }
+  const batch=this.diagnosticUploadBatch;if(batch.scope!==scope)return false;
+  if(now-batch.createdAt>60000){this.diagnosticUploadStopped=true;return false;}
+  const controller=new AbortController();this.diagnosticUploadController=controller;this.diagnosticUploadAt=now;
+  try{
+   const url=new URL('client-diagnostics',this.base);url.searchParams.set('room',this.snapshot.roomId);
+   const {response,ack}=await requestWithin(async(target,options)=>{const response=await this.fetch(target,options);if(response.status!==200)return {response,ack:null};let abort;try{const ack=await Promise.race([response.json(),new Promise((resolve,reject)=>{abort=()=>reject(options.signal.reason||new DOMException('Aborted','AbortError'));if(options.signal.aborted)abort();else options.signal.addEventListener('abort',abort,{once:true});})]);return {response,ack};}finally{if(abort)options.signal.removeEventListener('abort',abort);}},url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:batch.body},controller.signal,4000);
+   if(this.closed||epoch!==this.diagnosticUploadEpoch||scope!==this.diagnosticScope)return false;
+   if([400,403,409,413].includes(response.status)){this.diagnosticUploadStopped=true;return false;}
+   if(response.status!==200)return false;
+   if(this.closed||epoch!==this.diagnosticUploadEpoch||scope!==this.diagnosticScope)return false;
+   if(!ack||Object.keys(ack).sort().join(',')!=='acceptedCount,batchId,duplicate,ok,schema,stored'||ack.schema!=='podview.client-diagnostics-ack.v1'||ack.ok!==true||ack.stored!==true||typeof ack.duplicate!=='boolean'||ack.batchId!==batch.batchId||ack.acceptedCount!==batch.seqs.length)return false;
+   for(const seq of batch.seqs)this.diagnosticUploadAcked.add(seq);
+   const live=new Set(this.diagnosticRows.map(row=>row.seq));for(const seq of this.diagnosticUploadAcked)if(!live.has(seq))this.diagnosticUploadAcked.delete(seq);
+   this.diagnosticUploadBatch=null;return true;
+  }catch{return false;}finally{if(this.diagnosticUploadController===controller){this.diagnosticUploadController=null;if(!this.closed&&epoch===this.diagnosticUploadEpoch)this.scheduleDiagnosticUpload();}}
  }
  // A public intent hint can request validation only. The HttpOnly cookie,
  // registry/pin and server response remain the sole profile authority.
@@ -90,15 +169,15 @@ export class PodVoiceTransport {
    this.controllerRenewRetryAt=null;this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;this.coordinatorName=null;
    if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
   }
-  this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;
+  this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;this.syncDiagnosticScope(value);
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
-  clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed)this.disconnected();},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
+  clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed){this.recordDiagnostic('freshness',{code:'expiry'});this.disconnected();}},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
   const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
  // Presentation observers may report their own error; they cannot turn a valid
  // server read into a transport failure or prevent the next heartbeat.
- notify(name,...args){try{this[name](...args);}catch(error){try{if(typeof globalThis.reportError==='function')globalThis.reportError(error);else console.error('PodView presentation observer:',error);}catch{/* Reporting must not revoke the accepted read. */}}}
+ notify(name,...args){try{this[name](...args);}catch(error){this.recordDiagnostic('observer',{code:'error'});try{if(typeof globalThis.reportError==='function')globalThis.reportError(error);else console.error('PodView presentation observer:',error);}catch{/* Reporting must not revoke the accepted read. */}}}
  async start() {this.controllerRenewalDenied=false;if(this.screenEnrollment)this.namedRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
  scheduleRecovery(){
   if(this.closed||this.recoveryBlocked||this.recoveryTimer)return;
@@ -172,14 +251,28 @@ export class PodVoiceTransport {
    this.stream = new this.EventSource(this.endpoint('events'), {withCredentials:false});
    this.stream.addEventListener('snapshot', event => {
     if (generation !== this.generation) return;
-    try { if (!this.accept(JSON.parse(event.data))) this.disconnected(); } catch { this.disconnected(); }
+    try { if (!this.accept(JSON.parse(event.data))){this.recordDiagnostic('sse',{code:'invalid_dto'});this.disconnected();} } catch { this.recordDiagnostic('sse',{code:'invalid_json'});this.disconnected(); }
    });
-   this.stream.onerror = () => { if (generation === this.generation) this.disconnected(); };
+   this.stream.onerror = () => { if (generation === this.generation){this.recordDiagnostic('sse',{code:'error'});this.disconnected();} };
    if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
- disconnected() { this.connected = false; this.notify('onConnection','disconnected');this.scheduleRecovery(); }
- async request(url,options,ms,signal=this.controller?.signal){const generation=this.generation,read=!options?.method||options.method==='GET';const result=await requestWithin(async(target,init)=>{const response=await this.fetch(target,init);let body;try{body=await response.json();}catch(error){if([401,403].includes(response.status))body={error:"transport_access_denied"};else{if(read&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}}return {ok:response.ok,status:response.status,json:async()=>body};},url,options,signal,ms);if(read&&(this.closed||generation!==this.generation))throw new DOMException('Read owner changed','AbortError');return result;}
+ disconnected() { this.recordDiagnostic('connection',{code:'disconnected'});this.connected = false; this.notify('onConnection','disconnected');this.scheduleRecovery(); }
+ async request(url,options,ms,signal=this.controller?.signal,diagnosticRequestId){
+  const generation=this.generation,read=!options?.method||options.method==='GET',started=Date.now(),localRequestSeq=++this.diagnosticRequestSequence;let endpoint='other',kind='other',requestId=diagnosticRequestId,httpStatus,code;
+  try{const target=new URL(url,this.base),path=target.origin===this.base.origin&&target.pathname.startsWith(this.base.pathname)?target.pathname.slice(this.base.pathname.length):'other';if(diagnosticEndpoints.has(path))endpoint=path;const candidate=target.searchParams.get('kind');if(diagnosticKinds.has(candidate))kind=candidate;
+  }catch{/* No URL, arguments or payload is ever included in diagnostics. */}
+  this.recordDiagnostic('request',{code:'start',endpoint,kind,localRequestSeq,requestId});
+  try{
+   const result=await requestWithin(async(target,init)=>{const response=await this.fetch(target,init);httpStatus=response.status;let body;try{body=await response.json();}catch(error){code='invalid_json';if([401,403].includes(response.status))body={error:'transport_access_denied'};else{if(read&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}}
+    code=[401,403].includes(response.status)?'http_denied':[408,429].includes(response.status)||response.status>=500&&response.status<=599?'http_transient':!response.ok?'http_error':'ok';
+    return {ok:response.ok,status:response.status,json:async()=>body};
+   },url,options,signal,ms);
+   if(read&&(this.closed||generation!==this.generation)){code='superseded';throw new DOMException('Read owner changed','AbortError');}return result;
+  }catch(error){if(!code)code=error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?(signal?.aborted?'cancelled':'timeout'):error instanceof TypeError?'network':'failure';throw error;}
+  finally{this.recordDiagnostic('request',{code:code||'failure',endpoint,kind,localRequestSeq,requestId,httpStatus,durationMs:Math.min(120000,Math.max(0,Date.now()-started)),current:generation===this.generation});}
+ }
+
  async home({lightArea}={}){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   if(lightArea!==undefined&&(!this.snapshot.capabilities.homeRead.includes('light')||typeof lightArea!=='string'||!lightArea||lightArea.length>128||/[\u0000-\u001f\u007f]/u.test(lightArea)))throw new Error('light_area_unavailable');
@@ -199,7 +292,7 @@ export class PodVoiceTransport {
   const unknown=requestId=>({ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false});
   if(!this.connected||this.snapshot.bootId!==task.bootId||this.snapshot.roomId!==task.roomId||!this.snapshot.capabilities.controlSetup?.includes(task.domain))return {ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};
   const requestId=crypto.randomUUID(),url=new URL('control/actions',this.base);
-  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId,args})});const body=await response.json();
+  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId,args})},undefined,undefined,requestId);const body=await response.json();
    if(!response.ok||!body||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown(requestId);
    return {ok:body.ok,requestId,outcome:body.outcome,retryAllowed:false,physicalResultVerified:false};
   }catch{return unknown(requestId);}
@@ -214,7 +307,7 @@ export class PodVoiceTransport {
   return body;
  }
  async queueOffer(accountId,targetId,expectedBindingId){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||accountId.length>128||typeof targetId!=='string'||!targetId||targetId.length>1024||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId))throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId})},16000);const body=await response.json();if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId)throw Error('queue_offer_unavailable');return body;}
- async queueAction(task,optionId){const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false},s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId||!task.items?.some(row=>row.id===optionId))return rejected;const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};try{const response=await this.request(new URL('music/queue/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId})});const body=await response.json();if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;return body;}catch{return unknown;}}
+ async queueAction(task,optionId){const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false},s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId||!task.items?.some(row=>row.id===optionId))return rejected;const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};try{const response=await this.request(new URL('music/queue/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId})},undefined,undefined,requestId);const body=await response.json();if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;return body;}catch{return unknown;}}
  async musicSelectionSetup(candidateSetId,target,candidateIds){
   const s=this.snapshot;
   if(!this.connected||s?.capabilities.musicSelection!==true||!/^[a-f0-9]{64}$/.test(candidateSetId)||target?.kind!=='spotify_device'||typeof target.accountId!=='string'||!target.accountId||typeof target.targetId!=='string'||!target.targetId)throw new Error('selection_unavailable');
@@ -228,7 +321,7 @@ export class PodVoiceTransport {
   const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};
   if(!this.connected||this.snapshot?.capabilities.musicSelection!==true||this.snapshot.bootId!==offer?.bootId||this.snapshot.roomId!==offer?.roomId||Date.now()>=offer?.expiresAt||!offer.options?.some(option=>option.id===optionId))return rejected;
   const requestId=crypto.randomUUID(),url=new URL('music/selection/actions',this.base);
-  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,revision:offer.revision,requestId,optionId,confirmedVolumePercent:offer.startVolumePercent})});const body=await response.json();
+  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,revision:offer.revision,requestId,optionId,confirmedVolumePercent:offer.startVolumePercent})},undefined,undefined,requestId);const body=await response.json();
    if(!response.ok||body?.requestId!==requestId||!['accepted','rejected','unknown'].includes(body.outcome)||body.retryAllowed!==false||body.physicalResultVerified!==false||body.ok!==(body.outcome==='accepted'))return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};
    return body;
   }catch{return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};}
@@ -273,7 +366,7 @@ export class PodVoiceTransport {
   const body = {bootId:snapshot.bootId,roomId:snapshot.roomId,taskId:`timers:${snapshot.timers.epoch}`,revision:snapshot.revision,requestId,action,args};
   // Exactly one send. A transport failure is UNKNOWN, never permission to resend.
   try {
-   const response = await this.request(this.endpoint('actions'), {method:'POST',credentials:'same-origin',cache:'no-store',signal:this.controller.signal,headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify(body)});
+   const response = await this.request(this.endpoint('actions'), {method:'POST',credentials:'same-origin',cache:'no-store',signal:this.controller.signal,headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify(body)},undefined,undefined,requestId);
    const result=await response.json();
    if(response.status===409&&result?.ok===false&&result.retryAllowed===false&&Object.keys(result).every(key=>['ok','error','retryAllowed'].includes(key))&&['invalid_action','control_not_paired','invalid_request','timer_unavailable','stale_action','unsupported_action','request_capacity'].includes(result.error))return {...result,requestId,outcome:'rejected'};
    if((!response.ok&&response.status!==409)||(response.status===409&&result?.ok!==false)||result?.requestId!==requestId||typeof result.ok!=='boolean'||!['accepted','unknown','rejected'].includes(result.outcome)||result.ok!==(result.outcome==='accepted')||result.retryAllowed!==false||action==='timer.start'&&result.ok&&(typeof result.timerId!=='string'||result.timerId.length<1||result.timerId.length>200))return {ok:false,requestId,outcome:'unknown',retryAllowed:false};
@@ -281,6 +374,7 @@ export class PodVoiceTransport {
   } catch { return {ok:false,requestId,outcome:'unknown',retryAllowed:false}; }
  }
  close(disposeCoordinator=true) {
+  this.stopDiagnosticUpload();this.recordDiagnostic('lifecycle',{code:'cleanup'});clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;if(disposeCoordinator)this.flushDiagnostics();
   if(disposeCoordinator){this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;const channel=this.peerChannel;this.peerChannel=null;if(channel){channel.onmessage=null;if(!this.renewHttpPending)channel.close();}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;}
   clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;
   clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;this.namedControllerRenewed=false;

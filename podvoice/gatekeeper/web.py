@@ -396,6 +396,7 @@ def create_app(
     podview_controller_pairing_seconds: int = 600,
     podview_controller_generation: str = "",
     podview_controller_store: Path | None = None,
+    podview_client_diagnostics_store: Path | None = None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -423,6 +424,7 @@ def create_app(
         controller_pairing_seconds=podview_controller_pairing_seconds,
         controller_generation=podview_controller_generation,
         controller_store=podview_controller_store,
+        client_diagnostics_store=podview_client_diagnostics_store,
     )
     app[HUB] = hub
     app[SESSIONS] = sessions

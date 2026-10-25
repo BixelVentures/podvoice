@@ -84,6 +84,6 @@ test('accepted queue choice with unchanged source still refreshes and obtains on
  const f=fixture();try{
   let refreshes=0;f.host.liveTransport.queueAction=async()=>({outcome:'accepted'});f.host.liveMedia.refresh=async()=>{refreshes++;};
   await f.view.load('account',f.host.liveMedia.playback);const first=f.view.offer;await f.view.choose(first.items[0]);
-  assert.equal(refreshes,1);assert.equal(f.reads.length,2);assert.notEqual(f.view.offer.taskId,first.taskId);assert.equal(f.view.status,'ready');assert.equal(f.view.pending,false);
+  assert.equal(refreshes,1);assert.equal(f.reads.length,3,'initial read + fresh JIT command offer + post-accepted read');assert.notEqual(f.view.offer.taskId,first.taskId);assert.equal(f.view.status,'ready');assert.equal(f.view.pending,false);
  }finally{f.close();}
 });
