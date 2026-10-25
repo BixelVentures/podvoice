@@ -1476,6 +1476,16 @@ class PodViewBridge:
             current=selected_current,
             fresh_controls=fresh_controls,
             send_once=send_selected,
+            receipt_owner=(
+                self.controls,
+                self.controls.music,
+                self.controls.policy,
+                json.dumps(self.controls.policy, sort_keys=True),
+                self.tools,
+                lambda: (podview_room_media.binding(self, room, task["account"]) or {}).get(
+                    "bindingId"
+                ),
+            ),
         )
         return {"ok": result["ok"], "data": result}
 
@@ -3500,6 +3510,16 @@ async def _music_selection(request: web.Request) -> web.Response:
         current=action_current,
         fresh_controls=fresh_controls,
         send_once=send_selected,
+        receipt_owner=(
+            bridge.controls,
+            bridge.controls.music,
+            bridge.controls.policy,
+            json.dumps(bridge.controls.policy, sort_keys=True),
+            bridge.tools,
+            lambda: (podview_room_media.binding(bridge, room, task["account"]) or {}).get(
+                "bindingId"
+            ),
+        ),
     )
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 

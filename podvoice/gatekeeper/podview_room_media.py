@@ -487,13 +487,39 @@ async def read_playback(
     )
     granted_before = bool(grant is not None and bridge._grant_current(room, token))
     controls_owner = bridge.controls
+    selection_owner = bridge.music_selection
     receipt_key = (room, token, receipt_request_id)
     retained_receipt = (
         controls_owner.receipts.get(receipt_key) if receipt_request_id is not None else None
     )
-    settlement_identity = (
+    selected_receipts = (
+        [
+            (key, entry)
+            for key, entry in selection_owner.receipts.items()
+            if key[1] == receipt_request_id
+        ]
+        if receipt_request_id is not None
+        else []
+    )
+    selected_retained = selected_receipts[0] if len(selected_receipts) == 1 else None
+    touch_identity = (
         controls_owner.settlement_identity(room, token, receipt_request_id, account)
         if include_controls and granted_before and receipt_request_id is not None
+        else None
+    )
+    selected_identity = (
+        selection_owner.settlement_identity(bridge, room, token, receipt_request_id, account)
+        if include_controls
+        and granted_before
+        and receipt_request_id is not None
+        and selected_retained is not None
+        else None
+    )
+    settlement_identity = (
+        touch_identity
+        if touch_identity is not None and selected_identity is None
+        else selected_identity
+        if selected_identity is not None and touch_identity is None
         else None
     )
     resolved = await (
@@ -560,9 +586,39 @@ async def read_playback(
             if (
                 settlement_identity is not None
                 and bridge.controls is controls_owner
-                and controls_owner.receipts.get(receipt_key) is retained_receipt
-                and controls_owner.settlement_identity(room, token, receipt_request_id, account)
-                == settlement_identity
+                and bridge.music_selection is selection_owner
+                and (
+                    (
+                        touch_identity is not None
+                        and selected_identity is None
+                        and controls_owner.receipts.get(receipt_key) is retained_receipt
+                        and controls_owner.settlement_identity(
+                            room, token, receipt_request_id, account
+                        )
+                        == settlement_identity
+                        and selection_owner.settlement_identity(
+                            bridge, room, token, receipt_request_id, account
+                        )
+                        is None
+                    )
+                    or (
+                        selected_identity is not None
+                        and touch_identity is None
+                        and controls_owner.settlement_identity(
+                            room, token, receipt_request_id, account
+                        )
+                        is None
+                        and selection_owner.settlement_identity(
+                            bridge, room, token, receipt_request_id, account
+                        )
+                        == settlement_identity
+                        and selected_retained is not None
+                        and selection_owner.receipts.get(selected_retained[0])
+                        is selected_retained[1]
+                        and (binding(bridge, room, account) or {}).get("bindingId")
+                        == resolved["binding"]["bindingId"]
+                    )
+                )
                 and isinstance(resolved["settlement"], dict)
                 and all(
                     resolved["settlement"].get(key) == settlement_identity[key]

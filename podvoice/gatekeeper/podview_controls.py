@@ -6,6 +6,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import re
 import secrets
 import time
 
@@ -383,6 +384,33 @@ class TouchControls:
         """Original music owners after a send; never an effect-admission guard."""
         return task["domain"] == "music" and self._current(task, token, _receipt_only=True)
 
+    def _confirmed_move_receipt_current(self, task: dict, token: str, binding_id: str) -> bool:
+        """A confirmed MOVE belongs to its new room binding, not the old read closure."""
+        from .podview_room_media import binding
+
+        room = task["room"]
+        account = task["target"]["accountId"]
+        actual = binding(self.bridge, room, account)
+        return bool(
+            task["domain"] == "music"
+            and secrets.compare_digest(task["token"], token)
+            and self.tasks.get(task["id"]) is task
+            and self.bridge._grant_current(room, token)
+            and self.bridge._grant_for_token(room, token) is task["move_grant"]
+            and self.policy is task["move_policy"]
+            and self.music.tools is self.bridge.tools
+            and self.move.available
+            and self.move.binding() == task["move_binding"]
+            and task["binding"] == self._binding(room, "music")
+            and any(rule is task["rule"] for rule in self.policy["music"])
+            and self._move_rule_identity(task["rule"]) == task["move_rule_identity"]
+            and bool(task["move_revision"])
+            and self._move_revision(room) == task["move_revision"]
+            and actual is not None
+            and (actual["targetId"], actual["bindingId"]) == task.get("move_source_scope")
+            and actual["bindingId"] == binding_id
+        )
+
     def _light_current(self, task: dict, token: str) -> bool:
         try:
             return bool(
@@ -491,8 +519,12 @@ class TouchControls:
             or self.policy is not retained["policy"]
             or self.music is not retained["music"]
             or self.bridge._grant_for_token(room, token) is not retained["grant"]
-            or not self._receipt_current(task, token)
-            or task["actual_binding"]["bindingId"] != retained["binding_id"]
+            or not (
+                self._confirmed_move_receipt_current(task, token, retained["binding_id"])
+                if retained.get("move_confirmed") is True
+                else self._receipt_current(task, token)
+                and task["actual_binding"]["bindingId"] == retained["binding_id"]
+            )
             or self.receipts.get((room, token, request_id)) is not entry
         ):
             return None
@@ -1608,11 +1640,31 @@ class TouchControls:
                 }
                 if (
                     task["domain"] == "music"
-                    and option["action"] in {"pause", "resume", "next", "previous", "volume"}
+                    and option["action"]
+                    in {"pause", "resume", "next", "previous", "volume", "move_existing_session"}
                     and receipt["outcome"] == "accepted"
                     and result.get("schema") == "podconnect.command.v1"
                     and result.get("config_entry_id") == task["target"]["accountId"]
                     and result.get("action") == option["action"]
+                    and (not moving or task.get("move_source_scope") is not None)
+                    and (
+                        not moving
+                        or (
+                            result.get("target")
+                            == {
+                                "kind": "spotify_device",
+                                "target_id": task["target"]["targetId"],
+                            }
+                            and (result.get("room_id"), result.get("homepod_id"))
+                            == (
+                                task["move_destination"]["nativeRoomId"],
+                                task["move_destination"]["homepodId"],
+                            )
+                            and isinstance(result.get("move_operation_id"), str)
+                            and re.fullmatch(r"[a-f0-9]{32}", result["move_operation_id"])
+                            is not None
+                        )
+                    )
                     and isinstance(result.get("owner_epoch"), str)
                     and type(result.get("command_sequence")) is int
                     and isinstance(result.get("request_id"), str)
@@ -1628,7 +1680,12 @@ class TouchControls:
                             "policy": self.policy,
                             "music": self.music,
                             "grant": self.bridge._grant_for_token(task["room"], token),
-                            "binding_id": task["actual_binding"]["bindingId"],
+                            "binding_id": (
+                                task["move_source_scope"][1]
+                                if moving
+                                else task["actual_binding"]["bindingId"]
+                            ),
+                            "move_confirmed": moving,
                             "identity": {
                                 "request_id": result["request_id"],
                                 "command_sequence": result["command_sequence"],

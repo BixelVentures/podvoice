@@ -1,3 +1,204 @@
+### Reviewed PC integration checkpoint backed up publicly
+
+GitHub plugin created24file current reviewed source increment from prior040ef315;
+root independently reconstructed exact tree0afef44ca935b4dc4b5f9465c934f291dc83bdef
+using captured bytes and temporary index before commit. Ref lease/readback verified
+f4d2154598aa5d79430b86e848f97e475106e3b6 on codex/pc54-control24-single-owner.
+Includes current-writer START/MOVE settlement, idle selection, final Native/C same-
+slot payloads, actual CI/Docker test-prefix correction and planned54/24 metadata.
+No .pyc/private artifacts/raw credentials/log capture exported. Work checkpoint only:
+no PR/officialCI/merge/publication/Green installation/OTA/physical acceptance.
+
+### Exact Native packaging updated for reviewed idle preference
+
+Root independently replayed new existing Native parity production7bb386d9 and tests
+1053455d against226file actual Docker prefix; result matches exact228 final files
+(164production64tests/assets), including only approved alias delta878030ed/6cccb898.
+Adopted same2 payload slots and checksum-only replacement247ff092. All41 mapped
+container-path hashes pass; initial host shasum incorrectly treated /patches as a
+host path, corrected read-only mapping without payload or runtime changes. C payloads
+4c8fa480/5f97b267 and CI/Docker application order remain byte-identical. Root receipt
+/private/tmp/pc54-idle-preference-root-integration-20261026.json. No broad rerun,
+official CI, release, Green installation, OTA or physical acceptance occurred.
+
+### Idle preference source correction integrated after independent GO
+
+Independent74 reviewed exact e8ea3447 two-file correction and228input membership;
+226 remain unchanged. Root verified before/final pins and hunk-applied to Native-final.
+Local idle POST alone omits C absence; strict GET retains exact C predicate. Actual
+worker read, Native source/session/custody/writer checks and postread ctx/capture
+check remain unchanged. C409/503 actor test is causal RED->GREEN,14focused groups
+race1.074s/vet/format retained. HTTP POST cancellation tested at queued dispatch,
+strictGET held-C stale/cancel retained; held actual-worker-await POST cancellation
+injection is NOT newly proved. Manager bound event suppresses route/cap/transport.
+No claimed C effect, provider transfer, physical result or installation. Updated
+same-slot Native packaging remains required; C payloads stay exact unchanged.
+
+### Fresh passive Green read — 26 October before activation
+
+Existing authenticated status page reloaded read-only: observed_at1792970782.9973152,
+PV2.0.89 git5a9bb2b2da735399a1069f529ca4ace572779efb and rootfs
+c931cd3eea8132361f4aa4510d952df62f711a0c1e404bc05b12f8f74b7b68b2.
+Roomr0 connected=true, IDLE, no session, not ducked, wake recovered; session/tool/
+attention counters0. MCP and PodConnect up. OpenAI/Voice PE service labels remain
+degraded awaiting actual Live/wake verification; this does not prove a current
+provider fault or physical microphone/LED function. No timer/music/job state was
+read from this status response, so maintenance quiet-window is NOT established.
+No credentials, household effect, restart or installation performed.
+
+### 26 October current increment — START/MOVE integrated; idle preference correction
+
+Root verified exact five-path canonical START/MOVE patch c3f924ad, applied only to
+its exact first-settlement base, and verified all203 runtime hashes plus asset manifest
+2fe94eb4. Existing2752 UI tests,63 component gate and scoped source/visual review
+are retained for those identical bytes; no repeated broad local suite. Old8s client
+matcher is removed; idle refresh uses existing1s cadence only within original expiry.
+No optimistic playing, source authority, replay or TTL extension. F04 presentation
+snap-back is causal and remains owned by PodView in a separate minimal increment.
+
+Lead decision: Native idle preference POST is over-constrained by C absence although
+it changes local selected alias only. Observed source counterexample: C cold known-
+retired state correctly denies strict physical absence, but configured HA alias
+selection cannot choose the next room before Play. Chain: HA targets configured
+alias -> Native actor capture -> local preference event -> manager valid AliasBinding
+suppresses route/volume/transport effects. Invariants: no active Native/session/
+worker/custody takeover, no inferred C route, no automatic Play; external transfer
+keeps strict C absence GET and final post-provider-await guard. Hypothesis: omitting
+only physical C read for pure local POST fixes this case without physical effects.
+Owner native_idle implements isolated minimal correction and regression with C
+unavailable, active/stale/reordered Native events, unchanged strict GET; independent
+review required. Non-goals: C admission/START/MOVE/transfer relaxation or new stores.
+Rollback boundary: retain current strict POST if any actor/custody fence or bound
+manager no-side-effect path fails. Packaging must be refreshed for reviewed bytes.
+No release, installation, OTA, provider or physical acceptance implied.
+
+## Current91 integration snapshot — 26 October, quiet night work
+
+Lead/release owner root. User explicitly includes puck OTA tonight; real household
+audio/music/volume/alarm/robot tests remain forbidden. No add-on/HA/puck installation,
+restart or provider call has occurred in this phase. Last verified Green89/53/23 is
+not a new current read; reread before any activation. Private LIVE115 OTA is compiled
+SHA78297a99e694aca6552758aa195e345934c0edc1e3cacb88dbcedb3e5af29e8a;
+activate only with compatible PV91/component1.7. Never publish that credential-bearing
+artifact. Source versions are now planned91/54/24; main remains90/53/23.
+
+Integrated PV: reviewed close/idle/diagnostics/read coalescing/visual archive/timer/
+robot backend; exact canonical203asset UI plus reviewed six-file transport/volume
+settlement increment; strict AUDIO/volume +selected START/MOVE receipt projection,
+including HA4tuple cleanup correction. PodView owns the final three-file START/MOVE
+caller transition and bounded F04 slider hypothesis; no parallel UI author.
+Integrated PC: generic Native control/seek/options/content episode+ordered library,
+PC70 cleanup/CAS/MOVE/PCM preservation, exact current START/MOVE writer settlement,
+SelectSource loaded MOVE +strict idle/local preference/external guard, strict C idle
+fact. Actual offline durable-release -> strict9keyJSON -> idleGET/preference has
+independent GO with both Native0/C0 and final C retired/closed/drained oracle, not just
+fixture/done200. Root native-final/c-final are exact reviewed integrated source.
+Final unified existing four Docker suffix slots were independently replayed:228Native
+files and565C files/membership exact; hashes b115ec6d/e4a64026/4c8fa480/5f97b267.
+No extra patch chains. Clean actual Docker/CI order matches41Native/30C patches;
+five old CI-only fixture dependencies are folded into existing C release-tests,
+coverage/commands/cache/artifacts retained. Root final packaging receiptf9ae5b66,
+independent mechanical proof2cfa64d4. No full official CI yet.
+
+Admission91 strict scaffold and bound-phase test adaptation are integrated, but its
+final inventory/manifest/AST/reviewer bindings remain BLANK/provisional. No admission
+GO, candidate freeze, PR, release, Green activation or physical acceptance claimed.
+Public work checkpoints: PV237c1576066a34ebc8992650004adc99c99da53d and
+PC040ef3156447a7c1bf0ae05f66fa1dd08070f83b; later reviewed private integration increments
+still need next source checkpoint after final canonical UI source.
+
+Remaining concrete work: final canonical START/MOVE UI/DTO integration and actual
+slider hypothesis if causal; bounded cold-restart PC70->freshSTART source audit;
+final source inventories/admission/bindings, one official CI per repo, compatible
+publisher/backup/install/OTA/readback. PC13 successful first+two linked200pages protocol
+and actual5/5provider gates are still OPEN: two explicit async approvals are pending
+for private Spotify stored-login read-only6call/45s capture and practical bounded
+five-case GPT-Live spending (the provider cannot enforce the plan's absolute$5 cap).
+No affirmative replies yet; no credentials read/transmitted, paid calls, station
+protocol success or waived gate inferred. Independent software work continues.
+
+### Candidate metadata and source admission prepared, all approval gates still closed
+
+Root independently reviewed five version-only metadata lines against weather owner's
+exact packet: PV pyproject/config/__version__91, Speakers54, Control24. Applied only
+those patches; component1.7/LIVE115 untouched, seven existing metadata checks retained.
+Admission scaffold9da7 received independent74 GO and was hunk-applied7paths. Root
+independently reviewed distinct phasefix43dbd270: only docstring1.7, the changed test
+hash and tests supporting BOTH all-blank rejection and fully bound exact manifest/AST/
+record/strict CLI success; partial bindings still fail closed. Applied3paths, retained
+four targeted checks/static result. Final source inventory and approval bindings remain
+provisional/blank. No exact-tree approval, official CI, publication or install claim.
+Canonical settlement UI6-file patchcd3c3e47 is integrated with203/203 exact runtime
+pins and assetmanifestedb769; separate source START/MOVE consumerabc1d579 is integrated
+5/5 exact final pins and independently reviewed. Actual canonical START/MOVE caller
+extension is still owned by PodView and pending its new frozen packet, not silently
+part of the current installed or frozen UI.
+
+### Candidate91 release metadata/admission preparation — not approval
+
+Fresh GitHub plugin main readback stillPV65fe801a8bb587ba42518ce4dbb04ee39b59fd76
+and PC917b2e092c0ebe40c1fa987bc781188dc9b34692. Planned91/54/24 identifiers remain
+unused on main. Isolated metadata owner prepares only required package versions;
+component1.7 and compiled LIVE115 pins stay unchanged. Lead authorizes admission34
+to prepare the incumbent strict admission91 cycle (profile counter68, exact90base,
+UI203 and actual final diff), with reviewer/manifest/AST bindings BLANK until final
+independent source review. Existing strict90 mechanics and preserved policy/execution
+boundaries remain; no generic allowlist or gate bypass. Add existing dev_cycle/CI
+routing plus focused metadata test; adapt only obsolete mutable-ROOT historical90
+fixture using the incumbent snapshot wrapper. No new test platform, broad reruns,
+provider or installation. Final source inventory is still mutable, so preparation
+must not claim exact-tree/freeze/release approval or invent final manifest hashes.
+
+### Source work checkpoints and integrated current-writer consumer paths
+
+Reviewed PV10-file consumer/peer/HA-retention checkpoint is pushed and ref-readback
+verified as237c1576066a34ebc8992650004adc99c99da53d, tree16754a6cc76c3aa312ceed7388943941c9ea4e10,
+parent4706b1. Reviewed PC34-file increment is pushed/readback verified as040ef3156447a7c1bf0ae05f66fa1dd08070f83b,
+tree586e9ac2dfcb5dfd99d0d0f7a41daa8c95d89a5a, parent5f91f7. PC tree was independently
+reconstructed from captured bytes in a temporary index before ref update. Initial
+create_tree response parsing failed after mutation; root did not repeat it, derived
+the exact tree and read it back before creating a commit. Both are work branches,
+not PR/CI/release/install or physical acceptance.
+Later reviewed START/MOVE producer26b51f4f was integrated with12/12 exact before/final
+pins: Control shared, Native in fresh /private/tmp/pc54-native-final-20261025. Reviewed
+SelectSource repo4647ba8c/Native7f7e4a36 then hunk-applied cleanly on those sources.
+Narrow combined real Native completed-writer+idle-alias race regression PASS1.074s;
+no new harness or household call. Actual C known-retired strict-idle composition still
+pending; source consumer GO alone does not establish that adapter result. The shared
+Docker overlays have not yet absorbed these later Native increments; candidate is
+therefore NOT frozen/test-ready/released from the earlier source checkpoint.
+
+Strict-idle logical correction before freeze: a known completed PC70 retirement with
+closed autostart gate, no sessions/writers and fully drained contexts is quiet absence,
+although the existing START-specific clean helper denies a closed gate. Reusing that
+START predicate would permanently block post-release external selection. Lead requires
+an independent readonly absence proof from existing terminal retirement/custody state,
+without weakening START admission or reopening the gate. Unknown/unresolved retirement
+still denies. The opt-in clean_absent fact is not START permission; ready must remain
+truthful/separate if gate closed. Native idle consumer must not reinterpret this as
+committed route or auto-START. Required causal chain completed release -> actual idle
+proof with unchanged closed gate, versus unknown-closed -> denied, plus unchanged
+normal START behavior. If the existing owners cannot establish that distinction, this
+path remains explicitly unproven and cannot receive a successful source claim.
+
+### Selected START/MOVE PV settlement consumer extension
+
+The reviewed common consumer intentionally retained only AUDIO4/volume. Root now
+authorizes the same source-owned wire for terminal accepted selected START and MOVE,
+using their EXISTING receipt stores, not a new command/status store. MOVE identity
+may be retained only after confirm_move_destination and exact newly confirmed binding;
+post-move receipt reads join that destination plus original grant/policy/tools/session/
+receipt, without relaxing pre-send currentness or reviving the old binding. Selected
+START retains private Control identity alongside its existing broker receipt, task,
+source and authority. Playback read resolves exactly one matching current receipt
+from existing stores; foreign/conflicting/stale/unknown remains null/unknown and cannot
+retry. Control/Native START/MOVE producer review is still pending; no assumed completion.
+The public v3 settlement wire remains unchanged and never exposes prepare/operation
+IDs. Causal actual result->existing receipt->playback read->strict DTO, duplicate one
+send, unknown/no confirmed owner, source/room/token/grant/policy/session replacement,
+new Y and post-MOVE binding are required. Isolated admission34 owner, independent
+review before root integration, no household/provider effects or canonical UI edits.
+
 ### SelectSource strict idle proof correction before freeze
 
 Source counterexample disproves using default C start/state ready as clean absence:

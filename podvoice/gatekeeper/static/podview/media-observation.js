@@ -49,9 +49,9 @@ function roomPlaybackV2(body,account,snapshot,previous){
  if(body.status!=='observed'||body.reason!==null||!actualBinding(body.binding,result)||body.binding.validUntil*1000<=Date.now())throw Error('invalid_actual_output');
  return {...result,roomBound:true,readOnly:false,roomBinding:{...body.binding}};
 }
-// v3 adds readonly facts and caller policy, never an executable offer or receipt.
-function roomPlaybackV3(body,account,snapshot,previous){
- if(!exact(body,['ok','schema','bootId','roomId','configEntryId','status','reason','binding','data','controls','permissions']))throw Error('invalid_room_playback_v3');
+// v3 adds readonly facts/policy and optional correlated outcome, never an executable offer.
+function roomPlaybackV3(body,account,snapshot,previous,receiptRequestId){
+ if(!exact(body,['ok','schema','bootId','roomId','configEntryId','status','reason','binding','data','controls','permissions',...(receiptRequestId===null?[]:['settlement'])]))throw Error('invalid_room_playback_v3');
  const result=roomPlaybackV2({ok:body.ok,schema:'podview.room-playback.v2',bootId:body.bootId,roomId:body.roomId,configEntryId:body.configEntryId,status:body.status,reason:body.reason,binding:body.binding,data:body.data},account,snapshot,previous),controls=body.controls,permissions=body.permissions;
  const actions=value=>Array.isArray(value)&&value.length<=5&&new Set(value).size===value.length&&value.every(action=>['pause','resume','next','previous','volume'].includes(action));
  if(!exact(controls,['status','reason','binding_id','valid_until','supported_actions','volume'])||!exact(permissions,['actions','maxVolume'])||!actions(controls.supported_actions)||!actions(permissions.actions)||controls.supported_actions.length!==permissions.actions.length||controls.supported_actions.some((action,index)=>action!==permissions.actions[index]))throw Error('invalid_readonly_controls');
@@ -65,7 +65,16 @@ function roomPlaybackV3(body,account,snapshot,previous){
   }else if(controls.reason!==null||!exact(controls.volume,['base_percent','effective_percent'])||Object.values(controls.volume).some(value=>!Number.isInteger(value)||value<0||value>100))throw Error('invalid_readonly_volume');
   if(controls.supported_actions.includes('volume')? !Number.isInteger(permissions.maxVolume)||permissions.maxVolume<0||permissions.maxVolume>100:permissions.maxVolume!==null)throw Error('invalid_readonly_permissions');
  }else throw Error('invalid_readonly_controls');
- return {...result,projectionVersion:3,controls:{...controls,supported_actions:[...controls.supported_actions],volume:controls.volume?{...controls.volume}:null},permissions:{actions:[...permissions.actions],maxVolume:permissions.maxVolume}};
+ let settlement=null;
+ if(receiptRequestId!==null&&body.settlement!==null){
+  const value=body.settlement;
+  if(!exact(value,['requestId','request_id','command_sequence','owner_epoch','status','effect'])||value.requestId!==receiptRequestId||controls.status!=='observed'||value.owner_epoch!==result.owner_epoch||!Number.isSafeInteger(value.command_sequence)||value.command_sequence<1||value.request_id!==`${value.owner_epoch}:${value.command_sequence}`||!['unknown','pending','rejected','superseded','confirmed'].includes(value.status))throw Error('invalid_playback_settlement');
+  if(value.status==='confirmed'){
+   if(!exact(value.effect,['source','effect_revision'])||value.effect.source!=='native_bound_state'||typeof value.effect.effect_revision!=='string'||!(/^[1-9][0-9]{0,19}$/).test(value.effect.effect_revision)||BigInt(value.effect.effect_revision)>=18446744073709551616n)throw Error('invalid_confirmed_effect');
+  }else if(value.effect!==null)throw Error('unconfirmed_playback_effect');
+  settlement={...value,effect:value.effect?{...value.effect}:null};
+ }
+ return {...result,projectionVersion:3,controls:{...controls,supported_actions:[...controls.supported_actions],volume:controls.volume?{...controls.volume}:null},permissions:{actions:[...permissions.actions],maxVolume:permissions.maxVolume},...(receiptRequestId===null?{}:{settlement})};
 }
 // Display custody only. Never use this predicate to admit a read, offer or action.
 export function roomObservationBound(playback,snapshot,account=playback?.config_entry_id){if([2,3].includes(playback?.projectionVersion))return v2Scope(playback,snapshot,account)&&playback.observationStatus==='observed'&&actualBinding(playback.roomBinding,playback);return !!(playback?.roomBound===true&&playback.config_entry_id===account&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,account))&&playback.target?.id===playback.roomBinding.targetId);}
@@ -75,8 +84,9 @@ export function accountObservationBound(playback,snapshot,account=playback?.conf
 const playbackReadable=snapshot=>!Array.isArray(snapshot?.capabilities?.musicRead)||snapshot.capabilities.musicRead.includes('playback');
 export function roomObservationCurrent(playback,snapshot){return roomObservationBound(playback,snapshot)&&observationFresh(playback)&&(![2,3].includes(playback.projectionVersion)||!!playbackBinding(playback,snapshot));}
 export function roomObservationDisplay(playback,snapshot,account=playback?.config_entry_id){if([2,3].includes(playback?.projectionVersion))return v2Scope(playback,snapshot,account)&&['observed','account_observed'].includes(playback.observationStatus)&&(observationFresh(playback)||playback.displayRetained===true);return playbackReadable(snapshot)&&(roomObservationBound(playback,snapshot,account)&&(observationFresh(playback)||playback.displayRetained===true)||accountObservationBound(playback,snapshot,account)&&observationFresh(playback));}
-export function roomPlaybackObservation(body,account,snapshot,previous){
- if(body?.schema==='podview.room-playback.v3')return roomPlaybackV3(body,account,snapshot,previous);
+export function roomPlaybackObservation(body,account,snapshot,previous,{receiptRequestId=null}={}){
+ if(receiptRequestId!==null&&(typeof receiptRequestId!=='string'||Array.from(receiptRequestId).length<1||Array.from(receiptRequestId).length>120||body?.schema!=='podview.room-playback.v3'))throw Error('invalid_playback_receipt_selector');
+ if(body?.schema==='podview.room-playback.v3')return roomPlaybackV3(body,account,snapshot,previous,receiptRequestId);
  if(body?.schema==='podview.room-playback.v2')return roomPlaybackV2(body,account,snapshot,previous);
  if(body?.ok!==true||body.schema!=='podview.room-playback.v1'||Object.keys(body).sort().join(',')!=='binding,bootId,configEntryId,data,ok,roomId,schema,status'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.configEntryId!==account)throw Error('invalid_room_playback');
  const bound=mediaRoomBinding(snapshot,account);

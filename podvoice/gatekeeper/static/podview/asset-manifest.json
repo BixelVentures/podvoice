@@ -459,7 +459,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "b880b428388d3ca140fe130b4b4a5d5d3af9ccc638e644d0c23b0006a5fdd331"
+      "sha256": "3c70b95cba98d380d8fc08224f94fb568c0e20908c1161e1a15ccfba45f36677"
     },
     {
       "path": "live-home-view.js",
@@ -467,11 +467,11 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "7ce7b59eaf3bd4ddc133a27740e0b532f16377f9010e416e9207d01b2c84dd02"
+      "sha256": "e7d1b1a199968abcf95d4b89d65d2aa9282ea6bcbbda539cc8f96b41593deb78"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "62c92937cce1ee6064272c9005ca1f8dc9376cb4c3edfbd59f32795689f2c38c"
+      "sha256": "f606e31555e9dcf0024292558fa2d8aa3b309e308ab2f5732806702064d77484"
     },
     {
       "path": "live-music-view.js",
@@ -491,7 +491,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "71a1d5a66405336448d1cf3e7f444a5d48fb7751150408bcab6655a310dc9d12"
+      "sha256": "d520383c51ad84442027e5ca493f9cf81b8bf990487b9cdc1ba0443395d1326c"
     },
     {
       "path": "model.js",
@@ -555,7 +555,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "d518738c4f5d6c210664bf7c2a08c192668d43a05fc55cb9b885690b0c60fb79"
+      "sha256": "f9bbcba343889b120d0b16b6cb335365bde590564274b6d5f0e2eed1b128e74a"
     },
     {
       "path": "podview.css",
@@ -563,7 +563,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "6c47a7b7dae16221d9fe4f67263eaebee065adee65664ad12f0258e47e4de10b"
+      "sha256": "65373d04f539241bd53e579ccb91918800c189f68ed56f4f126b125141d5e2c1"
     },
     {
       "path": "podvoice-view.js",
@@ -658,6 +658,10 @@
       "sha256": "ee568a7de31669a669f7adee6db5caf01df8de1821bf07d6a60b0f41f807f406"
     },
     {
+      "path": "ui-kit.css",
+      "sha256": "6ff2b5f541313c48fef47552675317e305d2117b11003b8b7b1afb2fd985a3d7"
+    },
+    {
       "path": "ui/answer-auto-return.js",
       "sha256": "4df26fcd805eb5ccb4d7d3a47e4d3db6f4d1a4b779fde4054aefc9e7e3d65a8b"
     },
@@ -748,10 +752,6 @@
     {
       "path": "ui/touch-intent.js",
       "sha256": "1947c9032ef4ab26b524b34c25d77f60b54e3b755ec4cdbc477014385fe92eb3"
-    },
-    {
-      "path": "ui-kit.css",
-      "sha256": "6ff2b5f541313c48fef47552675317e305d2117b11003b8b7b1afb2fd985a3d7"
     },
     {
       "path": "vehicle-model.js",

@@ -54,11 +54,101 @@ class MusicSelection:
     def __init__(self) -> None:
         self.sources: dict[str, dict] = {}
         self.tasks: dict[str, dict] = {}
-        self.receipts: dict[tuple[str, str], tuple[str, dict]] = {}
+        self.receipts: dict[tuple[str, str], tuple] = {}
         self.inflight: dict[str, dict] = {}
 
     def busy(self, room: object) -> bool:
         return isinstance(room, str) and room in self.inflight
+
+    def settlement_identity(
+        self, bridge, room: str, token: str, request_id: str, account: str
+    ) -> dict | None:
+        """Return one exact accepted START identity from this broker's current receipt."""
+        from .podview import (
+            _selection_binding_current,
+            _selection_policy_current,
+            _selection_voice_source_current,
+        )
+        from .podview_room_media import binding
+
+        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 120:
+            return None
+        matches = [
+            (key, entry)
+            for key, entry in self.receipts.items()
+            if len(entry) == 3
+            and key[1] == request_id
+            and entry[1].get("outcome") == "accepted"
+            and entry[1].get("requestId") == request_id
+        ]
+        if len(matches) != 1:
+            return None
+        (task_id, _), entry = matches[0]
+        retained = entry[2]
+        task, source = retained["task"], retained["source"]
+        if not isinstance(task, dict) or not isinstance(source, dict):
+            return None
+        context = source["context"]
+        touch_key = (
+            room,
+            account,
+            context.get("query"),
+            hashlib.sha256(token.encode()).hexdigest(),
+        )
+        saved_touch = bridge._touch_music_contexts.get(touch_key)
+        source_current = bool(
+            _selection_binding_current(bridge, source, room)
+            and (
+                saved_touch is not None
+                and all(
+                    saved_touch[1].get(key) == context.get(key)
+                    for key in ("sessionId", "turnId", "taskId", "inputRevision", "revision")
+                )
+                if context.get("revisionScope") == "music_selection"
+                else _selection_voice_source_current(bridge, source, room)
+            )
+        )
+        grant = bridge._grant_for_token(room, token)
+        session = bridge.sessions.get(room)
+        actual = binding(bridge, room, account)
+        if actual is None:
+            return None
+        if (
+            self.receipts.get((task_id, request_id)) is not entry
+            or self.tasks.get(task_id) is not task
+            or self.sources.get(task["candidateSetId"]) is not source
+            or task["context"] != source["context"]
+            or task["ownerBinding"] != source["binding"]
+            or task["context"]["roomId"] != room
+            or task["account"] != account
+            or grant is None
+            or grant is not task["authority"][3]
+            or not bridge._grant_current(room, token)
+            or session is not task["authority"][0]
+            or getattr(session, "_epoch", None) != task["authority"][1]
+            or bridge.controls is not retained["controls"]
+            or bridge.controls.music is not retained["music"]
+            or bridge.controls.policy is not retained["policy"]
+            or json.dumps(bridge.controls.policy, sort_keys=True) != retained["policy_bytes"]
+            or bridge.tools is not retained["tools"]
+            or retained["music"].tools is not bridge.tools
+            or not source_current
+            or not _selection_policy_current(
+                bridge,
+                room,
+                account,
+                task["target"],
+                task["maxVolume"],
+                task["nativeBinding"],
+                task["action"],
+            )
+            or (room, account) in bridge._music_move_fence
+            or actual["targetId"] != task["target"]
+            or (actual["nativeRoomId"], actual["nativeHomepodId"]) != task["nativeBinding"]
+            or actual["bindingId"] != retained["binding_id"]
+        ):
+            return None
+        return dict(retained["identity"])
 
     def register(
         self,
@@ -376,6 +466,7 @@ class MusicSelection:
         current: Callable[[], bool],
         fresh_controls: Callable[[], Awaitable[dict]],
         send_once: Callable[[dict, str, int, Callable[[], bool]], Awaitable[dict]],
+        receipt_owner: tuple | None = None,
     ) -> dict:
         failure = {
             "ok": False,
@@ -495,7 +586,51 @@ class MusicSelection:
                 "physicalResultVerified": False,
                 "requestId": request_id,
             }
-            self.receipts[key] = fingerprint, receipt
+            if (
+                receipt_owner is not None
+                and len(receipt_owner) == 6
+                and receipt["outcome"] == "accepted"
+                and result.get("schema") == "podconnect.command.v1"
+                and result.get("config_entry_id") == task["account"]
+                and result.get("action") == task["action"]
+                and result.get("target") == {"kind": "spotify_device", "target_id": task["target"]}
+                and (result.get("room_id"), result.get("homepod_id")) == task["nativeBinding"]
+                and isinstance(result.get("start_operation_id"), str)
+                and re.fullmatch(r"[a-f0-9]{32}", result["start_operation_id"]) is not None
+                and isinstance(result.get("owner_epoch"), str)
+                and type(result.get("command_sequence")) is int
+                and result.get("request_id")
+                == f"{result['owner_epoch']}:{result['command_sequence']}"
+                and active()
+            ):
+                controls_owner, music, policy, policy_bytes, tools, effective_binding = (
+                    receipt_owner
+                )
+                binding_id = effective_binding()
+                if isinstance(binding_id, str) and len(binding_id) == 64:
+                    self.receipts[key] = (
+                        fingerprint,
+                        receipt,
+                        {
+                            "task": task,
+                            "source": source,
+                            "controls": controls_owner,
+                            "music": music,
+                            "policy": policy,
+                            "policy_bytes": policy_bytes,
+                            "tools": tools,
+                            "binding_id": binding_id,
+                            "identity": {
+                                "request_id": result["request_id"],
+                                "command_sequence": result["command_sequence"],
+                                "owner_epoch": result["owner_epoch"],
+                            },
+                        },
+                    )
+                else:
+                    self.receipts[key] = fingerprint, receipt
+            else:
+                self.receipts[key] = fingerprint, receipt
             return copy.deepcopy(receipt)
         except (Exception, asyncio.CancelledError):
             return copy.deepcopy(unknown)
