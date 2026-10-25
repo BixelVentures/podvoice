@@ -1139,7 +1139,7 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
 @pytest.mark.parametrize("phase", ["settlement", "grace"])
 @pytest.mark.parametrize("source", ["voice", "typed"])
 @pytest.mark.parametrize("silent", [False, True])
-async def test_fresh_input_retires_native_end_permission_without_deciding_meaning(
+async def test_raw_fragment_preserves_native_end_but_typed_input_retires_permission(
     monkeypatch, phase, source, silent
 ):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
@@ -1170,10 +1170,9 @@ async def test_fresh_input_retires_native_end_permission_without_deciding_meanin
             assert session._ending_conversation and not receipt.cancelled()
             if phase == "settlement":
                 await emit(sdk, created("r2"), terminal("r2"))
-            await until(lambda: not session._ending_conversation)
-            assert receipt.result() is True  # SDK settlement still ignores raw fragments.
-            assert session._live_end_receipt is None
-            assert session._active and sdk.session.close.await_count == 0 and link.rearm_calls == 0
+            await until(lambda: link.rearm_calls == 1)
+            assert receipt.result() is True
+            assert not session._active and sdk.session.close.await_count == 1
             return
         await until(lambda: not session._ending_conversation)
         if phase == "settlement":

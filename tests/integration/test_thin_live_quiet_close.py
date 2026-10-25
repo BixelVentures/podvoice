@@ -13,7 +13,7 @@ from test_thin_live_idle import setup
 from test_thin_live_idle_preclose import clock_patch
 from test_thin_live_ten_cycles import transcript
 from unit.test_live_idle import observation
-from unit.test_openai_live import DiagnosticWireSDK, call, created, terminal
+from unit.test_openai_live import DiagnosticWireSDK, call, created, delegated, terminal
 from unit.test_voicepe_activity import emit as emit_activity
 from unit.test_voicepe_activity import fixture as activity_fixture
 
@@ -52,8 +52,9 @@ def native_activity(session, link, patch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("silent", [False, True])
+@pytest.mark.parametrize("late_raw_fragment", [False, True])
 async def test_settlement_discards_old_quiet_and_preserves_later_primary_then_physical_tail(
-    monkeypatch, silent
+    monkeypatch, silent, late_raw_fragment
 ):
     session, sdk, link = await setup()
     session.brain.timeout_s = 30
@@ -78,6 +79,11 @@ async def test_settlement_discards_old_quiet_and_preserves_later_primary_then_ph
             await asyncio.wait_for(entered.wait(), 1)
             assert not session._live_quiet_ready(semantic=True)
             assert sdk.session.close.await_count == 0
+            if late_raw_fragment:
+                revision = session._live_input_revision
+                await emit(sdk, transcript("late raw evidence"))
+                await until(lambda: session._live_input_revision > revision)
+                assert session._ending_conversation
             # Primary arrives after settlement, before the fresh window. Actual
             # SDK delivery is preserved, not replayed or treated as backend done.
             pcm = b"\x01\x00" * 1920
@@ -154,7 +160,9 @@ async def test_missing_current_native_quiet_fails_bounded_without_provider_cut(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("owner", ["fragment", "queued_fragment", "typed", "new_backend", "tool"])
-async def test_pending_native_admission_retires_input_or_blocks_owned_work(monkeypatch, owner):
+async def test_pending_native_admission_preserves_raw_evidence_and_blocks_owned_work(
+    monkeypatch, owner
+):
     session, sdk, link = await setup(output=False)
     session.brain.timeout_s = 30
     held = None
@@ -194,9 +202,12 @@ async def test_pending_native_admission_retires_input_or_blocks_owned_work(monke
                 session._tool_tasks["held"] = held
             for i in range(41):
                 deliver(i, empty=True)
-            await asyncio.sleep(0.3)
-            assert sdk.session.close.await_count == 0 and link.rearm_calls == 0
-            if owner == "tool":
+            if owner in {"fragment", "queued_fragment"}:
+                release.set()
+                await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+                assert sdk.session.close.await_count == 1
+            elif owner == "tool":
+                assert sdk.session.close.await_count == 0 and link.rearm_calls == 0
                 assert session._ending_conversation
                 held.cancel()
                 await asyncio.gather(held, return_exceptions=True)
@@ -204,7 +215,8 @@ async def test_pending_native_admission_retires_input_or_blocks_owned_work(monke
                     deliver(i, empty=True)
                 await asyncio.wait_for(session._live_provider_closed.wait(), 1)
             else:
-                assert not session._ending_conversation
+                await until(lambda: not session._ending_conversation)
+                assert sdk.session.close.await_count == 0 and link.rearm_calls == 0
                 assert session._live_end_receipt is None
                 assert session._goodbye is None
     finally:
@@ -366,8 +378,8 @@ async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_
 
 
 @pytest.mark.asyncio
-async def test_consumed_input_before_finish_entry_retires_original_end(monkeypatch):
-    session, sdk, _ = await setup(output=False)
+async def test_consumed_raw_input_before_finish_entry_preserves_original_end(monkeypatch):
+    session, sdk, link = await setup(output=False)
     entered, release = asyncio.Event(), asyncio.Event()
     original = session._finish_live_conversation
 
@@ -387,9 +399,13 @@ async def test_consumed_input_before_finish_entry_retires_original_end(monkeypat
             lambda: session._live_input_revision > revision and session.brain._queue.empty()
         )
         release.set()
-        await until(lambda: session._goodbye is None)
-        assert not session._ending_conversation and session._live_end_receipt is None
-        assert sdk.session.close.await_count == 0
+        await until(lambda: session._live_end_window.reset_reason == "backend_settled")
+        with monkeypatch.context() as patch:
+            deliver, _ = native_activity(session, link, patch)
+            for i in range(41):
+                deliver(i, empty=True)
+            await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+        assert sdk.session.close.await_count == 1
     finally:
         release.set()
         await session.aclose()
@@ -433,8 +449,11 @@ async def test_configured_long_quiet_and_ready_but_expired_admission(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_consumed_input_during_admission_cannot_become_end_owner(monkeypatch):
-    session, sdk, _ = await setup(output=False)
+@pytest.mark.parametrize("new_model_work", [False, True])
+async def test_raw_fragment_during_admission_does_not_override_model_delegation(
+    monkeypatch, new_model_work
+):
+    session, sdk, link = await setup(output=False)
     entered, release = asyncio.Event(), asyncio.Event()
     admit = session.brain.admit_tool_batch
 
@@ -454,12 +473,88 @@ async def test_consumed_input_during_admission_cannot_become_end_owner(monkeypat
             lambda: session._live_input_revision > revision and session.brain._queue.empty()
         )
         assert session._live_end_receipt is None
+        if new_model_work:
+            await emit(sdk, delegated())
+            await until(lambda: bool(session.brain._pending_delegations))
         release.set()
+        if new_model_work:
+            await until(lambda: session.brain._continuation_pending)
+            assert sdk.response.create.await_count == 0
+            await emit(sdk, created("r3", "d2"), terminal("r3", delegation="d2"))
         await until(lambda: sdk.response.create.await_count == 1)
         await emit(sdk, created("r2"), terminal("r2"))
-        await until(lambda: session._goodbye is None)
-        assert not session._ending_conversation and session._live_end_receipt is None
-        assert sdk.session.close.await_count == 0
+        if new_model_work:
+            await until(lambda: not session._ending_conversation)
+            assert sdk.session.close.await_count == 0
+            assert not session.brain._pending_delegations
+        else:
+            await until(lambda: session._live_end_window.reset_reason == "backend_settled")
+            with monkeypatch.context() as patch:
+                deliver, _ = native_activity(session, link, patch)
+                for i in range(41):
+                    deliver(i, empty=True)
+                await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+            assert sdk.session.close.await_count == 1
     finally:
         release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("late_metadata", ["same", "old_known", "old_offset", "new"])
+async def test_actual_new_delegation_retires_end_before_response_and_blocks_idle(
+    monkeypatch, late_metadata
+):
+    session, sdk, link = await setup(output=False)
+    session.brain.timeout_s = 30
+    try:
+        # Metadata plus actual backend establish prior identities and timeline.
+        await emit(
+            sdk,
+            delegated("prior", 10),
+            created("old", "prior"),
+            terminal("old", delegation="prior"),
+        )
+        await until(lambda: not session.brain._responses)
+        await emit(sdk, delegated("d1", 100))
+        await propose_end(session, sdk, silent=True)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await until(lambda: session._live_end_window.reset_reason == "backend_settled")
+        receipt = session._live_end_receipt
+        event = {
+            "same": delegated("d1", 100),
+            "old_known": delegated("prior", 10),
+            "old_offset": delegated("unseen-old", 50),
+            "new": delegated("d2", 200),
+        }[late_metadata]
+        await emit(sdk, event)
+        await until(lambda: session.brain._queue.empty())
+        with monkeypatch.context() as patch:
+            deliver, _ = native_activity(session, link, patch)
+            for i in range(41):
+                deliver(i, empty=True)
+            if late_metadata == "new":
+                await until(lambda: not session._ending_conversation)
+                assert session.brain._pending_delegations.keys() == {"d2"}
+                assert session._live_work_pending()
+                assert not session._live_quiet_work_clear(semantic=False)
+                assert not session._live_quiet_ready()
+                assert session._live_idle_preclose_task is None
+                assert sdk.session.close.await_count == 0 and link.rearm_calls == 0
+                assert not session.brain.closure_receipt_current(receipt)
+                await emit(sdk, created("r3", "d2"))
+                await until(lambda: "d2" in session.brain._responses)
+                assert not session.brain._pending_delegations
+                assert session._live_work_pending()
+                assert not session.brain.closure_receipt_current(receipt)
+                await emit(sdk, terminal("r3", delegation="d2"))
+                await until(lambda: not session.brain._responses)
+                # Completed later work must not resurrect the retired END.
+                assert not session.brain.closure_receipt_current(receipt)
+                assert sdk.session.close.await_count == 0
+            else:
+                assert not session.brain._pending_delegations
+                await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+                assert sdk.session.close.await_count == 1
+    finally:
         await session.aclose()

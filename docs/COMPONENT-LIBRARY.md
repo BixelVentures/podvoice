@@ -1,3 +1,13 @@
+## Musikbetjening og async indhold ·25. oktober2026
+
+Eksisterende LiveControlView ejer én afgrænset eksplicit musikintention på tværs af transport, volumen, MOVE, kø og sangvalg. Et passivt visningstilbud er kun kendskab til mulige handlinger, aldrig eksekverbar myndighed eller grund til at låse normal betjening under læsning. Hver faktisk afsendelse kræver frisk ejerbundet setup og præcis option/binding/revision én gang. Søskendetilbud ugyldiggøres ved ny effekt; den eksisterende ControlCommandOwner er fortsat serverens atomiske ejer.
+
+Normal afventning vises med eksisterende aria-busy/feedbackroller; kendte musikknapper og volumen springer ikke mellem native disabled/enabled under normale læsninger eller en afventende handling. Én yderligere eksplicit volumen-/transportintention kan bevares i samme ejer; kun volumendrafts samles til seneste værdi. Ukendt udfald, disconnect eller ny ejer annullerer usendte intentioner. Ingen genafsendelse af den oprindelige effekt eller optimistisk playing/volumen. Reelt manglende kilde-/kontrolgrundlag skal fortsat vises sandt.
+
+SharedMusicResults bruger samme reserverede art/title/body/action-pladser fra første indlæsning til færdigt indhold. Tomme ventende pladser bruger kittets eksisterende vejrlazy-gradient; tidligere kendt indhold bevares under refresh. Kun skiftende indhold fader. Refresh bruger den eksisterende Icon i den eksisterende secondary Button, synlig rotation mens actual aria-busy gælder; generisk busy-regel må ikke skjule denne variant. Reduceret bevægelse og cleanup bevares.
+
+Artwork bruger verificeret genereret tema, faktisk Spotify-omslag og samme kanoniske temafallback i rækkefølge; noteikonet er sidste ærlige fallback. Fejlede billedtrin genstartes ikke ved uændret render. En eksplicit ny kildelæsning kan prøve fejlede trin igen; allerede accepterede billeder og decode-cache bevares. Statisk illustration benævnes ikke som ny AI-generering.
+
 ## Aktuel kandidat · faktisk afspilning og read-only recovery ·24 oktober2026
 
 Samme eksisterende PlayerView, LiveMediaView, LiveControlView, LiveQueueView og SpeakerOutputView bruges i produkt og bibliotek. Ingen ny komponentfamilie. Den samlede lukkede v2-servicekontrakt står i [PODVIEW-CONTRACT](PODVIEW-CONTRACT.md); historiske v1-afsnit nedenfor er ikke v2-reglen.
@@ -599,6 +609,8 @@ Den inaktive S-Timer er en rolig variant: `--pv-timer-idle-surface` er et semant
 
 Målt volumen vises absolut0..100 uafhængigt af den aktuelle kommandogrænse. En kendt100%-måling med tilbudt0..35 må tillade en eksplicit sænkning til35 eller mute0, uden at målingen automatisk omskrives eller sendes. Frisk binding, aktuelt ubrugt tilbud og det præcise autoriserede inputinterval gælder stadig; ukendt/udløbet/pending/spent/UNKNOWN er blokeret. Mute kræver faktisk tilbudt0; en husket100 må ikke gendannes under max35.
 
+**Passiv musiklæsning ved skærm-wake ·25 oktober:** Den eksisterende foto-retur og globale busy-/idle-/detailregler ændres ikke. Kun wake-fornyelsen af læseforbindelsen kan vente på det konkrete stadig aktuelle musikread inden for det oprindelige accepterede snapshots6s-friskhedsfrist. Fristen forlænges ikke af nye heartbeats; udløb, reel frakobling og ændret ejer viger for genforbindelse. Gamle timere/finally må ikke rydde eller genstarte en nyere læsning. Ingen effekt, automatisk kommando-gentagelse eller ny kontrolmyndighed følger af bevaret indhold.
+
 ## MusicResults · Play-feedback og handlingsfod · 21. oktober 2026
 
 Alle fire musikfaner bruger samme kort: kvadratisk billede, titel og beskrivelse i fuld bredde samt en reserveret handlingsrække med den eksisterende 64 px tonale Play-cirkel nederst til højre. Play ligger hverken i teksten eller over billedet. Normal ventetid tilføjer ingen synlig statuslinje; den eksisterende live-region kan stadig fortælle hjælpeteknologier, at afspilning er anmodet.
@@ -698,3 +710,13 @@ v41 topanker: Den eksisterende desktop-komposition bruger samme --pv-topbar-cont
 ### Musikfanen For dig · brugerbeslutning 23. oktober 2026
 
 Synlige faner er Stemning, Humør, For dig og Senest. For dig bevarer collection-ID `top`, kontobinding, cache og handlingskontrakt. Den nuværende topsangskilde beskrives som **Dine topsange** i eksisterende metadata. Personlige Spotify-mixes, daylist og Discover Weekly må ikke påstås tilsluttet eller erstattes med omdøbte søgeresultater; lokale bibliotekskort forbliver eksempeldata. En fremtidig kilde kræver faktisk ejerudbudt indhold og myndighed.
+
+## Felt87 · musikbetjening, billeder, feedback og timer ·25oktober
+
+Eksisterende ejere og anatomi bevares. MusicResults bruger et gyldigt ejerpubliceret themeArt fra den lukkede theme-art/tema/hash.webp-kontrakt som **illustration** for Stemning; dette er ikke et opdigtet Spotifyomslag. Den faktiske playlistidentitet og beskrivelse bevares, mens den gentagne generiske “Afspilningsliste fra Spotify”-linje udelades. Manglende/ugyldigt billedfelt giver fortsat ærlig eksisterende fallback. Én kort loading-feedback animerer kun cover/tekst, aldrig kortflade eller Playkontrol; unchanged opdateringer genstarter intet, og reduceret bevægelse/cleanup bevares.
+
+Playerens native outputknap beholder sin64pxplads. Ekstraordinær status har sin egen20pxtekstrolle,28pxtitelrolle og8pxmellemrum inden for samme knap. Den kan ikke flyde ned over coveret eller op bag højttalertitlen. Normal rutinetekst skjules fortsat, og én-rækkeoutput forbliver centreret.
+
+Pause/Play og volumen bruger hver deres friske native tilbud. Et volume-onlysetup er samme eksisterende endpoint med eksplicit requestedActionvolume og egen task, aldrig lånt fra transporttilbuddet. Udløbet volumeadgang kan bevare kendt måling deaktiveret; et tilbud uden volumenlæsning er ikke en ny ukendt måling. Fælles pending/UNKNOWN/ejer-/binding-/freshnesskrav gælder stadig. Ingen effekt bliver automatisk gentaget.
+
+TimerView leverer det samme sekundtal til overblik, detalje og foto-mini-rail via ét præsentationsur. Identiske cachedsnapshots må ikke nulstille uret. Stale/offline/paused stopper det; et lokalt0:00 bliver aldrig nativefinished eller en alarm. Ny autoritativ timerobservation afgør tilstanden.

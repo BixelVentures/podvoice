@@ -3240,6 +3240,7 @@ class ThinSession:
             LiveAudioChunk,
             LiveBackendComplete,
             LiveBackendStarted,
+            LiveDelegationCreated,
             LiveSessionClosed,
             LiveSessionReady,
             LiveToolBatch,
@@ -3422,6 +3423,15 @@ class ThinSession:
                     session=self._history_session,
                     generation=self.brain._connection_generation,
                 )
+        elif isinstance(ev, LiveDelegationCreated):
+            if self._ending_conversation and ev.delegation_id != self._live_end_delegation_id:
+                self._cancel_live_end()
+            self._cancel_live_idle_preclose("new-backend-work")
+            if self._live_close_judge is not None:
+                self._cancel_closing_attempt("new-backend-work")
+                self._live_close_consumed = False
+            self._reset_live_quiet()
+            self._refresh_live_work_led()
         elif isinstance(ev, LiveBackendStarted):
             self._live_backend_delegations[ev.response_id] = ev.delegation_id
             if self._ending_conversation and ev.delegation_id != self._live_end_delegation_id:
@@ -3983,19 +3993,12 @@ class ThinSession:
                     self._live_end_receipt = receipt
                     self._live_end_delegation_id = batch.delegation_id
                     self._ending_conversation = True
-                    input_index = self._live_backend_inputs.get(batch.response_id)
-                    input_currency = (
-                        (revision, input_index)
-                        if revision is not None and input_index is not None
-                        else None
-                    )
                     self._goodbye = self._spawn(
                         self._await_live_end(
                             receipt,
                             epoch,
                             batch.generation,
                             silent=semantic_end.args.get("silent") is True,
-                            input_currency=input_currency,
                         ),
                         "live-goodbye",
                     )
@@ -5115,7 +5118,6 @@ class ThinSession:
         generation: int,
         *,
         silent: bool,
-        input_currency: tuple[int, int] | None,
     ) -> None:
         """Wait outside the tool lock for actual required backend settlement."""
 
@@ -5140,7 +5142,7 @@ class ThinSession:
             self._trace_event("live_terminal_backend_settled", provider_generation=generation)
             # Silent means no new farewell, not permission to discard existing
             # output. Both semantic variants retain the same quiet/drain owner.
-            await self._finish_live_conversation(epoch, receipt, input_currency=input_currency)
+            await self._finish_live_conversation(epoch, receipt)
         except asyncio.CancelledError:
             receipt.cancel()
             raise
@@ -5152,8 +5154,6 @@ class ThinSession:
         self,
         epoch: float,
         receipt: asyncio.Future[bool],
-        *,
-        input_currency: tuple[int, int] | None = None,
     ) -> None:
         """Semantic END settles backend work, then drains the provider and speaker.
 
@@ -5169,8 +5169,6 @@ class ThinSession:
             # bounded, and cannot establish the native physical output boundary.
             await asyncio.sleep(LIVE_CLOSE_GRACE_S)
         else:
-            from .openai_live import LiveTranscript
-
             brain = self.brain
             generation = brain._connection_generation
             deadline = time.monotonic() + self.idle_timeout_s + brain.timeout_s
@@ -5188,20 +5186,9 @@ class ThinSession:
                     or self._live_end_receipt is not receipt
                 ):
                     return
-                if (
-                    input_currency is None
-                    or input_currency != (self._live_input_revision, brain.input_sequence)
-                    or any(
-                        isinstance(event, LiveTranscript)
-                        and event.generation == generation
-                        and event.direction == "in"
-                        and event.text.strip()
-                        for event in brain._queue._queue
-                    )
-                    or not self._semantic_receipt_current(receipt)
-                ):
-                    # Retire this transport permission, without deciding what
-                    # any new fragment means or changing SDK receipt semantics.
+                if not self._semantic_receipt_current(receipt):
+                    # Only actual model work or typed input retires accepted END;
+                    # raw transcript fragments are not completed semantic turns.
                     self._cancel_live_end()
                     return
                 if time.monotonic() >= deadline:
@@ -7745,6 +7732,7 @@ class ThinSession:
             or not getattr(brain, "provider_session_started", False)
             or getattr(brain, "_close_requested", True)
             or getattr(brain, "_responses", None)
+            or getattr(brain, "_pending_delegations", None)
             or getattr(brain, "_batches", None)
             or getattr(brain, "_continuation_pending", True)
             or getattr(brain, "_continuation_inflight", True)
@@ -9275,6 +9263,7 @@ class ThinSession:
         """Known backend/tool work only; primary Live thinking is not observable."""
         return bool(
             getattr(self.brain, "_responses", None)
+            or getattr(self.brain, "_pending_delegations", None)
             or getattr(self.brain, "_batches", None)
             or getattr(self.brain, "_continuation_pending", False)
             or getattr(self.brain, "_continuation_inflight", False)

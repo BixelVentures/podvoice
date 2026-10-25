@@ -83,7 +83,7 @@ export class PlayerView{
   }
   for(const name of ['--pv-cover','--player-cover-tone'])if(player?.style.getPropertyValue(name)!==tone)player?.style.setProperty(name,tone);
  }
- artwork(node,item){if(item.fixtureArt&&fixtureArtwork(item.fixtureArt)){renderRetainedArtwork(node,{url:item.fixtureArt,identity:`fixture|${item.fixtureArt}`,contentIdentity:item.trackId||item.id||item.fixtureArt,label:`Albumomslag til ${txt(item.title)}`});}else renderSpotifyArtwork(node,{uri:item.uri,name:item.title,artwork:item.artwork});}
+ artwork(node,item){const diagnosticOwner=this.host.liveTransport;if(item.fixtureArt&&fixtureArtwork(item.fixtureArt)){renderRetainedArtwork(node,{url:item.fixtureArt,identity:`fixture|${item.fixtureArt}`,contentIdentity:item.trackId||item.id||item.fixtureArt,diagnosticOwner,label:`Albumomslag til ${txt(item.title)}`});}else renderSpotifyArtwork(node,{uri:item.uri,name:item.title,artwork:item.artwork},undefined,false,diagnosticOwner);}
  renderLiveProgress(vm){
   const anchor=vm.positionAnchor,now=Date.now(),eligible=this.host.live===true&&!this.suspended&&this.host.isConnected!==false&&this.host.liveTransport?.connected!==false&&vm.active===true&&vm.playing===true&&vm.fresh===true&&vm.positionFresh===true&&vm.examplePosition!==true&&Number.isSafeInteger(vm.progressMs)&&vm.progressMs>=0&&Number.isSafeInteger(vm.durationMs)&&vm.durationMs>0&&vm.progressMs<=vm.durationMs&&Number.isFinite(anchor?.observedAt)&&anchor.observedAt<=now&&Number.isFinite(anchor.expiresAt)&&anchor.expiresAt>anchor.observedAt;
   const key=eligible?JSON.stringify([anchor.key,anchor.observedAt,anchor.expiresAt,vm.progressMs,vm.durationMs]):null;

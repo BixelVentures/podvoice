@@ -1,3 +1,218 @@
+### Final88 software composition results
+
+Canonical component registry and kit documentation adopted unchanged from the
+reviewed final PodView packet; existing63-module component gate passes against
+actual final assets in a real-dist adapter, without checker changes. Fourteen
+changed/new canonical CI test adapters pass348/348 plus syntax/whitespace checks;
+two JIT occurrence mirrors pass20/20 with no-replay assertions retained. Existing
+reviewed runtime sources are unchanged. Control0.10.23 is merged as917b2e092c0ebe40c1fa987bc781188dc9b34692
+and official HA framework/boundary/main publication all passed; GitHub release
+0.10.23 published. Green download was requested once; activation is not yet claimed.
+
+### Final88 canonical whitespace correction
+
+Overlayceeae430 removes one trailing ASCII space in podvoice-transport.js; the
+generated bundle source-pin header changes, with byte-identical executable body.
+All203 updated canonical hashes verified; prior behavior/UI checks remain valid.
+No new product behavior or physical acceptance is inferred.
+
+## Combined successor88 — source composition, not installed
+
+Lead/release owner /root. Adopted exact203 canonical PodView runtime assets from
+final FIELD88 handoff3a8ad8b1cb11eae8e641cc54648038275094f1bb46caa14f07c8f6b3c48f8835
+and independently checked every asset hash. This includes the reviewed shared JIT
+music intent lane, normal-expiry automatic setup, sibling-offer invalidation, exact
+queue occurrence, resilient covers/loading and weather/history read-state fixes.
+No extra command owner, grant system or unbounded command queue was introduced.
+Actual authority loss and UNKNOWN effects stay fenced; status expiry alone is not
+a permanent UI dead end. PodView owns canonical UI; root owns integrated delivery.
+
+Existing closure, exact-room capability and central diagnostic source approvals
+remain valid. Cross-owner review confirms exact six-key telemetry, matching finite
+enums and scoped upload admission, plus JIT queue selection/one effect/UNKNOWN.
+Three old queue fixtures require JIT-aware awaiting/read-count updates; preserve
+their original no-replay assertions. New source changes do not imply live acceptance.
+Control23 producer preserves source queue deadlines; independent review and72 HA
+queue cases pass. Speakers53 stays unchanged. Official candidate CI/publication,
+combined installation and silent software readback remain next steps.
+
+All today feedback stays in PodView canonical23-item audit. Current history read-state
+fix does not create missing spoken history; actual past spoken-answer projection
+and increased visual answer production remain open. Physical microphone/audio/LED,
+reconnection and semantic closure acceptance remain separate. Silent testing only.
+
+## Active successor — preserve exact-room native transport capabilities
+
+Lead /root; backend owner weather_backend_integration; PodView owns display/intents.
+The human reports transport controls unavailable while volume availability fluctuates.
+Source evidence: Control22 forwards independently native-supported pause and resume
+for an exact room. PV87 generic _controls rejects a list containing both, so its
+_room_projection discards the complete otherwise valid room offer, including next
+and previous. An inert projection reproduces invalid actions. This is a concrete
+cross-layer source counterexample, not proof for every observed load/queue failure.
+
+Chain: current C/native route capabilities -> Control22 exact-room DTO -> PV exact
+room/native/route projection -> fresh setup offer -> UI explicit intent -> one-use
+current command -> actual owner receipt -> fresh observation. Preserve neighbors:
+generic Spotify controls remain phase-filtered, and exact room identity, native
+owner/route, readiness, action allowlist, freshness, sequence and one-use fences
+remain mandatory. Never invent availability, replay UNKNOWN or enable a command
+merely because a button exists.
+
+Hypothesis/minimum: permit independent pause+resume capabilities only in the exact
+room_controls schema/projection, retaining the generic schema rejection. No source
+truth, physical action, grant lifetime or native parser changes. Planned causal
+regression: actual Control22-shaped both-actions DTO fails old room setup, passes
+new exact-room setup and offers only real supported actions; generic both remains
+rejected; stale/foreign/malformed/duplicate/unknown actions remain rejected; one
+explicit action consumes once. Review must cover the neighboring observation and
+execution call sites. A separate shared command-sequence issue requires PodView to
+refresh all sibling music/volume/queue offers after any effect, not weaken backend
+sequence admission. Root does not implement UI here.
+
+Source result: one production-line change permits the pause/resume combination only
+under the internally selected exact room schema; the generic Spotify and volume
+projections retain rejection. Four actual Control22-shaped causal setup/action cases
+failed before and now pass; seven adverse cases and38 affected neighbors pass.
+Format/lint/mypy passed. Independent source/identity review gave GO on patch
+0a71f7bb808836a7f5efeabd0c917dce2d2800e49171db2197d98f39ddfc630f,
+production a88a1147dfad18fe97877dbcdb1dd73b6c46098196d63a03e07e32b4997af724,
+regression56847653e1b7da58192fda2c4941d75fb31051419b4834761c7f9ba44cab6dcf.
+No publication, installation or physical music acceptance is claimed. Existing
+Control CommandOwner already atomically consumes the shared account sequence before
+await; transport, volume, queue, content and MOVE share it. Browser must serialize
+fresh setup through one effect and invalidate sibling offers afterward; no additional
+backend queue/grant layer is needed. Rollback the narrow projection
+change if exact-room owner validation cannot be preserved. Do not turn this into a
+new universal controls abstraction or mask unrelated playback/queue exceptions.
+
+## Active successor — automatic content-free client diagnostics on Green
+
+Lead /root; backend owner fault_diagnostics87; canonical browser owner PodView.
+The human explicitly requests automatic diagnostic collection accessible from Green,
+not a manual-save workflow, and combined installation. Frozen/installed87 is unchanged.
+The current closure causal regression is GREEN; independent review is still pending.
+This is a separate bounded delivery item, not a replacement for the closure repair.
+
+Observed gap: browser-side request/SSE/freshness/control failures are not automatically
+retained in the existing server diagnostics; a local ring/manual export alone does
+not let the operator inspect remote browser failures. Hypothesis: closed finite rows
+from the existing transport can be automatically appended through existing exact
+controller/HA-ingress authentication to a bounded private store, then read only from
+existing trusted HA-admin ingress. No new credentials, action permission or effects.
+
+Chain: current scoped browser observation -> bounded immutable telemetry batch ->
+existing origin/CSRF plus exact room/controller or HA-admin owner -> strict finite
+validation -> atomic private durable storage -> durable ACK -> HA-admin bounded read.
+Preserve adjacent auth renewal/revocation, current room/boot, cancellation and storage
+failure; telemetry retries must never become household-command retries or recursive
+telemetry. Old restored/unscoped rows remain local; no retrospective attribution.
+
+Wire contract is frozen to the six-key upload and six-key ACK in the locally retained
+review packet 8599f09511242e8cd2b348f809f12bf435bf3b513059c7f91b8c99f7e34de461:
+POST/GET existing /view/api/client-diagnostics; <=16 rows/8192 bytes, lowercase UUID
+batch ID, exact current room/boot, advisory actual document build label or null.
+No invented UI version/hash. Closed stage/code/endpoint/kind enums and numeric/boolean
+fields only; hash validated request correlation before storage. No user content,
+raw URL, exception text, payload, audio, keys or raw authority identifiers. Server
+stamps actual package/artifact identity independently. GET is HA-admin only; controller
+scope can append its own finite diagnostics but does not gain reads or home authority.
+
+Reuse existing private-file/atomic-store patterns, with bounded asynchronous disk work,
+512 records/256 KiB/seven-day retention and finite rate/dedup state. ACK only after
+actual durable write; exact authenticated replay deduplicates, changed payload with
+same batch ID is rejected. Failure/unknown remains failure/unknown. Timer-owner-related
+controller-auth outages retain current closed behavior and flush after ordinary auth
+recovery; no auth bypass. Root owns integration/release; browser owner supplies exact
+reviewed assets, without parallel UI implementation here.
+
+Planned causal checks: malformed/private/oversize rows rejected; exact auth/origin,
+room/boot/revocation fences; append -> durable restart/read -> exact duplicate with
+zero extra append; mismatched duplicate rejection; disk failure/slow/full/rate/retention
+bounds; lost ACK and client retry only same immutable telemetry; existing product
+commands/UNKNOWN unchanged. Independent privacy/authority/storage review required.
+Lead review clarification: record retention and retry deduplication are separate.
+A128-entry dedup ledger retained for seven days would stop continuous collection
+after about128 uploads; that design is rejected. Retain dedup markers for300seconds,
+max128, prune before admission, matching the client's bounded60-second immutable
+telemetry retry. Keep record retention at512/256KiB/seven days. The global12/minute
+rate permits continuous bounded collection; exact duplicate/conflict/restart proof
+is within the explicit300-second window, never indefinite. JSON wire is unchanged.
+No new effect/provider probe. Rollback removes the isolated telemetry route/flush,
+never resets controller custody or home state. Status SOURCE implementation authorized;
+no published/installed collector or universal error-coverage claim yet.
+
+## Active successor — model-owned semantic closure, 25 October 2026
+
+Lead /root; implementation owner voice_close87. Base is published and installed
+PodVoice 2.0.87 main 8d08c039b54ec5503b7e1d995b1faecc5213f50f, exact tree
+ec1cf31438344cbd5b06ed20b6910537934879b3. This is an unreleased successor;
+the installed version and frozen87 source are unchanged. Private field evidence
+and identity receipts remain local. No new version is assigned yet.
+
+Observed: the human reports explicit and automatic closure becoming unreliable.
+Existing field evidence includes a cancelled idle preclose after a short native
+activity pulse; its acoustic cause is unknown. Source history separately shows
+native accepted-END transport permission can be retired solely by a later raw
+transcript revision or queued fragment. That is a falsifiable source hypothesis,
+not proof that this explains every field failure.
+
+Chain: Voice PE mic/native generation -> GPT-Live input -> completed delegated END
+and settled receipt -> current model work/output -> provider close -> actual native
+playback drain -> one teardown/attention release -> exact rearm -> next wake.
+Protect both neighbors: late primary speech must drain; a real new model delegation
+or typed input must still retire old close. Preserve stale/duplicate/out-of-order,
+transport failure, generation rotation, physical Stop and Talk behavior.
+
+Invariants: GPT-Live alone owns meaning; raw ASR/VAD is not a complete user turn or
+semantic ACK; no fabricated audio/turn completion; current epoch/generation owns
+all work; actual output and restoration must complete before successful rearm.
+Hypothesis: use the existing actual session.delegation.created provider boundary,
+correlated to its current generation and delegation identity, to revoke an accepted
+END for new model work, while a late raw fragment alone cannot revoke it. Typed
+input and completed/new backend work retain their existing authority. This does
+not authorize household actions or weaken action-grant input/revision fences.
+
+Non-goals: no local phrase list, VAD/gain tuning, new provider, changed silence
+limits or removal of the late-output quiet protection. Four-second total silence
+and shorter semantic-close latency remain proposed UX targets, not shipped facts.
+No prompt or hardware/provider probe is authorized by this source change alone.
+
+Planned causal RED->GREEN: accepted END then delayed raw fragment; genuinely new
+current delegation; stale/duplicate/reordered delegation; delayed primary speech;
+provider closure plus exact native drain and one teardown/rearm; matching shared
+Thin and Talk/Live-adapter coverage. Reuse the incumbent harness and unchanged
+checks. Independent adversarial review is mandatory before any freeze/release.
+Rollback boundary: restore installed87 source as a whole if owner/drain correctness
+is not proven; no custody deletion, timeout increase or speculative patch.
+
+Causal baseline RED: the existing late-primary-output/native-tail fixture passes
+both ordinary silent/non-silent variants, but both variants with a late raw input
+fragment fail to reach provider close. This proves a source counterexample; it does
+not correlate every physical field failure to that cause. The minimal source fix
+and new-delegation guards are in implementation, not yet verified or reviewed.
+Closure source is now frozen under owned patch
+c70e261c8f9232f8c97899e6a3f60711cc447d4602bacd8198a3070b1d40497e.
+Late raw input no longer alone retires accepted END; actual current model delegation
+owns pending work before backend start. Equal-offset distinct work remains held,
+known duplicates cannot advance timeline, and absent delegated response uses the
+existing bounded reader cleanup. Typed input, ordinary action/review revision guards,
+late primary audio, native drain and actual rearm remain protected. Causal raw-fragment
+RED->GREEN, duplicate/order RED->GREEN and focused Thin/native/preclose/Talk/SDK checks,
+format/lint/mypy passed. Independent adversarial review reran seven boundary cases and
+gave scoped SOURCE GO with no remaining P1/P2 for that exact patch. No timeout, VAD,
+gain or prompt values changed. Independent gate review confirms this exact owner-only diff changes no model
+instructions/schema/tools/model/reasoning/audio configuration or wire commands.
+The required software gate is the relevant composed GPT-Live/Thin/native/Talk
+ownership regression, exact-tree scope/review and official CI. It does not trigger
+a new paid semantic provider preflight. A later semantic/audio scope change or
+actual provider counterevidence would trigger its focused preflight. Official CI
+and combined delivery remain required; native pulse cause and physical acceptance
+remain open.
+No release, install or physical acceptance is claimed for this successor. Lead owns
+integration and delivery. Central content-free browser diagnostics is a separate
+planned successor item, currently contract analysis only, not parallel UI work.
+
 ## Active PV87 — incomplete close, fault diagnostics and useful visual answers
 
 Lead /root. Private field evidence is retained locally; no private runtime logs,
@@ -4537,5 +4752,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "7f22c0aff625a9452a20bdb4d35b9cda0e487d10179afe1fd0c895f0e93754c1",
   "manifest_fingerprint": "2e6ec34daffb87a18b4afd883fbdc8adb49c23f2292a9d9136ce0e377ca65f86",
   "rationale": "Root-authorized fixture-only rebind after independent /root/admission34 delta PREBIND GO:49paths/19production/20regression/323runtime/4config/70priorpolicy/184tooling. All production, runtime, config and203 UI assets are byte-identical to first frozen87 treef452b27b. Correct only one stale Talk fixture, three old UI mirrors and exact seven reviewed component-registry definitions; preserve all existing assertions and command/owner/cancel/UNKNOWN boundaries. Retain prior source/UI/static/official successful-job evidence. A single3755-case activePVUI run passed3751 with only four sandbox localhost-listen EPERM failures; those same four existing enrollment cases passed when rerun with local loopback allowed. Existing Talk module14, changed mirrors177 and component gate39 PASS. Two-sentence visual prompt preference and its two owned tests remain restored to publishedc5base and excluded. No runtime patch, broad local release, provider/household action, field-fix or physical acceptance claim. Root owns final officialCI/publication/installation."
+}
+-->
+
+<!-- podview88-admission
+{
+  "version": 65,
+  "kind": "podview88_semantic_close_diagnostics",
+  "reviewer": "/root/admission34",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "8d08c039b54ec5503b7e1d995b1faecc5213f50f",
+  "merge_base": "8d08c039b54ec5503b7e1d995b1faecc5213f50f",
+  "fingerprint": "445039737d3453b0bd902b701a9a5321f3e589cecaae3fcdfbebb030bc2b2c1c",
+  "regression_fingerprint": "24a5c53e12c6b82d14363a6fcad22dc0afc2db2090699019c7c91741f2717c63",
+  "runtime_fingerprint": "f3da24e1f7d2ebd8b7710c9234761396ec18709bd8952f9125097447d77e0bed",
+  "config_fingerprint": "7e1f7d00a07f0c37f9d40d5ef6b8cbf09747d7b6cecd74564d52c21748d9e819",
+  "policy_fingerprint": "06cc79d739a6ce6b144ca84c0e6c865652593089d0d430ac6c25ed60520411b6",
+  "tooling_fingerprint": "12cc38884f3545c1463d725968f87adb978cc43312b09b6e3253ebb1c913dbe0",
+  "manifest_fingerprint": "b4a80c385df75e19be21e306e6d15384d235fded25a0c3b1669947ef82e50f1f",
+  "rationale": "Independent /root/admission34 PREBIND GO binds the exact combined88 source: model-END native ownership fix with truthful delegation events; exact-room native capability projection; private bounded durable client diagnostics; final203 canonical PodView assets plus whitespace-only overlay, shared JIT intent/UNKNOWN/occurrence protections and reviewed14 CI adapters. Preserve full-duplex GPT-Live, one native lifecycle owner, actual ha_tools/physical_output classifier, all historical policy and version-only2.0.88 trio. Retain source-specific reviews, causal regressions,348 affected canonical adapter cases,20 JIT mirror cases and63-module component gate. Control0.10.23 published separately with72 HA queue cases; native Speakers0.26.53 unchanged. No semantic prompt/schema/tools/provider configuration or new household effect is introduced. Official CI, publication, combined activation and silent live readback remain separate; physical microphone/audio/LED/closure acceptance, actual spoken history and increased visual production remain open."
 }
 -->

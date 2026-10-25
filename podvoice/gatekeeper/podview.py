@@ -310,9 +310,17 @@ class PodViewBridge:
         controller_pairing_seconds: int = 600,
         controller_generation: str = "",
         controller_store: Path | None = None,
+        client_diagnostics_store: Path | None = None,
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
         self.boot_id = secrets.token_hex(16)
+        from .podview_client_diagnostics import ClientDiagnosticsStore
+
+        self.client_diagnostics = (
+            ClientDiagnosticsStore(client_diagnostics_store)
+            if client_diagnostics_store is not None
+            else None
+        )
         self._weather_source_cache = None
         provider = getattr(tools, "podview_weather_provider", None)
         if provider is not None:
@@ -1845,6 +1853,105 @@ async def _snapshot(request: web.Request) -> web.Response:
         ),
         headers={"Cache-Control": "no-store"},
     )
+
+
+def _client_diagnostics_auth(request, bridge, room):
+    """Reuse ingress/profile authority; diagnostics never issue a short action grant."""
+    from .podview_client_diagnostics import DiagnosticFailure
+
+    scope, boot, session = _HA_REQUEST.get(), bridge.boot_id, bridge.sessions[room]
+
+    def binding_current():
+        return (
+            request.app.get(BRIDGE) is bridge
+            and bridge.boot_id == boot
+            and bridge.sessions.get(room) is session
+        )
+
+    if scope and scope["active"] and scope["user"]:
+        user = scope["user"]
+
+        def admin_current():
+            return binding_current() and scope["active"] and scope["user"] == user
+
+        return "ha:" + user, admin_current
+    if request.method == "GET":
+        raise DiagnosticFailure("diagnostics_denied", 403)
+    try:
+        registry, owner, pin = bridge._controller_request_scope(room)
+        cookie = request.cookies.get(_CONTROLLER_COOKIE, "")
+        if not re.fullmatch(r"[a-f0-9]{32}\.[A-Za-z0-9_-]{43}", cookie):
+            raise ValueError("controller unavailable")
+        identity = cookie.split(".", 1)[0]
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        raise DiagnosticFailure("diagnostics_denied", 403) from exc
+
+    def controller_current():
+        if not binding_current():
+            return False
+        try:
+            if (
+                not bridge._controller_enabled
+                or bridge._controller_registry is not registry
+                or room in bridge._controller_revocation_failed
+                or (room, identity) in bridge._controller_revoking
+                or not bridge.controller_owner_current(room, owner)
+                or bridge.controller_pin(room) != pin
+            ):
+                raise ValueError("controller unavailable")
+            admitted, _ = registry.validate(cookie, room, pin, renew=False)
+            if admitted != identity:
+                raise ValueError("controller unavailable")
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            raise DiagnosticFailure("diagnostics_denied", 403) from exc
+        return True
+
+    return "controller:" + identity, controller_current
+
+
+async def _client_diagnostics(request: web.Request) -> web.Response:
+    from .podview_client_diagnostics import MAX_INT, DiagnosticFailure, parse_batch
+
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    bridge = request.app[BRIDGE]
+    room = _room(request, bridge)
+    if room is None:
+        return _error("diagnostics_denied", 403)
+    try:
+        principal, current = _client_diagnostics_auth(request, bridge, room)
+        allowed = {"room", "after"} if request.method == "GET" else {"room"}
+        if set(request.query) - allowed or any(
+            len(request.query.getall(key)) != 1 for key in request.query
+        ):
+            raise DiagnosticFailure("invalid_client_diagnostics", 400)
+        store = bridge.client_diagnostics
+        if store is None:
+            raise DiagnosticFailure()
+        if request.method == "GET":
+            after = request.query.get("after", "0")
+            if re.fullmatch(r"0|[1-9][0-9]{0,15}", after) is None or int(after) > MAX_INT:
+                raise DiagnosticFailure("invalid_client_diagnostics", 400)
+            result = await store.read(room, int(after), current)
+        else:
+            if request.content_length is None or request.content_length > 8192:
+                raise DiagnosticFailure("diagnostics_too_large", 413)
+            async with asyncio.timeout(2):
+                batch = parse_batch(await request.read())
+            if batch.room != room or batch.boot != bridge.boot_id:
+                raise DiagnosticFailure("diagnostics_binding_changed", 409)
+            result = await store.append(batch, principal, current)
+        return web.json_response(result, headers={"Cache-Control": "no-store"})
+    except TimeoutError:
+        return _error("diagnostics_unavailable", 503)
+    except DiagnosticFailure as error:
+        if error.status == 503:
+            try:
+                _LOG.warning("client_diagnostics_failure code=diagnostics_unavailable")
+            except Exception:
+                pass
+        return _error(error.code, error.status)
 
 
 async def _events(request: web.Request) -> web.StreamResponse:
@@ -3582,6 +3689,7 @@ def mount(
     controller_pairing_seconds: int = 600,
     controller_generation: str = "",
     controller_store: Path | None = None,
+    client_diagnostics_store: Path | None = None,
 ) -> PodViewBridge:
     bridge = PodViewBridge(
         sessions,
@@ -3596,11 +3704,26 @@ def mount(
         controller_pairing_seconds=controller_pairing_seconds,
         controller_generation=controller_generation,
         controller_store=controller_store,
+        client_diagnostics_store=client_diagnostics_store,
     )
     app[BRIDGE] = bridge
     app.middlewares.append(_ha_request_scope)
     from .podview_queue import queue_http
     from .podview_weather_http import weather_advice
+
+    async def retain_client_diagnostics(_app):
+        from .podview_client_diagnostics import DiagnosticFailure
+
+        if bridge.client_diagnostics is not None:
+            try:
+                await bridge.client_diagnostics.prune()
+            except DiagnosticFailure:
+                try:
+                    _LOG.warning("client_diagnostics_failure code=diagnostics_unavailable")
+                except Exception:
+                    pass
+
+    app.on_startup.append(retain_client_diagnostics)
 
     async def close_receipts(_app):
         weather_owner = getattr(tools, "podview_weather_advice", None)
@@ -3623,6 +3746,8 @@ def mount(
     app.add_routes(
         [
             web.get("/view/api/snapshot", _snapshot),
+            web.get("/view/api/client-diagnostics", _client_diagnostics),
+            web.post("/view/api/client-diagnostics", _client_diagnostics),
             web.get("/view/api/events", _events),
             web.post("/view/api/actions", _actions),
             web.post("/view/api/control/setup", _control),

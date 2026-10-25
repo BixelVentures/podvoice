@@ -9,7 +9,7 @@ import pytest
 from test_thin_live import emit, propose_end, until
 from test_thin_live_idle import deliver, setup
 from unit.test_live_idle import observation
-from unit.test_openai_live import created, terminal
+from unit.test_openai_live import created, delegated, terminal
 
 import gatekeeper.thin as thin_module
 from gatekeeper.events import State
@@ -388,7 +388,7 @@ async def test_visible_preclose_uses_existing_provider_close_and_exact_playback_
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("change", ["output", "backend", "typed"])
+@pytest.mark.parametrize("change", ["output", "backend", "delegation", "typed"])
 async def test_new_real_work_cancels_preclose_and_requires_fresh_period(monkeypatch, change):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
@@ -408,6 +408,14 @@ async def test_new_real_work_cancels_preclose_and_requires_fresh_period(monkeypa
             elif change == "backend":
                 await emit(sdk, created("new-work"))
                 await until(lambda: "new-work" in session._live_backend_orders)
+            elif change == "delegation":
+                await emit(sdk, delegated())
+                await until(lambda: session._live_idle_preclose_task is None)
+                for index in range(43, 84):
+                    deliver(session, link, clock, index)
+                assert session.brain._pending_delegations
+                assert not session._live_quiet_ready()
+                assert session._live_work_pending()
             else:
                 assert (await session.submit_text("Nyt spørgsmål", "new-question"))[
                     "status"
@@ -467,7 +475,7 @@ async def test_stop_cancels_preclose_and_old_task_cannot_cross_next_wake(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_semantic_end_cancels_app_preclose_but_fresh_input_retires_transport_permission(
+async def test_semantic_end_cancels_app_preclose_and_raw_input_preserves_transport_permission(
     monkeypatch,
 ):
     session, sdk, link = await setup(output=False)
@@ -494,11 +502,11 @@ async def test_semantic_end_cancels_app_preclose_but_fresh_input_retires_transpo
                     end_ms=100,
                 )
             )
-            # Raw evidence does not change the SDK/model's accepted END. It
-            # retires only the newly pending Native provider-close permission.
-            await until(lambda: not session._ending_conversation)
+            # Raw evidence cannot decide a completed semantic turn. The current
+            # model receipt survives while actual fresh native quiet is still needed.
+            await asyncio.sleep(0.1)
             assert receipt.result() is True
-            assert session._live_end_receipt is None and session._goodbye is None
+            assert session._ending_conversation and session._live_end_receipt is receipt
             assert not session._live_finalizing and sdk.session.close.await_count == 0
             assert session._active and link.rearm_calls == 0
             assert sdk.session.instructions.append.await_count == 0

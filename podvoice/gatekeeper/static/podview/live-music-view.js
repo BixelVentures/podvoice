@@ -67,6 +67,7 @@ export class LiveMusicCatalogueView{
   const unchanged=advance&&valid.length===before.sample.length&&valid.every((track,index)=>track.uri===before.sample[index].uri);
   const displaySource=fullSource?.tracks||valid,page=musicSourcePage(displaySource,request.sourceKind,advance?before.offset+3:0);if(!page){this.failure(kind);return;}
   const offset=page.offset,cards=sourceMusicCards(page.indices.map(index=>displaySource[index]),request.sourceKind);
+  if(Number.isSafeInteger(request.readGeneration)&&request.readGeneration>=0)for(const card of cards)card.artworkRetryGeneration=request.readGeneration;
   const status=accountPlaylists?(!valid.length?'Ingen playlister i dette udvalg.':fullSource.sourceHasMore?`Første side · ${valid.length} ejede eller fulgte playlister`:`${valid.length} ${valid.length===1?'playliste':'playlister'} · ejet eller fulgt`):playlist?(kind==='feeling'?'3 humørvalg':'3 stemninger'):!valid.length?'Ingen sange i dette udvalg.':unchanged&&page.total<=3?'Ingen andre sange i dette udvalg.':`${cards.length} ${cards.length===1?'sang':'sange'}`;
   const source=fullSource?collectionSelection(fullSource,page.indices):null;
   const entry={renewalScope:this.renewalScope(),kind,sourceKind:request.sourceKind,sample:valid,offset,cards,status,source,preview,selectionSpent:false,selectionUnavailable:accountPlaylists&&!fullSource.context};this.entries.set(request.key,entry);this.pendingRead=null;this.restore(entry);this.armExpiry(entry);this.render();this.drainRenewal(request);

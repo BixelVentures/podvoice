@@ -220,7 +220,7 @@ def _controls(
         or len(actions) > 7
         or any(not isinstance(action, str) or action not in _ACTIONS for action in actions)
         or len(set(actions)) != len(actions)
-        or {"pause", "resume"}.issubset(actions)
+        or (schema != "podconnect.room_controls.v1" and {"pause", "resume"}.issubset(actions))
         or (status != "ready" and actions)
     ):
         raise ValueError("invalid actions")

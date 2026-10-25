@@ -3,6 +3,8 @@ import {spotifyArtwork,generatedMoodArtwork} from './spotify-artwork.js';
 const TRACK=/^spotify:track:[A-Za-z0-9]{22}$/;
 const PLAYLIST=/^spotify:playlist:[A-Za-z0-9]{22}$/;
 const THEMES={morning_acoustic:['En rolig morgen','assets/morning-acoustic.webp'],evening_jazz:['Rolig aften','assets/lake.webp'],cooking:['Musik til madlavningen','assets/kitchen.webp'],italian:['En italiensk aften','assets/italian.webp'],indie:['Indie i baggrunden','assets/indie.webp'],calm:['En rolig stund','assets/lake.webp']};
+// One shared canonical owner for backend-authored mood illustration defaults.
+export {THEMES as MUSIC_THEMES};
 const FEELINGS={energy:['Mere energi','assets/indie.webp'],calm:['Helt ned i tempo','assets/lake.webp'],familiar:['Noget velkendt','assets/italian.webp'],sing:['Syng med','assets/indie.webp'],soft:['Bløde toner','assets/lake.webp'],bright:['Et lyst øjeblik','assets/kitchen.webp']};
 const playlistKind=kind=>['mood','feeling'].includes(kind);
 const themesFor=kind=>kind==='feeling'?FEELINGS:THEMES;
