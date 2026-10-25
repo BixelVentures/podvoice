@@ -1,3 +1,195 @@
+##89 sole final amendment — suppressed queue read
+
+Lead /root. Direct inert source reproduction: LiveMedia latches queueReadKey before
+LiveQueue declines a read during an active music intent; unchanged context then
+suppresses all later automatic reads. This is a software counterexample, not proven
+cause of every prior field failure. Canonical owner changed only LiveMedia guard
+and generated bundle; LiveQueue, effect admission, actual failed-read bounds and
+UNKNOWN/custody fences unchanged. Existing actual context must still admit the read.
+
+Immutable overlayb7ed1fc47d88d8a907046276d50d1cebc8f31c603fcca9b43516e05cfd6bb849:
+focused138+standalone5pass, independent source GO and actual inert browser observes
+one automatic queue request after intent settles, current+next rows, zero effects.
+Adopted exact two runtime assets; all203 pins verified. Derived manifest now
+ ebbd694d82e060999b6b28068ccfe497359030937193289ea30eb14dd42a24c6.
+Affected root lifecycle fixture now passes17/17, including both new held-intent
+cases. Original prefix/adapters/assertions preserved; unchanged checks/reviews/blobs retained.
+No further product changes planned before officialCI. Rollback omits this isolated
+delta; installed88 preserved. No actual Green queue/audio acceptance claimed.
+
+Bounded PC58 source/evidence audit found no new currentSpeakers53 code defect.
+Saved older failures cannot prove a53 failure; current START->HomePod audible edge
+remains open. No speculative audio patch or new music trial was performed.
+
+##89 composition freeze — software evidence complete, admission pending
+
+Exact final203 canonical assets and both component metadata files match immutable
+handoff22025741c4b80cf9c106aa793b9f24b01e4f6aac3faa2514a4f49d56278df67f.
+Root-generated203asset manifest now matches every accepted byte; original schema,
+order and path set preserved,14 hashes updated. Independent check passes.
+F03root37/37 and eight other affected test modules135/135 pass, retaining existing
+root adapters/unique assertions. Actual inert History->Hub fragments->disk reload->
+authorized answers endpoint->final shipped JS transcript validator passes: whole
+Unicode4006codepoints, session256codepoints, two rows despite oversized newest,
+17416UTF8bytes; wrong room/boot/readpermission rejected, no receipt promotion.
+F16/F17/F14 source reviews retained; F14 final annotation-only review/typecheck pass.
+Canonical2431cases/component63/renderreviews retained on exact adopted assets.
+
+Production/config/tests freeze now; sole pending changes are exact admission/review
+bindings and release evidence. Independent prebind review precedes binding. No
+provider call, household effect or physical acceptance. Actual main88 remains the
+base. One officialCI on final89, then merge/publication/install/readback, remains
+required before software delivery is claimed.
+
+### Combined89 focused integration progress
+
+F03 canonical22-case suffix was ported byte-identically, retaining all original
+root tests/adapters. One affected module passes37/37 on actual adopted final assets.
+F14 typecheck now passes on the known warm existing environment. It exposed one
+real static assignment error; adding only `status: int | None` preserves executable
+AST. Independent reviewer confirmed exact annotation-only delta and revised full
+sourcecbda784e9962e9cb1661e76d985dfa563c92a90439b043d4f64294dfa0c924fc.
+Prior F14 behavioral tests retained; Ruff check/format and targeted mypy pass.
+No provider or household effect. Canonical test adaptation and exact binding pending.
+
+## Combined candidate89 — integration and release decision
+
+Lead and sole release owner /root. Actual installed88 baseline remains preserved.
+Observed same-route song/state transitions clear presentation control knowledge;
+canonical F03 retains only validated read-only affordances across unchanged actual
+custody. Fresh execution offers remain mandatory and UNKNOWN/changed authority
+remains fenced. F07 preserves existing static Humør backup when Spotify cover fails.
+F16 adds a separate honest transcript read/display from existing saved assistant
+segments, not completed visual receipts. F17 repairs only canonical owned-image
+compatibility; F14 adds content-free typed weather-provider diagnostics.
+
+All454 immutable NEXTUI packet hashes and203 runtime asset hashes verified before
+adoption; exact canonical component registry/docs adopted without regeneration.
+Canonical full2431 cases, component gate63 and13 actual product/library render
+captures were independently accepted by PodView. Root affectedtest adapters and
+combined strict admission remain pending. Preserve same route/room/account/native
+pair/epoch/boot/authorization identity and fresh JIT/no replay boundaries; no audio,
+model/prompt/tools/lifecycle tunings. Existing F16/F17 independent source GO retained.
+One combined official final CI -> merge/publication -> Green install/readback.
+No household effect testing. Rollback retains installed88 artifact; candidate does
+not inherit physical close, LED, timer/Stop or music acceptance.
+
+## Active NEXT F14 — bounded weather-provider diagnostics
+
+Lead /root; implementation/review owned by PodView registry_review61. Actual field
+weather failures lack a typed server cause. Current _generate collapses provider,
+structured response, cancel and stale owner failures into existing unavailable state.
+Hypothesis: closed reason/status/elapsed/local operation correlation improves causal
+visibility without changing the existing operation. Chain: existing weather advice
+admission -> same budget/provider/current owner -> existing result/cancel/failure ->
+same wire outcome plus bounded content-free server log. Preserve no retry, model,
+prompt, cache, budget and grants; no raw exception/prompt/key/response/URL/room data.
+Non-goals: solve the unobserved provider cause, change cancellation or perform a call.
+
+Adopt exact two-file reviewed handoff43e3bae8b5414a680d012fbf4690b4836a19ce4a58151eb8d2cfc6ae62ab9d35.
+Existing26tests+2subtests and Ruff/format/syntax passed; independent source GO.
+Previous mypy startup stalled twice; typecheck remains unverified and is not relabelled
+PASS. Keep existing official final gate; no repeated stalled local invocation.
+Rollback excludes these two files. Actual field cause and installed log observation
+remain open after source integration. No household/provider effect.
+
+### F17 independent source GO
+
+Reviewer sol61_review74_final verified all three adopted source pins and five
+retained evidence hashes against exact88 basef1f47ee. Production changes only the
+two PNG/WebP references and canonical asset SHA. Provenance, exact owner, no-action
+authority and closed allowlist remain intact. No findings. Existing89 affected
+passes and causal/consumer negatives retained; no redundant rerun. This proves
+consumer compatibility, not model visual-production frequency or rendered/physical
+acceptance. Combined canonical UI integration and release remain pending.
+
+### F16 final source result — independent GO
+
+Existing saved assistant segments are exposed through the authorized read only;
+visual receipt history=1 remains unchanged. Original missing-selector request
+failed, then33 affected cases pass, with64 unchanged neighboring results retained.
+Independent reviewer reproduced15 focused cases and found no remaining scopedP1/P2.
+A reviewed P2 was repaired: an oversized newest segment is skipped whole so older
+valid segments remain available. No fragment is promoted to a completed response.
+Formatter/lint and affected mypy pass. Frozen owned patch
+ aa7413dc004987a308405ba70e50b2b63076efd1cc8a919481cbea50de645495.
+PodView canonical consumer and mixed rendered acceptance remain next; no release or
+installation inferred. Installed88 remains unchanged.
+
+## Active NEXT F17 — canonical owned illustration format
+
+Lead /root; implementation owner weather_backend_review; canonical UI owned by PodView.
+Installed88 remains unchanged. Direct source evidence: owned_image_sources verifies
+and emits PNG while the actual owner-answers live/history consumer accepts the
+canonical WebP only. Both assets exist. Hypothesis: an otherwise valid owned-image
+or diagram receipt is rejected solely at this format boundary. This does not explain
+all missing visual answers or prove increased model visual production.
+
+Chain: completed backend answer -> existing owned image validation -> presentation
+receipt -> actual live/history owner consumer -> rendered illustration. Preserve
+source provenance, closed asset allowlist, receipt/session/room authority, ordinary
+spoken answer and all Thin/native/Talk lifecycle. Non-goals: model/prompt/schema,
+audio, UI format widening, new assets, provider calls or household effects.
+
+Smallest planned change: pin and emit existing canonical WebP. Causal regression:
+old backend receipt rejected by actual current JS consumer; corrected sourced-image
+and simple-diagram accepted live/history; missing/mutated asset rejected. Focused
+existing pipeline tests plus formatter/lint; independent adversarial source review
+before combined NEXT freeze. Rollback: omit/revert this isolated backend delta;
+never modify installed/frozen88. Results remain pending.
+
+
+### F17 focused source result — independent review pending
+
+Existing canonical WebP now replaces PNG path, hash and emitted URL only. Original
+backend fails four actual pipeline/consumer cases; corrected backend passes them.
+Two affected modules89PASS, two actual JS negative checks and focused static checks
+pass. Patch558dd9a7bf2ccf8aa97ba117fe17693972923a91b9f5130c70af67c6ebafb4fa
+is integrated only into this mutable NEXT draft. Model visual-production frequency,
+actual rendered acceptance and combined release remain open.
+
+## Verified installed baseline —25 October2026
+
+Green now runs PodVoice2.0.88, exact mainba10807df5c297881c360bd0510eb599b3d348aa,
+reviewed treef1f47ee2885bc439371fdf11df65ba61f47ced7f, rootfs-v1
+ff74417ec8383bbf73501b79b7276d54f55757f815e81edee627b56744e5dc6b.
+Official PR CI40205941924 and main publication40206358528 passed; public image
+readback matched307 sourcefiles/203UIassets. Control0.10.23 activation completed
+with one HA Core restart; Speakers0.26.53 unchanged. Current native queue read has
+20rows and preserves original source expiry; strict backend projection passes at
+recorded source-age replayclock, not a claim of exact browser capture or audio.
+
+Automatic client diagnostics were actually persisted and read through existing
+admin authorization:176 bounded records in three pages. A transient music-control
+failure disabled controls around a tracktransition, then recovered without reload;
+exact field cause remains unproven. A separate actual source regression confirms
+same-route URI/state changes discard previously validated presentation knowledge;
+PodView owns the narrow NEXT repair with all effect/UNKNOWN fences preserved.
+VoicePE status has no fresh connected observation; physical closure/Stop/LED,
+nextwake, music audibility and repeated reconnection remain unaccepted. Silent
+read/navigation only; no Play/Pause/volume/alarm/robot effects issued this turn.
+
+## Next source draft — honest existing spoken transcript history
+
+Lead /root. Installed88 stays unchanged. User reports no previous answers; existing
+History already persists Live assistant fragments, but PodView visual-history reads
+only completed visual receipts. Do not fabricate completed responses or new action
+authority from fragments. Minimum separate read projection on existing authorized
+answers endpoint: closed history=segments selector, distinct transcript-history.v1,
+exact room, assistant-only actual saved segments, <=20 whole rows/64KiB, no-store.
+Reuse existing History.conversations and its segmentation/clear/restart behavior;
+no new writer/store/session engine. Existing history=1 visual receipts unchanged.
+Historical text is read-only, labelled Samtaleudskrift, with real segment/session/
+generation/observed timestamps and no completion/receipt/source/actions claim.
+Chain: actual existing saved assistant fragments -> authorized exact-room read ->
+bounded honest DTO -> PodView-owned transcript display. Preserve neighboring room/
+boot/current permission, foreign user/Talk/legacy exclusions, current visualhistory,
+interruption and truncation. Native I/O, prompts, audio, tools, teardown unchanged.
+Planned causal tests use real History+Hub: baseline missing read -> exact saved
+segments, restart, clear, foreign-room exclusion, incomplete/interrupted honesty,
+unchanged visualhistory and zero actionauthority. Independent auth/read review
+required before integration. Rollback only removes new selector/dependency.
+
 ###88 CI corrections complete in source
 
 The six UI mirror modules retain their unique causal families and pass affected
@@ -4819,5 +5011,27 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "tooling_fingerprint": "a1ce5b3ed86a8e7d7243b817acfd2c5dd4ce47212a1698ba9f94ff38850fe3f0",
   "manifest_fingerprint": "e749e9a2c3858d0ada1f03a3e9850648564ca73effd5f7bdc2cfd192a33140a6",
   "rationale": "Independent /root/admission34 PREBIND GO binds the exact combined88 source: model-END native ownership fix with truthful delegation events; exact-room native capability projection; private bounded durable client diagnostics; final203 canonical PodView assets plus whitespace-only overlay, shared JIT intent/UNKNOWN/occurrence protections and reviewed14 CI adapters. Preserve full-duplex GPT-Live, one native lifecycle owner, actual ha_tools/physical_output classifier, all historical policy and version-only2.0.88 trio. Retain source-specific reviews, causal regressions,348 affected canonical adapter cases,20 JIT mirror cases and63-module component gate. Control0.10.23 published separately with72 HA queue cases; native Speakers0.26.53 unchanged. No semantic prompt/schema/tools/provider configuration or new household effect is introduced. Official CI, publication, combined activation and silent live readback remain separate; physical microphone/audio/LED/closure acceptance, actual spoken history and increased visual production remain open. Corrective CI-only PREBIND GO retains all28 production and324 runtime hashes and config4 byte-identical to the first reviewed88 export. Six root UI mirrors are aligned with the reviewed JIT contract while preserving unique causal families; cleanup tooling handles only disposable private mount ownership and preserves probe status, verified in fake-Docker and actual isolated Linux cases. Historical36 source pin now uses its already-existing exact published36 helper and original hash. Only invalidated tests/tooling and derived metadata are renewed; official first-candidate unit/rest/HA successes remain evidence for unchanged bits."
+}
+-->
+
+<!-- podview89-admission
+{
+  "version": 66,
+  "kind": "podview89_transcript_history_visual_weather",
+  "reviewer": "/root/sol61_review74_final",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "base_tip": "ba10807df5c297881c360bd0510eb599b3d348aa",
+  "merge_base": "ba10807df5c297881c360bd0510eb599b3d348aa",
+  "fingerprint": "b6a99c145271a1e63881ddd57d2e2cfd721eddda10d6f5966f700014724a0932",
+  "regression_fingerprint": "639144eecafb23c08b42d7374af0113a8a89219be61d61e77d96e44cde5f4a80",
+  "runtime_fingerprint": "3d9390750e6eefc038ebf0c2b30ee75a7ee9b60309525150f1c44029c2d24014",
+  "config_fingerprint": "99f57c07a052ab371c2d5be9667b7b486d51f675bc7d0d3b8ddb2023b4c31823",
+  "policy_fingerprint": "699404dc41c3ea35b8ce01a8ea09db430b000b7e72b0b0cd26af5647589ddb78",
+  "tooling_fingerprint": "cb4afb3a23656775a2a1c921bd00758b8ab2a08b0aadba679e87f75e153353f9",
+  "manifest_fingerprint": "9408b3564da1cda54dcf7eaa62e19d7866150922d26e2af5fa797ddef365659e",
+  "rationale": "Independent exact-tree prebind review by /root/sol61_review74_final approved the frozen PodView89 source and 203 canonical assets against actual published88 base ba10807df5c297881c360bd0510eb599b3d348aa. The 20 production paths, 17 regressions, 324 runtime files, four config paths, 74 policy paths and 184 tooling paths are byte-pinned; historical admissions remain immutable. Focused causal source, UI, history, weather and F06 checks passed on the recorded candidate. This record admits only source and test scope. Official CI, publication, installation and field/physical acceptance remain separate gates."
 }
 -->

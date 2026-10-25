@@ -145,8 +145,8 @@ export const productLibrary=[
   ...(['sourced-image','simple-diagram'].includes(format)?[state(`answer-${format}`,`answer-${format}-image-failure`,'Billede kunne ikke hentes','Bevidst manglende lokal billedfil. Forklaring, alternativ tekst og kilde bevares; ingen netværkskilde simuleres.')]:[]),
   ...(['steps','checklist'].includes(format)?[state(`answer-${format}`,`answer-${format}-complete`,'Gennemført','Gennemført vejledning eller liste bevares, indtil brugeren forlader den.')]:[])
  ]})),
- {id:'history',name:'Svarhistorik',category:'Detaljer',description:'Tidligere svar vises som en overskuelig liste med spørgsmål og kort uddrag.',usage:'Historikken åbner i venstre område, mens musikplayeren er tilgængelig.',interaction:'Vælg et spørgsmål, åbn svaret, og gå tilbage til samme sted i historikken.',limitations:['Eksemplerne er lokale. Den nuværende backendhistorik er ikke varig familiehukommelse eller en fuld transskription.'],states:[
-  state('history','visual-history','Visuelle forhåndsvisninger','De ti eksisterende svarformater i den kanoniske historik.'),
+ {id:'history',name:'Svarhistorik',category:'Detaljer',description:'Visuelle svar og særskilt markerede samtaleudskrifter vises med korte uddrag.',usage:'Historikken åbner i venstre område, mens musikplayeren er tilgængelig.',interaction:'Åbn et visuelt svar eller en samtaleudskrift, læs hele teksten med Vis mere, og gå tilbage til samme sted i historikken.',limitations:['Eksemplerne er forfattede lokalt. Samtaleudskrift viser registreret assistenttale, som kan være ufuldstændig; den er ikke et afsluttet visuelt svar eller varig familiehukommelse.'],states:[
+  state('history','visual-history','Svar og samtaleudskrift','De ti eksisterende visuelle svarformater efterfulgt af én lang, lokalt forfattet samtaleudskrift i samme kanoniske historik.'),
   state('history','conversation-overview','Tom historik','Ingen tidligere svar må opfindes.',{open:'#open-history',key:'empty'}),
   state('history','conversation-complete','Efter samtalen','Et nyttigt svar står stadig efter talens afslutning.')
  ]},

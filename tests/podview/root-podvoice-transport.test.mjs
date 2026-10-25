@@ -100,3 +100,13 @@ test('volume setup filter is closed to music volume without recipe or MOVE',asyn
   assert.equal(calls,0);
  }finally{t.close();}
 });
+
+
+test('answer transport has exactly current, receipt-history and transcript-segment GET modes with unchanged ingress credentials',async()=>{
+ const calls=[],body={schema:'podview.transcript-history.v1',roomId:'kitchen',bootId:'test',items:[]},t=new PodVoiceTransport({url:'https://ha.example/ingress/opaque/view/',room:'kitchen',fetch:async(url,init)=>{calls.push({url:new URL(url),init});return {ok:true,status:200,json:async()=>body};}});t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={...snap(),capabilities:{answerRead:true}};
+ try{for(const mode of [false,true,'segments'])assert.equal(await t.answers(mode),body);assert.deepEqual(calls.map(call=>call.url.searchParams.get('history')),[null,'1','segments']);for(const call of calls){assert.equal(call.url.origin,'https://ha.example');assert.equal(call.url.pathname,'/ingress/opaque/view/api/answers');assert.equal(call.url.searchParams.get('room'),'kitchen');assert.equal(call.init.credentials,'same-origin');assert.equal(call.init.cache,'no-store');assert.equal(call.init.method||'GET','GET');assert.equal(call.init.body,undefined);}for(const mode of [null,0,1,'1','true','segment','',{},[]])await assert.rejects(()=>t.answers(mode),/invalid_answers_mode/);assert.equal(calls.length,3,'invalid modes never dispatch a read');}finally{t.close();}
+});
+test('transcript segment transport keeps existing denial and unavailable semantics without retry or effect requests',async()=>{
+ for(const status of [401,403,503]){let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:false,status,json:async()=>({error:'denied'})};}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{answerRead:true}};try{await assert.rejects(()=>t.answers('segments'),error=>error.message==='answers_unavailable'&&([401,403].includes(status)?error.code==='read_access_denied':error.code===undefined));assert.equal(calls,1);}finally{t.close();}}
+ let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;throw Error('must not fetch');}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{answerRead:false}};try{await assert.rejects(()=>t.answers('segments'),/answers_unavailable/);t.snapshot.capabilities.answerRead=true;t.connected=false;await assert.rejects(()=>t.answers('segments'),/answers_unavailable/);assert.equal(calls,0);}finally{t.close();}
+});

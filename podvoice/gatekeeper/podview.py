@@ -12,6 +12,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -33,6 +34,7 @@ from . import (
     podview_weather,
     podview_weather_brief,
 )
+from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection
 
@@ -301,6 +303,7 @@ class PodViewBridge:
         tools=None,
         *,
         assets: Path | None = None,
+        history: History | None = None,
         control_policy: str = "",
         pairing_room: str = "",
         pairing_sha256: str = "",
@@ -313,6 +316,7 @@ class PodViewBridge:
         client_diagnostics_store: Path | None = None,
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
+        self.history = history
         self.boot_id = secrets.token_hex(16)
         from .podview_client_diagnostics import ClientDiagnosticsStore
 
@@ -2490,6 +2494,62 @@ def _music_search_candidate_set(context: dict, data: object) -> dict | None:
     return {**context, "candidateSetId": candidate_set_id}
 
 
+def _transcript_history(history: History, room: str, boot_id: str) -> str:
+    """Bounded saved assistant segments; no response completion or receipt authority."""
+    result: dict = {
+        "schema": "podview.transcript-history.v1",
+        "roomId": room,
+        "bootId": boot_id,
+        "items": [],
+    }
+    encoded = json.dumps(result, ensure_ascii=False, allow_nan=False)
+    for conversation in history.conversations(limit=MAX_TURNS, room=room):
+        session = conversation.get("session")
+        if not isinstance(session, str) or not 1 <= len(session) <= 256:
+            continue
+        for segment in reversed(conversation["turns"]):
+            segment_id, text = segment.get("segment_id"), segment.get("text")
+            generation, count = segment.get("generation"), segment.get("fragment_count")
+            ts, end_ts = segment.get("ts"), segment.get("end_ts")
+            if (
+                segment.get("kind") != "segment"
+                or segment.get("dir") != "out"
+                or not isinstance(segment_id, str)
+                or re.fullmatch(r"[a-f0-9]{32}", segment_id) is None
+                or not isinstance(text, str)
+                or not text.strip()
+                or type(generation) is not int
+                or not 0 <= generation < 2**53
+                or type(count) is not int
+                or not 1 <= count < 2**53
+                or type(ts) not in (int, float)
+                or type(end_ts) not in (int, float)
+            ):
+                continue
+            try:
+                if not math.isfinite(ts) or not math.isfinite(end_ts) or not 0 <= ts <= end_ts:
+                    continue
+                row = {
+                    "segmentId": segment_id,
+                    "sessionId": session,
+                    "generation": generation,
+                    "ts": ts,
+                    "endTs": end_ts,
+                    "text": text,
+                    "fragmentCount": count,
+                }
+                candidate = {**result, "items": [*result["items"], row]}
+                candidate_json = json.dumps(candidate, ensure_ascii=False, allow_nan=False)
+                if len(candidate_json.encode("utf-8")) > 65536:
+                    continue
+            except (ValueError, OverflowError, UnicodeError):
+                continue
+            result, encoded = candidate, candidate_json
+            if len(result["items"]) == 20:
+                return encoded
+    return encoded
+
+
 async def _answers(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
@@ -2507,6 +2567,26 @@ async def _answers(request: web.Request) -> web.Response:
         return _error("answers_unavailable", 404)
     receipt_id = request.match_info.get("receipt_id")
     if "history" in request.query:
+        if request.query["history"] == "segments" and receipt_id is None:
+            history = getattr(bridge, "history", None)
+            if history is None or room == TALK_ROOM:
+                return _error("transcript_history_unavailable", 404)
+            owner, boot_id = bridge.sessions[room], bridge.boot_id
+            try:
+                transcript = _transcript_history(history, room, boot_id)
+            except (ValueError, TypeError, OverflowError):
+                return _error("transcript_history_unavailable", 404)
+            if (
+                request.app[BRIDGE] is not bridge
+                or bridge.sessions.get(room) is not owner
+                or bridge.boot_id != boot_id
+            ):
+                return _error("transcript_history_unavailable", 404)
+            return web.Response(
+                text=transcript,
+                content_type="application/json",
+                headers={"Cache-Control": "no-store"},
+            )
         if request.query["history"] != "1" or receipt_id is not None:
             return _error("invalid_history_read", 400)
         return web.json_response(
@@ -3680,6 +3760,7 @@ def mount(
     tools=None,
     *,
     assets: Path | None = None,
+    history: History | None = None,
     control_policy: str = "",
     pairing_room: str = "",
     pairing_sha256: str = "",
@@ -3695,6 +3776,7 @@ def mount(
         sessions,
         tools,
         assets=assets,
+        history=history,
         control_policy=control_policy,
         pairing_room=pairing_room,
         pairing_sha256=pairing_sha256,

@@ -1,6 +1,6 @@
 import {applyKitComponent,applyKitTemplate} from './ui/kit.js';
 import {resultsFor} from './widget-model.js';
-import {MUSIC_THEMES} from './music-selection-model.js';
+import {MUSIC_THEMES,MUSIC_FEELINGS} from './music-selection-model.js';
 import {spotifyArtwork,generatedMoodArtwork,spotifyItemUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
 
 export const MUSIC_TABS=[['mood','Stemning'],['feeling','Humør'],['top','For dig'],['recent','Senest']];
@@ -37,7 +37,7 @@ export function localDiscoveryCards(state){
 export function sourceMusicCards(tracks,kind){
  const rows=tracks.slice(0,3),occurrences=new Map();
  return rows.map(track=>{
-  const themed=!!track.themeTitle,artwork=spotifyArtwork(track.artwork,track.uri),staticArt=MUSIC_THEMES[track.themeId]?.[1],themeArt=kind==='mood'&&themed&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(track.uri)?generatedMoodArtwork(track.themeArt,track.themeId)||(staticArt&&[staticArt,staticArt.replace(/\.webp$/,'.png')].includes(track.themeArt)?staticArt:null):null;
+  const themed=!!track.themeTitle,artwork=spotifyArtwork(track.artwork,track.uri),staticArt=(kind==='feeling'?MUSIC_FEELINGS:MUSIC_THEMES)[track.themeId]?.[1],themeArt=['mood','feeling'].includes(kind)&&themed&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(track.uri)?(kind==='mood'&&generatedMoodArtwork(track.themeArt,track.themeId))||(staticArt&&[staticArt,staticArt.replace(/\.webp$/,'.png')].includes(track.themeArt)?staticArt:null):null;
   // A valid playlist cover is never replaced merely because another row shares it.
   const identity=JSON.stringify([track.uri,track.themeId||track.themeTitle||'']),occurrence=occurrences.get(identity)||0;occurrences.set(identity,occurrence+1);
   return {id:`source:${identity}:${occurrence}`,name:track.themeTitle||track.name||track.title,description:track.themeTitle?(track.name||track.title):track.artist,detail:track.themeTitle?'':kind==='top'?'Dine topsange':'',uri:track.uri,sourceName:track.name||track.title,sourceArtist:track.artist,artwork,...(themed?{themeId:track.themeId,sourceArtwork:artwork}:{}),...(themeArt?{themeArt,artworkRole:generatedMoodArtwork(themeArt,track.themeId)||!artwork?'editorial':'cover'}:{})};
@@ -82,7 +82,7 @@ export class MusicResults{
   cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){row=this.create(card.id);this.rows.set(card.id,row);}const contentKey=JSON.stringify([card.name,card.description,card.detail,card.fixtureArt,card.artwork,card.uri,card.themeArt]);const changed=row.contentKey!==undefined&&row.contentKey!==contentKey;if(changed&&!refreshCompleted)this.contentTransitions.get(row)?.();const reveal=refreshCompleted&&changed?this.captureContent(row):null;row.contentKey=contentKey;row.musicCard=card;if(row.dataset.contentState!=='ready')row.dataset.contentState='ready';if(card.action==='continue')applyKitComponent(row,'hero');
    if(row.dataset.musicGroup!==(card.group||''))row.dataset.musicGroup=card.group||'';
    const nextRevision=String(card.revision??revision??'');if(row.dataset.revision!==nextRevision)row.dataset.revision=nextRevision;if(row.classList.contains('recommended')!==(index===0))row.classList.toggle('recommended',index===0);
-   const themeArt=collection==='mood'&&card.artworkRole==='editorial'&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)?generatedMoodArtwork(card.themeArt,card.themeId):null,staticDefault=MUSIC_THEMES[card.themeId]?.[1],staticArt=collection==='mood'&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)&&staticDefault&&(themeArt||[staticDefault,staticDefault.replace(/\.webp$/,'.png')].includes(card.themeArt))?staticDefault:null,sourceCover=!!spotifyItemUrl(card.uri)||/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri),artworkRole=themeArt||staticArt&&!spotifyArtwork(card.artwork,card.uri)?'editorial':sourceCover||card.artworkRole==='cover'&&fixtureArtwork(card.fixtureArt)?'cover':'editorial';if(row.dataset.artworkRole!==artworkRole)row.dataset.artworkRole=artworkRole;
+   const themeArt=collection==='mood'&&card.artworkRole==='editorial'&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)?generatedMoodArtwork(card.themeArt,card.themeId):null,staticDefault=(collection==='feeling'?MUSIC_FEELINGS:MUSIC_THEMES)[card.themeId]?.[1],staticArt=['mood','feeling'].includes(collection)&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)&&staticDefault&&(themeArt||[staticDefault,staticDefault.replace(/\.webp$/,'.png')].includes(card.themeArt))?staticDefault:null,sourceCover=!!spotifyItemUrl(card.uri)||/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri),artworkRole=themeArt||staticArt&&!spotifyArtwork(card.artwork,card.uri)?'editorial':sourceCover||card.artworkRole==='cover'&&fixtureArtwork(card.fixtureArt)?'cover':'editorial';if(row.dataset.artworkRole!==artworkRole)row.dataset.artworkRole=artworkRole;
    const allowed=connected&&(canChoose||canRenew)&&card.selectable!==false;if(row.disabled!==!allowed)row.disabled=!allowed;
    if(row.getAttribute('aria-disabled')!==String(!allowed||!!pendingId))row.setAttribute('aria-disabled',String(!allowed||!!pendingId));
    const pending=card.id===pendingId;

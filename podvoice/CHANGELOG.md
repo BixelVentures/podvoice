@@ -1,3 +1,13 @@
+## 2.0.89
+
+- Keep known music controls available during ordinary song/state refreshes while
+  retaining fresh execution authorization and unknown-outcome safeguards.
+- Show saved assistant transcript excerpts separately from completed visual answers;
+  preserve whole text, room isolation and readable vertical history scrolling.
+- Preserve Humør artwork fallbacks and use the admitted canonical illustration format.
+- Add bounded content-free weather-provider failure diagnostics.
+- Software delivery does not establish physical voice, timer, LED or music acceptance.
+
 ## 2.0.88
 
 - Preserve exact current response and input ownership when settling conversation

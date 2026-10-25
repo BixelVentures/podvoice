@@ -1,11 +1,30 @@
 """Successor88 admission dispatch is strict and remains closed before review."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
 from scripts import candidate_scope_admission88 as admission
 
 ROOT = Path(__file__).resolve().parents[2]
+
+PUBLISHED_88 = "ba10807df5c297881c360bd0510eb599b3d348aa"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def published_88_source_root(tmp_path_factory):
+    """Run immutable88 assertions against its published tree, not a successor."""
+    global ROOT
+    original_root = ROOT
+    target = tmp_path_factory.mktemp("published88-source") / "repo"
+    # Copy local objects so nested mutation clones do not inherit temporary alternates.
+    subprocess.run(["git", "clone", "--quiet", "--no-local", str(ROOT), str(target)], check=True)
+    subprocess.run(["git", "checkout", "--quiet", PUBLISHED_88], cwd=target, check=True)
+    ROOT = target
+    try:
+        yield target
+    finally:
+        ROOT = original_root
 
 
 def test_88_base_and_version_trio():

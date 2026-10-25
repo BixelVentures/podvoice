@@ -115,3 +115,40 @@ test('mismatched Pause or Resume is rejected before acquiring the effect lane or
   f.host.liveMedia.playback.state=state;await f.view.prepareMusic();const before=f.reads();assert.equal(await f.view.musicIntent(state==='playing'?'resume':'pause'),false);assert.equal(f.view.musicIntentPending,undefined);assert.equal(f.view.musicIntentOwner,undefined);assert.equal(f.reads(),before);assert.equal(f.writes.length,0);assert.equal(await f.view.musicIntent(state==='playing'?'pause':'resume'),true);assert.equal(f.writes.length,1);
  }finally{f.restore();}}
 });
+
+function presentationFixture(){const f=fixture(),p=f.host.liveMedia.playback;f.host.liveSnapshot.capabilities.musicRead=['playback'];Object.assign(p,{projectionVersion:2,observationStatus:'observed',roomBound:true,readOnly:false,roomBinding:{roomId:'room',accountId:'account',targetId:'actual-device',nativeRoomId:'actual-room',nativeHomepodId:'77',bindingId:'c'.repeat(64),validUntil:Date.now()/1000+15},target:{id:'actual-device'}});return f;}
+for(const change of ['track','state'])for(const reading of ['held','failed'])test(`fresh same actual route ${change} retains only readonly presentation through ${reading} setup`,async()=>{
+ const f=presentationFixture();let resolve;try{
+  f.host.liveTransport.controlSetup=async()=>f.offer(['pause','resume','next','previous','volume'],35);await f.view.prepareMusic();f.view.render();const prior=f.view.musicContext(),oldTask=f.view.musicOffer.task,oldBinding=JSON.stringify(f.host.liveMedia.playback.roomBinding);let reads=0;
+  f.host.liveTransport.controlSetup=()=>{reads++;return reading==='held'?new Promise(done=>resolve=done):Promise.reject(Error('inert unavailable'));};
+  if(change==='track')f.host.liveMedia.playback.item={uri:'spotify:track:'+'1'.repeat(22)};else f.host.liveMedia.playback.state='paused';f.host.liveMedia.playback.poll_sequence++;f.view.render();if(reading==='failed')await new Promise(done=>setImmediate(done));
+  const current=f.view.musicContext();assert.notEqual(current.key,prior.key);assert.equal(current.presentationKey,prior.presentationKey);assert.equal(JSON.stringify(f.host.liveMedia.playback.roomBinding),oldBinding);assert.equal(reads,1);assert.equal(f.view.musicOffer,null);assert.equal(f.view.volumeOffer,null);assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.nodes.get('volume-value').textContent,'35 %');assert.equal(f.writes.length,0);
+  const hint=f.view.musicIntentOffer;assert.deepEqual(Object.keys(hint.task),['options']);assert.ok(hint.task.options.every(option=>Object.keys(option).sort().join(',')==='action,argsSchema'));assert.equal(hint.task.taskId,undefined);assert.equal(hint.task.revision,undefined);assert.equal(hint.task.expiresAt,undefined);assert.deepEqual(Object.keys(hint.context),['presentationKey']);assert.ok(oldTask.taskId,'old source task was not mutated or rebound');
+  if(reading==='failed')assert.equal(f.view.musicStatus.textContent,'Betjeningen kunne ikke hentes');
+ }finally{resolve?.(f.offer());f.restore();}
+});
+for(const change of ['track','state'])test(`explicit action after ${change} uses a fresh current JIT task, never readonly retained IDs`,async()=>{
+ const f=presentationFixture();const passive=deferred(),jit=deferred();try{
+  await f.view.prepareMusic();f.view.render();const old=f.view.musicOffer.task;let reads=0,expected;f.host.liveTransport.controlSetup=()=>++reads===1?passive.promise:jit.promise;f.host.liveMedia.captureAcceptedPlayRefresh=value=>{expected=value;return()=>{};};
+  if(change==='track')f.host.liveMedia.playback.item={uri:'spotify:track:'+'1'.repeat(22)};else f.host.liveMedia.playback.state='paused';f.host.liveMedia.playback.poll_sequence++;f.view.render();const action=change==='state'?'resume':'pause',intent=f.view.musicIntent(action);assert.equal(reads,2);assert.equal(f.writes.length,0,'no effect while fresh authority is pending');const fresh=f.offer([action],35);jit.resolve(fresh);assert.equal(await intent,true);assert.equal(f.writes.length,1);assert.equal(f.writes[0].task.taskId,fresh.taskId);assert.notEqual(f.writes[0].task.taskId,old.taskId);assert.equal(f.writes[0].id,fresh.options[0].id);assert.equal(expected.itemUri,f.host.liveMedia.playback.item.uri);assert.equal(f.host.liveMedia.playback.state,change==='state'?'paused':'playing','receipt does not change actual state');
+  passive.resolve(f.offer(['previous'],null));await new Promise(done=>setImmediate(done));assert.equal(f.writes.length,1);assert.equal(f.view.musicOffer,null,'late passive task cannot revive an executable sibling');
+ }finally{jit.resolve(f.offer());passive.resolve(f.offer());f.restore();}
+});
+test('a second URI change still rejects a held JIT and cancels a deferred explicit action',async()=>{
+ const f=presentationFixture(),held=deferred();try{
+  await f.view.prepareMusic();f.view.render();f.host.liveMedia.playback.item={uri:'spotify:track:'+'1'.repeat(22)};f.host.liveTransport.controlSetup=()=>held.promise;f.view.render();const intent=f.view.musicIntent('pause');assert.equal(await f.view.musicIntent('next'),true);f.host.liveMedia.playback.item={uri:'spotify:track:'+'2'.repeat(22)};f.view.render();assert.equal(f.view.musicDeferred,null);held.resolve(f.offer());assert.equal(await intent,false);await new Promise(done=>setImmediate(done));assert.equal(f.writes.length,0);
+ }finally{held.resolve(f.offer());f.restore();}
+});
+for(const change of ['transport','transport-generation','provider','boot','room','account','epoch','binding','native-room','native-homepod','target','offline','stale','capability'])test(`readonly control hints do not survive actual ${change} custody replacement`,async()=>{
+ const f=presentationFixture();let resolve;try{
+  await f.view.prepareMusic();f.view.render();f.host.liveTransport.controlSetup=()=>new Promise(done=>resolve=done);const p=f.host.liveMedia.playback;
+  if(change==='transport')f.host.liveTransport={...f.host.liveTransport};if(change==='transport-generation')f.host.liveTransport.generation=1;if(change==='provider')f.host.liveSnapshot.providerGeneration=1;if(change==='boot')f.host.liveSnapshot.bootId='replacement';if(change==='room')f.host.liveSnapshot.roomId='replacement';if(change==='account')p.config_entry_id='replacement';if(change==='epoch')p.owner_epoch='replacement';if(change==='binding')p.roomBinding.bindingId='d'.repeat(64);if(change==='native-room')p.roomBinding.nativeRoomId='replacement';if(change==='native-homepod')p.roomBinding.nativeHomepodId='88';if(change==='target'){p.target.id='replacement';p.roomBinding.targetId='replacement';}if(change==='offline')f.host.liveTransport.connected=false;if(change==='stale')p.stale=true;if(change==='capability')f.host.liveSnapshot.capabilities.controlSetup=[];
+  f.view.render();assert.equal(f.view.musicIntentOffer,null);assert.equal(f.view.volumeIntentOffer,null);assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);assert.equal(f.writes.length,0);
+ }finally{resolve?.(f.offer());f.restore();}
+});
+test('unchanged UNKNOWN fence and never-offered Resume are not overridden by presentation retention',async()=>{
+ const f=presentationFixture();let resolve;try{
+  f.host.liveTransport.controlSetup=async()=>f.offer(['pause','volume'],35);await f.view.prepareMusic();f.view.render();const unknown={...f.view.musicContext(),outcome:'unknown'};f.view.musicFence=unknown;f.view.renderMusicControls();assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.writes.length,0);
+  f.host.liveTransport.controlSetup=()=>new Promise(done=>resolve=done);f.host.liveMedia.playback.state='paused';f.view.render();assert.equal(f.view.musicFence,unknown,'old receipt is not relabelled as success');assert.equal(f.nodes.get('play-pause').disabled,true,'Resume was never offered');assert.equal(f.nodes.get('volume').disabled,false);assert.equal(await f.view.musicIntent('resume'),false);assert.equal(f.writes.length,0);
+ }finally{resolve?.(f.offer());f.restore();}
+});

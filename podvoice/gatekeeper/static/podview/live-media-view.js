@@ -72,7 +72,8 @@ export class LiveMediaView{
  }
  async loadQueue({automatic=false}={}){
   const host=this.host,p=this.playback,queue=this.queueControls,feedback=host.liveSelection?.feedback;
-  if(automatic&&(host.state?.focus!=='player'||queue.pending||queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed(this.account,p)))return;
+  if(queue.pending||host.liveControls?.musicIntentPending)return;
+  if(automatic&&(host.state?.focus!=='player'||queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed(this.account,p)))return;
   const snapshot=host.liveSnapshot,key=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.account,p?.roomBinding?.bindingId,p?.owner_epoch,p?.target?.id,snapshot?.providerGeneration,snapshot?.voice?.sessionId,snapshot?.voice?.turnId,snapshot?.answers?.taskId,snapshot?.answers?.inputRevision,snapshot?.answers?.revision,snapshot?.sessionId,snapshot?.taskId,snapshot?.inputRevision]);
   if(automatic&&this.queueReadKey===key&&this.queueReadTransport===host.liveTransport)return;
   if(!roomObservationCurrent(this.playback,this.host.liveSnapshot)||!this.host.liveTransport?.connected){this.queueControls.invalidate(!roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account));this.renderQueue();return;}

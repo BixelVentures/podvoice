@@ -9,12 +9,15 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import logging
 import re
 import time
 import uuid
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
+
+import httpx
 
 MODEL = "gpt-6-luna"  # Existing backend model ID, not a measured latency promise.
 SCHEMA = "podview.passive-weather-advice.v1"
@@ -121,8 +124,82 @@ def evidence_facts(data, now):
     }
 
 
+_LOG = logging.getLogger(__name__)
+_FAILURE_REASONS = frozenset(
+    {
+        "timeout",
+        "provider_http_429",
+        "provider_http_4xx",
+        "provider_http_5xx",
+        "provider_http_other",
+        "bad_structured_response",
+        "provider_budget_unavailable",
+        "provider_unavailable",
+        "cancelled",
+        "owner_not_current",
+        "no_useful_advice",
+        "provider_failure",
+    }
+)
+
+
 class ProviderUnavailable(Exception):
-    pass
+    def __init__(self, reason="provider_unavailable"):
+        self.reason = reason if reason in _FAILURE_REASONS else "provider_unavailable"
+        super().__init__(self.reason)
+
+
+def _failure_reason(exc):
+    if isinstance(exc, ProviderUnavailable):
+        return exc.reason, None
+    if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+        return "timeout", None
+    if isinstance(exc, httpx.HTTPStatusError):
+        status: int | None = exc.response.status_code
+        status = status if type(status) is int and 100 <= status <= 599 else None
+        if status == 429:
+            return "provider_http_429", status
+        if status is not None and 400 <= status < 500:
+            return "provider_http_4xx", status
+        if status is not None and 500 <= status < 600:
+            return "provider_http_5xx", status
+        return "provider_http_other", status
+    if isinstance(exc, asyncio.CancelledError):
+        return "cancelled", None
+    if isinstance(exc, (ValueError, TypeError, KeyError, IndexError)):
+        return "bad_structured_response", None
+    return "provider_failure", None
+
+
+def _log_failure(reason, *, request_id=None, duration_ms=0, http_status=None):
+    """Closed metadata only; diagnostics must never change the operation's outcome.
+
+    request_id is the existing local operation correlation, not a provider ID or
+    evidence that a request was sent. Unadmitted starts have no correlation ID.
+    """
+    try:
+        fields = {
+            "weather_advice_reason": reason if reason in _FAILURE_REASONS else "provider_failure",
+            "request_id": (
+                request_id
+                if isinstance(request_id, str) and re.fullmatch("[a-f0-9]{32}", request_id)
+                else None
+            ),
+            "duration_ms": max(0, min(int(duration_ms), 86400000)),
+            "http_status": (
+                http_status if type(http_status) is int and 100 <= http_status <= 599 else None
+            ),
+        }
+        _LOG.warning(
+            "Passive weather advice failed reason=%s request_id=%s duration_ms=%d http_status=%s",
+            fields["weather_advice_reason"],
+            fields["request_id"],
+            fields["duration_ms"],
+            fields["http_status"],
+            extra=fields,
+        )
+    except Exception:
+        pass
 
 
 class FastWeatherAdviceProvider:
@@ -148,8 +225,10 @@ class FastWeatherAdviceProvider:
         )
 
     async def generate(self, content, *, current):
-        if not self.available or not current():
+        if not self.available:
             raise ProviderUnavailable()
+        if not current():
+            raise ProviderUnavailable("owner_not_current")
         body = {
             "model": self.model,
             "store": False,
@@ -194,16 +273,18 @@ class FastWeatherAdviceProvider:
                     self._key, self.model, tokens=RESERVED_TOKENS
                 )
             except Exception as exc:
-                raise ProviderUnavailable() from exc
+                raise ProviderUnavailable("provider_budget_unavailable") from exc
             if not self.budget.has_capacity(lease, RESERVED_TOKENS):
-                raise ProviderUnavailable()
+                raise ProviderUnavailable("provider_budget_unavailable")
             reserve_async = getattr(self.allowance, "reserve_async", None)
             admitted = await reserve_async() if reserve_async else self.allowance.reserve()
-            if not admitted or not current():
-                raise ProviderUnavailable()
+            if not admitted:
+                raise ProviderUnavailable("provider_budget_unavailable")
+            if not current():
+                raise ProviderUnavailable("owner_not_current")
             self.budget.account_usage(self._key, self.model, RESERVED_TOKENS, lease=lease)
             if not current():
-                raise ProviderUnavailable()
+                raise ProviderUnavailable("owner_not_current")
             async with self.client.stream(
                 "POST",
                 "https://api.openai.com/v1/responses",
@@ -355,7 +436,13 @@ class WeatherAdviceOwner:
             "current": current,
             "weather": copy.deepcopy(weather),
         }
-        if not start or not current() or len(self.records) >= 32 or not self.provider.available:
+        if not start:
+            return self._wire(record)
+        if not current():
+            _log_failure("owner_not_current")
+            return self._wire(record)
+        if len(self.records) >= 32 or not self.provider.available:
+            _log_failure("provider_unavailable")
             return self._wire(record)
         for old_key, old in self.records.items():
             if old_key[:2] == key[:2] and old_key != key:
@@ -370,18 +457,29 @@ class WeatherAdviceOwner:
         return self._wire(record)
 
     async def _generate(self, record, content):
+        started = time.monotonic()
+
+        def failed(reason, http_status=None):
+            _log_failure(
+                reason,
+                request_id=record["requestId"],
+                duration_ms=(time.monotonic() - started) * 1000,
+                http_status=http_status,
+            )
+
         try:
             async with asyncio.timeout(self.deadline):
                 result = await self.provider.generate(
                     copy.deepcopy(content), current=lambda: self._current(record)
                 )
             if not self._current(record):
-                raise ProviderUnavailable()
+                raise ProviderUnavailable("owner_not_current")
             if not isinstance(result, dict) or set(result) != {"summary", "evidenceFactIds"}:
                 raise ValueError("closed advice")
             summary, ids = result["summary"], result["evidenceFactIds"]
             if summary is None and ids == []:
                 record["status"] = "unavailable"
+                failed("no_useful_advice")
                 return
             known = {item["id"] for item in content["facts"]}
             if (
@@ -397,10 +495,12 @@ class WeatherAdviceOwner:
             ):
                 raise ValueError("unbound advice")
             record.update(status="ready", summary=summary, evidenceFactIds=ids)
-        except (ProviderUnavailable, asyncio.CancelledError):
+        except (ProviderUnavailable, asyncio.CancelledError) as exc:
             record["status"] = "unavailable"
-        except Exception:
+            failed(*_failure_reason(exc))
+        except Exception as exc:
             record["status"] = "error"  # Latch outcome; never retry an unknown send.
+            failed(*_failure_reason(exc))
 
     def observe(self, room, weather):
         """Source/access replacement cancels old work before projecting a new home."""

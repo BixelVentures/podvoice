@@ -539,3 +539,297 @@ async def test_cancelled_reservation_releases_lease_even_if_worker_charges_late(
         finish.set()
     assert await asyncio.to_thread(charged.wait, 2)
     assert allowance.remaining == 0 and client.calls == []
+
+
+# Diagnostic fixtures are inert: none of these paths discover credentials or use a socket.
+def diagnostic_owner(provider=None, *, deadline=5):
+    now = time.time()
+    scope = [True]
+    provider = provider or Provider()
+    owner = advice.WeatherAdviceOwner(
+        provider,
+        boot_id="boot",
+        source_is_current=weather.observation_is_current,
+        source_token=brief.token,
+        clock=lambda: now,
+        deadline=deadline,
+    )
+    sample = observation(now)
+
+    def request(*, start=True):
+        return owner.request(
+            "boot", "private-room-name", sample, current=lambda: scope[0], start=start
+        )
+
+    return owner, provider, scope, request
+
+
+def diagnostic_records(caplog):
+    return [record for record in caplog.records if record.name == advice.__name__]
+
+
+async def test_diagnostics_classify_terminal_failures_without_raw_data_or_replay(caplog):
+    import httpx
+
+    secret = "secret-key-prompt-response-private-room-name"
+    cases = [
+        (TimeoutError(secret), "timeout", None, "error"),
+        (httpx.ReadTimeout(secret), "timeout", None, "error"),
+        (ValueError(secret), "bad_structured_response", None, "error"),
+        (RuntimeError(secret), "provider_failure", None, "error"),
+        (advice.ProviderUnavailable(), "provider_unavailable", None, "unavailable"),
+        (
+            advice.ProviderUnavailable("provider_budget_unavailable"),
+            "provider_budget_unavailable",
+            None,
+            "unavailable",
+        ),
+    ]
+    for status, reason in [(429, "429"), (401, "4xx"), (503, "5xx"), (302, "other")]:
+        response = httpx.Response(
+            status, request=httpx.Request("POST", "https://invalid.example/" + secret)
+        )
+        cases.append(
+            (
+                httpx.HTTPStatusError(secret, request=response.request, response=response),
+                "provider_http_" + reason,
+                status,
+                "error",
+            )
+        )
+    for failure, reason, status, outcome in cases:
+        caplog.clear()
+        owner, provider, _, request = diagnostic_owner()
+        provider.failure = failure
+        try:
+            pending = request()
+            provider.gate.set()
+            await next(iter(owner.records.values()))["task"]
+            terminal = request()
+            assert terminal["status"] == outcome
+            assert terminal["requestId"] == pending["requestId"]
+            assert terminal["summary"] is None and terminal["evidenceFactIds"] == []
+            assert request(start=False) == terminal
+            assert request() == terminal
+            assert len(provider.calls) == 1
+            logs = diagnostic_records(caplog)
+            assert len(logs) == 1
+            log = logs[0]
+            assert log.weather_advice_reason == reason
+            assert log.request_id == pending["requestId"]
+            assert type(log.duration_ms) is int and log.duration_ms >= 0
+            assert log.http_status == status
+            assert log.exc_info is None and log.stack_info is None
+            assert reason in log.getMessage() and pending["requestId"] in log.getMessage()
+            assert secret not in str(log.__dict__)
+            assert "Mårslet" not in str(log.__dict__)
+            assert "private-room-name" not in str(log.__dict__)
+        finally:
+            await owner.close()
+
+
+async def test_diagnostics_passive_reads_are_quiet_and_unsent_start_has_no_id(caplog):
+    owner, provider, scope, request = diagnostic_owner()
+    provider.available = False
+    try:
+        for _ in range(4):
+            assert request(start=False)["status"] == "unavailable"
+        assert diagnostic_records(caplog) == []
+        result = request()
+        assert result["requestId"] is None and result["status"] == "unavailable"
+        assert len(diagnostic_records(caplog)) == 1
+        log = diagnostic_records(caplog)[0]
+        assert log.weather_advice_reason == "provider_unavailable"
+        assert log.request_id is None and log.duration_ms == 0 and log.http_status is None
+        for _ in range(4):
+            request(start=False)
+        assert len(diagnostic_records(caplog)) == 1
+        scope[0] = False
+        request()
+        assert diagnostic_records(caplog)[-1].weather_advice_reason == "owner_not_current"
+        assert provider.calls == [] and owner.records == {}
+    finally:
+        await owner.close()
+
+
+async def test_diagnostics_deadline_cancellation_and_owner_currency_preserve_outcomes(caplog):
+    for mode, reason in [
+        ("deadline", "timeout"),
+        ("cancel", "cancelled"),
+        ("currency", "owner_not_current"),
+        ("decline", "no_useful_advice"),
+        ("invalid", "bad_structured_response"),
+    ]:
+        caplog.clear()
+        owner, provider, scope, request = diagnostic_owner(
+            deadline=0.001 if mode == "deadline" else 5
+        )
+        try:
+            pending = request()
+            task = next(iter(owner.records.values()))["task"]
+            await asyncio.sleep(0)  # The admitted task has entered the actual provider await.
+            if mode == "cancel":
+                task.cancel()
+            elif mode == "currency":
+                scope[0] = False
+                provider.gate.set()
+            elif mode in {"decline", "invalid"}:
+                provider.result = (
+                    {"summary": None, "evidenceFactIds": []}
+                    if mode == "decline"
+                    else {"summary": "untrusted", "evidenceFactIds": ["invented"]}
+                )
+                provider.gate.set()
+            await task
+            record = next(iter(owner.records.values()))
+            assert record["status"] == (
+                "error" if mode in {"deadline", "invalid"} else "unavailable"
+            )
+            logs = diagnostic_records(caplog)
+            assert len(logs) == 1 and logs[0].weather_advice_reason == reason
+            assert logs[0].request_id == pending["requestId"]
+            assert len(provider.calls) == 1
+        finally:
+            await owner.close()
+
+
+async def test_diagnostics_logger_failure_never_changes_error_or_retry_semantics():
+    from unittest.mock import patch
+
+    owner, provider, _, request = diagnostic_owner()
+    provider.failure = RuntimeError("private exception")
+    try:
+        with patch.object(advice._LOG, "warning", side_effect=RuntimeError("logger failed")):
+            pending = request()
+            provider.gate.set()
+            await next(iter(owner.records.values()))["task"]
+            assert request()["status"] == "error"
+            assert request()["requestId"] == pending["requestId"]
+            assert len(provider.calls) == 1
+        provider.available = False
+        owner.records.clear()
+        with patch.object(advice._LOG, "warning", side_effect=RuntimeError("logger failed")):
+            assert request()["status"] == "unavailable"
+    finally:
+        await owner.close()
+
+
+async def test_real_adapter_429_logs_status_disables_and_releases_without_retry(caplog):
+    import httpx
+
+    calls = []
+
+    async def respond(request):
+        calls.append(request)
+        return httpx.Response(429, json={"error": "private response"})
+
+    budget, allowance = Budget(), Allowance()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        provider = advice.FastWeatherAdviceProvider(
+            client, "private-key", model=advice.MODEL, allowance=allowance, budget=budget
+        )
+        owner, _, _, request = diagnostic_owner(provider)
+        try:
+            pending = request()
+            await next(iter(owner.records.values()))["task"]
+            assert request()["status"] == "error"
+            assert len(calls) == 1 and provider.disabled is True
+            assert budget.releases == ["lease"] and len(budget.debits) == 1
+            assert allowance.remaining == 0
+            assert len(diagnostic_records(caplog)) == 1
+            log = diagnostic_records(caplog)[0]
+            assert log.request_id == pending["requestId"]
+            assert log.weather_advice_reason == "provider_http_429" and log.http_status == 429
+            assert "private-key" not in str(log.__dict__)
+            assert "private response" not in str(log.__dict__)
+            assert request() == request(start=False)
+            assert len(calls) == 1
+        finally:
+            await owner.close()
+
+
+async def test_real_adapter_shared_budget_failure_is_typed_before_any_send(caplog):
+    client, budget, allowance = Client(), Budget(), Allowance()
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("private budget exception")
+
+    budget.production_started = unavailable
+    provider = advice.FastWeatherAdviceProvider(
+        client, "private-key", model=advice.MODEL, allowance=allowance, budget=budget
+    )
+    owner, _, _, request = diagnostic_owner(provider)
+    try:
+        pending = request()
+        await next(iter(owner.records.values()))["task"]
+        assert request()["status"] == "unavailable"
+        assert client.calls == [] and allowance.remaining == 1
+        assert budget.debits == [] and budget.releases == [None]
+        logs = diagnostic_records(caplog)
+        assert len(logs) == 1 and logs[0].weather_advice_reason == "provider_budget_unavailable"
+        assert (
+            logs[0].request_id == pending["requestId"]
+        )  # Local operation, not a sent/provider ID.
+        assert "private budget exception" not in str(logs[0].__dict__)
+        assert "private-key" not in str(logs[0].__dict__)
+    finally:
+        await owner.close()
+
+
+async def test_real_adapter_missing_credentials_or_wrong_model_stays_unsent_and_passive_quiet(
+    caplog,
+):
+    for key, model in [("", advice.MODEL), ("private-key", "unsupported-private-model")]:
+        caplog.clear()
+        client, budget, allowance = Client(), Budget(), Allowance()
+        provider = advice.FastWeatherAdviceProvider(
+            client, key, model=model, allowance=allowance, budget=budget
+        )
+        owner, _, _, request = diagnostic_owner(provider)
+        try:
+            request(start=False)
+            assert diagnostic_records(caplog) == []
+            assert request()["requestId"] is None
+            logs = diagnostic_records(caplog)
+            assert len(logs) == 1 and logs[0].request_id is None
+            assert logs[0].weather_advice_reason == "provider_unavailable"
+            assert client.calls == [] and budget.debits == [] and budget.releases == []
+            assert allowance.remaining == 1 and owner.records == {}
+            assert "private-key" not in str(logs[0].__dict__)
+            assert "unsupported-private-model" not in str(logs[0].__dict__)
+        finally:
+            await owner.close()
+
+
+async def test_real_adapter_malformed_response_is_closed_and_success_is_quiet(caplog):
+    import httpx
+
+    async def malformed(request):
+        return httpx.Response(200, content=b"private malformed response")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(malformed)) as client:
+        budget = Budget()
+        provider = advice.FastWeatherAdviceProvider(
+            client, "private-key", model=advice.MODEL, allowance=Allowance(), budget=budget
+        )
+        owner, _, _, request = diagnostic_owner(provider)
+        try:
+            request()
+            await next(iter(owner.records.values()))["task"]
+            assert request()["status"] == "error"
+            logs = diagnostic_records(caplog)
+            assert len(logs) == 1 and logs[0].weather_advice_reason == "bad_structured_response"
+            assert "private malformed response" not in str(logs[0].__dict__)
+            assert budget.releases == ["lease"] and len(budget.debits) == 1
+        finally:
+            await owner.close()
+    caplog.clear()
+    owner, provider, _, request = diagnostic_owner()
+    try:
+        request()
+        provider.gate.set()
+        await next(iter(owner.records.values()))["task"]
+        assert request()["status"] == "ready"
+        assert diagnostic_records(caplog) == []
+    finally:
+        await owner.close()

@@ -494,3 +494,27 @@ def test_backend_instructions_reserve_visuals_for_semantic_added_value_without_a
     assert "kommando-kvittering" in BACKEND_PRESENTATION_INSTRUCTIONS
     assert "konkret visuel merværdi" in BACKEND_PRESENTATION_INSTRUCTIONS
     assert "Ingen ekstra modelrunde" in BACKEND_PRESENTATION_INSTRUCTIONS
+
+
+@pytest.mark.parametrize("failure", ["missing", "tampered"])
+def test_real_owned_webp_asset_must_exist_and_match_pin(monkeypatch, failure):
+    from pathlib import Path
+
+    import gatekeeper.podview_presentation as producer
+
+    original = Path.read_bytes
+
+    def read(path):
+        if path.name == "bicycle-drivetrain-illustration.webp":
+            if failure == "missing":
+                raise FileNotFoundError("inert missing asset")
+            return b"wrong asset bytes"
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read)
+    assert producer.owned_image_sources() == {}
+    owner, sink = object(), VisualReceiptOwner()
+    assert not sink.offer_completed_answer(
+        **context(owner, message=json.dumps(message("sourced-image")))
+    )
+    assert sink.snapshot("kitchen", owner)["items"] == [] and not sink._history

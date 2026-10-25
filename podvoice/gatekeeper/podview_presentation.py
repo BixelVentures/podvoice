@@ -113,18 +113,18 @@ def owned_image_sources() -> dict:
     import hashlib
     from pathlib import Path
 
-    asset = Path(__file__).parent / "static/podview/assets/bicycle-drivetrain-illustration.png"
+    asset = Path(__file__).parent / "static/podview/assets/bicycle-drivetrain-illustration.webp"
     try:
         if (
             hashlib.sha256(asset.read_bytes()).hexdigest()
-            != "d8930a5091a111bab48a4eebd731988350f2dd985c36aa8c5b93724b78a8d55c"
+            != "6696fc1ef1ad1a2829efb4b1d6168ddac7f15b804d50aae9c9bf2ea1365de534"
         ):
             return {}
     except OSError:
         return {}
     return {
         "bicycle_drivetrain": {
-            "url": "assets/bicycle-drivetrain-illustration.png",
+            "url": "assets/bicycle-drivetrain-illustration.webp",
             "alt": "AI-illustration af cyklens baghjul, kæde og pedaler, set fra siden.",
             "caption": "AI-genereret illustration · principskitse, ikke en teknisk tegning.",
             "credit": "PodView · AI-genereret eksempel",
