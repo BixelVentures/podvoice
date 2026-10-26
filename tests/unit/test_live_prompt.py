@@ -114,7 +114,7 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
-        assert "Delegér straks og i stilhed" in primary
+        assert "Delegér straks uden selvstændige modtagelses- eller fremskridtsreplikker" in primary
         assert "Undgå skabelonagtige modtagelses- og fremskridtsreplikker" in primary
         assert "Naturlige smålyde, tøven og prosodi må" in primary
         assert "erstatning for delegation" in primary
@@ -165,23 +165,29 @@ def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
     assert "uden at indsamle et\nvirkningsløst ja" in primary
 
 
-def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
+def test_delegation_has_no_generic_receipts_and_preserves_useful_answers():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
-    assert "Delegér straks og i stilhed" in primary
-    assert "Ved en handlingsanmodning: send først opgaven til\nbackend uden lyd" in primary
-    assert "vent derefter stille på resultatet. Stilhed erstatter ikke delegation" in primary
+    assert "Delegér straks uden selvstændige modtagelses- eller fremskridtsreplikker" in primary
+    assert (
+        "Ved en handlingsanmodning: send først opgaven til backend, og afvent resultatet" in primary
+    )
+    assert "før et opgaveresultat. Naturlige smålyde erstatter ikke delegation" in primary
     assert "Undgå skabelonagtige modtagelses- og fremskridtsreplikker" in primary
     assert "“modtaget” eller “jeg tjekker lige”" in primary
     assert "Naturlige smålyde, tøven og prosodi må\nindgå i et meningsfuldt svar" in primary
+    assert "korte naturlige ikke-sproglige lytte- eller tænkelyde" in primary
+    assert "er også tilladt ved afslutning" in primary
     assert "Det nyttige svar eller en nødvendig kort opklaring er hovedindholdet" in primary
     assert "Never backchannel." not in primary
     assert "heller ikke “hmm”" not in primary
     assert "det bekræftede resultat" in primary
     assert "valideret resultat og aktuel accept" in primary
     assert "før et opgaveresultat, en terminal kvittering eller afsked" in primary
-    assert "delegér også afslutningen\ni stilhed uden modtagelseskvittering" in primary
+    assert (
+        "delegér også afslutningen\nstraks uden modtagelses- eller fremskridtsreplikker" in primary
+    )
     assert "backend kan i stedet vælge end_conversation med silent=true" in primary
-    assert "Ved silent=true, sig intet" in primary
+    assert "Efter aktuelt accepteret silent=true, generér ingen ny tale eller smålyde" in primary
     assert "Foregrib aldrig et værktøjsresultat" in primary
     assert "sikre, meningsfulde direkte svar,\nopklaringer og dialog uden delegation" in primary
     assert "Sig ingen generisk ventereplik før eller under kaldet" in backend
@@ -206,7 +212,9 @@ def test_confirmed_action_result_cannot_be_hidden_by_silent_close():
         )
         assert "Ved ren samtaleafslutning uden et udestående opgaveresultat" in primary
         assert "backend kan i stedet vælge end_conversation med silent=true" in primary
-        assert "Ved silent=true, sig intet" in primary
+        assert (
+            "Efter aktuelt accepteret silent=true, generér ingen ny tale eller smålyde" in primary
+        )
 
 
 def test_v15_quiet_acknowledgement_keeps_live_listening_without_turn_tool():

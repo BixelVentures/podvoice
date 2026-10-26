@@ -205,7 +205,11 @@ en blanket »manglende relay«-årsag. Ret kun første dokumenterede tabende eje
 PV153: prompten forbyder allerede selvstændig generisk kvitterings-/fremskridtstale.
 Undersøg exact resolveret startup/custom/primary/backend-instruktion og outputejerskab;
 fjern kun en konkret konflikt. Ellers er model-/protokoloverholdelse fortsat åben.
-Naturlig hum/prosodi inde i meningsfuld tale er tilladt. Ingen frasefilter eller blind PCM-mute.
+Naturlig hum/prosodi inde i meningsfuld tale er tilladt. Brugeren præciserede 26. oktober,
+at en kort naturlig ikke-sproglig lytte-/tænkelyd også må forekomme under afslutningen;
+selvstændige generiske modtagelses-/fremskridtsreplikker er fortsat uønskede.
+Efter aktuelt accepteret silent=true genereres ingen ny tale eller smålyde, mens
+allerede modtaget/igangværende lyd stadig drænes korrekt. Ingen frasefilter eller blind PCM-mute.
 
 Brugeren har fastlagt UX:
 - Eksplicit »Tak, det var det«: afslut uden nyt opfølgningsvindue. Tavs standard er
@@ -245,6 +249,13 @@ den sidste er kun en delfase. Enkeltmålinger og 5/5 er afgrænset acceptancevid
 ikke et estimat på 99,9% produktionsstabilitet. Brug først gemte spor til analyse;
 yt providerkald kræver en konkret ændring eller et præcist ubesvaret spørgsmål.
 Disse fortolkningsregler ændrer ingen eksisterende D2-gate eller acceptgrænse.
+
+Præcisering efter brugerens hum-beslutning: literal PCM-tavshed og naturlig
+ikke-sproglig lyd er forskellige stilkrav. Bevar tidligere strengt tavse rapporter
+uændret; supplér med kilde-/tidsbundet semantisk vurdering under det præciserede
+produktkrav. En caption er tekstligt indholdsbevis, ikke fysisk/acoustisk accept.
+Dette ændrer hverken currentness-, outputbevarings-, close-, latens- eller fem-case-
+kravene og gør ikke tidligere uprøvet kilde provider-godkendt.
 
 F17's forklaringer/trin/sammenligninger bruger én eksisterende delegation af original-
 opgaven med svar og struktur; korte facts/matematik/handlinger beholder direkte vej.
