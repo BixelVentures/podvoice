@@ -526,3 +526,22 @@ def test_real_owned_webp_asset_must_exist_and_match_pin(monkeypatch, failure):
         **context(owner, message=json.dumps(message("sourced-image")))
     )
     assert sink.snapshot("kitchen", owner)["items"] == [] and not sink._history
+
+
+def test_requested_spoken_scope_survives_optional_visual_budget():
+    from gatekeeper.podview_presentation import BACKEND_PRESENTATION_INSTRUCTIONS
+
+    assert (
+        "det fulde naturlige danske svar i brugerens ønskede format og omfang"
+        in BACKEND_PRESENTATION_INSTRUCTIONS
+    )
+    assert (
+        "udelad visningen og returnér hele svaret som almindelig tekst"
+        in BACKEND_PRESENTATION_INSTRUCTIONS
+    )
+    full_answer = (
+        "Læg et A4-ark på højkant. Fold det på langs, og åbn det igen. "
+        "Fold de øverste hjørner ind mod midterfolden. Fold de skrå kanter ind igen. "
+        "Fold flyveren sammen langs midterfolden. Fold en vinge ned på hver side."
+    )
+    assert final_message(full_answer) == {"spoken": full_answer, "presentation": None}

@@ -48,10 +48,16 @@ def live_instructions(system_prompt: str) -> tuple[str, str]:
     Tool availability is checked against the backend schemas refreshed at wake.
     """
     sections = _sections()
+    primary_style = _replace(
+        sections["DANSK TALE"],
+        "Én kort sætning er standard; brug højst to, når en forklaring eller opklaring kræver det.",
+        "Én kort sætning er standard. Følg brugerens udtrykkelige svarformat og omfang; "
+        "giv den nødvendige forklaring eller vejledning i det ønskede omfang.",
+    )
     primary = f"""Du er Nabu, en dansk stemmeassistent i hjemmet. Du fører samtalen og fortolker
 brugerens hensigt; backend ejer opgaver, værktøjer og deres bekræftede resultater.
 
-{sections["DANSK TALE"].strip()}
+{primary_style.strip()}
 
 Reagér kun på tale rettet til dig eller en klar opfølgning; et vækkeord er ikke en
 opgave eller grund til en hilsen. Lyt stille ved baggrundstale eller usikker

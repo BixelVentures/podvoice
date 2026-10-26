@@ -1,3 +1,19 @@
+### Held source checkpoint — not production adoption or provider acceptance
+
+This evaluation branch combines reviewed Thin terminal-output admission526ac5b6,
+reviewed evaluatorfaf134 and prompt-length-owner proposal3a3efc9b/72d50c64. The latter
+changes were NOT used by the recorded provider trials and have only80focused
+construction/parser checks plus independent sourceGO. Do not inherit provider
+acceptance across changed prompt bits. Main delivery candidate and UI remain owned
+by root in codex/podvoice91-single-owner; this branch is isolated source work only.
+
+Seven actual provider connections recorded, latest explicit-close reportf2ead97e
+UNKNOWN: actual accepted END, final spoken farewell and software teardown/rearm
+observed; useful explanation text and complete capturedPCM present, but exact
+wording oracle plus premature acknowledgement remain distinct open issues.
+Original reports unchanged, no physical acceptance. Batch stopped firstUNKNOWN,
+interruption notrun; no further calls under that stopped authorization.
+
 ### Current integrated source — canonical F02/F04 and observation correction
 
 Root exact integrated canonical final UIpatch2b981fdf overSTART/MOVEbase; all203

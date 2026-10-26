@@ -516,7 +516,10 @@ def test_provider_pcm_lease_ready_requires_nonzero_pcm_and_current_synthetic_lea
         brain=SimpleNamespace(_connection_generation=1),
     )
     capture = SimpleNamespace(clip=None, drains={"playback1": SimpleNamespace(done=lambda: False)})
-    rows = [dict(kind="decoded_output_chunk", seq=7, generation=1, pcm_all_zero=False, sha256="a")]
+    rows = [
+        dict(kind="fixture_finished", name="long_count", seq=6),
+        dict(kind="decoded_output_chunk", seq=7, generation=1, pcm_all_zero=False, sha256="a"),
+    ]
     assert module.provider_pcm_lease_ready(rows, session, capture) == dict(
         provider_chunk_seq=7,
         provider_chunk_sha256="a",
@@ -529,8 +532,79 @@ def test_provider_pcm_lease_ready_requires_nonzero_pcm_and_current_synthetic_lea
     lease.phase = "finished"
     assert module.provider_pcm_lease_ready(rows, session, capture) is None
     lease.phase = "started"
-    rows[0]["pcm_all_zero"] = True
+    rows[-1]["pcm_all_zero"] = True
     assert module.provider_pcm_lease_ready(rows, session, capture) is None
+
+
+@pytest.mark.parametrize("late_zero", [False, True])
+def test_interrupt_trigger_rejects_startup_pcm_before_long_count(late_zero):
+    # Retained trial: startup PCM seq10 preceded long_count start46/finish152.
+    session = SimpleNamespace(
+        _playback_lease=SimpleNamespace(kind="live", phase="started", epoch=1, playback_id="p"),
+        _live_stream=SimpleNamespace(id="stream"),
+        _active=True,
+        _epoch=1,
+        _history_session="s",
+        brain=SimpleNamespace(_connection_generation=1),
+    )
+    capture = SimpleNamespace(clip=None, drains={"p": SimpleNamespace(done=lambda: False)})
+    rows = [
+        dict(kind="decoded_output_chunk", seq=10, generation=1, pcm_all_zero=False, sha256="old"),
+        dict(kind="fixture_started", name="long_count", seq=46),
+        dict(kind="fixture_finished", name="long_count", seq=152),
+    ]
+    if late_zero:
+        rows.append(dict(kind="decoded_output_chunk", seq=153, generation=1, pcm_all_zero=True))
+    assert module.provider_pcm_lease_ready(rows, session, capture) is None
+
+
+@pytest.mark.parametrize(
+    "left,right,equal",
+    [
+        ("Ét tal", "et tal", True),
+        ("et tal", "ét tal", True),
+        ("år", "ar", False),
+        ("Til", "Tæl", False),
+        ("étage", "etage", False),
+    ],
+)
+def test_fixture_transcript_only_equates_danish_et_word_accent(left, right, equal):
+    assert (module.fixture_transcript(left) == module.fixture_transcript(right)) is equal
+
+
+@pytest.mark.parametrize(
+    "prefix,tail,expected",
+    [
+        ("Tæl langsomt fra en til tyve", ", et tal ad gangen.", True),
+        ("Tæl langsomt fra en til tyve", ". Ét tal ad gangen.", True),
+        ("Tæl langsomt fra en til tyve, et tal ad gangen.", "", True),
+        ("Til langsomt fra en til tyve", ". Ét tal ad gangen.", False),
+        ("Tæl langsomt fra en til tyve", "", False),
+        ("Tæl langsomt fra en til tyve", ". Ét tal ad gangen. ekstra", False),
+    ],
+)
+def test_interrupt_followup_pacing_checks_full_known_input_not_arrival_turns(
+    prefix, tail, expected
+):
+    def delta(seq, direction, text):
+        return dict(
+            kind="LiveTranscript",
+            seq=seq,
+            generation=1,
+            direction=direction,
+            text=text,
+            start_ms=seq * 200,
+            end_ms=(seq + 1) * 200,
+        )
+
+    rows = [
+        delta(1, "in", prefix),
+        dict(kind="fixture_started", seq=2, name="interrupt_followup"),
+        delta(3, "in", tail),
+        delta(4, "in", " Nabu, hvad er enogtredive plus tolv?"),
+        delta(5, "out", "Det er treogfyrre."),
+    ]
+    assert module.followup_seen(rows, 2) is expected
 
 
 def test_interrupt_overlap_needs_source_pcm_overlap_followup_and_close_but_pending_audio_review():
@@ -637,7 +711,7 @@ async def until(predicate):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["positive", "late-input", "mixed-batch"])
+@pytest.mark.parametrize("mode", ["positive", "negative-held", "late-input", "mixed-batch"])
 async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_receipt(
     tmp_path, synthetic_fixtures, monkeypatch, mode
 ):
@@ -646,8 +720,9 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
     sdk = SDK()
     monkeypatch.setattr(module.rig, "INPUT_DELAY_S", 0)
     monkeypatch.setattr(module, "OBSERVATION_S", 0.7)
+    monkeypatch.setattr(module.rig, "NEGATIVE_OBSERVATION_S", 0.15)
     admission_held = asyncio.Event()
-    if mode == "positive":
+    if mode in {"positive", "negative-held"}:
         finish = module.rig.ThinSession._finish_live_conversation
         admission_release = asyncio.Event()
 
@@ -666,7 +741,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
     trial = asyncio.create_task(
         module.evaluate(
             "not-a-key",
-            "completed-side-address",
+            "polite-followup" if mode == "negative-held" else "completed-side-address",
             "baseline",
             manifest,
             fixtures,
@@ -696,8 +771,9 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
         await transcript("input", module.TEXTS["math"], 0)
         await sdk.incoming.put(dict(type="session.output_audio.delta", delta="AQACAAMA"))
         await transcript("output", "Fire.", 200)
-        await until(lambda: seen("fixture_finished", name="side_address"))
-        await transcript("input", module.TEXTS["side_address"], 400)
+        second_fixture = "polite_followup" if mode == "negative-held" else "side_address"
+        await until(lambda: seen("fixture_finished", name=second_fixture))
+        await transcript("input", module.TEXTS[second_fixture], 400)
         events = [created(), call(name="end_conversation", arguments='{"silent":true}')]
         if mode == "mixed-batch":
             other = call(call_id="wait", name="wait_for_user", arguments="{}")
@@ -714,8 +790,11 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
             await sdk.incoming.put(created("r3", delegation="d2"))
         for event in (created("r2"), terminal("r2")):
             await sdk.incoming.put(event)
-        if mode == "positive":
+        if mode in {"positive", "negative-held"}:
             await until(lambda: admission_held.is_set() and seen("semantic_end_settled"))
+            if mode == "negative-held":
+                await asyncio.sleep(0.2)
+                assert not seen("negative_window_observed")
             assert not trial.done()
             assert not seen("harness_cleanup_started")
             sdk.session.close.assert_not_awaited()
@@ -723,7 +802,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
         assert complete and report["connect_attempts"] == 1
         assert not report["functional_chain_observed"]
         assert report["natural_thin_end"] == []
-        assert report["current_receipt_settlements"] == int(mode == "positive")
+        assert report["current_receipt_settlements"] == int(mode in {"positive", "negative-held"})
         assert report["semantic_tool_acceptances"] == int(mode != "mixed-batch")
         assert report["semantic_tool_rejections"] == int(mode == "mixed-batch")
         if mode == "late-input":
@@ -1482,3 +1561,261 @@ def test_f17_literal_output_spaces_preserve_exact_complete_answer(mutation):
     # Foreign generations must not be adopted as part of the current spoken answer.
     rows.insert(index + 1, dict(original, text="foreign", generation=2))
     assert module.f17_completion(rows) is (mutation is None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "preamble_only",
+        "no_receipt",
+        "unfinished_backend",
+        "queued",
+        "short_quiet",
+        "stale",
+        "finalizing",
+        "closing",
+    ],
+)
+async def test_f17_pacing_with_real_persistent_capture_stream(tmp_path, mutation):
+    rows = good_rows("explicit-close")
+    close = next(
+        r["seq"] for r in rows if r["kind"] == "fixture_started" and r["name"] == "explicit_close"
+    )
+    rows = [r for r in rows if r["seq"] < close]
+    for index, row in enumerate(rows):
+        row["seq"] = index
+    done = next(r for r in rows if r["kind"] == "LiveBackendComplete")
+    output = [r for r in rows if r["kind"] == "LiveTranscript" and r.get("direction") == "out"][-1]
+    output["text"] = "Start med at folde arket langs midten; fold så hjørnerne ind."
+    if mutation == "no_receipt":
+        rows.remove(next(r for r in rows if r["kind"] == "presentation_receipt"))
+    elif mutation == "unfinished_backend":
+        done["status"] = "incomplete"
+    evidence = module.rig.Evidence(tmp_path / "persistent-capture")
+    evidence.rows = rows
+    streams = module.rig.LiveAudioStreams()
+    stream = streams.open("f17-session")
+    capture = module.rig.SyntheticCapture(evidence, streams)
+    capture.on_media_state = lambda *_: None
+    session = SimpleNamespace(
+        _active=True,
+        _live_finalizing=mutation == "finalizing",
+        _transport_closing=mutation == "closing",
+        _epoch=1,
+        _live_stream=stream,
+        _playback_lease=SimpleNamespace(kind="live", phase="started", epoch=1, playback_id="p1"),
+        brain=SimpleNamespace(_connection_generation=1),
+    )
+    await capture.play_url(f"http://synthetic.invalid/{stream.id}.wav", playback_id="p1")
+    offset = 0
+
+    async def append(pcm):
+        nonlocal offset
+        evidence.emit(
+            "decoded_output_chunk",
+            generation=2 if mutation == "stale" else 1,
+            byte_start=offset,
+            byte_end=offset + len(pcm),
+            pcm_all_zero=not any(pcm),
+        )
+        offset += len(pcm)
+        stream.append(pcm)
+        await asyncio.sleep(0)
+
+    try:
+        # Retained provider trace uses 2400-sample chunks. Its last nonzero
+        # consumed peak is 3, followed by continuing zero PCM, without EOF.
+        await append(bytes(4800) if mutation == "preamble_only" else b"\x03\x00" * 2400)
+        for _ in range(19):
+            await append(bytes(4800))
+        assert not module.f17_stimulus_ready(evidence.rows, session, capture)
+        if mutation != "short_quiet":
+            await append(bytes(4800))
+        if mutation == "queued":
+            stream.append(b"\x03\x00" * 2400)  # not consumed yet
+        assert not stream.finished and not capture.drains["p1"].done()
+        assert module.f17_completion(evidence.rows) is False
+        assert module.f17_stimulus_ready(evidence.rows, session, capture) is (mutation is None)
+    finally:
+        await capture.stop_playback(playback_id="p1")
+        streams.close()
+        evidence.close()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "wrong_answer",
+        "late_answer",
+        "semantic_end",
+        "settlement",
+        "foreign_close",
+        "short_quiet",
+        "pending_work",
+        "input_after_close",
+        "missing_proof",
+        "foreign_ready",
+        "stale_quiet",
+    ],
+)
+def test_real_followup_accepts_only_proven_current_idle_after_answer(mutation):
+    rows = good_rows("real-followup")[:-1]  # remove the eight-second observation
+    answer = [r for r in rows if r["kind"] == "LiveTranscript" and r.get("direction") == "out"][-1]
+    answer["input_index"] = 2
+    if mutation == "wrong_answer":
+        answer["text"] = "Fem."
+    elif mutation == "late_answer":
+        answer["elapsed_s"] = 19
+    rows.append(
+        dict(
+            kind="close_phase", seq=len(rows), elapsed_s=20, phase="request_close", outcome="enter"
+        )
+    )
+    if mutation == "input_after_close":
+        rows.append(
+            dict(
+                kind="LiveTranscript",
+                seq=len(rows),
+                generation=1,
+                direction="in",
+                text="",
+                input_index=3,
+                start_ms=2000,
+                end_ms=2200,
+            )
+        )
+    if mutation == "semantic_end":
+        rows.append(
+            dict(
+                kind="LiveToolBatch",
+                seq=len(rows),
+                generation=1,
+                response_id="early",
+                calls=[dict(name="end_conversation", id="end", args={})],
+            )
+        )
+    elif mutation == "settlement":
+        rows.append(dict(kind="semantic_end_settled", seq=len(rows)))
+    edges = [
+        dict(
+            event=event,
+            seq=seq,
+            at_ms=seq * 1000,
+            session_id="s1",
+            provider_generation=1,
+            close_id="c1",
+            **({"reason": "app-idle-timeout"} if event == "close_requested" else {}),
+        )
+        for seq, event in enumerate(
+            ("close_requested", "teardown_complete", "wake_rearm_recovered"), 20
+        )
+    ]
+    ending = dict(kind="natural_thin_end", seq=len(rows), elapsed_s=30, timeline=edges)
+    rows.append(ending)
+    ready = dict(
+        event="live_idle_diagnostic",
+        seq=15,
+        at_ms=15000,
+        session_id="s1",
+        provider_generation=1,
+        idle_blocker="ready",
+        idle_quiet_s=4.1,
+        idle_semantic=False,
+        idle_finalizing=False,
+        idle_provider_started=True,
+        idle_shadow_vad_state="quiet",
+        idle_shadow_vad_reason="observed",
+        idle_observation_age_s=0.1,
+        idle_freshness_s=0.2,
+        idle_pending_responses=0,
+        idle_pending_batches=0,
+        idle_pending_tools=0,
+        idle_continuation_pending=False,
+        idle_continuation_inflight=False,
+        idle_pending_audio=False,
+    )
+    preclose = [
+        dict(
+            event=event,
+            seq=seq,
+            at_ms=seq * 1000,
+            session_id="s1",
+            provider_generation=1,
+            token=1,
+            native_token=1,
+        )
+        for seq, event in enumerate(
+            (
+                "live_idle_preclose_started",
+                "live_idle_preclose_visible",
+                "live_idle_preclose_elapsed",
+            ),
+            16,
+        )
+    ]
+    observed = [ready, *preclose, *copy.deepcopy(edges)]
+    if mutation == "foreign_close":
+        observed[-1]["close_id"] = "foreign"
+    elif mutation == "short_quiet":
+        ready["idle_quiet_s"] = 3.9
+    elif mutation == "pending_work":
+        ready["idle_pending_tools"] = 1
+    elif mutation == "foreign_ready":
+        ready["session_id"] = "foreign"
+    elif mutation == "stale_quiet":
+        ready["idle_observation_age_s"] = 1
+    elif mutation == "missing_proof":
+        observed = []
+    report = module.assess(
+        "real-followup",
+        rows,
+        clean=True,
+        usage_complete=True,
+        stayed_open=False,
+        observed_lifecycle=observed,
+    )
+    assert report["verdict"] == ("OBSERVED_PASS" if mutation is None else "FAIL")
+    assert report["physical_close"] == "UNKNOWN" and not report["physical_or_browser_proof"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["backend-pending", "settled", "native-closing"])
+async def test_negative_fixture_window_does_not_cut_short_accepted_end(phase):
+    # Reproduce timer ordering: the eight-second negative window expires while
+    # accepted END still owns backend/settlement/native quiet work. All phases
+    # must continue to the existing observation deadline or natural Thin end.
+    future = asyncio.get_running_loop().create_future()
+    if phase != "backend-pending":
+        future.set_result(True)
+    session = SimpleNamespace(_live_end_receipt=future)
+    live = SimpleNamespace(
+        _terminal_receipt=SimpleNamespace(future=future, closure_only=True, generation=7),
+        _connection_generation=7,
+    )
+    assert module.accepted_close_in_progress(session, live)
+    # Revocation releases the negative-case stop again; no success is inferred.
+    session._live_end_receipt = None
+    assert not module.accepted_close_in_progress(session, live)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", ["absent", "cancelled", "foreign", "stale", "nonclosure"])
+async def test_negative_window_only_waits_for_current_owned_accepted_end(invalid):
+    future = asyncio.get_running_loop().create_future()
+    session = SimpleNamespace(_live_end_receipt=future)
+    receipt = SimpleNamespace(future=future, closure_only=True, generation=7)
+    live = SimpleNamespace(_terminal_receipt=receipt, _connection_generation=7)
+    if invalid == "absent":
+        live._terminal_receipt = None
+    elif invalid == "cancelled":
+        future.cancel()
+    elif invalid == "foreign":
+        receipt.future = asyncio.get_running_loop().create_future()
+    elif invalid == "stale":
+        receipt.generation = 6
+    else:
+        receipt.closure_only = False
+    assert not module.accepted_close_in_progress(session, live)
