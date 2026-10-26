@@ -84,6 +84,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/ui/components.css",
         "podvoice/gatekeeper/static/podview/ui/kit.js",
         "podvoice/gatekeeper/static/podview/ui/resource-tile.js",
+        "podvoice/gatekeeper/static/podview/timer-view.js",
         "podvoice/gatekeeper/static/podview/widget-view.css",
         "podvoice/gatekeeper/static/podview/widget-view.js",
         "podvoice/gatekeeper/static/podview/widget-redesign.css",

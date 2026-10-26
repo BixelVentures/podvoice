@@ -1,3 +1,11 @@
+## 2026-10-26 — canonical timer feedback / radio material integrated
+
+Custody-reviewed immutable7c503e08 applied after exact37c2 base checks.205 runtime and asset5b26ef2e verified;4 runtime changes/201 preserved. Existing2880 suite/componentgate65/source and actual visual GO reused without repeats. Timer only registers retained ListRow feedback; radio only material variables, no station feature or effects. Added exact timer-view.js scope pin; final review bindings remain blank. Receipt /private/tmp/pv91-timer-radio-integration-20261026.json. No household action or installation.
+
+## 2026-10-26 — primary backchannel hypothesis falsified
+
+One reviewed primary-only categorical Never-backchannel paragraph was tried once, with unchanged runtime/backend and current evidence guards. Actual pure-close input recognized; primary still said Okay before accepted silent END. Original report /private/tmp/pv91-backchannel-provider-actual-20261026/pure-explicit-close/report.json retained FAIL (SHA256 b09486fb705885dcde2d3f7055deea725b5a1112f79950e135ba477ddcf51695). The hypothesis was reverted from the isolated provider source and was never adopted in shared candidate. No unchanged retry. Fast silent-close source remains integrated and checkpointed d4b3edfd; overall provider gate remains failed. Green2.0.89 Kører verified within76s of pause start; memory key cleared, no household output.
+
 ## 2026-10-26 — fast silent semantic close implemented and provider-observed
 
 User explicitly required fixing, not merely retaining, the close regression. Minimal reviewed silent=true path now finalizes immediately after current accepted backend settlement through the existing provider-closed/exact-playback-tail finalizer; false preserves owed-answer protection. Model/backend contract selects silence only for pure explicit ending with no owed useful answer/action receipt/error. No new delay, phrase classifier, PCM filter or mute. Independent source review GO. Integrated by exact Thin base and selective prompt hunks, preserving exclusion of held F17 original-task work.

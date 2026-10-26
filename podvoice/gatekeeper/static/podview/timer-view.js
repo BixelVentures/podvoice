@@ -92,6 +92,7 @@ export class TimerView {
   for(const node of this.nodes.values())for(const button of node.querySelectorAll('[data-timer-action]')){const t=timersFor(this.host.state||{}).find(t=>t.id===node.dataset.timerId),disabled=!this.connected||blocked||this.host.live===true||!t||!!t.ownerBootId||!!t.stale||!['running','paused'].includes(t.status)||button.dataset.timerAction!=='toggle';if(button.disabled!==disabled)button.disabled=disabled;}
   if(this.notice&&this.host.state)this.renderNotice();
   const note=this.detail.querySelector('#timers-live-note'),feedbackOwner=this.currentTimer?this.nodes.get(`detail:${this.currentTimer.id}`):this.form;
+  applyKitComponent(note,'listrow',{variant:'feedback'});if(note.getAttribute('data-kit-text')!=='meta')note.setAttribute('data-kit-text','meta');
   if(note.dataset.kitSlot!=='feedback')note.dataset.kitSlot='feedback';if(feedbackOwner&&!feedbackOwner.hidden&&note.parentNode!==feedbackOwner)feedbackOwner.append(note);
   if(note.hidden!==!feedback)note.hidden=!feedback;if(note.textContent!==feedback)note.textContent=feedback;if(note.getAttribute?.('aria-busy')!==busy)note.setAttribute('aria-busy',busy);
  }

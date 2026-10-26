@@ -232,6 +232,20 @@ dubletter, provider-close-fejl, forkert playback-finish, én teardown/rearm og T
 Ændret semantik gennemgår eksisterende fokuserede 5/5 live-gate med højst $5, uden
 huseffekter. Genbrug uændrede resultater. PV219 kræver rigtig mute/unmute-provider-ACK.
 
+Evalueringsdisciplin: rapportér input/fixturevaliditet, semantisk handling, faktisk
+software-lifecycle, talestil, faseopdelt latens og fysisk accept hver for sig.
+Et samlet FAIL må ikke omtales som fejl i alle dimensioner; en bestået dimension
+må heller ikke gøre det samlede krav grønt. Eksakte værdier/identiteter/protokoller
+kræver eksakt kontrol; en meningsfuld naturlig formulering bedømmes ikke på ordret
+lighed med et referencesvar. Testværktøjets stimulusflow må ikke afhænge af en
+uvedkommende ordret transskription. Kontrollér afvigelsen mod det faktiske spor,
+før produktkode ændres; bevar originalrapport og særskil offline-genbedømmelse.
+Mål både brugerens sidste inputlyd til afslutning og backend-settlement til afslutning;
+den sidste er kun en delfase. Enkeltmålinger og 5/5 er afgrænset acceptancevidens,
+ikke et estimat på 99,9% produktionsstabilitet. Brug først gemte spor til analyse;
+yt providerkald kræver en konkret ændring eller et præcist ubesvaret spørgsmål.
+Disse fortolkningsregler ændrer ingen eksisterende D2-gate eller acceptgrænse.
+
 F17's forklaringer/trin/sammenligninger bruger én eksisterende delegation af original-
 opgaven med svar og struktur; korte facts/matematik/handlinger beholder direkte vej.
 Ingen ekstra selector-/redraw-modelrunde. Held WIP adopteres først efter nyttig fuld

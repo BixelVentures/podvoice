@@ -2868,7 +2868,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 fb0a8a78e646227b3eb4b7e485c04325b2a63917227521c70ffe5b2c0a6b05fe */
+/* Source: ui-kit.css · SHA256 3d0ea23aa2103b1ad1156f3da6dab15e3f2f817e9f5a2065f1d0dab46fd65697 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#A2402F;--pv-danger-tint:#F6E7E4;
@@ -4736,7 +4736,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-kit-
 :root{--pv-elevation-short:0 1px 3px rgba(27,29,28,.04);--pv-card-edge-mix:14%;--pv-card-edge-neutral:var(--pv-line);--pv-topbar-action-height:48px;--pv-topbar-action-label:600 20px/24px var(--pv-font)}
 .pv-kit{--pv-card-edge:var(--pv-card-edge-neutral)}
 .pv-kit:is([data-kit-identity=weather],[data-kit-identity=robot],[data-kit-identity=light],[data-kit-identity=tesla]){--pv-card-edge:color-mix(in srgb,var(--pv-tint-ink) var(--pv-card-edge-mix),var(--pv-tint))}
-.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile),pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button{--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile):not([aria-pressed=true]):not([aria-current=true]){box-shadow:var(--pv-shadow)}
 pv-widget-host #open-timers,pv-widget-host .timer-panel.pv-hero,.pv-component[data-component=timer-widget].pv-kit-hero{--pv-card-edge:color-mix(in srgb,var(--pv-on-dark) 14%,var(--pv-timer-idle-surface,var(--pv-dark)));--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);box-shadow:var(--pv-shadow)}
 /* The resource wrapper is geometry only: its child is the visible shared Tile. */
@@ -4753,3 +4753,9 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 /* Timer keeps one dark material in every composition, including compact Ro. */
 .pv-kit.resource-preview[data-kind=timer]{--pv-tint:var(--pv-dark);--pv-tint-ink:var(--pv-on-dark);--pv-card-edge:color-mix(in srgb,var(--pv-dark) 88%,var(--pv-on-dark));--overview-card-surface:var(--pv-dark);--overview-card-ink:var(--pv-on-dark);--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);--pv-surface-shadow-hover:var(--pv-shadow)}
 
+
+/* Adopt the existing canonical feedback variant with its consumer. */
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback]{font:var(--pv-t-meta)!important;line-height:var(--pv-leading-meta)!important;color:var(--pv-ink-2)!important;margin:0!important;padding:0!important;min-height:var(--pv-leading-meta)!important;background:transparent!important;text-align:start!important}
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=error]{color:var(--pv-danger)!important}
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=unknown]{color:var(--pv-warning)!important}
+.pv-kit[data-kit-tone=dark] .pv-kit.pv-kit-listrow[data-kit-variant=feedback]:not([data-state=error]):not([data-state=unknown]){color:var(--pv-on-dark)!important}

@@ -1865,7 +1865,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-kit-
 :root{--pv-elevation-short:0 1px 3px rgba(27,29,28,.04);--pv-card-edge-mix:14%;--pv-card-edge-neutral:var(--pv-line);--pv-topbar-action-height:48px;--pv-topbar-action-label:600 20px/24px var(--pv-font)}
 .pv-kit{--pv-card-edge:var(--pv-card-edge-neutral)}
 .pv-kit:is([data-kit-identity=weather],[data-kit-identity=robot],[data-kit-identity=light],[data-kit-identity=tesla]){--pv-card-edge:color-mix(in srgb,var(--pv-tint-ink) var(--pv-card-edge-mix),var(--pv-tint))}
-.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile),pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button{--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile):not([aria-pressed=true]):not([aria-current=true]){box-shadow:var(--pv-shadow)}
 pv-widget-host #open-timers,pv-widget-host .timer-panel.pv-hero,.pv-component[data-component=timer-widget].pv-kit-hero{--pv-card-edge:color-mix(in srgb,var(--pv-on-dark) 14%,var(--pv-timer-idle-surface,var(--pv-dark)));--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);box-shadow:var(--pv-shadow)}
 /* The resource wrapper is geometry only: its child is the visible shared Tile. */
@@ -1882,3 +1882,9 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 /* Timer keeps one dark material in every composition, including compact Ro. */
 .pv-kit.resource-preview[data-kind=timer]{--pv-tint:var(--pv-dark);--pv-tint-ink:var(--pv-on-dark);--pv-card-edge:color-mix(in srgb,var(--pv-dark) 88%,var(--pv-on-dark));--overview-card-surface:var(--pv-dark);--overview-card-ink:var(--pv-on-dark);--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);--pv-surface-shadow-hover:var(--pv-shadow)}
 
+
+/* Adopt the existing canonical feedback variant with its consumer. */
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback]{font:var(--pv-t-meta)!important;line-height:var(--pv-leading-meta)!important;color:var(--pv-ink-2)!important;margin:0!important;padding:0!important;min-height:var(--pv-leading-meta)!important;background:transparent!important;text-align:start!important}
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=error]{color:var(--pv-danger)!important}
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=unknown]{color:var(--pv-warning)!important}
+.pv-kit[data-kit-tone=dark] .pv-kit.pv-kit-listrow[data-kit-variant=feedback]:not([data-state=error]):not([data-state=unknown]){color:var(--pv-on-dark)!important}
