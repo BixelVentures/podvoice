@@ -602,17 +602,19 @@ async def test_semantic_end_cancels_app_preclose_and_raw_input_preserves_transpo
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     entered, release = asyncio.Event(), asyncio.Event()
-    original = session._finish_live_conversation
+    original = session._finalize_live_conversation
 
-    async def held_finish(epoch, receipt):
+    async def held_finalizer(epoch, *, reason, receipt=None, **kwargs):
+        assert reason == "model-close-silent"
+        assert receipt is session._live_end_receipt
         entered.set()
         await release.wait()
-        await original(epoch, receipt)
+        await original(epoch, reason=reason, receipt=receipt, **kwargs)
 
     try:
         with monkeypatch.context() as patch:
             clock_patch(patch, clock)
-            patch.setattr(session, "_finish_live_conversation", held_finish)
+            patch.setattr(session, "_finalize_live_conversation", held_finalizer)
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             await observed_preclose(session, sdk, link, clock)
             old = session._live_idle_preclose_task

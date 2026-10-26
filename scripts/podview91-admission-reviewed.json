@@ -177,7 +177,7 @@
     "tests/integration/test_podview_start_move_settlement.py": "733dc5556f9e2787f0411dda32508c03a6f8dafeb336d42e72dd0521059febdf",
     "tests/integration/test_queue_controller_boundary.py": "856a3afd374b45c853e775d70a76e9fb1c3f1ddd9647b3494cab7c4d0587fe35",
     "tests/integration/test_thin_live.py": "7f10968fe5b27cea76f19555f31a132c6566d797a38ce722de0d8f51ffc6b90b",
-    "tests/integration/test_thin_live_idle_preclose.py": "fb0a16dab929903e721403a96682727461e3dbf3f5eda5334b1542a2f97570a3",
+    "tests/integration/test_thin_live_idle_preclose.py": "0e823380b877b898e200735bc0df6c4f263cfbd6ea3afd408bbb8371add4f275",
     "tests/integration/test_thin_live_idle_protection.py": "80b14d13282a23e78063aadfc6d30143f51ca557ff0534378ff5d8808d156826",
     "tests/integration/test_thin_live_quiet_close.py": "edcb8f1814979b62edf5ebc90c3c7dad8e71a5af741751a7b2ae3d9f34dc3b5a",
     "tests/integration/test_thin_live_resumed_input_preclose.py": "c4565f405275bad17231f45c172f3bfc6f7b5a6fa34b54242c19ff3edeb70730",

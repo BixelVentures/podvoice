@@ -9,11 +9,11 @@
   ],
   "fingerprint": "e80e458e2e7935d95a43202921631210f618f9d91dce6d63447e7d0221431699",
   "kind": "podview91_single_owner_integration",
-  "manifest_fingerprint": "d9de6b61f8a49bedd79f6bd12def9239942c861ab01c22d65fea2b6fa6584b66",
+  "manifest_fingerprint": "c22e5c516d55233f6b3e7cc2a681ebe6798d81ee052f9087722e5a7f3a414c07",
   "merge_base": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
-  "policy_fingerprint": "a89cc328109082406d44ccc78cd7f3614a8783229b513e55cc0065f89cf2b81a",
+  "policy_fingerprint": "039b86b5b2f46adf3ef8ee3cea07e7abf1afbc9e37042ea8e217a7fd8fd1b34f",
   "rationale": "Independent exact-source review binds72 production,92 regression,338 runtime files and the canonical215-file UI. Runtime and provider evidence are unchanged by official-CI fixture alignment; root-only safety regressions remain covered. Separate publication, installation and physical gates remain pending.",
-  "regression_fingerprint": "2b845a13dc88adfbf3cdcf811bc2ec7a436d629b83ac8aacb83a6b20edca17e1",
+  "regression_fingerprint": "e15c24f452c30df79fac175306bc03cf3871bfe0b8e02556af50d54d6212cdbd",
   "reviewer": "/root/close_example_hypothesis",
   "runtime_fingerprint": "94b0f483d4f1b0586ff3ba69421d081731039f3b747ceaf99271064858c97534",
   "tooling_fingerprint": "3a550e3d02f12b7dc7dbafc6ae511c6b76dbc151ce3ddc6a54e92173e0d5e27b",
@@ -6418,3 +6418,6 @@ Lead: root. PR255 head3923474317d11d09fc1158be8f4537e224919731 passed scope, HA-
 PodView owner supplied canonical matching fixture deltas and the approved registry026b04e7; root preserved root-only history/visibility sentinels after parent adversarial coverage review. Native/music21-file patch6f34149e has separate reviewer GO. Registry changes add three registered owners without losing root-only modules or catalog entries. One combined packaged-node run retained4345 PASS; six environment failures arose only from four sandbox loopback denials and two missing-esbuild module imports. Reused the existing PodView dependency directory and reran only those three invalidated modules:44/44 PASS. Original log remains /private/tmp/pv91-packaged-ui-fixtures-combined.log and focused environment recheck /private/tmp/pv91-packaged-ui-environment-recheck.log. No household/provider calls, runtime tuning or wider local release rerun. Final official CI remains required on the updated exact candidate.
 
 Green passive readback: PodVoice2.0.90 running. Coordinated encrypted backupfecd8830 completed26Oct15:17 local,77.84MB, includes Home Assistant settings/history, PodVoice2.0.90, Speakers0.26.53 and other installed apps; default UI name Custom backup2026.8.2. Control0.10.24 downloaded through existing HACS and verified in actual disk manifest, but Core restart/loading is PENDING. PodVoice HA component disk manifest is0.1.5 (prior0.1.6 assumption superseded); whole10-file0.1.7 replacement and one coordinated Core restart remain pending. Active timers/alerts must be quiescent before Core restart. No new credential/access, sound, alarm or robot operation. PV91, Speakers54, firmware115 and final Sites/library installation/publication remain pending.
+
+
+PR255 second checkpoint3726b6c8 passed official UI/browser, add-on build, HA framework, all unit shards and remaining1. Remaining2 reached a stale silent-close race barrier: it patched _finish_live_conversation although accepted silent END now intentionally enters _finalize_live_conversation directly. Test-only barrier now wraps the actual finalizer, asserts model-close-silent and exact current receipt, preserving cancellation/raw-input/provider-close/rearm assertions and original waits. All seven affected/neighbor modules PASS; wrapper scan found no other stale silent owner. Runtime/UI unchanged. Speakers0.26.54 installation completed and Supervisor Kører verified26Oct15:41 local. Control24 remains on disk awaiting coordinated Core restart; PV91/HA0.1.7/FW115 and Sites remain pending.
