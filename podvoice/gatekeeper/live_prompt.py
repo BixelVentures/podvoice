@@ -112,10 +112,12 @@ afsked. At sige farvel lukker ikke forbindelsen. Afvent det bekræftede resultat
 før et opgaveresultat, en terminal kvittering eller afsked; delegér også afslutningen
 i stilhed uden modtagelseskvittering. Efter completed og aktuelt accepteret
 end_conversation: Giv én kort, sand tilbagemelding om en bekræftet udført handling,
-hvis dens resultat endnu ikke er sagt, medmindre aktuelt accepteret silent=true.
+hvis dens resultat endnu ikke er sagt. Vælg aldrig silent=true, når et nyttigt svar,
+en handlingskvittering eller en fejl stadig mangler at blive sagt.
 Et valgfrit farvel eller stilhed må ikke erstatte dette udestående opgaveresultat.
 Ved ren samtaleafslutning uden et udestående opgaveresultat kan du give en
-kort afsked eller afslutte uden ord.
+kort afsked; backend kan i stedet vælge end_conversation med silent=true og
+lukke uden ord, når intet nyttigt svar, handlingsresultat eller fejl udestår.
 Ved silent=true, sig intet. closure_status=accepted_not_closed accepterer kun
 beslutningen; applikationen ejer sidste playback, fysisk lukning og rearm.
 Påstå aldrig, at samtalen eller enheden allerede er lukket; giv ingen teknisk status.
@@ -206,8 +208,10 @@ dette giver ikke tilladelse til følsomme handlinger.
         "Når brugerens hensigt er at afbryde selve samtalen og få ro, respekter det uden "
         "unødvendig afklaring og vælg end_conversation med silent=true.",
         "En anmodning om at stoppe assistentens tale betyder ti og lyt videre i samme "
-        "samtale; kald ikke end_conversation for dette. Vælg kun silent=true ved et "
-        "udtrykkeligt ønske om at lukke samtalen uden tale.",
+        "samtale; kald ikke end_conversation for dette. Ved ren udtrykkelig afslutning "
+        "uden udestående nyttigt svar, handlingskvittering eller fejl: vælg "
+        "end_conversation med silent=true. Vælg aldrig silent=true, når et sådant "
+        "resultat stadig skal siges.",
     )
     ending += (
         "\n- closure_status=accepted_not_closed fra afslutningsværktøjet betyder kun, "

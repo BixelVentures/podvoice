@@ -323,6 +323,8 @@ pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{width:100%;g
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;grid-row:auto}
 pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"])::before{opacity:1}
+/* The existing nested-scroll fade and topbar divider share the same observed edge. */
+pv-widget-host[data-view=active][data-topbar=true]:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"]) .view-nav::after{opacity:1}
 pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="end"])::after{opacity:1}
 pv-widget-host .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail)>:not([hidden]){flex-shrink:0}
 pv-widget-host #vehicle-view .vehicle-hero{height:auto;max-height:none;flex:0 0 auto;overflow:visible;display:flex;flex-direction:column;align-items:stretch}
@@ -1166,10 +1168,8 @@ pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .
 @media(max-width:420px){pv-widget-host #device-view .light-adjustments{grid-template-columns:minmax(0,1fr)}}
 /* Compact volume spacing preserves the full mute hit target. */
 pv-widget-host[data-view=active] .player.pv-card>.volume{gap:var(--pv-s1)}
-/* Routine output has one centered row; meaningful exceptional status keeps its own slot. */
+/* Output always reserves the existing status row above the fixed speaker row. */
 pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-r-pill)}
-pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state:empty),pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state[data-routine-output=true]){grid-template-rows:48px}
-pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state:empty) .output-room,pv-widget-host[data-view=active] .player.pv-card>.output h2:has(>#player-state[data-routine-output=true]) .output-room{grid-row:1}
 
 /* Button state contract: only the exact owner's current attributes can paint
    a persistent state. Press/release remains owned by attachPressedState. */

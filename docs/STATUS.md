@@ -1,3 +1,45 @@
+## 2026-10-26 — fast silent semantic close implemented and provider-observed
+
+User explicitly required fixing, not merely retaining, the close regression. Minimal reviewed silent=true path now finalizes immediately after current accepted backend settlement through the existing provider-closed/exact-playback-tail finalizer; false preserves owed-answer protection. Model/backend contract selects silence only for pure explicit ending with no owed useful answer/action receipt/error. No new delay, phrase classifier, PCM filter or mute. Independent source review GO. Integrated by exact Thin base and selective prompt hunks, preserving exclusion of held F17 original-task work.
+
+Actual pure-explicit-close report818858f4 remains FAIL: all inputs recognized, opening4, one accepted silent END, current settlement14.657876s, provider-close request0.066ms later, session.closed15.416606s, synthetic teardown/rearm15.434124s (0.776248s after settlement); no fresh4s wait. Three late all-zeroPCM chunks10560bytes retained, clean shutdown/finalusage,1connection/no runtimefault. Primary nevertheless said Okay before acceptance, so silent/no-preaccept gate is still failed. No physical acceptance inferred. Green89 Kører restored within49s, keycleared/no household output. Root receipt /private/tmp/pv91-silent-fast-root-adoption-20261026.json.
+
+UI successor37c2fd36 integrated separately; PC13 station-successor evidence, remaining provider behavior, final CI/publication/install and physical acceptance remain open.
+
+## 2026-10-26 — final shared UI corrections integrated
+
+Canonical205 successor37c2fd36 applied as immutable patch377161e9 after independent custody review and exact base checks. All205 runtime pins and asset7cdca35f now match;198 files preserved. Includes disconnected Light roles, stable player header, scroll boundary and hover filter removal. Existing2880 checks and scoped actual visual GO reused; no household effects or installation. Final admission bindings stay closed pending voice/PC13 gates.
+
+## 2026-10-26 — semantic-close requirement remains unsatisfied
+
+Independent source audit confirms the terminal-output safety fix is not fast-semantic-close acceptance: thin.py resets the semantic quiet window at backend settlement, then _live_quiet_ready(semantic=True) still requires idle_timeout_s (4 seconds). This contradicts LEAD-PLAN section 6 no-new-followup-window requirement. Backend settlement does not identify completed primary speech. Current GPT-Live continuous output exposes no per-spoken-response completion event; local drained/quiet playback cannot prove an empty provider queue. Preserve the safety fix as held work, but do not mark PV103/PV107 or the close gate Ready for QA. Removing the delay without a demonstrated supported boundary would reintroduce lost-result risk. Required next evidence is the provider close/drain contract and a queued-result trace; no additional arbitrary timeout or fabricated audio-done is permitted.
+
+Premature acknowledgement is separately observed primary-policy noncompliance: full primary/backend instruction assignment has been audited without a contrary permission. Existing reviewed length-owner patch repairs requested answer depth, not acknowledgement behavior. No extra phrase filters or speculative prompt bans were added.
+
+Interruption pacing-only fix is reviewed and pushed as held checkpoint 652ad6f67924d300a16625e07734d3b82e2b75eb, tree2d7efbbb123f0ddf115de82b809004b96b0be9fa, both changed Git blobs read back exactly. 172 focused checks pass; actual retained trace can pace the closing stimulus at16.68s. Original UNKNOWN remains immutable.
+
+## 2026-10-26 — actual new interruption call; Green restored
+
+One newly requested OpenAI interruption case executed, one connection, clean shutdown and final usage. Original UNKNOWN report retained at /private/tmp/pv91-one-interruption-provider-connected-20261026/interrupt-active-output/report.json (SHA256 e71e3b611be3d4c402ac502917383c7a3875bebdc9701c53c3b73b6f7671135e). Trace observes count start, overlapping follow-up 31+12, and correct spoken transcript 43. Closing fixture was not sent because test pacing compared the entire opening transcript literally (Til vs Tæl). No whole close-chain/provider or physical acceptance claimed. Green UI verified 2.0.89 Kører within 60 seconds of pause start; key cleared; no household output. Pacing correction under isolated review; no unchanged paid retry.
+
+### Reviewed source checkpoints preserved remotely
+
+Mainintegratedcandidate UI205+Thinfix checkpoint950b1ea60909f219b562d902d6ebbc86ece1dd12
+tree10f5b6450e8ac38bd81d71a7c08578c0d25747a4 pushedlease+readback. HeldF17evaluation
+checkpoint4470e6e4c0da9c6086cc9557ce4ec25e9716d244 tree7dbcebaf7714e2710d4f5711ded9ebe1ed0418f5
+isolatebranchcodex/podvoice91-f17-eval hasall9changedsource/docsfilesverifiedagainst
+Gitblobhashes. No sourceleftonlyinlocaltemporarydraft forreviewedfixes.
+
+Newheldlengthownerproposal actualmodule80PASS+repoRuffformat andindependent
+actual_close_evidence sourceGO fixesprimaryhard2sentencelimit vsrequesteddepth,
+keepsshortdefault, andletsoptionalvisualyieldtofullspokenrequestedanswer. Parser
+2048bytes/1200spoken/600plaintextreceiptlimitsunchanged; >600plainanswer maylack
+visual/historyattribution butparserdoesnottruncateprimaryvoice. No modelobedience,
+prematureackfix/provider/physical/releaseclaim. Newpromptbitsneverusedbyretained
+actualprovidertrials; mustnotinheritthosepositiveobservations. Notadoptedmaincandidate.
+PC13actualworkingcontinuation, providerfullgates/interrupt, finalCI/release/installation
+andphysicalacceptance stillrequired. LatestGreenreadbackremains2.0.89Kører.
+
 ### Canonical205 UI successor integrated without replacing music owners
 
 Root verified203f00fcbase, checked andapplied canonicalpatch6994dc82 from immutable

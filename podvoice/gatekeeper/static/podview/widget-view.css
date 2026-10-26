@@ -71,7 +71,7 @@ body{padding:var(--pv-s3) var(--pv-s3) var(--pv-s2)}pv-widget-host{display:block
 #now-view :is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)[data-kind=vacuum][data-status=fault]{--overview-card-ink:var(--pv-screen-danger)}
 @media(hover:hover){
  #now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):hover:not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-status=pending]){
-  background:var(--overview-card-surface);color:var(--overview-card-ink);filter:brightness(.97);
+  background:var(--overview-card-surface);color:var(--overview-card-ink);filter:none;
  }
 }
 #now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):is(:active,.is-pressed):not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-status=pending]){transform:none;filter:brightness(.985)}

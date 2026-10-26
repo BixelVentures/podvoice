@@ -1128,7 +1128,10 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
         await emit(sdk, terminal("r2"))
         await until(receipt.done)
         assert receipt.result() is True
-        assert sdk.session.close.await_count == 0  # Both variants wait after settlement.
+        if not silent:
+            assert (
+                sdk.session.close.await_count == 0
+            )  # Owed primary output retains quiet admission.
         await until(lambda: link.rearm_calls == 1)
         assert sdk.session.close.await_count == 1 and not session._active
     finally:
@@ -1153,6 +1156,15 @@ async def test_raw_fragment_preserves_native_end_but_typed_input_retires_permiss
             await emit(sdk, created("r2"), terminal("r2"))
             await until(receipt.done)
             assert receipt.result() is True
+        if phase == "grace" and silent:
+            # Silent END commits immediately after settlement; new input cannot
+            # reclaim a conversation whose provider finalization has committed.
+            await until(lambda: session._live_finalizing or not session._active)
+            if source == "typed" and session._active:
+                assert (await session.submit_text("Vent", "correction"))["status"] == "rejected"
+            await until(lambda: link.rearm_calls == 1)
+            assert sdk.session.close.await_count == 1
+            return
         if source == "voice":
             await emit(
                 sdk,
