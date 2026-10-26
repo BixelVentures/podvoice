@@ -44,3 +44,13 @@ test('one kit rule admits only relevant owner-supplied overview commands and nev
 test('live M policy requires the actual current owner action bound to device, status and revision',()=>{
  const robot={id:'r',kind:'vacuum',live:true,status:'cleaning',revision:5},liveAction={id:'pause',resourceId:'r',status:'cleaning',revision:5,label:'Pause rengøring',disabled:false},context={live:true,connected:true,canControl:true,size:'m',actions:[{id:'pause'}],liveAction};assert.equal(resourceOverviewAction(robot,context).id,'pause');for(const change of [{resourceId:'other'},{status:'paused'},{revision:4},{id:'resume'}])assert.equal(resourceOverviewAction(robot,{...context,liveAction:{...liveAction,...change}}),null);assert.equal(resourceOverviewAction(robot,{...context,liveAction:null}),null);assert.equal(resourceOverviewAction(robot,{...context,size:'s'}),null);assert.equal(resourceOverviewAction(robot,{...context,liveAction:{...liveAction,disabled:true}}).disabled,true);
 });
+
+test('fresh live docked Robot without a pause/resume offer renders navigation without throwing or inventing a command',()=>{
+ const robot={...device,live:true,stale:false},context={live:true,connected:true,canControl:true,size:'m',liveAction:null};
+ for(const status of ['docked','stopped','complete','docking','idle','unknown','fault'])assert.equal(resourceOverviewAction({...robot,status},context),null,status);
+ const f=fixture({live:true});open.call(f.host,device.id,f.opener);assert.deepEqual(f.calls,[{type:'show',id:device.id}]);
+ const active={...robot,status:'cleaning'},offer={id:'pause',resourceId:robot.id,status:'cleaning',revision:robot.revision,label:'Pause'};
+ assert.equal(resourceOverviewAction(active,{...context,liveAction:offer}).id,'pause');
+ for(const change of [{liveAction:null},{liveAction:{...offer,resourceId:'foreign'}},{connected:false}])assert.equal(resourceOverviewAction(active,{...context,liveAction:offer,...change}),null);
+ assert.equal(resourceOverviewAction({...active,stale:true},{...context,liveAction:offer}),null);
+});

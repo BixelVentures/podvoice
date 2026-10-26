@@ -287,3 +287,58 @@ async def test_policy_revocation_after_resolution_invalidates_retained_closure(r
     assert result is not None and result["current"]()
     rig.bridge.controls.policy["music"] = []
     assert not result["current"]()
+
+
+async def test_playback_failures_log_only_fixed_reasons(caplog, monkeypatch):
+    import logging
+
+    from gatekeeper import podview_room_media
+
+    secret = "PRIVATE-TRACK-ACCOUNT-TOKEN"
+
+    class Tools:
+        async def podview_read(self, *args, **kwargs):
+            if self.response == "raise":
+                raise RuntimeError(secret)
+            return self.response
+
+    tools = Tools()
+    controls = SimpleNamespace(policy={"roomId": "kitchen", "music": []}, music=object())
+    bridge = SimpleNamespace(
+        tools=tools, controls=controls, boot_id="boot", sessions={"kitchen": object()}
+    )
+
+    async def attempt():
+        result = await resolve_actual(bridge, "kitchen", secret, lambda: "owner")
+        assert result["status"] == "unavailable"
+        assert result["reason"] == "account_unavailable"
+
+    with caplog.at_level(logging.WARNING, logger="podvoice.podview"):
+        tools.response = {"ok": False, "error_kind": "rate_limited", "private": secret}
+        await attempt()
+        tools.response = {"ok": False, "error_kind": secret}
+        await attempt()
+        tools.response = {"ok": True, "data": {"secret": secret}}
+        monkeypatch.setattr(
+            podview_room_media.podview_music,
+            "project_playback_output",
+            lambda *_: {"ok": False, "error_kind": "malformed_response"},
+        )
+        await attempt()
+        tools.response = "raise"
+        await attempt()
+
+    assert "source=owner reason=rate_limited" in caplog.text
+    assert "source=owner reason=unavailable" in caplog.text
+    assert "source=projection reason=malformed_response" in caplog.text
+    assert "source=exception reason=unavailable" in caplog.text
+    assert secret not in caplog.text
+
+    def broken_logger(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(podview_room_media._LOG, "warning", broken_logger)
+    tools.response = {"ok": False, "error_kind": "rate_limited"}
+    await attempt()
+    tools.response = "raise"
+    await attempt()

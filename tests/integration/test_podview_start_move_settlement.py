@@ -429,3 +429,154 @@ async def test_move_receipt_uses_new_confirmed_binding_not_old_read_closure(cont
     rig.aggregate_hook = retire_destination
     assert (await read(rig, receipt_request_id="move-one"))["settlement"] is None
     assert controls.settlement_identity("kitchen", rig.token, "move-one", "account-alpha") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra_native_actions", [False, True])
+async def test_real_move_confirmation_controls_projection_and_second_move(
+    monkeypatch, extra_native_actions
+):
+    rig = Rig()
+    session, _ = owner()
+    bridge = PodViewBridge(
+        {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
+    )
+    actual = install_actual_playback(rig)
+
+    import httpx
+    from integration.test_podview_music_control import controls, room_owner
+
+    dto = SimpleNamespace(tools=rig.router, value=controls())
+    room_owner(dto)
+    dto.value.update(actions=["pause", "resume", "next", "previous"], poll_sequence=4)
+    if extra_native_actions:
+        dto.value["actions"] += ["seek", "shuffle", "repeat"]
+    dto.value["target"]["target_id"] = "speaker"
+    dto.value.update(room_id="r1", homepod_id="43")
+    dto.value["native"].update(
+        target_id="speaker", room_id="r1", homepod_id="43", alias_incarnation="a" * 32
+    )
+    dto.value["route"]["device_id"] = "43"
+    original = rig.request
+    native_reads = []
+
+    async def request(req):
+        args = json.loads(req.content)
+        if req.url.path.endswith("get_playback_snapshot"):
+            value = copy.deepcopy(actual)
+            if not args.get("include_output"):
+                value.pop("output")
+                value["schema"] = "podconnect.playback.v1"
+            return httpx.Response(200, json={"service_response": value})
+        if req.url.path.endswith("get_room_playback_controls"):
+            native_reads.append(args)
+            return httpx.Response(200, json={"service_response": dto.value})
+        return await original(req)
+
+    rig.client._transport = httpx.MockTransport(request)
+    token = bridge.grant_timer_control("kitchen")
+    source = payload()
+    source["targets"][-1]["target_id"] = "speaker"
+    monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=source))
+    destination = podview_speakers.project(
+        source, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
+    )["speakers"][1]
+    identity = {"owner_epoch": "a" * 32, "command_sequence": 1, "request_id": "a" * 32 + ":1"}
+
+    class Move:
+        available = True
+
+        def binding(self):
+            return rig.router.podview_music_binding()
+
+        setup = AsyncMock(
+            return_value=SimpleNamespace(
+                deadline=9999999999,
+                wire={
+                    "owner_epoch": identity["owner_epoch"],
+                    "poll_sequence": 4,
+                    "move_offer": {"native_incarnation": "a" * 32},
+                },
+            )
+        )
+        move = AsyncMock(
+            return_value={
+                "schema": "podconnect.command.v1",
+                "config_entry_id": "account",
+                "action": "move_existing_session",
+                "target": {"kind": "spotify_device", "target_id": "speaker"},
+                "room_id": "r1",
+                "homepod_id": "43",
+                "outcome": "accepted",
+                "accepted_room_move": True,
+                "move_operation_id": "d" * 32,
+                **identity,
+            }
+        )
+
+    bridge.controls.move = Move()
+
+    async def perform_move(*args, **kwargs):
+        actual["output"]["binding"].update(native_room_id="r1", homepod_id="43")
+        for row in source["targets"][:2]:
+            row["binding"]["room_id"] = "r1"
+        source["targets"][2]["selected"] = False
+        source["targets"][3]["selected"] = True
+        return bridge.controls.move.move.return_value
+
+    bridge.controls.move.move.side_effect = perform_move
+    setup = await bridge.controls.setup(
+        {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "domain": "music",
+            "target": {
+                "accountId": "account",
+                "kind": "spotify_device",
+                "targetId": "speaker",
+                "speakerId": destination["speakerId"],
+                "expectedBindingId": ACTUAL_BINDING,
+            },
+        },
+        token,
+    )
+    assert setup["ok"]
+    action = action_body(setup, setup["options"][0])
+    action["requestId"] = "move-one"
+    first = await bridge.controls.action(action, token)
+    assert first["outcome"] == ("unknown" if extra_native_actions else "accepted")
+    assert bridge.controls.move.move.await_count == 1
+    assert native_reads == [
+        {
+            "config_entry_id": "account",
+            "kind": "spotify_device",
+            "target_id": "speaker",
+            "room_id": "r1",
+            "homepod_id": "43",
+        }
+    ]
+    assert (("kitchen", "account") in bridge._music_move_fence) is extra_native_actions
+    assert ("music" in bridge.controls.domains("kitchen", token)) is (not extra_native_actions)
+    if not extra_native_actions:
+        assert binding(bridge, "kitchen", "account")["nativeRoomId"] == "r1"
+        return_destination = podview_speakers.project(
+            source, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
+        )["speakers"][0]
+        second = await bridge.controls.setup(
+            {
+                "bootId": bridge.boot_id,
+                "roomId": "kitchen",
+                "domain": "music",
+                "target": {
+                    "accountId": "account",
+                    "kind": "spotify_device",
+                    "targetId": "speaker",
+                    "speakerId": return_destination["speakerId"],
+                    "expectedBindingId": ACTUAL_BINDING,
+                },
+            },
+            token,
+        )
+        assert second["ok"], second
+        assert second["options"][0]["action"] == "move_existing_session"
+    await rig.client.aclose()

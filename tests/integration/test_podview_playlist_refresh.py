@@ -88,7 +88,7 @@ async def test_actual_refresh_uses_best_genuine_set_with_existing_bounds(
 
     async def read(kind, account=None, query=None):
         queries.append(query)
-        if len(queries) > 3:
+        if len(queries) > 6:
             if case == "bad-source":
                 return {"ok": False}
             if case in {"auth", "rate", "http5xx"}:
@@ -105,7 +105,7 @@ async def test_actual_refresh_uses_best_genuine_set_with_existing_bounds(
                 "config_entry_id": account,
                 "owner_epoch": (
                     "foreign"
-                    if case == "foreign-epoch" and len(queries) > 3 and query == "cooking"
+                    if case == "foreign-epoch" and len(queries) > 6 and query == "cooking"
                     else r.playlist_epoch
                 ),
                 "source": "spotify_web_api",
@@ -124,7 +124,7 @@ async def test_actual_refresh_uses_best_genuine_set_with_existing_bounds(
     after = await direct(r, "renew" if case == "renew-frozen" else "refresh")
     if case in {"bad-source", "auth", "rate", "http5xx", "foreign-epoch"}:
         assert not after["ok"]
-        assert len(queries) == 6
+        assert len(queries) == 12
         return
     assert after["ok"]
     a = {row["uri"] for row in before["data"]["tracks"]}
@@ -134,7 +134,9 @@ async def test_actual_refresh_uses_best_genuine_set_with_existing_bounds(
         assert not a & b
     else:
         assert a == b
-    assert len(queries) == (9 if case in {"broader-new", "insufficient-new"} else 6)
+    assert len(queries) == (
+        15 if case in {"broader-new", "insufficient-new"} else 9 if case == "renew-frozen" else 12
+    )
     assert r.router.podview_mood_selector.select.await_count == (
         1 if case in {"renew-frozen", "quota-fallback"} else 2
     )
@@ -190,5 +192,5 @@ async def test_frozen_renewal_preserves_new_nonfirst_rows_after_explicit_refresh
     assert initial["ok"] and refreshed["ok"] and renewed["ok"]
     assert initial["data"]["tracks"] != refreshed["data"]["tracks"]
     assert refreshed["data"]["tracks"] == renewed["data"]["tracks"]
-    assert len(queries) == 9
+    assert len(queries) == 15
     assert r.router.podview_mood_selector.select.await_count == 2

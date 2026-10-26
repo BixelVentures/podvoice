@@ -491,7 +491,7 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "c2214d8f3489f5adc69f9fb0d0ce90ff7a8ffad6e47874bc3c57a8ad56a94cc7"
+      "sha256": "8a2b24d06a861ff8716e4a7c26b2f9fd22e04b9f34b05ceb7acb879535484a72"
     },
     {
       "path": "light-room-view.js",
@@ -503,7 +503,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "53ff67dd366f745956d66d7f1b38ad89daf955bd20d0843f3c8326af0a58bbf2"
+      "sha256": "218c4fbbcc2ea1bd71bfa0131d7aad2790c3ff6a30c68222469a54302ba08740"
     },
     {
       "path": "live-home-view.js",
@@ -599,11 +599,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "6eabb2bc1f76d805aece0ffb8dbc5d916441f76d98304946bb641f1afc17e45d"
+      "sha256": "1a0c595c37ccd7926a2b3bc3db323e6278643ac1925c10cf917c51baea0d331c"
     },
     {
       "path": "podview.css",
-      "sha256": "9f9ee50d8488cd3c89de7745bc1e1fd27929aa0ec5ee08f5788b699fc0776232"
+      "sha256": "1869714c4486fb93bd0f46a26548c7f56c9ab47e540c0386a7d9edf4d90a7b32"
     },
     {
       "path": "podvoice-transport.js",
@@ -675,7 +675,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "74d8e24bc09af85ef5d714225cff4acd28307e81c3b24d4852a4f7e631834666"
+      "sha256": "25626989b81defd30219742bcc326104b839c43c1672fe8296ccfb227a31a3d1"
     },
     {
       "path": "spotify-artwork.js",
@@ -703,7 +703,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "846184d6c0a4fcf7852c6013091303aeeb16abac93dc84e6cb4d6618f60169e3"
+      "sha256": "374cbc7a2df0374944770d8b6ecce1f9b7dc953a49497fc48c166b7bee34c388"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -779,7 +779,7 @@
     },
     {
       "path": "ui/resource-tile.js",
-      "sha256": "afef63d89cb856548975d143ec022d094cca994581a14e725338e62b076897cd"
+      "sha256": "a3a436aecaebcfb222e6c7bb83b48484a59f96f829725a3a6815d620a4b27699"
     },
     {
       "path": "ui/robot-motion.js",
@@ -851,7 +851,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "461b9b2d3983b8a7ec4c07bebc9adf2480410a599fb2d816cdfd17a211c41787"
+      "sha256": "454faf3edf4e1f6f67b7cdeffc2809312f1fcffd1dcc8624b7f094613dcfd96d"
     },
     {
       "path": "workshop.css",

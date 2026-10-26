@@ -197,7 +197,7 @@ def test_monotonic_phase_timings_are_bounded_closed_and_do_not_log_content(caplo
         caplog.records[-1]
         .getMessage()
         .endswith(
-            "total_ms=1105 playback_before_ms=125 time_context_ms=50 model_ms=700 playlist_search_ms=200 playback_after_ms=25 publish_ms=5"
+            "total_ms=1105 playback_before_ms=125 time_context_ms=50 model_ms=700 parallel_selection_search_ms=0 playlist_search_ms=200 playback_after_ms=25 publish_ms=5"
         )
     )
     assert len(caplog.records) == 1 and diag._CURRENT.get() is None
@@ -240,3 +240,15 @@ def test_tab_kind_is_closed_even_after_mutation(caplog):
     record.kind = [SECRET]
     diag.finish(record, token)
     assert "kind=other" in caplog.text and SECRET not in caplog.text
+
+
+def test_parallel_selection_search_has_own_honest_phase(caplog):
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    now = [10.0]
+    record, token = diag.begin(clock=lambda: now[0])
+    record.step("parallel_selection_search")
+    now[0] += 2.5
+    record.step("publish")
+    diag.finish(record, token)
+    text = caplog.records[-1].getMessage()
+    assert "model_ms=0 parallel_selection_search_ms=2500 playlist_search_ms=0" in text

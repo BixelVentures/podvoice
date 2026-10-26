@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
-import {homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {liveScene,homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {vehicleChargeUpdate} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
 import {vehicleObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
 const begin=source.indexOf('const homeConnection='),end=source.indexOf("if($('home-vehicle-status')",begin);
@@ -22,5 +22,12 @@ test('Tesla overview destination goes directly to its detail independently of th
 test('actual vehicle caller binds charge feedback to admitted state homeScope, never an absent host field',()=>{
  const scope=JSON.stringify(['boot','room']),s={focus:'vehicle',connected:false,homeScope:scope},host={live:true,liveTransport:{connected:true},liveSnapshot:{bootId:'boot',roomId:'room',capabilities:{homeRead:['vehicle']}},homeScope:'must-not-be-used'},sample=at=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:at,entityIds:['sensor.car_charge'],data:{batteryPercent:at===100?71:72,charging:{status:'charging'},climate:{}}});
  let previous;const observe=(at,sourceScope)=>{s.homeScope=sourceScope;s.vehicle=sample(at);render.call(host,s);const context=host.vehicleView.options.at(-1).chargeContext;assert.equal(context.connected,true);assert.equal(context.scope,scope);assert.equal(context.sourceScope,sourceScope);previous=vehicleChargeUpdate(previous,s.vehicle,context);return previous.cue;};
- assert.equal(observe(100,scope),false);assert.equal(observe(101,undefined),false);assert.equal(previous.eligible,false,'missing admitted scope cannot borrow the current owner scope');assert.equal(observe(102,'foreign'),false);assert.equal(previous.eligible,false);assert.equal(observe(103,scope),false,'first matched recovery only seeds source data');s.vehicle={...sample(104),batteryPercent:73};render.call(host,s);previous=vehicleChargeUpdate(previous,s.vehicle,host.vehicleView.options.at(-1).chargeContext);assert.equal(previous.cue,true,'a matching new actual reading can cue despite scene.connected remaining false');assert.equal(host.vehicleView.options.at(-1).connected,false,'presentation context never grants fixture command authority');
+ assert.equal(observe(100,scope),false);assert.equal(observe(101,undefined),false);assert.equal(previous.eligible,false,'missing admitted scope cannot borrow the current owner scope');assert.equal(observe(102,'foreign'),false);assert.equal(previous.eligible,false);assert.equal(observe(103,scope),false,'first matched recovery only seeds source data');s.vehicle={...sample(104),batteryPercent:73};render.call(host,s);previous=vehicleChargeUpdate(previous,s.vehicle,host.vehicleView.options.at(-1).chargeContext);assert.equal(previous.cue,true,'a matching new actual reading can cue despite scene.connected remaining false');assert.equal(host.vehicleView.options.at(-1).connected,true,'live connection presentation uses transport; observed model still grants no commands');
+});
+
+test('actual liveScene Tesla presentation follows live transport instead of local reducer latch',()=>{
+ const snapshot={bootId:'boot',roomId:'room',voice:{sessionId:'s'},timers:{status:'observed',items:[]},capabilities:{homeRead:['vehicle']}};
+ const vehicle=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:Date.now()/1000,entityIds:['sensor.car'],data:{locked:true}});
+ const s=liveScene({focus:'vehicle',vehicle,devices:[],answers:[],extraTimers:[],music:{playback:{}}},snapshot),host={live:true,liveTransport:{connected:true},liveSnapshot:snapshot};assert.equal(s.connected,false);render.call(host,s);assert.equal(host.vehicleView.options.at(-1).connected,true);assert.deepEqual(vehicle.actions,[]);
+ for(const reason of ['transport','blocked','browser']){host.liveTransport.connected=reason!=='transport';host.liveTransport.recoveryBlocked=reason==='blocked';host.browserOffline=reason==='browser';render.call(host,s);assert.equal(host.vehicleView.options.at(-1).connected,false,reason);}
 });

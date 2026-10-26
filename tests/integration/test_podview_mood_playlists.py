@@ -56,6 +56,7 @@ async def mood_rig(rig):  # noqa: F811 - imported pytest fixture
             "calm acoustic": "c",
             "morning acoustic": "d",
             "evening jazz": "e",
+            "indie": "k",
             # The same admitted bounded search port supports explicit-refresh broadening.
             "dinner": "f",
             "italian": "g",
@@ -135,7 +136,7 @@ async def test_three_owned_themes_one_real_source_and_retained_until_refresh(moo
         second = await mood(client)
         assert second["data"]["tracks"] == first["data"]["tracks"]
         assert mood_rig.router.podview_mood_selector.select.await_count == 1
-        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 6
+        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 9
         assert mood_rig.router.podview_mood_selector.select.await_args.args == (
             {"hour": 18, "roomKind": "kitchen"},
         )
@@ -145,7 +146,7 @@ async def test_three_owned_themes_one_real_source_and_retained_until_refresh(moo
         assert not {row["uri"] for row in first["data"]["tracks"]} & {
             row["uri"] for row in refreshed["data"]["tracks"]
         }
-        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 12
+        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 18
 
 
 async def test_opaque_context_option_uses_existing_native_owner_once(mood_rig):
@@ -322,7 +323,7 @@ async def test_owner_epoch_renew_revalidates_exact_playlists_without_model_or_co
         assert renewed["ok"], renewed
         assert renewed["data"]["tracks"] == first["data"]["tracks"]
         assert mood_rig.router.podview_mood_selector.select.await_count == 1
-        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 6
+        assert len([call for call in mood_rig.calls if "search_playlists" in call[1]]) == 9
 
 
 @pytest.mark.parametrize("mutation", ["name", "removed", "account", "epoch"])
@@ -400,7 +401,10 @@ async def test_morning_and_evening_are_real_query_themes_not_automatic_card_rota
         assert morning["data"]["tracks"][0]["name"] == "Real d"
         assert [call[2]["query"] for call in mood_rig.calls if "search_playlists" in call[1]] == [
             "morning acoustic",
+            "evening jazz",
             "cooking",
+            "italian dinner",
+            "indie",
             "calm acoustic",
         ]
         router.podview_mood_context.return_value = {"hour": 20, "roomKind": "kitchen"}
@@ -436,6 +440,8 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
     async def blocked(kind, account=None, query=None):
         if kind != "playlist_search":
             return await original(kind, account, query)
+        if query not in gates:
+            await asyncio.Event().wait()
         queries.append(query)
         if len(queries) == 3:
             entered.set()
@@ -507,6 +513,8 @@ async def test_playlist_batch_joins_child_cleanup_before_busy_fence_release(mood
     async def blocked(kind, account=None, query=None):
         if kind != "playlist_search":
             return await original(kind, account, query)
+        if query not in {"cooking", "italian dinner", "calm acoustic"}:
+            await asyncio.Event().wait()
         queries.append(query)
         if len(queries) == 3:
             entered.set()
@@ -570,6 +578,8 @@ async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
     async def blocked(kind, account=None, query=None):
         if kind != "playlist_search":
             return await original_read(kind, account, query)
+        if query not in {"cooking", "italian dinner", "calm acoustic"}:
+            await asyncio.Event().wait()
         queries.append(query)
         if len(queries) == 3:
             entered.set()
@@ -603,3 +613,148 @@ async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
         if not task.done():
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_mood_speculative_reads_overlap_model_and_publish_only_selected(mood_rig):
+    from gatekeeper.podview import _mood_music
+
+    bridge, router = mood_rig.app[BRIDGE], mood_rig.router
+    original = router.podview_read
+    model_started, all_reads, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    queries = []
+
+    async def model(*args, **kwargs):
+        model_started.set()
+        await release.wait()
+        return ["cooking", "italian", "calm"]
+
+    async def read(kind, account=None, query=None):
+        if kind == "playlist_search":
+            queries.append(query)
+            if len(queries) == 6:
+                all_reads.set()
+            await release.wait()
+        return await original(kind, account, query)
+
+    router.podview_mood_selector.select.side_effect = model
+    router.podview_read = read
+    request = SimpleNamespace(
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
+    task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
+    try:
+        await asyncio.wait_for(asyncio.gather(model_started.wait(), all_reads.wait()), 2)
+        assert len(queries) == 6 and not task.done()
+        release.set()
+        response = await task
+        body = json.loads(response.body)
+        assert body["ok"]
+        assert [r["themeId"] for r in body["data"]["tracks"]] == ["cooking", "italian", "calm"]
+        assert router.podview_mood_selector.select.await_count == 1
+        assert len(queries) == 6
+    finally:
+        release.set()
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_mood_speculation_fences_owner_and_joins_cancelled_reads(mood_rig, cancel):
+    from gatekeeper.podview import _mood_music
+
+    bridge, router = mood_rig.app[BRIDGE], mood_rig.router
+    started, release = asyncio.Event(), asyncio.Event()
+    active = set()
+
+    async def model(*args, **kwargs):
+        await release.wait()
+        return ["cooking", "italian", "calm"]
+
+    async def read(kind, account=None, query=None):
+        if kind != "playlist_search":
+            raise AssertionError(kind)
+        active.add(query)
+        if len(active) == 6:
+            started.set()
+        try:
+            await release.wait()
+            return {"ok": True, "data": {}}
+        finally:
+            active.remove(query)
+
+    router.podview_mood_selector.select.side_effect = model
+    router.podview_read = read
+    request = SimpleNamespace(
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
+    task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
+    await asyncio.wait_for(started.wait(), 2)
+    if cancel:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    else:
+        bridge._advance_music_source("grant")
+        release.set()
+        response = await task
+        assert not json.loads(response.body)["ok"]
+    assert not active
+    assert not bridge._music_busy
+    assert not bridge.music_selection.sources
+
+
+@pytest.mark.parametrize("failure", ["selected", "unselected_slow"])
+async def test_mood_speculative_selected_failure_and_unselected_cancellation(mood_rig, failure):
+    from gatekeeper.podview import _mood_music
+
+    bridge, router = mood_rig.app[BRIDGE], mood_rig.router
+    original = router.podview_read
+    cancelled = asyncio.Event()
+    queries = []
+
+    async def model(*args, **kwargs):
+        await asyncio.sleep(0)
+        return ["cooking", "italian", "calm"]
+
+    async def read(kind, account=None, query=None):
+        if kind != "playlist_search":
+            return await original(kind, account, query)
+        queries.append(query)
+        if failure == "selected" and query == "cooking":
+            raise RuntimeError("failed selected search")
+        if failure == "unselected_slow" and query == "indie":
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        return await original(kind, account, query)
+
+    router.podview_mood_selector.select.side_effect = model
+    router.podview_read = read
+    request = SimpleNamespace(
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
+    response = await asyncio.wait_for(_mood_music(request, bridge, "kitchen"), 2)
+    body = json.loads(response.body)
+    assert len(queries) == 6
+    if failure == "selected":
+        assert not body["ok"] and not bridge.music_selection.sources
+    else:
+        assert body["ok"] and cancelled.is_set()
+
+
+async def test_mood_speculation_broadens_only_if_needed_with_nine_read_limit(mood_rig):
+    from gatekeeper.podview import _mood_music
+
+    bridge = mood_rig.app[BRIDGE]
+    mood_rig.playlist_same = True
+    request = SimpleNamespace(
+        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+    )
+    body = json.loads((await _mood_music(request, bridge, "kitchen")).body)
+    assert not body["ok"] and body["error"] == "mood_catalogue_empty"
+    calls = [call for call in mood_rig.calls if "search_playlists" in call[1]]
+    assert len(calls) == 9
+    assert [call[2]["query"] for call in calls[6:]] == ["dinner", "italian", "acoustic"]
+    assert mood_rig.router.podview_mood_selector.select.await_count == 1
+    assert not bridge.music_selection.sources

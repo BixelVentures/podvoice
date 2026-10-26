@@ -11,7 +11,8 @@ export class LightLampView{
  snapshot(light){
   const h=this.host,local=!h.live&&light?.exampleOnly===true&&light.live!==true,selection=local?lightSelection(light):null,source=light?.live===true?scopedLightsObservation(light.lightObservation):null;
   const area=local?selection?.roomId:light?.lightScope?.areaId,scopeName=local?selection?.label:light?.lightScope?.areaName;
-  const active=!!light&&h.isConnected!==false&&h.state?.focus===light.id&&h.state?.connected!==false&&!light.stale&&!light.pending&&!h.lightAreaPending&&!h.liveControls?.lightActionState?.pending;
+  const connected=h.live===true?h.liveTransport?.connected===true&&!h.liveTransport?.recoveryBlocked&&!h.browserOffline:h.state?.connected!==false;
+  const active=!!light&&h.isConnected!==false&&h.state?.focus===light.id&&connected&&!light.stale&&!light.pending&&!h.lightAreaPending&&!h.liveControls?.lightActionState?.pending;
   const authority=local?typeof h.state?.sessionId==='string'&&!!h.state.sessionId&&Number.isSafeInteger(light.revision)&&!!selection&&['on','off','mixed'].includes(light.status):h.live===true&&!!source&&source.status==='observed'&&source.scope.areaId===area&&h.liveTransport?.connected===true&&h.liveSnapshot?.capabilities?.controlSetup?.includes('light');
   const raw=local?(selection?.kind==='home'?light.lights:area?light.lights.filter(row=>row.roomId===area):[]):light?.live===true&&Array.isArray(light.observedLights)?light.observedLights.filter(row=>row.areaId===area):[];
   const seen=new Set(),rows=[];
@@ -23,7 +24,7 @@ export class LightLampView{
    const key=JSON.stringify([local,h.state?.sessionId,light.id,light.revision,h.state?.focus,area,source?.sourceEpoch,source?.scope?.bindingId,source?.scope?.placementRevision,source?.items.map(item=>item.entityId).sort(),on,level,dimmable,owner]);
    const admitted=local||!!source?.items.some(item=>item.entityId===id&&item.areaId===area&&item.state===row.state&&item.brightness===row.brightness&&item.supportsBrightness===row.supportsBrightness);
    const binding=active&&authority&&admitted&&known?{key,local,sessionId:h.state.sessionId,taskId:light.id,revision:light.revision,optionId:id,transport:h.liveTransport}:null;
-   rows.push({id,name,on,level,dimmable,binding,stale:light.stale===true||h.state?.connected===false||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
+   rows.push({id,name,on,level,dimmable,binding,stale:light.stale===true||!connected||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
   }
   return rows;
  }
