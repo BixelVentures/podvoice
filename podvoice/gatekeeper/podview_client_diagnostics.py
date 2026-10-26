@@ -82,6 +82,32 @@ def _encoded(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
+def _routine_read(row):
+    """Only positively identified healthy reads yield to retained observations."""
+    if (
+        row["code"] not in {"start", "ok", "empty"}
+        or row.get("current") is False
+        or ("httpStatus" in row and not 200 <= row["httpStatus"] < 300)
+    ):
+        return False
+    endpoint = row.get("endpoint")
+    if row["stage"] == "request":
+        return endpoint in {
+            "snapshot",
+            "events",
+            "home",
+            "answers",
+            "music",
+            "source",
+            "weather-advice",
+        }
+    if row["stage"] == "music_read":
+        return endpoint in {None, "music"}
+    if row["stage"] == "queue_read":
+        return endpoint in {None, "music/queue/offer"}
+    return False
+
+
 def _integer(value, low=0, high=MAX_INT):
     return type(value) is int and low <= value <= high
 
@@ -345,12 +371,21 @@ class ClientDiagnosticsStore:
             age = MAX_AGE_MS if key == "records" else DEDUP_MS
             data[key] = [row for row in data[key] if now - row["receivedAtMs"] <= age]
 
-    def _write(self, directory, data):
+    def _write(self, directory, data, *, incoming_from=None):
         raw = _encoded(data)
         while len(data["records"]) > MAX_RECORDS or len(raw) > MAX_BYTES:
-            if not data["records"]:
+            eligible = [
+                index
+                for index, item in enumerate(data["records"])
+                if incoming_from is None or item["serverSeq"] < incoming_from
+            ]
+            if not eligible:
                 raise ValueError("diagnostic store full")
-            del data["records"][0]
+            index = next(
+                (index for index in eligible if _routine_read(data["records"][index]["row"])),
+                eligible[0],
+            )
+            del data["records"][index]
             raw = _encoded(data)
         temporary = self.path.name + "." + secrets.token_hex(12)
         try:
@@ -419,6 +454,7 @@ class ClientDiagnosticsStore:
             if data["next"] + len(batch.rows) > MAX_INT:
                 raise DiagnosticFailure("diagnostics_capacity", 429)
             artifact_kind, artifact_sha256 = runtime_artifact_identity()
+            incoming_from = data["next"]
             for row in batch.rows:
                 data["records"].append(
                     {
@@ -445,7 +481,8 @@ class ClientDiagnosticsStore:
                 }
             )
             self._permit(current)
-            self._write(directory, data)
+            # Initial stored ACK requires every incoming row in this durable write.
+            self._write(directory, data, incoming_from=incoming_from)
         return self._ack(batch, False)
 
     @staticmethod

@@ -2530,8 +2530,27 @@ class ToolRouter:
         query: str | None = None,
         *,
         include_output: bool = False,
+        include_controls: bool = False,
+        settlement_identity: dict | None = None,
     ) -> dict:
         """Passive service transport: never refresh discovery or voice declarations."""
+        if type(include_controls) is not bool or (
+            include_controls and (kind != "playback" or not include_output)
+        ):
+            return {"ok": False, "error_kind": "invalid_query"}
+        if settlement_identity is not None and (
+            not include_controls
+            or not isinstance(settlement_identity, dict)
+            or set(settlement_identity) != {"request_id", "command_sequence", "owner_epoch"}
+            or not isinstance(settlement_identity["request_id"], str)
+            or not 1 <= len(settlement_identity["request_id"]) <= 145
+            or type(settlement_identity["command_sequence"]) is not int
+            or not 1 <= settlement_identity["command_sequence"] < 2**53
+            or not isinstance(settlement_identity["owner_epoch"], str)
+            or settlement_identity["request_id"]
+            != f"{settlement_identity['owner_epoch']}:{settlement_identity['command_sequence']}"
+        ):
+            return {"ok": False, "error_kind": "invalid_query"}
         if include_output and kind != "playback":
             return {"ok": False, "error_kind": "invalid_query"}
         if kind in {"search", "playlist_search"}:
@@ -2585,6 +2604,11 @@ class ToolRouter:
         args: dict[str, Any] = {"config_entry_id": account} if account else {}
         if include_output:
             args["include_output"] = True
+        if include_controls:
+            args["include_controls"] = True
+        if settlement_identity is not None:
+            args["request_id"] = settlement_identity["request_id"]
+            args["command_sequence"] = settlement_identity["command_sequence"]
         if kind in {"queue", "account_playlists"}:
             args["limit"] = 20
         elif kind in {"search", "playlist_search"}:
@@ -2618,6 +2642,13 @@ class ToolRouter:
             return podview_music.project_account_playlists(data, account)
         if kind == "playlist_search":
             return podview_music.project_playlists(data, account, query)
+        if include_controls:
+            return podview_music.project_playback_controls(
+                data,
+                account,
+                settlement_identity=settlement_identity,
+                private_settlement=settlement_identity is not None,
+            )
         if include_output:
             return podview_music.project_playback_output(data, account)
         if kind in podview_music.SERVICES:

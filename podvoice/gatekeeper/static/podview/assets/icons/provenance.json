@@ -174,6 +174,42 @@
       "source": "https://github.com/phosphor-icons/core/blob/main/assets/regular/house.svg",
       "sha256": "180e9259e99e23da197b59b19394d006d6a5d33e384cc2b9c8381cb0214a5716",
       "sourceOverride": "Unmodified official upstream Regular SVG fetched23 October2026; not extracted from the pinned package archive."
+    },
+    "drop.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/drop.svg",
+      "sha256": "2b5396d046ce74fc645c6064226dd4875cf5e98eb1c7372611bf069f1adbc5aa"
+    },
+    "trash.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/trash.svg",
+      "sha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c"
+    },
+    "wind.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/wind.svg",
+      "sha256": "dd221a9698655fcd410a24cc0ccf0dc696c2adb4646b50bc81ac409654bc8401"
+    },
+    "stop.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/stop.svg",
+      "sha256": "90c8296c46c18d913784d0c3d6c66bbbfcf536b161a0387659d65dc2548ba623"
+    },
+    "arrow-u-down-left.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/arrow-u-down-left.svg",
+      "sha256": "55fcf6036cc0192eb2b4f96911c660f3fccc422a88274f893d41568a17b387d7"
+    },
+    "seat.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/seat.svg",
+      "sha256": "5ce26c4882a03e838072390a52f8f1ab709d0d364de4df8fb788986f413c7ccf"
+    },
+    "lock.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/lock.svg",
+      "sha256": "7f9e0acc09a417a48328cd5b74e95de98989c5af1710ca5da705179da75c72d9"
+    },
+    "lock-open.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/lock-open.svg",
+      "sha256": "8b9f2b734cf20b70327b569ae4e254d5899771b6ea886bb6e9a2facde5582c04"
+    },
+    "power.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/power.svg",
+      "sha256": "7c493f7a807a08a5fcaadd33493fd4ad66cb0aa752a822c71a5f5cf5fd665b53"
     }
   },
   "exceptions": {

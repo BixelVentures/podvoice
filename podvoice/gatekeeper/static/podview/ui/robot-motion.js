@@ -1,7 +1,7 @@
-// One finite glyph acknowledgement means a new observation says cleaning. It
-// carries no room path, coverage, estimated finish time or physical verification.
+// Fresh cleaning animates only the robot glyph. Hjem retains a calm activity
+// motion; other views use a finite acknowledgement. Neither conveys progress.
 export function robotIsCleaning(device,{connected=true,live=false,now=Date.now()}={}){
- if(!connected||!device||device.status!=='cleaning'||device.stale||device.hidden)return false;
+ if(!connected||!device||device.status!=='cleaning'||device.stale||device.hidden||device.pending)return false;
  if(live||device.live)return device.live===true&&device.source==='home_assistant_state'&&Number.isFinite(device.observedAt)&&now-device.observedAt*1000<=90000&&device.observedAt*1000-now<=5000;
  return true; // Explicit local demo observations use the same glyph behavior.
 }
@@ -19,7 +19,7 @@ export class RobotMotion{
  attach(){if(this.attached)return;this.attached=true;this.media?.addEventListener('change',this.onChange);this.document?.addEventListener('visibilitychange',this.onChange);if(this.Observer){this.observer=new this.Observer(this.onChange);this.observer.observe(this.host,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','open','data-motion']});}}
  candidates(){
   const result=[],devices=this.host.state?.devices||[];
-  for(const tile of this.host.querySelectorAll('.resource-preview[data-kind="vacuum"]'))result.push({icon:tile.querySelector('.resource-visual img'),device:devices.find(d=>d.id===tile.dataset.target)});
+  for(const tile of this.host.querySelectorAll('.resource-preview[data-kind="vacuum"]'))result.push({icon:tile.querySelector('.resource-visual img'),device:devices.find(d=>d.id===tile.dataset.target),continuous:this.host.state?.focus==='photo'&&!!tile.closest?.('#resource-rail')});
   for(const widget of this.host.querySelectorAll('pv-vacuum-widget'))result.push({icon:widget.querySelector('.pv-instrument img'),device:devices.find(d=>d.id===widget.data?.context?.resourceId)});
   for(const panel of this.host.querySelectorAll('pv-robot-control-panel'))result.push({icon:panel.observation?.icon,device:panel.value?.device});
   return result;
@@ -27,18 +27,18 @@ export class RobotMotion{
  sync(){
   if(!this.host.isConnected){this.cleanup();return;}this.attach();
   const reduced=this.media?.matches||this.host.dataset.motion==='reduced'||this.document?.documentElement?.dataset.motion==='reduced';
-  const connected=this.host.live?!!this.host.liveTransport?.connected:this.host.state?.connected!==false,wanted=new Set(),now=this.now(),states=new Map(),scope=JSON.stringify([this.host.liveSnapshot?.bootId||null,this.host.liveSnapshot?.roomId||null]);let expiryAt=null;
+  const connected=this.host.live?!!this.host.liveTransport?.connected&&!this.host.liveTransport?.recoveryBlocked&&!this.host.browserOffline:this.host.state?.connected!==false,wanted=new Set(),now=this.now(),states=new Map(),scope=JSON.stringify([this.host.liveSnapshot?.bootId||null,this.host.liveSnapshot?.roomId||null]);let expiryAt=null;
   // Read semantic state even while hidden/reduced/offline. Returning to normal
   // must not replay an old cleaning cue or treat a refreshed timestamp as new.
-  for(const {icon,device} of this.candidates()){
-   if(!device)continue;const key=scope+':'+device.id;states.set(key,device.status);
+  for(const {icon,device,continuous=false} of this.candidates()){
+   if(!device)continue;const key=scope+':'+device.id;states.set(key,device.status);const retained=this.animations.get(icon);if(retained&&retained.pvContinuous!==continuous){retained.cancel();this.animations.delete(icon);}
    // A settled, already acknowledged cleaning observation cannot start a cue.
    // Active cues still measure visibility below so hiding/removal cancels them.
-   if(device.status==='cleaning'&&this.states.get(key)==='cleaning'&&!this.animations.has(icon))continue;
+   if(!continuous&&device.status==='cleaning'&&this.states.get(key)==='cleaning'&&!this.animations.has(icon))continue;
    if(reduced||this.document?.hidden||!robotIsCleaning(device,{connected,live:this.host.live,now})||!icon?.animate||!icon.isConnected||!icon.getClientRects().length)continue;
    wanted.add(icon);if(!this.animations.has(icon)){
-    if(this.states.get(key)==='cleaning')continue;
-    const animation=icon.animate(frames,{duration:480,iterations:1,easing:'cubic-bezier(.2,.7,.2,1)'});animation.id='pv-observed-robot-cleaning';this.animations.set(icon,animation);
+    if(!continuous&&this.states.get(key)==='cleaning')continue;
+    const animation=icon.animate(frames,{duration:continuous?3200:480,iterations:continuous?Infinity:1,easing:continuous?'ease-in-out':'cubic-bezier(.2,.7,.2,1)'});animation.id='pv-observed-robot-cleaning';animation.pvContinuous=continuous;this.animations.set(icon,animation);
     animation.finished?.catch(()=>{}).finally(()=>{if(this.animations.get(icon)===animation)this.animations.delete(icon);if(!this.animations.size)this.clearExpiry();});
    }
    if(this.host.live||device.live){const expires=device.observedAt*1000+90001;expiryAt=expiryAt===null?expires:Math.min(expiryAt,expires);}

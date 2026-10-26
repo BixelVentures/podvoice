@@ -254,6 +254,8 @@ class TimerBridge:
                     self._uncertain_cancels[(endpoint, timer_id)] = dict(unknown)
                     self._requests[key] = (signature, dict(unknown))
                     return dict(unknown)
+                self._acknowledged.add((endpoint, timer_id))
+                self._finished[endpoint].pop(timer_id, None)
                 result = self._reply(ok=True, id=timer_id, state="cancelled")
             elif finished is not None:
                 if action == "cancel":

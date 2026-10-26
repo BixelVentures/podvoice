@@ -543,6 +543,7 @@ async def test_another_user_queue_offer_preserves_first_users_native_task(
     )
     original = r.music.client
     calls = []
+    queue_read_deadlines = []
 
     async def transport(request):
         body = json.loads(request.content)
@@ -552,6 +553,12 @@ async def test_another_user_queue_offer_preserves_first_users_native_task(
             return actual_playback_response(request, target="device", homepod="42")
         if request.url.path.endswith("get_room_queue_controls"):
             value = queue_source()
+            # Each read is fresh evidence; stable occurrence IDs still refer to
+            # the same queue revision, while admission gets a new observation.
+            value["queue"]["observation_id"] = f"{len(calls):032x}"
+            queue_read_deadlines.append(
+                queue_module.time.monotonic() + value["queue"]["expires_in_ms"] / 1000
+            )
             value["config_entry_id"] = "account"
             value["target"]["target_id"] = value["native"]["target_id"] = "device"
             value["native"]["homepod_id"] = value["route"]["device_id"] = "42"
@@ -580,7 +587,9 @@ async def test_another_user_queue_offer_preserves_first_users_native_task(
         assert (await post(r, "/view/api/music/queue/offer", body, other))["ok"]
         command = queue_action(offer_a)
         assert not (await post(r, "/view/api/music/queue/actions", command, other))["ok"]
-        original_deadline = r.bridge.queue.tasks[offer_a["taskId"]]["deadline"]
+        shown = r.bridge.queue.tasks[offer_a["taskId"]]
+        original_deadline = shown["deadline"]
+        original_source = json.loads(json.dumps(shown["source"]))
         result = await post(r, "/view/api/music/queue/actions", command)
         assert result["outcome"] == ("unknown" if commit_unknown else "accepted")
         assert result["physicalResultVerified"] is False and result["retryAllowed"] is False
@@ -593,20 +602,22 @@ async def test_another_user_queue_offer_preserves_first_users_native_task(
             "get_playback_snapshot",
             "get_room_queue_controls",
             "get_playback_snapshot",
+            "get_room_queue_controls",
             "prepare_room_queue",
             "control_room_queue",
             "get_playback_snapshot",
             "get_room_queue_controls",
         ]
         queue = r.bridge.queue
-        # Preparation can tighten the action deadline; its UNKNOWN fence must
-        # still be bounded by the original offered task, never by a new lease.
+        # Retained presentation is unchanged; the fresh one-use admission,
+        # optionally tightened by preparation, owns this receipt's custody.
         deadline = next(iter(queue.receipts.values()))[2]
-        assert queue.tasks[offer_a["taskId"]]["deadline"] <= deadline <= original_deadline
+        assert shown["deadline"] == original_deadline and shown["source"] == original_source
+        assert shown["consumed"] and deadline <= queue_read_deadlines[2]
         monkeypatch.setattr(queue_module, "time", SimpleNamespace(monotonic=lambda: deadline + 1))
-        assert not (await post(r, "/view/api/music/queue/actions", command))["ok"]
         queue.retire()
         assert not queue.receipts
+        assert not (await post(r, "/view/api/music/queue/actions", command))["ok"]
         assert len([path for path, _ in calls if path.endswith("control_room_queue")]) == 1
         assert not r.robot.writes and r.manager.starts == 0
     finally:

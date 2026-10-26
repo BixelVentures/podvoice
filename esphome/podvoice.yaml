@@ -408,7 +408,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 1fec384b53af8370caf368ad3a12da8a41a891d5
+      ref: dcb9fabb4ada6046dac225761634a6671a7ca01c
       path: esphome/components
     components: [podvoice_reply, micro_wake_word]
     refresh: 0s

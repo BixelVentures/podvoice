@@ -9,14 +9,19 @@ function fixture(){
  const node={...make('button'),querySelector:selector=>nodes.get(selector)};return {node,nodes};
 }
 const robot=change=>devicePresentation({id:'vacuum.stable',kind:'vacuum',status:'docked',revision:7,...change});
+test('domain-projected robot activity shares the retained tile without granting an overview action',()=>{
+ const {node,nodes}=fixture(),r={kind:'vacuum',target:'robot',title:'Robotstøvsuger',status:'docked',displayState:'Vasker moppe',detail:'Turen er pauset ved basen',value:'86 %'};
+ updateResourceTile(node,r);assert.equal(nodes.get('.resource-value').textContent,'Vasker moppe');assert.equal(nodes.get('small').textContent,'Turen er pauset ved basen');assert.equal(resourceOverviewAction(r,{connected:true,canControl:true,actions:[{id:'resume'}],size:'m'}),null,'a displayed activity is no effect authority');
+ updateResourceTile(node,{...r,displayState:'Sidst kendt · Vasker moppe',stale:true});assert.equal(nodes.get('.resource-value').textContent,'Sidst kendt · Vasker moppe');
+});
 test('robot overview separates canonical heading, observed primary state and bounded battery without rebuilding nodes',()=>{
  const {node,nodes}=fixture(),refs=[...nodes.values()];updateResourceTile(node,robot({battery:76}));assert.equal(nodes.get('strong').textContent,'Robotstøvsuger');assert.equal(nodes.get('.resource-value').textContent,'Ved basen');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.resourceFacts.list.hidden,false);assert.equal(node.dataset.target,'vacuum.stable');
- updateResourceTile(node,robot({status:'cleaning',battery:75}));assert.equal(nodes.get('.resource-value').textContent,'Gør rent');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'75 %');assert.deepEqual([...nodes.values()],refs);
+ updateResourceTile(node,robot({status:'cleaning',battery:75}));assert.equal(nodes.get('.resource-value').textContent,'Rengør');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'75 %');assert.deepEqual([...nodes.values()],refs);
  for(const battery of [undefined,null,NaN,-1,101]){updateResourceTile(node,robot({battery}));assert.equal(nodes.get('small').textContent,'');assert.equal(nodes.get('small').hidden,true);}updateResourceTile(node,robot({battery:0}));assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'0 %');
 });
 test('pending preserves last observation, waits honestly and replaces feedback only with observed outcome',()=>{
- const {node,nodes}=fixture();updateResourceTile(node,robot({status:'cleaning',battery:76,pending:{action:'pause'}}));assert.equal(nodes.get('.resource-value').textContent,'Gør rent');assert.equal(nodes.get('small').textContent,'Afventer svar · Batteri 76 %');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(node.getAttribute('aria-busy'),'true');
- updateResourceTile(node,robot({status:'paused',battery:76}));assert.equal(nodes.get('.resource-value').textContent,'På pause');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.getAttribute('aria-busy'),'false');
+ const {node,nodes}=fixture();updateResourceTile(node,robot({status:'cleaning',battery:76,pending:{action:'pause'}}));assert.equal(nodes.get('.resource-value').textContent,'Rengør');assert.equal(nodes.get('small').textContent,'Afventer svar · Batteri 76 %');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(node.getAttribute('aria-busy'),'true');
+ updateResourceTile(node,robot({status:'paused',battery:76}));assert.equal(nodes.get('.resource-value').textContent,'Rengøring på pause');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.getAttribute('aria-busy'),'false');
  updateResourceTile(node,robot({status:'fault'}));assert.equal(nodes.get('.resource-value').textContent,'Kræver hjælp');assert.equal(nodes.get('small').textContent,'Børste blokeret · se enheden');
  updateResourceTile(node,robot({status:'unknown'}));assert.equal(nodes.get('.resource-value').textContent,'Ukendt');assert.equal(nodes.get('small').textContent,'Udfald ukendt · hent status igen');
 });
@@ -32,10 +37,10 @@ test('actual offline Robot projection visibly qualifies the retained status at e
   const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:size}};const online=devicePresentation(device,{connected:true});updateResourceTile(node,online);
   const value=nodes.get('.resource-value'),battery=node.resourceFacts.rows.get('battery');
   const projected=devicePresentation(device,{connected:scene.connected});updateResourceTile(node,projected);
-  assert.equal(value.textContent,'Sidst kendt · Gør rent');assert.equal(node.dataset.resourceStale,'true');assert.equal(node.dataset.target,device.id);assert.equal(node.disabled,false);assert.equal(battery.value.textContent,'76 % · sidst kendt');assert.equal(node.resourceFacts.rows.get('battery'),battery);assert.equal(projected.facts.some(row=>['room','progress'].includes(row.id)),false,'old room/progress is not represented as current telemetry');
+  assert.equal(value.textContent,'Sidst kendt · Rengør');assert.equal(node.dataset.resourceStale,'true');assert.equal(node.dataset.target,device.id);assert.equal(node.disabled,false);assert.equal(battery.value.textContent,'76 % · sidst kendt');assert.equal(node.resourceFacts.rows.get('battery'),battery);assert.equal(projected.facts.some(row=>['room','progress'].includes(row.id)),false,'old room/progress is not represented as current telemetry');
   assert.equal(resourceOverviewAction(device,{connected:false,size,canControl:true,actions:[{id:'pause',label:'Pause'}]}),null);
   const insert=node.resourceFacts.list.insertBefore;node.resourceFacts.list.insertBefore=()=>assert.fail('unchanged presentation cannot reorder retained facts');updateResourceTile(node,structuredClone(projected));node.resourceFacts.list.insertBefore=insert;assert.equal(nodes.get('.resource-value'),value);
-  updateResourceTile(node,online);assert.equal(value.textContent,'Gør rent');assert.equal(node.dataset.resourceStale,'false');assert.equal(node.resourceFacts.rows.get('battery'),battery);
+  updateResourceTile(node,online);assert.equal(value.textContent,'Rengør');assert.equal(node.dataset.resourceStale,'false');assert.equal(node.resourceFacts.rows.get('battery'),battery);
  }
  assert.deepEqual(device,before);assert.equal(devicePresentation(device).stale,false);assert.equal(devicePresentation(device,{connected:undefined}).stale,false);
  const zero=devicePresentation({...device,battery:0,stale:true});assert.equal(zero.stale,true);assert.equal(zero.facts.find(row=>row.id==='battery').value,'0 %');
@@ -45,12 +50,12 @@ test('unknown Robot outcome retains its actual recovery role across large-card u
  const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:'l'}};const input=robot({status:'unknown',battery:76});updateResourceTile(node,input);
  const value=nodes.get('.resource-value'),recovery=nodes.get('small');assert.equal(value.textContent,'Ukendt');assert.equal(recovery.textContent,'Udfald ukendt · hent status igen');assert.equal(recovery.hidden,false);assert.equal(node.dataset.resourceFeedback,'unknown');
  updateResourceTile(node,structuredClone(input));assert.equal(nodes.get('small'),recovery);assert.equal(nodes.get('.resource-value'),value);
- updateResourceTile(node,robot({status:'cleaning',battery:76}));assert.equal(node.dataset.resourceFeedback,'');assert.equal(value.textContent,'Gør rent');
+ updateResourceTile(node,robot({status:'cleaning',battery:76}));assert.equal(node.dataset.resourceFeedback,'');assert.equal(value.textContent,'Rengør');
 });
 
 test('M Robot metadata admits only fresh source room/progress/battery and hides unsupported values',()=>{
  const {node,nodes}=fixture(),now=Date.now()/1000,observation={status:'observed',items:[{key:'current_room',value:'Køkkenet',unit:null,stale:false,updatedAt:now,retrievedAt:now},{key:'clean_percent',value:38,unit:'%',stale:false,updatedAt:now,retrievedAt:now}]},input={live:true,status:'cleaning',battery:76,telemetry:observation};
- updateResourceTile(node,robot(input));assert.equal(nodes.get('.resource-value').textContent,'Gør rent');assert.deepEqual(node.resourceFacts.items.map(row=>[row.id,row.value]),[['room','Køkkenet'],['progress','38 %'],['battery','76 %']]);assert.equal(nodes.get('small').textContent,'Batteri 76 % · Køkkenet');
+ updateResourceTile(node,robot(input));assert.equal(nodes.get('.resource-value').textContent,'Rengør');assert.deepEqual(node.resourceFacts.items.map(row=>[row.id,row.value]),[['room','Køkkenet'],['progress','38 %'],['battery','76 %']]);assert.equal(nodes.get('small').textContent,'Batteri 76 % · Køkkenet');
  for(const value of [0,100]){const telemetry={...observation,items:[{...observation.items[1],value}]};updateResourceTile(node,robot({...input,telemetry}));assert.equal(node.resourceFacts.rows.get('progress').value.textContent,`${value} %`);assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');}
  for(const change of [{value:null},{value:undefined},{value:NaN},{value:-1},{value:101},{value:'38'},{unit:null},{stale:true},{updatedAt:now-301},{updatedAt:now+30}]){const telemetry={...observation,items:[{...observation.items[1],...change}]},projected=robot({...input,battery:undefined,telemetry});assert.equal(Object.hasOwn(projected,'progress'),false);updateResourceTile(node,projected);assert.equal(nodes.get('small').textContent,'');assert.equal(nodes.get('small').hidden,true);}
  for(const change of [{status:'docked'},{status:'paused'},{stale:true},{presentationOnly:true},{telemetry:{status:'unavailable',items:observation.items}}])assert.equal(Object.hasOwn(robot({...input,...change}),'progress'),false);
@@ -71,11 +76,11 @@ test('shared factual Card rows retain stable source identity, ignore missing dat
  updateResourceFacts(node,{});assert.equal(first.list.hidden,true);assert.equal(first.context.hidden,true);assert.equal(first.rows.size,0);assert.equal(node.dataset.hasFacts,'false');node.click();assert.equal(action,2);
 });
 
-test('compact Light uses the complete admitted count and status without inventing unavailable or partial readings',()=>{
+test('compact Light presents room power without showing admitted counts or inventing partial readings',()=>{
  const {node,nodes}=fixture(),lights=[{entityId:'light.one',name:'Loft',state:'on'},{entityId:'light.two',name:'Bord',state:'off'}],input={id:'light.home',kind:'light',live:true,source:'home_assistant_state',status:'mixed',observedLights:lights};
- updateResourceTile(node,devicePresentation(input));assert.equal(nodes.get('.resource-value').textContent,'1 af 2');assert.equal(nodes.get('.resource-value').hidden,false);assert.equal(nodes.get('small').textContent,'Tændt');assert.equal(node.dataset.hasOverviewValue,'true');
- updateResourceTile(node,devicePresentation({...input,stale:true}));assert.equal(nodes.get('.resource-value').textContent,'1 af 2');assert.equal(nodes.get('small').textContent,'Sidst kendt · Tændt');
- updateResourceTile(node,devicePresentation({...input,observedLights:[lights[0],{...lights[1],state:'unknown'}]}));assert.equal(nodes.get('.resource-value').hidden,true);assert.equal(node.dataset.hasOverviewValue,'false');assert.equal(node.resourceFacts.items.find(row=>row.id==='on-count').label,'Bekræftet tændt');
+ updateResourceTile(node,devicePresentation(input));assert.equal(nodes.get('.resource-value').textContent,'Tændt');assert.equal(nodes.get('.resource-value').hidden,false);assert.equal(nodes.get('small').textContent,'');assert.equal(node.dataset.hasOverviewValue,'true');
+ updateResourceTile(node,devicePresentation({...input,stale:true}));assert.equal(nodes.get('.resource-value').textContent,'Sidst kendt · Tændt');assert.equal(nodes.get('small').textContent,'');
+ updateResourceTile(node,devicePresentation({...input,observedLights:[lights[0],{...lights[1],state:'unknown'}]}));assert.equal(nodes.get('.resource-value').hidden,true);assert.equal(node.dataset.hasOverviewValue,'false');assert.equal(node.resourceFacts?.items.some(row=>row.id==='on-count')||false,false);assert.match(nodes.get('small').textContent,/ukendt/i);assert.doesNotMatch(nodes.get('small').textContent,/\d+ af \d+/);
  updateResourceTile(node,devicePresentation({kind:'light',live:true,status:'unavailable'}));assert.equal(nodes.get('.resource-value').hidden,true);assert.equal(nodes.get('.resource-value').textContent,'');assert.equal(node.disabled,true,'no missing navigation target is invented');
 });
 
@@ -105,15 +110,27 @@ test('resource titles retain full accessible source and responsive short roles b
  const {node}=fixture(),prior=globalThis.document;node.addEventListener=()=>{};globalThis.document={createElement:()=>node};try{createResourceTile(()=>{});assert.match(node.innerHTML,/<span class="resource-title-full"><\/span><span class="resource-title-short" aria-hidden="true"><\/span>/);}finally{globalThis.document=prior;}
 });
 
-test('Light count and status use distinct retained roles across sizes and freshness/pending/unknown changes',()=>{
+
+
+test('Light power replaces counts across sizes and retains honest freshness/pending/unknown states',()=>{
  const input={id:'light.actual',kind:'light',live:true,source:'home_assistant_state',status:'mixed',observedLights:[{entityId:'light.one',name:'Loft',state:'on',brightness:128},{entityId:'light.two',name:'Bord',state:'off',brightness:0}]};
  for(const size of ['s','m','l']){
   const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:size}};const value=nodes.get('.resource-value'),detail=nodes.get('small'),update=change=>updateResourceTile(node,devicePresentation({...input,...change}));
-  update({});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Tændt');assert.equal(node.dataset.resourceStale,'false');
-  update({stale:true});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Sidst kendt · Tændt');assert.equal(node.dataset.resourceStale,'true');assert.doesNotMatch(detail.textContent,/1 af 2/);
-  update({pending:{action:'turn_off'}});assert.equal(value.textContent,'1 af 2');assert.equal(detail.textContent,'Afventer svar · Tændt');assert.equal(node.getAttribute('aria-busy'),'true');
+  update({});assert.equal(value.textContent,'Tændt');assert.equal(detail.textContent,'');assert.equal(node.dataset.resourceStale,'false');
+  update({stale:true});assert.equal(value.textContent,'Sidst kendt · Tændt');assert.equal(detail.textContent,'');assert.equal(node.dataset.resourceStale,'true');assert.doesNotMatch(detail.textContent,/1 af 2/);
+  update({pending:{action:'turn_off'}});assert.equal(value.textContent,'Afventer svar · Tændt');assert.equal(detail.textContent,'');assert.equal(node.getAttribute('aria-busy'),'true');
   update({status:'unknown'});assert.equal(value.hidden,true);assert.equal(value.textContent,'');assert.match(detail.textContent,/ukendt/i);assert.equal(node.dataset.hasOverviewValue,'false');assert.equal(node.getAttribute('aria-busy'),'false');
-  update({});assert.equal(value.hidden,false);assert.equal(detail.textContent,'Tændt');assert.equal(nodes.get('.resource-value'),value);assert.equal(nodes.get('small'),detail);assert.equal(node.dataset.target,input.id);assert.equal(resourceOverviewAction(input,{size,live:true,connected:true,canControl:true}),null);
+  update({});assert.equal(value.hidden,false);assert.equal(detail.textContent,'');assert.equal(nodes.get('.resource-value'),value);assert.equal(nodes.get('small'),detail);assert.equal(node.dataset.target,input.id);assert.equal(resourceOverviewAction(input,{size,live:true,connected:true,canControl:true}),null);
+ }
+});
+
+test('Light count suppression is presentation-only in S M L and power does not parse numeric count copy',()=>{
+ for(const size of ['s','m','l']){
+  const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:size}};
+  for(const status of ['on','mixed','off']){
+   const facts=[{id:'on-count',label:'Tændt',value:'0 af 99'},{id:'brightness:one',label:'Loft',value:'40 %'}],input={kind:'light',target:'lights',title:'Lys',status,facts},before=structuredClone(input);updateResourceTile(node,input);
+   assert.equal(nodes.get('.resource-value').textContent,status==='off'?'Slukket':'Tændt','admitted state owns power; count is not reverse-parsed');assert.equal(node.resourceFacts.rows.has('on-count'),false);assert.deepEqual(node.resourceFacts.items.map(row=>row.id),['brightness:one']);assert.deepEqual(input,before,'rendering never removes factual counts from source');
+  }
  }
 });
 
@@ -137,4 +154,17 @@ test('Large fact budget counts native meter spans, aligns full rows and restores
  for(const size of ['s','m']){node.overviewShell.dataset.kitSize=size;updateResourceTile(node,input);assert.equal(shown().length,6);for(const [id,row]of rows)assert.equal(node.resourceFacts.rows.get(id),row);assert.equal(node.resourceFacts.rows.get('progress').meter,meter);}
  node.overviewShell.dataset.kitSize='l';updateResourceTile(node,input);assert.deepEqual(shown(),['progress','area','duration']);
  const ordered={...input,facts:[input.facts[2],input.facts[1],input.facts[3],input.facts[4]]};updateResourceTile(node,ordered);assert.deepEqual(shown(),['area','progress'],'a meter after an odd single cell begins the next row rather than creating a third');node.overviewAction.hidden=false;applyResourceFactBudget(node);assert.deepEqual(shown(),['area','duration'],'an over-budget full-row meter is retained hidden while a later single cell can use the remaining first row');assert.equal(node.resourceFacts.rows.get('progress').meter,meter);
+});
+
+test('observed dock activity is identical in shared detail label and overview without action authority',()=>{
+ const now=Date.now()/1000,d={id:'robot',kind:'vacuum',status:'docked',live:true,telemetry:{status:'observed',items:[{key:'status',value:'washing_the_mop',updatedAt:now,stale:false}]}};
+ const projected=devicePresentation(d);assert.equal(projected.displayState,'Vasker moppe');assert.equal(projected.detail,'Vasker moppe');
+ const {node,nodes}=fixture();updateResourceTile(node,projected);assert.equal(nodes.get('.resource-value').textContent,'Vasker moppe');assert.equal(resourceOverviewAction(projected,{connected:true,canControl:true,actions:[{id:'resume'}]}),null);
+ const stale=devicePresentation(d,{connected:false});assert.equal(stale.displayState,'Sidst kendt: Vasker moppe');
+});
+
+test('source-bound error guidance and active dock work share overview priority and concrete state',async()=>{const {deviceLabel,overviewPriorities}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),now=Date.now()/1000,device={id:'robot',kind:'vacuum',live:true,status:'fault',telemetry:{status:'observed',items:[{key:'vacuum_error',value:'main_brush_jammed',unit:null,updatedAt:now,retrievedAt:now,stale:false}]}};assert.equal(deviceLabel(device),'Hovedbørsten sidder fast');assert.equal(devicePresentation(device).displayState,deviceLabel(device));const wash={...device,status:'docked',telemetry:{status:'observed',items:[{key:'mop_washing',value:true,updatedAt:now,stale:false}]}};assert.equal(overviewPriorities({devices:[wash]}).find(row=>row.id==='robot').priority,'active');assert.equal(overviewPriorities({devices:[{...wash,stale:true}]}).find(row=>row.id==='robot').priority,'useful');});
+
+test('custom robot primary status is not repeated in secondary copy and retains actual battery or pending feedback',()=>{
+ const {node,nodes}=fixture(),robot={kind:'vacuum',target:'r',title:'Robot',status:'docked',displayState:'Vasker moppe',detail:'Vasker moppe',value:'86 %'};updateResourceTile(node,robot);assert.equal(nodes.get('.resource-value').textContent,'Vasker moppe');assert.equal(nodes.get('small').textContent,'Batteri 86 %');updateResourceTile(node,{...robot,displayState:'Sidst kendt: Vasker moppe',detail:'Sidst kendt · Vasker moppe',stale:true});assert.equal(nodes.get('small').textContent,'Batteri 86 %');updateResourceTile(node,{...robot,pending:true});assert.equal(nodes.get('small').textContent,'Afventer svar · Batteri 86 %');updateResourceTile(node,{...robot,status:'fault',displayState:'Hovedbørsten sidder fast',detail:'Hovedbørsten sidder fast'});assert.equal(nodes.get('small').textContent,'Batteri 86 %');
 });

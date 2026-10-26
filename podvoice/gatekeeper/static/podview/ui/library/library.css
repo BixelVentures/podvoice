@@ -172,7 +172,7 @@
 pv-robot-control-panel{display:block;min-width:0;color:var(--pv-screen-ink)}
 pv-robot-control-panel>.pv-component{padding:0;background:transparent;border-radius:0;min-width:0}
 pv-robot-control-panel pv-vacuum-widget .pv-actions:empty{display:none}
-pv-robot-control-panel .device-history{margin:24px 0 0;padding:0;min-width:0}
+pv-robot-control-panel .device-history:not(.pv-kit-card){margin:24px 0 0;padding:0;min-width:0}
 pv-robot-control-panel h3,pv-robot-control-panel h4{font-size:var(--pv-type-body);font-weight:var(--pv-weight-medium);line-height:1.3;margin:0 0 12px;overflow-wrap:anywhere}
 pv-robot-control-panel .pv-meta{font-size:var(--pv-type-caption);line-height:1.45;color:var(--pv-screen-muted);margin:0 0 16px;overflow-wrap:anywhere}
 pv-robot-control-panel form{margin:0;min-width:0}
@@ -197,12 +197,12 @@ pv-robot-control-panel .settings>summary::-webkit-details-marker{display:none}
 pv-robot-control-panel .settings>summary::after{content:'';flex:0 0 20px;width:20px;height:20px;background:url('../../assets/icons/chevron-right.svg') center/contain no-repeat;transition:transform var(--pv-screen-fast) var(--pv-screen-ease)}
 pv-robot-control-panel .settings[open]>summary::after{transform:rotate(90deg)}
 pv-robot-control-panel .settings>summary:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:3px}
-pv-robot-control-panel .setting{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,auto);gap:var(--pv-s2);margin:20px 0 0;padding-top:var(--pv-s3);border-top:1px solid var(--pv-screen-line)}
-pv-robot-control-panel .setting h4{grid-column:1/-1;margin:0}
-pv-robot-control-panel .setting>select,pv-robot-control-panel .setting>input{display:block;width:100%;min-width:0;min-height:52px;margin:0;padding:var(--pv-s2);font:inherit;font-size:var(--pv-type-caption);line-height:1.3;color:var(--pv-screen-ink);background:var(--pv-screen-surface);border:1px solid var(--pv-screen-outline);border-radius:var(--pv-screen-radius-field);accent-color:var(--pv-screen-accent)}
-pv-robot-control-panel .setting>input:focus-visible,pv-robot-control-panel .setting>select:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:3px}
-pv-robot-control-panel .setting>input:disabled,pv-robot-control-panel .setting>select:disabled{color:var(--pv-screen-muted);background:var(--pv-screen-control)}
-@media(max-width:600px){pv-robot-control-panel .setting{grid-template-columns:minmax(0,1fr)}pv-robot-control-panel .setting>.pv-button{width:100%}pv-robot-control-panel .repeat>.choice{flex:1 1 auto}pv-robot-control-panel .pv-actions>.pv-button{flex:1 1 120px}}
+pv-robot-control-panel .setting:not(.pv-kit-listrow){display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,auto);gap:var(--pv-s2);margin:20px 0 0;padding-top:var(--pv-s3);border-top:1px solid var(--pv-screen-line)}
+pv-robot-control-panel .setting:not(.pv-kit-listrow) h4{grid-column:1/-1;margin:0}
+pv-robot-control-panel .setting:not(.pv-kit-listrow)>select,pv-robot-control-panel .setting:not(.pv-kit-listrow)>input{display:block;width:100%;min-width:0;min-height:52px;margin:0;padding:var(--pv-s2);font:inherit;font-size:var(--pv-type-caption);line-height:1.3;color:var(--pv-screen-ink);background:var(--pv-screen-surface);border:1px solid var(--pv-screen-outline);border-radius:var(--pv-screen-radius-field);accent-color:var(--pv-screen-accent)}
+pv-robot-control-panel .setting:not(.pv-kit-listrow)>input:focus-visible,pv-robot-control-panel .setting:not(.pv-kit-listrow)>select:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:3px}
+pv-robot-control-panel .setting:not(.pv-kit-listrow)>input:disabled,pv-robot-control-panel .setting:not(.pv-kit-listrow)>select:disabled{color:var(--pv-screen-muted);background:var(--pv-screen-control)}
+@media(max-width:600px){pv-robot-control-panel .setting:not(.pv-kit-listrow){grid-template-columns:minmax(0,1fr)}pv-robot-control-panel .setting:not(.pv-kit-listrow)>.pv-button{width:100%}pv-robot-control-panel .repeat>.choice{flex:1 1 auto}pv-robot-control-panel .pv-actions>.pv-button{flex:1 1 120px}}
 @media(prefers-reduced-motion:reduce){pv-robot-control-panel .settings>summary::after{transition:none}}
 pv-robot-control-panel>.pv-component .pv-button.start{min-height:56px}
 @media(max-width:600px){
@@ -252,7 +252,7 @@ dialog.pv-component dl>div>p{font-size:var(--pv-type-caption);line-height:1.45;c
 @media(max-width:520px){dialog.pv-component{padding:var(--pv-s4);max-height:calc(100dvh - 24px)}dialog.pv-component h2{font-size:var(--pv-type-label)}dialog.pv-component form.pv-actions>input[type=search]{flex-basis:100%;width:100%}dialog.pv-component form.pv-actions>.pv-button{flex:1}dialog.pv-component .pv-actions>label{flex:1 1 100%}}
 
 /* Robot adapter: keep the existing map and select-all in one header row. */
-pv-robot-control-panel .device-history{padding-top:0!important}
+pv-robot-control-panel .device-history:not(.pv-kit-card){padding-top:0!important}
 pv-robot-control-panel form:has(>.heading){display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--pv-s2)}
 pv-robot-control-panel form:has(>.heading)>*{grid-column:1/-1}
 pv-robot-control-panel form:has(>.heading)>.heading{grid-column:2;grid-row:1;margin:0 0 12px}

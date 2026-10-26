@@ -32,11 +32,12 @@ import live_confirmation_eval as rig
 
 from gatekeeper.config import Config
 
-OBSERVATION_S = 45.0
+OBSERVATION_S = 65.0
 MAX_BACKEND_RESPONSES = 4
 VARIANTS = ("baseline", "implicit")
 TEXTS = {
     "math": "Hvad er to plus to?",
+    "presentation_steps": "Forklar trin for trin, hvordan jeg folder en papirflyver, så jeg kan bruge vejledningen igen.",
     "long_count": "Tæl langsomt fra en til tyve, et tal ad gangen.",
     "timer_10s": "Sæt en timer på 10 sekunder.",
     "side_address": "Peter, nu taler jeg med dig. Hvad skal vi have til aftensmad?",
@@ -51,17 +52,21 @@ TEXTS = {
     "polite_followup": "Tak, og hvad er tre plus tre?",
 }
 CASES = {
+    "presentation-steps": ("presentation_steps",),
     "completed-side-address": ("math", "side_address"),
     "real-followup": ("math", "followup"),
     "brief-aside-correction": ("math", "aside_correction"),
     "tv-ongoing-query": ("unfinished", "tv", "resume"),
-    "explicit-close": ("math", "explicit_close"),
+    "explicit-close": ("math", "presentation_steps", "explicit_close"),
+    "pure-explicit-close": ("math", "explicit_close"),
     "timer-10s": ("math", "timer_10s"),
     "pure-thanks": ("math", "pure_thanks"),
     "polite-followup": ("math", "polite_followup"),
     "interrupt-active-output": ("long_count", "interrupt_followup", "explicit_close"),
 }
-POSITIVE_CASES = frozenset({"completed-side-address", "explicit-close", "interrupt-active-output"})
+POSITIVE_CASES = frozenset(
+    {"completed-side-address", "explicit-close", "pure-explicit-close", "interrupt-active-output"}
+)
 POLICY = (
     "Implicit completion applies only after the assistant has delivered a complete answer "
     "and there is no unfinished thought, pending question, task, correction or approval. "
@@ -115,9 +120,11 @@ def instructions(variant):
     )
     backend = replace_once(
         backend,
-        "Vælg kun silent=true ved et udtrykkeligt ønske om at lukke samtalen uden tale.",
-        "Vælg silent=true ved et udtrykkeligt ønske om at lukke samtalen uden tale eller "
-        "ved den snævre implicitte afslutningsregel nedenfor.",
+        "Ved ren udtrykkelig afslutning uden udestående nyttigt svar, handlingskvittering "
+        "eller fejl: vælg end_conversation med silent=true.",
+        "Ved ren udtrykkelig afslutning eller den snævre implicitte afslutningsregel "
+        "nedenfor, uden udestående nyttigt svar, handlingskvittering eller fejl: "
+        "vælg end_conversation med silent=true.",
     )
     return primary + "\n\n" + PRIMARY_POLICY, backend + "\n\n" + BACKEND_POLICY
 
@@ -303,7 +310,13 @@ def timer_action_chain(rows, outputs, starts):
         or type(result["result"].get("seconds")) is not int
         or result["result"]["seconds"] != 10
         or result["result"].get("audible") is not False
-        or any(starts[-1]["seq"] < r["seq"] < returned["seq"] for r in outputs)
+    ):
+        return None
+    early = [r for r in outputs if starts[-1]["seq"] < r["seq"] < returned["seq"]]
+    # Fixture-only style allowance; never infer timer success from a backchannel.
+    if early and (
+        not all(rig.valid_interval(r) for r in early)
+        or rig.normalized("".join(r["text"] for r in early)) not in {"hmm", "ja"}
     ):
         return None
     return starts[-1], returned
@@ -471,9 +484,11 @@ class OneLive(rig.ObservedLive):
             declaration["description"] = (
                 replace_once(
                     declaration["description"],
-                    "Use silent=true only for an explicit request to end the session without speech.",
-                    "Use silent=true for an explicit request to end without speech or the "
-                    "narrow implicit-completion rule below.",
+                    "For a pure explicit ending with no outstanding useful answer, action receipt "
+                    "or error, choose silent=true and produce no speech; a spoken farewell is optional.",
+                    "For a pure explicit ending or the narrow implicit-completion rule below, "
+                    "with no outstanding useful answer, action receipt or error, choose "
+                    "silent=true and produce no speech; a spoken farewell is optional.",
                 )
                 + " "
                 + BACKEND_POLICY
@@ -567,6 +582,24 @@ def transcripts(rows, direction):
     ]
 
 
+def fixture_input_text(rows):
+    """Join literal controlled input deltas, retaining provider whitespace."""
+    return "".join(
+        r["text"]
+        for r in rows
+        if r["kind"] == "LiveTranscript" and r["generation"] == 1 and r["direction"] == "in"
+    )
+
+
+def fixture_output_text(rows):
+    """Join literal current-generation output deltas, retaining provider whitespace."""
+    return "".join(
+        r["text"]
+        for r in rows
+        if r["kind"] == "LiveTranscript" and r["generation"] == 1 and r["direction"] == "out"
+    )
+
+
 def answer_seen(rows, after_seq, endings):
     """Fixture pacing only: a transcript endpoint is never acoustic output completion."""
     output = [r for r in transcripts(rows, "out") if r["seq"] > after_seq]
@@ -579,12 +612,96 @@ def answer_seen(rows, after_seq, endings):
 def followup_seen(rows, after_seq, *, before_seq=None):
     """Pace only a known synthetic follow-up, not a runtime turn boundary."""
     window = [r for r in rows if before_seq is None or r["seq"] < before_seq]
-    incoming = [r for r in transcripts(window, "in") if r["seq"] > after_seq]
-    if not incoming or fixture_transcript(
-        "".join(r["text"] for r in incoming)
-    ) != fixture_transcript(TEXTS["interrupt_followup"]):
+    incoming = transcripts(window, "in")
+    # Arrival after fixture start is not a provider turn ID: earlier input
+    # deltas can arrive late. Check the entire two-fixture sequence literally;
+    # never discard an alleged first-input tail or promote it to a new turn.
+    expected = TEXTS["long_count"] + TEXTS["interrupt_followup"]
+    if not any(r["seq"] > after_seq for r in incoming) or fixture_transcript(
+        fixture_input_text(window)
+    ) != fixture_transcript(expected):
         return False
     return answer_seen(window, incoming[-1]["seq"], ("treogfyrre", "43"))
+
+
+def interruption_close_stimulus_ready(rows, session, capture):
+    """Pace closing input after the follow-up; recognition remains a separate verdict."""
+    lease, stream = session._playback_lease, session._live_stream
+    if (
+        capture.clip is not None
+        or not session._active
+        or session._live_finalizing
+        or session._transport_closing
+        or session._live_work_pending()
+        or lease is None
+        or lease.kind != "live"
+        or lease.phase != "started"
+        or lease.epoch != session._epoch
+        or stream is None
+        or stream.finished
+        or stream.cancelled
+        or stream.buffered_bytes
+        or capture._playback_id != lease.playback_id
+        or lease.playback_id not in capture.drains
+        or capture.drains[lease.playback_id].done()
+    ):
+        return False
+    finished = [
+        r for r in rows if r["kind"] == "fixture_finished" and r["name"] == "interrupt_followup"
+    ]
+    if len(finished) != 1:
+        return False
+    starts = [
+        r for r in rows if r["kind"] == "fixture_started" and r["name"] == "interrupt_followup"
+    ]
+    if len(starts) != 1:
+        return False
+    followup = [r for r in transcripts(rows, "in") if r["seq"] > starts[0]["seq"]]
+    # Input indexes identify deltas, not turns. Keep late first-input tails;
+    # only the complete known follow-up suffix is used to pace this fixture.
+    if not fixture_transcript(fixture_input_text(rows)).endswith(
+        fixture_transcript(TEXTS["interrupt_followup"])
+    ):
+        return False
+    generation = session.brain._connection_generation
+    incoming = [r for r in followup if r["seq"] > finished[0]["seq"]]
+    if (
+        not incoming
+        or incoming[-1]["generation"] != generation
+        or incoming[-1]["input_index"] != session.brain.input_sequence
+    ):
+        return False
+    outputs = [
+        r
+        for r in transcripts(rows, "out")
+        if r["seq"] > incoming[-1]["seq"] and r["input_index"] == session.brain.input_sequence
+    ]
+    if not outputs or not answer_seen(outputs, -1, ("treogfyrre", "43")):
+        return False
+    chunks = [
+        r
+        for r in rows
+        if r["kind"] == "decoded_output_chunk"
+        and r.get("generation") == generation
+        and r["seq"] > outputs[-1]["seq"]
+    ]
+    if not any(r.get("pcm_all_zero") is False for r in chunks):
+        return False
+    consumed = [
+        r
+        for r in rows
+        if r["kind"] == "synthetic_output_consumed"
+        and r["playback_id"] == lease.playback_id
+        and r["seq"] > outputs[-1]["seq"]
+    ]
+    if not consumed or consumed[-1]["frame_end"] * 2 != chunks[-1]["byte_end"]:
+        return False
+    end = begin = consumed[-1]["frame_end"]
+    for row in reversed(consumed):
+        if row["peak"] != 0 or row["frame_end"] != begin:
+            break
+        begin = row["frame_begin"]
+    return end - begin >= stream.sample_rate * rig.INPUT_DELAY_S
 
 
 def provider_pcm_lease_ready(rows, session, capture):
@@ -603,17 +720,22 @@ def provider_pcm_lease_ready(rows, session, capture):
         or capture.drains[lease.playback_id].done()
     ):
         return None
+    finished = [r for r in rows if r["kind"] == "fixture_finished" and r["name"] == "long_count"]
     first = next(
         (
             r
-            for r in rows
+            for r in reversed(rows)
             if r["kind"] == "decoded_output_chunk"
             and r["generation"] == session.brain._connection_generation
-            and r["pcm_all_zero"] is False
         ),
         None,
     )
-    if first is None:
+    if (
+        len(finished) != 1
+        or first is None
+        or first["seq"] <= finished[0]["seq"]
+        or first["pcm_all_zero"] is not False
+    ):
         return None
     return dict(
         provider_chunk_seq=first["seq"],
@@ -633,9 +755,9 @@ def fixture_transcript(text):
     All remaining words must still match, including the entire closing input.
     """
     digits = {"to": "2", "tre": "3", "tolv": "12", "enogtredive": "31"}
-    rendered = re.sub(
-        r"\b(?:to|tre|tolv|enogtredive)\b", lambda match: digits[match[0]], text.lower()
-    )
+    # Danish et/ét are equivalent here; retain all other accents and words.
+    text = re.sub(r"\bét\b", "et", text.lower())
+    rendered = re.sub(r"\b(?:to|tre|tolv|enogtredive)\b", lambda match: digits[match[0]], text)
     return rig.normalized(rendered)
 
 
@@ -765,13 +887,287 @@ def lifecycle_projection(timeline):
     ]
 
 
-def assess(case, rows, *, clean, usage_complete, stayed_open):
+def assess_presentation(rows, *, clean, usage_complete):
+    """Actual completed backend/Thin receipt; transcript timing is not an audio ACK."""
+    inputs, outputs = transcripts(rows, "in"), transcripts(rows, "out")
+    recognized = fixture_transcript(fixture_input_text(rows)) == fixture_transcript(
+        TEXTS["presentation_steps"]
+    )
+    started = [r for r in rows if r["kind"] == "LiveBackendStarted"]
+    completed = [r for r in rows if r["kind"] == "LiveBackendComplete"]
+    receipts = [r for r in rows if r["kind"] == "presentation_receipt"]
+    calls = [r for r in rows if r["kind"] in {"LiveToolBatch", "tool_results_request"}]
+    finished = [r for r in rows if r["kind"] == "fixture_finished"]
+    valid = False
+    if len(started) == len(completed) == len(receipts) == 1 and inputs and finished:
+        begin, done, observed = started[0], completed[0], receipts[0]
+        from gatekeeper.podview_presentation import final_message
+
+        item = observed["item"]
+        parsed = final_message(done.get("final_message", ""))
+        presentation = parsed.get("presentation") if parsed else None
+        valid = bool(
+            isinstance(presentation, dict)
+            and presentation.get("family") == "steps"
+            and presentation.get("origin") == "ai_explanation"
+            and presentation.get("sourceCalls") == []
+            and presentation["content"].get("steps")
+            == [row.get("text") for row in item.get("content", {}).get("steps", [])]
+            and begin["generation"] == done["generation"] == item.get("providerGeneration") == 1
+            and begin["response_id"] == done["response_id"] == observed["response_id"]
+            and begin["delegation_id"] == done["delegation_id"] == observed["delegation_id"]
+            and begin["seq"] < done["seq"] < observed["seq"]
+            and done["status"] == "completed"
+            and done["tool_call_count"] == 0
+            and observed["input_index"] == inputs[-1]["input_index"]
+            and item.get("taskId") == "answer:" + done["delegation_id"]
+            and item.get("turnId") == "live:1:" + done["response_id"]
+            and item.get("schema") == "podview.presentation.v1"
+            and item.get("family") == "steps"
+            and item.get("provenance") == {"kind": "ai_explanation"}
+            and item.get("allowedActions") == []
+            and 2 <= len(item.get("content", {}).get("steps", [])) <= 8
+            and finished[0]["name"] == "presentation_steps"
+        )
+    return dict(
+        verdict="OBSERVED_PASS"
+        if clean and usage_complete and recognized and outputs and valid and not calls
+        else "FAIL"
+        if clean and usage_complete
+        else "UNKNOWN",
+        recognized=recognized,
+        structured_receipt_observed=valid,
+        backend_responses=len(started),
+        domain_or_tool_calls=len(calls),
+        clean_shutdown=clean,
+        usage_complete=usage_complete,
+        audio_completion="UNKNOWN",
+        physical_or_browser_proof=False,
+        model_visual_frequency="UNMEASURED",
+        latency_comparison="UNMEASURED",
+    )
+
+
+def f17_completion(rows):
+    """Reuse the retained receipt grader; never equate text/PCM with useful speech."""
+    starts = [r for r in rows if r["kind"] == "fixture_started"]
+    step = next((r for r in starts if r["name"] == "presentation_steps"), None)
+    if step is None:
+        return False
+    close = next((r["seq"] for r in starts if r["name"] == "explicit_close"), float("inf"))
+    section = [r for r in rows if step["seq"] <= r["seq"] < close]
+    if assess_presentation(section, clean=True, usage_complete=True)["verdict"] != "OBSERVED_PASS":
+        return False
+    from gatekeeper.podview_presentation import final_message
+
+    done = next(r for r in section if r["kind"] == "LiveBackendComplete")
+    spoken = final_message(done["final_message"])["spoken"]
+    text = fixture_output_text(section)
+    return bool(
+        fixture_transcript(spoken) == fixture_transcript(text)
+        and any(
+            r["kind"] == "decoded_output_chunk" and r.get("pcm_all_zero") is False for r in section
+        )
+    )
+
+
+def f17_stimulus_ready(rows, session, capture):
+    """Pace the next input from transport completion, never from speech correctness."""
+    lease, stream = session._playback_lease, session._live_stream
+    if (
+        not session._active
+        or session._live_finalizing
+        or session._transport_closing
+        or lease is None
+        or lease.kind != "live"
+        or lease.phase != "started"
+        or lease.epoch != session._epoch
+        or stream is None
+        or stream.finished
+        or stream.cancelled
+        or stream.buffered_bytes
+        or capture._playback_id != lease.playback_id
+        or lease.playback_id not in capture.drains
+        or capture.drains[lease.playback_id].done()
+    ):
+        return False
+    starts = [r for r in rows if r["kind"] == "fixture_started"]
+    step = next((r for r in starts if r["name"] == "presentation_steps"), None)
+    if step is None:
+        return False
+    close = next((r["seq"] for r in starts if r["name"] == "explicit_close"), float("inf"))
+    section = [r for r in rows if step["seq"] <= r["seq"] < close]
+    if assess_presentation(section, clean=True, usage_complete=True)["verdict"] != "OBSERVED_PASS":
+        return False
+    done = next(r for r in section if r["kind"] == "LiveBackendComplete")
+    chunks = [
+        r
+        for r in section
+        if r["kind"] == "decoded_output_chunk"
+        and r.get("generation") == done["generation"] == session.brain._connection_generation
+        and r["seq"] > done["seq"]
+    ]
+    if not any(r.get("pcm_all_zero") is False for r in chunks):
+        return False
+    # The persistent session stream does not EOF between answers. Pace from
+    # actually consumed zero PCM, not drain completion or transcript wording.
+    consumed = [
+        r
+        for r in section
+        if r["kind"] == "synthetic_output_consumed"
+        and r["playback_id"] == lease.playback_id
+        and r["seq"] > done["seq"]
+    ]
+    if not consumed or consumed[-1]["frame_end"] * 2 != chunks[-1]["byte_end"]:
+        return False
+    end = consumed[-1]["frame_end"]
+    begin = end
+    for row in reversed(consumed):
+        if row["peak"] != 0 or row["frame_end"] != begin:
+            break
+        begin = row["frame_begin"]
+    return end - begin >= stream.sample_rate * rig.INPUT_DELAY_S
+
+
+def real_followup_idle_proof(rows, ending, observed_lifecycle, *, answer_endings=("seks", "6")):
+    """Recognize the shipped idle admission after an answered synthetic follow-up."""
+    lifecycle = ending["timeline"]
+    close = next(event for event in lifecycle if event["event"] == "close_requested")
+    session_id = close["session_id"]
+    current = [event for event in observed_lifecycle if event.get("session_id") == session_id]
+    preclose = [event for event in current if event["event"].startswith("live_idle_preclose_")]
+    if [event["event"] for event in preclose] != [
+        "live_idle_preclose_started",
+        "live_idle_preclose_visible",
+        "live_idle_preclose_elapsed",
+    ]:
+        return False
+    diagnostics = [
+        event
+        for event in current
+        if event["event"] == "live_idle_diagnostic" and event["seq"] < preclose[1]["seq"]
+    ]
+    if not diagnostics:
+        return False
+    ready = diagnostics[-1]
+    boundary = next(
+        (
+            row
+            for row in rows
+            if row["kind"] == "close_phase"
+            and row.get("phase") == "request_close"
+            and row.get("outcome") == "enter"
+        ),
+        None,
+    )
+    if boundary is None:
+        return False
+    before = [row for row in rows if row["seq"] < boundary["seq"]]
+    starts = [row for row in before if row["kind"] == "fixture_started"]
+    outputs = transcripts(before, "out")
+    inputs = transcripts(before, "in")
+    pending_counts = ("idle_pending_responses", "idle_pending_batches", "idle_pending_tools")
+    pending_flags = (
+        "idle_continuation_pending",
+        "idle_continuation_inflight",
+        "idle_pending_audio",
+    )
+    observed_edges = [
+        event
+        for event in current
+        if event["event"] in ("close_requested", "teardown_complete", "wake_rearm_recovered")
+    ]
+    projected_edges = [
+        event
+        for event in lifecycle
+        if event["event"] in ("close_requested", "teardown_complete", "wake_rearm_recovered")
+    ]
+    return bool(
+        len(starts) == 2
+        and inputs
+        and outputs
+        and answer_seen(before, starts[-1]["seq"], answer_endings)
+        and inputs[-1].get("input_index") == outputs[-1].get("input_index")
+        and max(inputs[-1]["elapsed_s"], outputs[-1]["elapsed_s"]) + ready.get("idle_quiet_s", 0)
+        <= boundary["elapsed_s"] - (preclose[-1]["at_ms"] - ready["at_ms"]) / 1000
+        and not any(row["kind"] == "LiveTranscript" for row in rows if row["seq"] > boundary["seq"])
+        and len(observed_edges) == len(projected_edges) == 3
+        and all(
+            all(event.get(key) == projected.get(key) for key in projected)
+            for event, projected in zip(observed_edges, projected_edges, strict=True)
+        )
+        and all(event.get("provider_generation") == 1 for event in [ready, *preclose])
+        and all(
+            a["seq"] < b["seq"] and a["at_ms"] <= b["at_ms"]
+            for a, b in pairwise([*preclose, close])
+        )
+        and ready["seq"] < preclose[1]["seq"]
+        and ready["at_ms"] <= preclose[1]["at_ms"]
+        and all(event.get("session_id") == session_id for event in [ready, *preclose])
+        and preclose[0].get("token") is not None
+        and all(event.get("token") == preclose[0]["token"] for event in preclose)
+        and preclose[1].get("native_token") == preclose[0]["token"]
+        and ready.get("idle_blocker") == "ready"
+        and ready.get("idle_quiet_s", 0) >= Config.__dataclass_fields__["idle_timeout_s"].default
+        and ready.get("idle_semantic") is False
+        and ready.get("idle_finalizing") is False
+        and ready.get("idle_provider_started") is True
+        and ready.get("idle_shadow_vad_state") == "quiet"
+        and ready.get("idle_shadow_vad_reason") == "observed"
+        and 0 <= ready.get("idle_observation_age_s", -1) <= ready.get("idle_freshness_s", -1)
+        and all(
+            event.get(key) == 0
+            for event in current
+            if event["event"] == "live_idle_diagnostic"
+            and ready["seq"] <= event["seq"] < close["seq"]
+            for key in pending_counts
+        )
+        and all(
+            event.get(key) is False
+            for event in current
+            if event["event"] == "live_idle_diagnostic"
+            and ready["seq"] <= event["seq"] < close["seq"]
+            for key in pending_flags
+        )
+    )
+
+
+def accepted_close_in_progress(session, live, *, owner=None):
+    """Keep observing the current accepted END through backend and native close.
+
+    Unlike closure_receipt_current(), this includes an unsettled receipt: the
+    negative fixture window must not cancel work that END has already admitted.
+    Thin clears its receipt when that acceptance is revoked.
+    """
+    if owner is not None and (
+        session._active
+        and session._live_finalizing
+        and session.brain is live
+        and (session._history_session, session._epoch, live._connection_generation) == owner
+    ):
+        # request_close clears Live's receipt after Thin commits its finalizer.
+        return True
+    owned = session._live_end_receipt
+    receipt = live._terminal_receipt
+    return bool(
+        owned is not None
+        and not owned.cancelled()
+        and receipt is not None
+        and receipt.future is owned
+        and receipt.closure_only
+        and receipt.generation == live._connection_generation
+    )
+
+
+def assess(case, rows, *, clean, usage_complete, stayed_open, observed_lifecycle=()):
     # Post-observation cleanup can produce results; those never count for this trial.
     cutoff = next((i for i, r in enumerate(rows) if r["kind"] == "observation_finished"), len(rows))
     rows = rows[:cutoff]
+    if case == "presentation-steps":
+        return assess_presentation(rows, clean=clean, usage_complete=usage_complete)
     inputs, outputs = transcripts(rows, "in"), transcripts(rows, "out")
     expected = "".join(TEXTS[name] for name in CASES[case])
-    actual_input = "".join(r["text"] for r in inputs)
+    actual_input = fixture_input_text(rows)
     if case == "timer-10s":
         # Only the known timer fixture allows the spoken orthography of ten.
         actual_input = re.sub(r"\bti\b", "10", actual_input, flags=re.IGNORECASE)
@@ -841,7 +1237,7 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
     )
     natural = [r for r in rows if r["kind"] == "natural_thin_end"]
     negative_idle_complete = False
-    if case == "polite-followup" and len(natural) == 1 and finished:
+    if case in {"polite-followup", "real-followup", "timer-10s"} and len(natural) == 1 and finished:
         lifecycle = [
             event
             for event in natural[0]["timeline"]
@@ -866,11 +1262,12 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                 for event in natural[0]["timeline"]
             )
         )
-    nonsemantic_close = any(
-        event["event"] == "close_requested" and event.get("reason") != "model-close"
-        for ending in natural
-        for event in ending["timeline"]
-    )
+    if case == "real-followup" and negative_idle_complete:
+        negative_idle_complete = real_followup_idle_proof(rows, natural[0], observed_lifecycle)
+    if case == "timer-10s" and negative_idle_complete:
+        negative_idle_complete = real_followup_idle_proof(
+            rows, natural[0], observed_lifecycle, answer_endings=("sekunder",)
+        )
     polite_followup_answered = (
         answer_seen(
             [r for r in rows if not natural or r["seq"] < natural[0]["seq"]],
@@ -915,7 +1312,13 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             ]
             and follow_done is not None
             and lifecycle[0]["seq"] == settlement.get("source_marker_seq")
-            and lifecycle[1].get("reason") == "model-close"
+            and (
+                lifecycle[1].get("reason") == "model-close"
+                or (
+                    lifecycle[1].get("reason") == "model-close-silent"
+                    and accepted[0][1]["args"].get("silent") is True
+                )
+            )
             and isinstance(lifecycle[1].get("close_id"), str)
             and lifecycle[1]["close_id"]
             and all(e.get("close_id") == lifecycle[1]["close_id"] for e in lifecycle[1:])
@@ -944,10 +1347,26 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             functional_chain_observed = checked is not None and all(
                 settlement.get(k) == v for k, v in checked.items()
             )
+    nonsemantic_close = any(
+        event["event"] == "close_requested"
+        and event.get("reason") != "model-close"
+        and not (
+            event.get("reason") == "model-close-silent"
+            and functional_chain_observed
+            and accepted[0][1]["args"].get("silent") is True
+        )
+        for ending in natural
+        for event in ending["timeline"]
+    )
     preaccept_output = bool(
         accepted
         and len(starts) > 1
-        and any(starts[1]["seq"] < r["seq"] < accepted[0][2]["seq"] for r in outputs)
+        and any(
+            (starts[-1] if case == "explicit-close" else starts[1])["seq"]
+            < r["seq"]
+            < accepted[0][2]["seq"]
+            for r in outputs
+        )
     )
 
     def mapped_window_all_zero(start, end):
@@ -1016,13 +1435,22 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
         )
 
     preaccept_zero_proven = bool(
-        accepted and len(starts) > 1 and mapped_window_all_zero(starts[1], accepted[0][2])
+        accepted
+        and len(starts) > 1
+        and mapped_window_all_zero(
+            starts[-1] if case == "explicit-close" else starts[1], accepted[0][2]
+        )
     )
     quiet_zero_proven = bool(
         len(starts) > 1 and rows and mapped_window_all_zero(starts[-1], rows[-1])
     )
     timer_chain = timer_action_chain(rows, outputs, starts) if case == "timer-10s" else None
     lease_at_input_proven = followup_meaning_observed = provider_pcm_during_second_input = False
+    if case == "real-followup" and recognized and len(starts) == 2 and inputs and outputs:
+        followup_meaning_observed = bool(
+            inputs[-1].get("input_index") == outputs[-1].get("input_index")
+            and answer_seen(rows, inputs[-1]["seq"], ("seks", "6"))
+        )
     if case == "interrupt-active-output" and len(starts) == len(finished) == 3:
         triggers = [r for r in rows if r["kind"] == "provider_pcm_lease_trigger"]
         chunks = [r for r in rows if r["kind"] == "decoded_output_chunk"]
@@ -1043,8 +1471,7 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                 and trigger.get("physical_playback_proven") is False
                 and len(settlements) == 1
                 and trigger["session_id"] == settlements[0].get("session_id")
-                and source["seq"] < trigger["seq"] < starts[1]["seq"]
-                and finished[0]["seq"] < trigger["seq"]
+                and finished[0]["seq"] < source["seq"] < trigger["seq"] < starts[1]["seq"]
             )
         provider_pcm_during_second_input = any(
             r["generation"] == 1
@@ -1075,14 +1502,20 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             if (
                 opening_answered
                 and timer_chain is not None
-                and mapped_window_all_zero(*timer_chain)
-                and not nonsemantic_close
-                and (
-                    (stayed_open and negative_window_complete and not ends)
-                    or functional_chain_observed
-                )
+                and (not nonsemantic_close or negative_idle_complete)
             ):
-                verdict = timer_answer_verdict(outputs, timer_chain[1])
+                early = [
+                    r for r in outputs if timer_chain[0]["seq"] < r["seq"] < timer_chain[1]["seq"]
+                ]
+                quiet_before_result = mapped_window_all_zero(*timer_chain)
+                if quiet_before_result or early:
+                    answer_verdict = timer_answer_verdict(outputs, timer_chain[1])
+                    if answer_verdict == "FAIL":
+                        verdict = "FAIL"
+                    elif functional_chain_observed or negative_idle_complete:
+                        verdict = answer_verdict if quiet_before_result else "PENDING_AUDIO_REVIEW"
+                    else:
+                        verdict = "UNKNOWN"  # Action/answer cannot prove native closure.
         elif case in POSITIVE_CASES:
             if (
                 functional_chain_observed
@@ -1122,6 +1555,8 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
                 if case == "pure-thanks"
                 else polite_followup_answered
                 if case == "polite-followup"
+                else followup_meaning_observed
+                if case == "real-followup"
                 else answer_seen(rows, starts[-1]["seq"], ("seks", "6"))
             )
         ):
@@ -1130,8 +1565,30 @@ def assess(case, rows, *, clean, usage_complete, stayed_open):
             )
         elif stayed_open and not negative_window_complete:
             verdict = "UNKNOWN"
+    direct_routing_preserved = bool(
+        len(starts) >= 2
+        and not any(
+            r["kind"] in {"LiveBackendStarted", "LiveToolBatch"} and r["seq"] < starts[1]["seq"]
+            for r in rows
+        )
+    )
+    if (
+        case == "explicit-close"
+        and (not direct_routing_preserved or not f17_completion(rows))
+        and verdict == "OBSERVED_PASS"
+    ):
+        verdict = "FAIL"
     return dict(
         verdict=verdict,
+        **(
+            {
+                "direct_routing_preserved": direct_routing_preserved,
+                "f17_text_and_pcm_observed": f17_completion(rows),
+                "useful_full_speech": "REQUIRES_CAPTURED_PCM_REVIEW",
+            }
+            if case == "explicit-close"
+            else {}
+        ),
         recognized=recognized,
         timing_valid=timing,
         fixtures_complete=fixtures_complete,
@@ -1236,6 +1693,11 @@ async def evaluate(
     # 25 s fallback is not the shipped four-second conversation policy.
     app_config = Config(podconnect_base_url="", podconnect_token="", voicepe_noise_psk="", rooms=())
     tools = TimerProbeTools(evidence) if case == "timer-10s" else NoActions(evidence)
+    presentation_store = None
+    if case in {"presentation-steps", "explicit-close"}:
+        from gatekeeper.podview_receipts import VisualReceiptOwner
+
+        presentation_store = tools.podview_receipts = VisualReceiptOwner()
     streams = rig.LiveAudioStreams()
     capture = rig.SyntheticCapture(evidence, streams)
     live = OneLive(
@@ -1321,10 +1783,38 @@ async def evaluate(
             await session.wake()
             if not session._active or not live.provider_session_started:
                 raise RuntimeError("startup_not_ready")
+            observation_owner = (
+                session._history_session,
+                session._epoch,
+                live._connection_generation,
+            )
             await asyncio.sleep(rig.INPUT_DELAY_S)
             capture.play_fixture(names[0], fixtures[names[0]])
             while session._active:
                 now = rig.time.monotonic()
+                if presentation_store is not None:
+                    items = presentation_store.snapshot(session.room, session)["items"]
+                    if items and not any(
+                        r["kind"] == "presentation_receipt" for r in evidence.rows
+                    ):
+                        item = items[0]
+                        response_id = next(
+                            (
+                                identity
+                                for identity in session._live_backend_orders
+                                if item["turnId"]
+                                == f"live:{live._connection_generation}:{identity}"
+                            ),
+                            None,
+                        )
+                        if response_id is not None:
+                            evidence.emit(
+                                "presentation_receipt",
+                                item=item,
+                                response_id=response_id,
+                                delegation_id=session._live_backend_delegations[response_id],
+                                input_index=live.input_sequence,
+                            )
                 finished = [
                     r
                     for r in evidence.rows
@@ -1343,14 +1833,7 @@ async def evaluate(
                     case == "interrupt-active-output"
                     and stage == 1
                     and capture.clip is None
-                    and followup_seen(
-                        evidence.rows,
-                        next(
-                            r["seq"]
-                            for r in evidence.rows
-                            if r["kind"] == "fixture_started" and r["name"] == names[1]
-                        ),
-                    )
+                    and interruption_close_stimulus_ready(evidence.rows, session, capture)
                 ):
                     await asyncio.sleep(rig.INPUT_DELAY_S)
                     if not session._active:
@@ -1360,6 +1843,7 @@ async def evaluate(
                 elif (
                     case != "interrupt-active-output"
                     and stage == 0
+                    and len(names) > 1
                     and capture.clip is None
                     and answer_seen(evidence.rows, -1, ("fire", "4"))
                 ):
@@ -1373,6 +1857,10 @@ async def evaluate(
                     case != "interrupt-active-output"
                     and stage == 1
                     and len(names) == 3
+                    and (
+                        case != "explicit-close"
+                        or f17_stimulus_ready(evidence.rows, session, capture)
+                    )
                     and capture.clip is None
                     and since_finished >= rig.INPUT_DELAY_S
                 ):
@@ -1380,7 +1868,12 @@ async def evaluate(
                     since_finished = -1
                     capture.play_fixture(names[stage], fixtures[names[stage]])
                 if (
-                    case not in POSITIVE_CASES
+                    case not in POSITIVE_CASES | {"timer-10s"}
+                    and not accepted_close_in_progress(session, live, owner=observation_owner)
+                    and (
+                        presentation_store is None
+                        or bool(presentation_store.snapshot(session.room, session)["items"])
+                    )
                     and stage == len(names) - 1
                     and capture.clip is None
                     and since_finished >= rig.NEGATIVE_OBSERVATION_S
@@ -1421,7 +1914,12 @@ async def evaluate(
             s["voice_final"] and s["backend_usage_complete"] for s in live.snapshots.values()
         )
         report = assess(
-            case, evidence.rows, clean=clean, usage_complete=usage_complete, stayed_open=stayed_open
+            case,
+            evidence.rows,
+            clean=clean,
+            usage_complete=usage_complete,
+            stayed_open=stayed_open,
+            observed_lifecycle=observed_lifecycle,
         )
         audio_names = ("source-0.pcm", "provider-input-1.pcm", "provider-output-1.pcm")
         audio_complete = all(evidence.sizes.get(name, 0) > 0 for name in audio_names)
@@ -1444,6 +1942,9 @@ async def evaluate(
             not in {"observation_deadline", "thin_session_ended", "negative_observation_complete"}
         ):
             report["verdict"] = "UNKNOWN"
+        if case == "pure-thanks" and any(r["kind"] == "LiveBackendStarted" for r in evidence.rows):
+            report["verdict"] = "FAIL" if report["verdict"] != "UNKNOWN" else "UNKNOWN"
+            report["direct_routing_preserved"] = False
         report.update(
             case=case,
             variant=variant,

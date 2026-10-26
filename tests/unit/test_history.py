@@ -218,3 +218,185 @@ def test_live_segment_size_and_backwards_time_are_storage_boundaries(tmp_path):
     turns = h.conversations()[0]["turns"]
     assert len({t["segment_id"] for t in turns}) == 3
     assert [t["text"] for t in turns] == ["x" * 16384, "older", "tail"]
+
+
+def visual_display(index=0):
+    receipt = f"{index:032x}"
+    return {
+        "receiptId": receipt,
+        "family": "concise",
+        "title": "Saved reference",
+        "observedAt": 1000.0 + index,
+        "provenance": {"kind": "ai_explanation"},
+        "content": {
+            "summary": "Original explanation",
+            "sources": [
+                {
+                    "id": "source:" + receipt,
+                    "label": "AI-forklaring fra PodVoice",
+                    "kind": "owner_receipt",
+                    "receiptId": receipt,
+                    "scope": "conversation_answer",
+                }
+            ],
+        },
+    }
+
+
+def test_typed_visual_snapshot_restart_dedupe_and_legacy_reader(tmp_path):
+    history = _h(tmp_path)
+    history.append("kitchen", "in", "question", ts=10, session="s1")
+    display = visual_display()
+    assert history.save_visual_snapshot("kitchen", "s1", 1, display)
+    saved = history._path.read_bytes()
+    assert history.save_visual_snapshot("kitchen", "s1", 1, display)
+    assert history._path.read_bytes() == saved
+    assert not history.save_visual_snapshot("kitchen", "foreign", 1, display)
+    restarted = _h(tmp_path)
+    assert restarted.visual_snapshots("kitchen")[0]["display"] == display
+    assert restarted.visual_snapshots("bedroom") == []
+    assert restarted.conversations()[0]["turns"] == [{"ts": 10.0, "dir": "in", "text": "question"}]
+    assert restarted.session_text(room="kitchen", session="s1") == (("user", "question"),)
+    assert restarted.rooms() == ["kitchen"]
+    # Existing trim must keep snapshots while compacting/capping ordinary records.
+    history._since_trim = 249
+    history.append("kitchen", "out", "answer", ts=11, session="s1")
+    assert _h(tmp_path).visual_snapshots("kitchen")[0]["display"] == display
+
+
+def test_visual_retention20_per_room_and_finite_aggregate(tmp_path, monkeypatch):
+    import gatekeeper.history as module
+
+    history = _h(tmp_path)
+    for index in range(22):
+        assert history.save_visual_snapshot("kitchen", "s1", 1, visual_display(index))
+    rows = _h(tmp_path).visual_snapshots("kitchen")
+    assert len(rows) == 20
+    assert [row["display"]["receiptId"] for row in rows] == [f"{i:032x}" for i in range(21, 1, -1)]
+    monkeypatch.setattr(module, "MAX_VISUAL_BYTES", 1100)
+    assert history.save_visual_snapshot("bedroom", "s2", 2, visual_display(30))
+    assert len(history._visual_records()) <= 2
+    assert history.visual_snapshots("bedroom")
+    assert (
+        sum(
+            len(__import__("json").dumps(row, ensure_ascii=False).encode())
+            for row in history._visual_records()
+        )
+        <= 1100
+    )
+
+
+def test_visual_clear_and_exact_removal_persist_without_losing_other_rooms(tmp_path):
+    history = _h(tmp_path)
+    for room, index in [("kitchen", 1), ("bedroom", 2)]:
+        history.append(room, "out", room)
+        assert history.save_visual_snapshot(room, "s1", 1, visual_display(index))
+    assert history.remove_visual_snapshots("kitchen", session="foreign", epoch=1)
+    assert _h(tmp_path).visual_snapshots("kitchen")
+    assert history.remove_visual_snapshots("kitchen", session="s1", epoch=1)
+    assert not _h(tmp_path).visual_snapshots("kitchen")
+    assert history.clear("kitchen")
+    assert _h(tmp_path).visual_snapshots("bedroom")
+    assert _h(tmp_path).rooms() == ["bedroom"]
+    assert history.clear()
+    assert _h(tmp_path)._visual_records() == []
+
+
+def test_visual_write_failure_is_not_saved_and_keeps_previous_file(tmp_path, monkeypatch):
+    import gatekeeper.history as module
+
+    history = _h(tmp_path)
+    assert history.save_visual_snapshot("kitchen", "s1", 1, visual_display())
+    before = history._path.read_bytes()
+    monkeypatch.setattr(module.os, "replace", lambda *args: (_ for _ in ()).throw(OSError("disk")))
+    assert not history.save_visual_snapshot("kitchen", "s2", 2, visual_display(2))
+    assert history.visual_saved is False
+    assert history._path.read_bytes() == before
+    assert not history.clear("kitchen")
+    assert history.visual_saved is False
+
+
+def test_malformed_typed_rows_never_become_text_or_visual(tmp_path):
+    import json
+
+    history = _h(tmp_path)
+    rows = []
+    for change in [{"allowedActions": []}, {"observedAt": float("nan")}, {"family": "execute"}]:
+        display = {**visual_display(), **change}
+        assert not history.save_visual_snapshot("kitchen", "s1", 1, display)
+        rows.append(
+            dict(kind="visual_snapshot.v1", room="kitchen", session="s1", epoch=1, display=display)
+        )
+    history._path.write_text("\n".join(json.dumps(row) for row in rows))
+    assert history.visual_snapshots("kitchen") == []
+    assert history.conversations() == []
+
+
+def test_corrupt_utf8_is_not_overwritten_or_claimed_removed(tmp_path):
+    history = _h(tmp_path)
+    history._path.write_bytes(b"legacy\xff\n")
+    assert not history.save_visual_snapshot("kitchen", "session", 1, visual_display())
+    assert not history.remove_visual_snapshots("kitchen")
+    assert not history.clear("kitchen")
+    assert history.visual_saved is False
+    assert history._path.read_bytes() == b"legacy\xff\n"
+    assert history.visual_snapshots("kitchen") == []
+
+
+def test_typed_snapshot_closed_content_time_and_global_room_bounds(tmp_path):
+    import copy
+    import time
+
+    history = _h(tmp_path)
+    for change in ["authority", "future", "foreign_source", "provenance"]:
+        display = copy.deepcopy(visual_display())
+        if change == "authority":
+            display["content"]["allowedActions"] = []
+        elif change == "future":
+            display["observedAt"] = time.time() + 60
+        elif change == "foreign_source":
+            display["content"]["sources"][0]["receiptId"] = "f" * 32
+        else:
+            display["provenance"]["url"] = "https://invalid.example"
+        assert not history.save_visual_snapshot("kitchen", "s1", 1, display)
+    for index in range(13):
+        assert history.save_visual_snapshot(f"room-{index}", "s1", 1, visual_display(index))
+    restored = _h(tmp_path)
+    assert len({row["room"] for row in restored._visual_records()}) == 12
+    assert restored.visual_snapshots("room-0") == []
+    assert restored.visual_snapshots("room-12")
+
+
+def test_visual_mutation_captures_storage_once_and_decodes_each_line_once(tmp_path, monkeypatch):
+    import collections
+
+    import gatekeeper.history as history_module
+
+    history = _h(tmp_path)
+    legacy = ['{"room": "kitchen", "dir": "in", "text": "legacy", "ts": 1}', "invalid legacy"]
+    history._path.write_text("\n".join(legacy) + "\n")
+    assert history.save_visual_snapshot("kitchen", "session", 1, visual_display())
+    read, decode = history._storage_lines, history_module.json.loads
+    reads, decoded = [], []
+
+    def storage():
+        reads.append(True)
+        return read()
+
+    def loads(line, *args, **kwargs):
+        decoded.append(line)
+        return decode(line, *args, **kwargs)
+
+    monkeypatch.setattr(history, "_storage_lines", storage)
+    monkeypatch.setattr(history_module.json, "loads", loads)
+    for operation in [
+        lambda: history.save_visual_snapshot("kitchen", "session", 1, visual_display(1)),
+        lambda: history.remove_visual_snapshots("kitchen", session="session", epoch=1),
+    ]:
+        expected = history._path.read_text().splitlines()
+        reads.clear()
+        decoded.clear()
+        assert operation()
+        assert len(reads) == 1
+        assert collections.Counter(decoded) == collections.Counter(expected)
+        assert history._path.read_text().splitlines()[-2:] == legacy

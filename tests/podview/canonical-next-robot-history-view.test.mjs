@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {renderRobotHistory} from '../../podvoice/gatekeeper/static/podview/live-home-view.js';
+import {LocalRobotView} from '../../podvoice/gatekeeper/static/podview/local-robot-view.js';
 
 class Node {
  constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.hidden=false;this.attributes={};this.listeners={};}
@@ -27,86 +28,56 @@ const device=(extra={})=>({id:'vacuum.actual',kind:'vacuum',live:true,source:'ho
 const request=(id,outcome='accepted_by_ha')=>({id,recordedAt:now()-50,outcome,recipe:{mapName:'Stueetage',areaIds:['actual-area'],repeat:1}});
 function withDocument(run){const previous=globalThis.document;try{run();}finally{globalThis.document=previous;}}
 
-test('missing live history keeps canonical nodes and neutral state while hiding an empty heading for cleaning/fault/stale',()=>withDocument(()=>{
- for(const status of ['cleaning','fault','docked'])for(const stale of [false,true])for(const historyStatus of ['observed','unavailable']){
-  const f=fixture(device({status,stale,history:{status:historyStatus,items:[]}}));renderRobotHistory(f.host);
-  assert.equal(f.history.hidden,true);assert.equal(f.timeline.hidden,false);
-  assert.equal(document.getElementById('robot-history-empty'),null);assert.equal(f.timeline.data.state,'empty');assert.equal(f.timeline.data.stateText,historyStatus==='observed'?'Ingen hændelser at vise endnu.':'Hændelser er ikke tilgængelige lige nu.');
-  assert.deepEqual(f.timeline.data.items,[]);assert.equal(f.section().descendants().some(node=>node.className==='robot-recipe-row'),false);
+test('recent selection UI is removed for every state without changing stored recipe history',()=>withDocument(()=>{
+ for(const status of ['docked','cleaning','paused','stopped','fault']){const saved=request('saved'),d=device({status,history:{status:'observed',items:[saved]}}),f=fixture(d,true),recent=new Node('section'),choices=new Node('pv-choice-list');recent.id='robot-recent';recent.append(choices);recent.robotHistoryNodes={recipes:new Map([['saved',saved]])};f.root.append(recent);const before=JSON.stringify(d.history);renderRobotHistory(f.host);assert.equal(recent.hidden,true);assert.equal(recent.children.length,0);assert.equal(recent.robotHistoryNodes,undefined);assert.equal(JSON.stringify(d.history),before);assert.deepEqual(f.calls,[]);assert.equal(f.root.descendants().some(node=>node.tagName==='pv-choice-list'),false);}
+}));
+test('history creates no replacement recent choices, filler or second control section',()=>withDocument(()=>{
+ const f=fixture(device({history:{status:'observed',items:[request('saved')]}}),true);renderRobotHistory(f.host);assert.equal(f.section(),null);assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);assert.equal(f.root.children.length,1);assert.deepEqual(f.calls,[]);
+}));
+test('independent native start and end facts keep source timestamps and stale labels without invented cycle metrics',()=>withDocument(()=>{
+ const d=device({stale:true,telemetry:{status:'observed',items:[fact('last_clean_start',now()-2000),fact('last_clean_end',now()-1000),fact('cleaning_area',45,'m²')]}}),before=JSON.stringify(d),f=fixture(d);renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-fact:last_clean_end','robot-fact:last_clean_start']);assert.deepEqual(f.timeline.data.items.map(row=>row.label),['Senest afsluttet · sidst kendt','Senest startet · sidst kendt']);assert.ok(f.timeline.data.items.every(row=>!row.label.includes('45')));assert.equal(JSON.stringify(d),before);
+}));
+test('unknown action result remains an explicitly unconfirmed request, never a completed cycle',()=>withDocument(()=>{
+ const accepted=request('accepted'),unknown=request('unknown','unknown'),f=fixture(device({history:{status:'observed',items:[accepted,unknown]}}),true);renderRobotHistory(f.host);assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-request:unknown']);assert.match(f.timeline.data.items[0].label,/^Udfald ukendt/);assert.ok(f.timeline.data.items.every(row=>!/færdig|afsluttet/.test(row.label)));assert.equal(f.section(),null);assert.deepEqual(f.calls,[]);
+}));
+test('observed facts and unknown requests retain independent source ordering',()=>withDocument(()=>{
+ const start=fact('last_clean_start',now()-120),end=fact('last_clean_end',now()-10),older=request('older'),middle=request('middle','unknown');older.recordedAt=now()-180;middle.recordedAt=now()-60;const f=fixture(device({telemetry:{status:'observed',items:[start,end]},history:{status:'observed',items:[older,middle]}}));renderRobotHistory(f.host);assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-fact:last_clean_end','robot-request:middle','robot-fact:last_clean_start']);
+}));
+test('read scope revocation clears visible events without altering internal history',()=>withDocument(()=>{
+ for(const change of ['read','boot','room','blocked']){const d=device({telemetry:{status:'observed',items:[fact('last_clean_end',now()-10)]},history:{status:'observed',items:[request('saved')]}}),f=fixture(d,true);renderRobotHistory(f.host);const before=JSON.stringify(d.history);if(change==='read')f.host.liveSnapshot.capabilities.homeRead=[];if(change==='boot')f.host.liveSnapshot.bootId='foreign';if(change==='room')f.host.liveSnapshot.roomId='foreign';if(change==='blocked')f.host.liveTransport={recoveryBlocked:true};renderRobotHistory(f.host);assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);assert.equal(JSON.stringify(d.history),before);assert.equal(f.section(),null);}
+}));
+test('same canonical timeline survives empty, actual facts, unavailable data and unrelated setting observations',()=>withDocument(()=>{
+ const d=device(),f=fixture(d),timeline=f.timeline;renderRobotHistory(f.host);assert.equal(f.history.hidden,true);d.telemetry.items=[fact('last_clean_end',now()-10)];renderRobotHistory(f.host);assert.equal(f.history.hidden,false);const before=timeline.data;let updates=0;Object.defineProperty(timeline,'data',{get:()=>before,set:()=>updates++});d.telemetry.items.push(fact('filter_time_left',40,'h'));renderRobotHistory(f.host);assert.equal(updates,0);assert.equal(f.timeline,timeline);assert.equal(f.section(),null);
+}));
+test('render repairs overwritten canonical timeline without producing recipe selection controls',()=>withDocument(()=>{
+ const f=fixture(device({telemetry:{status:'observed',items:[fact('last_clean_end',now()-10)]}}));renderRobotHistory(f.host);const original=f.timeline.data;f.timeline.data={items:[]};renderRobotHistory(f.host);assert.deepEqual(f.timeline.data,original);assert.equal(f.section(),null);
+}));
+
+// Preserve the former history regression guards while the removed recipe UI
+// remains absent: read custody and command custody are independent.
+test('offline, revoked control, stale and pending observations preserve read-authorized facts without exposing saved-choice actions',()=>withDocument(()=>{
+ for(const change of ['offline','control','stale','pending']){
+  const d=device({telemetry:{status:'observed',items:[fact('last_clean_end',now()-10)]},history:{status:'observed',items:[request('saved')]}}),f=fixture(d,true),before=JSON.stringify(d.history);
+  renderRobotHistory(f.host);f.host.liveControls.allowed=()=>false;
+  if(change==='offline')f.host.state.connected=false;if(change==='stale')d.stale=true;if(change==='pending')d.pending={operation:'current'};
+  renderRobotHistory(f.host);assert.equal(f.history.hidden,false,change);assert.equal(f.timeline.data.items[0].id,'robot-fact:last_clean_end',change);assert.equal(f.timeline.hidden,false);assert.equal(f.section(),null);assert.equal(JSON.stringify(d.history),before);assert.deepEqual(f.calls,[]);
  }
 }));
-
-test('independent native start/end facts use shared timeline, source order and stale labels without completion inference',()=>withDocument(()=>{
- const d=device({stale:true,telemetry:{status:'observed',items:[fact('last_clean_start',now()-2000),fact('last_clean_end',now()-1000)]}}),before=JSON.stringify(d),f=fixture(d);
- renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);
- assert.deepEqual(f.timeline.data.items.map(x=>x.id),['robot-fact:last_clean_end','robot-fact:last_clean_start']);
- assert.deepEqual(f.timeline.data.items.map(x=>x.label),['Senest afsluttet · sidst kendt','Senest startet · sidst kendt']);
- assert.equal(f.section().descendants().some(node=>node.textContent==='Seneste rengøring'),false);assert.equal(JSON.stringify(d),before);
+test('local accepted requests cannot become accepted live facts or create recipe controls',()=>withDocument(()=>{
+ const d=device({live:false,history:{status:'observed',items:[request('local','accepted_local')]}}),f=fixture(d,true);f.host.localRobot={areaLabels:new Map([['actual-area','Køkken']]),allowed:()=>true,openRobot:(_,id)=>f.calls.push(id)};
+ renderRobotHistory(f.host);assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);assert.equal(f.section(),null);assert.deepEqual(f.calls,[]);
+ f.host.live=true;d.live=true;renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.match(f.timeline.data.items[0].label,/^Udfald ukendt/);assert.equal(f.section(),null);assert.deepEqual(f.calls,[]);
 }));
-
-test('shared device renderer overwrite is repaired on every render even when history signature is unchanged',()=>withDocument(()=>{
- const f=fixture(device({telemetry:{status:'observed',items:[fact('last_clean_end',now()-100)]}}));renderRobotHistory(f.host);
- const before=f.timeline.data;f.timeline.data={items:[]};renderRobotHistory(f.host);
- assert.deepEqual(f.timeline.data,before);assert.equal(f.timeline.hidden,false);
+test('same timeline handles observed-empty, unknown requests and unavailable history without replacement or empty filler',()=>withDocument(()=>{
+ const d=device(),f=fixture(d),timeline=f.timeline;renderRobotHistory(f.host);assert.equal(f.history.hidden,true);assert.equal(timeline.hidden,false);assert.equal(timeline.data.state,'empty');assert.equal(timeline.data.stateText,'Ingen hændelser at vise endnu.');
+ d.history={status:'observed',items:[request('one','unknown')]};renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(timeline.data.items.length,1);assert.equal(timeline.data.state,'ready');
+ d.history={status:'unavailable',items:[]};renderRobotHistory(f.host);assert.equal(f.history.hidden,true);assert.equal(timeline.hidden,false);assert.deepEqual(timeline.data.items,[]);assert.equal(timeline.data.state,'empty');assert.equal(timeline.data.stateText,'Hændelser er ikke tilgængelige lige nu.');assert.equal(f.timeline,timeline);assert.equal(f.history.children.length,1);assert.equal(document.getElementById('robot-history-empty'),null);assert.equal(f.section(),null);
 }));
-
-test('request journal shares canonical history; unknown never offers reuse or claims completion',()=>withDocument(()=>{
- const accepted=request('accepted'),unknown=request('unknown','unknown');accepted.recordedAt=unknown.recordedAt+1;
- const f=fixture(device({history:{status:'observed',items:[accepted,unknown]}}),true);renderRobotHistory(f.host);
- assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);
- assert.equal(f.section().querySelector('pv-activity-timeline'),null);
- assert.equal(f.section().descendants().some(node=>node.textContent==='Senest anmodet'),false);
- assert.match(f.timeline.data.items[0].label,/^Udfald ukendt/);assert.match(f.section().querySelector('pv-choice-list').data.items[0].detail,/1 gang · Vælg rengøring$/);assert.equal(f.section().querySelector('h2').textContent,'Seneste valg');
- assert.equal(f.timeline.data.items.some(row=>/afsluttet|færdig/i.test(row.label)),false);
- const choices=f.section().querySelector('pv-choice-list');assert.equal(choices.data.items.length,1);assert.equal(choices.dataset.reuse,'true');choices.listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'accepted'}});assert.deepEqual(f.calls,['accepted']);
- assert.equal(document.getElementById('robot-history-empty'),null);
- assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-request:unknown']);
+test('unchanged history performs no reassignment while a new unknown request updates the retained timeline once',()=>withDocument(()=>{
+ const d=device({telemetry:{status:'observed',items:[fact('filter_time_left',40,'h')]},history:{status:'observed',items:[request('one','unknown')]}}),f=fixture(d);renderRobotHistory(f.host);let data=f.timeline.data,updates=0;
+ Object.defineProperty(f.timeline,'data',{get:()=>data,set:value=>{updates++;data=value;}});f.host.state.devices=[structuredClone(d)];renderRobotHistory(f.host);renderRobotHistory(f.host);assert.equal(updates,0);assert.equal(f.section(),null);
+ f.host.state.devices[0].history.items.push(request('two','unknown'));renderRobotHistory(f.host);assert.equal(updates,1);assert.equal(data.items.length,2);assert.equal(f.section(),null);
 }));
-
-test('observed facts and request journal interleave by source timestamps without implying completion',()=>withDocument(()=>{
- const start=fact('last_clean_start',now()-120),end=fact('last_clean_end',now()-10);
- const older=request('older');older.recordedAt=now()-180;
- const middle=request('middle','unknown');middle.recordedAt=now()-60;
- const f=fixture(device({telemetry:{status:'observed',items:[start,end]},history:{status:'observed',items:[older,middle]}}));renderRobotHistory(f.host);
- assert.deepEqual(f.timeline.data.items.map(row=>row.id),['robot-fact:last_clean_end','robot-request:middle','robot-fact:last_clean_start']);
- assert.match(f.timeline.data.items[1].label,/^Udfald ukendt/);
- assert.equal(f.section().querySelector('pv-activity-timeline'),null);
-}));
-
-test('command grant removal preserves read-authorized recent choices without a duplicate care disclosure',()=>withDocument(()=>{
- const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',-12,'h'),fact('battery',56,'%')]},history:{status:'observed',items:[request('saved')]}}),true);
- renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('pv-choice-list').data.items[0].label,'Stueetage');assert.equal(f.section().querySelector('pv-choice-list').data.items[0].detail,'1 gang · Vælg rengøring');assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);
- f.host.liveControls.allowed=()=>false;renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('pv-choice-list').data.items.length,1);assert.equal(f.section().querySelector('pv-choice-list').data.readOnly,true);assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);f.section().querySelector('pv-choice-list').listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'saved'}});assert.deepEqual(f.calls,[]);
-}));
-
-test('return to canonical local/light detail restores timeline visibility and hides live-only content',()=>withDocument(()=>{
- const f=fixture(device({history:{status:'observed',items:[request('recent')]}}));renderRobotHistory(f.host);f.host.state.devices=[{id:'light',kind:'light',live:false}];f.host.state.focus='light';
- renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(f.timeline.hidden,false);assert.equal(f.section().hidden,true);assert.equal(document.getElementById('robot-history-empty'),null);
-}));
-
-test('robot history remains events and attention, without care/settings or a second control card',()=>withDocument(()=>{const f=fixture(device({telemetry:{status:'observed',items:[fact('filter_time_left',0,'h'),fact('dock_error','water_empty')]}}));renderRobotHistory(f.host);assert.equal(f.section().querySelector('details'),null);assert.equal(f.section().querySelector('dl'),null);assert.equal(f.section().querySelector('pv-choice-list').data.items.length,0);assert.ok(f.section().descendants().some(n=>n.textContent==='Dockfejl: Mangler vand'));assert.equal(f.timeline.data.state,'empty');}));
-
-test('same canonical timeline survives observed empty, real events and unavailable transitions',()=>withDocument(()=>{const d=device(),f=fixture(d),timeline=f.timeline;renderRobotHistory(f.host);assert.equal(f.timeline,timeline);assert.equal(timeline.hidden,false);d.history={status:'observed',items:[request('one','unknown')]};renderRobotHistory(f.host);assert.equal(timeline.data.items.length,1);assert.equal(timeline.data.state,'ready');d.history={status:'unavailable',items:[]};renderRobotHistory(f.host);assert.equal(timeline.hidden,false);assert.equal(timeline.data.items.length,0);assert.equal(timeline.data.state,'empty');assert.equal(f.history.children.length,1);assert.equal(document.getElementById('robot-history-empty'),null);}));
-
-test('unchanged robot observations perform no timeline reassignment or history replacement',()=>withDocument(()=>{
- const d=device({telemetry:{status:'observed',items:[fact('filter_time_left',40,'h')]},history:{status:'observed',items:[request('one','unknown')]}}),f=fixture(d);renderRobotHistory(f.host);
- let data=f.timeline.data,updates=0,replacements=0;const section=f.section(),original=section.replaceChildren;
- Object.defineProperty(f.timeline,'data',{get:()=>data,set:value=>{updates++;data=value;}});section.replaceChildren=function(...args){replacements++;return original.apply(this,args);};
- f.host.state.devices=[structuredClone(d)];renderRobotHistory(f.host);renderRobotHistory(f.host);
- assert.equal(updates,0);assert.equal(replacements,0);assert.equal(section.querySelector('details'),null);
- f.host.state.devices[0].history.items.push(request('two','unknown'));renderRobotHistory(f.host);assert.equal(updates,1);assert.equal(data.items.length,2);
-}));
-
-
-test('telemetry and adjacent requests preserve canonical choices and stable recipe identifiers',()=>withDocument(()=>{
- const saved=request('saved'),d=device({history:{status:'observed',items:[saved]}}),f=fixture(d,true);renderRobotHistory(f.host);
- const choices=f.section().querySelector('pv-choice-list'),section=f.section();let data=choices.data,writes=0;Object.defineProperty(choices,'data',{get:()=>data,set:value=>{writes++;data=value;}});
- renderRobotHistory(f.host);assert.equal(writes,0);d.telemetry.items=[fact('dock_error','water_empty')];renderRobotHistory(f.host);assert.equal(section.querySelector('pv-choice-list'),choices);assert.equal(writes,0);
- d.history.items.unshift(request('recent'));renderRobotHistory(f.host);assert.equal(choices.data.items[1].id,'saved');choices.listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'saved'}});assert.deepEqual(f.calls,['saved']);
- saved.recipe.repeat=2;renderRobotHistory(f.host);assert.match(choices.data.items[1].detail,/2 gange · Vælg rengøring$/);d.history.items=[saved];d.telemetry.items=[];renderRobotHistory(f.host);assert.equal(section.children.length,2);assert.equal(section.children[1],choices);writes=0;renderRobotHistory(f.host);assert.equal(writes,0);
- choices.listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'foreign'}});assert.deepEqual(f.calls,['saved']);
-}));
-
-test('local example history is labeled locally and never admits a local outcome on the live path',()=>withDocument(()=>{
- const d=device({live:false,history:{status:'observed',items:[request('local','accepted_local')]}}),f=fixture(d,true);f.host.localRobot={areaLabels:new Map([['actual-area','Køkken']]),allowed:()=>true,openRobot:(_,id)=>f.calls.push(id)};renderRobotHistory(f.host);assert.equal(f.section().hidden,false);assert.equal(f.section().querySelector('pv-choice-list').data.items[0].label,'Køkken');assert.ok(!f.section().descendants().some(node=>String(node.textContent||'').includes('Lokalt eksempel')));assert.equal(f.history.hidden,true);assert.deepEqual(f.timeline.data.items,[]);assert.match(f.section().querySelector('pv-choice-list').data.items[0].detail,/Vælg rengøring$/);f.section().querySelector('pv-choice-list').listeners['pv-action']({stopPropagation(){},detail:{action_id:'choose',option_id:'local'}});assert.deepEqual(f.calls,['local']);f.host.live=true;d.live=true;renderRobotHistory(f.host);assert.equal(f.section().querySelector('pv-choice-list').data.items.length,0);assert.match(f.timeline.data.items[0].label,/^Udfald ukendt/);
+test('local disconnected placeholder creates neither a Robot control task nor an empty history section',()=>withDocument(()=>{
+ const f=fixture(device({id:'podview-vacuum-empty',presentationOnly:true,source:undefined,status:'unavailable',history:{status:'unavailable',items:[]}}));f.host.live=false;const view=Object.assign(Object.create(LocalRobotView.prototype),{host:f.host,button:{hidden:false},entry:{hidden:false}});f.host.localRobot=view;f.history.hidden=false;view.render();assert.equal(f.history.hidden,true);assert.equal(f.section(),null);assert.equal(view.entry.hidden,true);assert.equal(view.task,undefined);assert.deepEqual(f.calls,[]);
 }));

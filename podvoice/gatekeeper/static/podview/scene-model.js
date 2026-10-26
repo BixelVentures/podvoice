@@ -1,5 +1,5 @@
 import {vehiclePreviewAction} from './vehicle-model.js';
-import {robotRoom,robotValue} from './robot-observation.js';
+import {robotRoom,robotValue,robotActivity,robotExperience} from './robot-observation.js';
 import {visualExamples} from './visual-examples.js';
 import {visualFamilies,validateVisualContent} from './visual-content.js';
 import {timerTransition} from './timer-model.js';
@@ -22,6 +22,20 @@ const lightExamples=[
 export function initialScene(){return {sessionId:'demo-session-1',generation:1,connected:true,focus:'music',navStack:[],music:initialWidgetState(),answers:[],serial:0,pendingAnswer:null,conflict:null,timer:null,extraTimers:[],timerHistory:[],notice:'',devices:[],deviceOperation:0,timerSerial:0};}
 export const binding=(s,a)=>({sessionId:s.sessionId,taskId:a.id,revision:a.revision});
 const matches=(s,e,a)=>!!a&&e.sessionId===s.sessionId&&e.taskId===a.id&&e.revision===a.revision;
+// Local review fixtures only. A remembered state is not provider authority and
+// must never become an indiscriminate live 'turn all on' command.
+export function lightHomeRestoreAvailable(s,d){
+ const restore=d?.lightHomeRestore;
+ return !!(restore&&s?.connected===true&&s.focus===d.id&&!d.live&&d.exampleOnly===true&&d.scope==='home'&&!d.pending&&!d.stale&&d.status==='off'&&lightSelection(d)&&restore.sessionId===s.sessionId&&restore.generation===s.generation&&restore.revision===d.revision&&restore.selectionId===d.lightSelectionId&&restore.ownRoomId===d.ownRoomId&&restore.source===d.source&&restore.sourceEpoch===d.lightSourceEpoch&&restore.after===JSON.stringify(d.lights));
+}
+// The slider is an absolute 0..100 reference for the brightest active lamp.
+// Keep relative levels/colors and leave off neighbours off. With an entirely
+// off room, an explicit positive value reuses retained positive levels, or
+// uniformly turns on its lamps when no positive levels remain.
+function relativeLightLevels(lights,ids,value){
+ const targets=lights.filter(row=>ids.includes(row.id)),active=targets.filter(row=>row.on),retained=targets.filter(row=>row.brightness>0),basis=active.length?active:value>0&&retained.length?retained:value>0?targets:[],max=Math.max(0,...basis.map(row=>row.brightness)),members=new Set(basis.map(row=>row.id));
+ return lights.map(row=>!members.has(row.id)?row:{...row,on:value>0,brightness:value===0?0:max>0?Math.max(1,Math.round(row.brightness*value/max)):value});
+}
 export const focusedAnswer=s=>s.answers.find(a=>a.id===s.focus);
 function request(s,kind){const serial=s.serial+1;const id=`demo-answer-${serial}`;const answer={id,revision:1,kind,status:'waiting',selected:'paper-fold',filter:'all',step:0,checked:[],hidden:false,title:kind==='steps'?'Fold et papirfly':kind==='checklist'?'Klar til at lave et kort?':kind==='concise'?'Skal jeg tage en jakke med?':'En pause uden skærm',source:'Lokalt aktivitetseksempel',exampleOnly:true,freshness:'Eksempeldata · planlagte tider',updatedAt:null};if(visualExamples[kind])Object.assign(answer,{title:visualExamples[kind].title,meta:visualExamples[kind].meta,content:validateVisualContent(kind,visualExamples[kind].content)});return {...s,serial,focus:id,answers:[...s.answers.map(a=>['waiting','partial'].includes(a.status)?{...a,status:'interrupted'}:a),answer],pendingAnswer:{id,generation:s.generation},conflict:null,notice:''};}
 function sceneBaseTransition(s,e){
@@ -50,7 +64,37 @@ function sceneBaseTransition(s,e){
  case 'hide-resource':return {...s,focus:s.focus===e.id?'now':s.focus,devices:s.devices.map(d=>d.id===e.id?{...d,hidden:true}:d)};
  case 'restore-resources':return {...s,devices:s.devices.map(d=>({...d,hidden:false}))};
  case 'device-demo':{if(!['vacuum','light'].includes(e.kind)||!s.connected)return s;const id=`demo-${e.kind}`;const existing=s.devices.find(d=>d.id===id);if(existing)return {...s,focus:id,devices:s.devices.map(d=>d.id===id?{...d,hidden:false}:d)};return {...s,focus:id,devices:[...s.devices,{id,kind:e.kind,...(e.kind==='light'?{name:'Lys',scope:'home',exampleOnly:true,lightSelectionId:'home',lights:lightExamples.map(row=>({...row}))}:{}),revision:1,status:e.kind==='vacuum'?'cleaning':'mixed',pending:null,hidden:false,timeline:[{id:'initial',label:e.kind==='vacuum'?'Rengøring startet':'Lys i hjemmet',time:e.time}]}]};}
- case 'vehicle-control':{if(!s.connected||s.focus!=='vehicle'||e.sessionId!==s.sessionId)return s;const vehicle=vehiclePreviewAction(s.vehicle,e);return vehicle===s.vehicle?s:{...s,vehicle};}
+ case 'vehicle-control':{if(!s.connected||e.sessionId!==s.sessionId)return s;const vehicle=vehiclePreviewAction(s.vehicle,e);return vehicle===s.vehicle?s:{...s,vehicle};}
+ // Explicit fixture power targets never retarget the browsed room or placement.
+ case 'light-room-power':case 'light-home-power':{
+  const d=s.devices.find(row=>row.id===e.taskId),global=e.type==='light-home-power';
+  if(!s.connected||s.focus!==d?.id||!matches(s,e,d)||d.live||!d.exampleOnly||d.scope!=='home'||d.pending||d.stale||!['on','off','mixed'].includes(d.status)||!lightSelection(d)||!['turn_on','turn_off'].includes(e.action)||global&&Object.hasOwn(e,'roomId')||!global&&(typeof e.roomId!=='string'||!e.roomId))return s;
+  const targets=d.lights.filter(row=>global||row.roomId===e.roomId);if(!targets.length||targets.some(row=>row.state!==undefined&&!['on','off'].includes(row.state)))return s;
+  const ids=new Set(targets.map(row=>row.id)),on=e.action==='turn_on',lights=d.lights.map(row=>ids.has(row.id)?{...row,on,...(row.dimmable&&on?{brightness:row.brightness>0?row.brightness:60}:{})}:row);
+  if(lights.every((row,i)=>row.on===d.lights[i].on&&row.brightness===d.lights[i].brightness))return s;
+  const status=lights.every(row=>row.on)?'on':lights.every(row=>!row.on)?'off':'mixed',revision=d.revision+1;
+  const lightHomeRestore=global&&!on?{sessionId:s.sessionId,generation:s.generation,revision,selectionId:d.lightSelectionId,ownRoomId:d.ownRoomId,source:d.source,sourceEpoch:d.lightSourceEpoch,after:JSON.stringify(lights),lights:structuredClone(d.lights),selections:structuredClone(d.lightSceneSelections)}:null;
+  return {...s,devices:s.devices.map(row=>row===d?{...d,lights,status,revision,lightHomeRestore}:row)};
+ }
+ case 'light-home-restore':{
+  const d=s.devices.find(row=>row.id===e.taskId);if(!matches(s,e,d)||!lightHomeRestoreAvailable(s,d))return s;
+  const lights=structuredClone(d.lightHomeRestore.lights),status=lights.every(row=>row.on)?'on':lights.every(row=>!row.on)?'off':'mixed';
+  return {...s,devices:s.devices.map(row=>row===d?{...d,lights,status,lightSceneSelections:structuredClone(d.lightHomeRestore.selections),lightHomeRestore:null,revision:d.revision+1}:row)};
+ }
+ case 'light-room-level':{
+  const d=s.devices.find(row=>row.id===e.taskId),selection=lightSelection(d);
+  if(!s.connected||s.focus!==d?.id||!matches(s,e,d)||d.live||!d.exampleOnly||d.scope!=='home'||d.pending||d.stale||!['on','off','mixed'].includes(d.status)||selection?.kind!=='room'||e.roomId!==selection.roomId||!Number.isInteger(e.value)||e.value<0||e.value>100)return s;
+  const targets=d.lights.filter(row=>row.roomId===e.roomId);if(!targets.length||targets.some(row=>row.dimmable!==true||!Number.isFinite(row.brightness)||row.brightness<0||row.brightness>100||row.state!==undefined&&!['on','off'].includes(row.state)))return s;
+  const lights=relativeLightLevels(d.lights,targets.map(row=>row.id),e.value);if(lights.every((row,i)=>row.on===d.lights[i].on&&row.brightness===d.lights[i].brightness))return s;
+  const status=lights.every(row=>row.on)?'on':lights.every(row=>!row.on)?'off':'mixed';return {...s,devices:s.devices.map(row=>row===d?{...d,lights,status,revision:d.revision+1}:row)};
+ }
+ // Scene examples retain exact membership. No scene save or live dispatch.
+ case 'light-scene-select':case 'light-scene-level':{const d=s.devices.find(x=>x.id===e.taskId),selection=lightSelection(d);if(!s.connected||s.focus!==d?.id||!matches(s,e,d)||d.live||!d.exampleOnly||d.pending||d.stale||!['on','off','mixed'].includes(d.status)||!selection||selection.kind!=='room')return s;
+ const scene=d.lightScenes?.find(row=>row.id===e.optionId&&row.roomId===selection.roomId),ids=scene?.entityIds;if(!scene||!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!selection.targetIds.includes(id)))return s;
+ const previous=d.lightSceneSelections?.[selection.roomId],level=e.type==='light-scene-level';if(level&&(previous?.id!==scene.id||!Number.isInteger(e.value)||e.value<0||e.value>100||ids.some(id=>!d.lights.some(row=>row.id===id&&row.dimmable&&Number.isFinite(row.brightness)&&row.brightness>=0&&row.brightness<=100&&(row.state===undefined||['on','off'].includes(row.state))))))return s;
+ const lights=level?relativeLightLevels(d.lights,ids,e.value):d.lights.map(row=>!ids.includes(row.id)?row:{...row,on:true,...(row.dimmable?{brightness:scene.levels?.[row.id]??60}:{})}),status=lights.every(row=>row.on)?'on':lights.every(row=>!row.on)?'off':'mixed';
+ if(level&&previous.adjusted&&lights.every((row,i)=>row.on===d.lights[i].on&&row.brightness===d.lights[i].brightness))return s;
+ return {...s,devices:s.devices.map(row=>row!==d?row:{...d,lights,status,revision:d.revision+1,lightSceneSelections:{...d.lightSceneSelections,[selection.roomId]:{id:scene.id,adjusted:level}}})};}
  case 'light-toggle':case 'light-brightness':case 'light-scene':{const d=s.devices.find(x=>x.id===e.taskId);if(!s.connected||s.focus!==d?.id||!matches(s,e,d)||d.live||!d.exampleOnly||d.pending||d.stale||!['on','off','mixed'].includes(d.status)||!Array.isArray(d.lights))return s;
  const selection=lightSelection(d);if(!selection)return s;
  let lights;
@@ -59,7 +103,7 @@ function sceneBaseTransition(s,e){
  else {const level=({hygge:30,middag:80,'all-off':0})[e.optionId];if(level===undefined)return s;lights=d.lights.map(row=>selection.targetIds.includes(row.id)?{...row,on:level>0,...(row.dimmable?{brightness:level}:{})}:row);}
  if(lights.every((row,index)=>row.on===d.lights[index].on&&row.brightness===d.lights[index].brightness))return s;
  const status=lights.every(row=>row.on)?'on':lights.every(row=>!row.on)?'off':'mixed';return {...s,devices:s.devices.map(row=>row===d?{...d,lights,status,revision:d.revision+1}:row)};}
- case 'light-select':{const d=s.devices.find(x=>x.id===e.taskId);if(s.focus!==d?.id||!matches(s,e,d)||d.pending||!lightSelection(d))return s;const choices=lightChoices(d),ids=[...choices.rooms.items,...choices.lamps.items].map(row=>row.id);if(!ids.includes(e.optionId)||e.optionId===d.lightSelectionId)return s;return {...s,devices:s.devices.map(x=>x.id===d.id?{...x,lightSelectionId:e.optionId,revision:x.revision+1}:x)};}
+ case 'light-select':{const d=s.devices.find(x=>x.id===e.taskId);if(s.focus!==d?.id||!matches(s,e,d)||d.pending||!lightSelection(d))return s;const choices=lightChoices(d),ids=[...new Set(d.lights.map(row=>`room:${row.roomId}`)),...choices.rooms.items.map(row=>row.id),...choices.lamps.items.map(row=>row.id)];if(!ids.includes(e.optionId)||e.optionId===d.lightSelectionId)return s;return {...s,devices:s.devices.map(x=>x.id===d.id?{...x,lightSelectionId:e.optionId,revision:x.revision+1}:x)};}
  case 'device-action':{const d=s.devices.find(x=>x.id===e.taskId);if(!s.connected||!matches(s,e,d)||d.pending||!deviceActions(d).some(a=>a.id===e.action))return s;const deviceOperation=s.deviceOperation+1,selection=lightSelection(d);return {...s,deviceOperation,devices:s.devices.map(x=>x.id===d.id?{...x,pending:{operation:deviceOperation,action:e.action,generation:s.generation,...(selection?{targetIds:[...selection.targetIds],scopeLabel:selection.label}:{})}}:x)};}
  case 'device-result':{const d=s.devices.find(x=>x.id===e.id);if(!s.connected||!d?.pending||d.pending.operation!==e.operation||e.generation!==s.generation)return s;if(lightSelection(d)){const on=d.pending.action==='turn_on',lights=d.lights.map(row=>d.pending.targetIds.includes(row.id)?{...row,on,...(row.dimmable&&on?{brightness:row.brightness>0?row.brightness:60}:{})}:row),status=lights.every(row=>row.on)?'on':lights.every(row=>!row.on)?'off':'mixed';return {...s,devices:s.devices.map(x=>x.id===d.id?{...x,lights,status,pending:null,revision:x.revision+1,timeline:[...x.timeline,{id:`observed-${e.operation}`,label:`${d.pending.scopeLabel} · ${on?'Tændt':'Slukket'}`,time:e.time}]}:x)};}const status=({pause:'paused',resume:'cleaning',dock:'docking',stop:'stopped',turn_off:'off',turn_on:'on'})[d.pending.action];return {...s,devices:s.devices.map(x=>x.id===d.id?{...x,status,pending:null,revision:x.revision+1,timeline:[...x.timeline,{id:`observed-${e.operation}`,label:deviceLabel({...x,status}),time:e.time}]}:x)};}
  case 'device-observation':{const d=s.devices.find(x=>x.id===e.id);if(!d||!['docked','complete','fault','unknown'].includes(e.status))return s;return {...s,devices:s.devices.map(x=>x.id===d.id?{...x,status:e.status,pending:null,revision:x.revision+1,timeline:[...x.timeline,{id:`observation-${x.revision}`,label:deviceLabel({...x,status:e.status}),time:e.time}]}:x)};}
@@ -73,14 +117,29 @@ function navigationBack(s){
  return {...s,focus:s.focus==='now'||s.focus==='photo'?'photo':'now',navStack:[],detailOrigin:null,notice:''};
 }
 export function sceneTransition(s,e){
- if(['back','device-back'].includes(e.type))return navigationBack(s);
- const next=sceneBaseTransition(s,e);if(next===s||next.focus===s.focus)return next;
+ let next=['back','device-back'].includes(e.type)?navigationBack(s):sceneBaseTransition(s,e);
+ if(next!==s&&!['light-scene-select','light-scene-level','light-home-restore'].includes(e.type)){
+  const devices=next.devices.map(d=>{const old=s.devices.find(row=>row.id===d.id);if(!d.exampleOnly||d.live||!d.lightSceneSelections||!old?.lights||d.lights===old.lights)return d;
+   const changed=d.lights.filter(row=>{const before=old.lights.find(item=>item.id===row.id);return before&&(before.on!==row.on||before.brightness!==row.brightness);}).map(row=>row.id);if(!changed.length)return d;
+   const manual=['light-toggle','light-brightness'].includes(e.type),changedRooms=new Set(d.lights.filter(row=>changed.includes(row.id)).map(row=>row.roomId));
+   const selections=Object.fromEntries(Object.entries(d.lightSceneSelections).filter(([room])=>!manual||!changedRooms.has(room)).map(([room,choice])=>[room,!choice.adjusted&&d.lightScenes?.find(scene=>scene.id===choice.id)?.entityIds.some(id=>changed.includes(id))?{...choice,adjusted:true}:choice]));return {...d,lightSceneSelections:selections};
+  });if(devices.some((d,i)=>d!==next.devices[i]))next={...next,devices};
+ }
+ if(next!==s){
+  // Navigating away preserves unrelated tasks but consumes the temporary undo.
+  // Any changed light revision, room, source, lifecycle or observed lamp state
+  // invalidates it; a later return cannot revive an old household snapshot.
+  const devices=next.devices.map(d=>d.lightHomeRestore&&!lightHomeRestoreAvailable(next,d)?{...d,lightHomeRestore:null}:d);
+  if(devices.some((d,i)=>d!==next.devices[i]))next={...next,devices};
+ }
+ if(next===s||next.focus===s.focus||['back','device-back'].includes(e.type))return next;
  const stack=e.type==='show'&&e.id==='photo'?[]:[...(s.navStack||[]),s.focus].slice(-32);
  return {...next,navStack:stack};
 }
 export const visibleActivities=a=>ACTIVITIES.filter(x=>a.filter==='all'||(a.filter==='quick'?x.minutes<=20:x.materials===1));
 
 export const deviceLabel=d=>{
+ if(d.kind==='vacuum'){const experience=robotExperience(d),activity=robotActivity(d);if(experience.issues.length)return experience.issues[0].title;if(activity)return (d.stale?'Sidst kendt: ':'')+activity;}
  if(d.kind==='light'&&d.live===true&&d.scope==='ha_area'){
   const rows=Array.isArray(d.observedLights)?d.observedLights:[],observed=d.lightObservation?.status==='observed'&&d.lightObservation.complete===true&&['on','off','mixed','unknown','empty'].includes(d.status),known=rows.filter(row=>['on','off'].includes(row.state)),on=known.filter(row=>row.state==='on').length,unknown=rows.length-known.length;
   const detail=observed?rows.length===0?'Ingen lys i rummet':unknown?`${known.length?`${on} af ${rows.length} bekræftet tændt`:'Lysstatus ukendt'} · ${unknown} ${unknown===1?'ukendt':'ukendte'}`:`${on} af ${rows.length} tændt`:({unknown:'Lysstatus ukendt',fault:'Lysstatus kunne ikke hentes',unavailable:'Ikke forbundet'})[d.status]||'Lysstatus ukendt';
@@ -117,21 +176,21 @@ export function deviceOverviewFacts(d,now=Date.now()/1000){
 // One factual metadata role for the Robot Hero in panel and detail.
 export function robotDetailMetadata(device,now=Date.now()/1000){
  const facts=deviceOverviewFacts({...device,kind:'vacuum'},now).facts,format=row=>`${row.value}${row.stale?' · sidst kendt':''}`,battery=facts.find(row=>row.id==='battery'),measurements=['cleaning_area','cleaning_time'].map(id=>facts.find(row=>row.id===id)).filter(Boolean).map(format).join(' · '),active=['cleaning','paused'].includes(device?.status);
- return [battery?`Batteri ${format(battery)}`:'',measurements?`${active?'':'Senest: '}${measurements}`:''].filter(Boolean).join(' · ');
+ return [battery?`Batteri ${format(battery)}`:'',measurements&&(!robotExperience(device||{}).jobActive&&!(device?.live!==true&&device?.localJob?.active===true)||active)?`${active?'':'Senest: '}${measurements}`:''].filter(Boolean).join(' · ');
 }
 export function devicePresentation(d,{connected=true}={}){
  const stale=d.stale===true||connected===false||(d.kind==='light'&&d.live===true&&d.scope==='ha_area'&&Number.isFinite(d.validUntil)&&Date.now()>=d.validUntil*1000),observed=stale&&!d.stale?{...d,stale:true}:d;
  const selection=lightSelection(d),room=d.kind==='light'&&d.live===true&&d.scope==='ha_area'&&typeof d.lightScope?.areaName==='string'?d.lightScope.areaName:'',battery=d.kind==='vacuum'&&!d.presentationOnly&&Number.isFinite(d.battery)&&d.battery>=0&&d.battery<=100?`${d.battery} %`:'';
  const clean=d.kind==='vacuum'&&!d.presentationOnly&&!stale&&d.status==='cleaning'&&d.telemetry?.status==='observed'&&Array.isArray(d.telemetry.items)?d.telemetry.items.find(row=>row.key==='clean_percent'):null,now=Date.now()/1000;
  const progress=clean&&clean.unit==='%'&&clean.stale===false&&Number.isFinite(clean.updatedAt)&&clean.updatedAt>=0&&clean.updatedAt<=now+1&&now-clean.updatedAt<=300&&Number.isFinite(clean.value)&&clean.value>=0&&clean.value<=100?clean.value:undefined;
- return {...deviceOverviewFacts(observed),id:d.id,kind:d.kind,target:d.presentationOnly?undefined:d.id,title:d.kind==='vacuum'?'Robotstøvsuger':selection?.title||(room?`Lys · ${room}`:d.name||'Lys'),status:d.pending?'pending':selection?.status||d.status,resourceStatus:selection?.status||d.status,stale,detail:deviceLabel(observed),value:battery,...(progress!==undefined?{progress}:{}),scope:room|| (d.kind==='light'&&d.status==='unavailable'?'Forbind lys i Home Assistant for at se og styre dem her.':(selection?.kind==='light'?d.lights.find(lamp=>selection.targetIds.includes(lamp.id))?.roomName:selection?.label)||(d.kind==='light'?(d.live?'':'Hele hjemmet'):'')),power:selection?.power??(d.status==='on'),disabled:d.presentationOnly===true};
+ return {...deviceOverviewFacts(observed),id:d.id,kind:d.kind,target:d.presentationOnly?undefined:d.id,title:d.kind==='vacuum'?'Robotstøvsuger':selection?.title||(room?`Lys · ${room}`:d.name||'Lys'),status:d.pending?'pending':selection?.status||d.status,resourceStatus:selection?.status||d.status,...(d.kind==='vacuum'&&(robotActivity(observed)||robotExperience(observed).issues.length)?{displayState:deviceLabel(observed)}:{}),stale,detail:deviceLabel(observed),value:battery,...(progress!==undefined?{progress}:{}),scope:room|| (d.kind==='light'&&d.status==='unavailable'?'Forbind lys i Home Assistant for at se og styre dem her.':(selection?.kind==='light'?d.lights.find(lamp=>selection.targetIds.includes(lamp.id))?.roomName:selection?.label)||(d.kind==='light'?(d.live?'':'Hele hjemmet'):'')),power:selection?.power??(d.status==='on'),disabled:d.presentationOnly===true};
 }
 export function deviceActions(d){if(d.live)return [];if(d.kind==='light'){if(d.stale)return [];const selection=lightSelection(d);if(selection){if(!['on','off','mixed'].includes(selection.status))return [];const off=selection.power;return [{id:off?'turn_off':'turn_on',label:selection.kind==='home'?(off?'Sluk alt lys':'Tænd alt lys'):selection.kind==='room'?`${off?'Sluk':'Tænd'} lys · ${selection.label}`:`${off?'Sluk':'Tænd'} ${selection.label}`}];}return ['on','off'].includes(d.status)?[{id:d.status==='on'?'turn_off':'turn_on',label:d.scope==='home'?(d.status==='on'?'Sluk alt lys':'Tænd alt lys'):(d.status==='on'?'Sluk lys':'Tænd lys')}]:[];}return ({cleaning:[{id:'pause',label:'Pause rengøring'},{id:'dock',label:'Til basen'},{id:'stop',label:'Stop rengøring'}],paused:[{id:'resume',label:'Fortsæt rengøring'},{id:'dock',label:'Til basen'}],docking:[{id:'stop',label:'Stop robot'}]})[d.status]||[];}
 
 
 const lightUnconfirmedDetail={unknown:'Lysstatus ukendt',fault:'Lysstatus kunne ikke hentes',unavailable:'Ikke forbundet'};
 export function lightSelection(d){
- if(d?.kind!=='light'||d.live===true||d.exampleOnly!==true||!Array.isArray(d.lights)||d.lights.length<1||d.lights.length>16||d.lights.some(row=>!row||typeof row.id!=='string'||typeof row.roomId!=='string'||typeof row.roomName!=='string'||typeof row.name!=='string'||typeof row.on!=='boolean')||new Set(d.lights.map(row=>row.id)).size!==d.lights.length)return null;
+ if(d?.kind!=='light'||d.live===true||d.exampleOnly!==true||!Array.isArray(d.lights)||d.lights.length<1||d.lights.length>128||d.lights.some(row=>!row||typeof row.id!=='string'||typeof row.roomId!=='string'||typeof row.roomName!=='string'||typeof row.name!=='string'||typeof row.on!=='boolean')||new Set(d.lights.map(row=>row.id)).size!==d.lights.length)return null;
  const id=d.lightSelectionId||'home';if(typeof id!=='string')return null;const lamp=id.startsWith('light:')?d.lights.find(row=>`light:${row.id}`===id):null,roomId=lamp?.roomId||(id.startsWith('room:')?id.slice(5):id==='home'?'home':null),lights=id==='home'?d.lights:lamp?[lamp]:d.lights.filter(row=>row.roomId===roomId);
  if(!lights.length||!roomId)return null;
  const kind=lamp?'light':id==='home'?'home':'room',roomName=lights[0].roomName,label=lamp?`${roomName} · ${lamp.name}`:kind==='home'?'Hele hjemmet':roomName,onCount=lights.filter(row=>row.on).length,total=lights.length,status=['unknown','fault','unavailable'].includes(d.status)?d.status:onCount===0?'off':onCount===total?'on':'mixed';
@@ -146,7 +205,7 @@ export function lightChoices(d,catalogue=null){
  const selected=lightSelection(d);if(!selected)return null;const unconfirmed=lightUnconfirmedDetail[selected.status];if(unconfirmed)return {rooms:{selected:null,items:[]},lamps:{selected:null,items:[]}};
  const rooms=[{id:'home',label:'Hele hjemmet',detail:unconfirmed||`${d.lights.filter(row=>row.on).length} af ${d.lights.length} tændt`,icon:'lightbulb'}];
  for(const roomId of new Set(d.lights.map(row=>row.roomId))){const rows=d.lights.filter(row=>row.roomId===roomId);rooms.push({id:`room:${roomId}`,label:rows[0].roomName,detail:unconfirmed||`${rows.filter(row=>row.on).length} af ${rows.length} tændt`,icon:'lightbulb'});}
- return {rooms:{selected:selected.roomId==='home'?'home':`room:${selected.roomId}`,items:rooms},lamps:{selected:selected.kind==='light'?selected.id:null,items:d.lights.filter(row=>selected.roomId==='home'||row.roomId===selected.roomId).map(row=>({id:`light:${row.id}`,label:selected.roomId==='home'?`${row.roomName} · ${row.name}`:row.name,detail:unconfirmed||(row.on?'Tændt':'Slukket'),status:unconfirmed?selected.status:row.on?'on':'off',icon:'lightbulb'}))}};
+ return {rooms:{selected:selected.roomId==='home'?'home':`room:${selected.roomId}`,items:d.ownRoomId?[...rooms.filter(row=>row.id===`room:${d.ownRoomId}`),...rooms.filter(row=>row.id!==`room:${d.ownRoomId}`&&row.id!=='home'),...rooms.filter(row=>row.id==='home')]:rooms},lamps:{selected:selected.kind==='light'?selected.id:null,items:d.lights.filter(row=>selected.roomId==='home'||row.roomId===selected.roomId).map(row=>({id:`light:${row.id}`,label:selected.roomId==='home'?`${row.roomName} · ${row.name}`:row.name,detail:unconfirmed||(row.on?'Tændt':'Slukket'),status:unconfirmed?selected.status:row.on?'on':'off',icon:'lightbulb'}))}};
 }
 
 // Rank only known overview destinations. The host snapshots this when entering
@@ -157,7 +216,7 @@ export function overviewPriorities({timers=[],devices=[],mediaActive=false}={}){
  // never order: timer, weather/robot, lights/vehicle, music/radio.
  const cards=[{id:'timer-card',priority:activeTimer?'active':'useful'},{id:'home-weather',priority:'useful'}];
  const deviceCards=devices.filter(device=>!device.hidden).map(device=>{
-  const unavailable=device.presentationOnly===true||['unavailable','unknown'].includes(device.status),active=!!device.pending||(device.kind==='vacuum'&&['cleaning','paused','docking','fault'].includes(device.status));
+  const unavailable=device.presentationOnly===true||['unavailable','unknown'].includes(device.status),active=!!device.pending||(device.kind==='vacuum'&&(['cleaning','paused','docking','fault'].includes(device.status)||robotExperience(device).issues.length>0||/moppe|støvbeholder/.test(robotExperience(device).activity||'')));
   return {id:device.id,kind:device.kind,priority:active?'active':unavailable?'unavailable':'useful'};
  });
  cards.push(...deviceCards.filter(device=>device.kind==='vacuum'),...deviceCards.filter(device=>device.kind!=='vacuum'),{id:'home-vehicle',priority:'unavailable'},{id:'home-music',priority:mediaActive?'secondary':'useful'},{id:'home-radio',priority:'secondary'});

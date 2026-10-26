@@ -16,12 +16,14 @@ from gatekeeper.events import State
 from gatekeeper.openai_live import LiveAudioChunk, LiveBackendStarted, LiveTranscript
 
 
-def install_led(link):
+def install_led(link, *, hold_ack=False):
     async def enable():
         link._source_pcm_previous = SimpleNamespace(nonce=123, capture_epoch=1)
         return 123
 
     async def begin(token, *, deadline):
+        if hold_ack:
+            await link.release_led_ack.wait()
         return {
             "phase": "led_tx_done",
             "nonce": 123,
@@ -32,6 +34,7 @@ def install_led(link):
         }
 
     link.supports_closing_led_tx = True
+    link.release_led_ack = asyncio.Event()
     link.enable_callback_source_provenance = AsyncMock(side_effect=enable)
     link.begin_live_closing = AsyncMock(side_effect=begin)
     link.cancel_live_closing = AsyncMock()
@@ -82,15 +85,132 @@ def clock_patch(patch, clock):
 
 
 async def observed_preclose(session, sdk, link, clock):
-    install_led(link)
+    # Races now belong to the real pending LED acknowledgement, not a removed
+    # post-ACK followup timer. Each caller explicitly releases a valid ACK.
+    install_led(link, hold_ack=True)
     await played_answer(session, link, clock)
     for index in range(2, 43):
         deliver(session, link, clock, index)
     assert session._live_quiet_ready()
-    await until(lambda: session._live_idle_preclose_deadline is not None)
+    await until(lambda: link.begin_live_closing.await_count == 1)
+    assert session._live_idle_preclose_deadline is None
     assert link.begin_live_closing.await_count == 1
     assert sdk.session.instructions.append.await_count == 0
     assert sdk.response.create.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_four_seconds_quiet_and_native_led_ack_do_not_add_another_followup(monkeypatch):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            install_led(link)
+            await played_answer(session, link, clock)
+            for index in range(2, 41):
+                deliver(session, link, clock, index)
+            assert not session._live_quiet_ready()
+            assert link.begin_live_closing.await_count == sdk.session.close.await_count == 0
+            deliver(session, link, clock, 41)
+            session._start_live_idle_preclose()
+            # The existing two seconds remain the native ACK fault budget. They
+            # must not be spent as another followup window after that ACK.
+            async with asyncio.timeout(0.2):
+                await until(lambda: sdk.session.close.await_count == 1)
+            assert link.begin_live_closing.await_count == 1
+            assert session._live_finalizing and session._active
+            assert link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("when", ["quiet_deadline", "led_ack"])
+async def test_native_speech_at_idle_admission_keeps_the_same_conversation(monkeypatch, when):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            if when == "led_ack":
+                await observed_preclose(session, sdk, link, clock)
+                old = session._live_idle_preclose_task
+                index = 43
+            else:
+                install_led(link)
+                await played_answer(session, link, clock)
+                for index in range(2, 42):
+                    deliver(session, link, clock, index)
+                assert session._live_quiet_ready()
+                old, index = None, 42
+            generation = session.brain._connection_generation
+            deliver(session, link, clock, index, input_state="active")
+            session._start_live_idle_preclose()
+            link.release_led_ack.set()
+            if old is not None:
+                await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
+            assert session._live_idle_preclose_task is None
+            assert not session._live_quiet_ready()
+            assert session._active and session.brain._connection_generation == generation
+            assert sdk.session.close.await_count == link.rearm_calls == 0
+            assert link.begin_live_closing.await_count == int(when == "led_ack")
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "change", ["provider", "native_connection", "audio_generation", "source_epoch"]
+)
+async def test_pending_native_led_ack_cannot_close_a_changed_owner(monkeypatch, change):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            await observed_preclose(session, sdk, link, clock)
+            old = session._live_idle_preclose_task
+            if change == "provider":
+                session.brain._connection_generation += 1
+            elif change == "native_connection":
+                link.connection_generation = getattr(link, "connection_generation", 0) + 1
+            elif change == "audio_generation":
+                link._audio_generation += 1
+            else:
+                link._source_pcm_previous.capture_epoch += 1
+            link.release_led_ack.set()
+            await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
+            assert session._active and not session._live_finalizing
+            assert session._live_idle_preclose_task is None
+            assert sdk.session.close.await_count == link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["invalid_ack", "timeout"])
+async def test_native_led_ack_fault_keeps_its_existing_bounded_failure_path(monkeypatch, failure):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
+            install_led(link, hold_ack=failure == "timeout")
+            if failure == "invalid_ack":
+                link.begin_live_closing.side_effect = None
+                link.begin_live_closing.return_value = {"phase": "led_tx_done"}
+            await played_answer(session, link, clock)
+            for index in range(2, 42):
+                deliver(session, link, clock, index)
+            session._start_live_idle_preclose()
+            await until(lambda: not session._active)
+            assert session._trace_reason == "live-idle-visible-boundary-unconfirmed"
+            assert sdk.session.close.await_count == 1
+            assert not session._live_finalizing
+    finally:
+        await session.aclose()
 
 
 @pytest.mark.asyncio
@@ -339,15 +459,14 @@ async def test_zero_output_cannot_start_preclose_and_native_active_tv_retains_ap
             for index in range(84, 125):
                 deliver(session, link, clock, index)
                 assert session._live_quiet_ready() is (index == 124)
-            await until(lambda: session._live_idle_preclose_deadline is not None)
+            await until(lambda: sdk.session.close.await_count == 1)
             status = session._panel_status(clock[0])
             assert status["phase"] == "CLOSING"
-            assert status["authority"] == "App-timeout"
-            assert status["timer_kind"] == "app_idle_preclose"
-            assert status["countdown_running"]
-            assert 0 < status["remaining_s"] <= thin_module.LIVE_IDLE_PRECLOSE_S
+            assert status["authority"] == "Lukning"
+            assert status["timer_kind"] is None
+            assert not status["countdown_running"]
             assert sdk.session.instructions.append.await_count == 0
-            assert sdk.session.close.await_count == 0
+            assert sdk.session.close.await_count == 1
     finally:
         await session.aclose()
 
@@ -362,6 +481,7 @@ async def test_visible_preclose_uses_existing_provider_close_and_exact_playback_
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
             await observed_preclose(session, sdk, link, clock)
+            link.release_led_ack.set()
             await until(lambda: sdk.session.close.await_count == 1)
             assert session._active and link.rearm_calls == 0
             lease = session._playback_lease
@@ -430,7 +550,7 @@ async def test_new_real_work_cancels_preclose_and_requires_fresh_period(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_stale_output_observation_delays_preclose_close_until_fresh_quiet(monkeypatch):
+async def test_stale_output_observation_at_led_ack_requires_fresh_idle_admission(monkeypatch):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
     try:
@@ -440,13 +560,14 @@ async def test_stale_output_observation_delays_preclose_close_until_fresh_quiet(
             patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
             await observed_preclose(session, sdk, link, clock)
             clock[0] += 0.21
+            link.release_led_ack.set()
             await asyncio.sleep(0.09)
             assert sdk.session.close.await_count == 0
-            status = session._panel_status(clock[0])
-            assert status["phase"] == "CLOSING"
-            assert status["blocker"] == "Afventer frisk lydmåling før lukning"
+            assert session._live_idle_preclose_task is None
+            assert link.cancel_live_closing.await_count == 1
             deliver(session, link, clock, 43)
             await until(lambda: sdk.session.close.await_count == 1)
+            assert link.begin_live_closing.await_count == 2
     finally:
         await session.aclose()
 
@@ -480,9 +601,20 @@ async def test_semantic_end_cancels_app_preclose_and_raw_input_preserves_transpo
 ):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = session._finalize_live_conversation
+
+    async def held_finalizer(epoch, *, reason, receipt=None, **kwargs):
+        assert reason == "model-close-silent"
+        assert receipt is session._live_end_receipt
+        entered.set()
+        await release.wait()
+        await original(epoch, reason=reason, receipt=receipt, **kwargs)
+
     try:
         with monkeypatch.context() as patch:
             clock_patch(patch, clock)
+            patch.setattr(session, "_finalize_live_conversation", held_finalizer)
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             await observed_preclose(session, sdk, link, clock)
             old = session._live_idle_preclose_task
@@ -491,6 +623,7 @@ async def test_semantic_end_cancels_app_preclose_and_raw_input_preserves_transpo
             assert old.done() or old.cancelling()
             await emit(sdk, created("r2"), terminal("r2"))
             await until(receipt.done)
+            await asyncio.wait_for(entered.wait(), 1)
             assert receipt.result() is True
             await session._on_live_event(
                 LiveTranscript(
@@ -503,14 +636,17 @@ async def test_semantic_end_cancels_app_preclose_and_raw_input_preserves_transpo
                 )
             )
             # Raw evidence cannot decide a completed semantic turn. The current
-            # model receipt survives while actual fresh native quiet is still needed.
-            await asyncio.sleep(0.1)
+            # model receipt survives, without opening a new followup window.
             assert receipt.result() is True
             assert session._ending_conversation and session._live_end_receipt is receipt
             assert not session._live_finalizing and sdk.session.close.await_count == 0
             assert session._active and link.rearm_calls == 0
             assert sdk.session.instructions.append.await_count == 0
+            release.set()
+            await until(lambda: sdk.session.close.await_count == 1)
+            assert session._live_finalizing and session._active and link.rearm_calls == 0
     finally:
+        release.set()
         await session.aclose()
 
 
@@ -534,6 +670,7 @@ async def test_late_output_or_backend_cannot_cancel_committed_provider_close(mon
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
             await observed_preclose(session, sdk, link, clock)
+            link.release_led_ack.set()
             await asyncio.wait_for(entered.wait(), 2)
             assert session._live_finalizing
             assert session._live_idle_preclose_task is None
@@ -652,6 +789,7 @@ async def test_stop_joins_committed_idle_finalizer_before_next_generation(monkey
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
             await observed_preclose(session, sdk, link, clock)
+            link.release_led_ack.set()
             await asyncio.wait_for(entered.wait(), 2)
             owner = session._goodbye
             assert owner is not None and not owner.done()
@@ -788,7 +926,7 @@ async def test_old_cancel_cannot_repaint_new_same_generation_visible_preclose(
                 lambda: (
                     session._live_idle_preclose_task is not None
                     and session._live_idle_preclose_task is not old
-                    and session._live_idle_preclose_deadline is not None
+                    and link.begin_live_closing.await_count == 2
                 )
             )
             new = session._live_idle_preclose_task
@@ -934,11 +1072,12 @@ async def test_yellow_measurement_reset_retires_permission_and_requires_full_new
                     and session._live_idle_preclose_task is not task
                     and not session._live_idle_preclose_task.done()
                     and session._live_idle_preclose_token > old_token
-                    and session._live_idle_preclose_deadline is not None
+                    and link.begin_live_closing.await_count == 2
                 )
             )
             new_task = session._live_idle_preclose_task
             assert new_task is not task
+            link.release_led_ack.set()
             await until(lambda: sdk.session.close.await_count == 1)
             assert session._goodbye is new_task
             assert link.rearm_calls == 0 and session._active
@@ -1044,7 +1183,7 @@ async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(
             hub_state = Mock()
             patch.setattr(session, "_set_led", paint)
             patch.setattr(session, "_hub_state", hub_state)
-            session._live_idle_preclose_deadline = asyncio.get_running_loop().time() - 1
+            link.release_led_ack.set()
             await until(lambda: link.cancel_live_closing.await_count == 1)
             assert crossed
             assert session._live_idle_preclose_task is None
@@ -1234,7 +1373,7 @@ async def test_reset_between_final_quiet_check_and_commit_cannot_reuse_serial(mo
                 return ready
 
             patch.setattr(session, "_live_preclose_quiet_current", reset_after_check)
-            session._live_idle_preclose_deadline = asyncio.get_running_loop().time() - 1
+            link.release_led_ack.set()
             await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
             assert crossed
             assert not session._live_finalizing and session._active

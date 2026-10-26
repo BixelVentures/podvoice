@@ -1,3 +1,1299 @@
+<!-- podview91-admission
+{
+  "base_tip": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
+  "config_fingerprint": "8bccef4b13f90a5b60e4ee62f0bc1c317d7f37597bfdce8de32f4bcccb3f6e15",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "fingerprint": "e80e458e2e7935d95a43202921631210f618f9d91dce6d63447e7d0221431699",
+  "kind": "podview91_single_owner_integration",
+  "manifest_fingerprint": "c830582ca7af15355c1621da7bee760116fad783c3392b891a9bcb64e669754e",
+  "merge_base": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
+  "policy_fingerprint": "e0757d9f669dc3902febcda9cab734f01117d49faa3c8bd9abdcdc45b73403b5",
+  "rationale": "Independent exact-source review binds72 production,92 regression,338 runtime files and the canonical215-file UI. Runtime and provider evidence are unchanged by official-CI fixture alignment; root-only safety regressions remain covered. Separate publication, installation and physical gates remain pending.",
+  "regression_fingerprint": "46ac9d75554d34cf5bca6ae833bbbaef3573589137a6a62cc7733a6046bce54f",
+  "reviewer": "/root/close_example_hypothesis",
+  "runtime_fingerprint": "94b0f483d4f1b0586ff3ba69421d081731039f3b747ceaf99271064858c97534",
+  "tooling_fingerprint": "3a550e3d02f12b7dc7dbafc6ae511c6b76dbc151ce3ddc6a54e92173e0d5e27b",
+  "version": 68
+}
+-->
+
+## 26 October — five representative voice flows observed; delivery still pending
+
+All five representative software flows have retained actual provider evidence on Thin893e3b89 with primary3f02c5a4: full six-step explanation→explicit close; real follow-up4→6; polite follow-up4→6; inert timer10→truthful full result→natural close; active-output interruption→current43→explicit close. Independent semantic and decoded/consumed-PCM reviews are recorded in each private ROOT-READBACK.json. Final interruption0390451b/timeline1ee95df6:202chunks/968640bytes,11 nonzero chunks during new input, real session.closed24.898416 and synthetic rearm24.913718 before cleanup. No household effects or physical acoustic/LED/wake proof is inferred.
+
+Raw verdicts remain explicitFAILc8699d67, realFAILbe83f983, politeOBSERVED_PASS0c9f8ccf, corrected-timerFAILfcc43615, interruptionUNKNOWN0390451b. Exact-word/quiet-sample/old-style oracle mismatches are separately assessed rather than rewritten. Timer's first retained capture lacked closure before observer cutoff and remains UNKNOWN for that dimension; its corrected new observation actually completes closure. User now permits shortnaturalJa/Hmm but excludes Modtaget. Reviewed clarificationae70d308/test942f038d changes only this policy wording; old-run prompt provenance remains explicit and is not presented as five new-prompt passes. No blanket provider repeat follows a style-allowance change.
+
+Reviewed evaluator composition7089c952 with205 focused outcomes repairs actual observer/current-input failures, preserving incomplete outcomes and excluding cleanup from proof. Main runtime/prompt/presentation integration is complete; canonical UI215 is now integrated with all215 pins and asset487ac70b verified; exact final admission/official CI/publication/Green installation remain pending. Last verified Green is2.0.90 Kører. Final interruption pause/restoration verified within68s, key cleared. A preceding attempted provider preparation made zero API calls after a Nabu connection outage; actual Stop was later observed and90 restarted, outage extended recovery to about6min and is not claimed within3min.
+
+ConnectPR83 was merged as2386f32 after all six required software checks passed on cba2a2f0, including selected-start-clock. The old download-only timeout remains historical evidence. Three related runner jobs are pinned to the same Ubuntu24.04 environment; no dependencies, probes or product timeouts were removed/changed. Speaker54 and Control24 publication is running. Sites/productpreview+library must be republished after productdelivery from the same final UI pin, preserving existing project/audience/links.
+
+## 2026-10-26 — composed voice adopted; long station continuation deferred
+
+User explicitly paused only long Spotify Radio continuation beyond initial station pages. It is not a release blocker; ordinary music start/audio/control/reconnect and context-404 recovery remain mandatory. Earlier chronological blocker statements below are historical and superseded by this scope decision in LEAD-PLAN section5.
+
+Root adopted exact reviewed four-file composition: primary3f02c5a4, presentation2290ce17, prompt tests82074917, presentation testsf295334d. Thin893e3b89 and other execution dependencies are unchanged. Two independent full-duplex source reviews found no additional established runtime defect and reject speculative weakening of owed-answer protection. Reused composition22 prompt and59 presentation checks; no redundant broad rerun. Source adoption is not installation.
+
+Actual composed explicit-close reportc8699d67 remains original strict FAIL. Independent semantic and PCM reviews observe all six useful instructions, only permitted Hmm before accepted END, all553 chunks consumed with no missing nonzero tail, real session.closed and synthetic rearm. Input-end to synthetic rearm4.911s, backend settlement to rearm0.783s; no fresh four-second application wait. This is one software observation, not physical or five-case acceptance. Remaining current-source cases are being run individually within bounded pause/restore windows. Green restored after this completed case:2.0.89 Kører; no household output. Latest UI210 is integrated; final minimal UI successor awaits canonical owner. Separate radio playback is not ready while native handoff remains disabled and is excluded from this release unless its owner supplies complete compatible evidence.
+
+## 2026-10-26 — user-approved natural vocalization policy and compatibility evidence
+
+User explicitly permits a short natural Hmm during closing while excluding Modtaget-style generic receipts. The reviewed two-file primary-policy clarification replaces contradictory absolute delegation-silence wording, preserves immediate real delegation/owed answers/backend END/currentness, and forbids new output after current accepted silent END while existing tails drain. Exact promptbe2db135/test63b99fdf integrated; owner21 prompt tests and Ruff passed, independent source GO. LEAD-PLAN now records the decision and separates literal-zero PCM from semantic/style/physical acceptance. Earlier reports remain immutable; no new-source provider success or speed improvement is inferred.
+
+Version-bound PC70 compatibility fixture is integrated and pushed in PodConnect597e4e4398be444012b519ab2fc5d9b3175e1fb4/tree2f8fbe7489700215c435ebfa9b16c4d2bbcccdc5 with ref readback. Published53 parser checks genuine records1, typed release0, retained typed restart0, forward freshSTART ordinary record1. Both actual corrected Native/C phases passed; all211 productionC files unchanged; six authenticated private RTP packets observed. Post-purpose paired downgrade remains BLOCKED; current-version forward recovery is proven within this isolated software scope. Old binaries, official CI, installation and physical sound remain unproven. Root receipt /private/tmp/pc56-rollback-root-integration-20261026.json. No repeat required.
+
+## 2026-10-26 — canonical shared kit and Robot successor integrated
+
+Custody-reviewed immutable1146bfbd applied over exact7c503/205 via runtime patcha72eb2a7 only; all210 runtime pins and asset0b131c1a match.22 runtime changes include five pinned official SVGs;188 runtime files preserved. Independent comparison confirmed43 unchanged LiveControl methods and preserved protected music/Light/Timer/Radio paths. Owner2965PASS/gate65 and actual scoped Product Design/Impeccable GO reused. Root refreshed exact64-production/26-regression/333-runtime inventory; four admission tests and Ruff passed. Final review bindings remain blank. Source.patch was not blindly applied to the backend test layout. Root receipt /private/tmp/pv91-cross-detail-integration-20261026.json. No release or installation.
+
+The final authorized PC13 observation exercised the real existing autoplay POST lookup with a controlled one-track seed, followed only exact returned nextlinks: token/login/address/lookup/page1 returned200, page2 returned404. Six requests; no playback/Connect mutation. Actual manifest /private/tmp/pc13-autoplay-lookup-20261026/evidence/manifest.json and initial context retained privately; the initial GET-vs-autoplay-POST distinction does not explain the failing second successor. Both authorized bounded observations are consumed. No unchanged retry; successful station protocol is still missing and blocks PC13/release.
+
+## 2026-10-26 — positive-example probe rejected; current remaining gates
+
+One reviewed primary-only positive closing example was tested once on held-out wording, with unchanged runtime/backend. Original report /private/tmp/pv91-close-example-provider-actual-20261026/pure-explicit-close/report.json SHA256 776fa458d242d55f32593b7d2146d0cb45580d17274dd1ad0147d432a15e4aeb remains FAIL. Recognized input, correct opening answer, one accepted current silent END, complete usage and clean synthetic close/rearm were observed. The preaccept output was Hmm., not Modtaget or Okay. It violates the strict silent-probe criterion, but is not evidence of the same lexical receipt defect; natural prosody remains allowed by the product contract. The example did not demonstrate an improvement and its exact three lines were reverted; provider prompt restored to 0e1df0021b12735300626e2c310747be35e039da7690447d9e6208e6202d9b4c. Existing 21 prompt cases and Ruff had passed before the provider probe; they did not establish model compliance.
+
+Observed input-end to synthetic rearm was 5.084s; accepted backend settlement to rearm was 0.916s, without a fresh 4s application window. These are separate latency dimensions, not physical acceptance. Root restored Green 2.0.89 Kører within a conservative 92s pause; memory key cleared and no household output. No unchanged retry or further ungrounded prompt bans. PC13 successful station continuation, remaining representative provider gates, final exact admission/official CI/publication/install and physical acceptance remain open. Robot successor is held pending canonical scoped shared-kit reconciliation; do not adopt its consumers without dependencies.
+
+PC70 cold-successor software proof is already complete: /private/tmp/pc56-release-cold-restart-20261026/export/RECEIPT.json SHA256 3b52328e4bbf6c87588fcf12e23608cf8c02bd26eef9b9375cafae5b0afa6bed. Both phases exited0 on retained DB/FIFO, distinct C UUID and new Native PID31→63; known-retired journal then fresh START completed, actual staged AES/FLAC and six authenticated audio RTP packets. The Native test duration was 0.26s, not 26s. Root exact565-file replay and permanent existing-CI adapter adoption receipt db8abbe4797f2be3284ee43f12102d6b5bc88125c3a43bf74283476c1b3adb29. This supersedes the historical missing-proof paragraph below; official CI/install/physical and other compatibility requirements are separate. No repeat needed.
+
+## 2026-10-26 — canonical timer feedback / radio material integrated
+
+Custody-reviewed immutable7c503e08 applied after exact37c2 base checks.205 runtime and asset5b26ef2e verified;4 runtime changes/201 preserved. Existing2880 suite/componentgate65/source and actual visual GO reused without repeats. Timer only registers retained ListRow feedback; radio only material variables, no station feature or effects. Added exact timer-view.js scope pin; final review bindings remain blank. Receipt /private/tmp/pv91-timer-radio-integration-20261026.json. No household action or installation.
+
+## 2026-10-26 — primary backchannel hypothesis falsified
+
+One reviewed primary-only categorical Never-backchannel paragraph was tried once, with unchanged runtime/backend and current evidence guards. Actual pure-close input recognized; primary still said Okay before accepted silent END. Original report /private/tmp/pv91-backchannel-provider-actual-20261026/pure-explicit-close/report.json retained FAIL (SHA256 b09486fb705885dcde2d3f7055deea725b5a1112f79950e135ba477ddcf51695). The hypothesis was reverted from the isolated provider source and was never adopted in shared candidate. No unchanged retry. Fast silent-close source remains integrated and checkpointed d4b3edfd; overall provider gate remains failed. Green2.0.89 Kører verified within76s of pause start; memory key cleared, no household output.
+
+## 2026-10-26 — fast silent semantic close implemented and provider-observed
+
+User explicitly required fixing, not merely retaining, the close regression. Minimal reviewed silent=true path now finalizes immediately after current accepted backend settlement through the existing provider-closed/exact-playback-tail finalizer; false preserves owed-answer protection. Model/backend contract selects silence only for pure explicit ending with no owed useful answer/action receipt/error. No new delay, phrase classifier, PCM filter or mute. Independent source review GO. Integrated by exact Thin base and selective prompt hunks, preserving exclusion of held F17 original-task work.
+
+Actual pure-explicit-close report818858f4 remains FAIL: all inputs recognized, opening4, one accepted silent END, current settlement14.657876s, provider-close request0.066ms later, session.closed15.416606s, synthetic teardown/rearm15.434124s (0.776248s after settlement); no fresh4s wait. Three late all-zeroPCM chunks10560bytes retained, clean shutdown/finalusage,1connection/no runtimefault. Primary nevertheless said Okay before acceptance, so silent/no-preaccept gate is still failed. No physical acceptance inferred. Green89 Kører restored within49s, keycleared/no household output. Root receipt /private/tmp/pv91-silent-fast-root-adoption-20261026.json.
+
+UI successor37c2fd36 integrated separately; PC13 station-successor evidence, remaining provider behavior, final CI/publication/install and physical acceptance remain open.
+
+## 2026-10-26 — final shared UI corrections integrated
+
+Canonical205 successor37c2fd36 applied as immutable patch377161e9 after independent custody review and exact base checks. All205 runtime pins and asset7cdca35f now match;198 files preserved. Includes disconnected Light roles, stable player header, scroll boundary and hover filter removal. Existing2880 checks and scoped actual visual GO reused; no household effects or installation. Final admission bindings stay closed pending voice/PC13 gates.
+
+## 2026-10-26 — semantic-close requirement remains unsatisfied
+
+Independent source audit confirms the terminal-output safety fix is not fast-semantic-close acceptance: thin.py resets the semantic quiet window at backend settlement, then _live_quiet_ready(semantic=True) still requires idle_timeout_s (4 seconds). This contradicts LEAD-PLAN section 6 no-new-followup-window requirement. Backend settlement does not identify completed primary speech. Current GPT-Live continuous output exposes no per-spoken-response completion event; local drained/quiet playback cannot prove an empty provider queue. Preserve the safety fix as held work, but do not mark PV103/PV107 or the close gate Ready for QA. Removing the delay without a demonstrated supported boundary would reintroduce lost-result risk. Required next evidence is the provider close/drain contract and a queued-result trace; no additional arbitrary timeout or fabricated audio-done is permitted.
+
+Premature acknowledgement is separately observed primary-policy noncompliance: full primary/backend instruction assignment has been audited without a contrary permission. Existing reviewed length-owner patch repairs requested answer depth, not acknowledgement behavior. No extra phrase filters or speculative prompt bans were added.
+
+Interruption pacing-only fix is reviewed and pushed as held checkpoint 652ad6f67924d300a16625e07734d3b82e2b75eb, tree2d7efbbb123f0ddf115de82b809004b96b0be9fa, both changed Git blobs read back exactly. 172 focused checks pass; actual retained trace can pace the closing stimulus at16.68s. Original UNKNOWN remains immutable.
+
+## 2026-10-26 — actual new interruption call; Green restored
+
+One newly requested OpenAI interruption case executed, one connection, clean shutdown and final usage. Original UNKNOWN report retained at /private/tmp/pv91-one-interruption-provider-connected-20261026/interrupt-active-output/report.json (SHA256 e71e3b611be3d4c402ac502917383c7a3875bebdc9701c53c3b73b6f7671135e). Trace observes count start, overlapping follow-up 31+12, and correct spoken transcript 43. Closing fixture was not sent because test pacing compared the entire opening transcript literally (Til vs Tæl). No whole close-chain/provider or physical acceptance claimed. Green UI verified 2.0.89 Kører within 60 seconds of pause start; key cleared; no household output. Pacing correction under isolated review; no unchanged paid retry.
+
+### Reviewed source checkpoints preserved remotely
+
+Mainintegratedcandidate UI205+Thinfix checkpoint950b1ea60909f219b562d902d6ebbc86ece1dd12
+tree10f5b6450e8ac38bd81d71a7c08578c0d25747a4 pushedlease+readback. HeldF17evaluation
+checkpoint4470e6e4c0da9c6086cc9557ce4ec25e9716d244 tree7dbcebaf7714e2710d4f5711ded9ebe1ed0418f5
+isolatebranchcodex/podvoice91-f17-eval hasall9changedsource/docsfilesverifiedagainst
+Gitblobhashes. No sourceleftonlyinlocaltemporarydraft forreviewedfixes.
+
+Newheldlengthownerproposal actualmodule80PASS+repoRuffformat andindependent
+actual_close_evidence sourceGO fixesprimaryhard2sentencelimit vsrequesteddepth,
+keepsshortdefault, andletsoptionalvisualyieldtofullspokenrequestedanswer. Parser
+2048bytes/1200spoken/600plaintextreceiptlimitsunchanged; >600plainanswer maylack
+visual/historyattribution butparserdoesnottruncateprimaryvoice. No modelobedience,
+prematureackfix/provider/physical/releaseclaim. Newpromptbitsneverusedbyretained
+actualprovidertrials; mustnotinheritthosepositiveobservations. Notadoptedmaincandidate.
+PC13actualworkingcontinuation, providerfullgates/interrupt, finalCI/release/installation
+andphysicalacceptance stillrequired. LatestGreenreadbackremains2.0.89Kører.
+
+### Canonical205 UI successor integrated without replacing music owners
+
+Root verified203f00fcbase, checked andapplied canonicalpatch6994dc82 from immutable
+/private/tmp/podview-kit-finish-20261026-final manifest499a648a, receiptbd383e96.
+All205runtimepins+asset9a7342e3 match. Onlynewownerslight-room/light-lamp;18protected
+music/media/history/diagnosticpathsunchanged. Independentkit_packet_review custodyGO;
+owner2879tests/syntax13/scopedactualProductDesign-ImpeccablevisualGO reused unchanged.
+Rootreceipt /private/tmp/pv91-kit-finish-integration-20261026.json senttoUIownerforcheck.
+Profile205+7missingruntimepaths andexistingunitcountupdated; currentmanifestrefreshed,
+4admissiontests/Ruff/formatPASS. Reviewerbindingsstayblank: finaladmissionCLOSED.
+No mainCSSwholecopy, no parallelUIimplementation, no new provider/effects/install.
+NewDisconnected-detailaudit isUIownerwork outsidefrozenpacket, notclaimedresolved.
+PC13/providergates/officialCI/bundlepublication/Greenreadback andphysicalQA stillopen.
+
+### Newly approved two-case batch: actual semantic lifecycle observed, overall UNKNOWN
+
+User explicitly renewed two-case approval after automaticreviewreject; reviewed
+operator787c5a29 executed first explicit-close exactlyonce, no workaround/retry.
+Reportf2ead97e27f3d87721d13e3b04a43f1b6a231712dc572510f8b6dcc9fae0dc1b
+/private/tmp/pv91-two-close-unrun-provider-actual-20261026/explicit-close isUNKNOWN.
+Allknownfixturesrecognized, directmath4, usefulpaperplaneexplanationand typed6steps;
+END50.931 accepted, backendFarvel52.099→settlement52.130→primaryFarvel52.671–52.824
+→naturalteardown/rearm58.677. functional_chain_observed=true/clean=true/usage=true.
+This is actualsyntheticsoftware/providerlifecyclepositive, notphysicalpuckproof.
+
+Independentactual_close_evidence confirms substantivefullfoldingstepspresent;
+f17_text_and_pcm=false partlybecause exact normalizedbackendspoken vsfullprimary
+paraphrase. PreserveUNKNOWN; noverbatimwaiver/originalreportchange. Genuine separate
+failure: primaryJa-detklarerjeg49.825–50.621 beforeENDbatch/accept despiteexisting
+silenceinstructions. Priorlongprefacealsoexists; don'taddlocalfilter/silenceblanket.
+Captured24kmonoPCM534chunks and534consumed events continuous0..2559360 bytes;
+hashes/frameboundariesmatch, no missingnonzerotail. Exactword-toPCMclockmapping and
+perceivedaudibility remainunknown, not inferredbydirecttimestampindexing.
+
+BatchstoppedfirstUNKNOWN asapproved; interruption NOTRUN. Actualtotalcalls7, no new
+calls permittedunderstopfirstboundary. Rootclearedkey/formclosed andrestoredGreen
+2.0.89 Kører withinconservative149seconds of4minuteauthorizedpause. No houseaudio,
+alarm or robot. Newisolatedpromptaudit found realprimaryhard2sentence vsrequested
+scope and backendspoken-short conflict; smallestlengthownerproposalbeingchecked,
+notnewackrules or sharedcandidateadoption. These are sourceinstructionconflicts,
+not evidenceextraLLMruleswouldfixdemonstratedacknoncompliance.
+
+### Provider stop-first-failure boundary enforced
+
+Attempttoexecute remaining-two operator787c5a29 was REJECTED by automaticapproval
+review BEFORE processcreation: user's3-caseapprovalrequiredstopatfirstfailure,
+and timer failed. No additionalconnection/keyread/HAstop occurred. Root's earlier
+interpretationthatunrun casesremainedexecutable iswithdrawn. Original batchstopped;
+anynewprovidercallsnowrequireexplicitnewapprovalofremainingcases. No indirectretry.
+Safe offlineguardfixfaf134/testccdf164focusedPASS and independentSOURCEGO retained;
+existingactualFAIL remainsimmutable. Greencontinuedrunning afterpriorrestore.
+
+PodView rootcoordinationrestored: user-approved26Octsharedkitfinish/Lightv4 isnewer
+than f00fc. PodViewownsimmutablecomposition f00fc+approvedsharedfinish+weatherHero
+selectorfix; rootrequestedexplicitbase/finalpins and scopedvisualreview, no blind
+copyofmainCSS/runtime. Currentrootstill203/203f00fc. Candidate91 UI/manifestfreeze
+awaitsthatcanonicalpacket; no parallelUIimplementation.
+
+### First authorized close recheck — useful timer speech observed, cutoff retained FAIL
+
+Actual report9aa2cdd6959c858959b1665cea311d66a136cdd71b4693814f31320c1f38070a
+/private/tmp/pv91-three-close-rechecks-provider-actual-20261026/timer-10s: exact10s
+tool succeeds; END settles17.111; primary now says Timeren er sat til ti sekunder
+17.744–19.010 with nonzeroPCM19.089. Observation forcibly ends19.110 at fixture+8s,
+so newnative4soutputquiet cannotcomplete. Original FAIL immutable; doesnotproveclose.
+Independentclose_adversarial confirms runnernegativecutoff wronglyapplies toaccepted
+END timertransaction. Minimumtest-onlyguard proposed; no assess/preacceptwaiver.
+Generic Hmm/Okay-etøjeblik pre-result remains separatefailedsilenceassertion; do not
+filter allowedhumanvocalizations or relabelsoftwarepass. Batch stoppedfirstasapproved;
+explicitclose/interruption stillUNRUN. Totalactualcalls6, authorizedremaining2only.
+
+RootrestoredGreen2.0.89 Kører; boundedpause conservatively115seconds, nohouseeffects,
+allkeyvarsnull/formclosed/processcleanterminal. Remaininguser6minpausebudget atmost
+245seconds. Any nextremaining-caseoperator mustpin all6existingreports and3casebudget
+1+2<=3, no timerretry. Sourcecheckpoint1f2981f9b024d981318d29cf6030428a7be36f7c,
+treef6e66264de0f961903e1808b4bd938847281aba4 pushedwithleaseandreadbackverified;
+notmerged/released/installed. Prioragentturn madeactualsourceintegration andremote
+checkpointprogress, not merelystatus. No newSpotifyrequest or endpointguess.
+
+### Integrated native terminal-output admission correction
+
+Root adopted independently reviewed Thin526ac5b6 and quiet-closefixture86dbb69
+from finalpacketf9cdc66b. Actual-order regression fails original immediateclose and
+passes with existing fresh current-native outputwindow after backendsettled. Full
+affectedmodule35/35; prior80neighborchecks retained; formatter/lintpass. Reviewer
+close_adversarial SOURCE/TESTSGO exactpins. Newinput/Stop/generation/receiptcurrency,
+silentvariant, staleobservation and exactplayback/rearm assertions preserved. No
+newtimeoutvalues or fabricated primarycompletionevent. Existing4squiet may add
+latency; completeprimaryspeech/provider/physical readiness still notproved.
+Root integrationreceipt /private/tmp/pv91-terminal-output-integration-20261026.json.
+
+Admission inventory updatedmissing2canonicalmusicUIpaths and existingthin_livefixture;
+manifest regenerated fromcurrentbits but reviewbindings stayblank/failclosed.
+Four admissionfixturechecksPASS, Ruff/formatPASS; notfinalcompositionacceptance.
+CandidateHAcomponent0.1.7 recordedinplan; installedbaseline0.1.6unchanged.
+User explicitly approved3newsyntheticcases timer/explicitclose/interruption,
+maxoneeach/stopfirstfailure/max6minpausewithrestart. Existing5actualreportsimmutable;
+newprivateoperatorprep sourceonly while rootmaintainsGreenrunning. No additional
+Spotifyrequest: providercursor404 stilllacksdemonstratedlocalfix.
+
+### Final two original provider cases executed; five-call budget exhausted
+
+Root ran reviewed remaining-two operator8a67dc9c with exact startup receiptdfce1b63,
+sourcefingerprintdaefe64e. Both original cases ran once; no retries/newcases.
+Politefollowup actual OBSERVED_PASS (report3afb4a53): exact input/math4/6, noEND,
+full negativewindow, clean/usage true. Timer actual FAIL (reportd423c0c7): input
+recognized, exact10s tool succeeds, permitted END and final truthfulbackendresult
+present, but no primary spokenresult beforeclosure. Both connections cleanterminal,
+no runtimefaults. Actual5/5connections nowused; results not5/5success. Unknown/FAIL
+originals retainidentity. No householdalarm/music/robot effects. Root restored HA
+PodVoice2.0.89 and confirmed Kører afterthebatch; all keyvariables cleared/formclosed.
+
+Official OpenAI live-conversations Usage and gracefulclose fetched: finish required
+backendwork beforeclose; close cancelsqueuedResponses/rejectsnewwork, permitsactive
+response tofinish, retainconnectionuntilsession.closed. This guaranteesfinalization,
+not primaryspeechcompletion from backendfinal. Current source closed28ms afterfinal.
+Isolated actual-order regression nowRED→GREEN with existing postsettlement native
+outputwindow admission, no newtimeoutvalues; owner still preparing fencevalidation
+and sourcepacket. Not yet integrated/reviewed/provideraccepted/installed.
+
+### Active lead decision: terminal backend receipt must not preempt primary output
+
+Actual fifth synthetic provider timer call reportd423c0c7/timeline98a77fb9 confirms
+recognized10s request, tool success14.227s, permitted standalone-action END16.302s,
+truthful backend final17.414s, settlement17.442s immediately provider request_close.
+No primary receipt transcript/PCM follows final backend result. Latest nonzeroPCM
+16.111s predates it. Earlier statement that END intent itself was premature is
+withdrawn: prompt98-101 explicitly permits completed standalone-action close.
+Nonverbal sigh before result is separate; user permits human vocalizations, do not
+add phrasefilters or remove that feature to green a test.
+
+Affected chain: input→Live delegation→timer result→isolated END→final backend receipt
+→primary speech opportunity→provider close→exact physical drain→teardown/rearm.
+Invariants: backend completion is not primary completion; one mechanical close;
+current receipt/generation and late-input/Stop authority preserved; native/Talk
+remain separate I/O adapters, no fabricated audio_done, replay or extra modelcall.
+Hypothesis: native semantic admission checks only currently-empty work and ignores
+its existing reset terminal-output window, admitting close on the same scheduler
+turn as backend result before primary can render that result. Prove actual-order
+regression without testholding finish until output. Investigate smallest existing
+owner correction using already-defined output observation/window, not newtimeout
+values or newabstraction. Do not assert waiting alone proves a complete response.
+Tests: delayed current output after settlement remains received; old quiet cannot
+admit close; current fresh drained output and exact tail close once; stale/duplicate
+output/receipt/Stop/newinput cannot cross generation; Talk expectations unchanged.
+Independent adversarial source review required. Rollback boundary only isolated
+semantic admission correction. No new provider calls approved beyond usedfive;
+PC13 protocol gate and final release/installation remain open. Owner timer_close_cause
+prepares isolated patchproposal; root integrates only after causal proof/review.
+
+### 26 October actual Spotify successor and evaluator correction
+
+Root approved capture used six readonly requests: token/login/address/initial/page1
+HTTP200; supplied page2 HTTP404 with emptybody. Initial and page1 contain identical
+50 track URIs/UIDs; page1 repeats these in prev_tracks and changes radio-apollo to
+radio-router. Cursor-metadata receipt ec3b6283c387d00a0bab070743ddd48de93b53a8a3956037c35672b34d597480
+confirms source preserves supplied service/path/rawquery. No justified production
+fix or endpoint substitution; PC13 actual initial+two-successor gate remains open.
+One approved bounded capture remains, only after concrete new correction. This
+station-continuation evidence does not negate user's actual PodView HomePod sound.
+
+Isolated evaluator latest12e829fa/test1034ffb2/combined7cf305b6 independently reviewed
+GO; root155 focused checks plus Ruff/format passed. Persistent synthetic stream
+pacing now observes consumed quiet PCM without waiting circularly for session EOF;
+real-followup oracle admits only correlated actual fresh4s idle after correct4/6,
+full matched lifecycle and no pending work/late transcript. Separate offline actual
+report reassessment OBSERVED_PASS; original actual FAIL/UNKNOWN immutable. This is
+test-only correction, not product semantic-close proof or physical acceptance.
+Adopted only into isolated F17 provider candidate; shared runtime unchanged. Three
+actual provider connections used; remaining original polite-followup/timer cases
+being prepared offline with cumulative five-call guard. No provider call/HA pause,
+release/install/OTA or household effect during this correction.
+
+### Provider continuation evidence and explicit next boundary
+
+After reviewed tooling c21ded4e (134focusedPASS), root ran ONLYoriginal unrun
+explicit-close through reviewed privatefour-unrunoperator0c3d89. Total actualprovider
+connections nowTWO (interruptfirst+explicitclose), bothclean shutdown/usagecomplete.
+Second evidence /private/tmp/pv91-four-unrun-provider-actual-20261026 remainsUNKNOWN:
+mathanswered; originalpaperplane input observed; onecompletedbackend and bound7-step
+presentationreceipt; substantivefulloutputtranscript explains samepaperplane sequence.
+No explicit_close fixture was sent, no endcall: existingf17_completion exact
+spoken-vs-primarytext equality rejected naturalparaphrase/A4-vs-A-fire/allowedhum.
+Thus later44s app-idle-timeout is not semanticcloseproof. RootrestoredHA; browser
+confirms2.0.89Kører. No invented5/5; threeoriginalcases stillNOTRUN.
+Independent freshSol6.1 semanticreview agrees firstlosingedge is verbatimoracle,
+D2requiresusefulfullspeechnotverbatim. Transcript doesnotproveintelligiblePCM or
+physicalplayback; addedwing-leveling sourcedvisual-vs-spokenonly prompt discrepancy
+remainsseparatefinding. Newisolatedf17_pacing_owner decouples nextstimulus dispatch
+from finalsemanticgrading using actualcompletedcorrelatedreceipt/output/drain;
+no runtimepatch, no gradingwaiver, no newprovidercalls.
+Corrected offlinebindingreceipt1f5a2785 pins all101sources; truehandofffingerprint
+cab540af549a34a086afe3daace9dfc5bde25d6924a1c8c2853b4518a0e9ff1c.
+Earlier2c9aa7 is101fileinventorydigest, metadatafixedwithoutreexport.
+
+PC13 finiteerrorcategory sourceef254/ebcc99 independentlyreviewedGO and testedoffline;
+isolatednextbinary7b1bcc/newpath/producerfabc745 scopedindependentGO. Originalfirst
+captureimmutable. Root requested newattempt; AUTOMATICAPPROVALREVIEW REJECTED before
+process launch because initialpermission was ONE attempt. NO secondcapture ran.
+Pendinguserquestion now asks exactlyone newreadonlySpotifycapture6requests45s,
+sameexistingstoredlogin/noPlay. Do not bypass rejection or silentlyreuseoriginal
+permission. Continueindependentsoftware/providerunruncaseswithinremainingoriginalcap.
+
+RemotePV workbranch verified92d6a28dfb36b9b6448038898e1f59d79276a6c1/tree
+5f45b9cf7ee3b6b652b41360bd83722adc96d45c includesF09+morningevidence. This later
+STATUS paragraph is localuntilnextcheckpoint. No merge/publication/install/OTA.
+
+### Physical evidence correction — user report26October
+
+User explicitly confirms actual audible HomePod playback FROM PODVIEW yesterday.
+Record as successful physical playback for that userobserved attempt. Do NOT erase
+this evidence or relabel PC13's separate station-successor gate as a present general
+HomePod no-sound failure. Exact candidate/session of yesterday's success is not
+identified by this message, so no invented versionbinding/reconnect/continuation
+acceptance. Today's PC13 capture transport failed beforelogin/context and provides
+NO evidence that yesterday's audible playback regressed. Existing reported control
+faults and stationcontinuation remain independently scoped.
+
+### Morning execution results and canonical F09 integration
+
+Actual exact-five approved OpenAI batch stopped after its FIRST case,
+interrupt-active-output: UNKNOWN/thin_session_ended, oneconnection,
+clean_shutdown=true and usage_complete=true. Otherfour NOT RUN. Evidence immutable:
+/private/tmp/pv91-five-case-provider-actual-20261026. Trace diagnosis finds harness
+readiness used startup nonzeroPCM preceding long_count sourceinput, so no actual
+interruptionoverlap was established; no runtime fault/semanticEND observed. Root
+restored HA immediately; fresh browser observed_at1793001986.1630027 confirms
+2.0.89/r0connectedIDLE/wakerecovered/MCP+PodConnectup. No runtime timeout tuning.
+Voice_close87 owns smallest causal tooling correction plus exact regression, not
+new providercalls. Keyform closed/keyvariable cleared; no secret output/files.
+Actual approved single PC13capture stopped at firstclienttoken request before
+login/context/pages: pc13_client_token_unavailable, requests1/status0/bytes0.
+Evidence /private/tmp/pc13-readonly-capture-20261025/evidence/manifest.json. No
+stationprotocol success or productionfault inferred. No retry or household effect.
+Existingprivatebackup credential projected only in memory to childstdin; noauthfile.
+
+Root adopted PodView canonical F09 successor runtime.patch a29b8c86 on exact203
+5cebbase (all203beforehashesmatched). Same-tab guardedselect no longer interrupts
+anownedrefresh; canonical existing2806/source/scopedpixelGO retained withoutrepeat.
+All203 finalruntimehashesmatch newmanifest f00fc148 and asset a709b830. Integration
+receipt /private/tmp/pv91-same-tab-integration-20261026.json. Sourceonly, no release
+or Greeninstallation claimed; final91scopebindings remain blank/unfrozen.
+
+## Resume execution — 26 October morning
+
+User explicitly approved both existing-provider gates without a guaranteed USD5 cap,
+and Green plus puck installation. Earlier missing-permission blocker is resolved;
+no replacement goal or narrower acceptance is introduced. Previous status-only turn
+was NO PROGRESS; root now resumed the concrete approved actions.
+Fresh Green browser read observed_at1793000920.5749283: PodVoice2.0.89,
+git5a9bb2b2da735399a1069f529ca4ace572779efb, rootfs
+c931cd3eea8132361f4aa4510d952df62f711a0c1e404bc05b12f8f74b7b68b2;
+r0 connected/IDLE/wake recovered, MCP and PodConnect up. No physical readiness claimed.
+Root privately acquired the approved existing OpenAI key in browser memory only;
+no key printed, persisted, or submitted to a provider yet. Field rehidden.
+Existing PC13 readonly test binary built offline in warm glfork image, exit0,
+SHA62c05342aa0c94dbf3cb7f891efa3d58912b846c02d4725ef92bdb87d2971f9a.
+No Spotify login read or network capture yet. Exact-five private operator preparation
+and independent review underway; root sole HA pause/restart/key/provider operator.
+Next: exact approved gates once, stop first failure; maintain quiet household boundary.
+No publication, install, OTA, provider PASS or physical acceptance claimed.
+
+### Blocked audit — third consecutive occurrence of the same missing permissions
+
+Previous goal turn was PROGRESS: exact source integration, cold-restart protocol
+proof, permanent regression, provider preflight preparation and remote checkpoints.
+The same two explicit gate approvals remained unanswered in the original quiet-puck
+turn, the preceding goal continuation, and this continuation. No new human reply or
+approval arrived. Current authoritative agent inventory shows all assigned workers
+terminal/completed; no compile, test, upload, CI or install is still running here.
+Root reread current handoff and active goal. Independent preparation is now complete;
+the next causal actions are the actual OpenAI and Spotify checks already described
+above, both dependent on the pending permission answers. D2 makes these release gates
+binding; running official CI on an unfrozen tree or inventing another audit would
+not remove the blocker. No new keys/calls/pauses/houseeffects/restarts/install made.
+This satisfies the three-turn repeated-blocker threshold and true impasse condition.
+Request goal status Blocked now; preserve the full objective and all existing install
+permissions, reviewed source and exact preflight commands for resumption. No claim of
+ReadyforQA/Done/release/Green/puck installation or provider/physical success.
+
+## Current lead handoff — 26 October, release still blocked by explicit gates
+
+Previous goal turn classification: PROGRESS, not a status loop. This continuation
+also integrated/reviewed actual F02/F04 UI and Thin whitespace observation correction,
+proved real successful-PC70->coldC/newNative->freshSTART, retained it in existingCI,
+and backed up exact source. No household effects/provider/auth read/installation/OTA.
+
+Current public work refs, plugin lease and readback verified:
+- PV non-F17 integration:1beffbe41e3d9c77789c5b93775b256245491445,
+  treef6683d51477d1f8d227d33ea50cd8d298a75e0be (8file final increment).
+- PC integration:68cf51bbde26a44e06bc47648d86b2cae92c6b5f,
+  tree1b150060c351d49270d8e261591954d42320e94f (3fixture/CI paths).
+- F17 ISOLATED EVALUATION ONLY:codex/podvoice91-f17-eval
+  5a2ff81f87d3f57e1206a91c0fe3a8e05587aee4,
+  tree697f2a1d6aae17599e2a88ec540df14c8f727314. Source/pre-run reviewed10path
+  F17v3 delta22ca35bb atop same latestThin+canonicalUI; not adopted/released.
+All trees independently reconstructed before commits; no duplicate unknown mutation.
+
+Canonical final UI203/manifest5cebdf1a/asset67065523 is root-integrated with retained
+2792tests/source/pixel GO. PodView confirms same203 actual integrated hash set. Its
+workspace has no Gitremote/unbornmain; no inventedparallelrepo. Full564file canonical
+source/tests/registry/review/evidence package is durably backed outside/tmp at
+Documents/PodView/docs/qa-ui22/deliveries/podview-music-retry-volume-20261026-final.zip
+SHA0498c9c4fb8eda9d263626d06a58888f71bc0393f4c68a82caf986378e8c763a,
+34,634,708bytes, archiveverified. Runtime source is backed in PV currentworkref;
+private/local evidence archive is not remotely pushed or misrepresented as release.
+
+Exact isolated F17v3+Thin36f16 final5 offline startup exports are prepared once in
+/private/tmp/pv91-f17-thin-final-startup-bindings-20261026, receipt20b86cf092f4818828c366b72eed5280d79de80528eae33345bb0bdd6b4effb5.
+4cases5c172a72, timer-cbb69f76; rootverified101sourcepins and latest203UI.
+Explicitclose nowmath->presentation_steps->close, alloriginalclose/directmath
+assertions andother4cases unchanged,45s/case,inerttimermock. No actualprovider-PASS,
+usefulfullPCM review, hard-$5 guarantee or permission inferred. F17 is not sharedadopted.
+Future strict91 provisional inventory prepared isolated only byadmission34:
+/private/tmp/pv91-admission-f17-provisional-packet-20261026/inventory.patch
+SHA32739b2f0bdd67e6786974282ecc8f616d396abf77f0987b75c5961757ff72cb;
+89effective paths/46prod/29regression/326runtime/4config/82policy/184tooling/203assets.
+Actualscope/classifier/config/immutable/assets/pins +4focused/static pass; approval
+bindingsblank. No genericallowlist/riskwaiver. SourceUI/Native/Thin reviews closed;
+provider gates and final exact-tree binding remainOPEN, not an obsoleteF04hold.
+
+Concrete next actions blocked on the two already-presented unanswered permissions:
+1. Practical5case quietGPT-Live proof with existingHAkey privately toOpenAI; current
+   API cannot guarantee hardtotal$5. Afterapproval run exactboundfivecases once,
+   stopfirstfailure, reviewusefulfullcapturedPCM, onlythenadoptF17 exactsource.
+2. Private existingSpotify stored-login read for single readonly initial+2opaque
+   successor-page capture (max6requests/45s/noAP/Dealer/Play). PC13Gate0 stillunproved;
+   publicprimaryresearch yields same404/no successfulwiretrace; relevanthmbackport
+   alreadyinoursource. Do not inventendpoint/fallback or silentlydeferPC13.
+Then finalinventory/independentprebind/strictbindings, oneofficialCI perrepo, PRs,
+merge/publish/compatiblebackupinstallGreen+privateLIVE115OTA, realversions/services/
+artifacts/readonlyflows. No activation beforegates. Nightrealhouseaudio remainsforbidden;
+physicalseries/lifecyclematrix/latency/soak remainseparate. Goalnotcomplete/paused.
+
+### Current integrated source — canonical F02/F04 and observation correction
+
+Root exact integrated canonical final UIpatch2b981fdf overSTART/MOVEbase; all203
+runtime paths matchmanifest5cebdf1a andasset67065523. Retain2792/2792 UIcases,
+component63,3syntax, canonical independent source and scoped ProductDesign/Impeccable
+pixel reviews. Actual local same/other card retry after source rejection and same
+card retry after correlated directPOST rejection require explicitclick, freshcatalog/
+task/request/opaqueoption and1newsend; no reload/Other suggestions, UNKNOWNautoreplay
+or TTL extension. F04 chosen35 stays distinct from observed70, zero fromactual35.
+Rootreceipt37168d5c3602615362fca1b8e84f10c72b87a3c14ceafb86a0af2e9d835e0d3d.
+Reviewed Thin whitespace-only observation fix1c902e8f is also integrated exact2paths;
+Thin36f16ac5, actualSDKnative/Talk->HubHistoryrestart2RED->GREEN plus authority/stale/
+rotationnegatives and retained16neighbor cases. No newmetadata/completionkind/schema
+or semantics. Old provider startup source binding is now legitimately invalidated
+by Thin source change; final isolated F17candidate will export onceaftercomposition.
+F17v3 prompt/docs/pipeline and oracle source pre-run GO22ca35bb is ISOLATED only,
+not adopted: useful actual fullspeech and close gates stillrequired. Old oracle
+whitespacefalse-negative corrected byreuseofexisting471dhelper plusliteraloutput
+comparison;121affectedchecks pass, unchanged112source/pipelineevidence retained.
+No provider, officialCI, merge/release/install/OTA/physicalacceptance claimed.
+
+### Cold-successor software proof retained as permanent existing-CI regression
+
+Independent74 fixture/evidence GOa9f371eb verifies unchanged211C/162Native runtime
+pins, preservedsameSQLite/FIFO, realterminalPC70release then newC/Nativeprocesses,
+newtoken andfreshSTART reachingCOMPLETED/open/35 plus6authenticatedRTP toprivatepeer.
+Both old/new driver runs Native0/C0. No forcedcleangate/journaldeletion, no houseaudio.
+Root independently replayed final565Cfiles and adoptedONLYexistingCtestspayload
+4cbca768/checksum70258ade and3-line existingselected-start-clockCIadapter. Same
+actualpassedflags (no addedmetadataflag), freshprivateDB/FIFO sharedacrosstwo calls;
+oldjobs/driver/binaries/defaulttests/productionC4c8fa andNative7bb386/105345 unchanged.
+Root receipt /private/tmp/pc56-cold-root-integration-20261026.json SHAdb8abbe4797f2be3284ee43f12102d6b5bc88125c3a43bf74283476c1b3adb29.
+OfficialCI stillpending; retainedactualsoftwarepositive is not physical/Spotifyproof.
+
+### Observed transcript whitespace loss — minimal correction decision
+
+Existing SDK->Thin->History->restart reproduces actual retained synthetic fragments
+' Hvad er',' ','2',' plus',' ','2' becoming ' Hvad er2 plus2'. First lost edge is
+Thin LiveTranscript input .strip() early return before Hub persistence. Invariants:
+raw fragments are observations, never completedturn/authorizing input; provider
+rotation/stale generation remain fenced; user-input revision, semantic close cancel,
+confirmation/tool authority must NOT advance on blank fragments. Hypothesis: preserve
+nonempty whitespace-only current/nonrotating input through the existing transcript
+persistence path, leave every authority update behind existing nonblank guard.
+Owner voice_close prepares isolated smallest Thin/fixture delta. Regression must
+use actual SDK adapter+Hub+History persisted/restarted exact text, plus blankinput
+no revision/closecancel/toolauthority, stale/rotation and Talk counterpart contracts.
+No new history completion kind, Q/A pairing, provenance claims, renderer/DTO/store
+or transport-complete marker: D2 section8 explicitly permits legacy fragments as
+transcript and limits F16 persistence to alreadyvalidated visual snapshots. Provider
+metadata enrichment remains an unimplemented proposal, not a proven required bug.
+This correction cannot explain or close PV215 wrong/missing spoken answer without
+same-candidate evidence. Rollback unchanged authority behavior if any negative fails;
+independent review before integration. No provider or household action authorized.
+
+### F17 held routing work — bounded isolated preparation, not adopted
+
+Required D2 useful substantive explanations/steps/comparisons still lack the
+explicit original-task delegation rule in current primary prompt; optional backend
+presentation and durable snapshots alone do not implement it. Existing held packet
+/private/tmp/pv90-f17-owned.patch SHA6dca5d67 contains approved-direction narrow
+routing/backend guidance and focused fixtures; actual useful full spoken completion
+and earlier explicit-close are still unproved. Invariants: model-owned semantics,
+one delegation of original task (no extra drawing selector), direct short facts/
+math/clarification, complete output and semantic/idle closure, no house effects.
+Falsifiable hypothesis: reuse those exact narrow prompt hunks in isolated91 source
+and verify one original-task delegation with accepted structure plus useful full
+speech before explicit close, while preserving direct math and all existing close
+assertions. No shared candidate adoption before actual provider gate. Existing
+explicit-close session may add prepared presentation_steps turn between math and
+close, keeping all original assertions and other4 cases; this remains5 sessions,
+adds bounded backend work, same45s/case and pending practical budget approval. Stop
+at first failure; do not silently add a sixth case/drop a mandated assertion or
+claim costs are hard-capped. Owner weather_backend_review prepares distinct isolated
+source/harness hunks and startup binding; independent reviewer before any paid run.
+Rollback: current prompt unchanged unless useful speech/structure and close gates
+pass on exact candidate. No local transcript classifier or forced primary callback.
+
+### PC13 primary-source research retained; no speculative duplicate patch
+
+Bounded official go-librespot/librespot research found no observed successful
+station initial+two linked200pages trace. Official go-librespot masterbd3fa740
+prefers actual supplied hm contextURL and follows opaque pageURL/nextPageURL;
+public324 reproduces radio-router/v3 page2/index100404, and288 documents deep paging
+failures. Neither is the required successful protocol capture. The relevant supplied
+parent-URL/RequestHm backport already exists in our reviewed Native source, so no
+second endpoint/fallback/rewind/retry patch is justified. Source links:
+https://github.com/devgianlu/go-librespot/blob/bd3fa7407eb1ab595295446e1be50cb9663e69cb/spclient/context_resolver.go
+https://github.com/devgianlu/go-librespot/issues/324
+https://github.com/devgianlu/go-librespot/issues/288
+PC13 Gate0 remains OPEN pending authorized actual bounded capture; ordinary source
+or mocked status tests are not a substitute. No private auth/provider action made.
+
+### Continuation check — unchanged provider bindings and bounded restart proof
+
+Previous goal turn made concrete progress: canonical START/MOVE UI integrated,
+local idle preference defect causally fixed/reviewed, exact228 Native composition
+replayed and both current reviewed source checkpoints pushed/read back. This is
+not a no-progress/status-only turn and does not establish release/install.
+Current continuation verified source checkpoints in STATUS and PodView live thread
+inProgress: F02 locked-choice and F04 draft-volume corrections underway, final UI
+packet not yet supplied. Root does not duplicate canonical UI ownership.
+Independent voice_close checked all5 existing offline startup bindings against
+current101 source/config pins: zero drift, no refreshed exports or paid/provider
+call needed. Retain exact d997a57f/e30a0bdb startup files. No provider-PASS claimed.
+Historical state, superseded by the 26 October PC56 cold-restart receipt documented above:
+D2 mandatory successful-PC70-release -> C restart/newNative -> freshSTART then
+had no combined actual protocol proof. Existing crash/PENDING recovery is separate;
+mode29 normally deletes temporary DB/FIFO. Root authorizes isolated fixture-only
+persistent-path phase extension in existing C start35_wire_case, reusing existing
+driver twice and preserving actualjournal/gate. No production runtime/harness or
+forced clean state, no household effect. Owner sol61_release75_review reports first
+counterexample; root integrates only frozen fixture evidence after actual result.
+Two private-protocol/provider approvals remain unanswered; no secret access/call,
+release gate waiver, installation or OTA inferred from prior install approval.
+
+### Reviewed PV current source checkpoint backed up publicly
+
+GitHub plugin ref lease/readback verified225d4038a5ba92901fb207ce389c78c72e459d23
+on codex/podvoice91-single-owner, tree19ffae37e4ab487a37858cb9185cdb302b1c71a3.
+Root reconstructed full77file candidate delta from actual90main independently;
+exact tree matches23file checkpoint increment. Old237c tree was not stored locally,
+so failed read-tree caused no repeated API mutation; full local reconstruction
+resolved identity. Six unchanged public firmware metadata paths checked byte-exact.
+Source includes canonical START/MOVE/current consumers/planned91 metadata and strict
+blank admission scaffold; pending F02/F04 increment is not claimed. Work checkpoint
+only, not PR/CI/merge/publication/Green/puck installation or physical acceptance.
+
+### Reviewed PC integration checkpoint backed up publicly
+
+GitHub plugin created24file current reviewed source increment from prior040ef315;
+root independently reconstructed exact tree0afef44ca935b4dc4b5f9465c934f291dc83bdef
+using captured bytes and temporary index before commit. Ref lease/readback verified
+f4d2154598aa5d79430b86e848f97e475106e3b6 on codex/pc54-control24-single-owner.
+Includes current-writer START/MOVE settlement, idle selection, final Native/C same-
+slot payloads, actual CI/Docker test-prefix correction and planned54/24 metadata.
+No .pyc/private artifacts/raw credentials/log capture exported. Work checkpoint only:
+no PR/officialCI/merge/publication/Green installation/OTA/physical acceptance.
+
+### Exact Native packaging updated for reviewed idle preference
+
+Root independently replayed new existing Native parity production7bb386d9 and tests
+1053455d against226file actual Docker prefix; result matches exact228 final files
+(164production64tests/assets), including only approved alias delta878030ed/6cccb898.
+Adopted same2 payload slots and checksum-only replacement247ff092. All41 mapped
+container-path hashes pass; initial host shasum incorrectly treated /patches as a
+host path, corrected read-only mapping without payload or runtime changes. C payloads
+4c8fa480/5f97b267 and CI/Docker application order remain byte-identical. Root receipt
+/private/tmp/pc54-idle-preference-root-integration-20261026.json. No broad rerun,
+official CI, release, Green installation, OTA or physical acceptance occurred.
+
+### Idle preference source correction integrated after independent GO
+
+Independent74 reviewed exact e8ea3447 two-file correction and228input membership;
+226 remain unchanged. Root verified before/final pins and hunk-applied to Native-final.
+Local idle POST alone omits C absence; strict GET retains exact C predicate. Actual
+worker read, Native source/session/custody/writer checks and postread ctx/capture
+check remain unchanged. C409/503 actor test is causal RED->GREEN,14focused groups
+race1.074s/vet/format retained. HTTP POST cancellation tested at queued dispatch,
+strictGET held-C stale/cancel retained; held actual-worker-await POST cancellation
+injection is NOT newly proved. Manager bound event suppresses route/cap/transport.
+No claimed C effect, provider transfer, physical result or installation. Updated
+same-slot Native packaging remains required; C payloads stay exact unchanged.
+
+### Fresh passive Green read — 26 October before activation
+
+Existing authenticated status page reloaded read-only: observed_at1792970782.9973152,
+PV2.0.89 git5a9bb2b2da735399a1069f529ca4ace572779efb and rootfs
+c931cd3eea8132361f4aa4510d952df62f711a0c1e404bc05b12f8f74b7b68b2.
+Roomr0 connected=true, IDLE, no session, not ducked, wake recovered; session/tool/
+attention counters0. MCP and PodConnect up. OpenAI/Voice PE service labels remain
+degraded awaiting actual Live/wake verification; this does not prove a current
+provider fault or physical microphone/LED function. No timer/music/job state was
+read from this status response, so maintenance quiet-window is NOT established.
+No credentials, household effect, restart or installation performed.
+
+### 26 October current increment — START/MOVE integrated; idle preference correction
+
+Root verified exact five-path canonical START/MOVE patch c3f924ad, applied only to
+its exact first-settlement base, and verified all203 runtime hashes plus asset manifest
+2fe94eb4. Existing2752 UI tests,63 component gate and scoped source/visual review
+are retained for those identical bytes; no repeated broad local suite. Old8s client
+matcher is removed; idle refresh uses existing1s cadence only within original expiry.
+No optimistic playing, source authority, replay or TTL extension. F04 presentation
+snap-back is causal and remains owned by PodView in a separate minimal increment.
+
+Lead decision: Native idle preference POST is over-constrained by C absence although
+it changes local selected alias only. Observed source counterexample: C cold known-
+retired state correctly denies strict physical absence, but configured HA alias
+selection cannot choose the next room before Play. Chain: HA targets configured
+alias -> Native actor capture -> local preference event -> manager valid AliasBinding
+suppresses route/volume/transport effects. Invariants: no active Native/session/
+worker/custody takeover, no inferred C route, no automatic Play; external transfer
+keeps strict C absence GET and final post-provider-await guard. Hypothesis: omitting
+only physical C read for pure local POST fixes this case without physical effects.
+Owner native_idle implements isolated minimal correction and regression with C
+unavailable, active/stale/reordered Native events, unchanged strict GET; independent
+review required. Non-goals: C admission/START/MOVE/transfer relaxation or new stores.
+Rollback boundary: retain current strict POST if any actor/custody fence or bound
+manager no-side-effect path fails. Packaging must be refreshed for reviewed bytes.
+No release, installation, OTA, provider or physical acceptance implied.
+
+## Current91 integration snapshot — 26 October, quiet night work
+
+Lead/release owner root. User explicitly includes puck OTA tonight; real household
+audio/music/volume/alarm/robot tests remain forbidden. No add-on/HA/puck installation,
+restart or provider call has occurred in this phase. Last verified Green89/53/23 is
+not a new current read; reread before any activation. Private LIVE115 OTA is compiled
+SHA78297a99e694aca6552758aa195e345934c0edc1e3cacb88dbcedb3e5af29e8a;
+activate only with compatible PV91/component1.7. Never publish that credential-bearing
+artifact. Source versions are now planned91/54/24; main remains90/53/23.
+
+Integrated PV: reviewed close/idle/diagnostics/read coalescing/visual archive/timer/
+robot backend; exact canonical203asset UI plus reviewed six-file transport/volume
+settlement increment; strict AUDIO/volume +selected START/MOVE receipt projection,
+including HA4tuple cleanup correction. PodView owns the final three-file START/MOVE
+caller transition and bounded F04 slider hypothesis; no parallel UI author.
+Integrated PC: generic Native control/seek/options/content episode+ordered library,
+PC70 cleanup/CAS/MOVE/PCM preservation, exact current START/MOVE writer settlement,
+SelectSource loaded MOVE +strict idle/local preference/external guard, strict C idle
+fact. Actual offline durable-release -> strict9keyJSON -> idleGET/preference has
+independent GO with both Native0/C0 and final C retired/closed/drained oracle, not just
+fixture/done200. Root native-final/c-final are exact reviewed integrated source.
+Final unified existing four Docker suffix slots were independently replayed:228Native
+files and565C files/membership exact; hashes b115ec6d/e4a64026/4c8fa480/5f97b267.
+No extra patch chains. Clean actual Docker/CI order matches41Native/30C patches;
+five old CI-only fixture dependencies are folded into existing C release-tests,
+coverage/commands/cache/artifacts retained. Root final packaging receiptf9ae5b66,
+independent mechanical proof2cfa64d4. No full official CI yet.
+
+Admission91 strict scaffold and bound-phase test adaptation are integrated, but its
+final inventory/manifest/AST/reviewer bindings remain BLANK/provisional. No admission
+GO, candidate freeze, PR, release, Green activation or physical acceptance claimed.
+Public work checkpoints: PV237c1576066a34ebc8992650004adc99c99da53d and
+PC040ef3156447a7c1bf0ae05f66fa1dd08070f83b; later reviewed private integration increments
+still need next source checkpoint after final canonical UI source.
+
+Remaining concrete work: final canonical START/MOVE UI/DTO integration and actual
+slider hypothesis if causal; bounded cold-restart PC70->freshSTART source audit;
+final source inventories/admission/bindings, one official CI per repo, compatible
+publisher/backup/install/OTA/readback. PC13 successful first+two linked200pages protocol
+and actual5/5provider gates are still OPEN: two explicit async approvals are pending
+for private Spotify stored-login read-only6call/45s capture and practical bounded
+five-case GPT-Live spending (the provider cannot enforce the plan's absolute$5 cap).
+No affirmative replies yet; no credentials read/transmitted, paid calls, station
+protocol success or waived gate inferred. Independent software work continues.
+
+### Candidate metadata and source admission prepared, all approval gates still closed
+
+Root independently reviewed five version-only metadata lines against weather owner's
+exact packet: PV pyproject/config/__version__91, Speakers54, Control24. Applied only
+those patches; component1.7/LIVE115 untouched, seven existing metadata checks retained.
+Admission scaffold9da7 received independent74 GO and was hunk-applied7paths. Root
+independently reviewed distinct phasefix43dbd270: only docstring1.7, the changed test
+hash and tests supporting BOTH all-blank rejection and fully bound exact manifest/AST/
+record/strict CLI success; partial bindings still fail closed. Applied3paths, retained
+four targeted checks/static result. Final source inventory and approval bindings remain
+provisional/blank. No exact-tree approval, official CI, publication or install claim.
+Canonical settlement UI6-file patchcd3c3e47 is integrated with203/203 exact runtime
+pins and assetmanifestedb769; separate source START/MOVE consumerabc1d579 is integrated
+5/5 exact final pins and independently reviewed. Actual canonical START/MOVE caller
+extension is still owned by PodView and pending its new frozen packet, not silently
+part of the current installed or frozen UI.
+
+### Candidate91 release metadata/admission preparation — not approval
+
+Fresh GitHub plugin main readback stillPV65fe801a8bb587ba42518ce4dbb04ee39b59fd76
+and PC917b2e092c0ebe40c1fa987bc781188dc9b34692. Planned91/54/24 identifiers remain
+unused on main. Isolated metadata owner prepares only required package versions;
+component1.7 and compiled LIVE115 pins stay unchanged. Lead authorizes admission34
+to prepare the incumbent strict admission91 cycle (profile counter68, exact90base,
+UI203 and actual final diff), with reviewer/manifest/AST bindings BLANK until final
+independent source review. Existing strict90 mechanics and preserved policy/execution
+boundaries remain; no generic allowlist or gate bypass. Add existing dev_cycle/CI
+routing plus focused metadata test; adapt only obsolete mutable-ROOT historical90
+fixture using the incumbent snapshot wrapper. No new test platform, broad reruns,
+provider or installation. Final source inventory is still mutable, so preparation
+must not claim exact-tree/freeze/release approval or invent final manifest hashes.
+
+### Source work checkpoints and integrated current-writer consumer paths
+
+Reviewed PV10-file consumer/peer/HA-retention checkpoint is pushed and ref-readback
+verified as237c1576066a34ebc8992650004adc99c99da53d, tree16754a6cc76c3aa312ceed7388943941c9ea4e10,
+parent4706b1. Reviewed PC34-file increment is pushed/readback verified as040ef3156447a7c1bf0ae05f66fa1dd08070f83b,
+tree586e9ac2dfcb5dfd99d0d0f7a41daa8c95d89a5a, parent5f91f7. PC tree was independently
+reconstructed from captured bytes in a temporary index before ref update. Initial
+create_tree response parsing failed after mutation; root did not repeat it, derived
+the exact tree and read it back before creating a commit. Both are work branches,
+not PR/CI/release/install or physical acceptance.
+Later reviewed START/MOVE producer26b51f4f was integrated with12/12 exact before/final
+pins: Control shared, Native in fresh /private/tmp/pc54-native-final-20261025. Reviewed
+SelectSource repo4647ba8c/Native7f7e4a36 then hunk-applied cleanly on those sources.
+Narrow combined real Native completed-writer+idle-alias race regression PASS1.074s;
+no new harness or household call. Actual C known-retired strict-idle composition still
+pending; source consumer GO alone does not establish that adapter result. The shared
+Docker overlays have not yet absorbed these later Native increments; candidate is
+therefore NOT frozen/test-ready/released from the earlier source checkpoint.
+
+Strict-idle logical correction before freeze: a known completed PC70 retirement with
+closed autostart gate, no sessions/writers and fully drained contexts is quiet absence,
+although the existing START-specific clean helper denies a closed gate. Reusing that
+START predicate would permanently block post-release external selection. Lead requires
+an independent readonly absence proof from existing terminal retirement/custody state,
+without weakening START admission or reopening the gate. Unknown/unresolved retirement
+still denies. The opt-in clean_absent fact is not START permission; ready must remain
+truthful/separate if gate closed. Native idle consumer must not reinterpret this as
+committed route or auto-START. Required causal chain completed release -> actual idle
+proof with unchanged closed gate, versus unknown-closed -> denied, plus unchanged
+normal START behavior. If the existing owners cannot establish that distinction, this
+path remains explicitly unproven and cannot receive a successful source claim.
+
+### Selected START/MOVE PV settlement consumer extension
+
+The reviewed common consumer intentionally retained only AUDIO4/volume. Root now
+authorizes the same source-owned wire for terminal accepted selected START and MOVE,
+using their EXISTING receipt stores, not a new command/status store. MOVE identity
+may be retained only after confirm_move_destination and exact newly confirmed binding;
+post-move receipt reads join that destination plus original grant/policy/tools/session/
+receipt, without relaxing pre-send currentness or reviving the old binding. Selected
+START retains private Control identity alongside its existing broker receipt, task,
+source and authority. Playback read resolves exactly one matching current receipt
+from existing stores; foreign/conflicting/stale/unknown remains null/unknown and cannot
+retry. Control/Native START/MOVE producer review is still pending; no assumed completion.
+The public v3 settlement wire remains unchanged and never exposes prepare/operation
+IDs. Causal actual result->existing receipt->playback read->strict DTO, duplicate one
+send, unknown/no confirmed owner, source/room/token/grant/policy/session replacement,
+new Y and post-MOVE binding are required. Isolated admission34 owner, independent
+review before root integration, no household/provider effects or canonical UI edits.
+
+### SelectSource strict idle proof correction before freeze
+
+Source counterexample disproves using default C start/state ready as clean absence:
+START admission may legitimately retire a selected old AirPlay session. No wrong
+candidate is frozen or integrated from that assumption. Lead authorizes only an
+opt-in readonly require_clean_absent flag on the existing C start/state request,
+using its real clean-route/drained/not-busy owner predicates and explicit affirmative
+echo. Default START response/callers stay unchanged; old C ignoring the flag must
+fail closed at Native. No fabricated Native session, selected-flag inference, C
+mutation/token/journal or new API family. C owner traces actual owner boundary and
+proves old ordinary START-ready/retire-capable state cannot satisfy strict idle; clean
+absence can, busy/writer/session/unknown cannot. Native SelectSource owner consumes
+reviewed exact opt-in contract, preserving active/paused MOVE independent of idle.
+Independent source/adapter review required; no household effects. This is the small
+read-side correction to the previously authorized idleproof, not a new control path.
+
+### Native parity unified suffix integrated; HA receipt retention verified
+
+Root mechanically repackaged final independently reviewed Native v2f69081fd into
+one production overlay6d2c2d4c11c55fee4aac0ee8effe3ac25f9b0236653a562d8a4c60543c20f3b4
+and one tests overlay0e3f86624296f1d9e7e6157faad67a8bbc5c1e3f389c91b1243c6e837d9949d4
+at the existing Docker parity slots, avoiding additional runtime paths/patch chains.
+Actual replay from full CI prefix matches all164production+64test/asset pins exactly,
+including preserved CAS/Seek/PCM and final options settlement. C overlays unchanged.
+Receipt /private/tmp/pc54-unified-native-packaging-20261025/RECEIPT.json
+5c86a5b1b56dd2ba93a6eb323fcc19901861901a9685c0e3ae5a0abe87c3a8bb.
+Mechanical packaging review pending; no actualC/provider/physical rerun claimed.
+Combined manager race suite's sole outdated released-paused action-array expectation
+was corrected to current six actions; that one case PASS1.043s, all other prior suite
+results retained. No runtime change for that fixture failure.
+Root HA4tuple retention increment46ae63cbbc2e0b13863d78eb8da4303837a7f3c3e63d9c28bf65c875146d2ab1
+received independent74 GO;14 focused cases, formatter/lint PASS. It preserves original
+authority/expiry, permits neither new effects nor TTL renewal. A distinct executed
+valid-URI fixture export02666098226528613bc6a9e73a6f5cb6367ef3d3485384fe48bb97854459c663
+is with PodView for actual PV DTO->canonicalJS proof; synthetic Control inputs remain
+explicit and do not count as Native/C/provider/physical results.
+
+### HA-lane settlement receipt pruning — direct integration correction
+
+PodView independent review found _retire_receipts only retained three-field HA
+receipts while new accepted settlement receipts have four fields. Root reproduced
+actual accepted next/volume -> unrelated setup -> identity read failure on HA lane,
+while paired lane passes. Initial test attempt lacked actual HA request context and
+is not causal evidence; red-v2 uses the existing _HA_REQUEST active-user context and
+fails both HA cases at missing identity after cleanup. Lead authorizes only len3/4
+retention with unchanged existing receipt expiry and authority checks; no TTL renewal,
+new storage, retry or scope widening. Verify actual repeated request returns original
+receipt and sends only once after setup cleanup, plus existing expiry/revoke/session
+negatives. Independent tiny-diff review before freeze; no household/provider effects.
+
+### START/MOVE settlement — current custody witness, not cached completion
+
+Read-only source mapping finds terminal Control receipts already retain exact opaque
+start_operation_id/move_operation_id and binding, while settlement only handles
+transport/volume. Cached completed manager result alone is insufficient after a
+later Y replaces X. Lead authorizes admission34 isolated minimal existing-owner
+extension: read current Native completed custody for the exact retained operation,
+actual registered writer/source/route and C completed/current witness; relay through
+existing Speakers/manager path without new ledger, command or authority. Recheck
+Control receipt object/sequence/owner/binding after await. X may confirm only while
+that same completed operation owns the actual output; later Y, unknown, evicted,
+cancelled, foreign, expired/inactive or failed custody cannot confirm and never retry.
+Expose only existing source-owned settlement identity to PV, not private custody or
+prepare secrets. Existing transport/volume/default reads unchanged. First prove
+Xcomplete->Ytakeover->Xread negative and current X positive with the existing actual
+custody fixture; then Control retained-receipt integration. Independent adversarial
+review on exact new source before root integration. No provider, audio, C writes,
+policy change or UI code; rollback whole uninstalled extension.
+
+SelectSource refinement from actual source: Spotify playback.device or a null release
+binding is not proof that Native is idle; a paused writer/custody may remain. Root
+authorizes an opt-in readonly idle_only=1 probe on the existing alias/room-switch
+path, reusing the exact strict inactive actor + clean C absence checks. Default GET
+response remains unchanged. The opt-in probe must not mutate alias/route/player,
+create a grant or turn unknown into clean. Native-to-external may transfer only after
+completed existing release or this actual current idle proof with postawait owner/
+account revalidation. Regression injects retained Native ownership while Spotify
+reports external/no playback, plus owner replacement during C read and ordinary
+verified-external idle success. Same isolated owner; no household effects.
+
+### PV settlement consumer v2 source integrated and reviewed
+
+Current seven shared PV files exactly match immutable v2 patchda1d5d989e001643ab81e0622ab8093427dc1d2fb2fcd114cecd587d9e2652bf, pins3dde1912b3409ed6ce9e3bd496914853491c82f00d65ff964309db9b3c645b52 and receipt428542ddc619ea596acb28df1c0da11f2b7fc8741c0334dce3662f4b03c8b447 at /private/tmp/pv91-settlement-consumer-v2-20261025. Independent74 SOURCE/hash GO;71 focused cases/static PASS retained. Root did not reapply: author had already edited shared candidate despite isolated-packet instruction; exact final bytes were verified7/7 and no concurrent source writer conflicted. Raw Native prepareID stays private, current aggregate owner joins exact receipt epoch, postawait ownership guards hold and defaultv3 unchanged. PodView has exact packet for canonical UI consumption and actualJS proof; current UI compensation is not declared removed. Original v1 packet was overwritten during author regeneration and is nonreproducible/superseded; only distinct immutable v2 is credited. No CI, install/provider/household result.
+
+### Options settlement integration finding — narrow causal correction authorized
+
+The composed source reveals a real integration gap: successful shuffle/repeat returns
+from effectRoomOptions before the generic recordRoomEffect branch, so Control's
+exact accepted receipt can never settle confirmed. Scoped packet2f911 remains as
+pre-fix evidence, not final GO. Root authorizes native_idle_owner to stamp the same
+existing operation only at the successful final private actor rejoin AFTER unchanged
+C route verification. Preserve current generation/intent/owner/source/list checks,
+duplicate stamp idempotence and overflow guard atomically; do not call a locking
+helper while already holding aliasMu. No stamp on stale source/route, error or unknown.
+Use existing actual options HTTP commit fixture: accepted must show exact prepareID/
+action stamp; foreign-after/source-after must remain absent. Keep old failing exact
+case and publish distinct immutable increment/pins for independent review. No new
+store, command, authority, provider or household operation. Rollback whole uninstalled
+options/settlement composition; source-only effect confirmation is never audibility.
+
+### Native SelectSource owner parity — active bounded decision
+
+Observed current HA SelectSource bypasses Native custody through raw Spotify transfer,
+including playing/paused Native sessions. Lead authorizes isolated existing-owner
+correction: actual loaded Native selection reuses RoomMove read/prepare/start and
+preserves paused state, list/source/position/manual volume. Idle selection is only
+preferred destination for a subsequent explicit START, not playback or a committed
+C route. Existing alias endpoint may serve that only with actor-atomic inactive,
+no retained session/writer/pending or unknown custody and manager-verified clean C
+absence. If that exact boundary cannot be established, return the explicit remaining
+source failure instead of guessed success or a new broker. Same-target shortcuts
+require actual owner/route or clean-idle agreement. Native-to-external must finish
+existing exact release before the positively identified external transfer; unknown
+classification never falls back. Whole chain: fresh configured alias/account/Native
+identity -> bound offer/current epoch -> one-use dispatch -> actual owner observation;
+late loaded state, stale alias/registry/session, C divergence and lost ACK remain
+nonreplayable unknown/rejected. Existing target and external adapters retained.
+Independent review and causal fixture plus both adapter checks required. No household
+commands/provider calls, new policy, speculative timeout changes or UI implementation.
+Rollback is whole uninstalled delta; installed89/53/23 remains unchanged.
+
+### Control composition in progress — reviewed packets, not installed
+
+Root applied reviewed settlement producer Control e5a480921be2271471c743f887e7af8f2b2f101f1463f87299805082d2f8791d, options a3452e8d9af29a58f9af1ab3a72c2b58a62211b0acf35527a67961135f686870, and episode b610cecd245f91ed543aaa64bfe231c026ec26f0efd9061c248b21369750a4fe plus test-only canonical-ID e99ec6946b3c18bbeff2e94236a322088d3d4c69e502b4fb17a4d0e44340f842 to the unsynced shared PC candidate. Two options fixture context conflicts were joined by retaining settlement optional effect/nil while adding shuffle/repeat capabilities. No production conflict occurred in these three packets. Library ca0bdb96d674edd5b00fdfc511ed410121a00aa1a972eb353862e1dea0ebd1eb received independent SOURCE GO; its partially applied hunk composition is exclusively owned by fault_diagnostics87 until handoff, preserving four exact content actions. Combined static/causal checks and independent composition review remain pending. No CI, public release, installation, credential read, provider call or household effect is credited.
+
+### PV settlement consumer — active bounded implementation
+
+Root authorizes admission34 as sole writer of podview_controls.py, podview.py,
+podview_room_media.py, tools.py and podview_music.py plus their focused fixtures.
+Retain exact Control receipt identity inside the existing room/token/PV-request
+receipt; expose only validated source-owned settlement through existing authenticated
+playback reads. Native prepare IDs stay private. Revalidate receipt/grant/policy,
+room/session/tools after awaits; foreign/stale/UNKNOWN cannot confirm or replay.
+Optional settlement must preserve strict legacy v3 validation and readonly rights.
+Canonical UI remains PodView-owned. Replace action-specific matching/waiting only
+once actual producer-to-consumer composition proves it; ordinary refresh/event reads
+must suffice, not a new eight-second command loop. Current producer confirms only
+its implemented transport/volume effects, never fabricated START/MOVE completion.
+Regression: actual retained command identity -> actual bound read -> PV DTO; exact X,
+later Y, duplicate/stale/session replacement/permission loss/timeout and zero read
+side effects. Independent review required. Rollback is uninstalled consumer delta;
+no household/provider effects or new access. Firmware remains compiled, not flashed.
+
+### PV selected-content peer capability compatibility
+
+New same-owner HA episode/library actions must not break existing PodView track/playlist controls. Current PV _content_controls rejects a source actions array longer than2, even when the existing requested play_track/play_context action is still supported. Root authorizes only an explicit closed SOURCE capability allowlist for already implemented peer play_episode/play_tracks alongside those two. Keep current PV executable action allowlist, URI dispatch, offer identity/TTL, grants and canonical UI unchanged; accepting a declared peer capability is not permission to invoke it. Unknown/duplicate/malformed action arrays still fail closed. Regress actual facade setup from four-action source and prove existing selected-content control remains ready while unsupported PV execute dispatch still sends nothing. Independent scoped review before freeze, no provider/effect.
+
+## Active91 — single domain owner, two control surfaces (implementation authorized)
+
+Lead/release owner `/root`; canonical UI and final asset review owned by PodView.
+Human approved D2 and explicitly set it as this thread's active goal on25October.
+The canonical approved plan is `docs/LEAD-PLAN.md`; independent plan reviews97/98/97
+are not source, provider, release or physical GO. All50issues/F01-F23 remain mapped.
+
+Candidate source is the EXACT actual90merge65fe801a8bb587ba42518ce4dbb04ee39b59fd76,
+tree58f550af185e8ab2f325bdba4db680e297a69da1, checked out in the unsynced candidate
+`/private/tmp/pv91-single-owner-integration-20261025`, branchcodex/podvoice91-single-owner.
+The public merge and head commit objects were imported from GitHub-plugin metadata
+and matched their exact Git object hashes, including the merge signature. No stale
+workspace runtime patch is adopted. Installed89/Speakers53/Control23 remains the
+last verified Green baseline;90was not installed by this phase. No effect authorized.
+
+Direct source/causal evidence and falsifiable hypotheses:
+- Touch and selected voice START/MOVE already converge, but generic HAmedia_player
+  HomePod transport/volume directly use SpotifyAPI rather than Control's bound
+  Commands owner. Route only verified Native targets through that existing owner;
+  same auth-adapter differences remain. Hypothesis: shared admission/receipts prevent
+  cross-surface divergent custody; this does NOT establish the HomePod sound cause.
+- Existing exact source reproduces two clients/samehome or targets key200/429/200
+  with one source read and zero effects. Hypothesis: followers can join the read
+  then revalidate their OWN authority and normal scoped cache instead oflocalbusy.
+-512routine diagnostic rows evict recent failure/UNKNOWN/terminal records inside
+  seven days. Hypothesis: positive routine-first bounded eviction preserves critical
+  observations without new storage; protect incoming batch until its durable ACK.
+- Current read DTO lacks actual volume and UI consumes execution offers to learn
+  display affordances; client action matchers and queue URI/index repair compensate
+  for missing service outcomes. Hypothesis: source-owned readonly projection,
+  correlated settlement and exact occurrence resolution permit removal of these
+  UI compensations AFTER causal service->actualJS validation.
+- Actual close path has4squiet plus2spostLEDACK for idle, and fresh4squiet after
+  semanticEND settlement. User requests ordinary4squiet and explicitEND without
+  a new followup window. Candidate reuses finalizer and realclosed/drain; actual
+  provider output/input preservation remains a hard gate, not source-only proof.
+
+Affected chain: touch or physical voice input -> canonical target/actual provider
+intent -> current admission -> single domain command owner -> HA/Native/C effect
+-> exact command settlement + current source read -> surface/LED observation;
+voice physical playback -> one teardown -> exact firmware rearm -> nextwake.
+Timer HAdeadline and robot HAentity remain separate actual domain owners.
+Invariants: full duplex/current input authority; exact owner/generation/route;
+no invented providerACK/physicaldone; one effect/one close/one rearm; UNKNOWNno
+replay; independent controller permissions; genuine source freshness/privacy.
+Non-goals: new motor/broker/globalstore/testplatform, VAD/gain tuning, directAPI
+fallback for unknownNative, unsupported station parameter guesses, houseeffects.
+
+F16 additional bounded decision: actual visual display archive is bridge-lifetime
+only; restart loses admitted useful visual snapshots. Persist only the EXISTING
+validated passive archive projection as typed History records with originalreceiptId,
+time/provenance/content and20/room64KiB bounds, never executable receipts/actions or
+freshTTL. Test realadmission->disk->restart->authorizedhistoricalread->canonicalJS;
+duplicate/malformed/room/clear/revoke/diskfail pluslegacyreader negatives. This does
+NOT produce completed-answer/inputidentity for ordinaryLivefragments; that F16slice
+staysopen pending a truthful producer contract. No transcriptheuristic or invented
+providerdone. Rollback preserves oldrecords; typednewrows mustnotcrashlegacyreader.
+
+Implementation ownership: root owns shared plan/status, integration, API coordination
+and release. Read-coalescing owner owns podview.py only while assigned; diagnostics
+owner owns podview_client_diagnostics.py plus its existing unit fixture. Control
+contract and Native/C release/continuation have separate owners/candidates; only
+reviewed pinned contract packets are passed to PodView. Canonical UI source is never
+implemented independently here. Each shared file has one writer and root hunk-merges.
+
+Planned gates: retain unchanged proofs; focused RED->GREEN plus relevant adapter;
+actual multi-client/source/owner replacement/cancel tests; log count/byte/age/ACK/
+dedupe/gap/restart tests; strict readonly v3+settlement+occurrence JS composition;
+actual HA/MCP/entity and touch concurrency; provider close/muteACK and useful answer
+gates; PC70 journal/upgrade/reboot/downgrade; PC13 successful continuation protocol
+before implementation; canonical final UI/source review; one final officialCI per
+affected repo, one compatible releasebundle/install/activation/readback. Quiet-only
+agent work; physical audio/LED/Stop remains later human acceptance. Unknown and
+failed gates remain open and block their release claims.
+
+Rollback: no production change in this source phase. Do not mutate frozen90 packet.
+Plan covers89/53/23 compatible image/component/options/policy/data backup; newC
+journalpurpose may never be rolled back by deleting UNKNOWN or one-sided oldC.
+Before freeze require compatible current-version terminalization or forward recovery.
+Reviewed source results are recorded below; no combined release, Green installation,
+provider or physical GO is implied by those scoped results.
+
+### Firmware metadata final scoped review and settlement producer decision
+
+Reviewed6-file firmware/component metadata checkpoint pushed through GitHub plugin to work branchcodex/podvoice91-single-owner, commit4706b1f1628a16e6ce267c08f991354ad3e51e5a, treef03148b31e7c734cfa39d45138968b1457bf608f, parentdcb9fabb4ada6046dac225761634a6671a7ca01c. All6 bytes captured only after frozen receipt hash checks; no PR/CI/release/install triggered. The external component pin remains dcb9 because that exact public revision already includes the reviewed reply header; this new metadata commit need not self-reference.
+
+Fresh passive Green /health read from the existing authenticated ingress reports installed2.0.89, roomr0 connected:true, stateIDLE, ducked:false, wake_readiness:recovered and wake_word_confirmed:hey_chat_hey_jarvis. Source observed_at1792963278.5660818/freshness0.2s. Services remain openai:degraded, voicepe:degraded, podconnect:up, mcp:up; connection/recovered observation is NOT provider acceptance or full service-health proof. No command, test audio, timer or restart was triggered by this GET. The user has provided power; no further power/test prompt is needed now.
+
+User explicitly changed the night instruction: update the puck TONIGHT as well; real-audio testing remains prohibited. Root will activate LIVE115 only together with the compatible PodVoice candidate, not ahead of it, because installed89 expects LIVE114. Local compile completed SUCCESS in157.61s using ESPHome2026.6.2. Generated reply header SHA matches reviewedc9ef5592 exactly; generated main contains LIVE113115. OTA artifact3,073,184bytes SHA25678297a99e694aca6552758aa195e345934c0edc1e3cacb88dbcedb3e5af29e8a. Private build receipt /private/tmp/pv91-fw-20261025/BUILD-RECEIPT.json SHA11d2f9a2be3dd3c313d3c399f0cbb7e71a2d763a7b8321af9cfe00688d8d7cb0. This is compiler/source identity only; no OTA/install/reboot or physical result yet.
+
+Native SEEK integration is STOP pending baseline correction: its first frozen7file delta was composed onto a mutable olderMOVE base omitting approved35ca PCM-preservation in3otherfiles. Independent review caught this before shared packaging; root's packaged35ca remains unchanged. Recompose only SEEK onto independently pinned7c96195e baseline, preserve old evidence as oldbase, regenerate inventory/binary and rerun only affected actualMOVE composition. Control/manager and C scopedGOs remain valid; no broad gate repeat or runtime redesign from this provenance failure.
+
+Root began local compilation of the independently reviewed LIVE115 source in private0700 build directory using existing ESPHome2026.6.2 environment. First attempt failed definitively before compilation because sandbox DNS could not resolve public github.com; authorized network build resumed once, no flash/reboot or household effects. Build result/artifact identity remains pending. Build secrets remain private local compiler inputs; no values are printed or published.
+
+Independent native_idle_owner SOURCE GO binds frozen metadata patch0a9df4f598ce6e570277e244032a1e4680ad54f85daa91ae554bf64fec9cd16a and receiptbe4cc9d8383797d6f59a9d8214ea1939d363ce6a43126bba2a25aa23dd99e351. All6 current candidate files and reverse-apply match; public source proof matches12MWW plus5reply files (receipt prose count15 is a typo; machine pins cover17). LIVE113115 is the new delivery identity; retained OFF113113 compatibility does not prove the Stop fix. No build/OTA/provider/physical gate is claimed.
+
+A bounded independent source trace confirms the remaining settlement cause: Native has exact accepted operation/prepare identity, but bound state reads expose current identity/actions without the consumed effect identity. Control therefore correctly returns observation:null. Similar item/position/volume is not causality. Lead authorizes an isolated minimal extension inside existing AppPlayer/transport/volume owners: retain the exact successful consumed operation and monotonic effect revision, project only through existing bound state reads, preserve route/owner/source revisions, and join only the matching retained Control receipt. No broker, parallel state store, new command route, guessed confirmation or UI workaround removal.
+
+Affected chain: existing Control intent -> manager -> Native guarded effect -> actor-owned operation stamp -> existing bound state read -> Control exact receipt settlement -> unchanged PV/canonical UI. Regression must show exact X settles only after its actual effect, while failed/UNKNOWN/duplicate/stale X, external mutation, later Y, alias/session replacement and C route/volume mismatch cannot confirm X or replay an effect. Read/echo must not mutate source or renew authority. Implement in isolation after the active seek draft, with one writer and independent source/composed review. Preserve current UI match/wait until actual end-to-end producer proof. Rollback is whole uninstalled draft; existing installed89/53/23 unchanged.
+
+### Reviewed source checkpoint published — work branch only
+
+The31-file reviewed PV source checkpoint is now pushed through the GitHub plugin to
+codex/podvoice91-single-owner, commit04529400788e1406f33c33da33eafe160709fe66,
+treec41a323f06e20c4ca9965a6467d5f581d79d5208, parent exact90main65fe801a8bb587ba42518ce4dbb04ee39b59fd76.
+Remote branch readback matches; a separate temporary Git index reconstructed the
+entire tree from the exact captured file bytes and matched GitHub's tree SHA.
+No PR, version bump, official CI, release, installation or physical effects were
+triggered. This checkpoint preserves completed source work; later timer/component,
+Native/C/manager, context parity and canonical UI increments are not silently part
+of it. Local source remains an integration draft, not a newly installed baseline.
+
+### Canonical UI combined source integrated — not released
+
+Root applied the single frozen PodView D2 runtime.patch4d4453925daab1f390ef62b94a9dad10ec1253ad10af80f423892e765c9449df after verifying all21base hashes. All21final changed hashes and all203runtime manifest hashes match the immutable canonical package; manifest5b21aeced078220eae9c82428f956d43178c3146fc8d08897c11887551b9fa48. Existing scoped UI tests/source/visual reviews are retained, not rerun on unchanged bytes. Backend composition, PC70/PC13/provider gates, publication, Green installation and physical acceptance remain open. Receipt: /private/tmp/pv91-canonical-ui-integration-receipt-20261025.json.
+
+### Canonical UI and timer source checkpoint published
+
+GitHub work branchcodex/podvoice91-single-owner now points to dcb9fabb4ada6046dac225761634a6671a7ca01c, treecc04ffdeba4b32184e253956b6cd2f1fa28d6c6e, parent04529400788e1406f33c33da33eafe160709fe66. Its26-file increment contains the reviewed canonical UI and timer/component/firmware Stop source plus this decision log as captured before the push. Remote branch readback matches; an independent temporary Git index reconstructed all captured source against actual90 and matched the remote tree. No PR, CI, release, installation or household effect was triggered.
+
+### Active91 current integration boundary
+
+Implemented and independently reviewed source: ordinary idle no-extra-dwell,
+semantic-END no-new-quiet admission, bounded diagnostic retention, same-key passive
+read coalescing, Control/PV readonly v3 with actual-volume/policy separation, passive
+visual archive plus one-pass IO, five HA Native transport/volume commands, HA exact
+track/playlist RoomContent caller, and dependent Native/PV opaque queue resolution.
+Robot backend is exact canonical source; the final canonical UI robot/NEXT91/v3/queue
+payload is now integrated and all203runtimepins independently reverified by PodView.
+Its source/consumer/render review is retained; full backend composition remains open.
+
+PC70 durable cleanup/reconnect and its combined Native/C/manager packet remain under
+causal validation. The queue patch must hunk-merge into the resulting Native source.
+Actual PC13 successful two-successor-page station protocol is missing; mandatory
+Gate0 still blocks station implementation and this requested full release. Seek,
+shuffle/repeat, other advertised Native content/library/source parity, ordinary
+nonvisual answer production and actual provider gates remain explicit work. Final
+same-tree scope binding, official CI/publication, one compatible Green install and
+later authorized physical acceptance have not happened in this phase.
+
+### Current Green read-only observation and PC70 review stop
+
+25October21:32 local: HA browser reloaded once and live service reads resumed; actual add-on info says running2.0.89. Current log still reports Voice PE address discovery unavailable. No stop/restart/key access/provider call or house effect performed. This does not reverify Speakers/Control/component versions.
+
+Independent source review found outputLoop holds the output lock while SwitchingAudioSource.Read holds its source mutex across decoder Read. A proposed post-ACK retire callback may wait behind that Read; cancellation after callback cannot prove progress. Existing retiring check occurs before raw Read, leaving a late-EOF promotion case to examine. Lead holds the proposed worker-phase implementation until the exact blocked-read/EOF ordering is proved and corrected at the existing owner. This is not a new observed Green cause or a runtime patch based on timeout alone.
+
+### Voice PE read-only connection restored
+
+25October21:38:43 local live log confirms Voice PE connected, firmware contract OK on ESPHome2026.6.2 and installed capability marker podvoice_build_113114_livetimeroutput1; firmware confirms hey_chat_hey_jarvis. Ignored stale empty wake-rearm ACK is logged separately and is not a successful correlated rearm proof. No audio, timer, wake action, firmware flash, settings change or provider call was triggered. Installed PodVoice remains2.0.89; candidate91 is not installed.
+
+### PC70 refined release owner — smallest correction authorized
+
+The blocked-read finding exposed an unnecessary premise in the proposed worker-phase solution: manual release retires a captured AppPlayer/registered FIFO writer, not a song. Actual secondary EOF promotion changes no FIFO FD, worker startEpoch, open_generation, App or session. Generic transportOfferCurrent additionally binds Primary/Tracks/QueueRevision/observational generation and therefore can strand same-owner cleanup.
+
+Lead and independent reviewer authorize a release-specific post-consumption owner predicate, retaining exact App/session/intent/alias/process/config/C-route/writer/custody and accepted failure witness. New writer admission passes withNewOutput/queueWriterBusyLocked and is fenced by consumed manualRelease; App replacement joins old.Close. Existing post-durable-C read interruption plus joined captured Close is reused. No new active-read CAS, output-stamp store or retire phase is authorized. Required causal cases: held worker Pause and same-writer track progress complete cleanup; actual replacement App/writer/FD/epoch/route/intent rejects; no replay or Close before durable ACK. Native implementation/review is still pending; this is a decision, not a result.
+
+### MOVE full-FIFO interlock — causal repair authorized
+
+After correcting the inert C fixture to start its genuine playback timer, actual MOVE reached C commit200/gate_closed_reader_ready. One bounded failure stack then proved C stops pb_timer at player_start.inc.c82 while Native File.Write holds its output mutex; MOVE quiesce waits for that same mutex and never emits its barrier. This is a composed software RED, not physical sound evidence. C/Native frozen source GOs retain their local scopes.
+
+Lead authorizes reuse of existing Native controlPending/write-deadline interruption ONLY for authorized MOVE quiesce after C durable ACK. Read-only snapshot/inspect/verify remain noninterfering. Before interruption require current context, worker epoch/phase and immutable captured FIFO/FD; retain exact under-lock fstat/source/owner guards. One existing-style lock waiter retains cleanup ownership if the caller cancels, then clears deadline/pending and broadcasts under the output lock exactly once; no callback, replay, source cancellation or second cleanup platform. A permanently blocked decoder remains UNKNOWN/quarantined, not claimed finite recovery.
+
+Invariants: same captured writer/owner, no foreign output interruption, original C gate/timeline/barrier, UNKNOWN no replay, serialized cancellation. Required causal regression: full FIFO Write RED->GREEN, expired/cancelled admission, cleanup/lost-wake ordering, retained PCM/pause truth, changed writer/epoch negative, unchanged read-only phases; then one actual corrected Native/C MOVE composite. No household effect. Rollback boundary is the separately frozen aa47 Native/24808 C source, never deleting an ambiguous journal. Implementation/review still pending.
+
+### Provider probe preparation — no paid call admitted
+
+The existing actual SDK/Thin semantic probe and fixed Sara fixtures are reusable; current91requires fresh startup bindings. The normal five-case EvalService does not exercise Thin closure, and the existing SDK probe has no prospective dollar cap for server-owned backend delegation. Official model pricing was identified, but counting backend-start events after request initiation is not a prospective bound; the current server-owned schema has no verified input/response/budget limit. Lead stopped a proposed offline-HOLD harness expansion: no new tooling, credentials, pause or paid trial was performed. Before a paid91gate, resolve this exact budget/window boundary using the incumbent probe rather than falsely inherit90 UNKNOWN or a Realtime cost table. This holds the provider claim only; independent source work continues.
+
+### Reviewed Connect source packaged; actual MOVE completed
+
+Root integrated reviewed Nativeaa47ea940c0109d0b8efe765a04e7a924c24bddc604e00fda0a50d8e60385e48 plus final MOVE35ca22c8d97810fd430865f063d73506e10ba962cf593d54d3a0fd34a2b0e1a5 into the existing Speakers Docker patch stack, with exact test patchesfe558/541fab and hash manifests. C24808 plus test33a/timer-fixturea055 are appended after actual53. Independent mechanical packaging GO binds Dockerfilec0c6cd11f9254f982e5d15a9144f2b0f32653bbda63b5d87bdf2dd5bf1de3f2f; no new build/CI/install. New final35ca source GO supersedes withdrawn837: same-owner release cleanup and bounded MOVE quiesce preserve unwritten PCM on switch/resume/abort while original START discard stays.
+
+Actual isolated Native/C run a6bb029f completed genuine MOVE: barrier200 -> route_ready_closed -> open200 -> COMPLETED200. The next failure was the second inert AP2 target fixture missing its advertised encryption capability; strict encrypted-RTP verification stopped before manual release. Lead authorized only that fixture capability correction and the invalidated continuation, no C runtime patch or weakened guard. Whole release/reconnect remains open until continuation passes.
+
+Independent seek work now has an actual registered HA service RED: media_seek(12.345) bypasses Control and writes rawSpotify/me/player/seek. Its smallest typed owner extension must preserve paused START/MOVE custody and later resume; isolated contract design is pending, no shared runtime edit yet.
+
+### Actual MOVE -> manual release software GREEN
+
+Corrected inert target2 encryption discovery now matches its genuine private AP2 session; strict encrypted packet validation remains. Exact Nativea6bb029f/C24808 fixture33a+a055+146d run passes Native0/C0: public MOVE reaches target2 COMPLETED, manual release persists durable gate, joins real captured worker Close, and C independently proves all-writer closure/drain before retired/terminal/contexts_drained true. Same-operation receipt and fresh-writer admission follow. Receipt: /private/tmp/pc70-manual-release-20261025/C-MOVE-COMPOSE-a6bb-GREEN.json. Physical verification remains false.
+
+Root packaged all8patches into the existing build stack; Dockerfile2f95056cabef1d20e9b402b1e09dd77c86a523e7fc1c8cf4b9b8edd317a034b7. Independent clean packaged replay proved all163Native production files plus5changedtests, and scoped16C source pins match reviewed bytes. Separate target2 fixture clean replay matches final ed5d95ccd76477840810ad4e8f16a0fd76ef5e06c4d092a2cd651fc9748c601b. No compile/CI/publication/install or physical effects were started by root packaging. This is scoped Connect software progress, not completion of all50issues or full bundled acceptance.
+
+### Advertised HA seek — isolated typed owner correction authorized
+
+Actual registered HA2026.8.2 media_seek(12.345) produced authenticated rawSpotify PUT and no Control admission in the isolated RED. D2 requires advertised Native parity; a HA-only helper or action-list addition would leave a bypass or break paused START/MOVE custody. Lead authorizes the smallest coordinated extension of existing transport/content owner in an isolated draft: typed position_ms iffseek (including0), duration/finite bounds and digest binding, guarded actual Native seek preserving captured pause/source/writer, C closed action/pause-confirm and retained custody. No new broker or raw fallback.
+
+Chain: registered HA/voice service -> Control current offer/intent -> same Native guarded worker -> existing C custody/confirmation -> observed source. Keep current v3/old UI closed projections compatible; a newly available HA action must not make existing controls DTO fail parsing. Required gates: registered caller through actual owner/worker paused and playing, paused START/MOVE seek then resume, wrong source/expired/duplicate/UNKNOWN/no raw API, actual v3->PV->canonical JS compatibility. New enum/fields must be traced through all wrappers/fixtures before freeze. No physical effects or shared UI edits; root hunk-integrates after independent review.
+
+### Firmware/component delivery identity — metadata change authorized
+
+The local reviewed Stop-join header is not automatically built: external_components still fetches immutable1fec384b. Lead authorizes only the first [podvoice_reply,micro_wake_word] source-group ref to public source checkpointdcb9fabb4ada6046dac225761634a6671a7ca01c, after proving unchanged micro_wake_word bytes. Other mixer/audio refs remain1fec. New live artifact marker113115_livetimeroutput1 and matching VoicePELink LIVE_FIRMWARE_BUILD distinguish corrected firmware from installed113114; base EXPECTED113113 stays unchanged. Changed HA timer component gets patch version0.1.7 rather than silently reusing0.1.6.
+
+This changes delivery identity only; reviewed Stop runtime delta remainsc9ef5592. Required gate: resolved source pins include exact header/mww, focused metadata/firmware contract fixtures and independent review, warm ESPHome2026.6.2 configuration/build, final artifact+provisioning/OTA readback in the coordinated window. No build, flash, key access or household effect is authorized by this metadata step. Voice owner checks whether reboot itself emits audio before any OTA permission/window. Current Green89/firmware113114 remains baseline until actual readback.
+
+### Timer cancellation and firmware Stop — independently reviewed source
+
+HA component cancel-fence patchc554e22a0f6c7c9ab60a559d4c606776936d87729a573d2277121e533bdf2e06 has independent SOURCE GO. Successful Core cancel marks the exact endpoint/timer acknowledged before a delayed same-epoch finished callback can revive it; failed/UNKNOWN cancel remains unchanged. The injected callback ordering reproduced RED then21focused GREEN. Existing externally created Core-timer acknowledgement retention is not globally bounded; no unsafe eviction was introduced. Component activation/version readback remain separate from the add-on image.
+
+Firmware Stop-join patchaec245263d9526c679dcfb47aabd5593352f799b17269500a5a48e055b556a17 has independent SOURCE GO. A physical button press during the same-owner STOPPING retains privacy/context cancellation but joins the existing drain/deadline instead of reissuing Stop/flush and extending it. Five existing C++ harnesses and the reverse-order regression passed. No firmware artifact build, flash or physical proof yet.
+
+PC70 manager8a3fa496b2f21b0a1767339b86dd0b705796ddf32cbe264507fa575cb1fc910f and C24808edae62aa636cd7cc280586307b427228c09dc17cd9f80c7cd93ab7f806b have independent scoped SOURCE GO; combined Native worker/MOVE gates still block freeze. Actual worker Pause during consumed release is a concrete RED: its generic generation invalidation strands post-ACK cleanup. It must be resolved at the existing owner without dropping truthful status or accepting foreign/stale writers.
+
+### Read-only playback v3 and HA transport — reviewed integration increments
+
+PV adapter a252074d0cc4058a4fb691e681bf559459b04d34a8838c364faca8ff6d299be4
+plus root route838a76fc97756bd2eb024357e65d3881ebca9ce531aced0f6fe634fd5b623d3d
+have independent SOURCE GO. Exact source/identity/deadline/grant joins, strict keys,
+actual measured volume separate from policy ceiling and partial-volume failure are
+reviewed;52 new tests (including14 HTTP) and29 v2 neighbors pass. The unchanged
+actual Control DTO was replayed through PV at its capture clock. PodView received
+reviewed DTO/source pins and may now adopt v3 in its isolated canonical UI batch.
+Existing effect matchers remain until correlated Native settlement exists.
+
+HA entity Play/resume, Pause, Next, Previous and Volume now enter the same existing
+Control command owner for verified Native targets, with no generic fallback on a
+Native failure or UNKNOWN and no optimistic accepted=playing inference. Actual
+registered HA pause first reproduced raw-Spotify bypass RED, then GREEN;11 focused
+actual HA cases pass. Independent review GO binds formatted packet
+4763e3a18149c23032f373712ec397d787a943d16a7f21de6a9256b35795de1e and proves formatter
+AST identity to tested functional bytes. Proven non-Native behavior remains; absence
+of configured SpeakersClient means legacy behavior, not transient Native failure.
+Seek/shuffle/repeat/content/library/source selection are explicit remaining ingress
+work; this five-operation result does not claim full HA parity or audible output.
+
+Canonical UI composition is integrated. The reviewed payload includes domain isolation
+for robot-only revocation, which previously invalidated music custody. No Green
+installation or full backend/physical acceptance is inferred.
+
+### Queue reconciliation and history IO — reviewed source results
+
+Dependent Native queue producer70700d7f5256bc7eb9aefb38986c9ee0d456126060bbd096e3267b35c52b8955
+and PV QueueBroker5340258c8955721b7f730828cdf8dbd5b2ae2fe13f095391a004f5ceb272f326
+received independent SOURCE GO. Exact bound List/owner/writer/revision/order proves
+stable presentation row IDs; fresh observation/expiry/proof are always minted.
+QueueBroker retains at most64 read-only shown references, consumes/custodies before
+first await, resolves exact opaque ID/revision against fresh same-owner read, then
+uses existing private preparation/commit. No URI/index remapping becomes authority.
+Native race/vet, PV63focused+1HTTP pass; authenticated Native/C composition remains
+unproven. PodView may now retain shown envelope and remove click-time URI/index
+remap after canonical consumer tests. Native source must hunk-merge with PC70's
+independent room_queue.go writer-current change; never copy the whole older file.
+
+F16 separate single-pass optimizationf7a0f29156eef586c660dcb504c649b7adf81ddec621369acd6dd25b360fec15
+has independent SOURCE GO over reviewed a021 baseline. One storage capture/decode
+per save/remove and one all-room synchronization capture replace repeated scans;
+atomic rewrite/fsync, locks, original IDs, privacy clear/revoke and failure latch stay.
+42 affected units+2 actual SDK/restart/HTTP/JS cases are retained; reviewer5 targeted
+cases pass. Paired synthetic local Mac medians:4MB20.449->9.513ms,64MB200.189->124.190ms.
+This is not Green latency proof; synchronous full legacy-file rewrite cost remains.
+
+### Queue reconciliation — pre-change owner decision
+
+Actual Native53 allocates a new random observation ID and random row occurrence IDs
+on each read; Control forwards them and replaces its old observation. Its internal
+UIDs can duplicate, and List revisions restart at zero, so neither URI order, UID
+nor numerical revision alone proves cross-read occurrence identity. Existing UI
+ordered-URI remapping must not become backend effect authority.
+
+Approved smallest producer increment: in bound observeRoomQueue only, after fresh
+writer and strong-current checks, preserve prior row IDs only for the exact retained
+State/List/player/session/primary/generation pointers, alias, full Native bound owner,
+writer, session/connection/account/room and identical queue revision and ordered
+position/URI/queued/count/truncation. Reuse the existing single offer, no new broker,
+map or provider-ID assumption. ALWAYS mint fresh observation ID, expiry and bound
+writer proof; old expiration is not renewed command authority. New List even with
+same revision/duplicate URIs, source/writer/owner change or consumed nil offer mints
+new IDs; stale old click fails instead of guessing.
+
+Then existing QueueBroker may fresh-read and resolve the shown opaque row ID/revision
+before fresh prepare, only while exact caller/room/route/source stay current. UI
+URI/index matcher removal waits for reviewed producer->Control->PV->canonical JS
+proof. Owner fault_diagnostics87 uses isolated exact53 Native draft and PV91 queue
+files only; PC70 owner files and frozen proof sources remain untouched. Planned
+RED/GREEN: repeated unchanged read fresh observation/stable row ID, new List same
+revision+duplicates, reordered/queued/source/writer, consumed offer, stale click and
+actual fresh private prepare. No provider, audio or household effect is authorized.
+
+### Semantic END — independent SOURCE GO, provider gate open
+
+Semantic-only patch15ef52b4718dc2445deccf63dfc683fc29626e59e7e7833473e1e49e887e782d
+is reviewed independently GO. Relative to reviewed idle baseline440ecb7f, the only
+executable Thin change is native/no-judge post-settlement predicate quiet_ready ->
+quiet_work_clear. The accepted current END no longer earns a fresh4s quiet window.
+Receipt/backend settlement, known work/audio locks, immediate final revalidation,
+actual provider closed, exact playback drain and rearm remain. Causal2RED->2GREEN,
+close33/END19/adapter5 and actual SDK Native10-cycle results are retained.
+Actual provider preservation of spoken completion/newly accepted input across this
+close boundary remains an OPEN release gate; source GO is not provider/physical GO.
+
+### F16 visual snapshot persistence — independent SOURCE GO
+
+Exact five-file patcha0213b6e0a43b50f83b727a38bb12c1e5850954e40317ca30f021d7ba760750a
+received independent adversarial SOURCE GO with no unresolved P1/P2. Original90
+restart loss reproduced, then actual SDK/Thin admission -> disk -> new owner ->
+authorized HTTP history -> shipped JS passed.73 affected units and64 integrations
+are retained; only2 invalidated failure/clear cases were repeated. Reviewer ran6
+additional targeted cases, verified all owned base/current pins and root startup/
+clear hooks; later v3 route delta is separately bound, not silently included in GO.
+
+Strict passive display rows retain original receipt ID/time/provenance, with20/room,
+12rooms,64KiB/item and4MiB visual subset limits. Restore creates no executable receipt,
+source registry, allowed action or lease. Successful clear/revoke fence late refinement;
+IO failure is latched not_saved and cannot reimport privacy-cleared rows. Legacy
+readers remain compatible. Synchronous whole-history scan/rewrite/fsync latency is
+unmeasured; the4MiB bound applies to visual rows, not every legacy file byte.
+Ordinary nonvisual completed-answer production/input identity remains OPEN. This
+is source/inert integration evidence, not publication/installation/provider/physical GO.
+
+### Active91 robot integration boundary — pre-change decision
+
+Root integrates the previously user-ordered canonical robot service packet from
+PodView integration/robot-complete-20261025/candidate.patch, rebasing its exact87
+baseline onto exact90 without replacing routers or client bundles wholesale.
+The patch applies cleanly in a read-only check. It adds explicit dock/settings
+adapters to the existing vacuum owner and leaves the existing dispatch/policy/
+cleaning journal owners in charge; no new grant is activated or robot effect run.
+Falsifiable hypothesis: exact staged service bytes and unchanged neighboring
+owner files compose on90; focused robot/control contracts must prove identities,
+roles, current grant and unknown/failure handling. Inventory identity and final
+canonical client integration remain separate release gates. No cleaning, washing,
+emptying, drying or physical readiness is inferred from source integration.
+Rollback is the uninstalled draft patch; no Green configuration is changed.
+
+Integration result: all10 staged changed/neighbor source hashes exactly match the
+canonical reviewed packet after application to90. Six-file lint and format pass.
+The two affected robot/control fixture modules ran; localhost socket restrictions
+invalidated16 route cases, so only those16 were repeated outside the socket sandbox
+and passed. No runtime patch was made for the environment failure. Private receipt
+/private/tmp/pv91-robot-integration-receipt-20261025.json. Canonical UI merge, actual
+HA identity inventory, final combined review/CI and delivery remain pending.
+
+### Active91 scoped source results — delivery still pending
+
+F19 diagnostic retention is implemented and independently SOURCE-reviewed GO:
+positive routine-first bounded eviction retains failures/UNKNOWN/terminal rows
+preferentially while preserving incoming durable-ACK, dedupe and sequence-gap rules.
+Exact production SHA0c84056c1f3cd441bf0f4d0655d723a5a7fdbd4c6c8426d3f9f06a3cda1eb02b;
+packet /private/tmp/pv91-diagnostic-retention-packet-20261025, owned patch
+3cd493709fdf93c19e69effc4512f84b497efd21b9e4f8a7c3bde43ea80c36c2.
+Focused86 collector+17route cases and static checks pass; bounded retention is not
+permanent retention and cannot restore previously evicted observations.
+
+Ordinary idle close removes only the additional2s after the current native LEDACK;
+the original4squiet, technical ACK timeout, ownership checks, real drain and rearm
+remain. Six-file composed source packet is independently reviewed GO, including
+actual Native/Talk ten-cycle fixtures adapted to hold the real pendingACK boundary.
+Runtime patch5a49d1bd7271f7653846427763ec944bc435fb71e64c0261986b16e1708b31c7;
+fixture patchd8c5aa786be3097e8d4524a7f760a21f1973128dd27678e51906040aa38ee231.
+SemanticEND still has its separate original close path and is NOT fixed by this change.
+No provider or physical close/LED proof is claimed.
+
+Shared home/targets read coalescing has lead independent SOURCE GO on the frozen
+packet6711bc54771d36f4498c3e60cadf79fe0aff11efa9965dc38a8010bb8b4185f1.
+Same boot/source/key followers join one read, shield owner cancellation, then
+revalidate their own authority and unchanged source/cache expiry. Home lights remain
+per-controller projections; owner failure/cancellation completes followers false.
+48 focused cases plus the controller/area refinement and static checks pass.
+The later two-line F16 History-binding hook in the shared file is a separate delta
+requiring the F16 composed review; this GO does not approve that additional hook.
+
+Control24 playback.v3 read-only source is independently reviewed GO on packet
+44fce2add49f0051a6c2c4a0cb5c36b6eea2542a33c1af9aa943cfa88da81be4,
+with29 focused actual HA cases retained. Original5s/source expiry, current owner,
+actual action intersection and base/effective volume are preserved; v1/v2 unchanged.
+Observed capabilities are not executable grants. Settlement remains pending/rejected/
+superseded/unknown with no fabricated confirmation; Native effect echo, PV adapter,
+HA ingress convergence and canonical UI adoption remain unfinished.
+
+PodView has received the frozen Control DTO and explicit instruction to retain its
+proof loops until correlated service settlement exists. F16 snapshot persistence,
+PC70 durable release and their composed reviews remain in progress. PC13 Gate0
+found no actual successful two-page station trace in existing artifacts; the missing
+provider protocol evidence remains a real blocker, not a guessed fallback fix.
+Nothing in this result entry is public-image, Green-installation or physical GO.
+
 ## Diagnostic-only90 source freeze — scoped software gates complete
 
 Independent SOURCE+PREBIND GO verifies exact19effective paths:5production,
@@ -5113,3 +6409,18 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "rationale": "Diagnostic-only PodView90 exact-tree review; F17 semantic prompt excluded and provider close remains unaccepted."
 }
 -->
+
+
+### 2026-10-26 — PR255 official-CI fixture alignment, same runtime
+
+Lead: root. PR255 head3923474317d11d09fc1158be8f4537e224919731 passed scope, HA-framework and add-on build. Unit6, remaining2 and packaged UI stopped on stale test contracts. Runtime/protocol/firmware/UI bytes are unchanged by the following repairs. Robot busy settings assert the exact eight actual setting keys/labels/actions, preserving no fake map/start and no writes (68 module PASS). Queue fixtures now supply fresh per-read observations and reach the actual staging/commit boundary, preserve shown reference/source/deadline, fresh one-use authority, UNKNOWN custody, expiry and no second commit (102 affected/neighbor PASS). No production deadline change was warranted: retained-view fresh admission is an existing explicit contract.
+
+PodView owner supplied canonical matching fixture deltas and the approved registry026b04e7; root preserved root-only history/visibility sentinels after parent adversarial coverage review. Native/music21-file patch6f34149e has separate reviewer GO. Registry changes add three registered owners without losing root-only modules or catalog entries. One combined packaged-node run retained4345 PASS; six environment failures arose only from four sandbox loopback denials and two missing-esbuild module imports. Reused the existing PodView dependency directory and reran only those three invalidated modules:44/44 PASS. Original log remains /private/tmp/pv91-packaged-ui-fixtures-combined.log and focused environment recheck /private/tmp/pv91-packaged-ui-environment-recheck.log. No household/provider calls, runtime tuning or wider local release rerun. Final official CI remains required on the updated exact candidate.
+
+Green passive readback: PodVoice2.0.90 running. Coordinated encrypted backupfecd8830 completed26Oct15:17 local,77.84MB, includes Home Assistant settings/history, PodVoice2.0.90, Speakers0.26.53 and other installed apps; default UI name Custom backup2026.8.2. Control0.10.24 downloaded through existing HACS and verified in actual disk manifest, but Core restart/loading is PENDING. PodVoice HA component disk manifest is0.1.5 (prior0.1.6 assumption superseded); whole10-file0.1.7 replacement and one coordinated Core restart remain pending. Active timers/alerts must be quiescent before Core restart. No new credential/access, sound, alarm or robot operation. PV91, Speakers54, firmware115 and final Sites/library installation/publication remain pending.
+
+
+PR255 second checkpoint3726b6c8 passed official UI/browser, add-on build, HA framework, all unit shards and remaining1. Remaining2 reached a stale silent-close race barrier: it patched _finish_live_conversation although accepted silent END now intentionally enters _finalize_live_conversation directly. Test-only barrier now wraps the actual finalizer, asserts model-close-silent and exact current receipt, preserving cancellation/raw-input/provider-close/rearm assertions and original waits. All seven affected/neighbor modules PASS; wrapper scan found no other stale silent owner. Runtime/UI unchanged. Speakers0.26.54 installation completed and Supervisor Kører verified26Oct15:41 local. Control24 remains on disk awaiting coordinated Core restart; PV91/HA0.1.7/FW115 and Sites remain pending.
+
+
+PR255 checkpoint2fd37560 remaining2 passed1423 outcomes before native ten-cycle fixture failed: it supplied no post-settlement native reports despite receiving native_context. Fixture-only correction waits for actual backend_settled output-window reset, feeds existing current native observations and maintains real arrivals until heartbeat consumes permission; no product timeout/window/runtime change. Full six-case ten-cycle module passed native10/Talk10 and cleanup cases; four remaining shard modules after it passed53/53 without repeating earlier valid checks. Reviewer close_example_hypothesis GO binds manifestc830582c. Green live read-only podvoice.timer_status(endpoint=r0) returned ok=true with timers=[],finished=[],recent=[] and real Voice PE device binding; admin reports no open conversation. No alarm/music/robot effects.

@@ -132,6 +132,8 @@ async def test_controller_transition_after_queue_send_is_unknown_and_never_repla
     read = bridge.controls.music._read
 
     async def delayed(*args):
+        if args[2] == "get_room_queue_controls":
+            return await queue_service_reply(*args)
         if args[2] == "prepare_room_queue":
             return staged(args[-1])
         assert args[2] == "control_room_queue"
@@ -149,12 +151,12 @@ async def test_controller_transition_after_queue_send_is_unknown_and_never_repla
         result = await running
         assert result["outcome"] == "unknown"
         assert result["physicalResultVerified"] is False
-        assert read.await_count == 3  # Read, detached stage, already-sent commit.
+        assert read.await_count == 4  # Offer read, fresh read, stage, already-sent commit.
         assert not bridge.controls.busy
         for token in [grant, fresh] if fresh else [grant]:
             for candidate in [command, command | {"requestId": "different"}]:
                 assert (await bridge.queue.action(candidate, token))["outcome"] == "rejected"
-        assert read.await_count == 3
+        assert read.await_count == 4
     finally:
         release.set()
         await asyncio.gather(running, return_exceptions=True)

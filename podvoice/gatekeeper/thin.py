@@ -355,8 +355,10 @@ LIVE_END_CONVERSATION_DECLARATION = {
     .replace(
         "When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech.",
         "A request to stop assistant speech means be quiet and keep listening in the same "
-        "conversation; do not call this tool for that request. Use silent=true only for "
-        "an explicit request to end the session without speech.",
+        "conversation; do not call this tool for that request. For a pure explicit "
+        "ending with no outstanding useful answer, action receipt or error, choose "
+        "silent=true and produce no speech; a spoken farewell is optional. Never "
+        "choose silent=true while a useful answer, action receipt or error is owed.",
     )
     + " Music controls, including pause and stop, keep the conversation open after the "
     "truthful result unless the user also explicitly asks to end the conversation.",
@@ -3388,11 +3390,9 @@ class ThinSession:
                     return
                 lease.watchdog = self._spawn(self._start_live_playback(lease), "live-playback")
         elif isinstance(ev, LiveTranscript):
-            if ev.direction == "in":
-                if not ev.text.strip():
-                    return  # Empty provider fragments are not fresh authorizing input.
-                if self._live_rotating:
-                    return  # Capture transition input cannot authorize the fresh phase.
+            if ev.direction == "in" and (not ev.text or self._live_rotating):
+                return  # Capture transition input cannot authorize or enter fresh history.
+            if ev.direction == "in" and ev.text.strip():
                 self._retire_talk_text_observation()
                 self._retire_live_review()
                 self._live_input_revision += 1
@@ -4918,10 +4918,11 @@ class ThinSession:
         input_currency: tuple,
         quiet_serial: int,
     ) -> None:
-        """Give the open Live session two seconds after the native LED TX ACK.
+        """Close after admitted native quiet and its actual LED TX ACK.
 
         This is transport inactivity only. It does not classify room speech or
         invent a model decision; the existing finalizer retains provider/drain ownership.
+        The ACK budget bounds a device fault, not another followup window.
         """
         task = asyncio.current_task()
         native_started = False
@@ -5011,9 +5012,9 @@ class ThinSession:
                 or not 0 <= boundary["tx_us"] < 2**32
             ):
                 raise RuntimeError("native_closing_led_ack_invalid")
-            self._live_idle_preclose_deadline = (
-                asyncio.get_running_loop().time() + LIVE_IDLE_PRECLOSE_S
-            )
+            # Four seconds of native quiet already admitted this owner. Record
+            # the actual ACK boundary without adding another timed quiet period.
+            self._live_idle_preclose_deadline = asyncio.get_running_loop().time()
             self._trace_event(
                 "live_idle_preclose_visible",
                 token=token,
@@ -5140,9 +5141,14 @@ class ThinSession:
                 self._ending_conversation = False
                 return  # Further backend tools remain owned by ordinary dispatch.
             self._trace_event("live_terminal_backend_settled", provider_generation=generation)
-            # Silent means no new farewell, not permission to discard existing
-            # output. Both semantic variants retain the same quiet/drain owner.
-            await self._finish_live_conversation(epoch, receipt)
+            if silent:
+                # Backend explicitly chose no further useful spoken output. Still
+                # receive late PCM until session.closed and drain the exact tail.
+                await self._finalize_live_conversation(
+                    epoch, reason="model-close-silent", receipt=receipt
+                )
+            else:
+                await self._finish_live_conversation(epoch, receipt)
         except asyncio.CancelledError:
             receipt.cancel()
             raise
@@ -5157,9 +5163,9 @@ class ThinSession:
     ) -> None:
         """Semantic END settles backend work, then drains the provider and speaker.
 
-        Native END starts a fresh bounded output/work quiet period after backend
-        settlement. It does not prove that future primary speech cannot arrive.
-        Keep receiving until session.closed, then await the exact physical tail.
+        Native END requires fresh native output quiet after backend settlement,
+        without opening another followup window. This is not primary speech completion:
+        keep receiving until session.closed, then await the exact physical tail.
         """
         if self._live_close_judge is not None:
             await self._run_live_closing_attempt(epoch, receipt=receipt)
@@ -5172,8 +5178,9 @@ class ThinSession:
             brain = self.brain
             generation = brain._connection_generation
             deadline = time.monotonic() + self.idle_timeout_s + brain.timeout_s
-            # Earlier native silence belonged to an unfinished backend. Only new
-            # observations may admit this settled owner's provider-close edge.
+            # Pre-settlement quiet cannot admit close before Live can react to
+            # the final backend result. Reuse the existing output-only window;
+            # this grants no followup and does not prove primary completion.
             self._live_end_window.reset("backend_settled")
             while True:
                 if (

@@ -666,7 +666,9 @@
     "dist/control-model.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ha-home-observation.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -835,7 +837,8 @@
         "dist/media-observation.js",
         "dist/robot-control-panel.js",
         "dist/ui/kit.js",
-        "dist/ha-home-observation.js"
+        "dist/ha-home-observation.js",
+        "dist/robot-observation.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -871,11 +874,28 @@
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
           "method:send": 1,
-          "arrow:current": 1,
+          "arrow:current": 2,
           "method:currentVolumeOffer": 1,
           "method:prepareVolume": 1,
           "method:beginMusicIntent": 1,
-          "method:endMusicIntent": 1
+          "method:endMusicIntent": 1,
+          "method:controlOpen": 1,
+          "method:mountRobotInline": 1,
+          "method:prepareRobotOverview": 1,
+          "method:refreshRobotOverview": 1,
+          "method:robotControlContext": 1,
+          "method:robotControlCurrent": 1,
+          "method:robotOverviewAction": 1,
+          "method:robotOverviewContext": 1,
+          "method:robotOverviewCurrent": 1,
+          "method:robotOverviewIntent": 1,
+          "method:musicReadonlyControls": 1,
+          "method:musicSettlementReceipt": 1,
+          "method:observeMusicSettlement": 1,
+          "arrow:receiptCurrent": 2,
+          "method:lightActionContext": 1,
+          "method:lightTaskCurrent": 1,
+          "method:lightActionFeedbackCurrent": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -895,7 +915,7 @@
         ],
         "dom": true
       },
-      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added. Reviewed44 renewal helpers only: explicit refresh reuses the registered pv-button pv-ghost anatomy; fresh task still requires server admission, no automatic effects or new family. Reviewed scoped HA lights: openLight joins the existing native control Dialog/Button/Slider forms to a current closed HA-area observation; exact scope, source epoch, entity membership, transport, boot/room and conversation ownership must still match the fresh opaque task before a single explicit send. No new family or observation-derived command authority.",
+      "compositionScope": "D02 migrated: admitted native control forms compose shared pv-component/pv-content/pv-actions/pv-button recipes; canonical robot renderer remains delegated. No independent visual family or additional authority. Reviewed owner-boundary repair: invalidateMusic is a nonvisual state helper in the existing control owner; music observation expiry cannot revoke an unrelated vacuum task. No DOM roots, renderer family or authority added. Reviewed44 renewal helpers only: explicit refresh reuses the registered pv-button pv-ghost anatomy; fresh task still requires server admission, no automatic effects or new family. Reviewed scoped HA lights: openLight joins the existing native control Dialog/Button/Slider forms to a current closed HA-area observation; exact scope, source epoch, entity membership, transport, boot/room and conversation ownership must still match the fresh opaque task before a single explicit send. No new family or observation-derived command authority. D2 extends this existing owner with a DOM-free readonly music capability/measurement helper. It consumes closed service controls plus caller policy, skips presentation-only executable preparations on v3, and keeps per-intent fresh server task admission. Canonical control zones and UNKNOWN/no-replay remain; Robot-only invalidation preserves a concurrent music owner. No new roots, family or command authority.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes",
       "reviewedRobotDetailComposition": {
         "date": "2026-10-20",
@@ -905,7 +925,10 @@
       "reviewedUI24MusicMeasurement": {
         "scope": "musicVolumeMeasurement retains only a previously admitted setup volume for exact boot/room/provider/account/owner epoch/actual native binding and transport. Display custody survives offer expiry without creating an option or extending a grant; selected pending, idle, unbound or revoked identity clears it. roomObservationBound is imported through the already registered media-observation edge. No DOM roots or family added."
       },
-      "reviewedField87Source": "Same controls and native tasks: expired unused offer read-renewal within original freshness; independent volume-only offer through existing setup endpoint, separate volume blocked/measurement custody. No task borrowing, TTL extension or UNKNOWN replay."
+      "reviewedField87Source": "Same controls and native tasks: expired unused offer read-renewal within original freshness; independent volume-only offer through existing setup endpoint, separate volume blocked/measurement custody. No task borrowing, TTL extension or UNKNOWN replay.",
+      "reviewedUI26MoveReceipt": {
+        "scope": "The second nested receiptCurrent guard belongs to the existing moveSpeaker async path: after one sent MOVE it fences readonly receipt custody across only the exact originally selected destination transition. It creates no DOM, grants, effect retries, store or component family. Runtime setup/send freshness remains separate; final evidence is recorded in the delivery."
+      }
     },
     "dist/live-home-view.js": {
       "status": "approved-composition",
@@ -965,7 +988,7 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:$": 1,
-          "arrow:current": 2,
+          "arrow:current": 1,
           "class:LiveMediaView": 1,
           "method:constructor": 1,
           "method:invalidate": 1,
@@ -978,13 +1001,8 @@
           "method:clearRoom": 1,
           "method:canChooseAccount": 1,
           "method:focusAccountChoice": 1,
-          "method:captureAcceptedPlayRefresh": 1,
           "arrow:owner": 1,
-          "arrow:matched": 1,
-          "arrow:read": 1,
-          "arrow:readKey": 1,
-          "arrow:reconcile": 1,
-          "arrow:scope": 1
+          "arrow:readKey": 1
         },
         "roots": [],
         "registrations": {},
@@ -1004,6 +1022,9 @@
       },
       "reviewedUI24AcceptedObservation": {
         "scope": "Supersedes the earlier one-read implementation: captureAcceptedPlayRefresh uses nested scope/current/matched/reconcile/read helpers for at most eight seconds of passive accepted-only observation. readKey and exact active-read custody serialize the same owner while a replacement account/provider/transport may read immediately; old completion cannot clear new pending state. Matching uses original observation freshness and captured actual native destination, never a refreshed catalogue grant. UNKNOWN receipt presentation reuses LiveMusicSelectionView.destinationObserved and never changes its outcome. No action retry, TTL extension, imports, DOM roots or family added."
+      },
+      "reviewedUI25SourceSettlement": {
+        "scope": "Canonical source-settlement increment retires captureAcceptedPlayRefresh and its action-specific matcher/timers. Existing refresh/readKey carries one exact accepted request selector from current control receipts or selection feedback; actual playback remains service owned. Earlier UI22/UI24 descriptions above are historical. No DOM roots, imports or family added; review evidence is recorded separately before delivery."
       }
     },
     "dist/live-music-selection-view.js": {
@@ -1052,7 +1073,8 @@
           "method:setup": 1,
           "method:showTargets": 1,
           "method:showTracks": 1,
-          "method:targetReadScope": 1
+          "method:targetReadScope": 1,
+          "method:settlementReceipt": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1077,6 +1099,9 @@
       },
       "reviewedUI24NativeComparison": {
         "scope": "destinationObserved compares a captured account/native-room/homepod witness against current playbackBinding through the existing media-observation import edge. Both configured default and explicit NEXT may supply comparison metadata; neither supplies an effect grant. The existing player shows selected pending metadata immediately, then releases it on matched or finite unconfirmed completion. No new renderer, DOM roots, network action or family."
+      },
+      "reviewedUI25SourceSettlement": {
+        "scope": "settlementReceipt is a readonly accessor on existing feedback/resultTicket custody. observePlayback consumes only the same captured selector and exact destination tuple; ordinary URI/state matching cannot confirm a selected START. No new store, renderer, polling loop or component family; actual review evidence remains a separate delivery gate."
       }
     },
     "dist/live-music-view.js": {
@@ -1161,7 +1186,8 @@
         "registrations": {},
         "customTags": [],
         "dom": false
-      }
+      },
+      "compositionScope": "D2 reviewed service-owned queue occurrence resolution. Same DOM-free existing owner and Player rows. Retained presentation keeps the original shown task envelope/opaque occurrence ID and exact transport/scope. A click submits that occurrence once to QueueBroker; server owns fresh Native read and exact identity resolution. No client URI/index remap, local TTL renewal, replay or new authority/family."
     },
     "dist/media-observation.js": {
       "status": "active-support",
@@ -1187,14 +1213,16 @@
           "function:roomObservationBound": 1,
           "function:roomObservationCurrent": 1,
           "function:roomObservationDisplay": 1,
-          "function:roomPlaybackObservation": 1
+          "function:roomPlaybackObservation": 1,
+          "function:roomPlaybackV3": 1,
+          "arrow:actions": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
       },
-      "compositionScope": "Reviewed DOM-free media observation validators and display-custody predicates. Explicit account_observed server envelopes admit only fresh configured-account/target metadata as readOnly:true, roomBound:false. Exact closed DTO, owner, poll/freshness and binding checks remain; roomObservationBound/current still require separate room proof. No DOM, queue/seek/control grants, room inference or new family."
+      "compositionScope": "Reviewed DOM-free media observation validators and display-custody predicates. Explicit account_observed server envelopes admit only fresh configured-account/target metadata as readOnly:true, roomBound:false. Exact closed DTO, owner, poll/freshness and binding checks remain; roomObservationBound/current still require separate room proof. No DOM, queue/seek/control grants, room inference or new family. D2 reviewed readonly v3 extension: closed controls and caller-policy fields, original actual-binding/source deadlines and cloned base/effective measurements. Same DOM-free owner and v2-compatible predicates; no executable task, authority or new family."
     },
     "dist/music-fixture.js": {
       "status": "active-support",
@@ -1474,7 +1502,8 @@
         "dist/vehicle-model.js",
         "dist/ha-home-observation.js",
         "dist/widget-model.js",
-        "dist/weather-view.js"
+        "dist/weather-view.js",
+        "dist/home-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1589,7 +1618,7 @@
           "arrow:dirty": 1,
           "arrow:make": 1,
           "arrow:selectedAreas": 1,
-          "arrow:update": 1,
+          "arrow:update": 2,
           "arrow:valid": 1,
           "class:RobotControlPanel": 1,
           "function:robotControlGroups": 1,
@@ -1604,7 +1633,28 @@
           "method:syncDisabled": 1,
           "method:updateObservation": 1,
           "method:validHistoryDraft": 1,
-          "method:validSuggestion": 1
+          "method:validSuggestion": 1,
+          "method:confirmAction": 1,
+          "method:updateSettingValues": 1,
+          "arrow:activeJob": 1,
+          "arrow:buttonFor": 1,
+          "arrow:compactSetting": 1,
+          "arrow:frequentSetting": 1,
+          "arrow:settingConcept": 1,
+          "arrow:settingCurrent": 1,
+          "method:buildDock": 1,
+          "method:cleaningSummary": 1,
+          "arrow:choiceLabel": 1,
+          "arrow:cleaningMode": 1,
+          "arrow:irrelevantSetting": 1,
+          "arrow:settingLabel": 1,
+          "arrow:settingOrder": 1,
+          "method:disconnectedCallback": 1,
+          "method:decorateLevel": 1,
+          "method:buildMapSelector": 1,
+          "method:compactRepeat": 1,
+          "arrow:paint": 1,
+          "method:updateCurrentRooms": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1626,7 +1676,32 @@
           "factory:section:'device-history robot-cleaning-zone'",
           "factory:section:'device-history'",
           "factory:section:'robot-care-group'",
-          "factory:div:'robot-care-row'"
+          "factory:div:'robot-care-row'",
+          "factory:button:'pv-button pv-primary'",
+          "factory:button:'pv-button'",
+          "factory:details:'settings robot-advanced-settings'",
+          "factory:div:'pv-actions'",
+          "factory:section:'device-history settings robot-current-settings'",
+          "factory:dialog:'robot-action-confirm'",
+          "factory:details:'settings robot-cleaning-options'",
+          "factory:details:'device-history settings robot-dock-controls'",
+          "factory:details:'device-history settings robot-more-controls'",
+          "factory:details:'device-history settings robot-next-draft'",
+          "factory:details:'robot-app-guidance'",
+          "factory:details:'robot-error-code'",
+          "factory:div:'pv-segmented'",
+          "factory:section:'robot-app-guidance-row'",
+          "factory:section:'robot-recipe-summary'",
+          "factory:section:'robot-recovery'",
+          "factory:section:'robot-recovery-row'",
+          "factory:section:'settings robot-cleaning-options'",
+          "factory:section:'robot-repeat-status'",
+          "factory:section:'setting robot-setting-readonly'",
+          "factory:header:'robot-current-heading'",
+          "factory:div:'robot-current-controls'",
+          "factory:section:'robot-settings-zone'",
+          "factory:section:'robot-current-rooms'",
+          "factory:ul:'choices pv-tiles robot-current-room-list'"
         ],
         "registrations": {
           "'pv-robot-control-panel'": 1
@@ -1636,7 +1711,7 @@
         ],
         "dom": true
       },
-      "compositionScope": "D06 original presentation debt closed after source/test review: canonical pv-vacuum-widget owns observation; admitted native form/fieldset/legend controls use shared light-DOM pv-component/pv-button recipes and token stylesheet. No shadow root/style, duplicate robot instrument or additional authority. 19 October direct user correction: the existing read-only care disclosure and three semantic group/list identities move from LiveHomeView history to this same admitted robot-control dialog; existing observed facts only, no new controls/family/authority. 21 October direct user Robot-detail correction: status owns the existing Hero; exact offered commands and one form-associated Start Button share its action row. Existing room Tiles and repeat Chips retain draft/option IDs; observed care dt/dd pairs bind the registered read-only ListRow recipe. The local adapter uses the same component with visible Eksempel metadata and example-only state transitions, never HA transport or authority. No new family.",
+      "compositionScope": "D06 original presentation debt closed after source/test review: canonical pv-vacuum-widget owns observation; admitted native form/fieldset/legend controls use shared light-DOM pv-component/pv-button recipes and token stylesheet. No shadow root/style, duplicate robot instrument or additional authority. 19 October direct user correction: the existing read-only care disclosure and three semantic group/list identities move from LiveHomeView history to this same admitted robot-control dialog; existing observed facts only, no new controls/family/authority. 21 October direct user Robot-detail correction: status owns the existing Hero; exact offered commands and one form-associated Start Button share its action row. Existing room Tiles and repeat Chips retain draft/option IDs; observed care dt/dd pairs bind the registered read-only ListRow recipe. The local adapter uses the same component with visible Eksempel metadata and example-only state transitions, never HA transport or authority. No new family. 25 October approved Frameo study implemented in this same owner: compact Hero, automatic validated recent-room draft, direct offered frequent settings, inline consequential confirmation using existing ListRow/Button; no new family or dock-command authority. Complete Robot extension25October: same existing Hero/Tile/Chip/ListRow/Button/Toggle compositions. Source-bound dock actions, nested intent-only Start settings, Danish read-only recovery, separate next-run local draft, explicit app guidance; no new family. Specification docs/research/robot-20261025/complete/SOLUTION.md. Bound offers alone own effects.",
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
     },
     "dist/robot-observation.js": {
@@ -1652,7 +1727,8 @@
           "function:robotFacts": 1,
           "function:robotObservation": 1,
           "function:robotRoom": 1,
-          "function:robotValue": 1
+          "function:robotValue": 1,
+          "function:robotActivity": 1
         },
         "roots": [],
         "registrations": {},
@@ -2196,7 +2272,14 @@
           "arrow:make": 1,
           "class:VehicleView": 1,
           "method:cleanup": 1,
-          "method:renderControls": 1
+          "method:renderControls": 1,
+          "arrow:confirmAction": 1,
+          "arrow:defrost": 1,
+          "method:dismissConfirmation": 1,
+          "arrow:apply": 1,
+          "arrow:finish": 1,
+          "method:hasDraft": 1,
+          "method:sendAction": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
@@ -2212,7 +2295,12 @@
           "factory:header:'response-heading pv-topbar'",
           "factory:section:'device-history vehicle-history pv-history'",
           "factory:section:'vehicle-secondary pv-controls'",
-          "factory:section:'vehicle-temperature-controls vehicle-control-tile pv-tile'"
+          "factory:section:'vehicle-temperature-controls vehicle-control-tile pv-tile'",
+          "factory:button:'pv-primary'",
+          "factory:button:'text-control pv-button pv-primary'",
+          "factory:dialog:'vehicle-confirmation'",
+          "factory:div:'vehicle-climate-actions'",
+          "factory:div:'vehicle-settings-actions'"
         ],
         "registrations": {},
         "customTags": [
@@ -2465,7 +2553,11 @@
         "dist/ui/pressed-state.js",
         "dist/ui/kit.js",
         "dist/ui/notification-queue.js",
-        "dist/ha-home-observation.js"
+        "dist/ha-home-observation.js",
+        "dist/robot-observation.js",
+        "dist/light-lamp-view.js",
+        "dist/light-room-view.js",
+        "dist/vehicle-preview-command.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2541,7 +2633,8 @@
           "method:scheduleTick": 1,
           "method:sendLiveTimer": 1,
           "method:suspendLiveTimer": 1,
-          "method:syncLightArea": 1
+          "method:syncLightArea": 1,
+          "method:renderLightScenes": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2555,7 +2648,10 @@
           "native:div:light-scenes",
           "native:div:resource-card",
           "native:button:light-control-open",
-          "native:button:light-control-refresh"
+          "native:button:light-control-refresh",
+          "native:div:light-brightness light-lamp-row",
+          "native:div:light-scene-choices",
+          "native:section:light-scenes"
         ],
         "registrations": {
           "'pv-widget-host'": 1
@@ -2655,7 +2751,11 @@
           "method:ensurePanel": 1,
           "method:openRobot": 1,
           "method:render": 1,
-          "method:seed": 1
+          "method:seed": 1,
+          "arrow:activity": 1,
+          "arrow:dockOption": 1,
+          "method:recipeSettings": 1,
+          "method:currentSetup": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
@@ -2835,19 +2935,44 @@
           "arrow:paintSliderInput": 1,
           "arrow:recipe": 1,
           "function:applyKitComponent": 1,
+          "function:applyKitTextRole": 1,
           "function:applyKitDialog": 1,
           "function:applyKitTemplate": 1,
           "function:createKitComponent": 1,
           "function:createKitDialog": 1,
           "function:createKitTemplate": 1,
-          "function:syncKitSlider": 1
+          "function:syncKitSlider": 1,
+          "function:createKitDisclosure": 1,
+          "function:createKitChoiceGroup": 1,
+          "arrow:setExpanded": 1,
+          "arrow:setDescription": 1,
+          "arrow:setValue": 1,
+          "arrow:setDisabled": 2,
+          "arrow:setChoiceDisabled": 1,
+          "arrow:begin": 1,
+          "arrow:cancelDraft": 1,
+          "arrow:paint": 1,
+          "arrow:setModel": 1,
+          "arrow:text": 1,
+          "function:createKitSliderField": 1,
+          "function:syncKitButtonContent": 1,
+          "function:syncKitPowerToggle": 1,
+          "function:revealKitItem": 1
         },
-        "roots": [],
+        "roots": [
+          "native:section:pv-kit-disclosure",
+          "native:fieldset:pv-kit-choice-group",
+          "native:div:pv-kit-choice-options",
+          "native:section:pv-kit-choice-group",
+          "native:div:pv-kit-choice-group",
+          "native:div:pv-kit-disclosure",
+          "native:div:pv-kit-slider-field"
+        ],
         "registrations": {},
         "customTags": [],
         "dom": true
       },
-      "compositionScope": "Reviewed F25/F26 retained Dialog parts and matching specimen factory within the existing Dialog/Toast primitive. Presentation only; native form close and canonical speaker selection keep their owners and authority."
+      "compositionScope": "Reviewed F25/F26 retained Dialog parts and matching specimen factory within the existing Dialog/Toast primitive. Presentation only; native form close and canonical speaker selection keep their owners and authority. 25 October: existing ListRow disclosure and native single-choice Chip composition, focus-preserving retained updates; no new family or effect authority."
     },
     "dist/ui/notification-queue.js": {
       "status": "approved-renderer",
@@ -2863,6 +2988,98 @@
           "method:next": 1,
           "method:dismiss": 1
         },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/light-room-view.js": {
+      "status": "approved-renderer",
+      "domOwner": "Light detail room composition of existing ListRow and Button; independent navigation and explicit room power, no new kit family.",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/ui/kit.js",
+        "dist/scene-model.js",
+        "dist/ha-home-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:attr": 1,
+          "arrow:make": 1,
+          "arrow:text": 1,
+          "class:LightRoomView": 1,
+          "method:constructor": 1,
+          "method:createRow": 1,
+          "method:current": 1,
+          "method:model": 1,
+          "method:render": 1,
+          "method:selectRoom": 1,
+          "arrow:reveal": 1,
+          "method:cleanup": 1,
+          "method:revealSelection": 1
+        },
+        "roots": [
+          "factory:button:'light-home-power'",
+          "factory:button:'light-room-open'",
+          "factory:button:'light-room-power'",
+          "factory:div:'light-room-list'",
+          "factory:div:'light-room-row'",
+          "factory:section:'light-room-view'",
+          "factory:div:'light-room-toolbar'",
+          "factory:div:'light-room-navigation'",
+          "factory:header:''",
+          "factory:section:'light-room-panel'"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "compositionScope": "Lys v4: existing room power Tiles, native room-select field using shared Button measurements, static secondary whole-home command in same toolbar. No tabs, sticky action, placement prose or new family."
+    },
+    "dist/light-lamp-view.js": {
+      "status": "approved-composition",
+      "domOwner": "Lys v4 inline lamp composition: canonical ListRow, Toggle and SliderField; exact domain effects stay host-owned. Explicit user requested removal of lamp modal26Oct.",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/ui/kit.js",
+        "dist/scene-model.js",
+        "dist/ha-home-observation.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:LightLampView": 1,
+          "method:cleanup": 1,
+          "method:commit": 1,
+          "method:constructor": 1,
+          "method:createRow": 1,
+          "method:current": 1,
+          "method:matches": 1,
+          "method:render": 1,
+          "method:snapshot": 1,
+          "method:toggle": 1
+        },
+        "roots": [
+          "native:section:light-lamp-list",
+          "native:section:light-lamp-row",
+          "native:div:light-lamp-list"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
+    },
+    "dist/vehicle-preview-command.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {},
         "roots": [],
         "registrations": {},
         "customTags": [],
@@ -2931,7 +3148,8 @@
     "dist/visual-protocol.js",
     "dist/workshop.css",
     "dist/workshop.js",
-    "dist/overview-activity-model.js"
+    "dist/overview-activity-model.js",
+    "dist/robot-study-entry.js"
   ],
   "variantDebt": [
     {

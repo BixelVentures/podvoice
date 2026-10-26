@@ -42,8 +42,8 @@ for(const transition of ['loss','gain'])for(const phase of ['pending','open'])te
  }finally{f.view.cleanup();}
 });
 for(const change of ['vacuum','disconnect','boot','room'])for(const phase of ['pending','open'])test(`${change} still invalidates ${phase} robot and rejects late setup`,async()=>{
- const f=fixture();try{let opening;if(phase==='pending')opening=f.view.open('vacuum',target,new Node('button'));else await open(f);const generation=f.view.generation;
-  if(change==='vacuum')f.host.liveSnapshot.capabilities.controlSetup=[];if(change==='disconnect')f.host.liveTransport.connected=false;if(change==='boot')f.host.liveSnapshot.bootId='new';if(change==='room')f.host.liveSnapshot.roomId='new';f.view.render();assert.ok(f.view.generation>generation);
+ const f=fixture();try{let opening;if(phase==='pending')opening=f.view.open('vacuum',target,new Node('button'));else await open(f);const generation=f.view.generation,robotOpening=f.view.opening,musicGeneration=f.view.musicGeneration;
+  if(change==='vacuum')f.host.liveSnapshot.capabilities.controlSetup=[];if(change==='disconnect')f.host.liveTransport.connected=false;if(change==='boot')f.host.liveSnapshot.bootId='new';if(change==='room')f.host.liveSnapshot.roomId='new';f.view.render();if(change==='vacuum'){assert.ok(f.view.opening>robotOpening);assert.equal(f.view.generation,generation);assert.equal(f.view.musicGeneration,musicGeneration);}else assert.ok(f.view.generation>generation);
   if(opening){f.setup.resolve(f.offer());await opening;}assert.equal(f.view.task,null);if(f.view.robotPanel)assert.equal(f.view.robotPanel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);
  }finally{f.view.cleanup();}
 });

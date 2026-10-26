@@ -5,16 +5,17 @@ import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-sce
 import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 import {TimerView,timerPresentation} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
 import {timersFor,timerStateLabel,timerTime} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
+import {robotExperience} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
 import {devicePresentation,lightSelection} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 const start=source.indexOf(' renderResourceRail(){'),end=source.indexOf('\n render(){',start);
-const railMethod=new Function('$','timerPresentation','timersFor','timerStateLabel','timerTime','devicePresentation','lightSelection','createResourceTile','updateResourceTile',`return ({${source.slice(start,end)}}).renderResourceRail;`);
+const railMethod=new Function('$','timerPresentation','timersFor','timerStateLabel','timerTime','devicePresentation','lightSelection','createResourceTile','updateResourceTile','robotExperience',`return ({${source.slice(start,end)}}).renderResourceRail;`);
 function fixture(state){
  const rail={hidden:false,children:[],append(node){this.children.push(node);},insertBefore(node,before){const previous=this.children.indexOf(node);if(previous>=0)this.children.splice(previous,1);const index=this.children.indexOf(before);this.children.splice(index<0?this.children.length:index,0,node);}},updates=[],actions=[];
  const tile={hidden:false,dataset:{},kind:'timer'};
  const host={state,resourceButtons:new Map([[state.timer.id,tile]]),dispatch:event=>actions.push(event),focusHeading(){}};
- host.renderRail=railMethod(()=>rail,timerPresentation,timersFor,timerStateLabel,timerTime,devicePresentation,lightSelection,()=>({hidden:false,dataset:{}}),(node,resource)=>updates.push(resource));
+ host.renderRail=railMethod(()=>rail,timerPresentation,timersFor,timerStateLabel,timerTime,devicePresentation,lightSelection,()=>({hidden:false,dataset:{}}),(node,resource)=>updates.push(resource),robotExperience);
  return {host,rail,tile,updates,actions};
 }
 
@@ -57,4 +58,11 @@ test('unbound live and local lights never enter Ro through on-state, fault, pend
   const light={id:'lights',kind:'light',live,exampleOnly:!live,status,pending,scope:'home',name:'Køkkenet',roomId:'r0',roomName:'Køkkenet',lightSelectionId:'room:kitchen',lights:[{id:'kitchen-lamp',roomId:'kitchen',roomName:'Køkkenet',name:'Lampe',on:true}],observedLights:[{entityId:'light.kitchen_lamp',name:'Lampe',state:'on'}],timeline:[]};state.devices=[light];f.host.live=live;f.host.liveSnapshot={roomId:'r0',mediaRoomBindings:[{nativeRoomId:'r0',name:'Køkkenet'}]};f.host.renderRail();assert.equal(f.rail.hidden,true,`${live}/${status}/${!!pending}`);assert.equal(retained.hidden,true);assert.equal(state.devices[0],light);
  }
  assert.deepEqual(f.updates,[]);assert.deepEqual(f.actions,[]);
+});
+
+test('Ro includes fresh dock work under coarse docked status but keeps idle charging and stale work quiet',()=>{
+ const now=Date.now()/1000,state=previewScene('conversation-followup',100000);state.focus='photo';state.timer={...state.timer,status:'cancelled'};state.devices=[];const f=fixture(state),row=(key,value,updatedAt=now)=>({key,value,updatedAt});
+ for(const telemetry of [[row('mop_washing',true)],[row('dust_emptying',true)],[row('mop_drying',true)],[row('status','going_to_wash_the_mop')]]){state.devices=[{id:'robot',kind:'vacuum',status:'docked',timeline:[],telemetry:{status:'observed',items:telemetry}}];f.host.renderRail();assert.equal(f.rail.hidden,false);assert.equal(f.host.resourceButtons.get('robot').hidden,false);}
+ for(const change of [{telemetry:{status:'observed',items:[row('battery_charging',true)]}},{telemetry:{status:'observed',items:[row('mop_washing',true,now-301)]}},{stale:true,telemetry:{status:'observed',items:[row('mop_washing',true)]}},{telemetry:{status:'observed',items:[row('mop_washing',true),row('dust_emptying',true)]}}]){state.devices=[{id:'robot',kind:'vacuum',status:'docked',timeline:[],...change}];f.host.renderRail();assert.equal(f.rail.hidden,true);assert.equal(f.host.resourceButtons.get('robot').hidden,true);}
+ assert.deepEqual(f.actions,[]);
 });

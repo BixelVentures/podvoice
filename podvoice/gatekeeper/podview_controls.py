@@ -6,6 +6,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import re
 import secrets
 import time
 
@@ -13,8 +14,11 @@ from . import podview_light_control as lights
 from . import podview_speakers, robot_settings
 from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
+from .podview_dock_control import DockTransport, validate_dock_controls
 from .podview_room_move import RoomMoveFacade
 from .podview_vacuum_control import VacuumTransport
+from .podview_vacuum_settings import ROLES as SETTING_LABELS
+from .podview_vacuum_settings import ActiveVacuumSettings
 
 _MUSIC = {
     "pause",
@@ -60,21 +64,34 @@ def policy(value: str) -> dict:
                     if domain == "music"
                     else {"entityId", "actions"}
                 )
-                native_keys = {"nativeRoomId", "nativeHomepodId"} if domain == "music" else set()
+                native_keys = (
+                    {"nativeRoomId", "nativeHomepodId"} if domain == "music" else {"dockControls"}
+                )
                 shapes: tuple[set[str], ...] = (required, required | native_keys)
                 if domain == "vacuum":
-                    shapes += (required | {"settingsRoles"},)
+                    shapes += (
+                        required | {"settingsRoles"},
+                        required | {"settingsRoles", "dockControls"},
+                    )
                 if domain == "music":
                     shapes += (required | native_keys | {"default"},)
                 if not isinstance(row, dict) or set(row) not in shapes:
                     return {}
                 if "default" in row and type(row["default"]) is not bool:
                     return {}
-                if native_keys & set(row) and any(
-                    not isinstance(row.get(key), str) or not 1 <= len(row[key]) <= 128
-                    for key in native_keys
+                if (
+                    domain == "music"
+                    and native_keys & set(row)
+                    and any(
+                        not isinstance(row.get(key), str) or not 1 <= len(row[key]) <= 128
+                        for key in native_keys
+                    )
                 ):
                     return {}
+                if domain == "vacuum" and "dockControls" in row:
+                    validate_dock_controls(row["dockControls"])
+                    if "dock" not in row["actions"]:
+                        return {}
                 keys = ("accountId", "targetId") if domain == "music" else ("entityId",)
                 if any(not isinstance(row[k], str) or not 1 <= len(row[k]) <= 1024 for k in keys):
                     return {}
@@ -89,7 +106,17 @@ def policy(value: str) -> dict:
                 allowed = (
                     _MUSIC
                     if domain == "music"
-                    else {"settings", "map", "start", "reuse", "resume", "pause", "stop", "return"}
+                    else {
+                        "settings",
+                        "map",
+                        "start",
+                        "reuse",
+                        "resume",
+                        "pause",
+                        "stop",
+                        "return",
+                        "dock",
+                    }
                 )
                 actions = row["actions"]
                 if (
@@ -357,6 +384,33 @@ class TouchControls:
         """Original music owners after a send; never an effect-admission guard."""
         return task["domain"] == "music" and self._current(task, token, _receipt_only=True)
 
+    def _confirmed_move_receipt_current(self, task: dict, token: str, binding_id: str) -> bool:
+        """A confirmed MOVE belongs to its new room binding, not the old read closure."""
+        from .podview_room_media import binding
+
+        room = task["room"]
+        account = task["target"]["accountId"]
+        actual = binding(self.bridge, room, account)
+        return bool(
+            task["domain"] == "music"
+            and secrets.compare_digest(task["token"], token)
+            and self.tasks.get(task["id"]) is task
+            and self.bridge._grant_current(room, token)
+            and self.bridge._grant_for_token(room, token) is task["move_grant"]
+            and self.policy is task["move_policy"]
+            and self.music.tools is self.bridge.tools
+            and self.move.available
+            and self.move.binding() == task["move_binding"]
+            and task["binding"] == self._binding(room, "music")
+            and any(rule is task["rule"] for rule in self.policy["music"])
+            and self._move_rule_identity(task["rule"]) == task["move_rule_identity"]
+            and bool(task["move_revision"])
+            and self._move_revision(room) == task["move_revision"]
+            and actual is not None
+            and (actual["targetId"], actual["bindingId"]) == task.get("move_source_scope")
+            and actual["bindingId"] == binding_id
+        )
+
     def _light_current(self, task: dict, token: str) -> bool:
         try:
             return bool(
@@ -443,8 +497,38 @@ class TouchControls:
             key: value
             for key, value in self.receipts.items()
             if self.bridge._authority_retained(key[0], key[1])
-            and (not key[1].startswith("ha:") or (len(value) == 3 and time.monotonic() < value[2]))
+            and (
+                not key[1].startswith("ha:")
+                or (len(value) in (3, 4) and time.monotonic() < value[2])
+            )
         }
+
+    def settlement_identity(
+        self, room: str, token: str, request_id: str, account: str
+    ) -> dict | None:
+        """Resolve a Control identity only from this owner's accepted touch receipt."""
+        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 120:
+            return None
+        entry = self.receipts.get((room, token, request_id))
+        if entry is None or len(entry) != 4 or entry[1].get("outcome") != "accepted":
+            return None
+        retained = entry[3]
+        task = retained["task"]
+        if (
+            task["target"].get("accountId") != account
+            or self.policy is not retained["policy"]
+            or self.music is not retained["music"]
+            or self.bridge._grant_for_token(room, token) is not retained["grant"]
+            or not (
+                self._confirmed_move_receipt_current(task, token, retained["binding_id"])
+                if retained.get("move_confirmed") is True
+                else self._receipt_current(task, token)
+                and task["actual_binding"]["bindingId"] == retained["binding_id"]
+            )
+            or self.receipts.get((room, token, request_id)) is not entry
+        ):
+            return None
+        return dict(retained["identity"])
 
     async def setup(self, body: dict, token: str) -> dict:
         if set(body) - {
@@ -840,6 +924,81 @@ class TouchControls:
                                 }
                             )
                     if (
+                        "dock" in rule["actions"]
+                        and rule.get("dockControls")
+                        and "recipeId" not in body
+                    ):
+                        dock_facade = DockTransport(device, rule["dockControls"])
+                        try:
+                            dock_offer = await dock_facade.setup(target["entityId"], current)
+                            task["dock_transport"] = dock_facade
+                            task["dock_offer"] = dock_offer
+                            task["deadline"] = min(task["deadline"], dock_offer["deadline"])
+                            for operation, command in dock_offer["actions"].items():
+                                oid = secrets.token_hex(12)
+                                schema = {"kind": "dock", "operation": operation}
+                                task["options"][oid] = {"action": "dock", "schema": schema}
+                                public_options.append(
+                                    {
+                                        "id": oid,
+                                        "label": command["label"],
+                                        "action": "dock",
+                                        "argsSchema": schema,
+                                    }
+                                )
+                        except Exception:
+                            pass  # An unavailable dock must not remove valid Pause/Fortsæt.
+                    if (
+                        "settings" in rule["actions"]
+                        and (active is None or active["state"] in {"cleaning", "paused"})
+                        and "recipeId" not in body
+                    ):
+                        settings_facade = ActiveVacuumSettings(device)
+                        try:
+                            settings_offer = await settings_facade.setup(
+                                target["entityId"], current
+                            )
+                            task["settings_transport"] = settings_facade
+                            task["settings_offer"] = settings_offer
+                            task["deadline"] = min(task["deadline"], settings_offer["deadline"])
+                            for setting in settings_offer["rows"]:
+                                choices = {
+                                    secrets.token_hex(12): value for value in setting["choices"]
+                                }
+                                oid = secrets.token_hex(12)
+                                schema = {
+                                    "kind": "choice",
+                                    "choices": [
+                                        {"id": key, "label": value}
+                                        for key, value in choices.items()
+                                    ],
+                                    "current": next(
+                                        (
+                                            key
+                                            for key, value in choices.items()
+                                            if value == setting["current"]
+                                        ),
+                                        None,
+                                    ),
+                                }
+                                task["options"][oid] = {
+                                    "action": "set_option",
+                                    "schema": schema,
+                                    "active_setting": setting,
+                                    "choices": choices,
+                                }
+                                public_options.append(
+                                    {
+                                        "id": oid,
+                                        "label": SETTING_LABELS[setting["role"]],
+                                        "action": "set_option",
+                                        "argsSchema": schema,
+                                        "settingKey": setting["role"],
+                                    }
+                                )
+                        except Exception:
+                            pass  # An unavailable setting must not remove valid transport.
+                    if (
                         active is None
                         or active["state"] in {"idle", "docked"}
                         or rule.get("settingsRoles")
@@ -867,8 +1026,10 @@ class TouchControls:
                                 if "map" in offered["data"]
                                 else {}
                             )
-                            if "recipeId" in body and "start" in rule["actions"]:
-                                setup["historyDraft"] = self._robot_history_draft(task)
+                            if "recipeId" in body:
+                                setup["recipeSummary"] = self._recipe_summary(task)
+                                if "start" in rule["actions"]:
+                                    setup["historyDraft"] = self._robot_history_draft(task)
             if not current():
                 return failure("stale_setup")
             task["expires_at"] = time.time() + max(0, task["deadline"] - time.monotonic())
@@ -1009,10 +1170,18 @@ class TouchControls:
         data, rule = task["offered"]["data"], task["rule"]
         rows = []
 
-        def add(label, action, schema, internal):
+        def add(label, action, schema, internal, setting_key=None):
             oid = secrets.token_hex(12)
             task["options"][oid] = {"action": action, "schema": schema, **internal}
-            rows.append({"id": oid, "label": label, "action": action, "argsSchema": schema})
+            rows.append(
+                {
+                    "id": oid,
+                    "label": label,
+                    "action": action,
+                    "argsSchema": schema,
+                    **({"settingKey": setting_key} if setting_key else {}),
+                }
+            )
 
         if reuse:
             add(
@@ -1022,7 +1191,7 @@ class TouchControls:
                 {"steps": task["offered"]["steps"]},
             )
             if "start" in rule["actions"]:
-                self._robot_start_option(data, add)
+                self._robot_start_option(data, add, task=task, reuse=True)
             return rows
         if "map" in rule["actions"] and data.get("map_options"):
             choices = {secrets.token_hex(12): name for name in data["map_options"]}
@@ -1041,7 +1210,7 @@ class TouchControls:
             )
         if "settings" in rule["actions"]:
             settings = [
-                (r["entity_id"], "select.select_option", r["role"], r["options"])
+                (r["entity_id"], "select.select_option", r["role"], r["options"], r.get("state"))
                 for r in data["controls"]
             ]
             if data["fan_speed_options"]:
@@ -1051,6 +1220,7 @@ class TouchControls:
                         "vacuum.set_fan_speed",
                         "Sugestyrke",
                         data["fan_speed_options"],
+                        data.get("fan_speed"),
                     )
                 )
             labels = {
@@ -1058,7 +1228,7 @@ class TouchControls:
                 "mop_intensity": "Vandmængde",
                 "mop_mode": "Moppetilstand",
             }
-            for entity, action, role, values in settings:
+            for entity, action, role, values, observed in settings:
                 choices = {secrets.token_hex(12): value for value in values}
                 add(
                     labels.get(role, role),
@@ -1072,8 +1242,12 @@ class TouchControls:
                             }
                             for key, value in choices.items()
                         ],
+                        "current": next(
+                            (key for key, value in choices.items() if value == observed), None
+                        ),
                     },
                     {"entity": entity, "service": action, "choices": choices},
+                    setting_key="suction" if action == "vacuum.set_fan_speed" else role,
                 )
         for setting in data.get("extended_settings", []):
             if (
@@ -1095,6 +1269,10 @@ class TouchControls:
                         }
                         for key, value in choices.items()
                     ],
+                    "current": next(
+                        (key for key, value in choices.items() if value == schema.get("current")),
+                        None,
+                    ),
                 }
             else:
                 choices = {}
@@ -1104,15 +1282,66 @@ class TouchControls:
                 "set_option",
                 public,
                 {"entity": setting["entity_id"], "extended": setting, "choices": choices},
+                setting_key=setting["role"],
             )
         if "start" in rule["actions"]:
-            self._robot_start_option(data, add)
+            self._robot_start_option(data, add, task=task)
         return rows
 
     @staticmethod
-    def _robot_start_option(data: dict, add) -> None:
+    def _robot_start_option(data: dict, add, *, task=None, reuse=False) -> None:
+        rule = task["rule"] if task is not None else {"actions": ["start"]}
         areas = {secrets.token_hex(12): row for row in data.get("map", {}).get("areas", [])}
         if areas:
+            desired = {}
+            if reuse:
+                desired = {
+                    step["entity_id"]: step["arguments"].get(
+                        "fan_speed", step["arguments"].get("option")
+                    )
+                    for step in task["offered"]["steps"][:-1]
+                }
+            setting_rows = [
+                {
+                    "entity": row["entity_id"],
+                    "role": row["role"],
+                    "service": "select.select_option",
+                    "values": row["options"],
+                    "observed": row.get("state"),
+                }
+                for row in data["controls"]
+                if "settings" in rule["actions"]
+                and row["role"] in SETTING_LABELS
+                and row["role"] != "suction"
+            ]
+            if "settings" in rule["actions"] and data["fan_speed_options"]:
+                setting_rows.append(
+                    {
+                        "entity": data["entity_id"],
+                        "role": "suction",
+                        "service": "vacuum.set_fan_speed",
+                        "values": data["fan_speed_options"],
+                        "observed": data.get("fan_speed"),
+                    }
+                )
+            settings = {}
+            public_settings = []
+            for row in setting_rows:
+                sid = secrets.token_hex(12)
+                values = {secrets.token_hex(12): value for value in row["values"]}
+                current_value = desired.get(row["entity"], row["observed"])
+                settings[sid] = {**row, "choices": values}
+                public_settings.append(
+                    {
+                        "id": sid,
+                        "key": row["role"],
+                        "label": SETTING_LABELS[row["role"]],
+                        "choices": [{"id": key, "label": value} for key, value in values.items()],
+                        "current": next(
+                            (key for key, value in values.items() if value == current_value), None
+                        ),
+                    }
+                )
             add(
                 "Start rengøring",
                 "start",
@@ -1120,8 +1349,17 @@ class TouchControls:
                     "kind": "cleaning",
                     "areas": [{"id": key, "label": row["name"]} for key, row in areas.items()],
                     "repeat": {"min": 1, "max": 3},
+                    "settings": public_settings,
                 },
-                {"areas": areas},
+                {
+                    "areas": areas,
+                    "settings": settings,
+                    **(
+                        {"recipe_steps": copy.deepcopy(task["offered"]["steps"][:-1])}
+                        if reuse
+                        else {}
+                    ),
+                },
             )
 
     @staticmethod
@@ -1151,6 +1389,22 @@ class TouchControls:
             "areaIds": [current_ids[area] for area in area_ids],
             "repeat": saved["repeat"],
         }
+
+    @staticmethod
+    def _recipe_summary(task):
+        data = task["offered"]["data"]
+        labels = {
+            row["entity_id"]: SETTING_LABELS.get(row["role"], row["role"])
+            for row in data["controls"]
+        }
+        labels[data["entity_id"]] = "Sugestyrke"
+        return [
+            {
+                "label": labels.get(step["entity_id"], "Indstilling"),
+                "value": step["arguments"].get("fan_speed", step["arguments"].get("option", "")),
+            }
+            for step in task["offered"]["steps"][:-1]
+        ]
 
     async def action(self, body: dict, token: str) -> dict:
         if (
@@ -1216,6 +1470,11 @@ class TouchControls:
             "outcome": "unknown",
             "retryAllowed": False,
             "physicalResultVerified": False,
+            **(
+                {"completedSteps": 0, "partial": False, "startSent": False}
+                if task["domain"] == "vacuum"
+                else {}
+            ),
         }
         task["consumed"] = True
         self.receipts[key] = fingerprint, receipt, task["deadline"]
@@ -1328,6 +1587,17 @@ class TouchControls:
                                 execution_context=ExecutionContext(*task["owner"]),
                             )
                             outcome = result.get("outcome", "unknown") if current() else "unknown"
+                elif option.get("active_setting") is not None:
+                    outcome = await task["settings_transport"].execute(
+                        task["settings_offer"],
+                        option["active_setting"],
+                        option["choices"][args["choiceId"]],
+                        current,
+                    )
+                elif option["action"] == "dock":
+                    outcome = await task["dock_transport"].execute(
+                        task["dock_offer"], option["schema"]["operation"], current
+                    )
                 elif option.get("native") is True:
                     outcome = await task["vacuum_transport"].execute(
                         task["vacuum_transport_offer"], option["action"], current
@@ -1340,6 +1610,8 @@ class TouchControls:
                             outcome = "unknown"
                             break
                         outcome = "unknown"
+                        if step["action"] == "vacuum.send_command":
+                            receipt["startSent"] = True
                         result = await self.bridge.tools.dispatch(
                             EXECUTE_ACTION,
                             {"capability_token": capability, **step},
@@ -1349,6 +1621,7 @@ class TouchControls:
                         if result.get("ok") is not True:
                             break
                         outcome = "accepted"
+                        receipt["completedSteps"] += 1
                         capability = result.get("capability_token")
                         if step is not steps[-1] and not isinstance(capability, str):
                             outcome = "unknown"
@@ -1356,11 +1629,72 @@ class TouchControls:
                 receipt = {
                     **receipt,
                     "ok": outcome == "accepted",
+                    **(
+                        {"partial": outcome != "accepted" and receipt["completedSteps"] > 0}
+                        if task["domain"] == "vacuum"
+                        else {}
+                    ),
                     "outcome": outcome
                     if outcome in {"accepted", "rejected", "unknown"}
                     else "unknown",
                 }
-                self.receipts[key] = fingerprint, receipt, task["deadline"]
+                if (
+                    task["domain"] == "music"
+                    and option["action"]
+                    in {"pause", "resume", "next", "previous", "volume", "move_existing_session"}
+                    and receipt["outcome"] == "accepted"
+                    and result.get("schema") == "podconnect.command.v1"
+                    and result.get("config_entry_id") == task["target"]["accountId"]
+                    and result.get("action") == option["action"]
+                    and (not moving or task.get("move_source_scope") is not None)
+                    and (
+                        not moving
+                        or (
+                            result.get("target")
+                            == {
+                                "kind": "spotify_device",
+                                "target_id": task["target"]["targetId"],
+                            }
+                            and (result.get("room_id"), result.get("homepod_id"))
+                            == (
+                                task["move_destination"]["nativeRoomId"],
+                                task["move_destination"]["homepodId"],
+                            )
+                            and isinstance(result.get("move_operation_id"), str)
+                            and re.fullmatch(r"[a-f0-9]{32}", result["move_operation_id"])
+                            is not None
+                        )
+                    )
+                    and isinstance(result.get("owner_epoch"), str)
+                    and type(result.get("command_sequence")) is int
+                    and isinstance(result.get("request_id"), str)
+                    and result["request_id"]
+                    == f"{result['owner_epoch']}:{result['command_sequence']}"
+                ):
+                    self.receipts[key] = (
+                        fingerprint,
+                        receipt,
+                        task["deadline"],
+                        {
+                            "task": task,
+                            "policy": self.policy,
+                            "music": self.music,
+                            "grant": self.bridge._grant_for_token(task["room"], token),
+                            "binding_id": (
+                                task["move_source_scope"][1]
+                                if moving
+                                else task["actual_binding"]["bindingId"]
+                            ),
+                            "move_confirmed": moving,
+                            "identity": {
+                                "request_id": result["request_id"],
+                                "command_sequence": result["command_sequence"],
+                                "owner_epoch": result["owner_epoch"],
+                            },
+                        },
+                    )
+                else:
+                    self.receipts[key] = fingerprint, receipt, task["deadline"]
         except (Exception, asyncio.CancelledError):
             if moving and not move_dispatched:
                 self.bridge._music_move_fence.discard((task["room"], task["target"]["accountId"]))
@@ -1368,6 +1702,11 @@ class TouchControls:
                 self.receipts[key] = fingerprint, receipt, task["deadline"]
             # A possible physical send remains terminal unknown with its fence.
         finally:
+            if task["domain"] == "vacuum":
+                receipt["partial"] = (
+                    receipt["outcome"] != "accepted" and receipt["completedSteps"] > 0
+                )
+                self.receipts[key] = fingerprint, receipt, task["deadline"]
             self.busy.discard(task["room"])
         return copy.deepcopy(receipt)
 
@@ -1389,6 +1728,10 @@ class TouchControls:
                     "arguments": validated if row["domain"] != "switch" else raw,
                 }
             ]
+        if kind == "dock":
+            if args:
+                raise ValueError
+            return []
         if kind == "none":
             if args:
                 raise ValueError
@@ -1405,6 +1748,8 @@ class TouchControls:
             if set(args) != {"choiceId"} or not isinstance(args["choiceId"], str):
                 raise ValueError
             value = option["choices"][args["choiceId"]]
+            if option.get("active_setting") is not None:
+                return []
             key = "fan_speed" if option["service"] == "vacuum.set_fan_speed" else "option"
             return [
                 {
@@ -1415,7 +1760,7 @@ class TouchControls:
             ]
         if (
             kind != "cleaning"
-            or set(args) != {"areaIds", "repeat"}
+            or set(args) not in ({"areaIds", "repeat"}, {"areaIds", "repeat", "settingChoices"})
             or type(args["repeat"]) is not int
             or not 1 <= args["repeat"] <= 3
             or not isinstance(args["areaIds"], list)
@@ -1425,7 +1770,52 @@ class TouchControls:
         ):
             raise ValueError
         areas = [option["areas"][key]["area_id"] for key in args["areaIds"]]
+        prefix = copy.deepcopy(option.get("recipe_steps", []))
+        if "settingChoices" in args:
+            selected = args["settingChoices"]
+            offered = option.get("settings", {})
+            if (
+                not isinstance(selected, list)
+                or len(selected) != len(offered)
+                or len(selected) > 8
+                or any(
+                    not isinstance(row, dict)
+                    or set(row) != {"settingId", "choiceId"}
+                    or not isinstance(row["settingId"], str)
+                    or not isinstance(row["choiceId"], str)
+                    for row in selected
+                )
+                or len({row["settingId"] for row in selected}) != len(selected)
+                or {row["settingId"] for row in selected} != set(offered)
+            ):
+                raise ValueError("incomplete setup selections")
+            choices = {row["settingId"]: row["choiceId"] for row in selected}
+            ordered = sorted(
+                offered,
+                key=lambda key: (
+                    0
+                    if offered[key]["role"] == "cleaning_mode"
+                    else 2
+                    if offered[key]["role"] == "suction"
+                    else 1,
+                    offered[key]["entity"],
+                ),
+            )
+            if offered:
+                prefix = []
+            for sid in ordered:
+                row = offered[sid]
+                value = row["choices"][choices[sid]]
+                field = "fan_speed" if row["role"] == "suction" else "option"
+                prefix.append(
+                    {
+                        "entity_id": row["entity"],
+                        "action": row["service"],
+                        "arguments": {field: value},
+                    }
+                )
         return [
+            *prefix,
             {
                 "entity_id": task["target"]["entityId"],
                 "action": "vacuum.send_command",
@@ -1434,5 +1824,5 @@ class TouchControls:
                     "area_ids": areas,
                     "repeat": args["repeat"],
                 },
-            }
+            },
         ]

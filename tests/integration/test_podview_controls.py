@@ -302,6 +302,8 @@ async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_m
     result = await bridge.controls.action(action, token)
     assert result["outcome"] == "accepted", result
     assert rig.writes == [
+        ("services/select/select_option", {"entity_id": MODE, "option": "vacuum_and_mop"}),
+        ("services/vacuum/set_fan_speed", {"entity_id": ROBOT, "fan_speed": "balanced"}),
         (
             "services/vacuum/send_command",
             {
@@ -309,7 +311,7 @@ async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_m
                 "command": "app_segment_clean",
                 "params": [{"segments": [17], "repeat": 3}],
             },
-        )
+        ),
     ]
 
 
@@ -736,7 +738,13 @@ async def test_active_vacuum_exact_native_service_and_duplicate_once(
     assert not owner._display_tickets
     offer = await bridge.controls.setup(setup_body(bridge), token)
     assert offer["ok"] and offer["setup"] == {"mapName": None}, offer
-    assert [r["action"] for r in offer["options"]] == [action]
+    assert [r["action"] for r in offer["options"] if r["action"] != "set_option"] == [action]
+    assert all(r["action"] in {action, "set_option"} for r in offer["options"])
+    assert all(
+        r.get("settingKey") in {"cleaning_mode", "mop_intensity", "mop_mode", "suction"}
+        for r in offer["options"]
+        if r["action"] == "set_option"
+    )
     assert not owner._display_tickets and not owner._tickets
     body = action_body(offer, offer["options"][0])
     result = await bridge.controls.action(body, token)
@@ -1489,3 +1497,62 @@ async def test_explicit_volume_offer_does_not_borrow_transport_authority(offline
     assert receipt["outcome"] == "accepted"
     assert await bridge.controls.action(command, token) == receipt
     assert len([call for call in music.calls if call[1].endswith("control_room_volume")]) == 1
+
+
+@pytest.mark.parametrize("action", ["next", "volume"])
+@pytest.mark.parametrize("lane", ["paired", "ha"])
+async def test_accepted_room_command_retains_private_settlement_identity(
+    offline_direct, action, lane
+):
+    from integration.test_podview_music_control import controls, volume_owner
+
+    _, bridge, _, _, _, _, _, music = offline_direct
+    if action == "volume":
+        music.value = controls()
+        volume_owner(music)
+    bridge.controls.policy["music"][0]["actions"] = [action]
+    token = (
+        bridge._ha_actor("kitchen", "fixture-user")
+        if lane == "ha"
+        else bridge.grant_timer_control("kitchen")
+    )
+    from gatekeeper.podview import _HA_REQUEST
+
+    scope = _HA_REQUEST.set({"active": True, "user": "fixture-user"}) if lane == "ha" else None
+    try:
+        setup = setup_body(bridge, "music")
+        setup["target"]["targetId"] = "device"
+        offer = await bridge.controls.setup(setup, token)
+        assert offer["ok"], offer
+        request = action_body(
+            offer, offer["options"][0], {"percent": 0} if action == "volume" else {}
+        )
+        receipt = await bridge.controls.action(request, token)
+        assert receipt["outcome"] == "accepted"
+        assert "owner_epoch" not in receipt and "command_sequence" not in receipt
+        # An unrelated setup prunes receipts before a duplicate action/read.
+        assert (await bridge.controls.setup(setup, token))["ok"]
+        identity = bridge.controls.settlement_identity(
+            "kitchen", token, request["requestId"], "account"
+        )
+        assert identity == {
+            "owner_epoch": music.value["owner_epoch"],
+            "command_sequence": music.value["next_command_sequence"],
+            "request_id": f"{music.value['owner_epoch']}:{music.value['next_command_sequence']}",
+        }
+        assert await bridge.controls.action(request, token) == receipt
+        assert (
+            bridge.controls.settlement_identity("kitchen", token, request["requestId"], "foreign")
+            is None
+        )
+        if lane == "ha":
+            _HA_REQUEST.get()["active"] = False
+        else:
+            bridge.revoke("kitchen")
+        assert (
+            bridge.controls.settlement_identity("kitchen", token, request["requestId"], "account")
+            is None
+        )
+    finally:
+        if scope is not None:
+            _HA_REQUEST.reset(scope)

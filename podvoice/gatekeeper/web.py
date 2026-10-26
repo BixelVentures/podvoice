@@ -1121,7 +1121,8 @@ async def _history_clear(request: web.Request) -> web.Response:
         body = await request.json()
     except (json.JSONDecodeError, ValueError):
         body = {}
-    hist.clear(room=(body or {}).get("room"))
+    if hist.clear(room=(body or {}).get("room")) is False:
+        return web.json_response({"ok": False, "error": "history not saved"}, status=503)
     return web.json_response({"ok": True})
 
 

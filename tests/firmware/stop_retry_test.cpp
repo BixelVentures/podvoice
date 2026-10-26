@@ -1,5 +1,6 @@
 #include "podvoice_reply.h"
 #include <cassert>
+#include <cstdio>
 using namespace esphome;
 
 int main() {
@@ -66,4 +67,46 @@ int main() {
   assert(player.stops == preplay_stops && reply.button_stop_latched());
   reply.loop(); reply.loop();
   assert(status.values.back() == "preplay:stopped");
+  reply.rearmed();
+  now_ms = 8000; output.stopped = false;
+  start("host-drain"); reply.cancel("host-drain");
+  reply.loop(); // producer stopped; second resampler flush
+  mixer.pending = 100; reply.loop();
+  mixer.consumed += 60; mixer.pending -= 60;
+  const int drain_stops = player.stops, drain_flushes = resampler.stops;
+  const auto queued_host_command = detector.command;
+  const auto drain_session = context.values.back().substr(0, 32);
+  now_ms = 10000; reply.stop_from_button(); reply.loop();
+  assert(reply.button_stop_latched());
+  assert(context.values.back().find(":cancelled") != std::string::npos);
+  assert(status.values.back() == "host-drain:started");
+  // A captured native callback cannot reopen the button-cancelled generation.
+  detector.deliver(queued_host_command);
+  detector.callback(queued_host_command); detector.callback(detector.command);
+  const int drain_plays = player.plays;
+  reply.set_live_context(drain_session, 2);
+  reply.play("late-after-button", "url", drain_session, 1);
+  reply.play("wrong-generation", "url", drain_session, 2);
+  reply.cancel("wrong-owner");
+  assert(player.plays == drain_plays);
+  assert(player.stops == drain_stops && resampler.stops == drain_flushes);
+  mixer.consumed += 40; mixer.pending = 0; reply.loop();
+  assert(status.values.back() == "host-drain:stopped");
+  assert(player.stops == drain_stops && resampler.stops == drain_flushes);
+  reply.rearmed();
+  player.idle = false; output.stopped = false; now_ms = 12000;
+  start("host-first");
+  reply.cancel("host-first");
+  const int host_stops = player.stops, host_flushes = resampler.stops;
+  const uint32_t host_context = detector.command;
+  now_ms = 14000; reply.stop_from_button(); reply.loop();
+  assert(reply.button_stop_latched() && detector.command != host_context);
+  assert(context.values.back().find(":cancelled") != std::string::npos);
+  now_ms = 15001; reply.loop();
+  std::fprintf(stderr, "host-first original_stop=12000 button=14000 observed=15001 stop_delta=%d flush_delta=%d status=%s context=%s\n",
+      player.stops - host_stops, resampler.stops - host_flushes,
+      status.values.back().c_str(), context.values.back().c_str());
+  // The same already-stopping reply keeps its original 3s drain bound.
+  assert(status.values.back() == "host-first:fault");
+  assert(player.stops == host_stops && resampler.stops == host_flushes);
 }

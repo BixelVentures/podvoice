@@ -32,17 +32,17 @@ function fixture(){
  catalogue.select('top');catalogue.tracks('top',collection,'account');
  return {host,media,selection,controls,catalogue,nodes,reads,writes,catalogueReads,offer,playback,setupCalls:()=>setupCalls,holdSetup:port=>setupPort=port,holdAction:port=>actionPort=port,advance:ms=>clock+=ms,newPoll:nextState=>{poll++;if(nextState)state=nextState;},refreshCatalogue(){catalogue.refresh();catalogue.tracks('top',collection,'account');},async ready(){await media.refresh({immediate:true});await settle();assert.equal(node('play-pause').disabled,false);assert.equal(node('volume').disabled,false);},restore(){host.isConnected=false;host.playerView.cleanup();media.acceptedRefresh?.stop?.('cancelled');controls.cleanup();selection.cleanup();clearTimeout(catalogue.expiryTimer);media.queueControls.invalidate(true);globalThis.document=priorDocument;Date.now=priorNow;}};
 }
+const usable=f=>{assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);};
 const disabled=f=>{assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);};
-const intentAvailable=f=>{assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);};
 
-test('catalogue refresh retains explicit intent but cannot renew an expired offer; a new playback poll and released setup do',async()=>{
+test('catalogue refresh alone cannot renew an expired offer; a new playback poll and released setup do',async()=>{
  const f=fixture();try{
   await f.ready();const firstTask=f.controls.musicOffer.task.taskId,reads=f.setupCalls(),item=f.media.playback.item.uri;
-  f.advance(3001);f.media.render();intentAvailable(f);assert.equal(f.nodes.get('volume').value,'35');
-  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.setupCalls(),reads);assert.equal(f.media.playback.item.uri,item);assert.equal(f.controls.musicOffer.task.taskId,firstTask);assert.ok(f.controls.musicOffer.task.expiresAt*1000<=Date.now(),'retained intent is not a renewed executable offer');
-  await f.media.refresh({immediate:true});await settle();intentAvailable(f);assert.equal(f.setupCalls(),reads,'same PC poll does not admit another setup');
-  const hold=deferred();f.holdSetup(()=>hold.promise);f.newPoll();await f.media.refresh({immediate:true});intentAvailable(f);assert.equal(f.setupCalls(),reads+1);assert.equal(f.controls.musicReadPending,true);
-  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.setupCalls(),reads+1,'catalogue neither duplicates nor cancels held setup');
+  f.advance(3001);f.media.render();usable(f);assert.equal(f.nodes.get('volume').value,'35');
+  f.refreshCatalogue();await settle();usable(f);assert.equal(f.setupCalls(),reads);assert.equal(f.media.playback.item.uri,item);assert.equal(f.controls.musicOffer.task.taskId,firstTask);
+  await f.media.refresh({immediate:true});await settle();usable(f);assert.equal(f.setupCalls(),reads,'same PC poll does not admit another setup');
+  const hold=deferred();f.holdSetup(()=>hold.promise);f.newPoll();await f.media.refresh({immediate:true});usable(f);assert.equal(f.setupCalls(),reads+1);assert.equal(f.controls.musicReadPending,true);
+  f.refreshCatalogue();await settle();usable(f);assert.equal(f.setupCalls(),reads+1,'catalogue neither duplicates nor cancels held setup');
   hold.resolve(f.offer());await settle();assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.notEqual(f.controls.musicOffer.task.taskId,firstTask);assert.deepEqual(f.writes,[]);
  }finally{f.restore();}
 });
@@ -50,14 +50,14 @@ test('catalogue refresh retains explicit intent but cannot renew an expired offe
 for(const outcome of ['accepted','unknown'])test(`catalogue refresh cannot release a held control or its ${outcome} fence`,async()=>{
  const f=fixture();const setup=deferred(),action=deferred();let intent;try{
   await f.ready();const before=f.setupCalls();f.holdSetup(()=>setup.promise);f.holdAction(()=>action.promise);
-  intent=f.controls.musicIntent('pause');assert.equal(f.controls.musicIntentPending,true);intentAvailable(f);assert.equal(f.host.querySelector('.player .transport').getAttribute('aria-busy'),'true');
-  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.controls.musicIntentPending,true);assert.equal(f.setupCalls(),before+1);assert.deepEqual(f.writes,[]);
-  setup.resolve(f.offer());await settle();assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);intentAvailable(f);
-  f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);
+  intent=f.controls.musicIntent('pause');assert.equal(f.controls.musicIntentPending,true);usable(f);assert.equal(f.host.querySelector('.player .transport').getAttribute('aria-busy'),'true');
+  f.refreshCatalogue();await settle();usable(f);assert.equal(f.controls.musicIntentPending,true);assert.equal(f.setupCalls(),before+1);assert.deepEqual(f.writes,[]);
+  setup.resolve(f.offer());await settle();assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);usable(f);
+  f.refreshCatalogue();await settle();usable(f);assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);
   // Observation is a separate source event. The receipt never manufactures it.
   f.holdSetup(null);action.resolve({outcome});await intent;await settle();
   if(outcome==='accepted'){
-   intentAvailable(f);assert.equal(f.controls.musicFence.outcome,'accepted');const calls=f.setupCalls();f.refreshCatalogue();await settle();intentAvailable(f);assert.equal(f.setupCalls(),calls);assert.equal(f.media.playback.state,'playing');
+   usable(f);assert.equal(f.controls.musicFence.outcome,'accepted');const calls=f.setupCalls();f.refreshCatalogue();await settle();usable(f);assert.equal(f.setupCalls(),calls);assert.equal(f.media.playback.state,'playing');
    f.newPoll('paused');await f.media.refresh({immediate:true});await settle();
    assert.equal(f.media.playback.state,'paused');assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.writes.length,1);
   }else{
@@ -73,8 +73,8 @@ test('actual100 above policy35 permits lowering; unknown is distinct and catalog
   const input=f.nodes.get('volume'),output=f.nodes.get('volume-value');
   assert.equal(input.max,'100');assert.equal(input.dataset.actionMax,'35');assert.equal(input.value,'100');assert.equal(output.textContent,'100 %');assert.equal(input.disabled,false);assert.equal(f.nodes.get('play-pause').disabled,false);
   f.advance(3001);f.holdSetup(()=>f.offer(null));f.newPoll();await f.media.refresh({immediate:true});await settle();
-  assert.equal(input.value,'50');assert.equal(output.textContent,'—');assert.equal(input.getAttribute('aria-valuetext'),'Ukendt lydstyrke');assert.equal(input.disabled,true);
-  f.refreshCatalogue();await settle();assert.equal(input.value,'50');assert.equal(output.textContent,'—');assert.equal(f.nodes.get('play-pause').disabled,false);assert.deepEqual(f.writes,[]);
+  assert.equal(input.value,'100');assert.equal(input.dataset.kitValueKnown,'false');assert.equal(output.textContent,'—');assert.equal(input.getAttribute('aria-valuetext'),'Ukendt lydstyrke');assert.equal(input.disabled,true);
+  f.refreshCatalogue();await settle();assert.equal(input.value,'100');assert.equal(input.dataset.kitValueKnown,'false');assert.equal(output.textContent,'—');assert.equal(f.nodes.get('play-pause').disabled,false);assert.deepEqual(f.writes,[]);
  }finally{f.restore();}
 });
 

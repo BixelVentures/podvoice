@@ -43,7 +43,9 @@ def test_reconsideration_is_one_exact_call_and_never_substitutes_for_fresh_assen
 
 def test_voice_owns_listening_style_and_delegation_backend_owns_product_rules():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
-    assert _sections()["DANSK TALE"].strip() in primary
+    for rule in _sections()["DANSK TALE"].strip().splitlines():
+        if "Én kort sætning er standard" not in rule:
+            assert rule in primary
     for section in ("PRIORITET", "KILDER OG ROUTING", "RESULTATER OG FEJL"):
         assert _sections()[section].strip() in backend
     assert "# LYD OG FORSTÅELSE" not in backend
@@ -114,7 +116,7 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
-        assert "Delegér straks og i stilhed" in primary
+        assert "Delegér straks uden selvstændige modtagelses- eller fremskridtsreplikker" in primary
         assert "Undgå skabelonagtige modtagelses- og fremskridtsreplikker" in primary
         assert "Naturlige smålyde, tøven og prosodi må" in primary
         assert "erstatning for delegation" in primary
@@ -149,6 +151,24 @@ def test_startup_primary_carries_official_delegation_token_in_all_branches():
             assert "Do not generate <|SpawnThinking|> when:" in config["instructions"]
             assert "Generate <|SpawnThinking|> før backendarbejde" in config["instructions"]
             assert "<|SpawnThinking|>" not in config["delegation"]["responses"]["instructions"]
+            # Check actual startup policy across normal/custom/confirmation paths;
+            # these assertions do not claim the real model followed that policy.
+            positive, negative = config["instructions"].split(
+                "Do not generate <|SpawnThinking|> when:"
+            )
+            assert "en substantiel forklaring, sammenligning eller trinvis vejledning" in positive
+            assert "som den oprindelige opgave én gang til backend" in positive
+            assert "Giv ikke\nførst et separat direkte svar" in positive
+            assert "et kort, sikkert faktasvar på stabil viden eller enkel matematik" in negative
+            assert "en nødvendig opklaring" in negative
+            assert "allerede\nbekræftede oplysninger" in negative
+            assert "rent modtaget-signal" in negative
+            assert "ingen delegation eller svar" in negative
+            assert "må ikke udløse delegation alene for at tegne et svar" in negative
+            assert (
+                "Ingen ekstra værktøjer, opslag eller modelrunde"
+                in config["delegation"]["responses"]["instructions"]
+            )
 
 
 def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
@@ -165,23 +185,30 @@ def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
     assert "uden at indsamle et\nvirkningsløst ja" in primary
 
 
-def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
+def test_delegation_has_no_generic_receipts_and_preserves_useful_answers():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
-    assert "Delegér straks og i stilhed" in primary
-    assert "Ved en handlingsanmodning: send først opgaven til\nbackend uden lyd" in primary
-    assert "vent derefter stille på resultatet. Stilhed erstatter ikke delegation" in primary
+    assert "Delegér straks uden selvstændige modtagelses- eller fremskridtsreplikker" in primary
+    assert (
+        "Ved en handlingsanmodning: send først opgaven til backend, og afvent resultatet" in primary
+    )
+    assert "før et opgaveresultat. Naturlige smålyde erstatter ikke delegation" in primary
     assert "Undgå skabelonagtige modtagelses- og fremskridtsreplikker" in primary
     assert "“modtaget” eller “jeg tjekker lige”" in primary
     assert "Naturlige smålyde, tøven og prosodi må\nindgå i et meningsfuldt svar" in primary
+    assert "en kort naturlig bekræftelse eller lytte-/tænkelyd" in primary
+    assert "uden at love et udfald. Gentag ikke generiske\nmodtagelsesreplikker" in primary
+    assert "er også tilladt ved afslutning" in primary
     assert "Det nyttige svar eller en nødvendig kort opklaring er hovedindholdet" in primary
     assert "Never backchannel." not in primary
     assert "heller ikke “hmm”" not in primary
     assert "det bekræftede resultat" in primary
     assert "valideret resultat og aktuel accept" in primary
     assert "før et opgaveresultat, en terminal kvittering eller afsked" in primary
-    assert "delegér også afslutningen\ni stilhed uden modtagelseskvittering" in primary
-    assert "kort afsked eller afslutte uden ord" in primary
-    assert "Ved silent=true, sig intet" in primary
+    assert (
+        "delegér også afslutningen\nstraks uden modtagelses- eller fremskridtsreplikker" in primary
+    )
+    assert "backend kan i stedet vælge end_conversation med silent=true" in primary
+    assert "Efter aktuelt accepteret silent=true, generér ingen ny tale eller smålyde" in primary
     assert "Foregrib aldrig et værktøjsresultat" in primary
     assert "sikre, meningsfulde direkte svar,\nopklaringer og dialog uden delegation" in primary
     assert "Sig ingen generisk ventereplik før eller under kaldet" in backend
@@ -192,20 +219,23 @@ def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     assert _sections()["RESULTATER OG FEJL"].strip() in backend
 
 
-def test_confirmed_action_result_precedes_optional_farewell_unless_silent_is_accepted():
+def test_confirmed_action_result_cannot_be_hidden_by_silent_close():
     for system_prompt in (SYSTEM_PROMPT_DA, "Brugerdefineret backendregel."):
         primary, _ = live_instructions(system_prompt)
         assert "Efter completed og aktuelt accepteret\nend_conversation" in primary
         assert "Giv én kort, sand tilbagemelding om en bekræftet udført handling" in primary
         assert "hvis dens resultat endnu ikke er sagt" in primary
-        assert "medmindre aktuelt accepteret silent=true" in primary
+        assert "medmindre aktuelt accepteret silent=true" not in primary
+        assert "Vælg aldrig silent=true" in primary
         assert (
             "Et valgfrit farvel eller stilhed må ikke erstatte dette udestående opgaveresultat"
             in primary
         )
         assert "Ved ren samtaleafslutning uden et udestående opgaveresultat" in primary
-        assert "kort afsked eller afslutte uden ord" in primary
-        assert "Ved silent=true, sig intet" in primary
+        assert "backend kan i stedet vælge end_conversation med silent=true" in primary
+        assert (
+            "Efter aktuelt accepteret silent=true, generér ingen ny tale eller smålyde" in primary
+        )
 
 
 def test_v15_quiet_acknowledgement_keeps_live_listening_without_turn_tool():
@@ -348,7 +378,7 @@ def test_semantic_farewell_delegates_closure_before_optional_spoken_farewell():
     assert "Do not generate <|SpawnThinking|> when:" in primary
     assert "delegér afslutningen til backend før en eventuel" in primary
     assert "At sige farvel lukker ikke forbindelsen" in primary
-    assert "kort afsked eller afslutte uden ord" in primary
+    assert "backend kan i stedet vælge end_conversation med silent=true" in primary
     assert "stille fortsat lytning" in primary
     assert "stop musik" in primary
     assert "kald ikke end_conversation for dette" in backend
@@ -397,3 +427,25 @@ def test_backend_shares_result_style_without_claiming_voice_or_overriding_reques
     assert "fælles svarstil" in binding
     assert "sikkerhed, kilde- og resultatkrav" in binding
     assert "Naturlige smålyde, tøven og prosodi må" in primary
+
+
+def test_backend_silent_choice_requires_no_owed_business_output():
+    from gatekeeper.thin import LIVE_END_CONVERSATION_DECLARATION
+
+    _, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "uden udestående nyttigt svar, handlingskvittering eller fejl" in backend
+    assert "Vælg aldrig silent=true" in backend
+    description = LIVE_END_CONVERSATION_DECLARATION["description"]
+    assert "For a pure explicit ending" in description
+    assert (
+        "Never choose silent=true while a useful answer, action receipt or error is owed"
+        in description
+    )
+
+
+def test_primary_preserves_explicit_answer_depth_without_changing_short_default():
+    primary, _ = live_instructions(SYSTEM_PROMPT_DA)
+    assert "Én kort sætning er standard" in primary
+    assert "brug højst to" not in primary
+    assert "Følg brugerens udtrykkelige svarformat og omfang" in primary
+    assert "Efter en enkel handling er en kort, sand kvittering nok" in primary

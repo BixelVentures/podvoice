@@ -591,3 +591,127 @@ async def test_visual_reads_follow_synchronous_close_barrier(
 
     monkeypatch.setattr(hooks, builder_name, wrapped)
     await test_receipts_follow_actual_successful_current_submission(surface, "current")
+
+
+async def test_actual_completed_visual_survives_history_restart_and_authorized_js_read(tmp_path):
+    import time
+
+    from gatekeeper.history import History
+
+    path = tmp_path / "history.jsonl"
+    session, sdk, _, tools, _ = build()
+    sink = tools.podview_receipts = VisualReceiptOwner()
+    history = History(path)
+    app = create_app(StatusHub(), {session.room: session}, tools=tools, history=history)
+    await session.start()
+    try:
+        await session.wake()
+        await session.submit_text("Hvordan folder jeg en papirflyver?", command_id="archive-input")
+        await emit(sdk, created(), assistant_item(json.dumps(message("steps"))), terminal())
+        await until(lambda: bool(sink.snapshot(session.room, session)["items"]))
+        admitted = sink.history(session.room, session)["items"][0]
+        assert not tools.calls
+        await session.stop(reason="model-close")
+        sink.close()
+        # A new History and owner/boot cannot inherit a current receipt or source lease.
+        restarted = VisualReceiptOwner()
+        replacement, _ = owner()
+        restored_history = History(path)
+        app = create_app(
+            StatusHub(),
+            {"kitchen": replacement},
+            tools=SimpleNamespace(podview_receipts=restarted),
+            history=restored_history,
+        )
+        async with TestClient(TestServer(app)) as client:
+            response = await client.get("/view/api/answers?room=kitchen&history=1")
+            assert response.status == 200
+            archived = await response.json()
+            assert archived["items"] == [admitted]
+            assert archived["receiptIds"] == [admitted["receiptId"]]
+            assert response.headers["Cache-Control"] == "no-store"
+            assert (await client.get("/view/api/sources/" + admitted["receiptId"])).status == 404
+            current = await (await client.get("/view/api/answers?room=kitchen")).json()
+            assert current["items"] == []
+            assert (await client.get("/view/api/answers?room=bedroom&history=1")).status == 404
+            assert (
+                await client.get(
+                    "/view/api/answers?history=1", headers={"Sec-Fetch-Site": "cross-site"}
+                )
+            ).status == 403
+            snapshot = await (await client.get("/view/api/snapshot?room=kitchen")).json()
+            consumer = (
+                Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/owner-answers.js"
+            )
+            program = """
+import assert from 'node:assert/strict';
+let raw='';for await(const part of process.stdin)raw+=part;
+const p=JSON.parse(raw),{historicalAnswers}=await import(p.module);
+const item=historicalAnswers(p.history,p.snapshot,p.now).items[0];
+assert.equal(item.kind,'steps');assert.equal(item.receiptId,p.receipt);
+assert.deepEqual(item.allowedActions,[]);assert.equal(item.readContext,null);
+assert.equal(item.readConnected,false);assert.equal(item.historical,true);
+for(const change of ['bootId','roomId']){
+ const bad=structuredClone(p.history);bad[change]='foreign';
+ assert.throws(()=>historicalAnswers(bad,p.snapshot,p.now));
+}
+assert.throws(()=>historicalAnswers(p.history,{...p.snapshot,capabilities:{answerRead:false}},p.now));
+process.stdout.write('passive history admitted');
+"""
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["node", "--input-type=module", "-e", program],
+                input=json.dumps(
+                    {
+                        "module": consumer.as_uri(),
+                        "history": archived,
+                        "snapshot": snapshot,
+                        "now": time.time() * 1000,
+                        "receipt": admitted["receiptId"],
+                    }
+                ),
+                text=True,
+                capture_output=True,
+                timeout=10,
+            )
+            assert result.returncode == 0, result.stderr
+            assert result.stdout == "passive history admitted"
+            before_revision = archived["removalRevision"]
+            assert restored_history.clear("kitchen")
+            removed = await (await client.get("/view/api/answers?history=1")).json()
+            assert removed["items"] == [] and removed["removalRevision"] > before_revision
+        again = VisualReceiptOwner()
+        again.bind_history(History(path))
+        assert again.history("kitchen", object())["items"] == []
+    finally:
+        await session.aclose()
+
+
+async def test_history_clear_disk_failure_returns_503_and_preserves_saved_rows(
+    tmp_path, monkeypatch
+):
+    import gatekeeper.history as history_module
+
+    history = history_module.History(tmp_path / "history.jsonl")
+    sink = selected_store()
+    replacement, _ = owner()
+    app = create_app(
+        StatusHub(),
+        {"kitchen": replacement},
+        tools=SimpleNamespace(podview_receipts=sink),
+        history=history,
+    )
+    assert offer(sink, owner=replacement)
+    await sink._selection
+    before = history._path.read_bytes()
+    monkeypatch.setattr(
+        history_module.os, "replace", lambda *args: (_ for _ in ()).throw(OSError("disk"))
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/history/clear", json={"room": "kitchen"})
+        assert response.status == 503
+        assert await response.json() == {"ok": False, "error": "history not saved"}
+        assert sink.history_persistence_status() == "not_saved"
+        assert history._path.read_bytes() == before
+        archived = await (await client.get("/view/api/answers?history=1")).json()
+        assert len(archived["items"]) == 1

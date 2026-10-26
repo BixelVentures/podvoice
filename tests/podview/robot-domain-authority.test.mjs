@@ -1,4 +1,3 @@
-import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-control-view.js';
@@ -9,14 +8,14 @@ class Node extends EventTarget {
  constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.isConnected=true;this.open=false;this.textContent='';}
  append(...nodes){this.children.push(...nodes);}
  after(node){this.sibling=node;}
- setAttribute(name,value){this[name]=value;}
+ setAttribute(name,value){this[name]=String(value);}
+ getAttribute(name){return this[name]??null;}
  replaceChildren(...nodes){this.children=nodes;}
  focus(){}
  showModal(){this.open=true;}
  close(){this.open=false;this.dispatchEvent(new Event('close'));}
  querySelectorAll(selector){const tags=selector.split(',').map(x=>x.toUpperCase());return this.children.flatMap(n=>[...(tags.includes(n.tagName)?[n]:[]),...n.querySelectorAll(selector)]);}
 }
-installDOMAttributes(Node);
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const target={entityId:'vacuum.actual'};
 function fixture(){
@@ -43,8 +42,8 @@ for(const transition of ['loss','gain'])for(const phase of ['pending','open'])te
  }finally{f.view.cleanup();}
 });
 for(const change of ['vacuum','disconnect','boot','room'])for(const phase of ['pending','open'])test(`${change} still invalidates ${phase} robot and rejects late setup`,async()=>{
- const f=fixture();try{let opening;if(phase==='pending')opening=f.view.open('vacuum',target,new Node('button'));else await open(f);const generation=f.view.generation;
-  if(change==='vacuum')f.host.liveSnapshot.capabilities.controlSetup=[];if(change==='disconnect')f.host.liveTransport.connected=false;if(change==='boot')f.host.liveSnapshot.bootId='new';if(change==='room')f.host.liveSnapshot.roomId='new';f.view.render();assert.ok(f.view.generation>generation);
+ const f=fixture();try{let opening;if(phase==='pending')opening=f.view.open('vacuum',target,new Node('button'));else await open(f);const generation=f.view.generation,robotOpening=f.view.opening,musicGeneration=f.view.musicGeneration;
+  if(change==='vacuum')f.host.liveSnapshot.capabilities.controlSetup=[];if(change==='disconnect')f.host.liveTransport.connected=false;if(change==='boot')f.host.liveSnapshot.bootId='new';if(change==='room')f.host.liveSnapshot.roomId='new';f.view.render();if(change==='vacuum'){assert.ok(f.view.opening>robotOpening);assert.equal(f.view.generation,generation);assert.equal(f.view.musicGeneration,musicGeneration);}else assert.ok(f.view.generation>generation);
   if(opening){f.setup.resolve(f.offer());await opening;}assert.equal(f.view.task,null);if(f.view.robotPanel)assert.equal(f.view.robotPanel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);
  }finally{f.view.cleanup();}
 });

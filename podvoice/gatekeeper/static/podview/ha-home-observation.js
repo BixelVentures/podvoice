@@ -32,16 +32,28 @@ export function lightPlacementObservation(v,areas=null){
  if(areas&&(areas.status!=='observed'||v.areaId!==areas.ownAreaId||v.areaName!==areas.items.find(row=>row.areaId===v.areaId)?.areaName||v.bindingId!==areas.bindingId||v.placementRevision!==areas.placementRevision))return null;
  return {...v};
 }
+// Passive Hue catalogue: stable opaque identity and exact admitted light members.
+// A scene entry is never evidence that it is active or that a command is offered.
+export function lightScenesObservation(value,entityIds){
+ if(!Array.isArray(value)||value.length>64||!Array.isArray(entityIds))return null;
+ const members=new Set(entityIds),seen=new Set(),scenes=[];
+ for(const row of value){
+  if(!lightExact(row,['id','name','entityIds'])||!lightHash(row.id)||seen.has(row.id)||!lightText(row.name,160)||!Array.isArray(row.entityIds)||!row.entityIds.length||row.entityIds.length>64||new Set(row.entityIds).size!==row.entityIds.length||row.entityIds.some(id=>!members.has(id)))return null;
+  seen.add(row.id);scenes.push({id:row.id,name:row.name,entityIds:[...row.entityIds]});
+ }
+ return scenes;
+}
 export function scopedLightsObservation(v,{now=Date.now(),areas=null,placement=null}={}){
- const keys=['status','source','sourceEpoch','observedAt','validUntil','scope','complete','items','countUnit'];
+ const keys=['status','source','sourceEpoch','observedAt','validUntil','scope','complete','items','countUnit',...(Object.hasOwn(v??{},'scenes')?['scenes']:[])];
  if(!lightExact(v,keys)||!['observed','unavailable','unbound'].includes(v.status)||v.source!=='home_assistant_state'||v.countUnit!=='light_entities'||!Array.isArray(v.items))return null;
- if(v.status!=='observed')return (v.sourceEpoch===null||lightText(v.sourceEpoch,256))&&v.observedAt===null&&v.validUntil===null&&v.scope===null&&v.complete===false&&v.items.length===0?{...v,items:[]}:null;
+ if(v.status!=='observed')return (v.sourceEpoch===null||lightText(v.sourceEpoch,256))&&v.observedAt===null&&v.validUntil===null&&v.scope===null&&v.complete===false&&v.items.length===0&&(!Object.hasOwn(v,'scenes')||Array.isArray(v.scenes)&&v.scenes.length===0)?{...v,items:[],...(Object.hasOwn(v,'scenes')?{scenes:[]}: {})}:null;
  const scope=v.scope;
  if(!lightText(v.sourceEpoch,256)||v.complete!==true||!lightTime(v,now)||v.items.length>64||!lightExact(scope,['kind','areaId','areaName','bindingId','placementRevision','isOwnArea'])||scope.kind!=='ha_area'||!lightAreaId(scope.areaId)||!lightText(scope.areaName,160)||!lightText(scope.bindingId,256)||!lightRevision(scope.placementRevision)||typeof scope.isOwnArea!=='boolean')return null;
  if(areas&&(areas.status!=='observed'||!lightTime(areas,now)||v.sourceEpoch!==areas.sourceEpoch||scope.areaId!==areas.selectedAreaId||scope.areaName!==areas.items.find(row=>row.areaId===scope.areaId)?.areaName||scope.bindingId!==areas.bindingId||scope.placementRevision!==areas.placementRevision||scope.isOwnArea!==(scope.areaId===areas.ownAreaId)))return null;
  if(placement&&(placement.status!=='bound'||scope.bindingId!==placement.bindingId||scope.placementRevision!==placement.placementRevision||scope.isOwnArea!==(scope.areaId===placement.areaId)||scope.isOwnArea&&scope.areaName!==placement.areaName))return null;
  const seen=new Set(),items=[];for(const row of v.items){if(!lightExact(row,['entityId','areaId','name','state','brightness','supportsBrightness'])||typeof row.entityId!=='string'||!/^light\.[a-z0-9_]+$/.test(row.entityId)||seen.has(row.entityId)||row.areaId!==scope.areaId||!lightText(row.name,160)||!['on','off','unknown','unavailable'].includes(row.state)||typeof row.supportsBrightness!=='boolean'||!(row.brightness===null||Number.isInteger(row.brightness)&&row.brightness>=0&&row.brightness<=255))return null;seen.add(row.entityId);items.push({...row});}
- return {...v,scope:{...scope},items};
+ const scenes=Object.hasOwn(v,'scenes')?lightScenesObservation(v.scenes,[...seen]):null;if(Object.hasOwn(v,'scenes')&&!scenes)return null;
+ return {...v,scope:{...scope},items,...(scenes?{scenes}: {})};
 }
 export function scopedLightSummary(v,now=Date.now()){
  const value=scopedLightsObservation(v,{now});

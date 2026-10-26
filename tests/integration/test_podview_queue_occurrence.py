@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import secrets
 import time
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -138,7 +139,11 @@ def staged(request):
 
 async def queue_service_reply(_client, _token, service, request):
     if service == "get_room_queue_controls":
-        return bound_source()
+        # Native reuses row presentation IDs only for an unchanged bound queue;
+        # every read still creates a fresh one-use observation/admission.
+        value = bound_source()
+        value["queue"]["observation_id"] = secrets.token_hex(16)
+        return value
     if service == "prepare_room_queue":
         return staged(request)
     assert service == "control_room_queue"
@@ -209,7 +214,7 @@ async def test_repeated_uri_exact_occurrence_once(rig):
     first = await bridge.queue.action(body, "grant")
     assert first["outcome"] == "accepted"
     assert read.await_args.args[-1]["args"] == {
-        "observation_id": "b" * 32,
+        "observation_id": read.await_args.args[-1]["args"]["observation_id"],
         "session_id": "native-session",
         "queue_revision": 12,
         "occurrence_id": "0" * 23 + "1",
@@ -221,8 +226,9 @@ async def test_repeated_uri_exact_occurrence_once(rig):
     assert (await bridge.queue.action(body | {"optionId": offer["items"][0]["id"]}, "grant"))[
         "outcome"
     ] == "rejected"
-    assert read.await_count == 3
+    assert read.await_count == 4
     assert [call.args[2] for call in read.await_args_list] == [
+        "get_room_queue_controls",
         "get_room_queue_controls",
         "prepare_room_queue",
         "control_room_queue",
@@ -310,9 +316,11 @@ async def test_unknown_no_replay_and_source_expiry(rig):
     body = action(offer)
     assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
     assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
-    assert bridge.controls.music._read.await_count == 3
+    assert bridge.controls.music._read.await_count == 4
     bridge.queue.tasks[offer["taskId"]]["deadline"] = time.monotonic() - 1
-    assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
+    # Display expiry cannot turn an already UNKNOWN click into a new attempt.
+    assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
+    assert bridge.controls.music._read.await_count == 4
 
 
 async def test_cancel_read_releases_busy_without_offer(rig):
@@ -404,3 +412,180 @@ async def test_new_voice_turn_rejects_old_queue_task(rig):
     bridge.sessions["kitchen"]._external_turn_id = lambda: "s1:new-turn"
     assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "rejected"
     assert bridge.controls.music._read.await_count == 1
+
+
+async def test_expired_shown_reference_gets_fresh_authority_without_renewal(rig):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    shown = bridge.queue.tasks[offer["taskId"]]
+    shown["deadline"] = time.monotonic() - 1
+    shown["source"]["valid_until"] = time.time() - 1
+    shown["actual_current"] = lambda: False
+    original_deadline, original_source = shown["deadline"], copy.deepcopy(shown["source"])
+    result = await bridge.queue.action(action(offer), "grant")
+    assert result["outcome"] == "accepted"
+    assert shown["deadline"] == original_deadline and shown["source"] == original_source
+    assert shown["consumed"]
+    calls = bridge.controls.music._read.await_args_list
+    assert [call.args[2] for call in calls] == [
+        "get_room_queue_controls",
+        "get_room_queue_controls",
+        "prepare_room_queue",
+        "control_room_queue",
+    ]
+    prepared = calls[-2].args[-1]
+    assert prepared["args"]["observation_id"] != original_source["queue"]["observation_id"]
+    assert prepared["args"]["occurrence_id"] == offer["items"][1]["id"]
+    assert prepared["args"]["queue_revision"] == original_source["queue"]["queue_revision"]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "id",
+        "revision",
+        "native",
+        "route",
+        "epoch",
+        "poll",
+        "readonly",
+        "same-observation",
+        "expiry",
+    ],
+)
+async def test_fresh_queue_cannot_remap_or_revive_shown_duplicate(rig, change):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    original = bridge.queue.tasks[offer["taskId"]]["source"]
+    fresh = bound_source()
+    fresh["queue"]["observation_id"] = "c" * 32
+    if change == "id":
+        # Identical ordered duplicate URIs are deliberately insufficient.
+        fresh["items"][1]["option_id"] = "e" * 24
+    elif change == "revision":
+        fresh["queue"]["queue_revision"] += 1
+    elif change == "native":
+        fresh["native"]["alias_revision"] += 1
+    elif change == "route":
+        fresh["route"]["input_generation"] = "2"
+    elif change == "epoch":
+        fresh["owner_epoch"] = "f" * 32
+    elif change == "poll":
+        fresh["poll_sequence"] = original["poll_sequence"] - 1
+    elif change == "readonly":
+        fresh["actions"] = []
+    elif change == "same-observation":
+        fresh["queue"]["observation_id"] = original["queue"]["observation_id"]
+    else:
+        fresh["valid_until"] = time.time() - 1
+
+    async def read(client, token, service, body):
+        assert service == "get_room_queue_controls", (
+            "stale choice reached Native preparation/commit"
+        )
+        return fresh
+
+    bridge.controls.music._read.side_effect = read
+    body = action(offer)
+    assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
+    assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
+    assert bridge.controls.music._read.await_count == 2
+    assert not bridge.controls.busy
+
+
+async def test_one_click_custody_precedes_first_owner_await(rig, monkeypatch):
+    from gatekeeper import podview_room_media
+
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    actual = podview_room_media.expected_actual
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held(*args):
+        entered.set()
+        await release.wait()
+        return await actual(*args)
+
+    monkeypatch.setattr(podview_room_media, "expected_actual", held)
+    body = action(offer)
+    running = asyncio.create_task(bridge.queue.action(body, "grant"))
+    try:
+        await entered.wait()
+        assert bridge.queue.tasks[offer["taskId"]]["consumed"]
+        assert "kitchen" in bridge.controls.busy
+        assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
+        assert (await bridge.queue.action(action(offer, request="other-click"), "grant"))[
+            "outcome"
+        ] == "rejected"
+        assert bridge.controls.music._read.await_count == 1
+        release.set()
+        assert (await running)["outcome"] == "accepted"
+        assert bridge.controls.music._read.await_count == 4
+        assert (await bridge.queue.action(body, "grant"))["outcome"] == "accepted"
+        assert bridge.controls.music._read.await_count == 4
+    finally:
+        release.set()
+        await running
+
+
+@pytest.mark.parametrize("change", ["cancel", "grant", "session", "policy"])
+async def test_resolution_cancellation_or_owner_change_never_prepares_or_retries(rig, change):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held(client, token, service, body):
+        assert service == "get_room_queue_controls", "invalid owner reached Native prepare/commit"
+        entered.set()
+        await release.wait()
+        value = bound_source()
+        value["queue"]["observation_id"] = "c" * 32
+        return value
+
+    bridge.controls.music._read.side_effect = held
+    body = action(offer)
+    running = asyncio.create_task(bridge.queue.action(body, "grant"))
+    try:
+        await entered.wait()
+        if change == "cancel":
+            running.cancel()
+        elif change == "grant":
+            bridge._grants.clear()
+        elif change == "session":
+            bridge.sessions["kitchen"] = SimpleNamespace()
+        else:
+            bridge.controls.policy["music"][0]["maxVolume"] = 17
+        release.set()
+        assert (await running)["outcome"] == "rejected"
+        assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
+        assert bridge.controls.music._read.await_count == 2
+        assert not bridge.controls.busy
+    finally:
+        release.set()
+        await running
+
+
+async def test_actual_http_shown_six_key_click_resolves_fresh_queue_once(rig):
+    bridge, request = prepare(rig)
+    headers = {"X-PodView-Request": "1", "Cookie": _PAIR_COOKIE + "=grant"}
+    async with TestClient(TestServer(rig.app)) as client:
+        shown = await (
+            await client.post("/view/api/music/queue/offer", json=request, headers=headers)
+        ).json()
+        assert shown["ok"]
+        body = action(shown)
+        assert set(body) == {"bootId", "roomId", "taskId", "revision", "requestId", "optionId"}
+        bridge.queue.tasks[shown["taskId"]]["deadline"] = time.monotonic() - 1
+        first = await client.post("/view/api/music/queue/actions", json=body, headers=headers)
+        assert first.status == 200
+        result = await first.json()
+        assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+        duplicate = await client.post("/view/api/music/queue/actions", json=body, headers=headers)
+        assert await duplicate.json() == result
+        assert bridge.controls.music._read.await_count == 4
+        forbidden = await client.post(
+            "/view/api/music/queue/actions",
+            json=body,
+            headers={**headers, "Sec-Fetch-Site": "cross-site"},
+        )
+        assert forbidden.status == 403 and bridge.controls.music._read.await_count == 4
