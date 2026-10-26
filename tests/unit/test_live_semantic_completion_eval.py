@@ -774,7 +774,12 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
         second_fixture = "polite_followup" if mode == "negative-held" else "side_address"
         await until(lambda: seen("fixture_finished", name=second_fixture))
         await transcript("input", module.TEXTS[second_fixture], 400)
-        events = [created(), call(name="end_conversation", arguments='{"silent":true}')]
+        # These cases exercise held answer admission; silent fast-close has
+        # separate coverage and deliberately bypasses that pending-answer hook.
+        arguments = (
+            '{"silent":false}' if mode in {"positive", "negative-held"} else '{"silent":true}'
+        )
+        events = [created(), call(name="end_conversation", arguments=arguments)]
         if mode == "mixed-batch":
             other = call(call_id="wait", name="wait_for_user", arguments="{}")
             other["event"]["output_index"] = 1
@@ -1919,3 +1924,63 @@ async def test_interruption_close_pacing_keeps_literal_input_mismatch(tmp_path, 
         await capture.stop_playback(playback_id="p1")
         streams.close()
         evidence.close()
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    [
+        (None, "OBSERVED_PASS"),
+        ("silent", "OBSERVED_PASS"),
+        ("missing_end", "FAIL"),
+        ("foreign_receipt", "FAIL"),
+        ("early_output", "UNKNOWN"),
+    ],
+)
+def test_pure_explicit_close_uses_existing_current_receipt_and_quiet_oracle(mutation, expected):
+    case = "pure-explicit-close"
+    assert module.CASES[case] == ("math", "explicit_close")
+    rows = good_rows(case)
+    batch = next(r for r in rows if r["kind"] == "LiveToolBatch")
+    if mutation == "silent":
+        batch["calls"][0]["args"] = {"silent": True}
+    elif mutation == "missing_end":
+        rows.remove(batch)
+    elif mutation == "foreign_receipt":
+        next(r for r in rows if r["kind"] == "semantic_end_settled")["receipt_current"] = False
+    elif mutation == "early_output":
+        returned = next(r for r in rows if r["kind"] == "tool_results_return")
+        rows.insert(
+            rows.index(returned),
+            dict(
+                kind="LiveTranscript",
+                seq=returned["seq"] - 0.5,
+                elapsed_s=returned["elapsed_s"] - 0.5,
+                generation=1,
+                direction="out",
+                text="Ja.",
+                start_ms=1500,
+                end_ms=1700,
+            ),
+        )
+    report = assess(rows, case)
+    assert report["verdict"] == expected
+    assert report["physical_close"] == "UNKNOWN"
+    assert "f17_text_and_pcm_observed" not in report
+
+
+@pytest.mark.parametrize("silent", [True, False, None])
+@pytest.mark.parametrize("stale", [False, True])
+def test_silent_model_close_requires_true_silent_argument_and_current_full_chain(silent, stale):
+    case = "pure-explicit-close"
+    rows = good_rows(case)
+    call = next(r for r in rows if r["kind"] == "LiveToolBatch")["calls"][0]
+    call["args"] = {} if silent is None else {"silent": silent}
+    lifecycle = next(r for r in rows if r["kind"] == "natural_thin_end")["timeline"]
+    next(r for r in lifecycle if r["event"] == "close_requested")["reason"] = "model-close-silent"
+    if stale:
+        next(r for r in rows if r["kind"] == "semantic_end_settled")["receipt_current"] = False
+    report = assess(rows, case)
+    legitimate = silent is True and not stale
+    assert report["functional_chain_observed"] is legitimate
+    assert report["nonsemantic_close"] is (not legitimate)
+    assert report["verdict"] == ("OBSERVED_PASS" if legitimate else "FAIL")

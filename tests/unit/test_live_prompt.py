@@ -200,7 +200,7 @@ def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     assert "valideret resultat og aktuel accept" in primary
     assert "før et opgaveresultat, en terminal kvittering eller afsked" in primary
     assert "delegér også afslutningen\ni stilhed uden modtagelseskvittering" in primary
-    assert "kort afsked eller afslutte uden ord" in primary
+    assert "backend kan i stedet vælge end_conversation med silent=true" in primary
     assert "Ved silent=true, sig intet" in primary
     assert "Foregrib aldrig et værktøjsresultat" in primary
     assert "sikre, meningsfulde direkte svar,\nopklaringer og dialog uden delegation" in primary
@@ -212,19 +212,20 @@ def test_delegation_is_silent_until_result_without_suppressing_useful_answers():
     assert _sections()["RESULTATER OG FEJL"].strip() in backend
 
 
-def test_confirmed_action_result_precedes_optional_farewell_unless_silent_is_accepted():
+def test_confirmed_action_result_cannot_be_hidden_by_silent_close():
     for system_prompt in (SYSTEM_PROMPT_DA, "Brugerdefineret backendregel."):
         primary, _ = live_instructions(system_prompt)
         assert "Efter completed og aktuelt accepteret\nend_conversation" in primary
         assert "Giv én kort, sand tilbagemelding om en bekræftet udført handling" in primary
         assert "hvis dens resultat endnu ikke er sagt" in primary
-        assert "medmindre aktuelt accepteret silent=true" in primary
+        assert "medmindre aktuelt accepteret silent=true" not in primary
+        assert "Vælg aldrig silent=true" in primary
         assert (
             "Et valgfrit farvel eller stilhed må ikke erstatte dette udestående opgaveresultat"
             in primary
         )
         assert "Ved ren samtaleafslutning uden et udestående opgaveresultat" in primary
-        assert "kort afsked eller afslutte uden ord" in primary
+        assert "backend kan i stedet vælge end_conversation med silent=true" in primary
         assert "Ved silent=true, sig intet" in primary
 
 
@@ -368,7 +369,7 @@ def test_semantic_farewell_delegates_closure_before_optional_spoken_farewell():
     assert "Do not generate <|SpawnThinking|> when:" in primary
     assert "delegér afslutningen til backend før en eventuel" in primary
     assert "At sige farvel lukker ikke forbindelsen" in primary
-    assert "kort afsked eller afslutte uden ord" in primary
+    assert "backend kan i stedet vælge end_conversation med silent=true" in primary
     assert "stille fortsat lytning" in primary
     assert "stop musik" in primary
     assert "kald ikke end_conversation for dette" in backend
@@ -417,6 +418,20 @@ def test_backend_shares_result_style_without_claiming_voice_or_overriding_reques
     assert "fælles svarstil" in binding
     assert "sikkerhed, kilde- og resultatkrav" in binding
     assert "Naturlige smålyde, tøven og prosodi må" in primary
+
+
+def test_backend_silent_choice_requires_no_owed_business_output():
+    from gatekeeper.thin import LIVE_END_CONVERSATION_DECLARATION
+
+    _, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "uden udestående nyttigt svar, handlingskvittering eller fejl" in backend
+    assert "Vælg aldrig silent=true" in backend
+    description = LIVE_END_CONVERSATION_DECLARATION["description"]
+    assert "For a pure explicit ending" in description
+    assert (
+        "Never choose silent=true while a useful answer, action receipt or error is owed"
+        in description
+    )
 
 
 def test_primary_preserves_explicit_answer_depth_without_changing_short_default():

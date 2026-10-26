@@ -58,12 +58,15 @@ CASES = {
     "brief-aside-correction": ("math", "aside_correction"),
     "tv-ongoing-query": ("unfinished", "tv", "resume"),
     "explicit-close": ("math", "presentation_steps", "explicit_close"),
+    "pure-explicit-close": ("math", "explicit_close"),
     "timer-10s": ("math", "timer_10s"),
     "pure-thanks": ("math", "pure_thanks"),
     "polite-followup": ("math", "polite_followup"),
     "interrupt-active-output": ("long_count", "interrupt_followup", "explicit_close"),
 }
-POSITIVE_CASES = frozenset({"completed-side-address", "explicit-close", "interrupt-active-output"})
+POSITIVE_CASES = frozenset(
+    {"completed-side-address", "explicit-close", "pure-explicit-close", "interrupt-active-output"}
+)
 POLICY = (
     "Implicit completion applies only after the assistant has delivered a complete answer "
     "and there is no unfinished thought, pending question, task, correction or approval. "
@@ -117,9 +120,11 @@ def instructions(variant):
     )
     backend = replace_once(
         backend,
-        "Vælg kun silent=true ved et udtrykkeligt ønske om at lukke samtalen uden tale.",
-        "Vælg silent=true ved et udtrykkeligt ønske om at lukke samtalen uden tale eller "
-        "ved den snævre implicitte afslutningsregel nedenfor.",
+        "Ved ren udtrykkelig afslutning uden udestående nyttigt svar, handlingskvittering "
+        "eller fejl: vælg end_conversation med silent=true.",
+        "Ved ren udtrykkelig afslutning eller den snævre implicitte afslutningsregel "
+        "nedenfor, uden udestående nyttigt svar, handlingskvittering eller fejl: "
+        "vælg end_conversation med silent=true.",
     )
     return primary + "\n\n" + PRIMARY_POLICY, backend + "\n\n" + BACKEND_POLICY
 
@@ -473,9 +478,11 @@ class OneLive(rig.ObservedLive):
             declaration["description"] = (
                 replace_once(
                     declaration["description"],
-                    "Use silent=true only for an explicit request to end the session without speech.",
-                    "Use silent=true for an explicit request to end without speech or the "
-                    "narrow implicit-completion rule below.",
+                    "For a pure explicit ending with no outstanding useful answer, action receipt "
+                    "or error, choose silent=true and produce no speech; a spoken farewell is optional.",
+                    "For a pure explicit ending or the narrow implicit-completion rule below, "
+                    "with no outstanding useful answer, action receipt or error, choose "
+                    "silent=true and produce no speech; a spoken farewell is optional.",
                 )
                 + " "
                 + BACKEND_POLICY
@@ -1240,11 +1247,6 @@ def assess(case, rows, *, clean, usage_complete, stayed_open, observed_lifecycle
         )
     if case == "real-followup" and negative_idle_complete:
         negative_idle_complete = real_followup_idle_proof(rows, natural[0], observed_lifecycle)
-    nonsemantic_close = any(
-        event["event"] == "close_requested" and event.get("reason") != "model-close"
-        for ending in natural
-        for event in ending["timeline"]
-    )
     polite_followup_answered = (
         answer_seen(
             [r for r in rows if not natural or r["seq"] < natural[0]["seq"]],
@@ -1289,7 +1291,13 @@ def assess(case, rows, *, clean, usage_complete, stayed_open, observed_lifecycle
             ]
             and follow_done is not None
             and lifecycle[0]["seq"] == settlement.get("source_marker_seq")
-            and lifecycle[1].get("reason") == "model-close"
+            and (
+                lifecycle[1].get("reason") == "model-close"
+                or (
+                    lifecycle[1].get("reason") == "model-close-silent"
+                    and accepted[0][1]["args"].get("silent") is True
+                )
+            )
             and isinstance(lifecycle[1].get("close_id"), str)
             and lifecycle[1]["close_id"]
             and all(e.get("close_id") == lifecycle[1]["close_id"] for e in lifecycle[1:])
@@ -1318,6 +1326,17 @@ def assess(case, rows, *, clean, usage_complete, stayed_open, observed_lifecycle
             functional_chain_observed = checked is not None and all(
                 settlement.get(k) == v for k, v in checked.items()
             )
+    nonsemantic_close = any(
+        event["event"] == "close_requested"
+        and event.get("reason") != "model-close"
+        and not (
+            event.get("reason") == "model-close-silent"
+            and functional_chain_observed
+            and accepted[0][1]["args"].get("silent") is True
+        )
+        for ending in natural
+        for event in ending["timeline"]
+    )
     preaccept_output = bool(
         accepted
         and len(starts) > 1

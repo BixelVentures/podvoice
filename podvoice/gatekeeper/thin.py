@@ -355,8 +355,10 @@ LIVE_END_CONVERSATION_DECLARATION = {
     .replace(
         "When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech.",
         "A request to stop assistant speech means be quiet and keep listening in the same "
-        "conversation; do not call this tool for that request. Use silent=true only for "
-        "an explicit request to end the session without speech.",
+        "conversation; do not call this tool for that request. For a pure explicit "
+        "ending with no outstanding useful answer, action receipt or error, choose "
+        "silent=true and produce no speech; a spoken farewell is optional. Never "
+        "choose silent=true while a useful answer, action receipt or error is owed.",
     )
     + " Music controls, including pause and stop, keep the conversation open after the "
     "truthful result unless the user also explicitly asks to end the conversation.",
@@ -5139,9 +5141,14 @@ class ThinSession:
                 self._ending_conversation = False
                 return  # Further backend tools remain owned by ordinary dispatch.
             self._trace_event("live_terminal_backend_settled", provider_generation=generation)
-            # Silent means no new farewell, not permission to discard existing
-            # output. Both semantic variants retain the same quiet/drain owner.
-            await self._finish_live_conversation(epoch, receipt)
+            if silent:
+                # Backend explicitly chose no further useful spoken output. Still
+                # receive late PCM until session.closed and drain the exact tail.
+                await self._finalize_live_conversation(
+                    epoch, reason="model-close-silent", receipt=receipt
+                )
+            else:
+                await self._finish_live_conversation(epoch, receipt)
         except asyncio.CancelledError:
             receipt.cancel()
             raise
