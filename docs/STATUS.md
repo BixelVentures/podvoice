@@ -2,7 +2,7 @@
 
 Lead/release owner: /root. Installed 2.0.92 is the preserved baseline; its physical acceptance remains open. Observed uncertainty: early mood/feeling admission refusals are not consistently visible in existing bounded diagnostics. The separately reviewed admission-log patch provides direct source evidence, not proof of a field cause. The reviewed PodView post92 package corrects robot layout and retains command authority; its seven before/after runtime pins matched the merged baseline. Inert mood retry evidence does not establish the cause of the live mood failure.
 
-Affected chain: mood/feeling request → existing guard, room and capability admission → selector/read → existing response and later refresh; preserve authorization, task ownership, stale/duplicate callbacks and lifecycle. Hypothesis: fixed reason/status admission logs will identify the earlier refusal boundary without changing requests or decisions. Non-goals: no raw identifiers, content, new authority, provider/audio behavior, automatic retries or physical device effects. Planned regression: focused route/diagnostic tests, exact-source scope and independent combined review, followed by official CI on the frozen candidate. Rollback removes the bounded admission diagnostics and any separately approved robot layout delta, preserving merged 2.0.92. Actual focused checks: admission-route 22/22 and adapted robot/music fixture mirrors 572/572 pass; package reports 3121/3121 and source/visual GO. Independent combined exact-tree review and official CI remain pending. No publication, installation or new physical acceptance is claimed.
+Affected chain: mood/feeling request → existing guard, room and capability admission → selector/read → existing response and later refresh; preserve authorization, task ownership, stale/duplicate callbacks and lifecycle. Hypothesis: fixed reason/status admission logs will identify the earlier refusal boundary without changing requests or decisions. Non-goals: no raw identifiers, content, new authority, provider/audio behavior, automatic retries or physical device effects. Planned regression: focused route/diagnostic tests, exact-source scope and independent combined review, followed by official CI on the frozen candidate. Rollback removes the bounded admission diagnostics and any separately approved robot layout delta, preserving merged 2.0.92. Official PR CI exposed a workflow-label mismatch (the highest admission dispatch is 93 but the label ended at 92); the label was corrected without changing runtime or scope. Actual focused checks: admission-route 22/22 and adapted robot/music fixture mirrors 572/572 pass; package reports 3121/3121 and source/visual GO. Independent combined exact-tree review and official CI remain pending. No publication, installation or new physical acceptance is claimed.
 
 ## Active lead decision — bounded playback/queue read correlation, 26 October 2026
 
@@ -6516,14 +6516,14 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
   ],
   "fingerprint": "2043efe3b2f4e553b790161f93afcd5ce221baa7bd3455c349d2581406c3456e",
   "kind": "podview93_single_owner_integration",
-  "manifest_fingerprint": "2a8dd751300dcfd98a5244de73f8da180cdd33c5ee06e27a475e054c66732fad",
+  "manifest_fingerprint": "576d9a5ba0ee5f28bc827fa41eb7a2113c82f8d43ad3f0e403e38807adce4154",
   "merge_base": "815c9a19e8369f14015ea597a46e63c80f4c9956",
-  "policy_fingerprint": "2f3718ff4bd2801913c6e59487b64433fa933349c2965c28637c4cd6206209dc",
+  "policy_fingerprint": "b67c45467692d47196ea0109182349cd69a14c14191caaf9365f8f7e0116d94f",
   "rationale": "Reviewed PodView robot layout and bounded mood admission diagnostics; physical acceptance remains open.",
   "regression_fingerprint": "7d761f681f18edea3c08c6ab0721921ed0384b2ca931a2b1c27bd39d0dd00465",
   "reviewer": "/root/silent_close_adversarial",
   "runtime_fingerprint": "617585de1fb631f3d7deba68abed42895bf12a5bf917f64d20deb1ae203ebcbb",
-  "tooling_fingerprint": "36c922c94efdd5a25e9d89937e6d63b495ada01bd9ff34a94834529e83ceba75",
+  "tooling_fingerprint": "9e8fbb59821b1382b5daf5671fc28ea4af01eaa65eac591f3c199084a768f697",
   "version": 70
 }
 -->

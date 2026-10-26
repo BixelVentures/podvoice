@@ -75,8 +75,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/silent_close_adversarial"
-MANIFEST_SHA = "2a8dd751300dcfd98a5244de73f8da180cdd33c5ee06e27a475e054c66732fad"
-PROFILE_AST = "b779ffb9016b2f699d287256e0b8e7b93c486b0bcf640057b4cdb7b9a3253425"
+MANIFEST_SHA = "576d9a5ba0ee5f28bc827fa41eb7a2113c82f8d43ad3f0e403e38807adce4154"
+PROFILE_AST = "446d889e535e9d496c0a818a014c19673030df996eafe9d991ff8351148acdf8"
 
 
 def record_at(root: Path) -> dict | None:

@@ -8,7 +8,7 @@
     "pyproject.toml": "6cfee83d89185081f1bd334750b7e0a386727db1be85935b32d525ca8a99497c"
   },
   "policy": {
-    ".github/workflows/ci.yml": "af129bd5cb0192e963e094a5edeacb7d01846b9e69155f0cf5610bc0834bf443",
+    ".github/workflows/ci.yml": "5e384774dd6153d916fce62bf578742903ccd39cba9c199f22eae0a49976647a",
     "docs/LEAD-PLAN.md": "3da9a887c94603f3c21d345102d4729c8a8687618e665bff283132efdd9a33e7",
     "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
@@ -455,7 +455,7 @@
   },
   "schema": "podview93.admission.v1",
   "tooling": {
-    ".github/workflows/ci.yml": "af129bd5cb0192e963e094a5edeacb7d01846b9e69155f0cf5610bc0834bf443",
+    ".github/workflows/ci.yml": "5e384774dd6153d916fce62bf578742903ccd39cba9c199f22eae0a49976647a",
     ".gitignore": "59fefbd55eb97763c5e82d9c5fc428f02b553138907a1d3501ab8eaaf16e7b21",
     "AGENTS.md": "c451ba9702c2ca9b92e89fdc5f98f6bf3337757b860bb647be1d6e5dc8885bdb",
     "CLAUDE.md": "ae8fd9ee7093a80647592372719a956f6d938a04838dee845bb22ccb5beb5a7c",
