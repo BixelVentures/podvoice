@@ -407,9 +407,9 @@ test('expired progress keeps last computed position stale until an actual correc
  f.view.renderPlayer({...vm,positionAnchor:{key:'new-owner:poll1',observedAt:now,expiresAt:now+2000},progressMs:2000});assert.equal(f.nodes.get('player-elapsed').textContent,'0:02');f.view.cleanup();assert.equal(f.view.progressDisplay,null);
 });
 
-test('unknown volume uses a disabled neutral thumb while genuine observed zero remains zero',()=>{
- const f=surface();f.view.renderControls({volume:null,canVolume:false,blocked:true});
- for(const id of ['volume','detail-volume']){const input=f.doc.getElementById(id);assert.equal(input.value,'50');assert.equal(input.disabled,true);assert.equal(input.getAttribute('aria-valuetext'),'Ukendt lydstyrke');}
+test('unknown volume uses the neutral Slider state without inventing a value while genuine zero remains zero',()=>{
+ const f=surface(),before=new Map(['volume','detail-volume'].map(id=>[id,f.doc.getElementById(id).value]));f.view.renderControls({volume:null,canVolume:false,blocked:true});
+ for(const id of ['volume','detail-volume']){const input=f.doc.getElementById(id);assert.equal(input.value,before.get(id));assert.equal(input.dataset.kitValueKnown,'false');assert.equal(input.disabled,true);assert.equal(input.getAttribute('aria-valuetext'),'Ukendt lydstyrke');}
  assert.equal(f.doc.getElementById('volume-value').textContent,'—');
  f.view.renderControls({volume:0,canVolume:true});assert.equal(f.doc.getElementById('volume').value,'0');assert.equal(f.doc.getElementById('volume-value').textContent,'0 %');assert.equal(f.doc.getElementById('volume').disabled,false);
 });

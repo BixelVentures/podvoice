@@ -572,8 +572,16 @@ async def test_busy_touch_offers_only_real_settings_no_fake_map_start(rig):
     rig.maps = []
     offer = await bridge.controls.setup(setup_body(bridge), token)
     assert offer["ok"], offer
-    assert len(offer["options"]) == 6
-    assert all(r["action"] == "set_option" for r in offer["options"])
+    assert [(r["settingKey"], r["label"], r["action"]) for r in offer["options"]] == [
+        ("cleaning_mode", "Rengøringstype", "set_option"),
+        ("mop_intensity", "Vandmængde", "set_option"),
+        ("dnd_switch", "Forstyr ikke", "set_option"),
+        ("dnd_start_time", "Forstyr ikke fra", "set_option"),
+        ("dnd_end_time", "Forstyr ikke til", "set_option"),
+        ("volume", "Robotlydstyrke", "set_option"),
+        ("child_lock", "Børnelås", "set_option"),
+        ("dust_collection_mode", "Tømningstilstand", "set_option"),
+    ]
     assert "mapName" not in offer.get("setup", {})
     assert not rig.writes
 

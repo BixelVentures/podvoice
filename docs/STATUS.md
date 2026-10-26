@@ -9,14 +9,14 @@
   ],
   "fingerprint": "e80e458e2e7935d95a43202921631210f618f9d91dce6d63447e7d0221431699",
   "kind": "podview91_single_owner_integration",
-  "manifest_fingerprint": "cc502fbe08438d505244e04d4bb65b1510ffaef5eea9c04b0f2f642f64c25785",
+  "manifest_fingerprint": "d9de6b61f8a49bedd79f6bd12def9239942c861ab01c22d65fea2b6fa6584b66",
   "merge_base": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
-  "policy_fingerprint": "55c67dd34c6fb20bc95d369b57cd775ff5369ad31e4b847e63ba6e1e4dee2673",
-  "rationale": "Independent exact integrated scope review: canonical UI215 runtime-only adoption with pinned owner/source/visual reviews; current Thin single-owner close/output protection and user-approved natural affirmation policy; retained five representative provider flow assessments preserve raw FAIL/UNKNOWN and original prompt provenance. Exact inventories and immutable historical policies verified. Official CI, publication, installation and physical acceptance are separate pending delivery steps.",
-  "regression_fingerprint": "32572638404348b7ec0205a40b08a262dada498653d53511a5a0b3ce68ba5a6e",
+  "policy_fingerprint": "a89cc328109082406d44ccc78cd7f3614a8783229b513e55cc0065f89cf2b81a",
+  "rationale": "Independent exact-source review binds72 production,92 regression,338 runtime files and the canonical215-file UI. Runtime and provider evidence are unchanged by official-CI fixture alignment; root-only safety regressions remain covered. Separate publication, installation and physical gates remain pending.",
+  "regression_fingerprint": "2b845a13dc88adfbf3cdcf811bc2ec7a436d629b83ac8aacb83a6b20edca17e1",
   "reviewer": "/root/close_example_hypothesis",
   "runtime_fingerprint": "94b0f483d4f1b0586ff3ba69421d081731039f3b747ceaf99271064858c97534",
-  "tooling_fingerprint": "8f80944b82ccf2cb2be428661b076f86899062dd92b9c009a2c93592db3867dd",
+  "tooling_fingerprint": "3a550e3d02f12b7dc7dbafc6ae511c6b76dbc151ce3ddc6a54e92173e0d5e27b",
   "version": 68
 }
 -->
@@ -6409,3 +6409,12 @@ Prior passed jobs remain evidence, not a green finalCI; successor automaticCI re
   "rationale": "Diagnostic-only PodView90 exact-tree review; F17 semantic prompt excluded and provider close remains unaccepted."
 }
 -->
+
+
+### 2026-10-26 — PR255 official-CI fixture alignment, same runtime
+
+Lead: root. PR255 head3923474317d11d09fc1158be8f4537e224919731 passed scope, HA-framework and add-on build. Unit6, remaining2 and packaged UI stopped on stale test contracts. Runtime/protocol/firmware/UI bytes are unchanged by the following repairs. Robot busy settings assert the exact eight actual setting keys/labels/actions, preserving no fake map/start and no writes (68 module PASS). Queue fixtures now supply fresh per-read observations and reach the actual staging/commit boundary, preserve shown reference/source/deadline, fresh one-use authority, UNKNOWN custody, expiry and no second commit (102 affected/neighbor PASS). No production deadline change was warranted: retained-view fresh admission is an existing explicit contract.
+
+PodView owner supplied canonical matching fixture deltas and the approved registry026b04e7; root preserved root-only history/visibility sentinels after parent adversarial coverage review. Native/music21-file patch6f34149e has separate reviewer GO. Registry changes add three registered owners without losing root-only modules or catalog entries. One combined packaged-node run retained4345 PASS; six environment failures arose only from four sandbox loopback denials and two missing-esbuild module imports. Reused the existing PodView dependency directory and reran only those three invalidated modules:44/44 PASS. Original log remains /private/tmp/pv91-packaged-ui-fixtures-combined.log and focused environment recheck /private/tmp/pv91-packaged-ui-environment-recheck.log. No household/provider calls, runtime tuning or wider local release rerun. Final official CI remains required on the updated exact candidate.
+
+Green passive readback: PodVoice2.0.90 running. Coordinated encrypted backupfecd8830 completed26Oct15:17 local,77.84MB, includes Home Assistant settings/history, PodVoice2.0.90, Speakers0.26.53 and other installed apps; default UI name Custom backup2026.8.2. Control0.10.24 downloaded through existing HACS and verified in actual disk manifest, but Core restart/loading is PENDING. PodVoice HA component disk manifest is0.1.5 (prior0.1.6 assumption superseded); whole10-file0.1.7 replacement and one coordinated Core restart remain pending. Active timers/alerts must be quiescent before Core restart. No new credential/access, sound, alarm or robot operation. PV91, Speakers54, firmware115 and final Sites/library installation/publication remain pending.

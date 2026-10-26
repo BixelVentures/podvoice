@@ -1,6 +1,7 @@
 """Real paired queue broker with separate effect-free staging and commit."""
 
 import copy
+import secrets
 import time
 from dataclasses import replace
 from unittest.mock import AsyncMock
@@ -96,7 +97,9 @@ def prepare(rig):
 
     async def read(_client, _token, service, request):
         if service == "get_room_queue_controls":
-            return source()
+            value = source()
+            value["queue"]["observation_id"] = secrets.token_hex(16)
+            return value
         if service == "prepare_room_queue":
             return staged(request)
         assert service == "control_room_queue"
@@ -126,10 +129,11 @@ async def test_exact_duplicate_occurrence_stages_then_commits_once_without_brows
     calls = bridge.controls.music._read.await_args_list
     assert [call.args[2] for call in calls] == [
         "get_room_queue_controls",
+        "get_room_queue_controls",
         "prepare_room_queue",
         "control_room_queue",
     ]
-    preparation, commit = calls[1].args[3], calls[2].args[3]
+    preparation, commit = calls[2].args[3], calls[3].args[3]
     assert preparation["args"]["occurrence_id"] == body["optionId"]
     assert "uri" not in preparation["args"] and "position" not in preparation["args"]
     assert commit == {**preparation, "prepare_id": "f" * 32}
@@ -173,7 +177,11 @@ async def test_revoked_grant_after_detached_staging_never_dispatches_commit(rig)
     bridge, request = prepare(rig)
     offer = await bridge.queue.offer(request, "grant")
 
+    original = bridge.controls.music._read.side_effect
+
     async def revoke(_client, _token, service, request):
+        if service == "get_room_queue_controls":
+            return await original(_client, _token, service, request)
         assert service == "prepare_room_queue"
         bridge._grants.clear()
         return staged(request)
@@ -181,7 +189,11 @@ async def test_revoked_grant_after_detached_staging_never_dispatches_commit(rig)
     bridge.controls.music._read.side_effect = revoke
     result = await bridge.queue.action(action(offer), "grant")
     assert result["outcome"] == "rejected"
-    assert bridge.controls.music._read.await_count == 2  # Read + stage, never commit.
+    assert [call.args[2] for call in bridge.controls.music._read.await_args_list] == [
+        "get_room_queue_controls",
+        "get_room_queue_controls",
+        "prepare_room_queue",
+    ]
     assert not bridge.controls.busy
 
 
@@ -192,7 +204,11 @@ async def test_unproven_preparation_has_zero_effect_dispatch(rig, mutation):
     bridge, request = prepare(rig)
     offer = await bridge.queue.offer(request, "grant")
 
+    original = bridge.controls.music._read.side_effect
+
     async def corrupt(_client, _token, service, request):
+        if service == "get_room_queue_controls":
+            return await original(_client, _token, service, request)
         assert service == "prepare_room_queue"
         reply = staged(request)
         if mutation == "owner":
@@ -213,7 +229,11 @@ async def test_unproven_preparation_has_zero_effect_dispatch(rig, mutation):
 
     bridge.controls.music._read.side_effect = corrupt
     assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "rejected"
-    assert bridge.controls.music._read.await_count == 2
+    assert [call.args[2] for call in bridge.controls.music._read.await_args_list] == [
+        "get_room_queue_controls",
+        "get_room_queue_controls",
+        "prepare_room_queue",
+    ]
 
 
 async def test_unknown_commit_is_consumed_and_never_retried(rig):
@@ -230,7 +250,12 @@ async def test_unknown_commit_is_consumed_and_never_retried(rig):
     body = action(offer)
     assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
     assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
-    assert bridge.controls.music._read.await_count == 3
+    assert [call.args[2] for call in bridge.controls.music._read.await_args_list] == [
+        "get_room_queue_controls",
+        "get_room_queue_controls",
+        "prepare_room_queue",
+        "control_room_queue",
+    ]
 
 
 @pytest.mark.parametrize("missing", sorted(SERVICES))
