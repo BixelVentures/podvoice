@@ -82,3 +82,12 @@ test('held recovery response cannot overwrite a replacement binding queue',async
 for(const code of ['read_access_denied',undefined])test(`non-transient queue error ${code||'generic'} never gains recovery budget`,async()=>{const f=rig();try{
  let calls=0;f.host.liveTransport.queueOffer=async()=>{calls++;throw Object.assign(Error('failed read'),{code});};await f.refresh();await f.refresh();await f.refresh();assert.equal(calls,1);assert.equal(f.media.queueReadRetry??null,null);
  }finally{f.close();}});
+
+test('music and queue diagnostic spans carry their own per-call read contexts without altering playback',async()=>{const f=rig();try{
+ let seq=0;const records=[],playbackContexts=[],queueContexts=[],music=f.host.liveTransport.music,queue=f.host.liveTransport.queueOffer;
+ f.host.liveTransport.createReadDiagnostic=()=>Object.freeze({seq:++seq});f.host.liveTransport.recordReadDiagnostic=(stage,row,context)=>records.push({stage,row,context});
+ f.host.liveTransport.music=async(...args)=>{playbackContexts.push(args[3]?.readDiagnostic);return music(...args);};f.host.liveTransport.queueOffer=async(...args)=>{queueContexts.push(args[3]?.readDiagnostic);return queue(...args);};
+ await f.refresh();assert.equal(f.media.playback.item.name,'Song');assert.equal(f.media.queueControls.status,'ready');assert.equal(f.reads.length,1);
+ assert.ok(playbackContexts[0]);assert.ok(queueContexts[0]);assert.notEqual(playbackContexts[0],queueContexts[0]);assert.ok(records.filter(r=>r.stage==='music_read').every(r=>r.context===playbackContexts[0]));assert.ok(records.filter(r=>r.stage==='queue_read').every(r=>r.context===queueContexts[0]));
+ assert.deepEqual(records.filter(r=>r.stage==='music_read').map(r=>r.row.code),['start','ok']);assert.deepEqual(records.filter(r=>r.stage==='queue_read').map(r=>r.row.code),['start','empty']);
+ }finally{f.close();}});

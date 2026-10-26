@@ -14,6 +14,7 @@ function diagnosticRow(value){
  if(diagnosticEndpoints.has(value.endpoint))row.endpoint=value.endpoint;
  if(diagnosticKinds.has(value.kind))row.kind=value.kind;
  if(typeof value.requestId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.requestId))row.requestId=value.requestId.toLowerCase();
+ if(typeof value.readHash==='string'&&/^[a-f0-9]{16}$/.test(value.readHash))row.readHash=value.readHash;
  return Object.freeze(row);
 }
 const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admission.authenticated===true&&Object.keys(value.admission).sort().join(',')==='authenticated,kind';
@@ -30,7 +31,7 @@ export class PodVoiceTransport {
   this.diagnosticRows=[];this.diagnosticSequence=0;this.diagnosticDropped=0;this.diagnosticRequestSequence=0;this.diagnosticStorageAvailable=false;this.diagnosticPersistAt=-Infinity;this.diagnosticDirty=false;this.diagnosticPersistPending=false;
   try{this.diagnosticStorage=diagnosticStorage===undefined?globalThis.sessionStorage:diagnosticStorage;const saved=this.diagnosticStorage?.getItem('podview.client-diagnostics.v1');if(typeof saved==='string'&&saved.length<=65536){const value=JSON.parse(saved);if(value?.schema==='podview.client-diagnostics.v1'&&Array.isArray(value.records)&&value.records.length<=128){this.diagnosticRows=value.records.map(diagnosticRow).filter(row=>row&&Number.isSafeInteger(row.seq)&&Number.isSafeInteger(row.atMs)).map((row,index)=>Object.freeze({...row,seq:index+1,restored:true}));this.diagnosticSequence=Math.max(0,...this.diagnosticRows.map(row=>row.seq));}}this.diagnosticStorageAvailable=!!this.diagnosticStorage;}catch{this.diagnosticStorage=null;}
 
-  this.locks=locks;this.BroadcastChannel=BroadcastChannel;this.crypto=crypto;this.cookieScope=page.origin+prefix;this.requireLocalRenewal=/\/setup(?:\.html)?$/.test(page.pathname);this.peerSeen=new Map();this.peerSequence=0;this.coordinationMode=locks?.request?'serialized':'read-hints-only';
+  this.locks=locks;this.BroadcastChannel=BroadcastChannel;this.crypto=crypto;this.readDiagnostics=new WeakMap();this.cookieScope=page.origin+prefix;this.requireLocalRenewal=/\/setup(?:\.html)?$/.test(page.pathname);this.peerSeen=new Map();this.peerSequence=0;this.coordinationMode=locks?.request?'serialized':'read-hints-only';
   this.screenEnrollment=screenEnrollment===true&&this.requireLocalRenewal;
   try{this.namedIntentStorage=namedIntentStorage===undefined?globalThis.localStorage:namedIntentStorage;}catch{this.namedIntentStorage=null;}
   this.namedIntentKey='podview.named-screen.intent.v1:'+this.cookieScope;
@@ -39,6 +40,14 @@ export class PodVoiceTransport {
   this.controllerRenewalOwner={}; this.snapshot = null; this.acceptedReadAt = null; this.connected = false; this.closed = true; this.generation = 0;
  }
  // Content-free diagnostics never own authority, retries, UI state or dispatch.
+ createReadDiagnostic(){
+  const token=Object.freeze({});let id=null,hash=Promise.resolve(null);
+  try{const candidate=this.crypto?.randomUUID?.();if(typeof candidate==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(candidate)){id=candidate.toLowerCase();hash=Promise.resolve(this.crypto?.subtle?.digest('SHA-256',new TextEncoder().encode(id))).then(value=>value instanceof ArrayBuffer&&value.byteLength===32?[...new Uint8Array(value)].map(byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,16):null).catch(()=>null);}}catch{/* Correlation cannot block a read. */}
+  this.readDiagnostics.set(token,{id,hash,generation:this.generation,scope:this.diagnosticScope});return token;
+ }
+ recordReadDiagnostic(stage,row,token){
+  try{const context=token&&typeof token==='object'?this.readDiagnostics.get(token):null;if(!context){this.recordDiagnostic(stage,row);return;}const captured={...row};void context.hash.then(readHash=>{try{if(context.generation!==this.generation||context.scope!==this.diagnosticScope)return;this.recordDiagnostic(stage,{...captured,...(readHash?{readHash}:{})});}catch{}}).catch(()=>{});}catch{/* Diagnostics are best effort. */}
+ }
  recordDiagnostic(stage,fields={}){
   try{
    const row=diagnosticRow({...fields,stage,seq:++this.diagnosticSequence,atMs:Date.now(),generation:this.generation||0,connected:this.connected===true,restored:false});if(!row)return;
@@ -259,11 +268,14 @@ export class PodVoiceTransport {
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
  disconnected() { this.recordDiagnostic('connection',{code:'disconnected'});this.connected = false; this.notify('onConnection','disconnected');this.scheduleRecovery(); }
- async request(url,options,ms,signal=this.controller?.signal,diagnosticRequestId){
+ async request(url,options,ms,signal=this.controller?.signal,diagnosticRequestId,readDiagnosticToken){
   const generation=this.generation,read=!options?.method||options.method==='GET',started=Date.now(),localRequestSeq=++this.diagnosticRequestSequence;let endpoint='other',kind='other',requestId=diagnosticRequestId,httpStatus,code;
   try{const target=new URL(url,this.base),path=target.origin===this.base.origin&&target.pathname.startsWith(this.base.pathname)?target.pathname.slice(this.base.pathname.length):'other';if(diagnosticEndpoints.has(path))endpoint=path;const candidate=target.searchParams.get('kind');if(diagnosticKinds.has(candidate))kind=candidate;
   }catch{/* No URL, arguments or payload is ever included in diagnostics. */}
-  this.recordDiagnostic('request',{code:'start',endpoint,kind,localRequestSeq,requestId});
+  const correlated=endpoint==='music'&&kind==='playback'&&read||endpoint==='music/queue/offer'&&options?.method==='POST';
+  const token=correlated?(readDiagnosticToken&&typeof readDiagnosticToken==='object'&&this.readDiagnostics.has(readDiagnosticToken)?readDiagnosticToken:this.createReadDiagnostic()):null;
+  const headers=new Headers(options?.headers);if(correlated||headers.has('X-PodView-Read-Id')){headers.delete('X-PodView-Read-Id');const readId=token?this.readDiagnostics.get(token)?.id:null;if(readId)headers.set('X-PodView-Read-Id',readId);const retained=options?.headers&&Object.getPrototypeOf(options.headers)===Object.prototype?Object.fromEntries(Object.entries(options.headers).filter(([key])=>key.toLowerCase()!=='x-podview-read-id')):Object.fromEntries([...headers].filter(([key])=>key!=='x-podview-read-id'));if(readId)retained['X-PodView-Read-Id']=readId;options={...options,headers:retained};}
+  this.recordReadDiagnostic('request',{code:'start',endpoint,kind,localRequestSeq,requestId},token);
   try{
    const result=await requestWithin(async(target,init)=>{let response;try{response=await this.fetch(target,init);}catch(error){if(endpoint==='music/queue/offer'&&options?.method==='POST'&&!this.closed&&generation===this.generation&&!signal?.aborted&&(error?.name==='TypeError'||error?.name==='TimeoutError'))throw Object.assign(error.name==='TypeError'?new TypeError('queue_read_transient'):new Error('queue_read_transient'),{name:error.name,code:'read_transient'});throw error;}httpStatus=response.status;let body;try{body=await response.json();}catch(error){code='invalid_json';if([401,403].includes(response.status))body={error:'transport_access_denied'};else{if(read&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}}
     code=[401,403].includes(response.status)?'http_denied':[408,429].includes(response.status)||response.status>=500&&response.status<=599?'http_transient':!response.ok?'http_error':'ok';
@@ -271,7 +283,7 @@ export class PodVoiceTransport {
    },url,options,signal,ms);
    if(read&&(this.closed||generation!==this.generation)){code='superseded';throw new DOMException('Read owner changed','AbortError');}return result;
   }catch(error){if(!code)code=error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?(signal?.aborted?'cancelled':'timeout'):error instanceof TypeError?'network':'failure';throw error;}
-  finally{this.recordDiagnostic('request',{code:code||'failure',endpoint,kind,localRequestSeq,requestId,httpStatus,durationMs:Math.min(120000,Math.max(0,Date.now()-started)),current:generation===this.generation});}
+  finally{this.recordReadDiagnostic('request',{code:code||'failure',endpoint,kind,localRequestSeq,requestId,httpStatus,durationMs:Math.min(120000,Math.max(0,Date.now()-started)),current:generation===this.generation},token);}
  }
 
  async home({lightArea}={}){
@@ -301,16 +313,16 @@ export class PodVoiceTransport {
  }
  async answers(history=false){if(history!==false&&history!==true&&history!=='segments')throw Error('invalid_answers_mode');if(!this.connected||this.snapshot.capabilities.answerRead!==true)throw Error('answers_unavailable');const response=await this.request(this.endpoint('answers',history===true?{history:'1'}:history==='segments'?{history:'segments'}:{}),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('answers_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}
  async source(id){if(!this.connected||this.snapshot.capabilities.answerRead!==true||!/^[a-f0-9]{32}$/.test(id))throw Error('source_unavailable');const url=new URL('sources/'+id,this.base);url.searchParams.set('room',this.room);const response=await this.request(url,{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('source_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}
- async music(kind, account, query, {includeControls=false,receiptRequestId=null}={}) {
+ async music(kind, account, query, {includeControls=false,receiptRequestId=null,readDiagnostic}={}) {
   if(typeof includeControls!=='boolean'||includeControls&&(kind!=='playback'||query!==undefined||typeof account!=='string'||!account||account.length>1024))throw new Error('invalid_music_controls_read');
   if(receiptRequestId!==null&&(!includeControls||typeof receiptRequestId!=='string'||Array.from(receiptRequestId).length<1||Array.from(receiptRequestId).length>120))throw new Error('invalid_music_receipt_selector');
   if (!this.connected || !this.snapshot.capabilities.musicRead?.includes(kind==='speakers'?'targets':kind)) throw new Error('music_unavailable');
   if(kind==='search'&&(typeof query!=='string'||query.trim()!==query||query.length<1||query.length>160))throw new Error('invalid_query');
-  const response = await this.request(this.endpoint('music', {kind,account,...(includeControls?{include_controls:'1'}:{}),...(receiptRequestId===null?{}:{receipt_request_id:receiptRequestId}),...(kind==='search'?{query}:['mood','feeling'].includes(kind)&&query==='refresh'?{refresh:'1'}:['mood','feeling'].includes(kind)&&query==='renew'?{renew:'1'}:{})}), {credentials:'same-origin',cache:'no-store',signal:this.controller.signal});
+  const response = await this.request(this.endpoint('music', {kind,account,...(includeControls?{include_controls:'1'}:{}),...(receiptRequestId===null?{}:{receipt_request_id:receiptRequestId}),...(kind==='search'?{query}:['mood','feeling'].includes(kind)&&query==='refresh'?{refresh:'1'}:['mood','feeling'].includes(kind)&&query==='renew'?{renew:'1'}:{})}), {credentials:'same-origin',cache:'no-store',signal:this.controller.signal},undefined,undefined,undefined,readDiagnostic);
   const body = await response.json(); if (!response.ok || !body.ok){const error=new Error(body.error || 'music_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}
   return body;
  }
- async queueOffer(accountId,targetId,expectedBindingId){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||accountId.length>128||typeof targetId!=='string'||!targetId||targetId.length>1024||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId))throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId})},16000);const body=await response.json();if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId){const error=Error('queue_offer_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if(!response.ok&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}return body;}
+ async queueOffer(accountId,targetId,expectedBindingId,{readDiagnostic}={}){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||accountId.length>128||typeof targetId!=='string'||!targetId||targetId.length>1024||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId))throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId})},16000,undefined,undefined,readDiagnostic);const body=await response.json();if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId){const error=Error('queue_offer_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if(!response.ok&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}return body;}
  async queueAction(task,optionId){const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false},s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId||!task.items?.some(row=>row.id===optionId))return rejected;const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};try{const response=await this.request(new URL('music/queue/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId})},undefined,undefined,requestId);const body=await response.json();if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;return body;}catch{return unknown;}}
  async musicSelectionSetup(candidateSetId,target,candidateIds){
   const s=this.snapshot;

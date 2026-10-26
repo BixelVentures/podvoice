@@ -2623,6 +2623,21 @@ async def _answers(request: web.Request) -> web.Response:
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
+async def _observed_music(request: web.Request) -> web.Response:
+    if request.query.get("kind") != "playback":
+        return await _music(request)
+    from .podview_read_diagnostics import observe_read
+
+    return await observe_read(request, _music, "playback")
+
+
+async def _observed_queue_offer(request: web.Request) -> web.Response:
+    from .podview_queue import queue_http
+    from .podview_read_diagnostics import observe_read
+
+    return await observe_read(request, queue_http, "queue")
+
+
 async def _music(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
@@ -4020,8 +4035,8 @@ def mount(
             web.post("/view/api/controller/request", _controller_request),
             web.post("/view/api/controller/claim", _controller_claim),
             web.post("/view/api/controller/renew", _controller_renew),
-            web.get("/view/api/music", _music),
-            web.post("/view/api/music/queue/offer", queue_http),
+            web.get("/view/api/music", _observed_music),
+            web.post("/view/api/music/queue/offer", _observed_queue_offer),
             web.post("/view/api/music/queue/actions", queue_http),
             web.post("/view/api/music/selection/setup", _music_selection),
             web.post("/view/api/music/selection/actions", _music_selection),

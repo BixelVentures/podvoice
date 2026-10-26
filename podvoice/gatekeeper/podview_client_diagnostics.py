@@ -52,6 +52,7 @@ _OPTIONAL = {
     "connected",
     "endpoint",
     "kind",
+    "readHash",
 }
 
 
@@ -142,6 +143,8 @@ def _row(value, *, stored=False):
     for key, allowed in (("endpoint", _ENDPOINTS), ("kind", _KINDS)):
         if key in value and (type(value[key]) is not str or value[key] not in allowed):
             raise ValueError("row enum")
+    if "readHash" in value and not _matches(_REF, value["readHash"]):
+        raise ValueError("row read hash")
     result = dict(value)
     if correlation in value:
         if not _matches(_REF if stored else _UUID, value[correlation]):

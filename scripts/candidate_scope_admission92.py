@@ -41,6 +41,8 @@ PRODUCTION = frozenset(
     {
         "podvoice/gatekeeper/mood_diagnostics.py",
         "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_client_diagnostics.py",
+        "podvoice/gatekeeper/podview_read_diagnostics.py",
         "podvoice/gatekeeper/podview_room_media.py",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/podview/light-lamp-view.js",
@@ -65,6 +67,7 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_playlist_resilience.py",
         "tests/integration/test_podview_start_move_settlement.py",
         "tests/integration/test_room_media_binding.py",
+        "tests/podview/canonical-field88-client-diagnostics.test.mjs",
         "tests/podview/canonical-field88-home-settings.test.mjs",
         "tests/podview/canonical-next-robot-control-panel.test.mjs",
         "tests/podview/canonical-next-vehicle-view.test.mjs",
@@ -73,13 +76,16 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/root-light-lamp-view.test.mjs",
         "tests/podview/root-live-media-queue-lifecycle.test.mjs",
         "tests/podview/root-queue-read-classification93.test.mjs",
+        "tests/podview/root-read-correlation.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
         "tests/podview/root-robot-overview-action.test.mjs",
         "tests/podview/root-second-move-lifecycle.test.mjs",
         "tests/podview/root-speaker-modal-anatomy.test.mjs",
         "tests/podview/root-vehicle-view.test.mjs",
         "tests/unit/test_candidate_scope_admission91.py",
+        "tests/unit/test_client_diagnostics_store.py",
         "tests/unit/test_mood_diagnostics.py",
+        "tests/unit/test_podview_read_diagnostics.py",
     }
 )
 
@@ -94,8 +100,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/silent_close_adversarial"
-MANIFEST_SHA = "08880dceb8f7fa95847e92fa598da3fd8633363753cda43d3a934a85a54f6faf"
-PROFILE_AST = "9760adf9be9530f843b6fd7d1ed034b429234045f6fafa3dabc7b40447657fd4"
+MANIFEST_SHA = "4e45229e88c94f423f1de8582daab06453885b68a9e2d2ef1710caba1a7b6176"
+PROFILE_AST = "b1197215fd720fa44e327a81960b4cd493527064e3947b483a4197f14ed31fb6"
 
 
 def record_at(root: Path) -> dict | None:

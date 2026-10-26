@@ -1,3 +1,13 @@
+## Active lead decision — bounded playback/queue read correlation, 26 October 2026
+
+Lead/release owner: /root. Observed problem: intermittent playback/queue read failures lack a shared, privacy-preserving client/server correlation; existing evidence does not establish their underlying cause. Direct evidence: independently reviewed server correlation-v3 and frontend handoff with anonymous per-call header/hash and existing queue-recovery baseline. A correlation token connects observations; it is not proof of provider or physical success.
+
+Affected chain: browser playback/queue read → optional bounded request correlation → existing guard and server handler → response/failure diagnostics → current browser observation and next validated refresh. Neighboring races include invalid or absent headers, replaced generations, asynchronous digest/log callback, stale reads and logging failures. Invariants: existing authorization, read ownership, action/idempotency, polling cadence, retries, timeout and lifecycle remain unchanged; never persist raw identifiers, URLs, user content or header values. Falsifiable hypothesis: a matching one-way bounded hash in client and server diagnostics will permit a future failed read to be correlated across this chain without revealing its raw token. Non-goals: no automatic action retry, new authority, provider fix, UI state policy, audio, household effect or physical success claim.
+
+Planned verification: causal frontend classification and asynchronous diagnostic callback tests; server validation, privacy, logger failure and actual request adapter regressions; exact 215-asset inventory, canonical candidate admission, independent exact-tree review and official CI on the same candidate. Rollback: remove only the correlation additions and their matching fixtures/binding, preserving the independently reviewed queue-recovery candidate.
+
+Reviewer found the correlated row was rejected by the existing client-diagnostics closed whitelist, causing its whole upload to fail. The minimal correction admits only a 16-character lowercase hexadecimal readHash on incoming and stored rows; malformed and private variants remain rejected. Focused store roundtrip and negative tests pass. Actual result: adopted frontend runtime before/after pins match and matching root fixture baselines are preserved. Focused frontend tests 90/90 and server tests 34/34 pass; canonical admission and changed Python lint/format pass. Independent exact combined review and official CI remain pending. No publication, Green installation, live provider correlation or physical audio acceptance is claimed.
+
 <!-- podview91-admission
 {
   "base_tip": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
@@ -6476,15 +6486,15 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "66cff5ea5e85aa94b3e7fbdf0acefd8f09f14dc3b205eb77987c8dc1bfe00f36",
+  "fingerprint": "30c5106eb64469e5774650c466736ce4f971d2e889868704e6c9aaf004c4d231",
   "kind": "podview92_single_owner_integration",
-  "manifest_fingerprint": "08880dceb8f7fa95847e92fa598da3fd8633363753cda43d3a934a85a54f6faf",
+  "manifest_fingerprint": "4e45229e88c94f423f1de8582daab06453885b68a9e2d2ef1710caba1a7b6176",
   "merge_base": "1606b2015f8c5dcd165505303a8968824ba83147",
-  "policy_fingerprint": "834c9b6c8010dd2a76d42908ff5222584a4da69e0051af6cbeae5ba0938f48b8",
+  "policy_fingerprint": "918400f149d92e2cc408aa54ba42a2eedd9565b996356c0fedc8f987d262da82",
   "rationale": "Reviewed UI92 successor with bounded playback and mood diagnostics; physical acceptance remains open.",
-  "regression_fingerprint": "cfb1d1422475eeed4784d9acaf4999a801c37ee84d212263bc19bfdc7dd5f7e2",
+  "regression_fingerprint": "1cd8b9466c35ecf1b4ccd4a5728af0fcfde05b4dbc540713f9686f6e1223a2ec",
   "reviewer": "/root/silent_close_adversarial",
-  "runtime_fingerprint": "6d08c24f011124b776bb51e4b0e97af9d1395574d9415b764bf5d7211dcc3780",
+  "runtime_fingerprint": "5f0d6117afef2b2b5d1b93f43428eb4126f76a2e0b0abb04bbd58feab7816fea",
   "tooling_fingerprint": "3e6eeed623b8d9fbb6507c21f262d727598de10b4350e50bf69589fe12014684",
   "version": 69
 }

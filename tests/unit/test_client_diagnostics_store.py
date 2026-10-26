@@ -481,3 +481,36 @@ async def test_unstorable_protected_incoming_batch_never_gets_ack(store, monkeyp
         await owner.append(parsed(), "principal", lambda: True)
     assert error.value.status == 503
     assert not owner.path.exists()
+
+
+async def test_read_hash_survives_upload_persistence_and_private_read(store):
+    owner, _ = store
+    row = {
+        "stage": "queue_read",
+        "code": "network",
+        "seq": 1,
+        "ageMs": 0,
+        "readHash": "0123456789abcdef",
+    }
+    batch = parsed(records=[row])
+    assert (await owner.append(batch, "principal", lambda: True))["stored"] is True
+    persisted = owner.path.read_text()
+    assert row["readHash"] in persisted
+    restarted = module.ClientDiagnosticsStore(owner.path, clock=owner.clock)
+    result = await restarted.read(batch.room, 0, lambda: True)
+    assert result["records"][0]["row"] == row
+    assert "PRIVATE_room" not in persisted
+
+
+@pytest.mark.parametrize(
+    "bad", ["", "a" * 15, "a" * 17, "A" * 16, "g" * 16, "PRIVATE_identifier", 123, None, True]
+)
+def test_read_hash_rejects_unbounded_private_and_nonhex_values(bad):
+    with pytest.raises(module.DiagnosticFailure) as error:
+        parsed(
+            records=[
+                {"stage": "queue_read", "code": "network", "seq": 1, "ageMs": 0, "readHash": bad}
+            ]
+        )
+    assert error.value.status == 400
+    assert "PRIVATE_identifier" not in str(error.value)

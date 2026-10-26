@@ -30,10 +30,13 @@ def _log_playback_failure(stage, error):
     }
     reason = error if isinstance(error, str) and error in allowed else "unavailable"
     try:
+        from .podview_read_diagnostics import read_hash
+
         _LOG.warning(
-            "podview_failure stage=music_read code=playback_unavailable source=%s reason=%s",
+            "podview_failure stage=music_read code=playback_unavailable source=%s reason=%s readHash=%s",
             stage,
             reason,
+            read_hash(),
         )
     except Exception:
         pass
