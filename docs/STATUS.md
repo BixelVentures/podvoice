@@ -1,3 +1,11 @@
+## 2026-10-26 — positive-example probe rejected; current remaining gates
+
+One reviewed primary-only positive closing example was tested once on held-out wording, with unchanged runtime/backend. Original report /private/tmp/pv91-close-example-provider-actual-20261026/pure-explicit-close/report.json SHA256 776fa458d242d55f32593b7d2146d0cb45580d17274dd1ad0147d432a15e4aeb remains FAIL. Recognized input, correct opening answer, one accepted current silent END, complete usage and clean synthetic close/rearm were observed. The preaccept output was Hmm., not Modtaget or Okay. It violates the strict silent-probe criterion, but is not evidence of the same lexical receipt defect; natural prosody remains allowed by the product contract. The example did not demonstrate an improvement and its exact three lines were reverted; provider prompt restored to 0e1df0021b12735300626e2c310747be35e039da7690447d9e6208e6202d9b4c. Existing 21 prompt cases and Ruff had passed before the provider probe; they did not establish model compliance.
+
+Observed input-end to synthetic rearm was 5.084s; accepted backend settlement to rearm was 0.916s, without a fresh 4s application window. These are separate latency dimensions, not physical acceptance. Root restored Green 2.0.89 Kører within a conservative 92s pause; memory key cleared and no household output. No unchanged retry or further ungrounded prompt bans. PC13 successful station continuation, remaining representative provider gates, final exact admission/official CI/publication/install and physical acceptance remain open. Robot successor is held pending canonical scoped shared-kit reconciliation; do not adopt its consumers without dependencies.
+
+PC70 cold-successor software proof is already complete: /private/tmp/pc56-release-cold-restart-20261026/export/RECEIPT.json SHA256 3b52328e4bbf6c87588fcf12e23608cf8c02bd26eef9b9375cafae5b0afa6bed. Both phases exited0 on retained DB/FIFO, distinct C UUID and new Native PID31→63; known-retired journal then fresh START completed, actual staged AES/FLAC and six authenticated audio RTP packets. The Native test duration was 0.26s, not 26s. Root exact565-file replay and permanent existing-CI adapter adoption receipt db8abbe4797f2be3284ee43f12102d6b5bc88125c3a43bf74283476c1b3adb29. This supersedes the historical missing-proof paragraph below; official CI/install/physical and other compatibility requirements are separate. No repeat needed.
+
 ## 2026-10-26 — canonical timer feedback / radio material integrated
 
 Custody-reviewed immutable7c503e08 applied after exact37c2 base checks.205 runtime and asset5b26ef2e verified;4 runtime changes/201 preserved. Existing2880 suite/componentgate65/source and actual visual GO reused without repeats. Timer only registers retained ListRow feedback; radio only material variables, no station feature or effects. Added exact timer-view.js scope pin; final review bindings remain blank. Receipt /private/tmp/pv91-timer-radio-integration-20261026.json. No household action or installation.
@@ -487,8 +495,9 @@ packet not yet supplied. Root does not duplicate canonical UI ownership.
 Independent voice_close checked all5 existing offline startup bindings against
 current101 source/config pins: zero drift, no refreshed exports or paid/provider
 call needed. Retain exact d997a57f/e30a0bdb startup files. No provider-PASS claimed.
-D2 mandatory successful-PC70-release -> C restart/newNative -> freshSTART currently
-has no combined actual protocol proof. Existing crash/PENDING recovery is separate;
+Historical state, superseded by the 26 October PC56 cold-restart receipt documented above:
+D2 mandatory successful-PC70-release -> C restart/newNative -> freshSTART then
+had no combined actual protocol proof. Existing crash/PENDING recovery is separate;
 mode29 normally deletes temporary DB/FIFO. Root authorizes isolated fixture-only
 persistent-path phase extension in existing C start35_wire_case, reusing existing
 driver twice and preserving actualjournal/gate. No production runtime/harness or
