@@ -594,14 +594,10 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-sugg
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-suggestions>.pv-meta{margin:var(--pv-s3) var(--pv-s3) 0;font:var(--pv-t-meta);color:var(--pv-ink-2)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-settings{padding:var(--pv-s3)!important;background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-settings>h3{margin:0;font:var(--pv-t-label)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting{display:flex;flex-direction:column;gap:var(--pv-s1);padding:0;margin:var(--pv-s2) 0 0;border:0;background:none;box-shadow:none}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting>h4{font:var(--pv-t-body);font-weight:var(--pv-weight-semibold);margin:0}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting>.pv-segmented{display:flex;gap:var(--pv-s1);flex-wrap:wrap}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting>.pv-segmented>.pv-segment{flex:1 1 100px;min-height:64px;white-space:normal}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-advanced-settings>summary{min-height:64px;align-content:center;font:var(--pv-t-body);font-weight:var(--pv-weight-semibold);cursor:pointer}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-action-confirm{padding:var(--pv-s3);background:var(--pv-surface);border-radius:var(--pv-r-l);display:grid;gap:var(--pv-s2)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-action-confirm[hidden]{display:none}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-action-confirm :is(h3,p){margin:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting:not(.pv-kit-listrow){display:flex;flex-direction:column;gap:var(--pv-s1);padding:0;margin:var(--pv-s2) 0 0;border:0;background:none;box-shadow:none}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting:not(.pv-kit-listrow)>h4{font:var(--pv-t-body);font-weight:var(--pv-weight-semibold);margin:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting:not(.pv-kit-listrow)>.pv-segmented{display:flex;gap:var(--pv-s1);flex-wrap:wrap}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .setting:not(.pv-kit-listrow)>.pv-segmented>.pv-segment{flex:1 1 100px;min-height:64px;white-space:normal}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] [hidden]{display:none!important}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-suggestions>.pv-meta{margin:0;font:var(--pv-t-meta)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>fieldset{margin:0;padding:0;border:0;min-height:0}
@@ -614,21 +610,11 @@ pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel[data-
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options{margin:0;padding:0;border:0}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>summary{min-height:64px;align-content:center;font:var(--pv-t-body);font-weight:var(--pv-weight-semibold);cursor:pointer}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>.repeat{margin:0;padding:0;border:0}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>.setting{margin-block:var(--pv-s2)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] fieldset.setting{min-width:0;min-inline-size:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>.setting:not(.pv-kit-listrow){margin-block:var(--pv-s2)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] fieldset.setting:not(.pv-kit-listrow){min-width:0;min-inline-size:0}
 /* A renewed Robot offer keeps the user's scroll position; browser anchoring to
    replaced controls must not move the observed status out of view. */
 pv-widget-host #device-view:has(pv-robot-control-panel[data-layout=compact]){overflow-anchor:none}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-action-confirm button{min-height:64px}
-/* Existing ListRow/disclosure compositions for offered dock work and local next
-   drafts. The draft remains editable while remote commands are unavailable. */
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-dock-controls,.robot-more-controls,.robot-next-draft){padding:var(--pv-s3);margin:0;background:var(--pv-surface);border-radius:var(--pv-r-l)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-dock-controls,.robot-more-controls,.robot-next-draft)>summary{min-height:64px;align-content:center;cursor:pointer;font:var(--pv-t-body);font-weight:var(--pv-weight-semibold)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-dock-controls,.robot-more-controls) .pv-actions{display:flex;gap:var(--pv-s1);flex-wrap:wrap}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-dock-controls,.robot-more-controls) button{flex:1 1 160px;min-height:64px;white-space:normal}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-next-draft :is(fieldset,legend){min-inline-size:0;border:0;padding:0}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-next-draft legend{font:var(--pv-t-body);font-weight:var(--pv-weight-semibold);margin-block:var(--pv-s2)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-next-draft .repeat{display:flex;gap:var(--pv-s1);flex-wrap:wrap}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{display:grid;gap:var(--pv-s2);padding:var(--pv-s3);background:var(--pv-screen-danger-surface);border-radius:var(--pv-r-l)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery-row{display:grid;gap:var(--pv-s1)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery :is(h3,p){margin:0}
@@ -641,7 +627,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-a
 /* All-room selection shares the section heading row; it owns no extra row in
    the Frameo start path. Selected-recipe intent uses a compact read-only row. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.robot-room-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading>.pv-button{min-height:64px;flex:0 0 auto;max-width:50%;white-space:normal}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading>.pv-button{min-height:64px;flex:0 0 auto;max-width:100%;white-space:normal}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recipe-summary{padding-block:var(--pv-s1);gap:var(--pv-s1)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recipe-summary>h3{font:var(--pv-t-meta);font-weight:var(--pv-weight-semibold)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recipe-summary{grid-template-columns:128px minmax(0,1fr);align-items:baseline;column-gap:var(--pv-s2)}

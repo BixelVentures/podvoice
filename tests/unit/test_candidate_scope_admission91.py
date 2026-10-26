@@ -53,7 +53,7 @@ def test_91_exact_scope_requires_complete_review_bindings():
     }
     assert {name: set(manifest[name]) for name in sections} == sections
     assert all(admission.strict.pins_match(ROOT, manifest[name]) for name in sections)
-    assert manifest["asset_count"] == 205
+    assert manifest["asset_count"] == 210
     effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
     assert admission.production_scope_matches(effective)
     assert {path for path in effective if path.startswith("tests/")} == admission.REQUIRED_TESTS

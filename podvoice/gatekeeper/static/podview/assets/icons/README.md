@@ -9,3 +9,5 @@ Legacy filenames ending in `-fill.svg` are compatibility aliases, not icon weigh
 `image-square.svg` is an additional unmodified official Phosphor Regular asset read from the upstream GitHub repository on23 October2026. Its own source URL and SHA-256 are recorded in provenance.json; it is not claimed as extracted from the pinned package archive. It identifies the existing Foto navigation, not sleep or Do Not Disturb.
 
 `house.svg` is an additional unmodified official Phosphor Regular asset fetched23 October2026. Its upstream URL and SHA-256 are recorded in provenance.json. It identifies Hjem, the passive home view. The retained image-square asset is no longer the navigation icon.
+
+`drop.svg`, `trash.svg`, `wind.svg`, `stop.svg` and `arrow-u-down-left.svg` are unmodified official Phosphor Regular 2.1.1 assets, fetched26 October2026 from the pinned package through jsDelivr. Each exact source URL and SHA-256 is recorded in `provenance.json`. They accompany visible robot-action labels for mop washing, dust emptying, drying, stopping and returning to base; the icons do not replace those labels or imply an offered device capability.

@@ -1,6 +1,6 @@
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
- --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#A2402F;--pv-danger-tint:#F6E7E4;
+ --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
  --pv-weather:#E4EDF2;--pv-weather-strong:#C9DAE5;--pv-weather-ink:#2F5D7C;
  --pv-robot:#F6E4E6;--pv-robot-strong:#EDC9CE;--pv-robot-ink:#8C3A4B;
  --pv-light:#F8EFD2;--pv-light-strong:#F0DC9E;--pv-light-ink:#7A5A10;
@@ -11,7 +11,7 @@
  --pv-screen-space-1:var(--pv-s1);--pv-screen-space-2:var(--pv-s1);--pv-screen-space-3:var(--pv-s2);--pv-screen-space-4:var(--pv-s2);--pv-screen-space-5:var(--pv-s3);--pv-screen-space-6:var(--pv-s3);--pv-screen-space-8:var(--pv-s4);--pv-screen-space-10:var(--pv-s5);
  --pv-screen-radius:var(--pv-r-l);--pv-screen-radius-control:var(--pv-r-l);--pv-screen-radius-row:var(--pv-r-l);--pv-screen-radius-field:var(--pv-r-s);--pv-screen-radius-frame:var(--pv-r-l);--pv-screen-radius-art:var(--pv-r-s);--pv-screen-radius-choice:var(--pv-r-s);--pv-screen-radius-pill:var(--pv-r-pill);--pv-resource-radius:var(--pv-r-l);--pv-hit-radius:var(--pv-r-s);
  --pv-weight-regular:400;--pv-weight-medium:500;--pv-weight-semibold:600;--pv-weight-bold:var(--pv-weight-semibold);
- --pv-s1:8px;--pv-s2:16px;--pv-s3:24px;--pv-s4:32px;--pv-s5:40px;
+ --pv-s1:8px;--pv-s2:16px;--pv-s3:24px;--pv-s4:32px;--pv-s5:40px;--pv-control-label-gap:var(--pv-s1);--pv-control-row-gap:var(--pv-s2);--pv-control-section-gap:var(--pv-s4);--pv-control-panel-gap:var(--pv-s3);--pv-control-card-inset:var(--pv-s3);
  --pv-r-s:16px;--pv-r-l:24px;--pv-r-pill:999px;
  --pv-icon-s:24px;--pv-icon-m:32px;--pv-icon-l:48px;--pv-icon-stroke:2px;
  --pv-shadow:0 1px 3px rgba(27,29,28,.04);--pv-scrim:rgba(27,29,28,.32);
@@ -59,7 +59,7 @@ pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-
 pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail) :is(h2,h3,legend){font:var(--pv-t-label);color:var(--pv-ink)}
 pv-widget-host :where(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view) p:not(.pv-meta):not(.vehicle-status):not(.vehicle-context):not(.vehicle-connection-note){font-size:var(--pv-type-body);line-height:var(--pv-leading-body)}
 /* Robot: one observed hero, neutral controls, room tiles and repeated choice. */
-pv-widget-host #device-view [data-robot-rooms=true]>.pv-meta{background:var(--pv-surface-2);padding:var(--pv-s3);font:var(--pv-t-body)}
+pv-widget-host #device-view [data-robot-rooms=true]>.pv-meta{margin:var(--pv-s2) 0 0;padding:0;background:none;font:var(--pv-t-meta);color:var(--pv-ink-2)}
 pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-hero{min-height:var(--pv-detail-min);padding:var(--pv-s4);background:var(--pv-robot);box-shadow:var(--pv-shadow)}
 pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>pv-vacuum-widget.pv-hero>.pv-content{grid-template-columns:48px minmax(0,1fr);gap:var(--pv-s2);align-content:center}
 pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .pv-hero :is(.pv-instrument,.pv-instrument>img){width:var(--pv-icon-l);height:var(--pv-icon-l)}
@@ -841,8 +841,8 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home
 
 /* Robot controls: one room heading, natural sections, one 24px inter-zone gap. */
 pv-widget-host #device-view [data-robot-rooms=true]{gap:var(--pv-s3)}
-pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>.device-history{margin:0;padding:0!important;min-height:0;background:transparent;border:0;box-shadow:none}
-pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>.robot-cleaning-zone{margin:0;padding:0!important}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>.device-history:not(.pv-kit-card){margin:0;padding:0!important;min-height:0;background:transparent;border:0;box-shadow:none}
+pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel>.pv-component>.robot-cleaning-zone{margin:0}
 pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form{display:flex;flex-direction:column;gap:var(--pv-s2);margin:0;padding:var(--pv-s3);min-height:0;box-shadow:none}
 pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-cleaning-form>.robot-room-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);margin:0;padding:0;min-height:0}
 pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robot-room-context>h2{font:var(--pv-t-label);margin:0}
@@ -1083,7 +1083,7 @@ pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focu
 
 /* Robot detail: the same admitted form anatomy inside the detail and its dialog. */
 pv-widget-host pv-robot-control-panel>.robot-control-panel{display:flex;flex-direction:column;gap:var(--pv-s3);padding:0;background:transparent}
-pv-widget-host pv-robot-control-panel>.robot-control-panel>.device-history{margin:0;padding:0!important}
+pv-widget-host pv-robot-control-panel>.robot-control-panel>.device-history:not(.pv-kit-card){margin:0;padding:0!important}
 pv-widget-host pv-robot-control-panel .robot-cleaning-form{display:flex;flex-direction:column;gap:var(--pv-s2);margin:0;padding:var(--pv-s3);background:var(--pv-surface);border-radius:var(--pv-r-l)}
 pv-widget-host pv-robot-control-panel .robot-room-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2)}
 pv-widget-host pv-robot-control-panel .robot-room-context>h2{margin:0;font:var(--pv-t-label)}
@@ -1091,13 +1091,13 @@ pv-widget-host pv-robot-control-panel .robot-map-meta{margin:var(--pv-s1) 0 0;fo
 pv-widget-host pv-robot-control-panel .robot-room-legend{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 pv-widget-host pv-robot-control-panel .robot-cleaning-form>:is(fieldset,p){margin:0}
 pv-widget-host pv-robot-control-panel .robot-cleaning-form>.history-note{font:var(--pv-t-meta);color:var(--pv-ink-2);max-width:60ch}
-pv-widget-host pv-robot-control-panel .settings>.setting{display:flex;flex-direction:column;align-items:stretch;gap:var(--pv-s2);margin:var(--pv-s2) 0 0;padding:var(--pv-s3) 0;border-radius:0;background:transparent;box-shadow:none;border-bottom:1px solid var(--pv-line)}
-pv-widget-host pv-robot-control-panel .settings>.setting>h4{margin:0;font:var(--pv-t-label)}
-pv-widget-host pv-robot-control-panel .settings>.setting>.pv-segmented{display:flex;flex-wrap:wrap;gap:var(--pv-s1)}
-pv-widget-host pv-robot-control-panel .settings>.setting>.pv-segmented>.pv-segment{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere}
-pv-widget-host pv-robot-control-panel .settings>.setting>input{box-sizing:border-box;width:100%;min-height:var(--pv-hit);padding:var(--pv-s2);font:var(--pv-t-body);color:var(--pv-ink);background:var(--pv-surface);border:1px solid var(--pv-line);border-radius:var(--pv-r-s)}
-pv-widget-host pv-robot-control-panel .settings>.setting>button{align-self:flex-start}
-pv-widget-host pv-robot-control-panel .transport>.pv-primary{flex-basis:100%}
+pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow){display:flex;flex-direction:column;align-items:stretch;gap:var(--pv-s2);margin:var(--pv-s2) 0 0;padding:var(--pv-s3) 0;border-radius:0;background:transparent;box-shadow:none;border-bottom:1px solid var(--pv-line)}
+pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>h4{margin:0;font:var(--pv-t-label)}
+pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>.pv-segmented{display:flex;flex-wrap:wrap;gap:var(--pv-s1)}
+pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>.pv-segmented>.pv-segment{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere}
+pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>input{box-sizing:border-box;width:100%;min-height:var(--pv-hit);padding:var(--pv-s2);font:var(--pv-t-body);color:var(--pv-ink);background:var(--pv-surface);border:1px solid var(--pv-line);border-radius:var(--pv-r-s)}
+pv-widget-host pv-robot-control-panel .settings>.setting:not(.pv-kit-listrow)>button{align-self:flex-start}
+pv-widget-host pv-robot-control-panel .transport>.pv-primary{flex-basis:auto}
 
 /* Device details share explicit Hero roles in every state and control owner.
    Status/helper text flows in its own rows; only admitted numeric battery is a value. */
@@ -1108,7 +1108,7 @@ pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #dev
 pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] h3{position:static;grid-column:2;grid-row:1;align-self:start;font:var(--pv-t-label);margin:0;max-width:none}
 pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-resource-value{position:static;grid-column:2;grid-row:2;align-self:start;font:var(--pv-t-title)!important;max-width:100%;margin:0;letter-spacing:-.02em;overflow-wrap:break-word;white-space:normal}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-resource-value-kind=measurement] .pv-resource-value{font:var(--pv-t-value)!important;font-variant-numeric:tabular-nums}
-pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-meta{position:static;grid-column:2;grid-row:3;align-self:start;font:var(--pv-t-body);margin:0;color:inherit;max-width:52ch;white-space:normal;overflow-wrap:break-word}
+pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-content>.pv-meta{position:static;grid-column:2;grid-row:3;align-self:start;font:var(--pv-t-body);margin:0;color:inherit;max-width:52ch;white-space:normal;overflow-wrap:break-word}
 pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] .pv-actions{grid-column:2;grid-row:4;margin:var(--pv-s1) 0 0;align-self:start}
 pv-widget-host :is(#device-view #device-detail>pv-light-widget,#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component] :is(h3,.pv-meta,.pv-actions):empty{display:none}
 pv-widget-host #device-view pv-light-widget.pv-kit-hero[data-kit-state]:not([data-kit-state=ready]){background:var(--pv-light);color:var(--pv-light-ink)}
@@ -1295,7 +1295,7 @@ pv-widget-host #vehicle-view .vehicle-metrics>.vehicle-metric>dd{margin:0;paddin
 
 /* Robot detail refines the existing Hero, Tile, Chip and read-only ListRow roles.
    Inline panels and the #device-detail owner share the base Hero specificity. */
-pv-widget-host #device-view pv-robot-control-panel>.robot-control-panel>.device-history{margin:0;padding:0!important;min-height:0;max-height:none;overflow:visible;background:transparent;border:0;box-shadow:none}
+pv-widget-host #device-view pv-robot-control-panel>.robot-control-panel>.device-history:not(.pv-kit-card){margin:0;padding:0!important;min-height:0;max-height:none;overflow:visible;background:transparent;border:0;box-shadow:none}
 pv-widget-host #device-view:has(>pv-robot-control-panel:not([hidden]),>[data-robot-rooms=true]:not([hidden])){padding-block-start:0}
 pv-widget-host #device-view>:is(pv-robot-control-panel,[data-robot-rooms=true]):not([hidden]){margin-block:0;padding-block-start:0}
 /* Inline controls contribute their complete intrinsic height to the shared
@@ -1306,7 +1306,7 @@ pv-widget-host pv-robot-control-panel>.robot-control-panel>pv-vacuum-widget.pv-k
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport{display:flex;flex-wrap:wrap;gap:var(--pv-s2);margin:var(--pv-s3) 0 0 calc(var(--pv-icon-l) + var(--pv-s3));padding:0;border:0}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:empty{display:none}
 pv-widget-host pv-robot-control-panel .transport>.pv-primary{flex-basis:auto}
-pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value{font:var(--pv-t-hero)!important;letter-spacing:-.02em;text-wrap:balance}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value{font:var(--pv-t-title)!important;line-height:34px!important}
 pv-widget-host #device-view pv-robot-control-panel .robot-cleaning-form{padding:0;background:transparent;border-radius:0;box-shadow:none;gap:var(--pv-s2)}
 pv-widget-host #device-view pv-robot-control-panel .choices.pv-tiles>.robot-room-tile{background:var(--pv-surface-2);color:var(--pv-ink);box-shadow:none}
 pv-widget-host #device-view pv-robot-control-panel .choices.pv-tiles>.robot-room-tile[aria-pressed=true]{background:var(--pv-robot-strong);color:var(--pv-robot-ink);box-shadow:inset 0 0 0 2px var(--pv-robot-ink)}
@@ -1316,7 +1316,7 @@ pv-widget-host pv-robot-control-panel .robot-care-values{display:flex;flex-direc
 pv-widget-host pv-robot-control-panel .robot-care-row.pv-kit-listrow{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);padding:var(--pv-s2);border-radius:var(--pv-r-s);background:var(--pv-surface);font:var(--pv-t-body)}
 pv-widget-host pv-robot-control-panel .robot-care-row>:is(dt,dd){margin:0;font:inherit}
 pv-widget-host pv-robot-control-panel .robot-care-row>dd{text-align:right;color:var(--pv-robot-ink)}
-@media(max-width:759px){pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport{margin-inline-start:0}pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value{font:var(--pv-t-value)!important}}
+@media(max-width:759px){pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting{grid-template-columns:104px minmax(0,1fr);gap:0 var(--pv-s1)}}
 /* Media is one Card content variant. M uses its compact artwork role;
    L uses the larger artwork role and a source-bound read-only information body.
    The retained title/artist wrapper is the same node in both sizes. */
@@ -1550,7 +1550,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not(
 /* Ready device Hero uses the same quiet title role as message Hero; transport
    is one control row and never inherits a two-column form button layout. */
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-state=ready][data-resource-value-kind=status] .pv-resource-value{font:var(--pv-t-title)!important;line-height:34px!important}
-pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:not(:empty){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-inline-start:0;gap:var(--pv-s2)}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:not(:empty){display:flex;flex-wrap:wrap;justify-content:flex-start;gap:var(--pv-control-row-gap);margin-block-start:var(--pv-control-section-gap)}
 pv-widget-host .pv-actions.transport>.pv-button{grid-column:auto!important;grid-row:auto!important;width:100%;min-width:0;min-height:var(--pv-hit);margin:0;padding-inline:var(--pv-s2);white-space:nowrap}
 /* Shared Topbar status stays in its own context column. */
 pv-widget-host[data-topbar=true] .view-nav #header-date{max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -1746,7 +1746,7 @@ pv-widget-host #vehicle-view .vehicle-artwork>.vehicle-context{position:static;i
 
 /* Canonical settings anatomy: copy/control rows are distinct from speaker selection. */
 .pv-kit-dialog:not([data-kit-variant=toast]){width:min(520px,calc(100vw - 2 * var(--pv-s4)));max-height:calc(100dvh - 2 * var(--pv-s4));overflow:auto}
-.pv-kit-listrow[data-kit-variant=settings],.pv-kit-dialog .pv-kit-listrow[data-kit-variant=read-only],.pv-kit-listrow[data-kit-variant=disclosure]{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--pv-s2);min-height:var(--pv-hit);width:100%;padding:var(--pv-s2) 0;background:transparent;border-radius:0}
+.pv-kit-listrow[data-kit-variant=settings],.pv-kit-listrow[data-kit-variant=read-only],.pv-kit-listrow[data-kit-variant=disclosure]{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--pv-s2);min-height:var(--pv-hit);width:100%;padding:var(--pv-s2) 0;background:transparent;border-radius:0}
 .pv-kit-listrow[data-kit-variant=settings]>span{display:grid;gap:var(--pv-s1);min-width:0}
 .pv-kit-listrow[data-kit-variant=settings] strong{font:var(--pv-t-label)}
 .pv-kit-listrow[data-kit-variant=settings] small{font:var(--pv-t-meta);color:var(--pv-ink-2)}
@@ -1781,7 +1781,7 @@ dialog.pv-kit-dialog:modal::backdrop{inset:0;background:var(--pv-scrim)}
 pv-widget-host pv-robot-control-panel .pv-suggestions>button.pv-kit-button{height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);font:var(--pv-t-body);font-weight:600}
 pv-widget-host pv-robot-control-panel .pv-controls>button.pv-kit-button:has(>.pv-kit-icon){display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1)}
 pv-widget-host pv-robot-control-panel button.pv-kit-button>.pv-kit-icon{width:var(--pv-icon-s);height:var(--pv-icon-s);flex:none}
-pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=primary]>.pv-kit-icon{filter:invert(1)}
+pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=primary]>.pv-kit-icon:not([data-kit-variant=mask]){filter:invert(1)}
 
 /* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
@@ -1888,3 +1888,172 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 .pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=error]{color:var(--pv-danger)!important}
 .pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=unknown]{color:var(--pv-warning)!important}
 .pv-kit[data-kit-tone=dark] .pv-kit.pv-kit-listrow[data-kit-variant=feedback]:not([data-state=error]):not([data-state=unknown]){color:var(--pv-on-dark)!important}
+
+:root{--pv-warning:#79500D;--pv-warning-tint:#F7EBD2;--pv-on-warning:#FFFEFA}
+
+/* Existing contiguous level variant required by Robot row choices. */
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-options{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:0;padding:4px;border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label{min-height:var(--pv-hit);padding:var(--pv-s1) 4px;border-radius:var(--pv-r-s)!important;font:var(--pv-t-meta);font-weight:600;background:transparent}
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label:has(input:checked){background:var(--pv-ink);color:var(--pv-on-dark)}
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label:has(input:focus-visible){outline-offset:-3px;outline-color:var(--pv-ink)}
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label:has(input:checked:focus-visible){outline-color:var(--pv-on-dark)}
+.pv-kit-choice-group[data-choice-variant=level]{width:100%}
+
+
+/* Shared Chip level-row composition: Tesla's contiguous scale reused for
+   named device settings. Native radios and each offered label retain authority. */
+.pv-kit-choice-group[data-choice-layout=row]{display:grid;grid-template-columns:128px minmax(0,1fr);align-items:center;column-gap:var(--pv-s2);min-inline-size:0;margin:0;padding:0;border:0}
+.pv-kit-choice-group[data-choice-layout=row]>legend{display:block;float:left;min-width:0;padding:0;font:var(--pv-t-meta);font-weight:600;color:var(--pv-ink)}
+.pv-kit-choice-group[data-choice-layout=row]>.pv-kit-choice-options{min-width:0;width:100%}
+.pv-kit-choice-group[data-choice-layout=row] .pv-kit-choice-label{min-width:0;white-space:normal;text-align:center;line-height:var(--pv-leading-meta)}
+@media(max-width:759px){.pv-kit-choice-group[data-choice-layout=row]{grid-template-columns:104px minmax(0,1fr);column-gap:var(--pv-s1)}}
+/* Robot composes the shared level-row and Card anatomy. The default Frameo
+   path keeps ordinary settings visible; content grows naturally for more rooms. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form{padding:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options{display:grid;gap:var(--pv-control-section-gap);margin:0;padding:0;border:0;background:transparent}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting{column-gap:var(--pv-control-row-gap)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting>legend{grid-column:1;grid-row:1;margin:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting>.pv-kit-choice-options{grid-column:2;grid-row:1}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting .pv-kit-choice-label{min-height:var(--pv-hit);margin:0;padding:var(--pv-s1) 4px;font:var(--pv-t-meta);font-weight:600}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting[hidden]{display:none!important}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-setting-wrapper{margin:0;padding:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-context{min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--pv-control-row-gap);row-gap:var(--pv-control-label-gap)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-context>h2{margin:0;flex-basis:100%;font:var(--pv-t-label);font-weight:600}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-map-meta{margin:0;font:var(--pv-t-meta)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.summary{display:none}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.start{margin-block-start:0}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density=compact]{min-height:104px!important;padding:var(--pv-s3)!important;gap:0}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density=compact]>.pv-content{grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-rows:auto auto;gap:var(--pv-s1) var(--pv-s3)}
+pv-widget-host #device-view pv-robot-control-panel[data-cleaning-ready=true] .robot-settings-context{display:none}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-settings{gap:var(--pv-control-section-gap)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-setting-wrapper>h4{display:none}
+@media(max-width:759px){pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting{grid-template-columns:104px minmax(0,1fr);gap:0 var(--pv-s1)}}
+/* Label and scale occupy one actual grid row, including Repeat's native
+   legend; historical stacked legends/margins must not add empty rows. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>.robot-level-setting{grid-column:1/-1}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting>legend{grid-column:1;grid-row:1;margin:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting>.pv-kit-choice-options{grid-column:2;grid-row:1}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-context>.pv-suggestions{display:contents;min-height:0;height:auto;padding:0!important;margin:0;border:0;background:transparent;box-shadow:none}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-context>.pv-suggestions>.pv-meta{margin:0;font:var(--pv-t-meta)}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density=compact]>.pv-content{grid-template-columns:var(--pv-icon-l) minmax(0,1fr);grid-template-rows:auto auto;gap:var(--pv-s1) var(--pv-s3)}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density=compact] .pv-instrument{grid-column:1;grid-row:1/3}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density=compact] .pv-resource-value{grid-column:2;grid-row:1;margin:0}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density=compact] .pv-content>.pv-meta{grid-column:2;grid-row:2;margin:0}
+
+/* Two related levels share a row, as Tesla's Fører/Passager settings do.
+   Removing one by task type restores one full-width labeled scale. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>.robot-level-setting{grid-column:1/-1}
+@container robot-controls (min-width:640px){
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden])){grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--pv-s3)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden]))>[data-setting-concept]:is([data-setting-concept=suction],[data-setting-concept=water]){grid-column:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;row-gap:var(--pv-control-label-gap);padding-top:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden]))>[data-setting-concept]:is([data-setting-concept=suction],[data-setting-concept=water])>.pv-kit-choice-options{grid-column:1;grid-row:2}
+}
+
+
+/* Current-task controls use the same Card section as Tesla's climate controls;
+   the Hero does not repeat settings already named in the visible scale rows. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel>.robot-current-settings[data-kit=card]{padding:var(--pv-s3)!important;background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]:has(.robot-current-settings .robot-level-setting:not([hidden])) .robot-settings-context{display:none}
+
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel>.robot-cleaning-zone[data-kit=card]{padding:var(--pv-control-card-inset);container-type:inline-size;container-name:robot-controls}
+
+/* Shared control-spacing contract. Cards own one 24px inset; distinct control
+   groups have 24px breathing room, related rows 16px, label/control 8px.
+   Content height is natural: fitting the viewport never reduces these gaps. */
+.pv-kit-card[data-kit-identity=robot]{--pv-card-control-inset:var(--pv-control-card-inset)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-settings{gap:var(--pv-control-section-gap)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading{gap:var(--pv-control-row-gap);align-items:center}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form{padding:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting{column-gap:var(--pv-control-row-gap)}
+
+
+/* Hero command toolbar uses intrinsic Button widths, never three oversized
+   full-card commands. The same 64px touch area and clear labels remain. */
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:not(:empty){display:flex;flex-wrap:wrap;justify-content:flex-start;gap:var(--pv-control-row-gap);margin-block-start:var(--pv-control-section-gap)}
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport>.pv-button{flex:0 0 auto;width:auto;max-width:100%;padding-inline:var(--pv-s3)}
+
+pv-widget-host #device-view:has([data-robot-rooms=true]) #device-timeline.pv-component[data-component=activity-timeline] li::before,
+pv-widget-host #device-view:has([data-robot-rooms=true]) #device-timeline.pv-component[data-component=activity-timeline] li::after{content:none!important;display:none!important}
+
+pv-widget-host #device-view:has([data-robot-rooms=true])>#device-detail:has(>[data-control-entry=true]):not(:has(>:not([data-control-entry=true]))){display:none}
+
+
+/* Explicit detail text hierarchy. These roles outrank legacy tag selectors;
+   actual Hero/instrument values retain their independent measurement roles. */
+[data-kit-text=section-title]{font:var(--pv-t-label)!important}
+[data-kit-text=group-title]{font:var(--pv-t-body)!important;font-weight:var(--pv-weight-semibold)!important}
+[data-kit-text=field-label]{font:var(--pv-t-body)!important;font-weight:var(--pv-weight-medium)!important;color:var(--pv-ink-2)}
+[data-kit-text=body]{font:var(--pv-t-body)!important;font-weight:var(--pv-weight-regular)!important}
+[data-kit-text=meta]{font:var(--pv-t-meta)!important}
+[data-kit-text=control-value]{font:var(--pv-t-label)!important;font-variant-numeric:tabular-nums}
+[data-kit-text=headline]{font:var(--pv-t-title)!important}
+
+/* Existing Button on a tinted Hero/Card: raised-light secondary surface instead
+   of the screen's warm grey. Primary and danger keep their own semantic roles. */
+:is(.pv-kit-hero,.pv-kit-card)[data-kit-tone=tinted]{--pv-action-secondary-bg:rgba(255,255,255,.78);--pv-action-secondary-ink:var(--pv-ink);--pv-action-secondary-edge:rgba(0,0,0,.09)}
+:is(.pv-kit-hero,.pv-kit-card)[data-kit-tone=tinted] .pv-kit-button[data-kit-variant=secondary]:not([data-tone=danger]):not(.stop){box-shadow:inset 0 0 0 1px var(--pv-action-secondary-edge)}
+.pv-kit-button>.pv-kit-icon{flex:0 0 24px;width:24px;height:24px;object-fit:contain}
+
+/* The existing Button owns original source icon + label, retained through updates. */
+.pv-kit.pv-kit-button[data-kit-content=icon-label]{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1)}
+.pv-kit-button[data-kit-content=icon-label]>.pv-kit-icon{display:block;flex:0 0 var(--pv-icon-s);width:var(--pv-icon-s)!important;height:var(--pv-icon-s)!important;min-width:var(--pv-icon-s);background:currentColor;mask:var(--pv-icon-source) center/contain no-repeat;-webkit-mask:var(--pv-icon-source) center/contain no-repeat;filter:none!important}
+.pv-kit-button[data-kit-content=icon-label]>.pv-kit-icon[hidden]{display:none}
+.pv-kit-button[data-kit-content=icon-label]>[data-kit-slot=label]{min-width:0;font:inherit;color:inherit}
+
+.pv-kit.pv-kit-button[data-tone=danger]:not([data-state=error]):not([aria-invalid=true]){--pv-action-primary-bg:var(--pv-danger);--pv-action-primary-ink:var(--pv-on-danger);--pv-action-secondary-bg:var(--pv-danger);--pv-action-secondary-ink:var(--pv-on-danger);background:var(--pv-danger)!important;color:var(--pv-on-danger)!important}
+
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=vacuum]{background:var(--pv-robot);color:var(--pv-robot-ink);backdrop-filter:none}
+
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kind=vacuum] .resource-label :is(strong,small,.resource-value){color:var(--pv-robot-ink)}
+
+/* Command feedback owns the existing Hero status slot. Read-only setting
+   summaries may be suppressed; a real pending/outcome message must stay visible. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-settings-context:is([data-feedback-state=pending],[data-feedback-state=accepted],[data-feedback-state=error],[data-feedback-state=unknown]){display:block;margin:var(--pv-control-row-gap) 0 0;font:var(--pv-t-meta);color:inherit}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-settings-context[data-feedback-state=error]{color:var(--pv-danger)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-settings-context[data-feedback-state=unknown]{color:var(--pv-warning)}
+
+/* One robot task, one vertical document. History follows its actual height. */
+pv-widget-host #device-view:has([data-robot-rooms=true]){display:flex;flex-direction:column;gap:var(--pv-control-section-gap);align-items:stretch}
+pv-widget-host #device-view:has([data-robot-rooms=true])>section{flex:0 0 auto;min-height:min-content}
+
+/* Read-only ListRow is information, not an unclickable painted button. */
+.pv-kit-listrow[data-kit-variant=read-only]>.pv-meta:last-child:not(:nth-child(2)){grid-column:1/-1;margin:0}
+.pv-kit-listrow[data-kit-variant=read-only]>:is(h3,h4,p){margin:0}
+
+/* SectionHeader with a subordinate current-context line; shared stacked anatomy. */
+.pv-kit-sectionheader[data-kit-layout=stacked]{display:flex;flex-direction:column;align-items:flex-start;gap:var(--pv-control-label-gap);min-height:0;margin:0;padding:0}
+.pv-kit-sectionheader[data-kit-layout=stacked]>:is(h2,h3,p){margin:0}
+
+/* Only actionable error/unknown feedback expands a stacked header. */
+.pv-kit-sectionheader[data-kit-layout=stacked]>[data-kit-variant=feedback][hidden]{display:none!important}
+
+/* Card header action: one primary Start, beside the existing all-room action. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading[data-kit-layout=header-action]{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(160px,208px);gap:var(--pv-control-row-gap);align-items:center}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading[data-kit-layout=header-action]>.start{width:100%;min-width:0;min-height:var(--pv-hit);margin:0}
+@container robot-controls (max-width:519px){pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading[data-kit-layout=header-action]{grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-context{grid-column:1/-1}}
+/* Compact room Tiles keep their label width inside the actual Card container. */
+@container robot-controls (max-width:639px){pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.choices.pv-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* The same source-offered strength pair has the same geometry before/during. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-settings[data-kit=card]{container-type:inline-size;container-name:robot-controls}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-control-section-gap)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls>*{grid-column:1/-1}
+@container robot-controls (min-width:640px){
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden])){grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--pv-control-panel-gap)}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden]))>:is([data-setting-concept=suction],[data-setting-concept=water]){grid-column:auto}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden]))>:is([data-setting-concept=suction],[data-setting-concept=water])>.robot-level-setting{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;row-gap:var(--pv-control-label-gap)}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls:has(>[data-setting-concept=suction]:not([hidden])):has(>[data-setting-concept=water]:not([hidden]))>:is([data-setting-concept=suction],[data-setting-concept=water])>.robot-level-setting>.pv-kit-choice-options{grid-column:1;grid-row:2}
+}
+/* Icon mask uses the unmodified bundled SVG and inherits semantic Button ink. */
+.pv-kit-icon[data-kit-variant=mask]{display:inline-block;background-color:currentColor;-webkit-mask:var(--pv-icon-source) center/contain no-repeat;mask:var(--pv-icon-source) center/contain no-repeat}
+
+
+/* Existing controls share one indeterminate command-progress variant.
+   The16px mark fits their existing24px edge inset without moving labels. */
+.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]{position:relative;cursor:progress;opacity:1!important}
+.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]::after{content:''!important;position:absolute;right:var(--pv-s1);left:auto;top:50%;width:var(--pv-s2);height:var(--pv-s2);box-sizing:border-box;transform:translateY(-50%);border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-control-pending 900ms linear infinite;transform-origin:center}
+.pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]>img,.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]>img{visibility:hidden}
+.pv-kit.pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]::after{left:calc(var(--pv-s2) + (var(--pv-icon-m) - var(--pv-s2))/2);right:auto}
+.pv-kit.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]::after{left:calc(var(--pv-s3) + (var(--pv-icon-m) - var(--pv-s2))/2);right:auto;top:calc(var(--pv-s3) + var(--pv-s1) + var(--pv-icon-m)/2)}
+@keyframes pv-control-pending{from{transform:translateY(-50%) rotate(0turn)}to{transform:translateY(-50%) rotate(1turn)}}
+@media(prefers-reduced-motion:reduce){.pv-kit[data-feedback=progress][aria-busy=true]::after{animation:none!important}}
+[data-motion=reduced] .pv-kit[data-feedback=progress][aria-busy=true]::after{animation:none!important}

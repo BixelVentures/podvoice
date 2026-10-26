@@ -119,7 +119,7 @@
     },
     {
       "path": "assets/icons/README.md",
-      "sha256": "c7313aa91e98757f4a067cb7baf21aa6b707ace9e624f145d78dd45d108c4117"
+      "sha256": "25ddbb59f4d6230a0be956719c2414c434cdea12dc628028992cfeff4ea95bff"
     },
     {
       "path": "assets/icons/arrow-left-long.svg",
@@ -132,6 +132,10 @@
     {
       "path": "assets/icons/arrow-refresh.svg",
       "sha256": "4a78a777b692cb74826e3071ae7049cc0d3927e68a7b8272e7251b1760cd771f"
+    },
+    {
+      "path": "assets/icons/arrow-u-down-left.svg",
+      "sha256": "55fcf6036cc0192eb2b4f96911c660f3fccc422a88274f893d41568a17b387d7"
     },
     {
       "path": "assets/icons/boombox.svg",
@@ -194,6 +198,10 @@
       "sha256": "5a068d1cfd707fde5ddb0ce0623958123b6a5afba98401318983aeb0fdad6382"
     },
     {
+      "path": "assets/icons/drop.svg",
+      "sha256": "2b5396d046ce74fc645c6064226dd4875cf5e98eb1c7372611bf069f1adbc5aa"
+    },
+    {
       "path": "assets/icons/gear.svg",
       "sha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64"
     },
@@ -251,7 +259,7 @@
     },
     {
       "path": "assets/icons/provenance.json",
-      "sha256": "d7197cdf6670fa0be8d144296b7f521f6b7002728fb1b5393804e71d75695b03"
+      "sha256": "c1fa0cd3fcdb603ea182af29e1943054077e88099f85c527d1591cbefdc805e4"
     },
     {
       "path": "assets/icons/robot.svg",
@@ -290,6 +298,10 @@
       "sha256": "582ba467cd79b96d3c4baae867223ae906c64c46f71e2f5268f89a62bf934427"
     },
     {
+      "path": "assets/icons/stop.svg",
+      "sha256": "90c8296c46c18d913784d0c3d6c66bbbfcf536b161a0387659d65dc2548ba623"
+    },
+    {
       "path": "assets/icons/sun.svg",
       "sha256": "8df1c7b747774f8b2c1fe353b1b785c74aac35bfa50f2ed7d8d9a85a4191b2ac"
     },
@@ -302,6 +314,10 @@
       "sha256": "eccb04ff7903c451948aba91d91606eba71d9e050ed52b9e14a0e11199379d0e"
     },
     {
+      "path": "assets/icons/trash.svg",
+      "sha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c"
+    },
+    {
       "path": "assets/icons/vacuum.svg",
       "sha256": "36f8f319a1617a6a90b3fbbe2a2f319be23b54c7e2b99233f4b68a1b7699e8bb"
     },
@@ -312,6 +328,10 @@
     {
       "path": "assets/icons/volume-up-fill.svg",
       "sha256": "0a3937ccb53de8a6e1cdc9271b6bd930047aee99399d8c1c5bf3df7e0a382cd1"
+    },
+    {
+      "path": "assets/icons/wind.svg",
+      "sha256": "dd221a9698655fcd410a24cc0ccf0dc696c2adb4646b50bc81ac409654bc8401"
     },
     {
       "path": "assets/icons/x-lg.svg",
@@ -439,7 +459,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "d1755964b84b94e113702e2af25b644403fd8a1d5d3ccde480c9ac2ccd3b8058"
+      "sha256": "4ec24d906724d1eea661a1112bb07f037689a64b14520d92abfa4c1110d90ca1"
     },
     {
       "path": "library.css",
@@ -467,11 +487,11 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "7843a558c738d82485e4c4d4af599a7efb9d1bc1ca6dfb5c2e1354faef352979"
+      "sha256": "d60d434a2f65e39f3762dbb7d8f6f8bed17f94106eaf190b471368e0c8e128f1"
     },
     {
       "path": "live-home-view.js",
-      "sha256": "a31edd79d6d28b4bc650f52d44fbe9bc2cee9840738a18cec9b902a3c10e3db8"
+      "sha256": "0d0dbf1a6083d5c8fd8aa203ba7c6f88ec01f6da10b6ae1728a1a5e05b8d815b"
     },
     {
       "path": "live-media-view.js",
@@ -495,7 +515,7 @@
     },
     {
       "path": "local-robot-view.js",
-      "sha256": "ba99792f3c647bb44b6ea700ce3c7e49759ea2b9ab4783381552bf31a5d219f5"
+      "sha256": "9b1cc409cf140ffadd5a9acacdfd84f1b4530ad0663e19b347af6f11b93756d6"
     },
     {
       "path": "media-observation.js",
@@ -563,11 +583,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "901076e2ed3714203c2eaa0b52d82ba69eca1712ed5b9b7f98d28e4347ff9f04"
+      "sha256": "8123feeb77a705fdcce9208c2d157cebab988b67d12a063a83f1c26b750b95c4"
     },
     {
       "path": "podview.css",
-      "sha256": "660be3b864f6243f8bc9b19ad29112bccb808b096451acd92b6092ac0bd82d2b"
+      "sha256": "7bcb5f889edd7bedcea81d4ce863b348babb61e6454625cf6805bb78c925fc0a"
     },
     {
       "path": "podvoice-transport.js",
@@ -579,7 +599,7 @@
     },
     {
       "path": "preview-scenes.js",
-      "sha256": "0c74554b433da8f974844740ad8b4ef5334fac938fea1a14a69ec746e19c9d28"
+      "sha256": "fc9882b45d38fb8e458b8ff39d1d9d90df567c8629b5b87ea2baec9e79e0fc82"
     },
     {
       "path": "radio-model.js",
@@ -603,7 +623,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "c343183ada055357c3a5ebf73006727219834650b3403e2202283636c1287b7b"
+      "sha256": "5255a3900e15049f51bfd4af33f0b15ef04c3bb5e54d9c41f91d66909075fb17"
     },
     {
       "path": "robot-observation.js",
@@ -611,7 +631,7 @@
     },
     {
       "path": "scene-model.js",
-      "sha256": "1479bd8f9ab1caf894090e993b9c9b6c2cb541c881b7b8e2d30d0c414f45620c"
+      "sha256": "4fc80de41454e7542a9c35ce92ea81745858e03079b496c40582646bf5a49d68"
     },
     {
       "path": "scenes.css",
@@ -667,7 +687,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "3d0ea23aa2103b1ad1156f3da6dab15e3f2f817e9f5a2065f1d0dab46fd65697"
+      "sha256": "e4dffa02c5e530940c4d9b4577675119ac08d31e755d4f17bca731f6184cae0f"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -679,7 +699,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "f0e485258604fe80331a7a49652971cdb0713628716cf4b09b3d464d89928960"
+      "sha256": "5d1e0d3ad3756655e16ffdfb66a30b8f751eb1ccdaafcb7ba5f8e6845e9352eb"
     },
     {
       "path": "ui/components.js",
@@ -695,7 +715,7 @@
     },
     {
       "path": "ui/kit.js",
-      "sha256": "78718f412001ef50ae29d41478a18e43c037cb423db09a1d7d31eb9afa7abd9e"
+      "sha256": "eb2b0a9ab0c8ae8848dbce0091fb472f1e04976bd2ad36b7ca36e3bd5d164cb4"
     },
     {
       "path": "ui/legacy-components.css",
@@ -711,7 +731,7 @@
     },
     {
       "path": "ui/library/library.css",
-      "sha256": "2ffde655da9326e9afe0df661753c24c19c356b56606554afff43998d86adb89"
+      "sha256": "be116c7f7ee54cc4b0bf4cad3f6a749cf689a567b806f8a2c0c2e52f88fedd65"
     },
     {
       "path": "ui/library/types.d.ts",
@@ -747,7 +767,7 @@
     },
     {
       "path": "ui/robot-motion.js",
-      "sha256": "3d80b42b9f6ebe1c7894013794f24349bec9ee31e0e1df7e8e602b4e9523936e"
+      "sha256": "b41091584f88fa13c5982c78e5c8795360c36cd6badb7a24fb56256677e62e0d"
     },
     {
       "path": "ui/screen-lifecycle.js",
@@ -803,7 +823,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "b8d591ef36235481f939e9118e3b05a7f6af43c7e7a16113801dcf03278fe80d"
+      "sha256": "bac2383bd976c4f82a9351e5d3eb26b735f2270d5aca94930cdcd4ba76e6985f"
     },
     {
       "path": "widget-view.css",

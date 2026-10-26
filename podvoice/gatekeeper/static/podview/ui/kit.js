@@ -35,6 +35,11 @@ export function syncKitSlider(node){
  return progress;
 }
 const paintSliderInput=event=>syncKitSlider(event.currentTarget);
+/** Explicit text roles shared by detail compositions and library specimens. */
+export function applyKitTextRole(node,role){
+ if(!['section-title','group-title','field-label','body','meta','control-value','headline'].includes(role))throw new TypeError(`Unknown kit text role: ${role}`);
+ data(node,'kitText',role);return node;
+}
 export function applyKitComponent(node,type,options={}){
  recipe(type);addClasses(node,'pv-kit',`pv-kit-${type}`);
  const classes={card:'pv-card',hero:'pv-hero',tile:'pv-tile',chip:'pv-chip',button:'pv-btn',slider:'pv-slider',toggle:'pv-toggle',listrow:'pv-row',sectionheader:'pv-section-header',topbar:'pv-topbar',dialog:'pv-dialog',icon:'pv-icon'};
@@ -44,6 +49,8 @@ export function applyKitComponent(node,type,options={}){
  if(options.label!==undefined)attribute(node,'aria-label',options.label);
  if(options.selected!==undefined)attribute(node,type==='toggle'?'aria-checked':'aria-pressed',!!options.selected);
  if(options.disabled!==undefined){if('disabled' in node&&node.disabled!==!!options.disabled)node.disabled=!!options.disabled;attribute(node,'aria-disabled',!!options.disabled);}
+ if(options.feedback!==undefined){if(!['label','progress'].includes(options.feedback))throw new TypeError(`Unknown Button feedback: ${options.feedback}`);data(node,'feedback',options.feedback);}
+ if(options.tone!==undefined){if(!['neutral','warning','danger'].includes(options.tone))throw new TypeError(`Unknown Button tone: ${options.tone}`);data(node,'tone',options.tone);}
  if(options.loading!==undefined)attribute(node,'aria-busy',!!options.loading);
  if(type==='toggle')attribute(node,'role','switch');
  if(type==='slider'){syncKitSlider(node);if(node.tagName?.toUpperCase()==='INPUT'&&!sliderBindings.has(node)){node.addEventListener('input',paintSliderInput);sliderBindings.add(node);}}
@@ -96,10 +103,10 @@ export function createKitDisclosure({document=globalThis.document,id,title,descr
 }
 
 /** Native single-choice inputs use existing Chip visuals and native arrow keys. */
-export function createKitChoiceGroup({document=globalThis.document,id,label,choices=[],value,onChange}={}){
+export function createKitChoiceGroup({document=globalThis.document,id,label,choices=[],value,onChange,variant,layout}={}){
  if(!id)throw new TypeError('Choice group needs a stable id');
  const node=document.createElement('fieldset'),legend=document.createElement('legend'),row=document.createElement('div'),inputs=[];
- node.className='pv-kit-choice-group';legend.textContent=label;row.className='pv-kit-choice-options';node.append(legend,row);let selected=value,blocked=false;
+ node.className='pv-kit-choice-group';if(['level','navigation'].includes(variant))data(node,'choiceVariant',variant);if(layout==='row')data(node,'choiceLayout','row');legend.textContent=label;row.className='pv-kit-choice-options';node.append(legend,row);let selected=value,blocked=false;
  const setValue=next=>{selected=next;for(const input of inputs)if(input.checked!==(input.value===String(next)))input.checked=input.value===String(next);};
  for(const choice of choices){const item=typeof choice==='string'?{value:choice,label:choice}:choice,option=createKitComponent('chip',{document,tag:'label'}),input=document.createElement('input'),text=document.createElement('span');input.type='radio';input.name=id;input.value=String(item.value);input.id=id+'-'+inputs.length;text.textContent=item.label;option.classList?.add('pv-kit-choice-label');option.append(input,text);row.append(option);inputs.push(input);input.addEventListener('change',()=>{if(blocked||input.disabled){setValue(selected);return;}if(input.checked){selected=input.value;onChange?.(selected);}});}
  const setDisabled=value=>{blocked=!!value;attribute(node,'aria-disabled',blocked);for(const input of inputs)attribute(input,'aria-disabled',blocked);};
