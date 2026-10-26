@@ -21,7 +21,7 @@ safe_file = previous.safe_file
 BASE = "65fe801a8bb587ba42518ce4dbb04ee39b59fd76"
 KIND = "podview91_single_owner_integration"
 VERSION = 68
-ASSET_COUNT = 203
+ASSET_COUNT = 205
 MAX_ASSET_TOTAL_BYTES = 34 * 1024 * 1024
 PROFILE = "scripts/candidate_scope_admission91.py"
 MANIFEST = "scripts/podview91-admission-reviewed.json"
@@ -57,8 +57,13 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/podview_vacuum_settings.py",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/podview/control-model.js",
+        "podvoice/gatekeeper/static/podview/ha-home-observation.js",
+        "podvoice/gatekeeper/static/podview/home-model.js",
         "podvoice/gatekeeper/static/podview/library-catalog.js",
         "podvoice/gatekeeper/static/podview/library.bundle.js",
+        "podvoice/gatekeeper/static/podview/library.js",
+        "podvoice/gatekeeper/static/podview/light-lamp-view.js",
+        "podvoice/gatekeeper/static/podview/light-room-view.js",
         "podvoice/gatekeeper/static/podview/live-control-view.js",
         "podvoice/gatekeeper/static/podview/live-media-view.js",
         "podvoice/gatekeeper/static/podview/live-music-selection-view.js",
@@ -70,6 +75,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/podview.bundle.js",
         "podvoice/gatekeeper/static/podview/podview.css",
         "podvoice/gatekeeper/static/podview/podvoice-transport.js",
+        "podvoice/gatekeeper/static/podview/preview-scenes.js",
         "podvoice/gatekeeper/static/podview/robot-control-panel.js",
         "podvoice/gatekeeper/static/podview/robot-observation.js",
         "podvoice/gatekeeper/static/podview/scene-model.js",
@@ -78,6 +84,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/ui/kit.js",
         "podvoice/gatekeeper/static/podview/ui/resource-tile.js",
         "podvoice/gatekeeper/static/podview/widget-view.js",
+        "podvoice/gatekeeper/static/podview/widget-redesign.css",
         "podvoice/gatekeeper/thin.py",
         "podvoice/gatekeeper/tools.py",
         "podvoice/gatekeeper/voicepe.py",
@@ -172,7 +179,7 @@ ha_runtime_inventory = previous.ha_runtime_inventory
 
 
 def assets_match91(root: Path, runtime: dict, count: object) -> bool:
-    """Exact canonical203 asset inventory; path/hash/byte ceiling are fail closed."""
+    """Exact canonical205 asset inventory; path/hash/byte ceiling are fail closed."""
     if type(count) is not int or count != ASSET_COUNT:
         return False
     raw = safe_file(root, STATIC + "asset-manifest.json")

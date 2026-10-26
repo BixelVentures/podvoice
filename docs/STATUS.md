@@ -1,3 +1,82 @@
+### Canonical205 UI successor integrated without replacing music owners
+
+Root verified203f00fcbase, checked andapplied canonicalpatch6994dc82 from immutable
+/private/tmp/podview-kit-finish-20261026-final manifest499a648a, receiptbd383e96.
+All205runtimepins+asset9a7342e3 match. Onlynewownerslight-room/light-lamp;18protected
+music/media/history/diagnosticpathsunchanged. Independentkit_packet_review custodyGO;
+owner2879tests/syntax13/scopedactualProductDesign-ImpeccablevisualGO reused unchanged.
+Rootreceipt /private/tmp/pv91-kit-finish-integration-20261026.json senttoUIownerforcheck.
+Profile205+7missingruntimepaths andexistingunitcountupdated; currentmanifestrefreshed,
+4admissiontests/Ruff/formatPASS. Reviewerbindingsstayblank: finaladmissionCLOSED.
+No mainCSSwholecopy, no parallelUIimplementation, no new provider/effects/install.
+NewDisconnected-detailaudit isUIownerwork outsidefrozenpacket, notclaimedresolved.
+PC13/providergates/officialCI/bundlepublication/Greenreadback andphysicalQA stillopen.
+
+### Newly approved two-case batch: actual semantic lifecycle observed, overall UNKNOWN
+
+User explicitly renewed two-case approval after automaticreviewreject; reviewed
+operator787c5a29 executed first explicit-close exactlyonce, no workaround/retry.
+Reportf2ead97e27f3d87721d13e3b04a43f1b6a231712dc572510f8b6dcc9fae0dc1b
+/private/tmp/pv91-two-close-unrun-provider-actual-20261026/explicit-close isUNKNOWN.
+Allknownfixturesrecognized, directmath4, usefulpaperplaneexplanationand typed6steps;
+END50.931 accepted, backendFarvel52.099→settlement52.130→primaryFarvel52.671–52.824
+→naturalteardown/rearm58.677. functional_chain_observed=true/clean=true/usage=true.
+This is actualsyntheticsoftware/providerlifecyclepositive, notphysicalpuckproof.
+
+Independentactual_close_evidence confirms substantivefullfoldingstepspresent;
+f17_text_and_pcm=false partlybecause exact normalizedbackendspoken vsfullprimary
+paraphrase. PreserveUNKNOWN; noverbatimwaiver/originalreportchange. Genuine separate
+failure: primaryJa-detklarerjeg49.825–50.621 beforeENDbatch/accept despiteexisting
+silenceinstructions. Priorlongprefacealsoexists; don'taddlocalfilter/silenceblanket.
+Captured24kmonoPCM534chunks and534consumed events continuous0..2559360 bytes;
+hashes/frameboundariesmatch, no missingnonzerotail. Exactword-toPCMclockmapping and
+perceivedaudibility remainunknown, not inferredbydirecttimestampindexing.
+
+BatchstoppedfirstUNKNOWN asapproved; interruption NOTRUN. Actualtotalcalls7, no new
+calls permittedunderstopfirstboundary. Rootclearedkey/formclosed andrestoredGreen
+2.0.89 Kører withinconservative149seconds of4minuteauthorizedpause. No houseaudio,
+alarm or robot. Newisolatedpromptaudit found realprimaryhard2sentence vsrequested
+scope and backendspoken-short conflict; smallestlengthownerproposalbeingchecked,
+notnewackrules or sharedcandidateadoption. These are sourceinstructionconflicts,
+not evidenceextraLLMruleswouldfixdemonstratedacknoncompliance.
+
+### Provider stop-first-failure boundary enforced
+
+Attempttoexecute remaining-two operator787c5a29 was REJECTED by automaticapproval
+review BEFORE processcreation: user's3-caseapprovalrequiredstopatfirstfailure,
+and timer failed. No additionalconnection/keyread/HAstop occurred. Root's earlier
+interpretationthatunrun casesremainedexecutable iswithdrawn. Original batchstopped;
+anynewprovidercallsnowrequireexplicitnewapprovalofremainingcases. No indirectretry.
+Safe offlineguardfixfaf134/testccdf164focusedPASS and independentSOURCEGO retained;
+existingactualFAIL remainsimmutable. Greencontinuedrunning afterpriorrestore.
+
+PodView rootcoordinationrestored: user-approved26Octsharedkitfinish/Lightv4 isnewer
+than f00fc. PodViewownsimmutablecomposition f00fc+approvedsharedfinish+weatherHero
+selectorfix; rootrequestedexplicitbase/finalpins and scopedvisualreview, no blind
+copyofmainCSS/runtime. Currentrootstill203/203f00fc. Candidate91 UI/manifestfreeze
+awaitsthatcanonicalpacket; no parallelUIimplementation.
+
+### First authorized close recheck — useful timer speech observed, cutoff retained FAIL
+
+Actual report9aa2cdd6959c858959b1665cea311d66a136cdd71b4693814f31320c1f38070a
+/private/tmp/pv91-three-close-rechecks-provider-actual-20261026/timer-10s: exact10s
+tool succeeds; END settles17.111; primary now says Timeren er sat til ti sekunder
+17.744–19.010 with nonzeroPCM19.089. Observation forcibly ends19.110 at fixture+8s,
+so newnative4soutputquiet cannotcomplete. Original FAIL immutable; doesnotproveclose.
+Independentclose_adversarial confirms runnernegativecutoff wronglyapplies toaccepted
+END timertransaction. Minimumtest-onlyguard proposed; no assess/preacceptwaiver.
+Generic Hmm/Okay-etøjeblik pre-result remains separatefailedsilenceassertion; do not
+filter allowedhumanvocalizations or relabelsoftwarepass. Batch stoppedfirstasapproved;
+explicitclose/interruption stillUNRUN. Totalactualcalls6, authorizedremaining2only.
+
+RootrestoredGreen2.0.89 Kører; boundedpause conservatively115seconds, nohouseeffects,
+allkeyvarsnull/formclosed/processcleanterminal. Remaininguser6minpausebudget atmost
+245seconds. Any nextremaining-caseoperator mustpin all6existingreports and3casebudget
+1+2<=3, no timerretry. Sourcecheckpoint1f2981f9b024d981318d29cf6030428a7be36f7c,
+treef6e66264de0f961903e1808b4bd938847281aba4 pushedwithleaseandreadbackverified;
+notmerged/released/installed. Prioragentturn madeactualsourceintegration andremote
+checkpointprogress, not merelystatus. No newSpotifyrequest or endpointguess.
+
 ### Integrated native terminal-output admission correction
 
 Root adopted independently reviewed Thin526ac5b6 and quiet-closefixture86dbb69

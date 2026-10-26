@@ -876,8 +876,8 @@ pv-robot-control-panel .robot-care>summary{font-weight:var(--pv-weight-medium);c
 /* Weather detail: place → current conditions → aligned hours → comparable days.
    Reuses the same weather anatomy, semantic surface and genuine range variables. */
 #weather-view>.response-heading{padding-bottom:var(--pv-screen-space-3)}
-pv-widget-host #weather-view .weather-current{display:flex;justify-content:flex-start;align-items:center;gap:var(--pv-s2);width:100%;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
-pv-widget-host #weather-view .weather-current[data-weather-tone]{min-height:0;padding:0;background:transparent;box-shadow:none}
+pv-widget-host #weather-view .weather-current{display:flex;justify-content:flex-start;align-items:center;gap:var(--pv-s2);width:100%;min-height:0;padding:0;border:0;border-radius:0;background:transparent}
+pv-widget-host #weather-view .weather-current[data-weather-tone]{min-height:0;padding:0;background:transparent}
 pv-widget-host #weather-view .weather-current>img{order:-1;align-self:flex-start;margin:var(--pv-s1) 0 0;flex:none;width:var(--pv-icon-l);height:var(--pv-icon-l)}
 pv-widget-host #weather-view .weather-current>div{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--pv-s3);row-gap:var(--pv-s1);min-width:0;align-items:center}
 #weather-view .weather-current strong{grid-column:1;grid-row:1/3;font-size:var(--pv-type-value);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
@@ -1229,7 +1229,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card:has(>.timer
 pv-widget-host[data-view=active] #resource-rail>.resource-preview[data-kind=timer][data-status=done] .resource-value{font-size:var(--pv-type-title);line-height:1.2;color:var(--pv-timer-accent);font-variant-numeric:normal;letter-spacing:-.02em}
 pv-widget-host #now-view :is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)[data-kind=light]:is([data-resource-status=unavailable],[data-resource-status=unknown]),
 pv-widget-host #resource-rail>.resource-preview[data-kind=light]:is([data-resource-status=unavailable],[data-resource-status=unknown]),
-pv-widget-host #device-detail>pv-light-widget.pv-component:is([data-resource-status=unavailable],[data-resource-status=unknown]){--overview-card-surface:var(--pv-screen-surface);--overview-card-ink:var(--pv-light-ink);background:var(--pv-light-surface);color:var(--pv-light-ink);opacity:1;filter:none}
+pv-widget-host #device-detail>pv-light-widget.pv-component:is([data-resource-status=unavailable],[data-resource-status=unknown]){--overview-card-surface:var(--pv-device-surface,var(--pv-screen-surface));--overview-card-ink:var(--pv-light-ink);background:var(--pv-light-surface);color:var(--pv-light-ink);opacity:1;filter:none}
 pv-widget-host #device-detail>pv-light-widget.pv-component:is([data-resource-status=unavailable],[data-resource-status=unknown]) .pv-resource-value{color:var(--pv-light-ink)}/* Completed support tiles keep the message beside the dial even at Ro scale. */
 
 

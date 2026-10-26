@@ -649,3 +649,130 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-r
    Frameo composition. It spans the full Hero instead of a legacy text column. */
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport:not(:empty){display:grid;grid-column:1/-1;grid-row:auto;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;margin-inline:0;gap:var(--pv-s2)}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget).pv-kit-hero[data-component]>.pv-actions.transport>.pv-button{width:100%;min-width:0;min-height:64px;white-space:normal}
+
+/* Hue uses the existing Hero, Chip, Slider and lamp Tile recipes. Scene
+   membership belongs to the source; these measurements never imply authority. */
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero:not([hidden]){min-height:var(--pv-detail-min);height:auto;padding:var(--pv-s4)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-component.pv-kit-hero[data-component] .pv-content{display:grid;width:100%;grid-template-columns:var(--pv-icon-l) minmax(0,1fr) auto;grid-template-rows:auto auto;gap:var(--pv-s2) var(--pv-s3)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-component.pv-kit-hero[data-component] :is(.pv-instrument,.pv-instrument img){width:var(--pv-icon-l);height:var(--pv-icon-l);background:transparent}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero h3{grid-column:2;grid-row:1;margin:0;font:var(--pv-t-label)}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-component.pv-kit-hero[data-component] .pv-resource-value{grid-column:2;grid-row:2;font:var(--pv-t-value)!important;margin:0;max-width:none}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-component.pv-kit-hero[data-component] .pv-actions{grid-column:3;grid-row:1/3;align-self:center;margin:0}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-component.pv-kit-hero[data-component] .pv-actions>.pv-button{font:var(--pv-t-body);max-width:240px;white-space:normal}
+pv-widget-host #device-view .light-scenes{display:grid;align-content:start;grid-auto-rows:max-content;grid-template-columns:minmax(0,1fr);gap:var(--pv-s3);margin-top:0}
+pv-widget-host #device-view .light-scenes[hidden],pv-widget-host #device-view .light-scene-level[hidden],pv-widget-host #device-view .light-lamp-disclosure[hidden]{display:none}
+pv-widget-host #device-view .light-scenes>h2{font:var(--pv-t-label);margin:0}
+pv-widget-host #device-view .light-scene-choices{display:flex;flex-wrap:wrap;gap:var(--pv-s2)}
+pv-widget-host #device-view .light-scene-choices>button{flex:1;min-width:var(--pv-hit-primary);white-space:normal}
+pv-widget-host #device-view .light-scenes>p{font:var(--pv-t-body);color:var(--pv-ink-2);margin:0}
+pv-widget-host #device-view .light-scene-level{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 var(--pv-s3);align-items:center;font:var(--pv-t-label);padding:var(--pv-s3);background:var(--pv-light);color:var(--pv-light-ink);border-radius:var(--pv-r-l)}
+pv-widget-host #device-view .light-scene-level>input{grid-column:1;grid-row:2;width:100%;min-width:0}
+pv-widget-host #device-view .light-scene-level>output{grid-column:2;grid-row:1/3;font:var(--pv-t-label);min-width:5ch;text-align:right;font-variant-numeric:tabular-nums}
+pv-widget-host #device-view .light-lamp-disclosure{margin-top:0;border-top:1px solid var(--pv-line)}
+pv-widget-host #device-view .light-lamp-disclosure>summary{min-height:var(--pv-hit-primary);align-content:center;font:var(--pv-t-label);cursor:pointer}
+pv-widget-host #device-view .light-adjustments{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s3);margin-top:var(--pv-s3)}
+pv-widget-host #device-view .light-brightness{grid-template-columns:minmax(0,1fr) var(--pv-hit-primary);grid-template-rows:1fr auto;min-height:160px;gap:var(--pv-s2);padding:var(--pv-s3);text-align:left;justify-items:stretch}
+pv-widget-host #device-view .light-brightness>.light-toggle{grid-column:1;grid-row:1/3;align-items:flex-start;text-align:left;background:transparent}
+pv-widget-host #device-view .light-brightness>:is(input,img){grid-column:2;grid-row:1;height:80px;justify-self:center}
+pv-widget-host #device-view .light-brightness>output{grid-column:2;grid-row:2;text-align:center}
+
+/* Selected Chips retain their selection contrast during hover and press. */
+pv-widget-host .pv-kit.pv-kit-chip[aria-pressed=true]:not(:disabled):not(pv-choice-list *){background:var(--pv-ink)!important;color:var(--pv-on-dark)!important}
+
+/* Shared Slider label/value/scope composition. Domain owners supply observations
+   and explicit commit contexts; an unknown observation paints no measured fill. */
+.pv-kit-slider-field{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--pv-s1) var(--pv-s2);min-width:0;color:var(--pv-ink)}
+.pv-kit-slider-field>label{font:var(--pv-t-label);min-width:0}
+.pv-kit-slider-field>output{font:var(--pv-t-body);font-weight:var(--pv-weight-semibold);text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pv-kit-slider-field>p{grid-column:1/-1;margin:0;font:var(--pv-t-meta);color:var(--pv-ink-2)}
+.pv-kit-slider-field>input.pv-kit.pv-kit-slider{grid-column:1/-1;width:100%;min-width:0;margin:0;--pv-slider-ink:var(--pv-ink);--pv-slider-track:var(--pv-line)}
+.pv-kit-slider-field>p[hidden]{display:none}
+.pv-kit-slider-field>input.pv-kit.pv-kit-slider[data-value-known=false]{--pv-slider-progress:0%!important;--pv-slider-ink:var(--pv-line)}
+.pv-kit-slider-field>input.pv-kit.pv-kit-slider[data-value-known=false]::-webkit-slider-thumb{opacity:0}
+.pv-kit-slider-field>input.pv-kit.pv-kit-slider[data-value-known=false]::-moz-range-thumb{opacity:0}
+.pv-kit-slider-field>input[aria-disabled=true]{cursor:default}
+/* Scene recall is a command, including repeat recall; labels remain complete. */
+button.pv-kit.pv-kit-chip[data-kit-variant=command]:not([hidden]):not(:has(*)){white-space:normal!important;overflow:visible;text-overflow:clip;height:auto;min-height:var(--pv-hit);padding-block:var(--pv-s1);line-height:var(--pv-leading-body);overflow-wrap:anywhere}
+
+/* Light detail: existing ListRow / Button / Chip / Slider compositions. */
+pv-widget-host #device-view .light-room-view{display:grid;gap:var(--pv-s2);grid-column:1/-1;min-width:0}
+pv-widget-host #device-view .light-room-heading{margin:0;font:var(--pv-t-label)}
+pv-widget-host #device-view .light-room-placement{margin:0;font:var(--pv-t-meta);color:var(--pv-ink-2)}
+pv-widget-host #device-view .light-room-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s2)}
+pv-widget-host #device-view .light-room-row{display:flex;align-items:center;gap:var(--pv-s2);padding:var(--pv-s2);min-width:0;border:1px solid var(--pv-line);border-radius:var(--pv-r-l);background:var(--pv-surface)}
+pv-widget-host #device-view .light-room-row[data-selected=true]{border-color:var(--pv-ink)}
+pv-widget-host #device-view .light-room-open{flex:1;min-width:0;justify-content:flex-start;text-align:left;padding:var(--pv-s1);background:transparent}
+pv-widget-host #device-view .light-room-copy{display:grid;gap:var(--pv-s1);min-width:0}
+pv-widget-host #device-view .light-room-name{font:var(--pv-t-label);white-space:normal}
+pv-widget-host #device-view .light-room-status{font:var(--pv-t-meta);color:var(--pv-ink-2)}
+pv-widget-host #device-view .light-room-power{flex:none;min-width:var(--pv-hit-primary)}
+pv-widget-host #device-view .light-home-power{justify-self:start}
+pv-widget-host #device-view .light-scenes .pv-kit-slider-field{padding-block:var(--pv-s2)}
+pv-widget-host #device-view .light-lamp-disclosure{border:0}
+pv-widget-host #device-view .light-adjustments:has(.light-lamp-row){display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-s2)}
+pv-widget-host #device-view .light-brightness.light-lamp-row{display:flex;align-items:center;min-height:var(--pv-hit-primary);padding:var(--pv-s2);gap:var(--pv-s2);background:transparent;border-bottom:1px solid var(--pv-line);border-radius:0}
+pv-widget-host #device-view .light-lamp-row>.light-toggle{flex:1;min-width:0;min-height:var(--pv-hit-primary);padding:var(--pv-s1);flex-direction:row;align-items:center;justify-content:space-between;gap:var(--pv-s2)}
+pv-widget-host #device-view .light-lamp-row>output{font:var(--pv-t-meta);min-width:5ch;color:var(--pv-ink-2)}
+@media(max-width:850px){pv-widget-host #device-view .light-room-list{grid-template-columns:minmax(0,1fr)}}
+
+/* Compact Hero is the same status anatomy where adjacent controls own action. */
+:root{--pv-hero-compact-min:144px}
+pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-kit-variant=compact]:not([hidden]){min-height:var(--pv-hero-compact-min)}
+pv-widget-host #device-view section.light-room-view{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+pv-widget-host #device-view .light-room-view>.light-room-list{grid-column:1/-1}
+pv-widget-host #device-view .light-room-row>.light-room-open.pv-btn{background:transparent;border-radius:0}
+pv-widget-host #device-view .light-room-row{min-height:80px;padding:var(--pv-s1) var(--pv-s2)}
+pv-widget-host #device-view>.light-home-power{justify-self:start;font:var(--pv-t-body);font-weight:var(--pv-weight-semibold)}
+
+/* Button's shared tint variable is the supported surface override for flat navigation. */
+pv-widget-host #device-view .light-room-open.pv-kit.pv-kit-button{--pv-button-tint:transparent}
+/* The shared selected Toggle retains contrast during hover, like selected Chips. */
+pv-widget-host .pv-kit.pv-kit-toggle[aria-checked=true]:not(:disabled):not([data-kit-variant=settings]){background:var(--pv-ink)!important;color:var(--pv-on-dark)!important}
+
+/* Navigation Button keeps its full touch target without a second command surface. */
+.pv-kit.pv-kit-button[data-kit-variant=navigation]{--pv-action-secondary-bg:transparent;--pv-action-secondary-ink:var(--pv-ink)}
+
+/* Power Tile: one observed room state, one reversible on/off action.
+   Its sibling navigation Button opens scene controls, without nesting actions. */
+.pv-kit.pv-kit-tile[data-kit-variant=power]{display:flex;align-items:flex-start;justify-content:flex-start;gap:var(--pv-s2);width:100%;min-height:176px;height:auto;padding:var(--pv-s3);border:0;border-radius:var(--pv-r-l);text-align:left;background:var(--pv-surface-2);color:var(--pv-ink);box-shadow:var(--pv-shadow)}
+.pv-kit.pv-kit-tile[data-kit-variant=power][data-power-on=true]{background:var(--pv-tint);color:var(--pv-tint-ink)}
+.pv-kit.pv-kit-tile[data-kit-variant=power][data-power-on=true]:hover:not(:disabled){background:var(--pv-tint-strong)}
+.pv-kit.pv-kit-tile[data-kit-variant=power][data-power-on=false]:hover:not(:disabled){background:var(--pv-line);color:var(--pv-ink)}
+.pv-kit.pv-kit-tile[data-kit-variant=power]:disabled{cursor:default}
+pv-widget-host #device-view section.light-room-view{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-s2);margin:0}
+pv-widget-host #device-view .light-room-view>.light-room-heading[hidden]{display:none}
+pv-widget-host #device-view .light-room-view>.light-room-list{order:0;grid-column:1;gap:var(--pv-s2)}
+pv-widget-host #device-view .light-room-view>.light-room-placement{order:1;text-align:left}
+pv-widget-host #device-view .light-room-row{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-s1);padding:0;min-height:0;border:0;background:transparent;border-radius:0}
+pv-widget-host #device-view .light-room-power.pv-kit-tile{min-width:0}
+pv-widget-host #device-view .light-room-power>.light-room-icon{width:var(--pv-icon-m);height:var(--pv-icon-m);margin-top:var(--pv-s1)}
+pv-widget-host #device-view .light-room-copy{gap:var(--pv-s2)}
+pv-widget-host #device-view .light-room-name{font:var(--pv-t-label)}
+pv-widget-host #device-view .light-room-status{font:var(--pv-t-title);color:inherit}
+pv-widget-host #device-view .light-room-row>.light-room-open.pv-btn{width:100%;min-height:var(--pv-hit);padding-inline:var(--pv-s2);text-align:left;justify-content:flex-start;font:var(--pv-t-body);border-radius:var(--pv-r-s)}
+pv-widget-host #device-view .light-room-row[data-selected=true]>.light-room-open{box-shadow:inset 0 -2px var(--pv-ink);font-weight:var(--pv-weight-semibold)}
+pv-widget-host #device-view .light-scene-choices>.pv-kit-chip{flex:1;min-height:var(--pv-hit)}
+pv-widget-host #device-view #device-detail[hidden],pv-widget-host #device-view .light-scenes>p[hidden]{display:none}
+.pv-kit.pv-kit-tile[data-kit-variant=power][aria-pressed=true]{border:0!important;box-shadow:var(--pv-shadow)!important}
+
+pv-widget-host #device-view .light-scenes>p{min-height:var(--pv-leading-body)}
+
+pv-widget-host #device-view .light-scenes{gap:var(--pv-s2)}
+pv-widget-host #device-view .light-scenes .pv-kit-slider-field{padding-block:0}
+
+/* Observed power owns the palette, including idle and hover. Focus is separate. */
+.pv-kit.pv-kit-tile[data-kit-variant=power][data-power-on=false]{background:var(--pv-surface-2);color:var(--pv-ink)}
+pv-widget-host :is(.resource-preview[data-kind=light],pv-light-widget[data-component=light-widget])[data-resource-status=off]{--pv-device-surface:var(--pv-surface-2);--pv-device-ink:var(--pv-ink);--pv-device-muted:var(--pv-ink-2);--pv-device-hover:var(--pv-line)}
+pv-widget-host #device-view .light-room-row{gap:0}
+pv-widget-host #device-view .light-room-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);position:static;min-width:0}
+pv-widget-host #device-view .light-room-selector{display:flex;align-items:center;gap:var(--pv-s2);min-width:0;font:var(--pv-t-body)}
+pv-widget-host #device-view .light-room-select.pv-kit{min-width:160px;max-width:100%;padding-inline:var(--pv-s2);font:var(--pv-t-label);border:1px solid var(--pv-line);border-radius:var(--pv-r-s);background:var(--pv-surface);color:var(--pv-ink)}
+pv-widget-host #device-view .light-room-toolbar>.light-home-power{position:static;flex:none;width:auto;align-self:center;white-space:normal;max-width:50%}
+pv-widget-host #device-view .light-scenes>p[hidden]{display:none;min-height:0}
+pv-widget-host #device-view .light-lamp-list{display:grid;gap:var(--pv-s3);padding-top:var(--pv-s2)}
+pv-widget-host #device-view .light-lamp-list>.light-lamp-row{display:grid;gap:var(--pv-s2);padding:var(--pv-s2) 0;border-bottom:1px solid var(--pv-line)}
+pv-widget-host #device-view .light-lamp-heading{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:var(--pv-s2);padding:0;background:transparent}
+pv-widget-host #device-view .light-lamp-name{font:var(--pv-t-label);min-width:0;overflow-wrap:anywhere}
+pv-widget-host #device-view .light-lamp-state{font:var(--pv-t-body);color:var(--pv-ink-2)}
+pv-widget-host #device-view .light-lamp-toggle{min-width:96px}
+@media(max-width:850px){pv-widget-host #device-view .light-room-toolbar{align-items:stretch;flex-direction:column}pv-widget-host #device-view .light-room-toolbar>.light-home-power{max-width:100%;align-self:flex-start}}

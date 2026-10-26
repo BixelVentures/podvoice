@@ -106,3 +106,27 @@ export function createKitChoiceGroup({document=globalThis.document,id,label,choi
  const setChoiceDisabled=(choice,disabled)=>{const input=inputs.find(item=>item.value===String(choice));if(input)input.disabled=!!disabled;};
  setValue(value);return {node,inputs,setValue,setDisabled,setChoiceDisabled};
 }
+
+/** Label/value composition of the existing Slider. Observation is presentation;
+ * only an explicit native change reaches the owner's captured command context. */
+export function createKitSliderField({document=globalThis.document,id,label,identity='neutral',onCommit,getContext}={}){
+ if(!id)throw new TypeError('Slider field needs a stable id');
+ const node=document.createElement('div'),heading=document.createElement('label'),description=document.createElement('p'),input=createKitComponent('slider',{document,identity}),output=document.createElement('output');
+ node.className='pv-kit-slider-field';heading.id=id+'-label';heading.htmlFor=id;heading.textContent=label;description.id=id+'-scope';input.id=id;output.htmlFor=id;input.setAttribute('aria-labelledby',heading.id);input.setAttribute('aria-describedby',description.id);node.append(heading,output,description,input);
+ let model={value:null,scope:'',disabled:false,pending:false,mixed:false},draft=null,context,editing=false,aborted=false;
+ const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
+ const paint=()=>{
+  const known=Number.isFinite(model.value),value=draft??(known?model.value:0),state=draft!==null?'draft':model.pending?'pending':known?'known':model.mixed?'mixed':'unknown',message=draft!==null?`${draft} %`:model.valueText||(known?`${model.value} %`:model.mixed?'Forskellige niveauer':'Niveau ukendt');
+  data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!(model.disabled||model.pending));if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
+  if(input.value!==String(value))input.value=String(value);syncKitSlider(input);text(output,message);text(description,model.scope||'');if(description.hidden!==!model.scope)description.hidden=!model.scope;attribute(input,'aria-valuetext',message.replace(/ %$/,' procent'));
+ };
+ const cancelDraft=()=>{draft=null;context=undefined;editing=false;aborted=true;paint();};
+ const begin=()=>{if(model.disabled||model.pending)return false;if(!editing){context=getContext?.();editing=true;}aborted=false;return true;};
+ input.addEventListener('pointerdown',begin);
+ input.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();cancelDraft();}else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(event.key))begin();});
+ input.addEventListener('input',()=>{if(model.disabled||model.pending||aborted){paint();return;}if(!editing)begin();draft=Math.max(0,Math.min(100,Number(input.value)));paint();});
+ input.addEventListener('change',()=>{if(model.disabled||model.pending||aborted||draft===null){paint();return;}const value=draft,binding=context;draft=null;context=undefined;editing=false;paint();onCommit?.(value,binding);});
+ for(const event of ['pointercancel','blur'])input.addEventListener(event,cancelDraft);
+ const setModel=value=>{const next={value:null,scope:'',disabled:false,pending:false,mixed:false,...value};if(!Number.isFinite(next.value)||next.value<0||next.value>100)next.value=null;if(next.scope!==model.scope||next.disabled||next.pending){draft=null;context=undefined;editing=false;aborted=true;}model=next;paint();};
+ paint();return {node,label:heading,description,input,output,setModel,cancelDraft};
+}

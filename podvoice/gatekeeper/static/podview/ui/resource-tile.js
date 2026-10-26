@@ -55,7 +55,9 @@ export function updateResourceTile(b,r){
  // Compact and expanded resources expose the same state role to the shared kit.
  if(b.dataset.resourceStatus!==(r.resourceStatus||r.status||''))b.dataset.resourceStatus=r.resourceStatus||r.status||'';
  const observedState=r.resourceStatus||r.status,kitState=r.status==='pending'?'pending':observedState==='unavailable'?'unavailable':r.stale===true?'stale':observedState==='unknown'?'unknown':['fault','error'].includes(observedState)?'error':'ready';if(b.dataset.kitState!==kitState)b.dataset.kitState=kitState;
- const facts=updateResourceFacts(b,r),factIds=new Set(facts?.items.map(item=>item.id)||[]);
+ // Lamp totals stay in source observations; overview presents power, never a
+ // count-led instrument or duplicate count fact at any library size.
+ const facts=updateResourceFacts(b,r.kind==='light'?{...r,facts:Array.isArray(r.facts)?r.facts.filter(item=>item?.id!=='on-count'):[]}:r),factIds=new Set(facts?.items.map(item=>item.id)||[]);
  const pending=r.status==='pending'||r.pending===true,busy=String(pending);
  if(b.getAttribute('aria-busy')!==busy)b.setAttribute('aria-busy',busy);
  const timer=r.kind==='timer',done=timer&&r.status==='done',reading=done?'Tiden er gået':String(r.value??''),timerDetail=timer?(r.displayState||(r.stale||r.status!=='running'||!Number.isFinite(r.deadline)?timerStateLabel(r):`Slutter ${new Date(r.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}`)):r.detail,rawDetail=done&&timerDetail===reading?'':String(timerDetail??'');
@@ -75,16 +77,16 @@ export function updateResourceTile(b,r){
  // metadata is deliberately hidden. Recovery keeps its own existing text role.
  const unknownOutcome=vacuum&&robotStatus==='unknown'&&rawDetail.startsWith('Udfald ukendt'),robotFeedback=pending?'Afventer svar':fault&&rawDetail&&!['Robotten melder en fejl','Kræver hjælp'].includes(rawDetail)?rawDetail:unknownOutcome?'Udfald ukendt · hent status igen':'';
  const staleAttribute=String(stale||r.kind==='light'&&r.stale===true);if(b.dataset.resourceStale!==staleAttribute)b.dataset.resourceStale=staleAttribute;const feedback=unknownOutcome?'unknown':'';if(b.dataset.resourceFeedback!==feedback)b.dataset.resourceFeedback=feedback;
- // Only a complete admitted lamp count can become the compact value. Partial
- // observations keep their explicit fact label instead of implying a total.
- const lightCount=r.kind==='light'&&['on','off','mixed'].includes(observedState)?facts?.items.find(item=>item.id==='on-count'&&item.label==='Tændt'&&/^\d+ af \d+$/.test(item.value)):null;
- const size=b.overviewShell?.dataset.kitSize||b.dataset.kitSize,overviewRobot=vacuum&&b.parentNode?.id!=='resource-rail',lightStatus=lightCount?[pending?'Afventer svar':'',lightCount.stale||r.stale===true?'Sidst kendt':'',Number(lightCount.value.split(' ')[0])?'Tændt':'Slukket'].filter(Boolean).join(' · '):visibleDetail;
+ // A partial observation cannot become known room power. Complete source
+ // state is enough; the count's numeric text never supplies the visible value.
+ const lightPartial=r.kind==='light'&&Array.isArray(r.facts)&&r.facts.some(item=>item?.id==='on-count'&&item.label!=='Tændt'),lightKnown=r.kind==='light'&&['on','off','mixed'].includes(observedState)&&!lightPartial;
+ const size=b.overviewShell?.dataset.kitSize||b.dataset.kitSize,overviewRobot=vacuum&&b.parentNode?.id!=='resource-rail',lightStatus=lightKnown?[pending?'Afventer svar':'',r.stale===true||/^Sidst kendt/.test(rawDetail)?'Sidst kendt':'',observedState==='off'?'Slukket':'Tændt'].filter(Boolean).join(' · '):r.kind==='light'&&/\d+\s+af\s+\d+/.test(visibleDetail)?[r.stale?'Sidst kendt':'','Status ukendt'].filter(Boolean).join(' · '):visibleDetail;
  const batteryFact=facts?.items.find(item=>item.id==='battery'),roomFact=facts?.items.find(item=>item.id==='room'),mediumBattery=knownBattery||(batteryFact?`Batteri ${batteryFact.value}${batteryFact.stale&&!stale?' · sidst kendt':''}`:''),mediumContext=context||roomFact?.value||'';
  const customRobotDetail=typeof r.displayState==='string'&&r.displayState.trim()&&rawDetail.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')!==robotLabel.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')?rawDetail:'',distinctRobotFeedback=robotFeedback.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')===robotLabel.replace(/^Sidst kendt(?:\s*[:·])?\s*/,'')?'':robotFeedback;
- const secondaryDetail=vacuum?(customRobotDetail?[customRobotDetail]:overviewRobot?[distinctRobotFeedback,...(unknownOutcome?[]:[mediumBattery,mediumContext])]:[distinctRobotFeedback,factIds.has('room')?'':context,factIds.has('progress')?'':knownProgress,factIds.has('battery')?'':knownBattery]).filter(Boolean).join(' · '):r.kind==='light'?lightStatus:pending?visibleDetail:lightStatus;if(detail.textContent!==secondaryDetail)detail.textContent=secondaryDetail;const detailHidden=!secondaryDetail;if(detail.hidden!==detailHidden)detail.hidden=detailHidden;
+ const secondaryDetail=vacuum?(customRobotDetail?[customRobotDetail]:overviewRobot?[distinctRobotFeedback,...(unknownOutcome?[]:[mediumBattery,mediumContext])]:[distinctRobotFeedback,factIds.has('room')?'':context,factIds.has('progress')?'':knownProgress,factIds.has('battery')?'':knownBattery]).filter(Boolean).join(' · '):r.kind==='light'?(lightKnown?'':lightStatus):pending?visibleDetail:lightStatus;if(detail.textContent!==secondaryDetail)detail.textContent=secondaryDetail;const detailHidden=!secondaryDetail;if(detail.hidden!==detailHidden)detail.hidden=detailHidden;
 
- const value=b.querySelector('.resource-value'),dialValue=timer?reading:vacuum?[stale&&robotStatus!=='unavailable'&&!robotLabel.startsWith('Sidst kendt')?'Sidst kendt':'',robotLabel].filter(Boolean).join(' · '):lightCount?.value||'';if(value.textContent!==dialValue)value.textContent=dialValue;const valueHidden=!timer&&!vacuum&&!lightCount;if(value.hidden!==valueHidden)value.hidden=valueHidden;
- const hasValue=String(!!lightCount);if(r.kind==='light'&&b.dataset.hasOverviewValue!==hasValue)b.dataset.hasOverviewValue=hasValue;
+ const value=b.querySelector('.resource-value'),dialValue=timer?reading:vacuum?[stale&&robotStatus!=='unavailable'&&!robotLabel.startsWith('Sidst kendt')?'Sidst kendt':'',robotLabel].filter(Boolean).join(' · '):lightKnown?lightStatus:'';if(value.textContent!==dialValue)value.textContent=dialValue;const valueHidden=!timer&&!vacuum&&!lightKnown;if(value.hidden!==valueHidden)value.hidden=valueHidden;
+ const hasValue=String(!!lightKnown);if(r.kind==='light'&&b.dataset.hasOverviewValue!==hasValue)b.dataset.hasOverviewValue=hasValue;
  const icon=b.querySelector('.resource-visual img');if(icon.hidden)icon.hidden=false;
  const source=`assets/icons/${timer?'timer':r.kind==='vacuum'?'vacuum':r.kind==='vehicle'?'car-front':'lightbulb'}.svg`;
  if(icon.getAttribute('src')!==source)icon.src=source;

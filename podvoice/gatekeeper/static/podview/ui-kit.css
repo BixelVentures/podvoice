@@ -14,7 +14,7 @@
  --pv-s1:8px;--pv-s2:16px;--pv-s3:24px;--pv-s4:32px;--pv-s5:40px;
  --pv-r-s:16px;--pv-r-l:24px;--pv-r-pill:999px;
  --pv-icon-s:24px;--pv-icon-m:32px;--pv-icon-l:48px;--pv-icon-stroke:2px;
- --pv-shadow:0 1px 2px rgba(27,29,28,.06),0 8px 24px rgba(27,29,28,.06);--pv-scrim:rgba(27,29,28,.32);
+ --pv-shadow:0 1px 3px rgba(27,29,28,.04);--pv-scrim:rgba(27,29,28,.32);
  --pv-d-press:90ms;--pv-d-fast:200ms;--pv-d-move:280ms;--pv-ease:cubic-bezier(.2,0,0,1);--pv-hit:64px;--pv-hit-min:48px;
  --pv-screen-paper:var(--pv-bg);--pv-screen-surface:var(--pv-surface);--pv-screen-control:var(--pv-surface-2);--pv-screen-hover:var(--pv-line);--pv-screen-line:var(--pv-line);--pv-screen-outline:var(--pv-line);--pv-screen-ink:var(--pv-ink);--pv-screen-muted:var(--pv-ink-3);--pv-screen-action-ink:var(--pv-ink);--pv-screen-accent:var(--pv-ink);--pv-screen-selection:var(--pv-surface-2);--pv-screen-danger:var(--pv-danger);--pv-screen-danger-surface:var(--pv-danger-tint);--pv-screen-font:var(--pv-font);
  --pv-instrument:var(--pv-dark);--pv-instrument-muted:var(--pv-on-dark);--pv-instrument-line:var(--pv-ink-3);--pv-resource-quiet:var(--pv-surface-2);--pv-quiet-surface:var(--pv-surface-2);--pv-neutral-category:var(--pv-surface-2);
@@ -512,11 +512,6 @@ pv-widget-host #device-view .light-adjustments{gap:var(--pv-screen-space-4);marg
 pv-widget-host #device-view .light-scenes{grid-row:1;gap:var(--pv-screen-space-3)}
 pv-widget-host #device-view .light-scenes>button{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-screen-space-2);min-height:var(--pv-hit);background:var(--pv-light-surface)}
 pv-widget-host #device-view .light-scenes>button img{width:var(--pv-icon-s);height:var(--pv-icon-s)}
-pv-widget-host #device-view .light-brightness{min-height:312px;grid-template-rows:64px 160px auto;background:var(--pv-light-surface)}
-pv-widget-host #device-view .light-brightness:not(:has(>input)){grid-template-rows:64px 160px auto;min-height:312px;background:var(--pv-light-surface)}
-pv-widget-host #device-view .light-brightness>.light-toggle{padding:var(--pv-screen-space-1);border-radius:var(--pv-screen-radius-field);background:transparent}
-pv-widget-host #device-view .light-brightness:not(:has(>input))>.light-toggle{grid-row:1/-1;background:transparent;min-width:0;padding:var(--pv-screen-space-2)}
-pv-widget-host #device-view .light-brightness[data-on=false]{background:var(--pv-screen-control)}
 /* Shared template: content zones retain their canonical owners and scroll. */
 .pv-kit-template-detail{row-gap:var(--pv-s3);column-gap:var(--pv-s2)}
 .pv-kit-template-detail>[data-detail-zone]{flex-shrink:0;min-width:0}
@@ -662,12 +657,6 @@ pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .
 .pv-kit.pv-kit-hero .kit-value{font:var(--pv-t-hero)!important;color:inherit}
 /* The detail scrollport owns overflow; an inner resource wrapper never collapses its Hero. */
 pv-widget-host #device-view #device-detail{flex:0 0 auto;height:auto;max-height:none;overflow:visible}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero:not([hidden]){min-height:var(--pv-detail-min);height:auto;padding:var(--pv-s4)}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-content{grid-template-columns:var(--pv-icon-l) minmax(0,1fr);gap:var(--pv-s2) var(--pv-s3)}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-instrument{width:var(--pv-icon-l);height:var(--pv-icon-l)}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-instrument img{width:var(--pv-icon-l);height:var(--pv-icon-l)}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-actions{grid-column:1/-1;grid-row:3;margin:0}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero .pv-resource-value{font:var(--pv-t-value)!important;grid-row:2;line-height:1.1}
 /* Isolated specimens inherit the same complete type/native-control recipe. */
 .pv-kit :is(h2,h3){font:var(--pv-t-label);color:inherit;margin:0}
 .pv-kit.pv-kit-dialog>h2,.pv-kit.pv-kit-topbar :is(h1,h2){font:var(--pv-t-title)}
@@ -1168,24 +1157,11 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio>span>small{
 [data-pv-press=quiet].is-pressed:not([disabled],[aria-disabled=true]){box-shadow:none!important;opacity:.64}
 
 /* Lamp Tiles retain one column, including a non-dimmable switch. */
-pv-widget-host #device-view .light-adjustments{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);margin-top:0}
-pv-widget-host #device-view .light-brightness,
-pv-widget-host #device-view .light-brightness:not(:has(>input)){box-sizing:border-box;grid-template-columns:minmax(0,1fr);grid-template-rows:64px 80px 24px;gap:var(--pv-s1);padding:var(--pv-s2);height:222px;min-height:222px;max-height:222px;align-content:start;background:var(--pv-light);color:var(--pv-light-ink)}
-pv-widget-host #device-view .light-brightness>.light-toggle,
-pv-widget-host #device-view .light-brightness:not(:has(>input))>.light-toggle{grid-row:1;grid-column:1;min-height:var(--pv-hit);height:var(--pv-hit);padding:0;background:transparent}
-pv-widget-host #device-view .light-brightness>.light-toggle>.light-name{font:var(--pv-t-label)}
-pv-widget-host #device-view .light-brightness>.light-toggle>.light-state{font:var(--pv-t-body)}
-pv-widget-host #device-view .light-brightness>input{grid-row:2;grid-column:1;height:80px;min-height:80px}
-pv-widget-host #device-view .light-brightness>img{grid-row:2;grid-column:1;width:var(--pv-icon-l);height:var(--pv-icon-l)}
-pv-widget-host #device-view .light-brightness>output{grid-row:3;grid-column:1;font:var(--pv-t-body)}
-pv-widget-host #device-view .light-brightness[data-level-known=false]>input{visibility:hidden}
-pv-widget-host #device-view .light-brightness[data-confirmed=false]{background:var(--pv-surface-2);color:var(--pv-ink-3)}
+/* Lamp Tile geometry is owned by ui/components.css. */
 pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button{height:var(--pv-hit);min-height:var(--pv-hit);background:var(--pv-surface-2);font:var(--pv-t-body)}
 pv-widget-host #device-view pv-choice-list[data-context-picker=rooms] .pv-list .pv-button[aria-pressed=true]{background:var(--pv-light-strong);color:var(--pv-light-ink)}
 /* Only current observed Light data uses the large Hero value. Empty/error
    Heroes retain their approved status, icon and connection explanation. */
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-light-current=true] .pv-resource-value{font:var(--pv-t-hero)!important}
-pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-light-current=true] .pv-actions>.pv-button{min-height:var(--pv-hit);padding:0 var(--pv-s3);background:var(--pv-surface);color:var(--pv-light-ink);font:var(--pv-t-body);border-radius:var(--pv-r-pill)}
 @media(max-width:600px){pv-widget-host #device-view .light-adjustments{grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host #device-view #device-detail>pv-light-widget.pv-kit-hero[data-light-current=true] .pv-resource-value{font:var(--pv-t-value)!important}}
 @media(max-width:420px){pv-widget-host #device-view .light-adjustments{grid-template-columns:minmax(0,1fr)}}
 /* Compact volume spacing preserves the full mute hit target. */
@@ -1383,7 +1359,7 @@ pv-widget-host :is(#device-view,#device-view #device-detail) .device-history[dat
    title, artist and playback state. The richer facts belong to L. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=media]:is([data-kit-size=m],[data-kit-size=l],[data-overview-size=m])>span>small{font:var(--pv-t-body)!important;line-height:24px!important}
 /* Compact Card titles stay intact rather than breaking inside Danish words. */
-pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s],#home-music[data-kit-size=s],#home-radio[data-kit-size=s]) :is(.resource-label>strong,span>strong){white-space:nowrap!important;overflow-wrap:normal;overflow:hidden;text-overflow:ellipsis;max-height:26px}
+pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s],.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview[data-kind=light]:not([data-kit-size=m]):not([data-kit-size=l]),#home-music[data-kit-size=s],#home-radio[data-kit-size=s]) :is(.resource-label>strong,span>strong){white-space:nowrap!important;overflow-wrap:normal;overflow:hidden;text-overflow:ellipsis;height:26px;max-height:26px}
 pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio)[data-kit-size=s]>img:nth-of-type(2){display:none!important}
 
 /* Sized Card information roles retain their factual keys, so an already visible
@@ -1411,8 +1387,8 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data
    full domain name remains in the accessible tree; only its short visual name
    occupies the shared 32px icon/header row. */
 .resource-title-short{display:none}
-pv-widget-host #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s]) .resource-title-short{display:inline}
-pv-widget-host #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s]) .resource-title-full{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+pv-widget-host #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s],.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview[data-kind=light]:not([data-kit-size=m]):not([data-kit-size=l])) .resource-title-short{display:inline}
+pv-widget-host #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s],.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview[data-kind=light]:not([data-kit-size=m]):not([data-kit-size=l])) .resource-title-full{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s])[data-kind=vacuum]:not(#home-weather){grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 68px!important;row-gap:var(--pv-s1)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s])[data-kind=vacuum]:not(#home-weather)>.resource-label>.resource-value{grid-column:1/-1;grid-row:3!important;align-self:end!important;max-width:100%!important;max-height:68px;margin:0!important;font:var(--pv-t-title);line-height:34px;white-space:normal;overflow:hidden;overflow-wrap:normal}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s])[data-kind=vacuum][data-resource-stale=true]:not(#home-weather)>.resource-label>.resource-value{font:var(--pv-t-body)!important;line-height:24px!important;max-height:48px}
@@ -1883,3 +1859,26 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong),.pv-ki
 /* Confirmed Chip selection in the compact Robot composition. Uses the same
    neutral selected recipe as shared Segmented; observation owns aria-pressed. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-kit-chip[aria-pressed=true]{background:var(--pv-ink)!important;color:var(--pv-on-dark)!important;box-shadow:none}
+
+/* User-approved 26 October finish. Same Card/Hero/Tile recipes in library and product.
+   One inset edge preserves dimensions and padding; selected/focus states retain priority. */
+:root{--pv-elevation-short:0 1px 3px rgba(27,29,28,.04);--pv-card-edge-mix:14%;--pv-card-edge-neutral:var(--pv-line);--pv-topbar-action-height:48px;--pv-topbar-action-label:600 20px/24px var(--pv-font)}
+.pv-kit{--pv-card-edge:var(--pv-card-edge-neutral)}
+.pv-kit:is([data-kit-identity=weather],[data-kit-identity=robot],[data-kit-identity=light],[data-kit-identity=tesla]){--pv-card-edge:color-mix(in srgb,var(--pv-tint-ink) var(--pv-card-edge-mix),var(--pv-tint))}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile):not([aria-pressed=true]):not([aria-current=true]){box-shadow:var(--pv-shadow)}
+pv-widget-host #open-timers,pv-widget-host .timer-panel.pv-hero,.pv-component[data-component=timer-widget].pv-kit-hero{--pv-card-edge:color-mix(in srgb,var(--pv-on-dark) 14%,var(--pv-timer-idle-surface,var(--pv-dark)));--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);box-shadow:var(--pv-shadow)}
+/* The resource wrapper is geometry only: its child is the visible shared Tile. */
+pv-widget-host .resource-card{box-shadow:none}
+pv-widget-host[data-topbar=true] .view-nav :is(#show-photo[data-navigation=rest],#open-history.header-history){box-sizing:border-box;height:var(--pv-topbar-action-height);min-height:var(--pv-topbar-action-height);max-height:var(--pv-topbar-action-height);border-radius:var(--pv-r-pill);padding-block:0;font:var(--pv-topbar-action-label);gap:var(--pv-s1)}
+pv-widget-host[data-topbar=true] .view-nav :is(#show-photo[data-navigation=rest] .rest-label,#open-history.header-history strong){font:var(--pv-topbar-action-label)}
+/* Visual title is optional on the plain overview. Keep its accessible heading,
+   programmatic focus target, and all real detail/answer/back titles intact. */
+pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+/* Hover reads the same semantic surface as the visible Card/Tile. No neutral
+   white fallback when a colored resource is under a pointer or held touch. */
+.pv-kit:is(.pv-kit-card,.pv-kit-tile){--overview-card-surface:var(--pv-tint);--overview-card-ink:var(--pv-ink);--pv-surface-shadow-hover:var(--pv-shadow)}
+/* Timer keeps one dark material in every composition, including compact Ro. */
+.pv-kit.resource-preview[data-kind=timer]{--pv-tint:var(--pv-dark);--pv-tint-ink:var(--pv-on-dark);--pv-card-edge:color-mix(in srgb,var(--pv-dark) 88%,var(--pv-on-dark));--overview-card-surface:var(--pv-dark);--overview-card-ink:var(--pv-on-dark);--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);--pv-surface-shadow-hover:var(--pv-shadow)}
+

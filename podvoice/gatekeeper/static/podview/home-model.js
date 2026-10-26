@@ -25,7 +25,7 @@ export function validateHome(value,roomId,bootId){
 export function scopedLightDevice(observation,revision,now=Date.now()){
  const value=scopedLightsObservation(observation,{now});if(value?.status!=='observed')return null;
  const summary=scopedLightSummary(value,now),displayState=summary.status==='empty'?'Ingen lys i rummet':summary.unknownCount?(summary.knownCount?`${summary.onCount} af ${summary.totalCount} bekræftet tændt · ${summary.unknownCount} ${summary.unknownCount===1?'ukendt':'ukendte'}`:'Lysstatus ukendt'):`${summary.onCount} af ${summary.totalCount} tændt`;
- return {id:'podview-ha-lights',kind:'light',name:`Lys · ${value.scope.areaName}`,scope:'ha_area',lightScope:value.scope,lightSourceEpoch:value.sourceEpoch,lightObservation:value,validUntil:value.validUntil,live:true,source:value.source,observedAt:value.observedAt,revision,status:summary.status,displayState,observedLights:value.items,...summary,pending:null,hidden:false,timeline:[]};
+ return {id:'podview-ha-lights',kind:'light',name:`Lys · ${value.scope.areaName}`,scope:'ha_area',lightScope:value.scope,lightSourceEpoch:value.sourceEpoch,lightObservation:value,validUntil:value.validUntil,live:true,source:value.source,observedAt:value.observedAt,revision,status:summary.status,displayState,observedLights:value.items,lightScenes:value.scenes??[],...summary,pending:null,hidden:false,timeline:[]};
 }
 export function orderHomeDevices(devices){const slot=d=>d.kind==='vacuum'?0:d.kind==='light'?1:2;return [...devices].sort((a,b)=>slot(a)-slot(b));}
 export function applyHome(scene,home,allowed=["vacuum","weather"]){

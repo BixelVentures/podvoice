@@ -114,7 +114,11 @@ export const productLibrary=[
   ...[['empty','Ingen robotdata','Manglende opsætning med helper og uden tom historik.'],['stale','Sidst kendte robotdata','Seneste observation bliver stående uden aktive kommandoer.'],['long','Langt rum- og kortnavn','Lange faktisk understøttede metadata i samme Hero, pleje-ListRows og S/M/L-kort.'],['care','Pleje og dockstatus','Observerede eksempelværdier for filter, børste, vandbeholder og dockfejl.']].map(([status,label,description])=>state('robot',`robot-detail-${status}`,label,description)),
   state('robot','robot-detail-docked','Områder og gentagelser','Samme kanoniske Frameo-panel: seneste rumvalg, inline Rengøringsvalg og eksplicit Start.',{open:'[data-robot-control]',key:'controls'})
  ]},
- {id:'lights',name:'Lys',category:'Hjem',description:'Et dæmpet varmt funktionsunivers med ærlig status.',usage:'Ikke tilsluttet lys fylder mindre end et aktuelt svar. En gruppe kan have blandet tilstand.',interaction:'Prøv de tilgængelige lokale lyskontroller; forbindelsesfejl må ikke ligne et slukket lys.',limitations:['Lysbetjening her er simuleret. Tilgængelighed i hjemmet skal bekræftes af den faktiske ejer.','Farve/temperatur og rigtige scener er ikke optaget i den aktuelle kontrakt; biblioteket opfinder ingen dialog eller kommando.'],states:[
+ {id:'lights',name:'Lys',category:'Hjem',description:'Et dæmpet varmt funktionsunivers med ærlig status.',usage:'Ikke tilsluttet lys fylder mindre end et aktuelt svar. En gruppe kan have blandet tilstand.',interaction:'Prøv de tilgængelige lokale lyskontroller; forbindelsesfejl må ikke ligne et slukket lys.',limitations:['Lysbetjening her er simuleret. Tilgængelighed i hjemmet skal bekræftes af den faktiske ejer.','Farve og temperatur er uden for denne enkle betjening. Faktiske scener kræver validerede medlemmer og friske ejerudbudte handlinger.'],states:[
+  state('lights','hue-kitchen','Køkken · scener','Eksempel: Køkken har to lamper og tre scener for de samme lamper. Skift scene og justér derefter lysstyrken.'),
+  state('lights','hue-living','Stue · scener','Eksempel: Stue har seks lamper og tre scener for de samme lamper. Skærmens køkkentilknytning og player bevares.'),
+  state('lights','hue-offline','Scener · offline','Sidst kendte scener og medlemsantal bevares; ingen kommando.'),
+  ...[['hue-long','Lange scenenavne'],['hue-mixed','Forskellige niveauer'],['hue-unknown','Ukendt lysstatus'],['hue-stale','Udløbet status'],['hue-live-shaped','HA-form uden kommandomyndighed']].map(([stage,label])=>state('lights',stage,label,'Samme lyskomposition med ærlig tilstand; lokalt eksempel uden fysisk effekt.')),
   ...devicePreviewStatuses.light.map(status=>state('lights',`light-detail-${status}`,deviceNames[status],deviceRules[status])),
   state('lights','light-overview-unavailable','Overblik · ikke tilgængeligt','Rolig og ærlig indgang uden påstand om tændt lys.'),
   state('lights','light-overview-on','Overblik · tændt','Samme kortfamilie som de øvrige enheder.'),
@@ -182,7 +186,7 @@ for(const family of productLibrary){
    item.selector=item.stage.includes('-overview-')?'#timer-card':item.stage.includes('-rest-')?'#resource-rail':'#timers-view';
    if(item.stage==='timer-rest-empty'){item.selector=null;item.isolationNote='Hjem viser ingen timer, når der ikke er en aktiv timer. Den tomme indgang findes i overblikket.';}
   }
-  else if(['robot','lights'].includes(family.id)&&!item.stage.includes('-detail-'))item.selector=`${item.stage.includes('-rest-')?'#resource-rail':'#now-view >'} [data-kind="${family.id==='robot'?'vacuum':'light'}"]`;
+  else if(['robot','lights'].includes(family.id)&&!item.stage.includes('-detail-')&&!item.stage.startsWith('hue-'))item.selector=`${item.stage.includes('-rest-')?'#resource-rail':'#now-view >'} [data-kind="${family.id==='robot'?'vacuum':'light'}"]`;
   else if(family.id==='history'&&item.stage==='conversation-complete')item.selector='#answer-host';
   else if(family.id==='overlays'&&item.stage==='timer-detail-running')item.selector='#timers-view';
  }
