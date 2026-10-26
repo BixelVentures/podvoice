@@ -190,7 +190,7 @@ pv-widget-host #radio-view .radio-station-tiles>button{min-height:177px;padding:
 /* Speaker selection is a left-column dialog; the player stays legible. */
 /* Dialog anatomy is shared by actual retained dialogs and kit specimens. */
 .pv-kit-dialog:not(dialog):not([data-kit-variant=toast]),dialog.pv-kit-dialog[open]:not([data-kit-variant=toast]){display:grid;gap:var(--pv-s2)}
-.pv-kit-dialog>form{display:grid;gap:var(--pv-s2);padding:0;margin:0;min-width:0}
+.pv-kit-dialog>form{display:grid;gap:var(--pv-s2);padding:0;margin:0;min-width:0;align-content:start;grid-auto-rows:max-content}
 .pv-kit-dialog .pv-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);margin:0;padding:0}
 .pv-kit-dialog .pv-dialog-header>h2{font:var(--pv-t-title);line-height:var(--pv-leading-focus);margin:0;min-width:0;text-wrap:balance}
 .pv-kit-dialog .pv-dialog-close{display:inline-flex;align-items:center;justify-content:center;flex:none;width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0;margin:0;background:transparent;border:0;border-radius:var(--pv-r-pill)}
@@ -208,9 +208,9 @@ pv-widget-host #radio-view .radio-station-tiles>button{min-height:177px;padding:
 }
 #room-options>button>img,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>img{display:block;width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;margin:0;object-fit:contain}
 #room-options>button>span:first-of-type,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>span:first-of-type{display:grid;gap:var(--pv-s1);min-width:0;margin:0;padding:0}
-#room-options>button strong,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow strong{font:var(--pv-t-label);line-height:var(--pv-leading-widget);margin:0;min-width:0;overflow-wrap:anywhere}
+#room-options>button strong,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow strong{font:var(--pv-t-label);line-height:var(--pv-leading-widget);margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
 #room-options>button small,#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow :is(small,.target-status){font:var(--pv-t-meta);line-height:var(--pv-leading-meta);margin:0}
-#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>.target-status{max-width:96px;text-align:right;white-space:normal}
+#room-options>button>.target-status,.pv-kit-dialog .pv-dialog-content>button.pv-kit-listrow>.target-status{max-width:none;text-align:right;white-space:nowrap}
 
 /* Native target and visible history pill share the same48px geometry. */
 pv-widget-host .view-nav #open-history.header-history{--pv-history-surface:var(--pv-surface-2);position:relative;box-sizing:border-box;height:48px;min-height:48px;max-height:48px;border-radius:var(--pv-r-pill);background:transparent;color:var(--pv-ink);box-shadow:none;isolation:isolate}
@@ -1756,9 +1756,9 @@ summary.pv-kit-listrow[data-kit-variant=disclosure]{list-style:none;cursor:point
 summary.pv-kit-listrow[data-kit-variant=disclosure]::-webkit-details-marker{display:none}
 summary.pv-kit-listrow[data-kit-variant=disclosure]>img{width:var(--pv-icon-s);height:var(--pv-icon-s);transition:transform var(--pv-fast,200ms) var(--pv-ease)}
 details[open]>summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transform:rotate(180deg)}
-/* Settings uses the canonical centered modal, with content-sized tracks even
-   when a native dialog implementation stretches its automatic grid height. */
-#quick-sheet.pv-kit-dialog:modal{height:fit-content;min-height:0;align-content:start;grid-auto-rows:max-content}
+/* All non-toast modals use content-sized tracks, including a retained native
+   form, so a footer control cannot stretch into unused Dialog block space. */
+dialog.pv-kit-dialog:modal:not([data-kit-variant=toast]){height:fit-content;min-height:0;align-content:start;grid-auto-rows:max-content}
 #quick-sheet.pv-kit-dialog>.pv-dialog-header{margin:0;padding:0;border:0}
 #quick-sheet.pv-kit-dialog #screen-settings-content{display:grid;gap:var(--pv-s2);min-width:0;align-content:start;grid-auto-rows:max-content}
 #quick-sheet.pv-kit-dialog .screen-device-brightness{display:grid;gap:var(--pv-s1)}

@@ -1,3 +1,4 @@
+import {liveScene,homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -287,4 +288,12 @@ test('climate power is an observed switch: cancel and rejected result never move
  power.dispatchEvent(new Event('click'));view.lockConfirm.dispatchEvent(new Event('click'));assert.equal(power.disabled,true);assert.equal(power.getAttribute('aria-busy'),'true');assert.equal(power.getAttribute('aria-checked'),'false');
  finish({status:'failed'});await Promise.resolve();assert.equal(power.getAttribute('aria-checked'),'false');assert.equal(power.dataset.state,'error');assert.equal(power.disabled,false);
  view.render({...vehicleFixture({controls:true}),revision:2,climate:{status:'heat',targetTemperatureC:21}});assert.equal(power.getAttribute('aria-checked'),'true');assert.equal(power.textContent,'Tændt');view.cleanup();
+});
+
+test('host liveScene projection renders fresh observed Tesla without false last-known label and preserves offline truth',async()=>{
+ const source=await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),begin=source.indexOf('const homeConnection='),end=source.indexOf("if($('home-vehicle-status')",begin),{root}=fixture(),view=new VehicleView(root);
+ const run=new Function('VehicleView','projectVehicle','$','homeConnectionPresentation',`return function(s){const viewChanged=true;${source.slice(begin,end)}}`)(VehicleView,vehicleModel,()=>root,homeConnectionPresentation);
+ const snapshot={bootId:'boot',roomId:'room',voice:{sessionId:'s'},timers:{status:'observed',items:[]},capabilities:{homeRead:['vehicle']}},observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:Date.now()/1000,entityIds:['sensor.car'],data:{locked:true,batteryPercent:70}}),s=liveScene({focus:'vehicle',vehicle:observed,devices:[],answers:[],extraTimers:[],music:{playback:{}}},snapshot),host={live:true,liveSnapshot:snapshot,liveTransport:{connected:true},vehicleView:view};
+ assert.equal(s.connected,false);run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.climateToggle.hidden,true);assert.equal(view.controlsEnabled,false);
+ host.liveTransport.connected=false;run.call(host,s);assert.equal(view.status.textContent,'Sidst kendt: Låst');assert.equal(view.batteryValue.textContent,'70 %');host.liveTransport.connected=true;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.controlsEnabled,false);view.cleanup();
 });

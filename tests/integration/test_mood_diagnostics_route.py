@@ -24,7 +24,7 @@ from gatekeeper import mood_diagnostics as diag
         ("budget", "publish", "success", "not_ready"),
         ("selection", "publish", "success", "none"),
         ("catalogue", "playlist_search", "mood_catalogue_unavailable", "none"),
-        ("cancel", "playlist_search", "cancelled", "cancelled"),
+        ("cancel", "parallel_selection_search", "cancelled", "cancelled"),
     ],
 )
 async def test_actual_terminal_record_one_per_attempt_and_cleanup(
@@ -85,6 +85,7 @@ async def test_actual_terminal_record_one_per_attempt_and_cleanup(
             "playback_before_ms",
             "time_context_ms",
             "model_ms",
+            "parallel_selection_search_ms",
             "playlist_search_ms",
             "playback_after_ms",
             "publish_ms",
@@ -134,13 +135,14 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
             "playback_before_ms",
             "time_context_ms",
             "model_ms",
+            "parallel_selection_search_ms",
             "playlist_search_ms",
             "playback_after_ms",
             "publish_ms",
         }
         assert all(value.isdecimal() and 0 <= int(value) <= 60000 for value in durations.values())
     assert lines == [
-        "mood_result phase=playlist_search outcome=mood_unavailable reason=route_deadline http_status=none kind=mood"
+        "mood_result phase=parallel_selection_search outcome=mood_unavailable reason=route_deadline http_status=none kind=mood"
     ]
     assert mood_rig.router.podview_mood_selector.select.await_count == 1
 
@@ -207,7 +209,9 @@ async def test_actual_tab_caller_preserves_kind_and_catalogue_failure(
     assert body.get("error", "success") == outcome
     lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
     assert len(lines) == 1 and f"outcome={outcome}" in lines[0] and f"kind={kind}" in lines[0]
-    assert reads == ["playlist_search"] * (6 if empty else 3)
+    assert reads == ["playlist_search"] * (
+        (9 if empty else 6) if kind == "mood" else (6 if empty else 3)
+    )
     assert mood_rig.router.podview_mood_selector.select.await_count == int(kind == "mood")
     assert bridge.controls.music.setup_context.await_count == 0
     assert bridge.controls.music.execute_context.await_count == 0

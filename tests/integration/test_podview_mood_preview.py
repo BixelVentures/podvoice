@@ -205,7 +205,7 @@ async def test_preview_deadline_cancels_and_joins_all_reads(mood_rig, monkeypatc
     timeout = asyncio.timeout
     monkeypatch.setattr(asyncio, "timeout", lambda _: timeout(0.02))
     assert not (await read(mood_rig))["ok"]
-    assert len(entered) == len(cleaned) == 3 and not bridge._music_busy
+    assert len(entered) == len(cleaned) == 6 and not bridge._music_busy
     assert not bridge.music_selection.sources
 
 

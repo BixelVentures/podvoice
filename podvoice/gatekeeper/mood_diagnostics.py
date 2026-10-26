@@ -8,7 +8,15 @@ from dataclasses import dataclass, field
 
 _LOG = logging.getLogger("podvoice.mood")
 _PHASES = frozenset(
-    {"playback_before", "time_context", "model", "playlist_search", "playback_after", "publish"}
+    {
+        "playback_before",
+        "time_context",
+        "model",
+        "playlist_search",
+        "playback_after",
+        "publish",
+        "parallel_selection_search",
+    }
 )
 _REASONS = frozenset(
     {
@@ -104,6 +112,7 @@ class MoodDiagnostic:
                     "playback_before",
                     "time_context",
                     "model",
+                    "parallel_selection_search",
                     "playlist_search",
                     "playback_after",
                     "publish",
@@ -141,7 +150,7 @@ def finish(diagnostic, token):
         _LOG.info(
             "mood_result phase=%s outcome=%s reason=%s http_status=%s kind=%s "
             "total_ms=%s playback_before_ms=%s time_context_ms=%s model_ms=%s "
-            "playlist_search_ms=%s playback_after_ms=%s publish_ms=%s",
+            "parallel_selection_search_ms=%s playlist_search_ms=%s playback_after_ms=%s publish_ms=%s",
             _closed(diagnostic.phase, _PHASES),
             _closed(diagnostic.outcome, _OUTCOMES),
             _closed(diagnostic.reason, _REASONS),

@@ -2623,6 +2623,21 @@ async def _answers(request: web.Request) -> web.Response:
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
+async def _observed_music(request: web.Request) -> web.Response:
+    if request.query.get("kind") != "playback":
+        return await _music(request)
+    from .podview_read_diagnostics import observe_read
+
+    return await observe_read(request, _music, "playback")
+
+
+async def _observed_queue_offer(request: web.Request) -> web.Response:
+    from .podview_queue import queue_http
+    from .podview_read_diagnostics import observe_read
+
+    return await observe_read(request, queue_http, "queue")
+
+
 async def _music(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
@@ -3002,6 +3017,22 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             key = (binding, account, room, id(grant))
             expected = None
             ids: object = None
+            speculative = None
+
+            async def read_theme(query):
+                if not current():
+                    raise RuntimeError("mood owner replaced before lookup")
+                reply = await tools.podview_read("playlist_search", account, query)
+                if not current():
+                    raise RuntimeError("mood owner replaced during lookup")
+                return reply
+
+            async def safe_read_theme(query):
+                try:
+                    return await read_theme(query)
+                except Exception as error:
+                    return error
+
             if (
                 retained
                 and retained["key"][1:3] == (account, room)
@@ -3017,41 +3048,69 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 ids = choose(retained)
             else:
                 assert selector is not None
+
                 # AI enriches theme choice; its quota/provider cannot disable music.
                 # Never retry a model request or infer a model result from this fallback.
-                if selector.available:
-                    try:
-                        diagnostic.step("time_context")
-                        coarse = await tools.podview_mood_context(current)
-                        if coarse is not None and current():
-                            diagnostic.step("model")
-                            ids = await selector.select(coarse, current=current)
-                    except TimeoutError:
-                        diagnostic_log.note("owner_timeout")
-                    except Exception:
-                        diagnostic_log.note("model_parse")
-                else:
-                    diagnostic_log.note("not_ready")
-                if current() and (
-                    not isinstance(ids, list)
-                    or len(ids) != 3
-                    or any(not isinstance(x, str) or x not in themes for x in ids)
-                    or len(set(ids)) != 3
-                ):
-                    retained_ids = (
-                        [row.get("themeId") for row in retained["rows"]]
-                        if retained and retained["key"][1:3] == (account, room)
-                        else []
-                    )
-                    ids = (
-                        retained_ids
-                        if (
-                            len(retained_ids) == 3
-                            and all(isinstance(x, str) and x in themes for x in retained_ids)
-                            and len(set(retained_ids)) == 3
+                async def select_mood():
+                    if selector.available:
+                        try:
+                            coarse = await tools.podview_mood_context(current)
+                            if coarse is not None and current():
+                                return await selector.select(coarse, current=current)
+                        except TimeoutError:
+                            diagnostic_log.note("owner_timeout")
+                        except Exception:
+                            diagnostic_log.note("model_parse")
+                    else:
+                        diagnostic_log.note("not_ready")
+                    return None
+
+                # Owned read-only themes can be sampled concurrently with the model.
+                # Exceptions stay attached to each query: unselected queries have no
+                # authority over the chosen result.
+                diagnostic.step("parallel_selection_search")
+                async with asyncio.TaskGroup() as concurrent:
+                    selection = concurrent.create_task(select_mood())
+                    speculative = {
+                        theme_id: concurrent.create_task(safe_read_theme(theme["query"]))
+                        for theme_id, theme in themes.items()
+                    }
+                    ids = await selection
+                    if current() and (
+                        not isinstance(ids, list)
+                        or len(ids) != 3
+                        or any(not isinstance(x, str) or x not in themes for x in ids)
+                        or len(set(ids)) != 3
+                    ):
+                        retained_ids = (
+                            [row.get("themeId") for row in retained["rows"]]
+                            if retained and retained["key"][1:3] == (account, room)
+                            else []
                         )
-                        else ["cooking", "italian", "calm"]
-                    )
+                        ids = (
+                            retained_ids
+                            if (
+                                len(retained_ids) == 3
+                                and all(isinstance(x, str) and x in themes for x in retained_ids)
+                                and len(set(retained_ids)) == 3
+                            )
+                            else ["cooking", "italian", "calm"]
+                        )
+                    for theme_id, lookup in speculative.items():
+                        if not isinstance(ids, list) or theme_id not in ids or not current():
+                            lookup.cancel()
+                    if current() and isinstance(ids, list):
+                        pending = {
+                            speculative[theme_id] for theme_id in ids if theme_id in speculative
+                        }
+                        while pending:
+                            done, pending = await asyncio.wait(
+                                pending, return_when=asyncio.FIRST_COMPLETED
+                            )
+                            if any(isinstance(task.result(), Exception) for task in done):
+                                for task in pending:
+                                    task.cancel()
+                                break
             if (
                 not current()
                 or not isinstance(ids, list)
@@ -3070,21 +3129,20 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 for theme_id in ids
             }
 
-            async def read_theme(query):
-                if not current():
-                    raise RuntimeError("mood owner replaced before lookup")
-                reply = await tools.podview_read("playlist_search", account, query)
-                if not current():
-                    raise RuntimeError("mood owner replaced during lookup")
-                return reply
-
-            # Exactly three independent reads; TaskGroup joins cancellation/failure cleanup
-            # before the request can release its busy fence or publish any authority.
             diagnostic.step("playlist_search")
-            async with asyncio.TaskGroup() as reads:
-                lookups = [
-                    reads.create_task(read_theme(source_queries[theme_id])) for theme_id in ids
-                ]
+            if speculative is None:
+                # Retained sets continue to revalidate only their exact three rows.
+                async with asyncio.TaskGroup() as reads:
+                    lookups = [
+                        reads.create_task(read_theme(source_queries[theme_id])) for theme_id in ids
+                    ]
+            else:
+                lookups = [speculative[theme_id] for theme_id in ids]
+                for lookup in lookups:
+                    if not lookup.cancelled() and isinstance(lookup.result(), Exception):
+                        raise RuntimeError("selected playlist read failed") from lookup.result()
+                if any(lookup.cancelled() for lookup in lookups):
+                    raise asyncio.CancelledError
             rows, candidates = [], []
             epoch = None
 
@@ -3977,8 +4035,8 @@ def mount(
             web.post("/view/api/controller/request", _controller_request),
             web.post("/view/api/controller/claim", _controller_claim),
             web.post("/view/api/controller/renew", _controller_renew),
-            web.get("/view/api/music", _music),
-            web.post("/view/api/music/queue/offer", queue_http),
+            web.get("/view/api/music", _observed_music),
+            web.post("/view/api/music/queue/offer", _observed_queue_offer),
             web.post("/view/api/music/queue/actions", queue_http),
             web.post("/view/api/music/selection/setup", _music_selection),
             web.post("/view/api/music/selection/actions", _music_selection),

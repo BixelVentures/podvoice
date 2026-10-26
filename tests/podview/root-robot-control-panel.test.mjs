@@ -518,3 +518,18 @@ test('one cleaning form owns separate sibling Room and Cleaning settings Cards w
 test('Base uses short visible labels with complete accessible action names and preserved exact operations',()=>{
  const options=['wash_start','empty_start','dry_start'].map(operation=>({id:operation,action:'dock',label:operation,argsSchema:{kind:'dock',operation}})),panel=new RobotControlPanel(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:{domain:'vacuum',options},device,connected:true};const buttons=panel.baseDisclosure.panel.querySelectorAll('button');assert.deepEqual(buttons.map(button=>button.textContent),['Vask','Tøm støv','Tør']);assert.deepEqual(buttons.map(button=>button.getAttribute('aria-label')),['Vask moppe','Tøm støvbeholder','Tør moppe']);assert.deepEqual(buttons.map(button=>button.dataset.dockOperation),['wash_start','empty_start','dry_start']);assert.deepEqual(buttons.map(button=>button.querySelector('img').src),['assets/icons/drop.svg','assets/icons/vacuum.svg','assets/icons/wind.svg']);assert.deepEqual(effects,[]);emit(panel.baseDisclosure.trigger,'click');assert.deepEqual(effects,[]);emit(buttons[1],'click');assert.deepEqual(effects,[{optionId:'empty_start',args:{}}]);
 });
+
+for(const boundary of ['stale','revoked'])test(`inline ${boundary} Robot fallback has one observation owner beside hidden Light siblings`,async()=>{
+ const f=await livePanelFixture();try{
+  const d=f.host.state.devices[0];f.host.state.focus=d.id;const feed=new Node('section'),detail=new Node('div'),card=new Node('pv-vacuum-widget'),light=new Node('pv-light-widget');light.hidden=true;detail.after=node=>feed.append(node);detail.append(card,light);feed.append(detail);f.host.deviceNodes=new Map([[d.id,card]]);
+  if(boundary==='stale')d.stale=true;else f.host.liveSnapshot.capabilities.controlSetup=[];
+  await f.view.openRobot(new Node('button'));f.view.render();
+  assert.equal(f.view.robotInline,true);assert.ok(f.view.robotPanel instanceof RobotControlPanel);
+  assert.equal(card.hidden,true,'the inline canonical panel owns the only visible Robot observation');assert.equal(card.inert,true);assert.equal(detail.hidden,true,'remove the empty outer slot so the canonical panel keeps the player top anchor');
+  assert.equal(f.view.note.hidden,true,'do not repeat the panel availability explanation');assert.equal(f.view.robotButton.hidden,true,'do not offer entry into an already mounted panel');
+  assert.equal(f.view.robotPanel.observation.data.text.startsWith('Sidst kendt'),boundary==='stale');
+  assert.equal(f.view.robotPanel._disabled,true);assert.equal(f.view.task,null);assert.equal(f.writes(),0);assert.equal(f.reads(),1);
+  d.stale=false;f.host.liveSnapshot.capabilities.controlSetup=['vacuum'];await f.view.openRobot(new Node('button'));f.view.render();
+  assert.ok(f.view.task);assert.equal(f.view.robotPanel._disabled,false);assert.equal(card.hidden,true);assert.equal(f.view.robotButton.hidden,true);assert.equal(f.writes(),0);
+ }finally{f.cleanup();}
+});

@@ -47,3 +47,47 @@ for(const explicit of [false,true])test(`held control intent does not latch an u
  await f.refresh();assert.equal(JSON.stringify(f.host.liveSnapshot),context);assert.equal(f.reads.length,1);assert.equal(f.media.queueControls.status,'ready');
  await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,0);
  }finally{f.close();}});
+
+// A failed passive read may recover once, only after a new validated playback.
+for(const recover of [true,false])test(`classified transient queue read retries once after playback; recovered=${recover}`,async()=>{const f=rig();try{
+ const read=f.host.liveTransport.queueOffer;let calls=0;f.host.liveTransport.queueOffer=async(...args)=>{calls++;if(calls===1||!recover)throw Object.assign(Error('temporary read'),{code:'read_transient'});return read(...args);};
+ await f.refresh();assert.equal(calls,1);assert.equal(f.media.queueControls.status,'error');
+ await f.media.loadQueue({automatic:true});assert.equal(calls,1,'render/direct automatic calls cannot spend recovery');
+ await f.refresh();assert.equal(calls,2,'one next successful playback permits one extra passive read');
+ for(let i=0;i<4;i++)await f.refresh();assert.equal(calls,2,'neither repeated failure nor successful empty result rearms');
+ assert.equal(f.media.queueControls.status,recover?'ready':'error');
+ }finally{f.close();}});
+test('failed playback does not spend queue recovery; pending intention defers it until a later successful playback',async()=>{const f=rig();try{
+ let calls=0;f.host.liveTransport.queueOffer=async()=>{calls++;throw Object.assign(Error('temporary'),{code:'read_transient'});};await f.refresh();assert.equal(calls,1);
+ f.host.liveTransport.music=async()=>{throw Object.assign(Error('playback unavailable'),{code:'read_transient'});};await f.refresh();assert.equal(calls,1);
+ f.host.liveTransport.music=async()=>f.wire();f.host.liveControls={musicIntentPending:true,render(){},invalidateMusic(){}};await f.refresh();assert.equal(calls,1);
+ f.host.liveControls.musicIntentPending=false;await f.refresh();assert.equal(calls,2);await f.refresh();assert.equal(calls,2);
+ }finally{f.close();}});
+for(const fence of ['queue-unknown','selection-unknown','consumed'])test(`transient queue recovery never crosses ${fence}`,async()=>{const f=rig();try{
+ let calls=0;f.host.liveTransport.queueOffer=async()=>{calls++;throw Object.assign(Error('temporary'),{code:'read_transient'});};await f.refresh();assert.equal(calls,1);
+ if(fence==='selection-unknown')f.host.liveSelection.feedback={outcome:'unknown'};else{f.media.queueControls.consumed=true;if(fence==='queue-unknown')f.media.queueControls.status='unknown';}
+ await f.refresh();await f.refresh();assert.equal(calls,1);
+ }finally{f.close();}});
+test('old retry is not carried through media invalidation or a changed owner',async()=>{const f=rig();try{
+ let calls=0;f.host.liveTransport.queueOffer=async()=>{calls++;throw Object.assign(Error('temporary'),{code:'read_transient'});};await f.refresh();assert.equal(calls,1);
+ f.media.invalidate();await f.refresh();assert.equal(calls,1,'same old key cannot borrow old generation retry');
+ const wire=f.wire;f.host.liveTransport.music=async()=>{const body=wire();body.data.owner_epoch='replacement';return body;};await f.refresh();assert.equal(calls,2,'new owner gets its independent initial read');
+ await f.refresh();assert.equal(calls,3,'new owner has its own single recovery');await f.refresh();assert.equal(calls,3);
+ }finally{f.close();}});
+test('held recovery response cannot overwrite a replacement binding queue',async()=>{const f=rig();let release;try{
+ const read=f.host.liveTransport.queueOffer;let calls=0;f.host.liveTransport.queueOffer=async(...args)=>{calls++;if(calls===1)throw Object.assign(Error('temporary'),{code:'read_transient'});const body=await read(...args);if(calls===2)return new Promise(resolve=>release=()=>resolve(body));return body;};
+ await f.refresh();assert.equal(calls,1);await f.refresh();assert.equal(calls,2);assert.equal(f.media.queueControls.pending,true);
+ f.replaceBinding();await f.refresh();assert.equal(calls,3);const accepted=f.media.queueControls.offer;assert.equal(accepted.expectedBindingId,'b'.repeat(64));release();await tick();assert.equal(f.media.queueControls.offer,accepted);await f.refresh();assert.equal(calls,3);
+ }finally{release?.();f.close();}});
+for(const code of ['read_access_denied',undefined])test(`non-transient queue error ${code||'generic'} never gains recovery budget`,async()=>{const f=rig();try{
+ let calls=0;f.host.liveTransport.queueOffer=async()=>{calls++;throw Object.assign(Error('failed read'),{code});};await f.refresh();await f.refresh();await f.refresh();assert.equal(calls,1);assert.equal(f.media.queueReadRetry??null,null);
+ }finally{f.close();}});
+
+test('music and queue diagnostic spans carry their own per-call read contexts without altering playback',async()=>{const f=rig();try{
+ let seq=0;const records=[],playbackContexts=[],queueContexts=[],music=f.host.liveTransport.music,queue=f.host.liveTransport.queueOffer;
+ f.host.liveTransport.createReadDiagnostic=()=>Object.freeze({seq:++seq});f.host.liveTransport.recordReadDiagnostic=(stage,row,context)=>records.push({stage,row,context});
+ f.host.liveTransport.music=async(...args)=>{playbackContexts.push(args[3]?.readDiagnostic);return music(...args);};f.host.liveTransport.queueOffer=async(...args)=>{queueContexts.push(args[3]?.readDiagnostic);return queue(...args);};
+ await f.refresh();assert.equal(f.media.playback.item.name,'Song');assert.equal(f.media.queueControls.status,'ready');assert.equal(f.reads.length,1);
+ assert.ok(playbackContexts[0]);assert.ok(queueContexts[0]);assert.notEqual(playbackContexts[0],queueContexts[0]);assert.ok(records.filter(r=>r.stage==='music_read').every(r=>r.context===playbackContexts[0]));assert.ok(records.filter(r=>r.stage==='queue_read').every(r=>r.context===queueContexts[0]));
+ assert.deepEqual(records.filter(r=>r.stage==='music_read').map(r=>r.row.code),['start','ok']);assert.deepEqual(records.filter(r=>r.stage==='queue_read').map(r=>r.row.code),['start','empty']);
+ }finally{f.close();}});

@@ -117,7 +117,11 @@ async def test_empty_or_colliding_primary_gets_one_bounded_real_source_broadenin
     assert result["ok"] is True, result
     assert len(result["data"]["tracks"]) == 3
     assert len({row["uri"] for row in result["data"]["tracks"]}) == 3
-    assert sorted(c.calls) == sorted(PRIMARY[kind] + BROADER[kind])
+    assert sorted(c.calls) == sorted(
+        PRIMARY[kind]
+        + BROADER[kind]
+        + (["morning acoustic", "evening jazz", "indie"] if kind == "mood" else [])
+    )
     retained = getattr(c.rig.app[BRIDGE], "_" + kind + "_retained")
     assert len(retained["queries"]) == 3
     assert all(query in PRIMARY[kind] + BROADER[kind] for query in retained["queries"].values())
@@ -130,7 +134,7 @@ async def test_all_sources_empty_stays_honest_after_exactly_six_reads(catalogue,
     c.empty.update(PRIMARY[kind] + BROADER[kind])
     result = await read(c.rig, kind=kind)
     assert result["error"] == kind + "_catalogue_empty"
-    assert len(c.calls) == 6
+    assert len(c.calls) == (9 if kind == "mood" else 6)
     assert not c.rig.app[BRIDGE].music_selection.sources
     no_effects(c)
 
@@ -225,7 +229,7 @@ async def test_ai_unavailable_does_not_disable_music_or_retry_model(catalogue, f
     result = await read(c.rig, kind="mood")
     assert result["ok"] is True
     assert [row["themeId"] for row in result["data"]["tracks"]] == ["cooking", "italian", "calm"]
-    assert len(c.calls) == 3
+    assert len(c.calls) == 6
     assert selector.select.await_count == int(
         failure not in {"budget", "clock_none", "clock_exception"}
     )
@@ -311,7 +315,10 @@ async def test_ai_quota_exhaustion_reuses_existing_closed_theme_ids_without_anot
     assert c.calls == [
         "morning acoustic",
         "evening jazz",
+        "cooking",
+        "italian dinner",
         "indie",
+        "calm acoustic",
         "acoustic",
         "jazz",
         "alternative",
@@ -335,6 +342,6 @@ async def test_broader_source_still_needs_current_exact_owner_and_closed_project
     c.empty.update(PRIMARY[kind])
     getattr(c, "malformed" if failure == "malformed" else "foreign").add(BROADER[kind][0])
     result = await read(c.rig, kind=kind)
-    assert result["ok"] is False and len(c.calls) == 6
+    assert result["ok"] is False and len(c.calls) == (9 if kind == "mood" else 6)
     assert not c.rig.app[BRIDGE].music_selection.sources
     no_effects(c)

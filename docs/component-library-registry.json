@@ -2721,13 +2721,14 @@
         },
         "roots": [
           "native:button:pv-row pv-btn",
-          "native:button:speaker-list-refresh pv-button pv-ghost"
+          "native:button:speaker-list-refresh pv-button pv-ghost",
+          "native:div:pv-actions"
         ],
         "registrations": {},
         "customTags": [],
         "dom": true
       },
-      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent. Reviewed selectionWitness only freezes the already validated NEXT account/native-room/homepod identity for later comparison after catalogue expiry; fresh setup and server authority remain mandatory. No additional import edge or markup."
+      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent. Reviewed selectionWitness only freezes the already validated NEXT account/native-room/homepod identity for later comparison after catalogue expiry; fresh setup and server authority remain mandatory. No additional import edge or markup. UI92 existing Dialog actions slot is a native pv-actions container inside the retained method=dialog form; reuses an existing slot when present. It contains the same explicit type=button passive catalogue refresh. No new family, action, grant or request path."
     },
     "dist/local-robot-view.js": {
       "status": "approved-composition",

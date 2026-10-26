@@ -6,12 +6,40 @@ import asyncio
 import copy
 import hashlib
 import json
+import logging
 import time
 from datetime import datetime
 
 from aiohttp import web
 
 from . import podview_music, podview_speakers
+
+_LOG = logging.getLogger("podvoice.podview")
+
+
+def _log_playback_failure(stage, error):
+    """Log only fixed classifications, never owner or playback content."""
+    allowed = {
+        "unavailable",
+        "stale",
+        "busy",
+        "authentication_required",
+        "forbidden",
+        "rate_limited",
+        "malformed_response",
+    }
+    reason = error if isinstance(error, str) and error in allowed else "unavailable"
+    try:
+        from .podview_read_diagnostics import read_hash
+
+        _LOG.warning(
+            "podview_failure stage=music_read code=playback_unavailable source=%s reason=%s readHash=%s",
+            stage,
+            reason,
+            read_hash(),
+        )
+    except Exception:
+        pass
 
 
 def room_bindings(bridge, room):
@@ -394,6 +422,7 @@ async def resolve_actual(
         if not retained():
             return result(reason="owner_changed")
         if not raw.get("ok"):
+            _log_playback_failure("owner", raw.get("error_kind"))
             return result(
                 reason="stale_observation"
                 if raw.get("error_kind") == "stale"
@@ -408,6 +437,7 @@ async def resolve_actual(
             else podview_music.project_playback_output(aggregate, account)
         )
         if not checked.get("ok"):
+            _log_playback_failure("projection", checked.get("error_kind"))
             return result(
                 reason="stale_observation"
                 if checked.get("error_kind") == "stale"
@@ -467,6 +497,7 @@ async def resolve_actual(
             aggregate.get("settlement"),
         )
     except Exception:
+        _log_playback_failure("exception", "unavailable")
         return result(reason="account_unavailable" if retained() else "owner_changed")
 
 
