@@ -74,6 +74,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-packet-robot-control-panel.test.mjs",
         "tests/podview/root-lazy-detail-view.test.mjs",
         "tests/podview/root-light-lamp-view.test.mjs",
+        "tests/podview/root-live-control-view.test.mjs",
         "tests/podview/root-live-media-queue-lifecycle.test.mjs",
         "tests/podview/root-queue-read-classification93.test.mjs",
         "tests/podview/root-read-correlation.test.mjs",
@@ -100,8 +101,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/silent_close_adversarial"
-MANIFEST_SHA = "33f93a6b32ce82fcb21c9cab1201a423dfd6b8f1490098d2b944f506c5fb4453"
-PROFILE_AST = "bba0dfe91249d9c3fe3136260c4e05824850db81736619a300a902d77072ebb8"
+MANIFEST_SHA = "322d22bf79e19d0427a287e4bbebd2f702b10d8b1def24a03d8874a3633bf26c"
+PROFILE_AST = "aca593b40d46c4e23f6fd34cf724c0e1e75ff8650de6bd994497b7c0d62a54ce"
 
 
 def record_at(root: Path) -> dict | None:

@@ -124,6 +124,7 @@
     "tests/podview/canonical-packet-robot-control-panel.test.mjs": "a8197c0e704ad2ac6e1b30047de25fc4b1dfec40364f77e3d15aa4aa86a65240",
     "tests/podview/root-lazy-detail-view.test.mjs": "db840154454c9d9fa0cdc7c40d9eec084e16f4ee36ad45fe0c4e347608c698f0",
     "tests/podview/root-light-lamp-view.test.mjs": "f1b90bbe53d74988d313fcf74173c2b160364b345b68d5131d056325c283c8f0",
+    "tests/podview/root-live-control-view.test.mjs": "be7982fc7642e4d7cab9dc87e895063296f91b55fa1ff217b346814ea15832b1",
     "tests/podview/root-live-media-queue-lifecycle.test.mjs": "2afcc7d74bea80577cfa946dec62e2f02ce3daa482ccf87c92316f120eb91444",
     "tests/podview/root-queue-read-classification93.test.mjs": "80f71ed0e3cf6f485d4cf523f57054678792f412faf4686493fce8d2b05a3cd5",
     "tests/podview/root-read-correlation.test.mjs": "d3948c0f69ef1f0e7157b12b00c36fa5ad97f5373c02a1383c0a3d22dcae9e04",
