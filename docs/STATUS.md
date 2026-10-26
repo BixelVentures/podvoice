@@ -6476,15 +6476,15 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "c314e379a02f7dc96a57951451e7befc15297a22ff4bd844e2c9bdc8abf78547",
+  "fingerprint": "66cff5ea5e85aa94b3e7fbdf0acefd8f09f14dc3b205eb77987c8dc1bfe00f36",
   "kind": "podview92_single_owner_integration",
-  "manifest_fingerprint": "5bd56d3ce587df7deb80d85707e30c71ecaaf40395e2d5d9b6a4e2e07d9992fd",
+  "manifest_fingerprint": "08880dceb8f7fa95847e92fa598da3fd8633363753cda43d3a934a85a54f6faf",
   "merge_base": "1606b2015f8c5dcd165505303a8968824ba83147",
-  "policy_fingerprint": "55a38fc2544aa828f5e8d515fd9bc070a6f3a11f93084db359acae5f70be0c4e",
+  "policy_fingerprint": "834c9b6c8010dd2a76d42908ff5222584a4da69e0051af6cbeae5ba0938f48b8",
   "rationale": "Reviewed UI92 successor with bounded playback and mood diagnostics; physical acceptance remains open.",
-  "regression_fingerprint": "d2dc6dbf3f0893c4e31ecf020a82bcfd7f7261bae4756027ac2fc168f87ff602",
+  "regression_fingerprint": "cfb1d1422475eeed4784d9acaf4999a801c37ee84d212263bc19bfdc7dd5f7e2",
   "reviewer": "/root/silent_close_adversarial",
-  "runtime_fingerprint": "dcb77b48b71826afe4e21d05770e0d56280e33e14d82db435593caf6010f959a",
+  "runtime_fingerprint": "6d08c24f011124b776bb51e4b0e97af9d1395574d9415b764bf5d7211dcc3780",
   "tooling_fingerprint": "3e6eeed623b8d9fbb6507c21f262d727598de10b4350e50bf69589fe12014684",
   "version": 69
 }

@@ -45,8 +45,11 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/podview/light-lamp-view.js",
         "podvoice/gatekeeper/static/podview/live-control-view.js",
+        "podvoice/gatekeeper/static/podview/live-media-view.js",
+        "podvoice/gatekeeper/static/podview/live-queue-view.js",
         "podvoice/gatekeeper/static/podview/podview.bundle.js",
         "podvoice/gatekeeper/static/podview/podview.css",
+        "podvoice/gatekeeper/static/podview/podvoice-transport.js",
         "podvoice/gatekeeper/static/podview/speaker-output-view.js",
         "podvoice/gatekeeper/static/podview/ui-kit.css",
         "podvoice/gatekeeper/static/podview/ui/resource-tile.js",
@@ -62,18 +65,20 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_playlist_resilience.py",
         "tests/integration/test_podview_start_move_settlement.py",
         "tests/integration/test_room_media_binding.py",
-        "tests/unit/test_candidate_scope_admission91.py",
         "tests/podview/canonical-field88-home-settings.test.mjs",
         "tests/podview/canonical-next-robot-control-panel.test.mjs",
         "tests/podview/canonical-next-vehicle-view.test.mjs",
         "tests/podview/canonical-packet-robot-control-panel.test.mjs",
         "tests/podview/root-lazy-detail-view.test.mjs",
         "tests/podview/root-light-lamp-view.test.mjs",
+        "tests/podview/root-live-media-queue-lifecycle.test.mjs",
+        "tests/podview/root-queue-read-classification93.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
         "tests/podview/root-robot-overview-action.test.mjs",
         "tests/podview/root-second-move-lifecycle.test.mjs",
         "tests/podview/root-speaker-modal-anatomy.test.mjs",
         "tests/podview/root-vehicle-view.test.mjs",
+        "tests/unit/test_candidate_scope_admission91.py",
         "tests/unit/test_mood_diagnostics.py",
     }
 )
@@ -89,8 +94,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/silent_close_adversarial"
-MANIFEST_SHA = "5bd56d3ce587df7deb80d85707e30c71ecaaf40395e2d5d9b6a4e2e07d9992fd"
-PROFILE_AST = "97d030f9a371dd6f21c04b4ac3a81287434d7c8b1a21a2e5090ac8c96df48d73"
+MANIFEST_SHA = "08880dceb8f7fa95847e92fa598da3fd8633363753cda43d3a934a85a54f6faf"
+PROFILE_AST = "9760adf9be9530f843b6fd7d1ed034b429234045f6fafa3dabc7b40447657fd4"
 
 
 def record_at(root: Path) -> dict | None:
