@@ -181,7 +181,7 @@
     "tests/integration/test_thin_live_idle_protection.py": "80b14d13282a23e78063aadfc6d30143f51ca557ff0534378ff5d8808d156826",
     "tests/integration/test_thin_live_quiet_close.py": "edcb8f1814979b62edf5ebc90c3c7dad8e71a5af741751a7b2ae3d9f34dc3b5a",
     "tests/integration/test_thin_live_resumed_input_preclose.py": "c4565f405275bad17231f45c172f3bfc6f7b5a6fa34b54242c19ff3edeb70730",
-    "tests/integration/test_thin_live_ten_cycles.py": "fd3e801491bddd96bee10ad0f4c5ad7e6182cd65faa00676722e3f345c7586e6",
+    "tests/integration/test_thin_live_ten_cycles.py": "123e07f28fc7a4da3f65e56d59e68835161ed2d5669ba4445b994f5d33dd0d8d",
     "tests/integration/test_thin_panel_status.py": "2f0b28874e4bf2d826cb7f1131ff9d97716b603bbec81797e4f0203a75d3ecb7",
     "tests/podview/canonical-field88-live-control-continuous-intent.test.mjs": "18067d624f72722c6aa124f2c443dc45964aecd8a9c2a4e683774a943c89c7d2",
     "tests/podview/canonical-field88-live-queue-view.test.mjs": "4afe70d0a64ed1bba208f8efd883af828474fe0b5fd8cc9ba2a0407471ae41dc",

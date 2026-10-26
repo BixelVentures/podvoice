@@ -225,8 +225,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/close_example_hypothesis"
-MANIFEST_SHA = "c22e5c516d55233f6b3e7cc2a681ebe6798d81ee052f9087722e5a7f3a414c07"
-PROFILE_AST = "80fe786b80be5fcc6fd2eca8426714b868474d4e793710a94c76d5006a728e3c"
+MANIFEST_SHA = "c830582ca7af15355c1621da7bee760116fad783c3392b891a9bcb64e669754e"
+PROFILE_AST = "49a3d579a8a7f2cd25c5ff39f4f8c0b56977f9b02787fabc62afd0e2f804185e"
 
 
 def record_at(root: Path) -> dict | None:

@@ -9,11 +9,11 @@
   ],
   "fingerprint": "e80e458e2e7935d95a43202921631210f618f9d91dce6d63447e7d0221431699",
   "kind": "podview91_single_owner_integration",
-  "manifest_fingerprint": "c22e5c516d55233f6b3e7cc2a681ebe6798d81ee052f9087722e5a7f3a414c07",
+  "manifest_fingerprint": "c830582ca7af15355c1621da7bee760116fad783c3392b891a9bcb64e669754e",
   "merge_base": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
-  "policy_fingerprint": "039b86b5b2f46adf3ef8ee3cea07e7abf1afbc9e37042ea8e217a7fd8fd1b34f",
+  "policy_fingerprint": "e0757d9f669dc3902febcda9cab734f01117d49faa3c8bd9abdcdc45b73403b5",
   "rationale": "Independent exact-source review binds72 production,92 regression,338 runtime files and the canonical215-file UI. Runtime and provider evidence are unchanged by official-CI fixture alignment; root-only safety regressions remain covered. Separate publication, installation and physical gates remain pending.",
-  "regression_fingerprint": "e15c24f452c30df79fac175306bc03cf3871bfe0b8e02556af50d54d6212cdbd",
+  "regression_fingerprint": "46ac9d75554d34cf5bca6ae833bbbaef3573589137a6a62cc7733a6046bce54f",
   "reviewer": "/root/close_example_hypothesis",
   "runtime_fingerprint": "94b0f483d4f1b0586ff3ba69421d081731039f3b747ceaf99271064858c97534",
   "tooling_fingerprint": "3a550e3d02f12b7dc7dbafc6ae511c6b76dbc151ce3ddc6a54e92173e0d5e27b",
@@ -6421,3 +6421,6 @@ Green passive readback: PodVoice2.0.90 running. Coordinated encrypted backupfecd
 
 
 PR255 second checkpoint3726b6c8 passed official UI/browser, add-on build, HA framework, all unit shards and remaining1. Remaining2 reached a stale silent-close race barrier: it patched _finish_live_conversation although accepted silent END now intentionally enters _finalize_live_conversation directly. Test-only barrier now wraps the actual finalizer, asserts model-close-silent and exact current receipt, preserving cancellation/raw-input/provider-close/rearm assertions and original waits. All seven affected/neighbor modules PASS; wrapper scan found no other stale silent owner. Runtime/UI unchanged. Speakers0.26.54 installation completed and Supervisor Kører verified26Oct15:41 local. Control24 remains on disk awaiting coordinated Core restart; PV91/HA0.1.7/FW115 and Sites remain pending.
+
+
+PR255 checkpoint2fd37560 remaining2 passed1423 outcomes before native ten-cycle fixture failed: it supplied no post-settlement native reports despite receiving native_context. Fixture-only correction waits for actual backend_settled output-window reset, feeds existing current native observations and maintains real arrivals until heartbeat consumes permission; no product timeout/window/runtime change. Full six-case ten-cycle module passed native10/Talk10 and cleanup cases; four remaining shard modules after it passed53/53 without repeating earlier valid checks. Reviewer close_example_hypothesis GO binds manifestc830582c. Green live read-only podvoice.timer_status(endpoint=r0) returned ok=true with timers=[],finished=[],recent=[] and real Voice PE device binding; admin reports no open conversation. No alarm/music/robot effects.

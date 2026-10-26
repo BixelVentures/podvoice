@@ -123,9 +123,34 @@ async def semantic_end(session, sdk, cycle, *, webrtc=False, native_context=None
         provider_timeout = session.brain.timeout_s
         session.brain.timeout_s = 15.0
         receipt = session._live_end_receipt
+        assert native_context is not None
+        link, clock = native_context
+        quiet_serial = session._live_end_window.reset_count
         try:
             await emit(sdk, continuation, terminal(f"end-continuation-{cycle}"))
-            await observed(session._live_provider_closed.is_set)
+            # Ordinary END still owes output-only quiet after actual backend
+            # settlement. Feed the existing native fixture at that boundary;
+            # pre-settlement reports cannot grant the new window permission.
+            await observed(
+                lambda: (
+                    session._live_end_window.reset_count > quiet_serial
+                    and session._live_end_window.reset_reason == "backend_settled"
+                )
+            )
+            await observed(lambda: session._live_quiet_work_clear(semantic=True))
+            quiet_base = clock[0]
+            native_sample(session, link, clock, quiet_base, 0, nonzero=True)
+            for index in range(1, math.ceil(session.idle_timeout_s * 10) + 3):
+                native_sample(session, link, clock, quiet_base, index)
+            assert session._live_quiet_ready(semantic=True)
+            # Keep real arrivals fresh until Thin's heartbeat consumes the
+            # permission; a stopped producer would correctly stale after 200ms.
+            async with asyncio.timeout(WAIT_S):
+                while not session._live_provider_closed.is_set():
+                    await asyncio.sleep(0.1)
+                    if not session._live_provider_closed.is_set():
+                        index += 1
+                        native_sample(session, link, clock, quiet_base, index, historical=False)
             assert receipt.done() and not receipt.cancelled() and receipt.result() is True
             assert session._active and session._live_finalizing
         finally:
