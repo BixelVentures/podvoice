@@ -144,8 +144,11 @@ og ændres ikke under opfølgninger; en genfundet HA-side gælder først næste 
 PodVoice har ingen lokal `get_time` og ingen model-synlig in-memory timer.
 
 Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke GPT-Live-sessionen.
-GPT-Live svarer direkte, når intet værktøj er nødvendigt, og bruger kun et
-reelt domæneværktøj til en handling eller et opslag. De eneste interne,
+GPT-Live giver korte faktasvar, enkel matematik og nødvendig opklaring direkte.
+En substantiel forklaring, sammenligning eller trinvis vejledning med nyttig
+læseværdi bruger én eksisterende backenddelegation for selve opgaven, med passende
+præsentation i samme slutresultat; ingen ekstra delegation alene for at tegne.
+Et reelt domæneværktøj bruges kun til en handling eller et opslag. De eneste interne,
 provider-neutrale lifecycle-signaler er `wait_for_user` for ikke-henvendt tale eller et rent modtaget-signal uden ny
 anmodning/afslutningshensigt, og
 `end_conversation` for en klar semantisk afslutning. PodVoice fortolker aldrig brugerens

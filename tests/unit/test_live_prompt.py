@@ -149,6 +149,24 @@ def test_startup_primary_carries_official_delegation_token_in_all_branches():
             assert "Do not generate <|SpawnThinking|> when:" in config["instructions"]
             assert "Generate <|SpawnThinking|> før backendarbejde" in config["instructions"]
             assert "<|SpawnThinking|>" not in config["delegation"]["responses"]["instructions"]
+            # Check actual startup policy across normal/custom/confirmation paths;
+            # these assertions do not claim the real model followed that policy.
+            positive, negative = config["instructions"].split(
+                "Do not generate <|SpawnThinking|> when:"
+            )
+            assert "en substantiel forklaring, sammenligning eller trinvis vejledning" in positive
+            assert "som den oprindelige opgave én gang til backend" in positive
+            assert "Giv ikke\nførst et separat direkte svar" in positive
+            assert "et kort, sikkert faktasvar på stabil viden eller enkel matematik" in negative
+            assert "en nødvendig opklaring" in negative
+            assert "allerede\nbekræftede oplysninger" in negative
+            assert "rent modtaget-signal" in negative
+            assert "ingen delegation eller svar" in negative
+            assert "må ikke udløse delegation alene for at tegne et svar" in negative
+            assert (
+                "Ingen ekstra værktøjer, opslag eller modelrunde"
+                in config["delegation"]["responses"]["instructions"]
+            )
 
 
 def test_custom_prompt_retained_with_explicit_security_and_live_ownership():

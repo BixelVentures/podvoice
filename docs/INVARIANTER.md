@@ -135,8 +135,12 @@ Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
 2. Første ytring og alle naturlige opfølgninger kører i samme session uden nyt wakeword.
    Efter et fysisk svar er opfølgningsvinduet fire sekunder; fysisk stilhed lukker
    mekanisk uden at foregive en semantisk modelbeslutning.
-3. En almindelig klar brugertur besvares direkte af GPT-Live. Kun en handling
-   eller et opslag bruger det nødvendige domæneværktøj; `end_conversation` bruges kun
+3. Et kort faktasvar, enkel matematik og nødvendig opklaring besvares direkte af
+   GPT-Live. En substantiel forklaring, sammenligning eller trinvis vejledning med
+   nyttig genlæsningsværdi delegeres som den oprindelige opgave én gang til den
+   eksisterende backend, med passende præsentation i samme slutresultat. Ingen ekstra
+   delegation alene for at tegne et svar. Kun en handling eller et opslag bruger det
+   nødvendige domæneværktøj; `end_conversation` bruges kun
    til semantisk afslutning, og `wait_for_user` kun til ikke-henvendt tale eller et rent modtaget-signal
    for et allerede givet svar uden ny anmodning eller afslutningshensigt. GPT-Live afgør betydningen; et rent tak giver stille venten med åben samtale. Spørgsmål,
    høflige handlinger, tilbud/godkendelser og nødvendig opklaring behandles stadig. De to
