@@ -53,7 +53,7 @@ def test_91_exact_scope_requires_complete_review_bindings():
     }
     assert {name: set(manifest[name]) for name in sections} == sections
     assert all(admission.strict.pins_match(ROOT, manifest[name]) for name in sections)
-    assert manifest["asset_count"] == 210
+    assert manifest["asset_count"] == 215
     effective = admission.legacy._visual_repository_changes(ROOT, admission.BASE)
     assert admission.production_scope_matches(effective)
     assert {path for path in effective if path.startswith("tests/")} == admission.REQUIRED_TESTS
@@ -83,3 +83,21 @@ def test_91_unknown_paths_and_partial_bindings_fail_closed(monkeypatch):
         for name in ("REVIEWER", "MANIFEST_SHA", "PROFILE_AST"):
             monkeypatch.setattr(admission, name, "" if name == missing else "fixture-binding")
         assert admission.main(["--base", admission.BASE]) == 2
+
+
+def test_91_firmware_exception_does_not_admit_missing_or_extra_runtime():
+    manifest = json.loads((ROOT / admission.MANIFEST).read_text())
+    production, runtime = set(manifest["production"]), set(manifest["runtime"])
+    expected = {
+        "esphome/components/podvoice_reply/podvoice_reply.h",
+        "esphome/podvoice-live-alpha.yaml",
+        "esphome/podvoice.yaml",
+    }
+    assert production - runtime == expected
+    assert admission.production_runtime_match(production, runtime)
+    assert not admission.production_runtime_match(
+        production, runtime - {"podvoice/gatekeeper/thin.py"}
+    )
+    assert not admission.production_runtime_match(production | {"esphome/unreviewed.yaml"}, runtime)
+    for firmware in expected:
+        assert not admission.production_runtime_match(production - {firmware}, runtime)

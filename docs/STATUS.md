@@ -1,12 +1,35 @@
+<!-- podview91-admission
+{
+  "base_tip": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
+  "config_fingerprint": "8bccef4b13f90a5b60e4ee62f0bc1c317d7f37597bfdce8de32f4bcccb3f6e15",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "fingerprint": "e80e458e2e7935d95a43202921631210f618f9d91dce6d63447e7d0221431699",
+  "kind": "podview91_single_owner_integration",
+  "manifest_fingerprint": "cc502fbe08438d505244e04d4bb65b1510ffaef5eea9c04b0f2f642f64c25785",
+  "merge_base": "65fe801a8bb587ba42518ce4dbb04ee39b59fd76",
+  "policy_fingerprint": "55c67dd34c6fb20bc95d369b57cd775ff5369ad31e4b847e63ba6e1e4dee2673",
+  "rationale": "Independent exact integrated scope review: canonical UI215 runtime-only adoption with pinned owner/source/visual reviews; current Thin single-owner close/output protection and user-approved natural affirmation policy; retained five representative provider flow assessments preserve raw FAIL/UNKNOWN and original prompt provenance. Exact inventories and immutable historical policies verified. Official CI, publication, installation and physical acceptance are separate pending delivery steps.",
+  "regression_fingerprint": "32572638404348b7ec0205a40b08a262dada498653d53511a5a0b3ce68ba5a6e",
+  "reviewer": "/root/close_example_hypothesis",
+  "runtime_fingerprint": "94b0f483d4f1b0586ff3ba69421d081731039f3b747ceaf99271064858c97534",
+  "tooling_fingerprint": "8f80944b82ccf2cb2be428661b076f86899062dd92b9c009a2c93592db3867dd",
+  "version": 68
+}
+-->
+
 ## 26 October — five representative voice flows observed; delivery still pending
 
 All five representative software flows have retained actual provider evidence on Thin893e3b89 with primary3f02c5a4: full six-step explanation→explicit close; real follow-up4→6; polite follow-up4→6; inert timer10→truthful full result→natural close; active-output interruption→current43→explicit close. Independent semantic and decoded/consumed-PCM reviews are recorded in each private ROOT-READBACK.json. Final interruption0390451b/timeline1ee95df6:202chunks/968640bytes,11 nonzero chunks during new input, real session.closed24.898416 and synthetic rearm24.913718 before cleanup. No household effects or physical acoustic/LED/wake proof is inferred.
 
 Raw verdicts remain explicitFAILc8699d67, realFAILbe83f983, politeOBSERVED_PASS0c9f8ccf, corrected-timerFAILfcc43615, interruptionUNKNOWN0390451b. Exact-word/quiet-sample/old-style oracle mismatches are separately assessed rather than rewritten. Timer's first retained capture lacked closure before observer cutoff and remains UNKNOWN for that dimension; its corrected new observation actually completes closure. User now permits shortnaturalJa/Hmm but excludes Modtaget. Reviewed clarificationae70d308/test942f038d changes only this policy wording; old-run prompt provenance remains explicit and is not presented as five new-prompt passes. No blanket provider repeat follows a style-allowance change.
 
-Reviewed evaluator composition7089c952 with205 focused outcomes repairs actual observer/current-input failures, preserving incomplete outcomes and excluding cleanup from proof. Main runtime/prompt/presentation integration is complete; final canonical UI successor, exact final admission/official CI/publication/Green installation remain pending. Last verified Green is2.0.90 Kører. Final interruption pause/restoration verified within68s, key cleared. A preceding attempted provider preparation made zero API calls after a Nabu connection outage; actual Stop was later observed and90 restarted, outage extended recovery to about6min and is not claimed within3min.
+Reviewed evaluator composition7089c952 with205 focused outcomes repairs actual observer/current-input failures, preserving incomplete outcomes and excluding cleanup from proof. Main runtime/prompt/presentation integration is complete; canonical UI215 is now integrated with all215 pins and asset487ac70b verified; exact final admission/official CI/publication/Green installation remain pending. Last verified Green is2.0.90 Kører. Final interruption pause/restoration verified within68s, key cleared. A preceding attempted provider preparation made zero API calls after a Nabu connection outage; actual Stop was later observed and90 restarted, outage extended recovery to about6min and is not claimed within3min.
 
-ConnectPR83 has all five primary official checks green on37c1a139. Its selected-start-clock gate timed out only while downloading runner packages; no composed probe ran. Dependency provisioning is being corrected without changing product timeouts or removing probes. Sites/productpreview+library must be republished after productdelivery from the same final UI pin, preserving existing project/audience/links.
+ConnectPR83 was merged as2386f32 after all six required software checks passed on cba2a2f0, including selected-start-clock. The old download-only timeout remains historical evidence. Three related runner jobs are pinned to the same Ubuntu24.04 environment; no dependencies, probes or product timeouts were removed/changed. Speaker54 and Control24 publication is running. Sites/productpreview+library must be republished after productdelivery from the same final UI pin, preserving existing project/audience/links.
 
 ## 2026-10-26 — composed voice adopted; long station continuation deferred
 

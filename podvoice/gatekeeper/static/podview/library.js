@@ -1,5 +1,5 @@
 import {attachPressedState} from './ui/pressed-state.js';
-import {KIT_COMPONENTS,createKitComponent,applyKitComponent,createKitTemplate,createKitDialog} from './ui/kit.js';
+import {KIT_COMPONENTS,syncKitPowerToggle,createKitComponent,applyKitComponent,createKitTemplate,createKitDialog} from './ui/kit.js';
 import {productLibrary} from './library-catalog.js';
 
 // Documentation staging only: primitive specimens import the same native DOM
@@ -28,7 +28,7 @@ function radioPreviewConnection(frame,activate=false){
 radioConnectionPreview.addEventListener('click',()=>{if(radioConnectionPreview.hidden)return;const label=radioPreviewConnection($('product-preview'),true);if(label)radioConnectionPreview.textContent=label;});
 // Twelve public kit recipes group existing owners; catalog entries are specimens,
 // never a second primitive inventory or a second renderer.
-const families={card:['music','player','weather'],hero:['composition','timer'],tile:['composition'],chip:['music','robot','answer-choices'],button:['player','timer','robot'],slider:['player','lights'],toggle:['lights'],listrow:['radio','music','player','answer-checklist'],sectionheader:['music','weather','robot'],topbar:['composition','weather','robot'],dialog:['overlays','player','timer','voice'],icon:['player','composition','music']};
+const families={card:['music','player','weather'],hero:['composition','timer'],tile:['composition'],chip:['music','robot','answer-choices'],button:['player','timer','robot'],slider:['player','lights'],toggle:['lights','vehicle'],listrow:['radio','music','player','answer-checklist'],sectionheader:['music','weather','robot'],topbar:['composition','weather','robot'],dialog:['overlays','player','timer','voice'],icon:['player','composition','music']};
 const kit=KIT_COMPONENTS.map((item,i)=>({...item,families:families[item.id],owner:'dist/ui/kit.js · delt native DOM-fabrik',number:i+1}));
 const templates=[
  {id:'detail',name:'Detaljeskabelon',families:['weather','timer','robot','lights','player','vehicle'],owner:'Eksisterende domæneejere',anatomy:'Global Tilbage → én overskrift → status/instrument → primær og sekundære handlinger → valg/historik/kilder.'},
@@ -253,6 +253,7 @@ function renderSpecimens(){
  const labels={default:'Standard',selected:'Valgt',disabled:'Deaktiveret',loading:'Opdaterer · indhold bevares',primary:'Primær',icon:'Ikonknap · 64 × 64',danger:'Destruktiv handling',vertical:'Lodret',24:'24 px',48:'48 px',toast:'Toast · faktisk resultat',error:'Fejl · eksplicit ejerstatus'};
  for(const variant of variants)add(labels[variant],specimenNode(entry.id,variant),variant==='loading'?'Samme indhold og DOM. aria-busy angiver en igangværende opdatering; markøren stopper uden at opfinde et resultat.':variant==='selected'&&entry.id==='button'?'Tryk for at skifte dette lokale valg. Det samme native element bevares; ingen produktkommando sendes.':entry.measure);
  if(['card','hero','tile','button'].includes(entry.id))for(const [identity,label] of [['weather','Vejr'],['robot','Robot'],['light','Lys'],['tesla','Tesla']])add(label,specimenNode(entry.id,entry.id==='button'?'selected':'default',identity),'Samme anatomi · fælles tint / strong / ink.');
+ if(entry.id==='toggle')for(const [state,title]of [['off','Slukket'],['on','Tændt'],['busy','Afventer · stadig tændt'],['disabled','Utilgængelig'],['error','Afvist · stadig tændt']]){const power=createKitComponent('toggle',{document});syncKitPowerToggle(power,{checked:state!=='off'});applyKitComponent(power,'toggle',{disabled:['busy','disabled'].includes(state),loading:state==='busy'});if(state==='error')power.dataset.state='error';add('Klimahovedafbryder · '+title,power,'Samme Toggle:64px trykflade,52×32px spor,24px thumb. Observeret tilstand bevares under bekræftelse og ventetid.');}
  const usages=document.createElement('p');usages.className='kit-specimen-measure';usages.textContent='Bruges i: '+entry.families.map(id=>productLibrary.find(item=>item.id===id).name).join(' · ');target.append(usages);
 }
 const flows={

@@ -212,9 +212,10 @@ en blanket »manglende relay«-årsag. Ret kun første dokumenterede tabende eje
 PV153: prompten forbyder allerede selvstændig generisk kvitterings-/fremskridtstale.
 Undersøg exact resolveret startup/custom/primary/backend-instruktion og outputejerskab;
 fjern kun en konkret konflikt. Ellers er model-/protokoloverholdelse fortsat åben.
-Naturlig hum/prosodi inde i meningsfuld tale er tilladt. Brugeren præciserede 26. oktober,
-at en kort naturlig ikke-sproglig lytte-/tænkelyd også må forekomme under afslutningen;
-selvstændige generiske modtagelses-/fremskridtsreplikker er fortsat uønskede.
+Naturlig hum/prosodi og et kort naturligt ja/hmm er tilladt efter brugerens præcisering
+26. oktober, også før en reel handling eller under afslutningen. Ingen sådan reaktion
+må påstå et endnu ukendt udfald. Gentagne generiske Modtaget-/fremskridtsreplikker er
+fortsat uønskede.
 Efter aktuelt accepteret silent=true genereres ingen ny tale eller smålyde, mens
 allerede modtaget/igangværende lyd stadig drænes korrekt. Ingen frasefilter eller blind PCM-mute.
 
@@ -240,8 +241,9 @@ virker. Full duplex gælder aktiv samtale, ikke en umulig garanti om input efter
 Bevar 88's raw-fragment-rettelse og ny faktisk input/delegation som stale-close-cancel.
 Test END med/uden lyd, late audio, input ved 4s/LED-ACK, pending work, forkert generation,
 dubletter, provider-close-fejl, forkert playback-finish, én teardown/rearm og Talk-adapter.
-Ændret semantik gennemgår eksisterende fokuserede 5/5 live-gate med højst $5, uden
-huseffekter. Genbrug uændrede resultater. PV219 kræver rigtig mute/unmute-provider-ACK.
+Ændret semantik gennemgår eksisterende fokuserede fem-case live-gate uden huseffekter. Brugeren godkendte de
+konkrete syntetiske prøver uden en garanteret $5-grænse; dette er ikke et automatisk
+krav om flere kald. Genbrug uændrede resultater. PV219 kræver rigtig mute/unmute-provider-ACK.
 
 Evalueringsdisciplin: rapportér input/fixturevaliditet, semantisk handling, faktisk
 software-lifecycle, talestil, faseopdelt latens og fysisk accept hver for sig.

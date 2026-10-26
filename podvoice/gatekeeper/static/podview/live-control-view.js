@@ -27,6 +27,7 @@ export class LiveControlView{
  allowed(domain){return this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities.controlSetup?.includes(domain);}
  render(){
   if(this.lightActionOperation&&!this.lightActionOperation.context.current())this.lightActionOperation.revoked=true;
+  if(this.lightActionFeedbackOperation&&!this.lightActionFeedbackOperation.context.current())this.lightActionFeedbackOperation.revoked=true;
   if(this.domain==='light'&&this.lightContext&&!this.lightContext.current()){this.lightContext=null;this.invalidate('Lysenes adgang eller område er ændret · hent betjeningen igen.',false);}
   const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected]),robotAuthority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,snapshot?.sessionId,snapshot?.taskId,snapshot?.inputRevision,snapshot?.providerGeneration,this.host.liveTransport?.generation,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
   if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
@@ -320,8 +321,9 @@ export class LiveControlView{
  }
  updateLightAction(operation,phase,details={}){
   const state={target:{...operation.target},action:operation.action,phase,pending:['preparing','sending'].includes(phase),message:phase==='accepted'?'Anmodningen er modtaget.':phase==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':phase==='rejected'?'Handlingen kunne ikke udføres med den aktuelle adgang.':'',...details};
-  this.lightActionState=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state);this.host.render?.();}return state;
+  this.lightActionFeedbackOperation=operation;this.lightActionState=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state);this.host.render?.();}return state;
  }
+ lightActionFeedbackCurrent(){const operation=this.lightActionFeedbackOperation;if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
  async actLight(target,observation,action,input={},currentObservation){
   const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false};
   try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}
@@ -440,5 +442,5 @@ export class LiveControlView{
   finally{clearTimeout(this.slowTimer);this.pending=false;this.activeOperation=null;if(this.host.isConnected)this.render();}
   if(refreshScene&&typeof this.host.readLightArea==='function'&&generation===this.generation&&opening===this.opening&&this.controlOpen()&&this.lightContext?.current()){const previous=this.lightContext,refreshed=await this.host.readLightArea(this.target.areaId,{preserveControls:true});if(refreshed===true&&generation===this.generation&&opening===this.opening&&this.controlOpen()&&previous.current())await this.openLight(this.target,previous.observation(),this.opener,previous.observation);}
  }
- cleanup(){if(this.lightActionOperation)this.lightActionOperation.revoked=true;this.robotEntryKey=null;this.robotAwait=null;this.musicMeasurement=null;this.suspending=true;clearTimeout(this.musicExpiryTimer);clearTimeout(this.slowTimer);clearTimeout(this.expiryTimer);this.invalidate();this.suspending=false;}
+ cleanup(){this.lightActionFeedbackOperation=null;if(this.lightActionOperation)this.lightActionOperation.revoked=true;this.robotEntryKey=null;this.robotAwait=null;this.musicMeasurement=null;this.suspending=true;clearTimeout(this.musicExpiryTimer);clearTimeout(this.slowTimer);clearTimeout(this.expiryTimer);this.invalidate();this.suspending=false;}
 }

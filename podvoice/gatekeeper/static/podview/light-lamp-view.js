@@ -1,4 +1,4 @@
-import {createKitComponent,createKitSliderField,applyKitComponent} from './ui/kit.js';
+import {createKitComponent,createKitSliderField,applyKitComponent,applyKitTextRole} from './ui/kit.js';
 import {lightSelection} from './scene-model.js';
 import {scopedLightsObservation} from './ha-home-observation.js';
 
@@ -34,9 +34,9 @@ export class LightLampView{
   return !!binding&&!!current?.binding&&binding.key===current.binding.key&&binding.transport===current.binding.transport;
  }
  createRow(id){
-  const doc=this.document,node=doc.createElement('section'),heading=createKitComponent('listrow',{document:doc,tag:'div',identity:'light',className:'light-lamp-heading'}),name=doc.createElement('span'),state=doc.createElement('span'),toggle=createKitComponent('toggle',{document:doc,tag:'button',identity:'light',className:'light-lamp-toggle'});
-  node.className='light-lamp-row';node.dataset.lampId=id;name.className='light-lamp-name';name.id='light-lamp-name-'+encodeURIComponent(id);state.className='light-lamp-state';toggle.type='button';heading.append(name,state,toggle);
-  const entry={id,node,heading,name,state,toggle,binding:null},field=createKitSliderField({document:doc,id:'light-lamp-'+encodeURIComponent(id),label:'Lysstyrke',identity:'light',getContext:()=>entry.binding,onCommit:(value,binding)=>this.commit(entry,value,binding)});
+  const doc=this.document,node=createKitComponent('listrow',{document:doc,tag:'section',identity:'light',className:'light-lamp-row'}),heading=createKitComponent('toggle',{document:doc,tag:'button',identity:'light',variant:'row',className:'light-lamp-heading light-lamp-toggle'}),name=doc.createElement('span'),state=doc.createElement('span'),icon=doc.createElement('img'),toggle=heading;
+  applyKitTextRole(name,'group-title');applyKitTextRole(state,'body');node.dataset.lampId=id;name.className='light-lamp-name';name.id='light-lamp-name-'+encodeURIComponent(id);state.className='light-lamp-state';toggle.type='button';icon.className='light-lamp-icon';icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');heading.append(icon,name,state);
+  const entry={id,node,heading,icon,name,state,toggle,binding:null},field=createKitSliderField({document:doc,id:'light-lamp-'+encodeURIComponent(id),label:'Lysstyrke',identity:'light',getContext:()=>entry.binding,onCommit:(value,binding)=>this.commit(entry,value,binding)});
   field.input.setAttribute('aria-labelledby',`${name.id} ${field.label.id}`);field.node.classList.add('light-lamp-level');entry.field=field;node.append(heading,field.node);toggle.addEventListener('click',()=>this.toggle(entry));this.node.append(node);this.rows.set(id,entry);return entry;
  }
  toggle(entry){
@@ -58,9 +58,8 @@ export class LightLampView{
    if(entry.binding?.key!==binding?.key||entry.binding?.transport!==binding?.transport)entry.field.cancelDraft();entry.binding=binding;if(entry.node.hidden)entry.node.hidden=false;
    if(entry.name.textContent!==row.name)entry.name.textContent=row.name;
    const status=row.on===null?(row.unavailable?'Ikke tilgængelig':'Status ukendt'):row.stale?`Sidst kendt · ${row.on?'tændt':'slukket'}`:row.on?'Tændt':'Slukket';if(entry.state.textContent!==status)entry.state.textContent=status;
-   const label=row.on===null?'Tænd/sluk':row.on?'Sluk':'Tænd';if(entry.toggle.textContent!==label)entry.toggle.textContent=label;
-   applyKitComponent(entry.toggle,'toggle',{identity:'light',label:`Tænd/sluk ${row.name}`,disabled:!binding,...(row.on===null?{}:{selected:row.on})});if(row.on===null)entry.toggle.removeAttribute('aria-checked');
-   if(entry.field.node.hidden!==!row.dimmable)entry.field.node.hidden=!row.dimmable;entry.model={value:row.level,valueText:row.level===null?'Niveau ukendt':`${row.level} %`,scope:'',disabled:!binding||!row.dimmable||row.level===null,pending:false};entry.field.setModel(entry.model);
+   const command=this.host.lightCommandFeedback,busy=!!command&&command.target?.entityId===row.id&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.toggle,'toggle',{feedback:'progress',loading:busy,identity:'light',variant:'row',label:`Tænd/sluk ${row.name}`,disabled:!binding,...(row.on===null?{}:{selected:row.on})});if(row.on===null)entry.toggle.removeAttribute('aria-checked');
+   if(entry.field.node.hidden!==!row.dimmable)entry.field.node.hidden=!row.dimmable;entry.model={value:row.level,valueText:row.level===null?'Niveau ukendt':`${row.level} %`,scope:'',disabled:!binding||!row.dimmable||row.level===null,pending:!!command&&command.action==='brightness'&&command.target?.entityId===row.id};entry.field.setModel(entry.model);
   }
   for(const [id,entry]of this.rows)if(!visible.has(id)){if(!entry.node.hidden)entry.node.hidden=true;entry.binding=null;entry.toggle.disabled=true;entry.field.cancelDraft();entry.field.setModel({...entry.model,disabled:true});}
   return this.node;

@@ -40,6 +40,31 @@ export function applyKitTextRole(node,role){
  if(!['section-title','group-title','field-label','body','meta','control-value','headline'].includes(role))throw new TypeError(`Unknown kit text role: ${role}`);
  data(node,'kitText',role);return node;
 }
+/** Retained icon + label inside the existing Button. Scalar choices do not use it. */
+const buttonContents=new WeakMap();
+export function syncKitButtonContent(node,{label,icon}={}){
+ const text=String(label??'');if(icon!==undefined&&!/^assets\/icons\/[a-z0-9-]+\.svg$/.test(icon))throw new TypeError('Button icon must be a canonical local asset');
+ if(!node.ownerDocument?.createElement){if(node.textContent!==text)node.textContent=text;return node;}
+ let parts=buttonContents.get(node);
+ if(!parts||!Array.from(node.children||[]).includes(parts.label)){
+  const symbol=createKitComponent('icon',{document:node.ownerDocument,tag:'span',className:'--24'}),copy=node.ownerDocument.createElement('span');symbol.setAttribute('aria-hidden','true');copy.dataset.kitSlot='label';node.textContent='';node.append(symbol,copy);parts={symbol,label:copy};buttonContents.set(node,parts);data(node,'kitContent','icon-label');
+ }
+ if(icon===undefined)icon=parts.icon;parts.icon=icon;const hidden=!icon;if(parts.symbol.hidden!==hidden)parts.symbol.hidden=hidden;
+ if(icon){const style=`--pv-icon-source:url("${icon}")`;if(parts.symbol.getAttribute('style')!==style)parts.symbol.setAttribute('style',style);}
+ if(parts.label.textContent!==text)parts.label.textContent=text;return node;
+}
+/** Power is the existing Toggle family: checked always means observed on.
+ * The effect owner handles confirmation and updates only after observation. */
+export function syncKitPowerToggle(node,{checked=false,label='Klima'}={}){
+ applyKitComponent(node,'toggle',{variant:'power',selected:checked,label,feedback:'progress'});
+ syncKitButtonContent(node,{label:checked?'Tændt':'Slukket',icon:'assets/icons/power.svg'});
+ if(!Array.from(node.children).some(child=>child.dataset?.kitSlot==='switch-track')){
+  const track=node.ownerDocument.createElement('span'),thumb=node.ownerDocument.createElement('span');
+  track.dataset.kitSlot='switch-track';track.setAttribute('aria-hidden','true');thumb.dataset.kitSlot='switch-thumb';track.append(thumb);node.append(track);
+ }
+ return node;
+}
+
 export function applyKitComponent(node,type,options={}){
  recipe(type);addClasses(node,'pv-kit',`pv-kit-${type}`);
  const classes={card:'pv-card',hero:'pv-hero',tile:'pv-tile',chip:'pv-chip',button:'pv-btn',slider:'pv-slider',toggle:'pv-toggle',listrow:'pv-row',sectionheader:'pv-section-header',topbar:'pv-topbar',dialog:'pv-dialog',icon:'pv-icon'};
@@ -91,23 +116,35 @@ export function createKitDialog({document=globalThis.document,title='',descripti
 }
 
 /** ListRow disclosure composition. Domain content and effects remain with owner. */
-export function createKitDisclosure({document=globalThis.document,id,title,description='',expanded=false,onToggle,iconSrc}={}){
+export function createKitDisclosure({document=globalThis.document,id,title,description='',expanded=false,onToggle,iconSrc,leadingIcon}={}){
  if(!id)throw new TypeError('Disclosure needs a stable id');
- const node=document.createElement('section'),trigger=createKitComponent('listrow',{document,label:title}),copy=document.createElement('span'),heading=document.createElement('strong'),detail=document.createElement('small'),panel=document.createElement('div');
- node.className='pv-kit-disclosure';trigger.type='button';trigger.id=id+'-trigger';panel.id=id+'-panel';heading.textContent=title;detail.textContent=description;copy.append(heading,detail);trigger.append(copy);node.append(trigger,panel);trigger.setAttribute('aria-controls',panel.id);panel.setAttribute('aria-labelledby',trigger.id);
- if(iconSrc){const icon=createKitComponent('icon',{document,tag:'img'});icon.src=iconSrc;icon.alt='';trigger.append(icon);}
- const setExpanded=value=>{expanded=!!value;if(!expanded&&panel.contains?.(document.activeElement))trigger.focus?.();attribute(trigger,'aria-expanded',expanded);panel.hidden=!expanded;};
- const setDescription=value=>{detail.textContent=value||'';detail.hidden=!value;};
- trigger.addEventListener('click',()=>{setExpanded(!expanded);onToggle?.(expanded);});setExpanded(expanded);setDescription(description);
- return {node,trigger,panel,setExpanded,setDescription};
+ const node=document.createElement('section'),trigger=createKitComponent('listrow',{document}),copy=document.createElement('span'),heading=document.createElement('strong'),detail=document.createElement('small'),panel=document.createElement('div');
+ node.className='pv-kit-disclosure';trigger.type='button';trigger.id=id+'-trigger';panel.id=id+'-panel';heading.textContent=title;applyKitTextRole(heading,'group-title');applyKitTextRole(detail,'meta');copy.dataset.kitSlot='copy';heading.dataset.kitSlot='title';detail.dataset.kitSlot='description';detail.textContent=description;copy.append(heading,detail);node.append(trigger,panel);trigger.setAttribute('aria-controls',panel.id);panel.setAttribute('aria-labelledby',trigger.id);panel.setAttribute('role','region');
+ if(leadingIcon){const icon=createKitComponent('icon',{document,tag:'img'});icon.src=leadingIcon;icon.alt='';icon.dataset.kitSlot='leading-icon';trigger.dataset.leadingIcon='true';trigger.append(icon);}
+ trigger.append(copy);
+ if(iconSrc){const icon=createKitComponent('icon',{document,tag:'img'});icon.src=iconSrc;icon.alt='';icon.dataset.kitSlot='trailing-icon';trigger.append(icon);trigger.dataset.trailingIcon='true';}
+ let disabled=false;
+ const setExpanded=value=>{expanded=!!value&&!disabled;if(!expanded&&panel.contains?.(document.activeElement))trigger.focus?.();attribute(trigger,'aria-expanded',expanded);panel.hidden=!expanded;};
+ const setDescription=value=>{detail.textContent=value||'';detail.hidden=!value;data(trigger,'hasSummary',!!value);attribute(detail,'aria-hidden',!value);};
+ const setDisabled=value=>{disabled=!!value;if(disabled)setExpanded(false);if(trigger.disabled!==disabled)trigger.disabled=disabled;attribute(trigger,'aria-disabled',disabled);};
+ trigger.addEventListener('click',()=>{if(disabled)return;setExpanded(!expanded);onToggle?.(expanded);});setExpanded(expanded);setDescription(description);
+ return {node,trigger,panel,setExpanded,setDescription,setDisabled};
+}
+
+/** Reveal a selected item inside its own horizontal viewport only.
+ * No parent scrolling, animation, effect command or repeated-render movement. */
+export function revealKitItem(item,viewport){
+ if(!item?.getBoundingClientRect||!viewport?.getBoundingClientRect)return;
+ const box=item.getBoundingClientRect(),frame=viewport.getBoundingClientRect();if(!box.width||!frame.width)return;
+ const delta=box.left<frame.left?box.left-frame.left:box.right>frame.right?box.right-frame.right:0;if(delta)viewport.scrollLeft+=delta;
 }
 
 /** Native single-choice inputs use existing Chip visuals and native arrow keys. */
 export function createKitChoiceGroup({document=globalThis.document,id,label,choices=[],value,onChange,variant,layout}={}){
  if(!id)throw new TypeError('Choice group needs a stable id');
  const node=document.createElement('fieldset'),legend=document.createElement('legend'),row=document.createElement('div'),inputs=[];
- node.className='pv-kit-choice-group';if(['level','navigation'].includes(variant))data(node,'choiceVariant',variant);if(layout==='row')data(node,'choiceLayout','row');legend.textContent=label;row.className='pv-kit-choice-options';node.append(legend,row);let selected=value,blocked=false;
- const setValue=next=>{selected=next;for(const input of inputs)if(input.checked!==(input.value===String(next)))input.checked=input.value===String(next);};
+ node.className='pv-kit-choice-group';if(['level','navigation'].includes(variant))data(node,'choiceVariant',variant);if(layout==='row')data(node,'choiceLayout','row');legend.textContent=label;applyKitTextRole(legend,'field-label');row.className='pv-kit-choice-options';node.append(legend,row);let selected=value,blocked=false;
+ const setValue=next=>{const changed=selected!==next;selected=next;for(const input of inputs)if(input.checked!==(input.value===String(next)))input.checked=input.value===String(next);if(changed&&variant==='navigation')revealKitItem(inputs.find(input=>input.checked)?.parentElement,row);};
  for(const choice of choices){const item=typeof choice==='string'?{value:choice,label:choice}:choice,option=createKitComponent('chip',{document,tag:'label'}),input=document.createElement('input'),text=document.createElement('span');input.type='radio';input.name=id;input.value=String(item.value);input.id=id+'-'+inputs.length;text.textContent=item.label;option.classList?.add('pv-kit-choice-label');option.append(input,text);row.append(option);inputs.push(input);input.addEventListener('change',()=>{if(blocked||input.disabled){setValue(selected);return;}if(input.checked){selected=input.value;onChange?.(selected);}});}
  const setDisabled=value=>{blocked=!!value;attribute(node,'aria-disabled',blocked);for(const input of inputs)attribute(input,'aria-disabled',blocked);};
  const setChoiceDisabled=(choice,disabled)=>{const input=inputs.find(item=>item.value===String(choice));if(input)input.disabled=!!disabled;};
@@ -119,12 +156,12 @@ export function createKitChoiceGroup({document=globalThis.document,id,label,choi
 export function createKitSliderField({document=globalThis.document,id,label,identity='neutral',onCommit,getContext}={}){
  if(!id)throw new TypeError('Slider field needs a stable id');
  const node=document.createElement('div'),heading=document.createElement('label'),description=document.createElement('p'),input=createKitComponent('slider',{document,identity}),output=document.createElement('output');
- node.className='pv-kit-slider-field';heading.id=id+'-label';heading.htmlFor=id;heading.textContent=label;description.id=id+'-scope';input.id=id;output.htmlFor=id;input.setAttribute('aria-labelledby',heading.id);input.setAttribute('aria-describedby',description.id);node.append(heading,output,description,input);
+ node.className='pv-kit-slider-field';heading.id=id+'-label';heading.htmlFor=id;heading.textContent=label;applyKitTextRole(heading,'field-label');applyKitTextRole(output,'control-value');applyKitTextRole(description,'meta');description.id=id+'-scope';input.id=id;output.htmlFor=id;input.setAttribute('aria-labelledby',heading.id);input.setAttribute('aria-describedby',description.id);node.append(heading,output,description,input);
  let model={value:null,scope:'',disabled:false,pending:false,mixed:false},draft=null,context,editing=false,aborted=false;
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
  const paint=()=>{
   const known=Number.isFinite(model.value),value=draft??(known?model.value:0),state=draft!==null?'draft':model.pending?'pending':known?'known':model.mixed?'mixed':'unknown',message=draft!==null?`${draft} %`:model.valueText||(known?`${model.value} %`:model.mixed?'Forskellige niveauer':'Niveau ukendt');
-  data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!(model.disabled||model.pending));if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
+  applyKitTextRole(output,/^\d+\s*%$/.test(message)?'control-value':'meta');data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!(model.disabled||model.pending));if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
   if(input.value!==String(value))input.value=String(value);syncKitSlider(input);text(output,message);text(description,model.scope||'');if(description.hidden!==!model.scope)description.hidden=!model.scope;attribute(input,'aria-valuetext',message.replace(/ %$/,' procent'));
  };
  const cancelDraft=()=>{draft=null;context=undefined;editing=false;aborted=true;paint();};

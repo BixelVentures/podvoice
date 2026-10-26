@@ -1,5 +1,5 @@
-import {applyKitComponent} from './ui/kit.js';
-import {binding,lightSelection} from './scene-model.js';
+import {applyKitComponent,applyKitTextRole,createKitChoiceGroup,revealKitItem} from './ui/kit.js';
+import {binding,lightSelection,lightHomeRestoreAvailable} from './scene-model.js';
 import {scopedLightsObservation} from './ha-home-observation.js';
 
 const text=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
@@ -10,10 +10,11 @@ const make=(tag,className)=>{const node=document.createElement(tag);node.classNa
 export class LightRoomView{
  constructor(host){
   this.host=host;this.rows=new Map();this.node=make('section','light-room-view');this.node.hidden=true;
-  this.list=make('div','light-room-list');this.toolbar=make('div','light-room-toolbar');this.selectorLabel=make('label','light-room-selector');const label=make('span','light-room-select-label');text(label,'Scener i');this.selector=make('select','light-room-select');this.selector.setAttribute('aria-label','Rum for scener');applyKitComponent(this.selector,'button',{variant:'secondary'});this.selectorLabel.append(label,this.selector);this.options=new Map();this.selector.addEventListener('change',()=>this.selectRoom(this.selector.value));
-  this.home=make('button','light-home-power');this.home.type='button';text(this.home,'Sluk alle lys i hjemmet');applyKitComponent(this.home,'button',{identity:'light',variant:'secondary'});
-  this.home.addEventListener('click',()=>{const d=this.current(),model=this.model(d);if(!model||model.live||!model.globalEnabled)return;this.host.dispatch({type:'light-home-power',...binding(this.host.state,d),action:'turn_off'});});
-  this.toolbar.append(this.selectorLabel,this.home);this.node.append(this.list,this.toolbar);
+  this.list=make('div','light-room-list');this.toolbar=make('div','light-room-toolbar');this.navigationHost=make('div','light-room-navigation');
+  this.home=make('button','light-home-power');this.home.type='button';applyKitComponent(this.home,'button',{variant:'secondary'});const icon=make('img','');icon.src='assets/icons/house.svg';icon.alt='';applyKitComponent(icon,'icon');this.homeLabel=make('span','');this.home.append(icon,this.homeLabel);
+  this.home.addEventListener('click',()=>{const d=this.current(),model=this.model(d);if(!model||model.live)return;if(model.globalRestore)this.host.dispatch({type:'light-home-restore',...binding(this.host.state,d)});else if(model.globalEnabled)this.host.dispatch({type:'light-home-power',...binding(this.host.state,d),action:'turn_off'});});
+  this.panel=make('section','light-room-panel');applyKitComponent(this.panel,'card');this.panel.hidden=true;this.panel.id='light-room-controls';this.panelHeading=make('h2','light-room-panel-title');applyKitTextRole(this.panelHeading,'headline');this.panelHeading.id='light-room-panel-title';this.panel.setAttribute('aria-labelledby',this.panelHeading.id);this.panelHeader=make('header','');applyKitComponent(this.panelHeader,'sectionheader');this.panelHeader.setAttribute('data-kit-layout','stacked');this.panelHeader.append(this.panelHeading);this.panel.append(this.panelHeader);
+  this.toolbar.append(this.navigationHost,this.home);this.node.append(this.list,this.toolbar,this.panel);
  }
  current(){return this.host.currentLightDevice?.()||this.host.state?.devices?.find(row=>row.id===this.deviceId);}
  model(light){
@@ -32,24 +33,32 @@ export class LightRoomView{
   const selected=lightSelection(light).roomId,connected=this.host.state?.connected===true,known=connected&&!light.stale&&['on','off','mixed'].includes(light.status),enabled=known&&light.exampleOnly===true&&!light.pending&&this.host.state?.focus===light.id;
   const rows=[...groups.values()].map(room=>{const on=room.lamps.filter(row=>row.on).length,roomKnown=room.lamps.every(row=>row.state===undefined||['on','off'].includes(row.state));return {id:room.id,name:room.name,selected:selected===room.id,status:!connected||light.stale?'Sidst kendt':known&&roomKnown?(on?'Tændt':'Slukket'):'Status ukendt',action:known&&roomKnown?(on?'turn_off':'turn_on'):null,enabled:enabled&&roomKnown,live:false};});
   rows.sort((a,b)=>Number(b.id===light.ownRoomId)-Number(a.id===light.ownRoomId));
-  return {live:false,rows,placement:groups.get(light.ownRoomId)?.name||'',globalEnabled:enabled&&rows.every(row=>row.action!==null)&&light.scope==='home'&&light.lights.some(row=>row.on)};
+  return {live:false,rows,placement:groups.get(light.ownRoomId)?.name||'',globalRestore:lightHomeRestoreAvailable(this.host.state,light),globalEnabled:enabled&&rows.every(row=>row.action!==null)&&light.scope==='home'&&light.lights.some(row=>row.on)};
  }
  selectRoom(id){
   const d=this.current(),model=this.model(d),row=model?.rows.find(row=>row.id===id);if(!row||row.selected)return;
   if(model.live){void Promise.resolve(this.host.readLightArea?.(id)).finally(()=>this.render(this.current()));this.render(d);}else this.host.dispatch({type:'light-select',...binding(this.host.state,d),optionId:`room:${id}`});
  }
  createRow(id){
-  const node=make('div','light-room-row'),copy=make('span','light-room-copy'),name=make('strong','light-room-name'),status=make('span','light-room-status'),power=make('button','light-room-power');power.type='button';applyKitComponent(power,'tile',{identity:'light',variant:'power'});power.dataset&&(power.dataset.pvPress='quiet');const icon=make('img','light-room-icon');icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');copy.append(name,status);power.append(icon,copy);node.append(power);
+  const node=make('div','light-room-row'),copy=make('span','light-room-copy'),name=make('strong','light-room-name'),status=make('span','light-room-status'),power=make('button','light-room-power');applyKitTextRole(name,'group-title');applyKitTextRole(status,'body');power.type='button';applyKitComponent(power,'tile',{identity:'light',variant:'power'});power.dataset&&(power.dataset.pvPress='quiet');const icon=make('img','light-room-icon');icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');copy.append(name,status);power.append(icon,copy);node.append(power);
   power.addEventListener('click',()=>{const d=this.current(),model=this.model(d),row=model?.rows.find(row=>row.id===id);if(!row?.enabled||!row.action)return;if(model.live)this.host.actCurrentLight?.(row.action,{}, {areaId:id});else this.host.dispatch({type:'light-room-power',...binding(this.host.state,d),roomId:id,action:row.action});});
   const entry={node,name,status,power};this.rows.set(id,entry);return entry;
  }
+ revealSelection(id){
+  const reveal=()=>{this.revealFrame=null;if(this.host.isConnected===false||this.selectedRoom!==id)return;revealKitItem(this.rows.get(id)?.node,this.list);revealKitItem(this.navigation.inputs.find(input=>input.checked)?.parentElement,this.navigation.node.children[1]);};
+  if(this.revealFrame)globalThis.cancelAnimationFrame?.(this.revealFrame);if(typeof globalThis.requestAnimationFrame==='function')this.revealFrame=globalThis.requestAnimationFrame(reveal);else reveal();
+ }
+ cleanup(){if(this.revealFrame)globalThis.cancelAnimationFrame?.(this.revealFrame);this.revealFrame=null;}
+
  render(light){
   this.deviceId=light?.id;const model=this.model(light);if(!model||!model.rows.length){if(!this.node.hidden)this.node.hidden=true;if(!this.home.hidden)this.home.hidden=true;return this.node;}
   if(!this.node.parentNode)this.host.lightRooms?.after(this.node);if(this.node.hidden)this.node.hidden=false;
   const ids=new Set(model.rows.map(row=>row.id));for(const[id,entry]of this.rows)if(!ids.has(id)){entry.node.remove();this.rows.delete(id);}
-  model.rows.forEach((row,index)=>{const entry=this.rows.get(row.id)||this.createRow(row.id);text(entry.name,row.name);text(entry.status,row.status);attr(entry.power,'data-power-on',row.action==='turn_off');if(row.action)attr(entry.power,'aria-pressed',row.action==='turn_off');else if(entry.power.getAttribute('aria-pressed')!==null)entry.power.removeAttribute?.('aria-pressed');attr(entry.node,'data-selected',row.selected);attr(entry.power,'aria-label',row.action?`${row.action==='turn_off'?'Sluk':'Tænd'} alle lys i ${row.name}`:`Lys i ${row.name} kræver aktuel status`);attr(entry.power,'aria-disabled',!row.enabled);if(entry.power.disabled!==!row.enabled)entry.power.disabled=!row.enabled;if(this.list.children[index]!==entry.node)this.list.insertBefore(entry.node,this.list.children[index]||null);});
-  for(const row of model.rows){let option=this.options.get(row.id);if(!option){option=make('option','');option.value=row.id;this.selector.append(option);this.options.set(row.id,option);}text(option,row.name);}for(const[id,option]of this.options)if(!ids.has(id)){option.remove();this.options.delete(id);}const selection=model.rows.find(row=>row.selected)?.id||'';if(this.selector.value!==selection)this.selector.value=selection;
-  if(this.home.hidden!==model.live)this.home.hidden=model.live;if(this.home.disabled!==!model.globalEnabled)this.home.disabled=!model.globalEnabled;
+  model.rows.forEach((row,index)=>{const entry=this.rows.get(row.id)||this.createRow(row.id),command=this.host.lightCommandFeedback,busy=!!command&&command.target?.areaId===row.id&&!command.target.sceneId&&!command.target.entityId&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.power,'tile',{feedback:'progress',loading:busy});text(entry.name,row.name);text(entry.status,row.status);attr(entry.power,'data-power-on',row.action==='turn_off');if(row.action)attr(entry.power,'aria-pressed',row.action==='turn_off');else if(entry.power.getAttribute('aria-pressed')!==null)entry.power.removeAttribute?.('aria-pressed');attr(entry.node,'data-selected',row.selected);attr(entry.power,'aria-label',row.action?`${row.action==='turn_off'?'Sluk':'Tænd'} alle lys i ${row.name}`:`Lys i ${row.name} kræver aktuel status`);attr(entry.power,'aria-disabled',!row.enabled);if(entry.power.disabled!==!row.enabled)entry.power.disabled=!row.enabled;if(this.list.children[index]!==entry.node)this.list.insertBefore(entry.node,this.list.children[index]||null);});
+  const signature=JSON.stringify(model.rows.map(row=>[row.id,row.name]));if(this.navigationSignature!==signature){this.navigationSignature=signature;this.navigation?.node.remove();this.navigation=createKitChoiceGroup({document,id:'light-room',label:'Rum',variant:'navigation',choices:model.rows.map(row=>({value:row.id,label:row.name})),value:model.rows.find(row=>row.selected)?.id,onChange:id=>this.selectRoom(id)});this.navigationHost.append(this.navigation.node);}this.navigation.setValue(model.rows.find(row=>row.selected)?.id||'');
+  const selected=model.rows.find(row=>row.selected);text(this.panelHeading,selected?.name||'Lys');if(selected&&this.selectedRoom!==selected.id){this.selectedRoom=selected.id;this.revealSelection(selected.id);}
+  const hasScenes=!!this.host.lightScenes&&!this.host.lightScenes.hidden;if(this.panel.hidden!==!hasScenes)this.panel.hidden=!hasScenes;if(hasScenes){if(this.host.lightSceneStatus&&this.host.lightSceneStatus.parentNode!==this.panelHeader)this.panelHeader.append(this.host.lightSceneStatus);if(this.host.lightScenes.parentNode!==this.panel)this.panel.append(this.host.lightScenes);if(this.host.lightLampDisclosure&&this.host.lightLampDisclosure.parentNode!==this.panel)this.panel.append(this.host.lightLampDisclosure);}
+  if(this.home.hidden!==model.live)this.home.hidden=model.live;const homeEnabled=!!(model.globalEnabled||model.globalRestore);if(this.home.disabled!==!homeEnabled)this.home.disabled=!homeEnabled;text(this.homeLabel,model.globalRestore?'Gendan lys':'Sluk alt');attr(this.home,'aria-label',model.globalRestore?'Gendan lyset i hjemmet som før slukning':'Sluk alle lys i hjemmet');attr(this.home,'title',model.globalRestore?'Gendan lyset i hjemmet som før slukning':'Sluk alle lys i hjemmet');
   return this.node;
  }
 }

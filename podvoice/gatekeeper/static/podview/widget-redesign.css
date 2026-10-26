@@ -304,13 +304,12 @@ pv-widget-host{--overview-lift:72px}
 #music-refresh[aria-busy=true] img{opacity:.5}
 @media(max-width:759px){#music-response .music-subhead{flex-wrap:wrap}}
 /* Edge treatment follows scroll position; it disappears at the actual content end. */
-[data-scroll-axis=x][data-scroll-edge=end]{mask-image:linear-gradient(to right,var(--pv-ink) 0,var(--pv-ink) calc(100% - 28px),transparent)}
-[data-scroll-axis=x][data-scroll-edge=start]{mask-image:linear-gradient(to right,transparent,var(--pv-ink) 28px,var(--pv-ink) 100%)}
-[data-scroll-axis=x][data-scroll-edge="start end"]{mask-image:linear-gradient(to right,transparent,var(--pv-ink) 28px,var(--pv-ink) calc(100% - 28px),transparent)}
-/* Weather keeps a visible next-hour peek; fade only where more hours remain. */
-.weather-hours[data-scroll-axis=x][data-scroll-edge=end]{mask-image:linear-gradient(to right,var(--pv-ink) 0,var(--pv-ink) calc(100% - 48px),transparent)}
-.weather-hours[data-scroll-axis=x][data-scroll-edge=start]{mask-image:linear-gradient(to right,transparent,var(--pv-ink) 48px,var(--pv-ink) 100%)}
-.weather-hours[data-scroll-axis=x][data-scroll-edge="start end"]{mask-image:linear-gradient(to right,transparent,var(--pv-ink) 48px,var(--pv-ink) calc(100% - 48px),transparent)}
+/* One horizontal fade for weather hours, room navigation and resource strips.
+   A mask adds no overlay or hit target and changes only at a real scroll edge. */
+[data-scroll-axis=x]{--pv-scroll-fade-inline:48px;mask-image:none}
+[data-scroll-axis=x][data-scroll-edge=end]{mask-image:linear-gradient(to right,var(--pv-ink) 0,var(--pv-ink) calc(100% - var(--pv-scroll-fade-inline)),transparent)}
+[data-scroll-axis=x][data-scroll-edge=start]{mask-image:linear-gradient(to right,transparent,var(--pv-ink) var(--pv-scroll-fade-inline),var(--pv-ink) 100%)}
+[data-scroll-axis=x][data-scroll-edge="start end"]{mask-image:linear-gradient(to right,transparent,var(--pv-ink) var(--pv-scroll-fade-inline),var(--pv-ink) calc(100% - var(--pv-scroll-fade-inline)),transparent)}
 .weather-next-hour{font-size:var(--pv-type-caption);line-height:1.5;color:var(--pv-weather-ink);margin:var(--pv-screen-space-4) 0 0;text-wrap:pretty}
 .weather-hours .weather-hour-rain{font-size:var(--pv-type-caption);line-height:1.3;color:var(--pv-weather-ink);white-space:nowrap;margin-top:-8px}
 @media(min-width:760px) and (max-height:640px){
@@ -427,7 +426,7 @@ pv-widget-host[data-view=active] .frame:has(.responses[data-scroll-edge~="end"],
 .weather-view .weather-current span{font-size:var(--pv-type-caption);line-height:1.4}
 .weather-view .weather-current>img{width:80px;height:80px;margin-right:var(--pv-screen-space-3)}
 .weather-view .weather-summary{font-size:var(--pv-type-body);line-height:1.4;margin:var(--pv-screen-space-4) 0}
-.weather-view .weather-hours{grid-auto-columns:calc((100% - 40px)/6);gap:var(--pv-screen-space-2);padding:var(--pv-screen-space-4) 0;mask-image:none}
+.weather-view .weather-hours{grid-auto-columns:calc((100% - 40px)/6);gap:var(--pv-screen-space-2);padding:var(--pv-screen-space-4) 0}
 pv-widget-host[data-review-variant=weather-four] #weather-view .weather-hours{grid-auto-columns:calc((100% - 24px)/4)}
 .weather-view .weather-hours>div{gap:var(--pv-screen-space-2);font-variant-numeric:tabular-nums}
 .weather-view .weather-hours>div>span{font-size:var(--pv-type-caption)}

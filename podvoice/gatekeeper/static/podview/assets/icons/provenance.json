@@ -194,6 +194,22 @@
     "arrow-u-down-left.svg": {
       "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/arrow-u-down-left.svg",
       "sha256": "55fcf6036cc0192eb2b4f96911c660f3fccc422a88274f893d41568a17b387d7"
+    },
+    "seat.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/seat.svg",
+      "sha256": "5ce26c4882a03e838072390a52f8f1ab709d0d364de4df8fb788986f413c7ccf"
+    },
+    "lock.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/lock.svg",
+      "sha256": "7f9e0acc09a417a48328cd5b74e95de98989c5af1710ca5da705179da75c72d9"
+    },
+    "lock-open.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/lock-open.svg",
+      "sha256": "8b9f2b734cf20b70327b569ae4e254d5899771b6ea886bb6e9a2facde5582c04"
+    },
+    "power.svg": {
+      "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/power.svg",
+      "sha256": "7c493f7a807a08a5fcaadd33493fd4ad66cb0aa752a822c71a5f5cf5fd665b53"
     }
   },
   "exceptions": {

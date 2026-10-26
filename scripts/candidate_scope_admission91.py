@@ -21,7 +21,14 @@ safe_file = previous.safe_file
 BASE = "65fe801a8bb587ba42518ce4dbb04ee39b59fd76"
 KIND = "podview91_single_owner_integration"
 VERSION = 68
-ASSET_COUNT = 210
+FIRMWARE_PRODUCTION = frozenset(
+    {
+        "esphome/components/podvoice_reply/podvoice_reply.h",
+        "esphome/podvoice-live-alpha.yaml",
+        "esphome/podvoice.yaml",
+    }
+)
+ASSET_COUNT = 215
 MAX_ASSET_TOTAL_BYTES = 34 * 1024 * 1024
 PROFILE = "scripts/candidate_scope_admission91.py"
 MANIFEST = "scripts/podview91-admission-reviewed.json"
@@ -35,7 +42,7 @@ FIELDS = previous.FIELDS
 # Provisional inventory is derived from the current mutable91 draft against BASE.
 # Final source and independent composition review remain required before binding.
 # Blank review bindings deliberately cannot admit this prepared candidate.
-DOMAINS = ("ha_tools", "physical_output")
+DOMAINS = ("ha_tools", "physical_output", "realtime_semantics")
 PRODUCTION = frozenset(
     {
         "custom_components/podvoice/timer_bridge.py",
@@ -44,6 +51,13 @@ PRODUCTION = frozenset(
         "esphome/podvoice.yaml",
         "podvoice/gatekeeper/history.py",
         "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/static/podview/assets/icons/lock-open.svg",
+        "podvoice/gatekeeper/static/podview/assets/icons/lock.svg",
+        "podvoice/gatekeeper/static/podview/assets/icons/power.svg",
+        "podvoice/gatekeeper/static/podview/assets/icons/seat.svg",
+        "podvoice/gatekeeper/static/podview/vehicle-model.js",
+        "podvoice/gatekeeper/static/podview/vehicle-preview-command.js",
+        "podvoice/gatekeeper/static/podview/vehicle-view.js",
         "podvoice/gatekeeper/podview_presentation.py",
         "podvoice/gatekeeper/podview.py",
         "podvoice/gatekeeper/podview_client_diagnostics.py",
@@ -147,9 +161,9 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 
 # Closed until independent exact-tree review binds the final candidate.
-REVIEWER = ""
-MANIFEST_SHA = ""
-PROFILE_AST = ""
+REVIEWER = "/root/close_example_hypothesis"
+MANIFEST_SHA = "cc502fbe08438d505244e04d4bb65b1510ffaef5eea9c04b0f2f642f64c25785"
+PROFILE_AST = "12df50f1116b8a0281f9787d0f4653c3087eb6f0147bf17110f31cd88d11dacf"
 
 
 def record_at(root: Path) -> dict | None:
@@ -197,7 +211,7 @@ ha_runtime_inventory = previous.ha_runtime_inventory
 
 
 def assets_match91(root: Path, runtime: dict, count: object) -> bool:
-    """Exact canonical210 asset inventory; path/hash/byte ceiling are fail closed."""
+    """Exact canonical215 asset inventory; path/hash/byte ceiling are fail closed."""
     if type(count) is not int or count != ASSET_COUNT:
         return False
     raw = safe_file(root, STATIC + "asset-manifest.json")
@@ -243,6 +257,10 @@ def change_scope_matches(effective: set[str], tests: set[str]) -> bool:
         PRODUCTION | tests | POLICY | CONFIG | TOOLING | {"podvoice/CHANGELOG.md", "docs/STATUS.md"}
     )
     return effective <= allowed
+
+
+def production_runtime_match(production: set[str], runtime: set[str]) -> bool:
+    return production - runtime == FIRMWARE_PRODUCTION
 
 
 def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: dict) -> bool:
@@ -308,7 +326,7 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         or set(tooling) != TOOLING
         or ha_runtime_inventory(root) != HA_RUNTIME
         or set(runtime) != strict.runtime_inventory(root) | HA_RUNTIME
-        or not set(prod) <= set(runtime)
+        or not production_runtime_match(set(prod), set(runtime))
         or any(not p.startswith("tests/") for p in tests)
         or not config_only(root)
         or not assets_match91(root, runtime, manifest["asset_count"])
