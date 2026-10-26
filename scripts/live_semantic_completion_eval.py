@@ -611,6 +611,86 @@ def followup_seen(rows, after_seq, *, before_seq=None):
     return answer_seen(window, incoming[-1]["seq"], ("treogfyrre", "43"))
 
 
+def interruption_close_stimulus_ready(rows, session, capture):
+    """Pace closing input after the follow-up; recognition remains a separate verdict."""
+    lease, stream = session._playback_lease, session._live_stream
+    if (
+        capture.clip is not None
+        or not session._active
+        or session._live_finalizing
+        or session._transport_closing
+        or session._live_work_pending()
+        or lease is None
+        or lease.kind != "live"
+        or lease.phase != "started"
+        or lease.epoch != session._epoch
+        or stream is None
+        or stream.finished
+        or stream.cancelled
+        or stream.buffered_bytes
+        or capture._playback_id != lease.playback_id
+        or lease.playback_id not in capture.drains
+        or capture.drains[lease.playback_id].done()
+    ):
+        return False
+    finished = [
+        r for r in rows if r["kind"] == "fixture_finished" and r["name"] == "interrupt_followup"
+    ]
+    if len(finished) != 1:
+        return False
+    starts = [
+        r for r in rows if r["kind"] == "fixture_started" and r["name"] == "interrupt_followup"
+    ]
+    if len(starts) != 1:
+        return False
+    followup = [r for r in transcripts(rows, "in") if r["seq"] > starts[0]["seq"]]
+    # Input indexes identify deltas, not turns. Keep late first-input tails;
+    # only the complete known follow-up suffix is used to pace this fixture.
+    if not fixture_transcript(fixture_input_text(rows)).endswith(
+        fixture_transcript(TEXTS["interrupt_followup"])
+    ):
+        return False
+    generation = session.brain._connection_generation
+    incoming = [r for r in followup if r["seq"] > finished[0]["seq"]]
+    if (
+        not incoming
+        or incoming[-1]["generation"] != generation
+        or incoming[-1]["input_index"] != session.brain.input_sequence
+    ):
+        return False
+    outputs = [
+        r
+        for r in transcripts(rows, "out")
+        if r["seq"] > incoming[-1]["seq"] and r["input_index"] == session.brain.input_sequence
+    ]
+    if not outputs or not answer_seen(outputs, -1, ("treogfyrre", "43")):
+        return False
+    chunks = [
+        r
+        for r in rows
+        if r["kind"] == "decoded_output_chunk"
+        and r.get("generation") == generation
+        and r["seq"] > outputs[-1]["seq"]
+    ]
+    if not any(r.get("pcm_all_zero") is False for r in chunks):
+        return False
+    consumed = [
+        r
+        for r in rows
+        if r["kind"] == "synthetic_output_consumed"
+        and r["playback_id"] == lease.playback_id
+        and r["seq"] > outputs[-1]["seq"]
+    ]
+    if not consumed or consumed[-1]["frame_end"] * 2 != chunks[-1]["byte_end"]:
+        return False
+    end = begin = consumed[-1]["frame_end"]
+    for row in reversed(consumed):
+        if row["peak"] != 0 or row["frame_end"] != begin:
+            break
+        begin = row["frame_begin"]
+    return end - begin >= stream.sample_rate * rig.INPUT_DELAY_S
+
+
 def provider_pcm_lease_ready(rows, session, capture):
     """Find nonzero provider PCM with an active null-drain lease, not audible playback."""
     lease = session._playback_lease
@@ -1695,14 +1775,7 @@ async def evaluate(
                     case == "interrupt-active-output"
                     and stage == 1
                     and capture.clip is None
-                    and followup_seen(
-                        evidence.rows,
-                        next(
-                            r["seq"]
-                            for r in evidence.rows
-                            if r["kind"] == "fixture_started" and r["name"] == names[1]
-                        ),
-                    )
+                    and interruption_close_stimulus_ready(evidence.rows, session, capture)
                 ):
                     await asyncio.sleep(rig.INPUT_DELAY_S)
                     if not session._active:

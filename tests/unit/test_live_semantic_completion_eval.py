@@ -1819,3 +1819,103 @@ async def test_negative_window_only_waits_for_current_owned_accepted_end(invalid
     else:
         receipt.closure_only = False
     assert not module.accepted_close_in_progress(session, live)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    [None, "before_input", "stale_owner", "work", "short_quiet", "missing", "wrong", "truncated"],
+)
+async def test_interruption_close_pacing_keeps_literal_input_mismatch(tmp_path, mutation):
+    evidence = module.rig.Evidence(tmp_path / "interruption-pacing")
+    evidence.rows = [
+        dict(seq=0, kind="fixture_started", name="long_count"),
+        dict(
+            seq=1,
+            kind="LiveTranscript",
+            generation=1,
+            direction="in",
+            input_index=1,
+            text="Til langsomt fra én til tyve, et tal ad gangen",
+            start_ms=0,
+            end_ms=100,
+        ),
+        dict(seq=2, kind="fixture_started", name="interrupt_followup"),
+        dict(seq=3, kind="fixture_finished", name="interrupt_followup"),
+        dict(
+            seq=4,
+            kind="LiveTranscript",
+            generation=1,
+            direction="in",
+            input_index=2,
+            text=" Nabu, hvad er 31 plus 12",
+            start_ms=100,
+            end_ms=200,
+        ),
+        dict(
+            seq=5,
+            kind="LiveTranscript",
+            generation=1,
+            direction="out",
+            input_index=2,
+            text=" Det er treogfyrre.",
+            start_ms=200,
+            end_ms=300,
+        ),
+    ]
+    if mutation == "before_input":
+        evidence.rows[4]["seq"] = 2.5
+    elif mutation in {"missing", "wrong", "truncated"}:
+        evidence.rows[4]["text"] = {
+            "missing": "",
+            "wrong": " Nabu, hvad er 32 plus 12",
+            "truncated": " Nabu, hvad er 31",
+        }[mutation]
+    streams = module.rig.LiveAudioStreams()
+    stream = streams.open("interruption-session")
+    capture = module.rig.SyntheticCapture(evidence, streams)
+    capture.on_media_state = lambda *_: None
+    session = SimpleNamespace(
+        _active=True,
+        _live_finalizing=False,
+        _transport_closing=False,
+        _epoch=1,
+        _live_stream=stream,
+        _live_work_pending=lambda: mutation == "work",
+        _playback_lease=SimpleNamespace(
+            kind="live",
+            phase="started",
+            epoch=2 if mutation == "stale_owner" else 1,
+            playback_id="p1",
+        ),
+        brain=SimpleNamespace(_connection_generation=1, input_sequence=2),
+    )
+    await capture.play_url(f"http://synthetic.invalid/{stream.id}.wav", playback_id="p1")
+    offset = 0
+
+    async def append(pcm):
+        nonlocal offset
+        evidence.emit(
+            "decoded_output_chunk",
+            generation=1,
+            byte_start=offset,
+            byte_end=offset + len(pcm),
+            pcm_all_zero=not any(pcm),
+        )
+        offset += len(pcm)
+        stream.append(pcm)
+        await asyncio.sleep(0)
+
+    try:
+        await append(b"\x03\x00" * 2400)
+        for _ in range(19 if mutation == "short_quiet" else 20):
+            await append(bytes(4800))
+        assert not module.followup_seen(evidence.rows, 2)
+        assert not stream.finished and not capture.drains["p1"].done()
+        assert module.interruption_close_stimulus_ready(evidence.rows, session, capture) is (
+            mutation is None
+        )
+    finally:
+        await capture.stop_playback(playback_id="p1")
+        streams.close()
+        evidence.close()
