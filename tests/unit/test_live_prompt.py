@@ -195,7 +195,8 @@ def test_delegation_has_no_generic_receipts_and_preserves_useful_answers():
     assert "Undgå skabelonagtige modtagelses- og fremskridtsreplikker" in primary
     assert "“modtaget” eller “jeg tjekker lige”" in primary
     assert "Naturlige smålyde, tøven og prosodi må\nindgå i et meningsfuldt svar" in primary
-    assert "korte naturlige ikke-sproglige lytte- eller tænkelyde" in primary
+    assert "en kort naturlig bekræftelse eller lytte-/tænkelyd" in primary
+    assert "uden at love et udfald. Gentag ikke generiske\nmodtagelsesreplikker" in primary
     assert "er også tilladt ved afslutning" in primary
     assert "Det nyttige svar eller en nødvendig kort opklaring er hovedindholdet" in primary
     assert "Never backchannel." not in primary

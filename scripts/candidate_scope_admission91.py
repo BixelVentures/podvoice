@@ -131,6 +131,8 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_ha_timer_bridge.py",
         "tests/unit/test_history.py",
         "tests/unit/test_live_prompt.py",
+        "tests/unit/test_live_semantic_completion_eval.py",
+        "tests/fixtures/live_semantic_real_followup.json",
         "tests/unit/test_podview_presentation.py",
         "tests/unit/test_live_wav_firmware.py",
         "tests/unit/test_podview_receipts.py",

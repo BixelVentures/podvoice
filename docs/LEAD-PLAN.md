@@ -425,3 +425,11 @@ Stop ved første fejl, undersøg første tabende kant; ingen blind effekt- eller
 Ingen automatisk fysisk robotprøve. Den korte serie erstatter ikke 10/10 lifecycle,
 fuld funktionsmatrix112, fysisk latens eller syvdøgns samme-artifact-soak116. De er
 separate acceptfaser, ikke syv dages kodearbejde. Plan-score er aldrig produktaccept.
+
+## Final delivery addition — user request 26 October
+
+After combined product integration, review, publication and installation, republish the existing GPT Sites product preview and full UI library from exactly the same accepted canonical UI source. Preserve existing Site identity, audience and stable links. This is a final delivery task, not a new design branch or physical acceptance claim. PodView owns canonical UI composition and supplies existing Site/library identity; root coordinates verified delivery. Do not publish a newer or partial UI ahead of the actual product release.
+
+## Natural affirmation clarification — direct user decision 26 October
+
+Brief natural Ja and Hmm are permitted, including before a real delegated action, without claiming success. Repetitive generic Modtaget/progress replies remain excluded. This widens only the delivery-style criterion; immediate real delegation, truthful owed results and current accepted END authority remain unchanged. Source paragraph and existing tests are aligned after independent review. Earlier recorded provider observations keep their original stricter-prompt identity; raw FAIL reports are immutable. Functional observations may be reused with explicit provenance; this policy change alone neither proves five new-prompt provider cases nor justifies blindly repeating all earlier calls.

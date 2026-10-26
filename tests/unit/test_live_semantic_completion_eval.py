@@ -127,7 +127,7 @@ def test_answer_seen_known_complete_answer_does_not_depend_on_punctuation(
     assert module.answer_seen(rows, after_seq, ("fire", "4")) is expected
 
 
-def good_rows(case="completed-side-address"):
+def good_rows(case="completed-side-address", *, opening_backend=False):
     rows = []
 
     def emit(kind, **fields):
@@ -189,7 +189,22 @@ def good_rows(case="completed-side-address"):
             start_ms=index * 1000,
             end_ms=index * 1000 + 200,
         )
-        if index == 0 or name in {"followup", "interrupt_followup", "aside_correction", "resume"}:
+        if index == 0 and opening_backend:
+            emit(
+                "LiveBackendStarted",
+                generation=1,
+                response_id="opening",
+                delegation_id="opening",
+                created_index=1,
+                input_index=1,
+            )
+        if index == 0 or name in {
+            "followup",
+            "interrupt_followup",
+            "aside_correction",
+            "resume",
+            "presentation_steps",
+        }:
             emit(
                 "LiveTranscript",
                 generation=1,
@@ -203,9 +218,85 @@ def good_rows(case="completed-side-address"):
                     if index == 0
                     else "Seks."
                 ),
+                input_index=index + 1,
                 start_ms=index * 1000 + 300,
                 end_ms=index * 1000 + 500,
             )
+    if case == "explicit-close":
+        step_start = next(
+            r for r in rows if r["kind"] == "fixture_started" and r["name"] == "presentation_steps"
+        )
+        close_start = next(
+            r for r in rows if r["kind"] == "fixture_started" and r["name"] == "explicit_close"
+        )
+        text = "Fold først papiret på midten. Fold derefter hjørnerne ind."
+        spoken = next(
+            r
+            for r in rows
+            if r["kind"] == "LiveTranscript"
+            and r.get("direction") == "out"
+            and step_start["seq"] < r["seq"] < close_start["seq"]
+        )
+        spoken["text"] = text
+        chunk = next(
+            r
+            for r in rows
+            if r["kind"] == "decoded_output_chunk"
+            and step_start["seq"] < r["seq"] < close_start["seq"]
+        )
+        chunk["pcm_all_zero"] = False
+        content = {"steps": ["Fold papiret på midten.", "Fold hjørnerne ind."]}
+        raw = json.dumps(
+            {
+                "spoken": text,
+                "presentation": {
+                    "family": "steps",
+                    "title": "Papirflyver",
+                    "summary": "Fold i to trin.",
+                    "origin": "ai_explanation",
+                    "content": content,
+                    "sourceCalls": [],
+                },
+            }
+        )
+        extra = [
+            dict(
+                kind="LiveBackendStarted",
+                generation=1,
+                response_id="visual",
+                delegation_id="visual",
+                seq=spoken["seq"] - 0.3,
+            ),
+            dict(
+                kind="LiveBackendComplete",
+                generation=1,
+                response_id="visual",
+                delegation_id="visual",
+                status="completed",
+                tool_call_count=0,
+                final_message=raw,
+                seq=spoken["seq"] - 0.2,
+            ),
+            dict(
+                kind="presentation_receipt",
+                response_id="visual",
+                delegation_id="visual",
+                input_index=2,
+                seq=spoken["seq"] - 0.1,
+                item={
+                    "schema": "podview.presentation.v1",
+                    "providerGeneration": 1,
+                    "turnId": "live:1:visual",
+                    "taskId": "answer:visual",
+                    "family": "steps",
+                    "provenance": {"kind": "ai_explanation"},
+                    "allowedActions": [],
+                    "content": {"steps": [{"text": t} for t in content["steps"]]},
+                },
+            ),
+        ]
+        rows.extend(extra)
+        rows.sort(key=lambda r: r["seq"])
     if case in module.POSITIVE_CASES:
         input_index = len(module.CASES[case])
         emit(
@@ -426,7 +517,10 @@ def test_provider_pcm_lease_ready_requires_nonzero_pcm_and_current_synthetic_lea
         brain=SimpleNamespace(_connection_generation=1),
     )
     capture = SimpleNamespace(clip=None, drains={"playback1": SimpleNamespace(done=lambda: False)})
-    rows = [dict(kind="decoded_output_chunk", seq=7, generation=1, pcm_all_zero=False, sha256="a")]
+    rows = [
+        dict(kind="fixture_finished", name="long_count", seq=6),
+        dict(kind="decoded_output_chunk", seq=7, generation=1, pcm_all_zero=False, sha256="a"),
+    ]
     assert module.provider_pcm_lease_ready(rows, session, capture) == dict(
         provider_chunk_seq=7,
         provider_chunk_sha256="a",
@@ -439,8 +533,79 @@ def test_provider_pcm_lease_ready_requires_nonzero_pcm_and_current_synthetic_lea
     lease.phase = "finished"
     assert module.provider_pcm_lease_ready(rows, session, capture) is None
     lease.phase = "started"
-    rows[0]["pcm_all_zero"] = True
+    rows[-1]["pcm_all_zero"] = True
     assert module.provider_pcm_lease_ready(rows, session, capture) is None
+
+
+@pytest.mark.parametrize("late_zero", [False, True])
+def test_interrupt_trigger_rejects_startup_pcm_before_long_count(late_zero):
+    # Retained trial: startup PCM seq10 preceded long_count start46/finish152.
+    session = SimpleNamespace(
+        _playback_lease=SimpleNamespace(kind="live", phase="started", epoch=1, playback_id="p"),
+        _live_stream=SimpleNamespace(id="stream"),
+        _active=True,
+        _epoch=1,
+        _history_session="s",
+        brain=SimpleNamespace(_connection_generation=1),
+    )
+    capture = SimpleNamespace(clip=None, drains={"p": SimpleNamespace(done=lambda: False)})
+    rows = [
+        dict(kind="decoded_output_chunk", seq=10, generation=1, pcm_all_zero=False, sha256="old"),
+        dict(kind="fixture_started", name="long_count", seq=46),
+        dict(kind="fixture_finished", name="long_count", seq=152),
+    ]
+    if late_zero:
+        rows.append(dict(kind="decoded_output_chunk", seq=153, generation=1, pcm_all_zero=True))
+    assert module.provider_pcm_lease_ready(rows, session, capture) is None
+
+
+@pytest.mark.parametrize(
+    "left,right,equal",
+    [
+        ("Ét tal", "et tal", True),
+        ("et tal", "ét tal", True),
+        ("år", "ar", False),
+        ("Til", "Tæl", False),
+        ("étage", "etage", False),
+    ],
+)
+def test_fixture_transcript_only_equates_danish_et_word_accent(left, right, equal):
+    assert (module.fixture_transcript(left) == module.fixture_transcript(right)) is equal
+
+
+@pytest.mark.parametrize(
+    "prefix,tail,expected",
+    [
+        ("Tæl langsomt fra en til tyve", ", et tal ad gangen.", True),
+        ("Tæl langsomt fra en til tyve", ". Ét tal ad gangen.", True),
+        ("Tæl langsomt fra en til tyve, et tal ad gangen.", "", True),
+        ("Til langsomt fra en til tyve", ". Ét tal ad gangen.", False),
+        ("Tæl langsomt fra en til tyve", "", False),
+        ("Tæl langsomt fra en til tyve", ". Ét tal ad gangen. ekstra", False),
+    ],
+)
+def test_interrupt_followup_pacing_checks_full_known_input_not_arrival_turns(
+    prefix, tail, expected
+):
+    def delta(seq, direction, text):
+        return dict(
+            kind="LiveTranscript",
+            seq=seq,
+            generation=1,
+            direction=direction,
+            text=text,
+            start_ms=seq * 200,
+            end_ms=(seq + 1) * 200,
+        )
+
+    rows = [
+        delta(1, "in", prefix),
+        dict(kind="fixture_started", seq=2, name="interrupt_followup"),
+        delta(3, "in", tail),
+        delta(4, "in", " Nabu, hvad er enogtredive plus tolv?"),
+        delta(5, "out", "Det er treogfyrre."),
+    ]
+    assert module.followup_seen(rows, 2) is expected
 
 
 def test_interrupt_overlap_needs_source_pcm_overlap_followup_and_close_but_pending_audio_review():
@@ -547,7 +712,7 @@ async def until(predicate):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["positive", "late-input", "mixed-batch"])
+@pytest.mark.parametrize("mode", ["positive", "negative-held", "late-input", "mixed-batch"])
 async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_receipt(
     tmp_path, synthetic_fixtures, monkeypatch, mode
 ):
@@ -556,8 +721,9 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
     sdk = SDK()
     monkeypatch.setattr(module.rig, "INPUT_DELAY_S", 0)
     monkeypatch.setattr(module, "OBSERVATION_S", 0.7)
+    monkeypatch.setattr(module.rig, "NEGATIVE_OBSERVATION_S", 0.15)
     admission_held = asyncio.Event()
-    if mode == "positive":
+    if mode in {"positive", "negative-held"}:
         finish = module.rig.ThinSession._finish_live_conversation
         admission_release = asyncio.Event()
 
@@ -576,7 +742,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
     trial = asyncio.create_task(
         module.evaluate(
             "not-a-key",
-            "completed-side-address",
+            "polite-followup" if mode == "negative-held" else "completed-side-address",
             "baseline",
             manifest,
             fixtures,
@@ -606,9 +772,15 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
         await transcript("input", module.TEXTS["math"], 0)
         await sdk.incoming.put(dict(type="session.output_audio.delta", delta="AQACAAMA"))
         await transcript("output", "Fire.", 200)
-        await until(lambda: seen("fixture_finished", name="side_address"))
-        await transcript("input", module.TEXTS["side_address"], 400)
-        events = [created(), call(name="end_conversation", arguments='{"silent":true}')]
+        second_fixture = "polite_followup" if mode == "negative-held" else "side_address"
+        await until(lambda: seen("fixture_finished", name=second_fixture))
+        await transcript("input", module.TEXTS[second_fixture], 400)
+        # These cases exercise held answer admission; silent fast-close has
+        # separate coverage and deliberately bypasses that pending-answer hook.
+        arguments = (
+            '{"silent":false}' if mode in {"positive", "negative-held"} else '{"silent":true}'
+        )
+        events = [created(), call(name="end_conversation", arguments=arguments)]
         if mode == "mixed-batch":
             other = call(call_id="wait", name="wait_for_user", arguments="{}")
             other["event"]["output_index"] = 1
@@ -624,8 +796,11 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
             await sdk.incoming.put(created("r3", delegation="d2"))
         for event in (created("r2"), terminal("r2")):
             await sdk.incoming.put(event)
-        if mode == "positive":
+        if mode in {"positive", "negative-held"}:
             await until(lambda: admission_held.is_set() and seen("semantic_end_settled"))
+            if mode == "negative-held":
+                await asyncio.sleep(0.2)
+                assert not seen("negative_window_observed")
             assert not trial.done()
             assert not seen("harness_cleanup_started")
             sdk.session.close.assert_not_awaited()
@@ -633,7 +808,7 @@ async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_re
         assert complete and report["connect_attempts"] == 1
         assert not report["functional_chain_observed"]
         assert report["natural_thin_end"] == []
-        assert report["current_receipt_settlements"] == int(mode == "positive")
+        assert report["current_receipt_settlements"] == int(mode in {"positive", "negative-held"})
         assert report["semantic_tool_acceptances"] == int(mode != "mixed-batch")
         assert report["semantic_tool_rejections"] == int(mode == "mixed-batch")
         if mode == "late-input":
@@ -1017,11 +1192,7 @@ def test_timer_probe_requires_current_completed_action_before_meaningful_answer(
         chunks[-1]["pcm_all_zero"] = False
     report = assess(rows, "timer-10s")
     expected = (
-        "OBSERVED_PASS"
-        if corruption in (None, "numeric_orthography")
-        else "UNKNOWN"
-        if corruption == "short_reference"
-        else "FAIL"
+        "UNKNOWN" if corruption in (None, "numeric_orthography", "short_reference") else "FAIL"
     )
     assert report["verdict"] == expected
     if corruption == "short_reference":
@@ -1199,3 +1370,748 @@ async def test_backend_text_observer_bounds_utf8_and_total_without_breaking_read
         await live.close()
         evidence.close()
     assert sdk.released
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [None, "foreign", "stale_input", "unfinished", "cleanup_only", "tool", "no_spoken", "misheard"],
+)
+def test_presentation_acceptance_requires_real_completed_current_structure(mutation):
+    raw = json.dumps(
+        {
+            "spoken": "Fold først papiret på midten.",
+            "presentation": {
+                "family": "steps",
+                "title": "Papirflyver",
+                "summary": "Fold en papirflyver.",
+                "origin": "ai_explanation",
+                "sourceCalls": [],
+                "content": {"steps": ["Fold papiret på midten.", "Fold hjørnerne ind."]},
+            },
+        }
+    )
+    rows = [
+        dict(
+            kind="LiveTranscript",
+            seq=0,
+            generation=1,
+            direction="in",
+            text=module.TEXTS["presentation_steps"],
+            input_index=1,
+        ),
+        dict(kind="fixture_finished", seq=1, name="presentation_steps"),
+        dict(kind="LiveBackendStarted", seq=2, generation=1, response_id="r1", delegation_id="d1"),
+        dict(
+            kind="LiveBackendComplete",
+            seq=3,
+            generation=1,
+            response_id="r1",
+            delegation_id="d1",
+            status="completed",
+            tool_call_count=0,
+            final_message=raw,
+        ),
+        dict(
+            kind="presentation_receipt",
+            seq=4,
+            response_id="r1",
+            delegation_id="d1",
+            input_index=1,
+            item={
+                "schema": "podview.presentation.v1",
+                "providerGeneration": 1,
+                "turnId": "live:1:r1",
+                "taskId": "answer:d1",
+                "family": "steps",
+                "provenance": {"kind": "ai_explanation"},
+                "allowedActions": [],
+                "content": {
+                    "steps": [{"text": "Fold papiret på midten."}, {"text": "Fold hjørnerne ind."}]
+                },
+            },
+        ),
+        dict(
+            kind="LiveTranscript",
+            seq=5,
+            generation=1,
+            direction="out",
+            text="Fold først papiret på midten.",
+        ),
+    ]
+    if mutation == "foreign":
+        rows[4]["response_id"] = "other"
+    elif mutation == "stale_input":
+        rows[4]["input_index"] = 0
+    elif mutation == "unfinished":
+        rows[3]["status"] = "incomplete"
+    elif mutation == "cleanup_only":
+        rows.insert(4, dict(kind="observation_finished", seq=4))
+    elif mutation == "tool":
+        rows.append(dict(kind="LiveToolBatch", seq=6, calls=[]))
+    elif mutation == "no_spoken":
+        rows.pop()
+    elif mutation == "misheard":
+        rows[0]["text"] = "Et andet spørgsmål."
+    result = module.assess(
+        "presentation-steps", rows, clean=True, usage_complete=True, stayed_open=True
+    )
+    assert result["verdict"] == ("OBSERVED_PASS" if mutation is None else "FAIL")
+    assert result["audio_completion"] == "UNKNOWN" and not result["physical_or_browser_proof"]
+
+
+@pytest.mark.asyncio
+async def test_presentation_case_exports_exact_candidate_without_provider(synthetic_fixtures):
+    manifest, fixtures = synthetic_fixtures
+    binding = await module.export_startup_binding(
+        "baseline", manifest, fixtures, case="presentation-steps"
+    )
+    assert binding["source_sha256"] == module.source_identity()
+    assert binding["variant"] == "baseline"
+
+
+@pytest.mark.parametrize("opening_backend", [False, True])
+def test_explicit_close_control_requires_math_without_opening_backend(opening_backend):
+    rows = good_rows("explicit-close", opening_backend=opening_backend)
+    result = assess(rows, "explicit-close")
+    assert result["verdict"] == ("FAIL" if opening_backend else "OBSERVED_PASS")
+    assert result["direct_routing_preserved"] is (not opening_backend)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "missing_text",
+        "partial_text",
+        "zero_pcm",
+        "foreign_receipt",
+        "duplicate_delegation",
+        "missing_structure",
+    ],
+)
+def test_explicit_close_f17_requires_complete_text_pcm_and_single_typed_result(mutation):
+    rows = good_rows("explicit-close")
+    start = next(
+        r["seq"]
+        for r in rows
+        if r["kind"] == "fixture_started" and r["name"] == "presentation_steps"
+    )
+    end = next(
+        r["seq"] for r in rows if r["kind"] == "fixture_started" and r["name"] == "explicit_close"
+    )
+    section = [r for r in rows if start <= r["seq"] < end]
+    if mutation in {"missing_text", "partial_text"}:
+        text = next(
+            r for r in section if r["kind"] == "LiveTranscript" and r.get("direction") == "out"
+        )
+        text["text"] = "" if mutation == "missing_text" else "Fold først papiret."
+    elif mutation == "zero_pcm":
+        next(r for r in section if r["kind"] == "decoded_output_chunk")["pcm_all_zero"] = True
+    elif mutation == "foreign_receipt":
+        next(r for r in section if r["kind"] == "presentation_receipt")["response_id"] = "foreign"
+    elif mutation == "duplicate_delegation":
+        rows.append(dict(next(r for r in section if r["kind"] == "LiveBackendStarted")))
+    elif mutation == "missing_structure":
+        rows.remove(next(r for r in section if r["kind"] == "presentation_receipt"))
+    assert module.f17_completion(rows) is (mutation is None)
+
+
+@pytest.mark.parametrize("replacement", [None, "3", "bevar"])
+def test_recorded_synthetic_whitespace_deltas_join_without_dropping_boundaries(replacement):
+    # Literal input deltas from the single actual F17 explicit-close recording;
+    # whitespace is provider data, not a completed turn or an inferred separator.
+    texts = [" Hvad er", " ", "2", " plus", " ", "2", " Afslut", " samtalen"]
+    texts.insert(6, " " + module.TEXTS["presentation_steps"])
+    rows = [dict(kind="LiveTranscript", generation=1, direction="in", text=text) for text in texts]
+    if replacement == "3":
+        rows[2]["text"] = "3"
+    elif replacement == "bevar":
+        rows[7]["text"] = " Bevar"
+    expected = module.fixture_transcript(
+        "".join(module.TEXTS[name] for name in module.CASES["explicit-close"])
+    )
+    actual = module.fixture_transcript(module.fixture_input_text(rows))
+    assert (actual == expected) is (replacement is None)
+    assert module.fixture_input_text(rows) == "".join(row["text"] for row in rows)
+
+
+@pytest.mark.parametrize("mutation", [None, "changed_word", "changed_number"])
+def test_f17_literal_output_spaces_preserve_exact_complete_answer(mutation):
+    rows = good_rows("explicit-close")
+    step = next(
+        r["seq"]
+        for r in rows
+        if r["kind"] == "fixture_started" and r["name"] == "presentation_steps"
+    )
+    close = next(
+        r["seq"] for r in rows if r["kind"] == "fixture_started" and r["name"] == "explicit_close"
+    )
+    original = next(
+        r
+        for r in rows
+        if r["kind"] == "LiveTranscript" and r.get("direction") == "out" and step < r["seq"] < close
+    )
+    parts = ["Fold", " ", "først papiret på midten. Fold derefter hjørnerne ind."]
+    if mutation == "changed_word":
+        parts[0] = "Riv"
+    elif mutation == "changed_number":
+        parts[2] += " 3"
+    index = rows.index(original)
+    rows[index : index + 1] = [
+        dict(original, text=text, seq=original["seq"] + n / 100) for n, text in enumerate(parts)
+    ]
+    # Foreign generations must not be adopted as part of the current spoken answer.
+    rows.insert(index + 1, dict(original, text="foreign", generation=2))
+    assert module.f17_completion(rows) is (mutation is None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "preamble_only",
+        "no_receipt",
+        "unfinished_backend",
+        "queued",
+        "short_quiet",
+        "stale",
+        "finalizing",
+        "closing",
+    ],
+)
+async def test_f17_pacing_with_real_persistent_capture_stream(tmp_path, mutation):
+    rows = good_rows("explicit-close")
+    close = next(
+        r["seq"] for r in rows if r["kind"] == "fixture_started" and r["name"] == "explicit_close"
+    )
+    rows = [r for r in rows if r["seq"] < close]
+    for index, row in enumerate(rows):
+        row["seq"] = index
+    done = next(r for r in rows if r["kind"] == "LiveBackendComplete")
+    output = [r for r in rows if r["kind"] == "LiveTranscript" and r.get("direction") == "out"][-1]
+    output["text"] = "Start med at folde arket langs midten; fold så hjørnerne ind."
+    if mutation == "no_receipt":
+        rows.remove(next(r for r in rows if r["kind"] == "presentation_receipt"))
+    elif mutation == "unfinished_backend":
+        done["status"] = "incomplete"
+    evidence = module.rig.Evidence(tmp_path / "persistent-capture")
+    evidence.rows = rows
+    streams = module.rig.LiveAudioStreams()
+    stream = streams.open("f17-session")
+    capture = module.rig.SyntheticCapture(evidence, streams)
+    capture.on_media_state = lambda *_: None
+    session = SimpleNamespace(
+        _active=True,
+        _live_finalizing=mutation == "finalizing",
+        _transport_closing=mutation == "closing",
+        _epoch=1,
+        _live_stream=stream,
+        _playback_lease=SimpleNamespace(kind="live", phase="started", epoch=1, playback_id="p1"),
+        brain=SimpleNamespace(_connection_generation=1),
+    )
+    await capture.play_url(f"http://synthetic.invalid/{stream.id}.wav", playback_id="p1")
+    offset = 0
+
+    async def append(pcm):
+        nonlocal offset
+        evidence.emit(
+            "decoded_output_chunk",
+            generation=2 if mutation == "stale" else 1,
+            byte_start=offset,
+            byte_end=offset + len(pcm),
+            pcm_all_zero=not any(pcm),
+        )
+        offset += len(pcm)
+        stream.append(pcm)
+        await asyncio.sleep(0)
+
+    try:
+        # Retained provider trace uses 2400-sample chunks. Its last nonzero
+        # consumed peak is 3, followed by continuing zero PCM, without EOF.
+        await append(bytes(4800) if mutation == "preamble_only" else b"\x03\x00" * 2400)
+        for _ in range(19):
+            await append(bytes(4800))
+        assert not module.f17_stimulus_ready(evidence.rows, session, capture)
+        if mutation != "short_quiet":
+            await append(bytes(4800))
+        if mutation == "queued":
+            stream.append(b"\x03\x00" * 2400)  # not consumed yet
+        assert not stream.finished and not capture.drains["p1"].done()
+        assert module.f17_completion(evidence.rows) is False
+        assert module.f17_stimulus_ready(evidence.rows, session, capture) is (mutation is None)
+    finally:
+        await capture.stop_playback(playback_id="p1")
+        streams.close()
+        evidence.close()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "wrong_answer",
+        "late_answer",
+        "semantic_end",
+        "settlement",
+        "foreign_close",
+        "short_quiet",
+        "pending_work",
+        "input_after_close",
+        "missing_proof",
+        "foreign_ready",
+        "stale_quiet",
+    ],
+)
+def test_real_followup_accepts_only_proven_current_idle_after_answer(mutation):
+    rows = good_rows("real-followup")[:-1]  # remove the eight-second observation
+    answer = [r for r in rows if r["kind"] == "LiveTranscript" and r.get("direction") == "out"][-1]
+    answer["input_index"] = 2
+    if mutation == "wrong_answer":
+        answer["text"] = "Fem."
+    elif mutation == "late_answer":
+        answer["elapsed_s"] = 19
+    rows.append(
+        dict(
+            kind="close_phase", seq=len(rows), elapsed_s=20, phase="request_close", outcome="enter"
+        )
+    )
+    if mutation == "input_after_close":
+        rows.append(
+            dict(
+                kind="LiveTranscript",
+                seq=len(rows),
+                generation=1,
+                direction="in",
+                text="",
+                input_index=3,
+                start_ms=2000,
+                end_ms=2200,
+            )
+        )
+    if mutation == "semantic_end":
+        rows.append(
+            dict(
+                kind="LiveToolBatch",
+                seq=len(rows),
+                generation=1,
+                response_id="early",
+                calls=[dict(name="end_conversation", id="end", args={})],
+            )
+        )
+    elif mutation == "settlement":
+        rows.append(dict(kind="semantic_end_settled", seq=len(rows)))
+    edges = [
+        dict(
+            event=event,
+            seq=seq,
+            at_ms=seq * 1000,
+            session_id="s1",
+            provider_generation=1,
+            close_id="c1",
+            **({"reason": "app-idle-timeout"} if event == "close_requested" else {}),
+        )
+        for seq, event in enumerate(
+            ("close_requested", "teardown_complete", "wake_rearm_recovered"), 20
+        )
+    ]
+    ending = dict(kind="natural_thin_end", seq=len(rows), elapsed_s=30, timeline=edges)
+    rows.append(ending)
+    ready = dict(
+        event="live_idle_diagnostic",
+        seq=15,
+        at_ms=15000,
+        session_id="s1",
+        provider_generation=1,
+        idle_blocker="ready",
+        idle_quiet_s=4.1,
+        idle_semantic=False,
+        idle_finalizing=False,
+        idle_provider_started=True,
+        idle_shadow_vad_state="quiet",
+        idle_shadow_vad_reason="observed",
+        idle_observation_age_s=0.1,
+        idle_freshness_s=0.2,
+        idle_pending_responses=0,
+        idle_pending_batches=0,
+        idle_pending_tools=0,
+        idle_continuation_pending=False,
+        idle_continuation_inflight=False,
+        idle_pending_audio=False,
+    )
+    preclose = [
+        dict(
+            event=event,
+            seq=seq,
+            at_ms=seq * 1000,
+            session_id="s1",
+            provider_generation=1,
+            token=1,
+            native_token=1,
+        )
+        for seq, event in enumerate(
+            (
+                "live_idle_preclose_started",
+                "live_idle_preclose_visible",
+                "live_idle_preclose_elapsed",
+            ),
+            16,
+        )
+    ]
+    observed = [ready, *preclose, *copy.deepcopy(edges)]
+    if mutation == "foreign_close":
+        observed[-1]["close_id"] = "foreign"
+    elif mutation == "short_quiet":
+        ready["idle_quiet_s"] = 3.9
+    elif mutation == "pending_work":
+        ready["idle_pending_tools"] = 1
+    elif mutation == "foreign_ready":
+        ready["session_id"] = "foreign"
+    elif mutation == "stale_quiet":
+        ready["idle_observation_age_s"] = 1
+    elif mutation == "missing_proof":
+        observed = []
+    report = module.assess(
+        "real-followup",
+        rows,
+        clean=True,
+        usage_complete=True,
+        stayed_open=False,
+        observed_lifecycle=observed,
+    )
+    assert report["verdict"] == ("OBSERVED_PASS" if mutation is None else "FAIL")
+    assert report["physical_close"] == "UNKNOWN" and not report["physical_or_browser_proof"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["backend-pending", "settled", "native-closing"])
+async def test_negative_fixture_window_does_not_cut_short_accepted_end(phase):
+    # Reproduce timer ordering: the eight-second negative window expires while
+    # accepted END still owns backend/settlement/native quiet work. All phases
+    # must continue to the existing observation deadline or natural Thin end.
+    future = asyncio.get_running_loop().create_future()
+    if phase != "backend-pending":
+        future.set_result(True)
+    session = SimpleNamespace(_live_end_receipt=future)
+    live = SimpleNamespace(
+        _terminal_receipt=SimpleNamespace(future=future, closure_only=True, generation=7),
+        _connection_generation=7,
+    )
+    assert module.accepted_close_in_progress(session, live)
+    # Revocation releases the negative-case stop again; no success is inferred.
+    session._live_end_receipt = None
+    assert not module.accepted_close_in_progress(session, live)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", ["absent", "cancelled", "foreign", "stale", "nonclosure"])
+async def test_negative_window_only_waits_for_current_owned_accepted_end(invalid):
+    future = asyncio.get_running_loop().create_future()
+    session = SimpleNamespace(_live_end_receipt=future)
+    receipt = SimpleNamespace(future=future, closure_only=True, generation=7)
+    live = SimpleNamespace(_terminal_receipt=receipt, _connection_generation=7)
+    if invalid == "absent":
+        live._terminal_receipt = None
+    elif invalid == "cancelled":
+        future.cancel()
+    elif invalid == "foreign":
+        receipt.future = asyncio.get_running_loop().create_future()
+    elif invalid == "stale":
+        receipt.generation = 6
+    else:
+        receipt.closure_only = False
+    assert not module.accepted_close_in_progress(session, live)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    [None, "before_input", "stale_owner", "work", "short_quiet", "missing", "wrong", "truncated"],
+)
+async def test_interruption_close_pacing_keeps_literal_input_mismatch(tmp_path, mutation):
+    evidence = module.rig.Evidence(tmp_path / "interruption-pacing")
+    evidence.rows = [
+        dict(seq=0, kind="fixture_started", name="long_count"),
+        dict(
+            seq=1,
+            kind="LiveTranscript",
+            generation=1,
+            direction="in",
+            input_index=1,
+            text="Til langsomt fra én til tyve, et tal ad gangen",
+            start_ms=0,
+            end_ms=100,
+        ),
+        dict(seq=2, kind="fixture_started", name="interrupt_followup"),
+        dict(seq=3, kind="fixture_finished", name="interrupt_followup"),
+        dict(
+            seq=4,
+            kind="LiveTranscript",
+            generation=1,
+            direction="in",
+            input_index=2,
+            text=" Nabu, hvad er 31 plus 12",
+            start_ms=100,
+            end_ms=200,
+        ),
+        dict(
+            seq=5,
+            kind="LiveTranscript",
+            generation=1,
+            direction="out",
+            input_index=2,
+            text=" Det er treogfyrre.",
+            start_ms=200,
+            end_ms=300,
+        ),
+    ]
+    if mutation == "before_input":
+        evidence.rows[4]["seq"] = 2.5
+    elif mutation in {"missing", "wrong", "truncated"}:
+        evidence.rows[4]["text"] = {
+            "missing": "",
+            "wrong": " Nabu, hvad er 32 plus 12",
+            "truncated": " Nabu, hvad er 31",
+        }[mutation]
+    streams = module.rig.LiveAudioStreams()
+    stream = streams.open("interruption-session")
+    capture = module.rig.SyntheticCapture(evidence, streams)
+    capture.on_media_state = lambda *_: None
+    session = SimpleNamespace(
+        _active=True,
+        _live_finalizing=False,
+        _transport_closing=False,
+        _epoch=1,
+        _live_stream=stream,
+        _live_work_pending=lambda: mutation == "work",
+        _playback_lease=SimpleNamespace(
+            kind="live",
+            phase="started",
+            epoch=2 if mutation == "stale_owner" else 1,
+            playback_id="p1",
+        ),
+        brain=SimpleNamespace(_connection_generation=1, input_sequence=2),
+    )
+    await capture.play_url(f"http://synthetic.invalid/{stream.id}.wav", playback_id="p1")
+    offset = 0
+
+    async def append(pcm):
+        nonlocal offset
+        evidence.emit(
+            "decoded_output_chunk",
+            generation=1,
+            byte_start=offset,
+            byte_end=offset + len(pcm),
+            pcm_all_zero=not any(pcm),
+        )
+        offset += len(pcm)
+        stream.append(pcm)
+        await asyncio.sleep(0)
+
+    try:
+        await append(b"\x03\x00" * 2400)
+        for _ in range(19 if mutation == "short_quiet" else 20):
+            await append(bytes(4800))
+        assert not module.followup_seen(evidence.rows, 2)
+        assert not stream.finished and not capture.drains["p1"].done()
+        assert module.interruption_close_stimulus_ready(evidence.rows, session, capture) is (
+            mutation is None
+        )
+    finally:
+        await capture.stop_playback(playback_id="p1")
+        streams.close()
+        evidence.close()
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    [
+        (None, "OBSERVED_PASS"),
+        ("silent", "OBSERVED_PASS"),
+        ("missing_end", "FAIL"),
+        ("foreign_receipt", "FAIL"),
+        ("early_output", "UNKNOWN"),
+    ],
+)
+def test_pure_explicit_close_uses_existing_current_receipt_and_quiet_oracle(mutation, expected):
+    case = "pure-explicit-close"
+    assert module.CASES[case] == ("math", "explicit_close")
+    rows = good_rows(case)
+    batch = next(r for r in rows if r["kind"] == "LiveToolBatch")
+    if mutation == "silent":
+        batch["calls"][0]["args"] = {"silent": True}
+    elif mutation == "missing_end":
+        rows.remove(batch)
+    elif mutation == "foreign_receipt":
+        next(r for r in rows if r["kind"] == "semantic_end_settled")["receipt_current"] = False
+    elif mutation == "early_output":
+        returned = next(r for r in rows if r["kind"] == "tool_results_return")
+        rows.insert(
+            rows.index(returned),
+            dict(
+                kind="LiveTranscript",
+                seq=returned["seq"] - 0.5,
+                elapsed_s=returned["elapsed_s"] - 0.5,
+                generation=1,
+                direction="out",
+                text="Ja.",
+                start_ms=1500,
+                end_ms=1700,
+            ),
+        )
+    report = assess(rows, case)
+    assert report["verdict"] == expected
+    assert report["physical_close"] == "UNKNOWN"
+    assert "f17_text_and_pcm_observed" not in report
+
+
+@pytest.mark.parametrize("silent", [True, False, None])
+@pytest.mark.parametrize("stale", [False, True])
+def test_silent_model_close_requires_true_silent_argument_and_current_full_chain(silent, stale):
+    case = "pure-explicit-close"
+    rows = good_rows(case)
+    call = next(r for r in rows if r["kind"] == "LiveToolBatch")["calls"][0]
+    call["args"] = {} if silent is None else {"silent": silent}
+    lifecycle = next(r for r in rows if r["kind"] == "natural_thin_end")["timeline"]
+    next(r for r in lifecycle if r["event"] == "close_requested")["reason"] = "model-close-silent"
+    if stale:
+        next(r for r in rows if r["kind"] == "semantic_end_settled")["receipt_current"] = False
+    report = assess(rows, case)
+    legitimate = silent is True and not stale
+    assert report["functional_chain_observed"] is legitimate
+    assert report["nonsemantic_close"] is (not legitimate)
+    assert report["verdict"] == ("OBSERVED_PASS" if legitimate else "FAIL")
+
+
+@pytest.mark.parametrize("early", ["Hmm.", "Ja.", "Modtaget.", "Timeren er sat til ti sekunder."])
+def test_timer_only_backchannel_can_precede_actual_result_without_implying_closure(early):
+    rows = timer_probe_rows()
+    returned = next(r for r in rows if r["kind"] == "tool_results_return")
+    rows.append(
+        dict(
+            kind="LiveTranscript",
+            seq=returned["seq"] - 0.1,
+            generation=1,
+            direction="out",
+            input_index=2,
+            text=early,
+            start_ms=1500,
+            end_ms=1550,
+        )
+    )
+    starts = [r for r in rows if r["kind"] == "fixture_started"]
+    outputs = module.transcripts(rows, "out")
+    chain = module.timer_action_chain(rows, outputs, starts)
+    assert (chain is not None) is (early in {"Hmm.", "Ja."})
+    assert assess(rows, "timer-10s")["verdict"] != "OBSERVED_PASS"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation", [None, "epoch", "session", "generation", "brain", "inactive", "not_finalizing"]
+)
+async def test_committed_finalizer_is_observed_after_provider_clears_receipt(mutation):
+    live = SimpleNamespace(_terminal_receipt=None, _connection_generation=7)
+    session = SimpleNamespace(
+        _live_end_receipt=None,
+        _active=True,
+        _live_finalizing=True,
+        brain=live,
+        _history_session="s1",
+        _epoch=3,
+    )
+    owner = ("s1", 3, 7)
+    if mutation == "epoch":
+        session._epoch = 4
+    elif mutation == "session":
+        session._history_session = "s2"
+    elif mutation == "generation":
+        live._connection_generation = 8
+    elif mutation == "brain":
+        session.brain = object()
+    elif mutation == "inactive":
+        session._active = False
+    elif mutation == "not_finalizing":
+        session._live_finalizing = False
+    assert module.accepted_close_in_progress(session, live, owner=owner) is (mutation is None)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "wrong_answer",
+        "missing_answer",
+        "wrong_input",
+        "foreign_answer",
+        "short_quiet",
+        "pending_work",
+        "wrong_token",
+        "foreign_ready",
+        "late_ready",
+        "semantic_end",
+    ],
+)
+def test_retained_followup_and_idle_require_full_current_evidence(mutation):
+    evidence = copy.deepcopy(
+        json.loads(
+            (
+                Path(__file__).resolve().parents[1] / "fixtures/live_semantic_real_followup.json"
+            ).read_text()
+        )
+    )
+    rows, observed = evidence["rows"], evidence["observed"]
+    answers = [r for r in rows if r["kind"] == "LiveTranscript" and r.get("direction") == "out"]
+    ready = next(
+        e
+        for e in observed
+        if e["event"] == "live_idle_diagnostic" and e.get("idle_blocker") == "ready"
+    )
+    visible = next(e for e in observed if e["event"] == "live_idle_preclose_visible")
+    if mutation == "wrong_answer":
+        answers[-1]["text"] = " fem."
+    elif mutation == "missing_answer":
+        rows.remove(answers[-1])
+    elif mutation == "wrong_input":
+        [r for r in rows if r["kind"] == "LiveTranscript" and r.get("direction") == "in"][-1][
+            "text"
+        ] = " fem"
+    elif mutation == "foreign_answer":
+        answers[-1]["input_index"] += 1
+    elif mutation == "short_quiet":
+        ready["idle_quiet_s"] = 3.9
+    elif mutation == "pending_work":
+        ready["idle_pending_tools"] = 1
+    elif mutation == "wrong_token":
+        visible["native_token"] += 1
+    elif mutation == "foreign_ready":
+        ready["session_id"] = "foreign"
+    elif mutation == "late_ready":
+        ready["seq"] = visible["seq"] + 0.5
+    elif mutation == "semantic_end":
+        rows.insert(
+            next(i for i, r in enumerate(rows) if r["kind"] == "observation_finished"),
+            dict(
+                kind="LiveToolBatch",
+                seq=300,
+                generation=1,
+                response_id="unexpected",
+                calls=[dict(name="end_conversation", id="end", args={})],
+            ),
+        )
+    report = module.assess(
+        "real-followup",
+        rows,
+        clean=True,
+        usage_complete=True,
+        stayed_open=False,
+        observed_lifecycle=observed,
+    )
+    assert report["verdict"] == (
+        "OBSERVED_PASS" if mutation is None else "UNKNOWN" if mutation == "wrong_input" else "FAIL"
+    )
+    assert report["physical_close"] == "UNKNOWN"
+    assert not report["physical_or_browser_proof"]
+    if mutation is None:
+        assert report["negative_idle_complete"] and report["followup_meaning_observed"]
+        assert report["semantic_tool_acceptances"] == report["end_calls"] == 0
