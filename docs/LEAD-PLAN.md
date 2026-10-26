@@ -120,7 +120,7 @@ UNKNOWN må aldrig automatisk genafspille en effekt. Readfejl i ét domæne deak
 | Spor | Ejerrolle | Leverance og næste gate |
 |---|---|---|
 | Connect/lyd/fælles kommandoejer | Connect-engineer | Første tabende START-kant → kausal RED → mindste ejerrettelse; fuld aktuel HA/touch/voice-paritet |
-| Release og station | Connect-engineer; C/Native separat reviewer | Afsnit 4 og 5; protokol/journal er hårde gates |
+| Release og station | Connect-engineer; C/Native separat reviewer | Afsnit 4: journal er hård gate; afsnit 5 stationsfortsættelse er pauset af brugeren |
 | Svar/close/provider | Voice-engineer | Afsnit 6; faktisk input/resultat/output, ikke en blanket relay-patch |
 | Timer/Stop/LED | Native/HA-engineer | Én alarm-/Stop-transaktion, samme-generation LED/playback/rearm |
 | Reads/diagnostik | Backend-engineer | Proven 429-RED og prioriteret bounded retention, afsnit 7 |
@@ -177,6 +177,13 @@ og frisk efterfølgende START. Upgrade/reboot/downgrade-kompatibilitet er obliga
 
 ## 5. PC13 — fuld stationsfortsættelse
 
+**Pauset efter brugerens udtrykkelige beslutning 26. oktober.** Den lange Spotify
+Radio/stationsfortsættelse er synligt udskudt og er ikke længere en gate for denne
+samlede udgivelse. Stop research, nye providerkald og protokolimplementation på dette
+delspor indtil genoptagelse. Eksisterende ordinary START/reconnect, korrekt lyd,
+kontrol, trackidentitet og sand tilstand efter 404 er stadig med i leverancen.
+Kravene nedenfor bevares som genoptagelseskriterier; de er ikke opfyldt eller frafaldet.
+
 Gate0 ejes af Connect-engineeren: genbrug en faktisk vellykket station next-page/context/
 Dealer-trace. Mangler den, kør en bounded autentificeret read-only undersøgelse med
 indledende resolve og to efterfølgende sider pr. case, uden Play, transfer eller audio.
@@ -192,8 +199,8 @@ eksisterende handoff. Natural EOF, Next og prefetch skal bruge samme implementer
 Pagefejl er ikke EOF; ingen GoStart-rewind, første-sang-fallback eller blind retry-loop.
 Tests krydser mindst to udtømte sidegrænser og Next/prefetch-race.
 
-**Uden verificeret kontrakt er PC13 og den bestilte samlede release blokeret.** Andre
-spor fortsætter. Ingen stiltiende udskydelse eller påstand om færdig radiokode.
+**Uden verificeret kontrakt forbliver stationsfortsættelsen uløst.** Den blokerer
+efter brugerens pause ikke denne udgivelse. Ingen påstand om færdig radiokode.
 
 ## 6. Stemme, svar og afslutning
 
@@ -387,7 +394,7 @@ Frisk audit ved planreview: **50 åbne issues, PV37 + PC13**, inklusive tre epic
 | Adgang/recovery/settings | PV109,113,175,184,193,197,115 desktop/Talk/accessibility |
 | Hastighed | PV104,105,106,108 |
 | Samlet accept | PV112,116; epics94,95,96 |
-| Synligt udskudt | PV151 web, PV180 Frameo; kun mobil-delen af115 |
+| Synligt udskudt | PV151 web, PV180 Frameo; kun mobil-delen af115; PC13 lang stationsfortsættelse efter brugerens pause |
 
 PV102 er historisk/nedprioriteret sammenligning, ikke en lokal regnemotor. PC71 kræver
 statusreconciliation for allerede leveret fixture, ikke en ny patch. Epics lukkes ikke
@@ -409,8 +416,9 @@ Actual HA/MCP/entity → fælles ejer og touch undersøges samlet, ikke kun mock
 
 Én senere autoriseret fysisk serie: actual Connect/PV-start og lyd; Connect før Play
 og omvendt; pause/resume/next/previous/volumen/mute/seek efter capability; præcis kø/
-duplikater, output/move/disconnect/reconnect, station fortsætter over sidegrænser;
-tre start/output/reconnect-cyklusser. Voice PE svar/opfølgning/afbrydelse/semantisk og
+duplikater og output/move/disconnect/reconnect;
+tre start/output/reconnect-cyklusser. Lang stationsfortsættelse over sidegrænser
+afventer særskilt genoptagelse og indgår ikke i denne accept. Voice PE svar/opfølgning/afbrydelse/semantisk og
 idle-close/LED/teardown/rearm/ny wake; 10s timeralarm, voice-Stop og fysisk knap/LED.
 Stop ved første fejl, undersøg første tabende kant; ingen blind effekt- eller bred testsuite-gentagelse.
 

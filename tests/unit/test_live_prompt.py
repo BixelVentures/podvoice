@@ -43,7 +43,9 @@ def test_reconsideration_is_one_exact_call_and_never_substitutes_for_fresh_assen
 
 def test_voice_owns_listening_style_and_delegation_backend_owns_product_rules():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
-    assert _sections()["DANSK TALE"].strip() in primary
+    for rule in _sections()["DANSK TALE"].strip().splitlines():
+        if "Én kort sætning er standard" not in rule:
+            assert rule in primary
     for section in ("PRIORITET", "KILDER OG ROUTING", "RESULTATER OG FEJL"):
         assert _sections()[section].strip() in backend
     assert "# LYD OG FORSTÅELSE" not in backend
@@ -149,6 +151,24 @@ def test_startup_primary_carries_official_delegation_token_in_all_branches():
             assert "Do not generate <|SpawnThinking|> when:" in config["instructions"]
             assert "Generate <|SpawnThinking|> før backendarbejde" in config["instructions"]
             assert "<|SpawnThinking|>" not in config["delegation"]["responses"]["instructions"]
+            # Check actual startup policy across normal/custom/confirmation paths;
+            # these assertions do not claim the real model followed that policy.
+            positive, negative = config["instructions"].split(
+                "Do not generate <|SpawnThinking|> when:"
+            )
+            assert "en substantiel forklaring, sammenligning eller trinvis vejledning" in positive
+            assert "som den oprindelige opgave én gang til backend" in positive
+            assert "Giv ikke\nførst et separat direkte svar" in positive
+            assert "et kort, sikkert faktasvar på stabil viden eller enkel matematik" in negative
+            assert "en nødvendig opklaring" in negative
+            assert "allerede\nbekræftede oplysninger" in negative
+            assert "rent modtaget-signal" in negative
+            assert "ingen delegation eller svar" in negative
+            assert "må ikke udløse delegation alene for at tegne et svar" in negative
+            assert (
+                "Ingen ekstra værktøjer, opslag eller modelrunde"
+                in config["delegation"]["responses"]["instructions"]
+            )
 
 
 def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
@@ -420,3 +440,11 @@ def test_backend_silent_choice_requires_no_owed_business_output():
         "Never choose silent=true while a useful answer, action receipt or error is owed"
         in description
     )
+
+
+def test_primary_preserves_explicit_answer_depth_without_changing_short_default():
+    primary, _ = live_instructions(SYSTEM_PROMPT_DA)
+    assert "Én kort sætning er standard" in primary
+    assert "brug højst to" not in primary
+    assert "Følg brugerens udtrykkelige svarformat og omfang" in primary
+    assert "Efter en enkel handling er en kort, sand kvittering nok" in primary

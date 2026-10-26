@@ -44,6 +44,7 @@ PRODUCTION = frozenset(
         "esphome/podvoice.yaml",
         "podvoice/gatekeeper/history.py",
         "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/podview_presentation.py",
         "podvoice/gatekeeper/podview.py",
         "podvoice/gatekeeper/podview_client_diagnostics.py",
         "podvoice/gatekeeper/podview_controls.py",
@@ -130,6 +131,7 @@ REQUIRED_TESTS = frozenset(
         "tests/unit/test_ha_timer_bridge.py",
         "tests/unit/test_history.py",
         "tests/unit/test_live_prompt.py",
+        "tests/unit/test_podview_presentation.py",
         "tests/unit/test_live_wav_firmware.py",
         "tests/unit/test_podview_receipts.py",
     }

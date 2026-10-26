@@ -7,7 +7,7 @@
     "esphome/podvoice-live-alpha.yaml": "5a606738acc83a925d8c8bfe7451e26aba4245478b625b8e4437710968bc0474",
     "esphome/podvoice.yaml": "9a1e8fc3a98c23526e1a6e8ff37faac014153e3ed55a6ecd739508d8d00ab476",
     "podvoice/gatekeeper/history.py": "cd356684e8d5c5439209e35f12e8332238f5952ddd8de0a347f9261de4b6fdf9",
-    "podvoice/gatekeeper/live_prompt.py": "be2db13570604307b7eef4f94c3e82099afaf9be3bbb30b71f70817c26900789",
+    "podvoice/gatekeeper/live_prompt.py": "3f02c5a418929468430109c5b51d4262cb890955db69eb85098d8246fc7fbd9d",
     "podvoice/gatekeeper/podview.py": "b2f8eaffa36876baf4de25592d0c562908b6e09ca69ced7d4f9ab3db13f03499",
     "podvoice/gatekeeper/podview_client_diagnostics.py": "0c84056c1f3cd441bf0f4d0655d723a5a7fdbd4c6c8426d3f9f06a3cda1eb02b",
     "podvoice/gatekeeper/podview_controls.py": "00094bf780b8e66e704ead2987f574dce336c1c23618dc46c985726898fd1839",
@@ -65,7 +65,8 @@
     "podvoice/gatekeeper/thin.py": "893e3b899c6336d6a985d215d446442517df1b369d8e26e070524e8cbba2ffb9",
     "podvoice/gatekeeper/tools.py": "2d127351d203a9db0465030d1a63d83d8b2a50b31e270c7a453515ad8dc504b2",
     "podvoice/gatekeeper/voicepe.py": "a1914bad32765deb25e62937ad4022fe72402b28df7155e31bf57edc3b3ce781",
-    "podvoice/gatekeeper/web.py": "d8ac4f98ec5930844de6fa39783f1982d7bf496df7c2955840e1713970f28c7c"
+    "podvoice/gatekeeper/web.py": "d8ac4f98ec5930844de6fa39783f1982d7bf496df7c2955840e1713970f28c7c",
+    "podvoice/gatekeeper/podview_presentation.py": "2290ce17794f2e95c37f7bd5292f71b2c0159fa5165b251f9efc7ea67a8a5951"
   },
   "regressions": {
     "tests/firmware/stop_retry_test.cpp": "35ba7081339e53bea331d4951fe07839550b49ae863ec74981ba82d96634bc24",
@@ -91,9 +92,10 @@
     "tests/unit/test_firmware_contract.py": "a4d19e3d95c9f1ee66df77bb098f82efbcb9afd0464e48d7477ca6803c21817c",
     "tests/unit/test_ha_timer_bridge.py": "cbdeb28c6e94e90e26056c112ca61194d5b7ebd64b68e5c47ddbcdb33b2bd91d",
     "tests/unit/test_history.py": "aaddd509bc33e796e4d2c2493560213c97d5e4b9cdce4dd6c55b1f630fdca256",
-    "tests/unit/test_live_prompt.py": "63b99fdf1325232e43793cf9a53ea00300613e9f8cd6315f3ed84d3626282aae",
+    "tests/unit/test_live_prompt.py": "820749178912af8755eaee74b50edfc9844d6285c8ec063884254057007e29c6",
     "tests/unit/test_live_wav_firmware.py": "e06928aa953f5c945833c7c04733ffa1f726da3d1563e65774ded475993f47ea",
-    "tests/unit/test_podview_receipts.py": "5430734edd0a2d61d90eb83f823c2c1d905a041fc2a1e10b7821fec20d8b522e"
+    "tests/unit/test_podview_receipts.py": "5430734edd0a2d61d90eb83f823c2c1d905a041fc2a1e10b7821fec20d8b522e",
+    "tests/unit/test_podview_presentation.py": "f295334d9429cbe7a96346799f6047b9d13b5089130d877659a34b938fc864eb"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "02d98493b9d504f286263cb04a79943f67acd3b9e5804595ac9c68845efdee37",
@@ -145,7 +147,7 @@
     "podvoice/gatekeeper/live_audio_judge.py": "917c1b3ccfea11dea8ede7b6971236b8e7c075ee5569188039bacdd20e49dbe1",
     "podvoice/gatekeeper/live_idle.py": "3611aea369b51f4f118490f1eb9ddb1f24607dece91081b1f7dca2f44278f04b",
     "podvoice/gatekeeper/live_input_policy.py": "4f541aec49161e3f467630c1df0dce1b7032f57beeb88ccd752b494e44b6ea14",
-    "podvoice/gatekeeper/live_prompt.py": "be2db13570604307b7eef4f94c3e82099afaf9be3bbb30b71f70817c26900789",
+    "podvoice/gatekeeper/live_prompt.py": "3f02c5a418929468430109c5b51d4262cb890955db69eb85098d8246fc7fbd9d",
     "podvoice/gatekeeper/locality_data/CREDITS.txt": "bc13efbf22b11cae302cc823727b8442b8cb55565112081bff0de4cfe898ee8a",
     "podvoice/gatekeeper/locality_data/GEONAMES-README.txt": "b1957379b6c1242c700c98ac9a8aa0a09f56c3c0a50ee72175527005f48ef2c5",
     "podvoice/gatekeeper/locality_data/localities.json": "5a00e7740328397d7d6ce49ec52d45dbba06c2539c3af5bd41cab496da35a37b",
@@ -178,7 +180,7 @@
     "podvoice/gatekeeper/podview_music.py": "4ea9f687753d32c4b582dd7bdabd7adc6a6f16389f58c3dcef792252209f9b16",
     "podvoice/gatekeeper/podview_music_control.py": "4ee11cb69baa4888f241ff6f34c6c769db26f16bb627e0917edb1e69b38e2dc9",
     "podvoice/gatekeeper/podview_music_selection.py": "671a3e15e301a712197c83d1ccc2dce8a23b39aadf1f840a93af0e5ea9f0434f",
-    "podvoice/gatekeeper/podview_presentation.py": "95dbd941e2e69b9bc3a7f191f66e514a6384d8cf08dee08b89a5201a3d233774",
+    "podvoice/gatekeeper/podview_presentation.py": "2290ce17794f2e95c37f7bd5292f71b2c0159fa5165b251f9efc7ea67a8a5951",
     "podvoice/gatekeeper/podview_queue.py": "5b6e641005347bcf0d7e25eb7d3295ea92c9c16e93297308e71d660490119b5e",
     "podvoice/gatekeeper/podview_queue_scope.py": "32a680acd6188875ff521fc227bf55aeb6d87fb04047457ccbcba08c9277eb87",
     "podvoice/gatekeeper/podview_receipts.py": "a4d8dedb86cbe2e50f38ce2678dd8efad0de82b3397432af4d39ae10f96aabe3",
@@ -438,7 +440,7 @@
   },
   "policy": {
     ".github/workflows/ci.yml": "056d4e5d2f11dd7c566bbc3a074a1c2ca5c1997f84c4ca7ffeb7364cea61a8fb",
-    "docs/LEAD-PLAN.md": "e625f1eb749257d1357a2dc1cadf38b1514c6f524d928f3dd2071ee143472aab",
+    "docs/LEAD-PLAN.md": "5fdd09c3547ca81fcf6cf657e1ab1ee98dcf0637d21f76563afc8bf27f17fb8f",
     "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
     "scripts/candidate_scope_admission55.py": "27bcff315821d51484026279cbe78574e5ff04a2601cb1ba7417621dd34d2869",
