@@ -533,3 +533,19 @@ for(const boundary of ['stale','revoked'])test(`inline ${boundary} Robot fallbac
   assert.ok(f.view.task);assert.equal(f.view.robotPanel._disabled,false);assert.equal(card.hidden,true);assert.equal(f.view.robotButton.hidden,true);assert.equal(f.writes(),0);
  }finally{f.cleanup();}
 });
+
+test('live receipt rendering preserves staged room Tile identity and never adds command progress padding',async()=>{
+ const f=await livePanelFixture();try{const room=f.view.robotPanel.querySelector('[name=areaIds]'),name=room.querySelector('span').textContent;
+ f.view.renderReceipt();f.view.render();
+ assert.equal(room.dataset.kit,'tile');assert.ok(!room.className.split(/\s+/).includes('pv-kit-button'));assert.notEqual(room.dataset.feedback,'progress');assert.equal(room.querySelector('span').textContent,name);
+ emit(room,'click');f.view.renderReceipt();assert.equal(room.dataset.kit,'tile');assert.equal(room.checked,true);const operation={key:'pending-robot',bootId:'boot',roomId:'room',domain:'vacuum',target:{entityId:'vacuum.actual'},label:'Start',optionId:f.view.task.options[0].id};f.view.activeOperation=operation;f.view.pending=true;f.view.remember(operation,'pending');for(let i=0;i<3;i++)f.view.render();assert.equal(room.dataset.kit,'tile');assert.ok(!room.className.split(/\s+/).includes('pv-kit-button'));assert.notEqual(room.dataset.feedback,'progress');assert.equal(room.querySelector('span').textContent,name);assert.equal(f.writes(),0);f.view.pending=false;f.view.activeOperation=null;
+ }finally{f.cleanup();}
+});
+test('source offered Robot enum labels are translated only in their own concept and opaque IDs remain unchanged',()=>{
+ const panel=new RobotControlPanel(),actions=[],sets=[['cleaning_mode',['vacuum','vacuum_and_mop','mop','custom'],['Støvsug','Støvsug og vask','Vask','Tilpasset']],['suction',['quiet','balanced','turbo','max','max_plus','off','custom'],['Stille','Balanceret','Turbo','Maks.','Maks.+','Fra','Tilpasset']],['mop_intensity',['off','low','medium','high','custom','custom_water_flow'],['Fra','Lav','Mellem','Høj','Tilpasset','Vandflow (tilpasset)']],['mop_mode',['standard','deep','deep_plus','future_vendor'],['Standard','Dyb','Dyb+','future_vendor']]];
+ const admitted=task();admitted.options[0].argsSchema.settings=sets.map(([key,labels],i)=>({id:'setting-'+i,key,label:key,choices:labels.map((label,j)=>({id:'opaque-'+i+'-'+j,label})),current:'opaque-'+i+'-0'}));
+ panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device,connected:true};
+ for(const [i,control]of panel.startSettingControls.entries()){assert.deepEqual(control.rail.inputs.map(input=>input.parentNode.querySelector('span').textContent),sets[i][2]);assert.deepEqual(control.rail.inputs.map(input=>input.value),admitted.options[0].argsSchema.settings[i].choices.map(choice=>choice.id));}
+ const off=panel.startSettingControls[1].rail.inputs[5];off.checked=true;off.dispatchEvent(new Event('change'));assert.equal(panel.readCleaningDraft().settingChoices.find(x=>x.settingId==='setting-1').choiceId,'opaque-1-5');assert.deepEqual(actions,[]);
+ const foreign=new RobotControlPanel(),foreignTask=task();foreignTask.options[0].argsSchema.settings=[{id:'mode',key:'cleaning_mode',label:'Type',choices:[{id:'off-id',label:'off'}],current:'off-id'}];foreign.data={task:foreignTask,device};assert.equal(foreign.startSettingControls[0].rail.inputs[0].parentNode.querySelector('span').textContent,'off','off is not translated as a cleaning mode');
+});

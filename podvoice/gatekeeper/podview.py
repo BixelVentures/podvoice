@@ -2639,8 +2639,17 @@ async def _observed_queue_offer(request: web.Request) -> web.Response:
 
 
 async def _music(request: web.Request) -> web.Response:
+    from . import mood_diagnostics as diagnostic_log
+
+    diagnostic_kind = request.query.get("kind")
+
+    def admission(reason, status):
+        if diagnostic_kind in {"mood", "feeling"}:
+            diagnostic_log.admission(diagnostic_kind, reason, status)
+
     denied = await _guard(request)
     if denied is not None:
+        admission("guard_denied", denied.status)
         return denied
     bridge: PodViewBridge = request.app[BRIDGE]
     kind = request.query.get("kind", "targets")
@@ -2667,6 +2676,7 @@ async def _music(request: web.Request) -> web.Response:
         return _error("invalid_account", 400)
     room = _room(request, bridge)
     if room is None:
+        admission("room_required", 409)
         return _error("room_required")
     tools = bridge.tools
     if not all(
@@ -2674,6 +2684,7 @@ async def _music(request: web.Request) -> web.Response:
         for method in ("podview_read", "podview_music_reads", "podview_music_binding")
     ):
         bridge._music_cache.clear()
+        admission("tools_unavailable", 503)
         return _error("music_unavailable", 503)
     if kind == "speakers":
         return web.json_response(
@@ -2963,11 +2974,14 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         or not isinstance(account, str)
         or not 1 <= len(account) <= 1024
     ):
+        diagnostic_log.admission(kind, "invalid_request", 400)
         return _error("invalid_mood_request", 400)
     selector = getattr(tools, "podview_mood_selector", None)
     if kind not in tools.podview_music_reads() or (kind == "mood" and selector is None):
+        diagnostic_log.admission(kind, "not_admitted", 403)
         return _error(f"{kind}_not_admitted", 403)
     if bridge._music_busy or bridge.music_selection.busy(room):
+        diagnostic_log.admission(kind, "busy", 429)
         return _error("music_busy", 429)
     binding = _music_binding(bridge, room)
     grant = bridge._grant_for_token(room, token)

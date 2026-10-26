@@ -162,3 +162,28 @@ def finish(diagnostic, token):
         )
     except Exception:
         pass  # Observability must not replace a response or interrupt cancellation cleanup.
+
+
+def admission(kind, reason, status):
+    """Record only fixed route decisions before an aggregate attempt exists."""
+    try:
+        _LOG.info(
+            "mood_admission kind=%s reason=%s http_status=%s",
+            _closed(kind, _KINDS),
+            _closed(
+                reason,
+                frozenset(
+                    {
+                        "guard_denied",
+                        "room_required",
+                        "invalid_request",
+                        "not_admitted",
+                        "busy",
+                        "tools_unavailable",
+                    }
+                ),
+            ),
+            status if type(status) is int and status in {400, 403, 409, 429, 503} else "other",
+        )
+    except Exception:
+        pass
