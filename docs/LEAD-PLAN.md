@@ -324,7 +324,7 @@ UI-inputfeedback, serviceaccept, frisk state og faktisk lyd måles hver for sig 
 p50/p95/max og clockproveniens; fixturetiming er ikke et Green-løfte.
 
 Planlagt næste bundle: PV **2.0.91**, Speakers **0.26.54**, Control **0.10.24**;
-PV HA-komponent **0.1.6** kun hvis bytes uændrede, ellers patch-bump med nye pins.
+PV HA-komponent **0.1.7** med timer-bridge-rettelsen og nye pins.
 Verificér at versionsnumre er ledige ved freeze; bind faktiske commits, trees,
 rootfs/assets, komponentfiler, options/policy og data. Ét PR pr. berørt repo og én
 officiel CI på hvert endeligt frossent træ. Focused kausal/adapter/static under udvikling;

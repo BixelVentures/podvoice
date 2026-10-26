@@ -1,3 +1,131 @@
+### Integrated native terminal-output admission correction
+
+Root adopted independently reviewed Thin526ac5b6 and quiet-closefixture86dbb69
+from finalpacketf9cdc66b. Actual-order regression fails original immediateclose and
+passes with existing fresh current-native outputwindow after backendsettled. Full
+affectedmodule35/35; prior80neighborchecks retained; formatter/lintpass. Reviewer
+close_adversarial SOURCE/TESTSGO exactpins. Newinput/Stop/generation/receiptcurrency,
+silentvariant, staleobservation and exactplayback/rearm assertions preserved. No
+newtimeoutvalues or fabricated primarycompletionevent. Existing4squiet may add
+latency; completeprimaryspeech/provider/physical readiness still notproved.
+Root integrationreceipt /private/tmp/pv91-terminal-output-integration-20261026.json.
+
+Admission inventory updatedmissing2canonicalmusicUIpaths and existingthin_livefixture;
+manifest regenerated fromcurrentbits but reviewbindings stayblank/failclosed.
+Four admissionfixturechecksPASS, Ruff/formatPASS; notfinalcompositionacceptance.
+CandidateHAcomponent0.1.7 recordedinplan; installedbaseline0.1.6unchanged.
+User explicitly approved3newsyntheticcases timer/explicitclose/interruption,
+maxoneeach/stopfirstfailure/max6minpausewithrestart. Existing5actualreportsimmutable;
+newprivateoperatorprep sourceonly while rootmaintainsGreenrunning. No additional
+Spotifyrequest: providercursor404 stilllacksdemonstratedlocalfix.
+
+### Final two original provider cases executed; five-call budget exhausted
+
+Root ran reviewed remaining-two operator8a67dc9c with exact startup receiptdfce1b63,
+sourcefingerprintdaefe64e. Both original cases ran once; no retries/newcases.
+Politefollowup actual OBSERVED_PASS (report3afb4a53): exact input/math4/6, noEND,
+full negativewindow, clean/usage true. Timer actual FAIL (reportd423c0c7): input
+recognized, exact10s tool succeeds, permitted END and final truthfulbackendresult
+present, but no primary spokenresult beforeclosure. Both connections cleanterminal,
+no runtimefaults. Actual5/5connections nowused; results not5/5success. Unknown/FAIL
+originals retainidentity. No householdalarm/music/robot effects. Root restored HA
+PodVoice2.0.89 and confirmed Kører afterthebatch; all keyvariables cleared/formclosed.
+
+Official OpenAI live-conversations Usage and gracefulclose fetched: finish required
+backendwork beforeclose; close cancelsqueuedResponses/rejectsnewwork, permitsactive
+response tofinish, retainconnectionuntilsession.closed. This guaranteesfinalization,
+not primaryspeechcompletion from backendfinal. Current source closed28ms afterfinal.
+Isolated actual-order regression nowRED→GREEN with existing postsettlement native
+outputwindow admission, no newtimeoutvalues; owner still preparing fencevalidation
+and sourcepacket. Not yet integrated/reviewed/provideraccepted/installed.
+
+### Active lead decision: terminal backend receipt must not preempt primary output
+
+Actual fifth synthetic provider timer call reportd423c0c7/timeline98a77fb9 confirms
+recognized10s request, tool success14.227s, permitted standalone-action END16.302s,
+truthful backend final17.414s, settlement17.442s immediately provider request_close.
+No primary receipt transcript/PCM follows final backend result. Latest nonzeroPCM
+16.111s predates it. Earlier statement that END intent itself was premature is
+withdrawn: prompt98-101 explicitly permits completed standalone-action close.
+Nonverbal sigh before result is separate; user permits human vocalizations, do not
+add phrasefilters or remove that feature to green a test.
+
+Affected chain: input→Live delegation→timer result→isolated END→final backend receipt
+→primary speech opportunity→provider close→exact physical drain→teardown/rearm.
+Invariants: backend completion is not primary completion; one mechanical close;
+current receipt/generation and late-input/Stop authority preserved; native/Talk
+remain separate I/O adapters, no fabricated audio_done, replay or extra modelcall.
+Hypothesis: native semantic admission checks only currently-empty work and ignores
+its existing reset terminal-output window, admitting close on the same scheduler
+turn as backend result before primary can render that result. Prove actual-order
+regression without testholding finish until output. Investigate smallest existing
+owner correction using already-defined output observation/window, not newtimeout
+values or newabstraction. Do not assert waiting alone proves a complete response.
+Tests: delayed current output after settlement remains received; old quiet cannot
+admit close; current fresh drained output and exact tail close once; stale/duplicate
+output/receipt/Stop/newinput cannot cross generation; Talk expectations unchanged.
+Independent adversarial source review required. Rollback boundary only isolated
+semantic admission correction. No new provider calls approved beyond usedfive;
+PC13 protocol gate and final release/installation remain open. Owner timer_close_cause
+prepares isolated patchproposal; root integrates only after causal proof/review.
+
+### 26 October actual Spotify successor and evaluator correction
+
+Root approved capture used six readonly requests: token/login/address/initial/page1
+HTTP200; supplied page2 HTTP404 with emptybody. Initial and page1 contain identical
+50 track URIs/UIDs; page1 repeats these in prev_tracks and changes radio-apollo to
+radio-router. Cursor-metadata receipt ec3b6283c387d00a0bab070743ddd48de93b53a8a3956037c35672b34d597480
+confirms source preserves supplied service/path/rawquery. No justified production
+fix or endpoint substitution; PC13 actual initial+two-successor gate remains open.
+One approved bounded capture remains, only after concrete new correction. This
+station-continuation evidence does not negate user's actual PodView HomePod sound.
+
+Isolated evaluator latest12e829fa/test1034ffb2/combined7cf305b6 independently reviewed
+GO; root155 focused checks plus Ruff/format passed. Persistent synthetic stream
+pacing now observes consumed quiet PCM without waiting circularly for session EOF;
+real-followup oracle admits only correlated actual fresh4s idle after correct4/6,
+full matched lifecycle and no pending work/late transcript. Separate offline actual
+report reassessment OBSERVED_PASS; original actual FAIL/UNKNOWN immutable. This is
+test-only correction, not product semantic-close proof or physical acceptance.
+Adopted only into isolated F17 provider candidate; shared runtime unchanged. Three
+actual provider connections used; remaining original polite-followup/timer cases
+being prepared offline with cumulative five-call guard. No provider call/HA pause,
+release/install/OTA or household effect during this correction.
+
+### Provider continuation evidence and explicit next boundary
+
+After reviewed tooling c21ded4e (134focusedPASS), root ran ONLYoriginal unrun
+explicit-close through reviewed privatefour-unrunoperator0c3d89. Total actualprovider
+connections nowTWO (interruptfirst+explicitclose), bothclean shutdown/usagecomplete.
+Second evidence /private/tmp/pv91-four-unrun-provider-actual-20261026 remainsUNKNOWN:
+mathanswered; originalpaperplane input observed; onecompletedbackend and bound7-step
+presentationreceipt; substantivefulloutputtranscript explains samepaperplane sequence.
+No explicit_close fixture was sent, no endcall: existingf17_completion exact
+spoken-vs-primarytext equality rejected naturalparaphrase/A4-vs-A-fire/allowedhum.
+Thus later44s app-idle-timeout is not semanticcloseproof. RootrestoredHA; browser
+confirms2.0.89Kører. No invented5/5; threeoriginalcases stillNOTRUN.
+Independent freshSol6.1 semanticreview agrees firstlosingedge is verbatimoracle,
+D2requiresusefulfullspeechnotverbatim. Transcript doesnotproveintelligiblePCM or
+physicalplayback; addedwing-leveling sourcedvisual-vs-spokenonly prompt discrepancy
+remainsseparatefinding. Newisolatedf17_pacing_owner decouples nextstimulus dispatch
+from finalsemanticgrading using actualcompletedcorrelatedreceipt/output/drain;
+no runtimepatch, no gradingwaiver, no newprovidercalls.
+Corrected offlinebindingreceipt1f5a2785 pins all101sources; truehandofffingerprint
+cab540af549a34a086afe3daace9dfc5bde25d6924a1c8c2853b4518a0e9ff1c.
+Earlier2c9aa7 is101fileinventorydigest, metadatafixedwithoutreexport.
+
+PC13 finiteerrorcategory sourceef254/ebcc99 independentlyreviewedGO and testedoffline;
+isolatednextbinary7b1bcc/newpath/producerfabc745 scopedindependentGO. Originalfirst
+captureimmutable. Root requested newattempt; AUTOMATICAPPROVALREVIEW REJECTED before
+process launch because initialpermission was ONE attempt. NO secondcapture ran.
+Pendinguserquestion now asks exactlyone newreadonlySpotifycapture6requests45s,
+sameexistingstoredlogin/noPlay. Do not bypass rejection or silentlyreuseoriginal
+permission. Continueindependentsoftware/providerunruncaseswithinremainingoriginalcap.
+
+RemotePV workbranch verified92d6a28dfb36b9b6448038898e1f59d79276a6c1/tree
+5f45b9cf7ee3b6b652b41360bd83722adc96d45c includesF09+morningevidence. This later
+STATUS paragraph is localuntilnextcheckpoint. No merge/publication/install/OTA.
+
 ### Physical evidence correction — user report26October
 
 User explicitly confirms actual audible HomePod playback FROM PODVIEW yesterday.
