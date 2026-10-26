@@ -1,3 +1,7 @@
+## Active lead decision — diagnostic export readHash, 26 October 2026
+
+Lead/release owner: /root. Observed: a valid 16-character readHash accepted by diagnostics is rejected by the export-only closed whitelist; the actual exported-handler fixture reproduced zero downloads on valid input (13 pass/1 fail), then passed 14/14 after the narrowly reviewed fix. A live export click was inconclusive; this does not uniquely establish its cause. Chain: retained private diagnostic row → export validation → bounded local download and cleanup; preserve the 128-row/64 KiB limits, privacy, existing authorization and failure handling. Hypothesis: admitting only the existing canonical lowercase 16-hex readHash lets valid correlated rows export while malformed/private fields remain rejected. Non-goals: no endpoint, raw ID, network, audio, household action, UI geometry or authority change. Planned checks: exact owner runtime/test pins, handler positive/privacy negatives, canonical scope/admission, independent exact-tree review and official CI. Rollback removes this export-validator delta and retains 2.0.93. Actual result: exact runtime before/after pins and mapped existing handler fixture match; 14/14 focused handler tests pass. Combined exact-tree review, official CI, publication and installation remain pending. Physical/live export acceptance remains open.
+
 ## Active lead decision — next combined 2.0.93 candidate, 26 October 2026
 
 Lead/release owner: /root. Installed 2.0.92 is the preserved baseline; its physical acceptance remains open. Observed uncertainty: early mood/feeling admission refusals are not consistently visible in existing bounded diagnostics. The separately reviewed admission-log patch provides direct source evidence, not proof of a field cause. The reviewed PodView post92 package corrects robot layout and retains command authority; its seven before/after runtime pins matched the merged baseline. Inert mood retry evidence does not establish the cause of the live mood failure.
@@ -6525,5 +6529,27 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
   "runtime_fingerprint": "617585de1fb631f3d7deba68abed42895bf12a5bf917f64d20deb1ae203ebcbb",
   "tooling_fingerprint": "9e8fbb59821b1382b5daf5671fc28ea4af01eaa65eac591f3c199084a768f697",
   "version": 70
+}
+-->
+
+<!-- podview94-admission
+{
+  "base_tip": "a49711ea3a81d8420b91ddd9407cf83ea45029c0",
+  "config_fingerprint": "2a456f1154f2795cf6fb6511b006d162bf22af617a8b0fbe207c184fdeefaaec",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "958bc32bf28094568e45ce97e17e2fc94169608dacfa59c307f3ad9f07218ab8",
+  "kind": "podview94_single_owner_integration",
+  "manifest_fingerprint": "e8207967feb4e80b0f18c42c3e77a8da0aeca34aa9433d9c77cf61dfe31833b6",
+  "merge_base": "a49711ea3a81d8420b91ddd9407cf83ea45029c0",
+  "policy_fingerprint": "0b81797e23cfe3348073149bd6849465268f9961ab2d0ea034446bfa203d65f5",
+  "rationale": "Reviewed bounded diagnostic export validator; live export acceptance remains open.",
+  "regression_fingerprint": "deb7f7d38113b0788c6f4b6ba994b6e828441ebe70a6caaea4cf14344d0608fc",
+  "reviewer": "/root/silent_close_adversarial",
+  "runtime_fingerprint": "76a396a58d02923abf843e52c87b35aab80aa3ff2b17ee59b1b21f33e7bf260b",
+  "tooling_fingerprint": "32962a0b3812bf709d983ef4b06b054821304c3b6275a7fd461cc48666eb6ef0",
+  "version": 71
 }
 -->
