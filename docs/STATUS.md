@@ -1,3 +1,130 @@
+### Physical evidence correction — user report26October
+
+User explicitly confirms actual audible HomePod playback FROM PODVIEW yesterday.
+Record as successful physical playback for that userobserved attempt. Do NOT erase
+this evidence or relabel PC13's separate station-successor gate as a present general
+HomePod no-sound failure. Exact candidate/session of yesterday's success is not
+identified by this message, so no invented versionbinding/reconnect/continuation
+acceptance. Today's PC13 capture transport failed beforelogin/context and provides
+NO evidence that yesterday's audible playback regressed. Existing reported control
+faults and stationcontinuation remain independently scoped.
+
+### Morning execution results and canonical F09 integration
+
+Actual exact-five approved OpenAI batch stopped after its FIRST case,
+interrupt-active-output: UNKNOWN/thin_session_ended, oneconnection,
+clean_shutdown=true and usage_complete=true. Otherfour NOT RUN. Evidence immutable:
+/private/tmp/pv91-five-case-provider-actual-20261026. Trace diagnosis finds harness
+readiness used startup nonzeroPCM preceding long_count sourceinput, so no actual
+interruptionoverlap was established; no runtime fault/semanticEND observed. Root
+restored HA immediately; fresh browser observed_at1793001986.1630027 confirms
+2.0.89/r0connectedIDLE/wakerecovered/MCP+PodConnectup. No runtime timeout tuning.
+Voice_close87 owns smallest causal tooling correction plus exact regression, not
+new providercalls. Keyform closed/keyvariable cleared; no secret output/files.
+Actual approved single PC13capture stopped at firstclienttoken request before
+login/context/pages: pc13_client_token_unavailable, requests1/status0/bytes0.
+Evidence /private/tmp/pc13-readonly-capture-20261025/evidence/manifest.json. No
+stationprotocol success or productionfault inferred. No retry or household effect.
+Existingprivatebackup credential projected only in memory to childstdin; noauthfile.
+
+Root adopted PodView canonical F09 successor runtime.patch a29b8c86 on exact203
+5cebbase (all203beforehashesmatched). Same-tab guardedselect no longer interrupts
+anownedrefresh; canonical existing2806/source/scopedpixelGO retained withoutrepeat.
+All203 finalruntimehashesmatch newmanifest f00fc148 and asset a709b830. Integration
+receipt /private/tmp/pv91-same-tab-integration-20261026.json. Sourceonly, no release
+or Greeninstallation claimed; final91scopebindings remain blank/unfrozen.
+
+## Resume execution — 26 October morning
+
+User explicitly approved both existing-provider gates without a guaranteed USD5 cap,
+and Green plus puck installation. Earlier missing-permission blocker is resolved;
+no replacement goal or narrower acceptance is introduced. Previous status-only turn
+was NO PROGRESS; root now resumed the concrete approved actions.
+Fresh Green browser read observed_at1793000920.5749283: PodVoice2.0.89,
+git5a9bb2b2da735399a1069f529ca4ace572779efb, rootfs
+c931cd3eea8132361f4aa4510d952df62f711a0c1e404bc05b12f8f74b7b68b2;
+r0 connected/IDLE/wake recovered, MCP and PodConnect up. No physical readiness claimed.
+Root privately acquired the approved existing OpenAI key in browser memory only;
+no key printed, persisted, or submitted to a provider yet. Field rehidden.
+Existing PC13 readonly test binary built offline in warm glfork image, exit0,
+SHA62c05342aa0c94dbf3cb7f891efa3d58912b846c02d4725ef92bdb87d2971f9a.
+No Spotify login read or network capture yet. Exact-five private operator preparation
+and independent review underway; root sole HA pause/restart/key/provider operator.
+Next: exact approved gates once, stop first failure; maintain quiet household boundary.
+No publication, install, OTA, provider PASS or physical acceptance claimed.
+
+### Blocked audit — third consecutive occurrence of the same missing permissions
+
+Previous goal turn was PROGRESS: exact source integration, cold-restart protocol
+proof, permanent regression, provider preflight preparation and remote checkpoints.
+The same two explicit gate approvals remained unanswered in the original quiet-puck
+turn, the preceding goal continuation, and this continuation. No new human reply or
+approval arrived. Current authoritative agent inventory shows all assigned workers
+terminal/completed; no compile, test, upload, CI or install is still running here.
+Root reread current handoff and active goal. Independent preparation is now complete;
+the next causal actions are the actual OpenAI and Spotify checks already described
+above, both dependent on the pending permission answers. D2 makes these release gates
+binding; running official CI on an unfrozen tree or inventing another audit would
+not remove the blocker. No new keys/calls/pauses/houseeffects/restarts/install made.
+This satisfies the three-turn repeated-blocker threshold and true impasse condition.
+Request goal status Blocked now; preserve the full objective and all existing install
+permissions, reviewed source and exact preflight commands for resumption. No claim of
+ReadyforQA/Done/release/Green/puck installation or provider/physical success.
+
+## Current lead handoff — 26 October, release still blocked by explicit gates
+
+Previous goal turn classification: PROGRESS, not a status loop. This continuation
+also integrated/reviewed actual F02/F04 UI and Thin whitespace observation correction,
+proved real successful-PC70->coldC/newNative->freshSTART, retained it in existingCI,
+and backed up exact source. No household effects/provider/auth read/installation/OTA.
+
+Current public work refs, plugin lease and readback verified:
+- PV non-F17 integration:1beffbe41e3d9c77789c5b93775b256245491445,
+  treef6683d51477d1f8d227d33ea50cd8d298a75e0be (8file final increment).
+- PC integration:68cf51bbde26a44e06bc47648d86b2cae92c6b5f,
+  tree1b150060c351d49270d8e261591954d42320e94f (3fixture/CI paths).
+- F17 ISOLATED EVALUATION ONLY:codex/podvoice91-f17-eval
+  5a2ff81f87d3f57e1206a91c0fe3a8e05587aee4,
+  tree697f2a1d6aae17599e2a88ec540df14c8f727314. Source/pre-run reviewed10path
+  F17v3 delta22ca35bb atop same latestThin+canonicalUI; not adopted/released.
+All trees independently reconstructed before commits; no duplicate unknown mutation.
+
+Canonical final UI203/manifest5cebdf1a/asset67065523 is root-integrated with retained
+2792tests/source/pixel GO. PodView confirms same203 actual integrated hash set. Its
+workspace has no Gitremote/unbornmain; no inventedparallelrepo. Full564file canonical
+source/tests/registry/review/evidence package is durably backed outside/tmp at
+Documents/PodView/docs/qa-ui22/deliveries/podview-music-retry-volume-20261026-final.zip
+SHA0498c9c4fb8eda9d263626d06a58888f71bc0393f4c68a82caf986378e8c763a,
+34,634,708bytes, archiveverified. Runtime source is backed in PV currentworkref;
+private/local evidence archive is not remotely pushed or misrepresented as release.
+
+Exact isolated F17v3+Thin36f16 final5 offline startup exports are prepared once in
+/private/tmp/pv91-f17-thin-final-startup-bindings-20261026, receipt20b86cf092f4818828c366b72eed5280d79de80528eae33345bb0bdd6b4effb5.
+4cases5c172a72, timer-cbb69f76; rootverified101sourcepins and latest203UI.
+Explicitclose nowmath->presentation_steps->close, alloriginalclose/directmath
+assertions andother4cases unchanged,45s/case,inerttimermock. No actualprovider-PASS,
+usefulfullPCM review, hard-$5 guarantee or permission inferred. F17 is not sharedadopted.
+Future strict91 provisional inventory prepared isolated only byadmission34:
+/private/tmp/pv91-admission-f17-provisional-packet-20261026/inventory.patch
+SHA32739b2f0bdd67e6786974282ecc8f616d396abf77f0987b75c5961757ff72cb;
+89effective paths/46prod/29regression/326runtime/4config/82policy/184tooling/203assets.
+Actualscope/classifier/config/immutable/assets/pins +4focused/static pass; approval
+bindingsblank. No genericallowlist/riskwaiver. SourceUI/Native/Thin reviews closed;
+provider gates and final exact-tree binding remainOPEN, not an obsoleteF04hold.
+
+Concrete next actions blocked on the two already-presented unanswered permissions:
+1. Practical5case quietGPT-Live proof with existingHAkey privately toOpenAI; current
+   API cannot guarantee hardtotal$5. Afterapproval run exactboundfivecases once,
+   stopfirstfailure, reviewusefulfullcapturedPCM, onlythenadoptF17 exactsource.
+2. Private existingSpotify stored-login read for single readonly initial+2opaque
+   successor-page capture (max6requests/45s/noAP/Dealer/Play). PC13Gate0 stillunproved;
+   publicprimaryresearch yields same404/no successfulwiretrace; relevanthmbackport
+   alreadyinoursource. Do not inventendpoint/fallback or silentlydeferPC13.
+Then finalinventory/independentprebind/strictbindings, oneofficialCI perrepo, PRs,
+merge/publish/compatiblebackupinstallGreen+privateLIVE115OTA, realversions/services/
+artifacts/readonlyflows. No activation beforegates. Nightrealhouseaudio remainsforbidden;
+physicalseries/lifecyclematrix/latency/soak remainseparate. Goalnotcomplete/paused.
+
 ### Current integrated source — canonical F02/F04 and observation correction
 
 Root exact integrated canonical final UIpatch2b981fdf overSTART/MOVEbase; all203
