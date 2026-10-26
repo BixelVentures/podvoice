@@ -1,3 +1,9 @@
+## 26 October 2026 — 2.0.93 installed; physical acceptance open
+
+Lead/release owner: /root. This update supersedes the 2.0.93 delivery-pending statements below. PR #257 official CI run 40399440163 passed; publication run 40402339183 produced image dad124e6. Green reports PodVoice 2.0.93 running, with runtime commit a49711ea3a81d8420b91ddd9407cf83ea45029c0 and build identity bcd20dc6b8b7072c45e39b4630136a52a3f9f9e39f981f830c7cffbf64542f3d. PodConnect 56 and Control 25 were previously verified.
+
+Robot rooms and all levels were read live; no cleaning was started. The intended start volume is 35%; subsequent manual volume control must allow 0–100%. No policy change is implied. Tesla and lights are not connected. Physical acceptance, including the outstanding device and audio checks, remains open.
+
 ## Active lead decision — next combined 2.0.93 candidate, 26 October 2026
 
 Lead/release owner: /root. Installed 2.0.92 is the preserved baseline; its physical acceptance remains open. Observed uncertainty: early mood/feeling admission refusals are not consistently visible in existing bounded diagnostics. The separately reviewed admission-log patch provides direct source evidence, not proof of a field cause. The reviewed PodView post92 package corrects robot layout and retains command authority; its seven before/after runtime pins matched the merged baseline. Inert mood retry evidence does not establish the cause of the live mood failure.
