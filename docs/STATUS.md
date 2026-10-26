@@ -1,3 +1,130 @@
+### Current integrated source — canonical F02/F04 and observation correction
+
+Root exact integrated canonical final UIpatch2b981fdf overSTART/MOVEbase; all203
+runtime paths matchmanifest5cebdf1a andasset67065523. Retain2792/2792 UIcases,
+component63,3syntax, canonical independent source and scoped ProductDesign/Impeccable
+pixel reviews. Actual local same/other card retry after source rejection and same
+card retry after correlated directPOST rejection require explicitclick, freshcatalog/
+task/request/opaqueoption and1newsend; no reload/Other suggestions, UNKNOWNautoreplay
+or TTL extension. F04 chosen35 stays distinct from observed70, zero fromactual35.
+Rootreceipt37168d5c3602615362fca1b8e84f10c72b87a3c14ceafb86a0af2e9d835e0d3d.
+Reviewed Thin whitespace-only observation fix1c902e8f is also integrated exact2paths;
+Thin36f16ac5, actualSDKnative/Talk->HubHistoryrestart2RED->GREEN plus authority/stale/
+rotationnegatives and retained16neighbor cases. No newmetadata/completionkind/schema
+or semantics. Old provider startup source binding is now legitimately invalidated
+by Thin source change; final isolated F17candidate will export onceaftercomposition.
+F17v3 prompt/docs/pipeline and oracle source pre-run GO22ca35bb is ISOLATED only,
+not adopted: useful actual fullspeech and close gates stillrequired. Old oracle
+whitespacefalse-negative corrected byreuseofexisting471dhelper plusliteraloutput
+comparison;121affectedchecks pass, unchanged112source/pipelineevidence retained.
+No provider, officialCI, merge/release/install/OTA/physicalacceptance claimed.
+
+### Cold-successor software proof retained as permanent existing-CI regression
+
+Independent74 fixture/evidence GOa9f371eb verifies unchanged211C/162Native runtime
+pins, preservedsameSQLite/FIFO, realterminalPC70release then newC/Nativeprocesses,
+newtoken andfreshSTART reachingCOMPLETED/open/35 plus6authenticatedRTP toprivatepeer.
+Both old/new driver runs Native0/C0. No forcedcleangate/journaldeletion, no houseaudio.
+Root independently replayed final565Cfiles and adoptedONLYexistingCtestspayload
+4cbca768/checksum70258ade and3-line existingselected-start-clockCIadapter. Same
+actualpassedflags (no addedmetadataflag), freshprivateDB/FIFO sharedacrosstwo calls;
+oldjobs/driver/binaries/defaulttests/productionC4c8fa andNative7bb386/105345 unchanged.
+Root receipt /private/tmp/pc56-cold-root-integration-20261026.json SHAdb8abbe4797f2be3284ee43f12102d6b5bc88125c3a43bf74283476c1b3adb29.
+OfficialCI stillpending; retainedactualsoftwarepositive is not physical/Spotifyproof.
+
+### Observed transcript whitespace loss — minimal correction decision
+
+Existing SDK->Thin->History->restart reproduces actual retained synthetic fragments
+' Hvad er',' ','2',' plus',' ','2' becoming ' Hvad er2 plus2'. First lost edge is
+Thin LiveTranscript input .strip() early return before Hub persistence. Invariants:
+raw fragments are observations, never completedturn/authorizing input; provider
+rotation/stale generation remain fenced; user-input revision, semantic close cancel,
+confirmation/tool authority must NOT advance on blank fragments. Hypothesis: preserve
+nonempty whitespace-only current/nonrotating input through the existing transcript
+persistence path, leave every authority update behind existing nonblank guard.
+Owner voice_close prepares isolated smallest Thin/fixture delta. Regression must
+use actual SDK adapter+Hub+History persisted/restarted exact text, plus blankinput
+no revision/closecancel/toolauthority, stale/rotation and Talk counterpart contracts.
+No new history completion kind, Q/A pairing, provenance claims, renderer/DTO/store
+or transport-complete marker: D2 section8 explicitly permits legacy fragments as
+transcript and limits F16 persistence to alreadyvalidated visual snapshots. Provider
+metadata enrichment remains an unimplemented proposal, not a proven required bug.
+This correction cannot explain or close PV215 wrong/missing spoken answer without
+same-candidate evidence. Rollback unchanged authority behavior if any negative fails;
+independent review before integration. No provider or household action authorized.
+
+### F17 held routing work — bounded isolated preparation, not adopted
+
+Required D2 useful substantive explanations/steps/comparisons still lack the
+explicit original-task delegation rule in current primary prompt; optional backend
+presentation and durable snapshots alone do not implement it. Existing held packet
+/private/tmp/pv90-f17-owned.patch SHA6dca5d67 contains approved-direction narrow
+routing/backend guidance and focused fixtures; actual useful full spoken completion
+and earlier explicit-close are still unproved. Invariants: model-owned semantics,
+one delegation of original task (no extra drawing selector), direct short facts/
+math/clarification, complete output and semantic/idle closure, no house effects.
+Falsifiable hypothesis: reuse those exact narrow prompt hunks in isolated91 source
+and verify one original-task delegation with accepted structure plus useful full
+speech before explicit close, while preserving direct math and all existing close
+assertions. No shared candidate adoption before actual provider gate. Existing
+explicit-close session may add prepared presentation_steps turn between math and
+close, keeping all original assertions and other4 cases; this remains5 sessions,
+adds bounded backend work, same45s/case and pending practical budget approval. Stop
+at first failure; do not silently add a sixth case/drop a mandated assertion or
+claim costs are hard-capped. Owner weather_backend_review prepares distinct isolated
+source/harness hunks and startup binding; independent reviewer before any paid run.
+Rollback: current prompt unchanged unless useful speech/structure and close gates
+pass on exact candidate. No local transcript classifier or forced primary callback.
+
+### PC13 primary-source research retained; no speculative duplicate patch
+
+Bounded official go-librespot/librespot research found no observed successful
+station initial+two linked200pages trace. Official go-librespot masterbd3fa740
+prefers actual supplied hm contextURL and follows opaque pageURL/nextPageURL;
+public324 reproduces radio-router/v3 page2/index100404, and288 documents deep paging
+failures. Neither is the required successful protocol capture. The relevant supplied
+parent-URL/RequestHm backport already exists in our reviewed Native source, so no
+second endpoint/fallback/rewind/retry patch is justified. Source links:
+https://github.com/devgianlu/go-librespot/blob/bd3fa7407eb1ab595295446e1be50cb9663e69cb/spclient/context_resolver.go
+https://github.com/devgianlu/go-librespot/issues/324
+https://github.com/devgianlu/go-librespot/issues/288
+PC13 Gate0 remains OPEN pending authorized actual bounded capture; ordinary source
+or mocked status tests are not a substitute. No private auth/provider action made.
+
+### Continuation check — unchanged provider bindings and bounded restart proof
+
+Previous goal turn made concrete progress: canonical START/MOVE UI integrated,
+local idle preference defect causally fixed/reviewed, exact228 Native composition
+replayed and both current reviewed source checkpoints pushed/read back. This is
+not a no-progress/status-only turn and does not establish release/install.
+Current continuation verified source checkpoints in STATUS and PodView live thread
+inProgress: F02 locked-choice and F04 draft-volume corrections underway, final UI
+packet not yet supplied. Root does not duplicate canonical UI ownership.
+Independent voice_close checked all5 existing offline startup bindings against
+current101 source/config pins: zero drift, no refreshed exports or paid/provider
+call needed. Retain exact d997a57f/e30a0bdb startup files. No provider-PASS claimed.
+D2 mandatory successful-PC70-release -> C restart/newNative -> freshSTART currently
+has no combined actual protocol proof. Existing crash/PENDING recovery is separate;
+mode29 normally deletes temporary DB/FIFO. Root authorizes isolated fixture-only
+persistent-path phase extension in existing C start35_wire_case, reusing existing
+driver twice and preserving actualjournal/gate. No production runtime/harness or
+forced clean state, no household effect. Owner sol61_release75_review reports first
+counterexample; root integrates only frozen fixture evidence after actual result.
+Two private-protocol/provider approvals remain unanswered; no secret access/call,
+release gate waiver, installation or OTA inferred from prior install approval.
+
+### Reviewed PV current source checkpoint backed up publicly
+
+GitHub plugin ref lease/readback verified225d4038a5ba92901fb207ce389c78c72e459d23
+on codex/podvoice91-single-owner, tree19ffae37e4ab487a37858cb9185cdb302b1c71a3.
+Root reconstructed full77file candidate delta from actual90main independently;
+exact tree matches23file checkpoint increment. Old237c tree was not stored locally,
+so failed read-tree caused no repeated API mutation; full local reconstruction
+resolved identity. Six unchanged public firmware metadata paths checked byte-exact.
+Source includes canonical START/MOVE/current consumers/planned91 metadata and strict
+blank admission scaffold; pending F02/F04 increment is not claimed. Work checkpoint
+only, not PR/CI/merge/publication/Green/puck installation or physical acceptance.
+
 ### Reviewed PC integration checkpoint backed up publicly
 
 GitHub plugin created24file current reviewed source increment from prior040ef315;

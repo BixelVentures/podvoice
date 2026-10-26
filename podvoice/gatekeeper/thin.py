@@ -3388,11 +3388,9 @@ class ThinSession:
                     return
                 lease.watchdog = self._spawn(self._start_live_playback(lease), "live-playback")
         elif isinstance(ev, LiveTranscript):
-            if ev.direction == "in":
-                if not ev.text.strip():
-                    return  # Empty provider fragments are not fresh authorizing input.
-                if self._live_rotating:
-                    return  # Capture transition input cannot authorize the fresh phase.
+            if ev.direction == "in" and (not ev.text or self._live_rotating):
+                return  # Capture transition input cannot authorize or enter fresh history.
+            if ev.direction == "in" and ev.text.strip():
                 self._retire_talk_text_observation()
                 self._retire_live_review()
                 self._live_input_revision += 1

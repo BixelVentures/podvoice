@@ -2387,6 +2387,155 @@ async def test_live_typed_text_persists_once_for_rotation_context(tmp_path):
         await session.aclose()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("browser", [False, True])
+async def test_recorded_live_input_spaces_survive_history_restart(tmp_path, browser):
+    from unittest.mock import AsyncMock
+
+    from test_talk_stop import HistoricalWavBrowserLink
+
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+    from gatekeeper.talk import TalkHub
+
+    history = History(tmp_path / "history.jsonl")
+    send = AsyncMock()
+    device = HistoricalWavBrowserLink(send, AsyncMock()) if browser else None
+    session, sdk, _, _, _ = build(device=device)
+    if browser:
+        session.room = "talk"
+    session.hub = TalkHub(send, history=history) if browser else StatusHub(history=history)
+    await session.start()
+    try:
+        await session.wake()
+        owner = session._history_session
+        # Exact input deltas retained from the synthetic explicit-close trial,
+        # before its first math answer. These are observations, not complete turns.
+        fragments = (" Hvad er", " ", "2", " plus", " ", "2")
+        for index, text in enumerate(fragments):
+            await emit(
+                sdk,
+                {
+                    "type": "session.input_transcript.delta",
+                    "delta": text,
+                    "start_ms": 2400 + index * 200,
+                    "end_ms": 2600 + index * 200,
+                },
+            )
+        await emit(
+            sdk,
+            {
+                "type": "session.output_transcript.delta",
+                "delta": "To plus to er fire.",
+                "start_ms": 3600,
+                "end_ms": 4000,
+            },
+        )
+        await until(lambda: session._talk_output_text_revision == 1)
+        restored = History(history._path)
+        conversation = restored.conversations(room=session.room)[0]
+        records = conversation["turns"]
+        assert "".join(row["text"] for row in records if row["dir"] == "in") == "".join(fragments)
+        assert tuple(row["text"] for row in records if row["dir"] == "out") == (
+            "To plus to er fire.",
+        )
+        assert records[0]["fragment_count"] == len(fragments)
+        assert session._live_input_revision == 4
+        assert {row["kind"] for row in restored._records()} == {"segment"}
+        assert conversation["session"] == owner
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("browser", [False, True])
+async def test_live_blank_history_has_no_input_authority_and_fences_stale_rotation(
+    tmp_path, browser, monkeypatch
+):
+    from unittest.mock import AsyncMock, Mock
+
+    from test_talk_stop import HistoricalWavBrowserLink
+
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+    from gatekeeper.talk import TalkHub
+
+    history = History(tmp_path / "history.jsonl")
+    send = AsyncMock()
+    device = HistoricalWavBrowserLink(send, AsyncMock()) if browser else None
+    session, sdk, _, tools, _ = build(device=device)
+    if browser:
+        session.room = "talk"
+    session.hub = TalkHub(send, history=history) if browser else StatusHub(history=history)
+    await session.start()
+    try:
+        await session.wake()
+        owner, generation = session._history_session, session.brain._connection_generation
+        cancel_end = Mock(wraps=session._cancel_live_end)
+        retire_review = Mock(wraps=session._retire_live_review)
+        monkeypatch.setattr(session, "_cancel_live_end", cancel_end)
+        monkeypatch.setattr(session, "_retire_live_review", retire_review)
+        receipt = asyncio.get_running_loop().create_future()
+        session._live_end_receipt = receipt
+        session._ending_conversation = True
+        revision, sequence = session._live_input_revision, session.brain.input_sequence
+        evidence = dict(session._live_input_evidence)
+        for text in ("", " ", "\n\t"):
+            await emit(
+                sdk,
+                {
+                    "type": "session.input_transcript.delta",
+                    "delta": text,
+                    "start_ms": 0,
+                    "end_ms": 10,
+                },
+            )
+        await emit(
+            sdk,
+            {
+                "type": "session.output_transcript.delta",
+                "delta": "barrier",
+                "start_ms": 10,
+                "end_ms": 20,
+            },
+        )
+        await until(lambda: session._talk_output_text_revision == 1)
+        persisted = [json.loads(line) for line in history._path.read_text().splitlines()]
+        assert [(row["dir"], row["text"]) for row in persisted] == [
+            ("in", " "),
+            ("in", "\n\t"),
+            ("out", "barrier"),
+        ]
+        assert all(row["session"] == owner for row in persisted)
+        assert session._live_input_revision == revision
+        assert session.brain.input_sequence == sequence
+        assert session._live_input_evidence == evidence
+        assert not session._live_backend_revisions and not session._committed_tool_batch_ids
+        assert tools.calls == []
+        assert session._live_end_receipt is receipt and not receipt.done()
+        assert session._ending_conversation
+        cancel_end.assert_not_called()
+        retire_review.assert_not_called()
+        before = history._path.read_bytes()
+        for text in (" ", "late stale input"):
+            await session._on_live_event(LiveTranscript("in", text, 0, 10, generation + 1))
+        session._live_rotating = True
+        try:
+            for text in (" ", "rotating input"):
+                await session._on_live_event(LiveTranscript("in", text, 0, 10, generation))
+        finally:
+            session._live_rotating = False
+        assert history._path.read_bytes() == before
+        assert session._live_input_revision == revision
+        assert session._live_input_evidence == evidence
+        assert session._live_end_receipt is receipt and not receipt.done()
+        assert session._ending_conversation
+        cancel_end.assert_not_called()
+        retire_review.assert_not_called()
+    finally:
+        await session.aclose()
+
+
 def test_live_saved_context_keeps_complete_recent_suffix_within_sdk_limits(tmp_path):
     from gatekeeper.history import History
     from gatekeeper.hub import StatusHub
