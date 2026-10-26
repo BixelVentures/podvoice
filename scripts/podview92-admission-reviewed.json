@@ -8,7 +8,7 @@
     "pyproject.toml": "c5c3118e98fba29bca082965b50945a36a802ff0f6ade6b6de508e2ed68873bb"
   },
   "policy": {
-    ".github/workflows/ci.yml": "f36c5f7dbc858c586cf6a918214ee2eba87bffff6bd70015a6911e68cab5824f",
+    ".github/workflows/ci.yml": "af63d8c3c1ec77404b13b1709ff77f99901510b8faa0761fb45ec1b207227c30",
     "docs/LEAD-PLAN.md": "3da9a887c94603f3c21d345102d4729c8a8687618e665bff283132efdd9a33e7",
     "scripts/candidate_scope_admission53.py": "3dd5cb587b12faa82a1e279c9fac14b1239160678d137b6aa545d7dceb5e8faf",
     "scripts/candidate_scope_admission54.py": "dec041abcb8a42bf09312ce667e2413045bd95c4d594ebd3d07d8034de521456",
@@ -123,6 +123,7 @@
     "tests/podview/root-second-move-lifecycle.test.mjs": "cf6c88b1b00ae528fa8b1e5f3d11d2fd3d32809900503d5a2593654e6b987edf",
     "tests/podview/root-speaker-modal-anatomy.test.mjs": "485c8d5174ff37681315d8c87d39619d93749f1d4d5cbe4ddb0d8b9e8945157f",
     "tests/podview/root-vehicle-view.test.mjs": "7f94c97e24b40fed5d07b00a8c24d6c398c26e18b363b45ff3493d9de9df4d50",
+    "tests/unit/test_candidate_scope_admission91.py": "0abc7f23a07519ab2d6ba38e5e9b097ce0b0101f3fa77c970e968c6f631dad93",
     "tests/unit/test_mood_diagnostics.py": "0745b099fac9154d9b36dfcff8e9fb7e9d69a009ae4698d32c8f8bb706c6c7e9"
   },
   "runtime": {
@@ -467,7 +468,7 @@
   },
   "schema": "podview92.admission.v1",
   "tooling": {
-    ".github/workflows/ci.yml": "f36c5f7dbc858c586cf6a918214ee2eba87bffff6bd70015a6911e68cab5824f",
+    ".github/workflows/ci.yml": "af63d8c3c1ec77404b13b1709ff77f99901510b8faa0761fb45ec1b207227c30",
     ".gitignore": "59fefbd55eb97763c5e82d9c5fc428f02b553138907a1d3501ab8eaaf16e7b21",
     "AGENTS.md": "c451ba9702c2ca9b92e89fdc5f98f6bf3337757b860bb647be1d6e5dc8885bdb",
     "CLAUDE.md": "ae8fd9ee7093a80647592372719a956f6d938a04838dee845bb22ccb5beb5a7c",
