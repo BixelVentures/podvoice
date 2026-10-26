@@ -216,3 +216,56 @@ async def test_actual_tab_caller_preserves_kind_and_catalogue_failure(
     assert bridge.controls.music.setup_context.await_count == 0
     assert bridge.controls.music.execute_context.await_count == 0
     assert not bridge._music_busy and diag._CURRENT.get() is None
+
+
+@pytest.mark.parametrize(
+    "mode,status,reason",
+    [
+        ("guard", 403, "guard_denied"),
+        ("room", 409, "room_required"),
+        ("invalid", 400, "invalid_request"),
+        ("admission", 403, "not_admitted"),
+        ("busy", 429, "busy"),
+    ],
+)
+async def test_early_admission_is_fixed_private_and_has_no_provider_call(
+    mood_rig, caplog, mode, status, reason
+):
+    from integration.test_podview_mood_preview import request
+
+    from gatekeeper.podview import BRIDGE, _music
+
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    req = request(mood_rig, account="PRIVATE_ACCOUNT")
+    bridge = mood_rig.app[BRIDGE]
+    if mode == "guard":
+        req.remote = "8.8.8.8"
+    elif mode == "room":
+        req.query["room"] = "PRIVATE_ROOM"
+    elif mode == "invalid":
+        req.query["PRIVATE_QUERY"] = "PRIVATE_VALUE"
+    elif mode == "admission":
+        mood_rig.router.podview_mood_selector = None
+    else:
+        bridge._music_busy = True
+    before = list(mood_rig.calls)
+    response = await _music(req)
+    assert response.status == status
+    assert mood_rig.calls == before
+    records = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
+    assert records == [f"mood_admission kind=mood reason={reason} http_status={status}"]
+    assert "PRIVATE" not in " ".join(records)
+
+
+async def test_admission_logger_failure_preserves_rejection(mood_rig, monkeypatch):
+    from integration.test_podview_mood_preview import request
+
+    from gatekeeper.podview import BRIDGE, _music
+
+    def broken(*args, **kwargs):
+        raise ValueError("PRIVATE_LOGGER_FAILURE")
+
+    monkeypatch.setattr(diag._LOG, "info", broken)
+    mood_rig.app[BRIDGE]._music_busy = True
+    response = await _music(request(mood_rig))
+    assert response.status == 429

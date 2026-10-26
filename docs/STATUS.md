@@ -1,3 +1,9 @@
+## Active lead decision — next combined 2.0.93 candidate, 26 October 2026
+
+Lead/release owner: /root. Installed 2.0.92 is the preserved baseline; its physical acceptance remains open. Observed uncertainty: early mood/feeling admission refusals are not consistently visible in existing bounded diagnostics. The separately reviewed admission-log patch provides direct source evidence, not proof of a field cause. The reviewed PodView post92 package corrects robot layout and retains command authority; its seven before/after runtime pins matched the merged baseline. Inert mood retry evidence does not establish the cause of the live mood failure.
+
+Affected chain: mood/feeling request → existing guard, room and capability admission → selector/read → existing response and later refresh; preserve authorization, task ownership, stale/duplicate callbacks and lifecycle. Hypothesis: fixed reason/status admission logs will identify the earlier refusal boundary without changing requests or decisions. Non-goals: no raw identifiers, content, new authority, provider/audio behavior, automatic retries or physical device effects. Planned regression: focused route/diagnostic tests, exact-source scope and independent combined review, followed by official CI on the frozen candidate. Rollback removes the bounded admission diagnostics and any separately approved robot layout delta, preserving merged 2.0.92. Official PR CI exposed a workflow-label mismatch (the highest admission dispatch is 93 but the label ended at 92); the label was corrected without changing runtime or scope. Actual focused checks: admission-route 22/22 and adapted robot/music fixture mirrors 572/572 pass; package reports 3121/3121 and source/visual GO. Independent combined exact-tree review and official CI remain pending. No publication, installation or new physical acceptance is claimed.
+
 ## Active lead decision — bounded playback/queue read correlation, 26 October 2026
 
 Lead/release owner: /root. Observed problem: intermittent playback/queue read failures lack a shared, privacy-preserving client/server correlation; existing evidence does not establish their underlying cause. Direct evidence: independently reviewed server correlation-v3 and frontend handoff with anonymous per-call header/hash and existing queue-recovery baseline. A correlation token connects observations; it is not proof of provider or physical success.
@@ -6497,5 +6503,27 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
   "runtime_fingerprint": "b9f527a5fe396d751626ab780fd3192cdda7230160bb7d956b3098a95a764c8c",
   "tooling_fingerprint": "3e6eeed623b8d9fbb6507c21f262d727598de10b4350e50bf69589fe12014684",
   "version": 69
+}
+-->
+
+<!-- podview93-admission
+{
+  "base_tip": "815c9a19e8369f14015ea597a46e63c80f4c9956",
+  "config_fingerprint": "af189e4cdfca36e370a4a6af8398f5a6920dd078c3abc142edaf4ce81cc63aa3",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "2043efe3b2f4e553b790161f93afcd5ce221baa7bd3455c349d2581406c3456e",
+  "kind": "podview93_single_owner_integration",
+  "manifest_fingerprint": "576d9a5ba0ee5f28bc827fa41eb7a2113c82f8d43ad3f0e403e38807adce4154",
+  "merge_base": "815c9a19e8369f14015ea597a46e63c80f4c9956",
+  "policy_fingerprint": "b67c45467692d47196ea0109182349cd69a14c14191caaf9365f8f7e0116d94f",
+  "rationale": "Reviewed PodView robot layout and bounded mood admission diagnostics; physical acceptance remains open.",
+  "regression_fingerprint": "7d761f681f18edea3c08c6ab0721921ed0384b2ca931a2b1c27bd39d0dd00465",
+  "reviewer": "/root/silent_close_adversarial",
+  "runtime_fingerprint": "617585de1fb631f3d7deba68abed42895bf12a5bf917f64d20deb1ae203ebcbb",
+  "tooling_fingerprint": "9e8fbb59821b1382b5daf5671fc28ea4af01eaa65eac591f3c199084a768f697",
+  "version": 70
 }
 -->

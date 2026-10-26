@@ -74,7 +74,7 @@ test('music-only invalidation preserves pending vacuum ownership and its eventua
   f.host.liveSnapshot.capabilities.controlSetup.push('vacuum');
   const raw={ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'vacuum-task',revision:1,expiresAt:Date.now()/1000+60,options:[{id:'pause',action:'pause',label:'Pause rengøring',argsSchema:{kind:'none'}}],setup:{mapName:null}};
   f.host.liveTransport.controlSetup=async domain=>domain==='vacuum'?raw:f.offer();await f.view.open('vacuum',{entityId:'vacuum.actual'});const task=f.view.task;assert.ok(task);assert.equal(f.view.robotControlOffer.task,task);assert.equal(f.view.robotControlCurrent(f.view.robotControlOffer.context),true);
-  const pause=new Node('button');pause.dataset.controlOptionId='pause';f.view.robotPanel.querySelectorAll=()=>[pause];
+  const pause=new Node('button');pause.dataset.kit='button';pause.dataset.controlOptionId='pause';f.view.robotPanel.querySelectorAll=()=>[pause];
   const hold=deferred();f.host.liveTransport.controlAction=async()=>hold.promise;
   const running=f.view.send('pause',{}),generation=f.view.generation,opening=f.view.opening,operation=f.view.activeOperation;
   assert.equal(operation.domain,'vacuum');assert.equal(f.view.pending,true);assert.equal(pause.dataset.feedback,'progress');assert.equal(pause.getAttribute('aria-busy'),'true');assert.equal(f.view.receiptNote.hidden,true);
