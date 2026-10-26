@@ -6,7 +6,9 @@ import json
 import logging
 import re
 
-_READ_HASH = contextvars.ContextVar("podview_read_hash", default=None)
+_READ_HASH: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "podview_read_hash", default=None
+)
 _UUID4 = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 _LOG = logging.getLogger("podvoice.podview")
 
@@ -32,7 +34,7 @@ async def observe_read(request, handler, kind):
         except Exception:
             _log(kind, digest, "exception", "none")
             raise
-        reason = "none"
+        reason: object = "none"
         failed = False
         try:
             body = json.loads(response.body) if response.body else {}

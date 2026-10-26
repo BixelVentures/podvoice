@@ -6,7 +6,7 @@ Affected chain: browser playback/queue read → optional bounded request correla
 
 Planned verification: causal frontend classification and asynchronous diagnostic callback tests; server validation, privacy, logger failure and actual request adapter regressions; exact 215-asset inventory, canonical candidate admission, independent exact-tree review and official CI on the same candidate. Rollback: remove only the correlation additions and their matching fixtures/binding, preserving the independently reviewed queue-recovery candidate.
 
-Reviewer found the correlated row was rejected by the existing client-diagnostics closed whitelist, causing its whole upload to fail. The minimal correction admits only a 16-character lowercase hexadecimal readHash on incoming and stored rows; malformed and private variants remain rejected. Focused store roundtrip and negative tests pass. Actual result: adopted frontend runtime before/after pins match and matching root fixture baselines are preserved. Focused frontend tests 90/90 and server tests 34/34 pass; canonical admission and changed Python lint/format pass. Independent exact combined review and official CI remain pending. No publication, Green installation, live provider correlation or physical audio acceptance is claimed.
+Reviewer found the correlated row was rejected by the existing client-diagnostics closed whitelist, causing its whole upload to fail. The minimal correction admits only a 16-character lowercase hexadecimal readHash on incoming and stored rows; malformed and private variants remain rejected. Focused store roundtrip and negative tests pass. Official CI reported three mypy errors in the correlation logger: inferred ContextVar None and reason str rejected possible values. Added explicit matching type annotations without changing behavior; canonical mypy on all 98 gatekeeper files and focused diagnostics tests pass. Actual result: adopted frontend runtime before/after pins match and matching root fixture baselines are preserved. Focused frontend tests 90/90 and server tests 34/34 pass; canonical admission and changed Python lint/format pass. Independent exact combined review and official CI remain pending. No publication, Green installation, live provider correlation or physical audio acceptance is claimed.
 
 <!-- podview91-admission
 {
@@ -6486,15 +6486,15 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "30c5106eb64469e5774650c466736ce4f971d2e889868704e6c9aaf004c4d231",
+  "fingerprint": "cb07bc2d234187a7560f551a62ff038144db3d89a069d1f4b515a8374f2725d3",
   "kind": "podview92_single_owner_integration",
-  "manifest_fingerprint": "4e45229e88c94f423f1de8582daab06453885b68a9e2d2ef1710caba1a7b6176",
+  "manifest_fingerprint": "33f93a6b32ce82fcb21c9cab1201a423dfd6b8f1490098d2b944f506c5fb4453",
   "merge_base": "1606b2015f8c5dcd165505303a8968824ba83147",
-  "policy_fingerprint": "918400f149d92e2cc408aa54ba42a2eedd9565b996356c0fedc8f987d262da82",
+  "policy_fingerprint": "60177a231cbd440d59a3941b19e196deb8f078b54da9502573d68684d8914617",
   "rationale": "Reviewed UI92 successor with bounded playback and mood diagnostics; physical acceptance remains open.",
   "regression_fingerprint": "1cd8b9466c35ecf1b4ccd4a5728af0fcfde05b4dbc540713f9686f6e1223a2ec",
   "reviewer": "/root/silent_close_adversarial",
-  "runtime_fingerprint": "5f0d6117afef2b2b5d1b93f43428eb4126f76a2e0b0abb04bbd58feab7816fea",
+  "runtime_fingerprint": "b9f527a5fe396d751626ab780fd3192cdda7230160bb7d956b3098a95a764c8c",
   "tooling_fingerprint": "3e6eeed623b8d9fbb6507c21f262d727598de10b4350e50bf69589fe12014684",
   "version": 69
 }
