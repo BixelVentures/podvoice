@@ -65,6 +65,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-next-player-view-source.test.mjs",
         "tests/podview/canonical-next-player-view.test.mjs",
         "tests/podview/canonical-packet-player-view.test.mjs",
+        "tests/podview/music-control-catalogue-independence.test.mjs",
         "tests/podview/root-live-media-queue-lifecycle.test.mjs",
         "tests/podview/root-native-music-controls.test.mjs",
         "tests/podview/root-player-view.test.mjs",
@@ -92,8 +93,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/review95_binding"
-MANIFEST_SHA = "54eb92d706d9872a0f6fde8846e0f4ee5326c259f338eb8a0719645455e61995"
-PROFILE_AST = "b23567fba9dfbebedc8d2f28196683b55602d9f6c830a2eea42d84f1789081d0"
+MANIFEST_SHA = "1280f334fba2aef032aecb1e70d256ca11e352de949c878c87e30e7c2e8078fc"
+PROFILE_AST = "3b6cd2339fba6f9b40d7427e162500cb96d370c68dd593d7ca4324aa30e0ccaf"
 
 
 def record_at(root: Path) -> dict | None:

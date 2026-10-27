@@ -10,6 +10,8 @@ Planned checks: trace-shaped mocked delayed/missing terminal and socket closure 
 
 CI #838 failed on a startup-cancel fixture awaiting its deliberately blocked cleanup and on a missing optional-integer type annotation. The fixture now releases its existing fake cleanup gate before awaiting cancellation; the annotation changes no runtime behavior. Focused three-outcome regression, mypy across 98 files and Ruff passed on the reviewed correction. CI and final combined binding remain pending.
 
+CI #839 failed three catalogue-independence cases because their assertions retained the old control error wording. The four fixture literals now match the reviewed copy; behavioral and no-effect checks are retained. Focused invalidated modules passed 44/44; exact binding review and official CI remain pending.
+
 Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refresh, loading and control feedback packet (215 runtime entries; 10 changed assets plus asset manifest) with source and visual GO; 3,143 owner tests passed on that base. The reviewed successor updates music messages and Hjem padding to 28 px per side; its focused 202 tests passed, while the 3,143-test result is inherited from its base. Installation and actual music, queue and session acceptance remain open. The independent CI fixture repair retains wrapped cleanup ownership. No Robot or Tesla additions. Start35 and manual 0–100 physical checks remain open. Combined exact-tree review and official CI are pending.
 
 <!-- podvoice96-admission
@@ -23,12 +25,12 @@ Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refr
     "physical_output"
   ],
   "fingerprint": "9ff723fd6b9c3d265fd533f8dadde1d689d8873438cedb525b1576c85f5426c8",
-  "regression_fingerprint": "2b2728678f7253413f729ca6a90003c6d89d366290bf4f5bce8b55b59e76fae9",
+  "regression_fingerprint": "ba7e02ed249a1580cf7065a4655d8b84b78081a5f10289c57a22daed1649cb33",
   "runtime_fingerprint": "c3a5d2d7fb589d83dde8be12c1aabb482b42fd45a649b2fcba10ac79b20dbc7c",
   "config_fingerprint": "9ea79b4475953708fb363a54c942d75838b2887f3901818cf4356c55bf775dcf",
-  "policy_fingerprint": "241692ebeeab61891a5290a6930fd76046a908fdc283f1cfaea2d8bffc10f9d0",
+  "policy_fingerprint": "c7608d519aa3c21edd005c0e441fa39e8cc762591059a8d5552ee0c75feeed3d",
   "tooling_fingerprint": "93a6e0c385fa444287515b0dc716ab207fbb149cf9ee378cd79164894194fc1e",
-  "manifest_fingerprint": "54eb92d706d9872a0f6fde8846e0f4ee5326c259f338eb8a0719645455e61995",
+  "manifest_fingerprint": "1280f334fba2aef032aecb1e70d256ca11e352de949c878c87e30e7c2e8078fc",
   "reviewer": "/root/review95_binding",
   "rationale": "Exact GPT-Live native Stop and reviewed PodView music candidate; independent composition review pending."
 }

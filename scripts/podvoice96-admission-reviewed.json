@@ -124,6 +124,7 @@
     "tests/podview/canonical-next-player-view-source.test.mjs": "ed3863617e421c397bfef2cca695c821505e734ca1093fc6fc19969ecff7480e",
     "tests/podview/canonical-next-player-view.test.mjs": "ed3863617e421c397bfef2cca695c821505e734ca1093fc6fc19969ecff7480e",
     "tests/podview/canonical-packet-player-view.test.mjs": "ed3863617e421c397bfef2cca695c821505e734ca1093fc6fc19969ecff7480e",
+    "tests/podview/music-control-catalogue-independence.test.mjs": "6eac787d5eaf4ce31553a19a41c2b0b5c0fae9a87c73f081467b144875631983",
     "tests/podview/root-live-media-queue-lifecycle.test.mjs": "3217052e135133886f0f43dfbc535bb734546889f9dd28fa84284168e89c4abf",
     "tests/podview/root-native-music-controls.test.mjs": "ee1327d87c5cfa09cf07540990e5334a57f01cf4c0c74231dd10fbc436711d96",
     "tests/podview/root-player-view.test.mjs": "6ecfd06bb6954ef0525095870d413dd56df026eeb003d49aaf254660e8901917",
