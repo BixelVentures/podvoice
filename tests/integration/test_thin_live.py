@@ -411,7 +411,7 @@ async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_re
         "time",
         SimpleNamespace(**{**vars(thin_module.time), "monotonic": lambda: clock[0]}),
     )
-    cancelled = asyncio.Event()
+    cancelled, release = asyncio.Event(), asyncio.Event()
     provider_budget = None
     original_step = session._teardown_step
 
@@ -428,7 +428,7 @@ async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_re
     async def manager_exit(_sdk, *_):
         assert session.brain.final_usage_seconds == 5
         try:
-            await asyncio.Event().wait()
+            await release.wait()
         except asyncio.CancelledError:
             assert provider_budget is not None
             clock[0] += provider_budget
@@ -441,8 +441,8 @@ async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_re
         assert cancelled.is_set()
         available = 0.1 if adapter == "native" else 0.18
         assert provider_budget == pytest.approx(available)
-        sdk.client.close.assert_awaited_once()  # SDK finally cleanup is still attempted.
-        assert session.brain._lease is None
+        sdk.client.close.assert_not_awaited()  # Manager ownership is still unresolved.
+        assert session.brain._lease is not None and session.brain._manager is sdk
         assert session._teardown_incomplete and session._transport_closing
         assert not session._active
         # Native provider failure frees the unused rearm reserve for music cleanup.
@@ -453,7 +453,17 @@ async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_re
         starts = len(sdk.factory_calls)
         await session.wake()
         assert not session._active and len(sdk.factory_calls) == starts
+        release.set()
+        session._teardown_retry_wakeup.set()
+        await until(
+            lambda: not session._teardown_incomplete and session._teardown_retry_task is None
+        )
+        assert session.brain._lease is None and session.brain._manager is None
+        sdk.client.close.assert_awaited_once()
+        if adapter == "native":
+            assert link.rearm_calls == 1
     finally:
+        release.set()
         await cleanup()
 
 

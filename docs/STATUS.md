@@ -1,3 +1,41 @@
+## Active lead decision — physical Stop teardown, 27 October 2026
+
+Lead/release owner: /root. Actual physical trace /private/tmp/pv95-red-stop-manifest-20261027-p0003.json on installed PV95/firmware113115: Stop close_requested 40762ms; provider close sent 41004–41007; terminal wait 41009–46764 cancelled; reader joined 46767–46774; socket release 46776–48923; provider-close timeout 48935; fault/red and rearm blocked 49096–49097; retry teardown 50247, rearm recovered 50516. Stop→rearm 9.754s. No terminal-usage event is established by this trace. Direct evidence does not identify why provider finalization was absent.
+
+Chain: physical Stop → mic/device silence → freeze provider work → request_close send → wait terminal/final usage → owned reader/socket/client/budget retirement → stop-context/attention cleanup → correlated physical rearm → next wake. Invariants: no old provider callbacks or sends cross generation; one teardown/rearm; no error-light masking, no unjoined socket/reader/client or prematurely released lease; preserve Talk and non-Stop semantic close/final usage. Falsifiable hypothesis: explicit Stop currently waits for provider terminal even after user cancellation; deadline cancellation enters SDK WebSocket graceful close, whose delayed handshake stretches provider-close past reserved deadline. Initial hypothesis, now abandoned: a Stop-specific local transport abort could avoid both waits. The selected correction preserves ordinary SDK cleanup and its exact owner; provider finalization behavior remains unproven.
+
+Lead decision: explicit native Stop may skip the graceful terminal wait only after the current session.close send succeeds; it must join the existing SDK manager/reader/client cleanup and preserve final usage as unknown. Semantic close and Talk/WebRTC remain unchanged. Do not broaden the finalized-only local abort guard. First preserve actual connection, manager, client and budget lease across interrupted ordinary SDK manager/client cleanup until a same-owner retry joins it. A Stop arriving during existing semantic close must revoke its wait without a second close owner and must respect current connection generation. No new broker, retry policy, timeout or LED masking.
+
+Planned checks: trace-shaped mocked delayed/missing terminal and socket closure after Stop; stale callback injected after generation boundary; pending send/startup and duplicate Stop; timeout/failed abort retains ownership and blocks rearm; opposite Talk/normal semantic close and final-usage preservation; relevant adapter and independent adversarial review. No timeout increase, audio/LED tuning, live provider or device effects. Rollback removes only explicit Stop cleanup change and retains installed PV95. Actual isolated result: owner-retention tests RED 2 → GREEN 2, native Stop tests with pinned SDK serializer GREEN 2, send/identity unit tests GREEN 3, affected Talk/native interrupted cleanup and retry GREEN 8; formatter/lint PASS. Existing adjacent run passed the other cases and exposed four obsolete Talk expectations, now corrected and rechecked. Real SDK/WebSocket localhost close-handshake hold test passes with lease retained until closure; foreign-generation Stop and old-reader terminal/audio/tool late injection pass 4/4. Independent adversarial review and candidate binding remain pending. No live provider or physical trial has been run; candidate is not test-ready.
+
+CI #838 failed on a startup-cancel fixture awaiting its deliberately blocked cleanup and on a missing optional-integer type annotation. The fixture now releases its existing fake cleanup gate before awaiting cancellation; the annotation changes no runtime behavior. Focused three-outcome regression, mypy across 98 files and Ruff passed on the reviewed correction. CI and final combined binding remain pending.
+
+CI #839 failed three catalogue-independence cases because their assertions retained the old control error wording. The four fixture literals now match the reviewed copy; behavioral and no-effect checks are retained. Focused invalidated modules passed 44/44; exact binding review and official CI remain pending.
+
+Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refresh, loading and control feedback packet (215 runtime entries; 10 changed assets plus asset manifest) with source and visual GO; 3,143 owner tests passed on that base. The reviewed successor updates music messages and Hjem padding to 28 px per side; its focused 202 tests passed, while the 3,143-test result is inherited from its base. Installation and actual music, queue and session acceptance remain open. The independent CI fixture repair retains wrapped cleanup ownership. No Robot or Tesla additions. Start35 and manual 0–100 physical checks remain open. Combined exact-tree review and official CI are pending.
+
+<!-- podvoice96-admission
+{
+  "version": 73,
+  "kind": "podvoice96_single_owner_integration",
+  "base_tip": "f492f4cca291757677429019422823d263665132",
+  "merge_base": "f492f4cca291757677429019422823d263665132",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "9ff723fd6b9c3d265fd533f8dadde1d689d8873438cedb525b1576c85f5426c8",
+  "regression_fingerprint": "ba7e02ed249a1580cf7065a4655d8b84b78081a5f10289c57a22daed1649cb33",
+  "runtime_fingerprint": "c3a5d2d7fb589d83dde8be12c1aabb482b42fd45a649b2fcba10ac79b20dbc7c",
+  "config_fingerprint": "9ea79b4475953708fb363a54c942d75838b2887f3901818cf4356c55bf775dcf",
+  "policy_fingerprint": "c7608d519aa3c21edd005c0e441fa39e8cc762591059a8d5552ee0c75feeed3d",
+  "tooling_fingerprint": "93a6e0c385fa444287515b0dc716ab207fbb149cf9ee378cd79164894194fc1e",
+  "manifest_fingerprint": "1280f334fba2aef032aecb1e70d256ca11e352de949c878c87e30e7c2e8078fc",
+  "reviewer": "/root/review95_binding",
+  "rationale": "Exact GPT-Live native Stop and reviewed PodView music candidate; independent composition review pending."
+}
+-->
+
 ## Active lead decision — 2.0.95 Card and Hue, 27 October 2026
 
 Lead/release owner: /root. This delivery status supersedes older pending-delivery entries below. PodVoice 2.0.95 is published and installed: HA shows Kører and the fresh runtime reports product commit c1c7281f6f6ed1ba93495d78c31a8ddc5c6ed7b0, reviewed tree 81ba17f5c0132a8cd0127a58182355dfd110a2c1. Published image digest: sha256:080fe59a1263ffba746c46538f7373786afcd5c87358ae2061222da76ab42c9b. Stored build identity b3ee073d5be4ee0e6ab0b92c72293ca67ee0eafa41b04db5271eecda71f71e3d is not a fresh full-filesystem measurement.

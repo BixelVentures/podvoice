@@ -91,3 +91,37 @@ test('music and queue diagnostic spans carry their own per-call read contexts wi
  assert.ok(playbackContexts[0]);assert.ok(queueContexts[0]);assert.notEqual(playbackContexts[0],queueContexts[0]);assert.ok(records.filter(r=>r.stage==='music_read').every(r=>r.context===playbackContexts[0]));assert.ok(records.filter(r=>r.stage==='queue_read').every(r=>r.context===queueContexts[0]));
  assert.deepEqual(records.filter(r=>r.stage==='music_read').map(r=>r.row.code),['start','ok']);assert.deepEqual(records.filter(r=>r.stage==='queue_read').map(r=>r.row.code),['start','empty']);
  }finally{f.close();}});
+
+// Drive the real queue expiry callback without sleeping or issuing effects.
+function expiryRig(){
+ const originalNow=Date.now,originalSet=globalThis.setTimeout,originalClear=globalThis.clearTimeout;
+ let now=originalNow(),serial=0;const timers=new Map();Date.now=()=>now;
+ globalThis.setTimeout=(fn,delay)=>{const id=++serial;timers.set(id,{fn,at:now+delay});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ const f=rig(),wire=f.wire,read=f.host.liveTransport.queueOffer;let effects=0;
+ f.host.liveTransport.music=async()=>{const body=wire();body.data.observation.observed_at=new Date(now).toISOString();return body;};
+ f.host.liveTransport.queueAction=async()=>{effects++;throw Error('unexpected effect');};
+ f.host.liveTransport.queueOffer=async(...args)=>{const body=await read(...args);if(f.reads.length>1)body.items=[{id:'f'.repeat(24),order:1,title:'Upcoming fixture',artist:'Fixture',uri:'spotify:track:1111111111111111111111',artwork:null}];return body;};
+ return {...f,expire(){const timer=timers.get(f.media.queueControls.expiryTimer);assert.ok(timer,'real queue expiry was scheduled');now=timer.at+1;timers.delete(f.media.queueControls.expiryTimer);timer.fn();},effects:()=>effects,close(){f.close();Date.now=originalNow;globalThis.setTimeout=originalSet;globalThis.clearTimeout=originalClear;}};
+}
+test('expired successful empty queue reads upcoming rows on next validated same-track playback only',async()=>{const f=expiryRig();try{
+ await f.refresh();assert.equal(f.reads.length,1);assert.deepEqual(f.media.queueControls.offer.items,[]);const uri=f.media.playback.item.uri;
+ f.expire();assert.equal(f.media.queueControls.status,'stale');f.media.renderQueue();await f.media.loadQueue({automatic:true});assert.equal(f.reads.length,1,'expiry, render and automatic call alone never fetch');
+ await f.refresh();assert.equal(f.media.playback.item.uri,uri);assert.equal(f.reads.length,2,'next actual playback re-observation refreshes expired successful queue');assert.equal(f.media.queueControls.model('account',f.media.playback).items[0].title,'Upcoming fixture');
+ await f.refresh();assert.equal(f.reads.length,2,'fresh offer does not refresh on each poll');assert.equal(f.effects(),0);
+ }finally{f.close();}});
+for(const fence of ['unknown','consumed','intent-pending','selection-pending','outside','account-only','stale-playback'])test(`expired successful queue refresh respects ${fence}`,async()=>{const f=expiryRig();try{
+ await f.refresh();f.expire();
+ if(fence==='unknown'){f.media.queueControls.status='unknown';f.media.queueControls.consumed=true;}
+ if(fence==='consumed')f.media.queueControls.consumed=true;
+ if(fence==='intent-pending')f.host.liveControls={musicIntentPending:true,render(){},invalidateMusic(){}};
+ if(fence==='selection-pending')f.host.liveSelection.feedback={pending:true};
+ if(fence==='outside')f.host.state.focus='music';
+ if(fence==='account-only'){const read=f.host.liveTransport.music;f.host.liveTransport.music=async()=>({...await read(),status:'account_observed',reason:'route_unavailable',binding:null});}
+ if(fence==='stale-playback')f.host.liveTransport.music=async()=>{throw Object.assign(Error('read failed'),{code:'read_transient'});};
+ await f.refresh();assert.equal(f.reads.length,1);assert.equal(f.effects(),0);
+ }finally{f.close();}});
+test('expired queue refresh late response cannot overwrite replacement binding queue',async()=>{const f=expiryRig();let release;try{
+ const read=f.host.liveTransport.queueOffer;f.host.liveTransport.queueOffer=async(...args)=>{const body=await read(...args);if(f.reads.length===2)return new Promise(resolve=>release=()=>resolve(body));return body;};
+ await f.refresh();f.expire();await f.refresh();assert.equal(f.reads.length,2);assert.equal(f.media.queueControls.pending,true);
+ f.replaceBinding();await f.refresh();assert.equal(f.reads.length,3);const accepted=f.media.queueControls.offer;assert.equal(accepted.expectedBindingId,'b'.repeat(64));release();await tick();assert.equal(f.media.queueControls.offer,accepted);assert.equal(f.effects(),0);
+ }finally{release?.();f.close();}});

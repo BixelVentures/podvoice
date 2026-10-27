@@ -450,16 +450,14 @@ class _ObservedSDKCleanup:
         return getattr(self._owned, name)
 
     async def __aexit__(self, *args):
-        try:
-            return await self._observe("manager_exit", self._owned.__aexit__(*args))
-        finally:
-            self._owned = self._observe = None
+        result = await self._observe("manager_exit", self._owned.__aexit__(*args))
+        self._owned = self._observe = None
+        return result
 
     async def close(self):
-        try:
-            return await self._observe("http_client_close", self._owned.close())
-        finally:
-            self._owned = self._observe = None
+        result = await self._observe("http_client_close", self._owned.close())
+        self._owned = self._observe = None
+        return result
 
 
 class ObservedLive(OpenAILiveSession):

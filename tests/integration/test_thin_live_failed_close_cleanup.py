@@ -290,9 +290,9 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
             assert live._connection is old_connection and not sdk.released
             assert link.rearm_calls == 0 and sdk.socket.transport.abort.call_count == 1
         else:
-            # Sideband manager timeout uses existing cleanup; it does not share
-            # the native retained-primary-socket branch. Thin still blocks wake.
-            assert live._lease is None and live._connection is None
+            # Interrupted sideband manager close retains its owner and lease until retry.
+            assert live._lease is lease and live._connection is old_connection
+            assert live._manager is sdk and not sdk.released
             assert sdk.socket.transport.abort.call_count == 0
         await session.wake()
         assert len(factories) == 1 and not session._active
@@ -796,4 +796,36 @@ async def test_new_owned_work_after_heartbeat_join_cannot_use_saved_attention_pe
     finally:
         allow.set()
         await asyncio.gather(owner, return_exceptions=True)
+        await cleanup()
+
+
+@pytest.mark.parametrize("first", ["stop", "model-close"])
+async def test_native_stop_joins_real_sdk_wire_without_fabricating_terminal(first, monkeypatch):
+    session, live, sdks, _tools, link, _rows, _factories, _wire, cleanup = await fixture(
+        "native", monkeypatch, held=False, fault_deadlines=False
+    )
+    sdk = sdks[0]
+    sdk.finalize = AsyncMock()  # The real SDK serializes a close; peer sends no terminal.
+    try:
+        if first == "model-close":
+            owner = session._request_close(first)
+            await until(lambda: any(event["type"] == "session.close" for event in sdk.wire))
+            await session.stop()
+            assert session._close_task is owner
+        else:
+            await asyncio.wait_for(session.stop(), 2)
+        assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
+        assert session._teardown_incomplete is False and link.rearm_calls == 1
+        assert live.final_usage_seconds is None and live._finalized_generation is None
+        assert live._reader is None and live._manager is None and live._lease is None
+        assert sdk.socket.transport.abort.call_count == 0
+        assert sdk.factory_calls[0]["max_retries"] == 0
+        await session.wake()
+        assert live._connection_generation == 2 and session._active
+        await sdk.incoming.put(
+            {"type": "session.closed", "reason": "close_requested", "usage": {"seconds": 1}}
+        )
+        await asyncio.sleep(0)
+        assert live._connection_generation == 2 and session._active
+    finally:
         await cleanup()

@@ -3205,3 +3205,130 @@ async def test_real_sdk_parses_delegation_metadata_before_response_and_late_iden
         assert session._delegation_offset == 150
     finally:
         await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["manager", "client"])
+async def test_interrupted_ordinary_close_retains_owner_until_exact_retry(phase):
+    session, sdk, budget = provider(timeout_s=2)
+    await session.connect()
+    entered, allow = asyncio.Event(), asyncio.Event()
+    original_exit = sdk.__class__.__aexit__
+    original_client_close = sdk.client.close
+
+    async def delayed_exit(self, *args):
+        if phase == "manager":
+            entered.set()
+            await allow.wait()
+        return await original_exit(self, *args)
+
+    async def delayed_client():
+        if phase == "client":
+            entered.set()
+            await allow.wait()
+        await original_client_close()
+
+    sdk.__class__.__aexit__ = delayed_exit
+    sdk.client.close = AsyncMock(side_effect=delayed_client)
+    lease = session._lease
+    try:
+        closing = asyncio.create_task(session.close())
+        await asyncio.wait_for(entered.wait(), 1)
+        closing.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await closing
+        assert session._lease is lease
+        assert session._client is sdk.client
+        assert budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+        with pytest.raises(LiveProtocolError, match="live_session_already_connected"):
+            await session.connect()
+        allow.set()
+        await session.close()
+        assert session._connection is None and session._manager is None and session._client is None
+        assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+    finally:
+        allow.set()
+        sdk.__class__.__aexit__ = original_exit
+        if session._connection is not None or session._client is not None:
+            await session.close()
+
+
+@pytest.mark.asyncio
+async def test_explicit_stop_joins_sdk_without_claiming_missing_terminal():
+    session, sdk, budget = provider(timeout_s=2)
+    sent = asyncio.Event()
+
+    async def send():
+        sent.set()  # Send succeeds; provider terminal never arrives.
+
+    sdk.session.close = AsyncMock(side_effect=send)
+    await session.connect()
+    generation = session._connection_generation
+    closing = asyncio.create_task(session.close())
+    await sent.wait()
+    session.request_stop_close(generation)
+    await asyncio.wait_for(closing, 0.5)
+    assert sdk.released and session.final_usage_seconds is None
+    assert session._finalized_generation is None and session._reader is None
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("foreign", [False, True])
+async def test_stop_does_not_bypass_failed_send_or_foreign_generation(foreign):
+    session, sdk, _ = provider(timeout_s=0.1)
+    sdk.session.close = AsyncMock(side_effect=RuntimeError("send failed"))
+    await session.connect()
+    session.request_stop_close(session._connection_generation + int(foreign))
+    with pytest.raises(RuntimeError, match="send failed"):
+        await session.close()
+    assert session.final_usage_seconds is None and session._finalized_generation is None
+
+
+@pytest.mark.asyncio
+async def test_foreign_stop_does_not_skip_terminal_wait_after_successful_send():
+    session, sdk, _ = provider(timeout_s=2)
+    sent = asyncio.Event()
+
+    async def send():
+        sent.set()
+
+    sdk.session.close = AsyncMock(side_effect=send)
+    await session.connect()
+    closing = asyncio.create_task(session.close())
+    await sent.wait()
+    session.request_stop_close(session._connection_generation + 1)
+    await asyncio.sleep(0)
+    assert not closing.done() and not sdk.released
+    session.request_stop_close(session._connection_generation)
+    await asyncio.wait_for(closing, 0.5)
+    assert sdk.released and session.final_usage_seconds is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("late", ["terminal", "audio", "tool"])
+async def test_old_reader_rejects_late_event_after_stop_and_new_generation(late):
+    session, old, _ = provider(timeout_s=2)
+    old.session.close = AsyncMock()
+    await session.connect()
+    old_connection = session._connection
+    session.request_stop_close(session._connection_generation)
+    await session.close()
+    fresh = SDK()
+    session.client_factory = fresh.factory
+    await session.connect()
+    event = {
+        "terminal": {
+            "type": "session.closed",
+            "reason": "close_requested",
+            "usage": {"seconds": 19},
+        },
+        "audio": {"type": "session.output_audio.delta", "delta": "eA=="},
+        "tool": created("old-response"),
+    }[late]
+    await old.incoming.put(event)
+    before = session.usage_snapshot()
+    await session._receive(old_connection, 1)
+    assert session._connection_generation == 2 and session._connection is fresh
+    assert session.final_usage_seconds is None and session.usage_snapshot() == before
+    await session.close()

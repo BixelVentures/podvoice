@@ -405,6 +405,8 @@ class OpenAILiveSession:
         self._closed = asyncio.Event()
         self._close_requested = True
         self._close_lock = asyncio.Lock()
+        self._stop_close = asyncio.Event()
+        self._close_sent_generation: int | None = None
         self._send_lock = asyncio.Lock()
         self._responses: dict[str, _Response] = {}
         self._batches: dict[str, _Batch] = {}
@@ -635,7 +637,10 @@ class OpenAILiveSession:
         confirmation: PendingAction | None = None,
         prior_text: tuple[tuple[str, str], ...] = (),
     ) -> None:
-        if self._connection is not None or self._reader is not None:
+        if any(
+            owner is not None
+            for owner in (self._connection, self._reader, self._manager, self._client, self._lease)
+        ):
             raise LiveProtocolError("live_session_already_connected")
         if self.transport == "webrtc" and self._webrtc_offer_consumed:
             raise LiveProtocolError("live_webrtc_offer_reused")
@@ -667,6 +672,8 @@ class OpenAILiveSession:
         self._closed = asyncio.Event()
         self._ready = asyncio.get_running_loop().create_future()
         self._close_requested = False
+        self._stop_close = asyncio.Event()
+        self._close_sent_generation = None
         self.last_error = None
         self.final_usage_seconds = None
         self._finalized_generation = None
@@ -1983,6 +1990,11 @@ class OpenAILiveSession:
         finally:
             self._append_waiters.pop(event_id, None)
 
+    def request_stop_close(self, generation: int) -> None:
+        """Revoke terminal waiting only for the current native websocket owner."""
+        if self.transport == "websocket" and generation == self._connection_generation:
+            self._stop_close.set()
+
     async def request_close(self) -> None:
         with self._diagnostic_stage("live_close", "request"):
             self._next_confirmation = None
@@ -2005,7 +2017,13 @@ class OpenAILiveSession:
                     if self.transport == "webrtc":
                         self._webrtc_close_sent = True
                     with self._diagnostic_stage("live_close", "send"):
-                        await self._connection.session.close()
+                        connection, generation = self._connection, self._connection_generation
+                        await connection.session.close()
+                        if (
+                            connection is self._connection
+                            and generation == self._connection_generation
+                        ):
+                            self._close_sent_generation = generation
 
     async def events(self) -> AsyncIterator[LiveEvent]:
         queue, generation = self._queue, self._connection_generation
@@ -2023,15 +2041,47 @@ class OpenAILiveSession:
         self._next_confirmation = None
         self._next_confirmation_text = ()
         async with self._close_lock:
-            if self._connection is None and self._reader is None and self._startup_task is None:
+            if all(
+                owner is None
+                for owner in (
+                    self._connection,
+                    self._reader,
+                    self._startup_task,
+                    self._manager,
+                    self._client,
+                    self._lease,
+                )
+            ):
                 return
             try:
                 await self.request_close()
                 if self._connection is None and self._reader is None:
                     return  # Startup released; absence of final usage remains unconfirmed.
                 with self._diagnostic_stage("live_close", "wait_terminal"):
-                    await asyncio.wait_for(self._closed.wait(), self.timeout_s)
-                    if self.final_usage_seconds is None:
+                    if (
+                        self.transport == "websocket"
+                        and self._close_sent_generation == self._connection_generation
+                    ):
+                        terminal = asyncio.create_task(self._closed.wait())
+                        stop = asyncio.create_task(self._stop_close.wait())
+                        try:
+                            done, _ = await asyncio.wait(
+                                (terminal, stop),
+                                timeout=self.timeout_s,
+                                return_when=asyncio.FIRST_COMPLETED,
+                            )
+                            if not done:
+                                raise TimeoutError
+                            stopped = stop in done and self._stop_close.is_set()
+                        finally:
+                            for task in (terminal, stop):
+                                if not task.done():
+                                    task.cancel()
+                            await asyncio.gather(terminal, stop, return_exceptions=True)
+                    else:
+                        await asyncio.wait_for(self._closed.wait(), self.timeout_s)
+                        stopped = False
+                    if not stopped and self.final_usage_seconds is None:
                         raise LiveProtocolError(self.last_error or "live_finalization_missing")
             finally:
                 startup = self._startup_task
@@ -2084,50 +2134,44 @@ class OpenAILiveSession:
                 if not waiter.done():
                     waiter.cancel()
             self._input_audio_waiters.clear()
-            try:
-                async with asyncio.timeout(self.timeout_s):
-                    if manager is not None:
-                        with self._diagnostic_stage("live_release", "socket"):
-                            if (
-                                self.transport == "websocket"
-                                and self._finalized_generation == generation
-                                and generation == self._connection_generation
-                                and connection is self._connection
-                                and manager is self._manager
-                                and self._reader is None
-                            ):
-                                # SDK 3.13.0 owns this websockets 15.0.1 connection.
-                                # Accepted terminal usage and a joined reader make
-                                # further peer Close/TCP waiting unnecessary. Keep
-                                # unknown transports on the SDK's ordinary close.
-                                from websockets.asyncio.client import ClientConnection
+            async with asyncio.timeout(self.timeout_s):
+                if manager is not None:
+                    with self._diagnostic_stage("live_release", "socket"):
+                        if (
+                            self.transport == "websocket"
+                            and self._finalized_generation == generation
+                            and generation == self._connection_generation
+                            and connection is self._connection
+                            and manager is self._manager
+                            and self._reader is None
+                        ):
+                            # SDK 3.13.0 owns this websockets 15.0.1 connection.
+                            # Accepted terminal usage and a joined reader make
+                            # further peer Close/TCP waiting unnecessary. Keep
+                            # unknown transports on the SDK's ordinary close.
+                            from websockets.asyncio.client import ClientConnection
 
-                                socket = getattr(connection, "_connection", None)
-                                if isinstance(socket, ClientConnection):
-                                    try:
-                                        if not self._local_close_pending:
-                                            socket.transport.abort()
-                                            self._local_close_pending = True
-                                        await socket.wait_closed()
-                                    except Exception:
-                                        # A changed/incompatible local transport
-                                        # still owes the SDK its ordinary exit.
-                                        pass
-                            await manager.__aexit__(None, None, None)
-                            self._local_close_pending = False
-            finally:
-                # Interrupted local closure still owns the connection and lease.
-                # A serialized close retry must join it before another generation.
-                if not self._local_close_pending:
-                    self._manager = None
-                    self._connection = None
-                    try:
-                        if self._client is not None:
-                            async with asyncio.timeout(self.timeout_s):
-                                with self._diagnostic_stage("live_release", "client"):
-                                    await self._client.close()
-                    finally:
-                        self._client = None
-                        with self._diagnostic_stage("live_release", "budget"):
-                            self.provider_budget.release(self._lease)
-                            self._lease = None
+                            socket = getattr(connection, "_connection", None)
+                            if isinstance(socket, ClientConnection):
+                                try:
+                                    if not self._local_close_pending:
+                                        socket.transport.abort()
+                                        self._local_close_pending = True
+                                    await socket.wait_closed()
+                                except Exception:
+                                    # A changed/incompatible local transport
+                                    # still owes the SDK its ordinary exit.
+                                    pass
+                        await manager.__aexit__(None, None, None)
+                        self._local_close_pending = False
+            # Never discard an owner or its lease until its cleanup completed.
+            self._manager = None
+            self._connection = None
+            if self._client is not None:
+                async with asyncio.timeout(self.timeout_s):
+                    with self._diagnostic_stage("live_release", "client"):
+                        await self._client.close()
+                self._client = None
+            with self._diagnostic_stage("live_release", "budget"):
+                self.provider_budget.release(self._lease)
+                self._lease = None

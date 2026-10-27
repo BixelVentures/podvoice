@@ -95,6 +95,14 @@ class Peer:
             await writer.drain()
             opcode, command = await read_frame(reader)
             assert opcode == 1 and json.loads(command)["type"] == "session.close"
+            if self.mode == "stop_hold":
+                opcode, payload = await read_frame(reader)
+                assert opcode == 8
+                self.close_seen.set()
+                await self.release.wait()
+                writer.write(frame(payload, 8))
+                await writer.drain()
+                return
             terminal = {
                 "type": "session.closed",
                 "event_id": f"end-{number}",
@@ -229,3 +237,39 @@ async def test_finalized_actual_sdk_closes_owned_tcp_without_peer_shutdown(mode)
             await client.close()
     assert not peer.errors
     assert not peer.handlers
+
+
+@pytest.mark.asyncio
+async def test_stop_without_terminal_joins_actual_sdk_close_before_releasing_lease():
+    await prepare_live_sdk()
+    peer = Peer("stop_hold")
+    server = await asyncio.start_server(peer.handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    budget = ProviderBudgetCoordinator()
+    session = OpenAILiveSession(
+        "local-synthetic-no-secret",
+        tool_declarations=[],
+        client_factory=lambda **kwargs: AsyncOpenAI(
+            **kwargs, websocket_base_url=f"ws://127.0.0.1:{port}"
+        ),
+        provider_budget=budget,
+        timeout_s=2,
+    )
+    try:
+        await session.connect()
+        session.request_stop_close(session._connection_generation)
+        closing = asyncio.create_task(session.close())
+        await asyncio.wait_for(peer.close_seen.wait(), 1)
+        assert not closing.done() and session._lease is not None
+        assert budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+        peer.release.set()
+        await asyncio.wait_for(closing, 1)
+        assert session.final_usage_seconds is None and session._finalized_generation is None
+        assert session._manager is None and session._reader is None and session._lease is None
+        assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+    finally:
+        peer.release.set()
+        await session.close()
+        server.close()
+        await server.wait_closed()
+        await asyncio.wait_for(peer.closed.wait(), 1)
