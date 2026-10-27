@@ -8,7 +8,9 @@ Lead decision: explicit native Stop may skip the graceful terminal wait only aft
 
 Planned checks: trace-shaped mocked delayed/missing terminal and socket closure after Stop; stale callback injected after generation boundary; pending send/startup and duplicate Stop; timeout/failed abort retains ownership and blocks rearm; opposite Talk/normal semantic close and final-usage preservation; relevant adapter and independent adversarial review. No timeout increase, audio/LED tuning, live provider or device effects. Rollback removes only explicit Stop cleanup change and retains installed PV95. Actual isolated result: owner-retention tests RED 2 → GREEN 2, native Stop tests with pinned SDK serializer GREEN 2, send/identity unit tests GREEN 3, affected Talk/native interrupted cleanup and retry GREEN 8; formatter/lint PASS. Existing adjacent run passed the other cases and exposed four obsolete Talk expectations, now corrected and rechecked. Real SDK/WebSocket localhost close-handshake hold test passes with lease retained until closure; foreign-generation Stop and old-reader terminal/audio/tool late injection pass 4/4. Independent adversarial review and candidate binding remain pending. No live provider or physical trial has been run; candidate is not test-ready.
 
-Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refresh, loading and control feedback packet (215 runtime entries; 10 changed assets plus asset manifest) with source and visual GO; 3,143 owner tests passed. Installation and actual music, queue and session acceptance remain open. The independent CI fixture repair retains wrapped cleanup ownership. No Robot or Tesla additions. Start35 and manual 0–100 physical checks remain open. Combined exact-tree review and official CI are pending.
+CI #838 failed on a startup-cancel fixture awaiting its deliberately blocked cleanup and on a missing optional-integer type annotation. The fixture now releases its existing fake cleanup gate before awaiting cancellation; the annotation changes no runtime behavior. Focused three-outcome regression, mypy across 98 files and Ruff passed on the reviewed correction. CI and final combined binding remain pending.
+
+Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refresh, loading and control feedback packet (215 runtime entries; 10 changed assets plus asset manifest) with source and visual GO; 3,143 owner tests passed on that base. The reviewed successor updates music messages and Hjem padding to 28 px per side; its focused 202 tests passed, while the 3,143-test result is inherited from its base. Installation and actual music, queue and session acceptance remain open. The independent CI fixture repair retains wrapped cleanup ownership. No Robot or Tesla additions. Start35 and manual 0–100 physical checks remain open. Combined exact-tree review and official CI are pending.
 
 <!-- podvoice96-admission
 {
@@ -20,13 +22,13 @@ Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refr
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "64c4832022b9fbace1004bd0ba19f8e4b2ce8b85635b28fe6f796848de25cf0b",
-  "regression_fingerprint": "4a6de6fc20f4ae7e558eceee8b6a64c8a58cab90a49767a20b8e876e825075ca",
-  "runtime_fingerprint": "eaf3a130372c9d374f963799f887c0adade81bb106b4df082699d4588b1b1c7d",
+  "fingerprint": "9ff723fd6b9c3d265fd533f8dadde1d689d8873438cedb525b1576c85f5426c8",
+  "regression_fingerprint": "2b2728678f7253413f729ca6a90003c6d89d366290bf4f5bce8b55b59e76fae9",
+  "runtime_fingerprint": "c3a5d2d7fb589d83dde8be12c1aabb482b42fd45a649b2fcba10ac79b20dbc7c",
   "config_fingerprint": "9ea79b4475953708fb363a54c942d75838b2887f3901818cf4356c55bf775dcf",
-  "policy_fingerprint": "ec1e1480de0341915587cca9da55ea93f417c2e74e60fe7465474dd32a452917",
+  "policy_fingerprint": "241692ebeeab61891a5290a6930fd76046a908fdc283f1cfaea2d8bffc10f9d0",
   "tooling_fingerprint": "93a6e0c385fa444287515b0dc716ab207fbb149cf9ee378cd79164894194fc1e",
-  "manifest_fingerprint": "3f0bbc38d512d44642f5644894da3852be08826aea0c37e75c27a0d663e01708",
+  "manifest_fingerprint": "54eb92d706d9872a0f6fde8846e0f4ee5326c259f338eb8a0719645455e61995",
   "reviewer": "/root/review95_binding",
   "rationale": "Exact GPT-Live native Stop and reviewed PodView music candidate; independent composition review pending."
 }

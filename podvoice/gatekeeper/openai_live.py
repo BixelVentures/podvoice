@@ -406,7 +406,7 @@ class OpenAILiveSession:
         self._close_requested = True
         self._close_lock = asyncio.Lock()
         self._stop_close = asyncio.Event()
-        self._close_sent_generation = None
+        self._close_sent_generation: int | None = None
         self._send_lock = asyncio.Lock()
         self._responses: dict[str, _Response] = {}
         self._batches: dict[str, _Batch] = {}

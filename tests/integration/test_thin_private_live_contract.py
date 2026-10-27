@@ -243,6 +243,9 @@ async def test_actual_native_start_fault_does_not_inherit_admission_or_observer_
             assert not live.provider_session_started
             assert not result["thin_opening_observed"]
             assert "thin_opening_return" not in stages
+            # This admission test does not exercise the separately covered held-close path.
+            # Allow the actual SDK owner to join before observing cancelled startup.
+            sdk.allow_exit.set()
             opening.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await asyncio.wait_for(asyncio.shield(opening), 3)

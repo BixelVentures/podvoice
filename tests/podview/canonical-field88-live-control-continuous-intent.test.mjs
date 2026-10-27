@@ -37,8 +37,8 @@ test('old owner and newly withdrawn actions cannot dispatch despite retained int
 });
 test('passive setup failure remains inline without toast churn; explicit failed intent retains honest feedback',async()=>{
  const f=fixture();try{
-  const messages=[];f.host.showFeedback=(text,pending)=>{f.host.feedbackMessage=text;messages.push({text,pending});};f.host.liveTransport.controlSetup=async()=>{throw Error('inert unavailable');};await f.view.prepareMusic();for(let i=0;i<5;i++)f.view.renderMusicControls();assert.equal(f.view.musicStatus.textContent,'Betjeningen kunne ikke hentes');assert.deepEqual(messages,[]);assert.equal(f.writes.length,0);
-  f.host.liveMedia.playback.poll_sequence++;f.host.liveTransport.controlSetup=async()=>f.offer(['pause'],35);await f.view.prepareMusic();f.host.liveTransport.controlSetup=async()=>{throw Error('inert unavailable');};assert.equal(await f.view.musicIntent('pause'),false);assert.equal(messages[0].text,'Sætter på pause…');assert.equal(messages.at(-1).text,'Betjeningen kunne ikke hentes');assert.equal(f.writes.length,0);assert.equal(f.nodes.get('play-pause').disabled,false,'an explicit later click may obtain fresh authority');
+  const messages=[];f.host.showFeedback=(text,pending)=>{f.host.feedbackMessage=text;messages.push({text,pending});};f.host.liveTransport.controlSetup=async()=>{throw Error('inert unavailable');};await f.view.prepareMusic();for(let i=0;i<5;i++)f.view.renderMusicControls();assert.equal(f.view.musicStatus.textContent,'Kan ikke styre højttaleren lige nu. Prøv igen om lidt.');assert.deepEqual(messages,[]);assert.equal(f.writes.length,0);
+  f.host.liveMedia.playback.poll_sequence++;f.host.liveTransport.controlSetup=async()=>f.offer(['pause'],35);await f.view.prepareMusic();f.host.liveTransport.controlSetup=async()=>{throw Error('inert unavailable');};assert.equal(await f.view.musicIntent('pause'),false);assert.equal(messages[0].text,'Sætter på pause…');assert.equal(messages.at(-1).text,'Kan ikke styre højttaleren lige nu. Prøv igen om lidt.');assert.equal(f.writes.length,0);assert.equal(f.nodes.get('play-pause').disabled,false,'an explicit later click may obtain fresh authority');
  }finally{f.restore();}
 });
 
@@ -124,7 +124,7 @@ for(const change of ['track','state'])for(const reading of ['held','failed'])tes
   if(change==='track')f.host.liveMedia.playback.item={uri:'spotify:track:'+'1'.repeat(22)};else f.host.liveMedia.playback.state='paused';f.host.liveMedia.playback.poll_sequence++;f.view.render();if(reading==='failed')await new Promise(done=>setImmediate(done));
   const current=f.view.musicContext();assert.notEqual(current.key,prior.key);assert.equal(current.presentationKey,prior.presentationKey);assert.equal(JSON.stringify(f.host.liveMedia.playback.roomBinding),oldBinding);assert.equal(reads,1);assert.equal(f.view.musicOffer,null);assert.equal(f.view.volumeOffer,null);assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.nodes.get('volume-value').textContent,'35 %');assert.equal(f.writes.length,0);
   const hint=f.view.musicIntentOffer;assert.deepEqual(Object.keys(hint.task),['options']);assert.ok(hint.task.options.every(option=>Object.keys(option).sort().join(',')==='action,argsSchema'));assert.equal(hint.task.taskId,undefined);assert.equal(hint.task.revision,undefined);assert.equal(hint.task.expiresAt,undefined);assert.deepEqual(Object.keys(hint.context),['presentationKey']);assert.ok(oldTask.taskId,'old source task was not mutated or rebound');
-  if(reading==='failed')assert.equal(f.view.musicStatus.textContent,'Betjeningen kunne ikke hentes');
+  if(reading==='failed')assert.equal(f.view.musicStatus.textContent,'Kan ikke styre højttaleren lige nu. Prøv igen om lidt.');
  }finally{resolve?.(f.offer());f.restore();}
 });
 for(const change of ['track','state'])test(`explicit action after ${change} uses a fresh current JIT task, never readonly retained IDs`,async()=>{

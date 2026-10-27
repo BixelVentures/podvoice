@@ -59,6 +59,7 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_live_socket_cleanup.py",
         "tests/integration/test_thin_live.py",
         "tests/integration/test_thin_live_failed_close_cleanup.py",
+        "tests/integration/test_thin_private_live_contract.py",
         "tests/podview/canonical-field88-live-control-continuous-intent.test.mjs",
         "tests/podview/canonical-next-native-music-controls.test.mjs",
         "tests/podview/canonical-next-player-view-source.test.mjs",
@@ -91,8 +92,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/review95_binding"
-MANIFEST_SHA = "3f0bbc38d512d44642f5644894da3852be08826aea0c37e75c27a0d663e01708"
-PROFILE_AST = "bc617780d60e32fc360aa20c828593d26472ea7001bb4be6a79ce121fcee8c07"
+MANIFEST_SHA = "54eb92d706d9872a0f6fde8846e0f4ee5326c259f338eb8a0719645455e61995"
+PROFILE_AST = "b23567fba9dfbebedc8d2f28196683b55602d9f6c830a2eea42d84f1789081d0"
 
 
 def record_at(root: Path) -> dict | None:
