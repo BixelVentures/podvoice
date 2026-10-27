@@ -112,6 +112,14 @@ eller korrekt svar alene giver ikke fysisk accept.
 Produktkode: ret den observerede årsag, kør berørt regression/adaptor, få ét fokuseret
 review, bind exact tree og kør officiel CI én gang på den frosne kandidat.
 
+Ved levering med genbrug af grøn PR-CI skal releaseejeren bruge normal merge
+(`merge_method="merge"`) og før merge kontrollere den valgte metode samt præcis
+reviewet base, head, tree og tilhørende PR-CI. `scripts/ci_promotion.py` kræver en
+merge med to forældre og samme base/head/tree for at kunne genbruge PR-resultatet;
+identiske filer alene er ikke nok. Squash eller rebase må kun vælges, når en fuld
+main-CI bevidst accepteres. Kontrollér metoden før merge: squash/rebase mister den
+krævede merge-relation og udløser ny CI; gentagelse efter merge reparerer den ikke.
+
 Docs-only ændringer og isolerede fixture-rettelser bruger kun relevante statiske eller
 fokuserede checks; de udløser ikke lokal bred releasegate.
 
