@@ -6791,13 +6791,13 @@ PV97 catalogue source/review ready for officialCI, not installed. PC57 diagnosti
     "unclassified_runtime"
   ],
   "fingerprint": "6c4b0e6e4319062b687c8da1f622f1cb286db25a8a9cf7668005097496083dfe",
-  "regression_fingerprint": "50dd7fd7596c84b5433db2e6aab5b98d621fb4edde1c849f3772bc71cba80bd6",
+  "regression_fingerprint": "5110f1f605abfbab48390893b41962a7cc605a1ac7b79781ae81a7f6d7cc9d43",
   "runtime_fingerprint": "924e3c2dd312294526ac55ded2cb5f15eb04bdeca5e788e6090f15409aa92e91",
   "config_fingerprint": "2d09b38df6c0f5fd2e3829ad1d21fc1ed432a71f307a4309d1dbd52e4b8daa67",
-  "policy_fingerprint": "0a7a059b2fec081ca4d9b4d39d957f87fc7d7c9f66ccbd9f147195da3bc56163",
+  "policy_fingerprint": "01e8aa9a447051e18234696cf33d1bc7844ed2356e5dd19db50ba1c195ed211b",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "manifest_fingerprint": "de34a9cd8c2932419aac281fc559c9055c108991d2fb0ef69859315bb5bad6cf",
+  "manifest_fingerprint": "d9177b4332232aa899670400545df59a0a18e30a9ad317e86e5315759179adfb",
   "reviewer": "/root/review_catalogue_join",
-  "rationale": "Independent SOURCE and PREBIND GO for catalogue join with scoped targets overlap, cancellation and stale/revoked grant regressions. Canonical Python3.12 AST supersedes reviewer3.9 AST calculation; source unchanged. Preserve215UIassets, full duplex lifecycle, native ownership and UNKNOWN no replay. Catalogue2 production files,4 regression files and approved shared-standard docs only; version-only97. No Tesla Robot or UI draft adoption. OfficialCI/publication/installation/service/audio acceptance remain separate. Independent review confirms exact unclassified_runtime catalogue scope matching unchanged generic classifier; no base or classifier override."
+  "rationale": "Independent SOURCE and PREBIND GO for catalogue join with scoped targets overlap, cancellation and stale/revoked grant regressions. Canonical Python3.12 AST supersedes reviewer3.9 AST calculation; source unchanged. Preserve215UIassets, full duplex lifecycle, native ownership and UNKNOWN no replay. Catalogue2 production files,6 regression files and approved shared-standard docs only; version-only97. No Tesla Robot or UI draft adoption. OfficialCI/publication/installation/service/audio acceptance remain separate. Independent review confirms exact unclassified_runtime catalogue scope matching unchanged generic classifier; no base or classifier override. CI-only correction preserves all production/runtime bytes: update two outer-deadline capture fixtures and CI label97; barrier/cancellation/retained assertions unchanged."
 }
 -->

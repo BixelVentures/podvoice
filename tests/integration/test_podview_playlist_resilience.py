@@ -261,7 +261,7 @@ async def test_broader_reads_share_existing_total_deadline_and_join_cancellation
 
     def capture(seconds):
         timer = real_timeout(seconds)
-        if seconds == 10:
+        if 8 < seconds <= 10:
             timers.append(timer)
         return timer
 

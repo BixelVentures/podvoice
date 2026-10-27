@@ -571,7 +571,7 @@ async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
 
     def capture_timeout(delay):
         manager = real_timeout(delay)
-        if delay == 10:
+        if 0 < delay <= 10:
             deadlines.append(manager)
         return manager
 

@@ -8,7 +8,7 @@
     "pyproject.toml": "c6c398f8a7b536af7252c3a2aa6708bd3e18b8cfbd0944e0ebcc2f7f8edd1da6"
   },
   "policy": {
-    ".github/workflows/ci.yml": "5841a14d993d9ccd62c163c22300a0fee963e274c32744f8a7656b223e275145",
+    ".github/workflows/ci.yml": "d8fcd366fb180bb18304cd153e9a292bbe08527fabadcc65de3a01504bcd1753",
     "AGENTS.md": "d513bb22079e7d2dc5094742be9e5e815c688a350b8328825095c0b54f999baa",
     "docs/ARKITEKTUR.md": "6ad3b443f517ce1f0912e2cb8aabe8c2e142675fbbcd371643337af27dbb1463",
     "docs/INVARIANTER.md": "3fb2a194d064b9216fe9659cbc5628c56e890a2aa5ca5e630f0fbc2b51ba6891",
@@ -24,7 +24,9 @@
   "regressions": {
     "tests/integration/test_mood_diagnostics_route.py": "3df3b935771bea704ff1458ae8e9c64fa08c4ca024bc5e04a01b758e8efece3a",
     "tests/integration/test_pod_system_music_journey.py": "6d4f8837c331c46a107e76bec228553949ae33e9ea64002bb4322f14867c9d58",
+    "tests/integration/test_podview_mood_playlists.py": "8c017b4913ba4ac0acd7b715541345cb9d2cd147db10b48724f2d25372ed32e1",
     "tests/integration/test_podview_mood_preview.py": "546c1c9ecf2f638594974e31c43deb237747ff6a0e48ab5042bbf4c94b63deb0",
+    "tests/integration/test_podview_playlist_resilience.py": "7a555cc9c36f37f6510f1f066ebb7409d2960d65923aefe1bfc4ed95b44f5465",
     "tests/podview/root-second-move-lifecycle.test.mjs": "d3762cee7b29ec27a11bfafa79c880e3c39de59c65bf24cb88556b6261d294dc"
   },
   "runtime": {

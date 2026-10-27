@@ -54,6 +54,8 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     {
+        "tests/integration/test_podview_playlist_resilience.py",
+        "tests/integration/test_podview_mood_playlists.py",
         "tests/integration/test_mood_diagnostics_route.py",
         "tests/integration/test_pod_system_music_journey.py",
         "tests/integration/test_podview_mood_preview.py",
@@ -67,8 +69,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "de34a9cd8c2932419aac281fc559c9055c108991d2fb0ef69859315bb5bad6cf"
-PROFILE_AST = "1589336bd658af3da3ec007bc320bde9438b8347b23c1e92d69027b0fdbf97c8"
+MANIFEST_SHA = "d9177b4332232aa899670400545df59a0a18e30a9ad317e86e5315759179adfb"
+PROFILE_AST = "4caefbbec27bb664f2068417b6d9cdebf044aaf8b54ccf2db392d22540359d07"
 
 
 def record_at(root: Path) -> dict | None:
