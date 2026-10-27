@@ -76,7 +76,7 @@ test('source-shaped preview displays observed lamps without acquiring live or lo
 });
 
 test('legacy local Home lamp list keeps all exact lamp identities and labels their actual room',()=>{
- const f=localFixture();f.host.state=sceneTransition(previewScene('now',Date.now()),{type:'device-demo',kind:'light'});const d=f.host.currentLightDevice();assert.equal(d.lightSelectionId,'home');f.view.render(d);const visible=[...f.view.rows.values()].filter(row=>!row.node.hidden);assert.equal(visible.length,d.lights.length);assert.equal(visible.length,4);
+ const f=localFixture();f.host.state=previewScene('light-detail-on',Date.now());const d=f.host.currentLightDevice();assert.equal(d.lightSelectionId,'home');f.view.render(d);const visible=[...f.view.rows.values()].filter(row=>!row.node.hidden);assert.equal(visible.length,d.lights.length);assert.equal(visible.length,4);
  for(const row of d.lights){const entry=f.view.rows.get(row.id);assert.equal(entry.name.textContent,`${row.roomName} · ${row.name}`);assert.equal(entry.field.description.textContent,'');assert.equal(entry.field.input.getAttribute('aria-labelledby'),`${entry.name.id} ${entry.field.label.id}`);assert.equal(entry.toggle.disabled,false);}
  const entry=visible.find(row=>row.id==='living-floor'),others=d.lights.filter(row=>row.id!==entry.id);entry.toggle.click();assert.equal(f.events.at(-1).optionId,'living-floor');for(const row of others)assert.equal(f.host.currentLightDevice().lights.find(next=>next.id===row.id),row);assert.equal(f.host.currentLightDevice().lightSelectionId,'home');
 });

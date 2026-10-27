@@ -1,3 +1,5 @@
+Detaljers indholdskort er hvide (`--pv-surface`) med neutral tekst på tværs af domæner. Card-identitet bevares til den eksisterende materialekant og efterkommeres kildevalgte kontroller; identitet farver ikke hele kontrolkortet. Hero/statusheader og Tile-tilstande beholder deres aftalte domænefarve. Eksisterende eksplicitte overblikskort og Timer-instrument bevarer egne flader også ved hover/pending. Samme regel gælder bibliotek og produkt.
+
 Historikkens eksisterende ListRows bliver i én lodret, ikke-ombrydende kolonne med lodret scroll. Tekstforhåndsvisningen viser højst to linjer; den oprindelige tekst bevares hel i den eksisterende detaljes disclosure. Lange udskrifter må ikke skabe en skjult vandret kolonne.
 
 ## Samtaleudskrift i eksisterende svarhistorik ·25. oktober2026
