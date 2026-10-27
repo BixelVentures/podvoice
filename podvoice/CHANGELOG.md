@@ -1,3 +1,10 @@
+## 2.0.96
+
+- Explicit native Stop skips the terminal grace wait only after the close send succeeds.
+- Mandatory SDK cleanup retains ownership across interrupted cleanup for native and Talk.
+- Final usage remains unknown when no terminal usage arrives.
+- No LED, timeout, UI, firmware or provider wire changes. Physical acceptance remains open.
+
 ## 2.0.90
 
 - Preserve exact closed music/volume setup refusal reasons through the existing

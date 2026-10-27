@@ -2242,6 +2242,10 @@ class ThinSession:
                 sink = getattr(self.tools, "podview_receipts", None)
                 if sink is not None:
                     sink.revoke(self.room, self, self._history_session, self._epoch)
+        if reason in ("stop-word", "stop") and self.live_alpha and not self._live_webrtc:
+            stop_close = getattr(self.brain, "request_stop_close", None)
+            if callable(stop_close):
+                stop_close(getattr(self.brain, "_connection_generation", None))
         if self._close_task is not None and not self._close_task.done():
             if reason in ("stop-word", "stop"):
                 self._stop_error_speech.set()
