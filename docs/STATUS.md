@@ -1,3 +1,9 @@
+## Active lead decision — 2.0.95 Card and Hue, 27 October 2026
+
+Lead/release owner: /root. This current delivery status supersedes older 2.0.93/2.0.94 pending-delivery entries below. Installed 2.0.94 is running, with runtime version 2.0.94 and commit e7cd9ded8aa99287eb0aae1305278e4e95b78f04; stored build identity 27174e6c46bbf2d8c2270ec87f652acf28dc47faed7a11f462c91605f5233600 is not a fresh filesystem measurement. Fresh PodConnect/home observed; Voice PE not verified. Log download outcome unknown after observer timeout; source regression passes do not establish live outcome. Start35 and manual 0–100 physical checks remain open.
+
+PodView owner evidence: shared Card tint defect and normal Hue demo route using legacy data; immutable handoff reports 3126 passing and scoped source/visual GO. Affected chain: authored demo fixture → existing view/render → overview/navigation and display; maintain live source/permission boundary and unrelated state. Hypothesis: neutral shared Card surfaces and reuse of existing Hue kitchen fixture correct those two observed paths without granting control authority. Non-goals: no live device commands, audio, lifecycle, provider, or unrelated feature changes. Planned checks: exact runtime and fixture pins, retained root assertions, focused regressions, static exact admission and independent review. Rollback: retain installed 2.0.94. The 2.0.95 package is not installed or physically accepted.
+
 ## Active lead decision — diagnostic export readHash, 26 October 2026
 
 Lead/release owner: /root. Observed: a valid 16-character readHash accepted by diagnostics is rejected by the export-only closed whitelist; the actual exported-handler fixture reproduced zero downloads on valid input (13 pass/1 fail), then passed 14/14 after the narrowly reviewed fix. A live export click was inconclusive; this does not uniquely establish its cause. Chain: retained private diagnostic row → export validation → bounded local download and cleanup; preserve the 128-row/64 KiB limits, privacy, existing authorization and failure handling. Hypothesis: admitting only the existing canonical lowercase 16-hex readHash lets valid correlated rows export while malformed/private fields remain rejected. Non-goals: no endpoint, raw ID, network, audio, household action, UI geometry or authority change. Planned checks: exact owner runtime/test pins, handler positive/privacy negatives, canonical scope/admission, independent exact-tree review and official CI. Rollback removes this export-validator delta and retains 2.0.93. Actual result: exact runtime before/after pins and mapped existing handler fixture match; 14/14 focused handler tests pass. Combined exact-tree review, official CI, publication and installation remain pending. Physical/live export acceptance remains open.
@@ -6551,5 +6557,27 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
   "runtime_fingerprint": "76a396a58d02923abf843e52c87b35aab80aa3ff2b17ee59b1b21f33e7bf260b",
   "tooling_fingerprint": "32962a0b3812bf709d983ef4b06b054821304c3b6275a7fd461cc48666eb6ef0",
   "version": 71
+}
+-->
+
+<!-- podview95-admission
+{
+  "base_tip": "e7cd9ded8aa99287eb0aae1305278e4e95b78f04",
+  "config_fingerprint": "0aeaa351b387f0c0edd3248df370b14b5e32b928347286490f398627772077b0",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "0d0a6ab0f1e1e61f9a8e7960fe0325d857f2d5c670fbb75d0e11f9d9638f5931",
+  "kind": "podview95_single_owner_integration",
+  "manifest_fingerprint": "628f2425c162eac4018050c5eaa40664d34bc7acfc4d7cb35c377db9c015716b",
+  "merge_base": "e7cd9ded8aa99287eb0aae1305278e4e95b78f04",
+  "policy_fingerprint": "518350088c233921b9569dac730774f5b32bfffde974e1564643fa06d321d73e",
+  "rationale": "Independent source and exact package review of shared Card and authored Hue demo data; live and physical acceptance remain open.",
+  "regression_fingerprint": "73120c2f0065beef224a73a961ee557f0eba09eabab611ac833acf910dab5ff1",
+  "reviewer": "/root/review95_binding",
+  "runtime_fingerprint": "e72d38024f8d6e66e47b48a3a96cd2822628f1522c6e253a0826ab6f9e122c68",
+  "tooling_fingerprint": "2980b66342d4a33cd2dc9511abdbc68d7ad5c4b3ebc5ee41d7a275ead9623bdb",
+  "version": 72
 }
 -->

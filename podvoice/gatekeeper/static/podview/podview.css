@@ -2900,7 +2900,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 f9137371ebc7ccd5d43a36033af27fa2323014d269ac5ead314c0415a88b687d */
+/* Source: ui-kit.css · SHA256 4578a702128305ce5d61f1d072254a9bd28711a758a5523d86af3cc948950be4 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -3328,6 +3328,8 @@ input,textarea{caret-color:var(--pv-ink)}
 .pv-kit[data-kit-identity=light]{--pv-tint:var(--pv-light);--pv-tint-strong:var(--pv-light-strong);--pv-tint-ink:var(--pv-light-ink)}
 .pv-kit[data-kit-identity=tesla]{--pv-tint:var(--pv-tesla);--pv-tint-strong:var(--pv-tesla-strong);--pv-tint-ink:var(--pv-tesla-ink);--pv-button-tint:color-mix(in srgb,var(--pv-tesla-strong) 96%,var(--pv-surface))}
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile)[data-kit-identity]{background:var(--pv-tint);color:var(--pv-tint-ink)}
+/* Content Cards are neutral; domain identity belongs to Hero/Tile and the material edge. */
+.pv-kit.pv-kit-card[data-kit-identity]{background:var(--pv-surface);color:var(--pv-ink)}
 .pv-component[data-component=timer-widget].pv-kit-hero{--pv-tint:var(--pv-dark);--pv-tint-ink:var(--pv-on-dark)}
 .pv-component[data-component=light-widget].pv-kit-hero .pv-meta{color:var(--pv-light-ink)}
 .pv-component[data-component=timer-widget][data-state=error] :is(.pv-copy,.pv-meta,.pv-state-note){color:var(--pv-danger-tint)}
@@ -4784,6 +4786,7 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 /* Hover reads the same semantic surface as the visible Card/Tile. No neutral
    white fallback when a colored resource is under a pointer or held touch. */
 .pv-kit:is(.pv-kit-card,.pv-kit-tile){--overview-card-surface:var(--pv-tint);--overview-card-ink:var(--pv-ink);--pv-surface-shadow-hover:var(--pv-shadow)}
+.pv-kit.pv-kit-card{--overview-card-surface:var(--pv-surface)}
 /* Timer keeps one dark material in every composition, including compact Ro. */
 .pv-kit.resource-preview[data-kind=timer]{--pv-tint:var(--pv-dark);--pv-tint-ink:var(--pv-on-dark);--pv-card-edge:color-mix(in srgb,var(--pv-dark) 88%,var(--pv-on-dark));--overview-card-surface:var(--pv-dark);--overview-card-ink:var(--pv-on-dark);--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);--pv-surface-shadow-hover:var(--pv-shadow)}
 
