@@ -57,3 +57,15 @@ test('existing host cleanup and detachment during a click revoke pending diagnos
   f.doc.onDownload=()=>{f.host.isConnected=false;f.cleanup();};f.host.screenDiagnosticButton.click();assert.equal(f.jobs.size,0);assert.equal(f.host.diagnosticDownloadUrl,null);assert.deepEqual(f.revoked,['blob:diagnostic-1','blob:diagnostic-2']);
  }finally{f.restore();}
 });
+
+
+test('diagnostic export preserves the bounded passive read hash and rejects malformed or raw correlation IDs',async()=>{
+ const f=diagnosticFixture();try{
+  const value=safeDiagnostics();value.records[0].readHash='0123456789abcdef';f.host.liveTransport.diagnostics=()=>value;
+  f.host.screenDiagnosticButton.click();assert.equal(f.created.length,1);assert.deepEqual(JSON.parse(await f.created[0].text()),value);assert.equal(f.outbound(),0);
+  for(const invalid of ['0123456789ABCDEF','0123456789abcde','0123456789abcdef0','01234567-89ab-4cde-8fab-0123456789ab','0123456789abcdeg',123,null,{},['0123456789abcdef']]){
+   value.records[0].readHash=invalid;const before=f.created.length;f.host.screenDiagnosticButton.click();assert.equal(f.created.length,before,JSON.stringify(invalid));assert.match(f.feedback.at(-1)[0],/kunne ikke gemmes/);assert.equal(f.jobs.size,0);assert.equal(f.host.diagnosticDownloadUrl,null);
+  }
+  delete value.records[0].readHash;value.records[0].rawReadId='01234567-89ab-4cde-8fab-0123456789ab';f.host.screenDiagnosticButton.click();assert.equal(f.created.length,1);assert.equal(f.outbound(),0);
+ }finally{f.restore();}
+});

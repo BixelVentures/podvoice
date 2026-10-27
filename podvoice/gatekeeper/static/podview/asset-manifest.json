@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "955b6cb5863cf17959714da9de218a0c4381cce3fd616cd8efff41e98ececaad"
+      "sha256": "31ba46228ca29219ea182d4c8c9442e7ec8e9e51340bf5d31ccb6f036d247534"
     },
     {
       "path": "podview.css",
@@ -851,7 +851,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "454faf3edf4e1f6f67b7cdeffc2809312f1fcffd1dcc8624b7f094613dcfd96d"
+      "sha256": "ccd2d4b964246200132b61744872f6fb72950e1f11822b898ac1e1c181b7fe3f"
     },
     {
       "path": "workshop.css",
