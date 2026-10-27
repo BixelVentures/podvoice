@@ -80,6 +80,8 @@ export const productLibrary=[
   state('player','music-paused','På pause','Samme cover og destination, ændret transporttilstand.'),
   ...['active','rest'].flatMap(mode=>[['empty','Ingen afspilning'],['loading','Første indlæsning'],['missing-art','Omslag mangler'],['offline','Sidst kendt afspilning'],['error','Fejl']].map(([status,label])=>state('player',`player-${mode}-${status}`,`${mode==='active'?'Stor':'Hjem'} · ${label}`,'Den eksisterende player bevarer sin egen anatomi; ingen separat loadingflade.'))),
   state('player','conversation-overview','Udvidet player og kø','Detaljer åbner som et roligt lag over den samme skærm.',{open:'#player-detail',key:'player'}),
+  state('player','player-queue-loading','Kø · første indlæsning','Det aktuelle nummer bevares, mens kommende numre indlæses i de eksisterende ListRows.'),
+  state('player','player-queue-refresh','Kø · opdatering','Kendte kø-rækker bliver stående under den næste passive læsning.'),
   state('player','player-queue-empty','Tom kø','Den kendte aktive sang bevares i playeren, mens køen er tom.'),
   state('player','player-queue-error','Køfejl med kendt sang','Køen kunne ikke hentes. Den kendte aktive sang, cover og destination bevares; ingen falsk køkvittering.'),
   state('player','player-long-metadata','Lange sang- og køtitler','Forfattede lange titler og kunstnernavne i den samme player og kø. Navigation bevarer samme sang og køidentiteter.'),

@@ -36,14 +36,40 @@ TOOLING = previous.TOOLING
 FIELDS = previous.FIELDS
 
 # The exact source and tests are independently reviewed; composition review is pending.
-DOMAINS = ("unclassified_runtime",)
-PRODUCTION = frozenset({"podvoice/gatekeeper/openai_live.py", "podvoice/gatekeeper/thin.py"})
+DOMAINS = ("ha_tools", "physical_output")
+PRODUCTION = frozenset(
+    [
+        "podvoice/gatekeeper/openai_live.py",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/library-catalog.js",
+        "podvoice/gatekeeper/static/podview/library.bundle.js",
+        "podvoice/gatekeeper/static/podview/live-control-view.js",
+        "podvoice/gatekeeper/static/podview/live-media-view.js",
+        "podvoice/gatekeeper/static/podview/player-view.js",
+        "podvoice/gatekeeper/static/podview/podview.bundle.js",
+        "podvoice/gatekeeper/static/podview/podview.css",
+        "podvoice/gatekeeper/static/podview/preview-scenes.js",
+        "podvoice/gatekeeper/static/podview/ui-kit.css",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
+        "podvoice/gatekeeper/thin.py",
+    ]
+)
 REQUIRED_TESTS = frozenset(
-    {
-        "tests/unit/test_openai_live.py",
-        "tests/integration/test_thin_live_failed_close_cleanup.py",
+    [
         "tests/integration/test_live_socket_cleanup.py",
-    }
+        "tests/integration/test_thin_live.py",
+        "tests/integration/test_thin_live_failed_close_cleanup.py",
+        "tests/podview/canonical-field88-live-control-continuous-intent.test.mjs",
+        "tests/podview/canonical-next-native-music-controls.test.mjs",
+        "tests/podview/canonical-next-player-view-source.test.mjs",
+        "tests/podview/canonical-next-player-view.test.mjs",
+        "tests/podview/canonical-packet-player-view.test.mjs",
+        "tests/podview/root-live-media-queue-lifecycle.test.mjs",
+        "tests/podview/root-native-music-controls.test.mjs",
+        "tests/podview/root-player-view.test.mjs",
+        "tests/unit/test_live_confirmation_eval.py",
+        "tests/unit/test_openai_live.py",
+    ]
 )
 
 HA_RUNTIME = previous.HA_RUNTIME
@@ -65,8 +91,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Closed until independent exact-tree review binds the final candidate.
 REVIEWER = "/root/review95_binding"
-MANIFEST_SHA = "e5cf9dd1e71f7506c3d4bb5f7f1a045f9520efcbc71ca6e65dc5f3fd1260e83c"
-PROFILE_AST = "890618be9b9ad2de5bde435b835743b6520b785337e8f6f61aaf94bf548085b0"
+MANIFEST_SHA = "3f0bbc38d512d44642f5644894da3852be08826aea0c37e75c27a0d663e01708"
+PROFILE_AST = "bc617780d60e32fc360aa20c828593d26472ea7001bb4be6a79ce121fcee8c07"
 
 
 def record_at(root: Path) -> dict | None:

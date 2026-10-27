@@ -1934,11 +1934,12 @@ async def test_sdk_cleanup_observation_preserves_actual_order_errors_and_cancell
     entered = asyncio.Event()
     operations, handles = [], []
     failure = OSError("private exception detail must not be recorded")
+    fault_active = True
 
     async def operation(name):
         operations.append(name)
         handles.append(live._manager if name == "manager_exit" else live._client)
-        if name == phase:
+        if name == phase and fault_active:
             entered.set()
             if outcome == "error":
                 raise failure
@@ -1979,8 +1980,18 @@ async def test_sdk_cleanup_observation_preserves_actual_order_errors_and_cancell
             assert raised.value is failure
         else:
             await closing
-        assert operations == ["manager_exit", "http_client_close"]
-        sdk.client.close.assert_awaited_once()
+        if outcome != "return":
+            assert live._lease is not None and live._client is not None
+            if phase == "manager_exit":
+                assert operations == ["manager_exit"] and live._manager is handles[0]
+                assert handles[0]._owned is sdk and handles[0]._observe is not None
+                sdk.client.close.assert_not_awaited()
+            else:
+                assert operations == ["manager_exit", "http_client_close"]
+                assert live._manager is None and live._client is handles[-1]
+                assert handles[-1]._owned is sdk.client and handles[-1]._observe is not None
+            fault_active = False
+            await live.close()
         assert live._manager is live._client is live._lease is None
         assert all(handle._owned is handle._observe is None for handle in handles)
         phases = [
@@ -1989,12 +2000,17 @@ async def test_sdk_cleanup_observation_preserves_actual_order_errors_and_cancell
             if row["kind"] == "close_phase"
             and row["phase"] in {"manager_exit", "http_client_close"}
         ]
-        assert phases == [
-            ("manager_exit", "enter"),
-            ("manager_exit", outcome if phase == "manager_exit" else "return"),
-            ("http_client_close", "enter"),
-            ("http_client_close", outcome if phase == "http_client_close" else "return"),
-        ]
+        expected = [("manager_exit", "enter")]
+        expected.append(("manager_exit", outcome if phase == "manager_exit" else "return"))
+        if phase == "manager_exit" and outcome != "return":
+            expected += [("manager_exit", "enter"), ("manager_exit", "return")]
+        expected += [("http_client_close", "enter")]
+        expected.append(
+            ("http_client_close", outcome if phase == "http_client_close" else "return")
+        )
+        if phase == "http_client_close" and outcome != "return":
+            expected += [("http_client_close", "enter"), ("http_client_close", "return")]
+        assert phases == expected
         assert "private exception detail" not in json.dumps(evidence.rows)
     finally:
         await live.close()

@@ -276,7 +276,7 @@ test('observed100 stays truthful while a current max35 offer enables explicit lo
   actualOutput(f);f.host.liveTransport.controlSetup=async()=>{const raw=f.offer(['volume'],100);raw.options[0].argsSchema.max=35;return raw;};
   await f.view.prepareMusic();const input=f.nodes.get('volume');
   assert.equal(input.value,'100');assert.equal(input.max,'100');assert.equal(input.getAttribute('aria-valuetext'),'100 %');assert.equal(input.dataset.actionMax,'35');assert.equal(input.disabled,false);assert.equal(f.writes.length,0,'known high measurement never causes an implicit lowering');
-  assert.equal(await f.view.musicIntent('volume',{percent:35}),true);assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].args,{percent:35});assert.equal(input.value,'35','the slider retains the explicit choice while its numeric output stays measured');assert.equal(f.view.musicMeasurement.volume,100);assert.equal(f.nodes.get('volume-value').textContent,'100 %');
+  assert.equal(await f.view.musicIntent('volume',{percent:35}),true);assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].args,{percent:35});assert.equal(input.value,'35','the slider retains the explicit choice with explicit intent feedback while measurement remains unchanged');assert.equal(f.view.musicMeasurement.volume,100);assert.equal(f.nodes.get('volume-value').textContent,'35 %');
  }finally{f.restore();}
 });
 test('observed100 with a max35 offer permits the existing explicit mute action without inventing measured zero',async()=>{
@@ -286,7 +286,7 @@ test('observed100 with a max35 offer permits the existing explicit mute action w
   let intent;f.host.music=event=>{assert.deepEqual(event,{type:'volume',value:0});intent=f.view.musicIntent('volume',{percent:event.value});};
   await f.view.prepareMusic();assert.equal(player.volumeMute.disabled,false);assert.equal(player.volumeMute.getAttribute('aria-pressed'),'false');assert.equal(f.writes.length,0);
   player.syncVolumeMute({volume:100,blocked:false,canVolume:true,min:1,max:35});assert.equal(player.volumeMute.disabled,true);player.toggleVolumeMute();assert.equal(intent,undefined,'mute cannot cross an action minimum');f.view.renderMusicControls();assert.equal(player.volumeMute.disabled,false);
-  player.toggleVolumeMute();await intent;assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].args,{percent:0});assert.equal(f.nodes.get('volume').value,'0');assert.equal(f.nodes.get('volume-value').textContent,'100 %');assert.equal(player.volumeMute.getAttribute('aria-pressed'),'false','mute follows measured volume, never the requested result');
+  player.toggleVolumeMute();await intent;assert.equal(f.writes.length,1);assert.deepEqual(f.writes[0].args,{percent:0});assert.equal(f.nodes.get('volume').value,'0');assert.equal(f.nodes.get('volume-value').textContent,'0 %');assert.equal(player.volumeMute.getAttribute('aria-pressed'),'false','mute follows measured volume, never the requested result');
   assert.equal(await f.view.musicIntent('volume',{percent:0}),true);assert.equal(f.writes.length,2,'a new explicit mute obtains fresh task authority');assert.notEqual(f.writes[0].task.taskId,f.writes[1].task.taskId);
   measured=0;f.host.liveMedia.playback.poll_sequence++;await f.view.prepareMusic();assert.equal(f.nodes.get('volume').value,'0');assert.equal(f.nodes.get('volume').disabled,false);assert.equal(player.volumeMute.getAttribute('aria-pressed'),'true');assert.equal(player.volumeRestore,100);assert.equal(player.volumeMute.disabled,true,'restore100 cannot exceed the fresh35 limit');player.toggleVolumeMute();assert.equal(f.writes.length,2);
  }finally{f.restore();}
@@ -299,16 +299,16 @@ for(const block of ['stale','expired','unknown','out-of-policy'])test(`high meas
   if(block==='expired')f.view.musicOffer.task.expiresAt=Date.now()/1000-1;
   if(block==='unknown')f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};
   f.view.renderMusicControls();if(!['out-of-policy','expired'].includes(block))assert.equal(f.nodes.get('volume').disabled,true);
-  assert.equal(await f.view.musicIntent('volume',{percent:block==='out-of-policy'?36:0}),block==='expired');assert.equal(f.writes.length,block==='expired'?1:0);if(block==='expired')assert.ok(f.writes[0].task.expiresAt*1000>Date.now(),'only the freshly issued task can dispatch');assert.equal(f.nodes.get('volume-value').textContent,'100 %');
+  assert.equal(await f.view.musicIntent('volume',{percent:block==='out-of-policy'?36:0}),block==='expired');assert.equal(f.writes.length,block==='expired'?1:0);if(block==='expired')assert.ok(f.writes[0].task.expiresAt*1000>Date.now(),'only the freshly issued task can dispatch');assert.equal(f.nodes.get('volume-value').textContent,block==='expired'?'0 %':'100 %');
  }finally{f.restore();}
 });
 
 for(const ending of ['failure','owner-change'])test(`explicit music intent shows immediate preparing feedback and cleans it after ${ending}`,async()=>{
  const f=fixture(),messages=[];let finish,reject;try{
   f.host.showFeedback=(message,pending)=>{messages.push({message,pending});f.host.feedbackMessage=message;};await f.view.prepareMusic();f.host.liveTransport.controlSetup=()=>new Promise((resolve,fail)=>{finish=resolve;reject=fail;});
-  const intent=f.view.musicIntent('pause');assert.equal(f.view.musicStatus.textContent,'Afventer svar…');assert.equal(f.view.musicStatus.hidden,false);assert.deepEqual(messages.at(-1),{message:'Afventer svar…',pending:true});assert.equal(f.writes.length,0);assert.equal(f.view.musicDeferred,undefined);
+  const intent=f.view.musicIntent('pause');assert.equal(f.view.musicStatus.textContent,'Sætter på pause…');assert.equal(f.view.musicStatus.hidden,false);assert.deepEqual(messages.at(-1),{message:'Sætter på pause…',pending:true});assert.equal(f.writes.length,0);assert.equal(f.view.musicDeferred,undefined);
   if(ending==='failure')reject(Error('inert unavailable'));else{f.host.liveMedia.playback.target.id='foreign';f.view.renderMusicControls();assert.equal(f.view.musicStatus.hidden,true);finish(f.offer(['pause']));}
-  assert.equal(await intent,false);assert.equal(f.view.musicIntentPending,false);assert.equal(f.writes.length,0);assert.notEqual(f.view.musicStatus.textContent,'Afventer svar…');if(ending==='failure'){assert.match(f.view.musicStatus.textContent,/kunne ikke hentes/);assert.equal(messages.at(-1).pending,false);}
+  assert.equal(await intent,false);assert.equal(f.view.musicIntentPending,false);assert.equal(f.writes.length,0);assert.notEqual(f.view.musicStatus.textContent,'Sætter på pause…');if(ending==='failure'){assert.match(f.view.musicStatus.textContent,/kunne ikke hentes/);assert.equal(messages.at(-1).pending,false);}
  }finally{finish?.(f.offer(['pause']));f.restore();}
 });
 
@@ -323,7 +323,7 @@ for(const reason of ['withdrawn-option','unknown-volume','spent-task'])test(`pre
  const f=fixture(),messages=[];try{
   f.host.showFeedback=(message,pending)=>messages.push({message,pending});await f.view.prepareMusic();const old=f.view.musicOffer.task;
   f.host.liveTransport.controlSetup=async()=>{if(reason==='spent-task')return {...f.offer(['pause']),taskId:old.taskId};return reason==='withdrawn-option'?f.offer(['next']):f.offer(['volume'],null);};
-  assert.equal(await f.view.musicIntent(reason==='unknown-volume'?'volume':'pause',reason==='unknown-volume'?{percent:20}:{}),false);assert.equal(f.writes.length,0);assert.equal(f.view.musicIntentPending,false);assert.equal(f.view.musicFence.outcome,'unavailable');assert.match(f.view.musicStatus.textContent,/kunne ikke hentes/);assert.equal(messages.at(-1).pending,false);assert.equal(messages.some(value=>value.message==='Afventer svar…'&&value.pending),true);
+  assert.equal(await f.view.musicIntent(reason==='unknown-volume'?'volume':'pause',reason==='unknown-volume'?{percent:20}:{}),false);assert.equal(f.writes.length,0);assert.equal(f.view.musicIntentPending,false);assert.equal(f.view.musicFence.outcome,'unavailable');assert.match(f.view.musicStatus.textContent,/kunne ikke hentes/);assert.equal(messages.at(-1).pending,false);assert.equal(messages.some(value=>value.message.includes(reason==='unknown-volume'?'Indstiller lydstyrke…':'Sætter på pause…')&&value.pending),true);
  }finally{f.restore();}
 });
 
@@ -380,7 +380,7 @@ test('lowering observed100 remains single-flight through held setup and UNKNOWN 
  const f=fixture();const held=deferred();let intent;try{
   actualOutput(f);const offer=()=>{const raw=f.offer(['volume'],100);raw.options[0].argsSchema.max=35;return raw;};f.host.liveTransport.controlSetup=async()=>offer();await f.view.prepareMusic();
   f.host.liveTransport.controlSetup=()=>held.promise;f.host.liveTransport.controlAction=async(task,id,args)=>{f.writes.push({task,id,args});return {outcome:'unknown'};};
-  intent=f.view.musicIntent('volume',{percent:35});assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.nodes.get('volume').value,'35');assert.equal(f.nodes.get('volume-value').textContent,'100 %');assert.equal(await f.view.musicIntent('volume',{percent:0}),true);assert.equal(f.view.musicDeferred.input.percent,0);assert.equal(f.writes.length,0);
+  intent=f.view.musicIntent('volume',{percent:35});assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.nodes.get('volume').value,'35');assert.equal(f.nodes.get('volume-value').textContent,'35 %');assert.equal(await f.view.musicIntent('volume',{percent:0}),true);assert.equal(f.view.musicDeferred.input.percent,0);assert.equal(f.writes.length,0);
   held.resolve(offer());await intent;assert.deepEqual(f.writes.map(write=>write.args),[{percent:35}]);assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.nodes.get('volume').value,'100');assert.equal(f.nodes.get('volume').disabled,true);assert.equal(await f.view.musicIntent('volume',{percent:0}),false);assert.equal(f.writes.length,1);
  }finally{held.resolve(f.offer(['volume'],100));await intent;f.restore();}
 });
@@ -438,3 +438,15 @@ test('Robot-only invalidation retains the in-flight vacuum lock until its real r
   assert.equal(f.view.task,null);assert.equal(f.view.pending,true);assert.equal(f.view.activeOperation,operation);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.writes.length,1);finish({ok:true,outcome:'accepted',requestId:'vacuum-settled'});await running;assert.equal(f.view.pending,false);assert.equal(f.view.activeOperation,null);assert.equal(f.writes.length,1);
  }finally{finish?.({outcome:'unknown'});await running;f.restore();}
 });
+
+for(const action of ['pause','resume','next','previous','volume'])test(`${action} immediately projects action feedback and busy button through held setup and dispatch`,async()=>{const f=fixture();try{
+ f.host.liveMedia.playback.state=action==='pause'?'playing':'paused';await f.view.prepareMusic();
+ for(const id of ['play-pause','detail-toggle','previous','detail-previous','next','detail-next'])assert.equal(f.nodes.get(id).dataset.kitVariant,'icon','legacy icon transport controls must not acquire reserved text-button progress padding');
+ const presentations=[],toasts=[],vm={active:true,playing:action==='pause',title:'Observed',controlStatus:''};f.host.playerView={progressVM:vm,renderPlayer(value){this.progressVM=value;presentations.push(value);}};f.host.showFeedback=(text,pending)=>toasts.push({text,pending});
+ const setup=deferred(),write=deferred();f.host.liveTransport.controlSetup=()=>setup.promise;f.host.liveTransport.controlAction=async(task,id,args)=>{f.writes.push({task,id,args});return write.promise;};
+ const request=f.view.musicIntent(action,action==='volume'?{percent:30}:{}),copy={pause:'Sætter på pause…',resume:'Starter afspilning…',next:'Skifter til næste…',previous:'Skifter til forrige…',volume:'Indstiller lydstyrke…'}[action],control=action==='volume'?'volume':['next','previous'].includes(action)?action:'play-pause';
+ assert.ok(f.host.playerView.progressVM.controlStatus.includes(copy),'existing PlayerView receives immediate inline feedback before setup resolves');assert.equal(f.nodes.get(control).getAttribute('aria-busy'),'true');assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.host.playerView.progressVM.playing,vm.playing);assert.equal(f.writes.length,0);assert.ok(toasts.some(row=>row.text.includes(copy)&&row.pending));
+ setup.resolve(f.offer(action==='volume'?['volume']:undefined));await new Promise(done=>setImmediate(done));assert.equal(f.writes.length,1);assert.ok(f.host.playerView.progressVM.controlStatus.includes(copy));assert.equal(f.nodes.get(control).getAttribute('aria-busy'),'true');assert.equal(f.host.liveMedia.playback.state,action==='pause'?'playing':'paused');
+ write.resolve({outcome:'unknown',requestId:'receipt'});await request;assert.equal(f.nodes.get(control).getAttribute('aria-busy'),'false');assert.match(f.host.playerView.progressVM.controlStatus,/ukendt/);assert.equal(await f.view.musicIntent(action),false);assert.equal(f.writes.length,1);assert.ok(presentations.length>=2);
+ for(const id of ['play-pause','detail-toggle','previous','detail-previous','next','detail-next'])assert.equal(f.nodes.get(id).dataset.kitVariant,'icon','settlement must retain canonical icon geometry');
+ }finally{f.restore();}});

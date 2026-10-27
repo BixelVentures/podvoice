@@ -8,6 +8,8 @@ Lead decision: explicit native Stop may skip the graceful terminal wait only aft
 
 Planned checks: trace-shaped mocked delayed/missing terminal and socket closure after Stop; stale callback injected after generation boundary; pending send/startup and duplicate Stop; timeout/failed abort retains ownership and blocks rearm; opposite Talk/normal semantic close and final-usage preservation; relevant adapter and independent adversarial review. No timeout increase, audio/LED tuning, live provider or device effects. Rollback removes only explicit Stop cleanup change and retains installed PV95. Actual isolated result: owner-retention tests RED 2 → GREEN 2, native Stop tests with pinned SDK serializer GREEN 2, send/identity unit tests GREEN 3, affected Talk/native interrupted cleanup and retry GREEN 8; formatter/lint PASS. Existing adjacent run passed the other cases and exposed four obsolete Talk expectations, now corrected and rechecked. Real SDK/WebSocket localhost close-handshake hold test passes with lease retained until closure; foreign-generation Stop and old-reader terminal/audio/tool late injection pass 4/4. Independent adversarial review and candidate binding remain pending. No live provider or physical trial has been run; candidate is not test-ready.
 
+Combined 2.0.96 addition: the PodView owner reviewed the music queue expiry refresh, loading and control feedback packet (215 runtime entries; 10 changed assets plus asset manifest) with source and visual GO; 3,143 owner tests passed. Installation and actual music, queue and session acceptance remain open. The independent CI fixture repair retains wrapped cleanup ownership. No Robot or Tesla additions. Start35 and manual 0–100 physical checks remain open. Combined exact-tree review and official CI are pending.
+
 <!-- podvoice96-admission
 {
   "version": 73,
@@ -15,17 +17,18 @@ Planned checks: trace-shaped mocked delayed/missing terminal and socket closure 
   "base_tip": "f492f4cca291757677429019422823d263665132",
   "merge_base": "f492f4cca291757677429019422823d263665132",
   "domains": [
-    "unclassified_runtime"
+    "ha_tools",
+    "physical_output"
   ],
-  "fingerprint": "5bef2c33be1158a20966708575f0a861c1556c7f85f0f460fb441db8439107b6",
-  "regression_fingerprint": "aad5172ea10835b5aeb57ea5b15c3646a9dec25a5ef01e2ef94e2ddaafc3d83f",
-  "runtime_fingerprint": "e035b416c2c1ba6aa93a56150898594b36186824fe41e535331a33df99a8698f",
+  "fingerprint": "64c4832022b9fbace1004bd0ba19f8e4b2ce8b85635b28fe6f796848de25cf0b",
+  "regression_fingerprint": "4a6de6fc20f4ae7e558eceee8b6a64c8a58cab90a49767a20b8e876e825075ca",
+  "runtime_fingerprint": "eaf3a130372c9d374f963799f887c0adade81bb106b4df082699d4588b1b1c7d",
   "config_fingerprint": "9ea79b4475953708fb363a54c942d75838b2887f3901818cf4356c55bf775dcf",
-  "policy_fingerprint": "c79ec512ef338b3aa239be69083b9ebf2daab7c1715843e1206301b44cbef2a9",
-  "tooling_fingerprint": "15f60a67943e3ebe50b9dc0db556024f215358ecd3acc9ae974fe3502946ab98",
-  "manifest_fingerprint": "e5cf9dd1e71f7506c3d4bb5f7f1a045f9520efcbc71ca6e65dc5f3fd1260e83c",
+  "policy_fingerprint": "ec1e1480de0341915587cca9da55ea93f417c2e74e60fe7465474dd32a452917",
+  "tooling_fingerprint": "93a6e0c385fa444287515b0dc716ab207fbb149cf9ee378cd79164894194fc1e",
+  "manifest_fingerprint": "3f0bbc38d512d44642f5644894da3852be08826aea0c37e75c27a0d663e01708",
   "reviewer": "/root/review95_binding",
-  "rationale": "Exact GPT-Live explicit native Stop cleanup candidate; independent composition review pending."
+  "rationale": "Exact GPT-Live native Stop and reviewed PodView music candidate; independent composition review pending."
 }
 -->
 
