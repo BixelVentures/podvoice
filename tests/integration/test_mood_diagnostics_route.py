@@ -110,7 +110,7 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
 
     def capture(seconds):
         timer = real_timeout(seconds)
-        if seconds == 10:
+        if 9 < seconds <= 10:
             timers.append(timer)
         return timer
 
@@ -225,7 +225,8 @@ async def test_actual_tab_caller_preserves_kind_and_catalogue_failure(
         ("room", 409, "room_required"),
         ("invalid", 400, "invalid_request"),
         ("admission", 403, "not_admitted"),
-        ("busy", 429, "busy"),
+        ("busy", 429, "read_busy"),
+        ("selection_busy", 429, "selection_busy"),
     ],
 )
 async def test_early_admission_is_fixed_private_and_has_no_provider_call(
@@ -246,6 +247,8 @@ async def test_early_admission_is_fixed_private_and_has_no_provider_call(
         req.query["PRIVATE_QUERY"] = "PRIVATE_VALUE"
     elif mode == "admission":
         mood_rig.router.podview_mood_selector = None
+    elif mode == "selection_busy":
+        bridge.music_selection.busy = lambda room: True
     else:
         bridge._music_busy = True
     before = list(mood_rig.calls)

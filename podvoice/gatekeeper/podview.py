@@ -2980,11 +2980,59 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     if kind not in tools.podview_music_reads() or (kind == "mood" and selector is None):
         diagnostic_log.admission(kind, "not_admitted", 403)
         return _error(f"{kind}_not_admitted", 403)
-    if bridge._music_busy or bridge.music_selection.busy(room):
-        diagnostic_log.admission(kind, "busy", 429)
-        return _error("music_busy", 429)
+    started = time.monotonic()
     binding = _music_binding(bridge, room)
     grant = bridge._grant_for_token(room, token)
+    initial_writable = bridge.controls.selection_allowed(room, token, "play_context")
+    initial_voice = bridge.snapshot(room).get("voice", {})
+    inflight = bridge._targets_inflight
+    if bridge.music_selection.busy(room):
+        diagnostic_log.admission(kind, "selection_busy", 429)
+        return _error("music_busy", 429)
+    if bridge._music_busy and inflight is not None:
+        read_key, completion = inflight
+        boot, cache_key, read_binding = read_key
+        if (
+            boot == bridge.boot_id
+            and cache_key[0] == room
+            and cache_key[1] == "targets"
+            and cache_key[2] in (None, account)
+            and read_binding == binding
+        ):
+            try:
+                completed = await asyncio.wait_for(asyncio.shield(completion), timeout=10)
+            except TimeoutError:
+                diagnostic_log.admission(kind, "read_busy", 429)
+                return _error("music_busy", 429)
+            if not completed:
+                diagnostic_log.admission(kind, "read_busy", 429)
+                return _error("music_busy", 429)
+            denied = await _guard(request)
+            if denied is not None:
+                diagnostic_log.admission(kind, "guard_denied", denied.status)
+                return denied
+            if (
+                request.app.get(BRIDGE) is not bridge
+                or _room(request, bridge) != room
+                or bridge.boot_id != boot
+                or bridge.tools is not tools
+                or getattr(tools, "podview_mood_selector", None) is not selector
+                or bridge.snapshot(room).get("voice", {}) != initial_voice
+                or _music_binding(bridge, room) != binding
+                or _request_token(request, room) != token
+                or bridge._grant_for_token(room, token) is not grant
+                or bridge.controls.selection_allowed(room, token, "play_context")
+                != initial_writable
+                or kind not in tools.podview_music_reads()
+            ):
+                diagnostic_log.admission(kind, "owner_changed", 409)
+                return _error("music_unavailable", 409)
+    if bridge.music_selection.busy(room):
+        diagnostic_log.admission(kind, "selection_busy", 429)
+        return _error("music_busy", 429)
+    if bridge._music_busy:
+        diagnostic_log.admission(kind, "read_busy", 429)
+        return _error("music_busy", 429)
     writable = bridge.controls.selection_allowed(room, token, "play_context")
     preview_voice = bridge.snapshot(room).get("voice", {})
     generation = bridge._advance_music_source(token)
@@ -3024,7 +3072,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
 
     try:
         # Leave two seconds for ingress/response within the browser 12-second deadline.
-        async with asyncio.timeout(10) as total_deadline:
+        async with asyncio.timeout(max(0, 10 - (time.monotonic() - started))) as total_deadline:
             if not current():
                 return failed(f"{kind}_owner_unavailable")
             retained = getattr(bridge, retained_attribute, None)

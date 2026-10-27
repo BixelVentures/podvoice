@@ -220,3 +220,126 @@ async def test_real_grant_keeps_existing_write_path(mood_rig):
     body = await read(mood_rig, cookie="grant")
     assert body["ok"] and "candidateSet" in body and "preview" not in body
     assert len(mood_rig.app[BRIDGE].music_selection.sources) == 1
+
+
+@pytest.mark.parametrize("target_account", [None, "account-alpha"])
+async def test_mood_waits_for_same_room_passive_targets_then_reads_once(mood_rig, target_account):
+    bridge = unpaired(mood_rig)
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = mood_rig.router.podview_read
+    reads = mood_rig.router.podview_music_reads
+    mood_rig.router.podview_music_reads = lambda: [*reads(), "targets"]
+
+    async def held(kind, *args, **kwargs):
+        if kind == "targets":
+            entered.set()
+            await release.wait()
+        return await original(kind, *args, **kwargs)
+
+    mood_rig.router.podview_read = held
+    target_request = request(mood_rig)
+    target_request.query["kind"] = "targets"
+    if target_account is None:
+        del target_request.query["account"]
+    target = asyncio.create_task(_music(target_request))
+    await asyncio.wait_for(entered.wait(), 2)
+    pending = asyncio.create_task(read(mood_rig))
+    await asyncio.sleep(0)
+    release.set()
+    try:
+        await target
+        result = await pending
+        assert result["ok"] is True
+        assert mood_rig.router.podview_mood_selector.select.await_count == 1
+        assert not bridge._music_busy
+    finally:
+        release.set()
+        await asyncio.gather(target, pending, return_exceptions=True)
+
+
+@pytest.mark.parametrize("boundary", ["owner", "cancel", "selection"])
+async def test_joined_targets_does_not_cross_ownership_or_mutation(mood_rig, monkeypatch, boundary):
+    bridge = unpaired(mood_rig)
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = mood_rig.router.podview_read
+    reads = mood_rig.router.podview_music_reads
+    mood_rig.router.podview_music_reads = lambda: [*reads(), "targets"]
+
+    async def held(kind, *args, **kwargs):
+        if kind == "targets":
+            entered.set()
+            await release.wait()
+        return await original(kind, *args, **kwargs)
+
+    mood_rig.router.podview_read = held
+    target_request = request(mood_rig)
+    target_request.query["kind"] = "targets"
+    target = asyncio.create_task(_music(target_request))
+    pending = None
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        pending = asyncio.create_task(read(mood_rig))
+        await asyncio.sleep(0)
+        if boundary == "owner":
+            bridge.boot_id = "replaced"
+        elif boundary == "selection":
+            monkeypatch.setattr(bridge.music_selection, "busy", lambda room: True)
+        else:
+            pending.cancel()
+        release.set()
+        await target
+        if boundary == "cancel":
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+        else:
+            assert (await pending)["ok"] is False
+        assert mood_rig.router.podview_mood_selector.select.await_count == 0
+        assert not bridge.music_selection.sources
+        assert mood_rig.router._client is not None
+    finally:
+        release.set()
+        await asyncio.gather(target, *([pending] if pending else []), return_exceptions=True)
+
+
+@pytest.mark.parametrize("boundary", ["unchanged", "revoke", "replace"])
+async def test_writable_join_preserves_grant_and_one_candidate_source(mood_rig, boundary):
+    bridge = mood_rig.app[BRIDGE]
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = mood_rig.router.podview_read
+    reads = mood_rig.router.podview_music_reads
+    mood_rig.router.podview_music_reads = lambda: [*reads(), "targets"]
+
+    async def held(kind, *args, **kwargs):
+        if kind == "targets":
+            entered.set()
+            await release.wait()
+        return await original(kind, *args, **kwargs)
+
+    mood_rig.router.podview_read = held
+    target_request = request(mood_rig, cookie="grant")
+    target_request.query["kind"] = "targets"
+    target = asyncio.create_task(_music(target_request))
+    pending = None
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        pending = asyncio.create_task(read(mood_rig, cookie="grant"))
+        await asyncio.sleep(0)
+        if boundary == "revoke":
+            bridge._grants.clear()
+        elif boundary == "replace":
+            bridge._grants["kitchen"] = ("grant", "replacement")
+        release.set()
+        await target
+        result = await pending
+        if boundary == "unchanged":
+            assert result["ok"] is True and result["candidateSet"]
+            assert len(bridge.music_selection.sources) == 1
+        else:
+            assert result["ok"] is False
+            assert not bridge.music_selection.sources
+        assert mood_rig.router.podview_mood_selector.select.await_count == (boundary == "unchanged")
+        bridge.controls.music.setup_context.assert_not_awaited()
+        bridge.controls.music.execute_context.assert_not_awaited()
+    finally:
+        release.set()
+        await asyncio.gather(target, *([pending] if pending else []), return_exceptions=True)

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-control-view.js';
 import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
+import {LiveQueueView} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
 import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
 import {roomPlaybackObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
 class Node extends EventTarget{
@@ -74,4 +75,25 @@ for(const failure of ['stale','missing'])test('fresh roster cannot authorize MOV
   assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),false);
   assert.equal(f.effects.length,0);assert.equal(f.setups.length,0);
  }finally{h.close();}
+});
+
+for(const order of ['response-first','observation-first'])test(`v3 MOVE ${order} restores fresh controls and queue after matching settlement`,async()=>{
+ const h=lifecycle(),{f,g,output,speakers}=h;let release;const queue=new LiveQueueView(f.host);try{
+  f.host.liveSnapshot.capabilities.musicRead.push('queue');f.host.liveSnapshot.capabilities.queueSelection=true;
+  g.media.queueControls=queue;g.media.renderQueue=()=>{};
+  await g.media.refresh({immediate:true});await output.open();
+  const destination=()=>{const b=g.body({epoch:'epoch-1',binding:'1'.repeat(64)});b.binding.nativeRoomId='room-1';b.binding.nativeHomepodId='3';b.data.poll_sequence=2;return b;};
+  g.setRead((_kind,_account,_query,options)=>{const b=destination();if(options?.receiptRequestId)b.settlement={requestId:options.receiptRequestId,request_id:'epoch-1:1',command_sequence:1,owner_epoch:'epoch-1',status:'confirmed',effect:{source:'native_bound_state',effect_revision:'1'}};return Promise.resolve(b);});
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return new Promise(resolve=>release=resolve);};
+  const moving=f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now());await tick();assert.equal(f.effects.length,1);
+  if(order==='observation-first')await g.media.refresh({immediate:true});
+  release({outcome:'accepted',requestId:'move-1'});await moving;await tick();
+  if(order==='response-first')await g.media.refresh({immediate:true});
+  await tick();f.view.renderMusicControls();
+  assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-1');
+  assert.equal([...f.view.receipts.values()].at(-1).settlementStatus,'confirmed');
+  assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);
+  f.host.liveTransport.queueOffer=async(account,target,binding)=>({ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'room',accountId:account,targetId:target,expectedBindingId:binding,taskId:'queue:'+'a'.repeat(32),revision:1,expiresInMs:8000,ownerEpoch:g.media.playback.owner_epoch,pollSequence:g.media.playback.poll_sequence,truncated:false,items:[{id:'1'.repeat(24),title:'Next',artist:'Artist',uri:'spotify:track:'+'0'.repeat(22),artwork:null,order:1}]});
+  assert.equal(await queue.load('account',g.media.playback),true);assert.equal(queue.model('account',g.media.playback).items[0].selectable,true);assert.equal(f.effects.length,1);
+ }finally{queue.invalidate(true);release?.({outcome:'unknown'});h.close();}
 });

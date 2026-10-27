@@ -22,6 +22,7 @@ udtrykkeligt siger andet.
 | [ARKITEKTUR.md](ARKITEKTUR.md) | Faktisk GPT-Live-produktionsvej og ejerskab. |
 | [AGENTKONTRAKT.md](AGENTKONTRAKT.md) | Detaljerede ændrings-, review-, bevis- og releasekrav. |
 | [UDVIKLINGSFLOW.md](UDVIKLINGSFLOW.md) | Faktisk lokal fast-flow, scope og CI-opdeling; ikke en ny produktgate. |
+| [POD-SYSTEM-STANDARD.md](POD-SYSTEM-STANDARD.md) | Fælles bindende arbejds- og acceptkrav for PodVoice, PodView og PodConnect; resultater føres fortsat i STATUS. |
 
 ## Aktuelle støtte- og referencefiler
 
@@ -55,6 +56,6 @@ udtrykkeligt siger andet.
 | [archive/PODVIEW-2.0.25-CANDIDATE.md](archive/PODVIEW-2.0.25-CANDIDATE.md) | Frosset historisk PodView-kandidat. Bevares som receipt, ikke som nuværende UI/policy. |
 | [archive/STATUS-2026-10-14-pre-157.md](archive/STATUS-2026-10-14-pre-157.md) | Statussnapshot før #157; kun historisk provenance. |
 
-Indekset dækker alle 30 tracked Markdown-filer, inklusive sig selv. Hvis filer flyttes,
+Indekset klassificerer de dokumenterede Markdown-indgange, inklusive sig selv. Hvis filer flyttes,
 opdatér link og klassifikation her; flyt ikke historik uden først at bevare fungerende
 links og dens provenance.

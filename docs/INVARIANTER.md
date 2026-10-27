@@ -1,5 +1,13 @@
 # PodVoice-systeminvarianter
 
+## Fælles Pod-ejerskab · standard v1
+
+[Pod-systemstandarden](POD-SYSTEM-STANDARD.md) gælder alle berørte domæner.
+Stemme og touch anvender samme eksisterende udførelsesejer for samme autoriserede mål.
+UI viser frisk observeret tilstand; intention, accept og bekræftet effekt er særskilte.
+UNKNOWN, stale eller fremmede events må ikke gensende handlinger eller ændre nyere ejer.
+Én ejer pr. domæne bevares; dette tilføjer ingen global state-service eller lifecycle.
+
 > Produktbeslutning (13/10): brugeren har valgt **kun GPT-Live** til både Voice PE
 > og Talk. Den allerede valgte GPT-Live-produktionsvej deler `ThinSession`, `VoicePELink`,
 > `ToolRouter` og fysisk close/rearm. Aktuel installeret version og fysisk evidens står

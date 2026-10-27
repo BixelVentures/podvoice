@@ -1,5 +1,31 @@
 # PodVoice agentindgang
 
+## Pod System Engineering Standard v1 · 27. oktober 2026
+
+PodVoice, PodView og PodConnect er ét produkt. Læs den fælles
+[Pod-systemstandard](docs/POD-SYSTEM-STANDARD.md) ved berørte brugerforløb.
+
+1. Design input → handling → faktisk service/enhed → observeret resultat → feedback
+   → recovery på tværs af de relevante flader; inspicér kilde og naboejere først.
+2. Stemme og touch bruger samme autoritative ejer pr. domæne. Accepteret er ikke
+   bekræftet effekt; UNKNOWN må ikke automatisk gensendes. Ingen parallel state-ejer.
+3. Agenten ejer softwarefejlsøgning og QA. Genbrug eksisterende miljø/harness og
+   kausale regressioner; ændret UI følger fortsat PodViews kanoniske kit/reviewkrav.
+4. Færdigmelding kræver det forventede brugerresultat. Angiv særskilt unit/kontrakt,
+   integration, rigtig browser, rigtig service og fysisk hardware samt inerte
+   afhængigheder, faktisk evidens og rester. Kode/udgivelse/installation er ikke accept.
+5. Kravene gælder permanent i alle Pod-projekter. PodVoice-lead ejer integration,
+   PodView UI og PodConnect musik/output; eksisterende sikkerheds- og releasekrav bevares.
+
+Fejl skal kunne diagnosticeres: registrér afvisning, timeout, exception, ukendt udfald
+og mislykket recovery i den eksisterende ejerlog med fast trin/årsag/udfald og sikker
+korrelation, hvor kontrakten tilbyder det. Ingen nøgler, rå payloads eller persondata;
+ingen ny logplatform eller støjende logning af alle succesfulde poll-kald.
+
+Første fælles accept er tal → afspil → vis → touch-pause → verificér samme output.
+Følg den aktive kandidat; historiske checkouts er ikke releasekilde. Resultater og
+næste handling føres i eksisterende STATUS/feedbackpost. Ingen ny konkurrerende log.
+
 Denne fil er den korte indgang til aktuel status og arbejdsgang. Risikofyldte ændringer
 følger fortsat de fulde sikkerheds-, lifecycle-, review- og beviskrav i
 [docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md). Den oprindelige lange indgang findes i

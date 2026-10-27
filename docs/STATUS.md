@@ -1,3 +1,142 @@
+## 27/10 — fælles Pod-systemstandard v1 indført lokalt
+
+Brugeren har godkendt de fem krav på tværs af PodVoice, PodView og PodConnect:
+hele brugerrejsen, samme domæneejer for stemme/touch, agent-ejet software-QA,
+verificeret resultat før færdigmelding og permanente projektinstruktioner.
+[Pod-systemstandarden](POD-SYSTEM-STANDARD.md) er nu bindende gennem AGENTS og
+indarbejdet i eksisterende arkitektur/invarianter/produktmål samt PodViews kontrakt/
+feedbackoversigt og Connects kommandoindgang. Aktive recovery-kilder er bevaret;
+19 docsændringer er hashkontrolleret og læst tilbage, nye lokale links består og
+uafhængigt dokumentreview er GO. Ingen ny runtimearkitektur eller parallel statuslog.
+
+Første nye regression i aktiv kilde:
+`/private/tmp/pv-music-recovery-20261027/tests/integration/test_pod_system_music_journey.py`,
+SHA256 `6d4f8837c331c46a107e76bec228553949ae33e9ea64002bb4322f14867c9d58`.
+Den udfører faktisk ToolRouter/valg/godkendelse → MusicControlFacade → HTTP playback-
+projektion → HTTP touch-pause → settlement. Start og pause bevarer konto/mål/ejer,
+sekvens1→2; en gentaget touchrequest udfører én effekt. Accepteret play/pause ændrer
+ikke observation; confirmed kræver en separat frisk observation. Review fandt et
+hul i oraklets argumentbinding; præcise track-/play-/pause-/volumen-/kontoassertions
+er tilføjet og findings er lukket. Ændret test PASS, Ruff check/format PASS;
+to uændrede naboregressioners PASS genbruges. Eksisterende CI finder testen via
+rest-shard; ingen ny runner eller workflow er nødvendig.
+
+Bevisgrænse: HA/Connect-svar og enhedsobservationer er inerte fixtures. Ingen rigtig
+providersemantik, udført Connect/Native-kode, renderet browser eller hørbar lyd er
+bevist af denne test. Den eksisterende night-browserfixture er heller ikke en færdig
+pause-E2E. Hele musikaccepten og den aktuelle feltregression forbliver åbne; testen
+må ikke bruges til at lukke dem. Officiel CI/publicering/installation er ikke kørt.
+**Ingen version aftalt** for denne standard-/testændring. Integrationslead ejer næste
+handling: genbrug regressionen i den aktive recovery-kandidat og luk de manglende
+browser→reel Connect/Native→fysiske acceptkanter, når softwaren er klar; ingen ny
+husholdningstest eller spekulativ runtimepatch er startet her.
+
+Varigt testpatch og docs-/resultatkvittering:
+`/Users/madsbachandersen/.codex/visualizations/2026/10/27/01a17e9d-59ff-7c93-9985-7cf072a5f696/pod-system-adoption/`.
+Den igangværende musikgenopretning og alle tidligere fejlede/ukendte resultater bevares.
+
+### Samme standardpost — fuld inputdækning og støjoprydning
+
+Opfølgende audit fandt konkrete huller i første indarbejdelse. Standarden angiver nu
+hele den autonome ti-trinscyklus (lokale services, faktisk browser, logs/konsol/netværk/
+state, årsag og gentest), fuld wake/GPT-Live/PodView/musik/Connect/timer/HA/recovery/
+Mini-matrix, konkrete timer-/HA-/samtale-/recoveryforløb og eksakt DoD/fempunktsrapport.
+Det er kravdækning, ikke påstået bestået funktion i alle domæner.
+
+Modstridende Realtime/half-duplex/Alpha-ON-OFF-produktionsinstruktioner i historiske
+PodVoice-indgange er erstattet af dokumentkontrakten fra aktiv GPT-Live-kilde.
+Kort AGENTS henviser til den bevarede detaljerede sikkerhedskontrakt. PodViews gamle
+workshop-/milepælsautoritet er fjernet; daterede kontrakter og rodkopier markeres
+historiske og peger på eksisterende aktuelle poster. Connects Attention-vejledning
+beskriver nu faktisk session/challenge/admission/release og afgrænser gamle eksempler;
+Native service-/settlementkort og observeret versus optimistisk ekstern state er eksplicit.
+Originaldokumenter er bevaret i samme tasks evidence før ændring; fysisk historik er
+ikke slettet. Aktiv .dockerignore udelader syv legacy-moduler, som stadig har test-/
+kompatibilitetscallers. Ingen runtimekode er derfor slettet på en antagelse om død kode.
+
+Konkrete fixturefejl rettet i eksisterende PodView music-remote-night-fixture:
+Pause/Fortsæt annonceres ikke længere uden forfattet effekt. Faktisk inert HTTP-pause/
+resume, samme observation, exact scope, engangstilbud/replayafvisning, IDmaks120,
+volumen-only grants og deterministisk expiry er nu dækket af eksisterende Node-discovery.
+Fokuseret HTTP-regression og syntaks PASS; to reviewfund om IDgrænse/grantparitet er
+rettet, og det ændrede testtrin består. Ingen bred gate gentaget for docs/fixture.
+
+Rigtig browser på endelige fixturebits: playerens Pause gav Fortsæt, og Fortsæt gav
+Pause igen med samme track; screenshots er gemt. Inert service, ingen lyd/Spotify/AI.
+Konsolkontrol fandt samtidig `MutationObserver.observe` med ikke-Node ved opstart,
+gentaget ved genindlæsning. Årsagen er ikke lokaliseret; relevante uændrede UI-assets
+er byteidentiske mellem mirror og kilde. PodView ejer næste handling: hent præcis
+stack/URL og ret dokumenteret årsag i den kanoniske ejer. Dette er ikke en grøn samlet
+browsergate eller musikaccept. Connects mute/unmute er et særskilt konkret kapabilitetsgap
+(ikke annonceret/implementeret); Connect ejer at definere/bevise samme-ejer mute og
+restore uden at kalde volumen0 for leveret mute. Ingen scopefjernelse eller runtimefix.
+
+26 oprydningsfiler er anvendt og læst tilbage; nye links og eksisterende testdiscovery
+består. Uafhængigt standard-/dokumentreview og fokuseret fixturereview er GO efter
+rettelser. Evidens, originaler og samlet patchmanifest ligger i samme tasks
+`pod-system-cleanup/` ved siden af den tidligere `pod-system-adoption/`.
+Ingen ny version, publicering, installation, live serviceeffekt eller fysisk accept.
+
+## Active lead decision — music regression recovery, 27 October 2026
+
+Lead /root. User approved selective music recovery, one causal change at a time, preserving current storage/native recovery, login/pairing, START35 and subsequent manual0–100; no Tesla/Robot/Hue/new UI or voice lifecycle changes. Investigation started2026-10-27T15:42Z; first decision checkpoint by16:12Z (30min). Current GitHub main verified PV8ecd76bc3603fccdd94066212a66d5138e0cebd5 / PCd70895e8dbe763c181f9639c12be4411bc11e65c. Last installed receipt PV2.0.96/Speakers0.26.56/Control0.10.26 is installation evidence, not music acceptance.
+
+Observed failure: user reports lost audio, Spotify controls locked after speaker move, inconsistent player/control/queue feedback. No new correlated incident has yet isolated an introducing commit. Current-format journal compatibility explicitly excludes blind older-binary downgrade. A selective revert is allowed only after causal reproduction and compatibility proof.
+
+Chain under investigation: Spotify or PodView intent → existing HA/native control owner → go-librespot writer/FIFO → OwnTone admission/route → HomePod; passive source observations → current bridge/control/queue projection → canonical UI. Preserve exact controller/grant/owner, one-use effects, UNKNOWN no replay and stale-callback isolation. Initial UI hypothesis was MOVE receipt/observation ordering; new actual-v3 tests pass both orderings and do NOT prove that cause. Five target/neighbor and two stale/unknown checks passed. Native five individually relevant patch blobs match current PC main; old starvation log identifies insufficient input, not its initiating cause.
+
+Next: retrieve recent passive Green logs/current installed identity and isolate first divergence; no audio/provider effects initiated. If no defensible revert by checkpoint, report precise evidence gap and revise plan instead of speculative production patch. Rollback boundary: current compatible immutable components/data remain, no database reset or old journal reader. No production code, publication, installation or physical acceptance is claimed by this investigation.
+
+### Investigation checkpoint — 27 October 2026
+
+The first investigation ended within its approved 30-minute cap; no production revert or release is authorized by the current evidence. Historical baseline located: Speakers0.26.17 / Control0.10.7, commit b33e6c36f9cde0e0ecc4cc268eecf0b1bca7c615 (12October), 111commits behind current PC main. This identifies a comparison candidate, not a whole-system proven stable version or safe downgrade.
+
+Fresh passive Green evidence: Speakers0.26.56 Kører; playback poll208 fresh observed2026-10-27T15:52:18Z, no_active_playback, native route unavailable. User had stopped playback; this is not evidence that earlier playback was healthy. Music policy currently permits manual maxVolume100 for all three configured room targets, with START35 unchanged. No settings changed.
+
+User confirms both15:24 and16:34 were failed tests, but does not remember destination/direction of16:34 transfer. Speakers log contains starvation15:24:38 and transfer-out plus C start/retire/prepare409 at16:34:09, followed by login/reauth. Starvation predates that409 and cannot be caused by it. Native preserves unknown custody on rejected prepare and can reject successor writers; individual rejected C predicate is not retained in existing logs or supported read endpoints. No safe blame/revert is established.
+
+Actual-v3 UI tests for response-before-observation and observation-before-response pass with real media/control/queue modules and simulated transport (target+neighbors5/5; stale/unknown neighbors2/2). This excludes only the tested successful receipt ordering, not a provider or field failure. C connected/non-streaming fixture with live FIFO writer passes starvation→retire preparation after12s; starvation alone therefore does not establish409. Real-PCM fixture adaptation failed in the harness before target sequence and is not product evidence. Existing real Native purpose-bound Pause→Resume trace also passes; no broad rollback follows.
+
+Artifacts: /private/tmp/music-recovery-speakers-log-20261027-1648.txt; /private/tmp/music-recovery-playback-read-20261027-1652.txt; /private/tmp/music-retire-red-20261027/retire-control.log. No audio, provider action, Green restart, configuration change, publication or installation performed. Existing local Docker test engine was started solely for isolated network-none C testing.
+
+Next causal requirement: obtain a correlated first-divergence observation for a failed ordinary playback/transfer, including the rejected retire preparation condition. Existing DEBUG cannot expose that condition because no predicate logging exists. Choose a minimal separately reviewed, content-free diagnostic addition or a reliable real-PCM offline reproduction before further product edits. This is a diagnostic gap, not an unavailable physical acceptance substitute. Broader regression goal remains open; do not call the tests or installed96 a music fix.
+
+
+### Active lead decision — concurrent catalogue admission, 27 October 2026
+
+Lead root; implementation Terra music_ui_regression. Fresh actual Green96 browser19:59: Find music/Stemning fails without Play; server19:59:29.924 records mood_admission kind=mood reason=busy http_status=429. Browser error/warn capture empty, so prior MutationObserver report is not established as this cause. Saved observed log /private/tmp/pv96-music-catalog-failure-20261027-2000.txt. Read-only visit; no music or household action.
+
+Source shows both uncached passive targets reads and mood share _music_busy; active selection mutation is a separate room-busy predicate but both yield the same diagnostic. Falsifiable hypothesis: first-open target discovery overlaps one mood request, which receives a terminal busy response although no mutation is active. This is a candidate cause of reproduced catalogue unavailability, not established cause of Native starvation/409 or every field lock.
+
+Chain: browser first-open→targets discovery plus mood→bridge admission→existing catalogue provider→fresh source/selection→cards. Preserve account/room/boot/tools/binding/grant/current source generation, mutation exclusion, one request/no replay, existing total deadline and cancellation; no new lock owner or state service. First authorise existing-harness controlled targets/mood overlap RED plus mutation/stale/cancellation neighbours. If the causal software failure is reproduced, draft only bounded join of the matching already-tracked passive target read, revalidate after await; do not wait arbitrary reads, ignore busy, release mutation guards or extend deadline. Emit fixed distinction passive-read-busy versus selection-busy at existing diagnostic owner, no IDs/content. Runtime draft requires independent focused Sol review before freeze; no UI patch or release authorised by RED alone.
+
+Non-goals: no decoder/native retirement fix, UI/toast rewrite, provider retry, new framework or authority expansion. Rollback removes only bounded admission/join and new static diagnostic codes; installed96 remains baseline. Exact current-source regression, cancellation and fresh/stale ownership outcomes recorded here before delivery. Actual field busy owner remains unknown until distinguishable observation; diagnostic result never becomes music acceptance.
+
+Catalogue actual result: controlled targets-overlap regression RED before patch; existing target completion can now be joined only for matching current scope, with original total10s deadline, shielded cancellation and post-await boot/room/tools/selector/voice/binding/token/grant/admission revalidation. Selection mutation still rejects. Fixed private diagnostics distinguish read_busy, selection_busy and owner_changed. Focused40 mood/diagnostic outcomes and28 read/coalescing neighbours PASS; requested3 writable/revoked/replaced-grant cases PASS with one source only for unchanged authority and zero setup/execute effects. Ruff format/check PASS. Independent /root/review_catalogue_join SOURCE GO; validation finding closed after inspecting added3case regression, freeze-validation GO. No provider/audio effects, publication, installation or whole-artifact acceptance. Planned next combined build; no version assigned yet. Native field starvation/retire409 remains unresolved and is not claimed fixed by this admission change.
+
+Permanent logging requirement added to active AGENTS and shared Pod standard: fixed stage/reason/outcome for refusals/timeouts/exceptions/UNKNOWN/recovery with existing safe correlation; no raw credentials/content or noisy success polling. This is an instruction plus the specific implemented admission diagnostics, not a claim that every existing subsystem failure has already been audited or instrumented.
+
+### Revideret musikplan efter Pod-systemstandard v1 — 27 October 2026
+
+Plan, ikke resultat. Lead /root ejer samlet levering; PodView ejer kanonisk UI og PodConnect musik/output. To eksisterende Terra-ejere har læst standarden og vurderet brugerrejse/ejergrænser; dette er planinput, ikke produktionsreview eller accept.
+
+1. Bind den aktuelle kombination af backend, UI-assets, Control, Speakers og relevant firmware til eksisterende kvitteringer; find seneste faktisk fungerende session i tidslinjen. Brug recent91–96/54–56/24–26, ikke12October som rollbackmål. Control25→26 og undersøgte55→56 ændringer har intet påvist journalformatsskift; den ældre53-kompatibilitetsblokering må ikke genbruges som begrundelse imod netop disse tilbageførsler. Tilbagefør kun en årsag eller en afgrænset kompatibel kombination efter regression.
+2. To parallelle fejlsøgningsspor: PodView/katalog/bridge følger faktisk request, serviceafvisning, konto, mål og adgang til første afvigelse; PodConnect følger START→stream→pause/skip/volume→MOVE→ny kontrol og den observerede retire409. Ingen antagelse om at409 forklarer kataloget eller at ugyldigt playback-svar skal omskrives til tom success. Den registrerede MutationObserver-fejl har endnu ingen lokaliseret årsag eller bevist relation til feltfejlen; PodView skal hente stack/URL før patch.
+3. Genskab den relevante fejl i eksisterende harness og ret den mindste dokumenterede ejergrænse; ved ingen software-reproduktion skal faktisk manglende observation navngives. Genbrug allerede beståede resultater. Den lokale content-free retirementdiagnostik er et middel, ikke separat musikleverance eller en forudsat førstegangsudgivelse.
+4. Luk manglende softwarekanter i den fælles rejse: ToolRouter/valg→MusicControlFacade→Control/Native→uafhængig observation; rigtig browser katalog→valg→Play→observeret player→touch-pause→samme output paused. Genbrug eksisterende music journey, HA native-owner/observationsprøver, C/Native-protokolreplay og night-browserfixture. Opbyg ikke en ny runner eller mockserver. Registrér provider/HA/Native/audio-grænser separat; separate grønne prøver er ikke én samlet E2E.
+5. Berørt musikmatrix: pause/resume/next/previous, gentaget rumskift, kø/progress, START35 og efterfølgende manuel0–100, eksterne Spotify-ændringer, læsefejl/reconnect, duplicate/stale/UNKNOWN uden replay og attention-release som respekterer senere touchvalg. Mute/unmute er et eksisterende særskilt kapabilitetsgap, ikke leveret ved at omdøbe volumen0. Fejlet katalog/status må ikke uden kausal grund blokere andre uafhængige handlinger; autorisationskrav bevares.
+6. Én afgrænset kandidat med årsagsrettelser, fokuseret uafhængigt review, exact-tree/CI, merge/publicering/Green-installation og faktisk software-readback. Først derefter én kort fysisk serie: kendt tale→lyd på valgt output→touch-pause→bekræftet samme output, dernæst de resterende relevante musikhandlinger. Ingen ny husholdningslyd er udført eller autoriseret af denne planpost alene.
+
+Næste konkrete handling: læs faktisk katalog-/kontrolfejl og browserstack på den aktive kandidat uden Play, og sammenhold med seneste nativefejl; vælg første reproducerbare afvigelse. Ingen ny releaseversion eller påstået rettelse aftalt af planen. Provider, fysisk lyd, mikrofon og hardwareaccept er fortsat åbne. Udvid ikke dette reparationsbatch med Tesla/Robot/Hue eller udsat lang Spotify Radio-fortsættelse.
+
+### Recovery scope correction — latest successful session
+
+User clarifies the reference is the recent 26/27 October session with working start, pause, next and volume, with delayed/duplicate feedback; not the 12 October comparison. The exact successful session version remains unpinned. Investigate recent PV91–96, Speakers54–56 and Control24–26 deltas before choosing a selective rollback. Current log retains a Speakers startup on26Oct21:39 followed by morning and afternoon27Oct events; do not assume a new Speakers installation separates recent success from failure. PV95 receipt08:27Z and PV96 delivery receipt retain Speakers56/Control26 unchanged. An intermittent retained state remains a hypothesis, not proof against a code regression.
+
+Read-only source comparison: PV92/93/96 catalogue, selection and browser transport files are byte-identical; reviewed control changes concern feedback and queue expiry. These observations do not exclude backend/admission, caller or timing changes. One Terra owns current UI/bridge differential, one Luna owns recent installation/native compatibility timeline, one Terra owns retained native state analysis. No new UI work or rollback performed.
+
+Minimal retirement diagnostic draft is retained locally, not shipped: original ordered guards and return/mutation behavior preserved, fixed content-free first-rejection codes only. Falsifiable purpose is to identify which actual predicate rejects the field live START prepare409; it does not explain starvation or catalogue failure by itself. Focused real C negative and successful successor tests passed; exact current-tree adoption and independent adversarial review have not occurred. Release/install remains held while the recent regression comparison is completed. No audio or household command executed.
+
 ## Active lead decision — physical Stop teardown, 27 October 2026
 
 Lead/release owner: /root. Actual physical trace /private/tmp/pv95-red-stop-manifest-20261027-p0003.json on installed PV95/firmware113115: Stop close_requested 40762ms; provider close sent 41004–41007; terminal wait 41009–46764 cancelled; reader joined 46767–46774; socket release 46776–48923; provider-close timeout 48935; fault/red and rearm blocked 49096–49097; retry teardown 50247, rearm recovered 50516. Stop→rearm 9.754s. No terminal-usage event is established by this trace. Direct evidence does not identify why provider finalization was absent.
@@ -6621,5 +6760,44 @@ QA92 mood implementation adopted: patchfb797a3b (eight files) with production po
   "runtime_fingerprint": "e72d38024f8d6e66e47b48a3a96cd2822628f1522c6e253a0826ab6f9e122c68",
   "tooling_fingerprint": "2980b66342d4a33cd2dc9511abdbc68d7ad5c4b3ebc5ee41d7a275ead9623bdb",
   "version": 72
+}
+-->
+
+## User pause — token budget, 27 October 2026
+
+User explicitly pauses further work to preserve credits. Agents terra_connect_regression and luna_music_rollback_feasibility interrupted; review agent already completed. No tests, publication, installation or household action continues.
+
+Planlagt build: catalogue429 recovery + specific admission diagnostics, source commit624fc2771a6eb3fd0677a67855cb1e3ce0d159d5, independent source/targeted validation GO. PC57 immutable diagnostics packet /private/tmp/pc-retire-diagnostics-20261027/packet has source+packaging GO; diagnostic only, not a native sound fix. PV97 package/version/scope preparation is dirty and unfinished: workflow, three version files, dev_cycle.py, admission97 script/manifest; inspect exact diff before adopting. No officialCI or release is claimed.
+
+Ingen version aftalt: actual Native session-loss→Dealer409→closed-prior→newSTART→controls composed extension was interrupted during bounded investigation; no joined PASS or product defect claimed. Playback/speaker-switch cause, full catalogue→Play→observed playback→touchPause real-service/browser chain, queue/externalSpotify/volume/reconnect matrix remain open.
+
+Udgivet/afventer test: last verified Green PV2.0.96 / Speakers0.26.56 / Control0.10.26, unchanged by this recovery work. Physical audio test remains later. Next resume action is inspect saved metadata and interrupted isolated fixture before any new work, then decide smallest causal completion; do not replay unknown live actions or restart broad audits.
+
+## User resume — 97-credit cap, 27 October 2026
+
+User resumes music recovery under an explicit bounded budget, measured privately outside the repository. Stop agents and save work before exceeding that budget. Use cheaper Luna/Terra and one necessary independent Sol review. Scope remains music recovery/delivery, no deferred newfeature work.
+
+## Combined catalogue recovery candidate97 — freeze
+
+PV97 catalogue source/review ready for officialCI, not installed. PC57 diagnostics SOURCE/packaging GO; PR88 officialCI running. Inert actual C/Native session-loss fixture passed retirement409→oldClose→exact closed-prior terminal→newSTART→Pause/Seek/Resume. Provider, Dealer websocket/auth and output receiver were inert/synthetic; not proof of Green cause or HomePod audio. Two fixture attempts failed on receiver flags/two-START volume assertions; overwritten outputs remain only in tool history, no product conclusion taken. Patch/log paths retained in agent evidence. Field audio/transfer acceptance stays open.
+
+<!-- podvoice97-admission
+{
+  "version": 74,
+  "kind": "podvoice97_music_catalogue_recovery",
+  "base_tip": "8ecd76bc3603fccdd94066212a66d5138e0cebd5",
+  "merge_base": "8ecd76bc3603fccdd94066212a66d5138e0cebd5",
+  "domains": [
+    "unclassified_runtime"
+  ],
+  "fingerprint": "6c4b0e6e4319062b687c8da1f622f1cb286db25a8a9cf7668005097496083dfe",
+  "regression_fingerprint": "50dd7fd7596c84b5433db2e6aab5b98d621fb4edde1c849f3772bc71cba80bd6",
+  "runtime_fingerprint": "924e3c2dd312294526ac55ded2cb5f15eb04bdeca5e788e6090f15409aa92e91",
+  "config_fingerprint": "2d09b38df6c0f5fd2e3829ad1d21fc1ed432a71f307a4309d1dbd52e4b8daa67",
+  "policy_fingerprint": "0a7a059b2fec081ca4d9b4d39d957f87fc7d7c9f66ccbd9f147195da3bc56163",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "manifest_fingerprint": "de34a9cd8c2932419aac281fc559c9055c108991d2fb0ef69859315bb5bad6cf",
+  "reviewer": "/root/review_catalogue_join",
+  "rationale": "Independent SOURCE and PREBIND GO for catalogue join with scoped targets overlap, cancellation and stale/revoked grant regressions. Canonical Python3.12 AST supersedes reviewer3.9 AST calculation; source unchanged. Preserve215UIassets, full duplex lifecycle, native ownership and UNKNOWN no replay. Catalogue2 production files,4 regression files and approved shared-standard docs only; version-only97. No Tesla Robot or UI draft adoption. OfficialCI/publication/installation/service/audio acceptance remain separate. Independent review confirms exact unclassified_runtime catalogue scope matching unchanged generic classifier; no base or classifier override."
 }
 -->
