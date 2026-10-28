@@ -135,8 +135,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "a77cde0dceae48a2029cd179a182597f42409f3866d7778418f6018e975cd1d9"
-PROFILE_AST = "8b59efb474da87ad2b3526177ce59f7496cfd597e9cc7799c1d2de67d07881a2"
+MANIFEST_SHA = "95292ec0efbc2dd25fdb1101a68d0df281252656092bc37886c3f75f7fb9f7fd"
+PROFILE_AST = "3a4e53bb9a5ebb546f0b0f10a4c7647dd1e26567063097f75ac4e227dfc09fd0"
 
 
 def record_at(root: Path) -> dict | None:

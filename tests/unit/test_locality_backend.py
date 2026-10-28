@@ -40,7 +40,7 @@ def client(body=None, status=200):
                 return_value=httpx.Response(
                     status, json=body or {"latitude": 55.0, "longitude": 10.0}
                 )
-            )
+            ),
         },
     )()
 

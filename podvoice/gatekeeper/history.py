@@ -123,8 +123,15 @@ class History:
                 if (
                     len(line.encode("utf-8")) > 67584
                     or type(row) is not dict
-                    or set(row) not in ({"kind", "room", "session", "epoch", "display"}, {"kind", "room", "session", "epoch", "display", "turn"})
-                    or ("turn" in row and (type(row["turn"]) is not str or not 0 < len(row["turn"]) <= 160))
+                    or set(row)
+                    not in (
+                        {"kind", "room", "session", "epoch", "display"},
+                        {"kind", "room", "session", "epoch", "display", "turn"},
+                    )
+                    or (
+                        "turn" in row
+                        and (type(row["turn"]) is not str or not 0 < len(row["turn"]) <= 160)
+                    )
                     or row["kind"] != "visual_snapshot.v1"
                     or type(row["room"]) is not str
                     or not 0 < len(row["room"]) <= 160

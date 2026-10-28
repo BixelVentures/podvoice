@@ -2519,7 +2519,9 @@ def _transcript_history(history: History, room: str, boot_id: str) -> str:
         "items": [],
     }
     encoded = json.dumps(result, ensure_ascii=False, allow_nan=False)
-    for conversation in history.conversations(limit=MAX_TURNS, room=room, include_record_session=True):
+    for conversation in history.conversations(
+        limit=MAX_TURNS, room=room, include_record_session=True
+    ):
         for segment in reversed(conversation["turns"]):
             session = segment.get("session")
             if not isinstance(session, str) or not 1 <= len(session) <= 256:
@@ -2537,12 +2539,17 @@ def _transcript_history(history: History, room: str, boot_id: str) -> str:
                 or not text.strip()
                 or type(ts) not in (int, float)
                 or type(end_ts) not in (int, float)
-                or (is_fragment and (
-                    not isinstance(segment_id, str)
-                    or re.fullmatch(r"[a-f0-9]{32}", segment_id) is None
-                    or type(generation) is not int or not 0 <= generation < 2**53
-                    or type(count) is not int or not 1 <= count < 2**53
-                ))
+                or (
+                    is_fragment
+                    and (
+                        not isinstance(segment_id, str)
+                        or re.fullmatch(r"[a-f0-9]{32}", segment_id) is None
+                        or type(generation) is not int
+                        or not 0 <= generation < 2**53
+                        or type(count) is not int
+                        or not 1 <= count < 2**53
+                    )
+                )
             ):
                 continue
             try:
