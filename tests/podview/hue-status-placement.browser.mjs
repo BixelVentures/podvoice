@@ -16,7 +16,7 @@ export async function run(){
   if(kind==='read')host.lightReadProblem={scopeKey:'scope',transport,focus:light.id,areaId:'own',text:'Lysstatus for Køkken kunne ikke hentes.'};else host.lightActionProblem={scopeKey:'scope',transport,focus:light.id,areaId:'own',sourceEpoch,observedAt:now,phase:kind,text:kind==='unknown'?'Lysets tilstand er ikke bekræftet.':'Den seneste lysændring blev afvist.'};
   host.lightRoomView=new LightRoomView(host);
   host.renderLightScenes(light);host.lightRoomView.render(light);const status=host.lightSceneStatus;
-  assert(visible(status),kind+' initially attached without room/scene catalogue');assert(status.parentNode===container,kind+' independent of optional panel');
+  assert(visible(status),kind+' initially attached without room/scene catalogue');assert(status.parentNode===host.lightRoomView.panelHeader&&visible(host.lightRoomView.panel),kind+' retained status in the canonical empty Card');
   // Real validated source transition, not deletion of a demo scene array.
   light=source(true);host.state.devices=[light];host.state.lightAreas=area;host.renderLightScenes(light);host.lightRoomView.render(light);
   assert(visible(status),kind+' with scenes');assert(status.parentNode===host.lightRoomView.panelHeader,kind+' grouped in room header');

@@ -6,16 +6,17 @@ import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-mo
 import {TimerView,timerPresentation} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
 import {timersFor,timerStateLabel,timerTime} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
 import {robotExperience} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
-import {devicePresentation,lightSelection} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {devicePresentation,lightSelection,robotRecentCompletion} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {vehicleRailPresentation} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
 
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 const start=source.indexOf(' renderResourceRail(){'),end=source.indexOf('\n render(){',start);
-const railMethod=new Function('$','timerPresentation','timersFor','timerStateLabel','timerTime','devicePresentation','lightSelection','createResourceTile','updateResourceTile','robotExperience',`return ({${source.slice(start,end)}}).renderResourceRail;`);
+const railMethod=new Function('$','timerPresentation','timersFor','timerStateLabel','timerTime','devicePresentation','lightSelection','createResourceTile','updateResourceTile','robotExperience','robotRecentCompletion','vehicleRailPresentation',`return ({${source.slice(start,end)}}).renderResourceRail;`);
 function fixture(state){
  const rail={hidden:false,children:[],append(node){this.children.push(node);},insertBefore(node,before){const previous=this.children.indexOf(node);if(previous>=0)this.children.splice(previous,1);const index=this.children.indexOf(before);this.children.splice(index<0?this.children.length:index,0,node);}},updates=[],actions=[];
  const tile={hidden:false,dataset:{},kind:'timer'};
  const host={state,resourceButtons:new Map([[state.timer.id,tile]]),dispatch:event=>actions.push(event),focusHeading(){}};
- host.renderRail=railMethod(()=>rail,timerPresentation,timersFor,timerStateLabel,timerTime,devicePresentation,lightSelection,()=>({hidden:false,dataset:{}}),(node,resource)=>updates.push(resource),robotExperience);
+ host.renderRail=railMethod(()=>rail,timerPresentation,timersFor,timerStateLabel,timerTime,devicePresentation,lightSelection,()=>({hidden:false,dataset:{}}),(node,resource)=>updates.push(resource),robotExperience,robotRecentCompletion,vehicleRailPresentation);
  return {host,rail,tile,updates,actions};
 }
 

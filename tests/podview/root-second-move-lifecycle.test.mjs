@@ -16,7 +16,7 @@ function fixture(){
  const previous=globalThis.document,nodes=new Map(),selectors=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,new Node('div'));return nodes.get(id);};
  globalThis.document={createElement:tag=>new Node(tag),getElementById:node,querySelector:selector=>selectors.get(selector)||null};const host=new Node('host');host.state={focus:'player',devices:[]};host.liveSnapshot={bootId:'boot',roomId:'room',providerGeneration:1,capabilities:{musicRead:['playback'],controlSetup:['music']}};
  host.querySelector=selector=>{if(!selectors.has(selector))selectors.set(selector,new Node('div'));return selectors.get(selector);};
- const wire=({base=100,effective=35,ceiling=35,state='playing',status='observed',reason=null,supported=actions,epoch='epoch',binding='a'.repeat(64),ttl=5}={})=>({ok:true,schema:'podview.room-playback.v3',bootId:'boot',roomId:'room',configEntryId:'account',status:'observed',reason:null,binding:{roomId:'room',accountId:'account',targetId:'device',nativeRoomId:'native-room',nativeHomepodId:'2',bindingId:binding,validUntil:Date.now()/1000+ttl},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:epoch,poll_sequence:1,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},playback:{state,target:{kind:'spotify_device',target_id:'device',name:'Bridge'},item:{type:'track',uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Song',artists:['Artist'],duration_ms:60000},progress_ms:1000,provider_changed_at_ms:null,shuffle:false,repeat:'off'}},controls:{status,reason,binding_id:status==='observed'?binding:null,valid_until:status==='observed'?Date.now()/1000+ttl:null,supported_actions:[...supported],volume:base===null?null:{base_percent:base,effective_percent:effective}},permissions:{actions:[...supported],maxVolume:supported.includes('volume')?ceiling:null}});
+ const wire=({base=100,effective=35,ceiling=35,state='playing',status='observed',reason=null,supported=actions,epoch='epoch',binding='a'.repeat(64),ttl=5}={})=>({ok:true,schema:'podview.room-playback.v3',bootId:'boot',roomId:'room',configEntryId:'account',status:'observed',reason:null,binding:{roomId:'room',accountId:'account',targetId:'device',nativeRoomId:'native-room',nativeHomepodId:'2',bindingId:binding,validUntil:Date.now()/1000+ttl},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:epoch,poll_sequence:1,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date(Date.now()).toISOString(),age_ms:0,max_age_ms:15000},playback:{state,target:{kind:'spotify_device',target_id:'device',name:'Bridge'},item:{type:'track',uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Song',artists:['Artist'],duration_ms:60000},progress_ms:1000,provider_changed_at_ms:null,shuffle:false,repeat:'off'}},controls:{status,reason,binding_id:status==='observed'?binding:null,valid_until:status==='observed'?Date.now()/1000+ttl:null,supported_actions:[...supported],volume:base===null?null:{base_percent:base,effective_percent:effective}},permissions:{actions:[...supported],maxVolume:supported.includes('volume')?ceiling:null}});
  host.liveMedia={account:'account'};const adopt=options=>{const body=wire(options);body.controls.valid_until=body.controls.status==='observed'?body.binding.validUntil:null;host.liveMedia.playback=roomPlaybackObservation(body,'account',host.liveSnapshot);return body;};adopt();
  const setups=[],effects=[],feedback=[];let serial=0,response;
  const offer=(requested,volume=35)=>{const n=++serial,chosen=requested?[requested]:actions;return {ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'music',expectedBindingId:host.liveMedia.playback.roomBinding.bindingId,taskId:'control:'+n.toString(16).padStart(32,'0'),revision:1,expiresAt:Date.now()/1000+5,options:chosen.map((action,i)=>({id:(n*10+i).toString(16).padStart(24,'0'),action,label:action,argsSchema:action==='volume'?{kind:'percent',min:0,max:35}:{kind:'none'}})),setup:{volume}};};
@@ -182,4 +182,60 @@ for (const scenario of ['foreign-route','foreign-epoch','confirmed-origin','conf
   const expected=['confirmed-destination','rejected-destination'].includes(scenario);assert.equal(f.view.observeMusicSettlement(p,receipt,true),expected);
   if(!expected)assert.equal(output.pendingChoice,choice);
  }finally{h.close();}
+});
+
+for(const reason of ['owner_changed','account_unavailable'])for(const action of ['pause','resume'])test(`30s fresh v3 ${reason} recovers ${action} without snapshots`,async()=>{
+ const oldNow=Date.now,oldSet=globalThis.setTimeout,oldClear=globalThis.clearTimeout;let now=oldNow(),serial=0;const started=now,timers=new Map();Date.now=()=>now;globalThis.setTimeout=(fn,ms)=>{const id=++serial;timers.set(id,{fn,at:now+ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ const f=fixture(),g=integrate(f);let mode='ready',seq=0;try{
+  g.setRead((_kind,_account,_query,options)=>{if(mode==='unavailable')return Promise.resolve({ok:true,schema:'podview.room-playback.v3',bootId:'boot',roomId:'room',configEntryId:'account',status:'unavailable',reason,binding:null,data:null,controls:{status:'unavailable',reason,binding_id:null,valid_until:null,supported_actions:[],volume:null},permissions:{actions:[],maxVolume:null},...(options?.receiptRequestId?{settlement:null}:{})});const b=g.body({state:action==='resume'?'paused':'playing'});b.data.poll_sequence=++seq;return Promise.resolve(b);});
+  await g.media.refresh({immediate:true});assert.equal(f.nodes.get('play-pause').disabled,false);
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {outcome:f.effects.length===1?'rejected':'accepted',requestId:'fresh-request'};};assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,1);
+  for(let i=0;i<12;i++){const entry=timers.get(g.media.freshnessTimer);assert.ok(entry,`step=${i} seq=${seq} state=${g.media.readState} timer=${g.media.freshnessTimer}`);timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();}
+  assert.ok(now-started>=30000);assert.ok(seq>=12);assert.equal(f.nodes.get('play-pause').disabled,false);
+  mode='unavailable';let entry=timers.get(g.media.freshnessTimer);timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();assert.equal(f.nodes.get('play-pause').disabled,true);
+  mode='ready';entry=timers.get(g.media.freshnessTimer);assert.ok(entry,'transient read must schedule recovery without snapshot');timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();assert.equal(f.nodes.get('play-pause').disabled,false);
+  assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,2);
+ }finally{f.close();Date.now=oldNow;globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
+});
+
+for(const failure of ['network','http','timeout','abort'])test(`transient ${failure} error after expiry must schedule recovery without snapshot`,async()=>{
+ const action='pause';
+ const oldNow=Date.now,oldSet=globalThis.setTimeout,oldClear=globalThis.clearTimeout;let now=oldNow(),serial=0;const started=now,timers=new Map();Date.now=()=>now;globalThis.setTimeout=(fn,ms)=>{const id=++serial;timers.set(id,{fn,at:now+ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ const f=fixture(),g=integrate(f);let mode='ready',seq=0;try{
+  g.setRead((_kind,_account,_query,options)=>{if(mode==='unavailable'){const e=failure==='network'?new TypeError('network'):new Error(failure);if(failure==='http')e.code='read_transient';if(failure==='timeout')e.name='TimeoutError';if(failure==='abort')e.name='AbortError';return Promise.reject(e);}const b=g.body({state:action==='resume'?'paused':'playing'});b.data.poll_sequence=++seq;return Promise.resolve(b);});
+  await g.media.refresh({immediate:true});assert.equal(f.nodes.get('play-pause').disabled,false);
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {outcome:f.effects.length===1?'rejected':'accepted',requestId:'fresh-request'};};assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,1);
+  for(let i=0;i<12;i++){const entry=timers.get(g.media.freshnessTimer);assert.ok(entry,`step=${i} seq=${seq} state=${g.media.readState} timer=${g.media.freshnessTimer}`);timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();}
+  assert.ok(now-started>=30000);assert.ok(seq>=12);assert.equal(f.nodes.get('play-pause').disabled,false);
+  mode='unavailable';let entry=timers.get(g.media.freshnessTimer);timers.delete(g.media.freshnessTimer);now=entry.at+6000;entry.fn();await tick();assert.equal(f.nodes.get('play-pause').disabled,true);
+  mode='ready';entry=timers.get(g.media.freshnessTimer);assert.ok(entry,'transient read must schedule recovery without snapshot');timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();assert.equal(f.nodes.get('play-pause').disabled,false);
+  assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,2);
+ }finally{f.close();Date.now=oldNow;globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
+});
+
+for(const failure of ['denied','invalid','superseded'])test(`playback ${failure} never schedules transient recovery`,async()=>{
+ const oldSet=globalThis.setTimeout,oldClear=globalThis.clearTimeout;let serial=0;const timers=new Map();globalThis.setTimeout=(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ const f=fixture(),g=integrate(f);let fail=false,release;try{
+  g.setRead(()=>{if(!fail)return Promise.resolve(g.body());if(failure==='denied')return Promise.reject(Object.assign(new TypeError('denied'),{code:'read_access_denied'}));if(failure==='invalid')return Promise.resolve({ok:true,schema:'invalid'});return new Promise((_resolve,reject)=>release=reject);});
+  await g.media.refresh({immediate:true});assert.ok(g.media.freshnessTimer);fail=true;
+  const pending=g.media.refresh({immediate:true});if(failure==='superseded'){f.host.liveTransport.connected=false;release(new TypeError('network'));}await pending;await tick();
+  assert.equal(g.media.freshnessTimer,null);assert.equal(f.effects.length,0);
+ }finally{f.close();globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
+});
+test('network recovery never clears an unknown music action or replays it',async()=>{
+ const oldSet=globalThis.setTimeout,oldClear=globalThis.clearTimeout;let serial=0;const timers=new Map();globalThis.setTimeout=(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ const f=fixture(),g=integrate(f);let fail=false;try{
+  g.setRead(()=>fail?Promise.reject(new TypeError('network')):Promise.resolve(g.body()));await g.media.refresh({immediate:true});
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {outcome:'unknown'};};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);
+  fail=true;await g.media.refresh({immediate:true});assert.equal(f.view.musicFence.outcome,'unknown');const timer=timers.get(g.media.freshnessTimer);assert.ok(timer);fail=false;timer.fn();await tick();
+  assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.effects.length,1);
+ }finally{f.close();globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
+});
+test('repeated transient playback failures stop at the existing three retry bound',async()=>{
+ const oldSet=globalThis.setTimeout,oldClear=globalThis.clearTimeout;let serial=0;const timers=new Map();globalThis.setTimeout=(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ const f=fixture(),g=integrate(f);let calls=0;try{
+  g.setRead(()=>{calls++;return Promise.reject(new TypeError('network'));});await g.media.refresh({immediate:true});
+  for(let i=0;i<3;i++){const id=g.media.freshnessTimer,entry=timers.get(id);assert.ok(entry);timers.delete(id);entry.fn();await tick();}
+  assert.equal(calls,4);assert.equal(g.media.freshnessTimer,null);assert.equal(f.effects.length,0);
+ }finally{f.close();globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
 });

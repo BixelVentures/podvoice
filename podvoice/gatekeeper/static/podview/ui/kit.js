@@ -140,12 +140,12 @@ export function revealKitItem(item,viewport){
 }
 
 /** Native single-choice inputs use existing Chip visuals and native arrow keys. */
-export function createKitChoiceGroup({document=globalThis.document,id,label,choices=[],value,onChange,variant,layout}={}){
+export function createKitChoiceGroup({document=globalThis.document,id,label,choices=[],value,onChange,variant,layout,auxiliaryValues=[]}={}){
  if(!id)throw new TypeError('Choice group needs a stable id');
  const node=document.createElement('fieldset'),legend=document.createElement('legend'),row=document.createElement('div'),inputs=[];
- node.className='pv-kit-choice-group';if(['level','navigation'].includes(variant))data(node,'choiceVariant',variant);if(layout==='row')data(node,'choiceLayout','row');legend.textContent=label;applyKitTextRole(legend,'field-label');row.className='pv-kit-choice-options';node.append(legend,row);let selected=value,blocked=false;
+ node.className='pv-kit-choice-group';if(['level','navigation'].includes(variant))data(node,'choiceVariant',variant);if(layout==='row')data(node,'choiceLayout','row');legend.textContent=label;applyKitTextRole(legend,'field-label');row.className='pv-kit-choice-options';node.append(legend,row);const requestedAuxiliary=new Set(auxiliaryValues.map(String)),auxiliary=new Set(choices.map(choice=>String(typeof choice==='string'?choice:choice.value)).filter(value=>requestedAuxiliary.has(value))),extra=auxiliary.size?document.createElement('div'):null;if(extra){extra.className='pv-kit-choice-additional';node.append(extra);}if(variant==='level'){const count=choices.filter(choice=>!auxiliary.has(String(typeof choice==='string'?choice:choice.value))).length;data(row,'choiceCount',count);row.hidden=count===0;if(count>=1)row.setAttribute('style',`--pv-choice-columns:${count}`);}let selected=value,blocked=false;
  const setValue=next=>{const changed=selected!==next;selected=next;for(const input of inputs)if(input.checked!==(input.value===String(next)))input.checked=input.value===String(next);if(changed&&variant==='navigation')revealKitItem(inputs.find(input=>input.checked)?.parentElement,row);};
- for(const choice of choices){const item=typeof choice==='string'?{value:choice,label:choice}:choice,option=createKitComponent('chip',{document,tag:'label'}),input=document.createElement('input'),text=document.createElement('span');input.type='radio';input.name=id;input.value=String(item.value);input.id=id+'-'+inputs.length;text.textContent=item.label;option.classList?.add('pv-kit-choice-label');option.append(input,text);row.append(option);inputs.push(input);input.addEventListener('change',()=>{if(blocked||input.disabled){setValue(selected);return;}if(input.checked){selected=input.value;onChange?.(selected);}});}
+ for(const choice of choices){const item=typeof choice==='string'?{value:choice,label:choice}:choice,option=createKitComponent('chip',{document,tag:'label'}),input=document.createElement('input'),text=document.createElement('span');input.type='radio';input.name=id;input.value=String(item.value);input.id=id+'-'+inputs.length;text.textContent=item.label;option.classList?.add('pv-kit-choice-label');option.append(input,text);(extra&&auxiliary.has(input.value)?extra:row).append(option);inputs.push(input);input.addEventListener('change',()=>{if(blocked||input.disabled){setValue(selected);return;}if(input.checked){selected=input.value;onChange?.(selected);}});}
  const setDisabled=value=>{blocked=!!value;attribute(node,'aria-disabled',blocked);for(const input of inputs)attribute(input,'aria-disabled',blocked);};
  const setChoiceDisabled=(choice,disabled)=>{const input=inputs.find(item=>item.value===String(choice));if(input)input.disabled=!!disabled;};
  setValue(value);return {node,inputs,setValue,setDisabled,setChoiceDisabled};
@@ -153,24 +153,28 @@ export function createKitChoiceGroup({document=globalThis.document,id,label,choi
 
 /** Label/value composition of the existing Slider. Observation is presentation;
  * only an explicit native change reaches the owner's captured command context. */
-export function createKitSliderField({document=globalThis.document,id,label,identity='neutral',onCommit,getContext}={}){
+export function createKitSliderField({document=globalThis.document,id,label,identity='neutral',onCommit,getContext,min,max,step,unit='%',formatValue}={}){
  if(!id)throw new TypeError('Slider field needs a stable id');
+ const sourceBounds=min!==undefined||max!==undefined||step!==undefined;if(!sourceBounds){min=0;max=100;step=1;}
+ if(!Number.isFinite(min)||!Number.isFinite(max)||max<=min||!Number.isFinite(step)||step<=0||step>max-min||typeof unit!=='string'||unit.length>32||formatValue!==undefined&&typeof formatValue!=='function')throw new TypeError('Slider field needs valid source min/max/step and presentation');
+ const gridEnd=Math.floor((max-min)/step+1e-9),format=value=>{const text=formatValue?formatValue(value):`${value}${unit?' '+unit:''}`;if(typeof text!=='string'||text.length>160)throw new TypeError('Slider formatter must return bounded text');return text;};
  const node=document.createElement('div'),heading=document.createElement('label'),description=document.createElement('p'),input=createKitComponent('slider',{document,identity}),output=document.createElement('output');
+ input.min=String(min);input.max=String(max);input.step=String(step);
  node.className='pv-kit-slider-field';heading.id=id+'-label';heading.htmlFor=id;heading.textContent=label;applyKitTextRole(heading,'field-label');applyKitTextRole(output,'control-value');applyKitTextRole(description,'meta');description.id=id+'-scope';input.id=id;output.htmlFor=id;input.setAttribute('aria-labelledby',heading.id);input.setAttribute('aria-describedby',description.id);node.append(heading,output,description,input);
  let model={value:null,scope:'',disabled:false,pending:false,mixed:false},draft=null,context,editing=false,aborted=false;
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
  const paint=()=>{
-  const known=Number.isFinite(model.value),value=draft??(known?model.value:0),state=draft!==null?'draft':model.pending?'pending':known?'known':model.mixed?'mixed':'unknown',message=draft!==null?`${draft} %`:model.valueText||(known?`${model.value} %`:model.mixed?'Forskellige niveauer':'Niveau ukendt');
-  applyKitTextRole(output,/^\d+\s*%$/.test(message)?'control-value':'meta');data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!(model.disabled||model.pending));if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
-  if(input.value!==String(value))input.value=String(value);syncKitSlider(input);text(output,message);text(description,model.scope||'');if(description.hidden!==!model.scope)description.hidden=!model.scope;attribute(input,'aria-valuetext',message.replace(/ %$/,' procent'));
+  const known=Number.isFinite(model.value),value=draft??(known?model.value:min),state=draft!==null?'draft':model.pending?'pending':known?'known':model.mixed?'mixed':'unknown',formatted=format(value),message=draft!==null?formatted:model.valueText||(known?formatted:model.mixed?'Forskellige niveauer':'Niveau ukendt');
+  applyKitTextRole(output,(draft!==null||known)&&message===formatted?'control-value':'meta');data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!(model.disabled||model.pending));if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
+  if(input.value!==String(value))input.value=String(value);syncKitSlider(input);text(output,message);text(description,model.scope||'');if(description.hidden!==!model.scope)description.hidden=!model.scope;attribute(input,'aria-valuetext',unit==='%'?message.replace(/ %$/,' procent'):message);
  };
  const cancelDraft=()=>{draft=null;context=undefined;editing=false;aborted=true;paint();};
  const begin=()=>{if(model.disabled||model.pending)return false;if(!editing){context=getContext?.();editing=true;}aborted=false;return true;};
  input.addEventListener('pointerdown',begin);
  input.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();cancelDraft();}else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(event.key))begin();});
- input.addEventListener('input',()=>{if(model.disabled||model.pending||aborted){paint();return;}if(!editing)begin();draft=Math.max(0,Math.min(100,Number(input.value)));paint();});
+ input.addEventListener('input',()=>{if(model.disabled||model.pending||aborted){paint();return;}if(!editing)begin();const raw=Number(input.value);if(!Number.isFinite(raw)){draft=null;paint();return;}const bounded=Math.max(min,Math.min(max,raw));draft=sourceBounds?Number((min+Math.min(gridEnd,Math.max(0,Math.round((bounded-min)/step+1e-9)))*step).toPrecision(15)):bounded;paint();});
  input.addEventListener('change',()=>{if(model.disabled||model.pending||aborted||draft===null){paint();return;}const value=draft,binding=context;draft=null;context=undefined;editing=false;paint();onCommit?.(value,binding);});
  for(const event of ['pointercancel','blur'])input.addEventListener(event,cancelDraft);
- const setModel=value=>{const next={value:null,scope:'',disabled:false,pending:false,mixed:false,...value};if(!Number.isFinite(next.value)||next.value<0||next.value>100)next.value=null;if(next.scope!==model.scope||next.disabled||next.pending){draft=null;context=undefined;editing=false;aborted=true;}model=next;paint();};
+ const setModel=value=>{const next={value:null,scope:'',disabled:false,pending:false,mixed:false,...value},ticks=(next.value-min)/step;if(!Number.isFinite(next.value)||next.value<min||next.value>max||sourceBounds&&Math.abs(ticks-Math.round(ticks))>1e-8*Math.max(1,Math.abs(ticks)))next.value=null;if(next.scope!==model.scope||next.disabled||next.pending){draft=null;context=undefined;editing=false;aborted=true;}model=next;paint();};
  paint();return {node,label:heading,description,input,output,setModel,cancelDraft};
 }

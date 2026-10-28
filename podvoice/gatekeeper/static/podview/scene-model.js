@@ -147,7 +147,7 @@ export const deviceLabel=d=>{
   const detail=observed?rows.length===0?'Ingen lys i rummet':unknown?`${known.length?`${on} af ${rows.length} bekræftet tændt`:'Lysstatus ukendt'} · ${unknown} ${unknown===1?'ukendt':'ukendte'}`:`${on} af ${rows.length} tændt`:({unknown:'Lysstatus ukendt',fault:'Lysstatus kunne ikke hentes',unavailable:'Ikke forbundet'})[d.status]||'Lysstatus ukendt';
   return (d.stale||Number.isFinite(d.validUntil)&&Date.now()>=d.validUntil*1000?'Sidst kendt: ':'')+detail;
  }
- return d.kind==='light'&&d.source==='home_assistant_state'&&d.displayState?(d.stale?'Sidst kendt: ':'')+d.displayState:lightSelection(d)?lightSelection(d).detail:d.kind==='light'?(d.stale?'Sidst kendt: ':'')+(({on:'Lys er tændt',off:'Lys er slukket',unavailable:'Ikke forbundet',unknown:'Lysstatus ukendt',fault:'Lysstatus ukendt'})[d.status]||'Lysstatus ukendt'):d.live?(d.stale?'Sidst kendt: ':'')+({cleaning:robotRoom(d)?`Rengør · ${robotRoom(d)}`:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]:({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Udfald ukendt · hent status igen',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
+ return d.kind==='light'&&d.source==='home_assistant_state'&&d.displayState?(d.stale?'Sidst kendt: ':'')+d.displayState:lightSelection(d)?lightSelection(d).detail:d.kind==='light'?(d.stale?'Sidst kendt: ':'')+(({on:'Lys er tændt',off:'Lys er slukket',unavailable:'Ikke forbundet',unknown:'Lysstatus ukendt',fault:'Lysstatus ukendt'})[d.status]||'Lysstatus ukendt'):d.live?(d.stale?'Sidst kendt: ':'')+(({cleaning:robotRoom(d)?`Rengør · ${robotRoom(d)}`:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',complete:'Rengøring afsluttet',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]||'Status ukendt'):({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'Ved basen',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Status ukendt',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
 };
 // Bounded read-only metadata for the existing sized Card/Tile anatomy. Missing
 // telemetry is omitted; a status or accepted command never manufactures a fact.
@@ -210,6 +210,14 @@ export function lightChoices(d,catalogue=null){
  return {rooms:{selected:selected.roomId==='home'?'home':`room:${selected.roomId}`,items:d.ownRoomId?[...rooms.filter(row=>row.id===`room:${d.ownRoomId}`),...rooms.filter(row=>row.id!==`room:${d.ownRoomId}`&&row.id!=='home'),...rooms.filter(row=>row.id==='home')]:rooms},lamps:{selected:selected.kind==='light'?selected.id:null,items:d.lights.filter(row=>selected.roomId==='home'||row.roomId===selected.roomId).map(row=>({id:`light:${row.id}`,label:selected.roomId==='home'?`${row.roomName} · ${row.name}`:row.name,detail:unconfirmed||(row.on?'Tændt':'Slukket'),status:unconfirmed?selected.status:row.on?'on':'off',icon:'lightbulb'}))}};
 }
 
+// A recent completion needs an explicit completion state and a fresh, bounded
+// end timestamp. Docking and accepted commands never imply completion.
+export function robotRecentCompletion(device,now=Date.now()/1000){
+ if(device?.kind!=='vacuum'||device.status!=='complete'||device.stale||device.telemetry?.status!=='observed')return false;
+ const row=device.telemetry.items?.find(item=>item.key==='last_clean_end');
+ return !!row&&!row.stale&&Number.isFinite(row.updatedAt)&&row.updatedAt<=now+1&&now-row.updatedAt<=300&&Number.isFinite(row.value)&&row.value>0&&row.value<=now+1&&now-row.value<=300;
+}
+
 // Rank only known overview destinations. The host snapshots this when entering
 // overview, so incoming observations never move a card under an active finger.
 export function overviewPriorities({timers=[],devices=[],mediaActive=false}={}){
@@ -218,7 +226,7 @@ export function overviewPriorities({timers=[],devices=[],mediaActive=false}={}){
  // never order: timer, weather/robot, lights/vehicle, music/radio.
  const cards=[{id:'timer-card',priority:activeTimer?'active':'useful'},{id:'home-weather',priority:'useful'}];
  const deviceCards=devices.filter(device=>!device.hidden).map(device=>{
-  const unavailable=device.presentationOnly===true||['unavailable','unknown'].includes(device.status),active=!!device.pending||(device.kind==='vacuum'&&(['cleaning','paused','docking','fault'].includes(device.status)||robotExperience(device).issues.length>0||/moppe|støvbeholder/.test(robotExperience(device).activity||'')));
+  const unavailable=device.presentationOnly===true||['unavailable','unknown'].includes(device.status),active=!!device.pending||(device.kind==='vacuum'&&(['cleaning','paused','docking','fault'].includes(device.status)||robotRecentCompletion(device)||robotExperience(device).issues.length>0||/moppe|støvbeholder/.test(robotExperience(device).activity||'')));
   return {id:device.id,kind:device.kind,priority:active?'active':unavailable?'unavailable':'useful'};
  });
  cards.push(...deviceCards.filter(device=>device.kind==='vacuum'),...deviceCards.filter(device=>device.kind!=='vacuum'),{id:'home-vehicle',priority:'unavailable'},{id:'home-music',priority:mediaActive?'secondary':'useful'},{id:'home-radio',priority:'secondary'});

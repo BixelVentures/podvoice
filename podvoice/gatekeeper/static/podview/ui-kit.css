@@ -1905,8 +1905,8 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 :root{--pv-warning:#79500D;--pv-warning-tint:#F7EBD2;--pv-on-warning:#FFFEFA}
 
 /* Existing contiguous level variant required by Robot row choices. */
-.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-options{display:flex;flex-wrap:wrap;gap:0;padding:4px;border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
-.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label{flex:1 0 auto;min-width:var(--pv-hit);max-width:100%;white-space:nowrap;min-height:var(--pv-hit);padding:var(--pv-s1) var(--pv-s2);border-radius:var(--pv-r-s)!important;font:var(--pv-t-meta);font-weight:600;background:transparent}
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-options{display:flex;flex-wrap:wrap;gap:0;box-sizing:border-box;padding:var(--pv-choice-track-inset,4px);border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
+.pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label{box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex:1 0 auto;min-width:var(--pv-hit);max-width:100%;white-space:nowrap;height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s1);border-radius:var(--pv-r-s)!important;font:var(--pv-t-meta);font-weight:600;background:transparent}
 .pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label:has(input:checked){background:var(--pv-ink);color:var(--pv-on-dark)}
 .pv-kit-choice-group[data-choice-variant=level] .pv-kit-choice-label:has(input:focus-visible){outline-offset:-3px;outline-color:var(--pv-ink)}
@@ -1928,7 +1928,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-c
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting{display:block;min-height:0;margin:0;padding:0;border:0;background:transparent;box-shadow:none}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting>legend{float:none;display:flex;align-items:center;gap:var(--pv-control-label-gap);min-width:0;margin:0 0 var(--pv-control-label-gap);padding:0;font:var(--pv-t-meta);font-weight:600;color:var(--pv-ink)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting>.pv-kit-choice-options{min-width:0}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting .pv-kit-choice-label{min-height:var(--pv-hit);margin:0;padding:var(--pv-s1) 4px;font:var(--pv-t-meta);font-weight:600}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting .pv-kit-choice-label{margin:0}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting[hidden]{display:none!important}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-setting-wrapper{margin:0;padding:0}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-context{min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--pv-control-row-gap);row-gap:var(--pv-control-label-gap)}
@@ -1967,7 +1967,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-c
 /* Current-task controls use the same Card section as Tesla's climate controls;
    the Hero does not repeat settings already named in the visible scale rows. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel>.robot-current-settings[data-kit=card]{padding:var(--pv-s3)!important;background:var(--pv-surface);border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]:has(.robot-current-settings .robot-level-setting:not([hidden])) .robot-settings-context{display:none}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]:has(.robot-current-settings .robot-level-setting:not([hidden])) .robot-settings-context:not([data-feedback-state=unknown]):not([data-feedback-state=error]){display:none}
 
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel>.robot-cleaning-zone[data-kit=card]{padding:var(--pv-control-card-inset);container-type:inline-size;container-name:robot-controls}
 
@@ -2210,15 +2210,22 @@ pv-widget-host #device-view pv-robot-control-panel .robot-dock-actions{min-width
 pv-widget-host #device-view pv-robot-control-panel .robot-dock-actions>button[data-kit-shape=pill]{background:var(--pv-context-action-bg);color:var(--pv-context-action-ink);padding-inline:var(--pv-s3)!important}
 pv-widget-host #device-view pv-robot-control-panel .robot-dock-actions>div:not([hidden]){display:flex;flex-wrap:wrap;gap:var(--pv-control-row-gap)}
 
-/* Hero + Disclosure action composition: the main action and Base share a
-   baseline. Related secondary commands own a second row when needed. */
+/* Hero actions and disclosure triggers share Button geometry. The full-width
+   panel sits below the compact, trailing-aligned action row. */
 pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]{display:contents}
-pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty){display:grid;grid-column:1/-1;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:max-content max-content;justify-content:end;gap:var(--pv-control-row-gap);align-items:center;margin:var(--pv-control-section-gap) 0 0;padding:0;border:0}
-pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty)>.pv-button{width:max-content;max-width:100%;justify-self:start}
-pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty)>.pv-primary{grid-column:1;grid-row:1}
-pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty)>.pv-button:not(.pv-primary){grid-row:2}
-pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-column:2;grid-row:1;justify-self:end;width:168px;min-width:0}
-pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div:not([hidden]){grid-column:1/-1;width:100%;display:flex;flex-wrap:wrap;gap:var(--pv-control-row-gap);border-top:1px solid var(--pv-line);padding-block-start:var(--pv-control-card-inset);margin-block-start:var(--pv-s1)}
+pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty){display:grid;grid-column:1/-1;grid-template-columns:repeat(3,max-content);justify-content:end;gap:var(--pv-control-row-gap);align-items:center;margin:var(--pv-control-section-gap) 0 0;padding:0;border:0;width:100%;box-sizing:border-box;max-width:100%}
+/* Ready Hero has exactly Start and its disclosure; no empty third track. */
+pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(>.start):has(.pv-kit-disclosure[data-kit-layout=header-more]){grid-template-columns:minmax(0,1fr) max-content max-content}
+pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(>.start):has(.pv-kit-disclosure[data-kit-layout=header-more])>.start{grid-column:2}
+pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(>.start) .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-column:3}
+pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-button,pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-column:auto;grid-row:1;justify-self:end;width:max-content;max-width:100%;min-width:0;min-height:var(--pv-hit);padding-inline:var(--pv-button-content-inset)!important}
+pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1)}
+/* In an active Hero, the contextual direct command is the light anchor; its
+   secondary disclosure uses the neutral surface token for visual hierarchy. */
+pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button>[data-kit-slot=copy]{flex:0 1 auto}
+pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div:not([hidden]){grid-column:1/-1;grid-row:auto;width:100%;min-width:0;contain:inline-size;display:flex;flex-wrap:wrap;gap:var(--pv-control-row-gap);border-top:1px solid var(--pv-line);padding-block-start:var(--pv-control-card-inset);margin-block-start:var(--pv-s1)}
+pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div>.pv-actions>.pv-kit-button{flex:0 0 auto;width:max-content;min-height:var(--pv-hit);padding-inline:var(--pv-button-content-inset)!important}
+@media(max-width:720px){pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty){grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-button,pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-row:auto;max-width:100%}}
 /* Native dropdown alternative for the existing navigation ChoiceGroup. */
 select[data-choice-variant=navigation]{box-sizing:border-box;min-height:var(--pv-hit);max-width:100%;width:208px;padding:var(--pv-s2) var(--pv-s3);border:1px solid var(--pv-line);border-radius:var(--pv-r-pill);background:var(--pv-surface-2);color:var(--pv-ink);font:var(--pv-t-body);text-overflow:ellipsis;white-space:nowrap}
 select[data-choice-variant=navigation]:focus-visible{outline:2px solid var(--pv-ink);outline-offset:3px}
@@ -2241,9 +2248,6 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-c
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.pv-kit-card[data-kit-layout=controls]{padding:var(--pv-control-card-inset)}
 /* The ready Hero keeps its primary command beside the Base disclosure;
    the expanded panel spans the same full-width action area. */
-pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:has(>.start){grid-template-columns:minmax(0,1fr) 168px;width:100%;box-sizing:border-box}
-pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:has(>.start)>.pv-primary{justify-self:end}
-
 /* Existing queue ListRows: upcoming content uses the same finite advice gradient. */
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
@@ -2275,3 +2279,61 @@ pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pe
 
 /* Existing answer cards keep the kit spacing when a history session contains several. */
 #answer-host[data-history-group=true]>pv-answer:not([hidden])~pv-answer:not([hidden]){margin-top:var(--pv-s2)}
+
+
+
+/* Quiet is the existing Button's secondary SectionHeader action: same touch
+   target, less surface weight. Selection belongs to the room Tiles below. */
+.pv-kit.pv-kit-button[data-kit-variant=quiet],pv-widget-host :is(#vehicle-view,#device-view) .pv-kit.pv-kit-button[data-kit-variant=quiet]{--pv-action-secondary-bg:transparent;--pv-action-secondary-ink:var(--pv-ink);min-height:var(--pv-hit);padding-inline:var(--pv-s2);background:transparent;color:var(--pv-ink);box-shadow:none;border:0;border-radius:var(--pv-r-pill);font:var(--pv-t-body)}
+.pv-kit.pv-kit-button[data-kit-variant=quiet]:hover:not(:disabled){--pv-action-secondary-bg:var(--pv-surface-2);background:var(--pv-surface-2)}
+.pv-kit.pv-kit-button[data-kit-variant=quiet]>.pv-kit-icon{width:var(--pv-icon-s);height:var(--pv-icon-s)}
+/* Visible offered level fields share one grid. Type spans the row; hidden
+   fields retain their opaque values in the original owner-controlled draft. */
+@container robot-controls (min-width:480px){
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--pv-control-panel-gap)}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options>.robot-level-setting:not([data-setting-concept=mode]){grid-column:auto;min-width:0}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:var(--pv-control-panel-gap)}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls>[data-setting-concept]:not([data-setting-concept=mode]){grid-column:auto;min-width:0}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-current-controls>:is([data-setting-concept=mode],.robot-repeat-status){grid-column:1/-1}
+}
+/* Type owns one inline dependent-control group. The group is structural,
+   with a small hierarchy inset; it is neither another Card nor a disclosure. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-cleaning-options,.robot-current-controls){grid-template-columns:minmax(0,1fr);gap:var(--pv-s3)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-control-section-gap) var(--pv-control-panel-gap);min-width:0;padding:0 0 0 var(--pv-s2)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>.robot-level-setting{margin:0;grid-column:auto;min-width:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>.robot-setting-wrapper{margin:0;min-width:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>.robot-repeat-status{grid-column:1/-1}
+@container robot-controls (min-width:700px){pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Level choices stay visible: use their content as the preferred cell width,
+   and wrap whole touch targets only if the available container cannot fit them. */
+.pv-kit-choice-group[data-choice-variant=level]>.pv-kit-choice-options[style]{display:flex;flex-wrap:wrap;gap:0;overflow:visible}
+.pv-kit-choice-group[data-choice-variant=level]>.pv-kit-choice-options[style]>.pv-kit-choice-label{flex:1 1 max-content;min-width:min(100%,var(--pv-hit));max-width:100%;height:var(--pv-hit);min-height:var(--pv-hit);white-space:normal}
+.pv-kit-choice-group[data-choice-variant=level]>.pv-kit-choice-options[style]>.pv-kit-choice-label>span{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere}
+/* Compact finite values use intrinsic horizontal width; they wrap only when
+   even the complete minimum-size touch targets cannot fit in the container. */
+.pv-kit-choice-group[data-choice-variant=level][data-kit-size=compact]>.pv-kit-choice-options[style]{display:inline-flex;width:max-content;max-width:100%;flex-wrap:wrap}
+.pv-kit-choice-group[data-choice-variant=level][data-kit-size=compact]>.pv-kit-choice-options[style]>.pv-kit-choice-label{flex:0 0 auto;min-width:var(--pv-hit)}
+.pv-kit-choice-group[data-choice-variant=level]>.pv-kit-choice-additional{display:flex;flex-wrap:wrap;gap:var(--pv-s1);margin-block-start:var(--pv-s1)}
+.pv-kit-choice-group[data-choice-variant=level]>.pv-kit-choice-additional>.pv-kit-choice-label{flex:0 1 auto;padding-inline:var(--pv-s2);background:var(--pv-surface-2);border-radius:var(--pv-r-pill)!important}
+.pv-kit-choice-group[data-choice-variant=level]>.pv-kit-choice-additional>.pv-kit-choice-label:has(input:checked){background:var(--pv-ink);color:var(--pv-on-dark)}
+@container robot-controls (min-width:0px){
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>.robot-level-setting:has(>.pv-kit-choice-options[data-choice-count="5"]),pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>.robot-setting-wrapper:has(.pv-kit-choice-options[data-choice-count="5"]){grid-column:1/-1;max-inline-size:none}
+}
+
+/* Contextual resource actions use the same light Button on a tinted Hero and
+   overview tile. Visual priority is independent of command authority. */
+.pv-kit-button[data-kit-action-role=context]{--pv-action-secondary-bg:var(--pv-context-action-bg);--pv-action-secondary-ink:var(--pv-context-action-ink)}
+/* A lone Hero action keeps the same content-sized, right-aligned Button
+   geometry even when no Base actions are offered. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget.pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport:has(>.pv-button:only-child){display:flex;justify-content:flex-end;width:100%;margin-inline:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget.pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport:has(>.pv-button:only-child)>.pv-button{flex:0 1 auto;width:max-content;max-width:100%;min-width:0;white-space:nowrap}
+/* Without an action disclosure, size each command to its content and align
+   the available actions to the trailing edge; hidden siblings do not alter it. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget.pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport:not(:empty){display:flex!important;justify-content:flex-end!important;flex-wrap:wrap;width:100%;margin-inline:0}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget.pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport>.pv-button{flex:0 1 auto!important;width:max-content!important;max-width:100%;min-width:0;white-space:nowrap}
+
+/* Tesla keeps the same canonical identity on Ro as on overview/detail.
+   Only this resource is changed; Timer and player retain their existing rules. */
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identity=tesla]{background:var(--pv-tint);color:var(--pv-tint-ink);backdrop-filter:none}
+pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identity=tesla] .resource-label :is(strong,small,.resource-value){color:var(--pv-tint-ink)}

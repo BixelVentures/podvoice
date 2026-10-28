@@ -956,7 +956,8 @@
           "method:invalidate": 1,
           "method:poll": 1,
           "method:start": 1,
-          "method:sync": 1
+          "method:sync": 1,
+          "arrow:canChoose": 1
         },
         "roots": [
           "factory:section:'device-history robot-recent pv-component'"
@@ -993,6 +994,7 @@
           "method:constructor": 1,
           "method:invalidate": 1,
           "method:loadQueue": 1,
+          "method:scheduleRecovery": 1,
           "method:refresh": 1,
           "method:render": 1,
           "method:renderQueue": 1,
@@ -1619,6 +1621,9 @@
           "arrow:dirty": 1,
           "arrow:make": 1,
           "arrow:selectedAreas": 1,
+          "arrow:snapshotMode": 1,
+          "arrow:switchMode": 1,
+          "arrow:updateRouteWidth": 1,
           "arrow:update": 2,
           "arrow:valid": 1,
           "class:RobotControlPanel": 1,
@@ -1644,10 +1649,16 @@
           "arrow:settingConcept": 1,
           "arrow:settingCurrent": 1,
           "method:buildDock": 1,
+          "method:compactActiveActions": 1,
           "method:cleaningSummary": 1,
           "arrow:choiceLabel": 1,
           "arrow:cleaningMode": 1,
           "arrow:irrelevantSetting": 1,
+          "arrow:specialChoice": 1,
+          "arrow:visibleSettingChoices": 1,
+          "arrow:specialSelection": 1,
+          "arrow:specialNote": 1,
+          "arrow:applyExampleModeChoices": 1,
           "arrow:settingLabel": 1,
           "arrow:settingOrder": 1,
           "method:disconnectedCallback": 1,
@@ -1702,7 +1713,8 @@
           "factory:div:'robot-current-controls'",
           "factory:section:'robot-settings-zone'",
           "factory:section:'robot-current-rooms'",
-          "factory:ul:'choices pv-tiles robot-current-room-list'"
+          "factory:ul:'choices pv-tiles robot-current-room-list'",
+          "factory:div:'robot-type-options'"
         ],
         "registrations": {
           "'pv-robot-control-panel'": 1
@@ -2004,7 +2016,8 @@
           "factory:div:'pv-list'",
           "factory:div:'pv-readonly-row'",
           "factory:ol:'pv-step-outline'",
-          "factory:section:'pv-table pv-comparison'"
+          "factory:section:'pv-table pv-comparison'",
+          "factory:button:'pv-button pv-ghost'"
         ],
         "registrations": {
           "entry.tag": 1
@@ -2274,6 +2287,8 @@
           "class:VehicleView": 1,
           "method:cleanup": 1,
           "method:renderControls": 1,
+          "method:noticeOperation": 1,
+          "method:suspendNotices": 1,
           "arrow:confirmAction": 1,
           "arrow:defrost": 1,
           "method:dismissConfirmation": 1,
