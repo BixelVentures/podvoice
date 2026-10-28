@@ -14,6 +14,7 @@ from datetime import datetime
 
 from aiohttp import web
 
+from .podview_music import _artwork
 from .podview_music_control import _integer, _room_receipt, _text
 from .podview_queue_scope import PURPOSE, owner_identity, owner_scope
 
@@ -135,8 +136,6 @@ def project(value: object, account: str, target: str, *, room: str, homepod: str
         _text(row["name"], 256)
         if not isinstance(row["artist"], str) or len(row["artist"]) > 512:
             raise ValueError("invalid artist metadata")
-        if row["artwork"] is not None and not isinstance(row["artwork"], str):
-            raise ValueError("invalid artwork metadata")
     return {**copy.deepcopy(value), "deadline_ms": max(0, min(expiry, int((until - now) * 1000)))}
 
 
@@ -353,7 +352,9 @@ class QueueBroker:
                         "title": r["name"],
                         "artist": r["artist"],
                         "uri": r["uri"],
-                        "artwork": None,
+                        "artwork": _artwork(
+                            {"kind": "album_cover", "provider": "spotify", "url": r["artwork"]}
+                        ),
                         "order": i + 1,
                     }
                     for i, r in enumerate(source["items"])

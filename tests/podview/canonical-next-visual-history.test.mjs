@@ -56,7 +56,7 @@ class HistoryNode extends EventTarget {
  getClientRects(){return [{}];}
 }
 const hostSource=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
-const projectHistoryRaw=new Function('s','$','document','answerCatalog','applyKitComponent',hostSource.slice(hostSource.indexOf(' for(const a of s.answers){'),hostSource.indexOf('\n const retainedRoot=')));const projectHistory=function(...args){return projectHistoryRaw.call(this,...args,applyKitComponent);};
+const projectHistoryRaw=new Function('s','$','document','answerCatalog','applyKitComponent','groupAnswerHistory',hostSource.slice(hostSource.indexOf(' for(const a of s.answers){'),hostSource.indexOf('\n const retainedRoot=')));const projectHistory=function(...args){return projectHistoryRaw.call(this,...args,applyKitComponent,groupAnswerHistory);};
 const openHistory=new Function('$','document',`return function ${hostSource.slice(hostSource.indexOf('open(id,opener){'),hostSource.indexOf('\n renderScreenSettings(){'))}`);
 const historyCloseSource=hostSource.slice(hostSource.indexOf("$(id).addEventListener('close',()=>{")+"$(id).addEventListener('close',()=>{".length,hostSource.indexOf('});}',hostSource.indexOf("$(id).addEventListener('close',()=>{")));
 const closeHistory=new Function('id','$',historyCloseSource);

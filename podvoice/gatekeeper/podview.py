@@ -1536,6 +1536,18 @@ class PodViewBridge:
         closing = bool(
             getattr(session, "_closing", False) or getattr(session, "_transport_closing", False)
         )
+        if active and not closing and phase == "AI_SPEAKING":
+            # Only the native adapter's validated playback edge means the room is
+            # hearing speech. Keep Talk and unknown adapters on their own semantics.
+            from .thin import ThinSession
+            from .voicepe import VoicePELink
+
+            if (
+                isinstance(session, ThinSession)
+                and isinstance(session.voicepe, VoicePELink)
+                and session._device_playing is False
+            ):
+                phase = "THINKING"
         voice = {
             "phase": "CLOSING" if closing else phase,
             "sessionId": getattr(session, "_history_session", None) if active else None,

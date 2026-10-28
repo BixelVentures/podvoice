@@ -293,7 +293,7 @@ class FastWeatherAdviceProvider:
                     "Authorization": "Bearer " + self._key,
                     "Content-Type": "application/json",
                 },
-                timeout=4,
+                timeout=10,
                 follow_redirects=False,
             ) as response:
                 if response.status_code == 429:
@@ -332,7 +332,7 @@ class WeatherAdviceOwner:
         source_is_current: Callable,
         source_token: Callable,
         clock=time.time,
-        deadline=5,
+        deadline=12,
     ):
         self.boot_id = boot_id
         self.provider, self.source_is_current, self.source_token = (

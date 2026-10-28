@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import re
 import time
@@ -243,26 +244,80 @@ def project(scope: VehicleScope, states: object, *, now: float) -> dict:
     }
 
 
+_LOG = logging.getLogger("podvoice.podview.vehicle")
+_last_diagnostic = None
+
+
+def diagnostic(code: str) -> None:
+    """Log transitions using only fixed, content-free classifications."""
+    global _last_diagnostic
+    allowed = {
+        "observed",
+        "source_stale",
+        "no_data",
+        "owner_changed",
+        "registry_changed",
+        "invalid_registry",
+        "invalid_state",
+        "invalid_projection",
+        "deadline",
+        "transport",
+    }
+    if code not in allowed or code == _last_diagnostic:
+        return
+    previous = _last_diagnostic
+    try:
+        if code != "observed":
+            _LOG.warning("vehicle read: %s", code)
+        elif previous is not None and previous != "observed":
+            _LOG.info("vehicle read: recovered")
+    except Exception:
+        # Optional diagnostics cannot change the passive observation outcome.
+        return
+    _last_diagnostic = code
+
+
 async def read(scope: VehicleScope, *, registry_read, state_read, current, now=time.time) -> dict:
     """One bounded registry→exact states→registry operation, with no retries."""
     unavailable = {"status": "unavailable", "data": None}
+    stage = "invalid_registry"
     try:
         async with asyncio.timeout(READ_TIMEOUT):
             if not current():
+                diagnostic("owner_changed")
                 return unavailable
             ids = [eid for _, eid in scope.entities]
             before = await registry_read(ids)
             if not current():
+                diagnostic("owner_changed")
                 return unavailable
             identity = registry_identity(scope, before)
+            stage = "invalid_state"
             states = {}
             for eid in ids:
                 states[eid] = await state_read(eid)
                 if not current():
+                    diagnostic("owner_changed")
                     return unavailable
+            stage = "invalid_registry"
             after = await registry_read(ids)
-            if not current() or registry_identity(scope, after) != identity:
+            if not current():
+                diagnostic("owner_changed")
                 return unavailable
-            return project(scope, states, now=now())
-    except (ValueError, TypeError, KeyError, OverflowError, TimeoutError, RecursionError):
+            if registry_identity(scope, after) != identity:
+                diagnostic("registry_changed")
+                return unavailable
+            stage = "invalid_projection"
+            result = project(scope, states, now=now())
+            diagnostic(
+                {"observed": "observed", "stale": "source_stale", "unavailable": "no_data"}[
+                    result["status"]
+                ]
+            )
+            return result
+    except TimeoutError:
+        diagnostic("deadline")
+        return unavailable
+    except (ValueError, TypeError, KeyError, OverflowError, RecursionError):
+        diagnostic(stage)
         return unavailable

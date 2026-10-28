@@ -57,7 +57,7 @@ class HistoryNode extends EventTarget {
  getClientRects(){return [{}];}
 }
 const hostSource=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
-const projectHistoryRaw=new Function('s','$','document','answerCatalog','applyKitComponent',hostSource.slice(hostSource.indexOf(' for(const a of s.answers){'),hostSource.indexOf('\n const retainedRoot=')));const projectHistory=function(...args){return projectHistoryRaw.call(this,...args,applyKitComponent);};
+const projectHistoryRaw=new Function('s','$','document','answerCatalog','applyKitComponent','groupAnswerHistory',hostSource.slice(hostSource.indexOf(' for(const a of s.answers){'),hostSource.indexOf('\n const retainedRoot=')));const projectHistory=function(...args){return projectHistoryRaw.call(this,...args,applyKitComponent,groupAnswerHistory);};
 const openHistory=new Function('$','document',`return function ${hostSource.slice(hostSource.indexOf('open(id,opener){'),hostSource.indexOf('\n renderScreenSettings(){'))}`);
 const historyCloseSource=hostSource.slice(hostSource.indexOf("$(id).addEventListener('close',()=>{")+"$(id).addEventListener('close',()=>{".length,hostSource.indexOf('});}',hostSource.indexOf("$(id).addEventListener('close',()=>{")));
 const closeHistory=new Function('id','$',historyCloseSource);
@@ -149,7 +149,7 @@ for(const detail of ['weather','timers','robot'])test(`history child ${detail} B
  }finally{f.restore();}
 });
 
-test('history accessible name starts with all visible format/date/title copy',()=>{const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),expression=source.match(/const label=(`\$\{formatText\}[^;]+`);/)[1],formatText='Fakta · 20. okt. 17.41',a={title:'Hvorfor er himlen blå?'},label=new Function('formatText','a','return '+expression)(formatText,a);assert.equal(label,formatText+' · '+a.title+' · Åbn svar');});
+test('history accessible name starts with all visible format/date/title copy',()=>{const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),expression=source.match(/const label=(`\$\{formatText\}[^;]+`);/)[1],formatText='Fakta · 20. okt. 17.41',a={title:'Hvorfor er himlen blå?'},label=new Function('formatText','historyTitle','return '+expression)(formatText,a.title);assert.equal(label,formatText+' · '+a.title+' · Åbn svar');});
 
 test('library history appends one authored whole transcript using the existing concise role without receipt or command authority',()=>{const state=previewScene('visual-history'),transcripts=state.answers.filter(a=>a.transcriptSegment);assert.equal(transcripts.length,1);const a=transcripts[0];assert.equal(state.answers.at(-1),a);assert.equal(a.kind,'concise');assert.equal(a.title,'Samtaleudskrift');assert.equal(a.exampleOnly,true);assert.equal(a.historical,true);assert.equal(a.live,undefined);assert.equal(a.content.summary,a.transcriptSegment.text);assert(a.content.summary.length>650);assert(a.content.summary.includes('\n\n'));assert.deepEqual(a.allowedActions,[]);for(const key of ['receiptId','ownerReceiptIds','provenance','taskId','presentation'])assert.equal(a[key],undefined);assert.equal(a.content.sources,undefined);const opened=sceneTransition(state,{type:'show',id:a.id});assert.equal(focusedAnswer(opened).transcriptSegment.text,a.transcriptSegment.text);const back=sceneTransition(opened,{type:'show',id:'now'});assert.deepEqual(back.answers,state.answers);});
 

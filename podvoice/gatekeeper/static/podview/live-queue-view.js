@@ -1,10 +1,11 @@
 import {roomObservationCurrent,playbackBinding} from './media-observation.js';
+import {spotifyArtwork} from './spotify-artwork.js';
 const text=(v,n=160)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const int=(v,min=0,max=Number.MAX_SAFE_INTEGER)=>Number.isInteger(v)&&v>=min&&v<=max;
 export function queueOffer(body,snapshot,account,target,requestedAt=Date.now(),expectedBindingId=null){
  if(!body||Object.keys(body).sort().join(',')!=='accountId,bootId,expectedBindingId,expiresInMs,items,ok,ownerEpoch,pollSequence,revision,roomId,schema,targetId,taskId,truncated'||body.ok!==true||body.schema!=='podview.queue-offer.v1'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.accountId!==account||body.targetId!==target||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId)||body.expectedBindingId!==expectedBindingId||!/^queue:[a-f0-9]{32}$/.test(body.taskId)||body.revision!==1||!int(body.expiresInMs,1,10000)||!text(body.ownerEpoch,128)||!int(body.pollSequence,1)||typeof body.truncated!=='boolean'||!Array.isArray(body.items)||body.items.length>20||!Number.isFinite(requestedAt)||requestedAt>Date.now()||requestedAt+body.expiresInMs<=Date.now())return null;
- const seen=new Set();for(const [index,row] of body.items.entries()){if(!row||Object.keys(row).sort().join(',')!=='artist,artwork,id,order,title,uri'||!text(row.id,24)||!/^[a-f0-9]{24}$/.test(row.id)||seen.has(row.id)||row.order!==index+1||!text(row.title,256)||(typeof row.artist!=='string'||row.artist.length>512)||!/^spotify:track:[A-Za-z0-9]{22}$/.test(row.uri)||row.artwork!==null)return null;seen.add(row.id);}
- return {...body,items:body.items.map(row=>({...row})),expiresAt:requestedAt+body.expiresInMs};
+ const seen=new Set();for(const [index,row] of body.items.entries()){if(!row||Object.keys(row).sort().join(',')!=='artist,artwork,id,order,title,uri'||!text(row.id,24)||!/^[a-f0-9]{24}$/.test(row.id)||seen.has(row.id)||row.order!==index+1||!text(row.title,256)||(typeof row.artist!=='string'||row.artist.length>512)||!/^spotify:track:[A-Za-z0-9]{22}$/.test(row.uri))return null;seen.add(row.id);}
+ return {...body,items:body.items.map(row=>({...row,artwork:spotifyArtwork(row.artwork,row.uri)})),expiresAt:requestedAt+body.expiresInMs};
 }
 const scope=(host,account,playback)=>JSON.stringify([host.liveSnapshot?.bootId,host.liveSnapshot?.roomId,account,playback?.roomBinding?.bindingId,playback?.owner_epoch,playback?.target?.id,host.liveSnapshot?.voice?.sessionId??null,host.liveSnapshot?.voice?.turnId??null,host.liveSnapshot?.answers?.taskId??null,host.liveSnapshot?.answers?.inputRevision??null,host.liveSnapshot?.answers?.revision??null]);
 export class LiveQueueView{

@@ -7236,3 +7236,46 @@ async def test_actual_manager_custody_receipt_blocks_then_allows_next_wake(monke
     finally:
         await session.aclose()
         await attention.aclose()
+
+
+async def test_podview_native_phase_tracks_validated_playback_edge():
+    from gatekeeper.podview import PodViewBridge
+    from gatekeeper.voicepe import VoicePELink
+
+    session, _, _ = _build(LiveFake())
+    session.voicepe = VoicePELink("podvoice.local", "test", room=ROOM)
+    session._active = True
+    session._epoch = 1
+    session.sm.state = State.AI_SPEAKING
+    session._history_session = "session"
+    bridge = PodViewBridge({ROOM: session})
+
+    def phase():
+        return bridge.snapshot(ROOM)["voice"]["phase"]
+
+    assert phase() == "THINKING"
+    lease = session._arm_playback_lease(item_id="item", kind="announce")
+    assert lease is not None
+    session._on_media_state(True, "stale")
+    assert phase() == "THINKING"
+    session._on_media_state(True, lease.playback_id)
+    assert phase() == "AI_SPEAKING"
+    session._on_media_state(False, "stale")
+    assert phase() == "AI_SPEAKING"
+    session._on_media_state(False, lease.playback_id)
+    assert phase() != "AI_SPEAKING"
+    session._transport_closing = True
+    assert phase() == "CLOSING"
+    session._transport_closing = False
+    session._active = False
+    session.sm.state = State.AI_SPEAKING
+    assert phase() == "AI_SPEAKING"
+    session._active = True
+    session._device_playing = None
+    assert phase() == "AI_SPEAKING"  # unknown is not proof of waiting
+    session._device_playing = False
+    session.sm.state = State.LISTENING
+    assert phase() == "LISTENING"
+    session.sm.state = State.AI_SPEAKING
+    session.voicepe = BrowserLink(lambda _: None, lambda _: None, room=ROOM)
+    assert phase() == "AI_SPEAKING"

@@ -883,7 +883,12 @@ pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=l
 pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) .output{display:none}
 pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending]) p{display:block;position:absolute;left:64px;right:var(--pv-s2);top:var(--pv-s2);max-height:40px;min-height:0;margin:0;overflow:hidden;font:var(--pv-t-meta);color:var(--pv-ink-2);pointer-events:none}
 pv-widget-host[data-view=rest] #player-empty[data-state=error] p{color:var(--pv-danger)}
+
 pv-widget-host[data-view=rest] #player-empty:is([data-state=error],[data-state=loading],[data-state=offline],[data-state=pending])>#empty-find-music{align-items:flex-end;padding-top:48px;font:var(--pv-t-meta)}
+/* Passive playback refresh must not add status copy above the rest-screen music entry. */
+pv-widget-host[data-view=rest][data-selection-feedback=false] #player-empty[data-state=loading]>.player-empty-copy{display:none}
+pv-widget-host[data-view=rest][data-selection-feedback=false] #player-empty[data-state=loading]>#empty-find-music{align-items:center;padding:var(--pv-s2) var(--pv-s2) var(--pv-s2) 64px;font:var(--pv-t-body);font-weight:600}
+
 @media(min-width:760px) and (max-height:640px){pv-widget-host[data-view=active] #player-empty>.player-empty-art{width:min(100%,220px,max(96px,calc(100dvh - 448px)));align-self:center}}
 @media(max-width:759px){pv-widget-host[data-view=active] #player-empty:not([hidden]){height:auto;min-height:0}}
 
@@ -1522,6 +1527,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not(
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=m]):not([data-kit-size=l])>.resource-preview,.resource-preview[data-kit-size=s])[data-has-overview-value=true]>span>small:not([hidden]){grid-row:3!important;align-self:start!important;max-height:24px;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0!important}
 /* Empty player guidance belongs to its action, not the artwork. */
 pv-widget-host[data-view=active] #player-empty:not([hidden]) p{margin-top:auto;text-align:left}
+pv-widget-host[data-view=active] #player-empty:not([hidden]):is([data-state=empty],[data-state=unconfirmed]) p{text-align:center}
 pv-widget-host[data-view=active] #player-empty:not([hidden])>#empty-find-music{margin-top:var(--pv-s1)}
 /* Empty Large Card keeps message and explanation in adjacent, natural rows. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty){grid-template-rows:32px auto auto minmax(0,1fr);row-gap:var(--pv-s1);align-content:start}
@@ -2260,3 +2266,12 @@ pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pe
 #quick-sheet [data-screen-action]::after{--screen-action-icon:url(assets/icons/chevron-right.svg)}
 #quick-sheet [data-screen-action]:disabled{color:var(--pv-ink-3);cursor:default}
 #quick-sheet [data-screen-action][hidden]{display:none}
+
+/* Queue card scrolls as a whole, including heading and surface. */
+@media(min-width:760px){
+ pv-widget-host[data-view=active] .frame>.responses:has(>#music-detail:not([hidden])){overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+ pv-widget-host[data-view=active] .responses>#music-detail:not([hidden]){height:auto;min-height:100%;max-height:none;flex:0 0 auto;overflow:visible}
+}
+
+/* Existing answer cards keep the kit spacing when a history session contains several. */
+#answer-host[data-history-group=true]>pv-answer:not([hidden])~pv-answer:not([hidden]){margin-top:var(--pv-s2)}

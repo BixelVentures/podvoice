@@ -2310,6 +2310,7 @@ class ToolRouter:
                 scope, registry_read=registry_read, state_read=state_read, current=current
             )
         except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
+            podview_vehicle.diagnostic("transport")
             return unavailable
 
     def podview_home_available(self) -> bool:

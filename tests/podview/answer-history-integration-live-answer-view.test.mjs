@@ -408,7 +408,7 @@ test('current answer read does not wait for an independent history request', asy
 
 test('history refresh keeps known content without a loading message', async () => {
  const f=fixture();try{
-  f.host.state.answers=[{id:'known',hidden:false}];
+  f.host.state.answers=[{id:'known',hidden:false,historical:true,presentation:true,status:'ready',sessionId:'session-a',kind:'concise'}];
   f.host.liveSnapshot={...f.host.liveSnapshot,answerHistoryRevision:1,answerHistoryRemovalRevision:0,answerHistoryReceiptIds:[]};
   f.view.historyPending=true;
   assert.equal(f.view.historyPresentation().hidden,true);

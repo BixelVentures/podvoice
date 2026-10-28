@@ -16,56 +16,8 @@ test('settings row names the trailing switch while network rows and native discl
 
 test('technical network facts and build stay inside the native device disclosure',()=>{const disclosure=html.split('<details id="screen-device-more">')[1].split('</details>')[0];for(const id of ['screen-device-network','screen-device-wifi-row','screen-device-browser-row','screen-device-home-row','screen-device-info'])assert.ok(disclosure.includes(`id="${id}"`));assert.doesNotMatch(disclosure,/id="screen-device-(?:brightness|auto-dim)"/);});
 
-test('screen enrollment entry is explicit same-ingress navigation only for current live continuity',()=>{const f=fixture();f.doc.defaultView.location={href:'https://ha.example/api/hassio_ingress/opaque/view/?room=old&enrollment=0&unrelated=discard#old'};f.host.live=true;f.host.liveStatus='connected';const snapshot={bootId:'boot',roomId:'room / 2',controllerContinuity:{available:true}};f.host.liveSnapshot=snapshot;f.host.liveTransport={connected:true,snapshot};f.host.renderScreenSettings();const link=f.host.screenEnrollmentLink;assert.equal(link.hidden,false);assert.equal(link.textContent,'Navngiv skærmen');assert.equal(link.getAttribute('data-kit'),'listrow');assert.equal(link.getAttribute('href'),'https://ha.example/api/hassio_ingress/opaque/view/setup.html?room=room+%2F+2&enrollment=1');assert.equal(f.$('screen-device-more').children.length,2);f.host.renderScreenSettings();assert.equal(f.$('screen-device-more').children.length,2);for(const boundary of ['offline','snapshot','capability','demo']){f.host.live=true;f.host.browserOffline=false;f.host.liveTransport.connected=true;f.host.liveTransport.snapshot=snapshot;snapshot.controllerContinuity.available=true;if(boundary==='offline')f.host.liveTransport.connected=false;if(boundary==='snapshot')f.host.liveTransport.snapshot={...snapshot,bootId:'other'};if(boundary==='capability')snapshot.controllerContinuity.available=false;if(boundary==='demo')f.host.live=false;f.host.renderScreenSettings();assert.equal(link.hidden,true,boundary);assert.equal(link.getAttribute('href'),null,boundary);}});
-
-
-const safeDiagnostics=()=>({schema:'podview.client-diagnostics.v1',capacity:128,dropped:0,storageAvailable:true,pendingPersistence:false,restoredUntrusted:true,records:[{stage:'sse',code:'disconnected',seq:1,atMs:100,connected:false}]});
-function diagnosticFixture(){
- const f=fixture(),created=[],revoked=[],feedback=[],jobs=new Map();let seq=0,reads=0,outbound=0;
- f.doc.defaultView.Blob=Blob;f.doc.defaultView.URL={createObjectURL(blob){created.push(blob);return `blob:diagnostic-${created.length}`;},revokeObjectURL(url){revoked.push(url);}};
- f.host.live=true;f.host.liveStatus='disconnected';f.host.liveTransport={diagnostics(){reads++;return safeDiagnostics();}};f.host.showFeedback=(...args)=>feedback.push(args);f.host.renderScreenSettings();
- const prior={setTimeout:globalThis.setTimeout,clearTimeout:globalThis.clearTimeout,fetch:globalThis.fetch};globalThis.setTimeout=fn=>{jobs.set(++seq,fn);return seq;};globalThis.clearTimeout=id=>jobs.delete(id);globalThis.fetch=()=>{outbound++;throw new Error('network forbidden');};
- const start=source.indexOf(' cleanup(){')+' cleanup(){'.length,body=source.slice(start,source.indexOf('clearTimeout(this.lightAreaExpiry);',start));
- return {...f,created,revoked,feedback,jobs,reads:()=>reads,outbound:()=>outbound,cleanup(){new Function(body).call(f.host);},restore(){new Function(body).call(f.host);Object.assign(globalThis,prior);}};
-}
-test('manual diagnostics Button downloads only the closed getter JSON once per click, without network or duplicate listeners',async()=>{
- const f=diagnosticFixture();try{
-  const button=f.host.screenDiagnosticButton;assert.equal(button.getAttribute('data-kit'),'listrow');assert.equal(button.textContent,'Gem fejllog');assert.equal(button.disabled,false);assert.equal(f.reads(),0);assert.equal(f.created.length,0);assert.ok(f.$('screen-device-more').children.includes(button));
-  for(let i=0;i<3;i++)f.host.renderScreenSettings();assert.equal(f.host.screenDiagnosticButton,button);assert.equal(f.$('screen-device-more').children.filter(node=>node.textContent==='Gem fejllog').length,1);
-  button.click();assert.equal(f.reads(),1);assert.equal(f.created.length,1);assert.deepEqual(JSON.parse(await f.created[0].text()),safeDiagnostics());assert.deepEqual(f.doc.downloads,[{href:'blob:diagnostic-1',download:'podview-fejllog.json',hidden:true}]);assert.equal(f.doc.body.children.length,0);assert.equal(f.outbound(),0);assert.equal(f.jobs.size,1);assert.equal(f.feedback.at(-1)[0],'Fejllog klargjort til download');
-  button.click();assert.equal(f.reads(),2);assert.deepEqual(f.revoked,['blob:diagnostic-1']);assert.equal(f.jobs.size,1);[...f.jobs.values()][0]();assert.equal(f.host.diagnosticDownloadUrl,null);assert.deepEqual(f.revoked,['blob:diagnostic-1','blob:diagnostic-2']);
- }finally{f.restore();}
-});
-test('diagnostics is disabled for local examples and unavailable getters, and detached callbacks cannot export',()=>{
- const f=diagnosticFixture();try{
-  for(const mode of ['local','missing','detached']){f.host.live=mode!=='local';f.host.isConnected=mode!=='detached';f.host.liveTransport=mode==='missing'?{}:{diagnostics:safeDiagnostics};f.host.renderScreenSettings();assert.equal(f.host.screenDiagnosticButton.disabled,true,mode);f.host.screenDiagnosticButton.click();}
-  assert.equal(f.created.length,0);assert.equal(f.outbound(),0);
- }finally{f.restore();}
- const example=fixture('screen-device-ready');example.host.renderScreenSettings();assert.equal(example.host.screenDiagnosticButton.disabled,true);
-});
-test('diagnostics rejects wrong schema, raw fields and oversize payload, and download failures clean up honestly',()=>{
- const f=diagnosticFixture();try{
-  const large=safeDiagnostics();large.records=Array.from({length:128},(_,seq)=>({stage:'playback_confirmation',code:'unhandled_rejection',endpoint:'music/selection/actions',kind:'account_playlists',seq,atMs:Number.MAX_SAFE_INTEGER,generation:Number.MAX_SAFE_INTEGER,localRequestSeq:Number.MAX_SAFE_INTEGER,durationMs:120000,count:64,httpStatus:503,current:true,pending:true,connected:false,restored:true,requestId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'}));
-  assert.ok(new Blob([JSON.stringify(large,null,2)]).size>65536);
-  for(const invalid of [{...safeDiagnostics(),schema:'raw.snapshot'}, {...safeDiagnostics(),snapshot:{secret:'must not export'}},{...safeDiagnostics(),records:[{stage:'sse',code:'failure',message:'private'}]},large]){f.host.liveTransport.diagnostics=()=>invalid;f.host.screenDiagnosticButton.click();assert.equal(f.created.length,0);assert.equal(f.jobs.size,0);assert.match(f.feedback.at(-1)[0],/kunne ikke gemmes/);}
-  f.host.liveTransport.diagnostics=safeDiagnostics;f.doc.onDownload=()=>{throw new Error('blocked');};f.host.screenDiagnosticButton.click();assert.deepEqual(f.revoked,['blob:diagnostic-1']);assert.equal(f.host.diagnosticDownloadUrl,null);assert.equal(f.doc.body.children.length,0);assert.equal(f.jobs.size,0);assert.equal(f.outbound(),0);
- }finally{f.restore();}
-});
-test('existing host cleanup and detachment during a click revoke pending diagnostic URLs without late timers',()=>{
- const f=diagnosticFixture();try{
-  f.host.screenDiagnosticButton.click();f.cleanup();assert.equal(f.jobs.size,0);assert.equal(f.host.diagnosticDownloadUrl,null);assert.deepEqual(f.revoked,['blob:diagnostic-1']);
-  f.doc.onDownload=()=>{f.host.isConnected=false;f.cleanup();};f.host.screenDiagnosticButton.click();assert.equal(f.jobs.size,0);assert.equal(f.host.diagnosticDownloadUrl,null);assert.deepEqual(f.revoked,['blob:diagnostic-1','blob:diagnostic-2']);
- }finally{f.restore();}
-});
-
-
-test('diagnostic export preserves the bounded passive read hash and rejects malformed or raw correlation IDs',async()=>{
- const f=diagnosticFixture();try{
-  const value=safeDiagnostics();value.records[0].readHash='0123456789abcdef';f.host.liveTransport.diagnostics=()=>value;
-  f.host.screenDiagnosticButton.click();assert.equal(f.created.length,1);assert.deepEqual(JSON.parse(await f.created[0].text()),value);assert.equal(f.outbound(),0);
-  for(const invalid of ['0123456789ABCDEF','0123456789abcde','0123456789abcdef0','01234567-89ab-4cde-8fab-0123456789ab','0123456789abcdeg',123,null,{},['0123456789abcdef']]){
-   value.records[0].readHash=invalid;const before=f.created.length;f.host.screenDiagnosticButton.click();assert.equal(f.created.length,before,JSON.stringify(invalid));assert.match(f.feedback.at(-1)[0],/kunne ikke gemmes/);assert.equal(f.jobs.size,0);assert.equal(f.host.diagnosticDownloadUrl,null);
-  }
-  delete value.records[0].readHash;value.records[0].rawReadId='01234567-89ab-4cde-8fab-0123456789ab';f.host.screenDiagnosticButton.click();assert.equal(f.created.length,1);assert.equal(f.outbound(),0);
- }finally{f.restore();}
+test('screen settings do not expose enrollment or log export or access diagnostics',()=>{
+ const f=fixture();let reads=0;f.host.live=true;f.host.liveStatus='connected';f.host.liveSnapshot={bootId:'boot',roomId:'room',controllerContinuity:{available:true}};f.host.liveTransport={connected:true,snapshot:f.host.liveSnapshot,diagnostics(){reads++;return {schema:'podview.client-diagnostics.v1'};}};
+ for(let i=0;i<3;i++)f.host.renderScreenSettings();
+ assert.equal(f.host.screenEnrollmentLink,undefined);assert.equal(f.host.screenDiagnosticButton,undefined);assert.equal(reads,0);assert.doesNotMatch(f.$('screen-device-more').children.map(x=>x.textContent).join(' '),/Gem fejllog|Navngiv skærmen/);
 });

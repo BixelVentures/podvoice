@@ -1163,7 +1163,8 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/media-observation.js"
+        "dist/media-observation.js",
+        "dist/spotify-artwork.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2728,7 +2729,9 @@
           "method:refreshConfiguredLabel": 1,
           "method:selectionDestination": 1,
           "method:selectionWitness": 1,
-          "method:sync": 1
+          "method:sync": 1,
+          "arrow:rank": 1,
+          "method:pendingChoiceLabel": 1
         },
         "roots": [
           "native:button:pv-row pv-btn",

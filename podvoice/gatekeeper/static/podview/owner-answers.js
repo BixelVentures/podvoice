@@ -86,9 +86,15 @@ export function transcriptHistory(value,snapshot){
  });return {items};
 }
 
-// Group only explicit owner session identities; records without one remain separate.
+// History contains finished visual answers with an explicit owner session identity.
+// Transcript fragments and unbound legacy receipts remain stored but are not shown.
 export function groupAnswerHistory(items){
  const groups=[],bySession=new Map();
- for(const item of items){const session=item.transcriptSegment?.sessionId||item.sessionId;let group=session?bySession.get(session):null;if(!group){group={sessionId:session||null,items:[]};groups.push(group);if(session)bySession.set(session,group);}group.items.push(item);}
+ for(const item of items){
+  if(item.hidden||item.transcriptSegment||item.presentation!==true||!item.historical||item.status!=='ready'||!item.sessionId||![...visualFamilies,...typedAnswerFamilies].includes(item.kind))continue;
+  let group=bySession.get(item.sessionId);
+  if(!group){group={sessionId:item.sessionId,items:[]};groups.push(group);bySession.set(item.sessionId,group);}
+  group.items.push(item);
+ }
  return groups;
 }
