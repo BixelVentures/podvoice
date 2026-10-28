@@ -46,6 +46,8 @@ class ControllerRegistry:
         ):
             raise ContinuityDenied("invalid continuity configuration")
         self.path, self.generation, self.days = path, generation, days
+        self._vehicle_owner_fd: int | None = None
+        self._vehicle_owner_pid: int | None = None
         self.wall, self.mono = time.time(), time.monotonic()
 
     def _now(self):
@@ -78,7 +80,13 @@ class ControllerRegistry:
             fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW)
         except FileNotFoundError:
             if create:
-                return {"schema": 3, "generation": self.generation, "highWater": now, "records": {}}
+                return {
+                    "schema": 4,
+                    "generation": self.generation,
+                    "highWater": now,
+                    "records": {},
+                    "vehicleRisk": {},
+                }
             raise ContinuityDenied("missing registry") from None
         with os.fdopen(fd, "r") as stream:
             info = os.fstat(stream.fileno())
@@ -87,9 +95,14 @@ class ControllerRegistry:
             data = json.load(stream, object_pairs_hook=_object)
         if (
             not isinstance(data, dict)
-            or set(data) != {"schema", "generation", "highWater", "records"}
+            or set(data)
+            != (
+                {"schema", "generation", "highWater", "records", "vehicleRisk"}
+                if data.get("schema") == 4
+                else {"schema", "generation", "highWater", "records"}
+            )
             or type(data["schema"]) is not int
-            or data["schema"] not in (1, 2, 3)
+            or data["schema"] not in (1, 2, 3, 4)
             or data["generation"] != self.generation
             or type(data["highWater"]) not in (float, int)
             or not math.isfinite(data["highWater"])
@@ -165,8 +178,10 @@ class ControllerRegistry:
                 or (row["areaId"] is not None and row["placementRevision"] == 0)
             ):
                 raise ContinuityDenied("invalid placement record")
-        if unplaced:
-            data["schema"] = 3  # A later mutation persists the exact legacy authority.
+        if data["schema"] != 4:
+            # Existing authority fields remain exactly as previously migrated.
+            data.update(schema=4, vehicleRisk={})
+        self._vehicle_validate(data["vehicleRisk"])
         return data
 
     def _write(self, data):
@@ -186,6 +201,346 @@ class ControllerRegistry:
                 os.close(directory)
         finally:
             temporary.unlink(missing_ok=True)
+
+    @staticmethod
+    def vehicle_device_key(config_entry_id: str, device_id: str) -> str:
+        if any(
+            not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value)
+            for value in (config_entry_id, device_id)
+        ):
+            raise ContinuityDenied("invalid vehicle identity")
+        # Stable across controller, policy, token and boot changes. No VIN stored.
+        return hashlib.sha256(
+            json.dumps([config_entry_id, device_id], separators=(",", ":")).encode()
+        ).hexdigest()
+
+    @staticmethod
+    def _vehicle_hash(value):
+        return isinstance(value, str) and re.fullmatch(r"[a-f0-9]{64}", value) is not None
+
+    @classmethod
+    def _vehicle_validate(cls, risks):
+        if not isinstance(risks, dict) or len(risks) > 16:
+            raise ContinuityDenied("invalid vehicle risks")
+        for key, row in risks.items():
+            if (
+                not cls._vehicle_hash(key)
+                or not isinstance(row, dict)
+                or set(row) != {"revision", "unresolved", "pending"}
+                or type(row["revision"]) is not int
+                or not 1 <= row["revision"] <= _PLACEMENT_MAX
+                or not isinstance(row["unresolved"], dict)
+                or not {"access", "climate"} <= set(row["unresolved"])
+                or not set(row["unresolved"])
+                <= {
+                    "access",
+                    "climate",
+                    "temperature",
+                    "defrost",
+                    "driverSeat",
+                    "passengerSeat",
+                    "trunk",
+                }
+            ):
+                raise ContinuityDenied("invalid vehicle risk")
+            for family, values in row["unresolved"].items():
+                allowed = {
+                    "access": {"locked", "unlocked"},
+                    "climate": {"on", "off"},
+                    "defrost": {"on", "off"},
+                    "driverSeat": {"off", "low", "medium", "high"},
+                    "passengerSeat": {"off", "low", "medium", "high"},
+                    "temperature": {str(i / 2) for i in range(101)},
+                    "trunk": {"actuate"},
+                }[family]
+                values = row["unresolved"][family]
+                if (
+                    not isinstance(values, list)
+                    or len(values) > len(allowed)
+                    or any(not isinstance(v, str) or v not in allowed for v in values)
+                    or values != sorted(set(values))
+                ):
+                    raise ContinuityDenied("invalid vehicle unresolved directions")
+            pending = row["pending"]
+            if pending is not None and (
+                not isinstance(pending, dict)
+                or set(pending)
+                not in (
+                    {"nonceHash", "family", "desired", "actorHash", "proposalHash"},
+                    {"nonceHash", "effects", "actorHash", "proposalHash"},
+                )
+                or any(
+                    not cls._vehicle_hash(pending[k])
+                    for k in ("nonceHash", "actorHash", "proposalHash")
+                )
+                or not cls._vehicle_effects_valid(cls._vehicle_pending_effects(pending))
+            ):
+                raise ContinuityDenied("invalid pending vehicle command")
+
+    @staticmethod
+    def _vehicle_pending_effects(pending):
+        if "effects" in pending:
+            return pending["effects"]
+        return [[pending.get("family"), pending.get("desired")]]
+
+    @staticmethod
+    def _vehicle_effects_valid(effects):
+        allowed = {
+            "access": {"locked", "unlocked"},
+            "climate": {"on", "off"},
+            "defrost": {"on", "off"},
+            "driverSeat": {"off", "low", "medium", "high"},
+            "passengerSeat": {"off", "low", "medium", "high"},
+            "temperature": {str(i / 2) for i in range(101)},
+            "trunk": {"actuate"},
+        }
+        return (
+            isinstance(effects, list)
+            and 1 <= len(effects) <= 3
+            and all(
+                isinstance(e, list) and len(e) == 2 and e[0] in allowed and e[1] in allowed[e[0]]
+                for e in effects
+            )
+            and len({tuple(e) for e in effects}) == len(effects)
+        )
+
+    @staticmethod
+    def _vehicle_advance(row):
+        if row["revision"] >= _PLACEMENT_MAX:
+            raise ContinuityDenied("vehicle revision exhausted")
+        row["revision"] += 1
+
+    def vehicle_startup(self):
+        """Runtime startup only, before HTTP mounts; sole live process ownership.
+
+        The lifetime lock distinguishes a crashed owner from another active send.
+        Keep it until all native command work has stopped. An uncertain owner stays
+        blocked; normal reads never recover pending work.
+        """
+        if self._vehicle_owner_fd is not None:
+            self._vehicle_owned()
+            return
+        lock = self._open()
+        owner = None
+        try:
+            owner = os.open(
+                self.path.with_suffix(".vehicle-owner.lock"),
+                os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW,
+                0o600,
+            )
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            data = self._load()
+            changed = False
+            for row in data["vehicleRisk"].values():
+                pending = row["pending"]
+                if pending is not None:
+                    for family, desired in self._vehicle_pending_effects(pending):
+                        values = row["unresolved"].setdefault(family, [])
+                        row["unresolved"][family] = sorted(set(values) | {desired})
+                    row["pending"] = None
+                    self._vehicle_advance(row)
+                    changed = True
+            if changed:
+                self._write(data)
+            self._vehicle_owner_fd = owner
+            self._vehicle_owner_pid = os.getpid()
+            owner = None
+        finally:
+            if owner is not None:
+                os.close(owner)
+            os.close(lock)
+
+    def vehicle_stop(self):
+        """Runtime shutdown only after in-flight native work has stopped."""
+        owner = getattr(self, "_vehicle_owner_fd", None)
+        if owner is not None:
+            self._vehicle_owner_fd = None
+            self._vehicle_owner_pid = None
+            os.close(owner)
+
+    def _vehicle_owned(self):
+        if self._vehicle_owner_fd is None or self._vehicle_owner_pid != os.getpid():
+            raise ContinuityDenied("vehicle runtime owner unavailable")
+
+    def vehicle_risk(self, device_key: str) -> dict:
+        self._vehicle_owned()
+        if not self._vehicle_hash(device_key):
+            raise ContinuityDenied("invalid vehicle key")
+        lock = self._open()
+        try:
+            row = self._load()["vehicleRisk"].get(device_key)
+            if row is None:
+                return {
+                    "revision": 0,
+                    "unresolved": {"access": [], "climate": []},
+                    "pending": False,
+                }
+            return {
+                "revision": row["revision"],
+                "unresolved": {
+                    family: list(values) for family, values in row["unresolved"].items()
+                },
+                "pending": row["pending"] is not None,
+            }
+        finally:
+            os.close(lock)
+
+    def reserve_vehicle(
+        self,
+        device_key: str,
+        *,
+        expected_revision: int,
+        family: str,
+        desired: str,
+        actor_hash: str,
+        proposal_hash: str,
+        acknowledge_prior_unresolved: bool = False,
+    ) -> dict:
+        self._vehicle_owned()
+        if (
+            not self._vehicle_hash(device_key)
+            or not self._vehicle_hash(actor_hash)
+            or not self._vehicle_hash(proposal_hash)
+            or type(expected_revision) is not int
+            or not 0 <= expected_revision < _PLACEMENT_MAX
+            or family not in ("access", "climate")
+            or desired not in ({"locked", "unlocked"} if family == "access" else {"on", "off"})
+            or type(acknowledge_prior_unresolved) is not bool
+        ):
+            raise ContinuityDenied("invalid vehicle reservation")
+        lock = self._open()
+        try:
+            data = self._load()
+            risks = data["vehicleRisk"]
+            row = risks.get(device_key)
+            if row is None:
+                if len(risks) >= 16 or expected_revision != 0:
+                    raise ContinuityDenied("vehicle risk capacity or revision")
+                row = {"revision": 0, "unresolved": {"access": [], "climate": []}, "pending": None}
+                risks[device_key] = row
+            if row["revision"] != expected_revision or row["pending"] is not None:
+                raise ContinuityDenied("stale or active vehicle reservation")
+            opposite = bool(set(row["unresolved"][family]) - {desired})
+            if acknowledge_prior_unresolved is not opposite:
+                raise ContinuityDenied("vehicle risk acknowledgement differs")
+            pending = {
+                "nonceHash": secrets.token_hex(32),
+                "family": family,
+                "desired": desired,
+                "actorHash": actor_hash,
+                "proposalHash": proposal_hash,
+            }
+            row["pending"] = pending
+            self._vehicle_advance(row)
+            self._write(data)  # Durable before any native effect; failure grants nothing.
+            return {"deviceKey": device_key, "revision": row["revision"], **pending}
+        finally:
+            os.close(lock)
+
+    def reserve_vehicle_effects(
+        self,
+        device_key,
+        *,
+        expected_revision,
+        effects,
+        actor_hash,
+        proposal_hash,
+        acknowledge_prior_unresolved=False,
+    ):
+        self._vehicle_owned()
+        if (
+            not self._vehicle_hash(device_key)
+            or not self._vehicle_hash(actor_hash)
+            or not self._vehicle_hash(proposal_hash)
+            or type(expected_revision) is not int
+            or not 0 <= expected_revision < _PLACEMENT_MAX
+            or not self._vehicle_effects_valid(effects)
+            or type(acknowledge_prior_unresolved) is not bool
+        ):
+            raise ContinuityDenied("invalid vehicle reservation")
+        lock = self._open()
+        try:
+            data = self._load()
+            risks = data["vehicleRisk"]
+            row = risks.get(device_key)
+            if row is None:
+                if len(risks) >= 16 or expected_revision != 0:
+                    raise ContinuityDenied("vehicle risk capacity or revision")
+                row = {"revision": 0, "unresolved": {"access": [], "climate": []}, "pending": None}
+                risks[device_key] = row
+            if row["revision"] != expected_revision or row["pending"] is not None:
+                raise ContinuityDenied("stale or active vehicle reservation")
+            opposite = any(
+                set(row["unresolved"].get(family, [])) - {desired}
+                or (family == "trunk" and row["unresolved"].get(family))
+                for family, desired in effects
+            )
+            opposite = bool(opposite)
+            if acknowledge_prior_unresolved is not opposite:
+                raise ContinuityDenied("vehicle risk acknowledgement differs")
+            pending = {
+                "nonceHash": secrets.token_hex(32),
+                "effects": [list(e) for e in effects],
+                "actorHash": actor_hash,
+                "proposalHash": proposal_hash,
+            }
+            row["pending"] = pending
+            self._vehicle_advance(row)
+            self._write(data)
+            return {"deviceKey": device_key, "revision": row["revision"], **pending}
+        finally:
+            os.close(lock)
+
+    def settle_vehicle(self, reservation: dict, outcome: str) -> None:
+        """ACK frees concurrency, but cannot erase possible late physical effects."""
+        self._vehicle_owned()
+        if (
+            not isinstance(reservation, dict)
+            or set(reservation)
+            not in (
+                {
+                    "deviceKey",
+                    "revision",
+                    "nonceHash",
+                    "family",
+                    "desired",
+                    "actorHash",
+                    "proposalHash",
+                },
+                {"deviceKey", "revision", "nonceHash", "effects", "actorHash", "proposalHash"},
+            )
+            or not self._vehicle_hash(reservation["deviceKey"])
+            or type(reservation["revision"]) is not int
+            or not 1 <= reservation["revision"] <= _PLACEMENT_MAX
+            or any(
+                not self._vehicle_hash(reservation[k])
+                for k in ("nonceHash", "actorHash", "proposalHash")
+            )
+            or not self._vehicle_effects_valid(self._vehicle_pending_effects(reservation))
+            or outcome not in ("accepted", "unknown", "no_effect")
+        ):
+            raise ContinuityDenied("invalid vehicle settlement")
+        lock = self._open()
+        try:
+            data = self._load()
+            row = data["vehicleRisk"].get(reservation["deviceKey"])
+            expected = {k: v for k, v in reservation.items() if k not in {"deviceKey", "revision"}}
+            if (
+                row is None
+                or row["revision"] != reservation["revision"]
+                or row["pending"] != expected
+            ):
+                raise ContinuityDenied("stale vehicle settlement")
+            if outcome != "no_effect":
+                for family, desired in self._vehicle_pending_effects(expected):
+                    row["unresolved"][family] = sorted(
+                        set(row["unresolved"].get(family, [])) | {desired}
+                    )
+            row["pending"] = None
+            self._vehicle_advance(row)
+            self._write(data)  # Failure leaves conservative pending/unknown at caller.
+        finally:
+            os.close(lock)
 
     def initialize(self):
         """Create the exact empty generation before acknowledging admin provisioning."""

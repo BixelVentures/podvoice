@@ -161,7 +161,7 @@
       ],
       "variants": [
         "Stemning",
-        "Humør",
+        "Hum\u00f8r",
         "Topsange",
         "Senest"
       ],
@@ -895,7 +895,9 @@
           "arrow:receiptCurrent": 2,
           "method:lightActionContext": 1,
           "method:lightTaskCurrent": 1,
-          "method:lightActionFeedbackCurrent": 1
+          "method:lightActionFeedbackCurrent": 1,
+          "method:cancelVehicle": 1,
+          "method:sendVehicle": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1295,7 +1297,7 @@
       "requiredCalls": [
         "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
       ],
-      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority.",
+      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Forts\u00e6t, Stemning/Hum\u00f8r, and actual Senest/Topsange fixtures; no invented library or live authority.",
       "reviewedField87Source": "Same existing card anatomy. Preserve closed generated themeArt for mood as editorial illustration, retain exact source identity, remove duplicate generic Spotify caption; one finite content-only loading cue plus existing replacement fade. No new family or action grant. Actual render review is separate."
     },
     "dist/music-recommendation-model.js": {
@@ -2267,7 +2269,7 @@
     },
     "dist/vehicle-view.js": {
       "status": "approved-composition",
-      "domOwner": "VehicleView: existing detail shell, full-width unavailable status lane, visible primary charging/climate/access sections and bottom history; observed data read-only, explicit preview controls only",
+      "domOwner": "VehicleView: approved detail shell and canonical access/climate controls; observed server-offered one-shot actions, exact proposals and scoped uncertainty; explicit local previews remain separate",
       "factoryClassArgument": 1,
       "imports": [
         "dist/vehicle-model.js",
@@ -2281,7 +2283,7 @@
           "arrow:assign": 1,
           "arrow:control": 1,
           "arrow:disclosure": 1,
-          "arrow:fn": 2,
+          "arrow:fn": 4,
           "arrow:limitChange": 1,
           "arrow:make": 1,
           "class:VehicleView": 1,
@@ -2295,7 +2297,10 @@
           "arrow:apply": 1,
           "arrow:finish": 1,
           "method:hasDraft": 1,
-          "method:sendAction": 1
+          "method:sendAction": 1,
+          "arrow:offered": 1,
+          "method:feedbackScopeFor": 1,
+          "method:finishVehicle": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
@@ -3204,11 +3209,11 @@
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md",
       "scope": "Extend existing canonical identities only; visual direction1 is selected for improvement, previous visual styling is not newly approved.",
       "variants": [
-        "Header Svar → vejr → ur, grouped right: header-history/header-left/header-navigation.",
+        "Header Svar \u2192 vejr \u2192 ur, grouped right: header-history/header-left/header-navigation.",
         "Visual history gallery: retained-answer article, inert history-preview containing pv-answer and history-open same-answer button. Empty history uses existing pv-inline-status.",
         "Robot observations and separately labelled requests reuse pv-activity-timeline; care/settings stay in existing details disclosure.",
         "Ten local QA formats reuse existing answer renderers; preview-scenes imports existing visual-examples. Normal/live history is not seeded.",
-        "Music tabs Stemning · Humør · Topsange · Senest; no Likede promotion."
+        "Music tabs Stemning \u00b7 Hum\u00f8r \u00b7 Topsange \u00b7 Senest; no Likede promotion."
       ]
     },
     {

@@ -506,6 +506,7 @@ async def run(cfg: Config) -> None:
     tools.configure_device_control(load_settings(settings_path))
     tools.configure_podview_robot_reads(cfg.podview_robot_read_policy)
     tools.configure_podview_vehicle_read(cfg.podview_vehicle_read_policy)
+    tools.configure_podview_vehicle_control(cfg.podview_vehicle_control_policy)
 
     def save_runtime_settings(values: dict) -> dict:
         saved = save_settings(values, settings_path, provider_api_key=cfg.openai_api_key)
@@ -735,7 +736,7 @@ async def run(cfg: Config) -> None:
                     settings_path.parent / "podview-controllers" / "registry.json",
                     private_row["generation"],
                     30,
-                ).initialize()
+                )._load()  # Validate provisioned storage; never create/repair at startup.
         except (OSError, ValueError):
             admin_eligible = False
             _LOG.error("PodView private controller state unavailable")

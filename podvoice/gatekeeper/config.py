@@ -62,6 +62,7 @@ class Config:
     podview_weather_city: str = ""
     podview_robot_read_policy: str = ""
     podview_vehicle_read_policy: str = ""
+    podview_vehicle_control_policy: str = ""
     podview_research_visual_policy: str = ""
     # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
     # add-on already holds; override both for a non-supervised setup (direct
@@ -197,6 +198,9 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         podview_vehicle_read_policy=str(opts.get("podview_vehicle_read_policy", ""))
         if not settings_source_untrusted
         else "",
+        podview_vehicle_control_policy=str(opts.get("podview_vehicle_control_policy", ""))
+        if not settings_source_untrusted
+        else "",
         podview_control_policy=str(opts.get("podview_control_policy", ""))
         if not settings_source_untrusted
         else "",
@@ -330,6 +334,7 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     merged["podview_weather_city"] = opts.get("podview_weather_city", "")
     merged["podview_robot_read_policy"] = opts.get("podview_robot_read_policy", "")
     merged["podview_vehicle_read_policy"] = opts.get("podview_vehicle_read_policy", "")
+    merged["podview_vehicle_control_policy"] = opts.get("podview_vehicle_control_policy", "")
     merged["podview_research_visual_policy"] = opts.get("podview_research_visual_policy", "")
     merged["podview_control_policy"] = opts.get("podview_control_policy", "")
     merged["podview_controller_enabled"] = opts.get("podview_controller_enabled", False)

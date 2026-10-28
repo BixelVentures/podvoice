@@ -33,7 +33,7 @@ from jsonschema.exceptions import SchemaError
 
 from . import constants as C
 from . import podconnect_targets as playback_targets
-from . import podview_lights, podview_music, podview_vehicle
+from . import podview_lights, podview_music, podview_vehicle, podview_vehicle_control
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -47,6 +47,7 @@ from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .ha_timers import TOOLS as TIMER_TOOLS
 from .ha_timers import HomeAssistantTimers
 from .mcp_client import HomeAssistantMCP, McpError
+from .podview_continuity import ControllerRegistry
 from .podview_locality import LocalityOwner
 from .podview_receipts import VisualReceiptOwner
 from .podview_weather import observation_is_current, weather_projection, with_hourly_projection
@@ -353,6 +354,9 @@ class ToolRouter:
         )
         self._vehicle_scope: podview_vehicle.VehicleScope | None = None
         self._vehicle_generation = 0
+        self._vehicle_control_scope: podview_vehicle_control.VehicleControlScope | None = None
+        self._vehicle_control_registry: object | None = None
+        self._vehicle_control_generation = 0
         self._token = supervisor_token
         self._client = client
         self._hub = hub
@@ -2244,6 +2248,144 @@ class ToolRouter:
                 return {"outcome": "unknown"}
         return {"outcome": "accepted"}
 
+    def configure_podview_vehicle_control(self, policy: object) -> None:
+        scope = podview_vehicle_control.parse_policy(policy)
+        if scope != self._vehicle_control_scope:
+            self._vehicle_control_scope = scope
+            self._vehicle_control_generation += 1
+
+    def bind_podview_vehicle_control_registry(self, registry: object | None) -> None:
+        """Bind the app-owned startup-locked registry; never create or recover it here."""
+        if registry is not self._vehicle_control_registry:
+            self._vehicle_control_registry = registry
+            self._vehicle_control_generation += 1
+
+    def podview_vehicle_control_scope(self):
+        return self._vehicle_control_scope
+
+    def podview_vehicle_control_binding(self):
+        registry = self._vehicle_control_registry
+        try:
+            if (
+                self._vehicle_control_scope is None
+                or self._vehicle_scope is None
+                or self._vehicle_scope.config_entry_id
+                != self._vehicle_control_scope.config_entry_id
+                or self._vehicle_scope.device_id != self._vehicle_control_scope.device_id
+                or not isinstance(registry, ControllerRegistry)
+                or self._client is None
+                or self._client.is_closed
+                or not self._token
+                or self._device_control._token != self._token
+            ):
+                return None
+            registry._vehicle_owned()
+        except (AttributeError, ValueError, OSError):
+            return None
+        return (
+            self._vehicle_control_generation,
+            self._vehicle_generation,
+            self._vehicle_scope,
+            self._vehicle_control_scope,
+            registry,
+            self._client,
+            self._device_control,
+            self._device_control._generation,
+            hashlib.sha256(self._token.encode()).digest(),
+        )
+
+    async def _podview_vehicle_ha_temperature_unit(self, client, token, current):
+        """Read HA's configured unit without exposing its remaining config."""
+        try:
+            if not current():
+                return None
+            payload = bytearray()
+            async with client.stream(
+                "GET",
+                f"{C.SUPERVISOR_CORE_API}/config",
+                headers={"Authorization": f"Bearer {token}"},
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if not current() or len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
+                        return None
+                    payload.extend(chunk)
+            value = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+            if not current() or not isinstance(value, dict):
+                return None
+            units = value.get("unit_system")
+            return units.get("temperature") if isinstance(units, dict) else None
+        except (httpx.HTTPError, ValueError, TypeError):
+            return None
+
+    def podview_vehicle_control(self):
+        binding = self.podview_vehicle_control_binding()
+        if binding is None:
+            return None
+        scope, registry, client, owner, token = (
+            self._vehicle_control_scope,
+            self._vehicle_control_registry,
+            self._client,
+            self._device_control,
+            self._token,
+        )
+
+        if client is None:
+            return None
+
+        async def registry_read(ids):
+            return await owner._ws_read(
+                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
+            )
+
+        async def state_read(entity_id):
+            payload = bytearray()
+            async with client.stream(
+                "GET",
+                f"{C.SUPERVISOR_CORE_API}/states/{entity_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
+                        raise ValueError("vehicle state too large")
+                    payload.extend(chunk)
+            row = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+            if (
+                entity_id.startswith("climate.")
+                and isinstance(row, dict)
+                and isinstance(row.get("attributes"), dict)
+            ):
+                unit = await self._podview_vehicle_ha_temperature_unit(
+                    client, token, lambda: self.podview_vehicle_control_binding() == binding
+                )
+                row["attributes"]["temperature_unit"] = unit
+            return row
+
+        async def service_call(domain, service, entity_id, data, *, preflight):
+            if not await preflight():
+                return {"outcome": "rejected", "noEffect": True}
+            # No await or alternate target between the durable preflight and send.
+            response = await client.post(
+                f"{C.SUPERVISOR_CORE_API}/services/{domain}/{service}",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"entity_id": entity_id, **data},
+            )
+            response.raise_for_status()
+            return {"outcome": "accepted"}
+
+        return podview_vehicle_control.VehicleControl(
+            scope,
+            registry_read=registry_read,
+            state_read=state_read,
+            service_call=service_call,
+            binding=self.podview_vehicle_control_binding,
+            temperature_unit_read=lambda: self._podview_vehicle_ha_temperature_unit(
+                client, token, lambda: self.podview_vehicle_control_binding() == binding
+            ),
+            risk_registry=registry,
+        )
+
     def configure_podview_vehicle_read(self, policy: object) -> None:
         scope = podview_vehicle.parse_policy(policy)
         if scope != self._vehicle_scope:
@@ -2303,7 +2445,17 @@ class ToolRouter:
                     payload.extend(chunk)
             if not current():
                 raise ValueError("vehicle source changed")
-            return json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+            row = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+            if (
+                entity_id.startswith("climate.")
+                and isinstance(row, dict)
+                and isinstance(row.get("attributes"), dict)
+                and row["attributes"].get("temperature_unit") is None
+                and "temperature" in row["attributes"]
+            ):
+                unit = await self._podview_vehicle_ha_temperature_unit(client, token, current)
+                row["attributes"]["temperature_unit"] = unit
+            return row
 
         try:
             return await podview_vehicle.read(

@@ -1,0 +1,729 @@
+{
+  "evidence": "Synthetic actual HTTP setup responses; inert registry/state/native callbacks, no Home Assistant/Tesla/provider transport.",
+  "harness": "tests/integration/test_podview_vehicle_http.py::rig + actual /view/api/control/setup + gatekeeper.podview._control -> TouchControls._setup_vehicle -> VehicleControl",
+  "sourceSha256": {
+    "tests/integration/test_podview_vehicle_http.py": "33d14e90c0d7a924ad4c16920085812f67e84ab107ebb193585b313c9e4c92d8",
+    "podvoice/gatekeeper/podview.py": "260238448c7019c4b14f46d2c94bb61a674bdae00002e3e68f3f6bf3dbf49281",
+    "podvoice/gatekeeper/podview_controls.py": "3856c6edfc0b3f41e0c6c1fe8c674f13bd11d4e48fa60bdb355a6197b582899c",
+    "podvoice/gatekeeper/podview_vehicle_control.py": "2d4a1209fcaefe35f520023e8801936a6af69f658337666254990f1d2a54cdaa",
+    "podvoice/gatekeeper/podview_vehicle.py": "d70ebc0f19b36e0816ca0e0192186215018da69ae5ca41722827595772e28715"
+  },
+  "runtimeOnlyOpaqueIds": true,
+  "notReusableAuthority": "Expired short-lived fixture proposals; use only as UI DTO examples.",
+  "normal": {
+    "lock": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "lock",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:ac3e9ae0e6457a775d8f6c43de326551",
+        "revision": 1,
+        "expiresAt": 1793219184.189099,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "f05b44370df5d06f107d6928",
+            "action": "lock",
+            "label": "L\u00e5s bilen",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "lock",
+            "label": "L\u00e5s bilen",
+            "args": {},
+            "effects": [
+              [
+                "access",
+                "locked"
+              ]
+            ],
+            "requiresConfirmation": false,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "unlock": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "unlock",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:9d0e01e75f0efe41692896403ddb626e",
+        "revision": 1,
+        "expiresAt": 1793219184.191198,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "5d8b8bc79d12906538c5ac4a",
+            "action": "unlock",
+            "label": "L\u00e5s op",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "unlock",
+            "label": "L\u00e5s op",
+            "args": {},
+            "effects": [
+              [
+                "access",
+                "unlocked"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "climateOn": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "climateOn",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:0c939a9ba0c2bd01c7c0546d644ffa48",
+        "revision": 1,
+        "expiresAt": 1793219184.1932425,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "10b2400c32c0f91d989f3d2f",
+            "action": "climateOn",
+            "label": "T\u00e6nd klima",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "climateOn",
+            "label": "T\u00e6nd klima",
+            "args": {},
+            "effects": [
+              [
+                "climate",
+                "on"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "climateOff": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "climateOff",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:18be5dea3fbd9fcfc66726f265e70d7c",
+        "revision": 1,
+        "expiresAt": 1793219184.195779,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "2e850d22a17ef24cad321aa3",
+            "action": "climateOff",
+            "label": "Sluk klima",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "climateOff",
+            "label": "Sluk klima",
+            "args": {},
+            "effects": [
+              [
+                "climate",
+                "off"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "temperature": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "temperature",
+          "args": {
+            "temperature": 21.5
+          }
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:30e5007c78bb77e28d99c9b8d610b448",
+        "revision": 1,
+        "expiresAt": 1793219184.1982868,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "61828a19c328e98084dbfc76",
+            "action": "temperature",
+            "label": "Indstil temperatur",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "temperature",
+            "label": "Indstil temperatur",
+            "args": {
+              "temperature": 21.5
+            },
+            "effects": [
+              [
+                "temperature",
+                "21.5"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "defrostOn": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "defrostOn",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:b338537bfdff23a8beb2c87cf6a1f134",
+        "revision": 1,
+        "expiresAt": 1793219184.200868,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "146f41742c1d4c553350e62e",
+            "action": "defrostOn",
+            "label": "T\u00e6nd afrimning",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "defrostOn",
+            "label": "T\u00e6nd afrimning",
+            "args": {},
+            "effects": [
+              [
+                "defrost",
+                "on"
+              ],
+              [
+                "climate",
+                "on"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "defrostOff": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "defrostOff",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:f6a05f8ce13243f934bff5e461cd7a4d",
+        "revision": 1,
+        "expiresAt": 1793219184.2037225,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "e2bdc89b7ee056d59ef30550",
+            "action": "defrostOff",
+            "label": "Sluk afrimning",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "defrostOff",
+            "label": "Sluk afrimning",
+            "args": {},
+            "effects": [
+              [
+                "defrost",
+                "off"
+              ],
+              [
+                "climate",
+                "on"
+              ],
+              [
+                "climate",
+                "off"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "driverSeatHeat": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "driverSeatHeat",
+          "args": {
+            "option": "low"
+          }
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:2fcaba68a2beb64d7c781d0f428a65c2",
+        "revision": 1,
+        "expiresAt": 1793219184.20666,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "723cbfb2d1afc1c4ce4db9e3",
+            "action": "driverSeatHeat",
+            "label": "Indstil f\u00f8rers\u00e6de",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "driverSeatHeat",
+            "label": "Indstil f\u00f8rers\u00e6de",
+            "args": {
+              "option": "low"
+            },
+            "effects": [
+              [
+                "driverSeat",
+                "low"
+              ],
+              [
+                "climate",
+                "on"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "passengerSeatHeat": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "passengerSeatHeat",
+          "args": {
+            "option": "high"
+          }
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:35f2c79284bc7d9afb390f0bc10f2ee4",
+        "revision": 1,
+        "expiresAt": 1793219184.2098844,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "0f1e6da82642a4e6797799a8",
+            "action": "passengerSeatHeat",
+            "label": "Indstil passagers\u00e6de",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "passengerSeatHeat",
+            "label": "Indstil passagers\u00e6de",
+            "args": {
+              "option": "high"
+            },
+            "effects": [
+              [
+                "passengerSeat",
+                "high"
+              ],
+              [
+                "climate",
+                "on"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    },
+    "rearTrunkToggle": {
+      "request": {
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "domain": "vehicle",
+        "target": {
+          "action": "rearTrunkToggle",
+          "args": {}
+        }
+      },
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "schema": "podview.control.v1",
+        "roomId": "kitchen",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "taskId": "control:3de68ed2ccc44c25034bd449905eed17",
+        "revision": 1,
+        "expiresAt": 1793219184.2133486,
+        "domain": "vehicle",
+        "options": [
+          {
+            "id": "70db95caa8fe0cfdc0f94a76",
+            "action": "rearTrunkToggle",
+            "label": "Betjen bagagerum (\u00e5bn/luk)",
+            "argsSchema": {
+              "kind": "none"
+            }
+          }
+        ],
+        "setup": {
+          "confirmation": {
+            "action": "rearTrunkToggle",
+            "label": "Betjen bagagerum (\u00e5bn/luk)",
+            "args": {},
+            "effects": [
+              [
+                "trunk",
+                "actuate"
+              ]
+            ],
+            "requiresConfirmation": true,
+            "nativeWakePossible": true,
+            "priorUnresolved": {
+              "access": [],
+              "climate": []
+            },
+            "riskRevision": 0,
+            "requiresOverride": false
+          }
+        }
+      }
+    }
+  },
+  "overrideExample": {
+    "label": "Separate synthetic unresolved-unlock risk, seeded via durable registry reserve/unknown settlement; no action HTTP or native send.",
+    "request": {
+      "bootId": "11643a840d98383fd28bfe7c4a57e973",
+      "roomId": "kitchen",
+      "domain": "vehicle",
+      "target": {
+        "action": "lock",
+        "args": {}
+      }
+    },
+    "httpStatus": 200,
+    "response": {
+      "ok": true,
+      "schema": "podview.control.v1",
+      "roomId": "kitchen",
+      "bootId": "11643a840d98383fd28bfe7c4a57e973",
+      "taskId": "control:c67220e490b8bc30c70e1699cd80f00c",
+      "revision": 1,
+      "expiresAt": 1793219184.2194047,
+      "domain": "vehicle",
+      "options": [
+        {
+          "id": "b730b3a000bb699373731ac9",
+          "action": "lock",
+          "label": "L\u00e5s bilen",
+          "argsSchema": {
+            "kind": "none"
+          }
+        }
+      ],
+      "setup": {
+        "confirmation": {
+          "action": "lock",
+          "label": "L\u00e5s bilen",
+          "args": {},
+          "effects": [
+            [
+              "access",
+              "locked"
+            ]
+          ],
+          "requiresConfirmation": true,
+          "nativeWakePossible": true,
+          "priorUnresolved": {
+            "access": [
+              "unlocked"
+            ],
+            "climate": []
+          },
+          "riskRevision": 2,
+          "requiresOverride": true
+        }
+      }
+    },
+    "requiredActionArgs": {
+      "acknowledgePriorUnresolved": true
+    }
+  },
+  "passiveReadExample": {
+    "label": "Synthetic exact Fleet roles and explicit source values; actual passive projector -> existing /view/api/home handler, no installed-role claim.",
+    "request": "/view/api/home?room=kitchen",
+    "httpStatus": 200,
+    "response": {
+      "schema": "podview.home.v1",
+      "bootId": "11643a840d98383fd28bfe7c4a57e973",
+      "roomId": "kitchen",
+      "revision": 1,
+      "observedAt": 1793219169.222867,
+      "vacuum": {
+        "status": "unavailable",
+        "items": []
+      },
+      "weather": {
+        "status": "unavailable",
+        "data": null
+      },
+      "vehicle": {
+        "status": "observed",
+        "source": "home_assistant_state",
+        "observedAt": 1793219159.221902,
+        "entityIds": [
+          "climate.climate",
+          "switch.defrost",
+          "select.driverseat",
+          "lock.lock",
+          "select.passengerseat",
+          "cover.trunk"
+        ],
+        "data": {
+          "locked": true,
+          "trunk": "closed",
+          "climate": {
+            "status": "heat_cool",
+            "temperatureC": 20.5,
+            "targetTemperatureC": 21.5,
+            "minTemperatureC": 15,
+            "maxTemperatureC": 28,
+            "temperatureStepC": 0.5,
+            "defrost": true,
+            "driverSeatHeat": "high",
+            "passengerSeatHeat": "low"
+          }
+        }
+      },
+      "weatherAdvice": {
+        "schema": "podview.weather-advice-capability.v1",
+        "bootId": "11643a840d98383fd28bfe7c4a57e973",
+        "roomId": "kitchen",
+        "weatherKey": null,
+        "source": null,
+        "sourceRetrievedAt": null,
+        "validUntil": null,
+        "availability": "unavailable",
+        "status": "unavailable"
+      },
+      "lights": {
+        "status": "unbound",
+        "source": "home_assistant_state",
+        "sourceEpoch": null,
+        "observedAt": null,
+        "validUntil": null,
+        "scope": null,
+        "complete": false,
+        "items": [],
+        "countUnit": "light_entities"
+      },
+      "lightAreas": {
+        "status": "unbound",
+        "source": "home_assistant_area_registry",
+        "sourceEpoch": null,
+        "observedAt": null,
+        "validUntil": null,
+        "bindingId": null,
+        "placementRevision": null,
+        "ownAreaId": null,
+        "selectedAreaId": null,
+        "items": []
+      },
+      "lightPlacement": {
+        "status": "unbound",
+        "areaId": null,
+        "areaName": null,
+        "bindingId": null,
+        "placementRevision": null
+      }
+    }
+  },
+  "effectCalls": {
+    "nativeVehicle": 0,
+    "timers": 0
+  }
+}

@@ -231,9 +231,15 @@ class TouchControls:
         self.busy: set[str] = set()
 
     def domains(self, room: str, token: str) -> list[str]:
-        if self.policy.get("roomId") != room or not self.bridge._grant_current(room, token):
+        if not self.bridge._grant_current(room, token):
             return []
-        result = []
+        result = (
+            ["vehicle"]
+            if self._vehicle_available(room) and self._vehicle_controller_current(room, token)
+            else []
+        )
+        if self.policy.get("roomId") != room:
+            return result
         if (
             any(
                 (
@@ -311,6 +317,8 @@ class TouchControls:
             if domain == "light"
             else self.music.binding()
             if domain == "music"
+            else tools.podview_vehicle_control_binding()
+            if domain == "vehicle"
             else (
                 owner,
                 getattr(owner, "_generation", None),
@@ -357,6 +365,7 @@ class TouchControls:
             )
             and task["binding"] == self._binding(task["room"], task["domain"])
             and (task["domain"] != "light" or self._light_current(task, token))
+            and (task["domain"] != "vehicle" or self._vehicle_current(task, token))
             and (
                 "move_grant" not in task
                 or (
@@ -530,7 +539,190 @@ class TouchControls:
             return None
         return dict(retained["identity"])
 
+    def _vehicle_available(self, room: str) -> bool:
+        try:
+            scope = self.bridge.tools.podview_vehicle_control_scope()
+            return bool(
+                scope is not None
+                and scope.room_id == room
+                and self.bridge.tools.podview_vehicle_control_binding() is not None
+            )
+        except (AttributeError, TypeError, ValueError):
+            return False
+
+    def _vehicle_controller_current(self, room: str, token: str) -> bool:
+        guard = getattr(self.bridge, "_vehicle_controller_current", None)
+        return bool(callable(guard) and guard(room, token))
+
+    def _vehicle_current(self, task: dict, token: str) -> bool:
+        return bool(
+            self._vehicle_controller_current(task["room"], token)
+            and task["vehicle_boot"] == self.bridge.boot_id
+            and task["vehicle_grant"] is not None
+            and self.bridge._grant_for_token(task["room"], token) is task["vehicle_grant"]
+            and task["vehicle_revision"] == self._move_revision(task["room"])
+            and (
+                self.tasks.get(task["id"]) is task
+                or (task.get("setup_in_progress") is True and task["room"] in self.busy)
+            )
+        )
+
+    async def _setup_vehicle(self, body: dict, token: str) -> dict:
+        # Setup is the exact proposal; the later opaque-option action is approval.
+        if set(body) != {"bootId", "roomId", "domain", "target"}:
+            return failure("invalid_setup")
+        room, target = body["roomId"], body["target"]
+        if (
+            not isinstance(room, str)
+            or body["bootId"] != self.bridge.boot_id
+            or not isinstance(target, dict)
+            or set(target) != {"action", "args"}
+            or not isinstance(target["action"], str)
+            or not isinstance(target["args"], dict)
+        ):
+            return failure("invalid_target")
+        if "vehicle" not in self.domains(room, token):
+            return failure("scope_not_paired")
+        if room in self.busy:
+            return failure("busy")
+        self._retire_receipts()
+        self.tasks = {
+            key: task
+            for key, task in self.tasks.items()
+            if self.bridge._ha_task_retained(task) or self._current(task, task["token"])
+        }
+        if len(self.tasks) >= 64:
+            return failure("setup_capacity")
+        task_id = "control:" + secrets.token_hex(16)
+        task = {
+            "id": task_id,
+            "setup_in_progress": True,
+            "room": room,
+            "domain": "vehicle",
+            "token": token,
+            "binding": self._binding(room, "vehicle"),
+            "deadline": time.monotonic() + 15,
+            "options": {},
+            "consumed": False,
+            "target": copy.deepcopy(target),
+            "rule": {},
+            "vehicle_boot": self.bridge.boot_id,
+            "vehicle_grant": self.bridge._grant_for_token(room, token),
+            "vehicle_revision": self._move_revision(room),
+        }
+
+        def current():
+            return self._current(task, token)
+
+        self.busy.add(room)
+        try:
+            adapter = self.bridge.tools.podview_vehicle_control()
+            if (
+                adapter is None
+                or adapter.scope != self.bridge.tools.podview_vehicle_control_scope()
+            ):
+                return failure("setup_unavailable")
+            offer = await adapter.prepare(current=current, action=target["action"])
+            if offer is None or not current():
+                return failure("setup_unavailable")
+            task["deadline"] = min(
+                task["deadline"], time.monotonic() + max(0, offer.expires_at - time.time())
+            )
+            action, args = target["action"], copy.deepcopy(target["args"])
+            proposal = adapter.proposal(offer, action, args)
+            labels = {
+                "lock": "Lås bilen",
+                "unlock": "Lås op",
+                "climateOn": "Tænd klima",
+                "climateOff": "Sluk klima",
+                "temperature": "Indstil temperatur",
+                "defrostOn": "Tænd afrimning",
+                "defrostOff": "Sluk afrimning",
+                "driverSeatHeat": "Indstil førersæde",
+                "passengerSeatHeat": "Indstil passagersæde",
+                "rearTrunkToggle": "Betjen bagagerum (åbn/luk)",
+            }
+            oid = secrets.token_hex(12)
+            task["options"][oid] = {
+                "action": action,
+                "label": labels[action],
+                "schema": {"kind": "none"},
+            }
+            exact_proposal = {
+                key: proposal[key]
+                for key in (
+                    "action",
+                    "entityId",
+                    "domain",
+                    "service",
+                    "data",
+                    "effects",
+                    "registry",
+                    "riskRevision",
+                    "requiresOverride",
+                    "priorUnresolved",
+                )
+            }
+            exact_proposal.update(
+                taskId=task_id,
+                optionId=oid,
+                roomId=room,
+                bootId=self.bridge.boot_id,
+                args=args,
+            )
+            task.update(
+                vehicle_adapter=adapter,
+                vehicle_offer=offer,
+                vehicle_proposal=proposal,
+                vehicle_args=args,
+                vehicle_actor_hash=hashlib.sha256(token.encode()).hexdigest(),
+                vehicle_proposal_hash=hashlib.sha256(
+                    json.dumps(exact_proposal, sort_keys=True, allow_nan=False).encode()
+                ).hexdigest(),
+            )
+            if not current():
+                return failure("stale_setup")
+            task["expires_at"] = time.time() + max(0, task["deadline"] - time.monotonic())
+            self.tasks[task_id] = task
+            task["setup_in_progress"] = False
+            confirmation = {
+                "action": action,
+                "label": labels[action],
+                "args": copy.deepcopy(args),
+                "effects": copy.deepcopy(proposal["effects"]),
+                "requiresConfirmation": proposal["requiresConfirmation"],
+                "nativeWakePossible": True,
+                "priorUnresolved": copy.deepcopy(proposal["priorUnresolved"]),
+                "riskRevision": proposal["riskRevision"],
+                "requiresOverride": proposal["requiresOverride"],
+            }
+            return {
+                "ok": True,
+                "schema": "podview.control.v1",
+                "roomId": room,
+                "bootId": self.bridge.boot_id,
+                "taskId": task_id,
+                "revision": 1,
+                "expiresAt": task["expires_at"],
+                "domain": "vehicle",
+                "options": [
+                    {
+                        "id": oid,
+                        "action": action,
+                        "label": labels[action],
+                        "argsSchema": {"kind": "none"},
+                    }
+                ],
+                "setup": {"confirmation": confirmation},
+            }
+        except (ValueError, TypeError, KeyError, AttributeError):
+            return failure("setup_unavailable")
+        finally:
+            self.busy.discard(room)
+
     async def setup(self, body: dict, token: str) -> dict:
+        if body.get("domain") == "vehicle":
+            return await self._setup_vehicle(body, token)
         if set(body) - {
             "bootId",
             "roomId",
@@ -1437,7 +1629,19 @@ class TouchControls:
             return failure("unknown_option")
         args = body["args"]
         try:
-            steps = self._steps(task, option, args)
+            if task["domain"] == "vehicle":
+                override = task["vehicle_proposal"]["requiresOverride"]
+                if override:
+                    if (
+                        set(args) != {"acknowledgePriorUnresolved"}
+                        or args["acknowledgePriorUnresolved"] is not True
+                    ):
+                        return failure("invalid_arguments")
+                elif args:
+                    return failure("invalid_arguments")
+                steps = []
+            else:
+                steps = self._steps(task, option, args)
         except (KeyError, ValueError, TypeError):
             return failure("invalid_arguments")
         if task["room"] in self.busy:
@@ -1534,6 +1738,28 @@ class TouchControls:
                             self.bridge._music_move_fence.discard(
                                 (task["room"], task["target"]["accountId"])
                             )
+                elif task["domain"] == "vehicle":
+
+                    def authorize(proposal):
+                        return bool(
+                            current()
+                            and task["consumed"]
+                            and self.tasks.get(task["id"]) is task
+                            and proposal == task["vehicle_proposal"]
+                            and option is task["options"].get(body["optionId"])
+                        )
+
+                    result = await task["vehicle_adapter"].execute(
+                        task["vehicle_offer"],
+                        option["action"],
+                        task["vehicle_args"],
+                        current=current,
+                        authorize=authorize,
+                        actor_hash=task["vehicle_actor_hash"],
+                        proposal_hash=task["vehicle_proposal_hash"],
+                        acknowledge_prior_unresolved=args.get("acknowledgePriorUnresolved", False),
+                    )
+                    outcome = result.get("outcome", "unknown")
                 elif task["domain"] == "light":
                     try:
                         data, entities, selected = await self._light_read(task, token, current)

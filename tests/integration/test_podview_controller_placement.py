@@ -83,6 +83,7 @@ def test_old_profiles_read_unbound_then_migrate_without_new_expiry_or_secret(tmp
     token, identity, expiry = registry.enroll("session-room", PIN)
     stored = json.loads(registry.path.read_text())
     stored["schema"] = schema
+    stored.pop("vehicleRisk")
     row = stored["records"][identity]
     row.pop("areaId")
     row.pop("placementRevision")
@@ -98,7 +99,7 @@ def test_old_profiles_read_unbound_then_migrate_without_new_expiry_or_secret(tmp
     assert registry.validate(token, "session-room", PIN) == (identity, expiry)
     bound = set_area(registry, identity)
     migrated = json.loads(registry.path.read_text())
-    assert migrated["schema"] == 3
+    assert migrated["schema"] == 4
     for field in ["digest", "pin", "room", "issuedAt", "expiresAt", "revoked"]:
         assert migrated["records"][identity][field] == row[field]
     assert registry_at(tmp_path).placement(identity, "session-room", PIN) == bound
@@ -215,6 +216,7 @@ def test_legacy_schema_cannot_smuggle_a_placement_without_versioned_migration(tm
     token, identity, _ = registry.enroll("session-room", PIN)
     data = json.loads(registry.path.read_text())
     data["schema"] = schema
+    data.pop("vehicleRisk")
     row = data["records"][identity]
     row.update(areaId="kitchen_area", placementRevision=1)
     if schema == 1:

@@ -4,11 +4,12 @@ import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 import {liveScene,homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {vehicleChargeUpdate} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {VehicleView} from '../../podvoice/gatekeeper/static/podview/vehicle-view.js';
 import {vehicleObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
 const begin=source.indexOf('const homeConnection='),end=source.indexOf("if($('home-vehicle-status')",begin);
 const counts={radio:0,vehicle:0};
 class Radio{constructor(){counts.radio++;this.inputs=[];}render(value){this.inputs.push(value);}}
-class Vehicle{constructor(){counts.vehicle++;this.inputs=[];this.options=[];}render(value,options){this.inputs.push(value);this.options.push(options);}}
+class Vehicle{constructor(){counts.vehicle++;this.inputs=[];this.options=[];}feedbackScopeFor(snapshot){return VehicleView.prototype.feedbackScopeFor.call(this,snapshot);}render(value,options){this.inputs.push(value);this.options.push(options);}}
 const render=new Function('RadioView','VehicleView','projectVehicle','$','localRadioTransition','homeConnectionPresentation',`return function(s){const viewChanged=this.lastRenderedFocus!==s.focus;this.lastRenderedFocus=s.focus;${source.slice(begin,end)}}`)(Radio,Vehicle,value=>value||{mode:'unconnected'},()=>({}),s=>s,homeConnectionPresentation);
 test('detail owners defer construction, retain quiet hidden updates and suppress replay on reopening',()=>{
  const host={live:false},s={focus:'now',connected:true,radioStationId:'p3',radioPlaying:true};render.call(host,s);assert.deepEqual(counts,{radio:0,vehicle:0});

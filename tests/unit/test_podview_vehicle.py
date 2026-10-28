@@ -447,3 +447,79 @@ async def test_diagnostic_handler_failure_cannot_change_read_outcome(monkeypatch
     )
     assert result["status"] == ("unavailable" if invalid_registry else "observed")
     assert v._last_diagnostic == previous
+
+
+@pytest.mark.asyncio
+async def test_explicit_extended_roles_and_climate_target_are_bounded_and_verified():
+    fields = {
+        "climate": "climate.car",
+        "defrost": "switch.defrost",
+        "driverSeat": "select.driver",
+        "passengerSeat": "select.passenger",
+        "trunk": "cover.trunk",
+    }
+    scope = v.parse_policy(policy(fields))
+    entries = registry(scope)
+    keys = {
+        "climate": "driver_temp",
+        "defrost": "climate_state_defrost_mode",
+        "driverSeat": "climate_state_seat_heater_left",
+        "passengerSeat": "climate_state_seat_heater_right",
+        "trunk": "vehicle_state_rt",
+    }
+    for role, eid in scope.entities:
+        entries[eid]["translation_key"] = keys[role]
+    values = {
+        "climate": (
+            "off",
+            {
+                "temperature_unit": "°C",
+                "temperature": 19.5,
+                "min_temp": 15,
+                "max_temp": 28,
+                "supported_features": 401,
+            },
+        ),
+        "defrost": ("on", {}),
+        "driverSeat": ("high", {}),
+        "passengerSeat": ("off", {}),
+        "trunk": ("closed", {}),
+    }
+    rows = {
+        eid: {
+            "entity_id": eid,
+            "state": values[role][0],
+            "last_updated": iso(NOW - 20),
+            "attributes": values[role][1],
+        }
+        for role, eid in scope.entities
+    }
+
+    async def read_result():
+        return await v.read(
+            scope,
+            registry_read=AsyncMock(return_value=entries),
+            state_read=AsyncMock(side_effect=lambda eid: rows[eid]),
+            current=lambda: True,
+            now=lambda: NOW,
+        )
+
+    result = await read_result()
+    assert result["data"]["climate"] == {
+        "status": "off",
+        "targetTemperatureC": 19.5,
+        "minTemperatureC": 15,
+        "maxTemperatureC": 28,
+        "temperatureStepC": 0.5,
+        "defrost": True,
+        "driverSeatHeat": "high",
+        "passengerSeatHeat": "off",
+    }
+    assert result["data"]["trunk"] == "closed"
+    del rows["climate.car"]["attributes"]["temperature_unit"]
+    rows["select.driver"]["state"] = "unknown"
+    result = await read_result()
+    assert "targetTemperatureC" not in result["data"]["climate"]
+    assert "driverSeatHeat" not in result["data"]["climate"]
+    entries["cover.trunk"]["translation_key"] = "vehicle_state_ft"
+    assert (await read_result())["status"] == "unavailable"
