@@ -1,5 +1,15 @@
 # PodVoice-produktmål — pålidelig dansk GPT-Live-assistent
 
+## Tværgående brugeraccept · standard v1
+
+Den fælles [Pod-systemstandard](POD-SYSTEM-STANDARD.md) er et supplerende acceptkrav.
+For berørte features prøves input → faktisk effekt → korrekt UI/lyd → recovery på
+samme identificerede kandidat. Første musikflow er tal → afspil → vis → touch-pause
+→ korreleret bekræftet pause på samme output. Unit/kontrakt, sammensat integration,
+rigtig browser, rigtig service og fysisk hardware angives særskilt med faktiske
+inertgrænser og udfald. Grønne deltests lukker ikke hele flowet. Eksisterende golden-,
+lifecycle-, sikkerheds- og produktgates bevares; uændrede domæner genprøves ikke uden årsag.
+
 > Produktbeslutning (13/10): brugeren har valgt **kun GPT-Live** til både Voice PE
 > og Talk. GPT-Live er den valgte produktionsprovider med samme `ThinSession`,
 > `VoicePELink`, `ToolRouter` og fysiske close/rearm-ejer. Aktuel installeret version og

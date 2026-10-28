@@ -237,9 +237,9 @@ test('refresh crossfades only retained art/copy, never the button or Play, and c
  const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const rows=[...f.nodes.get('result-list').children],calls=[];
  f.host.motion={reduced:false,animate(node,frames,duration){let resolve;const animation={finished:new Promise(done=>resolve=done),cancelled:false,cancel(){this.cancelled=true;resolve();}};calls.push({node,frames,duration,animation});return animation;}};
  for(const row of rows){row.cloneNode=()=>{};row.getClientRects=()=>[{}];row.getBoundingClientRect=()=>({left:0,top:0});for(const node of row.children.slice(0,2)){node.getBoundingClientRect=()=>({left:8,top:8,width:100,height:80});node.cloneNode=()=>f.host.ownerDocument.createElement(node.tag);node.removeEventListener=(name,fn)=>{if(node.listeners.get(name)===fn)node.listeners.delete(name);};}}
- f.view.render({cards,busy:true});assert.equal(calls.length,4,'busy entry fades art and copy once');const next=cards.map((card,index)=>({...card,id:'new-'+index,name:'Ny '+index}));f.view.render({cards:next});
- assert.deepEqual(f.nodes.get('result-list').children,rows);assert.equal(calls.length,12);assert.equal(rows.every(row=>row.children.slice(4).every(layer=>layer.style.cssText.includes('grid-area:auto!important'))),true,'absolute layers must not inherit source grid-area as their containing block');assert.equal(calls.some(call=>rows.includes(call.node)||rows.some(row=>row.children[3]===call.node)),false);assert.equal(calls.every(call=>call.duration===200&&call.frames.every(frame=>Object.keys(frame).length===1&&'opacity' in frame)),true);
- f.view.render({cards:next});assert.equal(calls.length,12,'same content never restarts');f.view.cleanup();await Promise.resolve();assert.equal(f.view.contentTransitions.size,0);assert.equal(calls.every(call=>call.animation.cancelled),true);assert.equal(rows.every(row=>row.children.length===4),true,'temporary content layers removed');
+ f.view.render({cards,busy:true});assert.equal(calls.length,0,'busy entry keeps existing content still');const next=cards.map((card,index)=>({...card,id:'new-'+index,name:'Ny '+index}));f.view.render({cards:next});
+ assert.deepEqual(f.nodes.get('result-list').children,rows);assert.equal(calls.length,8);assert.equal(rows.every(row=>row.children.slice(4).every(layer=>layer.style.cssText.includes('grid-area:auto!important'))),true,'absolute layers must not inherit source grid-area as their containing block');assert.equal(calls.some(call=>rows.includes(call.node)||rows.some(row=>row.children[3]===call.node)),false);assert.equal(calls.every(call=>call.duration===200&&call.frames.every(frame=>Object.keys(frame).length===1&&'opacity' in frame)),true);
+ f.view.render({cards:next});assert.equal(calls.length,8,'same content never restarts');f.view.cleanup();await Promise.resolve();assert.equal(f.view.contentTransitions.size,0);assert.equal(calls.every(call=>call.animation.cancelled),true);assert.equal(rows.every(row=>row.children.length===4),true,'temporary content layers removed');
 });
 
 test('an artwork crossfade waits for current decode and a replacement cancels stale listeners and layers',async()=>{
@@ -280,13 +280,11 @@ test('generated mood paths remain exact owner routes and malformed or missing ar
  }
  const f=retainedResultSurface(),cards=sourceMusicCards([{...base,themeArt:valid,artwork:{kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/real'}}],'feeling');assert.equal(cards[0].themeArt,undefined);f.view.render({cards});assert.equal([...f.view.rows.values()][0].children[0].src,'https://i.scdn.co/image/real');f.view.cleanup();
 });
-test('busy entry fades only retained art and text once, never holds content hidden, and cleanup/reduced motion stay quiet',async()=>{
+test('busy entry keeps retained art and text still while cleanup and reduced motion stay quiet',async()=>{
  const f=retainedResultSurface(),cards=resultCards(),calls=[];f.view.render({cards});const rows=[...f.view.rows.values()];
  for(const row of rows)row.getClientRects=()=>[{}];f.host.motion={reduced:false,animate(node,frames,duration){let resolve;const animation={finished:new Promise(done=>resolve=done),cancelled:false,cancel(){this.cancelled=true;resolve();}};calls.push({node,frames,duration,animation});return animation;}};
- f.view.render({cards,busy:true});assert.equal(calls.length,4);assert.equal(calls.every(call=>rows.some(row=>row.children.slice(0,2).includes(call.node))),true);assert.equal(calls.every(call=>JSON.stringify(call.frames)===JSON.stringify([{opacity:.65},{opacity:1}])&&call.duration===200),true);assert.equal(rows.every(row=>row.children.length===4),true);
- f.view.render({cards,busy:true});f.view.render({cards,busy:true});assert.equal(calls.length,4);f.view.render({cards});assert.equal(calls.length,4,'unchanged completed data does not crossfade');assert.deepEqual([...f.view.rows.values()],rows);
- f.view.cleanup();for(let i=0;i<5;i++)await Promise.resolve();assert.equal(f.view.contentTransitions.size,0);assert.equal(calls.every(call=>call.animation.cancelled),true);assert.equal(rows.every(row=>row.children.length===4),true);
- f.host.motion.reduced=true;f.view.render({cards,busy:true});f.view.render({cards});assert.equal(calls.length,4);f.view.cleanup();
+ f.view.render({cards,busy:true});f.view.render({cards,busy:true});f.view.render({cards});assert.equal(calls.length,0,'unchanged refresh never animates');assert.deepEqual([...f.view.rows.values()],rows);
+ f.view.cleanup();f.host.motion.reduced=true;f.view.render({cards,busy:true});f.view.render({cards});assert.equal(calls.length,0);f.view.cleanup();
 });
 
 test('renderer revalidates editorial mood route and cannot carry it into another collection or theme owner',()=>{

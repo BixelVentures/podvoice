@@ -393,7 +393,9 @@ class VisualReceiptOwner:
     def _save_history_display(self, room: str, key: tuple, display: dict) -> None:
         storage = self._durable_history
         if storage is not None and not self._durable_failed:
-            self._durable_failed = not storage.save_visual_snapshot(room, key[1], key[2], display)
+            self._durable_failed = not storage.save_visual_snapshot(
+                room, key[1], key[2], display, turn=key[3]
+            )
             self._sync_history()
 
     def _remove_history_display(self, room: str, **binding) -> None:
@@ -417,6 +419,7 @@ class VisualReceiptOwner:
                     if row["display"]["receiptId"] in old
                     else (None, row["session"], row["epoch"]),
                     "display": row["display"],
+                    "turn": row.get("turn"),
                 }
                 for row in rows
             ]
@@ -453,7 +456,11 @@ class VisualReceiptOwner:
                     "revision": 1,
                     "removalRevision": 0,
                     "items": [
-                        {"binding": (None, row["session"], row["epoch"]), "display": row["display"]}
+                        {
+                            "binding": (None, row["session"], row["epoch"]),
+                            "display": row["display"],
+                            "turn": row.get("turn"),
+                        }
                         for row in rows
                     ],
                 }
@@ -522,7 +529,7 @@ class VisualReceiptOwner:
             self._save_history_display(room_id, key, display)
             self._notify(room_id)
             return
-        prior["items"].insert(0, {"binding": key[:3], "display": display})
+        prior["items"].insert(0, {"binding": key[:3], "display": display, "turn": key[3]})
         if len(prior["items"]) > 20:
             prior["removalRevision"] += 1
         del prior["items"][20:]
@@ -547,7 +554,16 @@ class VisualReceiptOwner:
             "receiptIds": [r["display"]["receiptId"] for r in state["items"]]
             if state and not self._closed
             else [],
-            "items": copy.deepcopy([r["display"] for r in state["items"]])
+            "items": copy.deepcopy(
+                [
+                    {
+                        **r["display"],
+                        "sessionId": r["binding"][1],
+                        **({"turnId": r["turn"]} if r.get("turn") else {}),
+                    }
+                    for r in state["items"]
+                ]
+            )
             if state and not self._closed and include_items
             else [],
         }

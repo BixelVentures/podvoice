@@ -125,3 +125,23 @@ test('expired queue refresh late response cannot overwrite replacement binding q
  await f.refresh();f.expire();await f.refresh();assert.equal(f.reads.length,2);assert.equal(f.media.queueControls.pending,true);
  f.replaceBinding();await f.refresh();assert.equal(f.reads.length,3);const accepted=f.media.queueControls.offer;assert.equal(accepted.expectedBindingId,'b'.repeat(64));release();await tick();assert.equal(f.media.queueControls.offer,accepted);assert.equal(f.effects(),0);
  }finally{release?.();f.close();}});
+
+test('fresh actual playback preserves every admitted upcoming native occurrence',async()=>{
+ const f=rig();try{
+  const native=f.host.liveTransport.queueOffer;const rendered=[];f.host.playerView.renderQueue=(items,meta)=>rendered.push({items,meta});
+  f.host.liveTransport.queueOffer=async(...args)=>{const reply=await native(...args);reply.items=[0,1,2].map((index)=>({id:(index+1).toString(16).padStart(24,'0'),order:index+1,title:`Sang ${index+1}`,artist:'Artist',uri:`spotify:track:${String(index+1).repeat(22)}`,artwork:null}));return reply;};
+  await f.refresh();assert.equal(f.reads.length,1);assert.equal(f.media.queueControls.status,'ready');const latest=rendered.at(-1);assert.deepEqual(latest.items.map(row=>row.title),['Sang 1','Sang 2','Sang 3']);assert.deepEqual(latest.items.map(row=>row.order),[1,2,3]);assert.equal(latest.meta.status,'ready');
+ }finally{f.close();}
+});
+
+test('player queue read follows actual binding even when transport setup is unavailable',async()=>{
+ const f=rig();try{
+  f.host.liveTransport.music=async()=>({...f.wire(),schema:'podview.room-playback.v3',controls:{status:'unavailable',reason:'control_not_granted',binding_id:null,valid_until:null,supported_actions:[],volume:null},permissions:{actions:[],maxVolume:null}});
+  await f.refresh();assert.equal(f.reads.length,1);assert.equal(f.media.queueControls.status,'ready');
+  f.replaceBinding();await f.refresh();assert.equal(f.reads.length,2);assert.equal(f.reads[1].expected,'b'.repeat(64));
+ }finally{f.close();}
+});
+
+test('missing queue permission explicitly blocks the read despite fresh playback',async()=>{
+ const f=rig();try{f.host.liveSnapshot.capabilities.queueSelection=false;await f.refresh();assert.equal(f.reads.length,0);assert.equal(f.media.queueControls.offer,null);}finally{f.close();}
+});

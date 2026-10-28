@@ -123,7 +123,15 @@ class History:
                 if (
                     len(line.encode("utf-8")) > 67584
                     or type(row) is not dict
-                    or set(row) != {"kind", "room", "session", "epoch", "display"}
+                    or set(row)
+                    not in (
+                        {"kind", "room", "session", "epoch", "display"},
+                        {"kind", "room", "session", "epoch", "display", "turn"},
+                    )
+                    or (
+                        "turn" in row
+                        and (type(row["turn"]) is not str or not 0 < len(row["turn"]) <= 160)
+                    )
                     or row["kind"] != "visual_snapshot.v1"
                     or type(row["room"]) is not str
                     or not 0 < len(row["room"]) <= 160
@@ -189,7 +197,9 @@ class History:
                 with suppress(OSError):
                     temporary.unlink(missing_ok=True)
 
-    def save_visual_snapshot(self, room: str, session: str, epoch: float, display: dict) -> bool:
+    def save_visual_snapshot(
+        self, room: str, session: str, epoch: float, display: dict, *, turn: str | None = None
+    ) -> bool:
         """Persist a validated display copy, without a live receipt or renewed lease."""
         from .podview_receipts import validated_archive_display
 
@@ -200,6 +210,7 @@ class History:
             or not 0 < len(room) <= 160
             or type(session) is not str
             or not 0 < len(session) <= 256
+            or (turn is not None and (type(turn) is not str or not 0 < len(turn) <= 160))
             or type(epoch) not in (int, float)
             or not 0 <= epoch < float("inf")
         ):
@@ -222,11 +233,15 @@ class History:
                 epoch,
             ):
                 return False
+            if existing is not None and existing.get("turn") != turn:
+                return False
             if existing is not None and existing["display"] == clean:
                 return True
             row = dict(
                 kind="visual_snapshot.v1", room=room, session=session, epoch=epoch, display=clean
             )
+            if turn is not None:
+                row["turn"] = turn
             rows = [row] + [r for r in rows if r is not existing]
             counts: dict[str, int] = {}
             bounded = []
@@ -397,7 +412,9 @@ class History:
             out.sort(key=lambda rec: float(rec.get("ts") or 0.0))
         return out
 
-    def conversations(self, limit: int = 50, room: str | None = None) -> list[dict]:
+    def conversations(
+        self, limit: int = 50, room: str | None = None, *, include_record_session: bool = False
+    ) -> list[dict]:
         """Grouped conversations, newest first. Each: {room, started, ended, turns}."""
         recs = self._records()
         if room:
@@ -425,6 +442,8 @@ class History:
                 convs.append(cur)
             cur["ended"] = max(cur["ended"], float(r.get("end_ts", ts)))
             display = {"ts": ts, "dir": r.get("dir"), "text": r.get("text")}
+            if include_record_session and "session" in r:
+                display["session"] = r["session"]
             for key in ("kind", "segment_id", "end_ts", "generation", "fragment_count"):
                 if key in r:
                     display[key] = r[key]

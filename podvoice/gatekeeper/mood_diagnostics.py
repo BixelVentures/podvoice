@@ -179,6 +179,9 @@ def admission(kind, reason, status):
                         "invalid_request",
                         "not_admitted",
                         "busy",
+                        "read_busy",
+                        "selection_busy",
+                        "owner_changed",
                         "tools_unavailable",
                     }
                 ),

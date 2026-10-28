@@ -27,6 +27,12 @@ def _log_playback_failure(stage, error):
         "forbidden",
         "rate_limited",
         "malformed_response",
+        "owner_changed",
+        "route_unavailable",
+        "output_not_admitted",
+        "account_unavailable",
+        "stale_observation",
+        "ambiguous_output",
     }
     reason = error if isinstance(error, str) and error in allowed else "unavailable"
     try:
@@ -646,8 +652,17 @@ async def read_playback(
                         and selected_retained is not None
                         and selection_owner.receipts.get(selected_retained[0])
                         is selected_retained[1]
-                        and (binding(bridge, room, account) or {}).get("bindingId")
-                        == resolved["binding"]["bindingId"]
+                        and (
+                            resolved["binding"]["accountId"],
+                            resolved["binding"]["targetId"],
+                            resolved["binding"]["nativeRoomId"],
+                            resolved["binding"]["nativeHomepodId"],
+                        )
+                        == (
+                            selected_retained[1][2]["task"]["account"],
+                            selected_retained[1][2]["task"]["target"],
+                            *selected_retained[1][2]["task"]["nativeBinding"],
+                        )
                     )
                 )
                 and isinstance(resolved["settlement"], dict)
@@ -671,16 +686,20 @@ async def read_playback(
 async def expected_actual(bridge, room, account, expected, current):
     """Fresh exact destination revalidation before an offer or guarded dispatch."""
     if not isinstance(expected, str) or len(expected) != 64:
+        _log_playback_failure("control_binding_invalid", "unavailable")
         return None
     resolved = await resolve_actual(
         bridge, room, account, bridge.tools.podview_music_binding, current=current
     )
     actual = resolved["binding"]
-    if (
-        resolved["status"] != "observed"
-        or actual["bindingId"] != expected
-        or not resolved["current"]()
-    ):
+    if resolved["status"] != "observed":
+        _log_playback_failure("control_binding_unobserved", resolved["reason"])
+        return None
+    if actual["bindingId"] != expected:
+        _log_playback_failure("control_binding_changed", "stale")
+        return None
+    if not resolved["current"]():
+        _log_playback_failure("control_binding_owner_changed", "stale")
         return None
     return resolved
 

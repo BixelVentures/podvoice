@@ -1,5 +1,13 @@
 # ARKITEKTUR — én PodVoice-samtale
 
+## Ét Pod-produkt med flere flader · standard v1
+
+Følg [Pod-systemstandarden](POD-SYSTEM-STANDARD.md): PodVoice ejer samtale/lifecycle,
+PodConnect eksisterende musik/output, HA relevante enheder/timere og PodView kanonisk
+præsentation/touch. Stemme og touch deler udførelsesejer; observeret service-/enhedstilstand
+føres tilbage til fladerne gennem eksisterende kontrakter. Dette tilføjer ingen global
+state-/eventbus, parallel renderer, musikmotor eller ny audio-/afbrydelsespolitik.
+
 > Produktbeslutning (13/10): den valgte produktionsretning er **GPT-Live** for både
 > Voice PE og Talk. Den aktive runtime har én `ThinSession`-ejer og ingen
 > provider-vælger. `live_alpha` er fortsat et settings-/migrationsfelt i den aktuelle

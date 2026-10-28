@@ -1,5 +1,31 @@
 # PodVoice agentindgang
 
+## Pod System Engineering Standard v1 · 27. oktober 2026
+
+PodVoice, PodView og PodConnect er ét produkt. Læs den fælles
+[Pod-systemstandard](docs/POD-SYSTEM-STANDARD.md) ved berørte brugerforløb.
+
+1. Design input → handling → faktisk service/enhed → observeret resultat → feedback
+   → recovery på tværs af de relevante flader; inspicér kilde og naboejere først.
+2. Stemme og touch bruger samme autoritative ejer pr. domæne. Accepteret er ikke
+   bekræftet effekt; UNKNOWN må ikke automatisk gensendes. Ingen parallel state-ejer.
+3. Agenten ejer softwarefejlsøgning og QA. Genbrug eksisterende miljø/harness og
+   kausale regressioner; ændret UI følger fortsat PodViews kanoniske kit/reviewkrav.
+4. Færdigmelding kræver det forventede brugerresultat. Angiv særskilt unit/kontrakt,
+   integration, rigtig browser, rigtig service og fysisk hardware samt inerte
+   afhængigheder, faktisk evidens og rester. Kode/udgivelse/installation er ikke accept.
+5. Kravene gælder permanent i alle Pod-projekter. PodVoice-lead ejer integration,
+   PodView UI og PodConnect musik/output; eksisterende sikkerheds- og releasekrav bevares.
+
+Fejl skal kunne diagnosticeres: registrér afvisning, timeout, exception, ukendt udfald
+og mislykket recovery i den eksisterende ejerlog med fast trin/årsag/udfald og sikker
+korrelation, hvor kontrakten tilbyder det. Ingen nøgler, rå payloads eller persondata;
+ingen ny logplatform eller støjende logning af alle succesfulde poll-kald.
+
+Første fælles accept er tal → afspil → vis → touch-pause → verificér samme output.
+Følg den aktive kandidat; historiske checkouts er ikke releasekilde. Resultater og
+næste handling føres i eksisterende STATUS/feedbackpost. Ingen ny konkurrerende log.
+
 Denne fil er den korte indgang til aktuel status og arbejdsgang. Risikofyldte ændringer
 følger fortsat de fulde sikkerheds-, lifecycle-, review- og beviskrav i
 [docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md). Den oprindelige lange indgang findes i
@@ -24,6 +50,32 @@ Læs derefter de relevante sektioner i
 stoplinje, beviskrav, review, fysisk diagnose og releasegrænser. Planer og handovers er
 historisk baggrund, aldrig autoritet over de fire produktfiler. Hele filoversigten og
 klassifikationen findes i [dokumentationsindekset](docs/README.md).
+
+## Regressioner: hovedfejl før leveringsarbejde
+
+- Lead fastholder brugerens højst prioriterede fejl som kritisk vej i eksisterende
+  STATUS: handling → faktisk forkert resultat → næste konkrete årsagsspørgsmål.
+  En lettere sidefejl må løses parallelt, men må ikke overtage budget eller fremstå
+  som løsning på hovedfejlen.
+- Hver undersøgelse skal kunne skelne navngivne årsager eller føre til en konkret
+  rettelse. Efter én afgrænset undersøgelse uden ny årsagsevidens skal lead ændre
+  tilgang eller angive den præcise manglende observation. Gentag ikke samme audit,
+  flere generiske tests eller ny planlægning som erstatning.
+- Start ikke versionsbump, ny releaseprofil, manifestbinding, PR-/CI-klargøring eller
+  installation, mens hovedfejlens årsag og rettelse stadig er ukendte. Undtagelse:
+  mindst mulig diagnostik, når lead navngiver præcis hvilken manglende observation
+  den indsamler, hvordan den afgør næste rettelse, og et afgrænset forløb til at få
+  observationen. Ren logningsleverance tæller aldrig som løst hovedproblem.
+- Når årsagen er dokumenteret, ret mindste ejergrænse og bevis det berørte samlede
+  flow før leveringsklargøring. Bevar nødvendige sikkerheds-/reviewkrav; en CI- eller
+  fixturefejl må ikke udløse runtimeændringer eller gentagne brede checks.
+- Ved creditbudget: aflæs faktisk saldo før et nyt væsentligt arbejdstrin; medregn
+  udestående agentarbejde og reserve. Hvis resten ikke kan rummes, indsnævr næste
+  konkrete resultat eller stop og gem arbejdet. Start ikke et nyt sidespor for at
+  vise fremdrift. Rapportér ændret brugeradfærd og åbent hovedproblem, ikke testantal
+  eller releaseaktivitet som erstatning for resultat.
+- En docs-/agentoprydning genoptager ikke et pauset produktarbejde. Denne regel
+  giver heller ikke adgang til at springe sikkerhed, officiel CI eller fysisk bevis over.
 
 ## Ti regler for levering
 
