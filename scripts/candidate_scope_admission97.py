@@ -105,6 +105,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/canonical-next-live-answer-view.test.mjs",
         "tests/podview/canonical-next-visual-history.test.mjs",
         "tests/podview/canonical-next-weather-view.test.mjs",
+        "tests/podview/canonical-packet-shared-music-results.test.mjs",
         "tests/podview/canonical-packet-visual-history.test.mjs",
         "tests/podview/hue-status-placement.browser.mjs",
         "tests/podview/hue-status-placement.html",
@@ -134,8 +135,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "c00e848b699397b601918cf143934614815d62c425388408e5e28a7f91e21005"
-PROFILE_AST = "07b5ecc0aa279b273eee7fea20b8229e2c2976478645ec94d6b5357650dcabc4"
+MANIFEST_SHA = "a77cde0dceae48a2029cd179a182597f42409f3866d7778418f6018e975cd1d9"
+PROFILE_AST = "8b59efb474da87ad2b3526177ce59f7496cfd597e9cc7799c1d2de67d07881a2"
 
 
 def record_at(root: Path) -> dict | None:

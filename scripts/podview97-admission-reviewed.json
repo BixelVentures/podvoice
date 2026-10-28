@@ -73,6 +73,7 @@
     "tests/podview/canonical-next-live-answer-view.test.mjs": "f18124cd9f616daeff4bff08218efbdafabbbb84ef7280554bcc13bb31675c11",
     "tests/podview/canonical-next-visual-history.test.mjs": "ee6050d7a0665c1ae0c4fdfc0cc74f7b05a42b050825c31d03f4b83bc751850c",
     "tests/podview/canonical-next-weather-view.test.mjs": "dd14d072ebc7b203ff349ca840e81a7e355ded189be7de0dcede4d55aa0b1017",
+    "tests/podview/canonical-packet-shared-music-results.test.mjs": "bd0686019c0b7538b71f67de13da96ce6b31e9e191ecfbfffd6e548882a75b20",
     "tests/podview/canonical-packet-visual-history.test.mjs": "f6b4c673d4c6b68f0e0cb7756cf7a2aeddc89493474e60885eed72b5ff53c651",
     "tests/podview/hue-status-placement.browser.mjs": "de78d125a6cf520a754c274b664f16d93f2df28c1eeb397543c8bd21ed3e63f6",
     "tests/podview/hue-status-placement.html": "b45cf5584e1641f1b9d239b725a081def49d30e87dd23c94b342f73ff1c5047b",
