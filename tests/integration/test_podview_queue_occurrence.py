@@ -610,27 +610,35 @@ async def test_queue_read_is_independent_of_missing_playback_control_services(ri
     assert bridge.controls.music._read.await_count == 1
     assert bridge.controls.music._read.await_args.args[2] == "get_room_queue_controls"
 
-@pytest.mark.parametrize('bad_art', ['http://i.scdn.co/image/a', 'https://evil.example/image/a',
-                                     'https://i.scdn.co/image/a?token=secret', {'unexpected': True}])
+
+@pytest.mark.parametrize(
+    "bad_art",
+    [
+        "http://i.scdn.co/image/a",
+        "https://evil.example/image/a",
+        "https://i.scdn.co/image/a?token=secret",
+        {"unexpected": True},
+    ],
+)
 async def test_queue_artwork_is_safe_and_bound_to_each_occurrence_without_blocking(rig, bad_art):
     bridge, request = prepare(rig)
-    valid = 'https://i.scdn.co/image/' + 'a' * 40
+    valid = "https://i.scdn.co/image/" + "a" * 40
 
     async def service(client, token, name, payload):
         value = await queue_service_reply(client, token, name, payload)
-        if name == 'get_room_queue_controls':
-            value['items'][0]['artwork'] = valid
-            value['items'][1]['artwork'] = bad_art
+        if name == "get_room_queue_controls":
+            value["items"][0]["artwork"] = valid
+            value["items"][1]["artwork"] = bad_art
         return value
 
     bridge.controls.music._read = AsyncMock(side_effect=service)
-    offer = await bridge.queue.offer(request, 'grant')
-    assert offer['ok']
-    first, second = offer['items']
-    assert first['artwork'] == {'kind': 'album_cover', 'provider': 'spotify', 'url': valid}
-    assert second['artwork'] is None
-    assert first['id'] != second['id'] and first['uri'] == second['uri']
-    assert [first['order'], second['order']] == [1, 2]
-    result = await bridge.queue.action(action(offer, 1), 'grant')
-    assert result['outcome'] == 'accepted'
-    assert bridge.controls.music._read.await_args.args[-1]['args']['occurrence_id'] == second['id']
+    offer = await bridge.queue.offer(request, "grant")
+    assert offer["ok"]
+    first, second = offer["items"]
+    assert first["artwork"] == {"kind": "album_cover", "provider": "spotify", "url": valid}
+    assert second["artwork"] is None
+    assert first["id"] != second["id"] and first["uri"] == second["uri"]
+    assert [first["order"], second["order"]] == [1, 2]
+    result = await bridge.queue.action(action(offer, 1), "grant")
+    assert result["outcome"] == "accepted"
+    assert bridge.controls.music._read.await_args.args[-1]["args"]["occurrence_id"] == second["id"]

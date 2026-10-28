@@ -6953,13 +6953,13 @@ Lead compatibility decision 28 Oct: approved optional, closed display-metadata n
     "physical_output"
   ],
   "fingerprint": "3396efc4af83cb92274424bc54a2064482f3e63387f8abf0fec8326fb8d862b6",
-  "regression_fingerprint": "4eefab5ea84225d824cff6b14959b76194989a43990cc2c9fdb5bb1b724aeac6",
+  "regression_fingerprint": "4e408ad0d8397bf772dae6a6d00c1664c303ddd654ab855bfe922a965f3ecf9c",
   "runtime_fingerprint": "a70d133e88a0f9e033c52ab32036fc28daa5c50cc92accd8620b989a0d9bb977",
   "config_fingerprint": "0072fb3020b4b3389c4415d6fc4ec91e0c86997ccf512c06f8904f0d91ffa5f7",
-  "policy_fingerprint": "df433dc2d913a5c9f691af50f8d8515665b87cdbcb9af21b5cd055b6791a41b7",
+  "policy_fingerprint": "235227f67fdbb08c0aaedf6ef5cd27a8318a04f6d03938e2d51d4d4e967c5ddf",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "manifest_fingerprint": "85e4e216c4e57fb39238145e51eb24de0033c33aae0ced586440d01082b881cb",
+  "manifest_fingerprint": "b0c3efa92610ca1b39aed09903a122ca92584efb5838f838d4e37306ca80ab96",
   "reviewer": "/root/review_catalogue_join",
-  "rationale": "Independent source and scope review for 2.0.98 against 2.0.97. CI amendment preserves unchanged history group DOM while correcting bounded UI fixtures to actual source contracts. Full UI run retained 4645 passing cases; six environment-affected failures and one corrected history fixture passed targeted reruns. No new command authority. Official CI, publication, installation, real services and physical acceptance are separate gates."
+  "rationale": "Independent source and scope review for 2.0.98 against 2.0.97. CI amendment preserves unchanged history group DOM while correcting bounded UI fixtures to actual source contracts. Full UI run retained 4645 passing cases; six environment-affected failures and one corrected history fixture passed targeted reruns. No new command authority. Official CI, publication, installation, real services and physical acceptance are separate gates. CI lint amendment formats the existing queue regression only; runtime and assertions are unchanged."
 }
 -->

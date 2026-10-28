@@ -33,7 +33,7 @@
     "podvoice/gatekeeper/tools.py": "9c9380eb286ddcd7f6faed511672b1ce0351dc709856f81289b9b0b4142d3f53"
   },
   "regressions": {
-    "tests/integration/test_podview_queue_occurrence.py": "9a324590b3dc212cd545863a24410a04bd3d841d7cd1aa2179490159b84b1f2d",
+    "tests/integration/test_podview_queue_occurrence.py": "ec6f7c3bc51984eb880944b9ebbfa23187d6b4618579650965f6ef2ef584213e",
     "tests/integration/test_thin.py": "6738f8e47e116fe49fd6aa2516b169271b8e3e63119f0c67b6fad169a488428a",
     "tests/podview/answer-history-integration-history-read-state.test.mjs": "27d100607c1496cafd7682462c6f18adae6a033c66538bb7a9958e7f9156cea1",
     "tests/podview/answer-history-integration-live-answer-view.test.mjs": "6668bfea73ef8660d0acbc178475cfe65687b5c639d2b9fd13e95890938061df",
