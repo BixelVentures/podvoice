@@ -32,8 +32,9 @@ export function robotFacts(device,now=Date.now()/1000){
 // Display-only vocabulary matches the existing admitted setting choices.
 // Raw observations and action values remain owned by their source/transport.
 const settingLabels={
+ suction:{quiet:'Stille',balanced:'Balanceret',turbo:'Turbo',max:'Maks.',max_plus:'Maks.+',off:'Fra',custom:'Tilpasset'},
  cleaning_mode:{vacuum:'Støvsugning',vac_and_mop:'Støvsugning og gulvvask',mop:'Gulvvask',custom:'Tilpasset'},
- mop_intensity:{off:'Fra',low:'Lav',medium:'Mellem',high:'Høj',custom_water_flow:'Tilpasset vandmængde',custom:'Tilpasset'},
+ mop_intensity:{off:'Fra',low:'Lav',medium:'Mellem',high:'Høj',extreme:'Extreme',custom_water_flow:'Tilpasset vandmængde',custom:'Tilpasset'},
  mop_mode:{standard:'Standard',deep:'Grundig',deep_plus:'Ekstra grundig',fast:'Hurtig',custom:'Tilpasset'},
  dust_collection_mode:{smart:'Smart',light:'Let',balanced:'Balanceret',max:'Maksimal'},
  vacuum_error:{none:'Ingen'},dock_error:{ok:'Ingen',water_empty:'Mangler vand'}

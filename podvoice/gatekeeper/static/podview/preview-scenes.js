@@ -14,6 +14,8 @@ export const headerPreviewPhases={listening:'LISTENING',thinking:'THINKING',spea
 export const devicePreviewStatuses={light:['off','on','mixed','pending','unknown','fault','unavailable'],robot:['docked','cleaning','paused','docking','stopped','pending','unknown','fault']};
 export const devicePreviewStates=Object.entries(devicePreviewStatuses).flatMap(([kind,statuses])=>statuses.flatMap(status=>['detail','overview','rest'].map(layer=>`${kind}-${layer}-${status}`)));
 export const deviceOfflinePreviewStates=['robot','light'].flatMap(kind=>['detail','overview','rest'].map(layer=>`${kind}-${layer}-offline`));
+// Authored local observations only; none grants authority or represents live HA.
+export const robotActivityPreviewStates=['charging','charged','washing','emptying','drying','completed','brushfault'].flatMap(status=>['detail','overview','rest'].map(layer=>`robot-${layer}-${status}`));
 export const timerPreviewStates=['detail','overview','rest'].flatMap(layer=>['empty','running','finished','multiple','stale'].map(state=>`timer-${layer}-${state}`)).concat(['timer-overview-dismissed']);
 export const musicPreviewStates=['mood','feeling','top','recent','paused','refreshing','refresh-error','refresh-empty'].map(state=>`music-${state}`);
 export const radioPreviewStates=['ready','selected','paused','offline'].map(state=>`radio-${state}`);
@@ -26,7 +28,7 @@ export const firstRunPreviewStates=['first-connecting','first-unavailable','firs
 // Additional authored snapshots exercise only fields accepted by existing owners.
 export const libraryDomainPreviewStates=['robot-detail-many-rooms','robot-detail-empty','robot-detail-stale','robot-detail-long','robot-detail-care','light-detail-empty','light-detail-stale','light-detail-long','light-detail-room-living','light-detail-room-kitchen','light-detail-lamp','weather-unconnected','weather-offline','weather-long','weather-connection-error','music-offline','music-unknown','music-long-output','music-initial-empty','music-long-metadata','music-cover-states','player-long-metadata','player-queue-empty','player-queue-error','player-queue-loading','player-queue-refresh','player-long-output','vehicle-unknown','vehicle-stale',...['detail','overview','rest'].map(layer=>`timer-${layer}-paused`)];
 export const huePreviewStates=['hue-kitchen','hue-living','hue-many-rooms','hue-offline','hue-long','hue-mixed','hue-unknown','hue-stale','hue-live-shaped','hue-progress-room','hue-progress-lamp','hue-progress-long',...['preparing','sending','rejected','unknown'].map(phase=>`hue-feedback-${phase}`)];
-export const previewStates=[...huePreviewStates,...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'screen-device-ready','visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
+export const previewStates=[...huePreviewStates,...libraryDomainPreviewStates,...firstRunPreviewStates,...conversationPreviewStates,...coexistencePreviewStates,...devicePreviewStates,...deviceOfflinePreviewStates,...robotActivityPreviewStates,...timerPreviewStates,...musicPreviewStates,...radioPreviewStates,...weatherPreviewStates,...answerPreviewStates,'vehicle-unconnected','vehicle-charging','vehicle-charging-overview','activities-combined',...Object.keys(headerPreviewPhases).map(phase=>`header-${phase}`),...playerPreviewStates,'screen-device-ready','visual-history','now',...visualFamilies,'timers','quiet','night','weather','top','stack','music-stack','rest','music','waiting','partial','ready','empty','error','pending','offline','unknown','complete','vacuum','light','listening','connecting','ended','nothing','paused'];
 // Normal demo navigation uses the same authored room/scene data as Hue review.
 // Provider-shaped and explicit fault/library fixtures retain their own inputs.
 export function previewScene(name,now=Date.now()){
@@ -84,6 +86,7 @@ function authoredPreviewScene(name,now=Date.now()){
  if(name==='activities-combined')return {...devicePreviewScene(timerPreviewScene('timer-overview-running',now),'robot-overview-cleaning'),vehicle:vehicleFixture({charging:true,now,controls:true})};
  if(['vehicle-charging','vehicle-charging-overview'].includes(name))return {...initialScene(),focus:name==='vehicle-charging'?'vehicle':'now',vehicle:vehicleFixture({charging:true,now,controls:true})};
  if(name==='vehicle-unconnected')return step(initialScene(),{type:'show',id:'vehicle'});
+ if(robotActivityPreviewStates.includes(name))return robotActivityPreviewScene(name,now);
  if(deviceOfflinePreviewStates.includes(name)){const [kind,layer]=name.split('-');return step(devicePreviewScene(initialScene(),`${kind}-${layer}-${kind==='robot'?'cleaning':'on'}`),{type:'offline'});}
  let s=initialScene();if(devicePreviewStates.includes(name))return devicePreviewScene(s,name,now);if(name?.startsWith('header-')&&Object.hasOwn(headerPreviewPhases,name.slice(7)))return {...s,focus:'now',navStack:[],voicePreviewPhase:headerPreviewPhases[name.slice(7)]};if(name==='visual-history'){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});return localAnswerHistory({...s,focus:'now'},true);}if(playerPreviewStates.includes(name)){const rest=name.startsWith('player-rest-'),status=name.replace(/^player-(rest|active)-/,'');return {...s,focus:rest?'photo':'music',navStack:[],playerPreview:status,...(status==='empty'?{music:{...s.music,playback:{...s.music.playback,active:false,playing:false}}}:{}),connected:status!=='offline'};}if(['rest','nothing','now','quiet','music','top','weather','timers','paused'].includes(name)){for(const kind of ['vacuum','light'])s=step(s,{type:'device-demo',kind,time:'Eksempel'});s={...s,focus:'music',navStack:[],detailOrigin:undefined};}
  if(!previewStates.includes(name))return s;
@@ -240,12 +243,27 @@ function devicePreviewScene(s,name,now=Date.now()){
  s={...s,devices:s.devices.map(d=>{
   if(d.id!==id)return d;
   const observed=status==='pending'?(kind==='light'?'on':'cleaning'):status;
-  return {...d,exampleOnly:true,status:observed,...(kind==='vacuum'&&['cleaning','paused'].includes(observed)?{localJob:{id:`authored-${id}-job`,deviceId:id,kind:'fixture_room_clean',repeat:2,active:true,exampleOnly:true}}:{}),...(kind==='light'?{lights:d.lights.map((lamp,index)=>{const on=observed==='mixed'?index%2===0:observed==='on';return {...lamp,on,...(lamp.dimmable&&on?{brightness:lamp.brightness>0?lamp.brightness:60}:{})};})}:{battery:76,...(!['unknown','fault','unavailable'].includes(status)?{telemetry:telemetry(status)}:{})}),pending:status==='pending'?{operation:1,action:kind==='light'?'turn_off':'pause',generation:s.generation,...(kind==='light'?{targetIds:d.lights.map(lamp=>lamp.id),scopeLabel:'Hele hjemmet'}:{})}:null,timeline:[{id:'preview-observed',label:kind==='light'?'Lysstatus':'Robotstatus',time:'12.00'}]};
+  return {...d,exampleOnly:true,status:observed,...(kind==='vacuum'&&['cleaning','paused'].includes(observed)?{localJob:{id:`authored-${id}-job`,deviceId:id,kind:'fixture_room_clean',repeat:2,repeatRange:{min:1,max:2},mapName:'Stueplan',areas:[{id:'b'.repeat(24),label:'Køkkenet'}],active:true,exampleOnly:true}}:{}),...(kind==='light'?{lights:d.lights.map((lamp,index)=>{const on=observed==='mixed'?index%2===0:observed==='on';return {...lamp,on,...(lamp.dimmable&&on?{brightness:lamp.brightness>0?lamp.brightness:60}:{})};})}:{battery:76,...(!['unknown','fault','unavailable'].includes(status)?{telemetry:telemetry(status)}:{})}),pending:status==='pending'?{operation:1,action:kind==='light'?'turn_off':'pause',generation:s.generation,...(kind==='light'?{targetIds:d.lights.map(lamp=>lamp.id),scopeLabel:'Hele hjemmet'}:{})}:null,timeline:[{id:'preview-observed',label:kind==='light'?'Lysstatus':'Robotstatus',time:'12.00'}]};
  }),deviceOperation:status==='pending'?1:s.deviceOperation,navStack:[],detailOrigin:undefined};
  s=step(s,{type:'show',id:'now'});
  return layer==='overview'?s:step(s,{type:'show',id:layer==='rest'?'photo':id});
 }
 
+
+// Explicit inert examples based on the same admitted observation keys as the
+// real robot. Completion here is an authored local observation, never inferred
+// from docking, a command acknowledgement, or a change in cleaning time.
+function robotActivityPreviewScene(name,now){
+ const [,layer,kind]=name.split('-'),scene=devicePreviewScene(initialScene(),`robot-${layer}-docked`,now),at=now/1000;
+ const values={charging:[['status','charging'],['battery_charging',true]],charged:[['status','charging_complete'],['battery_charging',false]],washing:[['status','washing_the_mop'],['mop_washing',true]],emptying:[['status','emptying_the_bin'],['dust_emptying',true]],drying:[['status','drying_the_mop'],['mop_drying',true]],brushfault:[['vacuum_error','main_brush_jammed']],completed:[['last_clean_end',at-60]]};
+ const rows=values[kind]||[];
+ return {...scene,devices:scene.devices.map(device=>{
+  if(device.kind!=='vacuum')return device;
+  const existing=device.telemetry?.items||[],keys=new Set(rows.map(([key])=>key));
+  const observations=rows.map(([key,value])=>({key,value,unit:null,entityId:`${['mop_washing','dust_emptying','mop_drying'].includes(key)?'switch':typeof value==='boolean'?'binary_sensor':'sensor'}.local_preview_${key}`,updatedAt:at,retrievedAt:at,stale:false}));
+  return {...device,exampleOnly:true,...(['washing','emptying','drying'].includes(kind)?{localDockOperation:({washing:'wash_start',emptying:'empty_start',drying:'dry_start'})[kind]}:{}),status:kind==='completed'?'complete':kind==='brushfault'?'fault':'docked',telemetry:{status:'observed',source:'local_preview',exampleOnly:true,items:[...existing.filter(row=>!keys.has(row.key)),...observations]}};
+ })};
+}
 
 // Catalog snapshots have no transport, credentials or new effect authority.
 // Missing owner states (e.g. Tesla command pending) are deliberately not staged.

@@ -1,11 +1,12 @@
 import {groupAnswerHistory} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
-import {applyKitComponent,applyKitDialog} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import {applyKitComponent,applyKitDialog,applyKitTextRole,createKitSliderField,createKitDisclosure} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import {LightRoomView} from '../../podvoice/gatekeeper/static/podview/light-room-view.js';
 import {scopedLightsObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
 import {renderOverviewMediaValues,fixtureArtwork} from '../../podvoice/gatekeeper/static/podview/music-results.js';
 import {updateResourceFacts} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
 import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
 import {radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
-import {vehicleModel as projectVehicle,vehicleChargeUpdate} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
 import test from 'node:test';
 import {connectionPresentation,homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {weatherHeaderVisible} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
@@ -13,7 +14,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {previewScene,previewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
 import {visualFamilies,validateVisualContent} from '../../podvoice/gatekeeper/static/podview/visual-content.js';
-import {FORMATS,sceneTransition,focusedAnswer,initialScene,lightSelection,lightChoices,devicePresentation} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {FORMATS,sceneTransition,focusedAnswer,initialScene,lightSelection,lightChoices,devicePresentation,robotRecentCompletion} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 import {ownedAnswers} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
 
 test('explicit QA history has one coherent saved household example for each canonical visual family',()=>{
@@ -96,12 +97,13 @@ class HostLeaf extends HistoryNode {
  get alt(){return this.getAttribute('alt')??'';}set alt(v){this.setAttribute('alt',String(v));}
  querySelector(selector){if(!this.selectors.has(selector)){const node=new HostLeaf(selector,this.all);node.ownerDocument=this.ownerDocument;this.selectors.set(selector,node);}return this.selectors.get(selector);}
  insertBefore(node,before){this.writes++;const old=this.children.indexOf(node);if(old>=0)this.children.splice(old,1);const index=this.children.indexOf(before);this.children.splice(index<0?this.children.length:index,0,node);}
+ after(node){if(!this.parentElement)return;const index=this.parentElement.children.indexOf(this);node.parentElement=this.parentElement;this.parentElement.children.splice(index+1,0,node);this.parentElement.writes++;}
 }
 
 test('whole live host key regions emit zero DOM writes on an unchanged observation and preserve current timer authority',()=>{
  const all=[],nodes=new Map(),create=tag=>Object.assign(new HostLeaf(tag,all),{ownerDocument:doc}),get=id=>{if(!nodes.has(id))nodes.set(id,create(id));return nodes.get(id);},doc={getElementById:get,querySelectorAll:()=>[],createElement:create},calls={timer:0,access:0,notice:0,radio:0,vehicle:0};
- const env={groupAnswerHistory,devicePresentation,createResourceTile:()=>create('resource'),updateResourceTile:()=>{},updateResourceFacts,spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,radioStation,fixtureArtwork,$:get,document:doc,projectVehicle,vehicleChargeUpdate,renderOverviewMediaValues,connectionPresentation,homeConnectionPresentation,weatherHeaderVisible,lightSelection,lightChoices,scopedLightsObservation,resultsFor:()=>[],TRACKS:new Proxy({},{get:()=>({title:'Musik'})}),focusedAnswer:()=>null,timersFor:s=>s.timer?[s.timer]:[],timerPresentation:timers=>({current:timers[0]||null,visible:timers,all:timers}),timerStateLabel:t=>t.status,timerTime:n=>String(n),unconnectedVehicleModel:()=>({connected:false}),vehicleFixture:()=>({connected:true}),renderLiveWeather:()=>{},renderRobotHistory:()=>{},deviceLabel:()=>'',deviceActions:()=>[],answerCatalog:{}};
- const host=new HostLeaf('host',all);Object.assign(host,{ownerDocument:doc,live:true,liveStatus:'connected',state:{...previewScene('quiet'),devices:[],focus:'now'},answerNodes:new Map(),retainedNodes:new Map(),resourceButtons:new Map(),deviceNodes:new Map(),deviceRows:new Map(),lightRooms:new HostLeaf('pv-choice-list',all),lightLamps:new HostLeaf('pv-choice-list',all),liveSnapshot:{capabilities:{musicRead:[],homeRead:[],timerActions:['timer.start','timer.cancel']},timers:{status:'observed'}},radioView:{render(){calls.radio++;}},vehicleView:{render(){calls.vehicle++;}},timerView:{renderOverviewActivities(){},render(){calls.timer++;},renderAccess(){calls.access++;},renderNotice(){calls.notice++;}},renderOverviewAction(){},renderVoice(){},renderTopbar(){},renderConnectionNotice(){},alignOverview(){},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}}});
+ const env={groupAnswerHistory,devicePresentation,LightRoomView,applyKitTextRole,createKitSliderField,createKitDisclosure,robotRecentCompletion,vehicleRailPresentation,createResourceTile:()=>create('resource'),updateResourceTile:()=>{},updateResourceFacts,spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork,radioStation,fixtureArtwork,$:get,document:doc,projectVehicle,vehicleChargeUpdate,renderOverviewMediaValues,connectionPresentation,homeConnectionPresentation,weatherHeaderVisible,lightSelection,lightChoices,scopedLightsObservation,resultsFor:()=>[],TRACKS:new Proxy({},{get:()=>({title:'Musik'})}),focusedAnswer:()=>null,timersFor:s=>s.timer?[s.timer]:[],timerPresentation:timers=>({current:timers[0]||null,visible:timers,all:timers}),timerStateLabel:t=>t.status,timerTime:n=>String(n),unconnectedVehicleModel:()=>({connected:false}),vehicleFixture:()=>({connected:true}),renderLiveWeather:()=>{},renderRobotHistory:()=>{},deviceLabel:()=>'',deviceActions:()=>[],answerCatalog:{}};
+ const host=new HostLeaf('host',all);Object.assign(host,{ownerDocument:doc,live:true,liveStatus:'connected',state:{...previewScene('quiet'),devices:[],focus:'now'},answerNodes:new Map(),retainedNodes:new Map(),resourceButtons:new Map(),deviceNodes:new Map(),deviceRows:new Map(),lightRooms:new HostLeaf('pv-choice-list',all),lightLamps:new HostLeaf('pv-choice-list',all),lightSceneStatus:new HostLeaf('p',all),liveSnapshot:{capabilities:{musicRead:[],homeRead:[],timerActions:['timer.start','timer.cancel']},timers:{status:'observed'}},radioView:{render(){calls.radio++;}},vehicleView:{render(){calls.vehicle++;}},timerView:{renderOverviewActivities(){},render(){calls.timer++;},renderAccess(){calls.access++;},renderNotice(){calls.notice++;}},renderOverviewAction(){},renderVoice(){},renderTopbar(){},renderConnectionNotice(){},alignOverview(){},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}}});
  // Mount leaves before the no-op render audit; execute the real light lifecycle and control renderer below.
  host.lightControlButton=create('button');host.lightRefreshButton=create('button');
  const controlStart=hostSource.indexOf(' renderLiveLightControl('),controlEnd=hostSource.indexOf('\n actCurrentLight(',controlStart);host.renderLiveLightControl=new Function('env',`with(env){return ({${hostSource.slice(controlStart,controlEnd)}}).renderLiveLightControl;}`)(env);

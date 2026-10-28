@@ -63,3 +63,17 @@ export function vehicleChargeUpdate(previous,model,{connected=false,scope='',sou
  const sameScope=previous?.scope===scope,retain= sameScope&&Number.isFinite(previous?.observedAt)&&(!Number.isFinite(observedAt)||observedAt<=previous.observedAt);
  return {scope,eligible,observedAt:retain?previous.observedAt:observedAt,percent:retain?previous.percent:percent,status:retain?previous.status:status,cancel:!eligible||status!=='charging'||!sameScope,cue:!suppress&&eligible&&previous?.eligible===true&&sameScope&&observedAt>previous.observedAt&&status==='charging'&&(previous.status!=='charging'||percent!==previous.percent)};
 }
+
+// Ro reuses the existing passive resource tile. Retained charging is explicitly
+// last-known; neither the tile nor its optional facts grants command authority.
+export function vehicleRailPresentation(value,{live=true,connected=false,readGranted=false,scope='',sourceScope=''}={}){
+ const observed=isVehicleObservation(value),local=live===false&&value?.kind==='vehicle'&&value.mode==='fixture'&&value.exampleOnly===true&&value.fixtureCase==='charging'&&scope==='local'&&sourceScope==='local';
+ const bound=typeof scope==='string'&&scope.length>0&&scope===sourceScope;
+ if(!bound||readGranted!==true||(!observed&&!local)||local&&connected!==true)return null;
+ const model=vehicleModel(value);if(model.charging?.status!=='charging')return null;
+ const stale=observed&&(model.stale===true||connected!==true),facts=[];
+ if(Number.isFinite(model.charging.powerKw)&&model.charging.powerKw>=0)facts.push({id:'power',label:'Ladeeffekt',value:`${model.charging.powerKw.toLocaleString('da-DK')} kW`,stale});
+ if(Number.isFinite(model.charging.endsAt)&&model.charging.endsAt>=0)facts.push({id:'ends',label:'Opladning færdig',value:new Date(model.charging.endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),stale});
+ const battery=model.batteryPercent;
+ return {id:'vehicle',target:'vehicle',kind:'vehicle',title:'Tesla',status:stale?'stale':'charging',resourceStatus:stale?'stale':'charging',detail:stale?'Sidst kendt opladning':'Lader',value:Number.isFinite(battery)&&battery>=0&&battery<=100?`${Math.round(battery)} %`:'',stale,observedAt:observed?model.observedAt:null,exampleOnly:local,facts,actions:[]};
+}

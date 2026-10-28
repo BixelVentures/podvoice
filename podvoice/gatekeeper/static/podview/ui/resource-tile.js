@@ -75,7 +75,7 @@ export function updateResourceTile(b,r){
  const knownProgress=vacuum&&!stale&&robotStatus==='cleaning'&&Number.isFinite(r.progress)&&r.progress>=0&&r.progress<=100?`${r.progress.toLocaleString('da-DK',{maximumFractionDigits:1})} % færdig`:'';
  // Freshness belongs in the always-visible status, including S where optional
  // metadata is deliberately hidden. Recovery keeps its own existing text role.
- const unknownOutcome=vacuum&&robotStatus==='unknown'&&rawDetail.startsWith('Udfald ukendt'),robotFeedback=pending?'Afventer svar':fault&&rawDetail&&!['Robotten melder en fejl','Kræver hjælp'].includes(rawDetail)?rawDetail:unknownOutcome?'Udfald ukendt · hent status igen':'';
+ const unknownOutcome=vacuum&&robotStatus==='unknown'&&/^(?:Sidst kendt:\s*)?(?:Udfald|Status) ukendt/.test(rawDetail),robotFeedback=pending?'Afventer svar':fault&&rawDetail&&!['Robotten melder en fejl','Kræver hjælp'].includes(rawDetail)?rawDetail:unknownOutcome?(rawDetail.includes('Udfald ukendt')?'Udfald ukendt · hent status igen':'Status ukendt · hent status igen'):'';
  const staleAttribute=String(stale||r.kind==='light'&&r.stale===true);if(b.dataset.resourceStale!==staleAttribute)b.dataset.resourceStale=staleAttribute;const feedback=unknownOutcome?'unknown':'';if(b.dataset.resourceFeedback!==feedback)b.dataset.resourceFeedback=feedback;
  // A partial observation cannot become known room power. Complete source
  // state is enough; the count's numeric text never supplies the visible value.

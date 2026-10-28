@@ -6963,3 +6963,31 @@ Lead compatibility decision 28 Oct: approved optional, closed display-metadata n
   "rationale": "Independent source and scope review for 2.0.98 against 2.0.97. CI amendment preserves unchanged history group DOM while correcting bounded UI fixtures to actual source contracts. Full UI run retained 4645 passing cases; six environment-affected failures and one corrected history fixture passed targeted reruns. No new command authority. Official CI, publication, installation, real services and physical acceptance are separate gates. CI lint amendment formats the existing queue regression only; runtime and assertions are unchanged."
 }
 -->
+
+## 2.0.99 combined repair candidate — 28 October 2026
+
+The candidate fixes an indefinitely disabled music player after a transient playback read: the existing bounded passive recovery now also covers current network/timeout/transient-HTTP failures. Fresh observation and JIT control admission remain required; UNKNOWN effects are never resent. It also carries the approved stable speaker picker, robot-v4 presentation with preserved per-mode choices, Hue empty/scene presentation and Tesla charging resource on Ro. All use the existing domain owners and shared UI kit.
+
+Focused source/integration and inert browser evidence is recorded by the integration lead. Generated assets use the current version-aware builder. Official CI, publication, Green installation and real service/physical music acceptance are separate and are not claimed by this candidate record. The observed long-lived field lock is not declared fully resolved solely from the reproduced network-read repair; compatible content-free Native rejection diagnostics identify any remaining failed owner boundary. Radio and new Find musik/AI-artwork logic remain deferred in the user-agreed sequence.
+
+<!-- podvoice99-admission
+{
+  "version": 76,
+  "kind": "podvoice99_coordinated_recovery",
+  "base_tip": "574b38c684b2c838a6d011db6314f657535dab66",
+  "merge_base": "574b38c684b2c838a6d011db6314f657535dab66",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "80f77a543c53048959a5b3b71f3e59c614b9455290d7b21dc8325f7a5982c921",
+  "regression_fingerprint": "9e064fc2b0cb4a225feead7dca49d958963310bf659a086a9b1a98106b8567ee",
+  "runtime_fingerprint": "775e100229ac8926c2616505560ed02d52239ef3a39b2e21ac78c3d7d1392e05",
+  "config_fingerprint": "2db0311c5b31273090927ae3379d9f2b786136f2f0c9489d9768cced2d07dc7e",
+  "policy_fingerprint": "7aa7793022d75e54ec6ed95af33e4ef8d3476fa82f68a64164ec1c293179b955",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "manifest_fingerprint": "d932783390303e048493ade57fb35b4045438915e6f9f10e88dfdb5524dacf9c",
+  "reviewer": "/root/review_catalogue_join",
+  "rationale": "Independently reviewed bounded PodVoice 2.0.99 repair and exact source scope. The content-free native mismatch diagnostic seeks the unresolved field cause and is not a claim of a fixed physical music path. Official CI, publication, installation, actual services and physical acceptance remain separate."
+}
+-->

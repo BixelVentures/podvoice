@@ -113,6 +113,7 @@ export const productLibrary=[
   state('robot','robot-overview-cleaning','Overblik · rengør','Aktiv status i samme kortanatomi.'),
   state('robot','robot-rest-cleaning','Hjem · rengør','Den kompakte ressource er tilgængelig over billedrammen.'),
   state('robot','robot-detail-offline','Forbindelse mangler','Sidst kendte rengøring bevares. Betjening er ikke tilgængelig.'),
+  ...[['charging','Oplader'],['charged','Opladet'],['washing','Vasker moppe'],['emptying','Tømmer støv'],['drying','Tørrer moppe'],['completed','Afsluttet rengøring'],['brushfault','Børsten sidder fast']].map(([status,label])=>state('robot',`robot-detail-${status}`,label,'Forfattet lokalt eksempel på observeret status; ingen faktisk robot betjenes.')),
   ...[['empty','Ingen robotdata','Manglende opsætning med helper og uden tom historik.'],['stale','Sidst kendte robotdata','Seneste observation bliver stående uden aktive kommandoer.'],['long','Langt rum- og kortnavn','Lange faktisk understøttede metadata i samme Hero, pleje-ListRows og S/M/L-kort.'],['care','Pleje og dockstatus','Observerede eksempelværdier for filter, børste, vandbeholder og dockfejl.']].map(([status,label,description])=>state('robot',`robot-detail-${status}`,label,description)),
   state('robot','robot-detail-docked','Områder og gentagelser','Samme kanoniske Frameo-panel: seneste rumvalg, inline Rengøringsvalg og eksplicit Start.',{open:'[data-robot-control]',key:'controls'})
  ]},

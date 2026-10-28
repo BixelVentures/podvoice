@@ -13,7 +13,7 @@ export class LightRoomView{
   this.list=make('div','light-room-list');this.toolbar=make('div','light-room-toolbar');this.navigationHost=make('div','light-room-navigation');
   this.home=make('button','light-home-power');this.home.type='button';applyKitComponent(this.home,'button',{variant:'secondary'});const icon=make('img','');icon.src='assets/icons/house.svg';icon.alt='';applyKitComponent(icon,'icon');this.homeLabel=make('span','');this.home.append(icon,this.homeLabel);
   this.home.addEventListener('click',()=>{const d=this.current(),model=this.model(d);if(!model||model.live)return;if(model.globalRestore)this.host.dispatch({type:'light-home-restore',...binding(this.host.state,d)});else if(model.globalEnabled)this.host.dispatch({type:'light-home-power',...binding(this.host.state,d),action:'turn_off'});});
-  this.panel=make('section','light-room-panel');applyKitComponent(this.panel,'card');this.panel.hidden=true;this.panel.id='light-room-controls';this.panelHeading=make('h2','light-room-panel-title');applyKitTextRole(this.panelHeading,'headline');this.panelHeading.id='light-room-panel-title';this.panel.setAttribute('aria-labelledby',this.panelHeading.id);this.panelHeader=make('header','');applyKitComponent(this.panelHeader,'sectionheader');this.panelHeader.setAttribute('data-kit-layout','stacked');this.panelHeader.append(this.panelHeading);this.panel.append(this.panelHeader);
+  this.panel=make('section','light-room-panel');applyKitComponent(this.panel,'card');this.panel.hidden=true;this.panel.id='light-room-controls';this.panelHeading=make('h2','light-room-panel-title');applyKitTextRole(this.panelHeading,'headline');this.panelHeading.id='light-room-panel-title';this.panel.setAttribute('aria-labelledby',this.panelHeading.id);this.panelHeader=make('header','');applyKitComponent(this.panelHeader,'sectionheader');this.panelHeader.setAttribute('data-kit-layout','stacked');this.panelHeader.append(this.panelHeading);this.panel.append(this.panelHeader);this.empty=make('p','');applyKitTextRole(this.empty,'body');this.empty.hidden=true;this.panel.append(this.empty);
   this.toolbar.append(this.navigationHost,this.home);this.node.append(this.list,this.toolbar,this.panel);
  }
  current(){return this.host.currentLightDevice?.()||this.host.state?.devices?.find(row=>row.id===this.deviceId);}
@@ -51,13 +51,31 @@ export class LightRoomView{
  cleanup(){if(this.revealFrame)globalThis.cancelAnimationFrame?.(this.revealFrame);this.revealFrame=null;}
 
  render(light){
-  this.deviceId=light?.id;const model=this.model(light);if(!model||!model.rows.length){if(!this.node.hidden)this.node.hidden=true;if(!this.home.hidden)this.home.hidden=true;return this.node;}
+  this.deviceId=light?.id;const model=this.model(light);
+  if(!light||light.kind!=='light'){if(!this.node.hidden)this.node.hidden=true;return this.node;}
+  if(!this.node.parentNode)this.host.lightRooms?.after(this.node);if(this.node.hidden)this.node.hidden=false;
+  const empty=!model?.rows?.length;this.list.hidden=empty;this.toolbar.hidden=empty;this.empty.hidden=!empty;
+  if(empty){
+   this.panel.hidden=false;text(this.panelHeading,'Lys');
+   const unbound=this.host.state?.lightPlacement?.status==='unbound'||this.host.state?.lightAreas?.status==='unbound',read=this.host.state?.homeReadStatus?.light;
+   const copy=!unbound&&read==='denied'?'Adgang til lysoplysninger mangler. Kontrollér adgangen i Home Assistant.':!unbound&&(read==='error'||this.host.state?.lightAreas?.status==='unavailable')?'Lysoplysninger kunne ikke hentes. Prøv igen, når forbindelsen er klar.':'Dine rum, scener og lamper vises her, når Hue er tilsluttet via Home Assistant.';
+   text(this.empty,copy);
+   if(this.host.lightSceneStatus&&this.host.lightSceneStatus.parentNode!==this.panelHeader)this.panelHeader.append(this.host.lightSceneStatus);
+   if(this.host.lightScenes)this.host.lightScenes.hidden=true;if(this.host.lightLampDisclosure)this.host.lightLampDisclosure.hidden=true;
+   if(this.host.inlineLamps?.node)this.host.inlineLamps.node.hidden=true;
+   return this.node;
+  }
   if(!this.node.parentNode)this.host.lightRooms?.after(this.node);if(this.node.hidden)this.node.hidden=false;
   const ids=new Set(model.rows.map(row=>row.id));for(const[id,entry]of this.rows)if(!ids.has(id)){entry.node.remove();this.rows.delete(id);}
   model.rows.forEach((row,index)=>{const entry=this.rows.get(row.id)||this.createRow(row.id),command=this.host.lightCommandFeedback,busy=!!command&&command.target?.areaId===row.id&&!command.target.sceneId&&!command.target.entityId&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.power,'tile',{feedback:'progress',loading:busy});text(entry.name,row.name);text(entry.status,row.status);attr(entry.power,'data-power-on',row.action==='turn_off');if(row.action)attr(entry.power,'aria-pressed',row.action==='turn_off');else if(entry.power.getAttribute('aria-pressed')!==null)entry.power.removeAttribute?.('aria-pressed');attr(entry.node,'data-selected',row.selected);attr(entry.power,'aria-label',row.action?`${row.action==='turn_off'?'Sluk':'Tænd'} alle lys i ${row.name}`:`Lys i ${row.name} kræver aktuel status`);attr(entry.power,'aria-disabled',!row.enabled);if(entry.power.disabled!==!row.enabled)entry.power.disabled=!row.enabled;if(this.list.children[index]!==entry.node)this.list.insertBefore(entry.node,this.list.children[index]||null);});
   const signature=JSON.stringify(model.rows.map(row=>[row.id,row.name]));if(this.navigationSignature!==signature){this.navigationSignature=signature;this.navigation?.node.remove();this.navigation=createKitChoiceGroup({document,id:'light-room',label:'Rum',variant:'navigation',choices:model.rows.map(row=>({value:row.id,label:row.name})),value:model.rows.find(row=>row.selected)?.id,onChange:id=>this.selectRoom(id)});this.navigationHost.append(this.navigation.node);}this.navigation.setValue(model.rows.find(row=>row.selected)?.id||'');
   const selected=model.rows.find(row=>row.selected);text(this.panelHeading,selected?.name||'Lys');if(selected&&this.selectedRoom!==selected.id){this.selectedRoom=selected.id;this.revealSelection(selected.id);}
-  const hasScenes=!!this.host.lightScenes&&!this.host.lightScenes.hidden;if(this.panel.hidden!==!hasScenes)this.panel.hidden=!hasScenes;if(this.host.lightSceneStatus){const status=this.host.lightSceneStatus;if(hasScenes){if(status.parentNode!==this.panelHeader)this.panelHeader.append(status);}else if(!status.hidden){if(status.parentNode!==this.node)this.node.insertBefore(status,this.panel);}else status.remove();}if(hasScenes){if(this.host.lightScenes.parentNode!==this.panel)this.panel.append(this.host.lightScenes);if(this.host.lightLampDisclosure&&this.host.lightLampDisclosure.parentNode!==this.panel)this.panel.append(this.host.lightLampDisclosure);}
+  const hasScenes=!!this.host.lightScenes&&!this.host.lightScenes.hidden,lamps=this.host.inlineLamps?.node,hasLamps=!!lamps&&!lamps.hidden;
+  this.panel.hidden=false;this.empty.hidden=hasScenes;text(this.empty,'Der er ingen scener tilgængelige i dette rum.');
+  if(this.host.lightSceneStatus&&this.host.lightSceneStatus.parentNode!==this.panelHeader)this.panelHeader.append(this.host.lightSceneStatus);
+  if(this.host.lightScenes?.parentNode!==this.panel&&this.host.lightScenes)this.panel.append(this.host.lightScenes);
+  if(this.host.lightLampDisclosure){this.host.lightLampDisclosure.hidden=!hasLamps;if(hasLamps){if(this.host.lightLampDisclosure.parentNode!==this.panel)this.panel.append(this.host.lightLampDisclosure);if(lamps.parentNode!==this.host.lightLampDisclosurePanel)this.host.lightLampDisclosurePanel.append(lamps);}}
+
   if(this.home.hidden!==model.live)this.home.hidden=model.live;const homeEnabled=!!(model.globalEnabled||model.globalRestore);if(this.home.disabled!==!homeEnabled)this.home.disabled=!homeEnabled;text(this.homeLabel,model.globalRestore?'Gendan lys':'Sluk alt');attr(this.home,'aria-label',model.globalRestore?'Gendan lyset i hjemmet som før slukning':'Sluk alle lys i hjemmet');attr(this.home,'title',model.globalRestore?'Gendan lyset i hjemmet som før slukning':'Sluk alle lys i hjemmet');
   return this.node;
  }

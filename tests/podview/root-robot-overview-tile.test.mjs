@@ -23,7 +23,7 @@ test('pending preserves last observation, waits honestly and replaces feedback o
  const {node,nodes}=fixture();updateResourceTile(node,robot({status:'cleaning',battery:76,pending:{action:'pause'}}));assert.equal(nodes.get('.resource-value').textContent,'Rengør');assert.equal(nodes.get('small').textContent,'Afventer svar · Batteri 76 %');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(node.getAttribute('aria-busy'),'true');
  updateResourceTile(node,robot({status:'paused',battery:76}));assert.equal(nodes.get('.resource-value').textContent,'Rengøring på pause');assert.equal(node.resourceFacts.rows.get('battery').value.textContent,'76 %');assert.equal(nodes.get('small').textContent,'Batteri 76 %');assert.equal(node.getAttribute('aria-busy'),'false');
  updateResourceTile(node,robot({status:'fault'}));assert.equal(nodes.get('.resource-value').textContent,'Kræver hjælp');assert.equal(nodes.get('small').textContent,'Børste blokeret · se enheden');
- updateResourceTile(node,robot({status:'unknown'}));assert.equal(nodes.get('.resource-value').textContent,'Ukendt');assert.equal(nodes.get('small').textContent,'Udfald ukendt · hent status igen');
+ updateResourceTile(node,robot({status:'unknown'}));assert.equal(nodes.get('.resource-value').textContent,'Ukendt');assert.equal(nodes.get('small').textContent,'Status ukendt · hent status igen');
 });
 test('unavailable and stale live observations never invent successful actions or fresh battery',()=>{
  const {node,nodes}=fixture();updateResourceTile(node,robot({live:true,status:'unavailable'}));assert.equal(nodes.get('.resource-value').textContent,'Ikke forbundet');assert.equal(nodes.get('small').hidden,true);
@@ -46,9 +46,9 @@ test('actual offline Robot projection visibly qualifies the retained status at e
  const zero=devicePresentation({...device,battery:0,stale:true});assert.equal(zero.stale,true);assert.equal(zero.facts.find(row=>row.id==='battery').value,'0 %');
 });
 
-test('unknown Robot outcome retains its actual recovery role across large-card updates',()=>{
+test('unknown Robot observation retains its recovery role across large-card updates',()=>{
  const {node,nodes}=fixture();node.overviewShell={dataset:{kitSize:'l'}};const input=robot({status:'unknown',battery:76});updateResourceTile(node,input);
- const value=nodes.get('.resource-value'),recovery=nodes.get('small');assert.equal(value.textContent,'Ukendt');assert.equal(recovery.textContent,'Udfald ukendt · hent status igen');assert.equal(recovery.hidden,false);assert.equal(node.dataset.resourceFeedback,'unknown');
+ const value=nodes.get('.resource-value'),recovery=nodes.get('small');assert.equal(value.textContent,'Ukendt');assert.equal(recovery.textContent,'Status ukendt · hent status igen');assert.equal(recovery.hidden,false);assert.equal(node.dataset.resourceFeedback,'unknown');
  updateResourceTile(node,structuredClone(input));assert.equal(nodes.get('small'),recovery);assert.equal(nodes.get('.resource-value'),value);
  updateResourceTile(node,robot({status:'cleaning',battery:76}));assert.equal(node.dataset.resourceFeedback,'');assert.equal(value.textContent,'Rengør');
 });
