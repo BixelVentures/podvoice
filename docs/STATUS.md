@@ -6991,3 +6991,29 @@ Focused source/integration and inert browser evidence is recorded by the integra
   "rationale": "Independently reviewed bounded PodVoice 2.0.99 repair and exact source scope. The content-free native mismatch diagnostic seeks the unresolved field cause and is not a claim of a fixed physical music path. Official CI, publication, installation, actual services and physical acceptance remain separate."
 }
 -->
+
+### 28 October — bounded Tesla 2.0.100 release
+Explicit user request supersedes the prior decision to bundle this correction with the next music repair. Base is published/installed2.0.99 main58a65c12074203afcbcfbb39deb7de7cc3a4ac7a. Green log19:07:03 source_stale confirms the cold-page vehicle projection rejection; admission now retains explicit validated stale observations with original timestamps, last-known presentation, no command authority, no charging cue and no old completion ETA. Same boot/room/grant/source validation remains. No music, voice, firmware, native or policy changes.
+Source independently reviewed under768c0bda; existing exact99-plus-fix browser service-fixture Ro→detail→back visualGO, productbundle1a7577. Final100 generation differs by declared version and source pinning only; product91f91f71/library3dd47182, canonicalCSS unchanged. Targeted31/31 regressions PASS /private/tmp/pv100-focused.log. Final metadata review/binding and officialCI required before normal merge, publication and Green readback. No household effects initiated. Music physical/service acceptance remains open and is not implied by this release.
+
+<!-- podvoice100-admission
+{
+  "version": 77,
+  "kind": "podvoice100_tesla_last_known",
+  "base_tip": "58a65c12074203afcbcfbb39deb7de7cc3a4ac7a",
+  "merge_base": "58a65c12074203afcbcfbb39deb7de7cc3a4ac7a",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "8026aebbb4d3d41e1e06716f2fcc6664cee2aa14de1b4d40338567a917346797",
+  "regression_fingerprint": "b704663f0766714b3071e88ec3b9e1efe74e12f8f19d95d07dd14a07a8555dac",
+  "runtime_fingerprint": "7c82f6b1de065df2df2552be0c1ed5dc3845873b0e39ad0f1846a9c0486cd317",
+  "config_fingerprint": "f2e63b557dc0eb32f078375ec951799e2be76fbc86e0782cf3f8ebbcbdfa9f2a",
+  "policy_fingerprint": "e127d5eb66e60c34040d46a9c50436217194101e0e2893911228039bfc5c8d14",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "manifest_fingerprint": "43af88389d763bad22ed823468bdd7209a99b01317a63f8cc0c538797182ccd2",
+  "reviewer": "/root/review_catalogue_join",
+  "rationale": "Independently reviewed bounded PodVoice 2.0.100 Tesla last-known display repair and exact source scope. Official CI, publication, installation, actual services and physical acceptance remain separate."
+}
+-->
