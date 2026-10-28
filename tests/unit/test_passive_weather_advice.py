@@ -833,3 +833,49 @@ async def test_real_adapter_malformed_response_is_closed_and_success_is_quiet(ca
         assert diagnostic_records(caplog) == []
     finally:
         await owner.close()
+
+
+async def test_bounded_slow_response_remains_pending_then_ready_without_replay():
+    class DelayedClient(Client):
+        def __init__(self):
+            super().__init__()
+            self.release = asyncio.Event()
+            self.simulated_elapsed = 0.0
+
+        async def __aenter__(self):
+            await self.release.wait()
+            if self.simulated_elapsed > self.calls[0][1]["timeout"]:
+                raise TimeoutError("simulated provider deadline")
+            return self
+
+    client, budget, allowance = DelayedClient(), Budget(), Allowance()
+    provider = advice.FastWeatherAdviceProvider(
+        client, "fixture", model=advice.MODEL, allowance=allowance, budget=budget
+    )
+    owner = advice.WeatherAdviceOwner(
+        provider,
+        boot_id="boot",
+        source_is_current=weather.observation_is_current,
+        source_token=brief.token,
+    )
+    source = observation()
+
+    def request():
+        return owner.request("boot", "r0", source, current=lambda: True, start=True)
+
+    try:
+        assert owner.deadline == 12
+        assert request()["status"] == "pending"
+        await asyncio.sleep(0)
+        assert len(client.calls) == 1
+        assert client.calls[0][1]["timeout"] == 10
+        assert request()["status"] == "pending"
+        client.simulated_elapsed = 4.2
+        client.release.set()
+        await next(iter(owner.records.values()))["task"]
+        assert request()["status"] == "ready"
+        assert len(client.calls) == 1
+        assert len(budget.debits) == 1
+        assert budget.releases == ["lease"]
+    finally:
+        await owner.close()

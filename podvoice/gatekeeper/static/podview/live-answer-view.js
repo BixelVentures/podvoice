@@ -1,5 +1,5 @@
 import {applyKitDialog} from './ui/kit.js';
-import {ownedAnswers,ownedSource,answerSession,historicalAnswers,transcriptHistory} from './owner-answers.js';
+import {ownedAnswers,ownedSource,answerSession,historicalAnswers,transcriptHistory,groupAnswerHistory} from './owner-answers.js';
 const make=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
 export function answerReadContext(snapshot){const a=snapshot?.answers;if(snapshot?.capabilities?.answerRead!==true||!a||!snapshot.bootId||!snapshot.roomId||!a.sessionId||a.sessionId!==answerSession(snapshot)||!a.turnId||!a.taskId||!Number.isInteger(a.inputRevision)||a.inputRevision<0||!Number.isInteger(a.revision)||a.revision<0)return null;return JSON.stringify([snapshot.bootId,snapshot.roomId,a.sessionId,a.turnId,a.taskId,a.inputRevision,a.revision,a.sessionEpoch??null,a.providerGeneration??null,a.answerRevision??null]);}
 export function answerOwnerContext(snapshot){const key=answerReadContext(snapshot);if(!key)return null;const values=JSON.parse(key);return JSON.stringify([...values.slice(0,6),values[7],values[8]]);}
@@ -56,11 +56,11 @@ export class LiveAnswerView{
  }
  historyPresentation(){
   const host=this.host,s=host.liveSnapshot;
-  if(this.transcriptStatus&&['loading','error'].includes(this.transcriptStatus)){const retained=host.state.answers.some(a=>!a.hidden);return {hidden:retained&&this.transcriptStatus==='loading',data:{state:this.transcriptStatus,quietStatus:true,text:this.transcriptStatus==='loading'?'Henter samtaleudskrift…':'Samtaleudskriften kunne ikke hentes',detail:retained?'Det kendte indhold er bevaret.':''}};}
-  if(!Number.isSafeInteger(s?.answerHistoryRevision)){if(this.transcriptStatus!=='ready')return null;return {hidden:host.state.answers.some(a=>!a.hidden),data:{state:'empty',quietStatus:true,text:'Ingen gemt samtaleudskrift',detail:'Registreret tale kan findes her.'}};}
-  const retained=host.state.answers.some(answer=>!answer.hidden),scope=JSON.stringify([s.bootId,s.roomId]),ready=this.historyRevision===s.answerHistoryRevision&&this.historyScope===scope;
+  const retained=groupAnswerHistory(host.state.answers).length>0;
+  if(!Number.isSafeInteger(s?.answerHistoryRevision))return {hidden:retained,data:{state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:'Når PodVoice viser et visuelt svar, kan du finde det her igen.'}};
+  const scope=JSON.stringify([s.bootId,s.roomId]),ready=this.historyRevision===s.answerHistoryRevision&&this.historyScope===scope;
   const status=!host.liveTransport?.connected?'offline':s.capabilities?.answerRead!==true?'unsupported':this.historyReadScope===scope&&this.historyReadStatus==='error'?'error':this.historyPending||!ready?'loading':'empty';
-  const copy={loading:['Henter tidligere svar…',retained?'De kendte svar bevares imens.':''],error:['Tidligere svar kunne ikke hentes',retained?'De kendte svar er bevaret. Historikken opdateres, når forbindelsen tillader det.':'Historikken opdateres, når forbindelsen tillader det.'],offline:['Forbindelsen mangler',retained?'Viser de kendte svar.':'Tidligere svar kan ikke hentes lige nu.'],unsupported:['Tidligere svar er ikke tilgængelige','Adgangen til historikken mangler.'],empty:this.transcriptStatus==='ready'?['Ingen gemte svar eller samtaleudskrifter','Nye visuelle svar og registreret tale kan findes her.']:['Ingen visuelle svar endnu','Når PodVoice viser et visuelt svar, kan du finde det her igen.']}[status];
+  const copy={loading:['Henter tidligere svar…',retained?'De kendte svar bevares imens.':''],error:['Tidligere svar kunne ikke hentes',retained?'De kendte svar er bevaret. Historikken opdateres, når forbindelsen tillader det.':'Historikken opdateres, når forbindelsen tillader det.'],offline:['Forbindelsen mangler',retained?'Viser de kendte svar.':'Tidligere svar kan ikke hentes lige nu.'],unsupported:['Tidligere svar er ikke tilgængelige','Adgangen til historikken mangler.'],empty:['Ingen visuelle svar endnu','Når PodVoice viser et visuelt svar, kan du finde det her igen.']}[status];
   return {hidden:retained&&(status==='loading'||ready&&status==='empty'),data:{state:status,quietStatus:true,text:copy[0],detail:copy[1]}};
  }
  async refreshHistory(){

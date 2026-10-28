@@ -33,8 +33,9 @@ test('transcript accepts explicit role and finality without inventing turn ident
  for(const mutate of [v=>v.items[0].role='other',v=>v.items[0].turnId='invented',v=>v.items[1].finality='complete',v=>v.items[0].sessionId=null]){const bad=structuredClone(value);mutate(bad);assert.throws(()=>transcriptHistory(bad,transcriptSnapshot));}
 });
 
-test('history groups only exact explicit session identities',async()=>{
+test('history groups completed visual answers by explicit session and excludes transcripts and unfinished or unbound items',async()=>{
  const {groupAnswerHistory}=await import('../../podvoice/gatekeeper/static/podview/owner-answers.js');
- const a={id:'a',sessionId:'one'},b={id:'b',transcriptSegment:{sessionId:'two'}},c={id:'c',transcriptSegment:{sessionId:'one'}},d={id:'d'},e={id:'e'};
- assert.deepEqual(groupAnswerHistory([a,b,c,d,e]).map(g=>g.items.map(x=>x.id)),[['a','c'],['b'],['d'],['e']]);
+ const v={historical:true,presentation:true,status:'ready',kind:'fact-card'};
+ const a={...v,id:'a',sessionId:'one'},b={...v,id:'b',sessionId:'two'},c={...v,id:'c',sessionId:'one'},d={...v,id:'d'},t={...v,id:'t',sessionId:'one',transcriptSegment:{sessionId:'one'}},u={...v,id:'u',sessionId:'one',status:'pending'},n={...v,id:'n',sessionId:'one',presentation:false};
+ assert.deepEqual(groupAnswerHistory([a,b,c,d,t,u,n]).map(g=>g.items.map(x=>x.id)),[['a','c'],['b']]);
 });

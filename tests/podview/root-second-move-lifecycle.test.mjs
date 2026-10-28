@@ -97,3 +97,89 @@ for(const order of ['response-first','observation-first'])test(`v3 MOVE ${order}
   assert.equal(await queue.load('account',g.media.playback),true);assert.equal(queue.model('account',g.media.playback).items[0].selectable,true);assert.equal(f.effects.length,1);
  }finally{queue.invalidate(true);release?.({outcome:'unknown'});h.close();}
 });
+
+test('resume is never sent to old route while a selected MOVE is pending or unknown',async()=>{
+ const h=lifecycle(),{f,g,output}=h;try{
+  await g.media.refresh({immediate:true});
+  for(const outcome of ['pending','unknown']){
+   output.pendingChoice={speakerId:'2'.repeat(64),name:'Svend',accountId:'account',bootId:'boot',roomId:'room',transport:f.host.liveTransport};
+   f.view.musicFence={...f.view.musicContext(),outcome};
+   const before=f.effects.length;
+   assert.equal(await f.view.musicIntent('resume'),false);
+   assert.equal(f.effects.length,before);
+  }
+ }finally{h.close();}
+});
+
+test('paused MOVE keeps paused observation and resumes on confirmed new binding',async()=>{
+ const h=lifecycle(),{f,g,output,speakers}=h;try{
+  f.adopt({state:'paused'});g.media.playback=f.host.liveMedia.playback;
+  await output.open();
+  const pausedDestination=()=>{const body=g.body({state:'paused',epoch:'epoch-1',binding:'1'.repeat(64)});body.binding.nativeRoomId='room-1';body.binding.nativeHomepodId='3';return body;};
+  g.setRead((_kind,_account,_query,options)=>{const body=pausedDestination();if(options?.receiptRequestId)body.settlement={requestId:options.receiptRequestId,request_id:'epoch-1:1',command_sequence:1,owner_epoch:'epoch-1',status:'confirmed',effect:{source:'native_bound_state',effect_revision:'1'}};return Promise.resolve(body);});
+  assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),true);await tick();
+  assert.equal(g.media.playback.state,'paused');assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-1');
+  f.host.liveTransport.controlSetup=async(domain,target)=>{f.setups.push({domain,target});const task=f.offer('resume');return task;};
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'resume-1'};};
+  assert.equal(await f.view.musicIntent('resume'),true);assert.equal(f.setups.at(-1).target.expectedBindingId,'1'.repeat(64));
+ }finally{h.close();}
+});
+
+test('paused kitchen → Svend → play → pause → kitchen → play uses confirmed bindings and retains selected track',async()=>{
+ const h=lifecycle(),{f,g,output,speakers}=h;let destination=0,state='paused',seq=1,requestId='';
+ try{
+  const read=(kind,_account,_query,options)=>{
+   if(kind==='speakers')return Promise.resolve({ok:true,schema:'podview.speaker-catalogue.v1',bootId:'boot',roomId:'room',accountId:'account',status:'observed',catalogueId:'d'.repeat(64),retrievedAt:Date.now()/1000,source:'podconnect.get_targets',speakers,moveAvailable:true,physicalResultVerified:false});
+   const b=g.body({state,epoch:'epoch-'+destination,binding:String(destination+1).repeat(64)});b.binding.nativeRoomId=speakers[destination].nativeRoomId;b.binding.nativeHomepodId=speakers[destination].homepodId;b.data.poll_sequence=seq++;
+   if(options?.receiptRequestId)b.settlement={requestId:options.receiptRequestId,request_id:'epoch-'+destination+':'+seq,command_sequence:seq,owner_epoch:'epoch-'+destination,status:'confirmed',effect:{source:'native_bound_state',effect_revision:String(seq)}};
+   return Promise.resolve(b);
+  };
+  g.setRead(read);
+  f.host.liveTransport.controlSetup=async(domain,target)=>{f.setups.push({domain,target});if(target.speakerId){const t=f.offer();t.options=[{id:'move:'+target.speakerId,action:'move_existing_session',label:'Move',argsSchema:{kind:'none'}}];return t;}return f.offer(state==='paused'?'resume':'pause');};
+  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});const action=task.options.find(o=>o.id===id).action;if(action==='move_existing_session')destination=speakers.findIndex(s=>'move:'+s.speakerId===id);else if(action==='resume')state='playing';else if(action==='pause')state='paused';requestId='request-'+f.effects.length;return {outcome:'accepted',requestId};};
+  await g.media.refresh({immediate:true});await output.open();const track=g.media.playback.item?.uri;assert.equal(track,'spotify:track:0123456789ABCDEFGHIJKL');
+  assert.equal(g.media.playback.state,'paused');assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),true);await tick();assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-1');assert.equal(g.media.playback.state,'paused');
+  assert.equal(await f.view.musicIntent('resume'),true);await tick();await g.media.refresh({immediate:true});await tick();assert.equal(f.setups.at(-1).target.expectedBindingId,'2'.repeat(64));assert.equal(g.media.playback.state,'playing');
+  assert.equal(await f.view.musicIntent('pause'),true);await tick();await g.media.refresh({immediate:true});await tick();assert.equal(g.media.playback.state,'paused');
+  await output.open();assert.equal(await f.view.moveSpeaker(speakers[0],()=>output.validUntil>Date.now()),true);await tick();assert.equal(g.media.playback.roomBinding.nativeRoomId,'native-room');assert.equal(g.media.playback.state,'paused');
+  assert.equal(await f.view.musicIntent('resume'),true);await tick();assert.equal(f.setups.at(-1).target.expectedBindingId,'1'.repeat(64));assert.equal(g.media.playback.item?.uri,track);
+ }finally{h.close();}
+});
+
+for (const status of ['rejected','unknown','superseded']) test(`MOVE ${status} on observed original route releases exact pending choice`, async()=>{
+ const h=lifecycle(), {f,g,output}=h; try {
+  await g.media.refresh({immediate:true});
+  const p=g.media.playback, choice=Object.freeze({speakerId:'2'.repeat(64)}), receipt={kind:'move',choice,requestId:'req-1',operationKey:'op-1',destination:{accountId:'account',nativeRoomId:'room-1',nativeHomepodId:'3'},origin:{accountId:'account',nativeRoomId:'native-room',nativeHomepodId:'2'}};
+  output.pendingChoice=choice; f.view.musicFence={outcome:'accepted',settlementReceipt:receipt}; f.view.receipts.set('op-1',{});
+  f.view.musicSettlementReceipt=()=>receipt;
+  p.settlement={requestId:'req-1',request_id:'epoch:1',command_sequence:1,owner_epoch:p.owner_epoch,status,effect:null};
+  assert.equal(f.view.observeMusicSettlement(p,receipt,true),true,'terminal response on original route must be observed');
+  assert.equal(output.pendingChoice,null);
+ } finally {h.close();}
+});
+
+test('late rejected old A cannot clear newer A choice identity',async()=>{
+ const h=lifecycle(),{f,g,output}=h;try{
+  await g.media.refresh({immediate:true});await output.open();
+  const completions=[]; f.view.moveSpeaker=()=>new Promise(resolve=>completions.push(resolve));
+  const row=output.rows.children[1];row.dispatchEvent(new Event('click'));
+  const old=output.pendingChoice;assert.ok(old);
+  row.dispatchEvent(new Event('click')); const newest=output.pendingChoice;
+  assert.ok(newest);assert.notEqual(newest,old);assert.equal(newest.speakerId,old.speakerId);
+  completions[0](false);await tick();assert.equal(output.pendingChoice,newest);
+  completions[1](false);await tick();assert.equal(output.pendingChoice,null);
+ }finally{h.close();}
+});
+
+for (const scenario of ['foreign-route','foreign-epoch','confirmed-origin','confirmed-destination','rejected-destination']) test(`MOVE settlement validates ${scenario}`,async()=>{
+ const h=lifecycle(),{f,g,output}=h;try{
+  await g.media.refresh({immediate:true});const base=g.media.playback,choice=Object.freeze({speakerId:'2'.repeat(64)});
+  const receipt={kind:'move',choice,requestId:'req-1',operationKey:'op-1',destination:{accountId:'account',nativeRoomId:'room-1',nativeHomepodId:'3'},origin:{accountId:'account',nativeRoomId:'native-room',nativeHomepodId:'2'}};
+  output.pendingChoice=choice;f.view.musicFence={outcome:'accepted',settlementReceipt:receipt};f.view.receipts.set('op-1',{});f.view.musicSettlementReceipt=()=>receipt;
+  const status=scenario.startsWith('confirmed')?'confirmed':'rejected';
+  let binding=base.roomBinding;if(scenario==='foreign-route')binding={...binding,nativeRoomId:'foreign-room',nativeHomepodId:'7'};if(scenario.endsWith('destination'))binding={...binding,nativeRoomId:'room-1',nativeHomepodId:'3'};
+  const p={...base,roomBinding:binding,settlement:{requestId:'req-1',request_id:'epoch:1',command_sequence:1,owner_epoch:scenario==='foreign-epoch'?'foreign':base.owner_epoch,status,effect:status==='confirmed'?{source:'native_bound_state',effect_revision:'1'}:null}};
+  const expected=['confirmed-destination','rejected-destination'].includes(scenario);assert.equal(f.view.observeMusicSettlement(p,receipt,true),expected);
+  if(!expected)assert.equal(output.pendingChoice,choice);
+ }finally{h.close();}
+});

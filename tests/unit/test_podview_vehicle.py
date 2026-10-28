@@ -417,3 +417,33 @@ def test_cable_or_untranslated_values_cannot_be_called_charging(state):
 
 def test_binary_cable_entity_is_rejected_before_any_read():
     assert v.parse_policy(policy({"charging": "binary_sensor.car_cable_connected"})) is None
+
+
+@pytest.mark.parametrize("invalid_registry", [False, True])
+async def test_diagnostic_handler_failure_cannot_change_read_outcome(monkeypatch, invalid_registry):
+    scope = v.parse_policy(policy())
+    entries = registry(scope)
+    if invalid_registry:
+        entries[scope.entities[0][1]]["platform"] = "other"
+    previous = None if invalid_registry else "deadline"
+    monkeypatch.setattr(v, "_last_diagnostic", previous)
+
+    def broken_handler(*_args, **_kwargs):
+        raise RuntimeError("inert logging failure")
+
+    monkeypatch.setattr(v._LOG, "warning", broken_handler)
+    monkeypatch.setattr(v._LOG, "info", broken_handler)
+    values = states()
+
+    async def read_state(entity_id):
+        return values[entity_id]
+
+    result = await v.read(
+        scope,
+        registry_read=AsyncMock(return_value=entries),
+        state_read=read_state,
+        current=lambda: True,
+        now=lambda: NOW,
+    )
+    assert result["status"] == ("unavailable" if invalid_registry else "observed")
+    assert v._last_diagnostic == previous
