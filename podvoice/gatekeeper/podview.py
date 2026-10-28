@@ -55,6 +55,7 @@ def _log_terminal_failure(stage, error, *, request_id=None):
     try:
         code = {
             "timer_dispatch": "dispatch_failed",
+            "vehicle_startup": "vehicle_owner_unavailable",
             "sse_prepare": "stream_failed",
             "sse_write": "stream_failed",
             "music_read": "read_failed",
@@ -387,6 +388,9 @@ class PodViewBridge:
         self._controller_days = controller_days
         self._controller_registry: ControllerRegistry | None = None
         self._controller_admin_state = None
+        self._vehicle_registry_owner: ControllerRegistry | None = None
+        self._vehicle_requests: set[asyncio.Task] = set()
+        self._vehicle_closing = False
         self._controller_grants: dict[str | tuple[str, str], str] = {}
         self._controller_requests: dict[str, dict] = {}
         self._controller_request_times: dict[str, list[float]] = {}
@@ -637,6 +641,61 @@ class PodViewBridge:
             and owner.snapshots.get(room, {}).get("epoch") == epoch
             and owner.bindings.get(room) == binding
         )
+
+    def _vehicle_controller_current(self, room: str, token: str) -> bool:
+        """Vehicle writes require this enrolled controller's current short grant."""
+        if (
+            not isinstance(room, str)
+            or not isinstance(token, str)
+            or self._vehicle_closing
+            or token in self._ha_actors
+        ):
+            return False
+        slot = self._grant_slot(room, token)
+        return bool(
+            slot is not None
+            and self._controller_grants.get(slot)
+            and self._controller_registry is self._vehicle_registry_owner
+            and self._vehicle_registry_owner is not None
+            and self._grant_current(room, token)
+        )
+
+    def start_vehicle_controls(self) -> None:
+        """Claim the existing durable owner before serving HTTP, without provisioning."""
+        bind = getattr(self.tools, "bind_podview_vehicle_control_registry", None)
+        if not callable(bind):
+            return
+        if self._vehicle_registry_owner is not None:
+            return
+        bind(None)
+        registry = self._controller_registry
+        if (
+            self._vehicle_closing
+            or not self._controller_enabled
+            or registry is None
+            or getattr(self.tools, "podview_vehicle_control_scope", lambda: None)() is None
+        ):
+            return
+        try:
+            registry.vehicle_startup()
+        except (OSError, ValueError) as exc:
+            _log_terminal_failure("vehicle_startup", exc)
+            return
+        self._vehicle_registry_owner = registry
+        bind(registry)
+
+    async def stop_vehicle_controls(self) -> None:
+        """Close admission, drain command handlers, then release lifetime ownership."""
+        self._vehicle_closing = True
+        bind = getattr(self.tools, "bind_podview_vehicle_control_registry", None)
+        if callable(bind):
+            bind(None)
+        pending = [task for task in self._vehicle_requests if task is not asyncio.current_task()]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        registry, self._vehicle_registry_owner = self._vehicle_registry_owner, None
+        if registry is not None:
+            registry.vehicle_stop()
 
     def light_placement(self, room: str, token: str) -> dict | None:
         """A named controller's saved placement, never HA-user or session inference."""
@@ -1656,6 +1715,7 @@ class PodViewBridge:
                 "musicSelection": False,
                 "answerRead": receipt_owner is not None,
                 "controlSetup": [],
+                "vehicleActions": [],
                 "visualEnrichment": bool(getattr(receipt_owner, "selection_enabled", False)),
                 "researchVisual": bool(getattr(receipt_owner, "research_admitted", False)),
             },
@@ -1683,6 +1743,16 @@ class PodViewBridge:
         elif light_token and light_token != token and self.light_placement(room, light_token):
             if "light" in self.controls.domains(room, light_token) and "light" not in domains:
                 domains = [*domains, "light"]
+        # Vehicle capability follows enrolled screen authority even inside HA ingress.
+        vehicle_token = light_token or token
+        domains = [domain for domain in domains if domain != "vehicle"]
+        if self._vehicle_controller_current(room, vehicle_token):
+            if "vehicle" in self.controls.domains(room, vehicle_token):
+                domains.append("vehicle")
+                # Policy intents are visibility only; lazy setup still validates
+                # the exact registry, service and observed state on each click.
+                scope = self.tools.podview_vehicle_control_scope()
+                result["capabilities"]["vehicleActions"] = list(scope.actions)
         result["capabilities"]["controlSetup"] = domains
         result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
         result["capabilities"]["queueSelection"] = bool(self.queue.rules(room, token))
@@ -1824,15 +1894,26 @@ async def _control(request: web.Request) -> web.Response:
         return _error("invalid_control", 400)
     owner = request.app[BRIDGE].controls
     handler = owner.setup if request.path.endswith("/setup") else owner.action
-    # Light placement belongs to the enrolled screen, not the ingress HA actor.
+    # Light placement and vehicle authority belong to the enrolled screen.
     task = owner.tasks.get(body.get("taskId")) if isinstance(body.get("taskId"), str) else None
     light = body.get("domain") == "light" or (task is not None and task["domain"] == "light")
+    vehicle = body.get("domain") == "vehicle" or (task is not None and task["domain"] == "vehicle")
     token = (
         request.cookies.get(_PAIR_COOKIE, "")
-        if light
+        if light or vehicle
         else _request_token(request, body.get("roomId"))
     )
-    result = await handler(body, token)
+    bridge = request.app[BRIDGE]
+    if vehicle and not bridge._vehicle_controller_current(body.get("roomId"), token):
+        return _error("control_not_paired", 403)
+    current = asyncio.current_task()
+    if vehicle and current is not None:
+        bridge._vehicle_requests.add(current)
+    try:
+        result = await handler(body, token)
+    finally:
+        if vehicle and current is not None:
+            bridge._vehicle_requests.discard(current)
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
@@ -4113,9 +4194,14 @@ def mount(
                 except Exception:
                     pass
 
+    async def start_vehicle_controls(_app):
+        bridge.start_vehicle_controls()
+
+    app.on_startup.append(start_vehicle_controls)
     app.on_startup.append(retain_client_diagnostics)
 
     async def close_receipts(_app):
+        await bridge.stop_vehicle_controls()
         weather_owner = getattr(tools, "podview_weather_advice", None)
         if weather_owner is not None:
             await weather_owner.close()

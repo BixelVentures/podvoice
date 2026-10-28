@@ -269,6 +269,7 @@ def test_legacy_schema_migrates_without_extending_expiry_or_inferring_persistenc
     legacy, identity, expiry = registry.enroll("kitchen", "e" * 64)
     stored = json.loads(registry.path.read_text())
     stored["schema"] = 1
+    stored.pop("vehicleRisk")
     stored["records"][identity].pop("name")
     stored["records"][identity].pop("persistent")
     stored["records"][identity].pop("areaId")
@@ -278,7 +279,7 @@ def test_legacy_schema_migrates_without_extending_expiry_or_inferring_persistenc
     assert json.loads(registry.path.read_text())["schema"] == 1
     registry.validate(legacy, "kitchen", "e" * 64, renew=True)
     migrated = json.loads(registry.path.read_text())
-    assert migrated["schema"] == 3
+    assert migrated["schema"] == 4
     assert migrated["records"][identity] == {
         **stored["records"][identity],
         "name": "",

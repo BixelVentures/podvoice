@@ -29,6 +29,10 @@ ROLES = {
     "locked": "lock",
     "climate": "climate",
     "temperatureC": "sensor",
+    "defrost": "switch",
+    "driverSeat": "select",
+    "passengerSeat": "select",
+    "trunk": "cover",
 }
 _ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 
@@ -65,7 +69,7 @@ def parse_policy(value: object) -> VehicleScope | None:
         fields = data["entities"]
         if (
             not isinstance(fields, dict)
-            or not 1 <= len(fields) <= 8
+            or not 1 <= len(fields) <= len(ROLES)
             or not set(fields) <= ROLES.keys()
         ):
             return None
@@ -143,7 +147,9 @@ def observation_current(value: object, *, now: float | None = None) -> bool:
     )
 
 
-def project(scope: VehicleScope, states: object, *, now: float) -> dict:
+def project(
+    scope: VehicleScope, states: object, *, now: float, target_climate_verified=False
+) -> dict:
     """Whitelist values and retain their oldest HA observation time unchanged."""
     _bounded(states)
     if not isinstance(states, dict) or set(states) != {eid for _, eid in scope.entities}:
@@ -218,6 +224,34 @@ def project(scope: VehicleScope, states: object, *, now: float) -> dict:
                 if not -50 <= temp <= 70:
                     raise ValueError("climate temperature outside limits")
                 climate["temperatureC"] = temp
+            if target_climate_verified and attrs.get("temperature_unit") == "°C":
+                features = attrs.get("supported_features")
+                lo, hi, target = (
+                    attrs.get("min_temp"),
+                    attrs.get("max_temp"),
+                    attrs.get("temperature"),
+                )
+                if (
+                    type(features) is int
+                    and features & 1
+                    and all(type(x) in (int, float) and math.isfinite(x) for x in (lo, hi, target))
+                    and 0 <= lo <= target <= hi <= 50
+                ):
+                    climate.update(
+                        targetTemperatureC=target,
+                        minTemperatureC=lo,
+                        maxTemperatureC=hi,
+                        temperatureStepC=0.5,
+                    )
+        elif role == "defrost":
+            if value in {"on", "off"}:
+                climate["defrost"] = value == "on"
+        elif role in {"driverSeat", "passengerSeat"}:
+            if value in {"off", "low", "medium", "high"}:
+                climate[role + "Heat"] = value
+        elif role == "trunk":
+            if value in {"open", "closed"}:
+                data["trunk"] = value
         elif role == "temperatureC":
             if unit not in {"°C", "°F"}:
                 raise ValueError("vehicle temperature unit differs")
@@ -292,6 +326,22 @@ async def read(scope: VehicleScope, *, registry_read, state_read, current, now=t
                 diagnostic("owner_changed")
                 return unavailable
             identity = registry_identity(scope, before)
+            extra_roles = {
+                "defrost": "climate_state_defrost_mode",
+                "driverSeat": "climate_state_seat_heater_left",
+                "passengerSeat": "climate_state_seat_heater_right",
+                "trunk": "vehicle_state_rt",
+            }
+            if any(
+                before[eid].get("translation_key") != extra_roles[role]
+                for role, eid in scope.entities
+                if role in extra_roles
+            ):
+                raise ValueError("vehicle observation role differs")
+            climate_eid = dict(scope.entities).get("climate")
+            target_climate_verified = bool(
+                climate_eid and before[climate_eid].get("translation_key") == "driver_temp"
+            )
             stage = "invalid_state"
             states = {}
             for eid in ids:
@@ -307,8 +357,16 @@ async def read(scope: VehicleScope, *, registry_read, state_read, current, now=t
             if registry_identity(scope, after) != identity:
                 diagnostic("registry_changed")
                 return unavailable
+            if any(
+                after[eid].get("translation_key") != before[eid].get("translation_key")
+                for role, eid in scope.entities
+                if role in extra_roles or role == "climate"
+            ):
+                raise ValueError("vehicle observation role changed")
             stage = "invalid_projection"
-            result = project(scope, states, now=now())
+            result = project(
+                scope, states, now=now(), target_climate_verified=target_climate_verified
+            )
             diagnostic(
                 {"observed": "observed", "stale": "source_stale", "unavailable": "no_data"}[
                     result["status"]

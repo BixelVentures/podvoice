@@ -315,6 +315,19 @@ export class LiveControlView{
    if(this.robotPanel&&this.controlOpen()&&this.domain==='vacuum')this.robotPanel.disabled=!!(this.pending||this.setupPending||this.musicIntentPending||!this.task||this.spent.has(this.task.taskId)||!this.allowed('vacuum')||this.robotDevice()?.live!==true||this.robotDevice()?.stale);
   }}
  }
+ async prepareVehicle(action,owner,args={}){
+  const h=this.host,s=h.liveSnapshot,t=h.liveTransport;
+  if(!owner||h.vehicleView!==owner||!['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'].includes(action)||h.state?.focus!=='vehicle'||!h.isConnected||!this.allowed('vehicle')||!s?.capabilities?.vehicleActions?.includes(action)||this.vehicleOperation)return null;
+  const generation=t.generation,scope=JSON.stringify([s.bootId,s.roomId,s.sessionId,s.taskId,s.inputRevision,s.providerGeneration]),current=()=>h.isConnected&&h.liveTransport===t&&t.connected&&t.generation===generation&&this.allowed('vehicle')&&h.liveSnapshot?.capabilities?.vehicleActions?.includes(action)&&JSON.stringify([h.liveSnapshot.bootId,h.liveSnapshot.roomId,h.liveSnapshot.sessionId,h.liveSnapshot.taskId,h.liveSnapshot.inputRevision,h.liveSnapshot.providerGeneration])===scope;
+  const operation={action,current:()=>!owner.disposed&&h.vehicleView===owner&&h.state?.focus==='vehicle'&&current()};this.vehicleOperation=operation;
+  try{const raw=await t.controlSetup('vehicle',{action,args});if(this.vehicleOperation!==operation||!operation.current())throw Error('changed');const task=controlTask(raw,h.liveSnapshot,'vehicle');if(task.options[0].action!==action||JSON.stringify(task.confirmation.args??{})!==JSON.stringify(args)||this.spent.has(task.taskId))throw Error('invalid');operation.task=task;return {confirmation:task.confirmation,operation};}catch{if(this.vehicleOperation===operation)this.vehicleOperation=null;return null;}
+ }
+ cancelVehicle(operation){if(this.vehicleOperation===operation)this.vehicleOperation=null;}
+ async sendVehicle(operation){
+  if(this.vehicleOperation!==operation||!operation?.current()||!operation.task||this.spent.has(operation.task.taskId)){if(this.vehicleOperation===operation)this.vehicleOperation=null;return {status:'failed'};}
+  const task=operation.task,option=task.options[0];let args;try{args=controlArgs(task,option.id,task.confirmation.requiresOverride?{acknowledgePriorUnresolved:true}:{});}catch{this.vehicleOperation=null;return {status:'failed'};}
+  this.spent.set(task.taskId,task.expiresAt);let sent=false;try{if(!operation.current())throw Error('changed');sent=true;const response=await this.host.liveTransport.controlAction(task,option.id,args);return {status:response?.outcome==='accepted'&&response.ok===true?'accepted':response?.outcome==='rejected'&&response.ok===false?'failed':'unknown',late:this.vehicleOperation!==operation||!operation.current()};}catch{return {status:sent?'unknown':'failed',late:this.vehicleOperation!==operation||!operation.current()};}finally{if(this.vehicleOperation===operation)this.vehicleOperation=null;}
+ }
  lightActionContext(target,observation,currentObservation){
   if(!this.allowed('light')||!this.host.isConnected||typeof currentObservation!=='function'||!target||Object.keys(target).sort().join(',')!==(Object.hasOwn(target,'sceneId')?'areaId,sceneId':Object.hasOwn(target,'entityId')?'areaId,entityId':'areaId'))return false;
   const source=scopedLightsObservation(observation),transport=this.host.liveTransport,transportGeneration=transport.generation;

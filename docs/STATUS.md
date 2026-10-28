@@ -7017,3 +7017,32 @@ Source independently reviewed under768c0bda; existing exact99-plus-fix browser s
   "rationale": "Independently reviewed bounded PodVoice 2.0.100 Tesla last-known display repair and exact source scope. Official CI, publication, installation, actual services and physical acceptance remain separate."
 }
 -->
+
+
+## 28 October — 2.0.101 Robot and full Tesla candidate
+
+Robot first-visit product presets are resolved only to actual offered IDs; each cleaning type restores its own valid selections. Full Tesla control uses the same enrolled controller, vehicle identity and native HA owner: lock/unlock, climate on/off, temperature, defrost on/off, front seat heat and honest rear-trunk actuation. Server-held proposals bind exact arguments and possible effects. Durable pending/unknown risk survives restart and prevents automatic replay; temperature units are rechecked immediately before reservation. Controls remain closed until explicit installed policy admission.
+
+Root focused software checks pass: 128 unit/read tests, 39 actual loopback HTTP tests, 84 UI contract/view tests; Robot owner reports 315 affected panel tests. Native and rendered fixtures are inert and do not prove physical vehicle or robot effects. Independent backend and joined source review are GO. Final product bundle render inspected with synthetic data; scoped ESM actual DTO and library render are separate evidence. Official CI, publication, installation and live policy admission remain pending. Music field acceptance and previously deferred discovery/radio features are not closed by this candidate.
+
+<!-- podvoice101-admission
+{
+  "base_tip": "5844270ca7334f94f3f791c18b008259a77b12ae",
+  "config_fingerprint": "33ac61972c9747b949e90ad4c71744650f8eff08d4b23a1aa5da4aee874d4360",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "bb80d1779eebc8f0ff1d8a7b898573b4b198141b00a5501dbe3ebe1e0604ae8b",
+  "kind": "podvoice101_tesla_control",
+  "manifest_fingerprint": "931920a8746465ade9d76d26d05f775149c390a110c12000a6ef1b61b2d91c45",
+  "merge_base": "5844270ca7334f94f3f791c18b008259a77b12ae",
+  "policy_fingerprint": "44fbce197d149f443c265879027d6ea69f272245604634195b723c0063da751f",
+  "rationale": "Release 101 adds a fail-closed vehicle-control policy and continuity-backed native vehicle adapter with scoped UI feedback. Source scope reviewed by /root/review_catalogue_join; backend safety and ownership independently reviewed by /root/sol_robot97_review.",
+  "regression_fingerprint": "4c79fa9d1819ce9cd1e5cb8af38860f603d72580e8234c2865b0ffdb010a9a71",
+  "reviewer": "/root/review_catalogue_join",
+  "runtime_fingerprint": "76c1d00723779b0575fe71145954015cec3f1a1643e8f6a915550ea811df3e8c",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 78
+}
+-->

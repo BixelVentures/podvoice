@@ -1,3 +1,9 @@
+## 2.0.101
+
+- Tesla: bind faktisk lås, klima, temperatur, afrimning, sædevarme og bagagerumsbetjening til samme bil og godkendte skærm.
+- Bevar uafklarede bilhandlinger gennem forbindelsesudfald og genstart uden automatisk gentagelse.
+- Robot: separate rengøringsvalg pr. type; første besøg bruger understøttede produktstandarder.
+
 ## 2.0.96
 
 - Explicit native Stop skips the terminal grace wait only after the close send succeeds.
