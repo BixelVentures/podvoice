@@ -74,6 +74,7 @@ REQUIRED_TESTS = frozenset(
         'tests/integration/test_podview_vehicle_http.py',
         'tests/podview/answer-history-integration-visual-history.test.mjs',
         'tests/podview/canonical-next-robot-control-panel.test.mjs',
+        'tests/podview/canonical-next-vehicle-view.test.mjs',
         'tests/podview/canonical-next-visual-history.test.mjs',
         'tests/podview/canonical-packet-robot-control-panel.test.mjs',
         'tests/podview/canonical-packet-visual-history.test.mjs',
@@ -96,8 +97,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "06552eb47a60b2f11f98ff39d133b48d81727de06a8766264d566622d58f2efa"
-PROFILE_AST = "21e076e9f4402f68c85507d2327bad1d4ecf0cc4cf5212e1cb1caf8b3eb2a252"
+MANIFEST_SHA = "6f7cbc8ebc68caf581b9dac3b76badb465a1a1d7a28e097cc7ed28b5db367ff8"
+PROFILE_AST = "8a945f0336dc00c0345147a50952c22c208f319d82ad2ed43fb7b17ca0664fcd"
 
 
 def record_at(root: Path) -> dict | None:

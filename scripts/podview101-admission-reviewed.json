@@ -41,6 +41,7 @@
     "tests/integration/test_podview_vehicle_http.py": "33d14e90c0d7a924ad4c16920085812f67e84ab107ebb193585b313c9e4c92d8",
     "tests/podview/answer-history-integration-visual-history.test.mjs": "7d928b61be60391c9357c214c29aa364107c46397faf9d7143c7a49a6f0fe64c",
     "tests/podview/canonical-next-robot-control-panel.test.mjs": "43007989c60734ced268d12ea2217f95ac1b56fbbbb68cce776b7ca9cb95236f",
+    "tests/podview/canonical-next-vehicle-view.test.mjs": "08c13d1223ca7d910797e1d899328ec459b10723ba43f3a65010dd58ca3c0f0d",
     "tests/podview/canonical-next-visual-history.test.mjs": "70c8b365f5cf77ae0abd3e034c003cf7dbe42fec31eda938beb7c4163cd95b52",
     "tests/podview/canonical-packet-robot-control-panel.test.mjs": "43007989c60734ced268d12ea2217f95ac1b56fbbbb68cce776b7ca9cb95236f",
     "tests/podview/canonical-packet-visual-history.test.mjs": "fecb5ddba7c3f5f35129a227e9a9d00e266cc85fe81961706e1886cd4958a1ea",
