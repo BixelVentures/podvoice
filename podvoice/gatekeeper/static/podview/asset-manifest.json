@@ -451,7 +451,7 @@
     },
     {
       "path": "ha-home-observation.js",
-      "sha256": "a6b75b37979722737933a88619acf794923999f116e69333502023830e3ea0b0"
+      "sha256": "0531e85eb3a6f1ab1cf6640b8f2ef971dc26cef6a38280a27f390f5d4e8fb89f"
     },
     {
       "path": "home-model.js",
@@ -459,7 +459,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "0df9c09129e7575a7ab1b7c856023d89672bec35f442901705d56adc30fa3166"
+      "sha256": "e157970b6881b40af5453aa14b4efd703e66c29405acf9fa6b006242770daf36"
     },
     {
       "path": "ingress-kiosk.js",
@@ -475,7 +475,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "369d6f142f3de4841ceb129936db1277d097623f5b938dd47f5fe6b4329e45a3"
+      "sha256": "3dd4718241ebcc522a3a45154030f195f15fc464cf7c33384d1136dd48694352"
     },
     {
       "path": "library.css",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "a12ef7cfc0935b95685264e6727e85105b030b3ca6f60629127c36f29c1872f8"
+      "sha256": "91f91f71d325ea5b09e944bb315adfefb4c7c444b5967e2c5995324c8e5feecc"
     },
     {
       "path": "podview.css",
