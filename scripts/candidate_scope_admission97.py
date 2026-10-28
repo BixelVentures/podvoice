@@ -65,6 +65,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/live-answer-view.js",
         "podvoice/gatekeeper/static/podview/live-control-view.js",
         "podvoice/gatekeeper/static/podview/live-music-selection-view.js",
+        "podvoice/gatekeeper/static/podview/music-results.js",
         "podvoice/gatekeeper/static/podview/owner-answers.js",
         "podvoice/gatekeeper/static/podview/player-view.js",
         "podvoice/gatekeeper/static/podview/podview.bundle.js",
@@ -98,20 +99,30 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/answer-history-integration-scene-model.test.mjs",
         "tests/podview/answer-history-integration-transcript-history-view.test.mjs",
         "tests/podview/answer-history-integration-visual-history.test.mjs",
+        "tests/podview/canonical-field88-history-read-state.test.mjs",
+        "tests/podview/canonical-field88-music-loading-state.test.mjs",
         "tests/podview/canonical-field88-screen-settings.test.mjs",
+        "tests/podview/canonical-next-live-answer-view.test.mjs",
+        "tests/podview/canonical-next-visual-history.test.mjs",
+        "tests/podview/canonical-next-weather-view.test.mjs",
+        "tests/podview/canonical-packet-visual-history.test.mjs",
         "tests/podview/hue-status-placement.browser.mjs",
         "tests/podview/hue-status-placement.html",
+        "tests/podview/root-live-answer-view.test.mjs",
         "tests/podview/root-live-light-area-host.test.mjs",
         "tests/podview/root-live-media-queue-lifecycle.test.mjs",
         "tests/podview/root-player-view.test.mjs",
         "tests/podview/root-screen-settings.test.mjs",
         "tests/podview/root-script-delivery.test.mjs",
         "tests/podview/root-second-move-lifecycle.test.mjs",
+        "tests/podview/root-shared-music-results.test.mjs",
         "tests/podview/root-toast-local-replacement.test.mjs",
         "tests/podview/root-toast-retry-grid.test.mjs",
         "tests/podview/root-vehicle-view.test.mjs",
+        "tests/podview/root-visual-history.test.mjs",
         "tests/podview/root-weather-view.test.mjs",
         "tests/unit/test_answer_history57.py",
+        "tests/unit/test_locality_backend.py",
         "tests/unit/test_podview_receipts.py",
         "tests/unit/test_podview_vehicle.py",
     }
@@ -123,8 +134,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "ff2039d1f90a0dda9bbee8f8a95fc4be94002e89a9db64c8d7d5b370925a35a5"
-PROFILE_AST = "11ae93f2366e2641734a7c61743c88e69d5ef108b72d1a167f62e32802cc032e"
+MANIFEST_SHA = "c00e848b699397b601918cf143934614815d62c425388408e5e28a7f91e21005"
+PROFILE_AST = "07b5ecc0aa279b273eee7fea20b8229e2c2976478645ec94d6b5357650dcabc4"
 
 
 def record_at(root: Path) -> dict | None:

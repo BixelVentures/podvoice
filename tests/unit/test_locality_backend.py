@@ -35,6 +35,7 @@ def client(body=None, status=200):
         "Client",
         (),
         {
+            "is_closed": False,
             "get": AsyncMock(
                 return_value=httpx.Response(
                     status, json=body or {"latitude": 55.0, "longitude": 10.0}

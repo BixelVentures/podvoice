@@ -45,7 +45,7 @@ function fixture({ focus = 'photo', modal = false } = {}) {
   host.focusHeading = () => { host.headingFocused = true; };
   host.dispatch = event => {
     host.events.push(event);
-    if (event.type === 'show') host.state = { ...host.state, focus: event.id };
+    if (event.type === 'present-answer') host.state = { ...host.state, focus: event.id };
   };
   host.events = [];
   const answerContainer=new Node('section');answerContainer.hidden=true;host.querySelector=selector=>selector==='#answer-host'?answerContainer:null;
@@ -82,7 +82,7 @@ test('completed exact-owner receipt opens from the photo even after voice become
   try {
     await f.read();
     assert.equal(f.host.liveSnapshot.voice.active, false);
-    assert.deepEqual(f.host.events, [{ type: 'show', id: `receipt:${receiptId}` }]);
+    assert.deepEqual(f.host.events, [{ type: 'present-answer', id: `receipt:${receiptId}` }]);
     assert.equal(f.host.state.answers[0].receiptId, receiptId);
     assert.equal(f.host.state.answers[0].readConnected,true);
     assert.equal(f.host.state.connected,false);
@@ -113,12 +113,13 @@ test('recent touch or active edge gesture defers presentation until a later read
   } finally { f.restore(); }
 });
 
-test('a detail view and an open modal keep the completed answer from interrupting', async () => {
+test('a detail view admits the answer while an unsupported open modal defers it', async () => {
   for (const options of [{ focus: 'weather' }, { modal: true }]) {
     const f = fixture(options);
     try {
       await f.read();
-      assert.equal(f.host.events.length, 0);
+      assert.equal(f.host.events.length, options.modal ? 0 : 1);
+      if (!options.modal) assert.equal(f.host.events[0].type, 'present-answer');
       assert.equal(f.host.state.answers.length, 1);
     } finally { f.restore(); }
   }
@@ -199,7 +200,7 @@ test('owner retry re-reads current receipts without issuing a local demo request
     await Promise.resolve();await Promise.resolve();
     assert.equal(reads,1);
     assert.equal(f.host.state.answers[0].readStatus,undefined);
-    assert.ok(f.host.events.every(event=>event.type==='show'));
+    assert.ok(f.host.events.every(event=>event.type==='present-answer'));
     f.host.liveTransport.connected=false;
     retry(receiptId);
     assert.equal(reads,1);

@@ -44,7 +44,7 @@ function fixture({ focus = 'photo', modal = false } = {}) {
   host.focusHeading = () => { host.headingFocused = true; };
   host.dispatch = event => {
     host.events.push(event);
-    if (event.type === 'show') host.state = { ...host.state, focus: event.id };
+    if (event.type === 'present-answer') host.state = { ...host.state, focus: event.id };
   };
   host.events = [];
   const answerContainer=new Node('section');answerContainer.hidden=true;host.querySelector=selector=>selector==='#answer-host'?answerContainer:null;
@@ -81,7 +81,7 @@ test('completed exact-owner receipt opens from the photo even after voice become
   try {
     await f.read();
     assert.equal(f.host.liveSnapshot.voice.active, false);
-    assert.deepEqual(f.host.events, [{ type: 'show', id: `receipt:${receiptId}` }]);
+    assert.deepEqual(f.host.events, [{ type: 'present-answer', id: `receipt:${receiptId}` }]);
     assert.equal(f.host.state.answers[0].receiptId, receiptId);
     assert.equal(f.host.state.answers[0].readConnected,true);
     assert.equal(f.host.state.connected,false);
@@ -112,12 +112,13 @@ test('recent touch or active edge gesture defers presentation until a later read
   } finally { f.restore(); }
 });
 
-test('a detail view and an open modal keep the completed answer from interrupting', async () => {
+test('a detail view admits the answer while an unsupported open modal defers it', async () => {
   for (const options of [{ focus: 'weather' }, { modal: true }]) {
     const f = fixture(options);
     try {
       await f.read();
-      assert.equal(f.host.events.length, 0);
+      assert.equal(f.host.events.length, options.modal ? 0 : 1);
+      if (!options.modal) assert.equal(f.host.events[0].type, 'present-answer');
       assert.equal(f.host.state.answers.length, 1);
     } finally { f.restore(); }
   }
@@ -198,7 +199,7 @@ test('owner retry re-reads current receipts without issuing a local demo request
     await Promise.resolve();await Promise.resolve();
     assert.equal(reads,1);
     assert.equal(f.host.state.answers[0].readStatus,undefined);
-    assert.ok(f.host.events.every(event=>event.type==='show'));
+    assert.ok(f.host.events.every(event=>event.type==='present-answer'));
     f.host.liveTransport.connected=false;
     retry(receiptId);
     assert.equal(reads,1);
@@ -367,7 +368,7 @@ test('a long held touch retains an admitted answer without navigation until rele
   assert.equal(f.host.state.focus,'now');assert.equal(f.host.events.length,0);assert.equal(f.view.presented.has(answer.id),false);assert.equal(answer.readConnected,true);assert.equal(f.view.currentAnswer(receiptId).id,answer.id);
   f.host.screenLifecycle.pointers.clear();f.host.lastInteractionAt=Date.now();f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();
   assert.equal(f.host.events.length,0,'release does not waive the quiet interval');assert.deepEqual(f.host.state.answers[0].content,content);
-  f.host.lastInteractionAt=Date.now()-2000;f.view.lastRead=0;await f.view.refresh();assert.deepEqual(f.host.events,[{type:'show',id:answer.id}]);
+  f.host.lastInteractionAt=Date.now()-2000;f.view.lastRead=0;await f.view.refresh();assert.deepEqual(f.host.events,[{type:'present-answer',id:answer.id}]);
   f.host.state={...f.host.state,focus:'now'};f.view.lastRead=0;await f.view.refresh();assert.equal(f.host.events.length,1,'same receipt is not reopened after Back');
  }finally{f.restore();}
 });
@@ -377,7 +378,7 @@ test('background reads retain useful answers and surface only after returning vi
   if(hiddenMode==='hidden')document.hidden=true;else document.visibilityState='hidden';
   await f.read();assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.focus,'photo');assert.equal(f.host.events.length,0);assert.equal(f.view.presented.size,0);
   document.hidden=false;document.visibilityState='visible';f.view.lastRead=0;f.host.liveTransport.answers=async()=>f.answer();await f.view.refresh();
-  assert.deepEqual(f.host.events,[{type:'show',id:'receipt:'+receiptId}]);
+  assert.deepEqual(f.host.events,[{type:'present-answer',id:'receipt:'+receiptId}]);
  }finally{f.restore();}}
 });
 
@@ -385,7 +386,7 @@ test('owner displaySuggested alone selects auto-surfacing regardless of short or
  for(const summary of ['Et kort faktasvar.','En længere kildebundet forklaring. '.repeat(12)]){const f=fixture({focus:'now'});try{
   const quiet=f.answer();quiet.items[0].displaySuggested=false;quiet.items[0].content.summary=summary;await f.read(quiet);
   assert.equal(f.host.state.answers[0].content.summary,summary);assert.equal(f.host.events.length,0);assert.equal(f.view.presented.size,0);
-  const suggested=structuredClone(quiet);suggested.items[0].displaySuggested=true;f.view.lastRead=0;f.host.liveTransport.answers=async()=>suggested;await f.view.refresh();assert.deepEqual(f.host.events,[{type:'show',id:'receipt:'+receiptId}]);
+  const suggested=structuredClone(quiet);suggested.items[0].displaySuggested=true;f.view.lastRead=0;f.host.liveTransport.answers=async()=>suggested;await f.view.refresh();assert.deepEqual(f.host.events,[{type:'present-answer',id:'receipt:'+receiptId}]);
  }finally{f.restore();}}
 });
 
