@@ -7037,7 +7037,7 @@ Root focused software checks pass: 128 unit/read tests, 39 actual loopback HTTP 
   "kind": "podvoice101_tesla_control",
   "manifest_fingerprint": "6f7cbc8ebc68caf581b9dac3b76badb465a1a1d7a28e097cc7ed28b5db367ff8",
   "merge_base": "5844270ca7334f94f3f791c18b008259a77b12ae",
-  "policy_fingerprint": "e250dff49a53e07e1191f0f9f82e5a7a7411d3186b6eb927eda949630f618786",
+  "policy_fingerprint": "b0e0ef36705d9b3549db53e845a6ccde8bd6cac3980d21f0ba93f4bed5364193",
   "rationale": "Release 101 adds a fail-closed vehicle-control policy and continuity-backed native vehicle adapter with scoped UI feedback. Source scope reviewed by /root/review_catalogue_join; backend safety and ownership independently reviewed by /root/sol_robot97_review.",
   "regression_fingerprint": "34581473d52538d2f66fcd64c25cb38f4365687892dcdd5b8a41c5d8470e3723",
   "reviewer": "/root/review_catalogue_join",
