@@ -67,8 +67,24 @@ REQUIRED_TESTS = frozenset(
     [
         "tests/integration/test_podview_queue_occurrence.py",
         "tests/integration/test_thin.py",
+        "tests/podview/answer-history-integration-history-read-state.test.mjs",
+        "tests/podview/answer-history-integration-live-answer-view.test.mjs",
         "tests/podview/answer-history-integration-owner-answers.test.mjs",
+        "tests/podview/answer-history-integration-transcript-history-view.test.mjs",
+        "tests/podview/answer-history-integration-visual-history.test.mjs",
+        "tests/podview/canonical-field88-history-read-state.test.mjs",
+        "tests/podview/canonical-field88-live-control-continuous-intent.test.mjs",
+        "tests/podview/canonical-field88-screen-settings.test.mjs",
+        "tests/podview/canonical-next-native-music-controls.test.mjs",
+        "tests/podview/canonical-next-transcript-history-view.test.mjs",
+        "tests/podview/canonical-next-visual-history.test.mjs",
+        "tests/podview/canonical-packet-visual-history.test.mjs",
+        "tests/podview/root-basic-flow-diagnostic.test.mjs",
+        "tests/podview/root-native-music-controls.test.mjs",
+        "tests/podview/root-screen-settings.test.mjs",
         "tests/podview/root-second-move-lifecycle.test.mjs",
+        "tests/podview/root-speaker-output-view.test.mjs",
+        "tests/podview/root-visual-history.test.mjs",
         "tests/podview/screen-cleanup.test.mjs",
         "tests/unit/test_passive_weather_advice.py",
         "tests/unit/test_podview_vehicle.py",
@@ -81,8 +97,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "0cbf0a506967e645c3bfcb6aa07c8d1dcd4b98dd4c40e03bcf5ac4759d228f2b"
-PROFILE_AST = "ded525a194448f56697c2eb4a7bac35b635827f9ed1b4112dbc016f2b98d99b9"
+MANIFEST_SHA = "85e4e216c4e57fb39238145e51eb24de0033c33aae0ced586440d01082b881cb"
+PROFILE_AST = "7440b26c4773ed57e8911af5c9dbe13bcafd54ccb83cae4a414fbd8b5d5fe771"
 
 
 def record_at(root: Path) -> dict | None:

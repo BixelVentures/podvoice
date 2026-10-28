@@ -6952,14 +6952,14 @@ Lead compatibility decision 28 Oct: approved optional, closed display-metadata n
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "f944ebb08fe31c46b9c77b82b3dd5395dc4bb8472d64dd321d6bd5eac58e492b",
-  "regression_fingerprint": "03ef2a804a6bd9c3eab20cab3d0ac2ae267798bd113f1826aa5fb3032a84fb8e",
-  "runtime_fingerprint": "9f2c63f8ad3d19e9d9bad2cdace47ac700aa2998595f7b14ac1a518de39047ab",
+  "fingerprint": "3396efc4af83cb92274424bc54a2064482f3e63387f8abf0fec8326fb8d862b6",
+  "regression_fingerprint": "4eefab5ea84225d824cff6b14959b76194989a43990cc2c9fdb5bb1b724aeac6",
+  "runtime_fingerprint": "a70d133e88a0f9e033c52ab32036fc28daa5c50cc92accd8620b989a0d9bb977",
   "config_fingerprint": "0072fb3020b4b3389c4415d6fc4ec91e0c86997ccf512c06f8904f0d91ffa5f7",
-  "policy_fingerprint": "1b29f0094d3a77b529e3eb43e15f2133fcaa6f47c8c2d9d4987405e7f751c1f3",
+  "policy_fingerprint": "df433dc2d913a5c9f691af50f8d8515665b87cdbcb9af21b5cd055b6791a41b7",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "manifest_fingerprint": "0cbf0a506967e645c3bfcb6aa07c8d1dcd4b98dd4c40e03bcf5ac4759d228f2b",
+  "manifest_fingerprint": "85e4e216c4e57fb39238145e51eb24de0033c33aae0ced586440d01082b881cb",
   "reviewer": "/root/review_catalogue_join",
-  "rationale": "Independent bounded source and exact scope review for 2.0.98 against 2.0.97: approved PodView presentation and queue updates, voice playback phase, bounded passive weather advice and passive Tesla diagnostics. No new control authority. Source and package checks are separate from official CI, publication, installation, real services and physical acceptance."
+  "rationale": "Independent source and scope review for 2.0.98 against 2.0.97. CI amendment preserves unchanged history group DOM while correcting bounded UI fixtures to actual source contracts. Full UI run retained 4645 passing cases; six environment-affected failures and one corrected history fixture passed targeted reruns. No new command authority. Official CI, publication, installation, real services and physical acceptance are separate gates."
 }
 -->
