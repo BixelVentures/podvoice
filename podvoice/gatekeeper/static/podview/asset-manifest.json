@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "d58b4ce8f164e1e96d49a13acc7942a437883212a16b78fb3668dee56704d572"
+      "sha256": "183a0c7cab6fd8648b71d4e713b4feebe672c153e18a3de55bb3e50edabae363"
     },
     {
       "path": "podview.css",
@@ -807,7 +807,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "9493c8aeaacaa6a1254984dda7f5f66ee32e776619268a87267313e7715b29b0"
+      "sha256": "76bad678d135b6ae0b549f432d7df9185b8834c86091ac78c0a83aa9fef4ecc8"
     },
     {
       "path": "visual-content.js",

@@ -7033,15 +7033,15 @@ Root focused software checks pass: 128 unit/read tests, 39 actual loopback HTTP 
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "bb80d1779eebc8f0ff1d8a7b898573b4b198141b00a5501dbe3ebe1e0604ae8b",
+  "fingerprint": "998fb1fa999c9e865825697f4dbcd1c04fcabb6e36450f23488cf3af5b7e4363",
   "kind": "podvoice101_tesla_control",
-  "manifest_fingerprint": "0824ecaf72ab481e5b5108382822eb5b690fca53b0b2da9f97c2336a864e0378",
+  "manifest_fingerprint": "06552eb47a60b2f11f98ff39d133b48d81727de06a8766264d566622d58f2efa",
   "merge_base": "5844270ca7334f94f3f791c18b008259a77b12ae",
-  "policy_fingerprint": "e6a2f4867c5a9e722fe72128a3040c81ca5d612299b7940ecb914b5f31a58965",
+  "policy_fingerprint": "a93689f489420d31e3587cd517435f45a64d72ee9340d2b83b58b6005c615c53",
   "rationale": "Release 101 adds a fail-closed vehicle-control policy and continuity-backed native vehicle adapter with scoped UI feedback. Source scope reviewed by /root/review_catalogue_join; backend safety and ownership independently reviewed by /root/sol_robot97_review.",
-  "regression_fingerprint": "b8340c366f95bd79d8f13b25fc256268dd93eed5590f17a00f3f876956cc3508",
+  "regression_fingerprint": "60b0bf04345af83b140d040408407dc26df1299af6af913c99881ba96790a631",
   "reviewer": "/root/review_catalogue_join",
-  "runtime_fingerprint": "76c1d00723779b0575fe71145954015cec3f1a1643e8f6a915550ea811df3e8c",
+  "runtime_fingerprint": "4b5cacc93a47823791c133f910f2cb8f0cd99f8e2a84114121415e59e0349f79",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 78
 }
