@@ -72,10 +72,16 @@ REQUIRED_TESTS = frozenset(
         'tests/integration/test_podview_controller_continuity.py',
         'tests/integration/test_podview_controller_placement.py',
         'tests/integration/test_podview_vehicle_http.py',
+        'tests/podview/answer-history-integration-visual-history.test.mjs',
         'tests/podview/canonical-next-robot-control-panel.test.mjs',
+        'tests/podview/canonical-next-visual-history.test.mjs',
         'tests/podview/canonical-packet-robot-control-panel.test.mjs',
+        'tests/podview/canonical-packet-visual-history.test.mjs',
+        'tests/podview/root-lazy-detail-view.test.mjs',
+        'tests/podview/root-robot-compact-successor.test.mjs',
         'tests/podview/root-robot-control-panel.test.mjs',
         'tests/podview/root-vehicle-view.test.mjs',
+        'tests/podview/root-visual-history.test.mjs',
         'tests/unit/test_podview_vehicle.py',
         'tests/unit/test_podview_vehicle_control.py',
         'tests/unit/test_podview_vehicle_risk.py',
@@ -90,8 +96,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "931920a8746465ade9d76d26d05f775149c390a110c12000a6ef1b61b2d91c45"
-PROFILE_AST = "586ae990d74a1c6122d17bc46a6aeeb20d2942bf175ed14abd3914d7e2ea2c35"
+MANIFEST_SHA = "0824ecaf72ab481e5b5108382822eb5b690fca53b0b2da9f97c2336a864e0378"
+PROFILE_AST = "7b1fe7c0d6fbaebb00f916a2460de42e29a4489b7f808248490c75191a8ad55b"
 
 
 def record_at(root: Path) -> dict | None:
