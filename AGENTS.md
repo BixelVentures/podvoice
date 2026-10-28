@@ -51,6 +51,32 @@ stoplinje, beviskrav, review, fysisk diagnose og releasegrænser. Planer og hand
 historisk baggrund, aldrig autoritet over de fire produktfiler. Hele filoversigten og
 klassifikationen findes i [dokumentationsindekset](docs/README.md).
 
+## Regressioner: hovedfejl før leveringsarbejde
+
+- Lead fastholder brugerens højst prioriterede fejl som kritisk vej i eksisterende
+  STATUS: handling → faktisk forkert resultat → næste konkrete årsagsspørgsmål.
+  En lettere sidefejl må løses parallelt, men må ikke overtage budget eller fremstå
+  som løsning på hovedfejlen.
+- Hver undersøgelse skal kunne skelne navngivne årsager eller føre til en konkret
+  rettelse. Efter én afgrænset undersøgelse uden ny årsagsevidens skal lead ændre
+  tilgang eller angive den præcise manglende observation. Gentag ikke samme audit,
+  flere generiske tests eller ny planlægning som erstatning.
+- Start ikke versionsbump, ny releaseprofil, manifestbinding, PR-/CI-klargøring eller
+  installation, mens hovedfejlens årsag og rettelse stadig er ukendte. Undtagelse:
+  mindst mulig diagnostik, når lead navngiver præcis hvilken manglende observation
+  den indsamler, hvordan den afgør næste rettelse, og et afgrænset forløb til at få
+  observationen. Ren logningsleverance tæller aldrig som løst hovedproblem.
+- Når årsagen er dokumenteret, ret mindste ejergrænse og bevis det berørte samlede
+  flow før leveringsklargøring. Bevar nødvendige sikkerheds-/reviewkrav; en CI- eller
+  fixturefejl må ikke udløse runtimeændringer eller gentagne brede checks.
+- Ved creditbudget: aflæs faktisk saldo før et nyt væsentligt arbejdstrin; medregn
+  udestående agentarbejde og reserve. Hvis resten ikke kan rummes, indsnævr næste
+  konkrete resultat eller stop og gem arbejdet. Start ikke et nyt sidespor for at
+  vise fremdrift. Rapportér ændret brugeradfærd og åbent hovedproblem, ikke testantal
+  eller releaseaktivitet som erstatning for resultat.
+- En docs-/agentoprydning genoptager ikke et pauset produktarbejde. Denne regel
+  giver heller ikke adgang til at springe sikkerhed, officiel CI eller fysisk bevis over.
+
 ## Ti regler for levering
 
 1. Saml beslægtede rettelser i én kandidat, ét PR-flow og én installation.

@@ -589,3 +589,23 @@ async def test_actual_http_shown_six_key_click_resolves_fresh_queue_once(rig):
             headers={**headers, "Sec-Fetch-Site": "cross-site"},
         )
         assert forbidden.status == 403 and bridge.controls.music._read.await_count == 4
+
+
+async def test_queue_read_is_independent_of_missing_playback_control_services(rig):
+    bridge, request = prepare(rig)
+    disabled = {
+        "get_playback_controls",
+        "control_playback",
+        "get_room_playback_controls",
+        "control_room_playback",
+    }
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=rig.router._discovery.podconnect_services - disabled,
+    )
+    assert not bridge.controls.music.room_available
+    assert bridge.queue.available
+    offer = await bridge.queue.offer(request, "grant")
+    assert offer["ok"] and len(offer["items"]) == 2
+    assert bridge.controls.music._read.await_count == 1
+    assert bridge.controls.music._read.await_args.args[2] == "get_room_queue_controls"

@@ -33,6 +33,7 @@ options:
   podview_mood_setup_policy: ""
   podview_weather_city: ""
   podview_robot_read_policy: ""
+  podview_vehicle_read_policy: ""
   podview_research_visual_policy: ""
   podview_control_policy: ""
   podview_controller_enabled: false
@@ -50,6 +51,7 @@ schema:
   podview_mood_setup_policy: "str?"
   podview_weather_city: "str?"
   podview_robot_read_policy: "str?"
+  podview_vehicle_read_policy: "str?"
   podview_research_visual_policy: "str?"
   podview_control_policy: "str?"
   podview_controller_enabled: "bool?"

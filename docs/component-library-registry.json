@@ -2557,7 +2557,8 @@
         "dist/robot-observation.js",
         "dist/light-lamp-view.js",
         "dist/light-room-view.js",
-        "dist/vehicle-preview-command.js"
+        "dist/vehicle-preview-command.js",
+        "dist/owner-answers.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2634,7 +2635,17 @@
           "method:sendLiveTimer": 1,
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
-          "method:renderLightScenes": 1
+          "method:renderLightScenes": 1,
+          "method:restoreAfterAnswer": 1,
+          "method:suspendForAnswer": 1,
+          "arrow:reopen": 1,
+          "arrow:taskCurrent": 1,
+          "method:onLightActionStatus": 1,
+          "method:lightLocalFeedback": 1,
+          "method:renderLightStatus": 1,
+          "arrow:update": 1,
+          "method:feedbackGeometry": 1,
+          "method:scheduleFeedbackGeometry": 1
         },
         "roots": [
           "native:article:retained-answer",

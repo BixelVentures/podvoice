@@ -260,6 +260,7 @@ async def test_bound_history_restarts_only_passive_projection_and_exact_revoke(t
     assert offer(store, owner=first_owner)
     await store._selection
     original = store.history("kitchen", first_owner)["items"][0]
+    assert (original["sessionId"], original["turnId"]) == ("session", "turn")
     assert store.history_persistence_status() == "saved"
     store.close()
     restored = VisualReceiptOwner()
@@ -372,7 +373,9 @@ async def test_failed_owner_removal_never_reimports_old_disk_rows_or_claims_save
     assert len(current) == 1 and current[0]["receiptId"] != original["receiptId"]
     assert sink.history_persistence_status() == "not_saved"
     # Failed deletion is truthfully not durable; no silent retry or reimport follows.
-    assert history.visual_snapshots("kitchen")[0]["display"] == original
+    assert history.visual_snapshots("kitchen")[0]["display"] == {
+        k: v for k, v in original.items() if k not in {"sessionId", "turnId"}
+    }
     assert history.clear("kitchen")
     assert sink.history("kitchen", replacement)["items"] == []
     assert sink.history_persistence_status() == "not_saved"

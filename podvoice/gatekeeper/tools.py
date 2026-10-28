@@ -26,13 +26,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 from urllib.parse import urlsplit, urlunsplit
 
+import aiohttp
 import httpx
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from . import constants as C
 from . import podconnect_targets as playback_targets
-from . import podview_lights, podview_music
+from . import podview_lights, podview_music, podview_vehicle
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -350,6 +351,8 @@ class ToolRouter:
         self._device_control = DeviceControl(
             client, supervisor_token, journal_path=cleaning_journal_path
         )
+        self._vehicle_scope: podview_vehicle.VehicleScope | None = None
+        self._vehicle_generation = 0
         self._token = supervisor_token
         self._client = client
         self._hub = hub
@@ -2240,6 +2243,74 @@ class ToolRouter:
             if not current() or result.get("ok") is not True:
                 return {"outcome": "unknown"}
         return {"outcome": "accepted"}
+
+    def configure_podview_vehicle_read(self, policy: object) -> None:
+        scope = podview_vehicle.parse_policy(policy)
+        if scope != self._vehicle_scope:
+            self._vehicle_scope = scope
+            self._vehicle_generation += 1
+
+    def podview_vehicle_available(self) -> bool:
+        return bool(
+            self._vehicle_scope is not None
+            and self._client is not None
+            and not self._client.is_closed
+            and self._token
+            and self._device_control._token == self._token
+        )
+
+    def podview_vehicle_binding(self) -> tuple:
+        return (
+            self._vehicle_generation,
+            self._vehicle_scope,
+            self._client,
+            bool(self._client and self._client.is_closed),
+            hashlib.sha256(self._token.encode()).digest(),
+            self._device_control,
+        )
+
+    async def podview_vehicle_read(self) -> dict:
+        unavailable = {"status": "unavailable", "data": None}
+        if not self.podview_vehicle_available():
+            return unavailable
+        scope = self._vehicle_scope
+        if scope is None:
+            return unavailable
+        binding = self.podview_vehicle_binding()
+        client, token, owner = self._client, self._token, self._device_control
+
+        def current():
+            return self.podview_vehicle_available() and self.podview_vehicle_binding() == binding
+
+        async def registry_read(ids):
+            return await owner._ws_read(
+                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
+            )
+
+        async def state_read(entity_id):
+            if not current() or client is None:
+                raise ValueError("vehicle source changed")
+            payload = bytearray()
+            async with client.stream(
+                "GET",
+                f"{C.SUPERVISOR_CORE_API}/states/{entity_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if not current() or len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
+                        raise ValueError("vehicle source changed or too large")
+                    payload.extend(chunk)
+            if not current():
+                raise ValueError("vehicle source changed")
+            return json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+
+        try:
+            return await podview_vehicle.read(
+                scope, registry_read=registry_read, state_read=state_read, current=current
+            )
+        except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
+            return unavailable
 
     def podview_home_available(self) -> bool:
         owner = self._device_control

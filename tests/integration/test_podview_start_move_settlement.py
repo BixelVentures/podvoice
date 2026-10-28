@@ -116,8 +116,7 @@ def selected_receipt(rig, *, request_id="selected-one"):
     bridge.controls.policy["music"][0]["actions"].append("play_track")
     bridge.controls.policy["music"][0]["maxVolume"] = 40
     current_binding = binding(bridge, "kitchen", "account-alpha")
-    rig.value["output"]["binding"]["binding_id"] = current_binding["bindingId"]
-    rig.value["controls"]["binding_id"] = current_binding["bindingId"]
+    assert rig.value["output"]["binding"]["binding_id"] != current_binding["bindingId"]
     grant = bridge._grant_for_token("kitchen", rig.token)
     context = {
         "roomId": "kitchen",
@@ -288,6 +287,38 @@ async def test_selected_start_reads_only_exact_current_receipt_and_source(contro
     rig.expected_args.pop("command_sequence")
     rig.value.pop("settlement")
     assert (await read(rig, receipt_request_id="selected-one"))["settlement"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["room", "homepod", "owner", "config"])
+async def test_selected_start_does_not_settle_foreign_scope(controls_rig, change):
+    rig = controls_rig
+    rule = rig.bridge.controls.policy["music"][0]
+    if change in ("room", "homepod"):
+        foreign = {**rule, "actions": ["move_existing_session"]}
+        foreign["nativeRoomId" if change == "room" else "nativeHomepodId"] = (
+            "r1" if change == "room" else "43"
+        )
+        rig.bridge.controls.policy["music"].append(foreign)
+    identity = selected_receipt(rig)
+    rig.expected_args.update(request_id=identity["request_id"], command_sequence=1)
+    rig.value["settlement"] = control_settlement(identity)
+    if change == "room":
+        rig.value["output"]["binding"]["native_room_id"] = "r1"
+    elif change == "homepod":
+        rig.value["output"]["binding"]["homepod_id"] = "43"
+    elif change == "owner":
+        rig.value["settlement"]["owner_epoch"] = "c" * 32
+    else:
+
+        async def change_config():
+            rule["maxVolume"] = 39
+
+        rig.aggregate_hook = change_config
+    body = await read(rig, receipt_request_id="selected-one")
+    if change in ("room", "homepod"):
+        assert body["status"] == "observed"
+    assert body["settlement"] is None
 
 
 @pytest.mark.asyncio

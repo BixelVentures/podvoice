@@ -60,6 +60,8 @@ async def test_latest20_immutable_records_and_boot_close_bounds():
         "observedAt",
         "content",
         "provenance",
+        "sessionId",
+        "turnId",
     }
     history["items"][0]["content"]["summary"] = "changed"
     assert store.history("kitchen", owner)["items"][0]["content"]["summary"] != "changed"
@@ -307,9 +309,13 @@ async def test_saved_live_transcript_segments_are_read_without_completed_answer(
     assert result["roomId"] == "kitchen" and result["bootId"] == "boot"
     assert response.headers["Cache-Control"] == "no-store"
     rows = result["items"]
-    assert [row["text"] for row in rows] == ["Next wake", "Reconnect", "Okay", "Hello there"]
-    assert [row["sessionId"] for row in rows] == ["second", "first", "first", "first"]
-    assert [row["generation"] for row in rows] == [1, 2, 1, 1]
+    assert [row["text"] for row in rows] == [
+        "Legacy turn", "Next wake", "Reconnect", "Okay", "Stop", "Hello there"
+    ]
+    assert [row["sessionId"] for row in rows] == ["second", "second", "first", "first", "first", "first"]
+    assert [row["role"] for row in rows] == ["assistant", "assistant", "assistant", "assistant", "user", "assistant"]
+    assert rows[0]["finality"] == "complete" and "segmentId" not in rows[0]
+    assert all(row["finality"] == "fragment" for row in rows[1:])
     assert rows[-1]["ts"] == 1 and rows[-1]["endTs"] == 2
     assert rows[-1]["fragmentCount"] == 2
     saved = {
@@ -318,11 +324,8 @@ async def test_saved_live_transcript_segments_are_read_without_completed_answer(
         for row in conv["turns"]
         if row.get("kind") == "segment"
     }
-    assert all(row["segmentId"] in saved for row in rows)
-    assert all(
-        set(row) == {"segmentId", "sessionId", "generation", "ts", "endTs", "text", "fragmentCount"}
-        for row in rows
-    )
+    assert all(row["segmentId"] in saved for row in rows[1:])
+    assert all("turnId" not in row for row in rows)
     assert sink.history("kitchen", owner)["items"] == []
     assert sink.snapshot("kitchen", owner)["items"] == []
     restored.clear(room="kitchen")
@@ -440,3 +443,18 @@ async def test_transcript_projection_rejects_replaced_read_owner(tmp_path, repla
     bridge.history.conversations = replace
     response = await _answers(request)
     assert response.status == 404 and "Saved words" not in response.text
+
+async def test_transcript_history_never_assigns_prior_session_to_legacy_turn(tmp_path):
+    import json
+
+    from gatekeeper.history import History
+    from gatekeeper.podview import _transcript_history
+
+    history = History(tmp_path / "history.jsonl")
+    history.append("kitchen", "in", "Known", ts=1, session="session-a")
+    history.append("kitchen", "out", "Unknown legacy", ts=2)
+    result = json.loads(_transcript_history(history, "kitchen", "boot"))
+    assert [(row["text"], row["sessionId"]) for row in result["items"]] == [
+        ("Known", "session-a")
+    ]
+    assert history.conversations(room="kitchen")[0]["turns"][-1]["text"] == "Unknown legacy"

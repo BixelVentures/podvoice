@@ -38,6 +38,11 @@ Kravene gælder alle relevante Pod-opgaver. Musik er første sammensatte acceptf
 ikke en indsnævring af reglerne til musik. En lokal rettelse kræver kun berørt flow
 og relevante regressioner; uændrede domæner kræver ikke en ny fuld systemgate.
 
+Ved regressioner styrer hovedfejlens årsag og forventede brugerresultat arbejdet.
+Følg AGENTS-afsnittet »Regressioner: hovedfejl før leveringsarbejde«: ingen tidlig
+releaseklargøring, ingen afsporing til lettere sidefejl, og afgrænset diagnostik kun
+for en navngiven manglende observation. Sikkerheds-, review- og beviskrav bevares.
+
 ## Agentens faste udførelsescyklus
 
 For hver meningsfuld ændring, i det eksisterende miljø og inden for gældende adgang:

@@ -113,10 +113,12 @@ function sceneBaseTransition(s,e){
 // Back follows the fixed household hierarchy, independent of entry origin.
 // Retained tasks/resources are not rewritten when leaving their detail.
 function navigationBack(s){
+ if(s.presentationReturn&&s.focus===s.presentationReturn.answerId){const target=s.presentationReturn.focus;const valid=['photo','now','music','player','weather','timers','radio','vehicle'].includes(target)||s.devices.some(d=>d.id===target&&!d.hidden)||s.answers.some(a=>a.id===target&&!a.hidden);return {...s,focus:valid?target:'now',navStack:s.presentationReturn.navStack,detailOrigin:s.presentationReturn.detailOrigin,presentationReturn:null,notice:''};}
  if(s.focus==='photo'&&!(s.navStack?.length)&&!s.detailOrigin&&!s.notice)return s;
  return {...s,focus:s.focus==='now'||s.focus==='photo'?'photo':'now',navStack:[],detailOrigin:null,notice:''};
 }
 export function sceneTransition(s,e){
+ if(e.type==='present-answer'&&s.answers.some(a=>a.id===e.id&&!a.hidden)){return {...s,focus:e.id,presentationReturn:s.presentationReturn&&s.focus===s.presentationReturn.answerId?{...s.presentationReturn,answerId:e.id}:{answerId:e.id,focus:s.focus,navStack:[...(s.navStack||[])],detailOrigin:s.detailOrigin},navStack:[...(s.navStack||[]),s.focus].slice(-32),notice:''};}
  let next=['back','device-back'].includes(e.type)?navigationBack(s):sceneBaseTransition(s,e);
  if(next!==s&&!['light-scene-select','light-scene-level','light-home-restore'].includes(e.type)){
   const devices=next.devices.map(d=>{const old=s.devices.find(row=>row.id===d.id);if(!d.exampleOnly||d.live||!d.lightSceneSelections||!old?.lights||d.lights===old.lights)return d;

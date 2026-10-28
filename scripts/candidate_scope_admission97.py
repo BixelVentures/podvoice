@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact97 admission for the reviewed music catalogue recovery candidate."""
+"""Exact97 admission for the reviewed combined music and PodView candidate."""
 
 from __future__ import annotations
 
@@ -40,26 +40,80 @@ POLICY = frozenset(
         "docs/POD-SYSTEM-STANDARD.md",
         "docs/PRODUKTMÅL.md",
         "docs/README.md",
+        "docs/component-library-registry.json",
         "scripts/dev_cycle.py",
     }
 )
-TOOLING = frozenset()
+TOOLING = frozenset({"scripts/build-scripts.mjs"})
 FIELDS = previous.FIELDS
-DOMAINS = ("unclassified_runtime",)
+DOMAINS = ("ha_tools", "physical_output")
 PRODUCTION = frozenset(
     {
+        "podvoice/gatekeeper/__main__.py",
+        "podvoice/gatekeeper/config.py",
+        "podvoice/gatekeeper/history.py",
         "podvoice/gatekeeper/mood_diagnostics.py",
         "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_receipts.py",
+        "podvoice/gatekeeper/podview_room_media.py",
+        "podvoice/gatekeeper/podview_vehicle.py",
+        "podvoice/gatekeeper/static/podview/asset-manifest.json",
+        "podvoice/gatekeeper/static/podview/ha-home-observation.js",
+        "podvoice/gatekeeper/static/podview/index.html",
+        "podvoice/gatekeeper/static/podview/library.bundle.js",
+        "podvoice/gatekeeper/static/podview/light-room-view.js",
+        "podvoice/gatekeeper/static/podview/live-answer-view.js",
+        "podvoice/gatekeeper/static/podview/live-control-view.js",
+        "podvoice/gatekeeper/static/podview/live-music-selection-view.js",
+        "podvoice/gatekeeper/static/podview/owner-answers.js",
+        "podvoice/gatekeeper/static/podview/player-view.js",
+        "podvoice/gatekeeper/static/podview/podview.bundle.js",
+        "podvoice/gatekeeper/static/podview/podview.css",
+        "podvoice/gatekeeper/static/podview/robot-control-panel.js",
+        "podvoice/gatekeeper/static/podview/scene-model.js",
+        "podvoice/gatekeeper/static/podview/ui-kit.css",
+        "podvoice/gatekeeper/static/podview/ui/components.css",
+        "podvoice/gatekeeper/static/podview/vehicle-view.js",
+        "podvoice/gatekeeper/static/podview/weather-view.js",
+        "podvoice/gatekeeper/static/podview/widget-redesign.css",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
+        "podvoice/gatekeeper/tools.py",
     }
 )
 REQUIRED_TESTS = frozenset(
     {
-        "tests/integration/test_podview_playlist_resilience.py",
-        "tests/integration/test_podview_mood_playlists.py",
         "tests/integration/test_mood_diagnostics_route.py",
         "tests/integration/test_pod_system_music_journey.py",
+        "tests/integration/test_podview_mood_playlists.py",
         "tests/integration/test_podview_mood_preview.py",
+        "tests/integration/test_podview_playlist_resilience.py",
+        "tests/integration/test_podview_queue_occurrence.py",
+        "tests/integration/test_podview_room_move_caller.py",
+        "tests/integration/test_podview_start_move_settlement.py",
+        "tests/integration/test_podview_vehicle_home.py",
+        "tests/podview/answer-history-integration-history-read-state.test.mjs",
+        "tests/podview/answer-history-integration-live-answer-view.test.mjs",
+        "tests/podview/answer-history-integration-live-control-view.test.mjs",
+        "tests/podview/answer-history-integration-owner-answers.test.mjs",
+        "tests/podview/answer-history-integration-scene-model.test.mjs",
+        "tests/podview/answer-history-integration-transcript-history-view.test.mjs",
+        "tests/podview/answer-history-integration-visual-history.test.mjs",
+        "tests/podview/canonical-field88-screen-settings.test.mjs",
+        "tests/podview/hue-status-placement.browser.mjs",
+        "tests/podview/hue-status-placement.html",
+        "tests/podview/root-live-light-area-host.test.mjs",
+        "tests/podview/root-live-media-queue-lifecycle.test.mjs",
+        "tests/podview/root-player-view.test.mjs",
+        "tests/podview/root-screen-settings.test.mjs",
+        "tests/podview/root-script-delivery.test.mjs",
         "tests/podview/root-second-move-lifecycle.test.mjs",
+        "tests/podview/root-toast-local-replacement.test.mjs",
+        "tests/podview/root-toast-retry-grid.test.mjs",
+        "tests/podview/root-vehicle-view.test.mjs",
+        "tests/podview/root-weather-view.test.mjs",
+        "tests/unit/test_answer_history57.py",
+        "tests/unit/test_podview_receipts.py",
+        "tests/unit/test_podview_vehicle.py",
     }
 )
 HA_RUNTIME = previous.HA_RUNTIME
@@ -69,8 +123,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "d9177b4332232aa899670400545df59a0a18e30a9ad317e86e5315759179adfb"
-PROFILE_AST = "4caefbbec27bb664f2068417b6d9cdebf044aaf8b54ccf2db392d22540359d07"
+MANIFEST_SHA = "ff2039d1f90a0dda9bbee8f8a95fc4be94002e89a9db64c8d7d5b370925a35a5"
+PROFILE_AST = "11ae93f2366e2641734a7c61743c88e69d5ef108b72d1a167f62e32802cc032e"
 
 
 def record_at(root: Path) -> dict | None:
@@ -89,11 +143,19 @@ def record_at(root: Path) -> dict | None:
 
 
 def config_only(root: Path) -> bool:
-    """Allow only the three add-on version fields; preserve HA component0.1.7."""
+    """Allow version97 plus the reviewed passive vehicle policy option only."""
+    addon = safe_file(root, "podvoice/config.yaml").decode()
+    option = '  podview_vehicle_read_policy: ""\n'
+    schema = '  podview_vehicle_read_policy: "str?"\n'
+    if addon.count(option) != 1 or addon.count(schema) != 1:
+        return False
+    addon_without_vehicle = addon.replace(option, "").replace(schema, "")
     return all(
         strict.version_only(
             legacy._git(root, "show", f"{BASE}:{name}"),
-            safe_file(root, name).decode(),
+            addon_without_vehicle
+            if name == "podvoice/config.yaml"
+            else safe_file(root, name).decode(),
             pattern,
             expected,
         )
@@ -182,13 +244,15 @@ def validate(root: Path, report: legacy.CandidateScope, base_tip: str, record: d
         manifest[k] for k in ("production", "regressions", "runtime", "config", "policy", "tooling")
     )
     if (
-        not all(strict.pins_match(root, pins) for pins in (prod, tests, runtime, config, policy))
+        not all(
+            strict.pins_match(root, pins)
+            for pins in (prod, tests, runtime, config, policy, tooling)
+        )
         or set(prod) != PRODUCTION
         or set(tests) != REQUIRED_TESTS
         or set(config) != CONFIG
         or set(policy) != POLICY - {PROFILE, MANIFEST}
         or set(tooling) != TOOLING
-        or tooling != {}
         or ha_runtime_inventory(root) != HA_RUNTIME
         or set(runtime) != strict.runtime_inventory(root) | HA_RUNTIME
         or not production_runtime_match(set(prod), set(runtime))

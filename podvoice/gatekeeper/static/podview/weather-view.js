@@ -10,7 +10,7 @@ export function weatherSourceLabel(source){
 // known conversions may produce the compact Danish presentation.
 export function weatherMetrics(period,units){
  const quantity=(value,unit,factors,suffix,digits=1)=>{const factor=typeof unit==='string'&&Object.hasOwn(factors,unit)?factors[unit]:null,converted=Number.isFinite(value)&&value>=0&&factor!==null?value*factor:null;if(!Number.isFinite(converted))return '';return `${converted>0&&converted<.1?'<0,1':new Intl.NumberFormat('da-DK',{maximumFractionDigits:digits}).format(converted)} ${suffix}`;};
- return {rain:quantity(period?.precipitation,units?.precipitation,{mm:1,cm:10,in:25.4},'mm'),wind:quantity(period?.wind_speed,units?.windSpeed,{'m/s':3.6,'km/h':1,mph:1.609344,kn:1.852},'km/t',0)};
+ return {rain:quantity(period?.precipitation,units?.precipitation,{mm:1,cm:10,in:25.4},'mm'),wind:quantity(period?.wind_speed,units?.windSpeed,{'m/s':1,'km/h':1/3.6,mph:.44704,kn:1852/3600},'m/s')};
 }
 // LOCAL visual fixture, fixed at the supplied screenshot's 15 October 13:46
 // preview clock. These exact twelve hourly rows/units came from

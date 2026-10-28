@@ -1787,7 +1787,7 @@ pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=prim
 
 /* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
-.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:linear-gradient(100deg,var(--pv-line) 20%,var(--pv-surface) 45%,var(--pv-line) 70%);background-size:220% 100%;animation:pv-advice-pending 1200ms linear 8;pointer-events:none}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);animation:none;pointer-events:none}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before{top:4px;width:92%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation:pv-advice-ready var(--pv-fast,200ms) var(--pv-ease,cubic-bezier(.2,0,0,1)) both}
@@ -1890,6 +1890,8 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 
 /* Adopt the existing canonical feedback variant with its consumer. */
 .pv-kit.pv-kit-listrow[data-kit-variant=feedback]{font:var(--pv-t-meta)!important;line-height:var(--pv-leading-meta)!important;color:var(--pv-ink-2)!important;margin:0!important;padding:0!important;min-height:var(--pv-leading-meta)!important;background:transparent!important;text-align:start!important}
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback]{grid-column:1 / -1}
+.pv-kit.pv-kit-listrow[data-kit-variant=feedback]>button{flex:0 0 auto;min-width:max-content;white-space:nowrap}
 .pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=error]{color:var(--pv-danger)!important}
 .pv-kit.pv-kit-listrow[data-kit-variant=feedback][data-state=unknown]{color:var(--pv-warning)!important}
 .pv-kit[data-kit-tone=dark] .pv-kit.pv-kit-listrow[data-kit-variant=feedback]:not([data-state=error]):not([data-state=unknown]){color:var(--pv-on-dark)!important}
@@ -2239,7 +2241,7 @@ pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[
 /* Existing queue ListRows: upcoming content uses the same finite advice gradient. */
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
-.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{background:linear-gradient(100deg,var(--pv-line) 20%,var(--pv-surface) 45%,var(--pv-line) 70%);background-size:220% 100%;animation:pv-advice-pending 1200ms linear 8}
+.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{background:color-mix(in srgb,currentColor 12%,transparent);animation:none}
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover{border-radius:var(--pv-r-s)}
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy{position:relative;min-height:calc(2 * var(--pv-leading-body))}
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
@@ -2248,3 +2250,13 @@ pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{top:calc(var(--pv-leading-body) + 4px);width:48%}
 @media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{animation:none}}
 pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{animation:none}
+/* About uses the shared read-only ListRow and restrained action affordances. */
+#quick-sheet .screen-build-row{grid-template-columns:max-content minmax(0,1fr);gap:var(--pv-s2)}
+#quick-sheet.pv-kit-dialog .screen-build-row>#screen-device-info{padding:0;margin:0;text-align:right;color:var(--pv-ink-2);overflow-wrap:anywhere}
+#quick-sheet [data-screen-action]{display:grid;grid-template-columns:var(--pv-icon-s) minmax(0,1fr) var(--pv-icon-s);align-items:center;gap:var(--pv-s2);width:100%;min-height:var(--pv-hit);padding:var(--pv-s2) 0;border:0;border-top:1px solid var(--pv-line);background:transparent;color:var(--pv-ink);font:var(--pv-t-body);text-align:left;text-decoration:none;cursor:pointer}
+#quick-sheet [data-screen-action]::before,#quick-sheet [data-screen-action]::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);background:currentColor;mask:var(--screen-action-icon) center/contain no-repeat}
+#quick-sheet [data-screen-action=rename]{--screen-action-icon:url(assets/icons/pencil.svg)}
+#quick-sheet [data-screen-action=diagnostics]{--screen-action-icon:url(assets/icons/three-dots.svg)}
+#quick-sheet [data-screen-action]::after{--screen-action-icon:url(assets/icons/chevron-right.svg)}
+#quick-sheet [data-screen-action]:disabled{color:var(--pv-ink-3);cursor:default}
+#quick-sheet [data-screen-action][hidden]{display:none}

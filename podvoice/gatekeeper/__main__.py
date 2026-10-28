@@ -505,6 +505,7 @@ async def run(cfg: Config) -> None:
     tools.podview_receipts.configure_research_mode(cfg.podview_research_visual_policy)
     tools.configure_device_control(load_settings(settings_path))
     tools.configure_podview_robot_reads(cfg.podview_robot_read_policy)
+    tools.configure_podview_vehicle_read(cfg.podview_vehicle_read_policy)
 
     def save_runtime_settings(values: dict) -> dict:
         saved = save_settings(values, settings_path, provider_api_key=cfg.openai_api_key)

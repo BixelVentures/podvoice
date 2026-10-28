@@ -1250,3 +1250,6 @@ pv-widget-host #device-detail>pv-light-widget.pv-component:is([data-resource-sta
  pv-widget-host #now-view>#timer-card .timer-panel:not([hidden]){grid-template-columns:minmax(0,1fr) 112px}
  pv-widget-host #now-view>#timer-card .timer-finish{width:100%;box-sizing:border-box}
 }
+.history-session-heading{font-size:var(--pv-type-caption);color:var(--pv-ink-3);margin:0;padding:var(--pv-screen-space-4) var(--pv-screen-space-3) var(--pv-screen-space-2)}
+/* Weather's top scroll cue reaches the shared header divider. */
+pv-widget-host[data-view=active] .frame:has(#weather-view:not([hidden])[data-scroll-edge~="start"])::before{top:0;background:linear-gradient(var(--pv-screen-paper),transparent)}

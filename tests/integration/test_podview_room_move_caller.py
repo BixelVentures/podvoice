@@ -427,3 +427,223 @@ async def test_effective_destination_requires_new_matching_account_alias_and_nat
         bridge, task, {"outcome": "accepted"}, lambda: True
     )
     assert podview_room_media.binding(bridge, "kitchen", account)["nativeRoomId"] == "r0"
+
+
+@pytest.mark.asyncio
+async def test_inert_touch_move_a_b_a_then_current_controls(monkeypatch):
+    """The real bridge consumes two moves and rebinds later JIT controls to A."""
+    rig = Rig()
+    session, _ = owner()
+    config = configuration()
+    for rule in config["music"]:
+        rule["actions"] = ["pause", "resume", "volume", "move_existing_session"]
+    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
+    actual = install_actual_playback(rig)
+    token = bridge.grant_timer_control("kitchen")
+    source = payload()
+    source["targets"][-1]["target_id"] = "speaker"
+    raw = playback_payload("playback", "account")
+    raw["playback"]["target"]["target_id"] = "speaker"
+
+    async def passive_read(kind, account, **kwargs):
+        return {"ok": True, "data": actual if kwargs.get("include_output") else raw}
+
+    monkeypatch.setattr(rig.router, "podview_read", passive_read)
+    monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=source))
+    writes = []
+
+    class Music:
+        room_available = volume_available = True
+        room_start_available = _transport_available = False
+        tools = rig.router
+
+        def binding(self):
+            return (self,)
+
+        async def observe_room(self, account, engine, room, hp, current):
+            assert current() and (account, engine) == ("account", "speaker")
+            alias = next(
+                row["binding"]
+                for row in source["targets"]
+                if row["kind"] == "configured_alias" and row["target_id"] == room
+            )
+            return {
+                "ok": True,
+                "data": {
+                    "native": {
+                        "target_id": engine,
+                        "room_id": room,
+                        "homepod_id": hp,
+                        "alias_incarnation": alias["incarnation"],
+                        "alias_registry": alias["registry"],
+                    },
+                    "route": {"device_id": hp},
+                    "owner_epoch": raw["owner_epoch"],
+                    "poll_sequence": raw["poll_sequence"],
+                    "valid_until": time.time() + 5,
+                },
+            }
+
+        async def setup_room(self, account, engine, room, hp, current):
+            assert current() and (room, hp) == ("r0", "42")
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["pause", "resume"],
+                    "volume_percent": None,
+                    "valid_until": time.time() + 5,
+                },
+            }
+
+        async def setup_volume(self, account, engine, room, hp, current):
+            assert current() and (room, hp) == ("r0", "42")
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["volume"],
+                    "volume_state": {"base_percent": 27},
+                    "valid_until": time.time() + 5,
+                },
+            }
+
+        async def execute_room(self, offer, action, current, *, receipt_current):
+            assert current() and receipt_current()
+            writes.append((action, "r0", "42"))
+            return {"outcome": "accepted"}
+
+        async def execute_volume(self, offer, percent, current, *, receipt_current):
+            assert current() and receipt_current()
+            writes.append(("volume", percent))
+            return {"outcome": "accepted"}
+
+    class Move:
+        available = True
+        tools = rig.router
+
+        def binding(self):
+            return rig.router.podview_music_binding()
+
+        async def setup(self, account, engine, room, hp, current):
+            assert current()
+            return SimpleNamespace(
+                deadline=time.monotonic() + 5,
+                wire={
+                    "owner_epoch": raw["owner_epoch"],
+                    "poll_sequence": raw["poll_sequence"],
+                    "move_offer": {"native_incarnation": "a" * 32},
+                },
+                destination=(room, hp),
+            )
+
+        async def move(self, offer, current, *, receipt_current):
+            assert current() and receipt_current()
+            room, hp = offer.destination
+            writes.append(("move", room, hp))
+            actual["output"]["binding"].update(
+                native_room_id=room,
+                homepod_id=hp,
+                binding_id=("c" if room == "r1" else "d") * 64,
+                valid_until=time.time() + 5,
+            )
+            for row in source["targets"]:
+                if row["kind"] == "configured_alias":
+                    row["binding"]["room_id"] = room
+                if row["kind"] == "observed_output":
+                    row["selected"] = row["target_id"] == hp
+            return {"outcome": "accepted", "accepted_room_move": True}
+
+    bridge.controls.music = Music()
+    bridge.controls.move = Move()
+    assert bridge.controls._move_revision("kitchen"), bridge.snapshot("kitchen")
+    try:
+        for index, (room, hp, current_binding) in enumerate(
+            [("r1", "43", ACTUAL_BINDING), ("r0", "42", "c" * 64)]
+        ):
+            destination = next(
+                row
+                for row in podview_speakers.project(
+                    source,
+                    boot=bridge.boot_id,
+                    room="kitchen",
+                    account="account",
+                    default_room=None,
+                )["speakers"]
+                if row["nativeRoomId"] == room
+            )
+            body = {
+                "bootId": bridge.boot_id,
+                "roomId": "kitchen",
+                "domain": "music",
+                "target": {
+                    "accountId": "account",
+                    "kind": "spotify_device",
+                    "targetId": "speaker",
+                    "speakerId": destination["speakerId"],
+                    "expectedBindingId": current_binding,
+                },
+            }
+            offer = await bridge.controls.setup(body, token)
+            assert offer["ok"], (index, offer)
+            command = action_body(offer, offer["options"][0]) | {"requestId": f"move-{index}"}
+            result = await bridge.controls.action(command, token)
+            assert result["outcome"] == "accepted", result
+            assert not bridge._music_move_fence
+            scope = podview_room_media.binding(bridge, "kitchen", "account")
+            assert (scope["nativeRoomId"], scope["nativeHomepodId"]) == (room, hp)
+        stale_target = {
+            "accountId": "account",
+            "kind": "spotify_device",
+            "targetId": "speaker",
+            "expectedBindingId": "c" * 64,
+        }
+        stale = await bridge.controls.setup(
+            {
+                "bootId": bridge.boot_id,
+                "roomId": "kitchen",
+                "domain": "music",
+                "target": stale_target,
+            },
+            token,
+        )
+        assert not stale["ok"] and len(writes) == 2
+        for action in ("pause", "resume", "volume"):
+            target = {
+                "accountId": "account",
+                "kind": "spotify_device",
+                "targetId": "speaker",
+                "expectedBindingId": "d" * 64,
+            }
+            body = {
+                "bootId": bridge.boot_id,
+                "roomId": "kitchen",
+                "domain": "music",
+                "target": target,
+                **({"requestedAction": "volume"} if action == "volume" else {}),
+            }
+            offer = await bridge.controls.setup(body, token)
+            assert offer["ok"], (index, offer)
+            option = next(row for row in offer["options"] if row["action"] == action)
+            command = action_body(offer, option, {"percent": 20} if action == "volume" else {}) | {
+                "requestId": f"control-{action}"
+            }
+            before = actual["playback"]["state"]
+            result = await bridge.controls.action(command, token)
+            assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False, (
+                result
+            )
+            assert actual["playback"]["state"] == before  # ACK is not an observation.
+            if action in {"pause", "resume"}:
+                observed = "paused" if action == "pause" else "playing"
+                actual["playback"]["state"] = raw["playback"]["state"] = observed
+                witness = await rig.router.podview_read("playback", "account", include_output=True)
+                assert witness["data"]["playback"]["state"] == observed
+                assert witness["data"]["output"]["binding"]["binding_id"] == "d" * 64
+        assert writes == [
+            ("move", "r1", "43"),
+            ("move", "r0", "42"),
+            ("pause", "r0", "42"),
+            ("resume", "r0", "42"),
+            ("volume", 20),
+        ]
+    finally:
+        await rig.client.aclose()

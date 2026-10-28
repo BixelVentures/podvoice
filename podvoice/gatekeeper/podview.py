@@ -31,6 +31,7 @@ from . import (
     podview_robot,
     podview_room_media,
     podview_speakers,
+    podview_vehicle,
     podview_weather,
     podview_weather_brief,
 )
@@ -1633,6 +1634,7 @@ class PodViewBridge:
                         ("vacuum", "podview_home_available"),
                         ("weather", "podview_weather_available"),
                         ("light", "podview_lights_available"),
+                        ("vehicle", "podview_vehicle_available"),
                     )
                     if getattr(self.tools, method, lambda: False)()
                 ],
@@ -2517,41 +2519,45 @@ def _transcript_history(history: History, room: str, boot_id: str) -> str:
         "items": [],
     }
     encoded = json.dumps(result, ensure_ascii=False, allow_nan=False)
-    for conversation in history.conversations(limit=MAX_TURNS, room=room):
-        session = conversation.get("session")
-        if not isinstance(session, str) or not 1 <= len(session) <= 256:
-            continue
+    for conversation in history.conversations(limit=MAX_TURNS, room=room, include_record_session=True):
         for segment in reversed(conversation["turns"]):
+            session = segment.get("session")
+            if not isinstance(session, str) or not 1 <= len(session) <= 256:
+                continue
             segment_id, text = segment.get("segment_id"), segment.get("text")
             generation, count = segment.get("generation"), segment.get("fragment_count")
-            ts, end_ts = segment.get("ts"), segment.get("end_ts")
+            ts = segment.get("ts")
+            is_fragment = segment.get("kind") == "segment"
+            end_ts = segment.get("end_ts") if is_fragment else ts
+            direction = segment.get("dir")
             if (
-                segment.get("kind") != "segment"
-                or segment.get("dir") != "out"
-                or not isinstance(segment_id, str)
-                or re.fullmatch(r"[a-f0-9]{32}", segment_id) is None
+                direction not in {"in", "out"}
+                or segment.get("kind") not in (None, "segment")
                 or not isinstance(text, str)
                 or not text.strip()
-                or type(generation) is not int
-                or not 0 <= generation < 2**53
-                or type(count) is not int
-                or not 1 <= count < 2**53
                 or type(ts) not in (int, float)
                 or type(end_ts) not in (int, float)
+                or (is_fragment and (
+                    not isinstance(segment_id, str)
+                    or re.fullmatch(r"[a-f0-9]{32}", segment_id) is None
+                    or type(generation) is not int or not 0 <= generation < 2**53
+                    or type(count) is not int or not 1 <= count < 2**53
+                ))
             ):
                 continue
             try:
                 if not math.isfinite(ts) or not math.isfinite(end_ts) or not 0 <= ts <= end_ts:
                     continue
                 row = {
-                    "segmentId": segment_id,
                     "sessionId": session,
-                    "generation": generation,
+                    "role": "user" if direction == "in" else "assistant",
+                    "finality": "fragment" if is_fragment else "complete",
                     "ts": ts,
                     "endTs": end_ts,
                     "text": text,
-                    "fragmentCount": count,
                 }
+                if is_fragment:
+                    row.update(segmentId=segment_id, generation=generation, fragmentCount=count)
                 candidate = {**result, "items": [*result["items"], row]}
                 candidate_json = json.dumps(candidate, ensure_ascii=False, allow_nan=False)
                 if len(candidate_json.encode("utf-8")) > 65536:
@@ -3772,6 +3778,10 @@ async def _home(request: web.Request) -> web.Response:
             podview_weather_brief.token(
                 podview_weather_brief.read_brief(tools, room, bridge.sessions.get(room))
             ),
+            (
+                getattr(tools, "podview_vehicle_binding", lambda: None)(),
+                getattr(tools, "podview_vehicle_available", lambda: False)(),
+            ),
         )
 
     binding = binding_now()
@@ -3785,6 +3795,10 @@ async def _home(request: web.Request) -> web.Response:
             and cached[1] == binding
             and time.monotonic() - cached[0] < 5
             and podview_weather.observation_is_current(cached[2].get("weather"))
+            and (
+                cached[2].get("vehicle", {}).get("status") != "observed"
+                or podview_vehicle.observation_current(cached[2]["vehicle"])
+            )
             and (
                 bridge._weather_source_cache is None
                 or time.time() < bridge._weather_source_cache[3]
@@ -3830,12 +3844,14 @@ async def _home(request: web.Request) -> web.Response:
                 include_catalogue=True,
             ),
         }
-        if joined:
-            denied = await _guard(request)
-            if denied is not None:
-                return denied
-            if not same_read() or current_cache() is None:
-                return _error("home_unavailable", 503)
+        # Lights may await independently of the passive vehicle source. Re-check
+        # admission and the exact read/cache binding after that final await too.
+        denied = await _guard(request)
+        if denied is not None:
+            return denied
+        vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
+        if (joined or vehicle_visible) and (not same_read() or current_cache() is None):
+            return _error("home_unavailable", 503)
         return web.json_response(result, headers={"Cache-Control": "no-store"})
     if bridge._home_busy:
         return _error("home_busy", 429)
@@ -3889,9 +3905,10 @@ async def _home(request: web.Request) -> web.Response:
                 return unavailable
 
         try:
-            raw, weather = await asyncio.gather(
+            raw, weather, vehicle = await asyncio.gather(
                 read_domain("podview_home_read", {"status": "unavailable", "items": []}),
                 read_domain("podview_weather_read", {"status": "unavailable", "data": None}),
+                read_domain("podview_vehicle_read", {"status": "unavailable", "data": None}),
             )
             latest = binding_now()
             same_owner = tools is bridge.tools and binding[3] is latest[3]
@@ -3906,6 +3923,12 @@ async def _home(request: web.Request) -> web.Response:
                 and getattr(tools, "podview_weather_available", lambda: False)()
             ):
                 weather = {"status": "unavailable", "data": None}
+            if not (
+                same_owner
+                and binding[5] == latest[5]
+                and getattr(tools, "podview_vehicle_available", lambda: False)()
+            ):
+                vehicle = {"status": "unavailable", "data": None}
             passive = getattr(tools, "podview_weather_advice", None)
             if passive is not None:
                 passive.observe(room, weather)
@@ -3929,6 +3952,7 @@ async def _home(request: web.Request) -> web.Response:
             "observedAt": time.time(),
             "vacuum": vacuum,
             "weather": weather,
+            "vehicle": vehicle,
             "weatherAdvice": capability(bridge, room, weather),
         }
         bridge._home_cache[room] = time.monotonic(), binding, result
@@ -3943,6 +3967,12 @@ async def _home(request: web.Request) -> web.Response:
                 include_catalogue=True,
             ),
         }
+        denied = await _guard(request)
+        if denied is not None:
+            return denied
+        vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
+        if vehicle_visible and (not same_read() or current_cache() is None):
+            return _error("home_unavailable", 503)
         return web.json_response(result, headers={"Cache-Control": "no-store"})
 
     finally:
