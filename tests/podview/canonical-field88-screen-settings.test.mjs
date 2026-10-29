@@ -16,8 +16,10 @@ test('settings row names the trailing switch while network rows and native discl
 
 test('technical network facts and build stay inside the native device disclosure',()=>{const disclosure=html.split('<details id="screen-device-more">')[1].split('</details>')[0];for(const id of ['screen-device-network','screen-device-wifi-row','screen-device-browser-row','screen-device-home-row','screen-device-info'])assert.ok(disclosure.includes(`id="${id}"`));assert.doesNotMatch(disclosure,/id="screen-device-(?:brightness|auto-dim)"/);});
 
-test('screen settings do not expose enrollment or log export or access diagnostics',()=>{
+test('screen settings expose explicit access recovery without log export or diagnostic access',()=>{
  const f=fixture();let reads=0;f.host.live=true;f.host.liveStatus='connected';f.host.liveSnapshot={bootId:'boot',roomId:'room',controllerContinuity:{available:true}};f.host.liveTransport={connected:true,snapshot:f.host.liveSnapshot,diagnostics(){reads++;return {schema:'podview.client-diagnostics.v1'};}};
  for(let i=0;i<3;i++)f.host.renderScreenSettings();
- assert.equal(f.host.screenEnrollmentLink,undefined);assert.equal(f.host.screenDiagnosticButton,undefined);assert.equal(reads,0);assert.doesNotMatch(f.$('screen-device-more').children.map(x=>x.textContent).join(' '),/Gem fejllog|Navngiv skærmen/);
+ assert.equal(f.host.screenEnrollmentLink.textContent,'Gendan skærmens adgang');assert.equal(f.host.screenEnrollmentLink.getAttribute('href'),'./setup.html?room=room&enrollment=1');assert.equal(f.host.screenEnrollmentLink.hidden,false);assert.equal(f.host.screenDiagnosticButton,undefined);assert.equal(reads,0);assert.doesNotMatch(f.$('screen-device-more').children.map(x=>x.textContent).join(' '),/Gem fejllog|Navngiv skærmen/);
 });
+
+test('recovery entry follows current validated room and is hidden without a live room',()=>{const f=fixture();f.host.renderScreenSettings();assert.equal(f.host.screenEnrollmentLink.hidden,true);f.host.live=true;f.host.liveSnapshot={bootId:'b',roomId:'r &1'};f.host.renderScreenSettings();assert.equal(f.host.screenEnrollmentLink.getAttribute('href'),'./setup.html?room=r+%261&enrollment=1');f.host.liveSnapshot={bootId:'b',roomId:'r2'};f.host.renderScreenSettings();assert.equal(f.host.screenEnrollmentLink.getAttribute('href'),'./setup.html?room=r2&enrollment=1');f.host.liveSnapshot={};f.host.renderScreenSettings();assert.equal(f.host.screenEnrollmentLink.hidden,true);});

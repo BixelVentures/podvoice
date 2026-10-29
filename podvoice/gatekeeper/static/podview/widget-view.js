@@ -319,6 +319,7 @@ class WidgetHost extends HTMLElement {
   applyKitComponent(brightness,'slider',{identity:'neutral'});
   const values=[['screen-device-note',model?'Eksempelvisning · ændrer ikke enheden':'Enhedsstyring er ikke tilsluttet.'],['screen-device-brightness-value',value],['screen-device-auto-state',auto],['screen-device-dim-rule',model?`Efter ${model.idleMinutes} minutters inaktivitet`:'Indstilles på den fysiske skærm.'],['screen-device-wifi',model?'Forbundet · eksempel':'Ikke oplyst'],['screen-device-browser',browser],['screen-device-home',home],['screen-device-info',typeof __PODVIEW_BUILD__==='string'?__PODVIEW_BUILD__:'Ikke oplyst']];
   for(const [id,text]of values)if($(id).textContent!==text)$(id).textContent=text;
+  const room=this.live&&this.liveSnapshot?.roomId;const link=this.screenEnrollmentLink;if(link){link.hidden=!(typeof room==='string'&&room.length>0);if(!link.hidden){const href='./setup.html?'+new URLSearchParams({room,enrollment:'1'});if(link.getAttribute('href')!==href)link.setAttribute('href',href);}}
   if($('quick-sheet').dataset.deviceState!==(model?'example':'unbound'))$('quick-sheet').dataset.deviceState=model?'example':'unbound';
  }
  buildScreenSettings(){
@@ -328,6 +329,7 @@ class WidgetHost extends HTMLElement {
   for(const id of ['screen-device-wifi-row','screen-device-browser-row','screen-device-home-row'])applyKitComponent($(id),'listrow',{variant:'read-only',identity:'neutral'});$('screen-device-wifi-row').hidden=true;$('screen-device-browser-row').hidden=true;const homeLabel=$('screen-device-home-row').firstElementChild;if(homeLabel)homeLabel.textContent='Home Assistant';
   applyKitComponent($('screen-device-more-summary'),'listrow',{variant:'disclosure',identity:'neutral'});
   const doc=this.ownerDocument||document,info=$('screen-device-info'),version=doc.createElement('div'),versionLabel=doc.createElement('span');versionLabel.textContent='PodView-version';applyKitComponent(version,'listrow',{variant:'read-only',identity:'neutral'});version.className+=' screen-build-row';info.parentNode?.insertBefore(version,info);version.append(versionLabel,info);  // Only the authored local specimen has controls. No browser/global object grants device authority.
+  const recovery=doc.createElement('a');recovery.textContent='Gendan skærmens adgang';applyKitComponent(recovery,'button',{variant:'secondary'});recovery.hidden=true;$('screen-device-more').append(recovery);this.screenEnrollmentLink=recovery;
   const fixture=()=>!this.live&&this.previewStage==='screen-device-ready';
   brightness.addEventListener('change',()=>{if(!fixture()||brightness.disabled)return;const value=Number(brightness.value);if(!Number.isInteger(value)||value<0||value>100)return;this.screenDeviceFixture={...this.screenDeviceFixture,brightness:value};this.renderScreenSettings();});
   automatic.addEventListener('click',()=>{if(!fixture()||automatic.disabled)return;this.screenDeviceFixture={...this.screenDeviceFixture,autoDim:!this.screenDeviceFixture.autoDim};this.renderScreenSettings();});
