@@ -1,3 +1,8 @@
+## 2.0.102
+
+- Restore the screen’s same-origin enrollment entry for the current room while preserving existing controller and vehicle authorization.
+- No automatic enrollment or vehicle action is introduced.
+
 ## 2.0.101
 
 - Tesla: bind faktisk lås, klima, temperatur, afrimning, sædevarme og bagagerumsbetjening til samme bil og godkendte skærm.

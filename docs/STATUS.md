@@ -7046,3 +7046,28 @@ Root focused software checks pass: 128 unit/read tests, 39 actual loopback HTTP 
   "version": 78
 }
 -->
+
+## 29 October — explicit screen-access recovery candidate102
+User action-time approves precise missing entry fix plus publication/install. Root cause actualGreen101: policy saved and running; enrolledMacbook exists but normalHAactor does not grantvehicle; removednamed enrollment link makes same-origin recovery unreachable through Screen UI. Directexternalroutecrossorigindenied is properguard, notguardremoval. PodViewownsminimalrelative entry to existingsetup.html?room=current&enrollment=1; preservecurrentroom/controller authority and no autoenrollment/car action. Root soleintegration/release; passiveactualsetup/proposalonly verification, no physicalcar commands. Rollbackrevertsonlyentry; Green101policy retained. No broader music/robot/UI changes. Base97b9863b855446c20c043fdb0ab5ad1b37e99020; sourcepatch/review/softwareproof pending, deliverynotclaimed.
+
+<!-- podvoice102-admission
+{
+  "base_tip": "97b9863b855446c20c043fdb0ab5ad1b37e99020",
+  "config_fingerprint": "643c2e81618f5f6a556032bcc42525b8c37c91dfd74a60d56dc2cc3838eeab7d",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "5cfd50bd2b83d779a996ec3c9a93208e4192187de81f7e9cb8f3692757ffc6ca",
+  "kind": "podvoice102_screen_access",
+  "manifest_fingerprint": "87eff352829d077c17364ceda7add914c4bba9062e7273be405d0a8456d91a57",
+  "merge_base": "97b9863b855446c20c043fdb0ab5ad1b37e99020",
+  "policy_fingerprint": "64ade539a28a532386bf611b9d199581fc4d716d5e565e7957ca04bcb681d7cc",
+  "rationale": "Restores the same-origin current-room enrollment entry in Screen settings. Existing controller and vehicle authority, external-route denial, and no-automatic-action behavior remain unchanged. Exact scope: 4 production assets, 1 causal regression, 341 runtime pins, 4 version/config pins, and 6 policy pins.",
+  "regression_fingerprint": "e3c888655a591b0d1be08b009136f11fd5862548a0553ed45342b9a05cf03522",
+  "reviewer": "/root/review_catalogue_join",
+  "runtime_fingerprint": "1622edc2230b95b79fc564851e4d5678b4e92f3eeed952c16009b82b3fb04d9b",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 79
+}
+-->
