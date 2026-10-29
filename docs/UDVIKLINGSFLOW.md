@@ -23,6 +23,18 @@ hverken ny produktretning eller acceptgate. Den fulde risikokontrol står i
 10. Hold kilde, CI, providerprøve, publicering, installation og fysisk accept adskilt;
     saml fysiske prøver i én serie.
 
+## Godkendelse til installeret produkt
+
+Ved UI-ændringer følges [AGENTS](../AGENTS.md#godkendt-ui-er-et-leveringskrav).
+Før freeze skal den eksisterende feedbackpost forbinde godkendt reference og regler
+med kandidatens komponenter og faktiske serviceadgang. Brug samme renderer i bibliotek
+og liveprodukt. Før release bruges lokal reference mod lokalt bygget produkt;
+kodebinding og genbrugt evidens er nok, hvor render er uændret. Kontrollér kun berørte
+tilstande. Efter installation sammenlignes relevant Green-visning med referencen.
+Green-/fysisk slutprøve må ikke blive et krav før release. Manglende funktion eller en reduceret
+livevisning er en restfejl, ikke en accepteret levering. Genbrug uændret evidens;
+reglen tilføjer ingen bred testserie eller selvstændig release.
+
 ## Lokale kommandoer
 
 Brug ekstern Python 3.12 fra den faste venv. scripts/dev starter

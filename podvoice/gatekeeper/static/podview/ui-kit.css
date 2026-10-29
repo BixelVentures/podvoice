@@ -2134,13 +2134,13 @@ pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure:last-chi
 pv-widget-host #vehicle-view .vehicle-climate-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s1)}
 pv-widget-host #vehicle-view .vehicle-climate-actions>button{height:var(--pv-hit);padding:0 var(--pv-s2)}
 pv-widget-host #vehicle-view .vehicle-temperature-controls{align-self:start}
-pv-widget-host #vehicle-view .vehicle-artwork{min-height:calc(var(--pv-hit) + var(--pv-s3));grid-template-rows:calc(var(--pv-hit) + var(--pv-s3)) auto}
-pv-widget-host #vehicle-view .vehicle-artwork>.vehicle-image{max-height:calc(var(--pv-hit) + var(--pv-s3))}
+pv-widget-host #vehicle-view .vehicle-artwork{min-height:160px;grid-template-rows:160px auto}
+pv-widget-host #vehicle-view .vehicle-artwork>.vehicle-image{max-height:160px}
 pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero:not([data-kit-variant=message]){gap:var(--pv-s2)}
 pv-widget-host #vehicle-view .pv-kit-disclosure{width:100%}
 pv-widget-host #vehicle-view .pv-kit-disclosure>.pv-kit-listrow{padding:0;box-shadow:none}
 pv-widget-host #vehicle-view .pv-kit-disclosure>div:not([hidden]){display:grid;gap:var(--pv-s2);padding-top:var(--pv-control-panel-gap)}
-@media(min-width:1200px){pv-widget-host #vehicle-view .vehicle-content{grid-template-columns:minmax(0,1fr) calc(3 * var(--pv-hit))}pv-widget-host #vehicle-view .vehicle-hero[data-charging=true] .vehicle-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--pv-s2)}}
+@media(min-width:1200px){pv-widget-host #vehicle-view .vehicle-content{grid-template-columns:minmax(0,1fr) calc(4 * var(--pv-hit))}pv-widget-host #vehicle-view .vehicle-hero[data-charging=true] .vehicle-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--pv-s2)}}
 @media(max-width:1199px){pv-widget-host #vehicle-view .vehicle-hero[data-charging=true] .vehicle-metric>dt{min-height:calc(2 * var(--pv-leading-meta))}}
 pv-widget-host #vehicle-view .pv-kit-disclosure>div:not([hidden]){grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-s3)}
 @media(max-width:1199px){pv-widget-host #vehicle-view .pv-kit-disclosure>div:not([hidden]){grid-template-columns:minmax(0,1fr)}}

@@ -108,6 +108,48 @@ async def test_bounded_reader_rejects_line_flood_without_queueing_commands(
     await asyncio.gather(*transport._tasks)
 
 
+async def test_reader_accepts_approve_after_prepare_receipt_delivery_before_http_finishes(
+    tmp_path, monkeypatch
+):
+    bridge, state, transport, _, _ = rig(tmp_path)
+    row, registry = state.profiles(
+        "kitchen", bridge.controller_pin("kitchen"), transport.registry_path
+    )
+    bridge._controller_registry = registry
+    bridge._controller_enabled = row["enabled"]
+    bridge._controller_admin_state = state
+    pending, _ = bridge.request_controller("kitchen", "Macbook")
+    delivered, finish_http = asyncio.Event(), asyncio.Event()
+    receipts = []
+
+    async def receipt(value, outcome):
+        receipts.append((value["action"], outcome))
+        if value["action"] == "prepare":
+            delivered.set()  # HA's receipt service resolves its command future here.
+            await finish_http.wait()
+
+    transport._receipt = receipt
+
+    def stdin(action, nonce):
+        raw = command(action, request_id=pending["requestId"], nonce=nonce) + b"\n"
+        with monkeypatch.context() as scoped:
+            scoped.setattr("gatekeeper.podview_admin_transport.os.read", lambda *_: raw)
+            transport._readable()
+
+    stdin("prepare", "b" * 32)
+    await asyncio.wait_for(delivered.wait(), 2)
+    stdin("approve", "c" * 32)
+    stdin("approve", "d" * 32)  # One waiting successor; no unbounded queue.
+    assert len(transport._tasks) == 2
+    # Effects remain serialized while the previous HTTP response finishes.
+    await asyncio.sleep(0)
+    assert bridge._controller_requests[pending["requestId"]]["status"] == "pending"
+    finish_http.set()
+    await asyncio.gather(*transport._tasks)
+    assert receipts == [("prepare", "committed"), ("approve", "committed")]
+    assert bridge._controller_requests[pending["requestId"]]["status"] == "approved"
+
+
 async def test_revoke_remains_available_when_room_owner_goes_offline(tmp_path):
     bridge, state, transport, timers, receipts = rig(tmp_path)
     await transport.process(command("provision", code="m" * 43))

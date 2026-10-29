@@ -315,8 +315,8 @@ test('server proposal that can wake car requires explicit user confirmation even
 
 test('vehicle actions follow fresh observed state and server capability without inferring unknown state',()=>{
  const {root}=fixture(),view=new VehicleView(root),actions=['lock','unlock','climateOn','climateOff'];const observe=(locked,status)=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car'],data:{locked,charging:{},climate:{status}}});
- view.render(observe(true,'off'),{vehicleActions:actions});assert.equal(view.liveVehicleButtons.lock.hidden,true);assert.equal(view.liveVehicleButtons.unlock.hidden,false);assert.equal(view.liveVehicleButtons.climateOn.hidden,false);assert.equal(view.liveVehicleButtons.climateOff.hidden,true);
- view.render(observe(false,'heat'),{vehicleActions:actions});assert.equal(view.liveVehicleButtons.lock.hidden,false);assert.equal(view.liveVehicleButtons.unlock.hidden,true);assert.equal(view.liveVehicleButtons.climateOn.hidden,true);assert.equal(view.liveVehicleButtons.climateOff.hidden,false);
+ view.render(observe(true,'off'),{vehicleActions:actions});assert.equal(view.liveVehicleButtons.lock.hidden,true);assert.equal(view.liveVehicleButtons.unlock.hidden,false);assert.equal(view.liveVehicleButtons.climateOn.hidden,true);assert.equal(view.climateToggle.hidden,false);assert.equal(view.liveVehicleButtons.climateOff.hidden,true);
+ view.render(observe(false,'heat'),{vehicleActions:actions});assert.equal(view.liveVehicleButtons.lock.hidden,false);assert.equal(view.liveVehicleButtons.unlock.hidden,true);assert.equal(view.liveVehicleButtons.climateOn.hidden,true);assert.equal(view.liveVehicleButtons.climateOff.hidden,true);assert.equal(view.climateToggle.hidden,false);
  view.render(observe(null,null),{vehicleActions:['lock','climateOn']});assert.equal(view.liveVehicleButtons.lock.hidden,false);assert.equal(view.liveVehicleButtons.unlock.hidden,true);assert.equal(view.liveVehicleButtons.climateOn.hidden,false);assert.equal(view.liveVehicleButtons.climateOff.hidden,true);
 });
 
@@ -363,4 +363,42 @@ test('stale controls use explicit offered actions with confirmation and no infer
  const data=vehicleObservation({status:'stale',source:'home_assistant_state',observedAt:100,entityIds:['climate.car','lock.car'],data:{locked:true,climate:{status:'off',defrost:false,targetTemperatureC:19.5,minTemperatureC:15,maxTemperatureC:28,temperatureStepC:0.5,driverSeatHeat:'off'}}});
  view.render(data,{vehicleActions:['lock','unlock','climateOn','climateOff','defrostOn','defrostOff','temperature','driverSeatHeat','rearTrunkToggle']});assert.equal(view.model.stale,true);for(const action of ['lock','unlock','climateOn','climateOff'])assert.equal(view.liveVehicleButtons[action].hidden,false);for(const action of ['defrostOn','defrostOff'])assert.equal(view.staleDefrostButtons[action].hidden,false);assert.equal(view.temperatureControls.hidden,false);assert.equal(view.seatGroups.driver.node.hidden,false);assert.equal(view.rearTrunkButton.hidden,false);
  view.staleDefrostButtons.defrostOff.dispatchEvent(new Event('click'));await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(setups,[['defrostOff',{}]]);assert.equal(view.confirmation.open,true);assert.equal(sends,0);view.lockConfirm.dispatchEvent(new Event('click'));await new Promise(resolve=>setTimeout(resolve,0));assert.equal(sends,1);view.cleanup();
+});
+
+test('observed controls reuse access and climate kit anatomy and keep offered authority',()=>{
+ const {root}=fixture(),view=new VehicleView(root);
+ const data=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['lock.car','climate.car','cover.trunk'],data:{locked:true,climate:{status:'heat_cool',targetTemperatureC:21.5,minTemperatureC:15,maxTemperatureC:28,temperatureStepC:0.5},access:{rearTrunk:'closed'}}});
+ view.render(data,{vehicleActions:['unlock','climateOff','rearTrunkToggle','temperature']});
+ assert.equal(view.liveVehicleButtons.unlock.parentNode,view.lockControls);
+ assert.equal(view.liveVehicleButtons.unlock.hidden,false);
+ assert.equal(view.liveVehicleButtons.unlock.dataset.kitVariant,'primary');
+ assert.equal(view.liveVehicleButtons.climateOff.dataset.kitSlot,'header-action');
+ assert.equal(view.climate.detail.dataset.kitLayout,'header-action');
+ assert.equal(view.rearTrunkButton.textContent,'Åbn/luk bagagerum');
+ view.dismissConfirmation({restoreFocus:false});
+ assert.equal(view.temperatureValue.textContent,'21,5 °C');
+ view.render(data,{vehicleActions:[]});
+ assert.equal(view.liveVehicleButtons.unlock.hidden,true);
+ assert.equal(view.liveVehicleButtons.climateOff.hidden,true);
+ assert.equal(view.lockControls.hidden,true);
+ view.cleanup();
+});
+
+test('observed trunk status is qualified when stale and never invents closed',()=>{
+ const {root}=fixture(),view=new VehicleView(root),make=(status,trunk)=>vehicleObservation({status,source:'home_assistant_state',observedAt:100,entityIds:['cover.trunk'],data:{locked:true,...(trunk?{trunk}:{})}});
+ view.render(make('observed','open'));assert.match(view.status.textContent,/Bagagerum åbent/);
+ view.render(make('observed','closed'));assert.doesNotMatch(view.status.textContent,/Bagagerum/);
+ view.render(make('observed',null));assert.doesNotMatch(view.status.textContent,/Bagagerum/);
+ view.render(make('stale','open'));assert.match(view.status.textContent,/Sidst kendt: bagagerum åbent/);
+ view.render(make('observed','open'),{connected:false});assert.match(view.status.textContent,/Sidst kendt: bagagerum åbent/);
+ view.cleanup();
+});
+
+test('fresh climate toggle uses offered opposite intent without optimistic state changes',async()=>{
+ const {root}=fixture(),calls=[],view=new VehicleView(root,{onVehicleSetup:async(action)=>{calls.push(action);return null;}});
+ const observed=status=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['climate.car'],data:{climate:{status,driverSeatHeat:'high',passengerSeatHeat:'low'}}});
+ view.render(observed('off'),{vehicleActions:['climateOn','driverSeatHeat','passengerSeatHeat']});
+ assert.equal(view.climateToggle.hidden,false);const before=view.climateToggle.getAttribute('aria-checked');view.climateToggle.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls,['climateOn']);assert.equal(view.climateToggle.getAttribute('aria-checked'),before);
+ view.render(observed('heat'),{vehicleActions:['climateOff']});view.climateToggle.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls,['climateOn','climateOff']);
+ view.render(observed(null),{vehicleActions:['climateOn','climateOff']});assert.equal(view.climateToggle.hidden,true);assert.equal(view.liveVehicleButtons.climateOn.hidden,false);assert.equal(view.liveVehicleButtons.climateOff.hidden,false);view.cleanup();
 });

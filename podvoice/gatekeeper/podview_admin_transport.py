@@ -123,6 +123,7 @@ class AdminStdinTransport:
         self.token = token
         self._buffer = bytearray()
         self._tasks: set[asyncio.Task] = set()
+        self._stdin_execution: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._listening = False
 
@@ -233,17 +234,23 @@ class AdminStdinTransport:
         while b"\n" in self._buffer:
             raw, _, tail = self._buffer.partition(b"\n")
             self._buffer = bytearray(tail)
-            if self._tasks:
+            if self._stdin_execution is not None:
                 rejected = True
                 continue
             task = asyncio.create_task(self.process(bytes(raw)), name="podview-admin-command")
+            self._stdin_execution = task
             self._tasks.add(task)
-            task.add_done_callback(self._tasks.discard)
+            task.add_done_callback(self._stdin_done)
         if rejected:
             _LOG.warning(_REJECTED)
         if len(self._buffer) > 1024:
             self._buffer.clear()
             _LOG.warning(_REJECTED)
+
+    def _stdin_done(self, task):
+        self._tasks.discard(task)
+        if self._stdin_execution is task:
+            self._stdin_execution = None
 
     async def process(self, raw: bytes):
         try:
@@ -497,6 +504,11 @@ class AdminStdinTransport:
             except (OSError, ValueError, TypeError, KeyError, AttributeError, TimeoutError):
                 _LOG.warning(_REJECTED)
             command["_result"] = result
+            # HA resolves its exchange as soon as the receipt service runs, before
+            # this HTTP response finishes. Admit that successor instead of losing
+            # it; the existing lock still makes it wait for this task to finish.
+            if self._stdin_execution is asyncio.current_task():
+                self._stdin_execution = None
             await self._receipt(command, outcome)
 
     async def _receipt(self, command: dict, outcome: str):

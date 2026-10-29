@@ -1,3 +1,10 @@
+## 2.0.103
+
+- Keep Tesla vehicle identity and trunk action state consistent across the backend, frontend, and refresh observations.
+- Preserve fresh climate and seat-control feedback, and isolate robot cleaning choices, status, and history by domain.
+- Serialize concurrent PodView admin receipts so callers observe the established provisioning result.
+- Publication, installation, and physical vehicle or robot acceptance are separate.
+
 ## 2.0.102
 
 - Restore the screen’s same-origin enrollment entry for the current room while preserving existing controller and vehicle authorization.

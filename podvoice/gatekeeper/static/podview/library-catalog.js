@@ -141,6 +141,7 @@ export const productLibrary=[
  ]},
  {id:'vehicle',name:'Tesla',category:'Hjem',description:'Ærlig ikke-tilsluttet bil samt tydeligt lokale og passive status-eksempler.',usage:'Bilen er en sekundær destination. Ukendte værdier må ikke ligne målte data.',interaction:'Åbn de eksisterende detaljer om opladning, klima og øvrige muligheder.',limitations:['Ingen Tesla-integration, målinger eller betjening er tilsluttet. Passive ukendte/sidst kendte observationer og lokale ladeeksempler er særskilt mærket.','Bilkontrakten tilbyder ingen kommando-pending, fault eller bagagerumskommando. De manglende tilstande opfindes ikke.'],states:[
   state('vehicle','conversation-overview','Overblik · ikke tilsluttet','Den kompakte bilindgang uden påstået batteri eller rækkevidde.'),
+  state('vehicle','vehicle-admitted-example','Detaljer · lokalt betjeningseksempel','Simuleret visning af tilbudte handlinger; ingen bil betjenes.'),
   state('vehicle','vehicle-unconnected','Detaljer · ikke tilsluttet','Bilens faktiske nuværende produktstatus og åbne detaljeafsnit.'),
   state('vehicle','vehicle-charging','Opladning · lokalt eksempel','Eksempel på batteri, ladeeffekt og forventet sluttid; ingen bilforbindelse.'),
   state('vehicle','vehicle-charging-overview','Overblik · lokalt ladeeksempel','Samme eksempel i overblikkets aktivitet uden reel bilforbindelse.'),
