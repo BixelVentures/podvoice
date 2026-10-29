@@ -8,7 +8,7 @@
     "pyproject.toml": "613b516eca8ce460012ec615e01235fb272aee8c1ac894cbd4fa81b0de140d42"
   },
   "policy": {
-    ".github/workflows/ci.yml": "13863b0d377ba14317a056dc3bbeb9d8eb348c3129ebd2f9ab87341dc07819de",
+    ".github/workflows/ci.yml": "333b6fae7731501f3f822d923a4083ed1264cf45ba1e29b601a5b228bfc7c41a",
     "AGENTS.md": "6d5f79e38a81b350d6dabe2e2ae39be05dd7cd8e41c6139b74b084881b24d7fd",
     "CLAUDE.md": "e05e150ec54928287fcaa8643607f64a186bebbc59e480b14cc4e6aabceb0bf7",
     "docs/POD-SYSTEM-STANDARD.md": "b7fb383d37779ade0ee5cbaa0d2c0ed3db9c08ef018f419be57d73339a85fe82",
