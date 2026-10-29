@@ -76,7 +76,9 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_admin_provision.py",
         "tests/podview/canonical-next-robot-control-panel.test.mjs",
         "tests/podview/canonical-next-vehicle-view.test.mjs",
+        "tests/podview/canonical-packet-robot-control-panel.test.mjs",
         "tests/podview/robot-cross-disclosure-history.test.mjs",
+        "tests/podview/root-library-catalog.test.mjs",
         "tests/podview/root-live-control-view.test.mjs",
         "tests/podview/root-preview-scenes.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
@@ -93,8 +95,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/admin_race_review"
-MANIFEST_SHA = "50d05b0ae9dacd75fdb2ae74f056bf0a1191771e80f4726d20d45dc9bd3b5a38"
-PROFILE_AST = "c36c5f606f47f256f4b7d48bf751a80b7fbba3b79b937da7ee234677fd40cfda"
+MANIFEST_SHA = "07af59f3eef7727b09fe269e49ffbb79a3719666fe4a41584327ba1fcb5ab281"
+PROFILE_AST = "e800ef7821b5bfcde7dfa468585635376a2214af2e6c763c96eee68907c55b55"
 
 
 def record_at(root: Path) -> dict | None:
@@ -270,7 +272,9 @@ def inspect_repository(root: Path, base: str) -> legacy.CandidateScope:
             else "missing or invalid PodVoice103 Tesla and robot recovery admission",
         )
     except (OSError, ValueError, TypeError, KeyError, SyntaxError, AttributeError):
-        return replace(report, passed=False, reason="malformed PodVoice103 Tesla and robot recovery admission")
+        return replace(
+            report, passed=False, reason="malformed PodVoice103 Tesla and robot recovery admission"
+        )
 
 
 def main(argv=None) -> int:

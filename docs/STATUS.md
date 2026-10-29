@@ -7077,7 +7077,7 @@ User action-time approves precise missing entry fix plus publication/install. Ro
 29Oct lead UI decision before final robot edit: approved per-mode visual choice subset applies equally to actual source-offered choices and local fixture. This is product presentation restriction, NOT undocumented hardware capability assertion. Never add choices; retain exact opaque IDs and servervalidation. For known both hide Max+ suction/deep mop routes; known vacuum hide deep mop routes as existing approvedexample. Unknown/custom no inferredmodefilter. Preserve special currenthiddenvaluenote, never autosend orchangeactualsetting. Same canonicalhelperwithoutfixtureonlyfork; causaltests liveoffers/custom/unchangedauthority. No robot capability-matrix audit/configexpansion. This invalidates only robothelper/source/render proof; reuse all unchangedTesla/backend reviews.
 
 ## 29 October — 2.0.103 integrated candidate, source review GO
-Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podview.bundle.js` SHA-256: `f022545e2ba069ee17b45a9bf3a433e6391fad0bc0a3e3afe506b9ac9b6a2ad1`; `asset-manifest.json`: `2830b4451abdd2c74abe73ffff3d9d39c9c84a793a259ac3dd63b10746623b69`. Exact admission binds 17 production paths, 10 regressions, 341 runtime paths, 4 configuration paths, and 8 policy-file pins. The existing 215-asset integrity check passes. Independent source review `/root/admin_race_review` is GO for the integrated source, including the restored robot choice count/style on custom and unknown modes and its transition regression. Exact candidate-scope admission passes. The CI dispatcher now routes exact base `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6` to admission103 and is titled strict34-103; its independent GPT-6.1-Sol review is GO for workflow routing only. CI, publication, installation, live service, and physical acceptance remain separate and are not claimed here.
+Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podview.bundle.js` SHA-256: `8bfd3a0536f7bbbe1faa5312b8472dbab620fa75d6a4596576b7ba29432d5c6a`; `asset-manifest.json`: `a7542ab953d042bb9e1653ae3cca49bafa4b9e458e9fe24346356054b8047fd9`. Exact admission binds 17 production paths, 12 regressions, 341 runtime paths, 4 configuration paths, and 8 policy-file pins. The existing 215-asset integrity check passes. Independent source review `/root/admin_race_review` is GO for the integrated source, including the restored robot choice count/style on custom and unknown modes and its transition regression. Exact candidate-scope admission passes. The CI dispatcher now routes exact base `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6` to admission103 and is titled strict34-103; its independent GPT-6.1-Sol review is GO for workflow routing only. CI, publication, installation, live service, and physical acceptance remain separate and are not claimed here.
 
 <!-- podvoice103-admission
 {
@@ -7087,15 +7087,15 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "6923c5293c31f5481853f2732334d6277d613e431a1552ac53ed804743127c98",
+  "fingerprint": "0b67bf0938fbf6ce0fd54ca582a0534f418854fb416fc48dbba6e66850614e61",
   "kind": "podvoice103_tesla_robot_recovery",
-  "manifest_fingerprint": "50d05b0ae9dacd75fdb2ae74f056bf0a1191771e80f4726d20d45dc9bd3b5a38",
+  "manifest_fingerprint": "07af59f3eef7727b09fe269e49ffbb79a3719666fe4a41584327ba1fcb5ab281",
   "merge_base": "c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6",
-  "policy_fingerprint": "d7502cd60c15e8b645d4d715783af16e36e532e06fbf619f03af0f3c99f0ddcd",
-  "rationale": "Integrated 2.0.103 Tesla, robot and concurrent admin-receipt corrections. Final bundle and 215-asset inventory are bound to this source tree; robot choice count and style restore on custom and unknown modes. Independent source review GO: /root/admin_race_review. Exact scope: 17 production paths, 10 regressions, 341 runtime pins, 4 configuration pins, and 8 policy file pins. CI dispatch selects this exact profile for base c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6. The exact CI dispatcher change was independently reviewed GO by GPT-6.1-Sol; CI, publication, installation, live service and physical acceptance remain separate.",
-  "regression_fingerprint": "e9ed8a3e3b0e8199d69f9d41a9580a54a1fc92ed7927279f7fae194ae4ca5817",
+  "policy_fingerprint": "ca006ad40130addc293ffc1bb325465f120121d01f0ed610fbcf4929218d8de0",
+  "rationale": "Integrated 2.0.103 Tesla, robot and concurrent admin-receipt corrections. Final bundle SHA-256 8bfd3a0536f7bbbe1faa5312b8472dbab620fa75d6a4596576b7ba29432d5c6a; 215-asset inventory a7542ab953d042bb9e1653ae3cca49bafa4b9e458e9fe24346356054b8047fd9 is bound to this source tree. Robot choice count and style restore on custom and unknown modes. Independent source review GO: /root/admin_race_review. Exact scope: 17 production paths, 12 regressions, 341 runtime pins, 4 configuration pins, and 8 policy file pins. CI dispatch selects this exact profile for base c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6; the workflow routing review is GPT-6.1-Sol GO. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "63b72b1399072ddf98b5e0b08d514de8533cef846709e3482d2a182f1efd49a8",
   "reviewer": "/root/admin_race_review",
-  "runtime_fingerprint": "709a28e9ea023d98be643ec1b82f96583ffea0971e99674eaa58346c9307c7bb",
+  "runtime_fingerprint": "7c5a4c71b4d9ec682597dacd60edcf38805f44c8b8b78bcfab700d2ad244c769",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 80
 }
