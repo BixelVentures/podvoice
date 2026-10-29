@@ -53,7 +53,13 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/static/podview/widget-view.js",
     }
 )
-REQUIRED_TESTS = frozenset({"tests/podview/root-screen-settings.test.mjs"})
+REQUIRED_TESTS = frozenset(
+    {
+        "tests/podview/canonical-field88-screen-settings.test.mjs",
+        "tests/podview/root-screen-settings.test.mjs",
+        "tests/podview/screen-cleanup.test.mjs",
+    }
+)
 
 HA_RUNTIME = previous.HA_RUNTIME
 IMMUTABLE = previous.IMMUTABLE | {
@@ -62,8 +68,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/review_catalogue_join"
-MANIFEST_SHA = "87eff352829d077c17364ceda7add914c4bba9062e7273be405d0a8456d91a57"
-PROFILE_AST = "b6873ef3265c61ddd4b93729361e69a2a938aa78091909dedf4d413af9e93a14"
+MANIFEST_SHA = "c575c082f1cefa28b125d9a38ff10de83971676a0bafd3e387e70b82cd35ddc9"
+PROFILE_AST = "8215df576ea6825c0bf078a6adc7a9b3ab21386e75da939f43f75d1c0394f6db"
 
 
 def record_at(root: Path) -> dict | None:

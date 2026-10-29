@@ -20,7 +20,9 @@
     "podvoice/gatekeeper/static/podview/widget-view.js": "968fd4a213ca7441c797cb16934d0dad7b5eb2de08a9dd8c47b1923a235247b4"
   },
   "regressions": {
-    "tests/podview/root-screen-settings.test.mjs": "b2e188b1ac492606854a35e59a9e3aabca13a5bcf92eb6789b88e7653df4dbda"
+    "tests/podview/canonical-field88-screen-settings.test.mjs": "efa70e209ec2c59fc23c8243854fbdddcd90e7440322ad61617063d502f5f2cf",
+    "tests/podview/root-screen-settings.test.mjs": "b2e188b1ac492606854a35e59a9e3aabca13a5bcf92eb6789b88e7653df4dbda",
+    "tests/podview/screen-cleanup.test.mjs": "acee02700d094c4366ea96ed1a2c4cafa4ae4868bd439b97d61f272aab9c6300"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "02d98493b9d504f286263cb04a79943f67acd3b9e5804595ac9c68845efdee37",
