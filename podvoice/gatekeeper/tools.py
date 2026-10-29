@@ -2458,9 +2458,25 @@ class ToolRouter:
             return row
 
         try:
-            return await podview_vehicle.read(
+            result = await podview_vehicle.read(
                 scope, registry_read=registry_read, state_read=state_read, current=current
             )
+            if result.get("status") == "observed":
+
+                async def device_registry_read():
+                    try:
+                        return await owner._ws_read({"type": "config/device_registry/list"})
+                    except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
+                        return None
+
+                model = await podview_vehicle.read_model_name(
+                    scope, registry_read=device_registry_read, current=current
+                )
+                if not current():
+                    return unavailable
+                if model is not None:
+                    result["data"]["modelName"] = model
+            return result
         except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
             podview_vehicle.diagnostic("transport")
             return unavailable

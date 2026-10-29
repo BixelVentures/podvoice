@@ -119,6 +119,30 @@ klassifikationen findes i [dokumentationsindekset](docs/README.md).
   handling. Luk først issuet mod dets faktiske acceptkrav; testantal og estimater
   er ikke bevis for funktion. Eksisterende sikkerheds- og reviewkrav bevares.
 
+## Godkendt UI er et leveringskrav
+
+- Brugerens seneste godkendte UI og adfærdsregler er acceptgrundlaget. Lead knytter
+  reference/screenshot, kilderevision og de konkrete regler til den eksisterende
+  STATUS-/feedbackpost; godkendelser fra andre Pod-chats skal indhentes før integration.
+- Bibliotek, eksempelvisning og liveprodukt bruger samme kanoniske komponent og
+  layout. Testdata/adaptorer må variere; en særskilt reduceret live-renderer må ikke
+  erstatte den godkendte oplevelse. Adgang og faktisk kapabilitet håndhæves ved
+  handlingsgrænsen og må ikke skjule et udokumenteret integrationsgap.
+- Før release valideres med mindste dækkende kontrol, at det godkendte er med:
+  sammenlign lokal godkendt visning med lokalt bygget produkt og kontrollér komponent-/
+  kodebinding. Genbrug uændret evidens; kode-til-kode-kontrol er nok ved uændret render.
+  Prøv kun relevante ændrede tilstande, klik, refresh, bevarede valg og navigation.
+  Kendt manglende funktion/layout blokerer; manglende Green-/fysisk prøve gør ikke
+  lokal UI-validering til en ny releaseblokering. Fixture er ikke live-/fysisk bevis.
+- Genbyg produkt og bibliotek fra samme kandidat med eksisterende buildværktøjer.
+  Kontrollér kilde-/assetbinding før release. Efter installation kontrolleres version
+  og relevant visning på Green; dette er leveringskontrol, ikke et cirkulært krav om
+  installation før release. En gammel bundle tæller ikke som den nye kandidats bevis.
+- Manglende data, adgang, funktion eller visuel afvigelse står åbent med ejer og næste
+  handling. Ingen tavs scopeindskrænkning, opdigtede enhedsdata eller færdigmelding.
+  Har brugeren krævet begge områder færdige før release, er enhver sådan rest en
+  releaseblokering. Brug eksisterende kontroller; opret ikke et nyt QA-/statussystem.
+
 ## Agentvalg
 
 Brug hurtigste tilstrækkeligt kompetente model. Afgrænsede docs-, status-, GitHub- og

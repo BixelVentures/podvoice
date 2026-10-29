@@ -7071,3 +7071,32 @@ User action-time approves precise missing entry fix plus publication/install. Ro
   "version": 79
 }
 -->
+
+29Oct combined integration decision beforecode: candidate /private/tmp/pv-combined103-20261029 fromexact102. User29Octscreenshotsprove separatefixture/liveTeslaanatomy androbotrefresh/crossdomain/history defects. Integrateonly reviewedownerpatches Tesla16ca5d..., robotcross52e25d...+parent527d...+panel2252e8..., adminrace8c3129...; sharedwidget hunks reviewedtogether. Preservecanonicalkit/realHAobservations/actions,serialauthority,nonceexpiry/UNKNOWNnoreplay. Non-goalsvehicle/robot/audioeffects,hardcodedfixtureidentity/capabilities,newfeatures. ProveadmittedTesla+robotactive/idle refreshandstate viaexistingharness thencombinedscope/review/officialCI beforeoneinstall. Softwareevidencenotphysicalaccept. No versionbumpuntilcausalintegrationcomplete.
+
+29Oct lead UI decision before final robot edit: approved per-mode visual choice subset applies equally to actual source-offered choices and local fixture. This is product presentation restriction, NOT undocumented hardware capability assertion. Never add choices; retain exact opaque IDs and servervalidation. For known both hide Max+ suction/deep mop routes; known vacuum hide deep mop routes as existing approvedexample. Unknown/custom no inferredmodefilter. Preserve special currenthiddenvaluenote, never autosend orchangeactualsetting. Same canonicalhelperwithoutfixtureonlyfork; causaltests liveoffers/custom/unchangedauthority. No robot capability-matrix audit/configexpansion. This invalidates only robothelper/source/render proof; reuse all unchangedTesla/backend reviews.
+
+## 29 October — 2.0.103 integrated candidate, source review GO
+Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podview.bundle.js` SHA-256: `8bfd3a0536f7bbbe1faa5312b8472dbab620fa75d6a4596576b7ba29432d5c6a`; `asset-manifest.json`: `a7542ab953d042bb9e1653ae3cca49bafa4b9e458e9fe24346356054b8047fd9`. Exact admission binds 17 production paths, 12 regressions, 341 runtime paths, 4 configuration paths, and 8 policy-file pins. The existing 215-asset integrity check passes. Independent source review `/root/admin_race_review` is GO for the integrated source, including the restored robot choice count/style on custom and unknown modes and its transition regression. Exact candidate-scope admission passes. The CI dispatcher now routes exact base `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6` to admission103 and is titled strict34-103; its independent GPT-6.1-Sol review is GO for workflow routing only. CI, publication, installation, live service, and physical acceptance remain separate and are not claimed here.
+
+<!-- podvoice103-admission
+{
+  "base_tip": "c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6",
+  "config_fingerprint": "1fb9a754168cce1339fc40be76d15271dfbb0f3b3289a844c6dd4b3bdb4dc18f",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "0b67bf0938fbf6ce0fd54ca582a0534f418854fb416fc48dbba6e66850614e61",
+  "kind": "podvoice103_tesla_robot_recovery",
+  "manifest_fingerprint": "07af59f3eef7727b09fe269e49ffbb79a3719666fe4a41584327ba1fcb5ab281",
+  "merge_base": "c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6",
+  "policy_fingerprint": "ca006ad40130addc293ffc1bb325465f120121d01f0ed610fbcf4929218d8de0",
+  "rationale": "Integrated 2.0.103 Tesla, robot and concurrent admin-receipt corrections. Final bundle SHA-256 8bfd3a0536f7bbbe1faa5312b8472dbab620fa75d6a4596576b7ba29432d5c6a; 215-asset inventory a7542ab953d042bb9e1653ae3cca49bafa4b9e458e9fe24346356054b8047fd9 is bound to this source tree. Robot choice count and style restore on custom and unknown modes. Independent source review GO: /root/admin_race_review. Exact scope: 17 production paths, 12 regressions, 341 runtime pins, 4 configuration pins, and 8 policy file pins. CI dispatch selects this exact profile for base c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6; the workflow routing review is GPT-6.1-Sol GO. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "63b72b1399072ddf98b5e0b08d514de8533cef846709e3482d2a182f1efd49a8",
+  "reviewer": "/root/admin_race_review",
+  "runtime_fingerprint": "7c5a4c71b4d9ec682597dacd60edcf38805f44c8b8b78bcfab700d2ad244c769",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 80
+}
+-->

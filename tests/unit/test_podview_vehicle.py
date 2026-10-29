@@ -245,11 +245,18 @@ async def test_real_tool_owner_only_gets_exact_cached_states_with_no_vacuum_enab
         assert router.podview_vehicle_available() is False
         router.configure_podview_vehicle_read(policy())
         assert router.podview_vehicle_available()
-        router._device_control._ws_read = AsyncMock(side_effect=[registry(), registry()])
+
+        async def read_registry(command):
+            if command["type"] == "config/device_registry/list":
+                return [{"id": "device-a", "config_entries": ["entry-a"], "model": "Model Y"}]
+            return registry()
+
+        router._device_control._ws_read = AsyncMock(side_effect=read_registry)
         result = await router.podview_vehicle_read()
         assert result["status"] == "observed" and len(seen) == 8
+        assert result["data"]["modelName"] == "Model Y"
         assert router._device_control.available is False
-        assert router._device_control._ws_read.call_args.args[0] == {
+        assert router._device_control._ws_read.call_args_list[0].args[0] == {
             "type": "config/entity_registry/get_entries",
             "entity_ids": [eid for _, eid in v.parse_policy(policy()).entities],
         }
@@ -523,3 +530,77 @@ async def test_explicit_extended_roles_and_climate_target_are_bounded_and_verifi
     assert "driverSeatHeat" not in result["data"]["climate"]
     entries["cover.trunk"]["translation_key"] = "vehicle_state_ft"
     assert (await read_result())["status"] == "unavailable"
+
+
+def device_registry_model(**changes):
+    return [{"id": "device-a", "config_entries": ["entry-a"], "model": "Model Y", **changes}]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"id": "other-device"},
+        {"config_entries": ["other-entry"]},
+        {"config_entry_id": "other-entry"},
+        {"config_entries": "entry-a"},
+        {"model": None},
+        {"model": "unknown"},
+        {"model": "unavailable"},
+        {"model": "Model Y\nPRIVATE"},
+        {"disabled_by": "user"},
+    ],
+)
+def test_vehicle_model_requires_exact_enabled_registry_identity(changes):
+    assert v.device_model_name(v.parse_policy(policy()), device_registry_model(**changes)) is None
+
+
+def test_vehicle_model_uses_only_model_and_rejects_ambiguous_or_oversize_registry():
+    scope = v.parse_policy(policy())
+    rows = device_registry_model(name="PRIVATE_NAME", serial_number="PRIVATE_VIN", latitude=56)
+    assert v.device_model_name(scope, rows) == "Model Y"
+    assert v.device_model_name(scope, rows * 2) is None
+    with pytest.raises(ValueError):
+        v.device_model_name(scope, device_registry_model(private="x" * v.MAX_BYTES))
+
+
+@pytest.mark.parametrize("mutation", ["model", "entry", "owner", "missing"])
+async def test_optional_vehicle_model_discards_changed_registry_or_source(mutation):
+    live = [True]
+    rows = device_registry_model()
+    after = device_registry_model(model="Model 3") if mutation == "model" else rows
+    if mutation == "entry":
+        after = device_registry_model(config_entries=["other-entry"])
+    if mutation == "missing":
+        after = []
+    calls = []
+
+    async def read_registry():
+        calls.append(True)
+        if len(calls) == 2:
+            if mutation == "owner":
+                live[0] = False
+            return after
+        return rows
+
+    assert (
+        await v.read_model_name(
+            v.parse_policy(policy()), registry_read=read_registry, current=lambda: live[0]
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("status", ["stale", "observed"])
+async def test_optional_model_missing_preserves_existing_facts_and_stale_skips_lookup(
+    monkeypatch, status
+):
+    import aiohttp
+
+    facts = {"status": status, "data": {"batteryPercent": 72}}
+    monkeypatch.setattr(v, "read", AsyncMock(return_value=copy.deepcopy(facts)))
+    async with httpx.AsyncClient() as client:
+        router = ToolRouter(None, client=client, supervisor_token="test-only")
+        router.configure_podview_vehicle_read(policy())
+        router._device_control._ws_read = AsyncMock(side_effect=aiohttp.ClientError("PRIVATE"))
+        assert await router.podview_vehicle_read() == facts
+        assert router._device_control._ws_read.await_count == (0 if status == "stale" else 1)

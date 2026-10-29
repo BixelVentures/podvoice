@@ -115,6 +115,52 @@ def registry_identity(scope: VehicleScope, entries: object) -> tuple:
     return tuple(result)
 
 
+def device_model_name(scope: VehicleScope, entries: object) -> str | None:
+    """Only the exact HA device's model, never its name or private identifiers.
+
+    HA Core 2026.8.2 config/device_registry/list returns DeviceEntry.dict_repr
+    with id, config_entries and model. Extra registry fields remain private.
+    """
+    if type(entries) is not list or len(entries) > 4096:
+        return None
+    matches = [row for row in entries if type(row) is dict and row.get("id") == scope.device_id]
+    if len(matches) != 1:
+        return None
+    _bounded(matches)
+    row = matches[0]
+    owners, model = row.get("config_entries"), row.get("model")
+    if (
+        type(owners) is not list
+        or not owners
+        or any(type(owner) is not str or not _ID.fullmatch(owner) for owner in owners)
+        or scope.config_entry_id not in owners
+        or row.get("config_entry_id", scope.config_entry_id) != scope.config_entry_id
+        or row.get("disabled_by") is not None
+        or type(model) is not str
+        or not 1 <= len(model) <= 80
+        or model != model.strip()
+        or model.casefold() in {"unknown", "unavailable"}
+        or any(ord(char) < 32 or ord(char) == 127 for char in model)
+    ):
+        return None
+    return model
+
+
+async def read_model_name(scope: VehicleScope, *, registry_read, current) -> str | None:
+    """Optional bounded metadata; unavailable identity cannot erase vehicle facts."""
+    try:
+        async with asyncio.timeout(1):
+            if not current():
+                return None
+            before = device_model_name(scope, await registry_read())
+            if before is None or not current():
+                return None
+            after = device_model_name(scope, await registry_read())
+            return before if current() and before == after else None
+    except (TimeoutError, ValueError, TypeError, KeyError, OverflowError, RecursionError):
+        return None
+
+
 def _timestamp(value: object) -> float:
     if not isinstance(value, str) or len(value) > 64:
         raise ValueError("vehicle source timestamp missing")

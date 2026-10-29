@@ -43,6 +43,20 @@ Følg AGENTS-afsnittet »Regressioner: hovedfejl før leveringsarbejde«: ingen 
 releaseklargøring, ingen afsporing til lettere sidefejl, og afgrænset diagnostik kun
 for en navngiven manglende observation. Sikkerheds-, review- og beviskrav bevares.
 
+## Brugerens UI-godkendelse følger leverancen
+
+Den seneste konkrete godkendelse fra brugeren er bindende for både visuel anatomi og
+adfærd. Reference, regler og kildeidentitet føres i eksisterende STATUS/feedback og
+følger håndoff mellem Pod-chats. Eksempeldata må ikke skabe et separat produkt: samme
+kanoniske komponent skal renderes i bibliotek og live med rigtige adaptere. Før
+release bruges mindste dækkende lokal UI-/kodekontrol mod den godkendte reference;
+genbrug uændret evidens og prøv kun berørte tilstande. Efter installation kontrolleres
+relevant visning på Green. Green-/fysisk slutprøve er ikke en forudsætning for release,
+og lokal fixturekontrol må ikke fremstilles som live-/fysisk accept. Uafklaret adgang, kapabilitet
+eller data dokumenteres som integrationsgap; det må ikke tavst reducere det godkendte
+UI eller udfyldes med eksempelværdier. Et brugerkrav om fulde områder før release
+blokerer release indtil de er leveret. Brug eksisterende miljø, evidens og review.
+
 ## Agentens faste udførelsescyklus
 
 For hver meningsfuld ændring, i det eksisterende miljø og inden for gældende adgang:

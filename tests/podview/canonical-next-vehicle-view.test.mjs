@@ -297,3 +297,16 @@ test('host liveScene projection renders fresh observed Tesla without false last-
  assert.equal(s.connected,false);run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.climateToggle.hidden,true);assert.equal(view.controlsEnabled,false);
  host.liveTransport.connected=false;run.call(host,s);assert.equal(view.status.textContent,'Sidst kendt: Låst');assert.equal(view.batteryValue.textContent,'70 %');host.liveTransport.connected=true;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.controlsEnabled,false);view.cleanup();
 });
+
+test('scoped observed Model Y uses generic illustration without inventing year or authority',async()=>{
+ const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
+ const {root}=fixture(),view=new VehicleView(root);
+ const data={batteryPercent:61,modelName:'Model Y',modelYear:2023,charging:{},climate:{}};
+ const observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_battery'],data});
+ view.render(observed);
+ assert.equal(observed.modelName,'Model Y');assert.equal(observed.modelYear,undefined);
+ assert.equal(view.figure.hidden,false);assert.equal(view.context.textContent,'Model Y');
+ assert.equal(view.image.getAttribute('src'),VEHICLE_ARTWORK);assert.deepEqual(view.model.actions,[]);
+ const unknown=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_battery'],data:{...data,modelName:'Model 3'}});
+ view.render(unknown);assert.equal(view.figure.hidden,true);assert.equal(view.image.getAttribute('src'),null);view.cleanup();
+});

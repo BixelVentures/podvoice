@@ -322,3 +322,16 @@ test('silent dismissed timer is an actual completed timer and dismissal event be
  const scene=previewScene('timer-overview-dismissed'),finished=previewScene('timer-overview-finished');assert(previewStates.includes('timer-overview-dismissed'));assert.equal(scene.focus,'now');assert.equal(scene.timer.status,'done');assert.equal(scene.timer.remaining,0);assert.equal(scene.timer.noticeDismissed,true);assert.equal(scene.timer.id,finished.timer.id);assert.equal(scene.timer.ownerBootId,undefined);const {TimerNotice}=await import('../../podvoice/gatekeeper/static/podview/timer-notice.js');let hidden=false;TimerNotice.prototype.render.call({disposed:false,hide(){hidden=true;},startAudio(){assert.fail('dismissed fixture must not start audio');}},scene.timer,'now',false);assert.equal(hidden,true);assert.deepEqual(scene.music,finished.music);const cleared=sceneTransition(scene,{type:'timer',id:scene.timer.id,action:'cancel'});assert.equal(cleared.timer.status,'cancelled');assert.equal(scene.timer.status,'done');
  const screen=previewScene('screen-device-ready');assert(previewStates.includes('screen-device-ready'));assert.equal(screen.focus,'now');assert.equal(screen.timer,null);assert.equal(screen.music.playback.active,true);assert.equal(screen.connectionPreview,undefined);assert.equal(screen.screenDevice,undefined,'the actual screen owner authors its explicitly local example; no native capability is injected');
 });
+
+test('Tesla admitted library example offers only inert local actions',()=>{
+ const scene=previewScene('vehicle-admitted-example',1000000);
+ assert.equal(scene.vehicle.exampleOnly,true);
+ assert.equal(scene.focus,'vehicle');
+ assert.ok(scene.vehiclePreviewActions.includes('unlock'));
+ assert.ok(scene.vehiclePreviewActions.includes('rearTrunkToggle'));
+ assert.equal(scene.vehicle.modelName,'Model Y');
+ assert.equal(scene.vehicle.batteryPercent,72);
+ assert.equal(scene.vehicle.rangeKm,312);
+ assert.equal(scene.vehicle.access.rearTrunk,'closed');
+ assert.deepEqual(scene.vehicle.actions,[]);
+});

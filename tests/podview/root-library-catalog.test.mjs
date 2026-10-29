@@ -38,8 +38,9 @@ test('every product widget and all ten answer formats are findable in the same c
 test('missing source integrations remain explicit and never get fabricated ready states',()=>{
  const vehicle=productLibrary.find(item=>item.id==='vehicle');
  assert(vehicle.limitations.some(text=>text.includes('Ingen Tesla-integration')));
- assert(vehicle.states.every(state=>['conversation-overview','vehicle-unconnected','vehicle-charging','vehicle-charging-overview','vehicle-unknown','vehicle-stale'].includes(state.stage)));
+ assert(vehicle.states.every(state=>['conversation-overview','vehicle-unconnected','vehicle-charging','vehicle-charging-overview','vehicle-unknown','vehicle-stale','vehicle-admitted-example'].includes(state.stage)));
  for(const state of vehicle.states.filter(row=>row.stage.startsWith('vehicle-charging')))assert.match(JSON.stringify(state),/lokalt|eksempel/i);
+ const example=previewScene('vehicle-admitted-example',1000000);assert.equal(example.vehicle.exampleOnly,true);assert.deepEqual(example.vehicle.actions,[]);assert.match(JSON.stringify(vehicle.states.find(row=>row.stage==='vehicle-admitted-example')),/simuleret|ingen bil betjenes/i);
  const voice=productLibrary.find(item=>item.id==='conversation');
  assert(voice.limitations.some(text=>text.includes('oprindelige spørgsmål')));
  assert(voice.limitations.some(text=>text.includes('Fuld duplex')));
