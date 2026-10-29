@@ -7091,7 +7091,7 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "kind": "podvoice103_tesla_robot_recovery",
   "manifest_fingerprint": "50d05b0ae9dacd75fdb2ae74f056bf0a1191771e80f4726d20d45dc9bd3b5a38",
   "merge_base": "c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6",
-  "policy_fingerprint": "48818a42fb6eb518f23b6d8af9dd8587a843bb8d9513fc8c67b2f7267308833c",
+  "policy_fingerprint": "d7502cd60c15e8b645d4d715783af16e36e532e06fbf619f03af0f3c99f0ddcd",
   "rationale": "Integrated 2.0.103 Tesla, robot and concurrent admin-receipt corrections. Final bundle and 215-asset inventory are bound to this source tree; robot choice count and style restore on custom and unknown modes. Independent source review GO: /root/admin_race_review. Exact scope: 17 production paths, 10 regressions, 341 runtime pins, 4 configuration pins, and 8 policy file pins. CI dispatch selects this exact profile for base c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6. The exact CI dispatcher change was independently reviewed GO by GPT-6.1-Sol; CI, publication, installation, live service and physical acceptance remain separate.",
   "regression_fingerprint": "e9ed8a3e3b0e8199d69f9d41a9580a54a1fc92ed7927279f7fae194ae4ca5817",
   "reviewer": "/root/admin_race_review",

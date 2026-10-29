@@ -94,7 +94,7 @@ IMMUTABLE = previous.IMMUTABLE | {
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/admin_race_review"
 MANIFEST_SHA = "50d05b0ae9dacd75fdb2ae74f056bf0a1191771e80f4726d20d45dc9bd3b5a38"
-PROFILE_AST = "525ac98661fb6926bd29e2f2aa90020b0c9b5d6f5e461dd86f438dbdbf23917a"
+PROFILE_AST = "c36c5f606f47f256f4b7d48bf751a80b7fbba3b79b937da7ee234677fd40cfda"
 
 
 def record_at(root: Path) -> dict | None:
