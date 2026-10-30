@@ -119,17 +119,13 @@ class ControllerAdminState:
     def _write(self, row):
         temporary = self.path.with_name(self.path.name + "." + secrets.token_hex(12))
         try:
-            fd = os.open(
-                temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600
-            )
+            fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
             with os.fdopen(fd, "w") as stream:
                 json.dump(row, stream, separators=(",", ":"), allow_nan=False)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, self.path)
-            directory = os.open(
-                self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-            )
+            directory = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             try:
                 os.fsync(directory)
             finally:
@@ -201,9 +197,7 @@ class ControllerAdminState:
         finally:
             os.close(fd)
 
-    def rebind_profile_pin(
-        self, room, old_pin, pin, generation, nonce, expires, current
-    ):
+    def rebind_profile_pin(self, room, old_pin, pin, generation, nonce, expires, current):
         """CAS the private admin pin for one explicitly authorized pending request.
 
         No enrollment, profile pin, generation, enabled flag or registry is changed.
@@ -255,10 +249,7 @@ class ControllerAdminState:
             raise AdminStateDenied("invalid code")
         if not isinstance(nonce, str) or not re.fullmatch(r"[a-f0-9]{32}", nonce):
             raise AdminStateDenied("invalid nonce")
-        if (
-            type(expires) not in (int, float)
-            or not time.time() < expires <= time.time() + 15
-        ):
+        if type(expires) not in (int, float) or not time.time() < expires <= time.time() + 15:
             raise AdminStateDenied("expired admin command")
         fd = self._lock()
         try:
@@ -311,15 +302,11 @@ class ControllerAdminState:
                 and time.time() < row["deadline"]
                 and isinstance(code, str)
                 and re.fullmatch(r"[A-Za-z0-9_-]{43}", code) is not None
-                and secrets.compare_digest(
-                    hashlib.sha256(code.encode()).hexdigest(), row["digest"]
-                )
+                and secrets.compare_digest(hashlib.sha256(code.encode()).hexdigest(), row["digest"])
             )
             row["attempts"] += 1
             if valid:
-                row["digest"] = (
-                    ""  # Durable one-use consume precedes browser enrollment.
-                )
+                row["digest"] = ""  # Durable one-use consume precedes browser enrollment.
                 row["deadline"] = 0
             self._write(row)
             return valid
