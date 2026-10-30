@@ -8,6 +8,7 @@ import sys
 import types
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from test_ha_controller_admin import call, next_write, receipt, rig
@@ -77,6 +78,17 @@ async def setup(monkeypatch):
         TimerBridge=TimerBridge,
         ControllerAdmin=api.ControllerAdmin,
         DisplayDevices=projection.DisplayDevices,
+        make_robot_snapshot_handler=lambda *_: AsyncMock(),
+        robot_snapshot_schema=lambda: object(),
+        VehicleSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
+        er=SimpleNamespace(async_get=lambda _: None),
+        vol=SimpleNamespace(
+            Schema=lambda value, **_: value,
+            Required=lambda value: value,
+            All=lambda *args: args,
+            Length=lambda **kwargs: kwargs,
+            PREVENT_EXTRA=object(),
+        ),
         dr=SimpleNamespace(async_get=lambda _: registry),
         SupportsResponse=SimpleNamespace(ONLY="only"),
         _ADMIN_KEY="admin",

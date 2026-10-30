@@ -72,6 +72,8 @@
     "tests/podview/root-robot-last-setup.test.mjs": "eef66236200ab159c0cc76d14d378940d4355276d3eeca56634120b6f82dea6c",
     "tests/podview/root-robot-renewal.test.mjs": "0bb284b10b105bd347594aaa9dcd6fd69cc1135840abfb3485829f2eaf046a57",
     "tests/podview/root-vehicle-view.test.mjs": "449930cbdeccd69328be17e8b3ea1cd44c2c2aca7cbd6a451b9201f673317781",
+    "tests/unit/test_ha_controller_registration.py": "8d991a80639358bf9f053939f0874ebbdd04e2ae01b2f59cd8785c84ce5dccef",
+    "tests/unit/test_ha_display_devices.py": "7722c5df4e4835ef45eaf6cd2056a44ec1cab508fbd346aa2e17e4cd44beefba",
     "tests/unit/test_ha_robot_snapshot.py": "59fbc9ae927a9b5888f9823b363ca67eda356edce22a35d5da97c5a73eb9175c",
     "tests/unit/test_podview_vehicle.py": "1a97d4d292e66716b4fc094ce4f81947fa71913d43fe616f1909aefc9c0e19ff",
     "tests/unit/test_tools_podview_vehicle_snapshot.py": "5c0e7d22a1e9490ca0e35a4c9e9a88c760c7eb9c91ae033d74f5d323fdb853d1",
