@@ -21,6 +21,7 @@
   },
   "regressions": {
     "tests/integration/test_podview_controller_continuity.py": "173afc3e6d3111b2f21e6ad3bb75654cb310fc675e18d0fac157c1ecc8acfbba",
+    "tests/integration/test_podview_controls.py": "3b1f32ae7efaeff3be9f31125ce38e036bfa452f7555288ba0bc9c2f43facd78",
     "tests/integration/test_podview_vehicle_http.py": "34952cef51e622d9f893b3c5831acac95283a3b35e3d9eb629f95413e2ad4ef7",
     "tests/podview/root-named-controller-enrollment.test.mjs": "eecc7b1b401e9891d5f42ac56c2e4cc58598348cf50eb8817f32b70e11e67fde"
   },

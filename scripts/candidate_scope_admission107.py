@@ -53,6 +53,7 @@ PRODUCTION = frozenset(
 REQUIRED_TESTS = frozenset(
     [
         "tests/integration/test_podview_controller_continuity.py",
+        "tests/integration/test_podview_controls.py",
         "tests/integration/test_podview_vehicle_http.py",
         "tests/podview/root-named-controller-enrollment.test.mjs",
     ]
@@ -65,8 +66,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/tesla_status_cause"
-MANIFEST_SHA = "04d2b58256364af0850ddb9a90a8dbec795a51d67a18bd061657e9b74f061f1f"
-PROFILE_AST = "8558b7b80dda90fa1b34aa8972fc975c6d1a3fcf73500987cb199422fa38944c"
+MANIFEST_SHA = "01ae9b73b6caf2c68fa1aae46a5064d243190d26af6b24380effb006c70efbab"
+PROFILE_AST = "1cd02986276254b1d8c5e732e0ad093d1c85aabee935f03d0e710c041f603e5f"
 
 
 def record_at(root: Path) -> dict | None:
