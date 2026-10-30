@@ -105,6 +105,7 @@ ADMIN_RECEIPT_SCHEMA = vol.Schema(
                 "list",
                 "prepare",
                 "approve",
+                "request_status",
                 "revoke_identity",
                 "placement",
             )

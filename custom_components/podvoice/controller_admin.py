@@ -104,6 +104,14 @@ def _valid_result(action, room, value):
             and type(value["name"]) is str
             and 1 <= len(value["name"]) <= 80
         )
+    if action == "request_status":
+        return (
+            set(value) == {"ok", "room", "requestId", "status"}
+            and value["ok"] is True
+            and type(value["requestId"]) is str
+            and re.fullmatch(r"[a-f0-9]{32}", value["requestId"]) is not None
+            and value["status"] in ("pending", "approved", "connected")
+        )
     if action == "revoke_identity":
         return (
             set(value) == {"ok", "room", "identity"}
@@ -252,10 +260,10 @@ class ControllerAdmin:
                     if str(exc) != "administrator outcome unknown":
                         raise
                     # A lost ACK may follow a committed mutation. Read state; never resend it.
-                    rows = await self._exchange(call, "list")
-                    if any(
-                        row.get("requestId") == request_id and row.get("status") == "approved"
-                        for row in rows.get("pending", [])
+                    settled = await self._exchange(call, "request_status", request_id=request_id)
+                    if settled["requestId"] == request_id and settled["status"] in (
+                        "approved",
+                        "connected",
                     ):
                         return {"ok": True, "room": room, "requestId": request_id}
                     raise

@@ -478,6 +478,7 @@ async function settingsTouchTargets(browser) {
         assert.ok(!await page.locator('#svc span').first().getAttribute('title').then(x=>x.includes('aktiv Realtime-session')));
         await clickControl('Stop i Køkken');
         assert.deepEqual(commands,[{room:'Køkken',action:'stop'}]);
+        await page.waitForFunction(()=>document.querySelector('#toast')?.textContent==='Kommando modtaget');
         assert.equal(await page.locator('#toast').innerText(),'Kommando modtaget');
         assert.match(await page.locator('#capabilities').textContent(),/Tid: verificeret/);
         assert.match(await page.locator('#capabilities').textContent(),/Hjem: fundet/);

@@ -191,13 +191,20 @@ async def test_stale_entry_and_revoked_admin_never_write(monkeypatch):
     assert writes == []
 
 
-async def test_unknown_approval_outcome_reconciles_by_trusted_read_without_retry(monkeypatch):
+@pytest.mark.parametrize(
+    "status,matching_request",
+    [("approved", True), ("connected", True), ("pending", True), ("connected", False)],
+)
+async def test_unknown_approval_outcome_reconciles_by_trusted_read_without_retry(
+    monkeypatch, status, matching_request
+):
     api, owner, _, _, _, _ = rig(monkeypatch)
     request_id = "a" * 32
     actions = []
 
     async def exchange(call, action, **fields):
         actions.append(action)
+        assert fields == {"request_id": request_id}
         if action == "prepare":
             return {
                 "room": "kitchen",
@@ -209,25 +216,23 @@ async def test_unknown_approval_outcome_reconciles_by_trusted_read_without_retry
             }
         if action == "approve":
             raise api.HomeAssistantError("administrator outcome unknown")
+        assert action == "request_status"
         return {
             "ok": True,
             "room": "kitchen",
-            "pending": [
-                {
-                    "requestId": request_id,
-                    "name": "iPad",
-                    "matchSignal": "ABC234",
-                    "expiresIn": 180,
-                    "status": "approved",
-                }
-            ],
-            "enrolled": [],
+            "requestId": request_id if matching_request else "f" * 32,
+            "status": status,
         }
 
     owner._exchange = exchange
-    result = await owner.request(call("human", request_id=request_id), "approve")
-    assert result == {"ok": True, "room": "kitchen", "requestId": request_id}
-    assert actions == ["prepare", "approve", "list"]
+    if status == "pending" or not matching_request:
+        with pytest.raises(api.HomeAssistantError, match="outcome unknown"):
+            await owner.request(call("human", request_id=request_id), "approve")
+    else:
+        result = await owner.request(call("human", request_id=request_id), "approve")
+        assert result == {"ok": True, "room": "kitchen", "requestId": request_id}
+    assert actions == ["prepare", "approve", "request_status"]
+    assert actions.count("approve") == 1
 
 
 async def test_revoked_during_supervisor_info_never_writes(monkeypatch):

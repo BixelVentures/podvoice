@@ -137,10 +137,10 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
                 self.written.clear()
         return self.writes[size - 1]
 
-    async def receipt(self, command, context, result, *, mac=None):
+    async def receipt(self, command, context, result, *, mac=None, outcome="committed"):
         payload = json.dumps(result, separators=(",", ":"))
         message = json.dumps(
-            [command["nonce"], command["action"], command["room"], "committed", payload],
+            [command["nonce"], command["action"], command["room"], outcome, payload],
             separators=(",", ":"),
         ).encode()
         valid_mac = hmac.new(bytes.fromhex(command["key"]), message, hashlib.sha256).hexdigest()
@@ -151,7 +151,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
                 "nonce": command["nonce"],
                 "action": command["action"],
                 "room": command["room"],
-                "outcome": "committed",
+                "outcome": outcome,
                 "payload": payload,
                 "mac": valid_mac if mac is None else mac,
             },
@@ -427,6 +427,186 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await submitted)[1]["step_id"], "done")
             self.assertEqual((await post(path, {}))[1]["type"], "create_entry")
             self.assertNotIn(REQUEST_ID, repr(entry.as_dict()))
+
+    def actual_admin_bridge(self):
+        import sys
+
+        sys.path.insert(0, str(ROOT / "podvoice"))
+        from gatekeeper.podview import PodViewBridge
+        from gatekeeper.podview_admin_transport import AdminStdinTransport
+        from gatekeeper.podview_controller_admin import ControllerAdminState
+
+        timers = SimpleNamespace(
+            available=lambda room: room == ROOM,
+            bindings={ROOM: ("inert-native-owner",)},
+            snapshots={ROOM: {"epoch": "inert-epoch"}},
+        )
+        session = SimpleNamespace(tools=SimpleNamespace(timers=timers))
+        bridge = PodViewBridge(
+            {ROOM: session},
+            control_policy=json.dumps({"roomId": ROOM, "music": [], "vacuum": []}),
+        )
+        folder = Path(self.stack.enter_context(TemporaryDirectory()))
+        state = ControllerAdminState(folder / "admin" / "state.json")
+        registry_path = folder / "controllers" / "registry.json"
+        row, registry = state.profiles(ROOM, bridge.controller_pin(ROOM), registry_path)
+        bridge._controller_enabled = row["enabled"]
+        bridge._controller_registry = registry
+        bridge._controller_admin_state = state
+        transport = AdminStdinTransport(bridge, state, registry_path, "inert-token")
+        return bridge, registry, transport
+
+    async def test_lost_approval_receipt_settles_exact_request_after_browser_claim(self):
+        """Actual HA service → admin transport → Bridge/registry; receipt lost once."""
+        from custom_components.podvoice.controller_admin import get_supervisor_client
+
+        bridge, registry, transport = self.actual_admin_bridge()
+        registry.enroll(ROOM, bridge.controller_pin(ROOM), name="Macbook", persistent=True)
+        pending, proof = bridge.request_controller(ROOM, "Macbook")
+        actions = []
+
+        async def receipt(command, outcome):
+            self.assertEqual(outcome, "committed")
+            if command["action"] == "approve":
+                result, _ = bridge.claim_controller_request(ROOM, pending["requestId"], proof)
+                self.assertEqual(result["status"], "connected")
+                return  # Browser claimed before HA's ten-second receipt timeout.
+            await self.receipt(command, Context(user_id=self.supervisor.id), command["_result"])
+
+        async def write(slug, raw):
+            self.assertEqual(slug, ADDON)
+            command = json.loads(raw)
+            actions.append(command["action"])
+            await transport.process(raw)
+
+        transport._receipt = receipt
+        with patch.object(get_supervisor_client(self.hass).addons, "write_addon_stdin", write):
+            result = await self.invoke(
+                "controller_approve",
+                Context(user_id=self.admin.id),
+                request_id=pending["requestId"],
+            )
+        self.assertEqual(result, {"ok": True, "room": ROOM, "requestId": pending["requestId"]})
+        self.assertEqual(actions, ["prepare", "approve", "request_status"])
+        self.assertEqual(len(registry.list_enrollments(ROOM, bridge.controller_pin(ROOM))), 2)
+
+    async def test_unknown_approval_never_settles_same_name_or_stale_request(self):
+        from custom_components.podvoice.controller_admin import get_supervisor_client
+
+        for change in (
+            "pending",
+            "revoked",
+            "revoking",
+            "pin",
+            "boot",
+            "expired",
+            "missing",
+            "foreign_result",
+        ):
+            with self.subTest(change=change):
+                bridge, registry, transport = self.actual_admin_bridge()
+                registry.enroll(ROOM, bridge.controller_pin(ROOM), name="Macbook", persistent=True)
+                pending, proof = bridge.request_controller(ROOM, "Macbook")
+                actions = []
+
+                async def receipt(
+                    command,
+                    outcome,
+                    bridge=bridge,
+                    pending=pending,
+                    proof=proof,
+                    registry=registry,
+                    change=change,
+                ):
+                    if command["action"] == "approve":
+                        result, _ = bridge.claim_controller_request(
+                            ROOM, pending["requestId"], proof
+                        )
+                        self.assertEqual(result["status"], "connected")
+                        row = bridge._controller_requests[pending["requestId"]]
+                        if change == "revoked":
+                            registry.revoke(row["identity"], room=ROOM)
+                        elif change == "revoking":
+                            bridge.fence_controller(ROOM, row["identity"])
+                        elif change == "pin":
+                            bridge.controls.policy["vacuum"] = [
+                                {"entityId": "vacuum.other", "actions": ["start"]}
+                            ]
+                        elif change == "boot":
+                            bridge.boot_id = "replacement-boot"
+                        elif change == "expired":
+                            row["deadline"] = 0
+                        elif change == "missing":
+                            del bridge._controller_requests[pending["requestId"]]
+                        return  # No approval receipt or automatic re-approval.
+                    value = command["_result"]
+                    if change == "foreign_result" and command["action"] == "request_status":
+                        value = {**value, "requestId": "f" * 32}
+                    await self.receipt(
+                        command, Context(user_id=self.supervisor.id), value, outcome=outcome
+                    )
+
+                async def write(slug, raw, actions=actions, transport=transport, change=change):
+                    self.assertEqual(slug, ADDON)
+                    command = json.loads(raw)
+                    actions.append(command["action"])
+                    if not (change == "pending" and command["action"] == "approve"):
+                        await transport.process(raw)
+                    if command["action"] == "approve":
+                        raise OSError("inert lost write acknowledgement")
+
+                transport._receipt = receipt
+                with patch.object(
+                    get_supervisor_client(self.hass).addons, "write_addon_stdin", write
+                ):
+                    with self.assertRaises(HomeAssistantError):
+                        await self.invoke(
+                            "controller_approve",
+                            Context(user_id=self.admin.id),
+                            request_id=pending["requestId"],
+                        )
+                self.assertEqual(actions, ["prepare", "approve", "request_status"])
+                self.assertEqual(actions.count("approve"), 1)
+                if change == "pending":
+                    self.assertEqual(
+                        len(registry.list_enrollments(ROOM, bridge.controller_pin(ROOM))), 1
+                    )
+
+    async def test_lost_write_ack_settles_approved_without_claim_or_replay(self):
+        from custom_components.podvoice.controller_admin import get_supervisor_client
+
+        bridge, registry, transport = self.actual_admin_bridge()
+        pending, _ = bridge.request_controller(ROOM, "Macbook")
+        actions = []
+
+        async def receipt(command, outcome):
+            if command["action"] != "approve":
+                await self.receipt(
+                    command,
+                    Context(user_id=self.supervisor.id),
+                    command["_result"],
+                    outcome=outcome,
+                )
+
+        async def write(slug, raw):
+            self.assertEqual(slug, ADDON)
+            command = json.loads(raw)
+            actions.append(command["action"])
+            await transport.process(raw)
+            if command["action"] == "approve":
+                raise OSError("inert lost write acknowledgement")
+
+        transport._receipt = receipt
+        with patch.object(get_supervisor_client(self.hass).addons, "write_addon_stdin", write):
+            result = await self.invoke(
+                "controller_approve",
+                Context(user_id=self.admin.id),
+                request_id=pending["requestId"],
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(actions, ["prepare", "approve", "request_status"])
+        self.assertEqual(bridge._controller_requests[pending["requestId"]]["status"], "approved")
+        self.assertFalse(registry.list_enrollments(ROOM, bridge.controller_pin(ROOM)))
 
 
 if __name__ == "__main__":
