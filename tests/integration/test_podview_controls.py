@@ -401,6 +401,122 @@ async def test_pairing_scope_target_and_stale_setup_fail_closed(fixture):
     assert not rig.writes
 
 
+@pytest.mark.parametrize("action_domain", ["vacuum", "music"])
+async def test_pending_robot_read_keeps_existing_actions_and_invalidates_late_setup(
+    fixture, action_domain
+):
+    rig, bridge, token = fixture
+
+    class Music:
+        room_available = True
+        room_start_available = False
+
+        def binding(self):
+            return (self,)
+
+        async def setup_room(self, account, target, room, homepod, current):
+            return {
+                "ok": True,
+                "data": {
+                    "actions": ["pause"],
+                    "volume_percent": None,
+                    "valid_until": time.time() + 15,
+                },
+            }
+
+        execute_room = AsyncMock(return_value={"outcome": "accepted"})
+
+    music = bridge.controls.music = Music()
+    music.tools = bridge.tools
+    offer = await bridge.controls.setup(setup_body(bridge, action_domain), token)
+    assert offer["ok"], offer
+    if action_domain == "vacuum":
+        option = next(row for row in offer["options"] if row["argsSchema"]["kind"] == "choice")
+        args = {"choiceId": option["argsSchema"]["choices"][0]["id"]}
+    else:
+        option, args = offer["options"][0], {}
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held_read():
+        if asyncio.current_task() is pending:
+            entered.set()
+            await release.wait()
+
+    rig.maps_hook = held_read
+    pending = asyncio.create_task(bridge.controls.setup(setup_body(bridge), token))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        result = await bridge.controls.action(action_body(offer, option, args), token)
+        assert result.get("outcome") == "accepted", result
+    finally:
+        release.set()
+        late = await pending
+    assert late.get("ok") is False and late.get("error") == "stale_setup", late
+    assert len(rig.writes) == (1 if action_domain == "vacuum" else 0)
+    assert music.execute_room.await_count == (1 if action_domain == "music" else 0)
+    assert not bridge.controls.busy
+
+
+async def test_setup_output_read_before_task_capture_is_invalidated_by_action(fixture):
+    rig, bridge, token = fixture
+    bridge.controls.music = SimpleNamespace(
+        room_available=True, room_start_available=False, tools=bridge.tools, binding=lambda: ()
+    )
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    option = next(row for row in offer["options"] if row["argsSchema"]["kind"] == "choice")
+    args = {"choiceId": option["argsSchema"]["choices"][0]["id"]}
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held_output():
+        entered.set()
+        await release.wait()
+
+    rig.playback_hook = held_output
+    pending = asyncio.create_task(bridge.controls.setup(setup_body(bridge, "music"), token))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        result = await bridge.controls.action(action_body(offer, option, args), token)
+        assert result["outcome"] == "accepted"
+    finally:
+        release.set()
+        late = await pending
+    assert late.get("error") == "stale_setup", late
+    assert len(rig.writes) == 1
+
+
+async def test_distinct_valid_mutations_still_serialize_during_dispatch(fixture):
+    rig, bridge, token = fixture
+    offers = [await bridge.controls.setup(setup_body(bridge), token) for _ in range(2)]
+    commands = []
+    for index, offer in enumerate(offers):
+        option = next(row for row in offer["options"] if row["argsSchema"]["kind"] == "choice")
+        commands.append(
+            {
+                **action_body(
+                    offer, option, {"choiceId": option["argsSchema"]["choices"][0]["id"]}
+                ),
+                "requestId": str(index),
+            }
+        )
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held_write():
+        entered.set()
+        await release.wait()
+
+    rig.write_hook = held_write
+    pending = asyncio.create_task(bridge.controls.action(commands[0], token))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        assert (await bridge.controls.action(commands[1], token))["error"] == "busy"
+        assert len(rig.writes) == 1
+    finally:
+        release.set()
+        result = await pending
+    assert result["outcome"] == "accepted"
+    assert not bridge.controls.busy
+
+
 async def test_music_single_send_ceiling_unknown_and_delayed_owner(fixture):
     rig, bridge, token = fixture
 

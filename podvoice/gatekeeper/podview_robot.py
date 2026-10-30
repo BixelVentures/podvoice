@@ -343,3 +343,122 @@ def project(value: object, entity: str) -> dict:
         "source": "home_assistant_roborock",
         "items": rows,
     }
+
+
+def project_job(value: object, entity: str) -> dict:
+    """Private owner read, not public control IDs or evidence of a start effect.
+
+    The caller maps segment IDs through its existing exact map/area owner before
+    exposing readonly room tiles. No cached latest receipt or current-room guess.
+    """
+    unavailable = {"status": "unavailable"}
+    keys = {
+        "schema",
+        "status",
+        "source",
+        "vacuumEntityId",
+        "mapId",
+        "mapIndex",
+        "mapSequence",
+        "scope",
+        "segmentIds",
+        "roomIds",
+        "repeat",
+        "observedAt",
+        "statusObservedAt",
+        "mapObservedAt",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != keys
+        or value.get("schema") != "podview.robot_job.v1"
+        or value.get("status") != "observed"
+        or value.get("source") != "home_assistant_roborock_cache"
+        or value.get("vacuumEntityId") != entity
+        or not isinstance(entity, str)
+        or not _ENTITY.fullmatch(entity)
+        or not entity.startswith("vacuum.")
+        or not isinstance(value.get("scope"), str)
+        or value["scope"] not in {"selected", "all"}
+        or type(value.get("repeat")) is not int
+        or value["repeat"] not in {1, 2, 3}
+    ):
+        return unavailable
+    for key, maximum in (("mapId", 65535), ("mapIndex", 2**32 - 1), ("mapSequence", 2**32 - 1)):
+        if type(value[key]) is not int or not 0 <= value[key] <= maximum:
+            return unavailable
+    now = time.time()
+    for key in ("observedAt", "statusObservedAt", "mapObservedAt"):
+        if (
+            type(value[key]) not in {int, float}
+            or not math.isfinite(value[key])
+            or not 0 <= now - value[key] <= 60
+        ):
+            return unavailable
+    if (
+        value["mapObservedAt"] > value["statusObservedAt"] + 1
+        or value["statusObservedAt"] > value["observedAt"] + 1
+    ):
+        return unavailable
+    segments = value["segmentIds"]
+    rooms = value["roomIds"]
+    for ids in (segments, rooms):
+        if (
+            not isinstance(ids, list)
+            or not 1 <= len(ids) <= 32
+            or any(type(segment) is not int or not 0 <= segment <= 255 for segment in ids)
+            or len(set(ids)) != len(ids)
+        ):
+            return unavailable
+    if not set(segments) <= set(rooms) or (value["scope"] == "all" and set(segments) != set(rooms)):
+        return unavailable
+    return {**value, "segmentIds": list(segments), "roomIds": list(rooms)}
+
+
+def project_current_setup(value: object, entity: str) -> dict:
+    """Closed public readonly observation; HA area IDs never grant an action."""
+    unavailable = {"status": "unavailable"}
+    keys = {
+        "status",
+        "source",
+        "vacuumEntityId",
+        "observedAt",
+        "mapId",
+        "mapIndex",
+        "mapSequence",
+        "areas",
+        "repeat",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) != keys
+        or value.get("status") != "observed"
+        or value.get("source") != "home_assistant_roborock_cache"
+        or value.get("vacuumEntityId") != entity
+        or type(value.get("repeat")) is not int
+        or value["repeat"] not in {1, 2, 3}
+        or type(value.get("observedAt")) not in {int, float}
+        or not math.isfinite(value["observedAt"])
+        or not 0 <= time.time() - value["observedAt"] <= 60
+    ):
+        return unavailable
+    for key, maximum in (("mapId", 65535), ("mapIndex", 2**32 - 1), ("mapSequence", 2**32 - 1)):
+        if type(value[key]) is not int or not 0 <= value[key] <= maximum:
+            return unavailable
+    areas = value["areas"]
+    if not isinstance(areas, list) or not 1 <= len(areas) <= 32:
+        return unavailable
+    seen = set()
+    for area in areas:
+        if (
+            not isinstance(area, dict)
+            or set(area) != {"id", "label"}
+            or not isinstance(area["id"], str)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", area["id"])
+            or area["id"] in seen
+            or not isinstance(area["label"], str)
+            or not 1 <= len(area["label"]) <= 128
+        ):
+            return unavailable
+        seen.add(area["id"])
+    return {**value, "areas": [dict(area) for area in areas]}

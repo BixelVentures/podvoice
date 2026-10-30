@@ -17,10 +17,14 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .controller_admin import ControllerAdmin
 from .display_devices import DisplayDevices
+from .robot_snapshot import make_robot_snapshot_handler
+from .robot_snapshot import service_schema as robot_snapshot_schema
 from .timer_bridge import TimerBridge
+from .vehicle_snapshot import VehicleSnapshot
 
 DOMAIN = "podvoice"
 _LOGGER = logging.getLogger(__name__)
@@ -146,6 +150,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     hass.services.async_remove(DOMAIN, "timer_status")
     hass.services.async_remove(DOMAIN, "timer_command")
+    hass.services.async_remove(DOMAIN, "robot_snapshot")
+    hass.services.async_remove(DOMAIN, "vehicle_snapshot")
     for service in (
         "controller_list",
         "controller_approve",
@@ -311,5 +317,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "controller_receipt",
         admin.receipt,
         schema=ADMIN_RECEIPT_SCHEMA,
+    )
+    robot_reader = make_robot_snapshot_handler(hass, er.async_get, dr.async_get)
+    vehicle_reader = VehicleSnapshot(hass, entry)
+
+    async def robot_snapshot(call: ServiceCall) -> dict:
+        try:
+            return await robot_reader(call)
+        except ValueError:
+            raise HomeAssistantError("Robot snapshot unavailable") from None
+
+    async def vehicle_snapshot(call: ServiceCall) -> dict:
+        try:
+            return await vehicle_reader.async_read(call)
+        except ValueError:
+            raise HomeAssistantError("Vehicle snapshot unavailable") from None
+
+    hass.services.async_register(
+        DOMAIN,
+        "robot_snapshot",
+        robot_snapshot,
+        schema=robot_snapshot_schema(),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "vehicle_snapshot",
+        vehicle_snapshot,
+        schema=vol.Schema(
+            {
+                vol.Required("config_entry_id"): vol.All(str, vol.Length(min=1, max=128)),
+                vol.Required("device_id"): vol.All(str, vol.Length(min=1, max=128)),
+                vol.Required("entities"): dict,
+            },
+            extra=vol.PREVENT_EXTRA,
+        ),
+        supports_response=SupportsResponse.ONLY,
     )
     return True

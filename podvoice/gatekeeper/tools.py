@@ -2418,25 +2418,32 @@ class ToolRouter:
         scope = self._vehicle_scope
         if scope is None:
             return unavailable
+        source_binding = hashlib.sha256(
+            json.dumps(
+                {
+                    "generation": self._vehicle_generation,
+                    "configEntryId": scope.config_entry_id,
+                    "deviceId": scope.device_id,
+                    "entities": dict(scope.entities),
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
         binding = self.podview_vehicle_binding()
         client, token, owner = self._client, self._token, self._device_control
 
         def current():
             return self.podview_vehicle_available() and self.podview_vehicle_binding() == binding
 
-        async def registry_read(ids):
-            return await owner._ws_read(
-                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
-            )
-
-        async def state_read(entity_id):
+        async def service_read(data):
             if not current() or client is None:
                 raise ValueError("vehicle source changed")
             payload = bytearray()
             async with client.stream(
-                "GET",
-                f"{C.SUPERVISOR_CORE_API}/states/{entity_id}",
+                "POST",
+                f"{C.SUPERVISOR_CORE_API}/services/podvoice/vehicle_snapshot?return_response",
                 headers={"Authorization": f"Bearer {token}"},
+                json=data,
             ) as response:
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
@@ -2445,21 +2452,16 @@ class ToolRouter:
                     payload.extend(chunk)
             if not current():
                 raise ValueError("vehicle source changed")
-            row = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
-            if (
-                entity_id.startswith("climate.")
-                and isinstance(row, dict)
-                and isinstance(row.get("attributes"), dict)
-                and row["attributes"].get("temperature_unit") is None
-                and "temperature" in row["attributes"]
+            wrapper = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+            if not isinstance(wrapper, dict) or not isinstance(
+                wrapper.get("service_response"), dict
             ):
-                unit = await self._podview_vehicle_ha_temperature_unit(client, token, current)
-                row["attributes"]["temperature_unit"] = unit
-            return row
+                raise ValueError("vehicle snapshot response unavailable")
+            return wrapper["service_response"]
 
         try:
-            result = await podview_vehicle.read(
-                scope, registry_read=registry_read, state_read=state_read, current=current
+            result = await podview_vehicle.read_snapshot(
+                scope, service_read=service_read, current=current
             )
             if result.get("status") == "observed":
 
@@ -2476,10 +2478,10 @@ class ToolRouter:
                     return unavailable
                 if model is not None:
                     result["data"]["modelName"] = model
-            return result
+            return {**result, "bindingId": source_binding} if current() else unavailable
         except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
             podview_vehicle.diagnostic("transport")
-            return unavailable
+            return {**unavailable, "bindingId": source_binding} if current() else unavailable
 
     def podview_home_available(self) -> bool:
         owner = self._device_control

@@ -1793,7 +1793,7 @@ pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=prim
 
 /* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
-.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);animation:none;pointer-events:none}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);animation:pv-connecting-sheen 1200ms ease-in-out 3;pointer-events:none}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before{top:4px;width:92%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation:pv-advice-ready var(--pv-fast,200ms) var(--pv-ease,cubic-bezier(.2,0,0,1)) both}

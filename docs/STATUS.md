@@ -7123,3 +7123,25 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
 }
 -->
 
+
+<!-- podvoice105-admission
+{
+  "base_tip": "425bb80f1441d76a55d18b32517e146c5f8e1757",
+  "config_fingerprint": "56ae4fe06ce8ad0d573c6d3a87e269ff120b9e7bd831a83b1e09e85025ff36c6",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "a56b83671788534d8488b09baf7e7b686e0f0dee978b8b51b2f0ec91f04bdc98",
+  "kind": "podvoice105_robot_tesla_recovery",
+  "manifest_fingerprint": "ce5e2fd85751b75677cb2a4d170080c67a14c6a9679c085f4d3f39b0b51bb8c2",
+  "merge_base": "425bb80f1441d76a55d18b32517e146c5f8e1757",
+  "policy_fingerprint": "082d5c01c0db5a5cddbe89a25c60c7835f3a037070977edd657b5b85d3854486",
+  "rationale": "PodVoice 2.0.105 robot and Tesla recovery and native Home Assistant snapshot integration; exact source, test and asset inventory bound. Source reviews passed; final metadata review pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "c460d666032eb7bb16a76cc63fd5c405f1bdd52e3b32b3389e1c635304dd4927",
+  "reviewer": "/root/admin_race_review",
+  "runtime_fingerprint": "51566de9f0a3cc7db4c13433cd50f7d596e06b23aeda91dd31bf3436f137397e",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 82
+}
+-->

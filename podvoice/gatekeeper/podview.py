@@ -3780,7 +3780,7 @@ def _home_history(value: object, entity_id: str) -> dict:
     rows = value.get("items")
     if not isinstance(rows, list) or len(rows) > 3:
         return unavailable
-    from .cleaning_journal import _record
+    from .cleaning_journal import _record, complete_setup
 
     items: list[dict] = []
     for raw in rows:
@@ -3804,6 +3804,7 @@ def _home_history(value: object, entity_id: str) -> dict:
                     "areaIds": recipe["area_ids"],
                     "mapName": recipe["map_name"],
                     "repeat": recipe["repeat"],
+                    "completeSetup": row["outcome"] == "accepted_by_ha" and complete_setup(recipe),
                     "verifiedSettings": [
                         {"entityId": v["entity_id"], "value": v["value"]}
                         for v in recipe["verified_settings"]
@@ -3865,6 +3866,12 @@ def _home_vacuum(value: object) -> dict:
                 "settings": {"status": "unavailable", "items": []},
                 "history": _home_history(row.get("history"), row["entityId"]),
                 "telemetry": podview_robot.project(row.get("telemetry"), row["entityId"]),
+                "currentSetup": podview_robot.project_current_setup(
+                    (row.get("telemetry") or {}).get("currentSetup")
+                    if isinstance(row.get("telemetry"), dict)
+                    else None,
+                    row["entityId"],
+                ),
                 "actions": [],
             }
         )

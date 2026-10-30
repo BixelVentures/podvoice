@@ -182,6 +182,12 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 200, body)
         self.assertEqual(body["step_id"], "manage")
         self.assertIn(MATCH_SIGNAL, str(body))
+        if action in ("revoke:", "recover:"):
+            status, body = await self.request(path, {"action": "advanced:"})
+            self.assertEqual((status, body["step_id"]), (200, "advanced"))
+            self.assertIn("Nødluk hele rummet", str(body))
+            self.assertIn("Gendan skærmadgang", str(body))
+            action = action.removesuffix(":")
         status, body = await self.request(path, {"action": action})
         self.assertEqual(status, 200, body)
         self.assertEqual(body["step_id"], "confirm")

@@ -180,6 +180,7 @@ class Capability:
     mapping_identity: str = ""
     area_segments: tuple[tuple[str, tuple[int, ...]], ...] = ()
     expected: tuple[tuple[str, str], ...] = ()
+    start_settings_inventory: tuple[tuple[str, str], ...] = ()
     map_options: tuple[str, ...] = ()
     allow_map_change: bool = False
     map_revision: int = 0
@@ -249,6 +250,7 @@ class DeviceControl:
             return {"status": "unavailable", "items": []}
 
     async def _robot_observation_read(self, entity_id: str, generation: int) -> dict:
+        optional_deadline = time.monotonic() + 4.5
         unavailable = {"status": "unavailable", "items": []}
         binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == entity_id), None)
         if binding is None or entity_id not in self._entities:
@@ -273,15 +275,117 @@ class DeviceControl:
             self._check(generation)
             if podview_robot.registry_identity(binding, after) != identity:
                 return unavailable
-            return {
+            result: dict[str, Any] = {
                 "schema": "podview.robot.v1",
                 "status": "observed",
                 "vacuumEntityId": entity_id,
                 "source": "home_assistant_roborock",
                 "items": items,
             }
+            # Optional job metadata cannot erase already validated independent
+            # telemetry when this companion service is absent, slow or invalid.
+            result["currentSetup"] = {"status": "unavailable"}
+            budget = min(1.25, optional_deadline - time.monotonic())
+            if budget > 0 and any(field["key"] == "status" for field in binding["fields"]):
+                try:
+                    result["currentSetup"] = await asyncio.wait_for(
+                        self._robot_current_setup(entity_id, generation, after[entity_id]), budget
+                    )
+                except (
+                    TimeoutError,
+                    CapabilityError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    httpx.HTTPError,
+                    aiohttp.ClientError,
+                ):
+                    pass
+            self._check(generation)
+            return result
         except (CapabilityError, ValueError, httpx.HTTPError, aiohttp.ClientError):
             return unavailable
+
+    async def _robot_current_setup(self, entity_id: str, generation: int, target: dict) -> dict:
+        unavailable = {"status": "unavailable"}
+        self._check(generation)
+        devices = await self._ws_read({"type": "config/device_registry/list"})
+        self._check(generation)
+        if not isinstance(devices, list):
+            return unavailable
+        matches = [
+            row for row in devices if isinstance(row, dict) and row.get("id") == target["device_id"]
+        ]
+        if len(matches) != 1:
+            return unavailable
+        device = matches[0]
+        entries = device.get("config_entries")
+        model = device.get("model")
+        if (
+            device.get("manufacturer") != "Roborock"
+            or not isinstance(model, str)
+            or not 1 <= len(model) <= 160
+            or not isinstance(entries, list)
+            or any(not isinstance(entry, str) for entry in entries)
+            or target["config_entry_id"] not in entries
+        ):
+            return unavailable
+        response = await self._json(
+            "POST",
+            "services/podvoice/robot_snapshot?return_response",
+            {
+                "entity_id": entity_id,
+                "config_entry_id": target["config_entry_id"],
+                "device_id": target["device_id"],
+                "unique_id": target["unique_id"],
+                "model": model,
+            },
+        )
+        self._check(generation)
+        job = podview_robot.project_job(
+            response.get("service_response") if isinstance(response, dict) else None, entity_id
+        )
+        if job["status"] != "observed":
+            return unavailable
+        area_registry = await self._areas()
+        self._check(generation)
+        # Native room membership comes from the same observed map, not the
+        # selected segment list or a generated room set. Names come only from HA.
+        mapped = self._mapped_areas(
+            target, area_registry, job["mapId"], {str(room): None for room in job["roomIds"]}
+        )
+        selected = set(job["segmentIds"])
+        areas, covered = [], set()
+        for area in mapped:
+            members = set(area["segments"])
+            if not members.intersection(selected):
+                continue
+            if not members <= selected:
+                return unavailable
+            covered.update(members)
+            areas.append({"id": area["area_id"], "label": area["name"]})
+        if covered != selected:
+            return unavailable
+        after = await self._ws_read(
+            {"type": "config/entity_registry/get_entries", "entity_ids": [entity_id]}
+        )
+        self._check(generation)
+        if not isinstance(after, dict) or set(after) != {entity_id} or after[entity_id] != target:
+            return unavailable
+        return podview_robot.project_current_setup(
+            {
+                "status": "observed",
+                "source": job["source"],
+                "vacuumEntityId": entity_id,
+                "observedAt": job["observedAt"],
+                "mapId": job["mapId"],
+                "mapIndex": job["mapIndex"],
+                "mapSequence": job["mapSequence"],
+                "areas": areas,
+                "repeat": job["repeat"],
+            },
+            entity_id,
+        )
 
     async def observe(self) -> dict:
         """Read allowlisted vacuum states without issuing or superseding tickets."""
@@ -1106,7 +1210,14 @@ class DeviceControl:
             for control in data["controls"]:
                 if control["state"] in control["options"]:
                     verified[control["entity_id"]] = control["state"]
-            current = replace(current, expected=tuple(verified.items()))
+            current = replace(
+                current,
+                expected=tuple(verified.items()),
+                start_settings_inventory=(
+                    ("suction", cap.vacuum),
+                    *((row["role"], row["entity_id"]) for row in data["controls"]),
+                ),
+            )
         prepared = PreparedAction(current, entity, action, service_data)
         await self._validate_current(prepared)
         return prepared
@@ -1259,6 +1370,13 @@ class DeviceControl:
                 "verified_settings": [
                     {"entity_id": entity, "value": value} for entity, value in cap.expected
                 ],
+                "settings_inventory": {
+                    "version": 1,
+                    "required": [
+                        {"role": role, "entity_id": entity}
+                        for role, entity in cap.start_settings_inventory
+                    ],
+                },
             }
             try:
                 journal_id = self._cleaning_journal.begin(recipe)

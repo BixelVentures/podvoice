@@ -838,7 +838,8 @@
         "dist/robot-control-panel.js",
         "dist/ui/kit.js",
         "dist/ha-home-observation.js",
-        "dist/robot-observation.js"
+        "dist/robot-observation.js",
+        "dist/home-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -874,7 +875,10 @@
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
           "method:send": 1,
-          "arrow:current": 2,
+          "arrow:current": 5,
+          "arrow:unknown": 1,
+          "method:renewRobotTask": 1,
+          "method:scheduleRobotTaskExpiry": 1,
           "method:currentVolumeOffer": 1,
           "method:prepareVolume": 1,
           "method:beginMusicIntent": 1,
@@ -885,6 +889,7 @@
           "method:refreshRobotOverview": 1,
           "method:robotControlContext": 1,
           "method:robotControlCurrent": 1,
+          "method:currentRobotSetup": 1,
           "method:robotOverviewAction": 1,
           "method:robotOverviewContext": 1,
           "method:robotOverviewCurrent": 1,

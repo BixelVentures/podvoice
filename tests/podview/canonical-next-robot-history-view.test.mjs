@@ -95,3 +95,14 @@ test('Robot to Light detail restores shared history visibility after revoked Rob
  f.host.liveSnapshot.capabilities.homeRead=[];renderRobotHistory(f.host);assert.equal(f.history.hidden,true);assert.equal(timeline.hidden,false);assert.deepEqual(timeline.data.items,[]);assert.equal(timeline.data.state,'empty');assert.equal(timeline.data.stateText,'Hændelser er ikke tilgængelige lige nu.');const reset=timeline.data;
  const light={id:'light',kind:'light',live:false};f.host.state.devices=[light];f.host.state.focus=light.id;renderRobotHistory(f.host);assert.equal(f.history.hidden,false);assert.equal(timeline.hidden,false);assert.equal(f.timeline,timeline);assert.equal(timeline.data,reset,'Light navigation cannot restore removed Robot events');assert.equal(f.section(),null);assert.equal(document.getElementById('robot-history-empty'),null);assert.equal(f.root.descendants().some(node=>node.tagName==='pv-choice-list'),false);assert.deepEqual(f.calls,[]);
 }));
+
+test('live robot history follows transport connectivity rather than unrelated scene connection flag',()=>withDocument(()=>{
+ const d=device({status:'cleaning',history:{status:'observed',items:[request('external','unknown')]}}),f=fixture(d,true);f.host.live=true;f.host.state.connected=false;f.host.liveTransport={connected:true};renderRobotHistory(f.host);assert.equal(f.timeline.data.state,'ready');f.host.liveTransport.connected=false;renderRobotHistory(f.host);assert.equal(f.timeline.data.state,'offline');f.host.liveTransport.connected=true;d.stale=true;renderRobotHistory(f.host);assert.equal(f.timeline.data.state,'offline');
+}));
+
+test('owner-confirmed complete recipe survives projection and exposes choose again without running it',async()=>{
+ const {validateHome,applyHome}=await import('../../podvoice/gatekeeper/static/podview/home-model.js');const previous=globalThis.document;try{
+ const record={id:'a'.repeat(32),recordedAt:now()-1,outcome:'accepted_by_ha',physicalResultVerified:false,recipe:{areaIds:['area'],mapName:'Stueplan',repeat:2,completeSetup:true}},wire={schema:'podview.home.v1',bootId:'boot',roomId:'room',revision:1,observedAt:now(),vacuum:{status:'observed',items:[{entityId:'vacuum.actual',name:'Robot',state:'docked',battery:50,observedAt:now(),source:'home_assistant_state',history:{status:'observed',source:'device_control_start_journal',items:[record]}}]}};
+ const scene=applyHome({devices:[],focus:'vacuum.actual'},validateHome(wire,'room','boot'),['vacuum']),f=fixture(scene.devices[0],true);f.host.live=true;f.host.liveTransport={connected:true};f.host.isConnected=true;renderRobotHistory(f.host);assert.equal(f.timeline.data.items[0].actionLabel,'Vælg igen');assert.deepEqual(f.calls,[]);f.timeline.listeners['pv-action']({detail:{action_id:'choose-history',option_id:`robot-request:${record.id}`},target:f.timeline});assert.deepEqual(f.calls,[record.id]);
+ }finally{globalThis.document=previous;}
+});

@@ -7,7 +7,7 @@ import {vehicleModel} from '../../podvoice/gatekeeper/static/podview/vehicle-mod
 test('passive vehicle fixture uses actual admitted observations, newer change, identical value and stale retention',()=>{
  let state=initialScene();const observed=[];
  for(let step=0;step<4;step++){
-  const dto=vehicleCueHome(step,'vehicle-charge-cue',1000),home=validateHome(dto,'vehicle-charge-cue','test-only');
+  const dto=vehicleCueHome(step,'vehicle-charge-cue',1000);dto.vehicle.bindingId='a'.repeat(64);const home=validateHome(dto,'vehicle-charge-cue','test-only');
   state=applyHome(state,home,['vehicle']);observed.push(vehicleModel(state.vehicle));
   assert.equal(dto.bootId,'test-only');assert.equal(dto.roomId,'vehicle-charge-cue');
  }

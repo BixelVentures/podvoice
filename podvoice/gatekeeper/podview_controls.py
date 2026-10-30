@@ -229,6 +229,8 @@ class TouchControls:
         self.tasks: dict[str, dict] = {}
         self.receipts: dict[tuple, tuple] = {}
         self.busy: set[str] = set()
+        self.setups: dict[str, str] = {}
+        self.mutations: dict[str, object] = {}
 
     def domains(self, room: str, token: str) -> list[str]:
         if not self.bridge._grant_current(room, token):
@@ -350,11 +352,22 @@ class TouchControls:
                 and self.bridge._grant_current(task["room"], token)
                 and (
                     self.tasks.get(task["id"]) is task
-                    or (task.get("setup_in_progress") is True and task["room"] in self.busy)
+                    or (
+                        task.get("setup_in_progress") is True
+                        and self.setups.get(task["room"]) == task["id"]
+                    )
                 )
             )
         return bool(
             secrets.compare_digest(task["token"], token)
+            and (
+                task.get("setup_in_progress") is not True
+                or task["domain"] == "vehicle"
+                or (
+                    self.setups.get(task["room"]) == task["id"]
+                    and self.mutations.get(task["room"]) is task["setup_mutation"]
+                )
+            )
             and (_receipt_only or time.monotonic() < task["deadline"])
             and domain_current
             and ("actual_current" not in task or task["actual_current"]())
@@ -583,7 +596,7 @@ class TouchControls:
             return failure("invalid_target")
         if "vehicle" not in self.domains(room, token):
             return failure("scope_not_paired")
-        if room in self.busy:
+        if room in self.busy or room in self.setups:
             return failure("busy")
         self._retire_receipts()
         self.tasks = {
@@ -754,7 +767,8 @@ class TouchControls:
             return failure("invalid_setup")
         if domain not in self.domains(room, token):
             return failure("scope_not_paired")
-        if room in self.busy:
+        setup_mutation = self.mutations.get(room)
+        if room in self.busy or room in self.setups:
             return failure("busy")
         rule: dict
         if domain == "music":
@@ -784,8 +798,10 @@ class TouchControls:
             )
             if resolved is None or resolved["binding"]["targetId"] != target["targetId"]:
                 return failure("target_not_granted")
-            if room in self.busy:
+            if room in self.busy or room in self.setups:
                 return failure("busy")
+            if self.mutations.get(room) is not setup_mutation:
+                return failure("stale_setup")
             source_scope = resolved["binding"]
             if moving:
                 if not isinstance(target["speakerId"], str) or len(target["speakerId"]) != 64:
@@ -834,6 +850,7 @@ class TouchControls:
         task = {
             "id": task_id,
             "setup_in_progress": True,
+            "setup_mutation": setup_mutation,
             "room": room,
             "domain": domain,
             "token": token,
@@ -872,7 +889,7 @@ class TouchControls:
             return self._current(task, token)
 
         setup: dict
-        self.busy.add(room)
+        self.setups[room] = task_id
         try:
             async with asyncio.timeout(20 if domain == "music" else 10):
                 if domain == "music":
@@ -1265,7 +1282,8 @@ class TouchControls:
         except Exception:
             return failure("setup_unavailable")
         finally:
-            self.busy.discard(room)
+            if self.setups.get(room) == task_id:
+                del self.setups[room]
 
     def _schedule_robot_suggestion(self, task: dict, token: str) -> None:
         """Optional read work starts only after actual native setup has completed."""
@@ -1806,6 +1824,10 @@ class TouchControls:
         }
         task["consumed"] = True
         self.receipts[key] = fingerprint, receipt, task["deadline"]
+        # A setup read may overlap use of a still-valid offer. Once an action is
+        # reserved, its pre-action reads must never publish new authority.
+        self.mutations[task["room"]] = object()
+        self.setups.pop(task["room"], None)
         self.busy.add(task["room"])
 
         def current():

@@ -1,3 +1,9 @@
+## 2.0.105
+
+- Improve robot and Tesla state observations and recovery through the Home Assistant integration.
+- Show approved screens with their Home Assistant room and place emergency actions in a separate advanced step.
+- Includes PodVoice Home Assistant component 0.1.9; publication, installation, and physical validation are separate.
+
 ## 2.0.104
 
 - Keep unsent robot choices through passive control renewal using fresh owner-verified identifiers. If choices cannot be restored, explain the recovery and keep independent controls available.

@@ -54,7 +54,7 @@ def _record(value: Any) -> bool:
     else:
         return False
     recipe = value["recipe"]
-    if not isinstance(recipe, dict) or set(recipe) != {
+    if not isinstance(recipe, dict) or set(recipe) - {"settings_inventory"} != {
         "vacuum_entity_id",
         "device_identity",
         "map_entity_id",
@@ -108,7 +108,46 @@ def _record(value: Any) -> bool:
             or not _text(item["value"])
         ):
             return False
-    return len({item["entity_id"] for item in settings}) == len(settings)
+    if len({item["entity_id"] for item in settings}) != len(settings):
+        return False
+    if "settings_inventory" not in recipe:
+        return True  # Historical receipts remain readable, never assumed complete.
+    inventory = recipe["settings_inventory"]
+    if (
+        not isinstance(inventory, dict)
+        or set(inventory) != {"version", "required"}
+        or type(inventory["version"]) is not int
+        or inventory["version"] != 1
+        or not isinstance(inventory["required"], list)
+        or not 1 <= len(inventory["required"]) <= 12
+    ):
+        return False
+    required = inventory["required"]
+    for item in required:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"role", "entity_id"}
+            or not isinstance(item["role"], str)
+            or item["role"] not in {"suction", "cleaning_mode", "mop_mode", "mop_intensity"}
+            or not isinstance(item["entity_id"], str)
+            or _ENTITY.fullmatch(item["entity_id"]) is None
+            or (item["role"] == "suction") != (item["entity_id"] == recipe["vacuum_entity_id"])
+            or (item["role"] != "suction" and not item["entity_id"].startswith("select."))
+        ):
+            return False
+    return len({item["entity_id"] for item in required}) == len(required) and any(
+        item["role"] == "suction" for item in required
+    )
+
+
+def complete_setup(recipe: dict[str, Any]) -> bool:
+    """Only a captured required inventory can prove complete recorded settings."""
+    inventory = recipe.get("settings_inventory")
+    return bool(
+        inventory
+        and {item["entity_id"] for item in inventory["required"]}
+        == {item["entity_id"] for item in recipe["verified_settings"]}
+    )
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
