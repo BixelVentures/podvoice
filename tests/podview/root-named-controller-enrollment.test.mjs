@@ -121,14 +121,14 @@ test('held old-generation renewal cannot revive named proof or write intent afte
  finally{release?.();h.transport.close();}
 });
 
-for(const change of ['boot','continuity'])test(`later HA SSE ${change} removes named proof and hint without stripping unrelated HA actions`,async()=>{
+for(const change of ['boot','continuity'])test(`later HA SSE ${change} suspends named proof but retains recovery hint`,async()=>{
  const h=rig();try{
   await h.transport.start();assert.equal(h.transport.namedControllerRenewed,true);
   const value={...snapshot(),revision:2};
   if(change==='boot')value.bootId='boot-two';
   if(change==='continuity')value.controllerContinuity.available=false;
   h.transport.stream.snapshot({data:JSON.stringify(value)});
-  assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.store.getItem(h.key),null);
+  assert.equal(h.transport.namedControllerRenewed,false);assert.notEqual(h.store.getItem(h.key),null);
   assert.deepEqual(h.transport.snapshot.capabilities.controlSetup,['music','vacuum']);
   assert.deepEqual(h.transport.snapshot.capabilities.timerActions,['timer.start']);
   assert.equal(h.transport.snapshot.capabilities.musicSelection,true);
@@ -276,4 +276,35 @@ for(const delay of [5000,6001])test(`a failed post-renew read after ${delay}ms c
   else{assert.equal(h.transport.connected,false);assert.equal(h.transport.snapshot,null,'expired initial data is not admitted as a new heartbeat');}
   await fire(1000);assert.equal(h.transport.connected,true);assert.equal(h.transport.namedControllerRenewed,true);assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)));
  }finally{h.transport.close();Date.now=previousNow;globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;}
+});
+test('renewal replaces old event stream and stale stream cannot remove Tesla authority',async()=>{
+ let generation=0;const value=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};
+ const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew'){generation++;return reply(renewal());}return reply(value());}});h.store.setItem(h.key,JSON.stringify(intent()));
+ try{await h.transport.start();const old=h.transport.stream;assert.equal(generation,1);assert.deepEqual(h.transport.snapshot.capabilities.vehicleActions,['unlock']);await h.transport.restart(false,true);assert.equal(generation,2);assert.equal(old.closed,true);assert.notEqual(h.transport.stream,old);const stale=value();stale.revision=2;stale.capabilities.controlSetup=stale.capabilities.controlSetup.filter(x=>x!=='vehicle');stale.capabilities.vehicleActions=[];old.snapshot({data:JSON.stringify(stale)});assert.deepEqual(h.transport.snapshot.capabilities.vehicleActions,['unlock']);assert(h.transport.snapshot.capabilities.controlSetup.includes('vehicle'));}finally{h.transport.close();}
+});
+test('other same-profile renewal cannot strip vehicle actions on a still-open stream',async()=>{
+ const store=storage();let epoch=0;const make=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};const handler=path=>{if(path==='controller/renew'){epoch++;return reply(renewal());}return reply(make())};const a=rig({url:ROOT,screenEnrollment:false,store,handler}),b=rig({url:ROOT,screenEnrollment:false,store,handler});store.setItem(a.key,JSON.stringify(intent()));
+ try{await a.transport.start();const old=a.transport.stream;await b.transport.start();assert.equal(epoch,2);const stale=make();stale.revision=2;stale.capabilities.controlSetup=stale.capabilities.controlSetup.filter(x=>x!=='vehicle');stale.capabilities.vehicleActions=[];old.snapshot({data:JSON.stringify(stale)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(old.closed,true);assert.notEqual(a.transport.stream,old);assert.deepEqual(a.transport.snapshot.capabilities.vehicleActions,['unlock']);}finally{a.transport.close();b.transport.close();}
+});
+test('a fresh read after lost vehicle capability honors real withdrawal without renewal loop',async()=>{
+ let grant=true,reads=0;const value=()=>{const v=snapshot();if(grant){v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];}return v};const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew')return reply(renewal());reads++;return reply(value());}});h.store.setItem(h.key,JSON.stringify(intent()));
+ try{await h.transport.start();const old=h.transport.stream;grant=false;const withdrawn=value();withdrawn.revision=2;old.snapshot({data:JSON.stringify(withdrawn)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(old.closed,true);assert.equal(h.transport.snapshot.capabilities.controlSetup.includes('vehicle'),false);const count=reads;h.transport.stream.snapshot({data:JSON.stringify(withdrawn)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(reads,count);assert.equal(h.transport.snapshot.capabilities.controlSetup.includes('vehicle'),false);}finally{h.transport.close();}
+});
+
+test('two successive other-tab renewals each rebind and preserve fresh Tesla capability',async()=>{
+ const store=storage();let epoch=0;const value=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};const handler=path=>{if(path==='controller/renew'){epoch++;return reply(renewal());}return reply(value())};const a=rig({url:ROOT,screenEnrollment:false,store,handler}),b=rig({url:ROOT,screenEnrollment:false,store,handler});store.setItem(a.key,JSON.stringify(intent()));
+ try{await a.transport.start();await b.transport.start();for(let n=0;n<2;n++){if(n)await b.transport.restart(false,true);const old=a.transport.stream,stale=value();stale.revision=2+n;stale.capabilities.controlSetup=stale.capabilities.controlSetup.filter(x=>x!=='vehicle');stale.capabilities.vehicleActions=[];old.snapshot({data:JSON.stringify(stale)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(old.closed,true);assert.notEqual(a.transport.stream,old);assert.deepEqual(a.transport.snapshot.capabilities.vehicleActions,['unlock']);}assert.equal(epoch,3);}finally{a.transport.close();b.transport.close();}
+});
+
+for(const reason of ['boot','temporarily unavailable'])test(`existing named profile renews after ${reason} without enrollment`,async()=>{
+ let value=snapshot(),denied=false;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>path==='controller/renew'?reply(denied?{ok:false,error:'denied'}:renewal(),denied?403:200):reply(value)});h.store.setItem(h.key,JSON.stringify(intent()));
+ try{await h.transport.start();const original=h.store.getItem(h.key);let changed=snapshot();changed.revision=2;if(reason==='boot')changed.bootId='boot-two';else changed.controllerContinuity.available=false;h.transport.stream.snapshot({data:JSON.stringify(changed)});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.store.getItem(h.key),original);value=snapshot();value.revision=3;if(reason==='boot')value.bootId='boot-two';await h.transport.restart(false,true);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(h.store.getItem(h.key),original);denied=true;await h.transport.restart(false,true);assert.equal(h.transport.namedRenewalDenied,true);assert.equal(h.store.getItem(h.key),null);assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
+});
+test('boot change schedules automatic same-cookie renewal with no enrollment',async()=>{
+ let value=snapshot(),renewals=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew'){renewals++;return reply(renewal());}return reply(value);}});h.store.setItem(h.key,JSON.stringify(intent()));
+ try{await h.transport.start();value=snapshot();value.bootId='boot-two';value.revision=2;h.transport.stream.snapshot({data:JSON.stringify(value)});assert.equal(h.transport.namedControllerRenewed,false);await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2);assert.equal(h.transport.namedControllerRenewed,true);assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
+});
+test('temporary continuity outage recovers automatically when the owner returns',async()=>{
+ let value=snapshot(),renewals=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew'){renewals++;return reply(renewal());}return reply(value);}});h.store.setItem(h.key,JSON.stringify(intent()));
+ try{await h.transport.start();const hint=h.store.getItem(h.key);value=snapshot();value.revision=2;value.controllerContinuity.available=false;h.transport.stream.snapshot({data:JSON.stringify(value)});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.store.getItem(h.key),hint);value=snapshot();value.revision=3;h.transport.stream.snapshot({data:JSON.stringify(value)});await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(h.store.getItem(h.key),hint);await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2,'successful recovery must not schedule an extra renewal');assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
 });

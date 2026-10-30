@@ -1,3 +1,8 @@
+## 2.0.107
+
+- Preserve screen enrollment during temporary owner unavailability and refresh it after an owner restart without repeating actions.
+- Home Assistant component remains at 0.1.9. Publication, installation and physical validation are separate.
+
 ## 2.0.106
 
 - Show current robot activity using the existing recorded observations and improve return-to-base wording and distance display.

@@ -2258,8 +2258,13 @@ async def _controller_renew(request: web.Request) -> web.Response:
         ):
             raise ValueError("controller unavailable")
         room = body["roomId"]
-        pin = bridge.controller_pin(room)
-        owner_binding = bridge.controller_owner(room)
+        try:
+            pin = bridge.controller_pin(room)
+            owner_binding = bridge.controller_owner(room)
+        except ValueError:
+            # Readiness loss cannot establish that the persistent credential is
+            # revoked. Issue no grant, and let the same cookie retry recovery.
+            return _error("controller_owner_unavailable", 503)
         identity, expiry = await asyncio.to_thread(
             registry.validate, request.cookies.get(_CONTROLLER_COOKIE, ""), room, pin, renew=True
         )
@@ -2268,11 +2273,18 @@ async def _controller_renew(request: web.Request) -> web.Response:
             or room in bridge._controller_revocation_failed
             or (room, identity) in bridge._controller_revoking
             or not bridge._controller_enabled
-            or not bridge.controller_owner_current(room, owner_binding)
-            or bridge.controller_pin(room) != pin
             or not registry.current(identity, room, pin)
         ):
             raise ValueError("controller owner changed")
+        try:
+            current_pin = bridge.controller_pin(room)
+            owner_current = bridge.controller_owner_current(room, owner_binding)
+        except ValueError:
+            return _error("controller_owner_unavailable", 503)
+        if current_pin != pin:
+            raise ValueError("controller owner changed")
+        if not owner_current:
+            return _error("controller_owner_unavailable", 503)
         token = bridge.grant_timer_control(room, identity)
         if not bridge._grant_current(room, token):
             bridge._grants.pop((room, identity), None)

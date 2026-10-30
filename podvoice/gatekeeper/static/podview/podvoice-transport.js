@@ -164,7 +164,8 @@ export class PodVoiceTransport {
   if(normalHA&&this.namedControllerRenewed===true&&(
    this.snapshot&&(this.snapshot.bootId!==value.bootId||this.snapshot.roomId!==value.roomId)
    ||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available!==true)){
-   this.namedRenewalDenied=true;this.forgetNamedIntent();this.namedLaneWanted=false;
+   this.namedControllerRenewed=false;this.namedRenewalUnconfirmed=true;this.namedResumeNeeded=true;
+   clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;
   }
   const writable=!!(value.capabilities.timerActions.length||value.capabilities.musicActions?.length||value.capabilities.controlSetup?.length||value.capabilities.musicSelection===true||value.capabilities.queueSelection===true);
   if(!normalHA&&this.lastWritableProjection===true&&!writable&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true){this.controllerRenewed=false;this.cookieReadAuthority=false;this.recoveryReadOnly=false;}
@@ -182,6 +183,7 @@ export class PodVoiceTransport {
    if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
   }
   this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;this.syncDiagnosticScope(value);
+  if(normalHA&&this.namedLaneWanted&&!this.namedControllerRenewed&&!this.namedRenewalDenied&&this.namedResumeNeeded&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.namedRenewTimer){const generation=this.generation;this.namedRenewTimer=setTimeout(()=>{this.namedRenewTimer=null;if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},1000);}
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed){this.recordDiagnostic('freshness',{code:'expiry'});this.disconnected();}},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
@@ -250,7 +252,7 @@ export class PodVoiceTransport {
    if(!haIngress(value)&&(this.controllerRenewalDenied||value?.controllerContinuity?.enabled===true&&!renewed&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
    if (!response.ok || !this.accept(value,readAt)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}throw new Error(value.error || 'invalid_snapshot');}
    if(generation!==this.generation||this.closed)return;
-   if(this.namedControllerRenewed===true)this.rememberNamedIntent(room);
+   if(this.namedControllerRenewed===true){this.namedResumeNeeded=false;this.rememberNamedIntent(room);}
    if(this.controllerRenewed===true||this.namedControllerRenewed===true)this.notify('onControllerRenewed',{owner:this.controllerRenewalOwner,generation});
    if(generation!==this.generation||this.closed)return;
    if(this.controllerRenewed===true){this.controllerRenewAt=Date.now()+240000;this.controllerRenewRetryAt=null;}
@@ -263,7 +265,7 @@ export class PodVoiceTransport {
    this.stream = new this.EventSource(this.endpoint('events'), {withCredentials:false});
    this.stream.addEventListener('snapshot', event => {
     if (generation !== this.generation) return;
-    try { if (!this.accept(JSON.parse(event.data))){this.recordDiagnostic('sse',{code:'invalid_dto'});this.disconnected();} } catch { this.recordDiagnostic('sse',{code:'invalid_json'});this.disconnected(); }
+    try { const next=JSON.parse(event.data);if(haIngress(this.snapshot)&&this.namedLaneWanted===true&&this.snapshot.capabilities?.controlSetup?.includes('vehicle')&&!next.capabilities?.controlSetup?.includes('vehicle')){this.restart(false,false).catch(()=>{});return;}if (!this.accept(next)){this.recordDiagnostic('sse',{code:'invalid_dto'});this.disconnected();} } catch { this.recordDiagnostic('sse',{code:'invalid_json'});this.disconnected(); }
    });
    this.stream.onerror = () => { if (generation === this.generation){this.recordDiagnostic('sse',{code:'error'});this.disconnected();} };
    if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed&&!this.cookieReadAuthority)this.scheduleRecovery();

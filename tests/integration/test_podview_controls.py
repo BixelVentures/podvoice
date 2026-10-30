@@ -1165,7 +1165,9 @@ async def test_offline_registered_owner_renew_stale_and_revoke_fence_all_actions
         json={"roomId": "kitchen"},
         headers={"X-PodView-Request": "1", "Cookie": f"podview_controller={credential}"},
     )
-    assert renewal.status == 403
+    assert renewal.status == 503
+    assert (await renewal.json())["error"] == "controller_owner_unavailable"
+    assert "podview_control" not in renewal.cookies
     assert (
         await (
             await client.post("/view/api/control/actions", json=old_command, headers=grant_headers)

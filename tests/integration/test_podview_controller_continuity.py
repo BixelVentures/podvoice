@@ -379,7 +379,9 @@ async def test_no_viewer_authority_or_household_effect_on_denied_renewal(tmp_pat
         changes["remote"] = "192.0.2.1"
     else:
         timers.available = lambda room: False
-    assert (await renew(bridge, credential, **changes)).status == 403
+    assert (await renew(bridge, credential, **changes)).status == (
+        503 if change == "owner-unavailable" else 403
+    )
     assert timers.command.await_count == 0
 
 
@@ -469,7 +471,7 @@ async def test_renewal_fences_same_identity_session_replacement_after_await(tmp_
         return result
 
     monkeypatch.setattr(asyncio, "to_thread", changed)
-    assert (await renew(bridge, credential)).status == 403
+    assert (await renew(bridge, credential)).status == 503
     assert not bridge._grants and timers.command.await_count == 0
 
 
@@ -499,7 +501,7 @@ async def test_renewal_holds_exact_old_owner_reference_across_disk_await(tmp_pat
         return result
 
     monkeypatch.setattr(asyncio, "to_thread", changed)
-    assert (await renew(bridge, credential)).status == 403
+    assert (await renew(bridge, credential)).status == 503
     assert not bridge._grants
 
 

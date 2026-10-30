@@ -8,6 +8,7 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_bridge import owner
+from integration.test_podview_controller_continuity import renew
 from unit.test_podview_vehicle_control import Harness
 
 from gatekeeper import podview
@@ -114,6 +115,104 @@ async def test_actual_http_requires_enrolled_controller_and_revocation_fences_ef
         assert not h.calls and not timers.command.await_count
     assert bridge.tools.bound_registry is None
     assert bridge._vehicle_registry_owner is None
+
+
+async def test_renewed_controller_cookie_requires_a_new_sse_request_for_vehicle_actions(tmp_path):
+    app, bridge, h, timers, credential, grant = rig(tmp_path)
+
+    async def snapshot_event(stream):
+        async with asyncio.timeout(3):
+            while line := await stream.content.readline():
+                if line.startswith(b"data: "):
+                    return json.loads(line[6:])
+        raise AssertionError("missing snapshot event")
+
+    async with TestClient(TestServer(app)) as client:
+        stream = await client.get("/view/api/events?room=kitchen", headers=headers(grant))
+        try:
+            before = await snapshot_event(stream)
+            assert before["capabilities"]["vehicleActions"]
+            renewed = await client.post(
+                "/view/api/controller/renew",
+                json={"roomId": "kitchen"},
+                headers={
+                    "X-PodView-Request": "1",
+                    "Cookie": "podview_controller=" + credential,
+                },
+            )
+            assert renewed.status == 200
+            fresh = renewed.cookies["podview_control"].value
+            assert fresh != grant
+            assert not bridge._grant_current("kitchen", grant)
+            assert bridge._grant_current("kitchen", fresh)
+            old_stream = await snapshot_event(stream)
+            assert old_stream["capabilities"]["vehicleActions"] == []
+            assert "vehicle" not in old_stream["capabilities"]["controlSetup"]
+            response = await client.get("/view/api/snapshot?room=kitchen", headers=headers(fresh))
+            current = await response.json()
+            assert (
+                current["capabilities"]["vehicleActions"]
+                == before["capabilities"]["vehicleActions"]
+            )
+            assert "vehicle" in current["capabilities"]["controlSetup"]
+            assert not h.calls and timers.command.await_count == 0
+        finally:
+            stream.close()
+
+
+@pytest.mark.parametrize("stage", ["before_validation", "after_validation"])
+async def test_temporary_controller_owner_loss_does_not_deny_persistent_cookie(tmp_path, stage):
+    _, bridge, h, timers, credential, _ = rig(tmp_path)
+    bridge.start_vehicle_controls()
+    available = timers.available
+    registry = bridge._controller_registry
+    validate = registry.validate
+    loop = asyncio.get_running_loop()
+
+    def lose_owner(*args, **kwargs):
+        result = validate(*args, **kwargs)
+        loop.call_soon_threadsafe(setattr, timers, "available", lambda room: False)
+        return result
+
+    try:
+        if stage == "before_validation":
+            timers.available = lambda room: False
+        else:
+            registry.validate = lose_owner
+        response = await renew(bridge, credential)
+        assert response.status == 503
+        assert json.loads(response.body)["error"] == "controller_owner_unavailable"
+        assert not response.cookies
+        timers.available = available
+        registry.validate = validate
+        recovered = await renew(bridge, credential)
+        assert recovered.status == 200
+        fresh = recovered.cookies["podview_control"].value
+        assert bridge.snapshot("kitchen", light_token=fresh)["capabilities"]["vehicleActions"]
+        assert not h.calls and timers.command.await_count == 0
+    finally:
+        registry.validate = validate
+        timers.available = available
+        await bridge.stop_vehicle_controls()
+
+
+@pytest.mark.parametrize("denial", ["disabled", "room_revocation", "revoked", "forged"])
+async def test_controller_permanent_denials_remain_forbidden(tmp_path, denial):
+    _, bridge, h, timers, credential, _ = rig(tmp_path)
+    if denial == "disabled":
+        bridge._controller_enabled = False
+        timers.available = lambda room: False
+    elif denial == "room_revocation":
+        bridge._controller_revocation_failed.add("kitchen")
+        timers.available = lambda room: False
+    elif denial == "revoked":
+        bridge._controller_registry.revoke(credential.split(".")[0], room="kitchen")
+    else:
+        credential = "forged"
+    response = await renew(bridge, credential)
+    assert response.status == 403
+    assert not response.cookies
+    assert not h.calls and timers.command.await_count == 0
 
 
 async def test_shutdown_holds_registry_until_command_handler_stops_and_restart_recovers(tmp_path):
