@@ -7167,3 +7167,25 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "version": 83
 }
 -->
+
+<!-- podvoice107-admission
+{
+  "base_tip": "59413ce4734c3ca8d85cd458a75365520124048d",
+  "config_fingerprint": "e67369362ffdabd7a3d3a615b3851867be51ba610801228883a69ef63c6af71e",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "61d88a1c7c76a08578a7d7a88c47c5c14d1de9f78b538d06aaa634c94351c19a",
+  "kind": "podvoice107_screen_enrollment_recovery",
+  "manifest_fingerprint": "04d2b58256364af0850ddb9a90a8dbec795a51d67a18bd061657e9b74f061f1f",
+  "merge_base": "59413ce4734c3ca8d85cd458a75365520124048d",
+  "policy_fingerprint": "fd2b7f4dd321e857bc15c661774180e7ef01da865dab4af38408984d61be3e08",
+  "rationale": "PodVoice 2.0.107 screen enrollment recovery after temporary owner unavailability and restart; exact source, test and asset inventory bound. Source reviews passed; final metadata review pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "e822c18549e8c52eec5b1b0fc620e0bc369e035549416217dfac5f8d4b3f1fa0",
+  "reviewer": "/root/tesla_status_cause",
+  "runtime_fingerprint": "e786074ed0f6b95c772cd525ae6c4d28509ca14f1812c85a31849ae727f934aa",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 84
+}
+-->
