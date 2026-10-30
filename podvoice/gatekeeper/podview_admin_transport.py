@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import time
+from concurrent.futures import Future
 from pathlib import Path
 
 import httpx
@@ -98,7 +99,8 @@ def _command(raw: bytes) -> dict:
                     value["area_id"] is not None
                     and (
                         type(value["area_id"]) is not str
-                        or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value["area_id"]) is None
+                        or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value["area_id"])
+                        is None
                     )
                 )
                 or type(value["expected_revision"]) is not int
@@ -199,7 +201,11 @@ class AdminStdinTransport:
 
         await areas()
         await asyncio.to_thread(
-            state.accept_profile_command, room, pin, command["nonce"], command["expires"]
+            state.accept_profile_command,
+            room,
+            pin,
+            command["nonce"],
+            command["expires"],
         )
         current()
         valid_ids = await areas()
@@ -238,7 +244,9 @@ class AdminStdinTransport:
             if self._stdin_execution is not None:
                 rejected = True
                 continue
-            task = asyncio.create_task(self.process(bytes(raw)), name="podview-admin-command")
+            task = asyncio.create_task(
+                self.process(bytes(raw)), name="podview-admin-command"
+            )
             self._stdin_execution = task
             self._tasks.add(task)
             task.add_done_callback(self._stdin_done)
@@ -328,7 +336,10 @@ class AdminStdinTransport:
                     self.bridge._controller_grants.clear()
                     if row["enabled"]:
                         await asyncio.to_thread(
-                            self.state.disable, room, command["nonce"], command["expires"]
+                            self.state.disable,
+                            room,
+                            command["nonce"],
+                            command["expires"],
                         )
                     else:
                         await asyncio.to_thread(
@@ -375,7 +386,8 @@ class AdminStdinTransport:
                     elif command["action"] == "revoke_identity":
                         active = registry.list_enrollments(room, row["pin"])
                         if not any(
-                            item["id"] == command["identity"] and item["status"] == "active"
+                            item["id"] == command["identity"]
+                            and item["status"] == "active"
                             for item in active
                         ):
                             raise ValueError("profile unavailable")
@@ -407,12 +419,17 @@ class AdminStdinTransport:
                                 )
                             await asyncio.shield(disk_task)
                             disk_task = None
-                            if not self.bridge.revoke_controller(room, command["identity"]):
+                            if not self.bridge.revoke_controller(
+                                room, command["identity"]
+                            ):
                                 raise ValueError("registry revoke failed")
                             if row["enabled"]:
                                 disk_task = asyncio.create_task(
                                     asyncio.to_thread(
-                                        self.state.profiles, room, row["pin"], self.registry_path
+                                        self.state.profiles,
+                                        room,
+                                        row["pin"],
+                                        self.registry_path,
                                     )
                                 )
                                 reopened, _ = await asyncio.shield(disk_task)
@@ -442,7 +459,9 @@ class AdminStdinTransport:
                                         time.time() + 12,
                                     )
                             except (OSError, ValueError, TypeError, KeyError):
-                                _LOG.error("podvoice admin cancellation fence unavailable")
+                                _LOG.error(
+                                    "podvoice admin cancellation fence unavailable"
+                                )
                             raise
                         except (OSError, ValueError, TypeError, KeyError):
                             self.bridge._controller_enabled = False
@@ -450,12 +469,18 @@ class AdminStdinTransport:
                             raise
                         # A prior room-wide close/failure is a durable fence. Revoking
                         # one identity never reopens its still-live siblings.
-                        result = {"ok": True, "room": room, "identity": command["identity"]}
+                        result = {
+                            "ok": True,
+                            "room": room,
+                            "identity": command["identity"],
+                        }
                     elif command["action"] == "list":
                         pending = []
                         if row["enabled"]:
                             try:
-                                pending = self.bridge.list_controller_requests(room)["pending"]
+                                pending = self.bridge.list_controller_requests(room)[
+                                    "pending"
+                                ]
                             except ValueError:
                                 pass  # Offline owner cannot create a claimable request.
                         enrolled = registry.list_enrollments(room, row["pin"])
@@ -463,17 +488,101 @@ class AdminStdinTransport:
                             "ok": True,
                             "room": room,
                             "pending": pending[:8],
-                            "enrolled": [item for item in enrolled if item["status"] == "active"][
-                                :2
-                            ],
+                            "enrolled": [
+                                item for item in enrolled if item["status"] == "active"
+                            ][:2],
                         }
                     else:
-                        if not row["enabled"] or self.bridge.controls.policy.get("roomId") != room:
+                        if (
+                            not row["enabled"]
+                            or self.bridge.controls.policy.get("roomId") != room
+                        ):
                             raise ValueError("room policy unavailable")
                         binding = self.bridge.controller_owner(room)
                         pin = self.bridge.controller_pin(room)
                         if row["pin"] != pin:
-                            raise ValueError("room owner changed")
+                            if command["action"] != "prepare":
+                                raise ValueError("room owner changed")
+                            request_id = command["request_id"]
+                            pending = self.bridge._controller_requests.get(request_id)
+                            cancelled = False
+
+                            def pending_current():
+                                return bool(
+                                    not cancelled
+                                    and pending is not None
+                                    and self.bridge._controller_requests.get(request_id)
+                                    is pending
+                                    and self.bridge._controller_registry is registry
+                                    and self.bridge.controller_owner_current(
+                                        room, binding
+                                    )
+                                    and self.bridge.controller_pin(room) == pin
+                                    and self.bridge.controller_request_status(
+                                        room, request_id, registry
+                                    )["status"]
+                                    == "pending"
+                                )
+
+                            if not pending_current():
+                                raise ValueError("pending request unavailable")
+                            loop = asyncio.get_running_loop()
+
+                            def permit_from_worker():
+                                # Never iterate event-loop-owned policy/request state
+                                # from the disk worker. The global admin lock stays held.
+                                permitted: Future[bool] = Future()
+
+                                def check():
+                                    try:
+                                        permitted.set_result(pending_current())
+                                    except (
+                                        OSError,
+                                        ValueError,
+                                        TypeError,
+                                        KeyError,
+                                        AttributeError,
+                                    ):
+                                        permitted.set_result(False)
+
+                                loop.call_soon_threadsafe(check)
+                                return permitted.result(timeout=2)
+
+                            disk = asyncio.create_task(
+                                asyncio.to_thread(
+                                    self.state.rebind_profile_pin,
+                                    room,
+                                    row["pin"],
+                                    pin,
+                                    row["generation"],
+                                    command["nonce"],
+                                    command["expires"],
+                                    permit_from_worker,
+                                )
+                            )
+                            try:
+                                await asyncio.shield(disk)
+                            except asyncio.CancelledError:
+                                cancelled = True
+                                while not disk.done():
+                                    try:
+                                        await asyncio.shield(disk)
+                                    except asyncio.CancelledError:
+                                        continue
+                                    except (
+                                        OSError,
+                                        ValueError,
+                                        TypeError,
+                                        KeyError,
+                                        TimeoutError,
+                                    ):
+                                        break
+                                if not disk.cancelled():
+                                    disk.exception()
+                                raise
+                            if not pending_current():
+                                raise ValueError("room owner changed")
+                            self.bridge._pairing_hash = ""
                         if command["action"] == "request_status":
                             result = self.bridge.controller_request_status(
                                 room, command["request_id"], registry
@@ -506,7 +615,14 @@ class AdminStdinTransport:
                             )
                             result = {"room": room, **approved}
                 outcome = "committed"
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, TimeoutError):
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                TimeoutError,
+            ):
                 _LOG.warning(_REJECTED)
             command["_result"] = result
             # HA resolves its exchange as soon as the receipt service runs, before
@@ -519,12 +635,16 @@ class AdminStdinTransport:
     async def _receipt(self, command: dict, outcome: str):
         if not self.token:
             return
-        encoded = json.dumps(command.get("_result", {}), separators=(",", ":"), allow_nan=False)
+        encoded = json.dumps(
+            command.get("_result", {}), separators=(",", ":"), allow_nan=False
+        )
         message = json.dumps(
             [command["nonce"], command["action"], command["room"], outcome, encoded],
             separators=(",", ":"),
         ).encode()
-        mac = hmac.new(bytes.fromhex(command["key"]), message, hashlib.sha256).hexdigest()
+        mac = hmac.new(
+            bytes.fromhex(command["key"]), message, hashlib.sha256
+        ).hexdigest()
         payload = {
             "nonce": command["nonce"],
             "action": command["action"],

@@ -9,12 +9,14 @@
   },
   "policy": {
     ".github/workflows/ci.yml": "65a1f959ab9f3a4b5369b3d11686c1c2089b383efaa93253dc3fb15b126e8495",
-    "podvoice/CHANGELOG.md": "1fc64ae8e50d32ae0a45a5158fa6ec05f1eb126ae1a79ff733c9d0b5e8f52e52",
+    "podvoice/CHANGELOG.md": "b67655280912becaf84f66572028137e0e605a5731d3037b498be9755f7a2e50",
     "scripts/dev_cycle.py": "9be4f7de64b7de6325179d63efeb588a4d5b704c1fcaee3d09f697d53a2c8de9"
   },
   "production": {
     "podvoice/gatekeeper/device_control.py": "28cc41f8bb536f8efc601c756d42648d74603a2751651239cead2cd44e1c62e6",
     "podvoice/gatekeeper/podview.py": "1408e96dca7865be857d1240e39876a1f341eca6a8d9a17fbf5b6cdd468ea46a",
+    "podvoice/gatekeeper/podview_admin_transport.py": "66e9fb0847824da683ee30c1246a06db60d4e471ff950b2485683b22a8409392",
+    "podvoice/gatekeeper/podview_controller_admin.py": "59f2fa132a125e1bd05a15692403f0c870284e441686a615c61834f3c869d2cd",
     "podvoice/gatekeeper/podview_robot.py": "b3e71a1cf2e1c8dd4a039503412c7d0bd822299e554ef70f43de5b82898bf77f",
     "podvoice/gatekeeper/static/podview/asset-manifest.json": "67fe3bcedb2d08a71e42765a31945fb4421c5ee5aacb4078c04806fca0b8dec1",
     "podvoice/gatekeeper/static/podview/home-model.js": "d2e6d9b8f95f3891e01f2cac44022c447d41d5df1cd6144f93d9fd9f2d2b298b",
@@ -27,6 +29,7 @@
     "podvoice/gatekeeper/static/podview/vehicle-view.js": "f76e25b321f624e0e717a14ed293b81631579cf133efeec09da62708f7e87a8b"
   },
   "regressions": {
+    "tests/integration/test_podview_admin_provision.py": "303c4b448340ec3e5c953c8396345aecc14a2c7043c72d7ac798e4de969ea618",
     "tests/integration/test_robot_current_activity.py": "cd8d4587449fb29a0c488b941ba4f6f007beb60c4bc10963938eca4f5143c0a5",
     "tests/podview/canonical-next-robot-control-panel.test.mjs": "6d7a0623b9fda2663089c555e6599d956e4d66c91e4f34bcffbd2295a3d8b6ed",
     "tests/podview/canonical-packet-robot-control-panel.test.mjs": "e0191e2be8f05bb3fef0da37859f35351c48ad852a8373bcaf58e2899e6d82c0",
@@ -104,10 +107,10 @@
     "podvoice/gatekeeper/podconnect.py": "e03284b7dd7caad599f75830e863421c6e765b7846af82ebef03f61352a0987a",
     "podvoice/gatekeeper/podconnect_targets.py": "11d2bef1cf332164608b5a3ee2893c95485c5338fc258f17e00218d2fb50c665",
     "podvoice/gatekeeper/podview.py": "1408e96dca7865be857d1240e39876a1f341eca6a8d9a17fbf5b6cdd468ea46a",
-    "podvoice/gatekeeper/podview_admin_transport.py": "624f818e8932a66b14edf7fd07f3ea1e3a768c8ef0af3fc869913a7096b8f1c3",
+    "podvoice/gatekeeper/podview_admin_transport.py": "66e9fb0847824da683ee30c1246a06db60d4e471ff950b2485683b22a8409392",
     "podvoice/gatekeeper/podview_client_diagnostics.py": "750bc9e89fa75d49e3932ed1ea56d7611339699cb61c57fd56dafe2bcaa81dcf",
     "podvoice/gatekeeper/podview_continuity.py": "f19c103c99c3ac4f33d72642899c7ca003290b5caa4c0d11bd1bdad532ac52ab",
-    "podvoice/gatekeeper/podview_controller_admin.py": "ba1ef85e8144695f4060d76a03ae2b36bcd3f91f8616068268933709abb4f1e1",
+    "podvoice/gatekeeper/podview_controller_admin.py": "59f2fa132a125e1bd05a15692403f0c870284e441686a615c61834f3c869d2cd",
     "podvoice/gatekeeper/podview_controls.py": "111448ff5b7ce097ff5b3f0e89b718642052f31662165a5a7dd9731e09755867",
     "podvoice/gatekeeper/podview_dock_control.py": "5103f032008e1a0a6bdd03773c1ec3f2351981441f945ebd198cc82bc94e0f0f",
     "podvoice/gatekeeper/podview_enrichment.py": "2c810fd453fcba942985a26b9b1108e41356ab1f392ebe51553e4b562c870f92",

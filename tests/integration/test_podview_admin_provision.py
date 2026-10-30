@@ -1,18 +1,247 @@
 """Inert HA-admin stdin → durable pair → renew/revoke causal chain."""
 
 import asyncio
+import copy
 import hashlib
 import json
 import threading
 import time
 
 import pytest
+from gatekeeper.podview import PodViewBridge
+from gatekeeper.podview_admin_transport import AdminStdinTransport
+from gatekeeper.podview_continuity import ContinuityDenied
+from gatekeeper.podview_controller_admin import ControllerAdminState
 from integration.test_podview_bridge import envelope, owner
 from integration.test_podview_controller_continuity import enroll, renew
 
-from gatekeeper.podview import PodViewBridge
-from gatekeeper.podview_admin_transport import AdminStdinTransport
-from gatekeeper.podview_controller_admin import ControllerAdminState
+
+def changed_policy_request(tmp_path):
+    bridge, state, transport, timers, receipts = rig(tmp_path)
+    row, registry = state.profiles(
+        "kitchen", bridge.controller_pin("kitchen"), transport.registry_path
+    )
+    bridge._controller_registry = registry
+    bridge._controller_enabled = True
+    bridge._controller_admin_state = state
+    old_pin = row["pin"]
+    _, old_identity, _ = registry.enroll(
+        "kitchen", old_pin, name="Old Mac", persistent=True
+    )
+    old_grant = bridge.grant_timer_control("kitchen", old_identity)
+    old_request, _ = bridge.request_controller("kitchen", "Old pending")
+    bridge.controls.policy["vacuum"] = [
+        {
+            "entityId": "vacuum.robot",
+            "actions": ["dock"],
+            "dockControls": [
+                {
+                    "transport": "vacuum_command",
+                    "role": "mop_washing",
+                    "model": "Q Revo",
+                    "dockModel": "Q Revo Dock",
+                }
+            ],
+        }
+    ]
+    pending, proof = bridge.request_controller("kitchen", "Replacement Mac")
+    return (
+        bridge,
+        state,
+        transport,
+        timers,
+        receipts,
+        registry,
+        old_pin,
+        old_identity,
+        old_grant,
+        old_request,
+        pending,
+        proof,
+    )
+
+
+async def test_changed_policy_pin_explicit_prepare_preserves_old_profiles_and_pending(
+    tmp_path,
+):
+    (
+        bridge,
+        state,
+        transport,
+        timers,
+        receipts,
+        registry,
+        old_pin,
+        old_identity,
+        old_grant,
+        _,
+        pending,
+        proof,
+    ) = changed_policy_request(tmp_path)
+    original = copy.deepcopy(registry._load())
+    before = state.load()
+    current_pin = bridge.controller_pin("kitchen")
+    assert before["pin"] == old_pin != current_pin
+    assert not bridge._grant_current("kitchen", old_grant)
+    await transport.process(
+        command("prepare", request_id=pending["requestId"], nonce="d" * 32)
+    )
+    assert receipts == ["committed"]
+    after = state.load()
+    assert after["pin"] == current_pin
+    assert after["generation"] == before["generation"]
+    assert after["enabled"] is True
+    assert "d" * 32 in after["nonces"]
+    assert bridge._controller_registry is registry
+    assert (
+        registry._load() == original
+    )  # No profile pin, secret, placement or risk rewrite.
+    assert registry.current(old_identity, "kitchen", old_pin)
+    with pytest.raises(ContinuityDenied):
+        registry.current(old_identity, "kitchen", current_pin)
+    assert not bridge._grant_current("kitchen", old_grant)
+    assert bridge._controller_requests[pending["requestId"]]["status"] == "pending"
+    await transport.process(
+        command("approve", request_id=pending["requestId"], nonce="e" * 32)
+    )
+    assert receipts == ["committed", "committed"]
+    result, credentials = bridge.claim_controller_request(
+        "kitchen", pending["requestId"], proof
+    )
+    assert result["status"] == "connected"
+    identity = bridge._controller_requests[pending["requestId"]]["identity"]
+    assert identity != old_identity and registry.current(
+        identity, "kitchen", current_pin
+    )
+    assert not bridge._grant_current("kitchen", old_grant)
+    assert timers.command.await_count == 0
+
+    # Recreate the private startup inputs and registry from disk; keep the exact
+    # browser credential while every boot-local grant/request starts empty.
+    credential, claimed_grant, expiry = credentials
+    assert expiry is None
+    restarted_state = ControllerAdminState(state.path)
+    restarted_row = restarted_state.load()
+    assert restarted_row["enabled"] and restarted_row["pin"] == current_pin
+    session, restarted_timers = owner()
+    restarted = PodViewBridge(
+        {"kitchen": session},
+        control_policy=json.dumps(bridge.controls.policy),
+        pairing_room=restarted_row["room"],
+        pairing_store=tmp_path / "used",
+        controller_enabled=restarted_row["enabled"],
+        controller_generation=restarted_row["generation"],
+        controller_days=30,
+        controller_store=registry.path,
+    )
+    restarted._controller_admin_state = restarted_state
+    assert restarted.controller_pin("kitchen") == current_pin
+    assert restarted._controller_registry is not registry
+    assert restarted._controller_registry.current(identity, "kitchen", current_pin)
+    assert not restarted._grant_current("kitchen", old_grant)
+    assert not restarted._grant_current("kitchen", claimed_grant)
+    assert not restarted._controller_requests
+    response = await renew(restarted, credential)
+    assert response.status == 200
+    fresh_grant = response.cookies["podview_control"].value
+    assert fresh_grant != claimed_grant
+    assert restarted._grant_current("kitchen", fresh_grant)
+    assert not restarted._grant_current("kitchen", old_grant)
+    assert not restarted._grant_current("kitchen", claimed_grant)
+    assert restarted_timers.command.await_count == 0
+
+
+@pytest.mark.parametrize(
+    "change", ["old_request", "missing", "expired", "disabled", "nonce"]
+)
+async def test_changed_policy_pin_invalid_prepare_never_changes_durable_owner(
+    tmp_path, change
+):
+    (
+        bridge,
+        state,
+        transport,
+        _,
+        receipts,
+        registry,
+        _,
+        _,
+        _,
+        old_request,
+        pending,
+        _,
+    ) = changed_policy_request(tmp_path)
+    request_id = pending["requestId"]
+    if change == "old_request":
+        request_id = old_request["requestId"]
+    elif change == "missing":
+        request_id = "f" * 32
+    elif change == "expired":
+        bridge._controller_requests[request_id]["deadline"] = 0
+    elif change == "disabled":
+        state.disable("kitchen", "c" * 32, time.time() + 12)
+    elif change == "nonce":
+        state.accept_profile_command(
+            "kitchen", state.load()["pin"], "d" * 32, time.time() + 12
+        )
+    before = state.path.read_bytes(), registry.path.read_bytes()
+    await transport.process(command("prepare", request_id=request_id, nonce="d" * 32))
+    assert receipts == ["unavailable"]
+    assert (state.path.read_bytes(), registry.path.read_bytes()) == before
+    assert bridge._controller_requests[pending["requestId"]]["status"] == "pending"
+
+
+@pytest.mark.parametrize("change", ["owner", "policy", "expired", "disabled", "cancel"])
+async def test_changed_policy_pin_waiting_commit_rechecks_custody(
+    tmp_path, monkeypatch, change
+):
+    (bridge, state, transport, timers, receipts, registry, _, _, _, _, pending, _) = (
+        changed_policy_request(tmp_path)
+    )
+    before = state.path.read_bytes(), registry.path.read_bytes()
+    entered = asyncio.Event()
+    release = threading.Event()
+    loop = asyncio.get_running_loop()
+    original = state.rebind_profile_pin
+
+    def delayed(*args):
+        loop.call_soon_threadsafe(entered.set)
+        assert release.wait(3)
+        return original(*args)
+
+    monkeypatch.setattr(state, "rebind_profile_pin", delayed)
+    task = asyncio.create_task(
+        transport.process(
+            command("prepare", request_id=pending["requestId"], nonce="d" * 32)
+        )
+    )
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        if change == "owner":
+            timers.bindings["kitchen"] = ("voice_pe", "replacement")
+        elif change == "policy":
+            bridge.controls.policy["vacuum"] = []
+        elif change == "expired":
+            bridge._controller_requests[pending["requestId"]]["deadline"] = 0
+        elif change == "disabled":
+            state.disable("kitchen", "c" * 32, time.time() + 12)
+            before = state.path.read_bytes(), registry.path.read_bytes()
+        else:
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()  # The admin lock still owns the disk operation.
+        release.set()
+        if change == "cancel":
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 2)
+        else:
+            await asyncio.wait_for(task, 2)
+            assert receipts == ["unavailable"]
+        assert (state.path.read_bytes(), registry.path.read_bytes()) == before
+        assert timers.command.await_count == 0
+    finally:
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 def command(action, *, code=None, nonce="a" * 32, request_id=None, identity=None):
@@ -70,7 +299,9 @@ async def test_default_off_admin_provision_one_use_restart_renew_and_revoke(tmp_
     assert (await renew(bridge, credential)).status == 200
     await transport.process(command("revoke", nonce="d" * 32))
     assert receipts == ["committed", "committed"]
-    assert state.load()["enabled"]  # Room stays available for a fresh explicit approval.
+    assert state.load()[
+        "enabled"
+    ]  # Room stays available for a fresh explicit approval.
     assert not bridge._grant_current("kitchen", grant)
     assert (await renew(bridge, credential)).status == 403
     assert timers.command.await_count == 0
@@ -101,7 +332,9 @@ async def test_bounded_reader_rejects_line_flood_without_queueing_commands(
     tmp_path, monkeypatch, caplog
 ):
     _, _, transport, _, _ = rig(tmp_path)
-    monkeypatch.setattr("gatekeeper.podview_admin_transport.os.read", lambda *_: b"{}\n" * 100)
+    monkeypatch.setattr(
+        "gatekeeper.podview_admin_transport.os.read", lambda *_: b"{}\n" * 100
+    )
     transport._readable()
     assert len(transport._tasks) == 1
     assert "podvoice admin stdin rejected" in caplog.text
@@ -174,7 +407,9 @@ async def test_command_expired_while_waiting_for_owner_lock_never_mutates(tmp_pa
     assert not bridge._controller_enabled
 
 
-async def test_owner_change_during_private_commit_never_acknowledges_code(tmp_path, monkeypatch):
+async def test_owner_change_during_private_commit_never_acknowledges_code(
+    tmp_path, monkeypatch
+):
     bridge, state, transport, timers, receipts = rig(tmp_path)
     original = state.provision
 
@@ -250,7 +485,9 @@ def test_private_state_rejects_corrupt_and_duplicate_fields(tmp_path):
         raise AssertionError("duplicate state field accepted")
 
 
-def test_private_code_is_consumed_before_enrollment_and_five_bad_attempts_survive_restart(tmp_path):
+def test_private_code_is_consumed_before_enrollment_and_five_bad_attempts_survive_restart(
+    tmp_path,
+):
     _, state, _, _, _ = rig(tmp_path)
     code = "k" * 43
     state.provision(
@@ -278,7 +515,9 @@ def test_private_code_is_consumed_before_enrollment_and_five_bad_attempts_surviv
     assert state.load()["attempts"] == 5
 
 
-def test_reprovision_partial_disk_failure_keeps_prior_code_disabled(tmp_path, monkeypatch):
+def test_reprovision_partial_disk_failure_keeps_prior_code_disabled(
+    tmp_path, monkeypatch
+):
     _, state, _, _, _ = rig(tmp_path)
     path = tmp_path / "controllers" / "registry.json"
     state.provision("kitchen", "a" * 64, "p" * 43, path, "a" * 32, time.time() + 12)
@@ -300,10 +539,14 @@ def test_reprovision_partial_disk_failure_keeps_prior_code_disabled(tmp_path, mo
     assert not reboot.attempt("kitchen", "p" * 43, "a" * 64)
 
 
-async def test_profile_admin_lists_prepares_approves_and_revokes_exact_identity(tmp_path):
+async def test_profile_admin_lists_prepares_approves_and_revokes_exact_identity(
+    tmp_path,
+):
     bridge, state, transport, _, _ = rig(tmp_path)
     room = "kitchen"
-    row, registry = state.profiles(room, bridge.controller_pin(room), transport.registry_path)
+    row, registry = state.profiles(
+        room, bridge.controller_pin(room), transport.registry_path
+    )
     bridge._controller_registry = registry
     bridge._controller_enabled = row["enabled"]
     bridge._controller_admin_state = state
@@ -319,9 +562,13 @@ async def test_profile_admin_lists_prepares_approves_and_revokes_exact_identity(
     assert captured[-1][1]["pending"][0]["name"] == "iPad"
     assert len(captured[-1][1]["pending"][0]["matchSignal"]) == 6
     assert proof not in json.dumps(captured[-1][1])
-    await transport.process(command("prepare", request_id=pending["requestId"], nonce="b" * 32))
+    await transport.process(
+        command("prepare", request_id=pending["requestId"], nonce="b" * 32)
+    )
     assert captured[-1][1]["status"] == "pending"
-    await transport.process(command("approve", request_id=pending["requestId"], nonce="c" * 32))
+    await transport.process(
+        command("approve", request_id=pending["requestId"], nonce="c" * 32)
+    )
     assert captured[-1][1]["status"] == "approved"
     assert (
         bridge.claim_controller_request(room, pending["requestId"], proof)[0]["status"]
@@ -329,7 +576,9 @@ async def test_profile_admin_lists_prepares_approves_and_revokes_exact_identity(
     )
     listed = registry.list_enrollments(room, bridge.controller_pin(room))
     identity = next(item["id"] for item in listed if item["status"] == "active")
-    await transport.process(command("revoke_identity", identity=identity, nonce="d" * 32))
+    await transport.process(
+        command("revoke_identity", identity=identity, nonce="d" * 32)
+    )
     assert captured[-1][1] == {"ok": True, "room": room, "identity": identity}
     with pytest.raises(ValueError):
         registry.current(identity, room, bridge.controller_pin(room))
@@ -374,24 +623,36 @@ async def test_new_approval_preserves_existing_finite_browser_credential(tmp_pat
     bridge._controller_registry = registry
     bridge._controller_enabled = row["enabled"]
     pending, proof = bridge.request_controller("kitchen", "iPad")
-    await transport.process(command("approve", request_id=pending["requestId"], nonce="b" * 32))
+    await transport.process(
+        command("approve", request_id=pending["requestId"], nonce="b" * 32)
+    )
     assert (
-        bridge.claim_controller_request("kitchen", pending["requestId"], proof)[0]["status"]
+        bridge.claim_controller_request("kitchen", pending["requestId"], proof)[0][
+            "status"
+        ]
         == "connected"
     )
-    assert registry.validate(old_token, "kitchen", bridge.controller_pin("kitchen")) == (
+    assert registry.validate(
+        old_token, "kitchen", bridge.controller_pin("kitchen")
+    ) == (
         old_identity,
         old_expiry,
     )
     assert bridge._grant_current("kitchen", old_grant)
     new_identity = next(
         item["id"]
-        for item in registry.list_enrollments("kitchen", bridge.controller_pin("kitchen"))
+        for item in registry.list_enrollments(
+            "kitchen", bridge.controller_pin("kitchen")
+        )
         if item["id"] != old_identity and item["status"] == "active"
     )
     next_pending, next_proof = bridge.request_controller("kitchen", "Frameo")
-    await transport.process(command("revoke_identity", identity=new_identity, nonce="c" * 32))
-    assert registry.validate(old_token, "kitchen", bridge.controller_pin("kitchen")) == (
+    await transport.process(
+        command("revoke_identity", identity=new_identity, nonce="c" * 32)
+    )
+    assert registry.validate(
+        old_token, "kitchen", bridge.controller_pin("kitchen")
+    ) == (
         old_identity,
         old_expiry,
     )
@@ -400,9 +661,9 @@ async def test_new_approval_preserves_existing_finite_browser_credential(tmp_pat
         command("approve", request_id=next_pending["requestId"], nonce="d" * 32)
     )
     assert (
-        bridge.claim_controller_request("kitchen", next_pending["requestId"], next_proof)[0][
-            "status"
-        ]
+        bridge.claim_controller_request(
+            "kitchen", next_pending["requestId"], next_proof
+        )[0]["status"]
         == "connected"
     )
 
@@ -426,12 +687,19 @@ async def test_individual_revoke_remains_available_while_timer_owner_offline(tmp
     timers.available = lambda room: False
     await transport.process(command("list"))
     assert seen[-1][1]["enrolled"][0]["id"] == identity
-    await transport.process(command("revoke_identity", identity=identity, nonce="f" * 32))
-    assert seen[-1] == ("committed", {"ok": True, "room": "kitchen", "identity": identity})
+    await transport.process(
+        command("revoke_identity", identity=identity, nonce="f" * 32)
+    )
+    assert seen[-1] == (
+        "committed",
+        {"ok": True, "room": "kitchen", "identity": identity},
+    )
     assert registry.list_enrollments("kitchen", row["pin"])[0]["status"] == "revoked"
 
 
-async def test_individual_revoke_cannot_reopen_failed_room_close_or_sibling(tmp_path, monkeypatch):
+async def test_individual_revoke_cannot_reopen_failed_room_close_or_sibling(
+    tmp_path, monkeypatch
+):
     bridge, state, transport, _, receipts = rig(tmp_path)
     await transport.process(command("provision", code="x" * 43))
     sibling_token, _ = await enroll(bridge, "x" * 43)
@@ -447,7 +715,9 @@ async def test_individual_revoke_cannot_reopen_failed_room_close_or_sibling(tmp_
     assert not bridge._controller_enabled
     assert registry.current(sibling_id, "kitchen", pin)
 
-    await transport.process(command("revoke_identity", identity=target_id, nonce="c" * 32))
+    await transport.process(
+        command("revoke_identity", identity=target_id, nonce="c" * 32)
+    )
     assert receipts[-1] == "committed"
     assert not state.load()["enabled"]
     assert not bridge._controller_enabled
@@ -505,7 +775,9 @@ async def test_individual_revoke_fences_a_while_b_execution_guard_continues(
     if disk_failure:
         monkeypatch.setattr(bridge, "revoke_controller", lambda room, identity: False)
     revocation = asyncio.create_task(
-        transport.process(command("revoke_identity", identity=a_identity, nonce="e" * 32))
+        transport.process(
+            command("revoke_identity", identity=a_identity, nonce="e" * 32)
+        )
     )
     try:
         await asyncio.wait_for(entered_disk.wait(), 2)
@@ -545,7 +817,9 @@ async def test_cancelled_individual_revoke_keeps_room_and_disk_fenced(
     registry = bridge._controller_registry
     pin = bridge.controller_pin("kitchen")
     a_identity, _ = registry.validate(a_token, "kitchen", pin)
-    b_token, b_identity, _ = registry.enroll("kitchen", pin, name="Frameo", persistent=True)
+    b_token, b_identity, _ = registry.enroll(
+        "kitchen", pin, name="Frameo", persistent=True
+    )
 
     entered = asyncio.Event()
     release = threading.Event()
@@ -559,7 +833,9 @@ async def test_cancelled_individual_revoke_keeps_room_and_disk_fenced(
 
     monkeypatch.setattr(state, paused_write, delayed)
     task = asyncio.create_task(
-        transport.process(command("revoke_identity", identity=a_identity, nonce="f" * 32))
+        transport.process(
+            command("revoke_identity", identity=a_identity, nonce="f" * 32)
+        )
     )
     try:
         await asyncio.wait_for(entered.wait(), 2)
@@ -605,19 +881,26 @@ async def test_explicit_recovery_rebinds_current_pin_and_revokes_old_profiles(tm
         for row in bridge._controller_registry.list_enrollments("kitchen", old_pin)
     )
     pending, proof = bridge.request_controller("kitchen", "New Mac")
-    await transport.process(command("approve", request_id=pending["requestId"], nonce="e" * 32))
+    await transport.process(
+        command("approve", request_id=pending["requestId"], nonce="e" * 32)
+    )
     assert receipts[-1] == "committed"
     assert (
-        bridge.claim_controller_request("kitchen", pending["requestId"], proof)[0]["status"]
+        bridge.claim_controller_request("kitchen", pending["requestId"], proof)[0][
+            "status"
+        ]
         == "connected"
     )
     assert timers.command.await_count == 0
 
 
 @pytest.mark.parametrize(
-    "failure", ["disable_before_write", "registry", "owner_before_rebind", "owner_after_rebind"]
+    "failure",
+    ["disable_before_write", "registry", "owner_before_rebind", "owner_after_rebind"],
 )
-async def test_recovery_failure_never_reopens_old_profile(tmp_path, monkeypatch, failure):
+async def test_recovery_failure_never_reopens_old_profile(
+    tmp_path, monkeypatch, failure
+):
     bridge, state, transport, timers, receipts = rig(tmp_path)
     await transport.process(command("provision", code="c" * 43))
     credential, grant = await enroll(bridge, "c" * 43)
@@ -665,12 +948,16 @@ async def test_recovery_failure_never_reopens_old_profile(tmp_path, monkeypatch,
 
         restored = ControllerAdminState(state.path).load()
         assert restored["enabled"] and restored["pin"] == old_pin
-        registry = ControllerRegistry(transport.registry_path, restored["generation"], 30)
+        registry = ControllerRegistry(
+            transport.registry_path, restored["generation"], 30
+        )
         assert any(
-            row["status"] == "active" for row in registry.list_enrollments("kitchen", old_pin)
+            row["status"] == "active"
+            for row in registry.list_enrollments("kitchen", old_pin)
         )
         assert all(
-            row["status"] == "stale" for row in registry.list_enrollments("kitchen", "f" * 64)
+            row["status"] == "stale"
+            for row in registry.list_enrollments("kitchen", "f" * 64)
         )
     elif failure != "owner_after_rebind":
         assert not state.load()["enabled"] and state.load()["pin"] == old_pin

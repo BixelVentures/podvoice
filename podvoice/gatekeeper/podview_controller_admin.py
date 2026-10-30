@@ -39,7 +39,11 @@ class ControllerAdminState:
         info = parent.stat()
         if parent.is_symlink() or info.st_uid != os.geteuid() or info.st_mode & 0o077:
             raise AdminStateDenied("unsafe admin state directory")
-        fd = os.open(self.path.with_suffix(".lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fd = os.open(
+            self.path.with_suffix(".lock"),
+            os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW,
+            0o600,
+        )
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BaseException:
@@ -115,13 +119,17 @@ class ControllerAdminState:
     def _write(self, row):
         temporary = self.path.with_name(self.path.name + "." + secrets.token_hex(12))
         try:
-            fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+            fd = os.open(
+                temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600
+            )
             with os.fdopen(fd, "w") as stream:
                 json.dump(row, stream, separators=(",", ":"), allow_nan=False)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, self.path)
-            directory = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            directory = os.open(
+                self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            )
             try:
                 os.fsync(directory)
             finally:
@@ -193,8 +201,51 @@ class ControllerAdminState:
         finally:
             os.close(fd)
 
+    def rebind_profile_pin(
+        self, room, old_pin, pin, generation, nonce, expires, current
+    ):
+        """CAS the private admin pin for one explicitly authorized pending request.
+
+        No enrollment, profile pin, generation, enabled flag or registry is changed.
+        The caller's current predicate runs on its event loop, while this file
+        lock protects the durable owner/nonce comparison and commit.
+        """
+        if (
+            not isinstance(pin, str)
+            or re.fullmatch(r"[a-f0-9]{64}", pin) is None
+            or not isinstance(nonce, str)
+            or re.fullmatch(r"[a-f0-9]{32}", nonce) is None
+        ):
+            raise AdminStateDenied("invalid owner command")
+        fd = self._lock()
+        try:
+            row = self._read()
+            if (
+                row is None
+                or row["enabled"] is not True
+                or row["room"] != room
+                or row["generation"] != generation
+                or row["pin"] != old_pin
+                or nonce in row["nonces"]
+                or time.time() >= expires
+                or not current()
+                or time.time() >= expires
+            ):
+                raise AdminStateDenied("profile owner unavailable")
+            row.update(pin=pin, digest="", deadline=0, attempts=5)
+            row["nonces"] = (row["nonces"] + [nonce])[-64:]
+            self._write(row)
+        finally:
+            os.close(fd)
+
     def provision(
-        self, room: str, pin: str, code: str, registry_path: Path, nonce: str, expires: float
+        self,
+        room: str,
+        pin: str,
+        code: str,
+        registry_path: Path,
+        nonce: str,
+        expires: float,
     ):
         if not isinstance(room, str) or not 1 <= len(room) <= 160:
             raise AdminStateDenied("invalid room")
@@ -204,7 +255,10 @@ class ControllerAdminState:
             raise AdminStateDenied("invalid code")
         if not isinstance(nonce, str) or not re.fullmatch(r"[a-f0-9]{32}", nonce):
             raise AdminStateDenied("invalid nonce")
-        if type(expires) not in (int, float) or not time.time() < expires <= time.time() + 15:
+        if (
+            type(expires) not in (int, float)
+            or not time.time() < expires <= time.time() + 15
+        ):
             raise AdminStateDenied("expired admin command")
         fd = self._lock()
         try:
@@ -257,11 +311,15 @@ class ControllerAdminState:
                 and time.time() < row["deadline"]
                 and isinstance(code, str)
                 and re.fullmatch(r"[A-Za-z0-9_-]{43}", code) is not None
-                and secrets.compare_digest(hashlib.sha256(code.encode()).hexdigest(), row["digest"])
+                and secrets.compare_digest(
+                    hashlib.sha256(code.encode()).hexdigest(), row["digest"]
+                )
             )
             row["attempts"] += 1
             if valid:
-                row["digest"] = ""  # Durable one-use consume precedes browser enrollment.
+                row["digest"] = (
+                    ""  # Durable one-use consume precedes browser enrollment.
+                )
                 row["deadline"] = 0
             self._write(row)
             return valid

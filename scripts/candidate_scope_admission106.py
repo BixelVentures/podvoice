@@ -45,6 +45,8 @@ PRODUCTION = frozenset(
     [
         "podvoice/gatekeeper/device_control.py",
         "podvoice/gatekeeper/podview.py",
+        "podvoice/gatekeeper/podview_admin_transport.py",
+        "podvoice/gatekeeper/podview_controller_admin.py",
         "podvoice/gatekeeper/podview_robot.py",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/podview/home-model.js",
@@ -59,6 +61,7 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     [
+        "tests/integration/test_podview_admin_provision.py",
         "tests/integration/test_robot_current_activity.py",
         "tests/podview/canonical-next-robot-control-panel.test.mjs",
         "tests/podview/canonical-packet-robot-control-panel.test.mjs",
@@ -77,8 +80,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/admin_race_review"
-MANIFEST_SHA = "d57a20688e82112e4f6b93a50daa4eb3e67c8165ad6e051dfc3a989c24c6eca4"
-PROFILE_AST = "02c7712c020c79909710f2a898b3e95418b106876b27d1a591f785a1ce995732"
+MANIFEST_SHA = "20e78e303b30360145eb112d48eaf3d0816ef8745174ece708f23cea19fd6b5e"
+PROFILE_AST = "4fe32ec26aafb5d421de6db0b19c20a8b8630f201115471f9b1221026fa16cdf"
 
 
 def record_at(root: Path) -> dict | None:
