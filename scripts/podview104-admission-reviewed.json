@@ -28,12 +28,14 @@
     "podvoice/gatekeeper/static/podview/robot-control-panel.js": "0c0d6196125877fd6b1e3b342d5889f286f9303de9e9a006899a17ddb3097815"
   },
   "regressions": {
+    "tests/browser/daily_ui.cjs": "02c6474370fea5f0883faf19b413af5a72a8952b6c1dda01eb9776a1e89869ee",
     "tests/ha_framework/test_controller_admin_services.py": "c57790e86d04bd19d8267be21b450afcff36088a1518b92cc85021aca960183c",
     "tests/integration/test_podview_controls.py": "4c6d54a98a73bc539bf1bfe0b102e821b7792f39c2e733f1da3330c417dfa2d8",
     "tests/podview/root-podvoice-transport.test.mjs": "729d0915e61b8900dde1938de00f26823c186654724e346fcbb627de323cf973",
     "tests/podview/root-robot-control-panel.test.mjs": "5cbae8afb03a8a186bccbe8edae9f363bf935c8fa9df638a226908bf3fbdf636",
     "tests/podview/root-robot-control-renewal.test.mjs": "560471da51e2bb14066f65be1bd9eca780381d837d2e9bfb46eebd3caefddd23",
-    "tests/podview/root-robot-draft-model.test.mjs": "9faa9aceef325125b350b27f87c9af6b926aff72f80c78785119eb5fe2c4b2dc"
+    "tests/podview/root-robot-draft-model.test.mjs": "9faa9aceef325125b350b27f87c9af6b926aff72f80c78785119eb5fe2c4b2dc",
+    "tests/unit/test_ha_controller_admin.py": "74ee9671223d02288bc8d58bb42df586b958623aaaf289db52d62afeda0dc67e"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "929240cc74033cbae581ae3e1b2ea38ec673d4e722024c440ed5423aee2e22ad",

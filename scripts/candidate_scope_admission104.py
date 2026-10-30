@@ -60,12 +60,14 @@ PRODUCTION = frozenset(
 )
 REQUIRED_TESTS = frozenset(
     [
+        "tests/browser/daily_ui.cjs",
         "tests/ha_framework/test_controller_admin_services.py",
         "tests/integration/test_podview_controls.py",
         "tests/podview/root-podvoice-transport.test.mjs",
         "tests/podview/root-robot-control-panel.test.mjs",
         "tests/podview/root-robot-control-renewal.test.mjs",
         "tests/podview/root-robot-draft-model.test.mjs",
+        "tests/unit/test_ha_controller_admin.py",
     ]
 )
 
@@ -76,8 +78,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/admin_race_review"
-MANIFEST_SHA = "29870578a99addd38c082835b0e8ec9f39358a7c18c8fd95ff285cd8dcd26a4b"
-PROFILE_AST = "c5fba81a8d7b87ac7627250a6bdfcc176d443f35a37db93e2b390d24f75be887"
+MANIFEST_SHA = "813c0a82e811aef83fb6047d0b7172ec34a309c22a63573e895dbc865e1e9691"
+PROFILE_AST = "a8b10c3db855107ee687a22c161a3b0ace8a0a8ff49f902ef009067f466b2c64"
 
 
 def record_at(root: Path) -> dict | None:
