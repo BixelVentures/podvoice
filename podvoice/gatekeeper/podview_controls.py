@@ -730,6 +730,7 @@ class TouchControls:
             "target",
             "recipeId",
             "requestedAction",
+            "draft",
         } or not {
             "bootId",
             "roomId",
@@ -748,6 +749,8 @@ class TouchControls:
         if "requestedAction" in body and (
             body["requestedAction"] != "volume" or domain != "music" or "speakerId" in target
         ):
+            return failure("invalid_setup")
+        if "draft" in body and (domain != "vacuum" or "recipeId" in body):
             return failure("invalid_setup")
         if domain not in self.domains(room, token):
             return failure("scope_not_paired")
@@ -818,6 +821,7 @@ class TouchControls:
             )
         ):
             return failure("target_not_granted")
+        draft_source = self._robot_draft_source(body.get("draft"), room, target, token)
         self._retire_receipts()
         self.tasks = {
             k: t
@@ -1212,6 +1216,11 @@ class TouchControls:
                             if not current():
                                 return failure("stale_setup")
                             task["offered"] = offered
+                            task["draft_identity"] = device.display_draft_identity(
+                                offered, task["owner"]
+                            )
+                            task["draft_boot"] = self.bridge.boot_id
+                            task["draft_authority"] = self._robot_draft_authority(room, token)
                             public_options += self._robot_options(task, "recipeId" in body)
                             setup = (
                                 {"mapName": offered["data"]["map"]["name"]}
@@ -1228,6 +1237,10 @@ class TouchControls:
             self.tasks[task_id] = task
             task["setup_in_progress"] = False
             if domain == "vacuum" and "recipeId" not in body:
+                if "draft" in body:
+                    setup["draft"] = self._robot_remap_draft(
+                        draft_source, body["draft"], task, token
+                    )
                 self._schedule_robot_suggestion(task, token)
                 suggestion = self._robot_suggestion(task, token)
                 if suggestion is not None:
@@ -1553,6 +1566,117 @@ class TouchControls:
                     ),
                 },
             )
+
+    def _robot_draft_authority(self, room, token):
+        actor = self.bridge._ha_actors.get(token)
+        return actor if actor is not None else self.bridge._grant_for_token(room, token)
+
+    def _robot_draft_current(self, source, room, target, token):
+        # Expiry is deliberately absent ONLY from this read-only metadata guard.
+        # action() continues to require _current(), deadline and unconsumed authority.
+        return bool(
+            source
+            and source["domain"] == "vacuum"
+            and source.get("draft_boot") == self.bridge.boot_id
+            and source.get("draft_identity") is not None
+            and source.get("draft_authority") is not None
+            and source["draft_authority"] is self._robot_draft_authority(room, token)
+            and source["room"] == room
+            and source["target"] == target
+            and not source["consumed"]  # Set before dispatch, including pending/UNKNOWN.
+            and secrets.compare_digest(source["token"], token)
+            and "vacuum" in self.domains(room, token)
+            and source["binding"] == self._binding(room, "vacuum")
+        )
+
+    def _robot_draft_source(self, draft, room, target, token):
+        if not isinstance(draft, dict) or set(draft) != {
+            "taskId",
+            "revision",
+            "optionId",
+            "areaIds",
+            "repeat",
+            "settingChoices",
+        }:
+            return None
+        if (
+            type(draft["taskId"]) is not str
+            or not 1 <= len(draft["taskId"]) <= 120
+            or type(draft["revision"]) is not int
+            or draft["revision"] != 1
+        ):
+            return None
+        source = self.tasks.get(draft["taskId"])
+        return source if self._robot_draft_current(source, room, target, token) else None
+
+    def _robot_remap_draft(self, source, draft, task, token):
+        not_restored = {"status": "not_restored"}
+        try:
+            if (
+                not self._robot_draft_current(source, task["room"], task["target"], token)
+                or not self._current(task, token)
+                or source["draft_identity"] != task.get("draft_identity")
+                or type(draft["optionId"]) is not str
+                or type(draft["repeat"]) is not int
+                or not 1 <= draft["repeat"] <= 3
+            ):
+                return not_restored
+            old = source["options"][draft["optionId"]]
+            starts = [
+                (oid, option)
+                for oid, option in task["options"].items()
+                if option["action"] == "start" and option["schema"]["kind"] == "cleaning"
+            ]
+            if old["action"] != "start" or old["schema"]["kind"] != "cleaning" or len(starts) != 1:
+                return not_restored
+            oid, fresh = starts[0]
+            areas, selections = draft["areaIds"], draft["settingChoices"]
+            if (
+                type(areas) is not list
+                or len(areas) > 32
+                or any(type(aid) is not str for aid in areas)
+                or len(set(areas)) != len(areas)
+                or type(selections) is not list
+                or len(selections) > 8
+                or any(
+                    type(row) is not dict
+                    or set(row) != {"settingId", "choiceId"}
+                    or any(type(value) is not str for value in row.values())
+                    for row in selections
+                )
+                or len({row["settingId"] for row in selections}) != len(selections)
+            ):
+                return not_restored
+            remapped_areas, remapped_settings = [], []
+            for aid in areas:
+                area = old["areas"][aid]["area_id"]
+                matches = [key for key, row in fresh["areas"].items() if row["area_id"] == area]
+                if len(matches) != 1:
+                    return not_restored
+                remapped_areas.append(matches[0])
+            for selected in selections:
+                setting = old["settings"][selected["settingId"]]
+                value = setting["choices"][selected["choiceId"]]
+                matches = [
+                    (sid, cid)
+                    for sid, row in fresh["settings"].items()
+                    if all(row[key] == setting[key] for key in ("entity", "role", "service"))
+                    for cid, choice in row["choices"].items()
+                    if choice == value
+                ]
+                if len(matches) != 1:
+                    return not_restored
+                sid, cid = matches[0]
+                remapped_settings.append({"settingId": sid, "choiceId": cid})
+            return {
+                "status": "restored",
+                "optionId": oid,
+                "areaIds": remapped_areas,
+                "repeat": draft["repeat"],
+                "settingChoices": remapped_settings,
+            }
+        except (KeyError, ValueError, TypeError):
+            return not_restored
 
     @staticmethod
     def _robot_history_draft(task: dict) -> dict:

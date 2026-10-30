@@ -992,6 +992,26 @@ class PodViewBridge:
         row["status"] = "approved"
         return {"ok": True, "status": "approved", "requestId": request_id, "name": row["name"]}
 
+    def controller_request_status(self, room: str, request_id: str, registry) -> dict:
+        """Admin-only exact-request settlement; no profile-name or approval inference."""
+        if not isinstance(request_id, str) or re.fullmatch(r"[a-f0-9]{32}", request_id) is None:
+            raise ValueError("controller request unavailable")
+        row = self._controller_requests.get(request_id)
+        if (
+            row is None
+            or row["room"] != room
+            or row["registry"] is not registry
+            or row["status"] not in {"pending", "approved", "connected"}
+            or not self._request_current(row)
+        ):
+            raise ValueError("controller request unavailable")
+        if row["status"] == "connected" and (
+            (room, row["identity"]) in self._controller_revoking
+            or not registry.current(row["identity"], room, row["pin"])
+        ):
+            raise ValueError("controller enrollment unavailable")
+        return {"ok": True, "room": room, "requestId": request_id, "status": row["status"]}
+
     def claim_controller_request(
         self, room: str, request_id: str, proof: str
     ) -> tuple[dict, tuple | None]:

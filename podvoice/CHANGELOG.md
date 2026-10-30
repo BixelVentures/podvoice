@@ -1,3 +1,9 @@
+## 2.0.104
+
+- Keep unsent robot choices through passive control renewal using fresh owner-verified identifiers. If choices cannot be restored, explain the recovery and keep independent controls available.
+- Reconcile a committed screen approval when its acknowledgement is lost and the browser has already connected. Check the exact current request; never repeat approval automatically.
+- Includes PodVoice Home Assistant component 0.1.8 for the matching approval-settlement contract. Pair with PodConnect Control 0.10.28, which preserves music ownership during routine Spotify token refresh.
+
 ## 2.0.103
 
 - Keep Tesla vehicle identity and trunk action state consistent across the backend, frontend, and refresh observations.

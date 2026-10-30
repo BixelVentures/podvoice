@@ -339,6 +339,33 @@ class DeviceControl:
         ]
         return history
 
+    def display_draft_identity(self, offered: dict, owner: tuple[str, str]) -> tuple | None:
+        """Private source identity for unsent draft remapping, never action authority."""
+        ticket = offered.get("capability_token")
+        if not isinstance(ticket, str):
+            return None
+        cap = self._display_tickets.get(ticket)
+        if (
+            cap is None
+            or cap.owner != owner
+            or cap.generation != self._generation
+            or not self.available
+            or cap.extended_only
+            or not cap.area_segments
+            or time.monotonic() - cap.issued_at > _TOKEN_TTL_S
+        ):
+            return None
+        return (
+            cap.generation,
+            cap.vacuum,
+            cap.identity,
+            cap.map_entity,
+            cap.map_fingerprint,
+            cap.map_revision,
+            cap.mapping_identity,
+            cap.area_segments,
+        )
+
     def recipe_planning_context(self, offered: dict, owner: tuple[str, str]) -> dict | None:
         """Read-only candidates from this fresh capability; never another effect owner."""
         ticket = offered.get("capability_token")

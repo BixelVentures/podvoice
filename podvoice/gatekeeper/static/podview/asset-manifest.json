@@ -435,7 +435,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "77fdda39c09ef3ceac00fc7ea7f0823672d5ad98b8c68e1eebec5c13fbdfe3a8"
+      "sha256": "992ca7fe87ac3c090d8c20a557bd764e70dfd67c97191aa5aa05d3447a2fc3bd"
     },
     {
       "path": "example-sources.html",
@@ -459,7 +459,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "a9111c7950857abb41ea9da7dd1b33469ca1f351b8b5c018bc0430902ad85dfb"
+      "sha256": "4ea29efc02ea76a69dfdf0caee1c46f93ce10bd047ed659117505d90e126fbeb"
     },
     {
       "path": "ingress-kiosk.js",
@@ -503,7 +503,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "eeae7a556e6f5fcb16bfe10aa0b36e2c193071e69a8683cf89f26bdf686088dc"
+      "sha256": "d3a7e1788d7cacd651dfc570ccff329850eb33d293d682fc88210eeeb5b55555"
     },
     {
       "path": "live-home-view.js",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "8bfd3a0536f7bbbe1faa5312b8472dbab620fa75d6a4596576b7ba29432d5c6a"
+      "sha256": "367cb7a423f69728f936b2342181c11bcf05f6ff2bcaa8587be07238b5d97b84"
     },
     {
       "path": "podview.css",
@@ -607,7 +607,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "da60d7767f5060d031178ff5a56af15c927d2054798bae5a945052450632f6e7"
+      "sha256": "e968ad2b5cb3f568f6fcaba7e340f360848ddce22174cdfb64388164cb2ea297"
     },
     {
       "path": "podvoice-view.js",
@@ -639,7 +639,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "6aaf7b253542a8930ccd81e47c5267a7efb18c656fda574833c4b0ca9b5cee9a"
+      "sha256": "0c0d6196125877fd6b1e3b342d5889f286f9303de9e9a006899a17ddb3097815"
     },
     {
       "path": "robot-observation.js",

@@ -38,7 +38,7 @@ def _command(raw: bytes) -> dict:
     expected = {"schema", "action", "room", "nonce", "key", "expires"}
     if action == "provision":
         expected.add("code")
-    elif action in ("approve", "prepare"):
+    elif action in ("approve", "prepare", "request_status"):
         expected.add("request_id")
     elif action == "revoke_identity":
         expected.add("identity")
@@ -57,6 +57,7 @@ def _command(raw: bytes) -> dict:
             "list",
             "prepare",
             "approve",
+            "request_status",
             "revoke_identity",
             "placement",
         )
@@ -473,7 +474,11 @@ class AdminStdinTransport:
                         pin = self.bridge.controller_pin(room)
                         if row["pin"] != pin:
                             raise ValueError("room owner changed")
-                        if command["action"] == "prepare":
+                        if command["action"] == "request_status":
+                            result = self.bridge.controller_request_status(
+                                room, command["request_id"], registry
+                            )
+                        elif command["action"] == "prepare":
                             rows = self.bridge.list_controller_requests(room)
                             matches = [
                                 item

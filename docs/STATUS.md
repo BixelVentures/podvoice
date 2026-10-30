@@ -7100,3 +7100,26 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "version": 80
 }
 -->
+
+<!-- podvoice104-admission
+{
+  "base_tip": "fbf3c808432d370e12ae82024bc72a87d2e401c7",
+  "config_fingerprint": "d7d0a63074b46507312f0738c066550d8b326cfae5775d57539d4cfc6b79aba8",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "34951681e317490d26174814410b5ddde9b22aa00c842dbcdb8a306e5680610a",
+  "kind": "podvoice104_robot_mac_recovery",
+  "manifest_fingerprint": "29870578a99addd38c082835b0e8ec9f39358a7c18c8fd95ff285cd8dcd26a4b",
+  "merge_base": "fbf3c808432d370e12ae82024bc72a87d2e401c7",
+  "policy_fingerprint": "122c42b30b1a64668fbe8e0917af2887fa738960d51382bc3610bbc2821e6847",
+  "rationale": "PodVoice 2.0.104 robot renewal and Mac screen approval settlement; final source, asset and regression scope bound to this candidate. Source review GO; final metadata review pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "2f20035a1a08db1dd663ebc8ddd00d8e69c8818b796319a015d18ad07b9114d7",
+  "reviewer": "/root/admin_race_review",
+  "runtime_fingerprint": "1e3ea005fbd017f2c03d018d7c8038a22a79d8fcd21d49a059f8b04f5b56298a",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 81
+}
+-->
+

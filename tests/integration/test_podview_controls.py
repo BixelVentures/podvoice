@@ -649,6 +649,17 @@ async def test_actual_pair_cookie_can_only_execute_scoped_server_offer(fixture, 
             )
         ).json()
         assert offer["ok"]
+        app[BRIDGE].controls.tasks[offer["taskId"]]["deadline"] = time.monotonic() - 1
+        renewed = await (
+            await client.post(
+                "/view/api/control/setup",
+                json=setup_body(app[BRIDGE], draft=unsent_robot_draft(offer)),
+                headers=headers,
+            )
+        ).json()
+        assert renewed["ok"] and renewed["setup"]["draft"]["status"] == "restored"
+        assert not rig.writes
+        offer = renewed
         option = next(o for o in offer["options"] if o["action"] == "start")
         command = action_body(
             offer, option, {"areaIds": [option["argsSchema"]["areas"][0]["id"]], "repeat": 1}
@@ -1556,3 +1567,171 @@ async def test_accepted_room_command_retains_private_settlement_identity(
     finally:
         if scope is not None:
             _HA_REQUEST.reset(scope)
+
+
+def unsent_robot_draft(offer, *, partial=False):
+    start = next(row for row in offer["options"] if row["action"] == "start")
+    return {
+        "taskId": offer["taskId"],
+        "revision": 1,
+        "optionId": start["id"],
+        "areaIds": [] if partial else [start["argsSchema"]["areas"][0]["id"]],
+        "repeat": 2,
+        "settingChoices": [
+            {"settingId": setting["id"], "choiceId": setting["choices"][-1]["id"]}
+            for setting in start["argsSchema"]["settings"][: 1 if partial else None]
+        ],
+    }
+
+
+@pytest.mark.parametrize("partial", [False, True])
+async def test_unsent_robot_draft_renewal_remaps_expired_metadata_without_effects(fixture, partial):
+    rig, bridge, token = fixture
+    # Display labels deliberately collide; identities must remain distinct.
+    for row in rig.areas[:2]:
+        row["name"] = "Samme navn"
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    draft = unsent_robot_draft(first, partial=partial)
+    source = bridge.controls.tasks[first["taskId"]]
+    source["deadline"] = time.monotonic() - 1
+    rig.router._device_control._display_tickets.clear()  # Expired capability is not revived.
+    renewed = await bridge.controls.setup(setup_body(bridge, draft=draft), token)
+    assert renewed["ok"], renewed
+    mapped = renewed["setup"]["draft"]
+    assert mapped["status"] == "restored" and mapped["repeat"] == 2
+    assert mapped["optionId"] != draft["optionId"]
+    fresh = bridge.controls.tasks[renewed["taskId"]]["options"][mapped["optionId"]]
+    old = source["options"][draft["optionId"]]
+    assert [fresh["areas"][aid]["area_id"] for aid in mapped["areaIds"]] == [
+        old["areas"][aid]["area_id"] for aid in draft["areaIds"]
+    ]
+    for before, after in zip(draft["settingChoices"], mapped["settingChoices"], strict=True):
+        assert before["settingId"] != after["settingId"]
+        assert before["choiceId"] != after["choiceId"]
+        prior, current = old["settings"][before["settingId"]], fresh["settings"][after["settingId"]]
+        assert (
+            prior["entity"],
+            prior["role"],
+            prior["service"],
+            prior["choices"][before["choiceId"]],
+        ) == (
+            current["entity"],
+            current["role"],
+            current["service"],
+            current["choices"][after["choiceId"]],
+        )
+    assert not rig.writes
+    public = json.dumps(mapped)
+    assert (
+        "area_ids" not in public
+        and "fan_speed" not in public
+        and "vacuum.send_command" not in public
+    )
+    old_start = next(row for row in first["options"] if row["id"] == draft["optionId"])
+    stale = action_body(
+        first, old_start, {k: draft[k] for k in ("areaIds", "repeat", "settingChoices")}
+    )
+    assert (await bridge.controls.action(stale, token))["error"] == "stale_action"
+    start = next(row for row in renewed["options"] if row["id"] == mapped["optionId"])
+    stale = action_body(
+        renewed, start, {k: draft[k] for k in ("areaIds", "repeat", "settingChoices")}
+    )
+    assert (await bridge.controls.action(stale, token))["error"] == "invalid_arguments"
+    assert not rig.writes
+    if not partial:
+        command = action_body(
+            renewed, start, {k: mapped[k] for k in ("areaIds", "repeat", "settingChoices")}
+        )
+        assert (await bridge.controls.action(command, token))["outcome"] == "accepted"
+        assert rig.writes[-1][1]["params"] == [{"segments": [16], "repeat": 2}]
+        assert len([path for path, _ in rig.writes if path == "services/vacuum/send_command"]) == 1
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "missing_task",
+        "foreign_actor",
+        "grant_replaced",
+        "boot",
+        "policy",
+        "consumed",
+        "unknown",
+        "pending",
+        "map",
+        "mapping",
+        "device",
+        "choice_removed",
+        "forged_area",
+        "forged_choice",
+        "duplicate_area",
+        "duplicate_setting",
+        "bad_revision",
+        "bad_repeat",
+        "missing_identity",
+    ],
+)
+async def test_robot_draft_renewal_rejects_changed_or_unsafe_source(fixture, change):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    draft = unsent_robot_draft(first)
+    source = bridge.controls.tasks[first["taskId"]]
+    if change == "missing_task":
+        bridge.controls.tasks.clear()
+    elif change == "foreign_actor":
+        source["token"] = "other-actor"
+    elif change == "grant_replaced":
+        bridge._grants["kitchen"] = tuple(list(bridge._grants["kitchen"]))
+    elif change == "boot":
+        source["draft_boot"] = "old-boot"
+    elif change == "policy":
+        bridge.controls.policy["vacuum"][0]["actions"].remove("reuse")
+    elif change in {"consumed", "unknown", "pending"}:
+        source["consumed"] = True
+        bridge.controls.receipts[("kitchen", token, "prior")] = (
+            "fingerprint",
+            {"outcome": change},
+            source["deadline"],
+        )
+    elif change == "map":
+        rig.states[MAP]["state"] = "Upstairs"
+    elif change == "mapping":
+        rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]["kitchen"] = ["0_17"]
+        rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]["dining"] = ["0_16"]
+    elif change == "device":
+        rig.registry[ROBOT]["unique_id"] = "replacement-robot"
+    elif change == "choice_removed":
+        rig.states[ROBOT]["attributes"]["fan_speed_list"] = ["balanced"]
+    elif change == "forged_area":
+        draft["areaIds"] = ["f" * 24]
+    elif change == "forged_choice":
+        draft["settingChoices"][0]["choiceId"] = "f" * 24
+    elif change == "duplicate_area":
+        draft["areaIds"] *= 2
+    elif change == "duplicate_setting":
+        draft["settingChoices"] *= 2
+    elif change == "bad_revision":
+        draft["revision"] = True
+    elif change == "bad_repeat":
+        draft["repeat"] = True
+    elif change == "missing_identity":
+        source["draft_identity"] = None
+    renewed = await bridge.controls.setup(setup_body(bridge, draft=draft), token)
+    assert renewed["ok"], renewed
+    assert renewed["setup"]["draft"] == {"status": "not_restored"}
+    assert not rig.writes
+
+
+async def test_robot_draft_renewal_rechecks_source_consumption_after_fresh_await(fixture):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    draft = unsent_robot_draft(first)
+    source = bridge.controls.tasks[first["taskId"]]
+
+    async def consume():
+        source["consumed"] = True
+
+    rig.maps_hook = consume
+    renewed = await bridge.controls.setup(setup_body(bridge, draft=draft), token)
+    assert renewed["ok"] and renewed["setup"]["draft"] == {"status": "not_restored"}
+    assert not rig.writes
