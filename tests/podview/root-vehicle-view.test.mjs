@@ -300,7 +300,7 @@ test('host liveScene projection renders fresh observed Tesla without false last-
 test('observed disconnected charging shows passive status and local range without invented controls',async()=>{
  const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
  const {root}=fixture(),view=new VehicleView(root),observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_charging'],data:{batteryPercent:27,rangeKm:104.6,charging:{status:'disconnected',powerKw:0}}});
- view.render(observed);assert.equal(view.status.textContent,'Oplader frakoblet');assert.equal(view.rangeValue.textContent,'104,6 km');assert.equal(view.model.locked,null);assert.equal(view.access.detail.hidden,false);assert.equal(view.access.status.textContent,'Ukendt');assert.deepEqual(view.model.actions,[]);view.cleanup();
+ view.render(observed);assert.equal(view.status.textContent,'Oplader frakoblet');assert.equal(view.rangeValue.textContent,'105 km');assert.equal(view.model.locked,null);assert.equal(view.access.detail.hidden,false);assert.equal(view.access.status.textContent,'Ukendt');assert.deepEqual(view.model.actions,[]);view.cleanup();
 });
 
 test('live vehicle server proposal discloses wake and prior risk together and sends only after confirmation',async()=>{

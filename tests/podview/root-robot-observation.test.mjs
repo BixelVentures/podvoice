@@ -96,3 +96,9 @@ test('contradictory dock switches stay unknown unless specific fresh status reso
  items[items.length-1].stale=true;assert.equal(robotExperience(d).activity,null);
  assert.deepEqual(robotExperience({...d,stale:true}).issues,[]);
 });
+test('current activity accepts only bounded recorder observation for same robot',()=>{
+ const at=now(),v=telemetry([]),activity={status:'observed',source:'home_assistant_recorder',vacuumEntityId:'vacuum.robot',registeredAt:at-60,observedAt:at};assert.deepEqual(robotObservation(v,'vacuum.robot',activity).currentActivity,activity);
+ for(const bad of [{...activity,source:'guess'},{...activity,vacuumEntityId:'vacuum.other'},{...activity,registeredAt:at+2},{...activity,extra:true}]){assert.equal(robotObservation(v,'vacuum.robot',bad).currentActivity.status,'unavailable');}
+});
+
+test('public HA vacuum row carries top-level current activity to the view',()=>{const at=now(),activity={status:'observed',source:'home_assistant_recorder',vacuumEntityId:'vacuum.robot',registeredAt:at-30,observedAt:at};const input={schema:'podview.home.v1',roomId:'r',revision:1,observedAt:at,vacuum:{status:'observed',items:[{entityId:'vacuum.robot',name:'Robot',state:'cleaning',source:'home_assistant_state',observedAt:at,currentActivity:activity,telemetry:telemetry([row('in_cleaning',true,null,0,'binary_sensor')])}]}};const home=validateHome(input,'r'),scene=applyHome({devices:[]},home);assert.deepEqual(scene.devices[0].telemetry.currentActivity,activity);input.vacuum.items[0].currentActivity={...activity,source:'guess'};assert.equal(applyHome({devices:[]},validateHome(input,'r')).devices[0].telemetry.currentActivity.status,'unavailable');});

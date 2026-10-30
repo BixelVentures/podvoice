@@ -11,7 +11,7 @@ export function robotRoom(device,now=Date.now()/1000){
  const row=device.telemetry.items.find(value=>value.key==='current_room');
  return row&&!row.stale&&now-row.updatedAt<=300?row.value:null;
 }
-export function robotObservation(value,entityId){
+export function robotObservation(value,entityId,currentActivity){
  if(value?.schema!=='podview.robot.v1'||value.vacuumEntityId!==entityId||value.source!=='home_assistant_roborock'||value.status!=='observed'||!Array.isArray(value.items)||value.items.length>kinds.size)return unavailable();
  const keys=new Set(),seen=new Set(),items=[];for(const row of value.items){const kind=kinds.get(row?.key),v=row?.value,u=row?.unit;
   if(!kind||!entities.test(row.entityId)||keys.has(row.key)||seen.has(row.entityId)||!Number.isFinite(row.updatedAt)||!Number.isFinite(row.retrievedAt)||row.updatedAt<0||row.updatedAt>row.retrievedAt+1||row.retrievedAt<0||row.retrievedAt>Date.now()/1000+1||typeof row.stale!=='boolean')return unavailable();
@@ -19,7 +19,10 @@ export function robotObservation(value,entityId){
   if(kind==='duration'&&!['s','min','h'].includes(u)||kind==='area'&&(u!=='m²'||v<0)||kind==='percent'&&(u!=='%'||v<0||v>100)||kind==='count'&&(u!==null||v<0||!Number.isInteger(v))||kind==='timestamp'&&(u!==null||v<0||v>row.retrievedAt+1)||kind==='bool'&&(typeof v!=='boolean'||u!==null)||['text','clock'].includes(kind)&&(typeof v!=='string'||!v||v.length>120||u!==null)||kind==='clock'&&!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v))return unavailable();
   const domain=row.entityId.split('.')[0],expected=['child_lock','dnd_switch','mop_drying','mop_washing','dust_emptying'].includes(row.key)?'switch':kind==='bool'?'binary_sensor':row.key==='volume'?'number':kind==='clock'?'time':['mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'].includes(row.key)?'select':'sensor';if(expected!==domain)return unavailable();
   keys.add(row.key);seen.add(row.entityId);items.push({key:row.key,entityId:row.entityId,value:v,unit:u,updatedAt:row.updatedAt,retrievedAt:row.retrievedAt,stale:row.retrievedAt-row.updatedAt>300});
- }return {status:'observed',items};
+ }
+ const raw=currentActivity,now=Date.now()/1000,fields=['status','source','vacuumEntityId','registeredAt','observedAt'];
+ const activity=raw&&Object.keys(raw).length===fields.length&&fields.every(key=>Object.hasOwn(raw,key))&&raw.status==='observed'&&raw.source==='home_assistant_recorder'&&raw.vacuumEntityId===entityId&&Number.isFinite(raw.registeredAt)&&Number.isFinite(raw.observedAt)&&raw.registeredAt>0&&raw.registeredAt<=raw.observedAt&&raw.observedAt<=now+1?{status:'observed',source:raw.source,vacuumEntityId:entityId,registeredAt:raw.registeredAt,observedAt:raw.observedAt}:{status:'unavailable'};
+ return {status:'observed',items,currentActivity:activity};
 }
 export function robotFacts(device,now=Date.now()/1000){
  const items=device.telemetry?.status==='observed'?device.telemetry.items:[],fresh=row=>!device.stale&&!row.stale&&now-row.updatedAt<=300,byKey=new Map(items.map(row=>[row.key,row]));

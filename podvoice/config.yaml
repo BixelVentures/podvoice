@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "2.0.105"
+version: "2.0.106"
 slug: podvoice
 description: GPT-Live full-duplex voice assistant for custom-firmware Voice PE
 arch:

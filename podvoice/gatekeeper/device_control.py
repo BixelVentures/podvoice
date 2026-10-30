@@ -15,8 +15,10 @@ import re
 import secrets
 import time
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import aiohttp
 import httpx
@@ -263,12 +265,15 @@ class DeviceControl:
             self._check(generation)
             identity = podview_robot.registry_identity(binding, before)
             items = []
+            cleaning_sample = None
             for field in binding["fields"]:
                 value = await self._json("GET", f"states/{field['entityId']}")
                 self._check(generation)
                 row = podview_robot.field_value(field["key"], field["entityId"], value, time.time())
                 if row is not None:
                     items.append(row)
+                    if field["key"] == "in_cleaning" and row["value"] is True and not row["stale"]:
+                        cleaning_sample = (field, value)
             after = await self._ws_read(
                 {"type": "config/entity_registry/get_entries", "entity_ids": ids}
             )
@@ -285,12 +290,12 @@ class DeviceControl:
             # Optional job metadata cannot erase already validated independent
             # telemetry when this companion service is absent, slow or invalid.
             result["currentSetup"] = {"status": "unavailable"}
+            result["currentActivity"] = {"status": "unavailable"}
             budget = min(1.25, optional_deadline - time.monotonic())
-            if budget > 0 and any(field["key"] == "status" for field in binding["fields"]):
+
+            async def optional_read(read):
                 try:
-                    result["currentSetup"] = await asyncio.wait_for(
-                        self._robot_current_setup(entity_id, generation, after[entity_id]), budget
-                    )
+                    return await asyncio.wait_for(read, budget)
                 except (
                     TimeoutError,
                     CapabilityError,
@@ -300,11 +305,90 @@ class DeviceControl:
                     httpx.HTTPError,
                     aiohttp.ClientError,
                 ):
-                    pass
+                    return {"status": "unavailable"}
+
+            reads = []
+            if budget > 0:
+                if any(field["key"] == "status" for field in binding["fields"]):
+                    reads.append(
+                        (
+                            "currentSetup",
+                            self._robot_current_setup(entity_id, generation, after[entity_id]),
+                        )
+                    )
+                if cleaning_sample is not None:
+                    reads.append(
+                        (
+                            "currentActivity",
+                            self._robot_current_activity(
+                                entity_id, generation, binding, after, *cleaning_sample
+                            ),
+                        )
+                    )
+                results = await asyncio.gather(*(optional_read(read) for _, read in reads))
+                for (key, _), observed in zip(reads, results, strict=True):
+                    result[key] = observed
             self._check(generation)
             return result
         except (CapabilityError, ValueError, httpx.HTTPError, aiohttp.ClientError):
             return unavailable
+
+    async def _robot_current_activity(
+        self,
+        entity_id: str,
+        generation: int,
+        binding: dict,
+        registry: dict,
+        field: dict,
+        sample: dict,
+    ) -> dict:
+        unavailable = {"status": "unavailable"}
+        sensor = field["entityId"]
+        changed = podview_robot._epoch(sample.get("last_changed"))
+        if changed is None:
+            return unavailable
+        selected = {**binding, "fields": [field]}
+        ids = [entity_id, sensor]
+        identity = podview_robot.registry_identity(selected, {eid: registry[eid] for eid in ids})
+        end = time.time()
+        start = end - 86400
+        query = urlencode(
+            {
+                "filter_entity_id": sensor,
+                "end_time": datetime.fromtimestamp(end, UTC).isoformat(),
+                "minimal_response": "1",
+                "no_attributes": "1",
+                "significant_changes_only": "0",
+            }
+        )
+        response = await self._json(
+            "GET", f"history/period/{datetime.fromtimestamp(start, UTC).isoformat()}?{query}"
+        )
+        self._check(generation)
+        activity = podview_robot.recorder_current_activity(
+            response, entity_id, sensor, start, end, changed
+        )
+        if activity["status"] != "observed":
+            return unavailable
+        current = await self._json("GET", f"states/{sensor}")
+        self._check(generation)
+        checked = podview_robot.field_value("in_cleaning", sensor, current, time.time())
+        if (
+            checked is None
+            or checked["stale"]
+            or checked["value"] is not True
+            or podview_robot._epoch(current.get("last_changed")) != changed
+        ):
+            return unavailable
+        after = await self._ws_read(
+            {"type": "config/entity_registry/get_entries", "entity_ids": ids}
+        )
+        self._check(generation)
+        if podview_robot.registry_identity(selected, after) != identity:
+            return unavailable
+        return podview_robot.project_current_activity(
+            {**activity, "observedAt": time.time()}, entity_id
+        )
 
     async def _robot_current_setup(self, entity_id: str, generation: int, target: dict) -> dict:
         unavailable = {"status": "unavailable"}

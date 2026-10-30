@@ -7145,3 +7145,25 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "version": 82
 }
 -->
+
+<!-- podvoice106-admission
+{
+  "base_tip": "0458f59108a099a0bb898becdd14941ed885b535",
+  "config_fingerprint": "950045dbc74f09ffedc47e56ea857c2c5b3255eac5fcb19db230e90ef373841d",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "a2bb08c986289ef1f9bf862a9b7e885f053924796bda6890cdb21a8791e0f7df",
+  "kind": "podvoice106_current_robot_activity",
+  "manifest_fingerprint": "d57a20688e82112e4f6b93a50daa4eb3e67c8165ad6e051dfc3a989c24c6eca4",
+  "merge_base": "0458f59108a099a0bb898becdd14941ed885b535",
+  "policy_fingerprint": "55d6c9e33309c59c9dd11a3cc37469021c69322d9e5318e692b6a368cf3c0af8",
+  "rationale": "PodVoice 2.0.106 current robot activity and return-to-base wording; exact source, test and asset inventory bound. Source reviews passed; final metadata review pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "b4beb8caecc785c98421ec9bf6625e69b60237c500bce95af7016b8c674f654f",
+  "reviewer": "/root/admin_race_review",
+  "runtime_fingerprint": "0e80465d3cec5e6b80e4c93baa6e876294735a3c4cce6b5a0893727cb270c8b1",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 83
+}
+-->

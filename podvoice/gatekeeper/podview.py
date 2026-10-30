@@ -3872,6 +3872,12 @@ def _home_vacuum(value: object) -> dict:
                     else None,
                     row["entityId"],
                 ),
+                "currentActivity": podview_robot.project_current_activity(
+                    (row.get("telemetry") or {}).get("currentActivity")
+                    if isinstance(row.get("telemetry"), dict)
+                    else None,
+                    row["entityId"],
+                ),
                 "actions": [],
             }
         )
