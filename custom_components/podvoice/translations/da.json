@@ -9,10 +9,10 @@
         }
       },
       "manage": {
-        "title": "Browserprofiler",
-        "description": "Afventende enheder og aktive profiler for **{room}**. Matchsignal er kun hjælp til at genkende skærmen.",
+        "title": "Skærme og godkendelser",
+        "description": "Vælg en afventende anmodning eller en godkendt skærm for **{room}**. Matchsignalet hjælper dig med at genkende skærmen.",
         "data": {
-          "action": "Handling"
+          "action": "Vælg"
         }
       },
       "confirm": {
@@ -32,6 +32,20 @@
         "data": {
           "area_id": "PodViews rum",
           "clear": "Ryd rumtilknytning"
+        }
+      },
+      "display": {
+        "title": "Skærm",
+        "description": "Administrer **{profile}**.",
+        "data": {
+          "action": "Vælg handling"
+        }
+      },
+      "advanced": {
+        "title": "Avancerede nødhandlinger",
+        "description": "Disse handlinger påvirker skærmadgangen for hele **{room}**.",
+        "data": {
+          "action": "Vælg nødhandling"
         }
       }
     },

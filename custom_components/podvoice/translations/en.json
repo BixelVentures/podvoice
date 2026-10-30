@@ -9,10 +9,10 @@
         }
       },
       "manage": {
-        "title": "Browser profiles",
-        "description": "Pending devices and active profiles for **{room}**. The match signal only helps identify the screen.",
+        "title": "Displays and approvals",
+        "description": "Choose a pending request or an approved display for **{room}**. The match signal helps identify the display.",
         "data": {
-          "action": "Action"
+          "action": "Select"
         }
       },
       "confirm": {
@@ -32,6 +32,20 @@
         "data": {
           "area_id": "PodView room",
           "clear": "Clear room binding"
+        }
+      },
+      "display": {
+        "title": "Display",
+        "description": "Manage **{profile}**.",
+        "data": {
+          "action": "Select action"
+        }
+      },
+      "advanced": {
+        "title": "Advanced emergency actions",
+        "description": "These actions affect display access for all of **{room}**.",
+        "data": {
+          "action": "Select emergency action"
         }
       }
     },

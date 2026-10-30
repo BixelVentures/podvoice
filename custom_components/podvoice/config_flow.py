@@ -138,8 +138,10 @@ class PodVoiceOptionsFlow(OptionsFlow):
             if choice not in self._choices:
                 return self.async_abort(reason="request_unconfirmed")
             self._action, _, self._target = choice.partition(":")
-            if self._action == "placement":
-                return await self.async_step_placement()
+            if self._action == "display":
+                return await self.async_step_display()
+            if self._action == "advanced":
+                return await self.async_step_advanced()
             return await self.async_step_confirm()
         try:
             result = await self._service("list", {})
@@ -164,21 +166,77 @@ class PodVoiceOptionsFlow(OptionsFlow):
                 choices[f"approve:{row['requestId']}"] = (
                     f"Godkend {row['name'][:80]} · {row['matchSignal']}"
                 )
+        self._profiles = {}
+        areas = ar.async_get(self.hass)
         for row in enrolled[:2]:
             if (
                 isinstance(row, dict)
                 and re.fullmatch(r"[a-f0-9]{32}", str(row.get("id", "")))
                 and isinstance(row.get("name"), str)
+                and type(row.get("placementRevision")) is int
+                and row["placementRevision"] >= 0
             ):
-                choices[f"revoke_identity:{row['id']}"] = f"Fjern {row['name'][:80]}"
-                if type(row.get("placementRevision")) is int and row["placementRevision"] >= 0:
-                    self._profiles[row["id"]] = dict(row)
-                    choices[f"placement:{row['id']}"] = f"PodViews rum · {row['name'][:80]}"
-        choices["revoke:"] = "Nødluk hele rummet"
-        choices["recover:"] = "Gendan skærmadgang · fjern alle tidligere skærme"
+                self._profiles[row["id"]] = dict(row)
+                area = areas.async_get_area(row.get("areaId")) if row.get("areaId") else None
+                area_name = area.name if area else "Intet rum valgt"
+                choices[f"display:{row['id']}"] = f"{row['name'][:80]} · Godkendt · {area_name}"
+        choices["advanced:"] = "Avanceret · nødhandlinger"
         self._choices = choices
         return self.async_show_form(
             step_id="manage",
+            data_schema=vol.Schema({vol.Required("action"): vol.In(choices)}),
+            description_placeholders={"room": self._rooms()[self._room]},
+        )
+
+    async def async_step_display(self, user_input: dict | None = None) -> dict:
+        if (
+            await self._principal() is None
+            or self._room not in self._rooms()
+            or self._physical_endpoint(self._room) != self._selected_endpoint
+            or self._target not in self._profiles
+            or self._action != "display"
+        ):
+            return self.async_abort(reason="admin_required")
+        profile = self._profiles[self._target]
+        choices = {"placement": "Vælg eller ryd rum", "revoke_identity": "Fjern skærmen"}
+        if user_input is not None:
+            action = user_input["action"]
+            if action not in choices:
+                return self.async_abort(reason="request_unconfirmed")
+            self._action = action
+            self._choices[f"{action}:{self._target}"] = (
+                f"{choices[action]} · {profile['name'][:80]}"
+            )
+            if action == "placement":
+                return await self.async_step_placement()
+            return await self.async_step_confirm()
+        return self.async_show_form(
+            step_id="display",
+            data_schema=vol.Schema({vol.Required("action"): vol.In(choices)}),
+            description_placeholders={"profile": profile["name"]},
+        )
+
+    async def async_step_advanced(self, user_input: dict | None = None) -> dict:
+        if (
+            await self._principal() is None
+            or self._room not in self._rooms()
+            or self._physical_endpoint(self._room) != self._selected_endpoint
+            or self._action != "advanced"
+        ):
+            return self.async_abort(reason="admin_required")
+        choices = {
+            "revoke": "Nødluk hele rummet",
+            "recover": "Gendan skærmadgang · fjern alle tidligere skærme",
+        }
+        if user_input is not None:
+            action = user_input["action"]
+            if action not in choices:
+                return self.async_abort(reason="request_unconfirmed")
+            self._action, self._target = action, ""
+            self._choices[f"{action}:"] = choices[action]
+            return await self.async_step_confirm()
+        return self.async_show_form(
+            step_id="advanced",
             data_schema=vol.Schema({vol.Required("action"): vol.In(choices)}),
             description_placeholders={"room": self._rooms()[self._room]},
         )

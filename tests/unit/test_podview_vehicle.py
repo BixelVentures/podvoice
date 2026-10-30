@@ -226,19 +226,37 @@ def test_numeric_bad_state_fails_closed(bad):
         v.project(v.parse_policy(policy()), data, now=NOW)
 
 
-async def test_real_tool_owner_only_gets_exact_cached_states_with_no_vacuum_enable_or_service_call(
+def snapshot_envelope():
+    stamp = __import__("time").time() - 5
+    return {
+        "schema": "podvoice.vehicle_snapshot.v1",
+        "configEntryId": "entry-a",
+        "deviceId": "device-a",
+        "entities": FIELDS,
+        "source": "tesla_fleet",
+        "sourceIdentity": "cached",
+        "status": "observed",
+        "observedAt": stamp,
+        "timestamps": {"charge_state": stamp},
+        "data": {"batteryPercent": 72},
+    }
+
+
+async def test_real_tool_owner_only_calls_exact_read_service_without_device_commands(
     monkeypatch,
 ):
     seen = []
 
     def handler(request):
         seen.append(request)
-        assert request.method == "GET" and request.headers["Authorization"] == "Bearer test-only"
-        eid = request.url.path.rsplit("/", 1)[1]
-        assert eid in FIELDS.values()
-        row = states()[eid]
-        row["last_reported"] = iso(__import__("time").time() - 5)
-        return httpx.Response(200, json=row)
+        assert request.method == "POST" and request.headers["Authorization"] == "Bearer test-only"
+        assert request.url.path.endswith("/services/podvoice/vehicle_snapshot")
+        assert json.loads(request.content) == {
+            "config_entry_id": "entry-a",
+            "device_id": "device-a",
+            "entities": FIELDS,
+        }
+        return httpx.Response(200, json={"service_response": snapshot_envelope()})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         router = ToolRouter(None, client=client, supervisor_token="test-only")
@@ -253,17 +271,17 @@ async def test_real_tool_owner_only_gets_exact_cached_states_with_no_vacuum_enab
 
         router._device_control._ws_read = AsyncMock(side_effect=read_registry)
         result = await router.podview_vehicle_read()
-        assert result["status"] == "observed" and len(seen) == 8
+        assert result["status"] == "observed" and len(seen) == 1
+        assert result["source"] == "tesla_fleet_snapshot"
         assert result["data"]["modelName"] == "Model Y"
         assert router._device_control.available is False
         assert router._device_control._ws_read.call_args_list[0].args[0] == {
-            "type": "config/entity_registry/get_entries",
-            "entity_ids": [eid for _, eid in v.parse_policy(policy()).entities],
+            "type": "config/device_registry/list",
         }
         router.configure_podview_vehicle_read("")
         assert not router.podview_vehicle_available()
         assert (await router.podview_vehicle_read())["status"] == "unavailable"
-        assert len(seen) == 8
+        assert len(seen) == 1
     assert not router.podview_vehicle_available()
 
 
@@ -358,9 +376,16 @@ async def test_http_and_registry_read_failures_are_unavailable_not_optimistic():
         router = ToolRouter(None, client=client, supervisor_token="test-only")
         router.configure_podview_vehicle_read(policy())
         router._device_control._ws_read = AsyncMock(side_effect=aiohttp.ClientError("PRIVATE"))
-        assert await router.podview_vehicle_read() == {"status": "unavailable", "data": None}
+        result = await router.podview_vehicle_read()
+        binding = result.pop("bindingId")
+        assert isinstance(binding, str) and len(binding) == 64
+        assert result == {"status": "unavailable", "data": None}
         router._device_control._ws_read = AsyncMock(return_value=registry())
-        assert await router.podview_vehicle_read() == {"status": "unavailable", "data": None}
+        assert await router.podview_vehicle_read() == {
+            "status": "unavailable",
+            "data": None,
+            "bindingId": binding,
+        }
 
 
 async def test_actual_router_rebind_away_and_back_cannot_restore_an_old_read_lease():
@@ -369,7 +394,7 @@ async def test_actual_router_rebind_away_and_back_cannot_restore_an_old_read_lea
     def handler(request):
         router.configure_podview_vehicle_read(policy({"batteryPercent": "sensor.other"}))
         router.configure_podview_vehicle_read(policy())
-        return httpx.Response(200, json=states()[request.url.path.rsplit("/", 1)[1]])
+        return httpx.Response(200, json={"service_response": snapshot_envelope()})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         router = ToolRouter(None, client=client, supervisor_token="test-only")
@@ -377,7 +402,7 @@ async def test_actual_router_rebind_away_and_back_cannot_restore_an_old_read_lea
         router._device_control._ws_read = AsyncMock(return_value=registry())
         result = await router.podview_vehicle_read()
         assert result == {"status": "unavailable", "data": None}
-        assert router._device_control._ws_read.await_count == 1
+        assert router._device_control._ws_read.await_count == 0
 
 
 async def test_timeout_is_bounded_and_never_retries(monkeypatch):
@@ -597,10 +622,13 @@ async def test_optional_model_missing_preserves_existing_facts_and_stale_skips_l
     import aiohttp
 
     facts = {"status": status, "data": {"batteryPercent": 72}}
-    monkeypatch.setattr(v, "read", AsyncMock(return_value=copy.deepcopy(facts)))
+    monkeypatch.setattr(v, "read_snapshot", AsyncMock(return_value=copy.deepcopy(facts)))
     async with httpx.AsyncClient() as client:
         router = ToolRouter(None, client=client, supervisor_token="test-only")
         router.configure_podview_vehicle_read(policy())
         router._device_control._ws_read = AsyncMock(side_effect=aiohttp.ClientError("PRIVATE"))
-        assert await router.podview_vehicle_read() == facts
+        result = await router.podview_vehicle_read()
+        binding = result.pop("bindingId")
+        assert isinstance(binding, str) and len(binding) == 64
+        assert result == facts
         assert router._device_control._ws_read.await_count == (0 if status == "stale" else 1)

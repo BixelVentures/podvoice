@@ -219,6 +219,7 @@ async def test_retention_never_evicts_unknown_vacuum_blocker(setup):
     journal = CleaningJournal(path)
     for number in range(4):
         other = {**original, "vacuum_entity_id": f"vacuum.other_{number}"}
+        other.pop("settings_inventory", None)  # Historical independent-owner fixture.
         admission = journal.begin(other)
         journal.accepted(admission)
     assert len(journal.history()["items"]) == 3
@@ -252,6 +253,7 @@ async def test_history_respects_current_allowlist_and_unknown_storage_bound(setu
         adapter.cleaning_history()
     journal = CleaningJournal(path)
     monkeypatch.setattr(cleaning_journal, "_MAX_PENDING", 1)
+    recipe.pop("settings_inventory", None)  # Historical independent-owner fixtures.
     journal.begin({**recipe, "vacuum_entity_id": "vacuum.other"})
     before = path.read_bytes()
     with pytest.raises(cleaning_journal.JournalError):

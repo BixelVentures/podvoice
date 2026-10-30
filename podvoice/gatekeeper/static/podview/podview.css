@@ -2947,7 +2947,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 4abdc59d5f5ebce436d73fefeca54dde00b4768324732ee606a99c28f6ca5089 */
+/* Source: ui-kit.css · SHA256 19a454144ca437681b106752bce103602833b52550d560a8fae2c547c4f5229f */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -4743,7 +4743,7 @@ pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=prim
 
 /* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
-.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);animation:none;pointer-events:none}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);animation:pv-connecting-sheen 1200ms ease-in-out 3;pointer-events:none}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before{top:4px;width:92%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation:pv-advice-ready var(--pv-fast,200ms) var(--pv-ease,cubic-bezier(.2,0,0,1)) both}

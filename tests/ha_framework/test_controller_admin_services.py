@@ -395,8 +395,17 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             }
             rows = {"ok": True, "room": ROOM, "pending": [], "enrolled": [row]}
             await self.receipt(command, Context(user_id=self.supervisor.id), rows)
-            self.assertEqual((await listing)[1]["step_id"], "manage")
-            status, form = await post(path, {"action": f"placement:{REQUEST_ID}"})
+            listing_form = (await listing)[1]
+            self.assertEqual(listing_form["step_id"], "manage")
+            self.assertIn("iPad · Godkendt", str(listing_form))
+            self.assertIn(
+                "Kitchen placement fixture" if current_area else "Intet rum valgt",
+                str(listing_form),
+            )
+            self.assertNotIn("Nødluk hele rummet", str(listing_form))
+            status, form = await post(path, {"action": f"display:{REQUEST_ID}"})
+            self.assertEqual((status, form["step_id"]), (200, "display"))
+            status, form = await post(path, {"action": "placement"})
             self.assertEqual((status, form["step_id"]), (200, "placement"))
             selector = next(field for field in form["data_schema"] if field["name"] == "area_id")
             self.assertIn("area", selector["selector"])

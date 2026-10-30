@@ -425,3 +425,172 @@ async def read(scope: VehicleScope, *, registry_read, state_read, current, now=t
     except (ValueError, TypeError, KeyError, OverflowError, RecursionError):
         diagnostic(stage)
         return unavailable
+
+
+async def read_snapshot(scope: VehicleScope, *, service_read, current, now=time.time) -> dict:
+    """Admit only the HA-owned exact Tesla snapshot contract, never entity guesses."""
+    unavailable = {"status": "unavailable", "data": None}
+    try:
+        async with asyncio.timeout(READ_TIMEOUT + 2):
+            if not current():
+                return unavailable
+            value = await service_read(
+                {
+                    "config_entry_id": scope.config_entry_id,
+                    "device_id": scope.device_id,
+                    "entities": dict(scope.entities),
+                }
+            )
+            _bounded(value)
+            if (
+                not current()
+                or type(value) is not dict
+                or set(value)
+                != {
+                    "schema",
+                    "configEntryId",
+                    "deviceId",
+                    "entities",
+                    "source",
+                    "sourceIdentity",
+                    "status",
+                    "observedAt",
+                    "timestamps",
+                    "data",
+                }
+            ):
+                return unavailable
+            if (
+                value["schema"] != "podvoice.vehicle_snapshot.v1"
+                or value["configEntryId"] != scope.config_entry_id
+                or value["deviceId"] != scope.device_id
+                or value["entities"] != dict(scope.entities)
+                or value["source"] != "tesla_fleet"
+                or value["sourceIdentity"]
+                not in {"coordinator", "cached", "coordinator_and_cached"}
+            ):
+                return unavailable
+            if value["status"] == "unavailable":
+                return unavailable
+            data, stamps = value["data"], value["timestamps"]
+            clock = now()
+
+            def number(n, lo=0, hi=2000):
+                return type(n) in (int, float) and math.isfinite(n) and lo <= n <= hi
+
+            if (
+                type(data) is not dict
+                or not data
+                or type(stamps) is not dict
+                or not stamps
+                or not stamps.keys() <= {"charge_state", "climate_state", "vehicle_state"}
+                or any(not number(t, 1, clock) for t in stamps.values())
+                or not number(value["observedAt"], 1, clock)
+                or value["observedAt"] != min(stamps.values())
+                or value["status"]
+                != ("observed" if clock - value["observedAt"] <= SOURCE_TTL else "stale")
+                or not data.keys()
+                <= {"batteryPercent", "rangeKm", "locked", "trunk", "charging", "climate"}
+            ):
+                return unavailable
+            fields = dict(scope.entities)
+            blocks = set()
+            for key, item in data.items():
+                if key in {"batteryPercent", "rangeKm"}:
+                    if key not in fields or not number(
+                        item, 0, 100 if key == "batteryPercent" else 2000
+                    ):
+                        return unavailable
+                    blocks.add("charge_state")
+                elif key == "locked":
+                    if key not in fields or type(item) is not bool:
+                        return unavailable
+                    blocks.add("vehicle_state")
+                elif key == "trunk":
+                    if key not in fields or item not in ("open", "closed"):
+                        return unavailable
+                    blocks.add("vehicle_state")
+                elif key == "charging":
+                    if (
+                        type(item) is not dict
+                        or not item
+                        or not item.keys() <= {"status", "powerKw"}
+                    ):
+                        return unavailable
+                    for field, n in item.items():
+                        if field == "status" and (
+                            "charging" not in fields
+                            or n
+                            not in ("starting", "charging", "stopped", "complete", "disconnected")
+                        ):
+                            return unavailable
+                        if field == "powerKw" and (
+                            "powerKw" not in fields or not number(n, 0, 1000)
+                        ):
+                            return unavailable
+                    blocks.add("charge_state")
+                else:
+                    allowed = {
+                        "status",
+                        "temperatureC",
+                        "targetTemperatureC",
+                        "minTemperatureC",
+                        "maxTemperatureC",
+                        "temperatureStepC",
+                        "defrost",
+                        "driverSeatHeat",
+                        "passengerSeatHeat",
+                    }
+                    if type(item) is not dict or not item or not item.keys() <= allowed:
+                        return unavailable
+                    for field, n in item.items():
+                        if field == "status" and (
+                            "climate" not in fields or n not in ("off", "heat_cool")
+                        ):
+                            return unavailable
+                        if field == "temperatureC" and (
+                            not ({"climate", "temperatureC"} & fields.keys())
+                            or not number(n, -50, 70)
+                        ):
+                            return unavailable
+                        if field in {
+                            "targetTemperatureC",
+                            "minTemperatureC",
+                            "maxTemperatureC",
+                            "temperatureStepC",
+                        } and ("climate" not in fields or not number(n, 0, 50)):
+                            return unavailable
+                        if field == "defrost" and ("defrost" not in fields or type(n) is not bool):
+                            return unavailable
+                        for seat in ("driverSeat", "passengerSeat"):
+                            if field == seat + "Heat" and (
+                                seat not in fields or n not in ("off", "low", "medium", "high")
+                            ):
+                                return unavailable
+                    target = {
+                        "targetTemperatureC",
+                        "minTemperatureC",
+                        "maxTemperatureC",
+                        "temperatureStepC",
+                    }
+                    if target & item.keys() and (
+                        not target <= item.keys()
+                        or item["temperatureStepC"] != 0.5
+                        or not item["minTemperatureC"]
+                        <= item["targetTemperatureC"]
+                        <= item["maxTemperatureC"]
+                    ):
+                        return unavailable
+                    blocks.add("climate_state")
+            if blocks != stamps.keys():
+                return unavailable
+            return {
+                "status": value["status"],
+                "source": "tesla_fleet_snapshot",
+                "observedAt": value["observedAt"],
+                "entityIds": [eid for _, eid in scope.entities],
+                "data": data,
+            }
+    except (TimeoutError, ValueError, TypeError, KeyError, OverflowError, RecursionError):
+        diagnostic("invalid_projection")
+        return unavailable

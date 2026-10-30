@@ -4,6 +4,7 @@ import ast
 import inspect
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 SOURCE = Path(__file__).resolve().parents[2] / "custom_components/podvoice/__init__.py"
 TREE = ast.parse(SOURCE.read_text())
@@ -50,6 +51,17 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         TimerBridge=lambda *_: SimpleNamespace(snapshot=lambda _: {}, command=lambda **_: {}),
         ControllerAdmin=Admin,
         DisplayDevices=lambda *_: SimpleNamespace(apply=lambda *_: None),
+        make_robot_snapshot_handler=lambda *_: AsyncMock(),
+        robot_snapshot_schema=lambda: object(),
+        VehicleSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
+        er=SimpleNamespace(async_get=lambda _: None),
+        vol=SimpleNamespace(
+            Schema=lambda value, **_: value,
+            Required=lambda value: value,
+            All=lambda *args: args,
+            Length=lambda **kwargs: kwargs,
+            PREVENT_EXTRA=object(),
+        ),
         dr=SimpleNamespace(async_get=lambda _: Registry()),
         SupportsResponse=SimpleNamespace(ONLY="only"),
         READ_SCHEMA=object(),

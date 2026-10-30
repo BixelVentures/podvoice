@@ -133,3 +133,44 @@ controller_recover:
       required: true
       selector:
         text:
+
+robot_snapshot:
+  name: Robot snapshot
+  description: Read-only projection of the admitted Roborock cache for the PodVoice Supervisor caller. No refresh or device commands.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        text:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+    device_id:
+      required: true
+      selector:
+        text:
+    unique_id:
+      required: true
+      selector:
+        text:
+    model:
+      required: true
+      selector:
+        text:
+vehicle_snapshot:
+  name: Vehicle snapshot
+  description: Read-only timestamped Tesla snapshot through the existing HA integration. Supervisor caller only; no wake or vehicle commands.
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+    device_id:
+      required: true
+      selector:
+        text:
+    entities:
+      required: true
+      selector:
+        object:
