@@ -19,7 +19,7 @@ export function validateHome(value,roomId,bootId){
  const seen=new Set(),items=[];
  if(value.vacuum.status==='observed')for(const row of value.vacuum.items){
   if(!/^vacuum\.[a-z0-9_]+$/.test(row.entityId)||seen.has(row.entityId)||!states.has(row.state)||row.source!=='home_assistant_state'||!Number.isFinite(row.observedAt))throw new Error('invalid_vacuum_observation');
-  seen.add(row.entityId);items.push({entityId:row.entityId,name:text(row.name)||'Robotstøvsuger',state:row.state,battery:Number.isFinite(row.battery)&&row.battery>=0&&row.battery<=100?row.battery:null,observedAt:row.observedAt,source:row.source,history:historyObservation(row.history),currentSetup:['cleaning','paused'].includes(row.state)?robotCurrentSetup(row.currentSetup,row.entityId):null,telemetry:robotObservation(row.telemetry,row.entityId),telemetryUnavailable:row.telemetry?.status==='unavailable'});
+  seen.add(row.entityId);items.push({entityId:row.entityId,name:text(row.name)||'Robotstøvsuger',state:row.state,battery:Number.isFinite(row.battery)&&row.battery>=0&&row.battery<=100?row.battery:null,observedAt:row.observedAt,source:row.source,history:historyObservation(row.history),currentSetup:['cleaning','paused'].includes(row.state)?robotCurrentSetup(row.currentSetup,row.entityId):null,telemetry:robotObservation(row.telemetry,row.entityId,row.currentActivity),telemetryUnavailable:row.telemetry?.status==='unavailable'});
  }
  // Settings/actions are deliberately excluded until their separate owner
  // contract is implemented. Extra remote fields cannot silently enable controls.

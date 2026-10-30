@@ -455,11 +455,11 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "01afe79cf3693bc190e13679d83bc841b4a01f98b5948508ab4c867a46d21e1b"
+      "sha256": "d2e6d9b8f95f3891e01f2cac44022c447d41d5df1cd6144f93d9fd9f2d2b298b"
     },
     {
       "path": "index.html",
-      "sha256": "0d81f9ca928a293b780af95180a40c4e01244b8761b19b74b87ce8a822bce964"
+      "sha256": "9e116ab77947891f4b3ea1b81245e84c25d767b459802c3dc4e49770bf00ced4"
     },
     {
       "path": "ingress-kiosk.js",
@@ -475,7 +475,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "e25deeaa6f684b410fa889d43c74301112a264c25712827fb829db7885e7cc9a"
+      "sha256": "2ac8a2efb4b7b143de592f458c2324d21cefd4fe7866e28c1d2e3b016e951013"
     },
     {
       "path": "library.css",
@@ -507,7 +507,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "eb94d828b25be4c8c953a2b403addc78bf5e4d832e64ef25636b9e1b1bb44a61"
+      "sha256": "68a9805ba5a092b1d8da975645a55665890b5195665941723db705951e7db7ad"
     },
     {
       "path": "live-media-view.js",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "17c927211520f2f52c888f29989419cffd8b75243d1153995c401b483803ac95"
+      "sha256": "868a599b8b791e75027c8b5be7bdf704790c66ebe43f98d92a6017beaf917f37"
     },
     {
       "path": "podview.css",
@@ -639,11 +639,11 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "6ce8481889fe875f5665ad1bbaeb1b10089756ef6ae23f5d295a572fa6e67d1d"
+      "sha256": "374c01cb9a77189b178027b0c1f9f5a97d0b60f390509ab0f02a5587719a1c94"
     },
     {
       "path": "robot-observation.js",
-      "sha256": "88afcde9007e14c624eb88ee3b1c4893ef4240511a1f4db7429145153ccd7e9d"
+      "sha256": "321a0c97f737e694328fcac5f2c531687cf404f1e0c9b392702182a0074cfbaf"
     },
     {
       "path": "scene-model.js",
@@ -807,7 +807,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "a7fffaf60506aec6a8485136124708c244d2b624ceb94af45dd69f87825e26be"
+      "sha256": "f76e25b321f624e0e717a14ed293b81631579cf133efeec09da62708f7e87a8b"
     },
     {
       "path": "visual-content.js",

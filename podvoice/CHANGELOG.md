@@ -1,3 +1,9 @@
+## 2.0.106
+
+- Show current robot activity using the existing recorded observations and improve return-to-base wording and distance display.
+- Reconcile a changed room policy during explicit screen approval while preserving existing profiles.
+- Home Assistant component remains at 0.1.9. Publication, installation and physical validation are separate.
+
 ## 2.0.105
 
 - Improve robot and Tesla state observations and recovery through the Home Assistant integration.

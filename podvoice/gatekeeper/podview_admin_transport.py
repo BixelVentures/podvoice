@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import time
+from concurrent.futures import Future
 from pathlib import Path
 
 import httpx
@@ -199,7 +200,11 @@ class AdminStdinTransport:
 
         await areas()
         await asyncio.to_thread(
-            state.accept_profile_command, room, pin, command["nonce"], command["expires"]
+            state.accept_profile_command,
+            room,
+            pin,
+            command["nonce"],
+            command["expires"],
         )
         current()
         valid_ids = await areas()
@@ -328,7 +333,10 @@ class AdminStdinTransport:
                     self.bridge._controller_grants.clear()
                     if row["enabled"]:
                         await asyncio.to_thread(
-                            self.state.disable, room, command["nonce"], command["expires"]
+                            self.state.disable,
+                            room,
+                            command["nonce"],
+                            command["expires"],
                         )
                     else:
                         await asyncio.to_thread(
@@ -412,7 +420,10 @@ class AdminStdinTransport:
                             if row["enabled"]:
                                 disk_task = asyncio.create_task(
                                     asyncio.to_thread(
-                                        self.state.profiles, room, row["pin"], self.registry_path
+                                        self.state.profiles,
+                                        room,
+                                        row["pin"],
+                                        self.registry_path,
                                     )
                                 )
                                 reopened, _ = await asyncio.shield(disk_task)
@@ -450,7 +461,11 @@ class AdminStdinTransport:
                             raise
                         # A prior room-wide close/failure is a durable fence. Revoking
                         # one identity never reopens its still-live siblings.
-                        result = {"ok": True, "room": room, "identity": command["identity"]}
+                        result = {
+                            "ok": True,
+                            "room": room,
+                            "identity": command["identity"],
+                        }
                     elif command["action"] == "list":
                         pending = []
                         if row["enabled"]:
@@ -473,7 +488,85 @@ class AdminStdinTransport:
                         binding = self.bridge.controller_owner(room)
                         pin = self.bridge.controller_pin(room)
                         if row["pin"] != pin:
-                            raise ValueError("room owner changed")
+                            if command["action"] != "prepare":
+                                raise ValueError("room owner changed")
+                            request_id = command["request_id"]
+                            pending = self.bridge._controller_requests.get(request_id)
+                            cancelled = False
+
+                            def pending_current():
+                                return bool(
+                                    not cancelled
+                                    and pending is not None
+                                    and self.bridge._controller_requests.get(request_id) is pending
+                                    and self.bridge._controller_registry is registry
+                                    and self.bridge.controller_owner_current(room, binding)
+                                    and self.bridge.controller_pin(room) == pin
+                                    and self.bridge.controller_request_status(
+                                        room, request_id, registry
+                                    )["status"]
+                                    == "pending"
+                                )
+
+                            if not pending_current():
+                                raise ValueError("pending request unavailable")
+                            loop = asyncio.get_running_loop()
+
+                            def permit_from_worker():
+                                # Never iterate event-loop-owned policy/request state
+                                # from the disk worker. The global admin lock stays held.
+                                permitted: Future[bool] = Future()
+
+                                def check():
+                                    try:
+                                        permitted.set_result(pending_current())
+                                    except (
+                                        OSError,
+                                        ValueError,
+                                        TypeError,
+                                        KeyError,
+                                        AttributeError,
+                                    ):
+                                        permitted.set_result(False)
+
+                                loop.call_soon_threadsafe(check)
+                                return permitted.result(timeout=2)
+
+                            disk = asyncio.create_task(
+                                asyncio.to_thread(
+                                    self.state.rebind_profile_pin,
+                                    room,
+                                    row["pin"],
+                                    pin,
+                                    row["generation"],
+                                    command["nonce"],
+                                    command["expires"],
+                                    permit_from_worker,
+                                )
+                            )
+                            try:
+                                await asyncio.shield(disk)
+                            except asyncio.CancelledError:
+                                cancelled = True
+                                while not disk.done():
+                                    try:
+                                        await asyncio.shield(disk)
+                                    except asyncio.CancelledError:
+                                        continue
+                                    except (
+                                        OSError,
+                                        ValueError,
+                                        TypeError,
+                                        KeyError,
+                                        TimeoutError,
+                                    ):
+                                        break
+                                if not disk.cancelled():
+                                    disk.exception()
+                                raise
+                            if not pending_current():
+                                raise ValueError("room owner changed")
+                            self.bridge._pairing_hash = ""
                         if command["action"] == "request_status":
                             result = self.bridge.controller_request_status(
                                 room, command["request_id"], registry
@@ -506,7 +599,14 @@ class AdminStdinTransport:
                             )
                             result = {"room": room, **approved}
                 outcome = "committed"
-            except (OSError, ValueError, TypeError, KeyError, AttributeError, TimeoutError):
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                TimeoutError,
+            ):
                 _LOG.warning(_REJECTED)
             command["_result"] = result
             # HA resolves its exchange as soon as the receipt service runs, before

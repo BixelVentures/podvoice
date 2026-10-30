@@ -462,3 +462,87 @@ def project_current_setup(value: object, entity: str) -> dict:
             return unavailable
         seen.add(area["id"])
     return {**value, "areas": [dict(area) for area in areas]}
+
+
+def recorder_current_activity(
+    value: object, vacuum: str, sensor: str, start: float, end: float, changed: float
+) -> dict:
+    """Recover an actual recorded HA off→on edge, never a device start time.
+
+    Recorder's synthetic first row can establish an off baseline after long
+    idle periods. It can never itself be a start event. Require a subsequent
+    actual off→on plus the current HA on-state's last_changed.
+    """
+    unavailable = {"status": "unavailable"}
+    if (
+        not isinstance(value, list)
+        or len(value) != 1
+        or not isinstance(value[0], list)
+        or not 2 <= len(value[0]) <= 512
+    ):
+        return unavailable
+    previous, edge, last = None, None, start
+    for index, row in enumerate(value[0]):
+        if not isinstance(row, dict) or row.get("entity_id", sensor) != sensor:
+            return unavailable
+        state = row.get("state")
+        timestamp = _epoch(row.get("last_changed"))
+        if (
+            not isinstance(state, str)
+            or state not in {"on", "off", "unknown", "unavailable"}
+            or timestamp is None
+            or timestamp > end
+        ):
+            return unavailable
+        if index == 0 and abs(timestamp - start) <= 0.001:
+            previous = state if state in {"off", "on"} else None
+            continue
+        if not last < timestamp:
+            return unavailable
+        last = timestamp
+        if state in {"unknown", "unavailable"}:
+            previous, edge = None, None
+        elif state == "off":
+            previous, edge = "off", None
+        else:
+            if previous == "off":
+                edge = timestamp
+            previous = "on"
+    if previous != "on" or edge is None or abs(edge - changed) > 0.001:
+        return unavailable
+    return project_current_activity(
+        {
+            "status": "observed",
+            "source": "home_assistant_recorder",
+            "vacuumEntityId": vacuum,
+            "registeredAt": edge,
+            "observedAt": time.time(),
+        },
+        vacuum,
+    )
+
+
+def project_current_activity(value: object, entity: str, now: float | None = None) -> dict:
+    """Closed HA-observed activity timestamp; no job ID or action authority."""
+    unavailable = {"status": "unavailable"}
+    current = time.time() if now is None else now
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"status", "source", "vacuumEntityId", "registeredAt", "observedAt"}
+        or value.get("status") != "observed"
+        or value.get("source") != "home_assistant_recorder"
+        or value.get("vacuumEntityId") != entity
+        or not isinstance(entity, str)
+        or not entity.startswith("vacuum.")
+        or not _ENTITY.fullmatch(entity)
+        or any(
+            type(value.get(key)) not in {int, float} or not math.isfinite(value[key])
+            for key in ("registeredAt", "observedAt")
+        )
+        or type(current) not in {int, float}
+        or not math.isfinite(current)
+        or not 0 <= current - value["observedAt"] <= 60
+        or not 0 <= value["observedAt"] - value["registeredAt"] <= 86400
+    ):
+        return unavailable
+    return dict(value)
