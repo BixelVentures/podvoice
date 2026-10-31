@@ -20,6 +20,13 @@ function rig({url=ROOT+'setup.html',screenEnrollment=true,store=storage(),handle
 function posts(calls){return calls.filter(call=>call.init.method==='POST');}
 function assertCookiePost(call,body){assert.equal(call.url.origin,new URL(ROOT).origin);assert.equal(call.init.credentials,'same-origin');assert.equal(call.init.cache,'no-store');assert.equal(call.init.headers['X-PodView-Request'],'1');assert.deepEqual(JSON.parse(call.init.body),body);assert.equal('Authorization' in call.init.headers,false);}
 
+for(const hint of ['absent','present','denied'])test(`HA session uses server capabilities without named renewal: ${hint}`,async()=>{
+ const value=snapshot();value.capabilities.controlSetup=['music','vacuum','light','vehicle'];value.capabilities.vehicleActions=['unlock'];
+ const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{assert.equal(path,'snapshot','normal HA must not renew a named profile');return reply(value);}});
+ if(hint!=='absent')h.store.setItem(h.key,JSON.stringify(intent()));if(hint==='denied')h.transport.namedRenewalDenied=true;
+ try{await h.transport.start();assert.deepEqual(h.transport.snapshot.capabilities.controlSetup,value.capabilities.controlSetup);assert.deepEqual(h.transport.snapshot.capabilities.vehicleActions,['unlock']);assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.calls.length,1);}finally{h.transport.close();}
+});
+
 test('explicit HA setup renewal creates separate named proof only after a fresh same-owner snapshot',async()=>{
  const h=rig();try{
   await h.transport.start();
@@ -59,16 +66,16 @@ test('default HA setup without opt-in keeps original capabilities and forbids le
  }finally{h.transport.close();}
 });
 
-test('normal page public intent can only validate its existing cookie and never enroll',async()=>{
+test('normal page ignores public intent and never renews or enrolls',async()=>{
  const h=rig({url:ROOT,screenEnrollment:false});h.store.setItem(h.key,JSON.stringify(intent()));
  try{
   await h.transport.start();
-  assert.equal(h.transport.namedControllerRenewed,true);
+  assert.equal(h.transport.namedControllerRenewed,false);
   assert.equal(h.transport.controllerRenewed,false);
   await assert.rejects(h.transport.accessRequest('Mac'));
   await assert.rejects(h.transport.accessClaim(REQUEST));
   await assert.rejects(h.transport.pair('123456'));
-  assert.deepEqual(posts(h.calls).map(call=>call.path),['controller/renew']);
+  assert.deepEqual(posts(h.calls).map(call=>call.path),[]);
  }finally{h.transport.close();}
 });
 
@@ -90,15 +97,15 @@ test('nonexpiring authoritative named cookie receipt is admitted with null expir
  finally{h.transport.close();}
 });
 
-test('named-cookie 403 clears only named hint and light setup while preserving HA actor capabilities',async()=>{
- const h=rig({url:ROOT,screenEnrollment:false,handler:path=>path==='controller/renew'?reply({ok:false,error:'denied'},403):reply(snapshot())});h.store.setItem(h.key,JSON.stringify(intent()));
+test('explicit setup named-cookie 403 clears the hint while preserving server HA actor capabilities',async()=>{
+ const h=rig({handler:path=>path==='controller/renew'?reply({ok:false,error:'denied'},403):reply(snapshot())});h.store.setItem(h.key,JSON.stringify(intent()));
  try{
   await h.transport.start();assert.equal(h.transport.connected,true);
   assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,true);assert.equal(h.transport.namedLaneWanted,false);
   assert.equal(h.store.getItem(h.key),null);assert.equal(h.transport.controllerRenewed,false);
   assert.deepEqual(h.transport.snapshot.admission,admission);
-  assert.deepEqual(h.transport.snapshot.capabilities,{...snapshot().capabilities,controlSetup:['music','vacuum']});
-  h.transport.accept({...snapshot(),revision:2});assert.deepEqual(h.transport.snapshot.capabilities.controlSetup,['music','vacuum']);
+  assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);
+  h.transport.accept({...snapshot(),revision:2});assert.deepEqual(h.transport.snapshot.capabilities.controlSetup,['music','vacuum','light']);
   assert.deepEqual(posts(h.calls).map(call=>call.path),['controller/renew']);
  }finally{h.transport.close();}
 });
@@ -129,7 +136,7 @@ for(const change of ['boot','continuity'])test(`later HA SSE ${change} suspends 
   if(change==='continuity')value.controllerContinuity.available=false;
   h.transport.stream.snapshot({data:JSON.stringify(value)});
   assert.equal(h.transport.namedControllerRenewed,false);assert.notEqual(h.store.getItem(h.key),null);
-  assert.deepEqual(h.transport.snapshot.capabilities.controlSetup,['music','vacuum']);
+  assert.deepEqual(h.transport.snapshot.capabilities.controlSetup,['music','vacuum','light']);
   assert.deepEqual(h.transport.snapshot.capabilities.timerActions,['timer.start']);
   assert.equal(h.transport.snapshot.capabilities.musicSelection,true);
   assert.equal(h.transport.controllerRenewed,false);
@@ -183,9 +190,9 @@ test('connected claim without valid renewed named proof cannot link or navigate'
  finally{flow.close();h.transport.close();}
 });
 
-test('unconfirmed existing-cookie renewal retains public retry intent but filters only light authority',async()=>{
+test('unconfirmed setup renewal retains intent and server HA authority',async()=>{
  for(const failure of ['503','malformed']){
-  const h=rig({url:ROOT,screenEnrollment:false,handler:path=>path==='controller/renew'?(failure==='503'?reply({ok:false,error:'unavailable'},503):reply({...renewal(),controllerExpiresAt:'invalid'})):reply(snapshot())});
+  const h=rig({handler:path=>path==='controller/renew'?(failure==='503'?reply({ok:false,error:'unavailable'},503):reply({...renewal(),controllerExpiresAt:'invalid'})):reply(snapshot())});
   const saved=JSON.stringify(intent());h.store.setItem(h.key,saved);
   try{
    await h.transport.start();
@@ -193,7 +200,7 @@ test('unconfirmed existing-cookie renewal retains public retry intent but filter
    assert.equal(h.transport.namedRenewalDenied,false);assert.equal(h.transport.namedRenewalUnconfirmed,true);
    assert.equal(h.transport.controllerRenewed,false);assert.equal(h.store.getItem(h.key),saved);
    assert.deepEqual(h.transport.snapshot.admission,admission);
-   assert.deepEqual(h.transport.snapshot.capabilities,{...snapshot().capabilities,controlSetup:['music','vacuum']});
+   assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);
    assert.deepEqual(posts(h.calls).map(call=>call.path),['controller/renew']);
    assert.equal(h.transport.namedRenewAt>Date.now()+29000,true);
   }finally{h.transport.close();}
@@ -214,26 +221,26 @@ test('linked setup stops claiming successful linkage when current named proof be
    assert.doesNotMatch(views.at(-1).status,/Skærmen er tilknyttet/);
    assert.match(views.at(-1).status,failure==='denied'?/godkendes igen/:/ikke bekræftes/);
    assert.notEqual(views.at(-1).button,'Åbn PodView');assert.deepEqual(navigation,[]);
-   assert.deepEqual(h.transport.snapshot.capabilities,{...snapshot().capabilities,controlSetup:['music','vacuum']});
+   assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);
    assert.deepEqual(posts(h.calls).map(call=>call.path),['controller/renew','controller/renew']);
   }finally{flow.close();h.transport.close();}
  }
 });
 
-for(const failure of ['network','503-json','503-html','200-html'])test(`post-renew ${failure} retains verified HA reads without named proof and automatically validates the existing profile again`,async()=>{
+for(const failure of ['network','503-json','503-html','200-html'])test(`post-renew ${failure} retains verified HA reads without named proof and validates the existing profile on explicit retry`,async()=>{
  // This exact retry scheduler owns its clock as well as its fake timers.
  const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,previousNow=Date.now,clockNow=previousNow(),jobs=new Map();let serial=0,reads=0,announced=0;
  Date.now=()=>clockNow;
  globalThis.setTimeout=(callback,ms)=>{jobs.set(++serial,{callback,ms});return serial;};globalThis.clearTimeout=id=>jobs.delete(id);
- const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{
+ const h=rig({handler:path=>{
   if(path==='controller/renew')return reply(renewal());
   if(++reads===2){if(failure==='network')throw new TypeError('inert fetch outage');if(failure.endsWith('html'))return {ok:failure==='200-html',status:failure==='200-html'?200:503,json:async()=>{throw new SyntaxError('inert HTML');}};return reply({ok:false,error:'unavailable'},503);}
   return reply(snapshot());
  }}),saved=JSON.stringify(intent());h.store.setItem(h.key,saved);h.transport.onControllerRenewed=()=>announced++;
  try{
   await h.transport.start().catch(()=>{});assert.equal(h.transport.connected,true,'the independently verified first HA read remains available');assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.controllerRenewed,false);assert.equal(h.transport.namedRenewalUnconfirmed,true);assert.equal(h.transport.namedRenewalDenied,false);assert.equal(announced,0);assert.equal(h.store.getItem(h.key),saved);
-  assert.deepEqual(h.transport.snapshot.admission,admission);assert.deepEqual(h.transport.snapshot.capabilities,{...snapshot().capabilities,controlSetup:['music','vacuum']});
-  const retry=[...jobs.entries()].find(([,job])=>job.ms===30000);assert.ok(retry,'existing named-profile validation retry remains armed');jobs.delete(retry[0]);retry[1].callback();await new Promise(resolve=>previousSet(resolve,0));
+  assert.deepEqual(h.transport.snapshot.admission,admission);assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);
+  assert.equal([...jobs.values()].some(job=>job.ms===30000),false,'setup does not automatically renew after an unconfirmed result');await h.transport.restart(false,true);
   assert.equal(h.transport.connected,true);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(announced,1);assert.deepEqual(h.transport.snapshot.capabilities,snapshot().capabilities);assert.equal(h.store.getItem(h.key),saved);assert(h.calls.every(call=>['snapshot','controller/renew'].includes(call.path)),'recovery never enrolls or sends effects');
  }finally{h.transport.close();globalThis.setTimeout=previousSet;globalThis.clearTimeout=previousClear;Date.now=previousNow;}
 });
@@ -245,12 +252,12 @@ test('a post-renew snapshot cannot downgrade an initially authenticated HA conne
 });
 
 test('post-renew read denial remains terminal and cannot become a transient profile retry',async()=>{
- let reads=0,announced=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>path==='controller/renew'?reply(renewal()):reply(snapshot(),++reads===2?403:200)});h.store.setItem(h.key,JSON.stringify(intent()));h.transport.onControllerRenewed=()=>announced++;
+ let reads=0,announced=0;const h=rig({handler:path=>path==='controller/renew'?reply(renewal()):reply(snapshot(),++reads===2?403:200)});h.store.setItem(h.key,JSON.stringify(intent()));h.transport.onControllerRenewed=()=>announced++;
  try{await assert.rejects(()=>h.transport.start());assert.equal(h.transport.connected,false);assert.equal(h.transport.recoveryBlocked,true);assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,true);assert.equal(h.store.getItem(h.key),null);assert.equal(announced,0);assert.equal(h.transport.recoveryTimer??null,null);assert.equal(h.transport.namedRenewTimer??null,null);}finally{h.transport.close();}
 });
 
 for(const status of [401,403])test(`native HTML ${status} after renewal remains an authoritative denial through the request decoder`,async()=>{
- let reads=0,announced=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{
+ let reads=0,announced=0;const h=rig({handler:path=>{
   if(path==='controller/renew')return reply(renewal());
   if(++reads===2)return {ok:false,status,json:async()=>{throw new SyntaxError('inert HTML denial');}};
   return reply(snapshot());
@@ -268,7 +275,7 @@ for(const status of [401,403])test(`native HTML ${status} after renewal remains 
 for(const delay of [5000,6001])test(`a failed post-renew read after ${delay}ms cannot restart the first snapshot freshness window`,async()=>{
  const previousSet=globalThis.setTimeout,previousClear=globalThis.clearTimeout,previousNow=Date.now,jobs=new Map();let serial=0,reads=0,now=previousNow();
  globalThis.setTimeout=(callback,ms)=>{jobs.set(++serial,{callback,ms});return serial;};globalThis.clearTimeout=id=>jobs.delete(id);Date.now=()=>now;
- const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew')return reply(renewal());if(++reads===2){now+=delay;throw new TypeError('inert delayed read failure');}return reply(snapshot());}}),saved=JSON.stringify(intent());h.store.setItem(h.key,saved);
+ const h=rig({handler:path=>{if(path==='controller/renew')return reply(renewal());if(++reads===2){now+=delay;throw new TypeError('inert delayed read failure');}return reply(snapshot());}}),saved=JSON.stringify(intent());h.store.setItem(h.key,saved);
  const fire=async ms=>{const entry=[...jobs.entries()].find(([,job])=>job.ms===ms);assert.ok(entry,`scheduled ${ms}ms`);jobs.delete(entry[0]);now+=ms;entry[1].callback();await new Promise(resolve=>previousSet(resolve,0));};
  try{
   await h.transport.start().catch(()=>{});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,false);assert.equal(h.store.getItem(h.key),saved);
@@ -279,32 +286,36 @@ for(const delay of [5000,6001])test(`a failed post-renew read after ${delay}ms c
 });
 test('renewal replaces old event stream and stale stream cannot remove Tesla authority',async()=>{
  let generation=0;const value=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};
- const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew'){generation++;return reply(renewal());}return reply(value());}});h.store.setItem(h.key,JSON.stringify(intent()));
+ const h=rig({handler:path=>{if(path==='controller/renew'){generation++;return reply(renewal());}return reply(value());}});h.store.setItem(h.key,JSON.stringify(intent()));
  try{await h.transport.start();const old=h.transport.stream;assert.equal(generation,1);assert.deepEqual(h.transport.snapshot.capabilities.vehicleActions,['unlock']);await h.transport.restart(false,true);assert.equal(generation,2);assert.equal(old.closed,true);assert.notEqual(h.transport.stream,old);const stale=value();stale.revision=2;stale.capabilities.controlSetup=stale.capabilities.controlSetup.filter(x=>x!=='vehicle');stale.capabilities.vehicleActions=[];old.snapshot({data:JSON.stringify(stale)});assert.deepEqual(h.transport.snapshot.capabilities.vehicleActions,['unlock']);assert(h.transport.snapshot.capabilities.controlSetup.includes('vehicle'));}finally{h.transport.close();}
 });
 test('other same-profile renewal cannot strip vehicle actions on a still-open stream',async()=>{
- const store=storage();let epoch=0;const make=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};const handler=path=>{if(path==='controller/renew'){epoch++;return reply(renewal());}return reply(make())};const a=rig({url:ROOT,screenEnrollment:false,store,handler}),b=rig({url:ROOT,screenEnrollment:false,store,handler});store.setItem(a.key,JSON.stringify(intent()));
+ const store=storage();let epoch=0;const make=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};const handler=path=>{if(path==='controller/renew'){epoch++;return reply(renewal());}return reply(make())};const a=rig({store,handler}),b=rig({store,handler});store.setItem(a.key,JSON.stringify(intent()));
  try{await a.transport.start();const old=a.transport.stream;await b.transport.start();assert.equal(epoch,2);const stale=make();stale.revision=2;stale.capabilities.controlSetup=stale.capabilities.controlSetup.filter(x=>x!=='vehicle');stale.capabilities.vehicleActions=[];old.snapshot({data:JSON.stringify(stale)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(old.closed,true);assert.notEqual(a.transport.stream,old);assert.deepEqual(a.transport.snapshot.capabilities.vehicleActions,['unlock']);}finally{a.transport.close();b.transport.close();}
 });
 test('a fresh read after lost vehicle capability honors real withdrawal without renewal loop',async()=>{
- let grant=true,reads=0;const value=()=>{const v=snapshot();if(grant){v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];}return v};const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew')return reply(renewal());reads++;return reply(value());}});h.store.setItem(h.key,JSON.stringify(intent()));
+ let grant=true,reads=0;const value=()=>{const v=snapshot();if(grant){v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];}return v};const h=rig({handler:path=>{if(path==='controller/renew')return reply(renewal());reads++;return reply(value());}});h.store.setItem(h.key,JSON.stringify(intent()));
  try{await h.transport.start();const old=h.transport.stream;grant=false;const withdrawn=value();withdrawn.revision=2;old.snapshot({data:JSON.stringify(withdrawn)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(old.closed,true);assert.equal(h.transport.snapshot.capabilities.controlSetup.includes('vehicle'),false);const count=reads;h.transport.stream.snapshot({data:JSON.stringify(withdrawn)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(reads,count);assert.equal(h.transport.snapshot.capabilities.controlSetup.includes('vehicle'),false);}finally{h.transport.close();}
 });
 
 test('two successive other-tab renewals each rebind and preserve fresh Tesla capability',async()=>{
- const store=storage();let epoch=0;const value=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};const handler=path=>{if(path==='controller/renew'){epoch++;return reply(renewal());}return reply(value())};const a=rig({url:ROOT,screenEnrollment:false,store,handler}),b=rig({url:ROOT,screenEnrollment:false,store,handler});store.setItem(a.key,JSON.stringify(intent()));
+ const store=storage();let epoch=0;const value=()=>{const v=snapshot();v.capabilities.controlSetup.push('vehicle');v.capabilities.vehicleActions=['unlock'];return v};const handler=path=>{if(path==='controller/renew'){epoch++;return reply(renewal());}return reply(value())};const a=rig({store,handler}),b=rig({store,handler});store.setItem(a.key,JSON.stringify(intent()));
  try{await a.transport.start();await b.transport.start();for(let n=0;n<2;n++){if(n)await b.transport.restart(false,true);const old=a.transport.stream,stale=value();stale.revision=2+n;stale.capabilities.controlSetup=stale.capabilities.controlSetup.filter(x=>x!=='vehicle');stale.capabilities.vehicleActions=[];old.snapshot({data:JSON.stringify(stale)});await new Promise(resolve=>setTimeout(resolve,0));assert.equal(old.closed,true);assert.notEqual(a.transport.stream,old);assert.deepEqual(a.transport.snapshot.capabilities.vehicleActions,['unlock']);}assert.equal(epoch,3);}finally{a.transport.close();b.transport.close();}
 });
 
-for(const reason of ['boot','temporarily unavailable'])test(`existing named profile renews after ${reason} without enrollment`,async()=>{
- let value=snapshot(),denied=false;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>path==='controller/renew'?reply(denied?{ok:false,error:'denied'}:renewal(),denied?403:200):reply(value)});h.store.setItem(h.key,JSON.stringify(intent()));
+for(const reason of ['boot','temporarily unavailable'])test(`explicit setup profile renews after ${reason} without another claim`,async()=>{
+ let value=snapshot(),denied=false;const h=rig({handler:path=>path==='controller/renew'?reply(denied?{ok:false,error:'denied'}:renewal(),denied?403:200):reply(value)});h.store.setItem(h.key,JSON.stringify(intent()));
  try{await h.transport.start();const original=h.store.getItem(h.key);let changed=snapshot();changed.revision=2;if(reason==='boot')changed.bootId='boot-two';else changed.controllerContinuity.available=false;h.transport.stream.snapshot({data:JSON.stringify(changed)});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.store.getItem(h.key),original);value=snapshot();value.revision=3;if(reason==='boot')value.bootId='boot-two';await h.transport.restart(false,true);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(h.store.getItem(h.key),original);denied=true;await h.transport.restart(false,true);assert.equal(h.transport.namedRenewalDenied,true);assert.equal(h.store.getItem(h.key),null);assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
 });
 test('boot change schedules automatic same-cookie renewal with no enrollment',async()=>{
- let value=snapshot(),renewals=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew'){renewals++;return reply(renewal());}return reply(value);}});h.store.setItem(h.key,JSON.stringify(intent()));
+ let value=snapshot(),renewals=0;const h=rig({handler:path=>{if(path==='controller/renew'){renewals++;return reply(renewal());}return reply(value);}});h.store.setItem(h.key,JSON.stringify(intent()));
  try{await h.transport.start();value=snapshot();value.bootId='boot-two';value.revision=2;h.transport.stream.snapshot({data:JSON.stringify(value)});assert.equal(h.transport.namedControllerRenewed,false);await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2);assert.equal(h.transport.namedControllerRenewed,true);assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
 });
 test('temporary continuity outage recovers automatically when the owner returns',async()=>{
- let value=snapshot(),renewals=0;const h=rig({url:ROOT,screenEnrollment:false,handler:path=>{if(path==='controller/renew'){renewals++;return reply(renewal());}return reply(value);}});h.store.setItem(h.key,JSON.stringify(intent()));
+ let value=snapshot(),renewals=0;const h=rig({handler:path=>{if(path==='controller/renew'){renewals++;return reply(renewal());}return reply(value);}});h.store.setItem(h.key,JSON.stringify(intent()));
  try{await h.transport.start();const hint=h.store.getItem(h.key);value=snapshot();value.revision=2;value.controllerContinuity.available=false;h.transport.stream.snapshot({data:JSON.stringify(value)});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.store.getItem(h.key),hint);value=snapshot();value.revision=3;h.transport.stream.snapshot({data:JSON.stringify(value)});await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(h.store.getItem(h.key),hint);await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2,'successful recovery must not schedule an extra renewal');assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
+});
+
+for(const status of [401,403])test(`ordinary HA snapshot ${status} blocks access without renewal or enrollment`,async()=>{
+ const h=rig({url:ROOT,screenEnrollment:false,handler:path=>reply(snapshot(),status)});h.store.setItem(h.key,JSON.stringify(intent()));try{await assert.rejects(()=>h.transport.start(),/transport_access_denied/);assert.equal(h.transport.recoveryBlocked,true);assert.equal(h.transport.connected,false);assert.deepEqual(h.calls.map(call=>call.path),['snapshot']);assert.equal(posts(h.calls).length,0);}finally{h.transport.close();}
 });

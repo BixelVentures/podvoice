@@ -1,5 +1,14 @@
 # PodVoice-systeminvarianter
 
+## PodView-adgang via HA og selvstændige skærme
+
+Mac/iPad inde i HA bruger den eksisterende Supervisor-verificerede HA-adminidentitet
+til de konfigurerede domæner uden særskilt skærmgodkendelse. `panel_admin` og den
+serververificerede ingressgrænse bevares; URL, klientflag og fremmede headers giver
+ingen autoritet. Hver setup/handling genvaliderer samme bruger, rum, ejer og scope.
+Standalone skærme beholder deres egne registrerede grants. Rum/område er kontekst;
+det giver ikke i sig selv rettigheder. Bekræftelse og UNKNOWN uden replay gælder begge.
+
 ## Fælles Pod-ejerskab · standard v1
 
 [Pod-systemstandarden](POD-SYSTEM-STANDARD.md) gælder alle berørte domæner.

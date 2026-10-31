@@ -174,7 +174,6 @@ export class PodVoiceTransport {
    this.controllerRenewed=false;this.cookieReadAuthority=false;this.controllerRenewAt=null;clearTimeout(this.recoveryTimer);this.recoveryTimer=null;clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;
   }
   if(!normalHA&&(this.controllerRenewalDenied||value.controllerContinuity?.enabled===true&&this.controllerRenewed!==true&&!this.cookieReadAuthority))value={...value,capabilities:{...value.capabilities,timerActions:[],musicActions:[],musicSelection:false,queueSelection:false,controlSetup:[]}};
-  if(normalHA&&(this.namedRenewalDenied||this.namedLaneWanted&&this.namedRenewalUnconfirmed))value={...value,capabilities:{...value.capabilities,controlSetup:value.capabilities.controlSetup?.filter(domain=>domain!=='light')}};
   if(normalHA){
    this.normalHAMode=true;
   }
@@ -217,7 +216,7 @@ export class PodVoiceTransport {
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
    const normalHA=haIngress(value);
    const boot=value.bootId,room=value.roomId;
-   const named=normalHA&&!this.namedRenewalDenied&&(this.screenEnrollment||this.namedIntent(room));
+   const named=normalHA&&!this.namedRenewalDenied&&this.screenEnrollment;
    this.namedLaneWanted=named;
    if(!normalHA||named){await this.coordinate();if(generation!==this.generation||this.closed)return;}
    let renewed=false;

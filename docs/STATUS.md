@@ -1,3 +1,26 @@
+## 31/10 — HA-login giver PodView-betjening uden ekstra skærmgodkendelse
+
+Aktiv brugerbeslutning: Mac og iPad åbnet inde i HA skal bruge HA-login til de
+allerede konfigurerede domæner; særskilt skærmadgang beholdes kun til standalone
+skærme som Frameo. HA-login er fortsat påkrævet, og `panel_admin: true` bevares.
+Rum er kontekst, ikke en ny autorisation. Ingen URL-/klientflag giver adgang.
+
+Påvist årsag i installeret109: vehicle-grænsen afviser HA-actor og vælger
+skærmcookie i stedet; lys gør tilsvarende, og frontend kan maskere HA-capabilities
+efter en fejlet named-renew. Kandidaten retter netop disse ejergrænser.
+HA-actor kræver eksisterende Supervisor-peer, entydig injiceret brugeridentitet
+og aktiv samme-bruger-request på hver handling. Scopes, exact-target/fresh-state,
+confirmation, durable receipt-ejer og UNKNOWN uden replay bevares.
+Lys bruger første konfigurerede light-policy-område som første visning, ikke som
+påstand om skærmens fysiske placering; policy bestemmer fortsat tilladte handlinger.
+
+Kilde: /private/tmp/pv110-ha-control-20261031, exact109-baseline-tree
+e485503729aed9709c1bdcce83d3172353a62901 fra remote-main8b9c6591.
+Vehicle HTTP-regression PASS; lys HTTP/bridge/catalogue/control-regression PASS.
+Disse prøver bruger inerte serviceejere, ikke bilen, robotten eller lyd hjemme.
+Frontendkontrakt 55/55 PASS; berørte backendregressioner 153 PASS og HA-ingress/voice-continuation 71 PASS. Uafhængigt sikkerhedsreview fra /root/ha_admission_review GO på source-delta fd7a3a0be60fc590e6df80159f6901959cbc3fcb5643d61679b2a59ca05fdee5. Kontrollerne bruger inerte serviceejere; rigtig browser, HA-service og fysisk effekt er ikke accepteret. 110 er endnu ikke publiceret eller installeret; artifactreview og officiel CI afventer.
+Rollback er foregående image109, uden migration eller ændring af skærmregistret.
+
 ## 27/10 — fælles Pod-systemstandard v1 indført lokalt
 
 Brugeren har godkendt de fem krav på tværs af PodVoice, PodView og PodConnect:
@@ -7231,5 +7254,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "b60e580ec89c7cc0d951949e5c4b6971b1c4700b72d236b46162fdf56c793e85",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 86
+}
+-->
+
+<!-- podvoice110-admission
+{
+  "base_tip": "8b9c6591e1443c21797c617e1dd601d60d606a08",
+  "config_fingerprint": "1abdf375324e65356a4836ba1afd4b25c618746d0d65592792e2e306e48e42e8",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "72716ecf0e92b64925fc428dc398599cde8739566b20785ee4e431e71fa59a51",
+  "kind": "podvoice110_ha_login_controls",
+  "manifest_fingerprint": "926501c51058c7b3c28ab949c988adfdee39c58e54fcd559feb93d990083c035",
+  "merge_base": "8b9c6591e1443c21797c617e1dd601d60d606a08",
+  "policy_fingerprint": "99512633a96580d6a27feadce4bfa70784c65b623662f546c8b90c47fa912564",
+  "rationale": "PodVoice 2.0.110 restores scoped controls on an authenticated HA screen while retaining owner, identity, confirmation and UNKNOWN boundaries. Exact source, test and asset inventory bound; independent source review passed, final artifact review pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "932434956137f0decfea14568bdad4fef6e995f3207a5e2f83954c7fcf73464a",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "314ace36811f3b56788eb77a8593e8820f58e07cb0be12a03288b88420daddac",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 87
 }
 -->

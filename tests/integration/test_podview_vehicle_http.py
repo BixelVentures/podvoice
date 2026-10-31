@@ -332,8 +332,11 @@ async def test_vehicle_action_visibility_exact_policy_with_enrolled_ingress_cook
             assert response.status == 200
             return (await response.json())["capabilities"]
 
-        assert (await visible())["vehicleActions"] == []
-        assert (await visible(bridge.grant_timer_control("kitchen")))["vehicleActions"] == []
+        assert (await visible())["vehicleActions"] == ["climateOff", "lock"]
+        assert (await visible(bridge.grant_timer_control("kitchen")))["vehicleActions"] == [
+            "climateOff",
+            "lock",
+        ]
         actual = await visible(grant)
         assert actual["vehicleActions"] == ["climateOff", "lock"]
         assert "vehicle" in actual["controlSetup"]
@@ -348,8 +351,45 @@ async def test_vehicle_action_visibility_exact_policy_with_enrolled_ingress_cook
         assert (await visible(grant))["vehicleActions"] == []
         bridge._controller_registry = registry
         registry.revoke(credential.split(".")[0], room="kitchen")
-        assert (await visible(grant))["vehicleActions"] == []
+        assert (await visible(grant))["vehicleActions"] == ["climateOff", "lock"]
         assert bridge.controls.tasks == {} and h.calls == []
+
+
+async def test_ha_ingress_vehicle_confirmation_bound_to_user_without_screen_cookie(tmp_path):
+    app, bridge, h, _, _, _ = rig(tmp_path)
+
+    @web.middleware
+    async def ingress_peer(request, handler):
+        return await handler(request.clone(remote="172.30.32.2"))
+
+    app.middlewares.insert(0, ingress_peer)
+    first = {"X-Remote-User-Id": "b" * 32, "X-PodView-Request": "1"}
+    other = {**first, "X-Remote-User-Id": "c" * 32}
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/view/api/control/setup", json=setup_body(bridge), headers=first
+        )
+        setup = await response.json()
+        assert setup["domain"] == "vehicle", setup
+        assert setup["setup"]["confirmation"]["nativeWakePossible"] is True
+        assert not h.calls
+        action = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "taskId": setup["taskId"],
+            "revision": 1,
+            "requestId": "ha-confirm",
+            "optionId": setup["options"][0]["id"],
+            "args": {},
+        }
+        denied = await client.post("/view/api/control/actions", json=action, headers=other)
+        assert not (await denied.json()).get("ok") and not h.calls
+        response = await client.post("/view/api/control/actions", json=action, headers=first)
+        result = await response.json()
+        assert result["outcome"] == "accepted", result
+        assert len(h.calls) == 1
+        again = await client.post("/view/api/control/actions", json=action, headers=first)
+        assert await again.json() == result and len(h.calls) == 1
 
 
 NATIVE_CASES = [
