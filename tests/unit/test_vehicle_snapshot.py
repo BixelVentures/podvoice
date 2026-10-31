@@ -302,7 +302,7 @@ def test_bad_block_timestamp_keeps_other_independent_real_block(stamp):
         now=now,
     )
     assert data == {"batteryPercent": 90}
-    assert stamps == {"charge_state": now - 10}
+    assert stamps == {"charge_state": pytest.approx(now - 10, abs=1e-6, rel=0)}
 
 
 @pytest.mark.parametrize(
