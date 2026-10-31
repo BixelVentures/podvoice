@@ -7211,3 +7211,25 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "version": 85
 }
 -->
+
+<!-- podvoice109-admission
+{
+  "base_tip": "a451d65a20290cc2c43b163c12abb52511a3ac57",
+  "config_fingerprint": "011f925071fce54db76194a57774e3701835a97693a3c0448f78d75b1935f50b",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "6974d0bd90d0b3504099592309645f2546f3323bba50fa48245de6cb72eaec68",
+  "kind": "podvoice109_tesla_cached_controls",
+  "manifest_fingerprint": "60b2a5d9f6fc99ce4b5b21a8a4607c2ba2d82340a5200be6e817abcf3ee45cf3",
+  "merge_base": "a451d65a20290cc2c43b163c12abb52511a3ac57",
+  "policy_fingerprint": "d6c5d4e6cddad4c413cdf835562f3604e64b180c8d01e25f7cc2fd368a09150e",
+  "rationale": "PodVoice 2.0.109 preserves last known Tesla identity and canonical offered controls without inventing unknown target temperature or defrost state. Exact source, test and asset inventory bound; source and visual reviews completed, final metadata artifact review pending. CI, publication, installation, real service and physical acceptance remain separate.",
+  "regression_fingerprint": "da081685e199a0945cdad293e12b4348c0d215c2200d45c429bbe5f58ea3202d",
+  "reviewer": "/root/music_retry_review",
+  "runtime_fingerprint": "b60e580ec89c7cc0d951949e5c4b6971b1c4700b72d236b46162fdf56c793e85",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 86
+}
+-->

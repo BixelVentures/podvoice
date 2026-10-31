@@ -2463,7 +2463,7 @@ class ToolRouter:
             result = await podview_vehicle.read_snapshot(
                 scope, service_read=service_read, current=current
             )
-            if result.get("status") == "observed":
+            if result.get("status") in {"observed", "stale"}:
 
                 async def device_registry_read():
                     try:

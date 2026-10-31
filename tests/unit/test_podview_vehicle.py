@@ -615,20 +615,40 @@ async def test_optional_vehicle_model_discards_changed_registry_or_source(mutati
     )
 
 
-@pytest.mark.parametrize("status", ["stale", "observed"])
-async def test_optional_model_missing_preserves_existing_facts_and_stale_skips_lookup(
-    monkeypatch, status
+@pytest.mark.parametrize("status", ["stale", "observed", "unavailable"])
+@pytest.mark.parametrize("registry", ["valid", "missing", "owner_changed"])
+async def test_optional_model_preserves_observation_and_requires_current_registry(
+    monkeypatch, status, registry
 ):
     import aiohttp
 
-    facts = {"status": status, "data": {"batteryPercent": 72}}
+    facts = {
+        "status": status,
+        "observedAt": 1234567890,
+        "data": None if status == "unavailable" else {"batteryPercent": 72},
+    }
     monkeypatch.setattr(v, "read_snapshot", AsyncMock(return_value=copy.deepcopy(facts)))
     async with httpx.AsyncClient() as client:
         router = ToolRouter(None, client=client, supervisor_token="test-only")
         router.configure_podview_vehicle_read(policy())
-        router._device_control._ws_read = AsyncMock(side_effect=aiohttp.ClientError("PRIVATE"))
+
+        async def read_registry(_request):
+            if registry == "missing":
+                raise aiohttp.ClientError("PRIVATE")
+            if registry == "owner_changed":
+                router.configure_podview_vehicle_read("")
+            return device_registry_model()
+
+        router._device_control._ws_read = AsyncMock(side_effect=read_registry)
         result = await router.podview_vehicle_read()
+        if registry == "owner_changed" and status != "unavailable":
+            assert result == {"status": "unavailable", "data": None}
+            return
         binding = result.pop("bindingId")
         assert isinstance(binding, str) and len(binding) == 64
+        if registry == "valid" and status != "unavailable":
+            facts["data"]["modelName"] = "Model Y"
         assert result == facts
-        assert router._device_control._ws_read.await_count == (0 if status == "stale" else 1)
+        assert router._device_control._ws_read.await_count == (
+            0 if status == "unavailable" else 2 if registry == "valid" else 1
+        )

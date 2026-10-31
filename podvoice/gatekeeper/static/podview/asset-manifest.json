@@ -459,7 +459,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "27ac66e424d2b6a1c3ba4c02a18201439776cd70a3db1685f35f6f66af12b9ed"
+      "sha256": "ba2a6962fe77fea7f8fdc164070e80a2554ac1a418d8e4e39979b7213f2ee6c9"
     },
     {
       "path": "ingress-kiosk.js",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "49162f596221315b49597b6c3892413f70aedd21880880d0db574c05f4709028"
+      "sha256": "f1fadb3747a252d32bbd84d5f235c38bc7d2ddcdd8e48b0db70ce8676c108c6c"
     },
     {
       "path": "podview.css",
@@ -807,7 +807,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "f76e25b321f624e0e717a14ed293b81631579cf133efeec09da62708f7e87a8b"
+      "sha256": "ea1c14476276dbf36720de64d28313f6a2eb1f76091bf36e8e2b3e336c809c5f"
     },
     {
       "path": "visual-content.js",

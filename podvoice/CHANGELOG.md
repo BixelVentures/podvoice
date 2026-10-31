@@ -1,3 +1,8 @@
+## 2.0.109
+
+- Preserve the last known Tesla identity and access and climate controls when observations are stale. Show unknown target temperature as — and retain offered defrost actions.
+- Home Assistant component remains at 0.1.9. Publication, installation and physical validation are separate.
+
 ## 2.0.108
 
 - Allow a fresh explicit music selection after a temporary speaker target lookup failure, without repeating an unknown action.

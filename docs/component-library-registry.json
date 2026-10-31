@@ -2289,7 +2289,7 @@
           "arrow:assign": 1,
           "arrow:control": 1,
           "arrow:disclosure": 1,
-          "arrow:fn": 4,
+          "arrow:fn": 5,
           "arrow:limitChange": 1,
           "arrow:make": 1,
           "class:VehicleView": 1,
