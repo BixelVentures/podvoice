@@ -15,7 +15,7 @@ friske alene pga hentning. Batteri eksisterer som sensor.roborock_qrevo_batteri
 100%, frisk og procentenhed; configbinding mangler og indgår som læsende rettelse.
 Ingen fysisk handling udført.
 
-111-kandidat: robot-only State.last_reported-læser og korrekt SEND_COMMAND-bit er implementeret i kilde. Fokuserede regressioner 73 PASS og 16 naboer PASS; uafhængigt Sol-review GO for kildemanifest 853b30e2e694db37b391b2c64cc0fe123fb110d081098619aa78fba0a0fc7670. HA-template-syntaks er kontrolleret mod tre faktiske felter uden robotkommando. Publicering, installation, faktisk kontrol og fysisk accept afventer.
+111-kandidat: robot-only State.last_reported-læser og korrekt SEND_COMMAND-bit er implementeret i kilde. Fokuserede regressioner 73 PASS og 16 naboer PASS; uafhængigt Sol-review GO for kildemanifest 853b30e2e694db37b391b2c64cc0fe123fb110d081098619aa78fba0a0fc7670. HA-template-syntaks er kontrolleret mod tre faktiske felter uden robotkommando. Officiel CI fandt to mypy-fejl; de manglende feltdata afvises nu eksplicit (dict-check), fokuseret mypy og 73 regressioner PASS. Afgrænset review af den nye kilde afventer. Publicering, installation, faktisk kontrol og fysisk accept afventer.
 
 ## 31/10 — robot Base: faktisk årsag og afgrænset rettelse
 
@@ -7313,6 +7313,8 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
 }
 -->
 
+
+
 <!-- podvoice111-admission
 {
   "base_tip": "63efe04efa45be6468a527290c171ce303aebd0c",
@@ -7321,15 +7323,15 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "77f9e4b3fe1b04da12bc615a8556505077780a661dffd3be958188daea48a8fe",
+  "fingerprint": "737f052d5861b31e94d31080a80eb0be6aed860fff9bcd2a9d97887eaf9af95d",
   "kind": "podvoice111_robot_dock_freshness",
-  "manifest_fingerprint": "101294ff972c8af12ed6be8a0f9241e4eae4250db2f78b3510cabd15b92c14e8",
+  "manifest_fingerprint": "79477bc77ace2cff8447956950cb4e35faa8e08ee32c1759a8319361219eb28b",
   "merge_base": "63efe04efa45be6468a527290c171ce303aebd0c",
-  "policy_fingerprint": "e84ae23f17b2d46057d75554241be25617cc8b7a1bc5e0dbc71d99e92b1d6b3f",
-  "rationale": "PodVoice 2.0.111 corrects robot dock capability detection and observes bound robot state using Home Assistant report times. Exact source, test and asset inventory bound; source review passed, final artifact review pending. CI, publication, installation, actual service and physical acceptance remain separate.",
+  "policy_fingerprint": "5e21289a4e67cbd35835a4980fdde1e6894aa2a72f7c8008daddd53eddf49c3d",
+  "rationale": "PodVoice 2.0.111 corrects robot dock capability detection and observes bound robot state using Home Assistant report times. Original source review passed; missing-data guards and final artifact review pending. CI, publication, installation, actual service and physical acceptance remain separate.",
   "regression_fingerprint": "17d6750fcf0930044e29318c2159a1a5dc4ddab6cf7d92fdf5ad628317f818de",
   "reviewer": "/root/ha_admission_review",
-  "runtime_fingerprint": "63fc324e4f249de05192dbbf62805560f671dbb5dd35837b5d56227cfc3d8453",
+  "runtime_fingerprint": "73b2c72da54fb488987883202bde6ef2fe997851308e85f8bbf5ca75ab4f1ee3",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 88
 }

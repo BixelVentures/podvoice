@@ -301,6 +301,8 @@ class DeviceControl:
             )
             for field in binding["fields"]:
                 value = snapshot.get(field["entityId"])
+                if not isinstance(value, dict):
+                    continue
                 row = podview_robot.field_value(field["key"], field["entityId"], value, time.time())
                 if row is not None:
                     items.append(row)
@@ -404,6 +406,8 @@ class DeviceControl:
             return unavailable
         current = (await self._robot_field_snapshot(entity_id, [sensor], generation)).get(sensor)
         self._check(generation)
+        if not isinstance(current, dict):
+            return unavailable
         checked = podview_robot.field_value("in_cleaning", sensor, current, time.time())
         if (
             checked is None

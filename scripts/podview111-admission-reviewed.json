@@ -13,7 +13,7 @@
     "scripts/dev_cycle.py": "23c9b89c1343c9f08eeb1e835b58f6fa840d6d64e876b401cddb6eed9d073016"
   },
   "production": {
-    "podvoice/gatekeeper/device_control.py": "1b8544fb577024d5a281bcf8479fb3b26d7d7016d53bc804922bc97d362ed517",
+    "podvoice/gatekeeper/device_control.py": "3c58bdc4e7ed7ba9584677e5eb83ebc05149996b6792fb692558a6bb60c1950e",
     "podvoice/gatekeeper/podview_dock_control.py": "a3ce2334a9b68027fc0c0d4afe5a88f605a375c0658fa4f32e16f79f3b412f64",
     "podvoice/gatekeeper/static/podview/asset-manifest.json": "a852a03a53070292b4b60ae9b66ea8f95b14296d6b3da4fa923418bd4f4b4345",
     "podvoice/gatekeeper/static/podview/index.html": "80e0ea7fd4308cc2a7d537ae25ce1a949ec5ad53b4724ec61ea0c6d93fc13ead",
@@ -50,7 +50,7 @@
     "podvoice/gatekeeper/console.py": "e8424b6492586aafd9a894c426e5f20292f1c157868eebf33927d619be324158",
     "podvoice/gatekeeper/constants.py": "6909e7b9e00a373ecb42acc6e0968c29df43c2180d4fea4b92fe92ce6ff6bb4c",
     "podvoice/gatekeeper/data_result.py": "0fe93f3707abb3e5ae8d2b4cb714f10b0f0c8b0fb53050d8c13b91ae4d987302",
-    "podvoice/gatekeeper/device_control.py": "1b8544fb577024d5a281bcf8479fb3b26d7d7016d53bc804922bc97d362ed517",
+    "podvoice/gatekeeper/device_control.py": "3c58bdc4e7ed7ba9584677e5eb83ebc05149996b6792fb692558a6bb60c1950e",
     "podvoice/gatekeeper/diag.py": "233a48224d4cd6b39fc5c9c8f64f494412023db5018d7d075dbcfce12814729c",
     "podvoice/gatekeeper/diagnostic_retention.py": "d45cd0000e43bb3e5faf30b9b67ae1744d69b1fdc3317bdb55c7582c1fa84d1e",
     "podvoice/gatekeeper/eval_audio_idle/boundary_directed.pcm": "a7a86d14e5da997350337a8edeedffe358de639362cb2490e40e47f3f0eff03b",
