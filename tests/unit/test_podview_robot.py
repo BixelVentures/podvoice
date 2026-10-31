@@ -165,12 +165,19 @@ def test_second_projection_closes_extra_fields_and_recomputes_freshness():
     assert project(telemetry, VAC)["status"] == "unavailable"
 
 
-async def test_explicit_reads_are_get_only_registry_checked_twice_and_no_capabilities():
+async def test_explicit_reads_are_bounded_registry_checked_twice_and_no_capabilities():
     reads = []
 
     async def respond(request):
-        assert request.method == "GET"
         reads.append(request.url.path)
+        if request.url.path.endswith("/template"):
+            assert request.method == "POST"
+            template = json.loads(request.content)["template"]
+            assert (
+                AREA in template and WATER in template and "last_reported.isoformat()" in template
+            )
+            return httpx.Response(200, json=[raw(AREA), raw(WATER, "on", None)])
+        assert request.method == "GET"
         eid = request.url.path.rsplit("/", 1)[-1]
         return httpx.Response(
             200,
@@ -187,7 +194,7 @@ async def test_explicit_reads_are_get_only_registry_checked_twice_and_no_capabil
         result = await owner.observe()
         assert len(result["items"][0]["telemetry"]["items"]) == 2
         assert not owner._tickets and not owner._display_tickets
-        assert len(reads) == 3 and owner._ws_read.call_count == 2
+        assert len(reads) == 2 and owner._ws_read.call_count == 2
         assert _home_vacuum(result)["items"][0]["telemetry"]["status"] == "observed"
 
 
@@ -207,6 +214,30 @@ async def test_no_policy_performs_no_registry_or_sensor_reads():
         owner._ws_read.assert_not_called()
 
 
+async def test_robot_snapshot_uses_report_time_and_keeps_other_fields_when_one_missing():
+    value = raw(AREA)
+    value["last_updated"] = datetime.fromtimestamp(time.time() - 36000, UTC).isoformat()
+
+    async def respond(request):
+        assert request.url.path.endswith("/template") and request.method == "POST"
+        return httpx.Response(200, json=[value])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        owner = DeviceControl(client, "secret")
+        owner.configure(True, [VAC])
+        owner.configure_robot_reads(policy())
+        owner._ws_read = AsyncMock(return_value=registry())
+        observed = await owner._robot_observation(VAC, owner._generation)
+        assert observed["status"] == "observed"
+        assert [row["key"] for row in observed["items"]] == ["cleaning_area"]
+        assert observed["items"][0]["stale"] is False
+        value["last_reported"] = datetime.fromtimestamp(time.time() - 600, UTC).isoformat()
+        observed = await owner._robot_observation(VAC, owner._generation)
+        assert observed["items"][0]["stale"] is True
+        with pytest.raises(ValueError):
+            await owner._robot_field_snapshot(VAC, ["sensor.not_granted"], owner._generation)
+
+
 @pytest.mark.parametrize("mode", ["registry", "policy", "disable"])
 async def test_inflight_owner_or_registry_replacement_cannot_export_old_telemetry(mode):
     owner = None
@@ -214,13 +245,14 @@ async def test_inflight_owner_or_registry_replacement_cannot_export_old_telemetr
 
     async def respond(request):
         eid = request.url.path.rsplit("/", 1)[-1]
-        if eid == WATER:
+        if eid == "template":
             if mode == "registry":
                 entries[AREA]["unique_id"] = "changed"
             elif mode == "policy":
                 owner.configure_robot_reads("")
             else:
                 owner.configure(False, [])
+            return httpx.Response(200, json=[raw(AREA, "0"), raw(WATER, "off", None)])
         return httpx.Response(
             200,
             json={"entity_id": VAC, "state": "docked", "attributes": {}}

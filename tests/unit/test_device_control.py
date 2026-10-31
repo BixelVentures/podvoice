@@ -104,6 +104,12 @@ class Rig:
         if path == "template":
             import re
 
+            if "ns=namespace(rows=[])" in data["template"]:
+                ids = json.loads(re.search(r"for eid in (\[.*?\]) %}", data["template"])[1])
+                return httpx.Response(
+                    200,
+                    json=[{"entity_id": key, **copy.deepcopy(self.states[key])} for key in ids],
+                )
             ids = set(re.findall(r'"((?:vacuum|select)\.[a-z0-9_]+)":', data["template"]))
             assert ids <= self.registry.keys()
             return httpx.Response(

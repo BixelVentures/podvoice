@@ -1,3 +1,8 @@
+## 2.0.111
+
+- Correct robot dock command capability detection and use Home Assistant report timestamps for bound robot observations.
+- The Home Assistant component remains at 0.1.9. Publication, installation and physical validation are separate.
+
 ## 2.0.110
 
 - Restore permitted Tesla and lighting controls for Home Assistant signed-in screens.

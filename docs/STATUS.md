@@ -1,3 +1,37 @@
+### Bekræftet nabofejl — robotrapportens tidspunkt
+
+Actual normal /view/api/home networkresponse21:27UTC: dock_error water_empty
+updatedAt1793448536.654542 (12:08UTC), retrievedAt1793482070.9843166,
+stale true; status/drying samme gamle rapportering. HA-template læser samtidige
+State.last_reported friske21:16UTC og efterfølgende. UI holder derfor korrekt
+stale fejl tilbage. Ingen UI-staleguard lempes. Lead tillader en privat robot-only
+læser via den allerede anvendte HA template-adapter for eksakt policybundne IDs:
+State.last_reported plus state/attributes/last_changed i samme batch. Bevar
+closed schema, registry/model/device, generation/current, actual freshness,
+reobservation før dispatch, single-use og UNKNOWN. Ingen andre domæners _state
+ændres. Owner robot_base_cause; focused causal regressions + nyt uafhængigt
+review af dette delta før levering. Manglende/fejlede felter må aldrig blive
+friske alene pga hentning. Batteri eksisterer som sensor.roborock_qrevo_batteri
+100%, frisk og procentenhed; configbinding mangler og indgår som læsende rettelse.
+Ingen fysisk handling udført.
+
+111-kandidat: robot-only State.last_reported-læser og korrekt SEND_COMMAND-bit er implementeret i kilde. Fokuserede regressioner 73 PASS og 16 naboer PASS; uafhængigt Sol-review GO for kildemanifest 853b30e2e694db37b391b2c64cc0fe123fb110d081098619aa78fba0a0fc7670. HA-template-syntaks er kontrolleret mod tre faktiske felter uden robotkommando. Publicering, installation, faktisk kontrol og fysisk accept afventer.
+
+## 31/10 — robot Base: faktisk årsag og afgrænset rettelse
+
+Aktiv beslutning: genskab godkendt robotbetjening uden nye robotkommandoer.
+Green110 observeret21:16UTC: vacuum docked, supported_features30524;
+status charging, dock_error water_empty, drying off, alle last_reported friske.
+Dokumenteret første kodefejl: DockTransport kræver2048(MAP), men HA
+vacuum.send_command kræver256(SEND_COMMAND). Aktuel robot har256, ikke2048.
+Mindste rettelse: navngiven SEND_COMMAND-bit; bevar policy/model/device-identitet,
+freshness, confirmation, single-use og UNKNOWN uden replay. Vandfejlen bevares
+som hindring for start; ingen prøve må starte robotten. Owner robot_base_cause
+retter dock_control og kausal regression i /private/tmp/pv111-robot-base-20261031.
+PodView ejer undersøgelse af eksisterende telemetry/recovery-visning; ingen
+uafhængig release. Lokal Vask-kandidat110 matcher reference med vand/rute side
+om side. Ingen ny version aftalt før rettelse, focused review og samlet bevis.
+
 ## 31/10 — HA-login giver PodView-betjening uden ekstra skærmgodkendelse
 
 Aktiv brugerbeslutning: Mac og iPad åbnet inde i HA skal bruge HA-login til de
@@ -7276,5 +7310,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "314ace36811f3b56788eb77a8593e8820f58e07cb0be12a03288b88420daddac",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 87
+}
+-->
+
+<!-- podvoice111-admission
+{
+  "base_tip": "63efe04efa45be6468a527290c171ce303aebd0c",
+  "config_fingerprint": "b45ec30b03a0706ffaa30c9b79f3f7daf18a6cd70d009f5a0ddc4c75f149d487",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "77f9e4b3fe1b04da12bc615a8556505077780a661dffd3be958188daea48a8fe",
+  "kind": "podvoice111_robot_dock_freshness",
+  "manifest_fingerprint": "101294ff972c8af12ed6be8a0f9241e4eae4250db2f78b3510cabd15b92c14e8",
+  "merge_base": "63efe04efa45be6468a527290c171ce303aebd0c",
+  "policy_fingerprint": "e84ae23f17b2d46057d75554241be25617cc8b7a1bc5e0dbc71d99e92b1d6b3f",
+  "rationale": "PodVoice 2.0.111 corrects robot dock capability detection and observes bound robot state using Home Assistant report times. Exact source, test and asset inventory bound; source review passed, final artifact review pending. CI, publication, installation, actual service and physical acceptance remain separate.",
+  "regression_fingerprint": "17d6750fcf0930044e29318c2159a1a5dc4ddab6cf7d92fdf5ad628317f818de",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "63fc324e4f249de05192dbbf62805560f671dbb5dd35837b5d56227cfc3d8453",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 88
 }
 -->

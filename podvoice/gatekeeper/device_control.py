@@ -251,6 +251,36 @@ class DeviceControl:
         except TimeoutError:
             return {"status": "unavailable", "items": []}
 
+    async def _robot_field_snapshot(self, vacuum: str, ids: list[str], generation: int) -> dict:
+        """Read only admitted robot fields, including HA's actual report time."""
+        self._check(generation)
+        binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == vacuum), None)
+        allowed = {f["entityId"] for f in binding["fields"]} if binding else set()
+        if vacuum not in self._entities or len(ids) != len(set(ids)) or not set(ids) <= allowed:
+            raise CapabilityError("Robotfelternes adgang er ændret")
+        template = (
+            "{% set ns=namespace(rows=[]) %}{% for eid in "
+            + json.dumps(ids)
+            + " %}{% set s=states[eid] %}{% if s is not none %}"
+            "{% set ns.rows=ns.rows+[{'entity_id':eid,'state':s.state,"
+            "'attributes':dict(s.attributes),'last_reported':s.last_reported.isoformat(),"
+            "'last_changed':s.last_changed.isoformat()}] %}{% endif %}{% endfor %}"
+            "{{ ns.rows|tojson }}"
+        )
+        rows = await self._json("POST", "template", {"template": template})
+        self._check(generation)
+        if not isinstance(rows, list) or len(rows) > len(ids):
+            raise CapabilityError("Robotfelternes status mangler")
+        result = {}
+        for row in rows:
+            if not isinstance(row, dict) or row.get("entity_id") not in ids:
+                raise CapabilityError("Uventet robotfelt")
+            entity = row["entity_id"]
+            if entity in result:
+                raise CapabilityError("Dubleret robotfelt")
+            result[entity] = row
+        return result
+
     async def _robot_observation_read(self, entity_id: str, generation: int) -> dict:
         optional_deadline = time.monotonic() + 4.5
         unavailable = {"status": "unavailable", "items": []}
@@ -266,9 +296,11 @@ class DeviceControl:
             identity = podview_robot.registry_identity(binding, before)
             items = []
             cleaning_sample = None
+            snapshot = await self._robot_field_snapshot(
+                entity_id, [field["entityId"] for field in binding["fields"]], generation
+            )
             for field in binding["fields"]:
-                value = await self._json("GET", f"states/{field['entityId']}")
-                self._check(generation)
+                value = snapshot.get(field["entityId"])
                 row = podview_robot.field_value(field["key"], field["entityId"], value, time.time())
                 if row is not None:
                     items.append(row)
@@ -370,7 +402,7 @@ class DeviceControl:
         )
         if activity["status"] != "observed":
             return unavailable
-        current = await self._json("GET", f"states/{sensor}")
+        current = (await self._robot_field_snapshot(entity_id, [sensor], generation)).get(sensor)
         self._check(generation)
         checked = podview_robot.field_value("in_cleaning", sensor, current, time.time())
         if (
