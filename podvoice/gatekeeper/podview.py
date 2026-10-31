@@ -643,14 +643,15 @@ class PodViewBridge:
         )
 
     def _vehicle_controller_current(self, room: str, token: str) -> bool:
-        """Vehicle writes require this enrolled controller's current short grant."""
-        if (
-            not isinstance(room, str)
-            or not isinstance(token, str)
-            or self._vehicle_closing
-            or token in self._ha_actors
-        ):
+        """Vehicle writes require current HA ingress or enrolled screen authority."""
+        if not isinstance(room, str) or not isinstance(token, str) or self._vehicle_closing:
             return False
+        if token in self._ha_actors:
+            return bool(
+                self._controller_registry is self._vehicle_registry_owner
+                and self._vehicle_registry_owner is not None
+                and self._grant_current(room, token)
+            )
         slot = self._grant_slot(room, token)
         return bool(
             slot is not None
@@ -698,10 +699,37 @@ class PodViewBridge:
             registry.vehicle_stop()
 
     def light_placement(self, room: str, token: str) -> dict | None:
-        """A named controller's saved placement, never HA-user or session inference."""
+        """Saved screen placement or an authenticated HA policy display context.
+
+        The first configured light area is HA's initial display, not a physical
+        screen location or an extra grant. Every command still resolves its exact
+        policy target and freshly observed area through the existing task owner.
+        """
         try:
             if not self._grant_current(room, token):
                 return None
+            if token in self._ha_actors:
+                policy = self.controls.policy
+                rules = policy.get("light")
+                if policy.get("roomId") != room or not rules:
+                    return None
+                binding = hashlib.sha256(
+                    repr(
+                        (
+                            self.boot_id,
+                            room,
+                            token,
+                            json.dumps(policy, sort_keys=True, allow_nan=False),
+                            self.tools.podview_lights_binding(),
+                        )
+                    ).encode()
+                ).hexdigest()
+                return {
+                    "identity": token,
+                    "areaId": rules[0]["areaId"],
+                    "placementRevision": 1,
+                    "bindingId": binding,
+                }
             slot = self._grant_slot(room, token)
             if slot is None:
                 return None
@@ -713,7 +741,7 @@ class PodViewBridge:
                 "identity": identity,
                 **registry.placement(identity, room, self.controller_pin(room)),
             }
-        except (OSError, ValueError, TypeError, KeyError):
+        except (AttributeError, OSError, ValueError, TypeError, KeyError):
             return None
 
     async def read_lights(
@@ -721,8 +749,9 @@ class PodViewBridge:
     ) -> dict:
         """Read one exact area and optionally publish its same-owner area catalogue.
 
-        Catalogue/placement describe the authenticated screen, not a second light
-        observation. Browsing another area never moves its saved own placement.
+        Catalogue/placement describe the authenticated context, not a second light
+        observation. Browsing never changes saved screen placement or HA's initial
+        policy display area.
         """
         unavailable = podview_lights._absent("unavailable", None)
         catalogue = None
@@ -1754,17 +1783,21 @@ class PodViewBridge:
         if fresh and self._grant_current(room, token):
             result["capabilities"]["timerActions"] = ["timer.start", "timer.cancel"]
         domains = self.controls.domains(room, token)
-        # HA ingress keeps its actor for every existing domain. Light commands
-        # additionally require the actual enrolled screen cookie, never a read
-        # observation, ingress user, room label or unrelated controller grant.
+        # HA ingress keeps its own policy-bound actor, including lights. A screen
+        # cookie cannot replace that actor or supply its saved placement.
         light_source = getattr(self.tools, "podview_lights_available", lambda: False)()
         if not light_source:
             domains = [domain for domain in domains if domain != "light"]
-        elif light_token and light_token != token and self.light_placement(room, light_token):
+        elif (
+            token not in self._ha_actors
+            and light_token
+            and light_token != token
+            and self.light_placement(room, light_token)
+        ):
             if "light" in self.controls.domains(room, light_token) and "light" not in domains:
                 domains = [*domains, "light"]
-        # Vehicle capability follows enrolled screen authority even inside HA ingress.
-        vehicle_token = light_token or token
+        # Vehicle capability follows the verified HA actor or enrolled screen.
+        vehicle_token = token if token in self._ha_actors else light_token or token
         domains = [domain for domain in domains if domain != "vehicle"]
         if self._vehicle_controller_current(room, vehicle_token):
             if "vehicle" in self.controls.domains(room, vehicle_token):
@@ -1914,15 +1947,10 @@ async def _control(request: web.Request) -> web.Response:
         return _error("invalid_control", 400)
     owner = request.app[BRIDGE].controls
     handler = owner.setup if request.path.endswith("/setup") else owner.action
-    # Light placement and vehicle authority belong to the enrolled screen.
+    # HA ingress always retains its actor; standalone requests use their own cookie.
     task = owner.tasks.get(body.get("taskId")) if isinstance(body.get("taskId"), str) else None
-    light = body.get("domain") == "light" or (task is not None and task["domain"] == "light")
     vehicle = body.get("domain") == "vehicle" or (task is not None and task["domain"] == "vehicle")
-    token = (
-        request.cookies.get(_PAIR_COOKIE, "")
-        if light or vehicle
-        else _request_token(request, body.get("roomId"))
-    )
+    token = _request_token(request, body.get("roomId"))
     bridge = request.app[BRIDGE]
     if vehicle and not bridge._vehicle_controller_current(body.get("roomId"), token):
         return _error("control_not_paired", 403)
@@ -3983,7 +4011,7 @@ async def _home(request: web.Request) -> web.Response:
             **cached[2],
             **await bridge.read_lights(
                 room,
-                request.cookies.get(_PAIR_COOKIE, ""),
+                _request_token(request, room),
                 request.query.get("lightArea"),
                 cache=True,
                 include_catalogue=True,
@@ -4106,7 +4134,7 @@ async def _home(request: web.Request) -> web.Response:
             **result,
             **await bridge.read_lights(
                 room,
-                request.cookies.get(_PAIR_COOKIE, ""),
+                _request_token(request, room),
                 request.query.get("lightArea"),
                 cache=True,
                 include_catalogue=True,

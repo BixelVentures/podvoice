@@ -176,7 +176,7 @@ async def test_home_route_light_transport_failure_retains_other_domain_data(tmp_
         assert "lights" not in bridge._home_cache["room"][2]
 
 
-async def test_ingress_light_setup_and_action_use_same_named_controller_cookie(
+async def test_ingress_light_setup_and_action_keep_ha_actor_instead_of_named_cookie(
     tmp_path, monkeypatch
 ):
     bridge, _, profiles, _, _ = rig(tmp_path)
@@ -206,4 +206,4 @@ async def test_ingress_light_setup_and_action_use_same_named_controller_cookie(
                 headers={"X-PodView-Request": "1"},
             )
             assert response.status == 200
-        assert seen == [profiles[0][1], profiles[0][1]]
+        assert seen == ["ha:actor", "ha:actor"]
