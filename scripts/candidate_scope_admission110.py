@@ -57,6 +57,7 @@ REQUIRED_TESTS = frozenset(
         "tests/integration/test_podview_lights_bridge.py",
         "tests/integration/test_podview_vehicle_http.py",
         "tests/podview/root-named-controller-enrollment.test.mjs",
+        "tests/podview/root-transport-accepted-read.test.mjs",
     ]
 )
 
@@ -67,8 +68,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/ha_admission_review"
-MANIFEST_SHA = "926501c51058c7b3c28ab949c988adfdee39c58e54fcd559feb93d990083c035"
-PROFILE_AST = "cf39bf5916091b1773f5983bc72af912e4be4319f35f8c27cd0eec6a826890ea"
+MANIFEST_SHA = "f81a0a08178e2c303778d28c5ca8366a9bb48d0ad8ddf01f4986334568ae3b74"
+PROFILE_AST = "47c2b3fbae7e7db0f6f9e9650101d17d9a5d1b4270fa13f7de2ede599b1ee36b"
 
 
 def record_at(root: Path) -> dict | None:

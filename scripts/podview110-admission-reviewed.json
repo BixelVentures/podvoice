@@ -24,7 +24,8 @@
     "tests/integration/test_podview_lights_admission.py": "690d4fe69e10df91e6ffc31bb35ebd93400ae3a8cf8b78d133b23fc3a10fb5b8",
     "tests/integration/test_podview_lights_bridge.py": "53cc8612033a5968b2c144d2b064ae3bb67173c9ab73a68b5d8f7861bec46b4b",
     "tests/integration/test_podview_vehicle_http.py": "312785356cb4ffe66f584faaab6fab24272e105e15e6321f5abd9e8b43f2110d",
-    "tests/podview/root-named-controller-enrollment.test.mjs": "01e6d86b1e47e7e9afb758d8ccaf8b4eb4b19d4facc1664c6f8269ea2dd4b59c"
+    "tests/podview/root-named-controller-enrollment.test.mjs": "01e6d86b1e47e7e9afb758d8ccaf8b4eb4b19d4facc1664c6f8269ea2dd4b59c",
+    "tests/podview/root-transport-accepted-read.test.mjs": "bf8120d6e3ffd86f63020523e0e1b08baa7e9949846eddd4fada254ba94dbb8e"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "7777065cc602a99bbbceb81374014493e9e47e0cbb2ff9d1cf23bfcada9c5861",
