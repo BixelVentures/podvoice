@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import re
 import time
 from datetime import UTC, datetime
 
@@ -80,6 +81,11 @@ async def build(case="normal"):
 
     async def route(request):
         path = request.url.path.removeprefix("/core/api/")
+        if path == "template":
+            assert request.method == "POST"
+            template = json.loads(request.content)["template"]
+            ids = json.loads(re.search(r"for eid in (\[.*?\]) %}", template)[1])
+            return httpx.Response(200, json=[copy.deepcopy(states[eid]) for eid in ids])
         if path == "services/podvoice/robot_snapshot" and case == "setup-timeout":
             assert request.method == "POST" and request.url.query == b"return_response"
             calls.append(request)

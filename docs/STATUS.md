@@ -1,3 +1,37 @@
+### Bekræftet nabofejl — robotrapportens tidspunkt
+
+Actual normal /view/api/home networkresponse21:27UTC: dock_error water_empty
+updatedAt1793448536.654542 (12:08UTC), retrievedAt1793482070.9843166,
+stale true; status/drying samme gamle rapportering. HA-template læser samtidige
+State.last_reported friske21:16UTC og efterfølgende. UI holder derfor korrekt
+stale fejl tilbage. Ingen UI-staleguard lempes. Lead tillader en privat robot-only
+læser via den allerede anvendte HA template-adapter for eksakt policybundne IDs:
+State.last_reported plus state/attributes/last_changed i samme batch. Bevar
+closed schema, registry/model/device, generation/current, actual freshness,
+reobservation før dispatch, single-use og UNKNOWN. Ingen andre domæners _state
+ændres. Owner robot_base_cause; focused causal regressions + nyt uafhængigt
+review af dette delta før levering. Manglende/fejlede felter må aldrig blive
+friske alene pga hentning. Batteri eksisterer som sensor.roborock_qrevo_batteri
+100%, frisk og procentenhed; configbinding mangler og indgår som læsende rettelse.
+Ingen fysisk handling udført.
+
+111-kandidat: robot-only State.last_reported-læser og korrekt SEND_COMMAND-bit er implementeret i kilde. Fokuserede regressioner 73 PASS og 16 naboer PASS; uafhængigt Sol-review GO for kildemanifest 853b30e2e694db37b391b2c64cc0fe123fb110d081098619aa78fba0a0fc7670. HA-template-syntaks er kontrolleret mod tre faktiske felter uden robotkommando. Officiel CI fandt to mypy-fejl; de manglende feltdata afvises nu eksplicit (dict-check), fokuseret mypy og 73 regressioner PASS. Afgrænset review af den nye kilde afventer. Publicering, installation, faktisk kontrol og fysisk accept afventer.
+
+## 31/10 — robot Base: faktisk årsag og afgrænset rettelse
+
+Aktiv beslutning: genskab godkendt robotbetjening uden nye robotkommandoer.
+Green110 observeret21:16UTC: vacuum docked, supported_features30524;
+status charging, dock_error water_empty, drying off, alle last_reported friske.
+Dokumenteret første kodefejl: DockTransport kræver2048(MAP), men HA
+vacuum.send_command kræver256(SEND_COMMAND). Aktuel robot har256, ikke2048.
+Mindste rettelse: navngiven SEND_COMMAND-bit; bevar policy/model/device-identitet,
+freshness, confirmation, single-use og UNKNOWN uden replay. Vandfejlen bevares
+som hindring for start; ingen prøve må starte robotten. Owner robot_base_cause
+retter dock_control og kausal regression i /private/tmp/pv111-robot-base-20261031.
+PodView ejer undersøgelse af eksisterende telemetry/recovery-visning; ingen
+uafhængig release. Lokal Vask-kandidat110 matcher reference med vand/rute side
+om side. Ingen ny version aftalt før rettelse, focused review og samlet bevis.
+
 ## 31/10 — HA-login giver PodView-betjening uden ekstra skærmgodkendelse
 
 Aktiv brugerbeslutning: Mac og iPad åbnet inde i HA skal bruge HA-login til de
@@ -7276,5 +7310,29 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "314ace36811f3b56788eb77a8593e8820f58e07cb0be12a03288b88420daddac",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 87
+}
+-->
+
+
+
+<!-- podvoice111-admission
+{
+  "base_tip": "63efe04efa45be6468a527290c171ce303aebd0c",
+  "config_fingerprint": "b45ec30b03a0706ffaa30c9b79f3f7daf18a6cd70d009f5a0ddc4c75f149d487",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "737f052d5861b31e94d31080a80eb0be6aed860fff9bcd2a9d97887eaf9af95d",
+  "kind": "podvoice111_robot_dock_freshness",
+  "manifest_fingerprint": "4cfd867c5a50cb25962a4ce66530bee260cc27996f0a201283dd02eec2ccfb1f",
+  "merge_base": "63efe04efa45be6468a527290c171ce303aebd0c",
+  "policy_fingerprint": "2cec5355f6c0bb8ea5bcfa41bdd8b10fa1b3994ab2f026f31d3e83a6e3e2b9c7",
+  "rationale": "PodVoice 2.0.111 corrects robot dock capability detection and observes bound robot state using Home Assistant report times. Original source review passed; missing-data guards and final artifact review pending. CI, publication, installation, actual service and physical acceptance remain separate.",
+  "regression_fingerprint": "3ea717e7c02e4661adb6e11178afdebaedb2263a74605c20cbaa79b486eb84e7",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "73b2c72da54fb488987883202bde6ef2fe997851308e85f8bbf5ca75ab4f1ee3",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 88
 }
 -->

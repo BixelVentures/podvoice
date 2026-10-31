@@ -19,6 +19,9 @@ ROLES = {
     "mop_drying": ("dry", "Tør moppe", "Stop tørring"),
 }
 
+# Home Assistant VacuumEntityFeature.SEND_COMMAND, not MAP (2048).
+_SEND_COMMAND_FEATURE = 256
+
 # HA Core 2026.8.2 exposes these through the existing Roborock vacuum owner,
 # but has no dock switch entities. Never accept a command or params from a client.
 _COMMANDS = {
@@ -194,12 +197,19 @@ class DockTransport:
         robot = await self.owner._state(vacuum)
         self._check(vacuum, current)
         features = robot["attributes"].get("supported_features")
-        if type(features) is not int or not 0 <= features <= 2**31 or not features & 2048:
+        if (
+            type(features) is not int
+            or not 0 <= features <= 2**31
+            or not features & _SEND_COMMAND_FEATURE
+        ):
             raise ValueError("vacuum command unsupported")
         values = {}
+        snapshot = await self.owner._robot_field_snapshot(
+            vacuum, [field["entityId"] for field in fields], self.binding[0]
+        )
+        self._check(vacuum, current)
         for field in fields:
-            raw = await self.owner._state(field["entityId"])
-            self._check(vacuum, current)
+            raw = snapshot.get(field["entityId"])
             value = podview_robot.field_value(field["key"], field["entityId"], raw, time.time())
             if value is None or value["stale"]:
                 raise ValueError("unavailable dock observation")

@@ -459,7 +459,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "4f17641331bf10d527d9226e4671bd9180ed9b9e79dced02bbc58f436c5db1cc"
+      "sha256": "80e0ea7fd4308cc2a7d537ae25ce1a949ec5ad53b4724ec61ea0c6d93fc13ead"
     },
     {
       "path": "ingress-kiosk.js",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "78f8febd7d114a56830a313129f3e84d7215a0e7f9cb0a32b3e2f5193a4ba3c5"
+      "sha256": "885b580bd53e9a7c752a8baeeba4ddaeef96c9bc119e4e2bca42acc8801e0ff6"
     },
     {
       "path": "podview.css",

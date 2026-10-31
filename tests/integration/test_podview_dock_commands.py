@@ -11,6 +11,7 @@ from integration.test_podview_controls import fixture as dock_fixture
 from unit.test_device_control import ROBOT
 
 from gatekeeper.podview_controls import policy
+from gatekeeper.podview_dock_control import DockTransport
 
 fixture = dock_fixture
 
@@ -38,7 +39,8 @@ def command_catalog(rig, bridge, *, state="docked", status="charging", error="ok
         fields.append({"key": role, "entityId": entity})
     rig.registry[ROBOT]["config_entry_id"] = "entry"
     rig.states[ROBOT]["state"] = state
-    rig.states[ROBOT]["attributes"]["supported_features"] = 2048
+    # Green's real feature mask supports SEND_COMMAND (256), but not MAP (2048).
+    rig.states[ROBOT]["attributes"]["supported_features"] = 30524
     owner.configure_robot_reads(
         json.dumps(
             {
@@ -155,7 +157,8 @@ async def test_missing_or_changed_evidence_never_offers_start(fixture, failure):
     elif failure == "missing":
         rig.states[fields[1]["entityId"]]["state"] = "unavailable"
     elif failure == "unsupported":
-        rig.states[ROBOT]["attributes"]["supported_features"] = 0
+        # MAP alone must not grant SEND_COMMAND.
+        rig.states[ROBOT]["attributes"]["supported_features"] = 2048
     elif failure == "conflict":
         rig.states[fields[0]["entityId"]]["state"] = "segment_cleaning"
     else:
@@ -165,6 +168,35 @@ async def test_missing_or_changed_evidence_never_offers_start(fixture, failure):
     assert offer.get("ok") is not True or not any(
         row["argsSchema"].get("operation", "").endswith("_start") for row in offer["options"]
     )
+    assert not rig.writes
+
+
+async def test_docked_water_empty_blocks_starts_then_fresh_ok_offers_all_three(fixture):
+    rig, bridge, _ = fixture
+    _, fields, controls = command_catalog(rig, bridge, error="water_empty")
+    for field in fields:
+        rig.states[field["entityId"]]["last_updated"] = (
+            datetime.now(UTC) - timedelta(hours=9)
+        ).isoformat()
+    dock = DockTransport(rig.router._device_control, controls)
+    observed = await dock.setup(ROBOT, lambda: True)
+    assert observed["dock_error"] == "water_empty" and observed["actions"] == {}
+    token = bridge.grant_timer_control("kitchen")
+    blocked = await bridge.controls.setup(setup_body(bridge), token)
+    assert blocked.get("ok") is not True or not any(
+        row["argsSchema"].get("operation", "").endswith("_start") for row in blocked["options"]
+    )
+    assert not rig.writes
+
+    rig.states[fields[1]["entityId"]]["state"] = "ok"
+    token = bridge.grant_timer_control("kitchen")
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    assert offer["ok"], offer
+    assert {row["argsSchema"].get("operation") for row in offer["options"]} == {
+        "wash_start",
+        "empty_start",
+        "dry_start",
+    }
     assert not rig.writes
 
 
