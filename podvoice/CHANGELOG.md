@@ -1,3 +1,8 @@
+## 2.0.108
+
+- Allow a fresh explicit music selection after a temporary speaker target lookup failure, without repeating an unknown action.
+- Home Assistant component remains at 0.1.9. Publication, installation and physical validation are separate.
+
 ## 2.0.107
 
 - Preserve screen enrollment during temporary owner unavailability and refresh it after an owner restart without repeating actions.
