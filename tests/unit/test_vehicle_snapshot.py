@@ -285,7 +285,8 @@ def test_all_supported_roles_use_actual_fields_without_truthiness_or_private_pay
             "passengerSeatHeat": "high",
         },
     }
-    assert min(stamps.values()) == now - 30
+    # Millisecond serialization can shift the float representation by less than a microsecond.
+    assert min(stamps.values()) == pytest.approx(now - 30, abs=1e-6, rel=0)
     assert "PRIVATE" not in json.dumps(data)
 
 

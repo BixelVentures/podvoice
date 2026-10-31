@@ -23,7 +23,8 @@
     "tests/integration/test_podview_dock_commands.py": "187c1bb66369b9f1103e6a6b943bab48e6338d259cf77fda136e218a54fd1d04",
     "tests/integration/test_robot_current_activity.py": "107f38dddb56149b60c1135136838e5ebbfc5a67b6940fffd954e5d469b57b04",
     "tests/unit/test_device_control.py": "c06d2a9f041b5af13c2241a4b5b1c4d2b747037aba1d2ddc8b658be1f12d6a91",
-    "tests/unit/test_podview_robot.py": "c3c72fbb8139383f1cbdbd0051fdf6bdd40ed699254058ca14836fd0fdf4240c"
+    "tests/unit/test_podview_robot.py": "c3c72fbb8139383f1cbdbd0051fdf6bdd40ed699254058ca14836fd0fdf4240c",
+    "tests/unit/test_vehicle_snapshot.py": "01051c4a9f17be00eb7ea950aa9232e6a2cf00f438ac6ea4b8360b95bf0a7dce"
   },
   "runtime": {
     "custom_components/podvoice/__init__.py": "7777065cc602a99bbbceb81374014493e9e47e0cbb2ff9d1cf23bfcada9c5861",
