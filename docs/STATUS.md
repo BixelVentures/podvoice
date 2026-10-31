@@ -7189,3 +7189,25 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "version": 84
 }
 -->
+
+<!-- podvoice108-admission
+{
+  "base_tip": "2c46f3e6c70e531746a8afa2836eb2b07ac57b49",
+  "config_fingerprint": "39e95d65c711d3a2d5b3b687d85c0d11a424e521680794b7ffdbe192078cac56",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "298aeffda7cfef2a49e06691980464be4a7745dd12a4718a506ddb3f076f4dcc",
+  "kind": "podvoice108_music_selection_retry",
+  "manifest_fingerprint": "952cdb612692988bc05a310018eaa9065bc4230b6141c024c7e77b44fc9ca40f",
+  "merge_base": "2c46f3e6c70e531746a8afa2836eb2b07ac57b49",
+  "policy_fingerprint": "3b85ebffb6c6271d092e0a29882d4a1383e4f6a12cfac278a27749bd70b49c88",
+  "rationale": "PodVoice 2.0.108 permits a new explicit music selection after a failed target read without repeating an unknown dispatch. Exact source, test and asset inventory bound; prior source review applies to unchanged bytes and final metadata review is pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "6fffc4d1bbf097b2acb8d6d94398e89fb735f265fe3cab92c4df8fa9728da9f1",
+  "reviewer": "/root/music_retry_review",
+  "runtime_fingerprint": "6b1782330cf2068c5b8f4d8a6071a474c061d78957aab46eacdee079c63aa9af",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 85
+}
+-->
