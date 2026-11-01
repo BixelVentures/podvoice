@@ -29,6 +29,18 @@ async def build(tmp_path, change=None):
     calls = []
 
     async def route(request):
+        if request.url.path.endswith("/services/podvoice/robot_observation_snapshot"):
+            assert request.method == "POST" and request.url.query == b"return_response"
+            assert set(json.loads(request.content)) == {"binding"}
+            return httpx.Response(
+                200,
+                json={
+                    "service_response": {
+                        "schema": "podview.robot_history.v1",
+                        "status": "unavailable",
+                    }
+                },
+            )
         if request.url.path.endswith("/services/podvoice/robot_snapshot"):
             assert request.url.query == b"return_response"
             calls.append(json.loads(request.content))

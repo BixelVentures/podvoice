@@ -364,3 +364,191 @@ async def test_exact_ha_defrost_state_reaches_addon_without_fabrication(rig, sta
     assert result["data"].get("climate", {}).get("defrost") is expected
     assert rig.read.await_count == 1
     assert result["observedAt"] <= rig.now - 30
+
+
+async def test_last_known_defrost_survives_unknown_and_new_owner_with_original_time(
+    rig, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    stored = {}
+
+    class Store:
+        async def async_load(self):
+            return copy.deepcopy(stored.get("data"))
+
+        async def async_save(self, data):
+            stored["data"] = copy.deepcopy(data)
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda hass: Store())
+    eid = "switch.car_defrost"
+    rig.entities["defrost"] = eid
+    rig.rows[eid] = NS(
+        id="defrost",
+        platform="tesla_fleet",
+        config_entry_id="fleet",
+        device_id="car",
+        disabled_by=None,
+        translation_key="climate_state_defrost_mode",
+    )
+    entity = NS(entity_id=eid, state="off", last_reported=datetime.fromtimestamp(rig.now - 3, UTC))
+    rig.hass.states = NS(get=lambda _: entity)
+    rig.owner = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    first = await rig.owner.async_read(rig.call)
+    assert first["data"]["climate"]["defrost"] is False
+    entity.state = "unknown"
+    rig.owner = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    restored = await rig.owner.async_read(rig.call)
+    assert restored["data"]["climate"]["defrost"] is False
+    assert restored["fieldObservedAt"]["climate.defrost"] == rig.now - 3
+    assert "climate.defrost" in restored["historicalFields"]
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+
+    async def service_read(_request):
+        return restored
+
+    projected = await addon.read_snapshot(scope, service_read=service_read, current=lambda: True)
+    assert projected["data"]["climate"]["defrost"] is False
+    assert projected["fieldObservedAt"]["climate.defrost"] == rig.now - 3
+    assert "climate.defrost" in projected["historicalFields"]
+
+
+async def test_replaced_owner_cannot_return_after_delayed_store_save(rig, monkeypatch):
+    entered, release = asyncio.Event(), asyncio.Event()
+    stored = {}
+
+    class Store:
+        async def async_load(self):
+            return copy.deepcopy(stored.get("data"))
+
+        async def async_save(self, data):
+            entered.set()
+            await release.wait()
+            stored["data"] = copy.deepcopy(data)
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: Store())
+    old = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    pending = asyncio.create_task(old.async_read(rig.call))
+    await entered.wait()
+    new = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    assert old._history_lock is new._history_lock
+    release.set()
+    result = await pending
+    assert result["status"] == "unavailable" and result["data"] is None
+    assert (await new.async_read(rig.call))["status"] == "observed"
+
+
+async def test_older_defrost_report_does_not_demote_newer_climate_fields(rig, monkeypatch):
+    from datetime import UTC, datetime
+
+    stored = {}
+
+    class Store:
+        async def async_load(self):
+            return copy.deepcopy(stored.get("data"))
+
+        async def async_save(self, data):
+            stored["data"] = copy.deepcopy(data)
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: Store())
+    for role, eid in (("climate", "climate.car"), ("defrost", "switch.car_defrost")):
+        rig.entities[role] = eid
+        rig.rows[eid] = NS(
+            id=role,
+            platform="tesla_fleet",
+            config_entry_id="fleet",
+            device_id="car",
+            disabled_by=None,
+            translation_key=snapshot.ROLES[role][1],
+        )
+    rig.hass.states = NS(
+        get=lambda eid: NS(
+            entity_id=eid, state="off", last_reported=datetime.fromtimestamp(rig.now - 50, UTC)
+        )
+    )
+    rig.owner = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    coordinator = rig.vehicle.coordinator
+    coordinator.data = {
+        "climate_state_timestamp": (rig.now - 10) * 1000,
+        "climate_state_driver_temp_setting": 18,
+        "climate_state_min_avail_temp": 15,
+        "climate_state_max_avail_temp": 28,
+    }
+    first = await rig.owner.async_read(rig.call)
+    assert first["data"]["climate"]["targetTemperatureC"] == 18
+    coordinator.data = {
+        "climate_state_timestamp": (rig.now - 3) * 1000,
+        "climate_state_driver_temp_setting": 19.5,
+        "climate_state_min_avail_temp": 15,
+        "climate_state_max_avail_temp": 28,
+    }
+    second = await rig.owner.async_read(rig.call)
+    assert second["data"]["climate"]["targetTemperatureC"] == 19.5
+    assert second["fieldObservedAt"]["climate.targetTemperatureC"] == rig.now - 3
+    assert second["fieldObservedAt"]["climate.defrost"] == rig.now - 50
+    assert "climate.targetTemperatureC" not in second["historicalFields"]
+
+
+async def test_store_save_error_never_exposes_history_as_current(rig, monkeypatch):
+    from datetime import UTC, datetime
+
+    stored, failing = {}, [False]
+
+    class Store:
+        async def async_load(self):
+            return copy.deepcopy(stored.get("data"))
+
+        async def async_save(self, data):
+            if failing[0]:
+                raise OSError("disk unavailable")
+            stored["data"] = copy.deepcopy(data)
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: Store())
+    eid = "switch.car_defrost"
+    rig.entities["defrost"] = eid
+    rig.rows[eid] = NS(
+        id="defrost",
+        platform="tesla_fleet",
+        config_entry_id="fleet",
+        device_id="car",
+        disabled_by=None,
+        translation_key="climate_state_defrost_mode",
+    )
+    entity = NS(entity_id=eid, state="off", last_reported=datetime.fromtimestamp(rig.now - 3, UTC))
+    rig.hass.states = NS(get=lambda _: entity)
+    rig.owner = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    assert (await rig.owner.async_read(rig.call))["data"]["climate"]["defrost"] is False
+    entity.state = "unknown"
+    rig.vehicle.coordinator.data = {
+        "charge_state_timestamp": (rig.now - 1) * 1000,
+        "charge_state_battery_level": 40,
+    }
+    failing[0] = True
+    result = await rig.owner.async_read(rig.call)
+    assert result["data"]["batteryPercent"] == 40
+    assert result["data"].get("climate", {}).get("defrost") is None
+    assert "climate.defrost" not in result["fieldObservedAt"]
+
+
+async def test_failed_load_after_owner_replacement_cannot_return_observation(rig, monkeypatch):
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    class Store:
+        async def async_load(self):
+            entered.set()
+            await release.wait()
+            raise OSError("disk unavailable")
+
+        async def async_save(self, data):
+            raise AssertionError("must not save")
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: Store())
+    old = snapshot.VehicleSnapshot(rig.hass, rig.own)
+    pending = asyncio.create_task(old.async_read(rig.call))
+    await entered.wait()
+    snapshot.VehicleSnapshot(rig.hass, rig.own)
+    release.set()
+    result = await pending
+    assert result["status"] == "unavailable" and result["data"] is None

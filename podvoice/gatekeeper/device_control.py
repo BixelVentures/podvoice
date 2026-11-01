@@ -311,6 +311,60 @@ class DeviceControl:
                     items.append(row)
                     if field["key"] == "in_cleaning" and row["value"] is True and not row["stale"]:
                         cleaning_sample = (field, value)
+            try:
+                response = await asyncio.wait_for(
+                    self._json(
+                        "POST",
+                        "services/podvoice/robot_observation_snapshot?return_response",
+                        {"binding": binding},
+                    ),
+                    timeout=1,
+                )
+                historical = (
+                    response.get("service_response") if isinstance(response, dict) else None
+                )
+                if (
+                    isinstance(historical, dict)
+                    and historical.get("schema") == "podview.robot_history.v1"
+                    and historical.get("status") == "observed"
+                    and isinstance(historical.get("items"), list)
+                ):
+                    by_key = {row["key"]: row for row in items}
+                    allowed = {field["key"]: field["entityId"] for field in binding["fields"]}
+                    for row in historical["items"]:
+                        if (
+                            not isinstance(row, dict)
+                            or row.get("historical") is not True
+                            or allowed.get(row.get("key")) != row.get("entityId")
+                        ):
+                            continue
+                        checked = podview_robot.project(
+                            {
+                                "schema": "podview.robot.v1",
+                                "status": "observed",
+                                "vacuumEntityId": entity_id,
+                                "source": "home_assistant_roborock",
+                                "items": [row],
+                            },
+                            entity_id,
+                        )
+                        if checked["status"] != "observed":
+                            continue
+                        candidate = {**checked["items"][0], "historical": True}
+                        old = by_key.get(candidate["key"])
+                        if old is None or candidate["updatedAt"] >= old["updatedAt"]:
+                            by_key[candidate["key"]] = candidate
+                    items = list(by_key.values())
+            except (
+                TimeoutError,
+                CapabilityError,
+                ValueError,
+                TypeError,
+                KeyError,
+                httpx.HTTPError,
+                aiohttp.ClientError,
+            ):
+                pass  # Older HA component has no display-history service.
             after = await self._ws_read(
                 {"type": "config/entity_registry/get_entries", "entity_ids": ids}
             )
@@ -322,6 +376,9 @@ class DeviceControl:
                 "status": "observed",
                 "vacuumEntityId": entity_id,
                 "source": "home_assistant_roborock",
+                "bindingId": hashlib.sha256(
+                    json.dumps([binding, identity], sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest(),
                 "items": items,
             }
             # Optional job metadata cannot erase already validated independent

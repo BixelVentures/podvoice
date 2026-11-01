@@ -1,3 +1,9 @@
+## 2.0.117
+
+- Retain last observed vehicle and robot facts with their individual observation times across temporary gaps and restarts.
+- Restore the existing screen on warm resume.
+- Includes Home Assistant companion 0.1.11.
+
 ## 2.0.116
 
 - Correct vehicle defrost presentation using observed service state.

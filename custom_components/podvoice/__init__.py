@@ -21,6 +21,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .controller_admin import ControllerAdmin
 from .display_devices import DisplayDevices
+from .robot_observation_snapshot import RobotObservationSnapshot
 from .robot_snapshot import make_robot_snapshot_handler, make_robot_water_snapshot_handler
 from .robot_snapshot import service_schema as robot_snapshot_schema
 from .timer_bridge import TimerBridge
@@ -152,6 +153,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, "timer_command")
     hass.services.async_remove(DOMAIN, "robot_snapshot")
     hass.services.async_remove(DOMAIN, "robot_water_snapshot")
+    hass.services.async_remove(DOMAIN, "robot_observation_snapshot")
+    history_owner = hass.data.get("podvoice_robot_history_owner")
+    if isinstance(history_owner, dict):
+        history_owner["owner"] = None
     hass.services.async_remove(DOMAIN, "vehicle_snapshot")
     for service in (
         "controller_list",
@@ -321,6 +326,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     robot_reader = make_robot_snapshot_handler(hass, er.async_get, dr.async_get)
     water_reader = make_robot_water_snapshot_handler(hass, er.async_get, dr.async_get)
+    observation_reader = RobotObservationSnapshot(hass)
     vehicle_reader = VehicleSnapshot(hass, entry)
 
     async def robot_snapshot(call: ServiceCall) -> dict:
@@ -334,6 +340,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return await water_reader(call)
         except ValueError:
             raise HomeAssistantError("Robot water snapshot unavailable") from None
+
+    async def robot_observation_snapshot(call: ServiceCall) -> dict:
+        try:
+            return await observation_reader.async_read(call)
+        except ValueError:
+            raise HomeAssistantError("Robot observation unavailable") from None
 
     async def vehicle_snapshot(call: ServiceCall) -> dict:
         try:
@@ -353,6 +365,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "robot_water_snapshot",
         robot_water_snapshot,
         schema=robot_snapshot_schema(),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "robot_observation_snapshot",
+        robot_observation_snapshot,
+        schema=vol.Schema({vol.Required("binding"): dict}, extra=vol.PREVENT_EXTRA),
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
