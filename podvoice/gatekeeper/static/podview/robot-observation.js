@@ -18,11 +18,12 @@ export function robotObservation(value,entityId,currentActivity){
   if(['duration','area','percent','timestamp','count'].includes(kind)&&(!Number.isFinite(v)||Math.abs(v)>1e12))return unavailable();
   if(kind==='duration'&&!['s','min','h'].includes(u)||kind==='area'&&(u!=='m²'||v<0)||kind==='percent'&&(u!=='%'||v<0||v>100)||kind==='count'&&(u!==null||v<0||!Number.isInteger(v))||kind==='timestamp'&&(u!==null||v<0||v>row.retrievedAt+1)||kind==='bool'&&(typeof v!=='boolean'||u!==null)||['text','clock'].includes(kind)&&(typeof v!=='string'||!v||v.length>120||u!==null)||kind==='clock'&&!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(v))return unavailable();
   const domain=row.entityId.split('.')[0],expected=['child_lock','dnd_switch','mop_drying','mop_washing','dust_emptying'].includes(row.key)?'switch':kind==='bool'?'binary_sensor':row.key==='volume'?'number':kind==='clock'?'time':['mop_intensity','mop_mode','cleaning_mode','selected_map','dust_collection_mode'].includes(row.key)?'select':'sensor';if(expected!==domain)return unavailable();
-  keys.add(row.key);seen.add(row.entityId);items.push({key:row.key,entityId:row.entityId,value:v,unit:u,updatedAt:row.updatedAt,retrievedAt:row.retrievedAt,stale:row.retrievedAt-row.updatedAt>300});
+  keys.add(row.key);seen.add(row.entityId);items.push({key:row.key,entityId:row.entityId,value:v,unit:u,updatedAt:row.updatedAt,retrievedAt:row.retrievedAt,stale:row.historical===true||row.retrievedAt-row.updatedAt>300});
  }
  const raw=currentActivity,now=Date.now()/1000,fields=['status','source','vacuumEntityId','registeredAt','observedAt'];
  const activity=raw&&Object.keys(raw).length===fields.length&&fields.every(key=>Object.hasOwn(raw,key))&&raw.status==='observed'&&raw.source==='home_assistant_recorder'&&raw.vacuumEntityId===entityId&&Number.isFinite(raw.registeredAt)&&Number.isFinite(raw.observedAt)&&raw.registeredAt>0&&raw.registeredAt<=raw.observedAt&&raw.observedAt<=now+1?{status:'observed',source:raw.source,vacuumEntityId:entityId,registeredAt:raw.registeredAt,observedAt:raw.observedAt}:{status:'unavailable'};
- return {status:'observed',items,currentActivity:activity};
+ const bindingId=typeof value.bindingId==='string'&&/^[a-f0-9]{64}$/.test(value.bindingId)?value.bindingId:null;
+ return {status:'observed',items,currentActivity:activity,bindingId};
 }
 export function robotFacts(device,now=Date.now()/1000){
  const items=device.telemetry?.status==='observed'?device.telemetry.items:[],fresh=row=>!device.stale&&!row.stale&&now-row.updatedAt<=300,byKey=new Map(items.map(row=>[row.key,row]));

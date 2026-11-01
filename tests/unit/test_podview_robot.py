@@ -170,6 +170,8 @@ async def test_explicit_reads_are_bounded_registry_checked_twice_and_no_capabili
 
     async def respond(request):
         reads.append(request.url.path)
+        if request.url.path.endswith("/robot_observation_snapshot"):
+            return httpx.Response(404)
         if request.url.path.endswith("/template"):
             assert request.method == "POST"
             template = json.loads(request.content)["template"]
@@ -194,7 +196,7 @@ async def test_explicit_reads_are_bounded_registry_checked_twice_and_no_capabili
         result = await owner.observe()
         assert len(result["items"][0]["telemetry"]["items"]) == 2
         assert not owner._tickets and not owner._display_tickets
-        assert len(reads) == 2 and owner._ws_read.call_count == 2
+        assert len(reads) == 3 and owner._ws_read.call_count == 2
         assert _home_vacuum(result)["items"][0]["telemetry"]["status"] == "observed"
 
 
@@ -219,6 +221,8 @@ async def test_robot_snapshot_uses_report_time_and_keeps_other_fields_when_one_m
     value["last_updated"] = datetime.fromtimestamp(time.time() - 36000, UTC).isoformat()
 
     async def respond(request):
+        if request.url.path.endswith("/robot_observation_snapshot"):
+            return httpx.Response(404)
         assert request.url.path.endswith("/template") and request.method == "POST"
         return httpx.Response(200, json=[value])
 
@@ -229,11 +233,18 @@ async def test_robot_snapshot_uses_report_time_and_keeps_other_fields_when_one_m
         owner._ws_read = AsyncMock(return_value=registry())
         observed = await owner._robot_observation(VAC, owner._generation)
         assert observed["status"] == "observed"
+        binding_id = observed["bindingId"]
+        assert len(binding_id) == 64 and project(observed, VAC)["bindingId"] == binding_id
         assert [row["key"] for row in observed["items"]] == ["cleaning_area"]
         assert observed["items"][0]["stale"] is False
         value["last_reported"] = datetime.fromtimestamp(time.time() - 600, UTC).isoformat()
         observed = await owner._robot_observation(VAC, owner._generation)
         assert observed["items"][0]["stale"] is True
+        assert observed["bindingId"] == binding_id
+        changed = registry()
+        changed[AREA]["unique_id"] = "replacement"
+        owner._ws_read = AsyncMock(return_value=changed)
+        assert (await owner._robot_observation(VAC, owner._generation))["bindingId"] != binding_id
         with pytest.raises(ValueError):
             await owner._robot_field_snapshot(VAC, ["sensor.not_granted"], owner._generation)
 

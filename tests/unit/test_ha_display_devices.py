@@ -80,6 +80,7 @@ async def setup(monkeypatch):
         DisplayDevices=projection.DisplayDevices,
         make_robot_snapshot_handler=lambda *_: AsyncMock(),
         make_robot_water_snapshot_handler=lambda *_: AsyncMock(),
+        RobotObservationSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
         robot_snapshot_schema=lambda: object(),
         VehicleSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
         er=SimpleNamespace(async_get=lambda _: None),

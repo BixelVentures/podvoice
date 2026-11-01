@@ -23,3 +23,9 @@ test('robot history retains only explicit completed setup on accepted owner reco
  const read=row=>{h.vacuum.items[0].history={status:'observed',source:'device_control_start_journal',items:[row]};return validateHome(h,'kitchen').vacuum.items[0].history.items[0].recipe.completeSetup;};
  assert.equal(read(base),true);assert.equal(read({...base,recipe:{...base.recipe,completeSetup:false}}),false);assert.equal(read({...base,recipe:{...base.recipe,completeSetup:'true'}}),false);assert.equal(read({...base,outcome:'unknown'}),false);assert.equal(read({...base,recipe:{...base.recipe,completeSetup:undefined}}),false);
 });
+
+test('partial robot observations retain bound fields and never promote old samples',()=>{
+ const now=Date.now()/1000,bindingId='a'.repeat(64),row=(key,value,at)=>({key,entityId:`sensor.${key}`,value,unit:'%',updatedAt:at,retrievedAt:at,stale:false}),telemetry=items=>({status:'observed',bindingId,items,currentActivity:{status:'unavailable'}}),home={bootId:'boot',roomId:'room',revision:1,vacuum:{status:'observed',items:[{entityId:'vacuum.actual',source:'home_assistant_state',state:'docked',telemetry:telemetry([row('battery',80,now-10),row('clean_percent',40,now-20)])}]}};
+ const first=applyHome({devices:[]},home),next=structuredClone(home);next.vacuum.items[0].telemetry=telemetry([row('battery',90,now),row('clean_percent',10,now-30)]);const merged=applyHome(first,next).devices[0].telemetry;assert.equal(merged.items.find(x=>x.key==='battery').value,90);const retained=merged.items.find(x=>x.key==='clean_percent');assert.equal(retained.value,40);assert.equal(retained.updatedAt,now-20);assert.equal(retained.stale,true);
+ for(const mutate of [x=>x.vacuum.items[0].telemetry.bindingId='b'.repeat(64),x=>x.bootId='other',x=>x.vacuum.items[0].entityId='vacuum.other']){const changed=structuredClone(next);changed.vacuum.items[0].telemetry.items=[];mutate(changed);assert.equal(applyHome(first,changed).devices[0].telemetry.items.length,0);}
+});

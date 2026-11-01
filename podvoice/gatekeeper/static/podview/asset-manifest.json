@@ -451,15 +451,15 @@
     },
     {
       "path": "ha-home-observation.js",
-      "sha256": "badcda752b0feb817619d377b0d00c968b73938512ba6682b266561594becf54"
+      "sha256": "2857a38c395439e5d7b700902f9d99769fbf32350b63bb090153dde94b28e142"
     },
     {
       "path": "home-model.js",
-      "sha256": "d2e6d9b8f95f3891e01f2cac44022c447d41d5df1cd6144f93d9fd9f2d2b298b"
+      "sha256": "31b6a0c3ef5f75f1bc5271ea4082a18a8e5fb77ce7026afa251cf6a1726d22e8"
     },
     {
       "path": "index.html",
-      "sha256": "f0c5feb8758dbc5a217fcf77a5c3e22f0703e8b2cbe815e48ee77134eb9b8019"
+      "sha256": "9fd90db3c06a3b2b336382a3c92ab3f79ae348486ec730a19bb89f80a358c028"
     },
     {
       "path": "ingress-kiosk.js",
@@ -475,7 +475,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "52a4c9a3252b253e3115bc3c057d098a0d680bdc181940c6fce6c77e202df56b"
+      "sha256": "dc881bed8a9fb1944812c5a4efdc780778520b2c0ecb39cdedb357a08dd2de84"
     },
     {
       "path": "library.css",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "dc3728b4d0cb3dad579fcd8ecc1b3589413528bb2db0f07c5ce7f193a8efa12c"
+      "sha256": "38b9a41a835b2af75ebb1876e0f678f44e30b3c6881d4c61e8ab58cf29d1654a"
     },
     {
       "path": "podview.css",
@@ -643,7 +643,7 @@
     },
     {
       "path": "robot-observation.js",
-      "sha256": "321a0c97f737e694328fcac5f2c531687cf404f1e0c9b392702182a0074cfbaf"
+      "sha256": "639bccd55bdfc03a5df1031702ac36e49eacdee2c21acac229c0985f512d5a47"
     },
     {
       "path": "scene-model.js",
@@ -783,7 +783,7 @@
     },
     {
       "path": "ui/screen-lifecycle.js",
-      "sha256": "f83e9cdff071ac8dfa1710877bfc2e691135c4e74f2a42421383aad071e156b9"
+      "sha256": "61b60f8d0aac7e408a190d57bb8dc3571212042759ef44508ffe04c1b120a3b5"
     },
     {
       "path": "ui/scroll-edges.js",
@@ -799,7 +799,7 @@
     },
     {
       "path": "vehicle-model.js",
-      "sha256": "d8b10d53dbe351c24e1733c94e12c99191b8b134f5f495440551ec048299df01"
+      "sha256": "fbf8ae0be21eceb62eec2cc1f096dacd62c329667a1a694ca869a736c2245762"
     },
     {
       "path": "vehicle-preview-command.js",
@@ -807,7 +807,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "9b96e60b497e7bba38e418f064f64414b74467bc43b90c8c22fc7a3e268660d6"
+      "sha256": "8712a57f69a38828bc69c6a4fd083d5ae82d9093d0383535116533dfe6b4f2ed"
     },
     {
       "path": "visual-content.js",

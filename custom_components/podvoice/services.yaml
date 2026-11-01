@@ -182,6 +182,14 @@ robot_water_snapshot:
       required: true
       selector:
         text:
+robot_observation_snapshot:
+  name: Robot historical observation
+  description: Read-only historical robot field observations for the PodVoice Supervisor caller. Never control authority.
+  fields:
+    binding:
+      required: true
+      selector:
+        object:
 vehicle_snapshot:
   name: Vehicle snapshot
   description: Read-only timestamped Tesla snapshot through the existing HA integration. Supervisor caller only; no wake or vehicle commands.

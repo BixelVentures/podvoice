@@ -437,3 +437,9 @@ test('one defrost control follows observed HA state and never acts on unknown or
  for(const [value,label,action] of [[false,'Afrim ruder','defrostOn'],[true,'Stop afrimning','defrostOff']]){view.render(mk(value),{vehicleActions:['defrostOn','defrostOff']});assert.equal(view.defrostButton.textContent,label);assert.equal(view.defrostButton.disabled,false);view.defrostButton.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls.pop(),[action,{}]);}
  for(const data of [mk(null),mk(false,'stale')]){view.render(data,{vehicleActions:['defrostOn','defrostOff']});assert.equal(view.defrostButton.disabled,true);view.defrostButton.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls,[]);}view.cleanup();
 });
+
+test('historical Tesla defrost is displayed but cannot authorize a new action',async()=>{
+ const {root}=fixture(),calls=[];const view=new VehicleView(root,{onVehicleSetup:async(action,args)=>{calls.push([action,args]);return null;}});
+ const data=vehicleObservation({status:'observed',source:'tesla_fleet_snapshot',observedAt:100,entityIds:['switch.car'],data:{climate:{defrost:false}},historicalFields:['climate.defrost'],fieldObservedAt:{'climate.defrost':100}});
+ view.render(data,{vehicleActions:['defrostOn','defrostOff']});assert.equal(view.defrostButton.textContent,'Afrim ruder');assert.equal(view.defrostButton.disabled,true);await view.beginVehicle('defrostOn',view.defrostButton);assert.deepEqual(calls,[]);view.cleanup();
+});

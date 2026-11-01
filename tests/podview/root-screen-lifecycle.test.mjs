@@ -123,3 +123,17 @@ test('two-second quiet geometry release cannot bounce an unchanged idle timer af
   const before=x.host.motion.resources();heights[2]=112;x.host.motion.settleResources(before);assert.equal(timer.animations.length,2,'a real timer extent change retains its finite transition');assert.equal(timer.animations[1].options.duration,240);assert.match(timer.animations[1].frames[0].transform,/scale/);
  }finally{x.lifecycle.cleanup();x.host.motion.cancel();globalThis.getComputedStyle=oldStyle;}
 });
+
+test('return to a still-fresh connected snapshot preserves the warm view without restarting',async()=>{
+ const x=setup();let restarts=0;const transport=x.host.liveTransport;transport.snapshot=x.host.liveSnapshot;transport.acceptedReadAt=Date.parse('2026-10-20T12:00:00Z');transport.restart=()=>{restarts++;return Promise.resolve();};
+ const cached={title:'Retained music'};x.host.state.music=cached;x.lifecycle.attach();x.doc.visibilityState='hidden';x.events.get('visibilitychange')();x.advance(2000);x.doc.visibilityState='visible';x.events.get('visibilitychange')();await Promise.resolve();assert.equal(restarts,0);assert.equal(x.host.state.music,cached);assert.equal(transport.connected,true);assert.notEqual(x.note.textContent,'Opdaterer…');
+ x.lifecycle.cleanup();
+});
+
+test('wake still obtains a fresh read for stale, disconnected or replaced snapshot owners',async()=>{
+ for(const kind of ['expired','future','disconnected','blocked','closed','other-snapshot']){
+  const x=setup();let restarts=0;const t=x.host.liveTransport;t.snapshot=x.host.liveSnapshot;t.acceptedReadAt=Date.parse('2026-10-20T12:00:00Z');t.restart=()=>{restarts++;return Promise.resolve();};
+  if(kind==='expired')t.acceptedReadAt-=6000;if(kind==='future')t.acceptedReadAt++;if(kind==='disconnected')t.connected=false;if(kind==='blocked')t.recoveryBlocked=true;if(kind==='closed')t.closed=true;if(kind==='other-snapshot')t.snapshot={voice:{active:false}};
+  x.lifecycle.attach();x.lifecycle.wake();await Promise.resolve();assert.equal(restarts,1,kind);x.lifecycle.cleanup();
+ }
+});

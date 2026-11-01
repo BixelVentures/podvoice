@@ -77,6 +77,8 @@ export class ScreenLifecycle{
  refreshAfterWake(){
   const host=this.host,transport=host.liveTransport;if(!this.attached||!host.isConnected||!transport||this.wakeInFlight||host.ownerDocument.visibilityState==='hidden')return;
   const custody=host.liveMusicReadCustody,now=this.clock.now?.()??Date.now();
+  // A still-connected snapshot keeps its original lease; no restart or renewal is needed.
+  if(!custody&&!this.wakeReadCustody&&transport.connected===true&&transport.closed!==true&&transport.recoveryBlocked!==true&&transport.snapshot===host.liveSnapshot&&Number.isFinite(transport.acceptedReadAt)&&transport.acceptedReadAt<=now&&now<transport.acceptedReadAt+6000){this.wakeRequested=false;this.wakeSnapshot=undefined;return;}
   // Preserve only this current passive read within its ORIGINAL snapshot lease.
   // No global busy state, renewed lease, retry or permission is created here.
   if(transport.connected===true&&transport.recoveryBlocked!==true&&custody?.transport===transport&&Number.isFinite(custody.acceptedReadAt)&&custody.acceptedReadAt<=now&&now<custody.acceptedReadAt+6000&&custody.current()){this.wakeRequested=true;if(this.wakeReadCustody!==custody){this.clock.clearTimeout(this.wakeReadTimer);this.wakeReadCustody=custody;this.wakeReadTimer=this.clock.setTimeout(()=>{if(this.wakeReadCustody!==custody)return;this.wakeReadTimer=null;this.wakeReadCustody=null;if(host.liveMusicReadCustody!==custody||!custody.current())return;this.refreshAfterWake();},custody.acceptedReadAt+6000-now);}return;}

@@ -59,7 +59,7 @@ export function vehiclePreviewAction(value,event={}){
 // simulated charging progress. Both existing vehicle surfaces use this predicate.
 export function vehicleChargeUpdate(previous,model,{connected=false,scope='',sourceScope='',readGranted=false,visible=true,suppress=false}={}){
  const percent=model?.batteryPercent,status=model?.charging?.status,observedAt=model?.observedAt;
- const eligible=connected===true&&readGranted===true&&typeof scope==='string'&&scope.length>0&&scope===sourceScope&&visible===true&&isVehicleObservation(model)&&model.stale!==true&&Number.isFinite(observedAt)&&Number.isFinite(percent)&&percent>=0&&percent<=100;
+ const eligible=connected===true&&readGranted===true&&typeof scope==='string'&&scope.length>0&&scope===sourceScope&&visible===true&&isVehicleObservation(model)&&model.stale!==true&&!['batteryPercent','charging.status'].some(field=>(model.historicalFields||[]).includes(field))&&Number.isFinite(observedAt)&&Number.isFinite(percent)&&percent>=0&&percent<=100;
  const sameScope=previous?.scope===scope,retain= sameScope&&Number.isFinite(previous?.observedAt)&&(!Number.isFinite(observedAt)||observedAt<=previous.observedAt);
  return {scope,eligible,observedAt:retain?previous.observedAt:observedAt,percent:retain?previous.percent:percent,status:retain?previous.status:status,cancel:!eligible||status!=='charging'||!sameScope,cue:!suppress&&eligible&&previous?.eligible===true&&sameScope&&observedAt>previous.observedAt&&status==='charging'&&(previous.status!=='charging'||percent!==previous.percent)};
 }
@@ -71,7 +71,7 @@ export function vehicleRailPresentation(value,{live=true,connected=false,readGra
  const bound=typeof scope==='string'&&scope.length>0&&scope===sourceScope;
  if(!bound||readGranted!==true||(!observed&&!local)||local&&connected!==true)return null;
  const model=vehicleModel(value);if(model.charging?.status!=='charging')return null;
- const stale=observed&&(model.stale===true||connected!==true),facts=[];
+ const stale=observed&&(model.stale===true||connected!==true||['batteryPercent','charging.status','charging.powerKw'].some(field=>(model.historicalFields||[]).includes(field))),facts=[];
  if(Number.isFinite(model.charging.powerKw)&&model.charging.powerKw>=0)facts.push({id:'power',label:'Ladeeffekt',value:`${model.charging.powerKw.toLocaleString('da-DK')} kW`,stale});
  if(Number.isFinite(model.charging.endsAt)&&model.charging.endsAt>=0)facts.push({id:'ends',label:'Opladning færdig',value:new Date(model.charging.endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),stale});
  const battery=model.batteryPercent;

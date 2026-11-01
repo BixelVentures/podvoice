@@ -334,15 +334,23 @@ def project(value: object, entity: str) -> dict:
         entities.add(eid)
         rows.append(
             {k: row[k] for k in ("key", "entityId", "value", "unit", "updatedAt", "retrievedAt")}
-            | {"stale": row["retrievedAt"] - row["updatedAt"] > 300}
+            | {
+                "stale": row.get("historical") is True
+                or row["retrievedAt"] - row["updatedAt"] > 300,
+                "historical": row.get("historical") is True,
+            }
         )
-    return {
+    result = {
         "schema": "podview.robot.v1",
         "status": "observed",
         "vacuumEntityId": entity,
         "source": "home_assistant_roborock",
         "items": rows,
     }
+    binding_id = value.get("bindingId")
+    if isinstance(binding_id, str) and re.fullmatch(r"[a-f0-9]{64}", binding_id):
+        result["bindingId"] = binding_id
+    return result
 
 
 def project_job(value: object, entity: str) -> dict:

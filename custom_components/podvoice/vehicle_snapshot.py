@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
 import math
 import re
@@ -32,6 +33,7 @@ TTL = 900
 CACHE_SECONDS = 300
 ERROR_SECONDS = 60
 MAX_BYTES = 65536
+_HISTORY_OWNER = "podvoice_vehicle_history_owner"
 
 
 def _registries(hass):
@@ -140,12 +142,89 @@ def project(frame: dict, entities: dict, *, now: float) -> tuple[dict, dict]:
     return data, stamps
 
 
+def _history_store(hass):
+    from homeassistant.helpers.storage import Store
+
+    return Store(hass, 1, "podvoice.vehicle_last_known")
+
+
+def _valid_history_field(path, value):
+    numeric = {
+        "batteryPercent": (0, 100),
+        "rangeKm": (0, 2000),
+        "charging.powerKw": (0, 1000),
+        "climate.temperatureC": (-50, 70),
+        "climate.targetTemperatureC": (0, 50),
+        "climate.minTemperatureC": (0, 50),
+        "climate.maxTemperatureC": (0, 50),
+        "climate.temperatureStepC": (0.5, 0.5),
+    }
+    enums = {
+        "trunk": {"open", "closed"},
+        "charging.status": {"starting", "charging", "stopped", "complete", "disconnected"},
+        "climate.status": {"off", "heat_cool"},
+        "climate.driverSeatHeat": {"off", "low", "medium", "high"},
+        "climate.passengerSeatHeat": {"off", "low", "medium", "high"},
+    }
+    if path in numeric:
+        return _number(value, *numeric[path])
+    if path in enums:
+        return isinstance(value, str) and value in enums[path]
+    return path in {"locked", "climate.defrost"} and type(value) is bool
+
+
+def _flatten_vehicle(data, stamps, defrost_stamp, climate_stamp):
+    result = {}
+    for key, value in data.items():
+        block = (
+            "charge_state"
+            if key in {"batteryPercent", "rangeKm", "charging"}
+            else "climate_state"
+            if key == "climate"
+            else "vehicle_state"
+        )
+        fields = value.items() if key in {"charging", "climate"} else [(None, value)]
+        for sub, item in fields:
+            path = f"{key}.{sub}" if sub is not None else key
+            stamp = (
+                defrost_stamp
+                if path == "climate.defrost"
+                else climate_stamp
+                if block == "climate_state"
+                else stamps.get(block)
+            )
+            if _valid_history_field(path, item) and _number(stamp, 1, time.time()):
+                result[path] = {"value": item, "observedAt": stamp}
+    return result
+
+
+def _put_field(data, path, value):
+    bits = path.split(".")
+    if len(bits) == 1:
+        data[bits[0]] = value
+    else:
+        data.setdefault(bits[0], {})[bits[1]] = value
+
+
 class VehicleSnapshot:
     """Supervisor-only, exact registry/entry/runtime-custody read service."""
 
     def __init__(self, hass, entry) -> None:
         self.hass, self.entry = hass, entry
         self._cache: dict[tuple, dict] = {}
+        shared = getattr(hass, "data", None)
+        if not isinstance(shared, dict):
+            shared = {}
+            hass.data = shared
+        history_owner = shared.get(_HISTORY_OWNER)
+        if not isinstance(history_owner, dict) or not isinstance(
+            history_owner.get("lock"), asyncio.Lock
+        ):
+            history_owner = {"lock": asyncio.Lock()}
+            shared[_HISTORY_OWNER] = history_owner
+        history_owner["owner"] = self
+        self._history_owner = history_owner
+        self._history_lock = history_owner["lock"]
 
     def _resolve(self, request):
         if type(request) is not dict or set(request) != {
@@ -249,6 +328,7 @@ class VehicleSnapshot:
                     and user.is_active
                     and user.is_admin
                     and _supervisor(self.hass) is user
+                    and self._history_owner.get("owner") is self
                 )
             except (ValueError, AttributeError, TypeError):
                 return False
@@ -337,6 +417,8 @@ class VehicleSnapshot:
                     result["sourceIdentity"] = "coordinator_and_cached"
         # The configured Tesla Fleet switch is the HA authority for this value.
         # Do not infer it from a missing raw field or from a cache retrieval time.
+        defrost_stamp = None
+        climate_stamp = stamps.get("climate_state")
         eid = entities.get("defrost")
         if eid:
             state_machine = getattr(self.hass, "states", None)
@@ -352,9 +434,91 @@ class VehicleSnapshot:
             except (AttributeError, TypeError, ValueError, OverflowError):
                 known = False
             if known:
+                defrost_stamp = stamp
                 data.setdefault("climate", {})["defrost"] = state.state == "on"
                 stamps["climate_state"] = min(stamps.get("climate_state", stamp), stamp)
                 result["sourceIdentity"] += "_and_ha_state"
+        if not current():
+            return {
+                **result,
+                "status": "unavailable",
+                "data": None,
+                "timestamps": {},
+                "observedAt": None,
+            }
+        # Serialize HA Store reads/writes; identity remains bound across each await.
+        async with self._history_lock:
+            current_fields = _flatten_vehicle(data, stamps, defrost_stamp, climate_stamp)
+            current_data, current_stamps = copy.deepcopy(data), dict(stamps)
+            scope_key = hashlib.sha256(
+                json.dumps(
+                    [entry.entry_id, request["device_id"], identity], sort_keys=True
+                ).encode()
+            ).hexdigest()
+            try:
+                store = _history_store(self.hass)
+                loaded = await store.async_load()
+                if not current():
+                    return {
+                        **result,
+                        "status": "unavailable",
+                        "data": None,
+                        "timestamps": {},
+                        "observedAt": None,
+                    }
+                rows = loaded if type(loaded) is dict and len(loaded) <= 16 else {}
+                saved = rows.get(scope_key, {})
+                if type(saved) is not dict or len(saved) > 20:
+                    saved = {}
+                saved = {
+                    path: row
+                    for path, row in saved.items()
+                    if type(row) is dict
+                    and set(row) == {"value", "observedAt"}
+                    and _valid_history_field(path, row["value"])
+                    and _number(row["observedAt"], 1, time.time())
+                }
+                historical = []
+                changed = False
+                for path, row in current_fields.items():
+                    old = saved.get(path)
+                    if old is None or row["observedAt"] > old["observedAt"]:
+                        saved[path] = row
+                        changed = True
+                    elif row["observedAt"] < old["observedAt"] or row != old:
+                        historical.append(path)
+                for path, row in saved.items():
+                    if path not in current_fields:
+                        historical.append(path)
+                    if path in historical:
+                        _put_field(data, path, row["value"])
+                    block = (
+                        "charge_state"
+                        if path.startswith("charging.") or path in {"batteryPercent", "rangeKm"}
+                        else "climate_state"
+                        if path.startswith("climate.")
+                        else "vehicle_state"
+                    )
+                    stamps[block] = min(stamps.get(block, row["observedAt"]), row["observedAt"])
+                if changed and (scope_key in rows or len(rows) < 16):
+                    rows[scope_key] = saved
+                    await store.async_save(rows)
+                    if not current():
+                        return {
+                            **result,
+                            "status": "unavailable",
+                            "data": None,
+                            "timestamps": {},
+                            "observedAt": None,
+                        }
+                result["fieldObservedAt"] = {path: row["observedAt"] for path, row in saved.items()}
+                result["historicalFields"] = sorted(historical)
+            except (OSError, ValueError, TypeError, ImportError):
+                data, stamps = current_data, current_stamps
+                result["fieldObservedAt"] = {
+                    path: row["observedAt"] for path, row in current_fields.items()
+                }
+                result["historicalFields"] = []
         if not current():
             return {
                 **result,

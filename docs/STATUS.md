@@ -1,3 +1,15 @@
+## 1/11 — aktiv rettelse: stabile observationer og genopkobling efter116
+
+Kilde: /private/tmp/pv117-state-recovery-20261101, main8dc24b32007666087c603a23cd57ec3ddb5de113. Installeret116/HA0.1.10 er baseline. Samlet 117-kandidat med HA0.1.11 er bygget; uafhængigt artifactreview, officiel CI, publicering og installation afventer. Den eksisterende fulde komponentupload er fallback, når HACS ikke tilbyder main; kontrollér alle filer før Core-genstart.
+
+Brugerfejl: kendte Tesla-/robotfelter forsvinder ved delvise svar; betjening og kort blinker under opdatering og tilbagevenden til HA. Tesla-afrimning er faktisk unknown i HA; ingen tidligere gyldig værdi må opfindes. Påvist årsag: blokvis erstatning taber individuelle felter; robotprojector bevarer kun hele unavailable-svar; kort baggrundsretur genstarter selv en stadig frisk samme-forbindelse.
+
+Leadbeslutning: behold senest gyldige observation pr. identitetsbundet felt og dets oprindelige tidspunkt hos eksisterende HA-ejer. Historiske felter mærkes eksplicit som visning og giver aldrig handlingsadgang. Aktuel validering/registry/policy/UNKNOWN uden gensendelse bevares. Dvale må kun vises ved observeret kildestatus. Ingen ny global service eller alternativ musik-/enhedsejer. Bevar godkendte komponenter/layout og116Extreme-koblingen.
+
+Kæde: HA-state/coordinator → identitetsvalideret snapshot → lukket DTO → kanonisk komponent → frisk handlingspreflight. Prøv delvis/unknown kilde, ældre/out-of-order svar, ejerskifte, restart, kort/lang app-baggrund og disconnect/reconnect. Ingen bil-, robot- eller lydhandlinger. Musikguard må kun ændres ved konkret reproduceret årsag; eksisterende expiry/UNKNOWN må ikke fjernes for at få aktive knapper. Rollback: dette isolerede ændringssæt mod116.
+
+Resultat indtil nu: varm tilbagevenden rettet, bygget og fokuseret reviewet; lifecycle/transportchecks inklusive den efterfølgende wake-custody-regression PASS. Tesla- og robotfeltbevaring inkl. HA Store-restartpersistens er implementeret og fokuseret reviewet. Tesla:69PythonPASS; robot:83HA/add-on +28JS PASS; authfejl fik ekstra15regressioner. Review fandt og lukkede konkret delvis klimastempel og Store-fejl/ejerfence. UI-lifecycle og source-GO. Fælles UI-kontrol består: 4877 suitechecks, fire loopback-tests, 68 berørte wake-checks og 39 komponentchecks; lead har gennemgået lokal Tesla- og robotvisning på det byggede produkt. Levering endnu ikke udført. Samlet software-/live-/iPad-/fysisk accept er ikke påstået. Ingen alle-fejl-elimineret erklæring. Musik: normal refresh/MOVE/udløbsprøver består; ingen ny kausal permanent lås fundet. Præcis manglende feltsekvens ved reel lås er music_read udfald/control_state/volume_state, binding.validUntil og transportgeneration/SSE. Ingen spekulativ actionguardpatch. Første gyldige værdi før den nye lagring var installeret kan ikke sikkert genskabes. Rigtig116Macvisning genoprettede sig ved åbning20.23 uden genindlæsning; dette er ét forløb, ikke iPad- eller al-recovery-bevis.
+
 ## 1/11 — PodVoice 2.0.116 / HA-komponent 0.1.10
 
 Samlet kandidat retter Tesla-afdugningsvisning og understøtter den dokumenterede robotvandindstilling Extreme gennem eksisterende handlingsejer og ny HA-læseservice. Kildeændringer er uafhængigt reviewet; fokuserede robot- og paneltests samt fælles UI-suite er bestået. Faktisk HA-læsning af værdier er kontrolleret; fysisk rengøring er ikke udført. Exact artifact-review, officiel CI, publicering, installation og fysisk accept er separate.
@@ -7539,5 +7551,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "b42b1dc52d9b44b3e404e9d98eaff52565b00a87f239e0b044120fb3e9f5431b",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 93
+}
+-->
+
+<!-- podvoice117-admission
+{
+  "base_tip": "8dc24b32007666087c603a23cd57ec3ddb5de113",
+  "config_fingerprint": "68ebc9377630d6e0ea4caf5948a486bd99738248238af926dbef7b59275bd893",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "d6b0bb1191871a8a8330c10ac25300ab531f796948ac459f7f68baa9e1943cca",
+  "kind": "podvoice117_state_recovery",
+  "manifest_fingerprint": "038eaedfd5ccf1d1c92d08a3fcd3011c005079cd1aaf9e1608a2a49576b1e8e7",
+  "merge_base": "8dc24b32007666087c603a23cd57ec3ddb5de113",
+  "policy_fingerprint": "f352af9e8c7fdf41b0c67b31731c04885ffd6aeb4c221174f8d39dd4f62b589b",
+  "rationale": "PodVoice 2.0.117 preserves timestamped robot and vehicle observations and restores warm-resumed screens. A focused source-reviewed wake-custody guard was added; exact artifact and local visual reviews are pending. CI, publication, installation, live services and physical acceptance remain separate.",
+  "regression_fingerprint": "9d2a0ce55dce5faa1fa734f61acc058338b81733ba11e0b15bb46d962fb42fbc",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "ed4e5f1531fb8b3cf33650cc86016a9f593072ae04c9beb5483161b9ff408c8d",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 94
 }
 -->

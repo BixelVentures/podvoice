@@ -445,7 +445,7 @@ async def read_snapshot(scope: VehicleScope, *, service_read, current, now=time.
             if (
                 not current()
                 or type(value) is not dict
-                or set(value)
+                or set(value) - {"fieldObservedAt", "historicalFields"}
                 != {
                     "schema",
                     "configEntryId",
@@ -591,12 +591,37 @@ async def read_snapshot(scope: VehicleScope, *, service_read, current, now=time.
                     blocks.add("climate_state")
             if blocks != stamps.keys():
                 return unavailable
+            field_times = value.get("fieldObservedAt", {})
+            historical = value.get("historicalFields", [])
+            if (
+                ("fieldObservedAt" in value) != ("historicalFields" in value)
+                or type(field_times) is not dict
+                or len(field_times) > 20
+                or type(historical) is not list
+                or len(set(historical)) != len(historical)
+                or any(type(path) is not str or path not in field_times for path in historical)
+            ):
+                return unavailable
+            for path, stamp in field_times.items():
+                if type(path) is not str or not number(stamp, 1, clock):
+                    return unavailable
+                parts = path.split(".")
+                if len(parts) == 1:
+                    present = parts[0] in data and type(data[parts[0]]) is not dict
+                elif len(parts) == 2:
+                    present = type(data.get(parts[0])) is dict and parts[1] in data[parts[0]]
+                else:
+                    present = False
+                if not present:
+                    return unavailable
             return {
                 "status": value["status"],
                 "source": "tesla_fleet_snapshot",
                 "observedAt": value["observedAt"],
                 "entityIds": [eid for _, eid in scope.entities],
                 "data": data,
+                "fieldObservedAt": field_times,
+                "historicalFields": historical,
             }
     except (TimeoutError, ValueError, TypeError, KeyError, OverflowError, RecursionError):
         diagnostic("invalid_projection")
