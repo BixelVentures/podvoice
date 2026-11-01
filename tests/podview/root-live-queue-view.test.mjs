@@ -88,12 +88,12 @@ test('accepted queue choice with unchanged source still refreshes and obtains on
  }finally{f.close();}
 });
 
-test('queue rows remain on same track transient error, but never survive an observed track switch or resurrect when it switches back',async()=>{
+test('queue rows remain stale across same-owner song changes without reviving old occurrence authority',async()=>{
  const f=fixture();try{
   const a='spotify:track:'+'a'.repeat(22),b='spotify:track:'+'b'.repeat(22),p=f.host.liveMedia.playback;p.item={uri:a};await f.view.load('account',p);const first=f.view.model('account',p).items;assert.equal(first.length,1);
   f.host.liveTransport.queueOffer=async()=>{throw Object.assign(Error('temporary'),{code:'read_transient'});};await f.view.load('account',p);assert.equal(f.view.model('account',p).items[0].id,first[0].id);
-  f.host.liveMedia.playback={...p,item:{uri:b}};assert.equal(f.view.model('account',f.host.liveMedia.playback),null);assert.equal(f.view.retained,null);assert.equal(f.view.offer,null);
-  f.host.liveMedia.playback={...p,item:{uri:a}};assert.equal(f.view.model('account',f.host.liveMedia.playback),null);assert.equal(f.actions.length,0);
+  f.host.liveMedia.playback={...p,item:{uri:b}};const changed=f.view.model('account',f.host.liveMedia.playback);assert.equal(changed.items[0].id,first[0].id);assert.equal(changed.items[0].selectable,false);assert.equal(changed.status,'stale');assert.equal(f.view.offer,null);await f.view.choose(first[0]);
+  f.host.liveMedia.playback={...p,item:{uri:a}};assert.equal(f.view.model('account',f.host.liveMedia.playback).items[0].selectable,false);assert.equal(f.actions.length,0);
  }finally{f.close();}
 });
 
@@ -128,7 +128,7 @@ test('queue metadataKnown is closed, legacy true, and unknown rows are not an em
 test('rotating occurrence IDs reuse only same URI metadata while retaining the new action identity',async()=>{
  const f=fixture();try{const p=f.host.liveMedia.playback,read=f.host.liveTransport.queueOffer;p.item={uri:'spotify:track:'+'a'.repeat(22)};
   await f.view.load('account',p);const original=f.view.model('account',p).items[0];f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0]={...x.items[0],id:original.id,uri:original.uri,title:'Nummer i køen',artist:'',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);let state=f.view.model('account',p);assert.equal(state.items[0].title,original.title);assert.equal(state.items[0].artist,original.artist);assert.equal(state.metadataPending,false);
-  f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0]={...x.items[0],id:'f'.repeat(24),uri:original.uri,title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);state=f.view.model('account',p);assert.equal(state.items[0].id,'f'.repeat(24));assert.equal(state.items[0].title,original.title);assert.equal(f.view.offer.items[0].id,'f'.repeat(24));assert.equal(state.metadataPending,false);const sent=[];f.host.liveTransport.queueAction=async(offer,id)=>{sent.push({taskId:offer.taskId,id});return {outcome:'rejected'};};const selected=state.items[0],currentTask=f.view.offer.taskId;await f.view.choose(selected);assert.equal(sent.length,1);assert.equal(sent[0].taskId,currentTask,'action uses the fresh offer');assert.equal(sent[0].id,'f'.repeat(24),'action uses current offer occurrence, never the metadata donor id');f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0]={...x.items[0],uri:'spotify:track:'+'z'.repeat(22),title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);state=f.view.model('account',p);assert.deepEqual(state.items,[]);assert.equal(state.metadataPending,true);assert.equal(f.actions.length,0);
+  f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0]={...x.items[0],id:'f'.repeat(24),uri:original.uri,title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);state=f.view.model('account',p);assert.equal(state.items[0].id,'f'.repeat(24));assert.equal(state.items[0].title,original.title);assert.equal(f.view.offer.items[0].id,'f'.repeat(24));assert.equal(state.metadataPending,false);const sent=[];f.host.liveTransport.queueAction=async(offer,id)=>{sent.push({taskId:offer.taskId,id});return {outcome:'rejected'};};const selected=state.items[0],currentTask=f.view.offer.taskId;await f.view.choose(selected);assert.equal(sent.length,1);assert.equal(sent[0].taskId,currentTask,'action uses the fresh offer');assert.equal(sent[0].id,'f'.repeat(24),'action uses current offer occurrence, never the metadata donor id');f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0]={...x.items[0],uri:'spotify:track:'+'z'.repeat(22),title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);state=f.view.model('account',p);assert.equal(state.items[0].id,'f'.repeat(24));assert.equal(state.items[0].selectable,false);assert.equal(state.metadataPending,true);assert.equal(f.actions.length,0);
  }finally{f.close();}
 });
 
@@ -138,10 +138,33 @@ test('duplicate queue occurrences use real metadata but retain each new id and o
  }finally{f.close();}
 });
 
-test('queue metadata is never borrowed across a current song or owner scope change',async()=>{
- for(const change of ['song','owner']){const f=fixture();try{let p=f.host.liveMedia.playback;const read=f.host.liveTransport.queueOffer;p.item={uri:'spotify:track:'+'a'.repeat(22)};await f.view.load('account',p);const old=f.view.model('account',p).items[0];p=f.host.liveMedia.playback=change==='song'?{...p,item:{uri:'spotify:track:'+'b'.repeat(22)}}:{...p,owner_epoch:'new-epoch'};f.host.liveTransport.queueOffer=async()=>{const x=await read();x.ownerEpoch=p.owner_epoch;x.items[0]={...x.items[0],uri:old.uri,title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);const state=f.view.model('account',p);assert.deepEqual(state.items,[]);assert.equal(state.metadataPending,true);assert.equal(f.actions.length,0);}finally{f.close();}}
+test('queue metadata matches exact URI across current song changes, but never another owner or voice session',async()=>{
+ for(const change of ['song','owner','session']){const f=fixture();try{let p=f.host.liveMedia.playback;const read=f.host.liveTransport.queueOffer;p.item={uri:'spotify:track:'+'a'.repeat(22)};await f.view.load('account',p);const old=f.view.model('account',p).items[0];p=f.host.liveMedia.playback=change==='song'?{...p,item:{uri:'spotify:track:'+'b'.repeat(22)}}:change==='owner'?{...p,owner_epoch:'new-epoch'}:p;if(change==='session')f.host.liveSnapshot.voice.sessionId='next-session';f.host.liveTransport.queueOffer=async()=>{const x=await read();x.ownerEpoch=p.owner_epoch;x.items[0]={...x.items[0],uri:old.uri,title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);const state=f.view.model('account',p);if(change==='song'){assert.equal(state.items[0].title,old.title);assert.notEqual(state.items[0].id,old.id);assert.equal(state.items[0].selectable,true);assert.equal(state.metadataPending,false);}else{assert.deepEqual(state.items,[]);assert.equal(state.metadataPending,true);}assert.equal(f.actions.length,0);}finally{f.close();}}
 });
 
 test('conflicting metadata for same URI is never guessed for an unknown occurrence',async()=>{
- const f=fixture();try{const p=f.host.liveMedia.playback,read=f.host.liveTransport.queueOffer;p.item={uri:'spotify:track:'+'a'.repeat(22)};f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items.push({...x.items[0],id:'b'.repeat(24),order:2,title:'Different actual title'});return x;};await f.view.load('account',p);f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0].metadataKnown=false;x.items[0].title='Nummer i køen';return x;};await f.view.load('account',p);const state=f.view.model('account',p);assert.equal(state.metadataPending,true);assert.deepEqual(state.items,[]);assert.equal(f.actions.length,0);}finally{f.close();}
+ const f=fixture();try{const p=f.host.liveMedia.playback,read=f.host.liveTransport.queueOffer;p.item={uri:'spotify:track:'+'a'.repeat(22)};f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items.push({...x.items[0],id:'b'.repeat(24),order:2,title:'Different actual title'});return x;};await f.view.load('account',p);f.host.liveTransport.queueOffer=async()=>{const x=await read();x.items[0].metadataKnown=false;x.items[0].title='Nummer i køen';return x;};await f.view.load('account',p);const state=f.view.model('account',p);assert.equal(state.metadataPending,true);assert.equal(state.items.length,2);assert(state.items.every(row=>!row.selectable));assert.equal(f.actions.length,0);}finally{f.close();}
+});
+
+for(const change of ['owner','binding','account','room','boot','logout'])test(`inert queue display never survives ${change} replacement`,async()=>{
+ const f=fixture();try{const p=f.host.liveMedia.playback;await f.view.load('account',p);f.host.liveMedia.playback={...p,item:{uri:'spotify:track:'+'b'.repeat(22)}};assert(f.view.model('account',f.host.liveMedia.playback));
+  if(change==='owner')f.host.liveMedia.playback.owner_epoch='new-owner';
+  if(change==='binding')f.host.liveMedia.playback.roomBinding={...p.roomBinding,bindingId:'b'.repeat(64)};
+  if(change==='account')f.host.liveMedia.account='new-account';
+  if(change==='room')f.host.liveSnapshot.roomId='new-room';
+  if(change==='boot')f.host.liveSnapshot.bootId='new-boot';
+  if(change==='logout')f.view.invalidate(true);
+  assert.equal(f.view.model(f.host.liveMedia.account,f.host.liveMedia.playback),null);assert.equal(f.view.retained,null);assert.equal(f.actions.length,0);
+ }finally{f.close();}
+});
+
+for(const change of ['owner','binding','voice','transport'])test(`late accepted queue reply cannot continue across ${change} replacement`,async()=>{
+ const f=fixture();let reply;try{let effects=0,refreshes=0;f.host.liveTransport.queueAction=()=>{effects++;return new Promise(resolve=>reply=resolve);};f.host.liveMedia.refresh=async()=>{refreshes++;};await f.view.load('account',f.host.liveMedia.playback);const old=f.view.model('account',f.host.liveMedia.playback).items[0],choosing=f.view.choose(old);await new Promise(resolve=>setImmediate(resolve));
+  f.host.liveMedia.playback={...f.host.liveMedia.playback,item:{uri:'spotify:track:'+'b'.repeat(22)}};
+  if(change==='owner')f.host.liveMedia.playback.owner_epoch='new-owner';
+  if(change==='binding')f.host.liveMedia.playback.roomBinding={...f.host.liveMedia.playback.roomBinding,bindingId:'b'.repeat(64)};
+  if(change==='voice')f.host.liveSnapshot.voice={sessionId:'new-session'};
+  if(change==='transport')f.host.liveTransport={...f.host.liveTransport};
+  f.view.model('account',f.host.liveMedia.playback);reply({outcome:'accepted'});await choosing;assert.equal(effects,1);assert.equal(refreshes,0);assert.equal(f.reads.length,1);assert.equal(f.view.offer,null);
+ }finally{reply?.({outcome:'unknown'});f.close();}
 });

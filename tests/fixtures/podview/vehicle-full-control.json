@@ -527,7 +527,9 @@
         "domain": "vehicle",
         "target": {
           "action": "rearTrunkToggle",
-          "args": {}
+          "args": {
+            "direction": "open"
+          }
         }
       },
       "httpStatus": 200,
@@ -544,7 +546,7 @@
           {
             "id": "70db95caa8fe0cfdc0f94a76",
             "action": "rearTrunkToggle",
-            "label": "Betjen bagagerum (\u00e5bn/luk)",
+            "label": "\u00c5bn bagagerum",
             "argsSchema": {
               "kind": "none"
             }
@@ -553,8 +555,10 @@
         "setup": {
           "confirmation": {
             "action": "rearTrunkToggle",
-            "label": "Betjen bagagerum (\u00e5bn/luk)",
-            "args": {},
+            "label": "\u00c5bn bagagerum",
+            "args": {
+              "direction": "open"
+            },
             "effects": [
               [
                 "trunk",

@@ -229,7 +229,7 @@ test('new library domain snapshots carry genuine owner input and no live action 
   const stale=previewScene(`${kind}-detail-stale`).devices.find(d=>d.kind===(kind==='robot'?'vacuum':'light'));assert.equal(stale.stale,true);
  }
  const longRobot=previewScene('robot-detail-long').devices.find(d=>d.kind==='vacuum');assert(deviceOverviewFacts(longRobot,previewNow/1000).facts.some(row=>row.id==='room'&&row.value.length>60));
- const care=previewScene('robot-detail-care').devices.find(d=>d.kind==='vacuum');assert(care.telemetry.items.some(row=>row.key==='filter_time_left'));assert(care.telemetry.items.some(row=>row.key==='dock_error'));
+ const care=previewScene('robot-detail-care').devices.find(d=>d.kind==='vacuum');for(const key of ['main_brush_time_left','side_brush_time_left','filter_time_left','sensor_time_left'])assert(care.telemetry.items.some(row=>row.key===key&&row.value===0));
  const longLight=previewScene('light-detail-long').devices.find(d=>d.kind==='light');assert(lightSelection(longLight).title.length>45);assert.equal(lightSelection(longLight).targetIds.length,1);
  assert.equal(lightSelection(previewScene('light-detail-room-living').devices.find(d=>d.kind==='light')).roomId,'living');assert.equal(lightSelection(previewScene('light-detail-room-kitchen').devices.find(d=>d.kind==='light')).roomId,'kitchen');
  for(const layer of ['detail','overview','rest'])assert.equal(previewScene(`timer-${layer}-paused`).timer.status,'paused');

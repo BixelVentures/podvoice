@@ -744,7 +744,9 @@ class TouchControls:
                 "defrostOff": "Sluk afrimning",
                 "driverSeatHeat": "Indstil førersæde",
                 "passengerSeatHeat": "Indstil passagersæde",
-                "rearTrunkToggle": "Betjen bagagerum (åbn/luk)",
+                "rearTrunkToggle": "Åbn bagagerum"
+                if args.get("direction") == "open"
+                else "Luk bagagerum",
             }
             oid = secrets.token_hex(12)
             task["options"][oid] = {

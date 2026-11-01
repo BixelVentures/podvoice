@@ -1,3 +1,7 @@
+## 1/11 — samlet PodVoice 2.0.114 kandidat
+
+Musikkø og player, robotvedligehold samt Tesla access og klima er samlet mod udgivet 2.0.113. Godkendt lokal visning er kontrolleret for robot og Tesla; Extreme 30 afventer dokumenteret API-understøttelse. Integreret Tesla-backend 91 PASS; UI-suite 4850 PASS, fire loopback-tests PASS separat og 546 berørte fixture/registry-tests PASS efter korrektion. Source-review er udført; exact artifact-review, CI, udgivelse, installation og fysisk accept afventer hver deres resultat.
+
 ## 1/11 — kausal musiklåsning og samlet kandidat112
 
 Observeret brugerflow: Kitchen → Svend → betjening låst; Spotify → iPhone →
@@ -7461,5 +7465,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "2a09aca0d8e555a42b74bf9f095727869abe3a35b98a5f8fd769729c3bf9118f",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 90
+}
+-->
+
+<!-- podvoice114-admission
+{
+  "base_tip": "c2af999cf8dd2263a16c50d57342f7d2db2bf8d6",
+  "config_fingerprint": "654d8b2dd5078e0cf1c53910cca7b3d845182d7679f4e5e0809fb9847708b1bc",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "e45bdbafd2014d6dae3a029b3f98ed6ceb936446a377701141184646c0d9f4fc",
+  "kind": "podvoice114_controls_recovery",
+  "manifest_fingerprint": "3ad360adeac0276bef25734db082a9a30cf9d754875121f373fdc5d6090f2b0a",
+  "merge_base": "c2af999cf8dd2263a16c50d57342f7d2db2bf8d6",
+  "policy_fingerprint": "dd5b2c48a2def8f8fd0732d5e47802bda84d46a31054b824e6df3cbf8c264563",
+  "rationale": "PodVoice 2.0.114 combines music queue and player corrections with reviewed robot and Tesla controls. Integrated UI and Tesla regression checks passed; exact artifact review is pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "698d3d9e4f4e7a83a95fe1415f6813f85c0e01e844270fa129fd6eb8bac2e513",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "e16df44b3ac2147cf391bedb4eaf6553407e11a172b91cf895a035b2ee0e30b6",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 91
 }
 -->
