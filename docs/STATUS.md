@@ -7428,15 +7428,15 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "6ca71c8ae918aeaeab62507dfbccda1d98f4157e1be43a2af64efec25c76d746",
+  "fingerprint": "f37162cd1f3d75f1f655dac7f25df39eeeab8804d941d3451eb0d3074631141f",
   "kind": "podvoice112_shared_controls_recovery",
-  "manifest_fingerprint": "c0f011024bc50c6a5bf364bd8837aa13a87eca5237e3d29e33a916c067a63fe8",
+  "manifest_fingerprint": "e10528d2e4a2b2d436c167cc91b58ab183bdb492379441bf378d6884e377679b",
   "merge_base": "6c5c7b130e72681392762a6ab83973bb9e071d29",
-  "policy_fingerprint": "99cd774aaf82ad28c7147011e6184b9ab045ecc8c013cd1e897c8cdf10405737",
-  "rationale": "PodVoice 2.0.112 combines reviewed music controls and queue recovery with approved robot and vehicle views. Focused backend, UI and local visual checks passed; exact artifact review is pending. CI, publication, installation, live services and physical acceptance remain separate.",
-  "regression_fingerprint": "c101b8c5546f3bbbaee4c86303bb4f9823f66de2bf96c4933ea5c6eb642e8b84",
+  "policy_fingerprint": "e014d798e3558b23fe3566b75e61ebf00976b554d31e6339caf45fd46e023717",
+  "rationale": "PodVoice 2.0.112 combines reviewed music controls and queue recovery with approved robot and vehicle views. Focused backend, UI and local visual checks passed. CI found and the source review confirmed a missing-tools snapshot guard; exact artifact re-review is pending. CI, publication, installation, live services and physical acceptance remain separate.",
+  "regression_fingerprint": "5e869534d7b26cfa66ba107ce504869ea6cff3afa1fe44dea52143ab082534d3",
   "reviewer": "/root/ha_admission_review",
-  "runtime_fingerprint": "e3c58361cf87cb2a05de3abc04e17ab063e8a4efd7f9235f5a67f22a5d07f666",
+  "runtime_fingerprint": "723ad862728366bd8b80b993ee7dacbbb65f2be3de54fa7ca7724a6caf6705a9",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 89
 }

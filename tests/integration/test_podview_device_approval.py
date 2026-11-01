@@ -107,7 +107,10 @@ async def test_two_browser_profiles_claim_renew_and_individually_revoke(tmp_path
         assert renewed.status == 200
         assert bridge._grant_current("kitchen", display_grant)
         assert not bridge._grant_current("kitchen", mac_grant)
-        assert (await display.get("/view/api/snapshot")).status == 200
+        assert bridge.tools is None
+        snapshot = await display.get("/view/api/snapshot")
+        assert snapshot.status == 200
+        assert (await snapshot.json())["capabilities"]["musicMoveRecovery"] == []
         action = await display.post("/view/api/actions", json=envelope(bridge), headers=HEADERS)
         assert (await action.json())["ok"] is True
         assert timers.command.await_count == 1

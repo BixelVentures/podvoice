@@ -317,7 +317,8 @@ class TouchControls:
     def move_recovery_accounts(self, room: str, token: str) -> list[str]:
         """Expose only eligibility to request a new explicit MOVE setup, never an offer."""
         if (
-            self.policy.get("roomId") != room
+            self.bridge.tools is None
+            or self.policy.get("roomId") != room
             or not self.bridge._grant_current(room, token)
             or self.music.tools is not self.bridge.tools
             or not self.move.available
