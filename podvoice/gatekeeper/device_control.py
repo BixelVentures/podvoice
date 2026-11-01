@@ -189,6 +189,9 @@ class Capability:
     settings_roles: tuple[str, ...] = ()
     settings_snapshot: str = ""
     extended_only: bool = False
+    extreme_water: bool = False
+    extreme_verified: bool = False
+    extreme_config: str = ""
 
 
 @dataclass(frozen=True)
@@ -1101,6 +1104,77 @@ class DeviceControl:
             )
         return {"ok": True, "data": data, "capability_token": self._issue(cap)}
 
+    async def _extreme_water_snapshot(self, vacuum: str, generation: int) -> dict:
+        self._check(generation)
+        entries = self._relevant_entries(vacuum, await self._registry())
+        entry = entries[vacuum]
+        identity = self._device_identity(entries)
+        self._check(generation)
+        devices = await self._ws_read({"type": "config/device_registry/list"})
+        self._check(generation)
+        matches = (
+            [d for d in devices if isinstance(d, dict) and d.get("id") == entry.get("device_id")]
+            if isinstance(devices, list)
+            else []
+        )
+        if (
+            len(matches) != 1
+            or matches[0].get("model") != "roborock.vacuum.a75"
+            or matches[0].get("manufacturer") != "Roborock"
+        ):
+            raise CapabilityError("Robottens vandkapabilitet er ukendt")
+        request = {
+            "entity_id": vacuum,
+            "config_entry_id": entry.get("config_entry_id"),
+            "device_id": entry.get("device_id"),
+            "unique_id": entry.get("unique_id"),
+            "model": "roborock.vacuum.a75",
+        }
+        if any(not isinstance(v, str) or not v for v in request.values()):
+            raise CapabilityError("Robottens identitet mangler")
+        response = await self._json(
+            "POST", "services/podvoice/robot_water_snapshot?return_response", request
+        )
+        self._check(generation)
+        water = response.get("service_response") if isinstance(response, dict) else None
+        keys = {
+            "schema",
+            "status",
+            "source",
+            "vacuumEntityId",
+            "model",
+            "customDistanceSupported",
+            "waterBoxMode",
+            "distanceOff",
+            "messageSequence",
+            "statusObservedAt",
+        }
+        if (
+            not isinstance(water, dict)
+            or set(water) != keys
+            or water["schema"] != "podview.robot_water.v1"
+            or water["status"] != "observed"
+            or water["source"] != "home_assistant_roborock_cache"
+            or water["vacuumEntityId"] != vacuum
+            or water["model"] != "roborock.vacuum.a75"
+            or water["customDistanceSupported"] is not True
+            or any(
+                type(water[k]) is not int or not 0 <= water[k] <= 2**32 - 1
+                for k in ("waterBoxMode", "distanceOff", "messageSequence")
+            )
+            or type(water["statusObservedAt"]) not in (int, float)
+            or not 0 <= time.time() - water["statusObservedAt"] <= 60
+        ):
+            raise CapabilityError("Robottens vandstatus er ukendt")
+        refreshed = self._relevant_entries(vacuum, await self._registry())
+        self._check(generation)
+        if (
+            self._device_identity(refreshed) != identity
+            or refreshed[vacuum].get("config_entry_id") != request["config_entry_id"]
+        ):
+            raise CapabilityError("Robottens identitet ændredes under vandopslag")
+        return {**water, "_ownerIdentity": identity, "_configEntry": request["config_entry_id"]}
+
     async def display_setup(
         self,
         vacuum: str,
@@ -1127,6 +1201,26 @@ class DeviceControl:
             if extended_cap is None:
                 raise
             cap, data = extended_cap, {"entity_id": vacuum, "controls": [], "fan_speed_options": []}
+        if not cap.extended_only and any(
+            row.get("role") == "mop_intensity" and "custom_water_flow" in row.get("options", [])
+            for row in data["controls"]
+        ):
+            try:
+                water = await asyncio.wait_for(
+                    self._extreme_water_snapshot(vacuum, cap.generation), timeout=3
+                )
+                if water["_ownerIdentity"] != cap.identity:
+                    raise CapabilityError("Robottens identitet ændredes")
+                cap = replace(cap, extreme_water=True, extreme_config=water["_configEntry"])
+                data["extreme_water"] = water
+            except (
+                TimeoutError,
+                CapabilityError,
+                ValueError,
+                httpx.HTTPError,
+                aiohttp.ClientError,
+            ):
+                pass  # Missing proof must not remove independent controls.
         if map_selection and recipe_id is None and not cap.extended_only:
             cap = replace(cap, allow_map_change=True)
             data["map_options"] = [name for name in cap.map_options if name != cap.map_name]
@@ -1145,6 +1239,8 @@ class DeviceControl:
             if record is None or record["outcome"] != "accepted_by_ha":
                 raise CapabilityError("Kun en bekræftet tidligere opsætning kan genbruges")
             recipe = record["recipe"]
+            if recipe.get("extreme_water") is True and not cap.extreme_water:
+                raise CapabilityError("Extreme vand er ikke længere tilgængeligt")
             expected = {
                 "vacuum_entity_id": cap.vacuum,
                 "device_identity": cap.identity,
@@ -1170,6 +1266,7 @@ class DeviceControl:
                     key,
                 ),
             )
+            extreme_added = False
             for entity in ordered:
                 value = values[entity]
                 if entity == vacuum and value in data["fan_speed_options"]:
@@ -1179,6 +1276,17 @@ class DeviceControl:
                 else:
                     raise CapabilityError("En tidligere indstilling understøttes ikke længere")
                 steps.append({"entity_id": entity, "action": action, "arguments": arguments})
+                if (
+                    recipe.get("extreme_water") is True
+                    and controls.get(entity, {}).get("role") == "mop_intensity"
+                    and value == "custom_water_flow"
+                ):
+                    steps.append(
+                        {"entity_id": vacuum, "action": "podvoice.extreme_water", "arguments": {}}
+                    )
+                    extreme_added = True
+            if recipe.get("extreme_water") is True and not extreme_added:
+                raise CapabilityError("Extreme vandhistorik kan ikke bekræftes")
             steps.append(
                 {
                     "entity_id": vacuum,
@@ -1247,12 +1355,31 @@ class DeviceControl:
             raise CapabilityError(
                 "Tidligere indstillinger er ikke længere bekræftet; ingen start sendt"
             )
-        current = replace(current, expected=cap.expected, allow_map_change=cap.allow_map_change)
+        current = replace(
+            current,
+            expected=cap.expected,
+            allow_map_change=cap.allow_map_change,
+            extreme_water=cap.extreme_water,
+            extreme_verified=cap.extreme_verified,
+            extreme_config=cap.extreme_config,
+        )
         entity, action, arguments = args["entity_id"], args["action"], args["arguments"]
         if not isinstance(arguments, dict) or not isinstance(entity, str):
             raise CapabilityError("Ugyldige handlingsargumenter")
         service_data: dict[str, Any] = {"entity_id": entity}
-        if action == "vacuum.set_fan_speed" and entity == cap.vacuum:
+        if action == "podvoice.extreme_water" and entity == cap.vacuum:
+            if not cap.owner[0].startswith("podview:") or not cap.extreme_water or arguments:
+                raise CapabilityError("Extreme vand er ikke godkendt")
+            water = await self._extreme_water_snapshot(cap.vacuum, cap.generation)
+            if (
+                water["waterBoxMode"] != 207
+                or water["_ownerIdentity"] != cap.identity
+                or water["_configEntry"] != cap.extreme_config
+            ):
+                raise CapabilityError("Tilpasset vandtilstand er ikke bekræftet")
+            service_data["before"] = water["statusObservedAt"]
+            service_data["before_sequence"] = water["messageSequence"]
+        elif action == "vacuum.set_fan_speed" and entity == cap.vacuum:
             if (
                 set(arguments) != {"fan_speed"}
                 or arguments["fan_speed"] not in data["fan_speed_options"]
@@ -1339,6 +1466,14 @@ class DeviceControl:
                 ),
             )
         prepared = PreparedAction(current, entity, action, service_data)
+        if action == "vacuum.send_command" and cap.extreme_verified:
+            water = await self._extreme_water_snapshot(cap.vacuum, cap.generation)
+            if (
+                (water["waterBoxMode"], water["distanceOff"]) != (207, 60)
+                or water["_ownerIdentity"] != cap.identity
+                or water["_configEntry"] != cap.extreme_config
+            ):
+                raise CapabilityError("Extreme vand er ikke længere bekræftet")
         await self._validate_current(prepared)
         return prepared
 
@@ -1460,6 +1595,34 @@ class DeviceControl:
     async def execute(self, prepared: PreparedAction) -> dict:
         self._check(prepared.capability.generation)
         cap = prepared.capability
+        if prepared.action == "podvoice.extreme_water":
+            sent_at = time.time()
+            await self._json(
+                "POST",
+                "services/vacuum/send_command",
+                {
+                    "entity_id": cap.vacuum,
+                    "command": "set_water_box_distance_off",
+                    "params": {"distance_off": 60},
+                },
+            )
+            try:
+                water = await self._extreme_water_snapshot(cap.vacuum, cap.generation)
+                if (
+                    (water["waterBoxMode"], water["distanceOff"]) != (207, 60)
+                    or water["statusObservedAt"] <= max(sent_at, prepared.data["before"])
+                    or water["messageSequence"] == prepared.data["before_sequence"]
+                    or water["_ownerIdentity"] != cap.identity
+                    or water["_configEntry"] != cap.extreme_config
+                ):
+                    raise ValueError("water not observed")
+            except Exception as exc:
+                raise RuntimeError("Extreme vand blev sendt, men er ikke bekræftet") from exc
+            return {
+                "ok": True,
+                "data": {"accepted_by_ha": True, "physical_result_verified": False},
+                "capability_token": self._issue(replace(cap, extreme_verified=True)),
+            }
         domain, service = prepared.action.split(".")
         start_key = (cap.vacuum, cap.owner)
         journal_id = None
@@ -1498,6 +1661,8 @@ class DeviceControl:
                     ],
                 },
             }
+            if cap.extreme_verified:
+                recipe["extreme_water"] = True
             try:
                 journal_id = self._cleaning_journal.begin(recipe)
             except JournalError as exc:

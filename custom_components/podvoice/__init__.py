@@ -21,7 +21,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .controller_admin import ControllerAdmin
 from .display_devices import DisplayDevices
-from .robot_snapshot import make_robot_snapshot_handler
+from .robot_snapshot import make_robot_snapshot_handler, make_robot_water_snapshot_handler
 from .robot_snapshot import service_schema as robot_snapshot_schema
 from .timer_bridge import TimerBridge
 from .vehicle_snapshot import VehicleSnapshot
@@ -151,6 +151,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, "timer_status")
     hass.services.async_remove(DOMAIN, "timer_command")
     hass.services.async_remove(DOMAIN, "robot_snapshot")
+    hass.services.async_remove(DOMAIN, "robot_water_snapshot")
     hass.services.async_remove(DOMAIN, "vehicle_snapshot")
     for service in (
         "controller_list",
@@ -319,6 +320,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=ADMIN_RECEIPT_SCHEMA,
     )
     robot_reader = make_robot_snapshot_handler(hass, er.async_get, dr.async_get)
+    water_reader = make_robot_water_snapshot_handler(hass, er.async_get, dr.async_get)
     vehicle_reader = VehicleSnapshot(hass, entry)
 
     async def robot_snapshot(call: ServiceCall) -> dict:
@@ -326,6 +328,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return await robot_reader(call)
         except ValueError:
             raise HomeAssistantError("Robot snapshot unavailable") from None
+
+    async def robot_water_snapshot(call: ServiceCall) -> dict:
+        try:
+            return await water_reader(call)
+        except ValueError:
+            raise HomeAssistantError("Robot water snapshot unavailable") from None
 
     async def vehicle_snapshot(call: ServiceCall) -> dict:
         try:
@@ -337,6 +345,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         DOMAIN,
         "robot_snapshot",
         robot_snapshot,
+        schema=robot_snapshot_schema(),
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "robot_water_snapshot",
+        robot_water_snapshot,
         schema=robot_snapshot_schema(),
         supports_response=SupportsResponse.ONLY,
     )

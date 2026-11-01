@@ -5,6 +5,7 @@ import copy
 import importlib.util
 import json
 import time
+from datetime import UTC
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock
@@ -280,7 +281,6 @@ def test_all_supported_roles_use_actual_fields_without_truthiness_or_private_pay
             "minTemperatureC": 15,
             "maxTemperatureC": 28,
             "temperatureStepC": 0.5,
-            "defrost": False,
             "driverSeatHeat": "off",
             "passengerSeatHeat": "high",
         },
@@ -327,3 +327,40 @@ async def test_addon_rejects_foreign_or_unclosed_service_envelope(rig, field):
     assert await addon.read_snapshot(
         scope, service_read=AsyncMock(return_value=value), current=lambda: True
     ) == {"status": "unavailable", "data": None}
+
+
+@pytest.mark.parametrize(
+    "state,age,expected",
+    [("off", 2, False), ("on", 2, True), ("unknown", 2, None), ("off", 1000, None)],
+)
+async def test_exact_ha_defrost_state_reaches_addon_without_fabrication(rig, state, age, expected):
+    from datetime import datetime
+
+    eid = "switch.car_defrost"
+    rig.entities["defrost"] = eid
+    rig.rows[eid] = NS(
+        id="defrost",
+        platform="tesla_fleet",
+        config_entry_id="fleet",
+        device_id="car",
+        disabled_by=None,
+        translation_key="climate_state_defrost_mode",
+    )
+    rig.hass.states = NS(
+        get=lambda name: NS(
+            entity_id=name,
+            state=state,
+            last_reported=datetime.fromtimestamp(rig.now - age, UTC),
+        )
+    )
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+
+    async def read(request):
+        return await rig.owner.async_read(rig.call)
+
+    result = await addon.read_snapshot(scope, service_read=read, current=lambda: True)
+    assert result["data"].get("climate", {}).get("defrost") is expected
+    assert rig.read.await_count == 1
+    assert result["observedAt"] <= rig.now - 30

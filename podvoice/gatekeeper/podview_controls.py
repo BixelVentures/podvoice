@@ -1657,6 +1657,7 @@ class TouchControls:
                         "fan_speed", step["arguments"].get("option")
                     )
                     for step in task["offered"]["steps"][:-1]
+                    if step["action"] != "podvoice.extreme_water"
                 }
             setting_rows = [
                 {
@@ -1671,6 +1672,23 @@ class TouchControls:
                 and row["role"] in SETTING_LABELS
                 and row["role"] != "suction"
             ]
+            water = data.get("extreme_water")
+            if isinstance(water, dict):
+                for row in setting_rows:
+                    if (
+                        row["role"] == "mop_intensity"
+                        and "custom_water_flow" in row["values"]
+                        and "extreme" not in row["values"]
+                    ):
+                        row["values"] = [*row["values"], "extreme"]
+                        row["synthetic_extreme"] = True
+                        if water.get("waterBoxMode") == 207 and water.get("distanceOff") == 60:
+                            row["observed"] = "extreme"
+                        if reuse and any(
+                            step["action"] == "podvoice.extreme_water"
+                            for step in task["offered"]["steps"]
+                        ):
+                            desired[row["entity"]] = "extreme"
             if "settings" in rule["actions"] and data["fan_speed_options"]:
                 setting_rows.append(
                     {
@@ -1872,6 +1890,7 @@ class TouchControls:
                 "value": step["arguments"].get("fan_speed", step["arguments"].get("option", "")),
             }
             for step in task["offered"]["steps"][:-1]
+            if step["action"] != "podvoice.extreme_water"
         ]
 
     async def action(self, body: dict, token: str) -> dict:
@@ -2314,6 +2333,14 @@ class TouchControls:
             ):
                 raise ValueError("incomplete setup selections")
             choices = {row["settingId"]: row["choiceId"] for row in selected}
+            cleaning_mode = next(
+                (
+                    row["choices"][choices[sid]]
+                    for sid, row in offered.items()
+                    if row["role"] == "cleaning_mode"
+                ),
+                None,
+            )
             ordered = sorted(
                 offered,
                 key=lambda key: (
@@ -2330,6 +2357,24 @@ class TouchControls:
             for sid in ordered:
                 row = offered[sid]
                 value = row["choices"][choices[sid]]
+                if row.get("synthetic_extreme") is True and value == "extreme":
+                    if cleaning_mode == "vacuum":
+                        continue
+                    prefix.extend(
+                        [
+                            {
+                                "entity_id": row["entity"],
+                                "action": row["service"],
+                                "arguments": {"option": "custom_water_flow"},
+                            },
+                            {
+                                "entity_id": task["target"]["entityId"],
+                                "action": "podvoice.extreme_water",
+                                "arguments": {},
+                            },
+                        ]
+                    )
+                    continue
                 field = "fan_speed" if row["role"] == "suction" else "option"
                 prefix.append(
                     {

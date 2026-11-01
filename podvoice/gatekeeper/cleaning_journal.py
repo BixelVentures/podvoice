@@ -54,7 +54,7 @@ def _record(value: Any) -> bool:
     else:
         return False
     recipe = value["recipe"]
-    if not isinstance(recipe, dict) or set(recipe) - {"settings_inventory"} != {
+    if not isinstance(recipe, dict) or set(recipe) - {"settings_inventory", "extreme_water"} != {
         "vacuum_entity_id",
         "device_identity",
         "map_entity_id",
@@ -109,6 +109,11 @@ def _record(value: Any) -> bool:
         ):
             return False
     if len({item["entity_id"] for item in settings}) != len(settings):
+        return False
+    if "extreme_water" in recipe and (
+        recipe["extreme_water"] is not True
+        or sum(item["value"] == "custom_water_flow" for item in settings) != 1
+    ):
         return False
     if "settings_inventory" not in recipe:
         return True  # Historical receipts remain readable, never assumed complete.

@@ -1,3 +1,7 @@
+## 1/11 — PodVoice 2.0.116 / HA-komponent 0.1.10
+
+Samlet kandidat retter Tesla-afdugningsvisning og understøtter den dokumenterede robotvandindstilling Extreme gennem eksisterende handlingsejer og ny HA-læseservice. Kildeændringer er uafhængigt reviewet; fokuserede robot- og paneltests samt fælles UI-suite er bestået. Faktisk HA-læsning af værdier er kontrolleret; fysisk rengøring er ikke udført. Exact artifact-review, officiel CI, publicering, installation og fysisk accept er separate.
+
 ## 1/11 — PodVoice 2.0.115 ventetekst
 
 Den samlede 2.0.114 er publiceret, men installation springes over: en senere faktisk kilde eller ny eksplicit handling kunne efterlade forældet accepteret musiktekst. 2.0.115 retter kun denne tekstlivscyklus uden gentagelse af handlinger eller ændring af receipt-ejerskab. Fokuseret kildereview og fælles UI-suite bestået; artifact-review, CI, publicering, installation og fysisk accept er separate.
@@ -7513,5 +7517,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "b76dac32b3b1f180a7bd7bb1b3c00295fb73cc76cf6f7a87eba8c31d96f7d147",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 92
+}
+-->
+
+<!-- podvoice116-admission
+{
+  "base_tip": "fc0fcd003e495933048ee3f1439b203855804bad",
+  "config_fingerprint": "9fd21c07504662211df371ec3d491359c5a5096e7b8ce256915a684bfb8a7eba",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "d3af27ceb1c0f36c6e6c302c967ddbf45adfc77d7cc2ec5f733fc7be806daec1",
+  "kind": "podvoice116_robot_tesla_recovery",
+  "manifest_fingerprint": "83e2e287addffc7a9cd696ac060b4d9d401e793f6c40acc641142b3a3e5ea2f3",
+  "merge_base": "fc0fcd003e495933048ee3f1439b203855804bad",
+  "policy_fingerprint": "3ce42c0da7aa8a077009813e04eac8cab2ba8c2e149f8b35231bffbbd7175a80",
+  "rationale": "PodVoice 2.0.116 corrects vehicle defrost presentation and adds the confirmed robot Extreme water setting with a Home Assistant read service. Source review and focused UI tests passed; exact artifact review is pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "4528a902db60dfccaf851da3158524d4750b5defca7f03b3ad4d8b765e2aebeb",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "b42b1dc52d9b44b3e404e9d98eaff52565b00a87f239e0b044120fb3e9f5431b",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 93
 }
 -->

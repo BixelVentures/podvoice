@@ -124,9 +124,6 @@ def project(frame: dict, entities: dict, *, now: float) -> tuple[dict, dict]:
                     )
             if "temperatureC" in entities and _number(block.get("inside_temp"), -50, 70):
                 climate["temperatureC"] = block["inside_temp"]
-            mode = block.get("defrost_mode")
-            if "defrost" in entities and type(mode) is int and mode in (0, 1, 2):
-                climate["defrost"] = mode == 2
             for role, key in (
                 ("driverSeat", "seat_heater_left"),
                 ("passengerSeat", "seat_heater_right"),
@@ -338,6 +335,26 @@ class VehicleSnapshot:
                             data[name] = copy.deepcopy(coordinator_data[name])
                     stamps[block] = stamp
                     result["sourceIdentity"] = "coordinator_and_cached"
+        # The configured Tesla Fleet switch is the HA authority for this value.
+        # Do not infer it from a missing raw field or from a cache retrieval time.
+        eid = entities.get("defrost")
+        if eid:
+            state_machine = getattr(self.hass, "states", None)
+            state = state_machine.get(eid) if state_machine is not None else None
+            try:
+                stamp = state.last_reported.timestamp()
+                known = (
+                    state.entity_id == eid
+                    and state.state in {"on", "off"}
+                    and _number(stamp, 1, time.time())
+                    and time.time() - stamp <= TTL
+                )
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                known = False
+            if known:
+                data.setdefault("climate", {})["defrost"] = state.state == "on"
+                stamps["climate_state"] = min(stamps.get("climate_state", stamp), stamp)
+                result["sourceIdentity"] += "_and_ha_state"
         if not current():
             return {
                 **result,

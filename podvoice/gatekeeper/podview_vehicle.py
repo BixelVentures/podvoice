@@ -467,7 +467,14 @@ async def read_snapshot(scope: VehicleScope, *, service_read, current, now=time.
                 or value["entities"] != dict(scope.entities)
                 or value["source"] != "tesla_fleet"
                 or value["sourceIdentity"]
-                not in {"coordinator", "cached", "coordinator_and_cached"}
+                not in {
+                    "coordinator",
+                    "cached",
+                    "coordinator_and_cached",
+                    "coordinator_and_ha_state",
+                    "cached_and_ha_state",
+                    "coordinator_and_cached_and_ha_state",
+                }
             ):
                 return unavailable
             if value["status"] == "unavailable":
