@@ -1,3 +1,9 @@
+## 2.0.116
+
+- Correct vehicle defrost presentation using observed service state.
+- Support the confirmed Extreme robot water setting and retain cleaning history.
+- Includes Home Assistant companion 0.1.10.
+
 ## 2.0.115
 
 - Clear outdated accepted music text when a new action or a different current track supersedes it.

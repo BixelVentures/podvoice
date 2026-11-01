@@ -48,7 +48,7 @@ def _epoch(value):
     return value.timestamp()
 
 
-def _read(hass, entities, devices, request, now):
+def _resolve(hass, entities, devices, request):
     if (
         not isinstance(request, dict)
         or set(request) != REQUEST_KEYS
@@ -93,6 +93,11 @@ def _read(hass, entities, devices, request, now):
     coordinator = matches[0]
     if coordinator.last_update_success is not True:
         raise ValueError("owner_unavailable")
+    return target, device, entry, coordinator
+
+
+def _read(hass, entities, devices, request, now):
+    target, _device, _entry, coordinator = _resolve(hass, entities, devices, request)
     api = coordinator.properties_api
     status = api.status
     active = _integer(status.in_cleaning)
@@ -202,5 +207,77 @@ def make_robot_snapshot_handler(hass, entity_registry_getter, device_registry_ge
             )
         except (AttributeError, KeyError, TypeError, ValueError):
             return {"schema": "podview.robot_job.v1", "status": "unavailable"}
+
+    return handler
+
+
+def make_robot_water_snapshot_handler(hass, entity_registry_getter, device_registry_getter):
+    """Read one admitted a75 coordinator cache, without polling or device commands."""
+
+    async def handler(call):
+        supervisor = _supervisor(hass)
+        context = getattr(call, "context", None)
+        user_id = getattr(context, "user_id", None)
+        user = await hass.auth.async_get_user(user_id) if user_id else None
+        if (
+            supervisor is None
+            or user is not supervisor
+            or _supervisor(hass) is not supervisor
+            or not user.is_active
+            or not user.is_admin
+            or not user.system_generated
+            or context.parent_id is not None
+        ):
+            raise ValueError("authenticated Supervisor required")
+        unavailable = {"schema": "podview.robot_water.v1", "status": "unavailable"}
+        try:
+            request = dict(call.data)
+            if request.get("model") != "roborock.vacuum.a75":
+                return unavailable
+            entities, devices = entity_registry_getter(hass), device_registry_getter(hass)
+            target, device, entry, coordinator = _resolve(hass, entities, devices, request)
+            api = coordinator.properties_api
+            status = api.status
+            state = hass.states.get(target.entity_id)
+            if state is None or state.state not in {"docked", "idle", "cleaning", "paused"}:
+                return unavailable
+            stamp = _epoch(coordinator._last_update_success_time)
+            if not 0 <= time.time() - stamp <= _MAX_AGE:
+                return unavailable
+            mode, distance, sequence = map(
+                _integer, (status.water_box_mode, status.distance_off, status.msg_seq)
+            )
+            supported = api.device_features.is_custom_water_box_distance_supported
+            if type(supported) is not bool or any(
+                value is None or not 0 <= value < 2**32 for value in (mode, distance, sequence)
+            ):
+                return unavailable
+            after = _resolve(hass, entities, devices, request)
+            if (
+                any(
+                    left is not right
+                    for left, right in zip((target, device, entry, coordinator), after, strict=True)
+                )
+                or coordinator.properties_api is not api
+                or api.status is not status
+                or _supervisor(hass) is not user
+                or not user.is_active
+                or not user.is_admin
+            ):
+                return unavailable
+            return {
+                "schema": "podview.robot_water.v1",
+                "status": "observed",
+                "source": "home_assistant_roborock_cache",
+                "vacuumEntityId": target.entity_id,
+                "model": request["model"],
+                "customDistanceSupported": supported,
+                "waterBoxMode": mode,
+                "distanceOff": distance,
+                "messageSequence": sequence,
+                "statusObservedAt": stamp,
+            }
+        except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
+            return unavailable
 
     return handler

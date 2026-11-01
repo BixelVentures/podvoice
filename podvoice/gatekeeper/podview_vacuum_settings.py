@@ -53,6 +53,8 @@ class ActiveVacuumSettings:
         self._check(vacuum, current)
         entries = self.owner._relevant_entries(vacuum, registry)
         target = entries[vacuum]
+        identity = self.owner._device_identity(entries)
+        config_entry = target.get("config_entry_id")
         if not target.get("unique_id"):
             raise ValueError("missing vacuum identity")
         robot = await self.owner._state(vacuum)
@@ -100,9 +102,42 @@ class ActiveVacuumSettings:
                         "current": row["state"],
                     }
                 )
+        water_row = next(
+            (
+                row
+                for row in rows
+                if row["role"] == "mop_intensity"
+                and "custom_water_flow" in row["choices"]
+                and "extreme" not in row["choices"]
+            ),
+            None,
+        )
+        if water_row is not None:
+            water = None
+            try:
+                water = await self.owner._extreme_water_snapshot(vacuum, self.binding[0])
+            except Exception:
+                pass
+            self._check(vacuum, current)
+            refreshed = self.owner._relevant_entries(vacuum, await self.owner._registry())
+            self._check(vacuum, current)
+            if (
+                self.owner._device_identity(refreshed) != identity
+                or refreshed[vacuum].get("config_entry_id") != config_entry
+            ):
+                raise ValueError("changed setting identity")
+            if water is not None and (water["_ownerIdentity"], water["_configEntry"]) == (
+                identity,
+                config_entry,
+            ):
+                water_row["choices"].append("extreme")
+                water_row["synthetic_extreme"] = True
+                if water["waterBoxMode"] == 207 and water["distanceOff"] == 60:
+                    water_row["current"] = "extreme"
         self._check(vacuum, current)
         return {
-            "identity": self.owner._device_identity(entries),
+            "identity": identity,
+            "config_entry": config_entry,
             "state": robot["state"],
             "rows": rows,
         }
@@ -127,17 +162,67 @@ class ActiveVacuumSettings:
                 if row not in offered["rows"] or value not in row["choices"]:
                     return "rejected"
                 observed = await self._observe(offered["entity"], valid)
-                if any(observed[k] != offered[k] for k in ("identity", "state", "rows")):
+                if any(
+                    observed[k] != offered[k] for k in ("identity", "config_entry", "state", "rows")
+                ):
                     return "rejected"
                 self._check(offered["entity"], valid)
                 field = "fan_speed" if row["role"] == "suction" else "option"
+                extreme = row.get("synthetic_extreme") is True and value == "extreme"
                 sent = True
                 result = await self.owner._json(
-                    "POST", "services/" + row["service"], {"entity_id": row["entity"], field: value}
+                    "POST",
+                    "services/" + row["service"],
+                    {"entity_id": row["entity"], field: "custom_water_flow" if extreme else value},
                 )
                 if not isinstance(result, list):
                     return "unknown"
                 self._check(offered["entity"], valid)
+                if extreme:
+                    before = await self.owner._extreme_water_snapshot(
+                        offered["entity"], self.binding[0]
+                    )
+                    self._check(offered["entity"], valid)
+                    if before["waterBoxMode"] != 207 or (
+                        before["_ownerIdentity"],
+                        before["_configEntry"],
+                    ) != (offered["identity"], offered["config_entry"]):
+                        return "unknown"
+                    entries = self.owner._relevant_entries(
+                        offered["entity"], await self.owner._registry()
+                    )
+                    self._check(offered["entity"], valid)
+                    if (
+                        self.owner._device_identity(entries) != offered["identity"]
+                        or entries[offered["entity"]].get("config_entry_id")
+                        != offered["config_entry"]
+                    ):
+                        return "unknown"
+                    sent_at = time.time()
+                    result = await self.owner._json(
+                        "POST",
+                        "services/vacuum/send_command",
+                        {
+                            "entity_id": offered["entity"],
+                            "command": "set_water_box_distance_off",
+                            "params": {"distance_off": 60},
+                        },
+                    )
+                    if not isinstance(result, list):
+                        return "unknown"
+                    self._check(offered["entity"], valid)
+                    after = await self.owner._extreme_water_snapshot(
+                        offered["entity"], self.binding[0]
+                    )
+                    self._check(offered["entity"], valid)
+                    if (
+                        (after["waterBoxMode"], after["distanceOff"]) != (207, 60)
+                        or after["statusObservedAt"] <= max(sent_at, before["statusObservedAt"])
+                        or after["messageSequence"] == before["messageSequence"]
+                        or (after["_ownerIdentity"], after["_configEntry"])
+                        != (offered["identity"], offered["config_entry"])
+                    ):
+                        return "unknown"
                 return "accepted"
         except (Exception, asyncio.CancelledError):
             return "unknown" if sent else "rejected"

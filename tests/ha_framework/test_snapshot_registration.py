@@ -22,6 +22,13 @@ class SnapshotRegistrationTests(unittest.IsolatedAsyncioTestCase):
                 "unique_id": "inert",
                 "model": "inert",
             },
+            "robot_water_snapshot": {
+                "entity_id": "vacuum.inert",
+                "config_entry_id": "inert",
+                "device_id": "inert",
+                "unique_id": "inert",
+                "model": "inert",
+            },
             "vehicle_snapshot": {
                 "config_entry_id": "inert",
                 "device_id": "inert",
@@ -42,7 +49,7 @@ class SnapshotRegistrationTests(unittest.IsolatedAsyncioTestCase):
                             context=context,
                         )
                     self.assertNotIn("inert", str(caught.exception))
-                if service == "robot_snapshot":
+                if service in {"robot_snapshot", "robot_water_snapshot"}:
                     result = await self.hass.services.async_call(
                         "podvoice",
                         service,
@@ -52,7 +59,13 @@ class SnapshotRegistrationTests(unittest.IsolatedAsyncioTestCase):
                         context=Context(user_id=self.supervisor.id),
                     )
                     self.assertEqual(
-                        result, {"schema": "podview.robot_job.v1", "status": "unavailable"}
+                        result,
+                        {
+                            "schema": "podview.robot_water.v1"
+                            if service == "robot_water_snapshot"
+                            else "podview.robot_job.v1",
+                            "status": "unavailable",
+                        },
                     )
                 else:
                     with self.assertRaises(HomeAssistantError) as caught:

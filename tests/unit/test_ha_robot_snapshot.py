@@ -263,3 +263,73 @@ async def test_only_actual_supervisor_identity_can_read(denied):
         f.context.parent_id = "parent"
     with pytest.raises(ValueError, match="authenticated Supervisor required"):
         await read(f)
+
+
+async def test_water_snapshot_reads_actual_docked_coordinator_without_map_or_commands():
+    f = fixture()
+    f.state.state = "docked"
+    f.status.water_box_mode, f.status.distance_off, f.status.msg_seq = 207, 60, 2004
+    f.coordinator.properties_api.device_features = NS(is_custom_water_box_distance_supported=True)
+    f.coordinator.properties_api.home = None
+    f.coordinator.properties_api.maps = None
+    handler = module.make_robot_water_snapshot_handler(
+        f.hass,
+        lambda _: NS(async_get=lambda _: f.registry),
+        lambda _: NS(async_get=lambda _: f.device),
+    )
+    result = await handler(NS(data=f.request, context=f.context))
+    assert result == {
+        "schema": "podview.robot_water.v1",
+        "status": "observed",
+        "source": "home_assistant_roborock_cache",
+        "vacuumEntityId": "vacuum.qrevo",
+        "model": "roborock.vacuum.a75",
+        "customDistanceSupported": True,
+        "waterBoxMode": 207,
+        "distanceOff": 60,
+        "messageSequence": 2004,
+        "statusObservedAt": f.coordinator._last_update_success_time.timestamp(),
+    }
+
+
+@pytest.mark.parametrize(
+    "failure", ["identity", "model", "stale", "feature", "unknown", "owner", "state"]
+)
+async def test_water_snapshot_fails_closed_without_actual_current_owner_and_values(failure):
+    f = fixture()
+    f.state.state = "docked"
+    f.status.water_box_mode, f.status.distance_off, f.status.msg_seq = 207, 60, 2004
+    f.coordinator.properties_api.device_features = NS(is_custom_water_box_distance_supported=True)
+    if failure == "identity":
+        f.registry.unique_id = "other"
+    if failure == "model":
+        f.request["model"] = "other"
+    if failure == "stale":
+        f.coordinator._last_update_success_time -= timedelta(seconds=70)
+    if failure == "feature":
+        f.coordinator.properties_api.device_features.is_custom_water_box_distance_supported = None
+    if failure == "unknown":
+        f.status.distance_off = None
+    if failure == "owner":
+        f.coordinator.last_update_success = False
+    if failure == "state":
+        f.state.state = "unavailable"
+    handler = module.make_robot_water_snapshot_handler(
+        f.hass,
+        lambda _: NS(async_get=lambda _: f.registry),
+        lambda _: NS(async_get=lambda _: f.device),
+    )
+    assert await handler(NS(data=f.request, context=f.context)) == {
+        "schema": "podview.robot_water.v1",
+        "status": "unavailable",
+    }
+
+
+async def test_water_snapshot_rejects_non_supervisor():
+    f = fixture()
+    f.hass.auth.async_get_user.return_value = NS(
+        is_active=True, is_admin=True, system_generated=False
+    )
+    handler = module.make_robot_water_snapshot_handler(f.hass, lambda _: None, lambda _: None)
+    with pytest.raises(ValueError, match="Supervisor"):
+        await handler(NS(data=f.request, context=f.context))

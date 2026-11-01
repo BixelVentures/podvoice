@@ -52,6 +52,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         ControllerAdmin=Admin,
         DisplayDevices=lambda *_: SimpleNamespace(apply=lambda *_: None),
         make_robot_snapshot_handler=lambda *_: AsyncMock(),
+        make_robot_water_snapshot_handler=lambda *_: AsyncMock(),
         robot_snapshot_schema=lambda: object(),
         VehicleSnapshot=lambda *_: SimpleNamespace(async_read=AsyncMock()),
         er=SimpleNamespace(async_get=lambda _: None),
