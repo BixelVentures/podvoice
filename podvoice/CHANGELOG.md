@@ -1,3 +1,8 @@
+## 2.0.113
+
+- Restore robot setup controls when the service offers a maximum of two cleaning passes.
+- Preserve local maintenance visibility and offered cleaning limits.
+
 ## 2.0.112
 
 - Improve music controls, queue metadata retention and recovery across refresh and output changes.

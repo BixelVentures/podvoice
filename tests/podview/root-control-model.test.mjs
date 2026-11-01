@@ -50,3 +50,10 @@ test('music expected-binding echo is mandatory and retained independently of vol
  const raw=task(),admitted=controlTask(raw,snapshot,'music',now);assert.equal(admitted.expectedBindingId,raw.expectedBindingId);assert.equal(admitted.options[0].id,raw.options[0].id);
  for(const echo of [undefined,null,1,'A'.repeat(64),'a'.repeat(63)])assert.throws(()=>controlTask({...raw,expectedBindingId:echo},snapshot,'music',now));
 });
+
+test('robot setup retains the owner repeat bound without rejecting independent offered actions',()=>{
+ const raw={...task(),domain:'vacuum',setup:{mapName:null},options:[{id:'dock',label:'Vask moppe',action:'dock',argsSchema:{kind:'dock',operation:'wash_start'}},{id:'clean',label:'Start',action:'start',argsSchema:{kind:'cleaning',areas:[{id:'area',label:'Rum'}],repeat:{min:1,max:2}}}]};
+ for(const max of [1,2,3]){raw.options[1].argsSchema.repeat.max=max;const admitted=controlTask(raw,snapshot,'vacuum',now);assert.equal(admitted.options.length,2);assert.equal(admitted.options[1].argsSchema.repeat.max,max);assert.deepEqual(controlArgs(admitted,'clean',{areaIds:['area'],repeat:max},now),{areaIds:['area'],repeat:max});assert.throws(()=>controlArgs(admitted,'clean',{areaIds:['area'],repeat:max+1},now));assert.deepEqual(controlArgs(admitted,'dock',{},now),{});}
+ for(const bad of [0,4,1.5,'2',null]){raw.options[1].argsSchema.repeat.max=bad;assert.throws(()=>controlTask(raw,snapshot,'vacuum',now));}
+ raw.options[1].argsSchema.repeat={min:2,max:3};assert.throws(()=>controlTask(raw,snapshot,'vacuum',now));
+});
