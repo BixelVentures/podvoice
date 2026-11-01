@@ -81,6 +81,18 @@ async def build(case="normal"):
 
     async def route(request):
         path = request.url.path.removeprefix("/core/api/")
+        if path == "services/podvoice/robot_observation_snapshot":
+            assert request.method == "POST" and request.url.query == b"return_response"
+            assert set(json.loads(request.content)) == {"binding"}
+            return httpx.Response(
+                200,
+                json={
+                    "service_response": {
+                        "schema": "podview.robot_history.v1",
+                        "status": "unavailable",
+                    }
+                },
+            )
         if path == "template":
             assert request.method == "POST"
             template = json.loads(request.content)["template"]

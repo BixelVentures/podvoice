@@ -33,6 +33,8 @@
     "podvoice/gatekeeper/static/podview/vehicle-view.js": "8712a57f69a38828bc69c6a4fd083d5ae82d9093d0383535116533dfe6b4f2ed"
   },
   "regressions": {
+    "tests/integration/test_robot_current_activity.py": "09529fe2b77385287fba789466cf3db36e3582db1af84823bca1cb5c216917b5",
+    "tests/integration/test_robot_current_setup.py": "3b6d6ba0cce066d4fd624916265f61e2be91a394c65555c0a23cdcd6f0fe3a8d",
     "tests/podview/root-home-model.test.mjs": "56e182b285bb4d41d9586821b0af97ae34dd2f08bf04dd2a7e7352f100d1f6e0",
     "tests/podview/root-screen-lifecycle.test.mjs": "d70f9d4f1d854f7c84076e2426df4cbc35967fa540a8c54849282288c08ef9fa",
     "tests/podview/root-vehicle-view.test.mjs": "0f8e12c3616f22a5dc624d9420d6dd4e675a783b768857633ce0cda9a4b2c13e",
