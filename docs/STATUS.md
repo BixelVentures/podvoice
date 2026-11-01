@@ -1,3 +1,7 @@
+## 1/11 — PodVoice 2.0.115 ventetekst
+
+Den samlede 2.0.114 er publiceret, men installation springes over: en senere faktisk kilde eller ny eksplicit handling kunne efterlade forældet accepteret musiktekst. 2.0.115 retter kun denne tekstlivscyklus uden gentagelse af handlinger eller ændring af receipt-ejerskab. Fokuseret kildereview og fælles UI-suite bestået; artifact-review, CI, publicering, installation og fysisk accept er separate.
+
 ## 1/11 — samlet PodVoice 2.0.114 kandidat
 
 Musikkø og player, robotvedligehold samt Tesla access og klima er samlet mod udgivet 2.0.113. Godkendt lokal visning er kontrolleret for robot og Tesla; Extreme 30 afventer dokumenteret API-understøttelse. Integreret Tesla-backend 91 PASS; UI-suite 4850 PASS, fire loopback-tests PASS separat og 546 berørte fixture/registry-tests PASS efter korrektion. Source-review er udført; exact artifact-review, CI, udgivelse, installation og fysisk accept afventer hver deres resultat.
@@ -7487,5 +7491,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "e16df44b3ac2147cf391bedb4eaf6553407e11a172b91cf895a035b2ee0e30b6",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 91
+}
+-->
+
+<!-- podvoice115-admission
+{
+  "base_tip": "bad8148fd07a0ec43af6155cbcbd10ccd0e08eba",
+  "config_fingerprint": "4091038f3019184a2c495297c2e09370c7201848e49c7a75fe9465ffc14cec51",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "238c1c1b3726ffcb6c16c1aa28820fb88d7beb3cab983a692df2c4e0d83b7a3b",
+  "kind": "podvoice115_music_waiting_text",
+  "manifest_fingerprint": "0a31690188bcb6518fb363d351753dddb1e5ef8ec2019af26f73c5761ecb1401",
+  "merge_base": "bad8148fd07a0ec43af6155cbcbd10ccd0e08eba",
+  "policy_fingerprint": "ac75861572c4189d4028bc4241cdb49d356aca059ac6e2e88589a27df128f982",
+  "rationale": "PodVoice 2.0.115 clears obsolete accepted music text after a new explicit action or different observed track. Focused source review and the shared UI suite passed; exact artifact review is pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "971c8521558d4d0055abcb92a3987579e6cf586c795888d617baf6a65a48ed32",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "b76dac32b3b1f180a7bd7bb1b3c00295fb73cc76cf6f7a87eba8c31d96f7d147",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 92
 }
 -->
