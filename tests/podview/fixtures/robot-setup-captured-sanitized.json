@@ -1,0 +1,448 @@
+{
+  "ok": true,
+  "schema": "podview.control.v1",
+  "roomId": "test-room",
+  "bootId": "test-boot",
+  "taskId": "control:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "revision": 1,
+  "expiresAt": 2000000000,
+  "domain": "vacuum",
+  "options": [
+    {
+      "id": "000000000000000000000001",
+      "label": "Vask moppe",
+      "action": "dock",
+      "argsSchema": {
+        "kind": "dock",
+        "operation": "wash_start"
+      }
+    },
+    {
+      "id": "000000000000000000000002",
+      "label": "Tøm beholder",
+      "action": "dock",
+      "argsSchema": {
+        "kind": "dock",
+        "operation": "empty_start"
+      }
+    },
+    {
+      "id": "000000000000000000000003",
+      "label": "Tør moppe",
+      "action": "dock",
+      "argsSchema": {
+        "kind": "dock",
+        "operation": "dry_start"
+      }
+    },
+    {
+      "id": "000000000000000000000004",
+      "label": "Rengøringstype",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "000000000000000000000005",
+            "label": "Støvsugning"
+          },
+          {
+            "id": "000000000000000000000006",
+            "label": "Støvsugning og gulvvask"
+          },
+          {
+            "id": "000000000000000000000007",
+            "label": "Gulvvask"
+          },
+          {
+            "id": "000000000000000000000008",
+            "label": "Tilpasset"
+          }
+        ],
+        "current": "000000000000000000000006"
+      },
+      "settingKey": "cleaning_mode"
+    },
+    {
+      "id": "000000000000000000000009",
+      "label": "Vandmængde",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "00000000000000000000000a",
+            "label": "Fra"
+          },
+          {
+            "id": "00000000000000000000000b",
+            "label": "Lav"
+          },
+          {
+            "id": "00000000000000000000000c",
+            "label": "Mellem"
+          },
+          {
+            "id": "00000000000000000000000d",
+            "label": "Høj"
+          },
+          {
+            "id": "00000000000000000000000e",
+            "label": "Tilpasset vandmængde"
+          },
+          {
+            "id": "00000000000000000000000f",
+            "label": "Tilpasset"
+          }
+        ],
+        "current": "00000000000000000000000d"
+      },
+      "settingKey": "mop_intensity"
+    },
+    {
+      "id": "000000000000000000000010",
+      "label": "Moppetilstand",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "000000000000000000000011",
+            "label": "Standard"
+          },
+          {
+            "id": "000000000000000000000012",
+            "label": "Grundig"
+          },
+          {
+            "id": "000000000000000000000013",
+            "label": "Ekstra grundig"
+          },
+          {
+            "id": "000000000000000000000014",
+            "label": "Hurtig"
+          },
+          {
+            "id": "000000000000000000000015",
+            "label": "Tilpasset"
+          }
+        ],
+        "current": "000000000000000000000011"
+      },
+      "settingKey": "mop_mode"
+    },
+    {
+      "id": "000000000000000000000016",
+      "label": "Sugestyrke",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "000000000000000000000017",
+            "label": "Stille"
+          },
+          {
+            "id": "000000000000000000000018",
+            "label": "Balanceret"
+          },
+          {
+            "id": "000000000000000000000019",
+            "label": "Turbo"
+          },
+          {
+            "id": "00000000000000000000001a",
+            "label": "Maksimal"
+          },
+          {
+            "id": "00000000000000000000001b",
+            "label": "Maksimal+"
+          },
+          {
+            "id": "00000000000000000000001c",
+            "label": "Fra"
+          },
+          {
+            "id": "00000000000000000000001d",
+            "label": "Tilpasset"
+          }
+        ],
+        "current": "00000000000000000000001a"
+      },
+      "settingKey": "suction"
+    },
+    {
+      "id": "00000000000000000000001e",
+      "label": "Forstyr ikke",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "00000000000000000000001f",
+            "label": "Fra"
+          },
+          {
+            "id": "000000000000000000000020",
+            "label": "Til"
+          }
+        ],
+        "current": "000000000000000000000020"
+      },
+      "settingKey": "dnd_switch"
+    },
+    {
+      "id": "000000000000000000000021",
+      "label": "Forstyr ikke fra",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "time",
+        "current": "22:00:00"
+      },
+      "settingKey": "dnd_start_time"
+    },
+    {
+      "id": "000000000000000000000022",
+      "label": "Forstyr ikke til",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "time",
+        "current": "08:00:00"
+      },
+      "settingKey": "dnd_end_time"
+    },
+    {
+      "id": "000000000000000000000023",
+      "label": "Robotlydstyrke",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "number",
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "unit": "%",
+        "current": 90
+      },
+      "settingKey": "volume"
+    },
+    {
+      "id": "000000000000000000000024",
+      "label": "Børnelås",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "000000000000000000000025",
+            "label": "Fra"
+          },
+          {
+            "id": "000000000000000000000026",
+            "label": "Til"
+          }
+        ],
+        "current": "000000000000000000000025"
+      },
+      "settingKey": "child_lock"
+    },
+    {
+      "id": "000000000000000000000027",
+      "label": "Tømningstilstand",
+      "action": "set_option",
+      "argsSchema": {
+        "kind": "choice",
+        "choices": [
+          {
+            "id": "000000000000000000000028",
+            "label": "Smart"
+          },
+          {
+            "id": "000000000000000000000029",
+            "label": "Let"
+          },
+          {
+            "id": "00000000000000000000002a",
+            "label": "Balanceret"
+          },
+          {
+            "id": "00000000000000000000002b",
+            "label": "Maksimal"
+          }
+        ],
+        "current": "000000000000000000000028"
+      },
+      "settingKey": "dust_collection_mode"
+    },
+    {
+      "id": "00000000000000000000002c",
+      "label": "Start rengøring",
+      "action": "start",
+      "argsSchema": {
+        "kind": "cleaning",
+        "areas": [
+          {
+            "id": "00000000000000000000002d",
+            "label": "Rum 1"
+          },
+          {
+            "id": "00000000000000000000002e",
+            "label": "Rum 2"
+          },
+          {
+            "id": "00000000000000000000002f",
+            "label": "Rum 3"
+          },
+          {
+            "id": "000000000000000000000030",
+            "label": "Rum 4"
+          },
+          {
+            "id": "000000000000000000000031",
+            "label": "Rum 5"
+          },
+          {
+            "id": "000000000000000000000032",
+            "label": "Rum 6"
+          },
+          {
+            "id": "000000000000000000000033",
+            "label": "Rum 7"
+          },
+          {
+            "id": "000000000000000000000034",
+            "label": "Rum 8"
+          }
+        ],
+        "repeat": {
+          "min": 1,
+          "max": 2
+        },
+        "settings": [
+          {
+            "id": "000000000000000000000035",
+            "key": "cleaning_mode",
+            "label": "Rengøringstype",
+            "choices": [
+              {
+                "id": "000000000000000000000036",
+                "label": "vacuum"
+              },
+              {
+                "id": "000000000000000000000037",
+                "label": "vac_and_mop"
+              },
+              {
+                "id": "000000000000000000000038",
+                "label": "mop"
+              },
+              {
+                "id": "000000000000000000000039",
+                "label": "custom"
+              }
+            ],
+            "current": "000000000000000000000037"
+          },
+          {
+            "id": "00000000000000000000003a",
+            "key": "mop_intensity",
+            "label": "Vandmængde",
+            "choices": [
+              {
+                "id": "00000000000000000000003b",
+                "label": "off"
+              },
+              {
+                "id": "00000000000000000000003c",
+                "label": "low"
+              },
+              {
+                "id": "00000000000000000000003d",
+                "label": "medium"
+              },
+              {
+                "id": "00000000000000000000003e",
+                "label": "high"
+              },
+              {
+                "id": "00000000000000000000003f",
+                "label": "custom_water_flow"
+              },
+              {
+                "id": "000000000000000000000040",
+                "label": "custom"
+              }
+            ],
+            "current": "00000000000000000000003e"
+          },
+          {
+            "id": "000000000000000000000041",
+            "key": "mop_mode",
+            "label": "Moppetilstand",
+            "choices": [
+              {
+                "id": "000000000000000000000042",
+                "label": "standard"
+              },
+              {
+                "id": "000000000000000000000043",
+                "label": "deep"
+              },
+              {
+                "id": "000000000000000000000044",
+                "label": "deep_plus"
+              },
+              {
+                "id": "000000000000000000000045",
+                "label": "fast"
+              },
+              {
+                "id": "000000000000000000000046",
+                "label": "custom"
+              }
+            ],
+            "current": "000000000000000000000042"
+          },
+          {
+            "id": "000000000000000000000047",
+            "key": "suction",
+            "label": "Sugestyrke",
+            "choices": [
+              {
+                "id": "000000000000000000000048",
+                "label": "quiet"
+              },
+              {
+                "id": "000000000000000000000049",
+                "label": "balanced"
+              },
+              {
+                "id": "00000000000000000000004a",
+                "label": "turbo"
+              },
+              {
+                "id": "00000000000000000000004b",
+                "label": "max"
+              },
+              {
+                "id": "00000000000000000000004c",
+                "label": "max_plus"
+              },
+              {
+                "id": "00000000000000000000004d",
+                "label": "off"
+              },
+              {
+                "id": "00000000000000000000004e",
+                "label": "custom"
+              }
+            ],
+            "current": "00000000000000000000004b"
+          }
+        ]
+      }
+    }
+  ],
+  "setup": {
+    "mapName": "Stueplan (2025)"
+  }
+}

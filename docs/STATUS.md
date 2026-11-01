@@ -7441,3 +7441,25 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "version": 89
 }
 -->
+
+<!-- podvoice113-admission
+{
+  "base_tip": "73a566620b054d390ad747d323b3b51a48f4ba57",
+  "config_fingerprint": "e8a7db8604cd6d985ead844206e2db2573d234c7f2c4bcb2ffab719064fd2bb1",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "acd5c120f769bcc11bf1c13d6be434d087b080c5c0bde5bf66c5275ab2a7a8df",
+  "kind": "podvoice113_robot_setup_decoder",
+  "manifest_fingerprint": "5cdb9ea0dcb1e46c46733ee4631c75c3f0bf616c87253a68f506e53040ac82af",
+  "merge_base": "73a566620b054d390ad747d323b3b51a48f4ba57",
+  "policy_fingerprint": "efee95d06838814649dc3085d736515d673e3f191db7f3488bb7da4d9391dd95",
+  "rationale": "PodVoice 2.0.113 corrects robot setup decoding for service-provided cleaning limits and preserves maintenance presentation. Focused regression and UI suite passed; source and exact artifact reviews pending. CI, publication, installation, live service and physical acceptance remain separate.",
+  "regression_fingerprint": "29cc3a39fdee1d874d20f1fba9708aad06719e3f341dbc5ce4cb8bfd6592bada",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "2a09aca0d8e555a42b74bf9f095727869abe3a35b98a5f8fd769729c3bf9118f",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 90
+}
+-->
