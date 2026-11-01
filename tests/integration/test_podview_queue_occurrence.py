@@ -611,6 +611,35 @@ async def test_queue_read_is_independent_of_missing_playback_control_services(ri
     assert bridge.controls.music._read.await_args.args[2] == "get_room_queue_controls"
 
 
+@pytest.mark.parametrize("known", [True, False])
+async def test_queue_metadata_readiness_preserves_occurrence_identity(rig, known):
+    bridge, request = prepare(rig)
+
+    async def service(client, token, name, payload):
+        value = await queue_service_reply(client, token, name, payload)
+        if name == "get_room_queue_controls":
+            for row in value["items"]:
+                row["name"] = "Nummer i køen"
+                row["metadata_known"] = known
+        return value
+
+    bridge.controls.music._read = AsyncMock(side_effect=service)
+    offer = await bridge.queue.offer(request, "grant")
+    assert offer["ok"]
+    assert len(offer["items"]) == 2
+    assert all(row["metadataKnown"] is known for row in offer["items"])
+    assert [row["order"] for row in offer["items"]] == [1, 2]
+    assert offer["items"][0]["id"] != offer["items"][1]["id"]
+
+
+@pytest.mark.parametrize("invalid", [None, "false", 0, 1, {}])
+def test_queue_metadata_readiness_rejects_non_boolean(invalid):
+    value = bound_source()
+    value["items"][0]["metadata_known"] = invalid
+    with pytest.raises(ValueError):
+        project(value, "account-alpha", "device-one", room="native-room", homepod="7")
+
+
 @pytest.mark.parametrize(
     "bad_art",
     [

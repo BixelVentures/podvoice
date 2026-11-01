@@ -1762,6 +1762,7 @@ class PodViewBridge:
                 "musicRead": music_reads,
                 "musicActions": [],
                 "musicSelection": False,
+                "musicMoveRecovery": [],
                 "answerRead": receipt_owner is not None,
                 "controlSetup": [],
                 "vehicleActions": [],
@@ -1808,6 +1809,9 @@ class PodViewBridge:
                 result["capabilities"]["vehicleActions"] = list(scope.actions)
         result["capabilities"]["controlSetup"] = domains
         result["capabilities"]["musicSelection"] = self.controls.selection_allowed(room, token)
+        result["capabilities"]["musicMoveRecovery"] = self.controls.move_recovery_accounts(
+            room, token
+        )
         result["capabilities"]["queueSelection"] = bool(self.queue.rules(room, token))
         robot_suggestions = self.controls.robot_suggestions(room, token)
         if robot_suggestions:

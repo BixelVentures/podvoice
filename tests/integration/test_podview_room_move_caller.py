@@ -647,3 +647,115 @@ async def test_inert_touch_move_a_b_a_then_current_controls(monkeypatch):
         ]
     finally:
         await rig.client.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "recovery", ["ready", "busy", "same_offer", "same_poll", "drift", "late_busy"]
+)
+async def test_unknown_move_only_new_explicit_ready_offer_can_recover(monkeypatch, recovery):
+    from unit.test_podview_room_move import POLICY, prep, receipt
+    from unit.test_podview_room_move import source as move_source
+
+    from gatekeeper.podview_room_move import _SERVICES, RoomMoveFacade
+
+    rig = Rig()
+    session, _ = owner()
+    bridge = PodViewBridge(
+        {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
+    )
+    install_actual_playback(rig)
+    rig.router._discovery = replace(
+        rig.router._discovery,
+        podconnect_services=rig.router._discovery.podconnect_services | _SERVICES,
+    )
+    token = bridge.grant_timer_control("kitchen")
+    speakers = payload()
+    speakers["targets"][-1]["target_id"] = "speaker"
+    monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=speakers))
+    destination = podview_speakers.project(
+        speakers, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
+    )["speakers"][1]
+    facade = RoomMoveFacade(rig.router, policy_revision=POLICY)
+    bridge.controls.move = facade
+    calls = []
+    phase = {"recovery": False, "reads": 0}
+
+    async def read(_client, _token, service, body):
+        calls.append(service)
+        if service == "get_room_move_controls":
+            value = move_source(body["room_id"], body["homepod_id"])
+            value["target"]["target_id"] = "speaker"
+            if phase["recovery"]:
+                phase["reads"] += 1
+                value["poll_sequence"] = 4 if recovery != "same_poll" else 3
+                value["next_command_sequence"] = 5
+                value["move_offer"]["offer_id"] = "b" * 32 if recovery != "same_offer" else "a" * 32
+                if recovery == "busy" or (recovery == "late_busy" and phase["reads"] > 1):
+                    value["status"] = "busy"
+                if recovery == "drift":
+                    value["room_id"] = "wrong"
+            return value
+        if service == "prepare_room_move_playback":
+            return prep(body)
+        if service == "move_room_playback":
+            if not phase["recovery"]:
+                raise TimeoutError("uncertain")
+            return receipt(body)
+        return {}
+
+    monkeypatch.setattr(facade, "_read", read)
+    monkeypatch.setattr(
+        podview_room_media, "confirm_move_destination", AsyncMock(return_value=True)
+    )
+    body = {
+        "bootId": bridge.boot_id,
+        "roomId": "kitchen",
+        "domain": "music",
+        "target": {
+            "accountId": "account",
+            "kind": "spotify_device",
+            "targetId": "speaker",
+            "speakerId": destination["speakerId"],
+            "expectedBindingId": ACTUAL_BINDING,
+        },
+    }
+    try:
+        first = await bridge.controls.setup(body, token)
+        assert first["ok"]
+        first_action = action_body(first, first["options"][0])
+        result = await bridge.controls.action(first_action, token)
+        assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+        assert calls.count("move_room_playback") == 1
+        snapshot = json.loads(json.dumps(bridge.snapshot("kitchen", token)))
+        assert snapshot["capabilities"]["musicMoveRecovery"] == ["account"]
+        assert "music" not in snapshot["capabilities"]["controlSetup"]  # No room control service.
+        assert bridge.snapshot("kitchen")["capabilities"]["musicMoveRecovery"] == []
+        assert await bridge.controls.action(first_action, token) == result
+        ordinary = {**body, "target": {k: v for k, v in body["target"].items() if k != "speakerId"}}
+        assert not (await bridge.controls.setup(ordinary, token))["ok"]
+        assert calls.count("move_room_playback") == 1
+        phase["recovery"] = True
+        second = await bridge.controls.setup(body, token)
+        if recovery not in {"ready", "late_busy"}:
+            assert not second["ok"]
+            assert calls.count("move_room_playback") == 1
+            assert ("kitchen", "account") in bridge._music_move_fence
+        else:
+            assert second["ok"], second
+            second_action = action_body(second, second["options"][0])
+            second_action["requestId"] = "new-explicit-request"
+            result2 = await bridge.controls.action(second_action, token)
+            if recovery == "late_busy":
+                assert result2.get("outcome") == "rejected", result2
+                assert calls.count("move_room_playback") == 1
+                assert ("kitchen", "account") in bridge._music_move_fence
+            else:
+                assert result2.get("outcome") == "accepted", result2
+                assert calls.count("move_room_playback") == 2
+                assert ("kitchen", "account") not in bridge._music_move_fence
+                assert bridge.snapshot("kitchen", token)["capabilities"]["musicMoveRecovery"] == []
+                await bridge.controls.action(first_action, token)
+                assert calls.count("move_room_playback") == 2
+    finally:
+        await rig.client.aclose()

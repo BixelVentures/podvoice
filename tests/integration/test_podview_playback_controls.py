@@ -696,3 +696,45 @@ async def test_actual_music_http_rejects_invalid_opt_in_without_ha_read(controls
     assert not rig.bridge.queue.tasks and not rig.bridge.music_selection.tasks
     assert rig.bridge._grants == grants
     assert not rig.session.tools.timers.command.await_count
+
+
+@pytest.mark.parametrize("include_controls", [False, True])
+@pytest.mark.parametrize(
+    ("owner_response", "expected"),
+    [
+        ({"ok": False, "error_kind": "unavailable"}, "unavailable"),
+        ({"ok": False, "error_kind": "authentication_required"}, "authentication_required"),
+        ({"ok": False, "error_kind": "rate_limited"}, "rate_limited"),
+        ({"ok": False, "error_kind": "stale"}, "stale"),
+        ({"ok": False, "error_kind": "unknown"}, "malformed_response"),
+        ({"ok": False, "error_kind": "unavailable", "extra": True}, "malformed_response"),
+        ({"ok": False, "error_kind": []}, "malformed_response"),
+    ],
+)
+async def test_actual_playback_error_classification_never_dispatches_control(
+    include_controls, owner_response, expected
+):
+    rig = Rig()
+    try:
+        rig.values["playback"] = owner_response
+        result = await rig.router.podview_read(
+            "playback", "account-alpha", include_output=True, include_controls=include_controls
+        )
+        assert result == podview_music.unavailable(expected)
+        assert len(rig.calls) == 1
+        assert rig.calls[0][1].endswith("/get_playback_snapshot")
+    finally:
+        await rig.client.aclose()
+
+
+async def test_owner_error_reaches_passive_room_log_without_grant(controls_rig, caplog):
+    rig = controls_rig
+    rig.value = {"ok": False, "error_kind": "rate_limited"}
+    with caplog.at_level("WARNING", logger="podvoice.podview"):
+        body = await read(rig)
+    assert body["status"] == "unavailable"
+    assert body["reason"] == "account_unavailable"  # Existing browser contract.
+    assert body["permissions"] == {"actions": [], "maxVolume": None}
+    assert body["controls"]["supported_actions"] == []
+    assert "source=owner reason=rate_limited" in caplog.text
+    assert_passive(rig)

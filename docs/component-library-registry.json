@@ -846,6 +846,9 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:has": 1,
+          "arrow:robotFocusLabel": 1,
+          "method:moveUnknownApplies": 1,
+          "method:musicUnknownBlocks": 1,
           "arrow:make": 1,
           "class:LiveControlView": 1,
           "method:allowed": 1,
@@ -1626,6 +1629,10 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:dirty": 1,
+          "arrow:maintenanceHidden": 1,
+          "arrow:maintenanceKey": 1,
+          "arrow:maintenanceStorage": 1,
+          "arrow:nextLocalMidnight": 1,
           "arrow:make": 1,
           "arrow:selectedAreas": 1,
           "arrow:snapshotMode": 1,
@@ -1689,6 +1696,7 @@
           "factory:div:'pv-component robot-control-panel'",
           "factory:div:'pv-seg pv-segmented'",
           "factory:div:'robot-room-context'",
+          "factory:div:'player-progress'",
           "factory:dl:'robot-care-values'",
           "factory:form:'robot-cleaning-form'",
           "factory:form:'setting'",

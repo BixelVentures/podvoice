@@ -133,6 +133,19 @@ def test_default_off_without_explicit_reviewed_private_policy_and_budgets():
     assert not move.RoomMoveFacade(tools).available
 
 
+@pytest.mark.parametrize(
+    "tools",
+    [
+        None,
+        SimpleNamespace(),
+        SimpleNamespace(_discovery=SimpleNamespace(podconnect_services=None)),
+        SimpleNamespace(_discovery=SimpleNamespace(podconnect_services=set(move._SERVICES))),
+    ],
+)
+def test_partial_tool_adapter_is_unavailable_without_raising(tools):
+    assert not move.RoomMoveFacade(tools, policy_revision=POLICY).available
+
+
 def test_actual_split_facade_preserves_same_engine_other_alias_and_manual_27(
     monkeypatch,
 ):

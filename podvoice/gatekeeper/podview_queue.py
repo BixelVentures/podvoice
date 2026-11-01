@@ -119,7 +119,12 @@ def project(value: object, account: str, target: str, *, room: str, homepod: str
     for index, row in enumerate(rows):
         if (
             not isinstance(row, dict)
-            or set(row) != {"option_id", "index", "uri", "name", "artist", "artwork"}
+            or set(row)
+            not in (
+                {"option_id", "index", "uri", "name", "artist", "artwork"},
+                {"option_id", "index", "uri", "name", "artist", "artwork", "metadata_known"},
+            )
+            or ("metadata_known" in row and type(row["metadata_known"]) is not bool)
             or not isinstance(row["option_id"], str)
             or re.fullmatch(r"[a-f0-9]{24}", row["option_id"]) is None
             or row["option_id"] in seen
@@ -350,6 +355,7 @@ class QueueBroker:
                     {
                         "id": r["option_id"],
                         "title": r["name"],
+                        "metadataKnown": r.get("metadata_known", True),
                         "artist": r["artist"],
                         "uri": r["uri"],
                         "artwork": _artwork(
