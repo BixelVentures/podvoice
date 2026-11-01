@@ -2321,6 +2321,7 @@
           "factory:div:'vehicle-battery-rail'",
           "factory:div:'vehicle-content'",
           "factory:div:'vehicle-control-tiles pv-tiles'",
+          "factory:div:'pv-dialog-actions'",
           "factory:div:'vehicle-lock-controls'",
           "factory:div:'vehicle-measurements'",
           "factory:div:'vehicle-metric'",

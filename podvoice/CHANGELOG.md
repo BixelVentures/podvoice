@@ -1,3 +1,8 @@
+## 2.0.114
+
+- Improve music queue continuity and player controls.
+- Align robot maintenance presentation and Tesla controls with available service capabilities.
+
 ## 2.0.113
 
 - Restore robot setup controls when the service offers a maximum of two cleaning passes.

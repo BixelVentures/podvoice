@@ -402,7 +402,7 @@ NATIVE_CASES = [
     ("defrostOff", {}, "switch", "turn_off"),
     ("driverSeatHeat", {"option": "low"}, "select", "select_option"),
     ("passengerSeatHeat", {"option": "high"}, "select", "select_option"),
-    ("rearTrunkToggle", {}, "cover", "toggle"),
+    ("rearTrunkToggle", {"direction": "open"}, "cover", "open_cover"),
 ]
 
 
@@ -476,7 +476,7 @@ async def test_actual_http_authored_intent_exact_server_arguments_and_single_sen
         assert result["outcome"] == "accepted", result
         assert len(h.calls) == 1
         assert h.calls[0][0:2] == (domain, service)
-        assert h.calls[0][3] == args
+        assert h.calls[0][3] == ({} if action == "rearTrunkToggle" else args)
         again = await (
             await client.post("/view/api/control/actions", json=body, headers=headers(grant))
         ).json()
@@ -493,7 +493,7 @@ async def test_actual_http_authored_intent_exact_server_arguments_and_single_sen
         if action == "driverSeatHeat":
             assert confirmation["effects"] == [["driverSeat", "low"], ["climate", "on"]]
         if action == "rearTrunkToggle":
-            assert confirmation["label"] == "Betjen bagagerum (åbn/luk)"
+            assert confirmation["label"] == "Åbn bagagerum"
             assert confirmation["requiresConfirmation"] is True
 
 
@@ -506,7 +506,7 @@ async def test_actual_http_authored_intent_exact_server_arguments_and_single_sen
         ("driverSeatHeat", {"option": "automatic"}),
         ("passengerSeatHeat", {"option": 3}),
         ("defrostOn", {"enabled": True}),
-        ("rearTrunkToggle", {"direction": "open"}),
+        ("rearTrunkToggle", {"direction": "sideways"}),
     ],
 )
 async def test_http_invalid_authored_values_never_offer_or_send(tmp_path, action, args):
@@ -558,7 +558,7 @@ async def test_http_trunk_unknown_is_never_replayed_and_new_toggle_requires_boun
             return await (
                 await client.post(
                     "/view/api/control/setup",
-                    json=setup_body(bridge, "rearTrunkToggle"),
+                    json=setup_body(bridge, "rearTrunkToggle", {"direction": "open"}),
                     headers=headers(grant),
                 )
             ).json()

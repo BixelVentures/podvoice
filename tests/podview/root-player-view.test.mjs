@@ -1,3 +1,4 @@
+import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
 import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {boundPlayback} from './room-fixture.mjs';
 import test from 'node:test';
@@ -462,4 +463,16 @@ test('queue hides missing metadata and retains real rows during loading without 
 
 test('live playback without a source title cannot create an invented current queue row',()=>{
  const snapshot={bootId:'boot',roomId:'room'},observed=boundPlayback(snapshot,{expiresAt:Date.now()+10000,state:'playing',item:{name:'',artists:[],uri:item.uri,artwork:null},target:{name:'Room'}}),vm=livePlayerModel(observed,true,'ready',snapshot),f=surface({live:true});assert.equal(vm.metadataKnown,false);f.view.renderPlayer(vm);f.view.renderQueue([],{status:'loading',empty:''});assert.equal(f.view.queue.children.length,0);
+});
+
+
+test('matching observed playback clears only the selection waiting text in the real player',()=>{
+ const f=surface({live:true}),snapshot={bootId:'boot',roomId:'room',capabilities:{musicRead:['playback']}},now=Date.now(),requestedUri='spotify:track:0123456789ABCDEFGHIJKL';
+ const selection=Object.create(LiveMusicSelectionView.prototype);selection.host={liveSnapshot:snapshot};selection.context=()=>({});selection.resultTicket=null;
+ const receipt={requestId:'old-receipt'},feedback={outcome:'accepted',message:'Anmodningen er modtaget · afventer observeret afspilning.',pending:false,awaitingObservation:true,accountId:'account',targetId:'device',uri:requestedUri,requestedAt:now,settlementReceipt:receipt};selection.feedback=feedback;
+ const playback=boundPlayback(snapshot,{expiresAt:now+10000,observedAt:new Date(now+1).toISOString(),state:'playing',item:{name:'Observed song',artists:['Artist'],uri:requestedUri},target:{name:'Actual room'}});
+ const mismatch={...playback,state:'paused',item:{...playback.item,uri:'spotify:track:ZZZZZZZZZZZZZZZZZZZZZZ'}};selection.observePlayback(mismatch);f.view.renderPlayer({...livePlayerModel(mismatch,true,'ready',snapshot),feedback:selection.feedback});assert.equal(f.nodes.get('player-state').textContent,feedback.message);assert.equal(f.nodes.get('play-icon').src,'assets/icons/play-fill.svg');
+ selection.observePlayback(playback);f.view.renderPlayer({...livePlayerModel(playback,true,'ready',snapshot),feedback:selection.feedback});assert.equal(f.nodes.get('player-state').textContent,'Spiller på');assert.equal(f.nodes.get('detail-status').textContent,'');assert.equal(selection.feedback.settlementReceipt,receipt);assert.equal(selection.feedback.outcome,'accepted');assert.equal(selection.feedback.awaitingObservation,false);
+ selection.settlementReceipt=()=>receipt;selection.destinationObserved=()=>true;receipt.destination={};playback.projectionVersion=3;playback.owner_epoch='owner';playback.settlement={requestId:'old-receipt',request_id:'owner:1',command_sequence:1,owner_epoch:'owner',status:'pending'};selection.observePlayback(playback,receipt);assert.equal(selection.feedback.message,'');assert.equal(selection.feedback.settlementStatus,'pending');
+ const unknown={...feedback,outcome:'unknown',message:'Udfaldet er ukendt · handlingen gentages ikke.',awaitingObservation:true};selection.feedback=unknown;selection.observePlayback(playback);assert.equal(selection.feedback.message,unknown.message);assert.equal(selection.feedback.outcome,'unknown');
 });

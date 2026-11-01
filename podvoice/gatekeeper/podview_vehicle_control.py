@@ -1,7 +1,7 @@
 """Explicit Tesla Fleet intents under the existing task and durable risk owners.
 
-HA ACK and state are not physical or ordering proof. Rear-trunk actuation is
-an explicit toggle; uncertain prior effects require acknowledgment.
+HA ACK and state are not physical or ordering proof. Uncertain prior effects
+require acknowledgment.
 """
 
 from __future__ import annotations
@@ -226,8 +226,13 @@ class VehicleControl:
             raise ValueError("defrost unavailable")
         elif role == "trunk":
             features = attrs.get("supported_features")
-            if type(features) is not int or features & 3 != 3:
+            if state not in {"open", "closed"} or type(features) is not int:
                 raise ValueError("trunk capability unavailable")
+            direction = "open" if state == "closed" else "close"
+            if not features & (1 if direction == "open" else 2):
+                raise ValueError("trunk capability unavailable")
+            capability = (state, direction)
+            service = f"{direction}_cover"
         after = await self.registry_read(ids)
         if not self._current(expected, current) or registry_identity(scope, after) != identity:
             raise ValueError("vehicle registry changed")
@@ -292,6 +297,9 @@ class VehicleControl:
                 raise ValueError("invalid seat option")
             data = {"option": option}
             desired = option
+        elif action == "rearTrunkToggle":
+            if args != {"direction": op.capability[1]}:
+                raise ValueError("trunk direction differs from observed state")
         elif args:
             raise ValueError("unexpected arguments")
         effects = [[family, desired]]

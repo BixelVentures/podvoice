@@ -453,7 +453,14 @@ async def test_vehicle_requires_current_enrolled_controller(h, kind):
             {"option": "off"},
             {"passengerSeat": ["off"]},
         ),
-        ("rearTrunkToggle", {}, "cover", "toggle", {}, {"trunk": ["actuate"]}),
+        (
+            "rearTrunkToggle",
+            {"direction": "open"},
+            "cover",
+            "open_cover",
+            {},
+            {"trunk": ["actuate"]},
+        ),
     ],
 )
 async def test_additional_native_actions_exact_values_and_durable_effects(
@@ -480,9 +487,9 @@ async def test_temperature_rejects_out_of_range_or_step(h, args):
 
 @pytest.mark.asyncio
 async def test_trunk_second_actuation_requires_acknowledged_risk(h):
-    first = await h.setup("rearTrunkToggle")
+    first = await h.setup("rearTrunkToggle", {"direction": "open"})
     assert (await h.run(first))["outcome"] == "accepted"
-    second = await h.setup("rearTrunkToggle")
+    second = await h.setup("rearTrunkToggle", {"direction": "open"})
     assert second["ok"] and second["setup"]["confirmation"]["requiresOverride"] is True
 
 
@@ -512,3 +519,21 @@ async def test_temperature_unit_changes_at_second_registry_read_no_send(h):
     assert result["outcome"] == "rejected"
     assert not h.calls and not h.risk()["pending"]
     assert "temperature" not in h.risk()["unresolved"]
+
+
+@pytest.mark.asyncio
+async def test_trunk_direction_requires_known_unchanged_state_and_supported_action(h):
+    eid = h.policy["entities"]["trunk"]
+    assert not (await h.setup("rearTrunkToggle", {"direction": "close"}))["ok"]
+    h.states[eid]["state"] = "unknown"
+    assert not (await h.setup("rearTrunkToggle", {"direction": "open"}))["ok"]
+    h.states[eid]["state"] = "closed"
+    setup = await h.setup("rearTrunkToggle", {"direction": "open"})
+    assert setup["setup"]["confirmation"]["label"] == "Åbn bagagerum"
+    h.states[eid]["state"] = "open"
+    assert (await h.run(setup))["outcome"] == "rejected"
+    assert h.calls == []
+    close = await h.setup("rearTrunkToggle", {"direction": "close"})
+    assert close["setup"]["confirmation"]["label"] == "Luk bagagerum"
+    assert (await h.run(close, "close-request"))["outcome"] == "accepted"
+    assert h.calls[0][1] == "close_cover"

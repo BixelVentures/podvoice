@@ -145,3 +145,45 @@ test('player queue read follows actual binding even when transport setup is unav
 test('missing queue permission explicitly blocks the read despite fresh playback',async()=>{
  const f=rig();try{f.host.liveSnapshot.capabilities.queueSelection=false;await f.refresh();assert.equal(f.reads.length,0);assert.equal(f.media.queueControls.offer,null);}finally{f.close();}
 });
+
+
+test('accepted occurrence keeps the queue through the real playback refresh and a transient fresh queue read',async()=>{
+ const f=rig();let rejectRead;try{
+  const rendered=[];f.host.playerView.renderQueue=items=>rendered.push(items);const source=f.host.liveTransport.queueOffer,selectedUri='spotify:track:'+'9'.repeat(22);let song=null,effects=0,queueReads=0;
+  f.host.liveTransport.music=async()=>{const value=f.wire();if(song)value.data.playback.item.uri=song;return value;};
+  f.host.liveTransport.queueOffer=async(...args)=>{const value=await source(...args);queueReads++;if(queueReads===2)return new Promise((_,reject)=>rejectRead=reject);return {...value,items:[{id:String(queueReads).padStart(24,'0'),title:'Known queued song',artist:'Artist',uri:selectedUri,artwork:null,order:1}]};};
+  f.host.liveTransport.queueAction=async()=>{effects++;song=selectedUri;return {outcome:'accepted'};};
+  await f.refresh();const q=f.media.queueControls,shown=q.offer,old=q.model('account',f.media.playback).items[0];
+  const choosing=q.choose(old);await tick();assert.equal(f.media.playback.item.uri,selectedUri);assert.equal(queueReads,2,'one new read follows accepted choice even when current track changes');
+  let model=q.model('account',f.media.playback);assert.equal(model.items[0].title,old.title);assert.equal(model.items[0].selectable,false);assert.equal(model.status,'loading');assert.equal(rendered.at(-1)[0].title,old.title,'mounted player renderer keeps known rows during the fresh read');await q.choose(old);assert.equal(effects,1);
+  rejectRead(Object.assign(Error('temporary'),{code:'read_transient'}));await choosing;model=q.model('account',f.media.playback);assert.equal(model.items[0].id,old.id);assert.equal(model.items[0].selectable,false);assert.equal(model.status,'stale');assert.equal(rendered.at(-1)[0].title,old.title);await q.choose(old);assert.equal(effects,1);
+  await f.media.loadQueue();model=q.model('account',f.media.playback);assert.notEqual(q.offer.taskId,shown.taskId);assert.notEqual(model.items[0].id,old.id);assert.equal(model.items[0].selectable,true);assert.equal(effects,1);
+  f.host.liveTransport.queueOffer=async(...args)=>({...await source(...args),items:[]});await f.media.loadQueue();assert.deepEqual(q.model('account',f.media.playback).items,[],'fresh authoritative empty may clear the display');assert.equal(effects,1);
+ }finally{rejectRead?.(Error('cleanup'));f.close();}
+});
+
+test('accepted selection retains known queue rows as inert display until fresh changed-revision metadata arrives',async()=>{
+ const f=rig();try{
+  const source=f.host.liveTransport.queueOffer,selectedUri='spotify:track:'+'9'.repeat(22),nextUri='spotify:track:'+'8'.repeat(22);let song=null,reads=0,effects=0;const rendered=[];
+  f.host.playerView.renderQueue=items=>rendered.push(items);
+  f.host.liveTransport.music=async()=>{const value=f.wire();if(song)value.data.playback.item.uri=song;return value;};
+  f.host.liveTransport.queueOffer=async(...args)=>{const value=await source(...args);reads++;return {...value,items:[{id:String(reads).padStart(24,'0'),title:reads===2?'Nummer i køen':reads===1?'Actual selected song':'Actual next song',artist:'Artist',uri:reads===1?selectedUri:nextUri,artwork:null,order:1,metadataKnown:reads!==2}]};};
+  f.host.liveTransport.queueAction=async()=>{effects++;song=selectedUri;return {outcome:'accepted'};};
+  await f.refresh();const q=f.media.queueControls,old=q.model('account',f.media.playback).items[0],oldTask=q.offer.taskId;
+  await q.choose(old);let model=q.model('account',f.media.playback);assert.equal(reads,2);assert.equal(model.metadataPending,true);assert.equal(model.status,'stale');assert.equal(model.items[0].title,old.title);assert.equal(model.items[0].id,old.id);assert.equal(model.items[0].selectable,false);assert.equal(rendered.at(-1)[0].title,old.title);assert.equal(q.offer,null);assert.notEqual(q.retained.shownOffer.taskId,oldTask);assert.notEqual(q.retained.shownOffer.items[0].id,old.id);await q.choose(old);assert.equal(effects,1,'retained display cannot borrow fresh task authority');
+  await f.media.loadQueue();model=q.model('account',f.media.playback);assert.equal(model.metadataPending,false);assert.equal(model.items[0].title,'Actual next song');assert.equal(model.items[0].uri,nextUri);assert.notEqual(model.items[0].id,old.id);assert.equal(model.items[0].selectable,true);assert.equal(effects,1);
+  f.host.liveTransport.queueOffer=async(...args)=>({...await source(...args),items:[]});await f.media.loadQueue();assert.deepEqual(q.model('account',f.media.playback).items,[]);assert.equal(effects,1);
+ }finally{f.close();}
+});
+
+for(const outcome of ['accepted','unknown','rejected'])test(`playback changes before the queue ${outcome} reply: only accepted may refresh queue metadata`,async()=>{
+ const f=rig();let reply;try{
+  const source=f.host.liveTransport.queueOffer,selectedUri='spotify:track:'+'9'.repeat(22);let song=null,effects=0;
+  f.host.liveTransport.music=async()=>{const value=f.wire();if(song)value.data.playback.item.uri=song;return value;};
+  f.host.liveTransport.queueOffer=async(...args)=>{const value=await source(...args);return {...value,items:[{id:String(f.reads.length).padStart(24,'0'),title:'Actual queue song',artist:'Artist',uri:selectedUri,artwork:null,order:1}]};};
+  f.host.liveTransport.queueAction=()=>{effects++;return new Promise(resolve=>reply=resolve);};
+  await f.refresh();const q=f.media.queueControls,old=q.model('account',f.media.playback).items[0],oldTask=q.offer.taskId,choosing=q.choose(old);await tick();song=selectedUri;await f.refresh();assert.equal(q.model('account',f.media.playback).items[0].selectable,false);assert.equal(f.reads.length,1);reply({outcome});await choosing;
+  assert.equal(effects,1);assert.equal(f.reads.length,outcome==='accepted'?2:1);const model=q.model('account',f.media.playback);assert.equal(model.items[0].title,old.title);
+  if(outcome==='accepted'){assert.equal(model.items[0].selectable,true);assert.notEqual(q.offer.taskId,oldTask);}else{assert.equal(q.consumed,true);assert.equal(model.items[0].selectable,false);await q.choose(old);await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,1);}
+ }finally{reply?.({outcome:'unknown'});f.close();}
+});
